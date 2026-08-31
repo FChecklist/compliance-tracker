@@ -490,6 +490,11 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
           icon: Activity,
         },
         {
+          label: t("sections.tools.items.aiCostGovernance"),
+          href: "/ai-cost-governance",
+          icon: CircleDollarSign,
+        },
+        {
           label: t("sections.tools.items.knowledgeBase"),
           href: "/knowledge-base",
           icon: BookOpen,

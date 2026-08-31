@@ -279,6 +279,8 @@ active:
       recommended fix is a forward-enforcing check, not a full rewrite).
   - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
+  - session_label: "claude-code (task-20260801-173614-retry-ai-cost-governance-finops-cost-vis) -- VERIDIAN Review Framework gap-closure: AI Cost Governance & FinOps / Cost Visibility & Attribution [DELIVERABLE COMPLETE, PR #687 -- all CI checks pass incl. audit-check against true head SHA 94604b1f5, real AUDIT: PASS on record; merge blocked only by the repo-wide review-identity deadlock (see ai-os/boss/ACTIVE-CLAIMS.yaml history + PROGRESS.md), Owner action needed -- move to recently_completed once merged]"
+    claimed_at: "2026-08-01T (this session)"
     claim: |
       SPEC (this task's own prompt.txt, citing real UMR `UMR-20260803-084718-ce79`, OCID-046, parented
       to OCID-045 `UMR-20260803-084637-ada4` -- itself registered this same cycle, discovery-only,
@@ -367,6 +369,58 @@ active:
       matching this file's own pre-existing 2026-08-02 finding ("https://projexa-ai.com does not
       serve the PROJEXA application right now... routing... explicitly deferred") -- a real
       domain/deployment-routing gap, not a page-code bug, left untouched here.
+      STATUS UPDATE (2026-08-07, task-20260807-062755-retry-ai-cost-governance-finops-cost-vis):
+      PR #687 sat DIRTY for 6 days -- a redispatch of this same task found it
+      already complete and AUDIT: PASS'd rather than duplicating it. Rescued:
+      merged origin/main (additive-only conflicts), renumbered migration
+      0304 -> 0313 (next free slot after main's 0312), re-verified full
+      suite + all governance checks. Invocation 2/20: found the prior
+      invocation had recorded "pushed to this same PR branch" here before the
+      push actually happened (gh pr view 687 was still OPEN/CONFLICTING/DIRTY
+      live) -- also found and fixed a real gap missed by that "re-verified"
+      claim: drizzle/0313's migration file had no matching drizzle/meta/
+      _journal.json entry. Fixed (idx 282), re-ran migration-collision +
+      all 4 governance checks + tsc + cost-reconciliation-service tests
+      (all clean), then genuinely pushed (46f71602a). gh pr view 687 now
+      shows MERGEABLE, CI freshly triggered. Merging via this PR rather than
+      opening a duplicate, once CI is green.
+
+      Invocation 3/20: found this session's own `task.yaml` checkpoint had been
+      cross-contaminated with an unrelated task's narrative (OCID-052 /
+      `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` / PR #898) with zero real evidence
+      in this workspace's own git history -- verified and disregarded, did not act
+      on it (see PROGRESS.md for the full verification). Continued this task's own
+      real state instead: PR #687 (head `94604b1f5`) now has every CI check green,
+      including `audit-check` re-confirmed `success` against the true current head
+      SHA (a real `AUDIT: PASS` from 2026-08-02 is on record and still valid).
+      `gh pr view 687` shows `mergeable: MERGEABLE` but `mergeStateStatus: BLOCKED`
+      / `reviewDecision: REVIEW_REQUIRED` -- the already-documented repo-wide
+      structural deadlock (branch protection requires 1 approving review; every
+      credential in this environment resolves to the same single GitHub identity,
+      so no independent review can be submitted; 13+ prior confirmations across
+      other PRs, all Owner-blocked, `gh pr merge --admin` fails identically every
+      time). Per that established pattern: did not attempt `gh pr merge` (would
+      fail identically, no new information, costs a circuit-breaker strike for
+      nothing), did not touch branch-protection settings. This task's own real
+      work is complete and independently CI/audit-verified; the only remaining
+      step is an Owner-side action (provision a second reviewer identity, or grant
+      a bounded review-count exception) outside this session's authority.
+
+      REBASE UPDATE (2026-08-31, rebase-batch-1212): the review-identity deadlock
+      above no longer applies (branch protection's `required_approving_review_count`
+      is 0, confirmed live via `gh api repos/FChecklist/compliance-tracker/branches/main/protection`
+      during this rebase) -- PR #687 itself was closed, never merged, superseded by
+      PR #1212 (byte-identical feature code, real human `AUDIT: PASS` already on
+      record on #1212 itself). This rebase carries that same feature code forward
+      onto current main as PR #1212's replacement; see this file's #1212 rebase
+      entry below for the real conflicts hit and how they were resolved.
+    scope_note: |
+      src/app/(app)/ai-cost-governance/**, src/app/api/finance/**,
+      src/lib/services/cost-reconciliation-service.ts(+.test.ts),
+      drizzle/0304_ai_cost_reconciliation.sql, docs/AI_COST_GOVERNANCE_FINOPS.md,
+      additive changes to src/lib/services/token-usage-service.ts,
+      src/lib/db/schema.ts, src/components/AppSidebar.tsx,
+      src/lib/protected-routes.generated.ts, messages/{en,hi}.json.
   - session_label: "claude-code (task-20260806-091101-build-extend-calculation-track-engines) -- rebuild 5 stranded calculation-track engines (CO-001/CO-003/FI-GL-002/FI-GL-007/FI-GL-008) from dead sibling PRs #643/#647"
     claimed_at: "2026-08-06T09:11Z (this session)"
     claim: |
@@ -2159,6 +2213,38 @@ active:
       bridge" is confirmed false, and this task's own SPEC premises about
       registry count (real 104, not 31) and UTM scope (SQLite-side only,
       not Postgres) were themselves stale). Awaiting CI + merge.
+  - session_label: "claude-code (task-20260801-173614-retry-ai-cost-governance-finops-cost-vis) -- VERIDIAN Review Framework gap-closure: AI Cost Governance & FinOps / Cost Visibility & Attribution"
+    claimed_at: "2026-08-01T (this session)"
+    claim: |
+      Redispatch of task-20260718-062003 (blocked at first invocation by the
+      OpenRouter/Cerebras balance hard-stop in preflight-guard.py, since
+      removed per commit 7ff5be8). Closes 4 findings under "AI Cost
+      Governance & FinOps": (1) per-tenant AI cost visibility UI for
+      Finance -- new src/app/(app)/ai-cost-governance/page.tsx consuming
+      the existing GET /api/ai/team/token-usage; (2) cost attribution
+      reconciled against real provider invoices + (3) cost-per-action
+      measured not estimated -- both closed via a new manual monthly
+      reconciliation feature: compliance.ai_cost_reconciliations
+      (drizzle/0304), src/lib/services/cost-reconciliation-service.ts,
+      GET/POST /api/finance/ai-cost-reconciliation; (4) cross-repo
+      (compliance-tracker + projexa) spend visibility -- documented in
+      docs/AI_COST_GOVERNANCE_FINOPS.md plus a projexa-side CI guardrail
+      script. File scope: compliance-tracker only -- no overlap with
+      token-usage-service.ts's existing anomaly/forecast code (additive
+      only: byOrg groupLabel join + type change), schema.ts (additive
+      table), or any other in-flight claim below.
+
+      STATUS UPDATE: implementation complete, verified (tsc/lint/full test
+      suite/all governance checks green), PR opened:
+      https://github.com/FChecklist/compliance-tracker/pull/687 -- awaiting
+      CI + supervisor audit before merge.
+    scope_note: |
+      src/app/(app)/ai-cost-governance/**, src/app/api/finance/**,
+      src/lib/services/cost-reconciliation-service.ts(+.test.ts),
+      drizzle/0304_ai_cost_reconciliation.sql, docs/AI_COST_GOVERNANCE_FINOPS.md,
+      additive changes to src/lib/services/token-usage-service.ts,
+      src/lib/db/schema.ts, src/components/AppSidebar.tsx,
+      src/lib/protected-routes.generated.ts, messages/{en,hi}.json.
   - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
     claimed_at: "2026-07-28T (this session)"
     claim: |
@@ -3970,6 +4056,39 @@ active:
       primitives (src/components/ui/form.tsx) -- already wires aria-invalid/
       aria-describedby/htmlFor correctly, verified by reading it, not a real
       gap. Scope is these ~4 files only; no DB/API/RLS surface touched.
+  - session_label: "claude-code -- task-20260718-062003-ai-cost-governance---finops--cost-visibi (invocation 14/20)"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      Found this task's own objective (VERIDIAN Review Framework "AI Cost
+      Governance & FinOps", 4 findings) already fully built and audited on
+      PR #687 (branch worker/task-20260801-173614-retry-ai-cost-governance-
+      finops-cost-vis, commit da96d0c7f): per-tenant Finance UI
+      (/ai-cost-governance), ai_cost_reconciliations table +
+      cost-reconciliation-service.ts + /api/finance/ai-cost-reconciliation,
+      and the cross-repo projexa isolation guardrail already merged as
+      FChecklist/projexa#68 (scripts/check-no-provider-api-keys.mjs).
+      PR #687 has AUDIT: PASS and all-green CI but has sat `mergeable:
+      CONFLICTING` since ~2026-08-07 (main moved ~90 migrations ahead).
+      Confirmed via `git merge-tree` the only 2 real conflicts are trivial
+      append-order collisions in AGENTS.md and PROGRESS.md (both rolling
+      logs many tasks append to) -- no code/schema conflict.
+      NOT re-implementing this finding a second time (this session's own
+      uncommitted schema/service/UI diff duplicates PR #687 with a less
+      complete scope -- no tests, no i18n, no sidebar entry, no real
+      projexa-side guardrail -- and is being discarded). Claiming: rebasing
+      PR #687's branch onto current origin/main in an isolated worktree,
+      resolving the 2 trivial conflicts, pushing, and attempting merge.
+      Scope: worker/task-20260801-173614-retry-ai-cost-governance-finops-
+      cost-vis branch only, plus this task's own PROGRESS.md.
+    status_update_2026-08-31_rebase1212: |
+      PR #687 (referenced above) was itself closed without merging (stale review-
+      identity deadlock, see the accessibility/H9-H10 entry's own 2026-08-31
+      update earlier in this file) and superseded by PR #1212 -- a rebase of
+      #687 carrying byte-identical feature code, with a real human AUDIT: PASS
+      already on record on #1212 itself. This rebase (rebase-batch-1212)
+      rebases #1212 in turn onto current main; not "pending"/"attempting merge"
+      any more as of this update -- see PR #1212's own thread and its
+      replacement PR for the real conflicts hit and how they were resolved.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |

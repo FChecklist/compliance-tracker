@@ -2255,6 +2255,13 @@
       "when": 1788174991342,
       "tag": "0500_construction_expense_journal_entry_id",
       "breakpoints": true
+    },
+    {
+      "idx": 322,
+      "version": "7",
+      "when": 1788174992342,
+      "tag": "0510_ai_cost_reconciliation",
+      "breakpoints": true
     }
   ]
 }
