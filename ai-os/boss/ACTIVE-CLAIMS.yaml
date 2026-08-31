@@ -367,6 +367,63 @@ active:
       matching this file's own pre-existing 2026-08-02 finding ("https://projexa-ai.com does not
       serve the PROJEXA application right now... routing... explicitly deferred") -- a real
       domain/deployment-routing gap, not a page-code bug, left untouched here.
+  - session_label: "claude-code (task-20260806-091101-build-extend-calculation-track-engines) -- rebuild 5 stranded calculation-track engines (CO-001/CO-003/FI-GL-002/FI-GL-007/FI-GL-008) from dead sibling PRs #643/#647"
+    claimed_at: "2026-08-06T09:11Z (this session)"
+    claim: |
+      SPEC: build/extend only calculation-track engines marked BUILD_NEW/EXTEND_EXISTING in the
+      real PHASE-2-CROSSREF (`sap_reports` table, `/opt/veridian/ai-os/memory/sap_mapping.sqlite`,
+      `engine_track`/`veridian_mapping_status` columns -- confirmed via direct sqlite query, same
+      resolution the workflow-track sibling task (`task-20260729-112447`) already established).
+      Scope: `engine_track='calculation' AND veridian_mapping_status IN (BUILD_NEW,
+      EXTEND_EXISTING(...))` = 36 rows.
+      COLLISION CHECK: this exact task title has been dispatched repeatedly since 2026-07-29 (a
+      known dispatcher-duplication class, per the workflow-track sibling's own claim entry below).
+      Found real prior work, not starting from scratch: PR #643 (DIRECTIVE-001-PHASE-3-BUILD-CALC)
+      was rebased 2026-07-31 down to 4 clean surviving functions (CO-001, CO-003, FI-GL-002,
+      FI-GL-008 -- its other 4 originally-claimed functions are confirmed already separately merged:
+      FI-AR-006/PR #645, FI-AP-006/PR #651, FI-AA-006/PR #648; FI-GL-007 was deliberately dropped
+      from #643 in favor of the separately-open PR #647 which builds it more completely). Both #643
+      and #647 are currently `mergeable: CONFLICTING`/stale (multiple unrelated merges into main
+      since), and #647's `audit-check` is failing (no AUDIT verdict posted yet). Independently
+      re-verified via `git grep` on `origin/main` that none of CO-001/CO-003/FI-GL-002/FI-GL-007/
+      FI-GL-008's function names exist anywhere on main today, and no other open PR claims them.
+      Plan: reimplement these 5 functions fresh on a clean branch off current main (same designs
+      already reviewed/tsc-clean in #643/#647, not re-derived from scratch), add the report_definitions
+      migration + report-catalog-service.ts entry + API route + real tests each is currently missing
+      (a gap both #643 and #647 already disclosed, not introduced here), and register each in
+      wiring_registry immediately per-function per this task's own spec, rather than force-pushing
+      onto either stale/conflicting branch. Leaving PR #643/#647 as-is (not closing them) for whoever
+      owns reconciling those branches -- noting the overlap here per this file's protocol #4.
+    status_update: |
+      2026-08-06 (later same session): all 5 functions implemented fresh on this branch (real
+      DB-backed logic, no placeholders) + report_definitions migrations (drizzle/0313-0317) +
+      report-catalog-service.ts entries + 5 API routes + 17 new DB-free unit tests. Checked
+      wiring_registry directly (generate_wiring_registry.py): it's a mechanically regenerated
+      snapshot from existing catalogs, not a manual per-file registration step -- confirmed no
+      precedent PR for this same task (FI-AA-006 #648, FI-AR-006 #645, FI-AP-006 #651, HCM-006
+      #654) performed one either. tsc --noEmit clean, bun test 2529/2529 pass. PR open:
+      https://github.com/FChecklist/compliance-tracker/pull/995 -- awaiting CI, will move this
+      entry to recently_completed once merged.
+      NOT touching: SD-006 (open PR #652, real code, CONFLICTING) or CO-006 (open PR #653, real code,
+      CONFLICTING) -- both already have complete implementations (migrations/routes/tests) sitting in
+      their own open PRs; redoing them here would be pure duplication, reconciling those merge
+      conflicts is a separate task, not a build/extend gap.
+    scope_note: >-
+      File scope: compliance-tracker only -- src/lib/services/erp-accounting-service.ts (+test),
+      src/lib/services/erp-financial-report-service.ts (+test), new drizzle migrations, new API
+      routes under src/app/api/v1/projexa/, src/lib/services/report-catalog-service.ts (append-only,
+      end of array per established merge-conflict-avoidance convention), PROGRESS.md, this file. No
+      overlap with PR #643/#647/#652/#653's own branches (this is a fresh branch off main).
+    status_update_2026-08-31_rebase995v2: |
+      PR #997 independently built the SAME 5 engines with a different implementation. Owner
+      decision: #995 wins the shared 5 (correct _journal.json registration + matches main's
+      `/api/v1/projexa/` routing convention that #997 didn't use); #997's own 6 unique reports
+      (SD-006 + FI-AP-001/002/003 + FI-AR-001/002/005) move to a separate follow-up PR after this
+      one merges. Rebased #995's real source branch onto current main (branch `rebase-995-v2`,
+      fresh worktree -- discarded two stale/corrupted same-day local rebase attempts,
+      `rebase-995`/`rebase-995-b2`, that had silently deleted unrelated live main code). Migrations
+      renumbered `0313-0317` -> `0361-0365` (main's real highest is now `0360`; checked this file's
+      live `active:` section + all open PRs for higher reserved numbers, none found).
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
