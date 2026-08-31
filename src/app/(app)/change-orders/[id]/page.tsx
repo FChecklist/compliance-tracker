@@ -39,6 +39,7 @@ import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 type ChangeOrder = {
   id: string; number: number; title: string; description: string | null; reason: string | null;
   costImpact: string; scheduleImpactDays: number; status: string; createdAt: string;
+  trade: string | null;
 };
 type Signer = {
   name: string; email: string; status: string; signOrder: number | null;
@@ -180,10 +181,11 @@ export default function ChangeOrderDetailPage() {
         <Card className="rounded-xl shadow-card bg-white"><CardContent className="pt-4"><p className="text-xs text-ct-muted">Status</p><p className="text-xl font-heading text-ct-navy capitalize">{co.status.replace(/_/g, " ")}</p></CardContent></Card>
       </div>
 
-      {(co.reason || co.description) && (
+      {[co.trade, co.reason, co.description].some(Boolean) && (
         <Card className="rounded-xl shadow-card bg-white">
           <CardHeader><CardTitle className="text-base text-ct-navy">Details</CardTitle></CardHeader>
           <CardContent className="space-y-3">
+            {co.trade && <div><p className="text-xs font-semibold text-ct-muted uppercase mb-1">Trade</p><p className="text-sm text-ct-navy">{co.trade}</p></div>}
             {co.reason && <div><p className="text-xs font-semibold text-ct-muted uppercase mb-1">Reason</p><p className="text-sm text-ct-navy">{co.reason}</p></div>}
             {co.description && <div><p className="text-xs font-semibold text-ct-muted uppercase mb-1">Description</p><p className="text-sm text-ct-navy">{co.description}</p></div>}
           </CardContent>

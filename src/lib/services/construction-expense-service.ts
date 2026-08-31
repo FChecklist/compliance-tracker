@@ -59,6 +59,8 @@ export type ExpenseEntryInput = {
   expenseDate: string
   linkedEntityType?: string
   linkedEntityId?: string
+  /** R65 (Rework Analysis report): true when this entry is the cost of redoing work already done once, under any expenseHead. Defaults false. */
+  isRework?: boolean
 }
 
 const VALID_HEADS = ["material", "labour", "transport", "subcontractor", "equipment", "misc"]
@@ -204,6 +206,7 @@ export async function createExpenseEntry(ctx: { orgId: string; userId: string },
       expenseHead: input.expenseHead as typeof constructionExpenseEntries.$inferInsert.expenseHead,
       description: input.description || null, amount: String(input.amount), expenseDate: input.expenseDate,
       linkedEntityType: input.linkedEntityType || null, linkedEntityId: input.linkedEntityId || null,
+      isRework: input.isRework === true,
       recordedById: ctx.userId,
     }).returning()
 

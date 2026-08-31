@@ -7726,6 +7726,34 @@ export const erpCycleCountLinesRelations = relations(erpCycleCountLines, ({ one 
   item: one(erpItems, { fields: [erpCycleCountLines.itemId], references: [erpItems.id] }),
 }))
 
+// R65 (2026-08-31, report_definitions gap re-investigation, rptdef_material_
+// wastage_analysis "Material Wastage Analysis"): re-checked whether this
+// table's own postCycleCountAdjustment (erp-inventory-planning-service.ts)
+// could back that report. It IS a real movement-reason value on
+// erpStockLedgerEntries.voucherType ('cycle_count_adjustment', negative
+// quantityChange = counted-below-system = the closest real proxy for
+// shrinkage/wastage this codebase has -- the row's older data_gap_note
+// claiming "no distinct movement-reason column exists" was stale). Left
+// data_gap anyway, for two independently-real reasons, not "no mechanism
+// exists":
+//   1. Zero real usage anywhere: 0 erpCycleCountPlans, 0 erpCycleCountLines
+//      rows in the live DB (verified by direct SQL, not assumed) -- the
+//      whole erp_stock_ledger_entries table has only 12 rows total (1 org),
+//      all voucherType='manual_receipt'. Flipping status to 'built' against
+//      a signal with zero rows anywhere fails the exact do_not_assume rule 2
+//      bar this branch already applied to "Cost Report by Material"
+//      (report-engine-service.ts TABLE_REGISTRY comment) -- an always-empty
+//      report that looks built but is unverifiable.
+//   2. Even with real cycle-count data, this table is warehouse-scoped only
+//      (no projectId) and erpStockLedgerEntries.projectId, while present in
+//      schema since Wave 120, is never actually written by ANY live code
+//      path (recordStockReceipt/recordStockIssue/postCycleCountAdjustment
+//      all omit it -- only materialConsumptionReport's SELECT reads it), so
+//      a construction-project-scoped wastage report can't be correctly
+//      computed from this table today regardless of point 1.
+// See that report_definitions row's own data_gap_note for the full current
+// explanation kept in sync with this comment.
+
 // ─── Wave 88 (Comparison CSV 2 gap analysis: CLM002 "Template Management" +
 // CLM003 "Clause Library" + CLM005 "Negotiation Tracking") ─────────────────
 // Clause library is reusable clause text, categorized/risk-rated. Contract
@@ -10680,6 +10708,16 @@ export const constructionExpenseEntries = complianceSchemaDB.table('construction
   // erp_journal_entry_lines, this is purely a traceability pointer + an
   // idempotency guard against double-posting the same entry.
   journalEntryId: text('journal_entry_id'),
+  // R65 gap-closure (Rework Analysis, rptdef_rework_analysis): flags this
+  // entry as rework cost -- redoing material/labour/subcontractor/etc work
+  // already done once, not new work. Deliberately a boolean composed WITH
+  // expenseHead, not a 7th expense_head enum value: rework can occur under
+  // any existing head (re-poured material, re-done labour, ...), so a new
+  // head would throw away the real classification an entry already has.
+  // Nullable-safe via NOT NULL DEFAULT false -- every pre-existing row
+  // reads back as "not rework", the correct answer since there was no way
+  // to say otherwise before this column existed.
+  isRework: boolean('is_rework').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -10802,6 +10840,20 @@ export const constructionChangeOrders = complianceSchemaDB.table('construction_c
   approvedAt: timestamp('approved_at'),
   esignatureRequestId: text('esignature_request_id'), // nullable FK -- set once sent for signature
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // R65 gap-closure (report_definitions 'Variation Order Analysis',
+  // classifications ["interior_design","project","financial"]): the row's
+  // own data_gap_note was real and current -- nothing distinguished an
+  // interior-design-caused scope change from a civil/MEP/other-trade one,
+  // so an "interior" filter would have silently mislabeled generic data.
+  // Nullable free text, matching constructionPunchListItems.trade/
+  // constructionLabourRoster.trade/erpSuppliers.trade's own established
+  // convention (real live values there: "Carpentry"/"Civil"/"Electrical"/
+  // etc, user-entered, no fixed vocabulary) rather than inventing a new
+  // enum this codebase has no other precedent for. Existing rows are null
+  // (no retroactive trade can be inferred) -- only change orders created
+  // or edited after this field exists can be genuinely trade-scoped; see
+  // computeInteriorVariationOrderAnalysis in report-engine-service.ts.
+  trade: text('trade'),
 })
 
 // ─── R65 gap-closure (report_definitions data_gap cluster, 8 reports:
