@@ -26,6 +26,27 @@ describe("buildStats", () => {
     ])
   })
 
+  test("breaks line-count ties by filename ascending, regardless of input order", () => {
+    // Regression test for a real bug (found 2026-08-30, PR #1472's CI): with
+    // no tiebreaker, two files sharing a line count sorted in whatever order
+    // readdirSync() (OS/filesystem-dependent) happened to hand them in, so a
+    // report generated on Windows could commit a different tie order than
+    // the same content regenerated on CI's Linux runner would produce --
+    // making --check spuriously report a byte-identical doc as "stale".
+    const filesInOneOrder = ["zeta.ts", "alpha.ts", "beta.ts"]
+    const filesInReverseOrder = ["beta.ts", "alpha.ts", "zeta.ts"]
+    const lineCounts = { "zeta.ts": 100, "alpha.ts": 100, "beta.ts": 100 }
+    const statsA = buildStats(filesInOneOrder, lineCounts)
+    const statsB = buildStats(filesInReverseOrder, lineCounts)
+    const expected = [
+      `${SERVICES_LABEL}/alpha.ts`,
+      `${SERVICES_LABEL}/beta.ts`,
+      `${SERVICES_LABEL}/zeta.ts`,
+    ]
+    expect(statsA.untested.map((r) => r.file)).toEqual(expected)
+    expect(statsB.untested.map((r) => r.file)).toEqual(expected)
+  })
+
   test("empty directory yields zero totals", () => {
     const stats = buildStats([], {})
     expect(stats).toEqual({ total: 0, testedCount: 0, untested: [] })
