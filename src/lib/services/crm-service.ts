@@ -7,7 +7,7 @@
 // layer, matching that page's own precedent.
 import { crmLeads, crmOpportunities, crmStageHistory, crmPipelineStages, crmLostReasons, crmSalesTargets, crmActivities, clients, erpCustomers, erpCompanies, tasks, users, notifications } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { eq, and, ilike, inArray, sql, lte, isNotNull, isNull, ne, or } from "drizzle-orm"
+import { eq, and, ilike, inArray, sql, lte, gte, isNotNull, isNull, ne, or } from "drizzle-orm"
 import { z } from "zod"
 import { buildPipelineDeals } from "./sales-pipeline-dashboard-service"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
@@ -1512,6 +1512,248 @@ export async function deactivateLostReason(ctx: { orgId: string }, lostReasonId:
     if (!existing) throw new ServiceError("Lost reason not found", 404)
     const [updated] = await db.update(crmLostReasons).set({ isActive: false }).where(eq(crmLostReasons.id, lostReasonId)).returning()
     return updated
+  })
+}
+
+// ─── CRM-007 "Sales Representative Performance Dashboard" (sap_mapping.sqlite
+// sap_reports, module CRM, priority LOW, BUILD_NEW as of 2026-07-28) ───────
+// Real gap confirmed by reading that row's veridian_gap_notes directly
+// (2026-07-30, not trusted secondhand): ownerId already exists on both
+// crmLeads and crmOpportunities (used by bulkReassignLeads/
+// bulkReassignOpportunities above), so per-rep grouping was always possible,
+// but no per-sales-rep aggregated dashboard (pipeline value, win rate,
+// activity count) existed anywhere -- confirmed by grepping this file and
+// crm-activities-service.ts fresh before writing this, not assumed. No new
+// schema needed: crm_opportunities (estimatedValue/stage/ownerId/
+// aiWinProbability/createdAt), crm_stage_history (won/lost transition dates)
+// and crm_activities (assignedToId) already carry every column this report
+// aggregates over.
+//
+// Two honest, disclosed gaps versus the SAP row's calculation_logic (never
+// fabricated):
+//  1. "Revenue Target"/"Revenue vs Target %": the row's own
+//     input_data_required says a per-rep-per-period revenue target is a
+//     "prerequisite data element" -- grepped schema.ts fresh for any
+//     target/quota-style table (crm_targets, sales_targets, quota, etc.) and
+//     found none. Reported as null, same "never scored just shows nothing"
+//     convention as scoreLead/analyzeOpportunity above, not silently
+//     defaulted to 0 or 100%.
+//  2. "Weighted Pipeline Value": uses aiWinProbability (Wave 75 AI
+//     enrichment, 0-100) as the probability -- the only per-opportunity win
+//     probability this schema has. An opportunity never run through
+//     analyzeOpportunity() has aiWinProbability=null and is honestly
+//     excluded from the weighted sum (not assumed at 0% or 100%), matching
+//     this exact function's own optional-extras posture.
+//
+// Split into a pure, DB-free aggregator (aggregateSalesRepPerformance, unit-
+// tested directly with plain fixture data) plus a thin DB-fetching wrapper
+// (getSalesRepPerformanceDashboard), the same separation
+// aggregateDesignerTimesheetCosts/designerTimesheetReport established in
+// construction-reports-service.ts.
+
+export type SalesRepPerfOpportunityInput = {
+  ownerId: string | null
+  stage: string // 'prospecting' | 'proposal' | 'negotiation' | 'won' | 'lost'
+  estimatedValue: number
+  aiWinProbability: number | null // 0-100, null = never AI-scored
+  createdAt: Date
+  closedAt: Date | null // date this opportunity's stage first moved to 'won' or 'lost' (from crm_stage_history); null if still open or no history row found
+}
+export type SalesRepPerfActivityInput = { assignedToId: string | null }
+export type SalesRepPerfRepName = { userId: string; userName: string }
+
+export type SalesRepPerformanceRow = {
+  ownerId: string | null
+  repName: string
+  openCount: number
+  pipelineValue: number
+  weightedPipelineValue: number
+  wonCount: number
+  lostCount: number
+  closedWonRevenue: number
+  closedLostRevenue: number
+  winRate: number | null // percentage, 0-100; null if this rep has no closed deals yet
+  avgDealSize: number | null // closedWonRevenue / wonCount; null if wonCount is 0
+  avgSalesCycleDays: number | null // average days from creation to close, across won+lost deals with a known closedAt
+  activityCount: number
+  activitiesPerClosedDeal: number | null // activityCount / wonCount; null if wonCount is 0
+  // Honest, disclosed gaps -- see this section's header comment. Never
+  // fabricated: no per-rep revenue-target/quota table exists in this schema.
+  revenueTarget: number | null
+  targetAchievementPercent: number | null
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+function daysBetween(from: Date, to: Date): number {
+  return Math.max(0, (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+export function aggregateSalesRepPerformance(
+  opportunities: SalesRepPerfOpportunityInput[],
+  activities: SalesRepPerfActivityInput[],
+  repNames: SalesRepPerfRepName[] = []
+): { reps: SalesRepPerformanceRow[]; totalPipelineValue: number; totalWeightedPipelineValue: number; totalClosedWonRevenue: number; totalClosedLostRevenue: number } {
+  const nameByUserId = new Map(repNames.map((r) => [r.userId, r.userName]))
+
+  type Bucket = {
+    ownerId: string | null
+    openCount: number; pipelineValue: number; weightedPipelineValue: number
+    wonCount: number; lostCount: number; closedWonRevenue: number; closedLostRevenue: number
+    salesCycleDaysSum: number; salesCycleDealsCount: number
+    activityCount: number
+  }
+  const byRep = new Map<string, Bucket>()
+  const bucketFor = (ownerId: string | null): Bucket => {
+    const key = ownerId ?? "__unassigned__"
+    let bucket = byRep.get(key)
+    if (!bucket) {
+      bucket = {
+        ownerId, openCount: 0, pipelineValue: 0, weightedPipelineValue: 0,
+        wonCount: 0, lostCount: 0, closedWonRevenue: 0, closedLostRevenue: 0,
+        salesCycleDaysSum: 0, salesCycleDealsCount: 0, activityCount: 0,
+      }
+      byRep.set(key, bucket)
+    }
+    return bucket
+  }
+
+  for (const opp of opportunities) {
+    const b = bucketFor(opp.ownerId)
+    const value = opp.estimatedValue
+
+    if (opp.stage === "won" || opp.stage === "lost") {
+      if (opp.stage === "won") { b.wonCount += 1; b.closedWonRevenue += value }
+      else { b.lostCount += 1; b.closedLostRevenue += value }
+      if (opp.closedAt) {
+        b.salesCycleDaysSum += daysBetween(opp.createdAt, opp.closedAt)
+        b.salesCycleDealsCount += 1
+      }
+    } else {
+      b.openCount += 1
+      b.pipelineValue += value
+      if (opp.aiWinProbability != null) b.weightedPipelineValue += value * (opp.aiWinProbability / 100)
+    }
+  }
+
+  // Activity Count is attributed to whoever the activity is assigned to
+  // (crm_activities.assignedToId), not to the owner of the lead/opportunity
+  // it's logged against -- a manager can assign a follow-up task on one
+  // rep's deal to someone else (e.g. an assistant), and this counts it
+  // against the person actually doing the work, matching this field's own
+  // purpose in crm-activities-service.ts. An activity with no assignedToId
+  // set can't be attributed to any specific rep, so it's honestly excluded
+  // from every rep's count rather than guessed.
+  for (const act of activities) {
+    if (!act.assignedToId) continue
+    bucketFor(act.assignedToId).activityCount += 1
+  }
+
+  const reps: SalesRepPerformanceRow[] = [...byRep.values()]
+    .map((b) => {
+      const closedCount = b.wonCount + b.lostCount
+      const winRate = closedCount > 0 ? round2((b.wonCount / closedCount) * 100) : null
+      const avgDealSize = b.wonCount > 0 ? round2(b.closedWonRevenue / b.wonCount) : null
+      const avgSalesCycleDays = b.salesCycleDealsCount > 0 ? round2(b.salesCycleDaysSum / b.salesCycleDealsCount) : null
+      const activitiesPerClosedDeal = b.wonCount > 0 ? round2(b.activityCount / b.wonCount) : null
+      return {
+        ownerId: b.ownerId,
+        repName: b.ownerId ? (nameByUserId.get(b.ownerId) ?? b.ownerId) : "Unassigned",
+        openCount: b.openCount,
+        pipelineValue: round2(b.pipelineValue),
+        weightedPipelineValue: round2(b.weightedPipelineValue),
+        wonCount: b.wonCount,
+        lostCount: b.lostCount,
+        closedWonRevenue: round2(b.closedWonRevenue),
+        closedLostRevenue: round2(b.closedLostRevenue),
+        winRate,
+        avgDealSize,
+        avgSalesCycleDays,
+        activityCount: b.activityCount,
+        activitiesPerClosedDeal,
+        revenueTarget: null,
+        targetAchievementPercent: null,
+      }
+    })
+    .sort((a, b) => b.closedWonRevenue - a.closedWonRevenue)
+
+  return {
+    reps,
+    totalPipelineValue: round2(reps.reduce((s, r) => s + r.pipelineValue, 0)),
+    totalWeightedPipelineValue: round2(reps.reduce((s, r) => s + r.weightedPipelineValue, 0)),
+    totalClosedWonRevenue: round2(reps.reduce((s, r) => s + r.closedWonRevenue, 0)),
+    totalClosedLostRevenue: round2(reps.reduce((s, r) => s + r.closedLostRevenue, 0)),
+  }
+}
+
+export type SalesRepPerformanceOptions = { periodStart?: string; periodEnd?: string; ownerIds?: string[] }
+
+// Both the opportunity window and the activity window are scoped by
+// createdAt within [periodStart, periodEnd] when given (an on-demand,
+// LOW-priority report per the SAP row's own priority field -- one simple,
+// consistent time anchor rather than two different windows for "open
+// pipeline as of today" vs "closed this period", which the row's own
+// implementation_notes explicitly ask to keep proportional/simple for a
+// small firm). Omitting both means "all time", unchanged from every
+// existing caller of this file's other list/paged functions.
+export async function getSalesRepPerformanceDashboard(ctx: { orgId: string }, opts: SalesRepPerformanceOptions = {}) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const oppConditions = [eq(crmOpportunities.orgId, ctx.orgId)]
+    if (opts.periodStart) oppConditions.push(gte(crmOpportunities.createdAt, new Date(opts.periodStart)))
+    if (opts.periodEnd) oppConditions.push(lte(crmOpportunities.createdAt, new Date(`${opts.periodEnd}T23:59:59.999Z`)))
+    if (opts.ownerIds?.length) oppConditions.push(inArray(crmOpportunities.ownerId, opts.ownerIds))
+
+    const opportunities = await db.query.crmOpportunities.findMany({ where: and(...oppConditions) })
+    const oppIds = opportunities.map((o) => o.id)
+
+    const closedHistory = oppIds.length
+      ? await db.query.crmStageHistory.findMany({
+          where: and(
+            eq(crmStageHistory.orgId, ctx.orgId),
+            eq(crmStageHistory.entityType, "opportunity"),
+            inArray(crmStageHistory.entityId, oppIds),
+            inArray(crmStageHistory.toStage, ["won", "lost"])
+          ),
+          orderBy: (t, { asc }) => asc(t.changedAt),
+        })
+      : []
+    // First won/lost transition per opportunity -- a deal that bounced
+    // between stages (e.g. reopened then re-closed) still reports the date
+    // it was first closed, not the most recent one.
+    const closedAtByOppId = new Map<string, Date>()
+    for (const h of closedHistory) {
+      if (!closedAtByOppId.has(h.entityId)) closedAtByOppId.set(h.entityId, h.changedAt)
+    }
+
+    const activityConditions = [eq(crmActivities.orgId, ctx.orgId)]
+    if (opts.periodStart) activityConditions.push(gte(crmActivities.createdAt, new Date(opts.periodStart)))
+    if (opts.periodEnd) activityConditions.push(lte(crmActivities.createdAt, new Date(`${opts.periodEnd}T23:59:59.999Z`)))
+    if (opts.ownerIds?.length) activityConditions.push(inArray(crmActivities.assignedToId, opts.ownerIds))
+    const activities = await db.query.crmActivities.findMany({ where: and(...activityConditions) })
+
+    const repIds = [...new Set([
+      ...opportunities.map((o) => o.ownerId).filter((id): id is string => !!id),
+      ...activities.map((a) => a.assignedToId).filter((id): id is string => !!id),
+    ])]
+    const repUsers = repIds.length
+      ? await db.query.users.findMany({ where: inArray(users.id, repIds), columns: { id: true, name: true } })
+      : []
+
+    return aggregateSalesRepPerformance(
+      opportunities.map((o) => ({
+        ownerId: o.ownerId,
+        stage: o.stage,
+        estimatedValue: o.estimatedValue != null ? Number(o.estimatedValue) : 0,
+        aiWinProbability: o.aiWinProbability,
+        createdAt: o.createdAt,
+        closedAt: closedAtByOppId.get(o.id) ?? null,
+      })),
+      activities.map((a) => ({ assignedToId: a.assignedToId })),
+      repUsers.map((u) => ({ userId: u.id, userName: u.name }))
+    )
   })
 }
 
