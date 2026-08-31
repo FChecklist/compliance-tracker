@@ -1,22 +1,22 @@
 {
   "meta": {
-    "generated_at": "2026-08-31T18:05:51.911Z",
-    "completed_at": "2026-08-31T18:57:05.155Z",
+    "generated_at": "2026-08-31T20:18:00.232Z",
+    "completed_at": "2026-08-31T20:18:00.232Z",
     "framework": "ai-os/scripts/audit198",
     "source": "ai-os/RULES_ARTICLES_198.json",
     "constitution_cross_reference": "ai-os/CONSTITUTION.yaml",
     "total_items": 198,
     "categories_used": 33,
     "status_counts": {
-      "ENFORCED": 27,
-      "PARTIALLY_ENFORCED": 146,
+      "ENFORCED": 33,
+      "PARTIALLY_ENFORCED": 154,
       "POLICY_ONLY": 0,
       "NOT_APPLICABLE_YET": 0,
-      "NOT_YET_BUILT": 20,
+      "NOT_YET_BUILT": 6,
       "EVIDENCE_UNAVAILABLE": 0,
       "NEEDS_HUMAN_JUDGMENT": 5
     },
-    "note": "Every verdict below was derived programmatically from live grep/file/CONSTITUTION.yaml evidence gathered at generation time -- see each item's `evidence` array for the exact citations. Re-run via `node ai-os/scripts/audit198/run-audit.mjs` to regenerate against the current state of the repo."
+    "note": "Every verdict below was derived programmatically from live grep/file/CONSTITUTION.yaml evidence gathered at generation time -- see each item's `evidence` array for the exact citations. Re-run via `node ai-os/scripts/audit198/run-audit.mjs` to regenerate against the current state of the repo. MERGE NOTE (rebase-sweep2-530, 2026-09-01): this file merges main's full 198-item live run (generated_at 2026-08-31T18:05:51.911Z, the most current baseline) with a fresh, live-regenerated set of results for exactly the 27 items in the 4 wave-4 categories this PR added infra evidence for (EXPLAINABILITY/RCA_ERROR_HANDLING/TASK_GUARDRAILS_ZERO_AMBIGUITY/DEDUPLICATION_SSOT, generated via `node ai-os/scripts/audit198/run-audit.mjs --only=<27 ids>` against the real post-merge repo state) -- done this way because a full 198-item live re-run in this sandbox's Windows/git-bash grep-spawn environment was taking far longer than the 27-item targeted run for the only items whose evidence actually changed by this PR. All 198 entries are real, live-derived evidence from one of these two real runs, none fabricated; the next full `node ai-os/scripts/audit198/run-audit.mjs` (e.g. via the recommended crontab) will naturally re-converge everything to one fully-fresh snapshot."
   },
   "results": [
     {
@@ -1568,8 +1568,75 @@
       "category": "TASK_GUARDRAILS_ZERO_AMBIGUITY",
       "category_label": "Zero-ambiguity task definition, pre/post-execution validation",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/task-tightening.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function validateTightTask",
+              "found": true,
+              "line": 219
+            },
+            {
+              "marker": "export function validateTaskBrief",
+              "found": true,
+              "line": 290
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/qa-precompletion-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkQaPreCompletionGate",
+              "found": true,
+              "line": 63
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/app/api/ai/team/dispatch/route.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "evaluateGuardrails(AI_TEAM_DISPATCH_LEAF",
+              "found": true,
+              "line": 131
+            },
+            {
+              "marker": "checkQaPreCompletionGate(",
+              "found": true,
+              "line": 546
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/task-execution-engine.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "evaluateGuardrails(TASK_FREE_TEXT_PLANNING_LEAF",
+              "found": true,
+              "line": 2028
+            },
+            {
+              "marker": "detectKnowledgeGap(summaryWithData)",
+              "found": true,
+              "line": 2410
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -1600,7 +1667,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -3723,9 +3790,40 @@
       "text": "Duplicate business logic, duplicate processing, duplicate storage, duplicate communication, and duplicate development shall be eliminated wherever possible.",
       "category": "DEDUPLICATION_SSOT",
       "category_label": "Single source of truth / zero duplication",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/task-dedup-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function scanForDuplicateTasks",
+              "found": true,
+              "line": 95
+            },
+            {
+              "marker": "export async function indexTaskForDedup",
+              "found": true,
+              "line": 48
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/capability-registry-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function auditDuplicateCapabilities",
+              "found": true,
+              "line": 166
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -3753,7 +3851,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -3819,9 +3917,63 @@
       "text": "Every error, exception, or failure shall undergo Root Cause Analysis, permanent corrective action, preventive action, and, whenever feasible, software automation to eliminate future recurrence.",
       "category": "RCA_ERROR_HANDLING",
       "category_label": "Root-cause analysis, incident ownership, defect closure",
-      "verdict": "PARTIALLY_ENFORCED",
-      "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/db/schema.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export const incidents = complianceSchemaDB.table('incidents'",
+              "found": true,
+              "line": 3826
+            },
+            {
+              "marker": "export const problemRecords = complianceSchemaDB.table('problem_records'",
+              "found": true,
+              "line": 5860
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/ticket-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function updateProblemRecord",
+              "found": true,
+              "line": 664
+            },
+            {
+              "marker": "export async function createProblemRecord",
+              "found": true,
+              "line": 648
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/rca-closure-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkProblemRecordClosure",
+              "found": true,
+              "line": 57
+            },
+            {
+              "marker": "export function checkIncidentClosure",
+              "found": true,
+              "line": 77
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -3835,24 +3987,25 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 22,
-          "coOccurrenceFileCount": 2,
+          "distinctFilesHit": 23,
+          "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
+            "src/lib/rca-closure-gate.ts",
             "ai-os/audit-tree/01-consutitution.yaml",
             "ai-os/audit-tree/10-merged-tree.yaml"
           ],
           "sampleHits": [
+            "src/lib/rca-closure-gate.ts:2:// category): ARTICLE-029 \"Every failure shall undergo Root Cause Analysis",
             "ai-os/audit-tree/01-consutitution.yaml:235:  - part: \"Claude -- Responsibility 11: Root Cause Analysis\"",
             "ai-os/audit-tree/01-consutitution.yaml:469:      - \"Each incident requires: containment, root cause analysis, corrective action, preventive action, post-incident review\"",
             "ai-os/audit-tree/01-consutitution.yaml:561:      - \"Responsible for: Root Cause Analysis, Bug Isolation, Impact Assessment, Corrective Fixes, Regression Prevention, Documentation Updates\"",
-            "ai-os/audit-tree/01-consutitution.yaml:786:      - \"When a task fails: stop further propagation, preserve logs and evidence, notify the appropriate escalation level, perform root cause analysis, recommend corrective actions, prevent recurrence through approved improvements\"",
-            "ai-os/audit-tree/02-audit-organization.yaml:81:      - \"Can: initiate root cause analysis\""
+            "ai-os/audit-tree/01-consutitution.yaml:786:      - \"When a task fails: stop further propagation, preserve logs and evidence, notify the appropriate escalation level, perform root cause analysis, recommend corrective actions, prevent recurrence through approved improvements\""
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -5001,9 +5154,40 @@
       "text": "Zero unnecessary duplication shall exist within software logic, databases, documents, workflows, APIs, reports, communications, or AI executions.",
       "category": "DEDUPLICATION_SSOT",
       "category_label": "Single source of truth / zero duplication",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/task-dedup-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function scanForDuplicateTasks",
+              "found": true,
+              "line": 95
+            },
+            {
+              "marker": "export async function indexTaskForDedup",
+              "found": true,
+              "line": 48
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/capability-registry-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function auditDuplicateCapabilities",
+              "found": true,
+              "line": 166
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -5031,7 +5215,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -5134,8 +5318,62 @@
       "category": "RCA_ERROR_HANDLING",
       "category_label": "Root-cause analysis, incident ownership, defect closure",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/db/schema.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export const incidents = complianceSchemaDB.table('incidents'",
+              "found": true,
+              "line": 3826
+            },
+            {
+              "marker": "export const problemRecords = complianceSchemaDB.table('problem_records'",
+              "found": true,
+              "line": 5860
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/ticket-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function updateProblemRecord",
+              "found": true,
+              "line": 664
+            },
+            {
+              "marker": "export async function createProblemRecord",
+              "found": true,
+              "line": 648
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/rca-closure-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkProblemRecordClosure",
+              "found": true,
+              "line": 57
+            },
+            {
+              "marker": "export function checkIncidentClosure",
+              "found": true,
+              "line": 77
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -5165,7 +5403,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -5280,8 +5518,46 @@
       "category": "EXPLAINABILITY",
       "category_label": "Explainability, reproducibility, business-rule precedence",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/explainability/ai-decision-explanation.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export type AiDecisionExplanation",
+              "found": true,
+              "line": 27
+            },
+            {
+              "marker": "export function explainCrmLeadDecision",
+              "found": true,
+              "line": 50
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/ai/AiDecisionExplanationCard.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/policy-enforcement-engine.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function hasGroundingData",
+              "found": true,
+              "line": 162
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -5311,7 +5587,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -5677,8 +5953,75 @@
       "category": "TASK_GUARDRAILS_ZERO_AMBIGUITY",
       "category_label": "Zero-ambiguity task definition, pre/post-execution validation",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/task-tightening.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function validateTightTask",
+              "found": true,
+              "line": 219
+            },
+            {
+              "marker": "export function validateTaskBrief",
+              "found": true,
+              "line": 290
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/qa-precompletion-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkQaPreCompletionGate",
+              "found": true,
+              "line": 63
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/app/api/ai/team/dispatch/route.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "evaluateGuardrails(AI_TEAM_DISPATCH_LEAF",
+              "found": true,
+              "line": 131
+            },
+            {
+              "marker": "checkQaPreCompletionGate(",
+              "found": true,
+              "line": 546
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/task-execution-engine.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "evaluateGuardrails(TASK_FREE_TEXT_PLANNING_LEAF",
+              "found": true,
+              "line": 2028
+            },
+            {
+              "marker": "detectKnowledgeGap(summaryWithData)",
+              "found": true,
+              "line": 2410
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -5708,7 +6051,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -5762,9 +6105,40 @@
       "text": "Every business capability shall have exactly one authoritative implementation (Single Source of Truth).",
       "category": "DEDUPLICATION_SSOT",
       "category_label": "Single source of truth / zero duplication",
-      "verdict": "PARTIALLY_ENFORCED",
-      "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/task-dedup-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function scanForDuplicateTasks",
+              "found": true,
+              "line": 95
+            },
+            {
+              "marker": "export async function indexTaskForDedup",
+              "found": true,
+              "line": 48
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/capability-registry-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function auditDuplicateCapabilities",
+              "found": true,
+              "line": 166
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -5794,7 +6168,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -6078,8 +6452,75 @@
       "category": "TASK_GUARDRAILS_ZERO_AMBIGUITY",
       "category_label": "Zero-ambiguity task definition, pre/post-execution validation",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/task-tightening.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function validateTightTask",
+              "found": true,
+              "line": 219
+            },
+            {
+              "marker": "export function validateTaskBrief",
+              "found": true,
+              "line": 290
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/qa-precompletion-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkQaPreCompletionGate",
+              "found": true,
+              "line": 63
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/app/api/ai/team/dispatch/route.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "evaluateGuardrails(AI_TEAM_DISPATCH_LEAF",
+              "found": true,
+              "line": 131
+            },
+            {
+              "marker": "checkQaPreCompletionGate(",
+              "found": true,
+              "line": 546
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/task-execution-engine.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "evaluateGuardrails(TASK_FREE_TEXT_PLANNING_LEAF",
+              "found": true,
+              "line": 2028
+            },
+            {
+              "marker": "detectKnowledgeGap(summaryWithData)",
+              "found": true,
+              "line": 2410
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6111,7 +6552,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -6122,8 +6563,75 @@
       "category": "TASK_GUARDRAILS_ZERO_AMBIGUITY",
       "category_label": "Zero-ambiguity task definition, pre/post-execution validation",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/task-tightening.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function validateTightTask",
+              "found": true,
+              "line": 219
+            },
+            {
+              "marker": "export function validateTaskBrief",
+              "found": true,
+              "line": 290
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/qa-precompletion-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkQaPreCompletionGate",
+              "found": true,
+              "line": 63
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/app/api/ai/team/dispatch/route.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "evaluateGuardrails(AI_TEAM_DISPATCH_LEAF",
+              "found": true,
+              "line": 131
+            },
+            {
+              "marker": "checkQaPreCompletionGate(",
+              "found": true,
+              "line": 546
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/task-execution-engine.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "evaluateGuardrails(TASK_FREE_TEXT_PLANNING_LEAF",
+              "found": true,
+              "line": 2028
+            },
+            {
+              "marker": "detectKnowledgeGap(summaryWithData)",
+              "found": true,
+              "line": 2410
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6155,7 +6663,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -6382,9 +6890,47 @@
       "text": "Every decision made by software shall be reproducible.",
       "category": "EXPLAINABILITY",
       "category_label": "Explainability, reproducibility, business-rule precedence",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/explainability/ai-decision-explanation.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export type AiDecisionExplanation",
+              "found": true,
+              "line": 27
+            },
+            {
+              "marker": "export function explainCrmLeadDecision",
+              "found": true,
+              "line": 50
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/ai/AiDecisionExplanationCard.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/policy-enforcement-engine.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function hasGroundingData",
+              "found": true,
+              "line": 162
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6409,7 +6955,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -6419,9 +6965,47 @@
       "text": "Every decision made by AI shall be explainable.",
       "category": "EXPLAINABILITY",
       "category_label": "Explainability, reproducibility, business-rule precedence",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/explainability/ai-decision-explanation.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export type AiDecisionExplanation",
+              "found": true,
+              "line": 27
+            },
+            {
+              "marker": "export function explainCrmLeadDecision",
+              "found": true,
+              "line": 50
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/ai/AiDecisionExplanationCard.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/policy-enforcement-engine.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function hasGroundingData",
+              "found": true,
+              "line": 162
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6445,7 +7029,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -6455,9 +7039,47 @@
       "text": "Every AI response shall be validated before execution.",
       "category": "EXPLAINABILITY",
       "category_label": "Explainability, reproducibility, business-rule precedence",
-      "verdict": "PARTIALLY_ENFORCED",
-      "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/explainability/ai-decision-explanation.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export type AiDecisionExplanation",
+              "found": true,
+              "line": 27
+            },
+            {
+              "marker": "export function explainCrmLeadDecision",
+              "found": true,
+              "line": 50
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/ai/AiDecisionExplanationCard.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/policy-enforcement-engine.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function hasGroundingData",
+              "found": true,
+              "line": 162
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6485,7 +7107,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -6632,9 +7254,40 @@
       "text": "Every business rule shall exist in one location only.",
       "category": "DEDUPLICATION_SSOT",
       "category_label": "Single source of truth / zero duplication",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/task-dedup-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function scanForDuplicateTasks",
+              "found": true,
+              "line": 95
+            },
+            {
+              "marker": "export async function indexTaskForDedup",
+              "found": true,
+              "line": 48
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/capability-registry-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function auditDuplicateCapabilities",
+              "found": true,
+              "line": 166
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6659,7 +7312,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -6669,9 +7322,40 @@
       "text": "Duplicate business logic is prohibited.",
       "category": "DEDUPLICATION_SSOT",
       "category_label": "Single source of truth / zero duplication",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/task-dedup-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function scanForDuplicateTasks",
+              "found": true,
+              "line": 95
+            },
+            {
+              "marker": "export async function indexTaskForDedup",
+              "found": true,
+              "line": 48
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/capability-registry-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function auditDuplicateCapabilities",
+              "found": true,
+              "line": 166
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6697,7 +7381,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -6707,9 +7391,40 @@
       "text": "Duplicate software functionality is prohibited.",
       "category": "DEDUPLICATION_SSOT",
       "category_label": "Single source of truth / zero duplication",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/task-dedup-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function scanForDuplicateTasks",
+              "found": true,
+              "line": 95
+            },
+            {
+              "marker": "export async function indexTaskForDedup",
+              "found": true,
+              "line": 48
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/capability-registry-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function auditDuplicateCapabilities",
+              "found": true,
+              "line": 166
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6735,7 +7450,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -6745,9 +7460,40 @@
       "text": "Duplicate data storage is prohibited unless required for backup, caching, or performance.",
       "category": "DEDUPLICATION_SSOT",
       "category_label": "Single source of truth / zero duplication",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/task-dedup-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function scanForDuplicateTasks",
+              "found": true,
+              "line": 95
+            },
+            {
+              "marker": "export async function indexTaskForDedup",
+              "found": true,
+              "line": 48
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/capability-registry-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function auditDuplicateCapabilities",
+              "found": true,
+              "line": 166
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6775,7 +7521,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -6944,9 +7690,63 @@
       "text": "Every exception shall generate an incident record.",
       "category": "RCA_ERROR_HANDLING",
       "category_label": "Root-cause analysis, incident ownership, defect closure",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/db/schema.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export const incidents = complianceSchemaDB.table('incidents'",
+              "found": true,
+              "line": 3826
+            },
+            {
+              "marker": "export const problemRecords = complianceSchemaDB.table('problem_records'",
+              "found": true,
+              "line": 5860
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/ticket-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function updateProblemRecord",
+              "found": true,
+              "line": 664
+            },
+            {
+              "marker": "export async function createProblemRecord",
+              "found": true,
+              "line": 648
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/rca-closure-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkProblemRecordClosure",
+              "found": true,
+              "line": 57
+            },
+            {
+              "marker": "export function checkIncidentClosure",
+              "found": true,
+              "line": 77
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6972,7 +7772,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -6982,9 +7782,63 @@
       "text": "Every incident shall have an owner until closure.",
       "category": "RCA_ERROR_HANDLING",
       "category_label": "Root-cause analysis, incident ownership, defect closure",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/db/schema.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export const incidents = complianceSchemaDB.table('incidents'",
+              "found": true,
+              "line": 3826
+            },
+            {
+              "marker": "export const problemRecords = complianceSchemaDB.table('problem_records'",
+              "found": true,
+              "line": 5860
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/ticket-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function updateProblemRecord",
+              "found": true,
+              "line": 664
+            },
+            {
+              "marker": "export async function createProblemRecord",
+              "found": true,
+              "line": 648
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/rca-closure-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkProblemRecordClosure",
+              "found": true,
+              "line": 57
+            },
+            {
+              "marker": "export function checkIncidentClosure",
+              "found": true,
+              "line": 77
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7010,7 +7864,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -7020,9 +7874,63 @@
       "text": "Every failure shall undergo Root Cause Analysis before closure.",
       "category": "RCA_ERROR_HANDLING",
       "category_label": "Root-cause analysis, incident ownership, defect closure",
-      "verdict": "PARTIALLY_ENFORCED",
-      "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/db/schema.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export const incidents = complianceSchemaDB.table('incidents'",
+              "found": true,
+              "line": 3826
+            },
+            {
+              "marker": "export const problemRecords = complianceSchemaDB.table('problem_records'",
+              "found": true,
+              "line": 5860
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/ticket-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function updateProblemRecord",
+              "found": true,
+              "line": 664
+            },
+            {
+              "marker": "export async function createProblemRecord",
+              "found": true,
+              "line": 648
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/rca-closure-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkProblemRecordClosure",
+              "found": true,
+              "line": 57
+            },
+            {
+              "marker": "export function checkIncidentClosure",
+              "found": true,
+              "line": 77
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7036,25 +7944,26 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 21,
-          "coOccurrenceFileCount": 3,
+          "distinctFilesHit": 22,
+          "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
+            "src/lib/rca-closure-gate.ts",
             "ai-os/audit-tree/01-consutitution.yaml",
             "ai-os/audit-tree/10-merged-tree.yaml",
             "src/app/(app)/chat/page.tsx"
           ],
           "sampleHits": [
+            "src/lib/rca-closure-gate.ts:2:// category): ARTICLE-029 \"Every failure shall undergo Root Cause Analysis",
             "ai-os/audit-tree/01-consutitution.yaml:235:  - part: \"Claude -- Responsibility 11: Root Cause Analysis\"",
             "ai-os/audit-tree/01-consutitution.yaml:469:      - \"Each incident requires: containment, root cause analysis, corrective action, preventive action, post-incident review\"",
             "ai-os/audit-tree/01-consutitution.yaml:561:      - \"Responsible for: Root Cause Analysis, Bug Isolation, Impact Assessment, Corrective Fixes, Regression Prevention, Documentation Updates\"",
-            "ai-os/audit-tree/01-consutitution.yaml:786:      - \"When a task fails: stop further propagation, preserve logs and evidence, notify the appropriate escalation level, perform root cause analysis, recommend corrective actions, prevent recurrence through approved improvements\"",
-            "ai-os/audit-tree/02-audit-organization.yaml:81:      - \"Can: initiate root cause analysis\""
+            "ai-os/audit-tree/01-consutitution.yaml:786:      - \"When a task fails: stop further propagation, preserve logs and evidence, notify the appropriate escalation level, perform root cause analysis, recommend corrective actions, prevent recurrence through approved improvements\""
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -7064,9 +7973,63 @@
       "text": "Every Root Cause shall generate either a preventive action, software enhancement, monitoring rule, or automation.",
       "category": "RCA_ERROR_HANDLING",
       "category_label": "Root-cause analysis, incident ownership, defect closure",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/db/schema.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export const incidents = complianceSchemaDB.table('incidents'",
+              "found": true,
+              "line": 3826
+            },
+            {
+              "marker": "export const problemRecords = complianceSchemaDB.table('problem_records'",
+              "found": true,
+              "line": 5860
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/ticket-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function updateProblemRecord",
+              "found": true,
+              "line": 664
+            },
+            {
+              "marker": "export async function createProblemRecord",
+              "found": true,
+              "line": 648
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/rca-closure-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkProblemRecordClosure",
+              "found": true,
+              "line": 57
+            },
+            {
+              "marker": "export function checkIncidentClosure",
+              "found": true,
+              "line": 77
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7077,24 +8040,27 @@
             "preventive",
             "action"
           ],
-          "keywordsWithHits": 5,
+          "keywordsWithHits": 6,
           "keywordCount": 6,
-          "phraseHits": 0,
-          "distinctFilesHit": 18,
-          "coOccurrenceFileCount": 0,
-          "coOccurrenceFiles": [],
+          "phraseHits": 1,
+          "distinctFilesHit": 17,
+          "coOccurrenceFileCount": 2,
+          "coOccurrenceFiles": [
+            "src/app/api/incidents/[id]/route.ts",
+            "src/lib/rca-closure-gate.ts"
+          ],
           "sampleHits": [
+            "src/app/api/incidents/[id]/route.ts:50:        // owner until closure\" / ARTICLE-030 \"every Root Cause shall",
+            "src/lib/rca-closure-gate.ts:69: * ARTICLE-030 \"Every Root Cause shall generate either a preventive action,",
             "src/app/(app)/problem-records/page.tsx:7:// cause that may manifest as several separate tickets.",
             "src/app/(app)/problem-records/page.tsx:20:type Problem = { id: string; title: string; rootCause: string | null; status: string; createdAt: string };",
-            "src/app/(app)/problem-records/page.tsx:33:  const [rootCause, setRootCause] = useState(\"\");",
-            "src/app/(app)/problem-records/page.tsx:52:        body: JSON.stringify({ title, rootCause: rootCause || undefined }),",
-            "src/app/(app)/problem-records/page.tsx:56:      setOpen(false); setTitle(\"\"); setRootCause(\"\");"
+            "src/app/(app)/problem-records/page.tsx:33:  const [rootCause, setRootCause] = useState(\"\");"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -7105,8 +8071,62 @@
       "category": "RCA_ERROR_HANDLING",
       "category_label": "Root-cause analysis, incident ownership, defect closure",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/db/schema.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export const incidents = complianceSchemaDB.table('incidents'",
+              "found": true,
+              "line": 3826
+            },
+            {
+              "marker": "export const problemRecords = complianceSchemaDB.table('problem_records'",
+              "found": true,
+              "line": 5860
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/ticket-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function updateProblemRecord",
+              "found": true,
+              "line": 664
+            },
+            {
+              "marker": "export async function createProblemRecord",
+              "found": true,
+              "line": 648
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/rca-closure-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkProblemRecordClosure",
+              "found": true,
+              "line": 57
+            },
+            {
+              "marker": "export function checkIncidentClosure",
+              "found": true,
+              "line": 77
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7135,7 +8155,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -7674,9 +8694,76 @@
       "text": "Every task shall pass through validation before execution.",
       "category": "TASK_GUARDRAILS_ZERO_AMBIGUITY",
       "category_label": "Zero-ambiguity task definition, pre/post-execution validation",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/task-tightening.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function validateTightTask",
+              "found": true,
+              "line": 219
+            },
+            {
+              "marker": "export function validateTaskBrief",
+              "found": true,
+              "line": 290
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/qa-precompletion-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkQaPreCompletionGate",
+              "found": true,
+              "line": 63
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/app/api/ai/team/dispatch/route.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "evaluateGuardrails(AI_TEAM_DISPATCH_LEAF",
+              "found": true,
+              "line": 131
+            },
+            {
+              "marker": "checkQaPreCompletionGate(",
+              "found": true,
+              "line": 546
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/task-execution-engine.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "evaluateGuardrails(TASK_FREE_TEXT_PLANNING_LEAF",
+              "found": true,
+              "line": 2028
+            },
+            {
+              "marker": "detectKnowledgeGap(summaryWithData)",
+              "found": true,
+              "line": 2410
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7700,7 +8787,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -7710,9 +8797,76 @@
       "text": "Every task shall pass through verification after execution.",
       "category": "TASK_GUARDRAILS_ZERO_AMBIGUITY",
       "category_label": "Zero-ambiguity task definition, pre/post-execution validation",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/task-tightening.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function validateTightTask",
+              "found": true,
+              "line": 219
+            },
+            {
+              "marker": "export function validateTaskBrief",
+              "found": true,
+              "line": 290
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/qa-precompletion-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkQaPreCompletionGate",
+              "found": true,
+              "line": 63
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/app/api/ai/team/dispatch/route.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "evaluateGuardrails(AI_TEAM_DISPATCH_LEAF",
+              "found": true,
+              "line": 131
+            },
+            {
+              "marker": "checkQaPreCompletionGate(",
+              "found": true,
+              "line": 546
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/task-execution-engine.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "evaluateGuardrails(TASK_FREE_TEXT_PLANNING_LEAF",
+              "found": true,
+              "line": 2028
+            },
+            {
+              "marker": "detectKnowledgeGap(summaryWithData)",
+              "found": true,
+              "line": 2410
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7736,7 +8890,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -7787,9 +8941,47 @@
       "text": "Every AI output shall be checked for consistency with business rules before acceptance.",
       "category": "EXPLAINABILITY",
       "category_label": "Explainability, reproducibility, business-rule precedence",
-      "verdict": "PARTIALLY_ENFORCED",
-      "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/explainability/ai-decision-explanation.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export type AiDecisionExplanation",
+              "found": true,
+              "line": 27
+            },
+            {
+              "marker": "export function explainCrmLeadDecision",
+              "found": true,
+              "line": 50
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/ai/AiDecisionExplanationCard.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/policy-enforcement-engine.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function hasGroundingData",
+              "found": true,
+              "line": 162
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7820,7 +9012,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -7830,9 +9022,47 @@
       "text": "Business rules shall always take precedence over AI recommendations.",
       "category": "EXPLAINABILITY",
       "category_label": "Explainability, reproducibility, business-rule precedence",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/explainability/ai-decision-explanation.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export type AiDecisionExplanation",
+              "found": true,
+              "line": 27
+            },
+            {
+              "marker": "export function explainCrmLeadDecision",
+              "found": true,
+              "line": 50
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/ai/AiDecisionExplanationCard.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/policy-enforcement-engine.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function hasGroundingData",
+              "found": true,
+              "line": 162
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7858,7 +9088,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
@@ -10371,8 +11601,46 @@
       "category": "EXPLAINABILITY",
       "category_label": "Explainability, reproducibility, business-rule precedence",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/explainability/ai-decision-explanation.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export type AiDecisionExplanation",
+              "found": true,
+              "line": 27
+            },
+            {
+              "marker": "export function explainCrmLeadDecision",
+              "found": true,
+              "line": 50
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/ai/AiDecisionExplanationCard.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/policy-enforcement-engine.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function hasGroundingData",
+              "found": true,
+              "line": 162
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -10402,7 +11670,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-529"
+        "repo_root": "C:\\Users\\Dell\\AppData\\Local\\Temp\\wtree-sweep2-530"
       }
     },
     {
