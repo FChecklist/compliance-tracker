@@ -184,6 +184,41 @@ active:
       instructions). No open PR or active claim found for this area at
       claim time (checked `gh pr list --state all` and this file's own
       "pipeline"/"crm_leads"/"crm_opportunities" grep hits).
+  - session_label: "claude-code (rebase-1014-fixed) -- replacement PR for #1014: fixing 2 real security bugs flagged by human AUDIT:FAIL (bulk-reassign missing RBAC gate; CSV export missing formula-injection escaping)"
+    claimed_at: "2026-08-31T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap-closure: CRM & Sales Modules / Leads (13
+      findings from prompt.txt), rebased and security-hardened. Scope: same
+      as the original task-20260718-081005-crm---sales-modules--leads claim
+      below (src/lib/services/crm-service.ts, src/app/api/crm/leads/**,
+      src/app/(app)/crm/page.tsx, the 3 new internal cron routes, vercel.json
+      cron registration, a new drizzle/ FORCE RLS migration for
+      crm_leads/crm_opportunities/crm_stage_history), PLUS two targeted
+      security fixes on top: (1) bulkReassignLeads() now threads role through
+      and calls assertGate(canReassignOrDeleteLead(role)), matching
+      updateLead()'s existing gate; (2) exportLeadsCsv() now reuses
+      src/lib/report-export-shared.ts's FORMULA_INJECTION_PREFIX-guarded
+      csvEscape() instead of its own unguarded escapeCsvField(). Does NOT
+      touch permission-service.ts's ERP_ACTION_ROLES table structure or
+      crm-accounts-service.ts.
+  - session_label: "claude-code (worker task-20260718-081005-crm---sales-modules--leads)"
+    claimed_at: "2026-08-07T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap-closure: CRM & Sales Modules / Leads (13
+      findings from prompt.txt). Scope: src/lib/services/crm-service.ts,
+      src/app/api/crm/leads/**, src/app/(app)/crm/page.tsx, new
+      src/app/api/internal/crm-lead-scoring/run,
+      src/app/api/internal/crm-lead-followup-alerts/run,
+      src/app/api/internal/crm-data-integrity/run (+ vercel.json cron
+      registration), a new drizzle/ FORCE RLS migration for
+      crm_leads/crm_opportunities/crm_stage_history, and
+      src/lib/services/veri-reward-service.ts's awardPoints() as a caller
+      only (no shared-table structural changes). Does NOT touch
+      permission-service.ts's ERP_ACTION_ROLES table structure (per
+      prompt.txt's own guardrail) or crm-accounts-service.ts (Wave B,
+      already closed by a different track). Does NOT touch
+      sales_commission_*/sales_referrals (platform partner-referral system,
+      confirmed a different domain than crm_leads -- see PROGRESS.md).
   - session_label: "claude-code (task-20260718-065003-ai-engineering-quality--error-handling) -- AI Engineering Quality: Error Handling & Logging gap-closure"
     claimed_at: "2026-08-15T05:35Z (this session)"
     claim: |
