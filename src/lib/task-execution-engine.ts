@@ -1,6 +1,6 @@
-import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods, gstImportStagingRows, dynamicChains, entityRelationships, computationEngines } from "@/lib/db";
+import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, users, gstCanonicalInvoices, gstReturnPeriods, dynamicChains, entityRelationships, computationEngines } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
-import { eq, and, asc, desc, gte, lte, ne, inArray, sql } from "drizzle-orm";
+import { eq, and, asc, desc, ne, inArray, sql } from "drizzle-orm";
 import { escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
 import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router";
 import { callLLMJson } from "@/lib/llm-client";
@@ -25,7 +25,6 @@ import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSig
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine";
 import { registerAllGuardrails, TASK_FREE_TEXT_PLANNING_LEAF } from "@/lib/guardrail-registrations";
 import { decideActionAutonomy } from "@/lib/action-autonomy-decision";
-import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
 import { runTaskReflection } from "@/lib/loops/task-reflection";
 import { nextEscalationRung } from "@/lib/escalation-ladder";
 import { evaluateMonitoringRules } from "@/lib/monitoring-engine";
@@ -63,6 +62,9 @@ import { queryByKeywords, type PlatformAsset } from "@/lib/services/asset-query-
 import { invokeEngine } from "@/lib/engines/engine-invocation";
 import type { CalculationBreakdown } from "@/lib/engines/breakdown";
 import type { CalculationMessage } from "@/lib/structured-message";
+import { COMPLIANCE_TOOL_CODES, dispatchComplianceTool } from "@/lib/task-execution/compliance-tools";
+import { GST_TOOL_CODES, dispatchGstTool } from "@/lib/task-execution/gst-tools";
+import { CONSTRUCTION_TOOL_CODES, dispatchConstructionTool } from "@/lib/task-execution/construction-tools";
 
 registerAllGuardrails();
 
@@ -101,137 +103,59 @@ registerAllGuardrails();
 // only api/v1/projexa/assistant/route.ts's direct call is wired to pass it
 // today, since that is the one call site with a live session dbUser.role
 // available; see R48_PROGRESS.md's F089 entry for the honest remaining scope.
+//
+// VERIDIAN Review Framework gap-closure (AI Engineering Quality / Code
+// Structure & Modularity, 2026-08-15): this used to be one ~265-line
+// if-chain covering three unrelated domains (compliance, GST
+// reconciliation, construction). Split into src/lib/task-execution/
+// {compliance,gst,construction}-tools.ts, grouped by responsibility --
+// dispatchTool() itself is now a thin router that preserves the exact same
+// public signature/behavior every existing call site (fde-service.ts,
+// capability-tree-service.ts, the /api/v1/projexa/* routes, etc.) already
+// depends on. See those three files' own headers for the extraction
+// rationale; dispatchEngine() below (the ~185-engine computation-engine
+// switch) is deliberately left untouched -- it's under active concurrent
+// extension by several other in-flight sessions right now (see
+// ai-os/boss/ACTIVE-CLAIMS.yaml), so restructuring it here would conflict
+// with all of them for a Medium-severity finding whose recommended fix is
+// "extract distinct responsibilities," not "touch the actively-shared one."
+//
+// One case, "create_compliance_item", is deliberately kept inline here
+// rather than moved into compliance-tools.ts with the rest of that
+// domain: its logActivity() call is a named guardrail anchor
+// (scripts/check-guardrail-presence.mjs requires "logActivity(" to appear
+// literally in this file, "so the marker check still catches... its use
+// in the core task-execution path") -- relocating a named guardrail
+// requires the owner's explicit written sign-off + a manifest update per
+// AGENTS.md Operating Rule 9, which this refactor doesn't have. See
+// compliance-tools.ts's own comment on COMPLIANCE_TOOL_CODES for the same
+// note from the other side.
+//
+// REBASE NOTE (2026-08-31): this modularity refactor was written against a
+// main predating R48's F089 fix above (the `role` param + financial-field
+// redaction on the 3 construction read tools) -- naively taking this side's
+// signature verbatim would have silently regressed F089/F059's budget-leak
+// fix on this 4th surface. Fixed by re-threading `role` through to
+// dispatchConstructionTool() (construction-tools.ts) and reproducing the
+// exact same financialsAllowed gate main had inline; see that file's own
+// header. Also kept 5 CRM/ERP read codes (list_customers/list_sales_orders/
+// list_leads/list_opportunities/get_sales_pipeline_overview -- R63,
+// 2026-08-29, landed on main after this PR's branch point) inline below
+// rather than in any of the three new tool-domain files, since none of
+// compliance/GST/construction is the right home for CRM/ERP reads.
 export async function dispatchTool(db: TenantDb, orgId: string, userId: string, codeReference: string, context?: { taskId?: string; inputs?: Record<string, unknown> }, role?: string | null): Promise<unknown> {
   assertBusinessRulesBeforeExecution(codeReference, context?.inputs ?? {});
-  if (codeReference === "get_compliance_stats") {
-    const now = new Date();
-    const weekEnd = new Date(Date.now() + 7 * 86400000);
-    const [[total], [overdue], [completed], [dueWeek]] = await Promise.all([
-      db.select({ count: sql<number>`count(*)` }).from(complianceItems).where(eq(complianceItems.orgId, orgId)),
-      db.select({ count: sql<number>`count(*)` }).from(complianceItems).where(and(eq(complianceItems.orgId, orgId), eq(complianceItems.status, "overdue"))),
-      db.select({ count: sql<number>`count(*)` }).from(complianceItems).where(and(eq(complianceItems.orgId, orgId), eq(complianceItems.status, "completed"))),
-      db.select({ count: sql<number>`count(*)` }).from(complianceItems).where(
-        and(eq(complianceItems.orgId, orgId), gte(complianceItems.dueDate, now), lte(complianceItems.dueDate, weekEnd), ne(complianceItems.status, "completed"))
-      ),
-    ]);
-    return { total: Number(total.count), overdue: Number(overdue.count), completed: Number(completed.count), dueThisWeek: Number(dueWeek.count) };
-  }
-
-  if (codeReference === "get_overdue_items") {
-    const items = await db.query.complianceItems.findMany({
-      where: and(eq(complianceItems.orgId, orgId), eq(complianceItems.status, "overdue")),
-      columns: { id: true, title: true, complianceType: true, dueDate: true },
-      orderBy: asc(complianceItems.dueDate),
-      limit: 10,
-    });
-    return items.map((i) => ({ ...i, daysLate: Math.floor((Date.now() - i.dueDate.getTime()) / 86400000) }));
-  }
-
-  if (codeReference === "list_departments") {
-    return db.query.departments.findMany({
-      where: eq(departments.orgId, orgId),
-      columns: { id: true, name: true },
-    });
-  }
-
-  if (codeReference === "list_compliance_items") {
-    return db.query.complianceItems.findMany({
-      where: eq(complianceItems.orgId, orgId),
-      columns: { id: true, title: true, complianceType: true, status: true, dueDate: true },
-      orderBy: asc(complianceItems.dueDate),
-      limit: 20,
-    });
-  }
-
-  if (codeReference === "list_notices") {
-    return db.query.notices.findMany({
-      where: eq(notices.orgId, orgId),
-      columns: { id: true, noticeNumber: true, authority: true, status: true, replyDeadline: true },
-      orderBy: asc(notices.replyDeadline),
-      limit: 20,
-    });
-  }
-
-  if (codeReference === "get_task_status") {
-    // Contextual, zero-argument by design -- "what's the status of the task
-    // I'm in", not an arbitrary lookup (structured dispatch has no argument-
-    // capture UI yet; a task-id-taking version can be added once it does).
-    if (!context?.taskId) throw new Error("get_task_status requires task context");
-    const task = await db.query.tasks.findFirst({
-      where: eq(tasks.id, context.taskId),
-      columns: { id: true, title: true, status: true, updatedAt: true },
-    });
-    if (!task) throw new Error("Task not found");
-    return task;
-  }
-
-  // A real write action -- safe to auto-dispatch here (unlike the free-text/
-  // LLM-planning path's DISPATCHABLE read-only restriction) because the
-  // arguments are never LLM-generated: capability-tree-service.ts's
-  // Compliance Item branch bakes the exact item id + target status into the
-  // leaf itself (fixedInputs), so this only ever runs with values a human
-  // picked by clicking, not values an LLM guessed.
-  if (codeReference === "update_compliance_status") {
-    const complianceItemId = String(context?.inputs?.complianceItemId ?? "");
-    const newStatus = String(context?.inputs?.newStatus ?? "");
-    const validStatuses = ["pending", "in_progress", "completed", "overdue", "not_applicable", "draft"];
-    if (!complianceItemId || !validStatuses.includes(newStatus)) throw new Error("Missing or invalid complianceItemId/newStatus");
-    const existing = await db.query.complianceItems.findFirst({
-      where: and(eq(complianceItems.id, complianceItemId), eq(complianceItems.orgId, orgId)),
-      columns: { id: true, title: true, status: true, amount: true },
-    });
-    if (!existing) throw new Error("Compliance item not found");
-
-    // R65 Part B: the real risk here isn't the status field itself, it's
-    // silently closing out (completed) or waiving (not_applicable) an item
-    // carrying a large penalty/filing amount -- the same signal
-    // create_compliance_item's own gate already uses at creation time. Any
-    // other transition (pending/in_progress/overdue/draft) is a routine
-    // workflow move, not a financial decision, so it's left ungated --
-    // matches the 80/20 intent of gating the 20% that's actually
-    // consequential, not every write indiscriminately.
-    const isTerminalTransition = newStatus === "completed" || newStatus === "not_applicable";
-    const itemAmount = existing.amount != null ? Number(existing.amount) : null;
-    const autonomy = decideActionAutonomy({
-      riskFactors: {
-        financialAmountInr: isTerminalTransition && Number.isFinite(itemAmount) ? itemAmount : null,
-        blastRadius: "single",
-      },
-    });
-    // When the gate says review first, the item lands in 'draft' -- the
-    // same "not yet an active/closed obligation" state create_compliance_item's
-    // gate uses -- instead of the requested status; a human moves it on from
-    // there via this same dispatch path once satisfied. Nothing is silently
-    // dropped: the originally-requested status is preserved in the audit
-    // log and the return value.
-    const appliedStatus = autonomy.decision === "pending_review" ? "draft" : newStatus;
-    const [updated] = await db.update(complianceItems)
-      .set({ status: appliedStatus as typeof existing.status, updatedAt: new Date(), ...(appliedStatus === "completed" ? { completedAt: new Date() } : {}) })
-      .where(eq(complianceItems.id, complianceItemId))
-      .returning({ id: complianceItems.id, title: complianceItems.title, status: complianceItems.status });
-
-    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
-    if (dbUser) {
-      await logActivity({
-        tx: db, action: "update", entityType: "ComplianceItem", entityId: complianceItemId,
-        details: autonomy.decision === "pending_review"
-          ? `Status change ${existing.status} -> ${newStatus} held for review, applied as 'draft' instead (${autonomy.reason})`
-          : `Status change: ${existing.status} -> ${updated.status}`,
-        orgId, dbUser,
-      });
-    }
-    return { ...updated, previousStatus: existing.status, requestedStatus: newStatus, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason };
-  }
 
   // Gap closure, 2026-07-10 (CAPABILITY_COVERAGE.md): create_compliance_item
   // was registered with zero implementation. Safe to auto-dispatch here for
-  // the same reason update_compliance_status is -- capability-tree-service.ts's
-  // "Create New" leaf collects title/type/dueDate/amount through inputFields
-  // (a validated form, never LLM-guessed) and bakes departmentId into
-  // fixedInputs (a real click, not typed text). Mirrors createComplianceItem()
-  // in compliance-service.ts's own validation/insert shape, inlined here
-  // rather than calling that function directly since it expects a fuller
-  // ServiceContext (actor/request) this dispatch path doesn't carry.
+  // the same reason update_compliance_status is (see compliance-tools.ts) --
+  // capability-tree-service.ts's "Create New" leaf collects
+  // title/type/dueDate/amount through inputFields (a validated form, never
+  // LLM-guessed) and bakes departmentId into fixedInputs (a real click, not
+  // typed text). Mirrors createComplianceItem() in compliance-service.ts's
+  // own validation/insert shape, inlined here rather than calling that
+  // function directly since it expects a fuller ServiceContext
+  // (actor/request) this dispatch path doesn't carry.
   if (codeReference === "create_compliance_item") {
     const departmentId = String(context?.inputs?.departmentId ?? "");
     const title = String(context?.inputs?.title ?? "").trim();
@@ -286,46 +210,8 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
     return { ...item, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason };
   }
 
-  // Gap closure, 2026-07-10: get_penalty_estimate was registered with zero
-  // implementation. Uses complianceItems.amount ("Amount for penalty
-  // calculation" per its own schema comment) and the item's real due/
-  // completed date to compute real days-late, then the existing generic
-  // simple-interest calculator (compliance-engine.ts, already used
-  // elsewhere) -- the only value a human types is the interest rate itself,
-  // since statutory rates vary per compliance type and aren't modeled in
-  // this schema yet.
-  if (codeReference === "get_penalty_estimate") {
-    const complianceItemId = String(context?.inputs?.complianceItemId ?? "");
-    const annualRatePercent = Number(context?.inputs?.annualRatePercent);
-    if (!complianceItemId || !Number.isFinite(annualRatePercent)) throw new Error("Missing complianceItemId or annualRatePercent");
-    const item = await db.query.complianceItems.findFirst({
-      where: and(eq(complianceItems.id, complianceItemId), eq(complianceItems.orgId, orgId)),
-      columns: { id: true, title: true, amount: true, dueDate: true, completedAt: true },
-    });
-    if (!item) throw new Error("Compliance item not found");
-    if (item.amount == null) throw new Error("This item has no amount set -- penalty cannot be estimated");
-    const asOf = item.completedAt ?? new Date();
-    const daysLate = Math.max(0, Math.floor((asOf.getTime() - item.dueDate.getTime()) / 86400000));
-    const { calculateComplianceInterest } = await import("@/lib/engines/compliance-engine");
-    const estimatedPenalty = calculateComplianceInterest(Number(item.amount), annualRatePercent, daysLate);
-    return { itemTitle: item.title, amount: Number(item.amount), daysLate, annualRatePercent, estimatedPenalty };
-  }
-
-  // GST Reconciliation Engine dispatchers (Finance > GST Reconciliation).
-  // list_* are read-only, safe from either dispatch path. The write actions
-  // (confirm/reconcile/generate/review) call the *Core variants directly on
-  // this same `db`/transaction, matching update_compliance_status's inline
-  // style above -- one atomic transaction per dispatch, not a second,
-  // independent one opened by calling the outer service wrapper.
-  if (codeReference === "list_gst_import_batches") {
-    const { listBatches } = await import("@/lib/services/gst-reconciliation-service");
-    return listBatches({ orgId });
-  }
-
-  if (codeReference === "list_gst_returns") {
-    const { listReturns } = await import("@/lib/services/gst-reconciliation-service");
-    return listReturns({ orgId });
-  }
+  if (COMPLIANCE_TOOL_CODES.has(codeReference)) return dispatchComplianceTool(db, orgId, userId, codeReference, context);
+  if (GST_TOOL_CODES.has(codeReference)) return dispatchGstTool(db, orgId, userId, codeReference, context);
 
   // R63 gap-closure (2026-08-29, owner directive: "complete the big domain/
   // tool-scoping fix"): the pipeline's whole candidate set (pipeline/
@@ -368,189 +254,12 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
     return getSalesPipelineOverview({ orgId });
   }
 
-  if (codeReference === "confirm_gst_batch") {
-    const batchId = String(context?.inputs?.batchId ?? "");
-    if (!batchId) throw new Error("Missing batchId");
-    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
-    if (!dbUser) throw new Error("User not found");
-
-    // R65 Part B: confirming a batch is what turns untrusted imported rows
-    // into canonical invoices everything downstream (reconciliation,
-    // returns) is built on -- a real "approval" per high-impact-action-
-    // detector.ts's own taxonomy (inherently medium), escalated further by
-    // the real rupee value being confirmed. Computed from the same staged
-    // rows confirmBatchCore itself will validate/insert, not re-derived a
-    // second way.
-    const stagedRows = await db.query.gstImportStagingRows.findMany({ where: eq(gstImportStagingRows.batchId, batchId) });
-    const totalStagedValue = stagedRows.reduce((sum, r) => {
-      const d = r.mappedData as { invoiceNumber: string | null; invoiceDate: string | null; totalValue?: number };
-      return d.invoiceNumber && d.invoiceDate && Number.isFinite(d.totalValue) ? sum + Number(d.totalValue) : sum;
-    }, 0);
-    const autonomy = decideActionAutonomy({
-      riskFactors: { financialAmountInr: totalStagedValue > 0 ? totalStagedValue : null, blastRadius: "single", highImpactCategory: "approval" },
-    });
-    if (autonomy.decision === "pending_review") {
-      // Unlike update_compliance_status, a GST batch has no safe partial/
-      // draft state to fall into -- it's either confirmed (canonical rows
-      // exist, validation has run) or it isn't. So the gate skips the
-      // mutation entirely rather than half-applying it, and surfaces the
-      // decision for a human to re-invoke this same action once reviewed.
-      await logActivity({ tx: db, action: "review_required", entityType: "GstImportBatch", entityId: batchId, details: `Confirm held for review: ${autonomy.reason}`, orgId, dbUser });
-      return { batchId, confirmedCount: 0, findingsCount: 0, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason };
-    }
-    const { confirmBatchCore } = await import("@/lib/services/gst-reconciliation-service");
-    const result = await confirmBatchCore(db, { orgId, userId, dbUser }, batchId);
-    return { ...result, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason };
-  }
-
-  if (codeReference === "run_gst_reconciliation") {
-    const purchaseBatchId = String(context?.inputs?.purchaseBatchId ?? "");
-    const gstr2bBatchId = String(context?.inputs?.gstr2bBatchId ?? "");
-    const period = String(context?.inputs?.period ?? "");
-    if (!purchaseBatchId || !gstr2bBatchId || !period) throw new Error("Missing purchaseBatchId/gstr2bBatchId/period");
-    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
-    if (!dbUser) throw new Error("User not found");
-    const { runReconciliationCore } = await import("@/lib/services/gst-reconciliation-service");
-    const result = await runReconciliationCore(db, { orgId, userId, dbUser }, { period, purchaseBatchId, gstr2bBatchId });
-
-    // R65 Part B: reconciliation itself is fully re-runnable and finalizes
-    // nothing on its own (no return/filing depends on this run alone), so
-    // it's genuinely part of the software-decided 80% -- unlike confirm/
-    // generate below, there's no amount or irreversibility to gate on. The
-    // one real risk worth surfacing is a *data-quality* one: if a large
-    // share of invoices didn't match, the numbers this run just produced
-    // aren't trustworthy yet regardless of rupee amount -- a direct check
-    // on the real mismatch ratio this run computed, not a forced fit into
-    // the amount/category gate (which has no ratio concept).
-    const totalRows = result.summary.exactMatches + result.summary.probableMatches + result.summary.mismatches + result.summary.missingIn2b + result.summary.missingInBooks;
-    const unmatchedRatio = totalRows > 0 ? (result.summary.mismatches + result.summary.missingIn2b + result.summary.missingInBooks) / totalRows : 0;
-    const autonomy = unmatchedRatio > 0.2
-      ? { decision: "pending_review" as const, reason: `${Math.round(unmatchedRatio * 100)}% of rows are mismatched/missing -- data quality too low to trust automatically, review before relying on this run.` }
-      : decideActionAutonomy({ riskFactors: { blastRadius: "single" } });
-    return { ...result, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason };
-  }
-
-  if (codeReference === "generate_gst_return") {
-    const period = String(context?.inputs?.period ?? "");
-    const returnType = String(context?.inputs?.returnType ?? "");
-    if (!period || !["gstr1", "gstr3b"].includes(returnType)) throw new Error("Missing or invalid period/returnType");
-    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
-    if (!dbUser) throw new Error("User not found");
-    const { generateReturnCore, resolveOwnGstinForOrg } = await import("@/lib/services/gst-reconciliation-service");
-    const gstin = await resolveOwnGstinForOrg({ orgId });
-    if (!gstin) throw new Error("No GSTIN configured for this organisation -- set it in Settings before generating a return.");
-    const returnPeriod = await generateReturnCore(db, { orgId, userId, dbUser }, { period, gstin, returnType: returnType as "gstr1" | "gstr3b" });
-
-    // R65 Part B: a generated return is the actual filing artifact -- this
-    // is compliance_submission per high-impact-action-detector.ts's own
-    // taxonomy, inherently high regardless of amount (same bucket as
-    // payment/delete). generateReturnCore already persisted it as
-    // 'generated'; the gate downgrades that to 'draft' (the same "not yet
-    // final" reuse as the gate above) so nothing treats it as ready-to-file
-    // until a human has actually looked at it.
-    const returnAutonomy = decideActionAutonomy({ riskFactors: { blastRadius: "single", highImpactCategory: "compliance_submission" } });
-    if (returnAutonomy.decision === "pending_review") {
-      const [heldBack] = await db.update(gstReturnPeriods).set({ status: "draft" }).where(eq(gstReturnPeriods.id, returnPeriod.id)).returning();
-      await logActivity({ tx: db, action: "review_required", entityType: "GstReturnPeriod", entityId: returnPeriod.id, details: `Generated return held as draft for review: ${returnAutonomy.reason}`, orgId, dbUser });
-      return { ...heldBack, autonomyDecision: returnAutonomy.decision, autonomyReason: returnAutonomy.reason };
-    }
-    return { ...returnPeriod, autonomyDecision: returnAutonomy.decision, autonomyReason: returnAutonomy.reason };
-  }
-
-  if (codeReference === "generate_gst_ai_review") {
-    const returnPeriodId = String(context?.inputs?.returnPeriodId ?? "");
-    if (!returnPeriodId) throw new Error("Missing returnPeriodId");
-    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
-    if (!dbUser) throw new Error("User not found");
-    const { generateReviewReportCore } = await import("@/lib/services/gst-reconciliation-service");
-    const report = await generateReviewReportCore(db, { orgId, userId, dbUser }, returnPeriodId);
-
-    // R65 Part B: the one AI-authored step in this whole module -- the LLM
-    // already emits its own risk verdict (low/medium/high) and, per issue,
-    // a real amountAtStake. A "high" verdict is never auto-trusted
-    // regardless of amount (an AI's own high-risk self-assessment is
-    // exactly the case guardrail-engine.ts's whole design says must reach a
-    // human); otherwise the real amountAtStake numbers the AI itself
-    // surfaced feed the same deterministic gate as every other handler here.
-    const maxAmountAtStake = report.topIssues.reduce((max, i) => Math.max(max, i.amountAtStake ?? 0), 0);
-    const autonomy = report.verdict === "high"
-      ? { decision: "pending_review" as const, reason: `The AI review itself verdict'd this return "high" risk -- always surfaced for human review regardless of amount.` }
-      : decideActionAutonomy({ riskFactors: { financialAmountInr: maxAmountAtStake > 0 ? maxAmountAtStake : null, blastRadius: "single" } });
-    if (autonomy.decision === "pending_review") {
-      await logActivity({ tx: db, action: "review_required", entityType: "GstAiReviewReport", entityId: report.id, details: `AI review needs human sign-off: ${autonomy.reason}`, orgId, dbUser });
-    }
-    return { ...report, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason };
-  }
-
-  // Construction Intelligence (PROJEXA), Wave 128. All read-only, matching
-  // this function's read-only-auto-dispatch contract. Each independently
-  // opens its own withTenantContext transaction via the service call
-  // (not the `db` already open here) -- same posture as list_gst_import_batches
-  // above, acceptable for read-only queries per that branch's own comment.
-  // R48 gap-closure (2026-08-30, F089/F059): same rank check as the API
-  // routes' own redaction. `role` undefined (caller not yet wired to pass
-  // it -- see dispatchTool()'s own comment) is treated as "unknown, don't
-  // redact" to preserve prior behavior for those callers.
-  const financialsAllowed = role ? (ROLE_RANK[role as UserRole] ?? 0) >= ROLE_RANK.manager : true;
-
-  if (codeReference === "get_construction_project_dashboard") {
-    const projectId = String(context?.inputs?.projectId ?? "");
-    if (!projectId) throw new Error("Missing projectId");
-    const { getProjectDashboard } = await import("@/lib/services/construction-dashboard-service");
-    const dashboard = await getProjectDashboard({ orgId }, projectId);
-    if (!financialsAllowed) {
-      return { ...dashboard, budget: null, revenue: null, expenses: null, projectValue: null, earnedValue: null, percentByValue: null, contractValue: null };
-    }
-    return dashboard;
-  }
-
-  if (codeReference === "list_delayed_activities") {
-    const { getOrgDashboard } = await import("@/lib/services/construction-dashboard-service");
-    const dashboard = await getOrgDashboard({ orgId });
-    return dashboard.projects.filter((p) => p.delayedTaskCount > 0);
-  }
-
-  if (codeReference === "get_construction_budget_status") {
-    if (!financialsAllowed) throw new Error("This action requires manager role or higher");
-    const projectId = String(context?.inputs?.projectId ?? "");
-    if (!projectId) throw new Error("Missing projectId");
-    const { budgetVsActual } = await import("@/lib/services/construction-reports-service");
-    return budgetVsActual({ orgId }, projectId);
-  }
-
-  if (codeReference === "list_over_budget_projects") {
-    if (!financialsAllowed) throw new Error("This action requires manager role or higher");
-    const { getOrgDashboard, getProjectDashboard } = await import("@/lib/services/construction-dashboard-service");
-    const orgDashboard = await getOrgDashboard({ orgId });
-    // N+1, capped -- matches buildComplianceItemNodes()'s "quick-action
-    // list, not a browse view" posture (see capability-tree-service.ts),
-    // since getOrgDashboard()'s per-project summary doesn't carry budget.
-    const results = await Promise.all(
-      orgDashboard.projects.slice(0, 20).map((p) => getProjectDashboard({ orgId }, p.id))
-    );
-    return results.filter((p) => p.budget > 0 && p.expenses > p.budget);
-  }
-
-  if (codeReference === "get_construction_kpi_status") {
-    const projectId = String(context?.inputs?.projectId ?? "");
-    if (!projectId) throw new Error("Missing projectId");
-    const { kpiReport } = await import("@/lib/services/construction-reports-service");
-    return kpiReport({ orgId }, projectId);
-  }
-
-  if (codeReference === "generate_construction_progress_summary") {
-    const projectId = String(context?.inputs?.projectId ?? "");
-    if (!projectId) throw new Error("Missing projectId");
-    const { generateProgressSummary } = await import("@/lib/services/construction-ai-service");
-    return generateProgressSummary({ orgId, userId }, projectId);
-  }
-
-  if (codeReference === "detect_construction_budget_schedule_risk") {
-    const projectId = String(context?.inputs?.projectId ?? "");
-    if (!projectId) throw new Error("Missing projectId");
-    const { detectBudgetScheduleRisk } = await import("@/lib/services/construction-ai-service");
-    return detectBudgetScheduleRisk({ orgId, userId }, projectId);
-  }
+  // Construction Intelligence (PROJEXA), Wave 128, extracted into
+  // construction-tools.ts (see this file's own header + that file's header
+  // for the extraction/R48-preservation rationale). `role` is threaded
+  // through so dispatchConstructionTool() can apply the same R48 (F089/
+  // F059) financial-field redaction gate this used to apply inline.
+  if (CONSTRUCTION_TOOL_CODES.has(codeReference)) return dispatchConstructionTool(orgId, userId, codeReference, context, role);
 
   throw new Error(`No dispatcher implemented for ${codeReference}`);
 }
