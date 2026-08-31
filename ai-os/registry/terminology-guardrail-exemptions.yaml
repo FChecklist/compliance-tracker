@@ -47,6 +47,10 @@
 # Phase 5 retires this file once every remaining count is itself resolved.
 
 exemptions:
+  - file: playwright.config.ts
+    reason: "Accessibility (WCAG Compliance) gap-closure (2026-08-15): 1 pre-existing dated code comment (line 3, \"Fixed 2026-07-20\") documenting a prior E2E CI-crash fix -- not real business hardcoding, same pattern as this codebase's other dated gap-closure comments. Newly surfaced by this PR touching the file for an unrelated reason (adding webServer/baseURL for e2e/accessibility.spec.ts); the finding itself predates this PR and was never previously caught because --diff-only only scans files that change. Raised to 2, 2026-08-31 (PR #1232 rebase onto current main): the same PR's own webServer-timeout fix added a second dated changelog comment (\"Fixed 2026-08-15\", documenting the 120s->300s timeout raise + ciPlaceholderEnv fix) that this exemption's original count did not yet account for -- same class of real changelog-date comment as line 3's, not example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 2
   - file: src/lib/services/erp-selling-service.test.ts
     reason: "SD-007 Sales Order Document-Flow Overview (2026-07-30): 7 genuine test-fixture literal dates in buildFakeDb()'s mock quotation/sales-order/invoice/payment/credit-note/sales-return records (lines 30, 35, 39, 43, 47, 122) plus one matching expect() assertion (line 89) -- not real business hardcoding, same class as this codebase's other exempted test-fixture files."
     findings_by_category:
@@ -874,9 +878,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/services/org-branding-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Raised to 3, 2026-08-04: OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH real fix (UMR-20260804-090421-c647) added one new comment citing the real Owner-decision date this fix implements -- same class already covered by this exemption's own reasoning, not new example/sample data."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Raised to 3, 2026-08-04: OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH real fix (UMR-20260804-090421-c647) added one new comment citing the real Owner-decision date this fix implements -- same class already covered by this exemption's own reasoning, not new example/sample data. Raised to 4, 2026-08-31 (PR #1232 rebase onto current main): resolvePreAuthBrandByHost's own real bug fix (wrapping the previously-unguarded `db.query.productBranches.findFirst` call in try/catch so a DB outage degrades to null instead of 500ing \"/\"/\"/login\" pre-auth) added one new dated changelog comment (\"Real bug fixed 2026-08-15\") -- same class already covered by this exemption's own reasoning, not new example/sample data."
     findings_by_category:
-      hardcoded_iso_date: 3
+      hardcoded_iso_date: 4
   - file: src/lib/services/org-provisioning-service.test.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated."
     findings_by_category:
