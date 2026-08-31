@@ -34,7 +34,7 @@ import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { executeTask } from "@/lib/task-execution-engine"
 import { transcribeAudio } from "@/lib/whisper-client"
-import { addMeetingActionItem, ServiceError } from "./veri-meeting-service"
+import { addMeetingActionItem, ServiceError, type VeriMeetingContext } from "./veri-meeting-service"
 export { ServiceError }
 
 export type VoiceTicketContext = { orgId: string; userId: string; dbUser: unknown }
@@ -210,7 +210,7 @@ export async function transcribeAndExtractVoiceMemo(
 // task then shows up wherever meeting action items already surface
 // (getVeriMeeting, listMyMeetingActionItems / VERI Chat's Meetings tab).
 export async function addVoiceMemoTicket(
-  ctx: VoiceTicketContext & { dbUser: Parameters<typeof addMeetingActionItem>[0]["dbUser"] },
+  ctx: VoiceTicketContext & { dbUser: Extract<VeriMeetingContext, { dbUser: unknown }>["dbUser"] },
   memoId: string,
   input: { title: string; assigneeUserId?: string; dueDate?: string }
 ) {

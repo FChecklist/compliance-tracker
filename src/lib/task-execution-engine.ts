@@ -1,12 +1,19 @@
-import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods, dynamicChains, entityRelationships, computationEngines } from "@/lib/db";
+import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods, gstImportStagingRows, dynamicChains, entityRelationships, computationEngines } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and, asc, desc, gte, lte, ne, inArray, sql } from "drizzle-orm";
-import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
+import { escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
+import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router";
 import { callLLMJson } from "@/lib/llm-client";
-import { buildPurposeClause, isToolAllowedForDomain, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
+import { buildMultiDomainPurposeClause, resolveOrgDomains, isToolAllowedForDomain, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
+// AI Engineering Quality / Code Structure & Modularity gap-closure ("Code
+// Modularity" finding): first two slices of dispatchEngine()'s incremental
+// extraction into per-category service modules. See each file's own
+// header for scope/provenance.
+import { CRM_ENGINE_KEYS, dispatchCrmEngine } from "@/lib/engine-handlers/crm-engine-dispatch";
+import { ACCOUNTING_ENGINE_KEYS, dispatchAccountingEngine } from "@/lib/engine-handlers/accounting-engine-dispatch";
 import { searchAssistantMemories, recordAssistantMemory } from "@/lib/services/assistant-memory-service";
 import { assertValidDispatchOutput } from "@/lib/dispatch-output-validator";
 import { assertBusinessRulesBeforeExecution } from "@/lib/business-rule-validator";
@@ -17,6 +24,8 @@ import { detectHighImpactAction } from "@/lib/high-impact-action-detector";
 import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSignal } from "@/lib/floor-tier-escalation";
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine";
 import { registerAllGuardrails, TASK_FREE_TEXT_PLANNING_LEAF } from "@/lib/guardrail-registrations";
+import { decideActionAutonomy } from "@/lib/action-autonomy-decision";
+import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
 import { runTaskReflection } from "@/lib/loops/task-reflection";
 import { nextEscalationRung } from "@/lib/escalation-ladder";
 import { evaluateMonitoringRules } from "@/lib/monitoring-engine";
@@ -86,7 +95,13 @@ registerAllGuardrails();
  * write-then-read loop for that assistant's future tasks.
  */
 
-export async function dispatchTool(db: TenantDb, orgId: string, userId: string, codeReference: string, context?: { taskId?: string; inputs?: Record<string, unknown> }): Promise<unknown> {
+// R48 gap-closure (2026-08-30, F089): optional `role` param, appended last
+// so every existing caller (chain-execution engine internals, fde-service.ts)
+// keeps compiling unchanged and keeps its current (unredacted) behavior --
+// only api/v1/projexa/assistant/route.ts's direct call is wired to pass it
+// today, since that is the one call site with a live session dbUser.role
+// available; see R48_PROGRESS.md's F089 entry for the honest remaining scope.
+export async function dispatchTool(db: TenantDb, orgId: string, userId: string, codeReference: string, context?: { taskId?: string; inputs?: Record<string, unknown> }, role?: string | null): Promise<unknown> {
   assertBusinessRulesBeforeExecution(codeReference, context?.inputs ?? {});
   if (codeReference === "get_compliance_stats") {
     const now = new Date();
@@ -163,14 +178,49 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
     if (!complianceItemId || !validStatuses.includes(newStatus)) throw new Error("Missing or invalid complianceItemId/newStatus");
     const existing = await db.query.complianceItems.findFirst({
       where: and(eq(complianceItems.id, complianceItemId), eq(complianceItems.orgId, orgId)),
-      columns: { id: true, title: true, status: true },
+      columns: { id: true, title: true, status: true, amount: true },
     });
     if (!existing) throw new Error("Compliance item not found");
+
+    // R65 Part B: the real risk here isn't the status field itself, it's
+    // silently closing out (completed) or waiving (not_applicable) an item
+    // carrying a large penalty/filing amount -- the same signal
+    // create_compliance_item's own gate already uses at creation time. Any
+    // other transition (pending/in_progress/overdue/draft) is a routine
+    // workflow move, not a financial decision, so it's left ungated --
+    // matches the 80/20 intent of gating the 20% that's actually
+    // consequential, not every write indiscriminately.
+    const isTerminalTransition = newStatus === "completed" || newStatus === "not_applicable";
+    const itemAmount = existing.amount != null ? Number(existing.amount) : null;
+    const autonomy = decideActionAutonomy({
+      riskFactors: {
+        financialAmountInr: isTerminalTransition && Number.isFinite(itemAmount) ? itemAmount : null,
+        blastRadius: "single",
+      },
+    });
+    // When the gate says review first, the item lands in 'draft' -- the
+    // same "not yet an active/closed obligation" state create_compliance_item's
+    // gate uses -- instead of the requested status; a human moves it on from
+    // there via this same dispatch path once satisfied. Nothing is silently
+    // dropped: the originally-requested status is preserved in the audit
+    // log and the return value.
+    const appliedStatus = autonomy.decision === "pending_review" ? "draft" : newStatus;
     const [updated] = await db.update(complianceItems)
-      .set({ status: newStatus as typeof existing.status, updatedAt: new Date(), ...(newStatus === "completed" ? { completedAt: new Date() } : {}) })
+      .set({ status: appliedStatus as typeof existing.status, updatedAt: new Date(), ...(appliedStatus === "completed" ? { completedAt: new Date() } : {}) })
       .where(eq(complianceItems.id, complianceItemId))
       .returning({ id: complianceItems.id, title: complianceItems.title, status: complianceItems.status });
-    return { ...updated, previousStatus: existing.status };
+
+    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (dbUser) {
+      await logActivity({
+        tx: db, action: "update", entityType: "ComplianceItem", entityId: complianceItemId,
+        details: autonomy.decision === "pending_review"
+          ? `Status change ${existing.status} -> ${newStatus} held for review, applied as 'draft' instead (${autonomy.reason})`
+          : `Status change: ${existing.status} -> ${updated.status}`,
+        orgId, dbUser,
+      });
+    }
+    return { ...updated, previousStatus: existing.status, requestedStatus: newStatus, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason };
   }
 
   // Gap closure, 2026-07-10 (CAPABILITY_COVERAGE.md): create_compliance_item
@@ -196,17 +246,44 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
     const dept = await db.query.departments.findFirst({ where: and(eq(departments.id, departmentId), eq(departments.orgId, orgId)) });
     if (!dept) throw new Error("Department not found");
 
+    // R65 Part B ("80% software, no approval needed / 20% needs human
+    // approval"): the real, general cross-module autonomy gate -- see
+    // action-autonomy-decision.ts's own header for why this is a
+    // generalization of the exact requiresAudit logic already proven live
+    // in /api/ai/team/dispatch/route.ts, not a parallel invention. A
+    // compliance item carrying a large penalty/filing amount is the one
+    // real risk signal available at creation time here; this is a plain
+    // deterministic, form-driven create (no LLM judgment call), so no
+    // confidencePercentage is passed -- only risk gates it.
+    const financialAmountInr = amountRaw != null && amountRaw !== "" ? Number(amountRaw) : null;
+    const autonomy = decideActionAutonomy({
+      riskFactors: { financialAmountInr: Number.isFinite(financialAmountInr) ? financialAmountInr : null, blastRadius: "single" },
+    });
+    // Reuses the existing 'draft' status (already a real, valid
+    // complianceStatusEnum value) as the "needs human review before this is
+    // treated as an active compliance obligation" state -- no schema change
+    // needed. A human reviewing drafts simply moves it to 'pending' via the
+    // existing update_compliance_status dispatch path once satisfied.
+    const initialStatus = autonomy.decision === "pending_review" ? "draft" : "pending";
+
     const [item] = await db.insert(complianceItems).values({
       title, complianceType: complianceType as typeof VALID_COMPLIANCE_TYPES[number],
       dueDate: parsedDueDate, departmentId, orgId,
       amount: amountRaw != null && amountRaw !== "" ? String(amountRaw) : null,
-    }).returning({ id: complianceItems.id, title: complianceItems.title, dueDate: complianceItems.dueDate });
+      status: initialStatus,
+    }).returning({ id: complianceItems.id, title: complianceItems.title, dueDate: complianceItems.dueDate, status: complianceItems.status });
 
     const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
     if (dbUser) {
-      await logActivity({ tx: db, action: "create", entityType: "ComplianceItem", entityId: item.id, details: `Created compliance item: ${item.title}`, orgId, dbUser });
+      await logActivity({
+        tx: db, action: "create", entityType: "ComplianceItem", entityId: item.id,
+        details: autonomy.decision === "pending_review"
+          ? `Created compliance item: ${item.title} (needs review before activation -- ${autonomy.reason})`
+          : `Created compliance item: ${item.title}`,
+        orgId, dbUser,
+      });
     }
-    return item;
+    return { ...item, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason };
   }
 
   // Gap closure, 2026-07-10: get_penalty_estimate was registered with zero
@@ -250,13 +327,80 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
     return listReturns({ orgId });
   }
 
+  // R63 gap-closure (2026-08-29, owner directive: "complete the big domain/
+  // tool-scoping fix"): the pipeline's whole candidate set (pipeline/
+  // executor.ts's EXECUTABLE_FUNCTION_IDS) was 8 functions, all construction
+  // -- confirmed live, reproduced ("raise an invoice" refused, VERI ERP's
+  // own chain-pill had nothing to select). ERP and CRM had real, fully-built
+  // service layers (erp-selling-service.ts/crm-service.ts) with real pages
+  // this same session already confirmed live, but zero AI tools reaching
+  // them. These 5 are read-only (matching this file's own established
+  // read/write split -- writes stay structured-dispatch-only, same as
+  // update_compliance_status above), org-scoped, and each a thin wrapper
+  // over an already-tested service function -- same shape as the
+  // construction reads below. Each service call already enforces its own
+  // per-org module enablement (requireErpEnabled/requireSalesEnabled) and
+  // fails honestly (ServiceError, caught by executor.ts's try/catch) for an
+  // org that hasn't purchased that module -- no new enablement logic needed
+  // here.
+  if (codeReference === "list_customers") {
+    const { listCustomers } = await import("@/lib/services/erp-selling-service");
+    return listCustomers({ orgId });
+  }
+
+  if (codeReference === "list_sales_orders") {
+    const { listSalesOrders } = await import("@/lib/services/erp-selling-service");
+    return listSalesOrders({ orgId });
+  }
+
+  if (codeReference === "list_leads") {
+    const { listLeads } = await import("@/lib/services/crm-service");
+    return listLeads({ orgId });
+  }
+
+  if (codeReference === "list_opportunities") {
+    const { listOpportunities } = await import("@/lib/services/crm-service");
+    return listOpportunities({ orgId });
+  }
+
+  if (codeReference === "get_sales_pipeline_overview") {
+    const { getSalesPipelineOverview } = await import("@/lib/services/crm-service");
+    return getSalesPipelineOverview({ orgId });
+  }
+
   if (codeReference === "confirm_gst_batch") {
     const batchId = String(context?.inputs?.batchId ?? "");
     if (!batchId) throw new Error("Missing batchId");
     const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
     if (!dbUser) throw new Error("User not found");
+
+    // R65 Part B: confirming a batch is what turns untrusted imported rows
+    // into canonical invoices everything downstream (reconciliation,
+    // returns) is built on -- a real "approval" per high-impact-action-
+    // detector.ts's own taxonomy (inherently medium), escalated further by
+    // the real rupee value being confirmed. Computed from the same staged
+    // rows confirmBatchCore itself will validate/insert, not re-derived a
+    // second way.
+    const stagedRows = await db.query.gstImportStagingRows.findMany({ where: eq(gstImportStagingRows.batchId, batchId) });
+    const totalStagedValue = stagedRows.reduce((sum, r) => {
+      const d = r.mappedData as { invoiceNumber: string | null; invoiceDate: string | null; totalValue?: number };
+      return d.invoiceNumber && d.invoiceDate && Number.isFinite(d.totalValue) ? sum + Number(d.totalValue) : sum;
+    }, 0);
+    const autonomy = decideActionAutonomy({
+      riskFactors: { financialAmountInr: totalStagedValue > 0 ? totalStagedValue : null, blastRadius: "single", highImpactCategory: "approval" },
+    });
+    if (autonomy.decision === "pending_review") {
+      // Unlike update_compliance_status, a GST batch has no safe partial/
+      // draft state to fall into -- it's either confirmed (canonical rows
+      // exist, validation has run) or it isn't. So the gate skips the
+      // mutation entirely rather than half-applying it, and surfaces the
+      // decision for a human to re-invoke this same action once reviewed.
+      await logActivity({ tx: db, action: "review_required", entityType: "GstImportBatch", entityId: batchId, details: `Confirm held for review: ${autonomy.reason}`, orgId, dbUser });
+      return { batchId, confirmedCount: 0, findingsCount: 0, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason };
+    }
     const { confirmBatchCore } = await import("@/lib/services/gst-reconciliation-service");
-    return confirmBatchCore(db, { orgId, userId, dbUser }, batchId);
+    const result = await confirmBatchCore(db, { orgId, userId, dbUser }, batchId);
+    return { ...result, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason };
   }
 
   if (codeReference === "run_gst_reconciliation") {
@@ -267,7 +411,23 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
     const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
     if (!dbUser) throw new Error("User not found");
     const { runReconciliationCore } = await import("@/lib/services/gst-reconciliation-service");
-    return runReconciliationCore(db, { orgId, userId, dbUser }, { period, purchaseBatchId, gstr2bBatchId });
+    const result = await runReconciliationCore(db, { orgId, userId, dbUser }, { period, purchaseBatchId, gstr2bBatchId });
+
+    // R65 Part B: reconciliation itself is fully re-runnable and finalizes
+    // nothing on its own (no return/filing depends on this run alone), so
+    // it's genuinely part of the software-decided 80% -- unlike confirm/
+    // generate below, there's no amount or irreversibility to gate on. The
+    // one real risk worth surfacing is a *data-quality* one: if a large
+    // share of invoices didn't match, the numbers this run just produced
+    // aren't trustworthy yet regardless of rupee amount -- a direct check
+    // on the real mismatch ratio this run computed, not a forced fit into
+    // the amount/category gate (which has no ratio concept).
+    const totalRows = result.summary.exactMatches + result.summary.probableMatches + result.summary.mismatches + result.summary.missingIn2b + result.summary.missingInBooks;
+    const unmatchedRatio = totalRows > 0 ? (result.summary.mismatches + result.summary.missingIn2b + result.summary.missingInBooks) / totalRows : 0;
+    const autonomy = unmatchedRatio > 0.2
+      ? { decision: "pending_review" as const, reason: `${Math.round(unmatchedRatio * 100)}% of rows are mismatched/missing -- data quality too low to trust automatically, review before relying on this run.` }
+      : decideActionAutonomy({ riskFactors: { blastRadius: "single" } });
+    return { ...result, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason };
   }
 
   if (codeReference === "generate_gst_return") {
@@ -279,7 +439,22 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
     const { generateReturnCore, resolveOwnGstinForOrg } = await import("@/lib/services/gst-reconciliation-service");
     const gstin = await resolveOwnGstinForOrg({ orgId });
     if (!gstin) throw new Error("No GSTIN configured for this organisation -- set it in Settings before generating a return.");
-    return generateReturnCore(db, { orgId, userId, dbUser }, { period, gstin, returnType: returnType as "gstr1" | "gstr3b" });
+    const returnPeriod = await generateReturnCore(db, { orgId, userId, dbUser }, { period, gstin, returnType: returnType as "gstr1" | "gstr3b" });
+
+    // R65 Part B: a generated return is the actual filing artifact -- this
+    // is compliance_submission per high-impact-action-detector.ts's own
+    // taxonomy, inherently high regardless of amount (same bucket as
+    // payment/delete). generateReturnCore already persisted it as
+    // 'generated'; the gate downgrades that to 'draft' (the same "not yet
+    // final" reuse as the gate above) so nothing treats it as ready-to-file
+    // until a human has actually looked at it.
+    const returnAutonomy = decideActionAutonomy({ riskFactors: { blastRadius: "single", highImpactCategory: "compliance_submission" } });
+    if (returnAutonomy.decision === "pending_review") {
+      const [heldBack] = await db.update(gstReturnPeriods).set({ status: "draft" }).where(eq(gstReturnPeriods.id, returnPeriod.id)).returning();
+      await logActivity({ tx: db, action: "review_required", entityType: "GstReturnPeriod", entityId: returnPeriod.id, details: `Generated return held as draft for review: ${returnAutonomy.reason}`, orgId, dbUser });
+      return { ...heldBack, autonomyDecision: returnAutonomy.decision, autonomyReason: returnAutonomy.reason };
+    }
+    return { ...returnPeriod, autonomyDecision: returnAutonomy.decision, autonomyReason: returnAutonomy.reason };
   }
 
   if (codeReference === "generate_gst_ai_review") {
@@ -288,7 +463,23 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
     const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
     if (!dbUser) throw new Error("User not found");
     const { generateReviewReportCore } = await import("@/lib/services/gst-reconciliation-service");
-    return generateReviewReportCore(db, { orgId, userId, dbUser }, returnPeriodId);
+    const report = await generateReviewReportCore(db, { orgId, userId, dbUser }, returnPeriodId);
+
+    // R65 Part B: the one AI-authored step in this whole module -- the LLM
+    // already emits its own risk verdict (low/medium/high) and, per issue,
+    // a real amountAtStake. A "high" verdict is never auto-trusted
+    // regardless of amount (an AI's own high-risk self-assessment is
+    // exactly the case guardrail-engine.ts's whole design says must reach a
+    // human); otherwise the real amountAtStake numbers the AI itself
+    // surfaced feed the same deterministic gate as every other handler here.
+    const maxAmountAtStake = report.topIssues.reduce((max, i) => Math.max(max, i.amountAtStake ?? 0), 0);
+    const autonomy = report.verdict === "high"
+      ? { decision: "pending_review" as const, reason: `The AI review itself verdict'd this return "high" risk -- always surfaced for human review regardless of amount.` }
+      : decideActionAutonomy({ riskFactors: { financialAmountInr: maxAmountAtStake > 0 ? maxAmountAtStake : null, blastRadius: "single" } });
+    if (autonomy.decision === "pending_review") {
+      await logActivity({ tx: db, action: "review_required", entityType: "GstAiReviewReport", entityId: report.id, details: `AI review needs human sign-off: ${autonomy.reason}`, orgId, dbUser });
+    }
+    return { ...report, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason };
   }
 
   // Construction Intelligence (PROJEXA), Wave 128. All read-only, matching
@@ -296,11 +487,21 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
   // opens its own withTenantContext transaction via the service call
   // (not the `db` already open here) -- same posture as list_gst_import_batches
   // above, acceptable for read-only queries per that branch's own comment.
+  // R48 gap-closure (2026-08-30, F089/F059): same rank check as the API
+  // routes' own redaction. `role` undefined (caller not yet wired to pass
+  // it -- see dispatchTool()'s own comment) is treated as "unknown, don't
+  // redact" to preserve prior behavior for those callers.
+  const financialsAllowed = role ? (ROLE_RANK[role as UserRole] ?? 0) >= ROLE_RANK.manager : true;
+
   if (codeReference === "get_construction_project_dashboard") {
     const projectId = String(context?.inputs?.projectId ?? "");
     if (!projectId) throw new Error("Missing projectId");
     const { getProjectDashboard } = await import("@/lib/services/construction-dashboard-service");
-    return getProjectDashboard({ orgId }, projectId);
+    const dashboard = await getProjectDashboard({ orgId }, projectId);
+    if (!financialsAllowed) {
+      return { ...dashboard, budget: null, revenue: null, expenses: null, projectValue: null, earnedValue: null, percentByValue: null, contractValue: null };
+    }
+    return dashboard;
   }
 
   if (codeReference === "list_delayed_activities") {
@@ -310,6 +511,7 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
   }
 
   if (codeReference === "get_construction_budget_status") {
+    if (!financialsAllowed) throw new Error("This action requires manager role or higher");
     const projectId = String(context?.inputs?.projectId ?? "");
     if (!projectId) throw new Error("Missing projectId");
     const { budgetVsActual } = await import("@/lib/services/construction-reports-service");
@@ -317,6 +519,7 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
   }
 
   if (codeReference === "list_over_budget_projects") {
+    if (!financialsAllowed) throw new Error("This action requires manager role or higher");
     const { getOrgDashboard, getProjectDashboard } = await import("@/lib/services/construction-dashboard-service");
     const orgDashboard = await getOrgDashboard({ orgId });
     // N+1, capped -- matches buildComplianceItemNodes()'s "quick-action
@@ -380,7 +583,7 @@ function parseNumberList(v: unknown): number[] {
   });
 }
 
-async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, inputs: Record<string, unknown>): Promise<unknown> {
+async function dispatchEngine(db: TenantDb, orgId: string, userId: string, engineKey: string, inputs: Record<string, unknown>): Promise<unknown> {
   assertBusinessRulesBeforeExecution(engineKey, inputs);
   // Zero typed fields -- validates a real GST return period's own confirmed
   // sales invoices, never a human-typed line-items list. Completes the GST
@@ -403,7 +606,54 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
     });
   }
 
+  // VERIDIAN CRM Wave 4 engine category -- extracted to
+  // engine-handlers/crm-engine-dispatch.ts (AI Engineering Quality / Code
+  // Structure & Modularity gap-closure, "Code Modularity" finding). Pure
+  // code motion: same cases, same behavior, now a separate module.
+  if (CRM_ENGINE_KEYS.has(engineKey)) return dispatchCrmEngine(engineKey, orgId, userId, inputs);
+
   switch (engineKey) {
+    // R48/R64 gap-closure (2026-08-30, workstream 2: real erp writes,
+    // matching the exact same safety posture as the crm_create_*_engine
+    // cases above -- capability-tree-service.ts's buildErpQuickCreateNodes()
+    // collects every field via inputFields before this ever runs, so there
+    // is nothing left for an AI to interpret.
+    case "erp_create_customer_engine": {
+      const { createCustomer } = await import("@/lib/services/erp-selling-service");
+      const customerName = String(inputs.customerName ?? "").trim();
+      if (!customerName) throw new Error("customerName is required");
+      return createCustomer(
+        { orgId },
+        {
+          customerName,
+          gstin: inputs.gstin ? String(inputs.gstin) : undefined,
+          creditLimit: inputs.creditLimit != null && inputs.creditLimit !== "" ? Number(inputs.creditLimit) : undefined,
+        }
+      );
+    }
+    case "erp_create_sales_order_engine": {
+      const { createSalesOrder } = await import("@/lib/services/erp-selling-service");
+      const customerId = String(inputs.customerId ?? "").trim();
+      const orderDate = String(inputs.orderDate ?? "").trim();
+      const itemDescription = String(inputs.itemDescription ?? "").trim();
+      const rate = Number(inputs.rate);
+      if (!customerId) throw new Error("customerId is required");
+      if (!orderDate) throw new Error("orderDate is required");
+      if (!itemDescription) throw new Error("itemDescription is required");
+      if (!Number.isFinite(rate)) throw new Error("A valid rate is required");
+      const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
+      if (!dbUser) throw new Error("Acting user not found");
+      return createSalesOrder(
+        { orgId, userId, dbUser },
+        {
+          customerId, orderDate,
+          items: [{
+            description: itemDescription, rate,
+            quantity: inputs.quantity != null && inputs.quantity !== "" ? Number(inputs.quantity) : undefined,
+          }],
+        }
+      );
+    }
     // Mathematical Computation Engine (10 of 13 -- see capability-tree-
     // service.ts's comment for the 3 deferred, matrix/model-input ones).
     case "basic_arithmetic_engine": {
@@ -699,87 +949,12 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
     }
   }
 
-  // Accounting Computation Engine (tree4-unified/50-completion-plan area 8,
-  // Wave 167) -- 11 of 20 registered engines. The other 9
-  // (double_entry_engine, journal_posting_engine, ledger_posting_engine,
-  // trial_balance_engine, profit_loss_engine, balance_sheet_engine,
-  // cash_flow_engine, financial_year_closing_engine, chart_of_accounts_engine)
-  // are already implemented in erp-accounting-service.ts/erp-financial-
-  // report-service.ts as real, DB-backed ERP product functions (per
-  // accounting-engine.ts's own header comment) -- deliberately NOT
-  // re-dispatched here as a second surface; see this session's log for why.
-  switch (engineKey) {
-    case "opening_balance_engine": {
-      const { computeOpeningBalance } = await import("@/lib/engines/accounting-engine");
-      return { openingBalance: computeOpeningBalance(Number(inputs.priorClosingBalance)) };
-    }
-    case "closing_balance_engine": {
-      const { computeClosingBalance } = await import("@/lib/engines/accounting-engine");
-      return { closingBalance: computeClosingBalance(Number(inputs.openingBalance), Number(inputs.totalDebits), Number(inputs.totalCredits), truthy(inputs.isDebitNormal)) };
-    }
-    case "balance_verification_engine": {
-      // AI Architecture / Explainability & Transparency gap-closure
-      // (2026-07-18): the *Explained() variant -- see accounting-engine.ts's
-      // header comment. Safe here specifically because this dispatch's
-      // return value is only ever JSON.stringify'd into a task chat message
-      // (executeEngineDispatch, below) and sanity-checked by
-      // assertValidDispatchOutput (tolerates any nested shape, only rejects
-      // NaN/Infinity numbers) -- adding fields doesn't break either.
-      const { verifyBalancesNetToZeroExplained } = await import("@/lib/engines/accounting-engine");
-      const balances = inputs.balances as { accountId: string; debit: number; credit: number }[];
-      if (!Array.isArray(balances)) throw new Error("balances must be an array");
-      return verifyBalancesNetToZeroExplained(balances);
-    }
-    case "consolidation_engine": {
-      const { consolidateBalances } = await import("@/lib/engines/accounting-engine");
-      const entityBalances = inputs.entityBalances as { entityId: string; accountId: string; amount: number }[];
-      const intercompanyAccountIds = inputs.intercompanyAccountIds as string[];
-      if (!Array.isArray(entityBalances) || !Array.isArray(intercompanyAccountIds)) throw new Error("entityBalances and intercompanyAccountIds must both be arrays");
-      return consolidateBalances(entityBalances, intercompanyAccountIds);
-    }
-    case "fund_flow_engine": {
-      const { computeFundFlow } = await import("@/lib/engines/accounting-engine");
-      return computeFundFlow(Number(inputs.openingWorkingCapital), Number(inputs.closingWorkingCapital));
-    }
-    case "statement_changes_equity_engine": {
-      const { statementOfChangesInEquity } = await import("@/lib/engines/accounting-engine");
-      return statementOfChangesInEquity({
-        openingBalance: Number(inputs.openingBalance), profitForPeriod: Number(inputs.profitForPeriod),
-        dividendsPaid: inputs.dividendsPaid ? Number(inputs.dividendsPaid) : undefined,
-        capitalIntroduced: inputs.capitalIntroduced ? Number(inputs.capitalIntroduced) : undefined,
-        otherComprehensiveIncome: inputs.otherComprehensiveIncome ? Number(inputs.otherComprehensiveIncome) : undefined,
-      });
-    }
-    case "notes_to_accounts_generator": {
-      const { generateNotesToAccounts } = await import("@/lib/engines/accounting-engine");
-      const lineItems = inputs.lineItems as { accountId: string; noteCategory: string; amount: number }[];
-      if (!Array.isArray(lineItems)) throw new Error("lineItems must be an array");
-      return generateNotesToAccounts(lineItems);
-    }
-    case "voucher_validation_engine": {
-      const { validateVoucher } = await import("@/lib/engines/accounting-engine");
-      const lines = inputs.lines as { accountId: string }[];
-      if (!Array.isArray(lines)) throw new Error("lines must be an array");
-      return validateVoucher({ debitTotal: Number(inputs.debitTotal), creditTotal: Number(inputs.creditTotal), lines });
-    }
-    case "duplicate_entry_detection_engine": {
-      const { detectDuplicateEntries } = await import("@/lib/engines/accounting-engine");
-      const entries = inputs.entries as { id: string; date: string; amount: number; accountId: string; reference?: string }[];
-      if (!Array.isArray(entries)) throw new Error("entries must be an array");
-      return { duplicateGroups: detectDuplicateEntries(entries) };
-    }
-    case "suspense_account_detection_engine": {
-      const { detectSuspenseAccountBalance } = await import("@/lib/engines/accounting-engine");
-      return detectSuspenseAccountBalance(Number(inputs.suspenseAccountBalance));
-    }
-    case "ledger_reconciliation_engine": {
-      const { reconcileLedgers } = await import("@/lib/engines/accounting-engine");
-      const ledgerA = inputs.ledgerA as { reference: string; amount: number }[];
-      const ledgerB = inputs.ledgerB as { reference: string; amount: number }[];
-      if (!Array.isArray(ledgerA) || !Array.isArray(ledgerB)) throw new Error("ledgerA and ledgerB must both be arrays");
-      return reconcileLedgers(ledgerA, ledgerB);
-    }
-  }
+  // Accounting Computation Engine -- extracted to engine-handlers/
+  // accounting-engine-dispatch.ts (AI Engineering Quality / Code Structure
+  // & Modularity gap-closure, "Code Modularity" finding). Pure code
+  // motion: same cases, same behavior, now a separate module. See that
+  // file's header for the "11 of 20 registered engines" provenance note.
+  if (ACCOUNTING_ENGINE_KEYS.has(engineKey)) return dispatchAccountingEngine(engineKey, inputs);
 
   // Payroll Engine (tree4-unified/50-completion-plan area 8, Wave 167) --
   // 14 of 18 registered engines. pf_calculator/esi_calculator/
@@ -1793,7 +1968,7 @@ async function executeEngineDispatch(orgId: string, userId: string, taskId: stri
     try {
       const output = await invokeEngine(
         db, { orgId, userId, taskId }, engineKey,
-        (inputs: Record<string, unknown>) => dispatchEngine(db, orgId, engineKey, inputs),
+        (inputs: Record<string, unknown>) => dispatchEngine(db, orgId, userId, engineKey, inputs),
         engineInputs
       );
       assertValidDispatchOutput(output);
@@ -1935,11 +2110,26 @@ async function executePackageDispatch(
       );
       if (!policyDecision.allowed) throw new Error(refusalMessageFor(policyDecision));
 
-      const modelConfig = await resolveModelConfig(orgId, "task_oa");
+      // GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED fix (2026-08-04): resolves
+      // through Mother Router's end_user_org scope instead of calling
+      // orchestra-model-resolver.ts's resolveModelConfig() directly -- the
+      // exact same incremental-migration pattern orchestrate/route.ts already
+      // proved out for the same "task_oa" layer (see that route's own
+      // "Phase 9 ... crossed Gateway G05 for real" comment). Internally still
+      // calls the same resolveModelConfig() for the baseline (customer BYO
+      // config, cost-guard, source-type overrides all unchanged) and returns
+      // it via resolvedConfig -- this is additive (real ai_routing_audit_log
+      // coverage + any active end_user_org routing policy override), never a
+      // behavior change for a BYO-configured org (computeEndUserOrgResolution
+      // returns the baseline untouched whenever isCustomerConfigured is true).
+      const modelConfig = (await resolveMotherRouterModel({ scope: "end_user_org", orgId, layerKey: "task_oa" })).resolvedConfig ?? null;
       if (!modelConfig) throw new Error("No LLM provider is configured for this organisation (task_oa layer).");
 
+      // R63 gap-closure (2026-08-29): was buildPurposeClause(DEFAULT_DOMAIN),
+      // hardcoded to "compliance" regardless of what this org has enabled.
+      const orgDomains = await resolveOrgDomains(orgId);
       const systemPrompt =
-        `${buildPurposeClause(DEFAULT_DOMAIN)}\n\n` +
+        `${buildMultiDomainPurposeClause(orgDomains)}\n\n` +
         "You are executing a single pre-approved, narrow instruction package. " +
         "Follow ONLY the numbered steps below, using ONLY the variable values provided. " +
         "Do not reason beyond what is written, and do not use any information beyond the steps and variables given. " +
@@ -2207,7 +2397,10 @@ export async function executeTask(
       console.error("Priority 6: UMR lookup failed for NOVEL-classified task, continuing without a hint:", err);
     }
 
-    const modelConfig = await resolveModelConfig(orgId, "task_oa");
+    // GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED fix (2026-08-04): same
+    // Mother Router migration as executePackageDispatch() above -- see that
+    // call site's comment for the full rationale.
+    const modelConfig = (await resolveMotherRouterModel({ scope: "end_user_org", orgId, layerKey: "task_oa" })).resolvedConfig ?? null;
     if (!modelConfig) {
       await markTaskOutcome(orgId, userId, taskId, "failed", "No LLM provider is configured for this organisation (task_oa layer). Set one up in Settings → AI Configuration.");
       return;
@@ -2265,7 +2458,10 @@ export async function executeTask(
 
     const agentList = agents.map((a) => `- ${a.name} (${a.tier}${a.domain ? `, ${a.domain}` : ""})`).join("\n");
     const systemPromptTemplate = await resolvePromptTemplate("task_execution.planning_system");
-    const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN));
+    // R63 gap-closure (2026-08-29): was buildPurposeClause(DEFAULT_DOMAIN),
+    // hardcoded to "compliance" regardless of what this org has enabled.
+    const orgDomains = await resolveOrgDomains(orgId);
+    const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildMultiDomainPurposeClause(orgDomains));
     const memoryBlock = memories.length > 0
       ? `\n\nRelevant memories from this assistant's past work (may or may not apply here):\n${memories.map((m) => `- [${m.category}] ${m.content}`).join("\n")}`
       : "";

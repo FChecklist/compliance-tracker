@@ -3,12 +3,20 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listAllProjectsForOrg, createProjectDirect, ServiceError } from "@/lib/services/product-service"
 
 export async function GET() {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ projects: [] })
 
   try {
-    const result = await listAllProjectsForOrg({ orgId })
+    // R48 gap-closure (2026-08-30, F002) -- see listAllProjectsForOrg's own
+    // comment for the full reasoning. Narrowed only for the exact "manager"/
+    // "senior_professional" rank this business_rule names; branch_manager+
+    // keep org-wide oversight visibility, and member/viewer are left
+    // unfiltered too since this schema has no project-membership concept
+    // for them beyond leadUserId (a real, documented limitation, not silently
+    // papered over -- see R48_PROGRESS.md's F002 entry).
+    const scopeToLead = dbUser && (dbUser.role === "manager" || dbUser.role === "senior_professional") ? dbUser.id : undefined
+    const result = await listAllProjectsForOrg({ orgId }, scopeToLead)
     return NextResponse.json({
       projects: result.map((p) => ({
         id: p.id, name: p.name, description: p.description, clientId: p.clientId,

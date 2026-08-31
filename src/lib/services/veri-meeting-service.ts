@@ -31,8 +31,28 @@ import { runMeetingIntelligenceGenerationMonitor } from "@/lib/monitors/meeting-
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
+import type { ServiceActor } from "./context"
 
-export type VeriMeetingContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
+// Wave 143 (PROJEXA Minutes of Meetings wiring): widened from a hardcoded
+// `dbUser: typeof users.$inferSelect` to the same dbUser|apiKey
+// discriminated union `ServiceActor` already used elsewhere in this
+// codebase for exactly this reason (see context.ts's own header) -- every
+// pre-existing caller (VeriChatPanel, voice/ticket/email intelligence,
+// mother-router) still just passes `{ orgId, userId, dbUser }`, which
+// satisfies the `dbUser` branch unchanged. New callers reachable only via a
+// Bearer API key (PROJEXA's callVeridian(), no cookie session) now have a
+// real `{ orgId, userId, apiKey }` option instead of needing a fabricated
+// dbUser.
+// R39/R-C04: userId is nullable -- see veriMeetings.createdById's schema.ts
+// comment. Callers pass ctx.dbUser?.id ?? null, never ctx.apiKey?.id.
+export type VeriMeetingContext = { orgId: string; userId: string | null } & ServiceActor
+
+// logActivity()/runMeetingIntelligenceGenerationMonitor() both require the
+// same discriminated dbUser XOR apiKey actor shape -- this is the one place
+// that ternary gets written, instead of at each of this file's ~9 call sites.
+function actorOf(ctx: VeriMeetingContext): ServiceActor {
+  return ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }
+}
 
 function generateSystemId(): string {
   const year = new Date().getFullYear()
@@ -46,9 +66,18 @@ function assertEditable(meeting: { status: string }) {
   }
 }
 
-export async function listVeriMeetings(ctx: { orgId: string }) {
+// Wave 143: contextEntityId scoping added -- PROJEXA's MoM screen is
+// per-project, so it needs "meetings for this project" rather than the
+// full org-wide feed every existing internal caller (VeriChatPanel's
+// Meetings tab) wants.
+export async function listVeriMeetings(ctx: { orgId: string }, contextEntityId?: string) {
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.veriMeetings.findMany({ where: eq(veriMeetings.orgId, ctx.orgId), orderBy: desc(veriMeetings.scheduledAt) })
+    db.query.veriMeetings.findMany({
+      where: contextEntityId
+        ? and(eq(veriMeetings.orgId, ctx.orgId), eq(veriMeetings.contextEntityId, contextEntityId))
+        : eq(veriMeetings.orgId, ctx.orgId),
+      orderBy: desc(veriMeetings.scheduledAt),
+    })
   )
 }
 
@@ -72,7 +101,7 @@ export async function createVeriMeeting(
   if (!title) throw new ServiceError("title is required", 400)
   if (!input.scheduledAt) throw new ServiceError("scheduledAt is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const [meeting] = await db.insert(veriMeetings).values({
       orgId: ctx.orgId, title, meetingType: input.meetingType || "team", scheduledAt: new Date(input.scheduledAt),
       attendees: input.attendees || [], agenda: input.agenda || [],
@@ -83,7 +112,7 @@ export async function createVeriMeeting(
 
     await logActivity({
       tx: db, action: "veri_meeting.created", entityType: "veri_meeting", entityId: meeting!.id,
-      details: `Created meeting "${title}"`, orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: `Created meeting "${title}"`, orgId: ctx.orgId, ...actorOf(ctx),
     })
     return meeting
   })
@@ -97,7 +126,7 @@ export async function updateVeriMeetingDetails(
   meetingId: string,
   input: { title?: string; meetingType?: string; scheduledAt?: string; attendees?: string[]; agenda?: string[] }
 ) {
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const existing = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Meeting not found", 404)
     assertEditable(existing)
@@ -114,14 +143,14 @@ export async function updateVeriMeetingDetails(
     const changedFields = Object.keys(patch).filter((k) => k !== "updatedAt")
     await logActivity({
       tx: db, action: "veri_meeting.details_updated", entityType: "veri_meeting", entityId: meetingId,
-      details: `Updated: ${changedFields.join(", ")}`, orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: `Updated: ${changedFields.join(", ")}`, orgId: ctx.orgId, ...actorOf(ctx),
     })
     return updated
   })
 }
 
 export async function updateMeetingMinutes(ctx: VeriMeetingContext, meetingId: string, minutes: string) {
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const existing = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Meeting not found", 404)
     assertEditable(existing)
@@ -135,7 +164,7 @@ export async function updateMeetingMinutes(ctx: VeriMeetingContext, meetingId: s
 
     await logActivity({
       tx: db, action: "veri_meeting.minutes_updated", entityType: "veri_meeting", entityId: meetingId,
-      details: "Minutes updated", orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: "Minutes updated", orgId: ctx.orgId, ...actorOf(ctx),
     })
     return updated
   })
@@ -144,7 +173,7 @@ export async function updateMeetingMinutes(ctx: VeriMeetingContext, meetingId: s
 // Publish/lock -- the core auditability feature adopted from meettrack-v2,
 // enforced server-side (assertEditable), not just a disabled UI input.
 export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: string) {
-  const updated = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const updated = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const existing = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Meeting not found", 404)
     if (existing.status === "published") throw new ServiceError("Meeting is already published", 409)
@@ -155,7 +184,7 @@ export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: str
 
     await logActivity({
       tx: db, action: "veri_meeting.published", entityType: "veri_meeting", entityId: meetingId,
-      details: "Meeting published and locked", orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: "Meeting published and locked", orgId: ctx.orgId, ...actorOf(ctx),
     })
     return row
   })
@@ -201,7 +230,7 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
   if (!meeting.minutes?.trim()) throw new ServiceError("Meeting has no minutes to analyze", 400)
 
   try {
-    return await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    return await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
       const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
       if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
 
@@ -212,7 +241,7 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
       // minutes are human-typed free text, the same risk shape as any chat
       // surface -- this call had no Constitution gate despite that.
       const policyDecision = enforcePolicy(
-        { orgId: ctx.orgId, userId: ctx.userId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "meeting_intelligence.extract" },
+        { orgId: ctx.orgId, userId: ctx.userId ?? undefined, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "meeting_intelligence.extract" },
         userMessage
       )
       if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 400)
@@ -225,7 +254,7 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
       }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 700 }, modelConfig.fallback)
 
       recordOrchestraExecution({
-        orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "meeting_intelligence.extract",
+        orgId: ctx.orgId, userId: ctx.userId ?? undefined, layerKey: "task_oa", eventType: "meeting_intelligence.extract",
         input: { meetingId }, output: { keyDecisionCount: result.keyDecisions?.length ?? 0, actionItemCount: result.suggestedActionItems?.length ?? 0 },
         status: "completed", durationMs: Date.now() - startedAt,
         provider: modelConfig.provider, model: modelConfig.model, usage,
@@ -240,10 +269,10 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
 
       await logActivity({
         tx: db, action: "veri_meeting.ai_intelligence_generated", entityType: "veri_meeting", entityId: meetingId,
-        details: "AI summary/decisions/suggested action items generated", orgId: ctx.orgId, dbUser: ctx.dbUser,
+        details: "AI summary/decisions/suggested action items generated", orgId: ctx.orgId, ...actorOf(ctx),
       })
 
-      await runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, { dbUser: ctx.dbUser }, {
+      await runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, actorOf(ctx), {
         meetingId, title: meeting.title, succeeded: true,
       })
 
@@ -255,8 +284,8 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
     // only way the escalate report actually persists, same "separate
     // read/write transactions" posture dispatch-completion-monitor.ts's own
     // runDispatchCompletionSweep already uses.
-    await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
-      runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, { dbUser: ctx.dbUser }, {
+    await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, (db) =>
+      runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, actorOf(ctx), {
         meetingId, title: meeting.title, succeeded: false, failureReason: err instanceof Error ? err.message : String(err),
       })
     )
@@ -278,6 +307,31 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
 // independent AI call. Still human-gated by this function's own explicit
 // invocation -- no unattended write action, matching task-execution-engine's
 // own doctrine.
+//
+// R-C04-GAP-01 (2026-08-25, latency/duplicate-row gap closure): this used to
+// `await executeTask(...)` inline before returning -- confirmed via real
+// orchestra_executions rows for task_execution.planning calls attached to
+// meeting action items (compliance.orchestra_executions, task_id in
+// veri_meeting_action_items.task_id): avg 12.1s, p50 8.85s, max 37.1s,
+// n=8, all real LLM planning latency sitting on the synchronous request
+// path. Real fallout of that: compliance.veri_meeting_action_items /
+// tasks show 6 duplicate "Order replacement rebar batch" rows on meeting
+// afng5r4rloi9egehpenznrg0 created 18:02:59-18:06:18 on 2026-08-24 -- the
+// exact signature of a client retrying a timed-out request. Two changes:
+// (1) DEDUPE_WINDOW_MS below -- a matching action item (same meeting, same
+// trimmed title) inserted in the last window is treated as the same
+// logical request and returned as-is instead of inserting a second row,
+// so even a retry that reaches this function again cannot create a
+// duplicate. (2) executeTask() is now dispatched via after() (the same
+// pattern publishVeriMeeting() already uses for
+// generateMeetingIntelligence, see its own header above) instead of being
+// awaited inline, so the response returns as soon as the task+action-item
+// rows exist -- the DB-only cost of this function -- instead of blocking
+// on a multi-second-to-37-second AI planning call. Best-effort/
+// non-blocking: a failure here still leaves a real task row (status stays
+// "in_progress"), it just doesn't get the AI-planned dispatch.
+const DEDUPE_WINDOW_MS = 30_000
+
 export async function addMeetingActionItem(
   ctx: VeriMeetingContext,
   meetingId: string,
@@ -286,9 +340,19 @@ export async function addMeetingActionItem(
   const title = input.title?.trim()
   if (!title) throw new ServiceError("title is required", 400)
 
-  const created = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const created = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
     if (!meeting) throw new ServiceError("Meeting not found", 404)
+
+    const dedupeWindowStart = new Date(Date.now() - DEDUPE_WINDOW_MS)
+    const recentItems = await db.query.veriMeetingActionItems.findMany({
+      where: eq(veriMeetingActionItems.meetingId, meetingId),
+      with: { task: true },
+      orderBy: desc(veriMeetingActionItems.createdAt),
+      limit: 5,
+    })
+    const duplicate = recentItems.find((r) => r.task?.title === title && r.createdAt >= dedupeWindowStart)
+    if (duplicate) return { actionItem: duplicate, task: duplicate.task!, deduped: true as const }
 
     const description = `Action item from meeting: ${meeting.title}`
     const [task] = await db.insert(tasks).values({
@@ -301,16 +365,24 @@ export async function addMeetingActionItem(
 
     await logActivity({
       tx: db, action: "veri_meeting.action_item_added", entityType: "veri_meeting", entityId: meetingId,
-      details: `Action item added: "${title}"`, orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: `Action item added: "${title}"`, orgId: ctx.orgId, ...actorOf(ctx),
     })
-    return { actionItem, task: task! }
+    return { actionItem, task: task!, deduped: false as const }
   })
 
-  await executeTask(ctx.orgId, ctx.userId, created.task.id, created.task.title, created.task.description, null, null)
-  const finalTask = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
-    db.query.tasks.findFirst({ where: eq(tasks.id, created.task.id) })
+  if (created.deduped) return { ...created.actionItem, task: created.task }
+
+  // R39/R-C04: executeTask needs a real actor -- prefer the task's own
+  // resolved assignee (real whenever assigneeUserId was supplied, which the
+  // route requires for API-key callers with no dbUser) over ctx.userId.
+  const executorId = created.task.userId ?? ctx.userId
+  if (!executorId) throw new ServiceError("A real user (assigneeUserId, or a session actor) is required to execute this action item", 400)
+  after(() =>
+    executeTask(ctx.orgId, executorId, created.task.id, created.task.title, created.task.description, null, null).catch((err) => {
+      console.error("addMeetingActionItem: executeTask failed (non-fatal, action item still created):", err)
+    })
   )
-  return { ...created.actionItem, task: finalTask ?? created.task }
+  return { ...created.actionItem, task: created.task }
 }
 
 // Priority 18a (VERI Chat second-screen unification): the panel's Meetings
@@ -348,7 +420,7 @@ export async function listMeetingAuditLog(ctx: { orgId: string }, meetingId: str
 // exactly: tokenized, time-limited, individually revocable. Deliberately NOT
 // meettrack-v2's own is_published=true=world-readable-forever RLS policy.
 export async function createMeetingShareLink(ctx: VeriMeetingContext, meetingId: string, expiresInHours = 168) {
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
     if (!meeting) throw new ServiceError("Meeting not found", 404)
     if (meeting.status !== "published") throw new ServiceError("Only published meetings can be shared", 409)
@@ -360,7 +432,7 @@ export async function createMeetingShareLink(ctx: VeriMeetingContext, meetingId:
 
     await logActivity({
       tx: db, action: "veri_meeting.share_link_created", entityType: "veri_meeting", entityId: meetingId,
-      details: "Share link created", orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: "Share link created", orgId: ctx.orgId, ...actorOf(ctx),
     })
     return link
   })
@@ -376,7 +448,7 @@ export async function listMeetingShareLinks(ctx: { orgId: string }, meetingId: s
 }
 
 export async function revokeMeetingShareLink(ctx: VeriMeetingContext, linkId: string) {
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const link = await db.query.veriMeetingShareLinks.findFirst({ where: eq(veriMeetingShareLinks.id, linkId) })
     if (!link) throw new ServiceError("Share link not found", 404)
     const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, link.meetingId), eq(veriMeetings.orgId, ctx.orgId)) })

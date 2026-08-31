@@ -114,7 +114,7 @@ export default function CapabilityImprovementsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Wrench className="size-5 text-ct-saffron" />
+        <Wrench className="size-5 text-ct-saffron-text" />
         <div>
           <h1 className="text-2xl font-heading text-ct-navy">Capability Improvements</h1>
           <p className="text-sm text-ct-muted mt-1">

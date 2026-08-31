@@ -53,13 +53,15 @@
 
 import {
   db, reportDefinitions,
-  crmLeads, crmOpportunities, erpQuotations, erpSalesOrders, erpSalesInvoices, erpCustomers,
+  crmLeads, crmOpportunities, crmAccounts, crmContacts, crmSalesTargets, erpQuotations, erpSalesOrders, erpSalesInvoices, erpCustomers,
   salesReferrals, salesCommissionAccruals, veriMeetings,
   complianceItems, notices, risks, pmsIssues, pmsMilestones, incidents,
   constructionBoqs, constructionWorkProgressEntries, constructionAttendance, constructionLabourRoster,
   constructionRfis, constructionSubmittals, constructionPunchListItems, constructionChangeOrders,
   constructionSiteDiaries, constructionExpenseEntries, constructionActivities,
+  constructionBoqLineItems, constructionMaterials,
   erpPurchaseOrders, erpSuppliers, erpStockLedgerEntries, erpBudgetLineItems, erpBudgets, erpCostCenters,
+  erpContracts, erpContractBillingSchedules, erpReorderLevels,
   projects,
   interiorMoodBoards, interiorFfeItems, interiorFloorPlans, interiorFloorPlanRooms,
   interiorFurniturePlacements, interiorMaterials, users,
@@ -73,7 +75,19 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor, hasGroundingData } from "@/lib/policy-enforcement-engine"
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, type ReportCategory } from "./report-taxonomy"
-import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport } from "./construction-reports-service"
+import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport, projectPeriodReport } from "./construction-reports-service"
+import { customerPaymentBehaviorReport, vendorPaymentBehaviorReport } from "./erp-invoicing-service"
+import { listStockBalances } from "./erp-inventory-service"
+import {
+  tenderRegisterReport, tenderPipelineByStage, tenderWinLossReport, tenderCostingReport,
+  boqSubmissionReport, preBidMeetingReport, emdTrackingReport, contractAwardReport,
+} from "./construction-tender-service"
+import {
+  threeDDesignApprovalReport, designConsultationReport, designRevisionReport,
+  furniturePackageReport, interiorPackageComparisonReport, modularKitchenSalesReport,
+  roomWiseEstimateReport, wardrobeSalesReport,
+} from "./interior-sales-package-service"
+import { subledgerToGlReconciliation, SUBLEDGER_RECONCILIATION_TOLERANCE } from "./erp-financial-report-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
 import { requireReportDomainEnabled, isReportDomainEnabledForOrg } from "./report-domain-enablement-service"
 import { ServiceError } from "./compliance-service"
@@ -211,7 +225,16 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
   incidents: { table: incidents, orgIdColumn: incidents.orgId, columns: { category: incidents.category, severity: incidents.severity, stage: incidents.stage } },
   construction_boqs: { table: constructionBoqs, orgIdColumn: constructionBoqs.orgId, columns: { status: constructionBoqs.status, projectId: constructionBoqs.projectId } },
   construction_work_progress_entries: { table: constructionWorkProgressEntries, orgIdColumn: constructionWorkProgressEntries.orgId, columns: { projectId: constructionWorkProgressEntries.projectId, activityId: constructionWorkProgressEntries.activityId, percentComplete: constructionWorkProgressEntries.percentComplete } },
-  construction_attendance: { table: constructionAttendance, orgIdColumn: constructionAttendance.orgId, columns: { projectId: constructionAttendance.projectId, status: constructionAttendance.status, rosterId: constructionAttendance.rosterId } },
+  // dailyCost/attendanceDate whitelisted 2026-08-22 (Sumeet 8-report closure
+  // pass): both are real, pre-existing columns (dailyCost already read via
+  // raw SQL by computeContractorPerformanceReport below) -- adding them here
+  // is what makes "Daily Cost Report" (group by attendanceDate, sum
+  // dailyCost) resolvable through the generic deterministic_aggregation
+  // path instead of needing a bespoke function. Grouping by `trade` still
+  // isn't possible here (that column lives on construction_labour_roster,
+  // one join away, and this engine is deliberately single-table) -- that
+  // remains a real, separate gap, not silently worked around.
+  construction_attendance: { table: constructionAttendance, orgIdColumn: constructionAttendance.orgId, columns: { projectId: constructionAttendance.projectId, status: constructionAttendance.status, rosterId: constructionAttendance.rosterId, dailyCost: constructionAttendance.dailyCost, attendanceDate: constructionAttendance.attendanceDate } },
   // -- new for the Owner's 30 Project Reports / 30 Analysis Dashboards / Executive KPI catalog (2026-07-13) --
   projects: { table: projects, orgIdColumn: projects.orgId, columns: { healthStatus: projects.healthStatus, isActive: projects.isActive } },
   pms_milestones: { table: pmsMilestones, orgIdColumn: pmsMilestones.orgId, columns: { status: pmsMilestones.status, projectId: pmsMilestones.projectId } },
@@ -244,6 +267,23 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
       expectedCloseDate: crmOpportunities.expectedCloseDate,
     },
   },
+  // VERIDIAN Review Framework "Accounts & Contacts" gap-closure (Reporting &
+  // Export Accuracy): crm_accounts/crm_contacts had no reportable surface
+  // at all (unlike crm_leads/crm_opportunities just above) -- an org
+  // couldn't build even a simple "accounts by lifecycle stage" or "contacts
+  // per account" ad-hoc report via the Reports & Analysis Engine. Same
+  // whitelist convention as every other entry in this registry.
+  crm_accounts: {
+    table: crmAccounts, orgIdColumn: crmAccounts.orgId,
+    columns: {
+      lifecycleStage: crmAccounts.lifecycleStage, ownerId: crmAccounts.ownerId, industry: crmAccounts.industry,
+      companyId: crmAccounts.companyId, aiHealthScore: crmAccounts.aiHealthScore, parentAccountId: crmAccounts.parentAccountId,
+    },
+  },
+  crm_contacts: {
+    table: crmContacts, orgIdColumn: crmContacts.orgId,
+    columns: { accountId: crmContacts.accountId, isPrimary: crmContacts.isPrimary },
+  },
   // Priority 17 final gap: companyId whitelisted here now that erp_quotations
   // carries the column -- direct continuation of #365, which left this exact
   // gap unwired ("Sales/CRM beyond Leads ... those tables have no companyId
@@ -259,6 +299,26 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
   // report reading this table documents that limitation in its own
   // dataGapNote/description rather than silently overclaiming precision.
   veri_meetings: { table: veriMeetings, orgIdColumn: veriMeetings.orgId, columns: { meetingType: veriMeetings.meetingType, contextEntityType: veriMeetings.contextEntityType } },
+  // -- 2026-08-22 (Sumeet 8-report closure pass) --
+  // construction_boq_line_items had NO org_id column at all until migration
+  // add_org_id_to_construction_boq_line_items (this pass) added one,
+  // denormalized from construction_boqs.org_id and backfilled -- required
+  // because runAggregation()'s WHERE clause needs a real orgIdColumn on the
+  // table it queries; RLS alone (the EXISTS-against-construction_boqs
+  // policy) already enforced isolation but gave this generic single-table
+  // engine nothing to filter on directly. "Cost Report by Scope" reads this:
+  // amount summed, grouped by description (each line item IS a scope/work
+  // item) -- a real, populated table (179 rows for the demo org's projects).
+  construction_boq_line_items: { table: constructionBoqLineItems, orgIdColumn: constructionBoqLineItems.orgId, columns: { boqId: constructionBoqLineItems.boqId, description: constructionBoqLineItems.description, unit: constructionBoqLineItems.unit, amount: constructionBoqLineItems.amount, quantity: constructionBoqLineItems.quantity, rate: constructionBoqLineItems.rate } },
+  // construction_materials (point 33) IS correctly structured (real orgId
+  // column, same shape as every other entry) -- registered here so
+  // "Cost Report by Material" no longer 500s with "not registered in
+  // TABLE_REGISTRY". Left here for when data exists: the table has 0 rows
+  // for EVERY org today (not just the demo org), so this report_definitions
+  // row's status is deliberately NOT flipped to 'built' in this pass --
+  // doing so would produce an empty report that LOOKS built but isn't
+  // provably correct (do_not_assume rule 2, 2026-08-22 Sumeet pass).
+  construction_materials: { table: constructionMaterials, orgIdColumn: constructionMaterials.orgId, columns: { projectId: constructionMaterials.projectId, name: constructionMaterials.name, unit: constructionMaterials.unit, unitCost: constructionMaterials.unitCost, isActive: constructionMaterials.isActive } },
 }
 
 function resolveAggregationTarget(config: { tableKey?: string; groupByColumn?: string; aggregationColumnKey?: string; filterEquals?: { columnKey: string; value: string | number | boolean } }) {
@@ -633,6 +693,61 @@ async function computeTodaysSiteProgress(ctx: { orgId: string }): Promise<Report
       .where(and(eq(constructionWorkProgressEntries.orgId, ctx.orgId), eq(constructionWorkProgressEntries.entryDate, today)))
       .groupBy(constructionWorkProgressEntries.projectId)
     return { columns: ["Project ID", "Entries Logged Today", "Total Quantity Done Today"], rows: rows.map((r) => ({ "Project ID": r.projectId, "Entries Logged Today": Number(r.entries), "Total Quantity Done Today": Number(r.totalQuantity) })), note: rows.length === 0 ? "No progress entries logged for today's date yet." : undefined }
+  })
+}
+
+/**
+ * Weekly Project Report (2026-08-22, Sumeet 8-report closure pass) -- a
+ * genuinely new formula, NOT a repoint of computeTodaysSiteProgress above.
+ * That function is hardcoded to entryDate = today with no projectId/date
+ * params at all, and other report_definitions rows may already depend on
+ * its exact today-only behaviour (todays_site_progress formulaKey) -- this
+ * function is additive so nothing that already calls that one breaks.
+ *
+ * Params: `projectId` (optional -- omit for an org-wide/all-projects
+ * breakdown, same posture as computeTodaysSiteProgress); `weekEnding`
+ * (optional ISO date string, defaults to today) -- the 7-day window is
+ * [weekEnding - 6 days, weekEnding], inclusive, entryDate-based (real
+ * column on construction_work_progress_entries). Grouped by project so a
+ * multi-project org gets one row per project, matching the existing
+ * "today" formula's own shape.
+ */
+async function computeWeeklyProjectReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = typeof params.projectId === "string" && params.projectId ? params.projectId : undefined
+  const weekEndingRaw = typeof params.weekEnding === "string" && params.weekEnding ? params.weekEnding : new Date().toISOString().slice(0, 10)
+  const weekEndingDate = new Date(`${weekEndingRaw}T00:00:00Z`)
+  if (Number.isNaN(weekEndingDate.getTime())) throw new ServiceError(`Invalid weekEnding date: "${weekEndingRaw}"`, 400)
+  const weekStartDate = new Date(weekEndingDate.getTime() - 6 * 24 * 60 * 60 * 1000)
+  const weekStart = weekStartDate.toISOString().slice(0, 10)
+  const weekEnding = weekEndingDate.toISOString().slice(0, 10)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const whereClauses = [
+      eq(constructionWorkProgressEntries.orgId, ctx.orgId),
+      gte(constructionWorkProgressEntries.entryDate, weekStart),
+      lte(constructionWorkProgressEntries.entryDate, weekEnding),
+    ]
+    if (projectId) whereClauses.push(eq(constructionWorkProgressEntries.projectId, projectId))
+
+    const rows = await db.select({
+      projectId: constructionWorkProgressEntries.projectId,
+      entries: sql<number>`count(*)`,
+      totalQuantity: sql<number>`coalesce(sum(${constructionWorkProgressEntries.quantityDone}), 0)::float`,
+      avgPercentComplete: sql<number>`coalesce(avg(${constructionWorkProgressEntries.percentComplete}), 0)::float`,
+    }).from(constructionWorkProgressEntries)
+      .where(and(...whereClauses))
+      .groupBy(constructionWorkProgressEntries.projectId)
+
+    return {
+      columns: ["Project ID", "Entries Logged This Week", "Total Quantity Done This Week", "Avg % Complete Logged This Week"],
+      rows: rows.map((r) => ({
+        "Project ID": r.projectId,
+        "Entries Logged This Week": Number(r.entries),
+        "Total Quantity Done This Week": Number(r.totalQuantity),
+        "Avg % Complete Logged This Week": Math.round(Number(r.avgPercentComplete) * 10) / 10,
+      })),
+      note: `Window: ${weekStart} to ${weekEnding} inclusive (entryDate-based)${projectId ? `, filtered to project ${projectId}` : ", all projects"}. ${rows.length === 0 ? "No progress entries logged in this window." : ""}`.trim(),
+    }
   })
 }
 
@@ -1215,7 +1330,484 @@ async function interiorDesignerProductivityAnalysis(ctx: { orgId: string }, para
   })
 }
 
+/**
+ * Pure predicate: is a billing schedule genuinely due for billing as of a
+ * given date? Extracted standalone (same precedent as
+ * deriveReportDomainFromClassifications above) so the "what counts as due"
+ * rule is unit-testable without a DB -- the SAP VF04 "billing date <=
+ * selection date AND not already billed" check, adapted to
+ * erp_contract_billing_schedules (Wave 71): isActive, lastInvoiceId still
+ * null (this cycle hasn't been invoiced), and nextBillingDate on or before
+ * asOfDate.
+ */
+export function isBillingScheduleDue(
+  schedule: { nextBillingDate: string; lastInvoiceId: string | null; isActive: boolean },
+  asOfDate: string
+): boolean {
+  return schedule.isActive && schedule.lastInvoiceId === null && schedule.nextBillingDate <= asOfDate
+}
+
+/**
+ * SD-002 (SAP VF04 "Billing Due List" equivalent) -- construction/PROJEXA
+ * adaptation per the 2026-07-28 gap analysis (sap_mapping.sqlite,
+ * BUILD_NEW, HIGH priority, re-verified 2026-07-30 directly against this
+ * repo). erp_contract_billing_schedules (Wave 71) already modelled
+ * billingFrequency/nextBillingDate/amount/lastInvoiceId, but nothing ever
+ * QUERIED "which schedules are due and not yet invoiced" --
+ * erp-contract-service.ts's addBillingSchedule only ever creates a row;
+ * there was no due-list read anywhere before this.
+ *
+ * "Due" = isActive, lastInvoiceId is still null, and nextBillingDate <=
+ * asOfDate (params.asOfDate, default today) -- see isBillingScheduleDue()
+ * above, the single source of truth this filters through.
+ *
+ * Actionable: each row carries Schedule ID + Contract ID so a caller can
+ * invoke POST /api/erp/contracts/{Contract ID}/billing-schedules/{Schedule
+ * ID}/generate-invoice (erp-contract-service.ts#
+ * generateInvoiceFromBillingSchedule, same PR) directly from this
+ * worklist -- a real worklist, not a static snapshot.
+ *
+ * Honest gap: the gap analysis's implementation_notes describe a fuller
+ * "milestone achieved -> claim drafted -> submitted -> client-approved ->
+ * invoiced" progress-claim workflow. No schema exists for those
+ * intermediate stages (erp_contract_billing_schedules has no status enum
+ * for them) -- this report surfaces only the two states the real schema
+ * supports: due-and-not-yet-invoiced (below) and invoiced (lastInvoiceId
+ * set, excluded). See PR description.
+ */
+async function computeBillingDueList(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const asOfDate = typeof params.asOfDate === "string" && params.asOfDate ? params.asOfDate : new Date().toISOString().slice(0, 10)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await db
+      .select({
+        scheduleId: erpContractBillingSchedules.id,
+        contractId: erpContracts.id,
+        contractTitle: erpContracts.title,
+        customerName: erpCustomers.customerName,
+        billingFrequency: erpContractBillingSchedules.billingFrequency,
+        amount: erpContractBillingSchedules.amount,
+        nextBillingDate: erpContractBillingSchedules.nextBillingDate,
+        lastInvoiceId: erpContractBillingSchedules.lastInvoiceId,
+        isActive: erpContractBillingSchedules.isActive,
+      })
+      .from(erpContractBillingSchedules)
+      .innerJoin(erpContracts, eq(erpContractBillingSchedules.contractId, erpContracts.id))
+      .innerJoin(erpCustomers, eq(erpContracts.customerId, erpCustomers.id))
+      .where(and(eq(erpContracts.orgId, ctx.orgId), eq(erpContractBillingSchedules.isActive, true), isNull(erpContractBillingSchedules.lastInvoiceId)))
+
+    const due = rows
+      .filter((r) => isBillingScheduleDue({ nextBillingDate: r.nextBillingDate, lastInvoiceId: r.lastInvoiceId, isActive: r.isActive }, asOfDate))
+      .sort((a, b) => a.nextBillingDate.localeCompare(b.nextBillingDate))
+
+    return {
+      columns: ["Contract", "Customer", "Billing Frequency", "Amount", "Billing Date Due", "Schedule ID", "Contract ID"],
+      rows: due.map((r) => ({
+        Contract: r.contractTitle,
+        Customer: r.customerName,
+        "Billing Frequency": r.billingFrequency,
+        Amount: Number(r.amount),
+        "Billing Date Due": r.nextBillingDate,
+        "Schedule ID": r.scheduleId,
+        "Contract ID": r.contractId,
+      })),
+      note: due.length === 0
+        ? `No billing schedule (erp_contract_billing_schedules) is due and un-invoiced as of ${asOfDate}.`
+        : "Due = active billing schedule, not yet invoiced (lastInvoiceId is null), with nextBillingDate on or before the as-of date. Generate the invoice via POST /api/erp/contracts/{Contract ID}/billing-schedules/{Schedule ID}/generate-invoice -- does not yet cover the fuller draft/submit/client-approve claim workflow described in the SD-002 gap analysis (no schema exists for those intermediate stages).",
+    }
+  })
+}
+
+/**
+ * FI-AR-006 (SAP gap analysis, "Customer Payment Behavior / DSO", HIGH
+ * priority, BUILD_NEW, re-verified directly against this repo
+ * and the live Supabase project -- see erp-invoicing-service.ts's
+ * customerPaymentBehaviorReport() for the full real-vs-honest-gap writeup,
+ * which this thin wrapper reuses rather than re-querying (same
+ * cross-service-reuse precedent as computeBillingDueList's sibling
+ * imports from construction-reports-service.ts above). Distinct from
+ * arAgingReport (point-in-time snapshot) and FI-AR-004's dunning list
+ * (active overdue workflow): this is the only one of the three that reads
+ * historical PAID-invoice payment dates.
+ */
+async function computeCustomerPaymentBehavior(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const periodDays = typeof params.periodDays === "number" && params.periodDays > 0 ? params.periodDays : 90
+  const asOfDate = typeof params.asOfDate === "string" && params.asOfDate ? params.asOfDate : undefined
+  const report = await customerPaymentBehaviorReport(ctx, { periodDays, asOfDate })
+
+  return {
+    columns: ["Customer", "Invoices", "Avg Days to Pay", "Avg Credit Days", "DSO", "Outstanding AR", "Credit Sales (Period)", "Reliability"],
+    rows: report.customers.map((c) => ({
+      Customer: c.customerName,
+      Invoices: c.invoiceCount,
+      "Avg Days to Pay": c.avgDaysToPay ?? "n/a -- no real payment date recorded (see note)",
+      "Avg Credit Days": c.avgCreditDays,
+      DSO: c.dso ?? "n/a -- no credit sales in period",
+      "Outstanding AR": c.outstandingAR,
+      "Credit Sales (Period)": c.creditSalesInPeriod,
+      Reliability: c.paymentReliability ?? "unknown",
+    })),
+    note: report.customers.every((c) => c.avgDaysToPay === null)
+      ? `No customer in this org has a real, discoverable payment-completion date as of ${report.asOfDate} -- every 'paid' invoice's status was set without going through either real payment-recording path (recordSalesInvoicePayment's direct posting or the erp_payment_entries approval workflow). Avg Days to Pay/Reliability are honestly "n/a"/"unknown", not fabricated. DSO and Outstanding AR are still real and computed from real invoice data.`
+      : `DSO period: ${report.periodDays} days ending ${report.asOfDate}. Avg Days to Pay only counts invoices with a real, discoverable payment-completion date -- see erp-invoicing-service.ts#customerPaymentBehaviorReport for which customers (if any) are missing one.`,
+  }
+}
+
+/**
+ * FI-AP-006 (SAP gap analysis, "Vendor Payment History / Payment Behavior
+ * Analysis", MEDIUM priority, BUILD_NEW). This wraps
+ * erp-invoicing-service.ts's vendorPaymentBehaviorReport() rather than
+ * re-querying (same cross-service-reuse precedent as computeBillingDueList's
+ * sibling imports from construction-reports-service.ts above) -- see that
+ * function's own header comment for the full real-vs-honest-gap writeup,
+ * including why this is a fresh implementation with distinct top-level names
+ * (vendorDaysToPay/computeDpoFormula/classifyVendorPaymentReliability/
+ * vendorPaymentBehaviorReport) mirroring FI-AR-006's calculation SHAPE
+ * (immediately above, PR #645) rather than importing it, adapted
+ * customer->vendor / DSO->DPO, at the time this PR was built (#645 was still
+ * open then; both now coexist in this file cleanly under distinct names).
+ */
+async function computeVendorPaymentBehavior(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const periodDays = typeof params.periodDays === "number" && params.periodDays > 0 ? params.periodDays : 90
+  const asOfDate = typeof params.asOfDate === "string" && params.asOfDate ? params.asOfDate : undefined
+  const report = await vendorPaymentBehaviorReport(ctx, { periodDays, asOfDate })
+
+  return {
+    columns: ["Supplier", "Invoices", "Avg Days to Pay", "Avg Credit Days", "DPO", "Outstanding AP", "Credit Purchases (Period)", "Reliability"],
+    rows: report.suppliers.map((s) => ({
+      Supplier: s.supplierName,
+      Invoices: s.invoiceCount,
+      "Avg Days to Pay": s.avgDaysToPay ?? "n/a -- no real payment date recorded (see note)",
+      "Avg Credit Days": s.avgCreditDays,
+      DPO: s.dpo ?? "n/a -- no credit purchases in period",
+      "Outstanding AP": s.outstandingAP,
+      "Credit Purchases (Period)": s.creditPurchasesInPeriod,
+      Reliability: s.paymentReliability ?? "unknown",
+    })),
+    note: report.suppliers.every((s) => s.avgDaysToPay === null)
+      ? `No supplier in this org has a real, discoverable payment-completion date as of ${report.asOfDate} -- every 'paid' invoice's status was set without going through the only real vendor payment-recording path (the erp_payment_entries approval workflow, paymentType='pay'/invoiceType='purchase_invoice'/status='approved'). Avg Days to Pay/Reliability are honestly "n/a"/"unknown", not fabricated. DPO and Outstanding AP are still real and computed from real invoice data.`
+      : `DPO period: ${report.periodDays} days ending ${report.asOfDate}. Avg Days to Pay only counts invoices with a real, discoverable payment-completion date -- see erp-invoicing-service.ts#vendorPaymentBehaviorReport for which suppliers (if any) are missing one.`,
+  }
+}
+
+/**
+ * R65 (2026-08-30, reports-engine gap closure): rptdef_kpi_materials_running_low's
+ * own execution_config already pointed at formulaKey "materials_running_low" --
+ * both underlying tables (erp_reorder_levels, erp_stock_ledger_entries)
+ * genuinely exist and are populated by real writes; the report's own
+ * data_gap_note said plainly "the comparison is not wired," not that data
+ * was missing. This is that wiring, reusing erp-inventory-service.ts's
+ * listStockBalances() (the same real-time FIFO-ledger aggregation the
+ * Inventory page's own stock-balance view already relies on) rather than
+ * re-querying the ledger a second way.
+ *
+ * A reorder-level row with warehouseId=null is an org-wide default policy
+ * (see the column's own comment in schema.ts) -- compared against that
+ * item's TOTAL balance across all warehouses, not any one warehouse's.
+ */
+async function computeMaterialsRunningLow(ctx: { orgId: string }, _params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const [reorderLevels, balances] = await Promise.all([
+    withTenantContext({ orgId: ctx.orgId }, (db) => db.query.erpReorderLevels.findMany({ where: eq(erpReorderLevels.orgId, ctx.orgId) })),
+    listStockBalances(ctx, {}),
+  ])
+
+  if (reorderLevels.length === 0) {
+    return { columns: ["Item", "Warehouse", "Current Qty", "Reorder Point", "Shortfall"], rows: [], note: "No reorder levels configured for this org yet -- set one via the Inventory module's reorder-level settings before this report has anything to compare against." }
+  }
+
+  const balanceByItemWarehouse = new Map(balances.map((b) => [`${b.itemId}::${b.warehouseId}`, b]))
+  const balanceByItemTotal = new Map<string, { qty: number; itemCode: string | null; itemName: string | null; uom: string | null }>()
+  for (const b of balances) {
+    const existing = balanceByItemTotal.get(b.itemId)
+    balanceByItemTotal.set(b.itemId, {
+      qty: (existing?.qty ?? 0) + b.qty,
+      itemCode: b.itemCode, itemName: b.itemName, uom: b.uom,
+    })
+  }
+
+  const running_low = reorderLevels
+    .map((rl) => {
+      const reorderPoint = Number(rl.reorderPoint)
+      if (rl.warehouseId) {
+        const b = balanceByItemWarehouse.get(`${rl.itemId}::${rl.warehouseId}`)
+        const qty = b?.qty ?? 0
+        return { itemCode: b?.itemCode ?? null, itemName: b?.itemName ?? null, uom: b?.uom ?? null, warehouseName: b?.warehouseName ?? "(unknown warehouse)", qty, reorderPoint }
+      }
+      const totals = balanceByItemTotal.get(rl.itemId)
+      const qty = totals?.qty ?? 0
+      return { itemCode: totals?.itemCode ?? null, itemName: totals?.itemName ?? null, uom: totals?.uom ?? null, warehouseName: "(all warehouses -- org-wide policy)", qty, reorderPoint }
+    })
+    .filter((r) => r.qty <= r.reorderPoint)
+    .sort((a, b) => (a.qty - a.reorderPoint) - (b.qty - b.reorderPoint)) // most-negative shortfall first
+
+  return {
+    columns: ["Item", "Warehouse", "Current Qty", "Reorder Point", "Shortfall"],
+    rows: running_low.map((r) => ({
+      Item: r.itemName ? `${r.itemCode ?? ""} ${r.itemName}`.trim() : (r.itemCode ?? "(unknown item)"),
+      Warehouse: r.warehouseName,
+      "Current Qty": `${r.qty} ${r.uom ?? ""}`.trim(),
+      "Reorder Point": r.reorderPoint,
+      Shortfall: Math.round((r.reorderPoint - r.qty) * 100) / 100,
+    })),
+    note: running_low.length === 0
+      ? `${reorderLevels.length} reorder level(s) configured -- none currently below their reorder point.`
+      : undefined,
+  }
+}
+
+/**
+ * R65 (2026-08-30, reports-engine gap closure): rptdef_sales_dashboard's own
+ * execution_config was an honest placeholder ("NOT BUILT -- composite
+ * multi-table summary") under `deterministic_aggregation`, which can only
+ * ever resolve one TABLE_REGISTRY entry per call -- a genuine composite
+ * across 5 tables needs `deterministic_formula` instead (this function),
+ * matching computeEarnedValueAnalysis's own precedent of combining several
+ * real per-table figures into one dashboard-shaped result rather than
+ * re-querying each domain's own already-reportable metric a second way.
+ * Each row here is independently reportable elsewhere (Lead Register,
+ * Sales Pipeline Report, Quotation Report, Won Projects Report, Revenue
+ * Booking Report per this row's own data_gap_note) -- this is the composite
+ * view across all of them, not a replacement for any one.
+ */
+async function computeSalesDashboard(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [leadRows, oppRows, quoteRows, orderRows, invoiceRows] = await Promise.all([
+      db.select({ value: sql<number>`count(*)::float` }).from(crmLeads).where(eq(crmLeads.orgId, ctx.orgId)),
+      db.select({ value: sql<number>`count(*)::float`, total: sql<number>`coalesce(sum(${crmOpportunities.estimatedValue}), 0)::float` })
+        .from(crmOpportunities).where(and(eq(crmOpportunities.orgId, ctx.orgId), inArray(crmOpportunities.stage, ["prospecting", "proposal", "negotiation"]))),
+      db.select({ status: erpQuotations.status, value: sql<number>`count(*)::float` })
+        .from(erpQuotations).where(eq(erpQuotations.orgId, ctx.orgId)).groupBy(erpQuotations.status),
+      db.select({ value: sql<number>`count(*)::float`, total: sql<number>`coalesce(sum(${erpSalesOrders.grandTotal}), 0)::float` })
+        .from(erpSalesOrders).where(eq(erpSalesOrders.orgId, ctx.orgId)),
+      db.select({ value: sql<number>`count(*)::float`, total: sql<number>`coalesce(sum(${erpSalesInvoices.grandTotal}), 0)::float` })
+        .from(erpSalesInvoices).where(eq(erpSalesInvoices.orgId, ctx.orgId)),
+    ])
+
+    const totalLeads = Number(leadRows[0]?.value ?? 0)
+    const openOpportunities = Number(oppRows[0]?.value ?? 0)
+    const openOpportunityValue = Number(oppRows[0]?.total ?? 0)
+    const wonQuotes = Number(quoteRows.find((r) => r.status === "ordered")?.value ?? 0)
+    const lostQuotes = Number(quoteRows.find((r) => r.status === "lost")?.value ?? 0)
+    const totalOrders = Number(orderRows[0]?.value ?? 0)
+    const totalOrderValue = Number(orderRows[0]?.total ?? 0)
+    const totalInvoices = Number(invoiceRows[0]?.value ?? 0)
+    const totalInvoiceValue = Number(invoiceRows[0]?.total ?? 0)
+
+    return {
+      columns: ["Metric", "Value"],
+      rows: [
+        { Metric: "Total Leads", Value: totalLeads },
+        { Metric: "Open Opportunities", Value: openOpportunities },
+        { Metric: "Open Opportunity Value", Value: Math.round(openOpportunityValue) },
+        { Metric: "Quotations Won", Value: wonQuotes },
+        { Metric: "Quotations Lost", Value: lostQuotes },
+        { Metric: "Sales Orders", Value: totalOrders },
+        { Metric: "Sales Order Value", Value: Math.round(totalOrderValue) },
+        { Metric: "Sales Invoices Raised", Value: totalInvoices },
+        { Metric: "Revenue Booked (Invoiced)", Value: Math.round(totalInvoiceValue) },
+      ],
+      note: "Composite across Lead Register (crm_leads), Sales Pipeline (crm_opportunities, still-open stages only -- prospecting/proposal/negotiation, excluding won/lost), Quotation Report (erp_quotations, won/lost counts), Won Projects (erp_sales_orders), and Revenue Booking (erp_sales_invoices) -- see each named report individually for a detailed, filterable breakdown.",
+    }
+  })
+}
+
+/**
+ * R65 (2026-08-30, reports-engine gap closure): rptdef_monthly_project_report's
+ * own data_gap_note said construction-reports-service.ts#weeklyProjectReport()
+ * "computes a fixed 7-day composite window; no monthly-window variant exists
+ * yet -- would need a straightforward generalization of that existing
+ * function, not new data." That generalization is projectPeriodReport()
+ * (same file, this same PR) -- this formula calls it with a calendar-month
+ * window instead of a 7-day one.
+ */
+async function computeMonthlyProjectReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = String(params.projectId ?? "")
+  if (!projectId) throw new ServiceError("projectId is required for the Monthly Project Report", 400)
+  const monthStartInput = typeof params.monthStart === "string" && params.monthStart ? params.monthStart : new Date().toISOString().slice(0, 8) + "01"
+  const start = new Date(monthStartInput)
+  const monthStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1)).toISOString().slice(0, 10)
+  const monthEnd = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1)).toISOString().slice(0, 10)
+
+  const report = await projectPeriodReport(ctx, projectId, monthStart, monthEnd)
+
+  return {
+    columns: ["Metric", "Value"],
+    rows: [
+      { Metric: "Period", Value: `${report.periodStart} to ${report.periodEnd}` },
+      { Metric: "Progress Entries Logged", Value: report.progressEntriesLogged },
+      { Metric: "Labour Cost", Value: Math.round(report.labourCost) },
+      { Metric: "Workers Present (attendance rows)", Value: report.workersPresent },
+      { Metric: "Site Diary Entries", Value: report.diaryEntries },
+      { Metric: "Expense Total", Value: Math.round(report.expenseTotal) },
+    ],
+    note: "Calendar-month window ([monthStart 1st, next month's 1st)) over the same real composite (work-progress entries, attendance/labour cost, site-diary entries, expenses) weeklyProjectReport() already computes for a 7-day window -- pass params.monthStart (YYYY-MM-01) to pick a specific month, defaults to the current month.",
+  }
+}
+
+// Small shared helper: several R65 formula wrappers below delegate to a
+// service-layer function that already returns real, shaped plain-object
+// rows (construction-tender-service.ts's own report functions) -- this
+// just infers `columns` from the first row's keys rather than each wrapper
+// repeating that boilerplate. Matches every hand-written {columns, rows}
+// literal elsewhere in this file for the same column set.
+function rowsToResult(rows: Record<string, string | number>[], emptyNote?: string): ReportDefinitionResult {
+  if (rows.length === 0) return { columns: [], rows: [], note: emptyNote ?? "No data yet." }
+  return { columns: Object.keys(rows[0]), rows }
+}
+
+/**
+ * R65 (2026-08-30, tender/bid/EMD tracking gap closure): construction-
+ * tender-service.ts's own header explains why this is a genuinely new
+ * entity, distinct from erp_rfqs (procurement RFQs, not sales bids).
+ * Closes 8 report_definitions data_gap rows.
+ */
+async function computeTenderRegister(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await tenderRegisterReport(ctx), "No tenders logged yet for this org.")
+}
+async function computeTenderPipeline(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await tenderPipelineByStage(ctx), "No tenders logged yet for this org.")
+}
+async function computeTenderWinLoss(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await tenderWinLossReport(ctx), "No won/lost/awarded tenders yet for this org.")
+}
+async function computeTenderCosting(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const tenderId = typeof params.tenderId === "string" ? params.tenderId : undefined
+  return rowsToResult(await tenderCostingReport(ctx, tenderId), "No tenders logged yet for this org.")
+}
+async function computeBoqSubmissionReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const tenderId = typeof params.tenderId === "string" ? params.tenderId : undefined
+  return rowsToResult(await boqSubmissionReport(ctx, tenderId), "No tender BOQ items submitted yet for this org.")
+}
+async function computePreBidMeetingReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const tenderId = typeof params.tenderId === "string" ? params.tenderId : undefined
+  return rowsToResult(await preBidMeetingReport(ctx, tenderId), "No pre-bid meetings logged yet for this org.")
+}
+async function computeEmdTrackingReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await emdTrackingReport(ctx), "No tenders with an EMD amount logged yet for this org.")
+}
+async function computeContractAwardReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await contractAwardReport(ctx), "No tenders have reached 'awarded' stage yet for this org.")
+}
+
+/**
+ * R65 (2026-08-31, interior design sales-package gap closure):
+ * interior-sales-package-service.ts's own header explains why this is a
+ * genuinely new SALES-side entity, distinct from Wave 142/143's
+ * interiorFfeItems/interiorMoodBoards (design/execution infrastructure).
+ * Closes 8 report_definitions data_gap rows.
+ */
+async function computeThreeDDesignApprovalReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await threeDDesignApprovalReport(ctx), "No interior sales packages logged yet for this org.")
+}
+async function computeDesignConsultationReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await designConsultationReport(ctx), "No design consultations booked yet for this org.")
+}
+async function computeDesignRevisionReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await designRevisionReport(ctx), "No interior sales packages have been revised yet for this org.")
+}
+async function computeFurniturePackageReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await furniturePackageReport(ctx), "No furniture packages sold yet for this org.")
+}
+async function computeInteriorPackageComparisonReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await interiorPackageComparisonReport(ctx), "No interior sales packages logged yet for this org.")
+}
+async function computeModularKitchenSalesReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await modularKitchenSalesReport(ctx), "No modular kitchen packages sold yet for this org.")
+}
+async function computeRoomWiseEstimateReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await roomWiseEstimateReport(ctx), "No room-wise estimate packages logged yet for this org.")
+}
+async function computeWardrobeSalesReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await wardrobeSalesReport(ctx), "No wardrobe packages sold yet for this org.")
+}
+
+/**
+ * R65 (2026-08-31): closes the shared root gap for 3 report_definitions
+ * rows (Booking vs Target Report, KPI: Sales Target Achievement %, Sales
+ * Target Achievement) -- their data_gap_note said "no sales-target table
+ * exists anywhere in the schema," which was stale: crmSalesTargets (a real,
+ * org+month-scoped target row) was added later (2026-07-27, Sales Pipeline
+ * Interactive Dashboard) and has simply never been wired to any report.
+ * "Actual bookings" reuses the same real metric the already-built Revenue
+ * Booking Report uses -- sum(erp_sales_invoices.grandTotal) -- restricted to
+ * submitted/partially_paid/paid/overdue (booked/recognized revenue), never
+ * draft (not yet committed) or cancelled (never happened).
+ */
+async function computeSalesTargetAchievement(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const monthParam = typeof params.month === "string" ? params.month : undefined
+  const now = new Date()
+  const monthStart = monthParam ?? `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`
+  const start = new Date(monthStart + "T00:00:00Z")
+  if (Number.isNaN(start.getTime())) throw new ServiceError("Invalid month param -- expected YYYY-MM-01", 400)
+  const nextMonthStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1))
+  const nextMonthStr = `${nextMonthStart.getUTCFullYear()}-${String(nextMonthStart.getUTCMonth() + 1).padStart(2, "0")}-01`
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [targetRow, invoiceRows] = await Promise.all([
+      db.query.crmSalesTargets.findFirst({ where: and(eq(crmSalesTargets.orgId, ctx.orgId), eq(crmSalesTargets.month, monthStart)) }),
+      db.query.erpSalesInvoices.findMany({
+        where: and(
+          eq(erpSalesInvoices.orgId, ctx.orgId),
+          gte(erpSalesInvoices.postingDate, monthStart),
+          lt(erpSalesInvoices.postingDate, nextMonthStr),
+          inArray(erpSalesInvoices.status, ["submitted", "partially_paid", "paid", "overdue"])
+        ),
+        columns: { grandTotal: true },
+      }),
+    ])
+
+    const actual = invoiceRows.reduce((sum, inv) => sum + Number(inv.grandTotal ?? 0), 0)
+    const target = targetRow ? Number(targetRow.targetValue) : null
+
+    if (target === null) {
+      return {
+        columns: ["Month", "Target", "Actual Bookings", "Achievement %"],
+        rows: [],
+        note: `No sales target has been set for ${monthStart.slice(0, 7)} yet (crm_sales_targets has no row for this org/month). Actual bookings for the month so far: ₹${actual.toLocaleString("en-IN")} -- set a target for this month to see achievement %.`,
+      }
+    }
+
+    const achievementPct = target > 0 ? Math.round((actual / target) * 1000) / 10 : 0
+    return {
+      columns: ["Month", "Target", "Actual Bookings", "Achievement %"],
+      rows: [{ Month: monthStart.slice(0, 7), Target: target, "Actual Bookings": Math.round(actual * 100) / 100, "Achievement %": achievementPct }],
+    }
+  })
+}
+
+/**
+ * FI-GL-007 (Subledger-to-GL Reconciliation) -- thin {columns,rows} reshape
+ * over erp-financial-report-service.ts#subledgerToGlReconciliation, the
+ * real computation (see that function's own header comment for the full
+ * design, honest scope, and why this reconciliation is genuinely meaningful
+ * rather than a no-op in this codebase). params.asOfDate/companyId/
+ * consolidate mirror the same optional params trial-balance/cash-flow's own
+ * FORMULA_REGISTRY-adjacent report routes already accept.
+ */
+async function computeSubledgerToGlReconciliation(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const asOfDate = typeof params.asOfDate === "string" && params.asOfDate ? params.asOfDate : new Date().toISOString().slice(0, 10)
+  const companyId = typeof params.companyId === "string" ? params.companyId : undefined
+  const result = await subledgerToGlReconciliation(ctx, asOfDate, companyId ? { companyId, consolidate: params.consolidate === true } : undefined)
+
+  return {
+    columns: ["Subledger", "GL Control Account(s)", "Subledger Total", "GL Balance", "Variance", "Reconciled"],
+    rows: result.rows.map((r) => ({
+      Subledger: r.subledger === "receivable" ? "Accounts Receivable" : "Accounts Payable",
+      "GL Control Account(s)": r.glAccountNames.length ? r.glAccountNames.join(", ") : "(none configured)",
+      "Subledger Total": Math.round(r.subledgerTotal * 100) / 100,
+      "GL Balance": Math.round(r.glBalance * 100) / 100,
+      Variance: Math.round(r.variance * 100) / 100,
+      Reconciled: r.isReconciled ? "Yes" : "NO -- investigate",
+    })),
+    note: result.allReconciled
+      ? `Both AR and AP reconcile to the GL as of ${asOfDate} (within the ${SUBLEDGER_RECONCILIATION_TOLERANCE} rounding tolerance).`
+      : `At least one subledger does NOT reconcile to the GL as of ${asOfDate} -- see the flagged row(s) above. Fixed-asset reconciliation is a separate report (FI-AA-006); inventory/stock is not included here because stock movements do not yet post a journal entry to the GL in this codebase.`,
+  }
+}
+
 export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
+  materials_running_low: computeMaterialsRunningLow,
+  sales_dashboard: computeSalesDashboard,
+  monthly_project_report: computeMonthlyProjectReport,
   schedule_performance_index: computeSpi,
   cost_performance_index: computeCpi,
   project_health_index: computeProjectHealthIndex,
@@ -1230,6 +1822,7 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   portfolio_completion_percent: computePortfolioCompletionPercent,
   portfolio_budget_utilization: computePortfolioBudgetUtilization,
   todays_site_progress: computeTodaysSiteProgress,
+  weekly_project_report: computeWeeklyProjectReport,
   labour_on_site_today: computeLabourOnSiteToday,
   vendors_delayed_purchase_orders: computeVendorsDelayedPurchaseOrders,
   safety_incidents_this_month: computeSafetyIncidentsThisMonth,
@@ -1242,6 +1835,23 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   design_change_impact_analysis: computeDesignChangeImpactAnalysis,
   cost_overrun_report: computeCostOverrunReport,
   profitability_analysis: computeProfitabilityAnalysis,
+  sales_target_achievement: computeSalesTargetAchievement,
+  tender_register: computeTenderRegister,
+  tender_pipeline: computeTenderPipeline,
+  tender_win_loss: computeTenderWinLoss,
+  tender_costing: computeTenderCosting,
+  boq_submission_report: computeBoqSubmissionReport,
+  pre_bid_meeting_report: computePreBidMeetingReport,
+  emd_tracking_report: computeEmdTrackingReport,
+  contract_award_report: computeContractAwardReport,
+  interior_3d_design_approval_report: computeThreeDDesignApprovalReport,
+  interior_design_consultation_report: computeDesignConsultationReport,
+  interior_design_revision_report: computeDesignRevisionReport,
+  interior_furniture_package_report: computeFurniturePackageReport,
+  interior_package_comparison_report: computeInteriorPackageComparisonReport,
+  interior_modular_kitchen_sales_report: computeModularKitchenSalesReport,
+  interior_room_wise_estimate_report: computeRoomWiseEstimateReport,
+  interior_wardrobe_sales_report: computeWardrobeSalesReport,
   delayed_tasks_report: computeDelayedTasksReport,
   look_ahead_plan: computeLookAheadPlan,
   interior_mood_board_approval_report: interiorMoodBoardApprovalReport,
@@ -1252,6 +1862,10 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   interior_vendor_lead_time_analysis: interiorVendorLeadTimeAnalysis,
   interior_profit_by_room_analysis: interiorProfitByRoomAnalysis,
   interior_designer_productivity_analysis: interiorDesignerProductivityAnalysis,
+  billing_due_list: computeBillingDueList,
+  customer_payment_behavior_dso: computeCustomerPaymentBehavior,
+  vendor_payment_behavior_dpo: computeVendorPaymentBehavior,
+  subledger_to_gl_reconciliation: computeSubledgerToGlReconciliation,
 }
 
 // ─── AI recipe executor (ai_recipe) ───────────────────────────────────────
@@ -1620,7 +2234,7 @@ export async function getFullReportCatalog(ctx: { orgId: string }): Promise<Full
 
 export async function getFullReportCatalogByDomain(ctx: { orgId: string }): Promise<Record<ReportDomain, FullCatalogEntry[]>> {
   const all = await getFullReportCatalog(ctx)
-  const byDomain: Record<ReportDomain, FullCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [] }
+  const byDomain: Record<ReportDomain, FullCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [], CRM: [] }
   for (const entry of all) byDomain[entry.domain].push(entry)
   return byDomain
 }

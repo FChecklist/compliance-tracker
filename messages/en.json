@@ -41,6 +41,33 @@
           "veriProjectsAi": "VERI Projects AI"
         }
       },
+      "construction": {
+        "title": "Construction",
+        "items": {
+          "siteDiary": "Site Diary",
+          "rfis": "RFIs",
+          "submittals": "Submittals",
+          "punchList": "Punch List",
+          "scope": "Scope (BOQ)",
+          "labour": "Labour",
+          "expenses": "Expenses",
+          "permits": "Permits",
+          "materials": "Materials",
+          "schedule": "Schedule",
+          "drawings": "Drawings & 3D"
+        }
+      },
+      "constructionDesign": {
+        "title": "Construction (Design & Progress)",
+        "items": {
+          "floorPlans": "Floor Plans",
+          "moodBoards": "Mood Boards",
+          "ffe": "FF&E",
+          "changeOrders": "Change Orders",
+          "workProgress": "Work Progress",
+          "dashboard": "Construction Dashboard"
+        }
+      },
       "theFirm": {
         "title": "The Firm",
         "items": {
@@ -187,7 +214,8 @@
           "departments": "Departments",
           "accessReview": "Access Review",
           "settings": "Settings",
-          "auditLog": "Audit Log"
+          "auditLog": "Audit Log",
+          "finops": "AI FinOps"
         }
       },
       "tools": {

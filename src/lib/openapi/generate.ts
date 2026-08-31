@@ -40,7 +40,7 @@ export function generateOpenApiDocument() {
       title: "VERIDIAN AI — Platform API",
       version: "1.0.0",
       description:
-        "The stable, versioned external contract for building on VERIDIAN AI -- a mobile app, ChatGPT Action, Claude connector, reseller white-label app, custom client integration, or a sibling product like PROJEXA (Construction Intelligence AI OS) all target this surface instead of the internal (app)/ UI's routes, which can change without notice. Covers compliance, tasks, notices, the full construction domain, erp/budgets, erp/inventory (ledger/receipts/issues), erp/procurement (requisitions), documents, and pms/meetings + pms/time-entries; the remaining ~30 GRC/ERP/PMS modules are not yet exposed here.",
+        "The stable, versioned external contract for building on VERIDIAN AI -- a mobile app, ChatGPT Action, Claude connector, reseller white-label app, custom client integration, or a sibling product like PROJEXA (Construction Intelligence AI OS) all target this surface instead of the internal (app)/ UI's routes, which can change without notice. Covers compliance, tasks, notices, the full construction domain, erp/budgets, erp/inventory (ledger/receipts/issues), erp/procurement (requisitions), documents, reports (the Reports & Analysis Engine's report_definitions catalog + generic execution dispatcher), and pms/meetings + pms/time-entries; the remaining ~30 GRC/ERP/PMS modules are not yet exposed here. Change history: docs/API_CHANGELOG.md. Testing safely before using a real org: docs/API_SANDBOX.md (no dedicated sandbox environment exists yet -- that doc is honest about the interim state). Rate limiting: each API key has its own configurable requests-per-minute cap, unlimited by default -- see docs/API_RATE_LIMITS.md in the repo for the full default/available values and how a 429 is returned.",
     },
     servers: [{ url: "https://veridian-compliance-ai.vercel.app/api/v1" }],
     // Wave 124: every /projexa/* path is tagged "PROJEXA" so an external
@@ -136,6 +136,31 @@ export function generateOpenApiDocument() {
         delete: { summary: "Delete a notice", operationId: "deleteNotice", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "OK" }, "404": { description: "Not found" } } },
       },
       "/notices/stats": { get: { summary: "Notice dashboard stats", operationId: "getNoticeStats", responses: { "200": { description: "OK" } } } },
+
+      // ─── task-20260727-101145: external-AI-facing reporting gateway ───
+      // Reports & Analysis Engine's ~200-row report_definitions catalog +
+      // generic execution dispatcher, exposed for a customer's own AI,
+      // ChatGPT/z.ai, or a reseller app -- authenticate with a `read` or
+      // `read:reports`-scoped key (Settings > API Keys).
+      "/reports/catalog": {
+        get: {
+          summary: "List available reports for the caller's org (org-scoped rows + platform-wide catalog)",
+          operationId: "listReportsCatalogV1",
+          responses: { "200": { description: "OK" } },
+        },
+      },
+      "/reports/definitions/{id}/run": {
+        post: {
+          summary: "Run a report definition and return its result as structured JSON (default) or a CSV/Excel file download",
+          operationId: "runReportDefinitionV1",
+          parameters: [
+            { name: "id", in: "path", required: true, schema: { type: "string" } },
+            { name: "format", in: "query", required: false, description: "json (default), csv, or xlsx/excel", schema: { type: "string", enum: ["json", "csv", "xlsx", "excel"] } },
+          ],
+          requestBody: { required: false, content: { "application/json": { schema: { type: "object", properties: { params: { type: "object" } } } } } },
+          responses: { "200": { description: "OK -- JSON result, or a CSV/XLSX file when ?format= is set" }, "404": { description: "Report definition not found (including: exists, but not visible to this org)" } },
+        },
+      },
 
       // ─── Wave 119: Construction (PROJEXA) ──────────────────────────────
       "/construction/boq": {
