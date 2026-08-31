@@ -6330,7 +6330,6 @@ recently_completed:
       landed (see drizzle/0340_ai_model_lifecycle_benchmarking.sql's own
       header for the exact collision history) -- and re-opened as a fresh
       PR.
-=======
   - session_label: "claude-code (worker task-20260718-080006-business-rules-engine--rule-lifecycle-ma) -- Business Rules Engine / Rule Lifecycle Management (VERIDIAN Review Framework gap-closure, 4 findings) [rebased off PR #1237 onto current main 2026-08-30; original PR #1237 closed as superseded, replacement PR opened from branch rebase-wt-1237 -- see that PR's own body for the real new number/URL]"
     claimed_at: "2026-08-15T (original session); rebase-and-supersede pass 2026-08-30T"
     claim: |
