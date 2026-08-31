@@ -11622,3 +11622,45 @@ recently_completed:
       `ai-os/boss/ACTIVE-CLAIMS.yaml`. No visibility or permission changes to any repository (PM
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
+  - session_label: "claude-code (rebase-and-merge dispatch) -- rebase reviewed/approved PR #1430 (F_020: post construction expense entries to the GL) onto current main and merge it [DONE, this rebase session]"
+    claimed_at: "2026-08-31T (this session)"
+    merged_as: "FChecklist/compliance-tracker (rebased PR, was #1430 -- see rebase-1430-v2 branch)"
+    claim: |
+      SPEC (dispatch): PR #1430 was already reviewed/approved (real,
+      well-tested, additive-only GL-posting logic, does not touch existing
+      financial records) but had drifted behind a fast-moving main; task was
+      pure rebase + merge, no new feature logic authored here.
+
+      Real conflict found and resolved, matching the dispatch's own
+      prediction: the PR's own migration
+      (`drizzle/0329_construction_expense_journal_entry_id.sql`, ADD COLUMN
+      `journal_entry_id` on `compliance.construction_expense_entries`,
+      nullable/additive) collided with main's unrelated
+      `drizzle/0329_r63_pipeline_level_models.sql`. Verified main's real
+      current ceiling via `git ls-tree origin/main -- drizzle/` (0350 was
+      the highest number present at merge time) before choosing a
+      replacement -- given several other sessions were concurrently
+      claiming new migration numbers in this same run, renumbered to 0400
+      (comfortably clear of the observed ceiling) rather than the next
+      sequential slot, re-checked immediately before the final push that
+      0400 was still free. Renamed the file with `git mv`, added the
+      matching `drizzle/meta/_journal.json` entry (idx 314), grepped the
+      repo for any other reference to the old `0329_construction_expense_*`
+      name (none found) before committing. `schema.ts` and the new
+      `construction-expense-service.test.ts`/`.ts` merged with no conflicts.
+
+      Verification run fresh on the merged tree: `node
+      scripts/check-governance-yaml-parse.mjs` passed (5/5 governance YAML
+      files, including this one); `bun test
+      src/lib/services/construction-expense-service.test.ts` -- 6 pass/0
+      fail, 28 expect() calls; `tsc --noEmit` clean. Pushed as a replacement
+      PR ("... [was #1430]"), original PR #1430 closed citing supersession.
+    scope_note: >-
+      File scope: `drizzle/0400_construction_expense_journal_entry_id.sql`
+      (renamed from the PR's own `0329_*`, content unchanged),
+      `drizzle/meta/_journal.json`, `src/lib/db/schema.ts`,
+      `src/lib/services/construction-expense-service.ts`,
+      `src/lib/services/construction-expense-service.test.ts` (all as
+      authored in PR #1430, carried through the rebase unmodified), this
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` entry. Did not touch any other file;
+      did not alter the PR's own GL-posting logic.
