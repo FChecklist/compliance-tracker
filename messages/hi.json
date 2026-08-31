@@ -50,12 +50,17 @@
           "punchList": "पंच लिस्ट",
           "scope": "स्कोप (BOQ)",
           "labour": "श्रम",
-          "expenses": "व्यय"
+          "expenses": "व्यय",
+          "permits": "परमिट",
+          "materials": "सामग्री",
+          "schedule": "शेड्यूल",
+          "drawings": "ड्रॉइंग और 3D"
         }
       },
       "constructionDesign": {
         "title": "निर्माण (डिज़ाइन और प्रगति)",
         "items": {
+          "designStudio": "डिज़ाइन स्टूडियो",
           "floorPlans": "फ़्लोर प्लान",
           "moodBoards": "मूड बोर्ड",
           "ffe": "FF&E",
@@ -210,7 +215,8 @@
           "departments": "विभाग",
           "accessReview": "पहुंच समीक्षा",
           "settings": "सेटिंग्स",
-          "auditLog": "ऑडिट लॉग"
+          "auditLog": "ऑडिट लॉग",
+          "finops": "एआई फिनऑप्स"
         }
       },
       "tools": {

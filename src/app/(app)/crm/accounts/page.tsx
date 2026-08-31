@@ -9,10 +9,10 @@ export const dynamic = "force-dynamic";
 // "company master record" precedent) but with real search/filter/pagination
 // since a 100-employee/500-project firm's account book won't fit in one
 // unpaginated fetch the way the leads/opportunities tab page still does.
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Building2, Loader2, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { Building2, Loader2, Plus, ChevronLeft, ChevronRight, Download, Upload } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { ModuleNotEnabledCard } from "@/components/ModuleNotEnabledCard";
 
 type Account = {
   id: string; name: string; industry: string | null; website: string | null;
@@ -34,7 +35,7 @@ type User = { id: string; name: string };
 const LIFECYCLE_COLORS: Record<string, string> = {
   prospect: "bg-ct-cloud text-ct-muted",
   active_client: "bg-green-100 text-green-700",
-  dormant: "bg-ct-saffron/20 text-ct-saffron",
+  dormant: "bg-ct-saffron/20 text-ct-saffron-text",
   churned: "bg-red-100 text-red-700",
 };
 
@@ -51,6 +52,7 @@ export default function CrmAccountsPage() {
   const [lifecycleFilter, setLifecycleFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
+  const [salesEnabled, setSalesEnabled] = useState<boolean | null>(null);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -59,6 +61,8 @@ export default function CrmAccountsPage() {
   const [ownerId, setOwnerId] = useState<string>("");
   const [parentAccountId, setParentAccountId] = useState<string>("");
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,6 +79,9 @@ export default function CrmAccountsPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     fetch("/api/users").then((r) => r.json()).then((d) => setUsers(d.users ?? []));
+  }, []);
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setSalesEnabled(d.salesEnabled ?? false)).catch(() => setSalesEnabled(false));
   }, []);
 
   const createAccount = async () => {
@@ -101,7 +108,36 @@ export default function CrmAccountsPage() {
     }
   };
 
+  const importAccounts = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file next time
+    if (!file) return;
+    setImporting(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/crm/accounts/import", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      const errorCount = data.errors?.length ?? 0;
+      if (errorCount > 0) {
+        toast.warning(`Imported ${data.created.length} account(s), ${errorCount} row(s) had errors (row ${data.errors[0].row}: ${data.errors[0].error}${errorCount > 1 ? `, +${errorCount - 1} more` : ""})`);
+      } else {
+        toast.success(`Imported ${data.created.length} account(s)`);
+      }
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to import accounts");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  if (salesEnabled === false) {
+    return <ModuleNotEnabledCard moduleName="CRM" settingsSection="Sales & CRM" />;
+  }
 
   return (
     <div className="space-y-4">
@@ -110,6 +146,15 @@ export default function CrmAccountsPage() {
           <h1 className="text-2xl font-heading text-ct-navy">Accounts</h1>
           <p className="text-sm text-ct-muted mt-1">Company-level records -- industry, address, lifecycle stage, and subsidiary hierarchy, with contacts underneath each one.</p>
         </div>
+        <div className="flex items-center gap-2">
+        <a href="/api/crm/accounts/export">
+          <Button variant="outline" size="sm"><Download className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        </a>
+        <Button variant="outline" size="sm" disabled={importing} onClick={() => fileInputRef.current?.click()}>
+          {importing ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />}
+          Import CSV
+        </Button>
+        <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={importAccounts} />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"><Plus className="w-4 h-4 mr-1" />New Account</Button>
@@ -158,6 +203,7 @@ export default function CrmAccountsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
@@ -186,7 +232,7 @@ export default function CrmAccountsPage() {
           <div className="rounded-xl border border-ct-border bg-white divide-y divide-ct-border">
             {accounts.map((a) => (
               <div key={a.id} className="px-4 py-3 flex items-center gap-3">
-                <Building2 className="size-4 text-ct-saffron shrink-0" />
+                <Building2 className="size-4 text-ct-saffron-text shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-ct-navy">{a.name}</p>
                   <p className="text-xs text-ct-muted">

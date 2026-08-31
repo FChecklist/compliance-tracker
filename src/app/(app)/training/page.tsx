@@ -33,7 +33,7 @@ type TrainingPath = { id: string; name: string; description: string | null; isAc
 const STATUS_LABELS: Record<string, string> = { not_started: "Not Started", in_progress: "In Progress", completed: "Completed" };
 const STATUS_COLORS: Record<string, string> = {
   not_started: "bg-ct-cloud text-ct-muted",
-  in_progress: "bg-ct-saffron/20 text-ct-saffron",
+  in_progress: "bg-ct-saffron/20 text-ct-saffron-text",
   completed: "bg-ct-teal/15 text-ct-teal",
 };
 
@@ -169,7 +169,7 @@ export default function TrainingHubPage() {
             <div className="rounded-xl border border-ct-border bg-white divide-y divide-ct-border">
               {myEnrollments.map((e) => (
                 <Link key={e.id} href={`/training/courses/${e.courseId}`} className="px-4 py-3 flex items-center gap-3 hover:bg-ct-cloud/40">
-                  {e.status === "completed" ? <CheckCircle2 className="size-5 text-ct-teal shrink-0" /> : e.status === "in_progress" ? <PlayCircle className="size-5 text-ct-saffron shrink-0" /> : <Circle className="size-5 text-ct-muted shrink-0" />}
+                  {e.status === "completed" ? <CheckCircle2 className="size-5 text-ct-teal shrink-0" /> : e.status === "in_progress" ? <PlayCircle className="size-5 text-ct-saffron-text shrink-0" /> : <Circle className="size-5 text-ct-muted shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-ct-navy">{e.course?.title ?? "Course"}</p>
                     {e.dueDate && <p className="text-xs text-ct-muted">Due {new Date(e.dueDate).toLocaleDateString()}</p>}
@@ -272,7 +272,7 @@ export default function TrainingHubPage() {
                           </td>
                           <td className="px-3 py-2 text-right">{r.enrolled}</td>
                           <td className="px-3 py-2 text-right text-ct-muted">{r.notStarted}</td>
-                          <td className="px-3 py-2 text-right text-ct-saffron">{r.inProgress}</td>
+                          <td className="px-3 py-2 text-right text-ct-saffron-text">{r.inProgress}</td>
                           <td className="px-4 py-2 text-right text-ct-teal font-medium">{r.completed}</td>
                         </tr>
                       ))}

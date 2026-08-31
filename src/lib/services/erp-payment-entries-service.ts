@@ -42,6 +42,7 @@ import { isPeriodOpenForDate } from "./erp-financial-report-service"
 import { findControlAccount } from "./erp-invoicing-service"
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
 import { isSelfApproval } from "./approval-workflow-service"
+import { ErpContext } from "./actor-context"
 import { createFraudCaseTx } from "./fraud-case-service"
 import { recordAndEscalateAnomaly } from "./risk-escalation-service"
 import {
@@ -60,7 +61,6 @@ import {
 // risks' own severity_matrix, the same pattern already established.
 const DEFAULT_PAYMENT_APPROVAL_THRESHOLD = 100_000
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 export type PaymentEntryStatus = (typeof erpPaymentEntries.$inferSelect)["status"]
 
@@ -466,4 +466,226 @@ async function applyPaymentToInvoice(db: TenantDb, invoiceType: "sales_invoice" 
     const newStatus = newOutstanding <= 0.01 ? "paid" : "partially_paid"
     await db.update(erpPurchaseInvoices).set({ outstandingAmount: newOutstanding.toString(), status: newStatus }).where(eq(erpPurchaseInvoices.id, invoiceId))
   }
+}
+
+// ============================================================
+// FI-AP-008 (sap_mapping.sqlite gap analysis, "Subcontractor Payment
+// Application Status", BUILD_NEW/HIGH -- see task-fi-ap-008-subcontractor-
+// payment-application-status). Discovery, honestly documented: this is NOT
+// the same object as compliance.construction_progress_claims (0269/0270,
+// this same wave's sibling PR) -- that table tracks the CUSTOMER-facing
+// billing claim (milestone_achieved -> drafted -> submitted ->
+// client_approved -> invoiced/rejected, money flowing IN from a client) and
+// has no supplier/subcontractor concept at all (customerId, boqId, no
+// supplierId column). It is also not the same subject as FI-AP-007
+// "Subcontractor Retention Summary" (a sibling PR on its own branch, not
+// yet merged as of this writing) -- that report is about how much of an
+// already-submitted bill's value is WITHHELD, not what stage of approval
+// the bill/payment itself is in.
+//
+// The real subcontractor-facing (money flowing OUT) equivalent of
+// construction_progress_claims already exists, independently of this PR:
+// erp_payment_entries (Wave B, VERIDIAN Review Framework remediation, see
+// this file's own header) already implements a genuine maker-checker state
+// machine for money leaving the org -- draft -[submit]-> submitted
+// -[approve/reject]-> approved|rejected (draft -[cancel]-> cancelled) --
+// with real submittedAt/decidedAt timestamps, for any paymentType='pay',
+// partyType='supplier' row. When invoiceType='purchase_invoice' and
+// invoiceId is set, that row IS, literally, a subcontractor's payment
+// application against a specific bill: submitted -> under manager-rank
+// review -> approved (which this file's decidePaymentEntry synchronously
+// posts to the GL and applies to the invoice -- there is no separate
+// "paid" state on this table; 'approved' and "disbursed" happen in the
+// same transaction, so this report does not invent a fourth state that
+// doesn't exist) or rejected.
+//
+// So this is genuine REUSE of an already-real, already-timestamped
+// workflow, not a new table/state machine -- the actual gap this PR closes
+// is that no report exists yet presenting this data as a subcontractor-
+// payment worklist with aging. Two honest scope notes:
+//  1. "Subcontractor" is identified via erpSuppliers.trade IS NOT NULL
+//     (this schema's own documented convention for a construction
+//     subcontractor-type supplier -- see schema.ts's Wave 120 comment on
+//     that column), not supplierType (free text, inconsistent values) and
+//     not "has retention" (FI-AP-007's proxy, which only covers bills that
+//     already have retention_percent > 0 on its own not-yet-merged branch --
+//     not usable as a filter here since it doesn't exist on main).
+//  2. A subcontractor invoice with an outstanding balance but ZERO payment
+//     entry created against it yet is a real, useful worklist signal too
+//     (the application hasn't even been started) -- included as its own
+//     bucket below rather than silently omitted, using the invoice's own
+//     postingDate as the best available "clock start" (there is no
+//     payment-entry row yet to carry a real submittedAt for these).
+// ============================================================
+
+/** Any status a subcontractor pay-type payment entry can be in, per this file's own nextPaymentEntryStatus state machine, plus the not_yet_initiated bucket this report adds for invoices with no payment entry at all yet. */
+export type SubcontractorPaymentApplicationStatus =
+  | "drafted" | "submitted" | "approved_and_paid" | "rejected" | "cancelled" | "not_yet_initiated"
+
+/** A worklist row is "stuck" once it has sat this many days in submitted/not_yet_initiated -- a plain documented default, not derived from any org setting (none exists for this). */
+export const STUCK_APPLICATION_THRESHOLD_DAYS = 7
+
+export type PaymentApplicationEntryInput = {
+  id: string; supplierId: string; invoiceId: string | null
+  status: PaymentEntryStatus; paidAmount: string | number
+  createdAt: string | Date; submittedAt: string | Date | null; decidedAt: string | Date | null
+}
+
+export type UninitiatedInvoiceInput = {
+  invoiceId: string; supplierId: string; invoiceNumber: number
+  postingDate: string; grandTotal: string | number; outstandingAmount: string | number
+}
+
+export type SubcontractorPaymentApplicationRow = {
+  applicationId: string | null // null for the not_yet_initiated bucket -- there is no erp_payment_entries row yet
+  supplierId: string
+  invoiceId: string | null
+  invoiceNumber: number | null
+  status: SubcontractorPaymentApplicationStatus
+  amount: number
+  submittedAt: string | Date | null
+  statusChangedAt: string | Date
+  daysInCurrentStatus: number
+  isStuck: boolean
+}
+
+function daysBetween(fromMs: number, toMs: number): number {
+  return Math.max(0, Math.floor((toMs - fromMs) / 86_400_000))
+}
+
+/** Maps a real erp_payment_entries row to this report's worklist vocabulary. 'approved' really does mean paid here -- see this file's decidePaymentEntry, which posts the GL entry and applies the payment to the invoice in the same transaction as the approval. */
+function statusFromEntry(status: PaymentEntryStatus): SubcontractorPaymentApplicationStatus {
+  if (status === "draft") return "drafted"
+  if (status === "submitted") return "submitted"
+  if (status === "approved") return "approved_and_paid"
+  if (status === "rejected") return "rejected"
+  return "cancelled"
+}
+
+/**
+ * Pure core, no DB -- matches this repo's established test-without-a-live-
+ * DB convention (see this same file's nextPaymentEntryStatus/
+ * canDecidePaymentEntry, and erp-invoicing-service.ts's
+ * computePaymentProposal/FI-AP-005 precedent above). Takes plain rows the
+ * caller already fetched and produces the real worklist: current status,
+ * submission date, amount, and a real days-in-current-status aging signal.
+ */
+export function computeSubcontractorPaymentApplicationWorklist(
+  entries: PaymentApplicationEntryInput[],
+  uninitiatedInvoices: UninitiatedInvoiceInput[],
+  asOfDate: string
+): { asOfDate: string; applicationCount: number; stuckCount: number; rows: SubcontractorPaymentApplicationRow[] } {
+  const asOfMs = new Date(asOfDate).getTime()
+
+  const entryRows: SubcontractorPaymentApplicationRow[] = entries.map((e) => {
+    const status = statusFromEntry(e.status)
+    // Clock start for aging: the timestamp that actually moved with the
+    // CURRENT status. 'cancelled' has no dedicated timestamp anywhere in
+    // this schema (cancelPaymentEntry only sets status, see this file's
+    // own function) -- createdAt is the best honestly-available proxy,
+    // same "disclosed, not invented" approach as FI-AP-007's own header.
+    const statusChangedAt =
+      status === "drafted" || status === "cancelled" ? e.createdAt
+      : status === "submitted" ? (e.submittedAt ?? e.createdAt)
+      : (e.decidedAt ?? e.submittedAt ?? e.createdAt) // approved_and_paid | rejected
+    const daysInCurrentStatus = daysBetween(new Date(statusChangedAt).getTime(), asOfMs)
+    return {
+      applicationId: e.id, supplierId: e.supplierId, invoiceId: e.invoiceId, invoiceNumber: null,
+      status, amount: Number(e.paidAmount), submittedAt: e.submittedAt,
+      statusChangedAt, daysInCurrentStatus,
+      isStuck: status === "submitted" && daysInCurrentStatus > STUCK_APPLICATION_THRESHOLD_DAYS,
+    }
+  })
+
+  const uninitiatedRows: SubcontractorPaymentApplicationRow[] = uninitiatedInvoices.map((inv) => {
+    const daysInCurrentStatus = daysBetween(new Date(inv.postingDate).getTime(), asOfMs)
+    return {
+      applicationId: null, supplierId: inv.supplierId, invoiceId: inv.invoiceId, invoiceNumber: inv.invoiceNumber,
+      status: "not_yet_initiated", amount: Number(inv.outstandingAmount), submittedAt: null,
+      statusChangedAt: inv.postingDate, daysInCurrentStatus,
+      isStuck: daysInCurrentStatus > STUCK_APPLICATION_THRESHOLD_DAYS,
+    }
+  })
+
+  const rows = [...entryRows, ...uninitiatedRows].sort((a, b) => b.daysInCurrentStatus - a.daysInCurrentStatus)
+  return {
+    asOfDate, applicationCount: rows.length,
+    stuckCount: rows.filter((r) => r.isStuck).length,
+    rows,
+  }
+}
+
+/**
+ * FI-AP-008 real report: every subcontractor (erpSuppliers.trade IS NOT
+ * NULL) pay-type payment entry linked to a purchase invoice, plus every
+ * subcontractor purchase invoice with an outstanding balance and no
+ * payment entry started yet -- a worklist for whoever manages subcontractor
+ * payments, with a real days-in-current-status aging signal so a stuck
+ * application (sitting in "submitted", i.e. awaiting manager decision,
+ * past STUCK_APPLICATION_THRESHOLD_DAYS) is visible, not silently lost.
+ */
+export async function subcontractorPaymentApplicationStatus(
+  ctx: { orgId: string },
+  filters: { supplierId?: string; asOfDate?: string } = {}
+) {
+  await requireErpEnabled(ctx.orgId)
+  const asOfDate = filters.asOfDate ?? new Date().toISOString().slice(0, 10)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const subcontractors = await db.query.erpSuppliers.findMany({
+      where: and(
+        eq(erpSuppliers.orgId, ctx.orgId),
+        sql`${erpSuppliers.trade} IS NOT NULL`,
+        ...(filters.supplierId ? [eq(erpSuppliers.id, filters.supplierId)] : []),
+      ),
+    })
+    const supplierIds = subcontractors.map((s) => s.id)
+    const supplierNameById = new Map(subcontractors.map((s): [string, string] => [s.id, s.supplierName]))
+    if (supplierIds.length === 0) {
+      return {
+        asOfDate, applicationCount: 0, stuckCount: 0,
+        rows: [] as (SubcontractorPaymentApplicationRow & { supplierName: string | null })[],
+      }
+    }
+
+    const entries = await db.query.erpPaymentEntries.findMany({
+      where: and(
+        eq(erpPaymentEntries.orgId, ctx.orgId), eq(erpPaymentEntries.paymentType, "pay"),
+        eq(erpPaymentEntries.partyType, "supplier"), inArray(erpPaymentEntries.partyId, supplierIds),
+        eq(erpPaymentEntries.invoiceType, "purchase_invoice"), sql`${erpPaymentEntries.invoiceId} IS NOT NULL`,
+      ),
+    })
+    const linkedInvoiceIds = new Set(entries.map((e) => e.invoiceId).filter((id): id is string => id != null))
+
+    const openInvoices = await db.query.erpPurchaseInvoices.findMany({
+      where: and(
+        eq(erpPurchaseInvoices.orgId, ctx.orgId), inArray(erpPurchaseInvoices.supplierId, supplierIds),
+        inArray(erpPurchaseInvoices.status, ["submitted", "partially_paid", "overdue"]),
+      ),
+    })
+    const uninitiated = openInvoices.filter((inv) => !linkedInvoiceIds.has(inv.id))
+
+    const worklist = computeSubcontractorPaymentApplicationWorklist(
+      entries.map((e) => ({
+        id: e.id, supplierId: e.partyId, invoiceId: e.invoiceId, status: e.status,
+        paidAmount: e.paidAmount, createdAt: e.createdAt, submittedAt: e.submittedAt, decidedAt: e.decidedAt,
+      })),
+      uninitiated.map((inv) => ({
+        invoiceId: inv.id, supplierId: inv.supplierId, invoiceNumber: inv.invoiceNumber,
+        postingDate: inv.postingDate, grandTotal: inv.grandTotal, outstandingAmount: inv.outstandingAmount,
+      })),
+      asOfDate,
+    )
+
+    const invoiceNumberById = new Map(openInvoices.map((inv): [string, number] => [inv.id, inv.invoiceNumber]))
+    const rows = worklist.rows.map((r) => ({
+      ...r,
+      invoiceNumber: r.invoiceNumber ?? (r.invoiceId ? invoiceNumberById.get(r.invoiceId) ?? null : null),
+      supplierName: supplierNameById.get(r.supplierId) ?? null,
+    }))
+
+    return {
+      asOfDate: worklist.asOfDate, applicationCount: worklist.applicationCount, stuckCount: worklist.stuckCount, rows,
+    }
+  })
 }

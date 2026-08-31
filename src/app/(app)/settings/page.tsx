@@ -21,8 +21,11 @@ import {
   TrendingUp,
   KeyRound,
   Paintbrush,
+  CreditCard,
 } from "lucide-react";
 import OrgLimitsSection from "@/components/OrgLimitsSection";
+import SubscriptionPlanSection from "@/components/SubscriptionPlanSection";
+import BillingSection from "@/components/BillingSection";
 import BrandingSection from "@/components/BrandingSection";
 import AdoptionMetricsSection from "@/components/AdoptionMetricsSection";
 import AiConfigSection from "@/components/AiConfigSection";
@@ -70,11 +73,39 @@ const SETTINGS_NAV = [
   { id: "api-access", label: "API Access", icon: Key },
   { id: "webhooks", label: "Webhooks", icon: Webhook },
   { id: "org-limits", label: "Seats & AI Spend", icon: Users2 },
+  { id: "subscription-plan", label: "Subscription Plan", icon: Bot },
+  { id: "billing", label: "Billing", icon: CreditCard },
   { id: "branding", label: "Branding", icon: Paintbrush },
   { id: "adoption", label: "Adoption Dashboard", icon: TrendingUp },
   { id: "sso", label: "SSO (SAML)", icon: ShieldAlert },
   { id: "about", label: "About", icon: Info },
 ];
+
+// GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING (OCID-050 live re-verification,
+// UMR-20260805-015906-be9f, UMR-20260805-002929-5560, UMR-20260802-165606-4413):
+// live-confirmed (real Playwright, 3/3 trials, both a hand-built session cookie
+// and a real typed /login form submission per the original finding) that
+// `/api/me` intermittently returns a real HTTP 200 with every field null
+// (`id`/`name`/`email`/`orgId` all null) instead of the real authenticated
+// user's data, immediately after login -- a transient server-side session-
+// resolution race (this page fires /api/me alongside other on-mount
+// authenticated fetches; a concurrent Supabase session-refresh attempt across
+// those simultaneous requests can cause exactly one of them to see a
+// not-yet-resolved session), not a permanent auth failure. The old code took
+// that null response at face value and rendered a permanently empty Profile
+// section (avatar "??", name "--", role "Member") with no retry -- and since
+// the Subscription Plan tab's own content is gated on `isAdmin` (derived from
+// this same null response), it silently never rendered either, even though
+// clicking the tab itself worked correctly.
+export async function fetchMeWithSessionRetry(maxAttempts = 3, delayMs = 400) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const res = await fetch('/api/me');
+    const d = await res.json();
+    if (d?.id) return d;
+    if (attempt < maxAttempts) await new Promise(r => setTimeout(r, delayMs * attempt));
+  }
+  return null;
+}
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -98,7 +129,9 @@ export default function SettingsPage() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    fetch('/api/me').then(r => r.json()).then(d => {
+    let cancelled = false;
+    fetchMeWithSessionRetry().then(d => {
+      if (cancelled || !d) return;
       setProfileName(d.name ?? '');
       setProfileEmail(d.email ?? '');
       setProfileRole(d.role ?? '');
@@ -107,6 +140,7 @@ export default function SettingsPage() {
       setOrgRegulatoryEntityType(d.orgRegulatoryEntityType ?? 'general');
       setIsAdmin(d.role === 'admin');
     }).catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   const saveProfile = async () => {
@@ -166,7 +200,7 @@ export default function SettingsPage() {
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full text-left",
                       isActive
-                        ? "bg-ct-accent text-ct-saffron font-bold"
+                        ? "bg-ct-accent text-ct-saffron-text font-bold"
                         : "text-ct-slate hover:bg-ct-cloud"
                     )}
                   >
@@ -199,7 +233,7 @@ export default function SettingsPage() {
                   <div>
                     <p className="font-semibold text-ct-navy">{profileName || '—'}</p>
                     <p className="text-sm text-ct-muted">{profileEmail || '—'}</p>
-                    <Badge variant="secondary" className="bg-ct-accent text-ct-saffron text-[10px] mt-1 font-medium capitalize">
+                    <Badge variant="secondary" className="bg-ct-accent text-ct-saffron-text text-[10px] mt-1 font-medium capitalize">
                       {profileRole || 'member'}
                     </Badge>
                   </div>
@@ -523,6 +557,38 @@ export default function SettingsPage() {
                 ) : (
                   <p className="text-sm text-muted-foreground">Only admins can view and change seat and spend limits.</p>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "subscription-plan" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <Bot className="size-4" />
+                  Subscription Plan
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isAdmin ? (
+                  <SubscriptionPlanSection />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Only admins can view and change the organisation&apos;s subscription plan.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "billing" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <CreditCard className="size-4" />
+                  Billing
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <BillingSection isAdmin={isAdmin} />
               </CardContent>
             </Card>
           )}

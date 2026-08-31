@@ -30,7 +30,11 @@
 // bulk sales-order status updates, and getCustomerOverview() ("customer
 // 360": opportunities + quotations + sales orders + sales invoices +
 // linked projects for one erp_customers row in a single call).
-import { erpCustomers, erpQuotations, erpQuotationItems, erpSalesOrders, erpSalesOrderItems, erpSalesInvoices, erpCurrencies, crmLeads, crmOpportunities, projects, users, organisations } from "@/lib/db"
+import {
+  erpCustomers, erpQuotations, erpQuotationItems, erpSalesOrders, erpSalesOrderItems, erpSalesInvoices,
+  erpPaymentEntries, erpSalesCreditNotes, erpSalesReturns,
+  erpCurrencies, crmLeads, crmOpportunities, projects, users, organisations,
+} from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, ilike, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -38,6 +42,7 @@ export { ServiceError }
 import { requireErpEnabled } from "./erp-enablement-service"
 import { logActivity } from "@/lib/audit"
 import type { PagedResult } from "./crm-service"
+import { ActorCtx } from "./actor-context"
 import { isSelfApproval } from "./approval-workflow-service"
 
 // Priority 17 Wave 1 (multi-currency Selling & Buying): identical
@@ -61,10 +66,7 @@ export async function resolveDocumentCurrency(db: TenantDb, orgId: string, curre
 // createSalesInvoice -- a Bearer-API-key caller (PROJEXA's callVeridian(),
 // which never carries a session cookie) never has a dbUser, so logActivity
 // needs the apiKey branch wired through explicitly rather than assumed.
-type SellingActorCtx = { orgId: string; userId: string } & (
-  | { dbUser: typeof users.$inferSelect; apiKey?: never }
-  | { dbUser?: never; apiKey: { id: string; name: string } }
-)
+type SellingActorCtx = ActorCtx
 
 function actorLogFields(ctx: SellingActorCtx) {
   return ctx.dbUser ? ({ dbUser: ctx.dbUser } as const) : ({ apiKey: ctx.apiKey } as const)
@@ -100,16 +102,53 @@ export async function listCustomersPaged(ctx: { orgId: string }, opts: { search?
   })
 }
 
-export type CustomerInput = { customerName: string; gstin?: string; panNumber?: string; defaultPaymentTermsDays?: number; creditLimit?: number }
+export type CustomerInput = { customerName: string; gstin?: string; panNumber?: string; defaultPaymentTermsDays?: number; creditLimit?: number; isActive?: boolean }
 
+// A4S14_customers_01: this used to be a raw insert with no uniqueness check
+// at all -- nothing stopped the same org from ending up with two ACTIVE
+// customers of the identical name (verified live: Demo Organization's
+// "Meridian Hospitality Group" existed twice, 5 weeks apart, both
+// isActive=true). *** THE DB, NOT THIS FUNCTION, IS WHAT ENFORCES "ONE
+// ACTIVE CUSTOMER PER NAME PER ORG" *** -- erp_customers_org_active_name_unique
+// (drizzle/0328_erp_customers_active_name_unique.sql's own partial unique
+// index on (org_id, lower(trim(customer_name))) WHERE is_active = true),
+// same "DB is the real backstop, this check is a courtesy" split this
+// codebase already uses for screen_drafts (see draft-service.ts's
+// startDraft()). The check is scoped to ACTIVE rows only, on purpose: a
+// name freed up by mdm-quality-service.ts's mergeDuplicates() (which
+// deactivates the loser rather than deleting it) must stay reusable for a
+// genuinely new customer.
 export async function createCustomer(ctx: { orgId: string }, input: CustomerInput) {
   await requireErpEnabled(ctx.orgId)
-  if (!input.customerName?.trim()) throw new ServiceError("customerName is required", 400)
+  const normalizedName = input.customerName?.trim()
+  if (!normalizedName) throw new ServiceError("customerName is required", 400)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.erpCustomers.findFirst({
+      where: and(
+        eq(erpCustomers.orgId, ctx.orgId),
+        eq(erpCustomers.isActive, true),
+        sql`lower(trim(${erpCustomers.customerName})) = lower(${normalizedName})`,
+      ),
+    })
+    if (existing) throw new ServiceError(`An active customer named "${existing.customerName}" already exists`, 409)
     const [customer] = await db.insert(erpCustomers).values({
-      orgId: ctx.orgId, customerName: input.customerName, gstin: input.gstin, panNumber: input.panNumber,
+      orgId: ctx.orgId, customerName: normalizedName, gstin: input.gstin, panNumber: input.panNumber,
       defaultPaymentTermsDays: input.defaultPaymentTermsDays, creditLimit: input.creditLimit?.toString(),
     }).returning()
+    return customer
+  })
+}
+
+// Real-screen conversion (2026-08-30): lightweight single-customer lookup
+// for the Customer Object Page's Edit form -- getCustomerOverview() already
+// existed but does 4 extra joined queries (opportunities/quotations/sales
+// orders/invoices) the edit form has no use for; this is the plain read the
+// Object Page's display header and Edit draft actually need.
+export async function getCustomer(ctx: { orgId: string }, customerId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const customer = await db.query.erpCustomers.findFirst({ where: and(eq(erpCustomers.id, customerId), eq(erpCustomers.orgId, ctx.orgId)) })
+    if (!customer) throw new ServiceError("Customer not found", 404)
     return customer
   })
 }
@@ -125,6 +164,14 @@ export async function updateCustomer(ctx: { orgId: string }, customerId: string,
       ...(input.panNumber !== undefined ? { panNumber: input.panNumber } : {}),
       ...(input.defaultPaymentTermsDays !== undefined ? { defaultPaymentTermsDays: input.defaultPaymentTermsDays } : {}),
       ...(input.creditLimit !== undefined ? { creditLimit: input.creditLimit === null ? null : input.creditLimit.toString() } : {}),
+      // Real-screen conversion (2026-08-30): isActive wasn't accepted here --
+      // the only deactivation path was mdm-quality-service.ts's internal
+      // mergeDuplicates(), so the Customer Object Page had no real Deactivate
+      // action to offer (deleting a customer with real invoice/order history
+      // would either cascade-destroy financial records or violate their FKs --
+      // same "soft-delete, never hard-delete" posture as every other master
+      // entity converted this session, e.g. Materials/Vendors).
+      ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
     }).where(eq(erpCustomers.id, customerId)).returning()
     return updated
   })
@@ -248,6 +295,22 @@ export async function createQuotation(
 // getter existed (list/create/revise/status/convert all query inline);
 // added here rather than duplicated in the PDF route, matching this
 // codebase's "business logic lives in the service, routes stay thin" rule.
+// Real-screen conversion (2026-08-30): single-quotation lookup for the
+// Quotation Object Page -- only getQuotationForPdf (org+quotation, built
+// specifically for PDF rendering) existed before; this is the same query
+// without the extra org row, used by a generic detail view.
+export async function getQuotation(ctx: { orgId: string }, quotationId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const quotation = await db.query.erpQuotations.findFirst({
+      where: and(eq(erpQuotations.id, quotationId), eq(erpQuotations.orgId, ctx.orgId)),
+      with: { items: true, customer: true },
+    })
+    if (!quotation) throw new ServiceError("Quotation not found", 404)
+    return quotation
+  })
+}
+
 export async function getQuotationForPdf(ctx: { orgId: string }, quotationId: string) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -436,6 +499,23 @@ async function fetchSalesOrderPage(db: TenantDb, orgId: string, opts: ListSalesO
   return { items, total: filtered.length, page, pageSize }
 }
 
+// Real-screen conversion (2026-08-30): single-sales-order lookup for the
+// Sales Order Object Page -- only listSalesOrders (all, paginated) and
+// getSalesOrderDocumentFlow (the SD-007 document-flow trace, real but
+// never wired to a PROJEXA proxy route until this conversion) existed
+// before.
+export async function getSalesOrder(ctx: { orgId: string }, salesOrderId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const salesOrder = await db.query.erpSalesOrders.findFirst({
+      where: and(eq(erpSalesOrders.id, salesOrderId), eq(erpSalesOrders.orgId, ctx.orgId)),
+      with: { items: true, customer: true },
+    })
+    if (!salesOrder) throw new ServiceError("Sales order not found", 404)
+    return salesOrder
+  })
+}
+
 async function insertSalesOrderRow(
   db: TenantDb,
   ctx: { orgId: string; userId: string },
@@ -546,5 +626,174 @@ export async function bulkUpdateSalesOrderStatus(ctx: { orgId: string; userId: s
       ? await db.update(erpSalesOrders).set({ status, updatedAt: new Date() }).where(and(eq(erpSalesOrders.orgId, ctx.orgId), inArray(erpSalesOrders.id, eligibleIds))).returning()
       : []
     return { updated, skippedIds, missingIds }
+  })
+}
+
+// ============================================================
+// SD-007 "Sales Order -- Status Overview" (sap_mapping.sqlite sap_reports,
+// module SD, priority HIGH, BUILD_NEW as of 2026-07-28) -- SAP's VBFA
+// "Display Document Flow" equivalent: given one sales order, trace every
+// real document already linked to it via existing foreign keys (no new
+// schema) into a single ordered chain -- quotation -> sales order ->
+// sales invoice(s) -> payment entries / credit notes / sales returns
+// raised against those invoices.
+//
+// NOT the same thing as PR #629's getClaimTimeline() (also labeled
+// "SD-007" by that PR, built the same week) -- that function traces the
+// brand-new construction_progress_claims workflow
+// (milestone_achieved -> drafted -> submitted -> client_approved ->
+// invoiced), a different table entirely. This function traces the
+// pre-existing generic ERP Sales & Distribution chain
+// (erp_quotations/erp_sales_orders/erp_sales_invoices/erp_payment_entries/
+// erp_sales_credit_notes/erp_sales_returns, Priority 15/Wave 60-84) that
+// PR #629 does not touch. See ai-os/boss/ACTIVE-CLAIMS.yaml's
+// "sd-007-sales-order-document-flow-overview" entry for the full collision
+// note.
+//
+// Honest gap: this repo has no "change order" concept distinct from a
+// quotation revision (createQuotationRevision already covers a revised
+// quote before ordering) -- there is no post-order change-order document,
+// so the chain below cannot show one. It is not fabricated here.
+export type SalesOrderDocumentFlowNode = {
+  docType: "quotation" | "sales_order" | "sales_invoice" | "payment_entry" | "credit_note" | "sales_return"
+  docId: string
+  docNumber: string
+  date: string | null
+  amount: number
+  status: string
+  parentDocId: string | null
+}
+
+export async function getSalesOrderDocumentFlow(ctx: { orgId: string }, salesOrderId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const salesOrder = await db.query.erpSalesOrders.findFirst({
+      where: and(eq(erpSalesOrders.id, salesOrderId), eq(erpSalesOrders.orgId, ctx.orgId)),
+    })
+    if (!salesOrder) throw new ServiceError("Sales order not found", 404)
+
+    const quotation = salesOrder.quotationId
+      ? await db.query.erpQuotations.findFirst({
+          where: and(eq(erpQuotations.id, salesOrder.quotationId), eq(erpQuotations.orgId, ctx.orgId)),
+        })
+      : null
+
+    const invoices = await db.query.erpSalesInvoices.findMany({
+      where: and(eq(erpSalesInvoices.salesOrderId, salesOrderId), eq(erpSalesInvoices.orgId, ctx.orgId)),
+      orderBy: (t, { asc }) => asc(t.postingDate),
+    })
+    const invoiceIds = invoices.map((inv) => inv.id)
+
+    const [payments, creditNotes, returns] = invoiceIds.length
+      ? await Promise.all([
+          db.query.erpPaymentEntries.findMany({
+            where: and(
+              eq(erpPaymentEntries.orgId, ctx.orgId),
+              eq(erpPaymentEntries.invoiceType, "sales_invoice"),
+              inArray(erpPaymentEntries.invoiceId, invoiceIds),
+            ),
+          }),
+          db.query.erpSalesCreditNotes.findMany({
+            where: and(eq(erpSalesCreditNotes.orgId, ctx.orgId), inArray(erpSalesCreditNotes.salesInvoiceId, invoiceIds)),
+          }),
+          db.query.erpSalesReturns.findMany({
+            where: and(eq(erpSalesReturns.orgId, ctx.orgId), inArray(erpSalesReturns.salesInvoiceId, invoiceIds)),
+          }),
+        ])
+      : [[], [], []]
+
+    const nodes: SalesOrderDocumentFlowNode[] = []
+
+    if (quotation) {
+      nodes.push({
+        docType: "quotation",
+        docId: quotation.id,
+        docNumber: `QTN-${quotation.quotationNumber}`,
+        date: quotation.quotationDate,
+        amount: Number(quotation.grandTotal ?? 0),
+        status: quotation.status,
+        parentDocId: null,
+      })
+    }
+
+    nodes.push({
+      docType: "sales_order",
+      docId: salesOrder.id,
+      docNumber: `SO-${salesOrder.soNumber}`,
+      date: salesOrder.orderDate,
+      amount: Number(salesOrder.grandTotal ?? 0),
+      status: salesOrder.status,
+      parentDocId: quotation?.id ?? null,
+    })
+
+    for (const inv of invoices) {
+      nodes.push({
+        docType: "sales_invoice",
+        docId: inv.id,
+        docNumber: `INV-${inv.invoiceNumber}`,
+        date: inv.postingDate,
+        amount: Number(inv.grandTotal ?? 0),
+        status: inv.status,
+        parentDocId: salesOrder.id,
+      })
+    }
+
+    for (const pay of payments) {
+      nodes.push({
+        docType: "payment_entry",
+        docId: pay.id,
+        docNumber: pay.referenceNo ?? pay.id,
+        date: pay.postingDate,
+        amount: Number(pay.receivedAmount ?? 0),
+        status: pay.status,
+        parentDocId: pay.invoiceId ?? null,
+      })
+    }
+
+    for (const cn of creditNotes) {
+      nodes.push({
+        docType: "credit_note",
+        docId: cn.id,
+        docNumber: `CN-${cn.creditNoteNumber}`,
+        date: cn.postingDate,
+        amount: Number(cn.totalAmount ?? 0),
+        status: cn.status,
+        parentDocId: cn.salesInvoiceId ?? null,
+      })
+    }
+
+    for (const ret of returns) {
+      nodes.push({
+        docType: "sales_return",
+        docId: ret.id,
+        docNumber: ret.id,
+        date: null,
+        amount: 0,
+        status: ret.status,
+        parentDocId: ret.salesInvoiceId ?? null,
+      })
+    }
+
+    const invoicedTotal = invoices.reduce((sum, inv) => sum + Number(inv.grandTotal ?? 0), 0)
+    const paidTotal = payments
+      .filter((p) => p.status !== "cancelled" && p.status !== "rejected")
+      .reduce((sum, p) => sum + Number(p.receivedAmount ?? 0), 0)
+    const creditedTotal = creditNotes
+      .filter((cn) => cn.status !== "cancelled")
+      .reduce((sum, cn) => sum + Number(cn.totalAmount ?? 0), 0)
+
+    return {
+      salesOrderId: salesOrder.id,
+      soNumber: salesOrder.soNumber,
+      customerId: salesOrder.customerId,
+      orderStatus: salesOrder.status,
+      orderGrandTotal: Number(salesOrder.grandTotal ?? 0),
+      invoicedTotal,
+      paidTotal,
+      creditedTotal,
+      outstandingTotal: Math.max(0, invoicedTotal - paidTotal - creditedTotal),
+      nodeCount: nodes.length,
+      nodes,
+    }
   })
 }
