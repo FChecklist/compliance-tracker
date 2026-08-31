@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
 // list+dialog+ProjectPicker shell as the sibling /permits page (same
 // backend posture -- Bearer/cookie dual auth via requireAuthOrApiKey, same
 // document-service.ts primitive underneath).
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Plus, Box, ExternalLink } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,7 +38,14 @@ type Drawing = {
   isExternalLink: boolean; fileType: string | null; documentUrl: string | null; createdAt: string;
 };
 
-export default function DrawingsPage() {
+function DrawingsPageInner() {
+  // R66 (Design Studio hub): ?projectId= pre-selects the project when
+  // arriving from /design-studio's "Open" links -- same
+  // useSearchParams-in-Suspense convention as chat/page.tsx and
+  // reports/page.tsx's CustomReportsSection.
+  const searchParams = useSearchParams();
+  const initialProjectId = searchParams.get("projectId");
+
   const [projects, setProjects] = useState<PickerProject[]>([]);
   const [projectId, setProjectId] = useState("");
   const [loadingProjects, setLoadingProjects] = useState(true);
@@ -59,11 +67,14 @@ export default function DrawingsPage() {
       .then((d) => {
         const list: PickerProject[] = d.projects ?? [];
         setProjects(list);
-        if (list.length > 0) setProjectId((prev) => prev || list[0].id);
+        if (list.length > 0) {
+          const preselect = initialProjectId && list.some((p) => p.id === initialProjectId) ? initialProjectId : list[0].id;
+          setProjectId((prev) => prev || preselect);
+        }
       })
       .catch(() => toast.error("Failed to load projects"))
       .finally(() => setLoadingProjects(false));
-  }, []);
+  }, [initialProjectId]);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -221,5 +232,13 @@ export default function DrawingsPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function DrawingsPage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-ct-muted">Loading...</div>}>
+      <DrawingsPageInner />
+    </Suspense>
   );
 }

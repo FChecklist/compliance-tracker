@@ -16,7 +16,8 @@ export const dynamic = "force-dynamic";
 // upload wired into the "Add Item" dialog either, matching the reference
 // exactly) rather than adding a new upload flow not present in the
 // reference page.
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Plus, Image as ImageIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,7 +40,14 @@ const STATUS_COLORS: Record<string, string> = {
   approved: "bg-green-100 text-green-700",
 };
 
-export default function MoodBoardsPage() {
+function MoodBoardsPageInner() {
+  // R66 (Design Studio hub): ?projectId= pre-selects the project when
+  // arriving from /design-studio's "Open" links -- same
+  // useSearchParams-in-Suspense convention as chat/page.tsx and
+  // reports/page.tsx's CustomReportsSection.
+  const searchParams = useSearchParams();
+  const initialProjectId = searchParams.get("projectId");
+
   const [projects, setProjects] = useState<PickerProject[]>([]);
   const [projectId, setProjectId] = useState("");
   const [loadingProjects, setLoadingProjects] = useState(true);
@@ -63,11 +71,14 @@ export default function MoodBoardsPage() {
       .then((d) => {
         const list: PickerProject[] = d.projects ?? [];
         setProjects(list);
-        if (list.length > 0) setProjectId((prev) => prev || list[0].id);
+        if (list.length > 0) {
+          const preselect = initialProjectId && list.some((p) => p.id === initialProjectId) ? initialProjectId : list[0].id;
+          setProjectId((prev) => prev || preselect);
+        }
       })
       .catch(() => toast.error("Failed to load projects"))
       .finally(() => setLoadingProjects(false));
-  }, []);
+  }, [initialProjectId]);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -249,5 +260,13 @@ export default function MoodBoardsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function MoodBoardsPage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-ct-muted">Loading...</div>}>
+      <MoodBoardsPageInner />
+    </Suspense>
   );
 }
