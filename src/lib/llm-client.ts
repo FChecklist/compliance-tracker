@@ -31,6 +31,52 @@
 // (orchestra-model-resolver.ts), never through a customer's own config row.
 export type LLMProvider = "groq" | "openai" | "anthropic" | "google" | "openrouter" | "cerebras";
 
+// AI-model supervision-by-logging (governance items 30/31/32, 2026-07-23 gap-
+// closing phase 10 -- STANDING_DIRECTIVE.yaml's assistant_working_protocol
+// had flagged Mother Router / AI roster supervision as CONFIRMED_GAP_NOT_FIXED,
+// stateless). This is the logging primitive; see mother-router.ts's
+// callLLMWithSupervision() for the actual before/after call site that uses
+// it. Kept here (not in mother-router.ts) because it's a pure I/O helper with
+// zero @/lib/* imports, same "no project imports" shape as the rest of this
+// file.
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { createHash } from "node:crypto";
+
+const execFileAsync = promisify(execFile);
+
+/** Deterministic short fingerprint for supervision logging -- deliberately never logs raw prompt/response text (privacy + row-size), only a value an auditor can correlate against if they also have the original text. */
+export function supervisionHash(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 16);
+}
+
+/**
+ * Writes one action row via scripts/superboss-register.py log-action
+ * (source=ai_supervision) for a Mother-Router-dispatched call. Fire-and-
+ * forget/non-fatal by design -- same posture mother-router.ts's own
+ * logRoutingDecision() already uses for ai_routing_audit_log: a logging
+ * failure here is swallowed (console.error only) and never blocks, delays,
+ * retries, or fails the real LLM call. This is SUPERVISION-BY-LOGGING only,
+ * not real-time intervention -- it never inspects what it just wrote and
+ * has no ability to alter or stop the call it's logging. Real-time
+ * blocking/intervention on a model call is a separate, larger, not-yet-
+ * scoped capability.
+ */
+export async function logAiSupervisionEvent(content: Record<string, unknown>): Promise<void> {
+  try {
+    await execFileAsync("python3", [
+      "/opt/veridian/scripts/superboss-register.py",
+      "log-action",
+      "--source",
+      "ai_supervision",
+      "--content",
+      JSON.stringify(content),
+    ]);
+  } catch (error) {
+    console.error("[ai-supervision] log-action failed (non-fatal, call proceeds regardless):", error);
+  }
+}
+
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
 export type CallLLMOptions = {
