@@ -38,12 +38,15 @@ import {
   ServerCrash,
   UserCheck,
   FileWarning,
+  CalendarClock,
+  Package,
   Radio,
   FileSignature,
   CheckCircle2,
   Layers,
   BookText,
   Wallet,
+  DollarSign,
   Link2,
   BookOpen,
   MessageSquare,
@@ -71,6 +74,18 @@ import {
   GraduationCap,
   Copy,
   Activity,
+  LayoutPanelLeft,
+  Palette,
+  Sofa,
+  Gauge,
+  NotebookPen,
+  FileCheck2,
+  ListChecks,
+  Ruler,
+  HardHat,
+  CircleDollarSign,
+  Box,
+  LayoutGrid,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -165,6 +180,70 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
     ...(pmsEnabled
       ? [{ title: t("sections.projects.title"), items: [{ label: t("sections.projects.items.veriProjectsAi"), href: "/pms", icon: Rocket }] }]
       : []),
+    // Wave 6 (compliance-tracker/PROJEXA merge): construction modules --
+    // backend (construction-*-service.ts / interior-*-service.ts) was
+    // already fully built across earlier PROJEXA-foundation waves and
+    // served only PROJEXA's own frontend before this; these are the first
+    // (app) pages for any of it. Shown unconditionally, same posture as
+    // the 'erp'/GRC sections below (no constructionEnabled-shaped flag
+    // exists anywhere in this codebase). Labour here is site-labour
+    // manpower (construction-labour-service.ts), a distinct concept from
+    // company-employee HR attendance under People & HR below.
+    //
+    // MERGE CONFLICT RESOLUTION (batch 1 / PR #514 vs batch 2 / PR #524):
+    // both waves independently added their own "Construction" nav section
+    // at this same spot, since neither branch was cut after the other's
+    // merge into main yet (disclosed by both PRs' own bodies as a
+    // foreseeable, non-design conflict). Resolved by combining into ONE
+    // "Construction" section with all 13 items from both waves -- batch
+    // 1's execution modules (site-diary/RFIs/submittals/punch-list/scope/
+    // labour/expenses) followed by batch 2's design+progress modules
+    // (floor-plans/mood-boards/FF&E/change-orders/work-progress/
+    // dashboard) -- rather than one wave's entries overwriting the
+    // other's. i18n keys are left under their original two namespaces
+    // (sections.construction.items.* and sections.constructionDesign.
+    // items.*) since both are merged into messages/en.json and
+    // messages/hi.json unchanged; only the nav section object itself is
+    // unified.
+    {
+      title: t("sections.construction.title"),
+      items: [
+        { label: t("sections.construction.items.siteDiary"), href: "/site-diary", icon: NotebookPen },
+        { label: t("sections.construction.items.rfis"), href: "/rfis", icon: HelpCircle },
+        { label: t("sections.construction.items.submittals"), href: "/submittals", icon: FileCheck2 },
+        { label: t("sections.construction.items.punchList"), href: "/punch-list", icon: ListChecks },
+        { label: t("sections.construction.items.scope"), href: "/scope", icon: Ruler },
+        { label: t("sections.construction.items.labour"), href: "/labour", icon: HardHat },
+        { label: t("sections.construction.items.expenses"), href: "/expenses", icon: CircleDollarSign },
+        // R63/Sumeet-modules gap-closure (2026-08-29): backend for all 3 of
+        // these existed pre-wave (permits since Priority 13, materials
+        // since Wave 124, schedule since Priority 16 Part 2 -- see each
+        // route's own header comment) but none had a page or a nav link,
+        // confirmed via a real local browser walkthrough. Pages built the
+        // same day this was found, same list(+create) shell as their
+        // Construction-section siblings above.
+        { label: t("sections.construction.items.permits"), href: "/permits", icon: FileWarning },
+        { label: t("sections.construction.items.materials"), href: "/materials", icon: Package },
+        { label: t("sections.construction.items.schedule"), href: "/schedule", icon: CalendarClock },
+        // R64/R48 gap-closure (2026-08-30, F076): same "backend existed since
+        // Wave 143, no page/nav link" pattern as the three siblings above --
+        // /api/v1/projexa/drawings has been real since that wave; this repo
+        // never had a UI for it (memory: "Drawings&3D/Design Studio still
+        // open, deliberately not faked" from R63 -- now built).
+        { label: t("sections.construction.items.drawings"), href: "/drawings", icon: Box },
+        // R66 (Sumeet's requirement, PROJEXA-AI.COM): unified entry point
+        // over the 4 design-related items directly below it (floor plans/
+        // mood boards/FF&E/drawings above) -- see src/app/(app)/design-
+        // studio/page.tsx's own header comment.
+        { label: t("sections.constructionDesign.items.designStudio"), href: "/design-studio", icon: LayoutGrid },
+        { label: t("sections.constructionDesign.items.floorPlans"), href: "/floor-plans", icon: LayoutPanelLeft },
+        { label: t("sections.constructionDesign.items.moodBoards"), href: "/mood-boards", icon: Palette },
+        { label: t("sections.constructionDesign.items.ffe"), href: "/ffe", icon: Sofa },
+        { label: t("sections.constructionDesign.items.changeOrders"), href: "/change-orders", icon: FileSignature },
+        { label: t("sections.constructionDesign.items.workProgress"), href: "/work-progress", icon: Activity },
+        { label: t("sections.constructionDesign.items.dashboard"), href: "/construction-dashboard", icon: Gauge },
+      ],
+    },
     // THE FIRM AI OS practice-management layer (Wave 108 build, wired to
     // real routes/UI this wave) -- gated behind its own 'the_firm' product
     // branch, same reversible-without-redeploy posture as PMS above.
@@ -354,6 +433,11 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
           icon: Settings,
         },
         {
+          label: t("sections.admin.items.finops"),
+          href: "/finops",
+          icon: DollarSign,
+        },
+        {
           label: t("sections.admin.items.auditLog"),
           href: "/audit",
           icon: History,
@@ -527,6 +611,28 @@ function CountBadge({ count, color = "bg-ct-saffron text-white" }: { count: numb
   );
 }
 
+// R-1224-REBASE (accessibility PR #1224 rebase, 2026-08-31): PR #1224's own
+// version of this region hand-rolled a two-<nav>-landmark sidebar (separate
+// "Quick navigation" / "Modules" <nav aria-label> elements, per-Link
+// aria-current) directly in this file. Between that PR's Aug-15 creation and
+// this rebase, the veridian-ui-kit migration (2026-07-19 wave, landed on
+// main before this PR's branch was cut... no -- landed AFTER, but merged to
+// main before this rebase) replaced that hand-rolled markup with
+// buildSharedSections()+<SharedAppSidebar> below: nav rendering (the actual
+// <nav>/<Link> DOM) now lives in the external @fchecklist/veridian-ui-kit
+// package (github.com/FChecklist/veridian-ui-kit, pinned v0.4.0), not in
+// this file. PR #1224's target lines no longer exist to apply to -- kept
+// main's real, already-shipped shared-component version here rather than
+// reverting it to restore the PR's obsolete direct-markup approach (that
+// would delete real, later, working code to force a stale diff to apply).
+// The one item that DID carry forward unchanged either way --
+// MobileSheetTrigger's `aria-label="Open navigation menu"` -- is preserved
+// below. The rest of PR #1224's intent (labelled <nav> landmarks,
+// aria-current per item) is not achievable from compliance-tracker alone
+// anymore: the shared AppSidebar component (see node_modules/@fchecklist/
+// veridian-ui-kit/src/shell/AppSidebar.tsx) renders one unlabelled <nav>
+// with no aria-current on its <Link>s, and fixing that requires a change to
+// that separate repo, out of this PR's scope. Flagged, not silently dropped.
 function buildSharedSections(
   t: ReturnType<typeof useTranslations>,
   overdueCount: number, docCount: number, noticeCount: number, accountType: string,
@@ -566,7 +672,7 @@ function AppSidebarFooter({ orgName }: { orgName: string }) {
   );
 }
 
-function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
+function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl, brandName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null; brandName?: string }) {
   const t = useTranslations("Nav");
   const sections = buildSharedSections(t, overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled);
 
@@ -589,7 +695,7 @@ function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unread
         <SharedAppSidebar
           sections={sections}
           logo={logo}
-          productName={orgLogoUrl && orgName ? orgName : "VERIDIAN AI"}
+          productName={orgLogoUrl && orgName ? orgName : (brandName || "VERIDIAN AI")}
           collapsed={false}
         />
       </div>
@@ -598,8 +704,8 @@ function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unread
   );
 }
 
-export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "", orgLogoUrl = null }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string; orgLogoUrl?: string | null }) {
-  const props = { overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl };
+export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "", orgLogoUrl = null, brandName = "" }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string; orgLogoUrl?: string | null; brandName?: string }) {
+  const props = { overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl, brandName };
   return (
     <>
       {/* Desktop sidebar -- wrapping the shared component (rather than
@@ -619,7 +725,7 @@ export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, ac
   );
 }
 
-function MobileSheetTrigger(props: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
+function MobileSheetTrigger(props: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null; brandName?: string }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -629,6 +735,7 @@ function MobileSheetTrigger(props: { overdueCount: number; docCount: number; not
           variant="ghost"
           size="icon"
           className="text-ct-slate hover:bg-ct-cloud hover:text-ct-navy"
+          aria-label="Open navigation menu"
         >
           <LayoutDashboard className="size-5" />
         </Button>

@@ -4,8 +4,26 @@
 // to the underlying service, not present in the session-only /api/risks
 // route before this wave).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { updateRiskStatus, ServiceError } from "@/lib/services/risk-register-service"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { getRisk, updateRiskStatus, ServiceError } from "@/lib/services/risk-register-service"
+
+// Real-screen conversion (2026-08-30): the Risk Register never had a detail
+// route -- proxies to the new getRisk(), same visibility scope as the list.
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const ctx = await requireAuthOrApiKey(request)
+  if (ctx.response) return ctx.response
+  if (!ctx.orgId) return requireOrg(ctx)!
+
+  try {
+    const { id } = await params
+    const risk = await getRisk({ orgId: ctx.orgId, dbUser: ctx.dbUser }, id)
+    return NextResponse.json(risk)
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("v1 projexa risk get error:", error)
+    return NextResponse.json({ error: "Failed to fetch risk" }, { status: 500 })
+  }
+}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuthOrApiKey(request)

@@ -6,11 +6,12 @@
 // free. External guest participation reuses veri-chat-service.ts's
 // createGuestAccess() directly rather than a parallel implementation.
 import {
-  db, tickets, conversations, conversationParticipants, notifications, users,
+  db, tickets, conversations, conversationParticipants, notifications, users, messages,
   installedProducts, ticketSatisfactionSurveys, fieldServiceDispatches, problemRecords, problemTickets,
+  ticketTeams, slaPolicies, escalationRules, ticketEscalationEvents, businessHoursSchedules, emailIntelligenceItems,
 } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { eq, and, lt, notInArray, desc, inArray } from "drizzle-orm"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { eq, and, lt, notInArray, desc, inArray, isNotNull } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
 import { createGuestAccess, resolveActiveGuestAccess } from "./veri-chat-service"
 import { ServiceError } from "./compliance-service"
@@ -19,6 +20,87 @@ import { recordAuditTrigger } from "@/lib/audit-event-triggers"
 import { checkProblemRecordClosure } from "@/lib/rca-closure-gate"
 
 export type TicketContext = { orgId: string; userId: string }
+
+// ─── Tiered SLA policy resolution (Helpdesk gap-closure, Phase 0,
+// 2026-07-27) ───────────────────────────────────────────────────────────
+// Pure, DB-free scoring/computation -- kept separate from resolveSlaPolicy
+// below so they're directly unit-testable without a live Postgres
+// connection, same house convention as sanitizeSuggestedWorkItems in
+// email-intelligence-service.ts.
+export type SlaPolicyLike = { id: string; teamId: string | null; priority: string | null; category: string | null; isActive: boolean }
+export type SlaPolicyMatchCriteria = { teamId: string | null; priority: string; category: string | null }
+
+/** Returns a specificity score (higher = more specific) if `policy` matches `criteria`, or null if it doesn't apply at all. */
+export function scoreSlaPolicyMatch(policy: SlaPolicyLike, criteria: SlaPolicyMatchCriteria): number | null {
+  if (!policy.isActive) return null
+  if (policy.teamId && policy.teamId !== criteria.teamId) return null
+  if (policy.priority && policy.priority !== criteria.priority) return null
+  if (policy.category && policy.category !== criteria.category) return null
+  return (policy.teamId ? 1 : 0) + (policy.priority ? 1 : 0) + (policy.category ? 1 : 0)
+}
+
+/** Picks the most specific matching policy (most non-null matched fields wins); null if none match. */
+export function pickBestSlaPolicy<T extends SlaPolicyLike>(policies: T[], criteria: SlaPolicyMatchCriteria): T | null {
+  let best: T | null = null
+  let bestScore = -1
+  for (const policy of policies) {
+    const score = scoreSlaPolicyMatch(policy, criteria)
+    if (score !== null && score > bestScore) {
+      best = policy
+      bestScore = score
+    }
+  }
+  return best
+}
+
+export type WeeklyHours = Record<string, Array<[number, number]>>
+
+/**
+ * Business-hours-aware SLA deadline. Walks forward day by day, consuming
+ * only the minutes inside each day's configured window(s), until `hours`
+ * of coverage is used up. Deliberately keeps day-of-week/minute-of-day
+ * matching in UTC rather than converting through the schedule's IANA
+ * `timezone` (that field is stored for display/documentation only) --
+ * this codebase has no timezone-conversion library as a dependency, and a
+ * hand-rolled DST-aware converter would be a real correctness risk for a
+ * feature whose whole point is precise deadline math. Org admins in a
+ * non-UTC timezone author `weeklyHours` in UTC-shifted terms; a real
+ * IANA-aware conversion is future work if that proves too awkward.
+ * Falls back to plain calendar-time math when no schedule is supplied
+ * (preserves the pre-existing non-business-hours behavior exactly).
+ */
+export function computeSlaDeadline(startAt: Date, hours: number, weeklyHours?: WeeklyHours | null): Date {
+  if (!weeklyHours || Object.keys(weeklyHours).length === 0) {
+    return new Date(startAt.getTime() + hours * 60 * 60 * 1000)
+  }
+
+  let remainingMinutes = hours * 60
+  const MAX_DAYS = 90 // safety cap so a schedule with zero open windows can't loop forever
+  for (let dayOffset = 0; dayOffset < MAX_DAYS; dayOffset++) {
+    const dayStart = new Date(Date.UTC(startAt.getUTCFullYear(), startAt.getUTCMonth(), startAt.getUTCDate() + dayOffset))
+    const windows = weeklyHours[String(dayStart.getUTCDay())] || []
+    const flooredCursorMinute = dayOffset === 0 ? startAt.getUTCHours() * 60 + startAt.getUTCMinutes() : 0
+
+    for (const [winStart, winEnd] of windows) {
+      const usableStart = Math.max(winStart, flooredCursorMinute)
+      if (usableStart >= winEnd) continue
+      const available = winEnd - usableStart
+      if (remainingMinutes <= available) {
+        return new Date(dayStart.getTime() + (usableStart + remainingMinutes) * 60 * 1000)
+      }
+      remainingMinutes -= available
+    }
+  }
+
+  // Degenerate schedule (no capacity found within MAX_DAYS) -- fall back to
+  // plain calendar time from now rather than returning something wrong.
+  return new Date(Date.now() + remainingMinutes * 60 * 1000)
+}
+
+async function resolveSlaPolicy(tx: TenantDb, orgId: string, criteria: SlaPolicyMatchCriteria) {
+  const policies = await tx.query.slaPolicies.findMany({ where: and(eq(slaPolicies.orgId, orgId), eq(slaPolicies.isActive, true)) })
+  return pickBestSlaPolicy(policies, criteria)
+}
 
 async function assertParticipant(db: Parameters<Parameters<typeof withTenantContext>[1]>[0], conversationId: string, userId: string) {
   const membership = await db.query.conversationParticipants.findFirst({
@@ -49,15 +131,32 @@ export async function getTicket(ctx: TicketContext, ticketId: string) {
 
 export async function createTicket(
   ctx: TicketContext,
-  input: { subject: string; category?: string; priority?: string; clientId?: string; requesterUserId?: string; assigneeId?: string; slaHours?: number }
+  input: {
+    subject: string; category?: string; priority?: string; clientId?: string;
+    requesterUserId?: string; requesterEmail?: string; assigneeId?: string;
+    teamId?: string; slaHours?: number
+  }
 ) {
   const subject = input.subject?.trim()
   if (!subject) throw new ServiceError("subject is required", 400)
+  const priority = (input.priority as "low" | "medium" | "high" | "critical") || "medium"
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const participantIds = new Set([ctx.userId])
     if (input.assigneeId) participantIds.add(input.assigneeId)
     if (input.requesterUserId) participantIds.add(input.requesterUserId)
+
+    // Team routing (Helpdesk gap-closure, Phase 0 2026-07-27): adding the
+    // team's lead as a participant means a ticket routed to a team is
+    // never RLS-invisible to every real staff member -- important for the
+    // public self-service path (public-portal-service.ts), which has no
+    // authenticated actor of its own to seed participants with.
+    const teamId = input.teamId || null
+    if (teamId) {
+      const team = await db.query.ticketTeams.findFirst({ where: and(eq(ticketTeams.id, teamId), eq(ticketTeams.orgId, ctx.orgId)) })
+      if (!team) throw new ServiceError("Team not found", 404)
+      if (team.leadUserId) participantIds.add(team.leadUserId)
+    }
 
     // No .returning() on the conversations insert -- see chat-service.ts's
     // ensureAiThread() comment: RETURNING is filtered through the SELECT
@@ -69,12 +168,35 @@ export async function createTicket(
     })
     await db.insert(conversationParticipants).values([...participantIds].map((userId) => ({ conversationId, userId })))
 
-    const slaDeadline = input.slaHours ? new Date(Date.now() + input.slaHours * 60 * 60 * 1000) : null
+    // SLA resolution: an explicit slaHours override always wins (preserves
+    // the pre-existing manual path exactly, byte-for-byte); otherwise
+    // resolve the most specific matching active policy for this
+    // team/priority/category and derive the deadline from it (business-hours-
+    // aware if the policy asks for that). No matching policy -> slaDeadline
+    // stays null, same as today when slaHours is omitted.
+    let slaDeadline: Date | null = null
+    let slaPolicyId: string | null = null
+    if (input.slaHours) {
+      slaDeadline = new Date(Date.now() + input.slaHours * 60 * 60 * 1000)
+    } else {
+      const policy = await resolveSlaPolicy(db, ctx.orgId, { teamId, priority, category: input.category ?? null })
+      if (policy) {
+        slaPolicyId = policy.id
+        let weeklyHours: WeeklyHours | null = null
+        if (policy.businessHoursOnly && policy.businessHoursScheduleId) {
+          const schedule = await db.query.businessHoursSchedules.findFirst({ where: eq(businessHoursSchedules.id, policy.businessHoursScheduleId) })
+          weeklyHours = (schedule?.weeklyHours as WeeklyHours | undefined) ?? null
+        }
+        slaDeadline = computeSlaDeadline(new Date(), policy.resolutionHours, weeklyHours)
+      }
+    }
+
     const [ticket] = await db.insert(tickets).values({
       orgId: ctx.orgId, clientId: input.clientId || null, conversationId, subject,
-      category: input.category || null, priority: (input.priority as "low" | "medium" | "high" | "critical") || "medium",
+      category: input.category || null, priority,
       assigneeId: input.assigneeId || null, requesterUserId: input.requesterUserId || null,
-      slaDeadline, createdById: ctx.userId,
+      requesterEmail: input.requesterEmail?.trim() || null,
+      teamId, slaPolicyId, slaDeadline, createdById: ctx.userId,
     }).returning()
 
     // D15.B2.S1 named event #7, "Customer Complaint -> Exception Audit" --
@@ -159,6 +281,253 @@ export async function checkTicketSlaBreaches(): Promise<{ breached: number }> {
   }
 
   return { breached: overdue.length }
+}
+
+// Escalation cron (Helpdesk gap-closure, Phase 0 2026-07-27) -- called from
+// the same daily cron as checkTicketSlaBreaches, not a second cron job.
+// Fires each matching escalation_rules step at most once per ticket
+// (idempotent via ticket_escalation_events, checked before acting) for any
+// open/in-progress ticket whose slaDeadline came from a real slaPolicyId --
+// tickets still on the legacy manual slaHours override have no policy to
+// look up thresholds from, so they're only covered by
+// checkTicketSlaBreaches' own re-notify-until-resolved behavior. Uses the
+// raw `db` client, same posture as checkTicketSlaBreaches.
+export async function checkTicketEscalations(): Promise<{ escalated: number }> {
+  const now = new Date()
+  const openTickets = await db.query.tickets.findMany({
+    where: and(notInArray(tickets.status, ["resolved", "closed"]), isNotNull(tickets.slaPolicyId), isNotNull(tickets.slaDeadline)),
+  })
+
+  let escalated = 0
+  for (const ticket of openTickets) {
+    const policy = await db.query.slaPolicies.findFirst({ where: eq(slaPolicies.id, ticket.slaPolicyId!) })
+    if (!policy) continue
+
+    const totalMs = policy.resolutionHours * 60 * 60 * 1000
+    if (totalMs <= 0) continue
+    const deadlineMs = ticket.slaDeadline!.getTime()
+    const startMs = deadlineMs - totalMs
+    const elapsedPercent = ((now.getTime() - startMs) / totalMs) * 100
+
+    const rules = await db.query.escalationRules.findMany({ where: eq(escalationRules.slaPolicyId, policy.id) })
+    for (const rule of rules) {
+      if (elapsedPercent < rule.thresholdPercent) continue
+
+      const alreadyFired = await db.query.ticketEscalationEvents.findFirst({
+        where: and(eq(ticketEscalationEvents.ticketId, ticket.id), eq(ticketEscalationEvents.escalationRuleId, rule.id)),
+      })
+      if (alreadyFired) continue
+
+      const updates: Partial<{ teamId: string; assigneeId: string }> = {}
+      if (rule.escalateToTeamId) updates.teamId = rule.escalateToTeamId
+      if (rule.escalateToUserId) updates.assigneeId = rule.escalateToUserId
+      if (Object.keys(updates).length > 0) {
+        await db.update(tickets).set({ ...updates, updatedAt: now }).where(eq(tickets.id, ticket.id))
+      }
+
+      const notifyIds = new Set(
+        [rule.escalateToUserId, ...(Array.isArray(rule.notifyUserIds) ? (rule.notifyUserIds as unknown[]) : [])]
+          .filter((id): id is string => typeof id === "string" && id.length > 0)
+      )
+      for (const userId of notifyIds) {
+        await db.insert(notifications).values({
+          userId,
+          title: `Ticket escalated: ${ticket.subject}`,
+          message: `Ticket "${ticket.subject}" reached ${rule.thresholdPercent}% of its SLA window and was escalated.`,
+          type: "system",
+          metadata: { ticketId: ticket.id, conversationId: ticket.conversationId, escalationRuleId: rule.id },
+        })
+      }
+
+      await db.insert(ticketEscalationEvents).values({ ticketId: ticket.id, escalationRuleId: rule.id })
+      escalated++
+    }
+  }
+
+  return { escalated }
+}
+
+// ─── Team / SLA-policy / escalation-rule / business-hours admin CRUD
+// (Helpdesk gap-closure, Phase 0 2026-07-27) ──────────────────────────────
+
+export async function listTicketTeams(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.ticketTeams.findMany({ where: eq(ticketTeams.orgId, ctx.orgId), orderBy: desc(ticketTeams.createdAt) })
+  )
+}
+
+export async function createTicketTeam(
+  ctx: TicketContext,
+  input: { name: string; description?: string; leadUserId?: string; isDefault?: boolean }
+) {
+  const name = input.name?.trim()
+  if (!name) throw new ServiceError("name is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    // Only one default team per org -- clear any existing default first.
+    if (input.isDefault) await db.update(ticketTeams).set({ isDefault: false }).where(eq(ticketTeams.orgId, ctx.orgId))
+    const [team] = await db.insert(ticketTeams).values({
+      orgId: ctx.orgId, name, description: input.description || null,
+      leadUserId: input.leadUserId || null, isDefault: input.isDefault ?? false,
+    }).returning()
+    return team
+  })
+}
+
+export async function updateTicketTeam(
+  ctx: TicketContext,
+  teamId: string,
+  patch: Partial<{ name: string; description: string | null; leadUserId: string | null; isDefault: boolean }>
+) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.ticketTeams.findFirst({ where: and(eq(ticketTeams.id, teamId), eq(ticketTeams.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Team not found", 404)
+    if (patch.isDefault) await db.update(ticketTeams).set({ isDefault: false }).where(eq(ticketTeams.orgId, ctx.orgId))
+    const [updated] = await db.update(ticketTeams).set({ ...patch, updatedAt: new Date() }).where(eq(ticketTeams.id, teamId)).returning()
+    return updated
+  })
+}
+
+export async function listBusinessHoursSchedules(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.businessHoursSchedules.findMany({ where: eq(businessHoursSchedules.orgId, ctx.orgId), orderBy: desc(businessHoursSchedules.createdAt) })
+  )
+}
+
+export async function createBusinessHoursSchedule(
+  ctx: TicketContext,
+  input: { name: string; timezone?: string; weeklyHours: WeeklyHours }
+) {
+  const name = input.name?.trim()
+  if (!name) throw new ServiceError("name is required", 400)
+  if (!input.weeklyHours || typeof input.weeklyHours !== "object") throw new ServiceError("weeklyHours is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [schedule] = await db.insert(businessHoursSchedules).values({
+      orgId: ctx.orgId, name, timezone: input.timezone || "UTC", weeklyHours: input.weeklyHours,
+    }).returning()
+    return schedule
+  })
+}
+
+export async function listSlaPolicies(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.slaPolicies.findMany({ where: eq(slaPolicies.orgId, ctx.orgId), orderBy: desc(slaPolicies.createdAt) })
+  )
+}
+
+export async function createSlaPolicy(
+  ctx: TicketContext,
+  input: {
+    name: string; teamId?: string; priority?: string; category?: string;
+    firstResponseHours?: number; resolutionHours: number;
+    businessHoursOnly?: boolean; businessHoursScheduleId?: string; isActive?: boolean
+  }
+) {
+  const name = input.name?.trim()
+  if (!name) throw new ServiceError("name is required", 400)
+  if (!input.resolutionHours || input.resolutionHours <= 0) throw new ServiceError("resolutionHours must be a positive number", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [policy] = await db.insert(slaPolicies).values({
+      orgId: ctx.orgId, name, teamId: input.teamId || null,
+      priority: (input.priority as "low" | "medium" | "high" | "critical" | undefined) || null,
+      category: input.category || null, firstResponseHours: input.firstResponseHours ?? null,
+      resolutionHours: input.resolutionHours, businessHoursOnly: input.businessHoursOnly ?? false,
+      businessHoursScheduleId: input.businessHoursScheduleId || null, isActive: input.isActive ?? true,
+    }).returning()
+    return policy
+  })
+}
+
+export async function updateSlaPolicy(
+  ctx: TicketContext,
+  policyId: string,
+  patch: Partial<{ name: string; isActive: boolean; resolutionHours: number; firstResponseHours: number | null }>
+) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.slaPolicies.findFirst({ where: and(eq(slaPolicies.id, policyId), eq(slaPolicies.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("SLA policy not found", 404)
+    const [updated] = await db.update(slaPolicies).set({ ...patch, updatedAt: new Date() }).where(eq(slaPolicies.id, policyId)).returning()
+    return updated
+  })
+}
+
+export async function listEscalationRules(ctx: { orgId: string }, slaPolicyId?: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.escalationRules.findMany({
+      where: slaPolicyId ? and(eq(escalationRules.orgId, ctx.orgId), eq(escalationRules.slaPolicyId, slaPolicyId)) : eq(escalationRules.orgId, ctx.orgId),
+      orderBy: (r, { asc }) => asc(r.stepOrder),
+    })
+  )
+}
+
+export async function createEscalationRule(
+  ctx: TicketContext,
+  input: { slaPolicyId: string; thresholdPercent: number; escalateToTeamId?: string; escalateToUserId?: string; notifyUserIds?: string[]; stepOrder?: number }
+) {
+  if (!input.slaPolicyId) throw new ServiceError("slaPolicyId is required", 400)
+  if (!Number.isFinite(input.thresholdPercent) || input.thresholdPercent <= 0) throw new ServiceError("thresholdPercent must be a positive number", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const policy = await db.query.slaPolicies.findFirst({ where: and(eq(slaPolicies.id, input.slaPolicyId), eq(slaPolicies.orgId, ctx.orgId)) })
+    if (!policy) throw new ServiceError("SLA policy not found", 404)
+
+    const [rule] = await db.insert(escalationRules).values({
+      orgId: ctx.orgId, slaPolicyId: input.slaPolicyId, thresholdPercent: input.thresholdPercent,
+      escalateToTeamId: input.escalateToTeamId || null, escalateToUserId: input.escalateToUserId || null,
+      notifyUserIds: input.notifyUserIds || [], stepOrder: input.stepOrder ?? 1,
+    }).returning()
+    return rule
+  })
+}
+
+// Email-to-ticket promotion (Helpdesk gap-closure, Phase 0 2026-07-27) --
+// reuses email_intelligence_items (the existing email-ingestion record;
+// see email-intelligence-service.ts's own header for why there's still no
+// live inbound trigger) rather than building a second inbound-email
+// pipeline. Whole email -> one ticket, unlike promoteEmailIntelligenceItem's
+// per-suggested-work-item -> task promotion -- there's no per-item
+// selection here, the email itself IS the ticket. Not nested inside
+// createTicket's own withTenantContext (tenant-scoped.ts: a fresh
+// db.transaction() call from inside another transaction's callback opens
+// an independent connection, not a savepoint) -- calls it as a separate
+// top-level step, same pattern inviteGuestToTicket already uses (getTicket
+// then createGuestAccess as two separate calls).
+export async function createTicketFromEmailIntelligenceItem(
+  ctx: TicketContext,
+  emailItemId: string,
+  input?: { category?: string; priority?: string; teamId?: string }
+) {
+  const item = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+    db.query.emailIntelligenceItems.findFirst({ where: and(eq(emailIntelligenceItems.id, emailItemId), eq(emailIntelligenceItems.orgId, ctx.orgId)) })
+  )
+  if (!item) throw new ServiceError("Email intelligence item not found", 404)
+  if (item.promotedTicketId) throw new ServiceError("This email has already been promoted to a ticket", 400)
+
+  const ticket = await createTicket(ctx, {
+    subject: item.subject,
+    category: input?.category,
+    priority: input?.priority,
+    requesterEmail: item.senderEmail ?? undefined,
+    teamId: input?.teamId,
+  })
+
+  await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    // senderId null alone means "VERIDIAN AI" elsewhere in this table
+    // (messages.senderId's own comment) -- prefixing the content is how
+    // this codebase already disambiguates an email-sourced body from an AI
+    // reply when there's no guestAccessId to attach (see
+    // promoteEmailIntelligenceItem's identical "Detected from email ..."
+    // prefix convention on the task description it creates).
+    const attribution = item.senderEmail ? `[Email from ${item.senderEmail}]` : "[Email]"
+    await db.insert(messages).values({ conversationId: ticket.conversationId, senderId: null, content: `${attribution}\n\n${item.body}` })
+    await db.update(emailIntelligenceItems)
+      .set({ promotedTicketId: ticket.id, status: "promoted_to_ticket", updatedAt: new Date() })
+      .where(eq(emailIntelligenceItems.id, emailItemId))
+  })
+
+  return ticket
 }
 
 // ─── Wave 81 (Customer Service enhancements, COMPARISON_CSV_GAP_ANALYSIS.md

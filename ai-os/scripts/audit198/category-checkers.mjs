@@ -27,6 +27,31 @@ export const CATEGORY_INFRA = {
       { file: "src/lib/model-tier-eligibility.ts", markers: ["export function checkTierEligibility"] },
     ],
   },
+  // Hand-verified 2026-07-21 (audit198 gap-closure wave 3, before this
+  // entry existed the category fell through to per-item keyword grep
+  // only -- see run-audit.mjs's infraForCategory() fallback comment):
+  // this category's general-purpose mechanism is real, live code, just
+  // never registered here. capability-learning-service.ts's
+  // findApprovedPackage()/recordExecutionOutcome() is the "reusable AI
+  // solution -> structured, versioned, software-replayable knowledge"
+  // pipeline (instruction_packages rows); capability-audit-service.ts's
+  // closeImprovementLoop() is what actually CONVERTS a closed AI-driven
+  // improvement into that structured knowledge AND a discoverable
+  // platform_assets (Universal Metadata Registry) row; software-coverage-
+  // service.ts's classifyExecutionWithReliability() is the shared
+  // decision function both task-execution-engine.ts/chat-service.ts AND
+  // (as of this same PR) team-service.ts's runRole() now call before
+  // treating a request as needing fresh AI work; memory-tier-registry.ts
+  // is the explicit OPERATIONAL vs LONG_TERM_KNOWLEDGE metadata registry
+  // (ARTICLE-050) this category's items also cover.
+  REUSE_COMPONENTIZATION: {
+    infraChecks: [
+      { file: "src/lib/services/capability-learning-service.ts", markers: ["export async function findApprovedPackage", "export async function recordExecutionOutcome"] },
+      { file: "src/lib/services/capability-audit-service.ts", markers: ["export async function closeImprovementLoop"] },
+      { file: "src/lib/services/software-coverage-service.ts", markers: ["export function classifyExecutionWithReliability"] },
+      { file: "src/lib/services/memory-tier-registry.ts", markers: ["export function classifyMemoryTier"] },
+    ],
+  },
   MONITORING_INFRA: {
     infraChecks: [
       { file: "src/lib/monitor-protocol.ts", markers: [] },
@@ -47,6 +72,47 @@ export const CATEGORY_INFRA = {
   TRACEABILITY_AUDIT_LOGGING: {
     infraChecks: [
       { file: "src/lib/activity-log-service.ts", markers: ["export function recordActivity"] },
+    ],
+  },
+  RECOVERY_RESILIENCE: {
+    // Added 2026-07-21 (audit198 gap-closure wave 1, monitoring/
+    // traceability/recovery cluster). Prior to this entry,
+    // RECOVERY_RESILIENCE had NO infraChecks at all -- every item in this
+    // category fell straight to per-item keyword co-occurrence or
+    // NOT_YET_BUILT, even though real recovery mechanisms exist in the
+    // repo. Hand-verified by direct file read on 2026-07-21, same as
+    // every other entry in this file:
+    //   - exception-taxonomy.ts::withAutomaticRecovery/classifyError is a
+    //     real bounded-retry + business/system fault taxonomy, wired into
+    //     production call sites (approval-workflows/steps/[id]/decide/
+    //     route.ts, erp-fixed-assets-service.ts's disposal/depreciation
+    //     flows) -- also independently documented in ai-os/CONSTITUTION.yaml
+    //     as GP-29 "Failure Containment", status PARTIALLY_ENFORCED (not
+    //     a universal guarantee -- see that entry's own honest gap note).
+    //   - missed-execution-detector.py (added this same wave) closes the
+    //     literal "detect missed scheduled executions and recover
+    //     automatically" requirement (ARTICLE-083) by reading the SAME
+    //     crontab + the SAME superboss-register.py actions log the
+    //     pre-existing run-logged.sh wrapper already writes to -- an
+    //     extension of that pipeline, not a parallel one. Verified by a
+    //     live dry run against the real production crontab + register DB
+    //     on 2026-07-21 (all 9 real cron jobs correctly parsed with
+    //     correct per-job intervals; see this wave's PR body for the
+    //     output).
+    //   - db.transaction( atomic-write usage: confirmed >=4 real service
+    //     files use Drizzle's db.transaction() to make multi-step writes
+    //     atomic (capability-learning-service.ts, fraud-case-service.ts,
+    //     prompt-os-service.ts, abac-policy-service.ts).
+    // This is NOT evidence that every item in this category (e.g. "every
+    // automation defines rollback procedures", "every deployment is
+    // reversible") is universally true -- those remain PARTIALLY_ENFORCED
+    // on their own honest terms. It IS real evidence that a genuine,
+    // functioning recovery/resilience mechanism exists for this category,
+    // which the framework was previously blind to entirely.
+    infraChecks: [
+      { file: "src/lib/services/exception-taxonomy.ts", markers: ["export async function withAutomaticRecovery", "export function classifyError"] },
+      { file: "ai-os/scripts/missed-execution-detector.py", markers: ["def discover_jobs", "def attempt_recovery"] },
+      { grepDirs: ["src/lib/services"], grepTerm: "db.transaction(", minFileCount: 3 },
     ],
   },
   ESCALATION_HIERARCHY: {

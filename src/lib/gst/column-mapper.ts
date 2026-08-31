@@ -104,12 +104,61 @@ export function autoMapColumns(headers: string[], savedMapping?: ColumnMapping):
   return { mapping, confidence }
 }
 
+// R11 point 6a (E-44): parseAmount used to strip only commas/whitespace/the
+// rupee glyph, so a non-INR cell (Sumeet's contract is in AED, e.g. "AED
+// 50,976.00") left its currency CODE in place -- "AED50976.00" -> parseFloat
+// -> NaN -> silently coerced to 0. Now strips any leading currency TOKEN (a
+// 3-letter ISO code like AED/USD, or a symbol like $/€) after stripping
+// commas/whitespace, so any currency prefix is removed, not just ₹. The
+// currency-token strip explicitly leaves a leading "(" alone (excluded from
+// its character class) and runs BEFORE the parentheses-negative conversion,
+// so "AED (100)" still becomes -100 instead of silently losing its sign --
+// stripping "AED(" as one blind run would eat the "(" too and turn a real
+// negative into a positive. Return type and behaviour for already-numeric/
+// valid input are unchanged: a leading digit, ".", or "-" is never touched,
+// so "30%" (parseFloat stops at the "%") and plain numbers/percentages are
+// unaffected.
 export function parseAmount(value: unknown): number {
   if (value === null || value === undefined || value === "") return 0
   if (typeof value === "number") return value
-  const cleaned = String(value).replace(/[,₹\s]/g, "").replace(/^\((.*)\)$/, "-$1") // strip commas/currency, treat (100) as -100
+  const cleaned = String(value)
+    .replace(/[,₹\s]/g, "") // strip commas/rupee glyph/whitespace
+    .replace(/^[^\d.\-(]+/, "") // strip a leading currency token (AED, USD, $, €, ...), but never a leading "(" -- that's parentheses-negative syntax, handled next
+    .replace(/^\((.*)\)$/, "-$1") // treat (100) as -100
   const n = parseFloat(cleaned)
   return Number.isFinite(n) ? n : 0
+}
+
+// E-43: parseAmount() above gracefully degrades any genuinely-unparseable
+// cell ("not-a-number", "TBD", "N/A", a stray word) to 0 -- correct for a
+// caller that just wants a number, but every GST adapter call site used it
+// directly on raw amount/quantity/rate cells with no upstream check, so a
+// typo or placeholder silently became a real $0 taxable value / tax amount
+// with zero warning (AR-05 violation) -- indistinguishable from a cell that
+// genuinely says "0". Same fix shape as construction-boq-import-service.ts's
+// isMalformedNumericCell() (R-71/TC-51), which solved this exact problem for
+// the BOQ import path first: mirror parseAmount's own cleaning steps, then
+// test what's left against a plain numeric pattern, so every shape
+// parseAmount itself already accepts ("5,000", "AED 50", "(100)") is never
+// flagged and only true garbage is.
+//
+// One real difference from the BOQ version, because it is copied nowhere
+// near verbatim: GST has amount cells the BOQ importer never sees --
+// gstRatePercent columns (aliases include "rate %", "gst %") legitimately
+// carry a trailing "%" ("18%", not just "18"), and parseAmount already
+// tolerates that (parseFloat stops at the first invalid char, so
+// parseFloat("18%") === 18). A bare regex mirror without this trailing-"%"
+// strip would flag every percent-formatted GST-rate cell as malformed even
+// though parseAmount parses it correctly -- so this strips one optional
+// trailing "%" before the numeric test, same as the cleaning steps it mirrors.
+export function isMalformedNumericCell(raw: string): boolean {
+  if (raw === "") return false
+  const cleaned = raw
+    .replace(/[,₹\s]/g, "")
+    .replace(/^[^\d.\-(]+/, "")
+    .replace(/^\((.*)\)$/, "-$1")
+    .replace(/%$/, "")
+  return !/^-?\d+(\.\d+)?$/.test(cleaned)
 }
 
 // Accepts common Indian date formats (dd-mm-yyyy, dd/mm/yyyy, yyyy-mm-dd) and

@@ -3,28 +3,37 @@
 // item/warehouse pickers and quick-add.
 import { erpItems, erpWarehouses, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { ErpContext, ActorCtx } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 // Priority 17 Wave 1 (PROJEXA Inventory/Stock exposure): widened to the same
 // dbUser-or-apiKey actor union already precedented by erp-invoicing-
 // service.ts's createSalesInvoice / erp-accounting-service.ts's
 // createJournalEntry -- PROJEXA's callVeridian() proxy always calls
 // server-to-server with a shared Bearer API key, never a session cookie.
-export type ActorCtx = { orgId: string; userId: string } & (
-  | { dbUser: typeof users.$inferSelect; apiKey?: never }
-  | { dbUser?: never; apiKey: { id: string; name: string } }
-)
 
 export async function listItems(ctx: { orgId: string }) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpItems.findMany({ where: eq(erpItems.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.itemName) })
+  })
+}
+
+// Real-screen conversion (2026-08-30, PROJEXA Inventory Object Page): no
+// single-item getter existed -- only listItems(). Surfaces standardBuyingRate/
+// standardSellingRate/hsnSacCode/hasSerialNo, none of which the existing
+// Inventory list UI shows at all despite createItem() always accepting them.
+export async function getItem(ctx: { orgId: string }, itemId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const item = await db.query.erpItems.findFirst({ where: and(eq(erpItems.id, itemId), eq(erpItems.orgId, ctx.orgId)) })
+    if (!item) throw new ServiceError("Item not found", 404)
+    return item
   })
 }
 

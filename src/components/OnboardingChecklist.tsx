@@ -207,7 +207,7 @@ export default function OnboardingChecklist() {
         <div className="flex items-center justify-between px-4 py-3 bg-ct-accent/50">
           <div className="flex items-center gap-2.5">
             <div className="size-8 rounded-lg bg-ct-saffron/10 flex items-center justify-center">
-              <Brain className="size-4 text-ct-saffron" />
+              <Brain className="size-4 text-ct-saffron-text" />
             </div>
             <div>
               {/* D28.B1.S1: was "Get Started with VERIDIAN AI" -- the exact
@@ -226,11 +226,12 @@ export default function OnboardingChecklist() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-ct-saffron">{Math.round(progress)}%</span>
+            <span className="text-xs font-semibold text-ct-saffron-text">{Math.round(progress)}%</span>
             <Button
               variant="ghost"
               size="icon"
               className="size-7 text-ct-muted hover:text-ct-navy"
+              aria-label={collapsed ? "Expand checklist" : "Collapse checklist"}
               onClick={() => setCollapsed(!collapsed)}
             >
               {collapsed ? (
@@ -243,6 +244,7 @@ export default function OnboardingChecklist() {
               variant="ghost"
               size="icon"
               className="size-7 text-ct-muted hover:text-ct-navy"
+              aria-label="Dismiss onboarding checklist"
               onClick={handleDismiss}
             >
               <X className="size-4" />
@@ -301,7 +303,7 @@ export default function OnboardingChecklist() {
                       {step.label}
                     </span>
                     {!isCompleted && (
-                      <span className="ml-auto text-[11px] text-ct-saffron font-medium">Connect &rarr;</span>
+                      <span className="ml-auto text-[11px] text-ct-saffron-text font-medium">Connect &rarr;</span>
                     )}
                   </button>
                 );

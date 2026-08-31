@@ -48,10 +48,33 @@ export async function POST(request: NextRequest) {
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
-    const validScopes = (scopes || "read")
+    // task-20260727-101145: "read:reports" is a narrower alternative to
+    // "read" -- a customer minting a key specifically to hand to an
+    // external AI (ChatGPT/z.ai) for src/app/api/v1/reports/** can scope it
+    // down to reports-only instead of the broad "read" scope every other
+    // /v1/* domain already accepts.
+    // R45 gap (found 2026-08-24 UAT-testing R-C12): a caller sending `scopes`
+    // as a JSON array (e.g. {"scopes":["read","write"]}) instead of a
+    // comma-separated string crashed this into a generic 500 via
+    // Array.prototype.split not existing -- normalize both shapes before
+    // splitting so a malformed value gets the intended 400 instead.
+    let scopesString: string;
+    if (scopes === undefined || scopes === null) {
+      scopesString = "read";
+    } else if (Array.isArray(scopes)) {
+      scopesString = scopes.join(",");
+    } else if (typeof scopes === "string") {
+      scopesString = scopes;
+    } else {
+      // Any other shape (number, boolean, object) is malformed input, not a
+      // server error -- fall through to the empty-validScopes 400 below
+      // instead of throwing on .split.
+      scopesString = "";
+    }
+    const validScopes = scopesString
       .split(",")
       .map((s: string) => s.trim())
-      .filter((s: string) => s === "read" || s === "write");
+      .filter((s: string) => s === "read" || s === "write" || s === "read:reports");
     if (validScopes.length === 0) {
       return NextResponse.json({ error: "At least one valid scope (read/write) is required" }, { status: 400 });
     }

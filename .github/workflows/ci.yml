@@ -22,6 +22,12 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bunx tsc --noEmit
+        env:
+          # R60 T7 follow-up: this job crashed with the same V8
+          # OOM/core-dump signature as the Build job (see the NODE_OPTIONS
+          # comment on the build step below) under concurrent CI load from
+          # many PRs re-running at once. Same fix, same reasoning.
+          NODE_OPTIONS: --max-old-space-size=8192
   build:
     name: Build
     needs: [lint, typecheck]
@@ -36,6 +42,16 @@ jobs:
           DATABASE_URL: postgresql://postgres:placeholder@localhost:5432/postgres
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          # R60 T7: `next build`'s internal type-check pass (distinct from the
+          # standalone `typecheck` job above, which uses plain `tsc --noEmit`
+          # and was passing) was OOM-crashing on ubuntu-latest's default V8
+          # old-space ceiling (~2GB) -- confirmed via the GC-thrash-then-crash
+          # signature in every recent run (e.g. run 33102828718, job Build).
+          # This failed identically on every open PR regardless of that PR's
+          # own diff, so it was a repo-wide infra gap, not a per-PR defect.
+          # ubuntu-latest has 16GB total; 8GB old-space leaves headroom for
+          # the rest of the toolchain (bun, next's own worker processes).
+          NODE_OPTIONS: --max-old-space-size=8192
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -50,86 +66,199 @@ jobs:
       # engine.ts transitively constructs the src/lib/db/index.ts client at
       # module-load time, which throws without *some* connection string
       # present, even though these tests never issue a real query.
-      - run: bun test
+      # R60 E-138: bun's mock.module() mutates a GLOBAL, process-wide module
+      # registry. Without --isolate (a fresh global object per test file),
+      # one file's mock.module() call for a given specifier can leak into or
+      # get overwritten by another file's mock.module() call for the SAME
+      # specifier when many files run in one process -- causing tests to
+      # silently pass by borrowing a different file's leaked mock, or fail
+      # unpredictably when that borrowed state is wrong. Root-caused and
+      # fixed across 7 files in this pass (#1421, #1423-#1428); --isolate
+      # is what actually closes the leak at the CI level going forward.
+      #
+      # R1-R64 recheck (2026-08-30): bare `bun test --isolate` (no path) only
+      # discovers files under bunfig.toml's `[test] root = "src"` -- it was
+      # SILENTLY never running the 8 real test files under scripts/
+      # (check-migration-integrity.test.ts, check-sec07-ocid-lock.test.ts,
+      # check-reviewer-not-author.test.ts, and 5 others), including two
+      # governance/security-critical checks. Confirmed via
+      # `bun test --isolate ./scripts` discovering and passing all 8 (137
+      # tests) that the bare invocation silently skipped. Two explicit
+      # invocations, not `bun test --isolate src scripts`, because passing
+      # multiple root-level paths this way still only honors bunfig.toml's
+      # single configured root for module resolution within each run.
+      - run: bun test --isolate
         env:
           DATABASE_URL: postgresql://postgres:placeholder@localhost:5432/postgres
           APP_RUNTIME_DATABASE_URL: postgresql://app_runtime:placeholder@localhost:5432/postgres
-  guardrail-presence:
-    name: Guardrail Presence Check
+      - run: bun test --isolate ./scripts
+        env:
+          DATABASE_URL: postgresql://postgres:placeholder@localhost:5432/postgres
+          APP_RUNTIME_DATABASE_URL: postgresql://app_runtime:placeholder@localhost:5432/postgres
+  migration-collision-check:
+    name: Migration Number Collision Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # AGENTS.md Operating Rule 9 / VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md
-      # Guardrail #30: fails the build if a named guardrail call site
-      # (task-tightening, policy enforcement, floor-tier escalation,
-      # high-impact-action confirmation, multi-tenant RLS context) has been
-      # removed or weakened, forcing that change to be a visible, reviewed
-      # PR diff rather than a silent regression. See the script's own
-      # header comment for the honest limitation this does and doesn't
+        with: { fetch-depth: 0 }
+      # 2026-07-30: this repo has hit real drizzle/*.sql migration-number
+      # collisions from concurrent workers repeatedly (PRs #645/#650/#651/
+      # #652/#653/#654/#655, plus two pre-existing collisions found already
+      # merged into main: 0225 and 0269 -- fixed in the same PR that added
+      # this job). The checker script existed before this PR but was never
+      # wired into CI, and separately had a stale-base-ref bug (it used to
+      # fall back to the local `main` ref, which drifts stale in shared
+      # checkouts/worktrees and can misreport historical collisions as new,
+      # or miss real new ones). Both are fixed together here: the script
+      # now prefers a freshly-fetched origin/main (with --base/BASE_REF
+      # override available for callers that need one), and this job passes
+      # --base origin/main explicitly for determinism in CI. fetch-depth 0
+      # (matching terminology-guardrail-check's own precedent just above)
+      # so the script's git merge-base/diff against origin/main always
+      # resolves. Honest limitation: this is a CI-gate-catches-it-after-
+      # the-fact check, not a reservation/lock on migration numbers --
+      # concurrent agents can still race to claim the same "next free"
+      # number before either one's PR is opened; this job only guarantees
+      # the collision is caught (and must be fixed) before merge, not that
+      # it can never happen. See the script's own header for the same
+      # honest-limitation note.
+      - run: node scripts/check-migration-collision.mjs --base origin/main
+  route-error-handling-check:
+    name: Route Error Handling Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      # VERIDIAN Review Framework gap-closure (task-20260718-065003-
+      # ai-engineering-quality--error-handling), [Low] Error Handling
+      # Quality: "~9% of API routes lack a visible try/catch." Same
+      # enforcement class as the coverage checks above -- fails the build
+      # only on NEW or MODIFIED src/app/api/**/route.ts files (relative to
+      # origin/main) that export an HTTP handler with no visible try/catch,
+      # so pre-existing debt doesn't retroactively fail every PR. fetch-depth
+      # 0 + --base origin/main, matching migration-collision-check's own
+      # precedent just above (same "stale local main ref" fix). See the
+      # script's own header for the honest limitation this does and doesn't
       # guarantee.
-      - run: node scripts/check-guardrail-presence.mjs
-  asset-registry-coverage:
-    name: Asset Registry Coverage Check
+      - run: node scripts/check-route-error-handling.mjs --base origin/main
+  migration-integrity-check:
+    name: Migration Integrity Check (AR-12)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      # Priority 4 (09-priority4-umr-universal-tracker.yaml): the mechanical
-      # half of "software ensures every action is automatically registered
-      # in the Universal Metadata Registry, non-negotiable" -- fails the
-      # build if a table in schema.ts has neither an explicit registry
-      # registration nor an explicit, real exemption reason recorded in
-      # ai-os/registry/asset-registry-coverage.yaml. See the script's own
-      # header for the honest limitation this does and doesn't guarantee.
-      - run: node scripts/check-asset-registry-coverage.mjs
-  metadata-index-coverage:
-    name: Metadata Index Coverage Check
+      # R60 (2026-08-28), closes the enforcement half of platform.r43_faults
+      # fault_id E102_MIGRATION_LEDGER_LINE_ENDING_HASH_SPLIT: AR-12
+      # (platform.arch_rules) says CI must prove three things agree for every
+      # migration -- the .sql file, the journal entry, and the applied
+      # database row -- and until this job, nothing checked that at all
+      # (`git grep -in "AR-12"` across this whole repo returned zero hits).
+      # See scripts/check-migration-integrity.mjs's own header comment for
+      # the full reasoning, most importantly: a real, already-investigated
+      # CRLF/LF hash split exists in the live ledger (138 rows hashed from a
+      # Windows checkout / 157 from an LF checkout, confirmed live
+      # 2026-08-28) because drizzle-orm hashes raw file bytes with no
+      # line-ending normalization. This job tolerates that split -- rewriting
+      # an already-applied migration file's bytes, or the ledger's recorded
+      # hash, is a real risk to a live system this job does not take
+      # unilaterally -- while still failing on genuine content drift, and
+      # while still failing (regardless of DB access) if .gitattributes ever
+      # stops forcing a single line-ending convention for NEW drizzle/*.sql
+      # files (the piece that stops this exact class of drift recurring).
+      # DATABASE_URL uses the same real secret db-migrate.yml already uses;
+      # unlike that job this one only ever SELECTs (read-only) and, per the
+      # script's own header, treats an unreachable DB as a warning, not a
+      # failure -- prod downtime must not block every PR in the repo from
+      # merging.
+      - run: node scripts/check-migration-integrity.mjs
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  governance-yaml-parse-check:
+    # GAP-CI-WORKFLOW-FILE-PUSH-BLOCKED-MISSING-OAUTH-SCOPE (ai-os/
+    # MASTER-TRACKER.yaml, closed 2026-08-30, R1-R64 recheck): this job and
+    # scripts/check-governance-yaml-parse.mjs were both written and verified
+    # locally back on 2026-08-03 (catches the exact class of silent
+    # 0-indent-duplicate YAML corruption fixed for
+    # GAP-ACTIVE-CLAIMS-YAML-PARSE-ERROR), but wiring this one line into
+    # ci.yml was blocked for weeks: that session's only git-push credential
+    # (a shared server OAuth token) lacked the `workflow` scope GitHub
+    # requires to push a `.github/workflows/*` change, and no
+    # differently-scoped credential was available. This session's own
+    # `git push` of this exact file succeeded, confirming the credential
+    # blocking this is no longer in the way (the VERIDIAN-DEV server this
+    # ran on was independently decommissioned 2026-08-25, see
+    # feedback_bypass_server_direct_work memory).
+    name: Governance YAML Parse Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      # Boss directive, 2026-07-13 (metadata/drift investigation): same
-      # enforcement class as the Asset Registry Coverage Check just above,
-      # applied to governance documents instead of database tables -- fails
-      # the build if a real ai-os/ governance file/directory has neither an
-      # index entry nor an explicit exemption in ai-os/OS.yaml. See that
+      - run: node scripts/check-governance-yaml-parse.mjs
+  migration-schema-drift-check:
+    # GAP-MIGRATION-APPLY-NOT-AUTOMATED (ai-os/MASTER-TRACKER.yaml, closed
+    # 2026-08-30, R1-R64 recheck): distinct from migration-integrity-check
+    # (AR-12) above -- that job proves a migration FILE's bytes still match
+    # what the ledger recorded as applied; this job proves the DDL the file
+    # describes actually EXISTS in the live schema. The real incident this
+    # closes: drizzle/0264_helpdesk_tiered_sla_team_routing.sql was recorded
+    # applied but its DDL never actually ran on production, causing a real
+    # live 500 on GET /api/email-intelligence. See
+    # scripts/check-migration-schema-drift.mjs's own header for the full
+    # design (parses CREATE TABLE / ALTER TABLE ADD COLUMN, replays
+    # add/drop in journal order, checks schema-agnostically against
+    # information_schema to tolerate legitimate post-migration schema moves
+    # like compliance.worker_agents -> platform.worker_agents). Verified
+    # against real production data before landing: 458 expected tables + 356
+    # expected columns parsed from all 305 real migration files, zero
+    # missing live.
+    name: Migration Schema Drift Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: node scripts/check-migration-schema-drift.mjs
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  new-test-coverage:
+    name: New Test Coverage Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Needs real history to compute a merge-base against origin/main --
+          # the default fetch-depth: 1 checkout only has this PR's own
+          # commit(s), which is not enough for `git merge-base` to find a
+          # common ancestor. See the script's own header for why the diff
+          # (not just static file state, unlike this file's other coverage
+          # checks) is the mechanism here.
+          fetch-depth: 0
+      # VERIDIAN Review Framework gap-closure ("AI Can Safely Modify
+      # Module": "CI gate does not include comprehensive behavioral test
+      # coverage") -- fails the build if this PR touches a
+      # src/lib/services/*.ts file that had zero test coverage before this
+      # PR, and the PR adds no test anywhere. Installed 2026-08-30
+      # (R1-R64/PR-backlog reconciliation pass, rebasing original PR #1259
+      # -- that session's git-push credential lacked the `workflow` OAuth
+      # scope this file needs; this session's own workflow-file pushes
+      # succeeded, confirming that wall no longer applies). See the
       # script's own header for the honest limitation this does and
       # doesn't guarantee.
-      - run: node scripts/check-metadata-index-coverage.mjs
-  doc-quarantine-banner:
-    name: Doc Quarantine Banner Check
+      - run: node scripts/check-new-test-coverage.mjs
+  test-coverage-gap-report:
+    name: Test Coverage Gap Report Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      # GAP-UNIFIED-SOT-REMAINDER (b) (ai-os/MASTER-TRACKER.yaml): same
-      # enforcement class as the two coverage checks above, applied to the
-      # root-level stale-doc quarantine pass -- fails the build if any file
-      # listed in ai-os/registry/stale-doc-manifest.yaml is missing its
-      # exact "ARCHIVED / STALE" banner. See that script's own header for
-      # the honest limitation this does and doesn't guarantee.
-      - run: node scripts/check-doc-quarantine-banner.mjs
-  doc-cross-references:
-    name: Doc Cross-Reference Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      # Gap closure, 2026-07-13 (Boss directive, metadata/drift investigation
-      # follow-up): the coverage checks above verify registration coverage
-      # (is X registered in a registry) -- none of them verify that a file
-      # path one governance doc names for another (CLAUDE.md, AGENTS.md,
-      # ai-os/OS.yaml, docs/master/INDEX.md, ai-os/BRAIN.md,
-      # VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md) still resolves on disk --
-      # fails the build if a renamed/deleted file leaves a dangling
-      # cross-reference behind. See that script's own header for the three
-      # distinct reference styles it parses and the honest limitation this
-      # does and doesn't guarantee.
-      - run: node scripts/check-doc-cross-references.mjs
+      # VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for
+      # Module": "No systematic test-generation tooling") -- fails the build
+      # if docs/master/TEST_COVERAGE_GAP.md is stale relative to the current
+      # src/lib/services tree, so the report stays trustworthy instead of
+      # silently rotting the moment a new service file is added. Installed
+      # 2026-08-30, same rebase as new-test-coverage above.
+      - run: node scripts/report-test-coverage-gap.mjs --check
   e2e:
     name: E2E Tests
     needs: [build]
@@ -138,11 +267,12 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium || true
-      # Honest limitation (AI_OS_CERTIFICATION.md, Wave 79): zero E2E tests
-      # exist yet -- writing real Playwright browser tests (server + auth
-      # fixtures) is out of scope for this wave's "minimal unit test suite"
-      # fix. --pass-with-no-tests stays here deliberately, unlike the
-      # unit-tests job above where it was removed because real tests now
-      # back it.
-      - run: bunx playwright test --pass-with-no-tests
+      # R38/R-B1 (Master v5 E-38): `|| true` used to mean a failed browser
+      # install still let this job "pass" with zero tests actually run.
+      # e2e/demo-gate-smoke.spec.ts (R38) is real now -- a failed install
+      # must fail the job like any other real dependency. --pass-with-no-
+      # tests is gone for the same reason: a real test exists, so a run
+      # that somehow discovers none again is itself a real failure, not an
+      # honest limitation to wave through.
+      - run: bunx playwright install --with-deps chromium
+      - run: bunx playwright test
