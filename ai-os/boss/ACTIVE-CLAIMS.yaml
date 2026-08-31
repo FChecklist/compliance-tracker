@@ -3864,6 +3864,27 @@ active:
       (Banking Engine section only), docs/master/CAPABILITY_COVERAGE.md,
       PROGRESS.md. No permission-service.ts or RBAC touch -- out of scope
       for this area. Full detail in this task's own PROGRESS.md.
+  - session_label: "claude-code (worker task-20260718-074004-accessibility--wcag-compliance---navigat) -- Accessibility (WCAG): Navigation & Input Accessibility"
+    claimed_at: "2026-08-15T (this session, invocation 14/20)"
+    pr: "https://github.com/FChecklist/compliance-tracker/pull/1224 (superseded 2026-08-31: rebased onto current main and re-opened as a new PR after main advanced substantially since Aug-15 creation -- see that rebase's own PR body for the real conflicts hit, incl. the veridian-ui-kit sidebar/topbar migration that superseded most of this claim's original AppSidebar.tsx work)"
+    claim: |
+      Task had 20 prior invocations that never touched real code (all either
+      OpenRouter-balance pre-flight rejections or blank in_progress/failed
+      checkpoints with only PROGRESS.md modified -- see task.yaml checkpoint
+      history). No spec beyond the title existed (no prompt.txt in the
+      workspace). Scoped it myself to the persistent authenticated-app nav
+      chrome: src/components/AppShell.tsx, src/components/AppSidebar.tsx,
+      src/components/AppTopbar.tsx, messages/{en,hi}.json. Added: a
+      skip-to-main-content link + id="main-content"/tabIndex={-1} landmark
+      on both <main> branches (WCAG 2.4.1 Bypass Blocks); aria-label on the
+      two sidebar <nav> landmarks (quick-nav + modules) and aria-current=
+      "page" on every nav Link, sidebar mobile hamburger trigger; aria-label
+      on the topbar's icon-only notification bell (includes unread count),
+      sidebar-collapse toggle, and user-menu trigger (WCAG 4.1.2 Name/Role/
+      Value, 2.4.4 Link Purpose). Did NOT touch the shadcn Form/FormControl
+      primitives (src/components/ui/form.tsx) -- already wires aria-invalid/
+      aria-describedby/htmlFor correctly, verified by reading it, not a real
+      gap. Scope is these ~4 files only; no DB/API/RLS surface touched.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
