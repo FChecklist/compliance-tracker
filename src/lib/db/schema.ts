@@ -7726,6 +7726,34 @@ export const erpCycleCountLinesRelations = relations(erpCycleCountLines, ({ one 
   item: one(erpItems, { fields: [erpCycleCountLines.itemId], references: [erpItems.id] }),
 }))
 
+// R65 (2026-08-31, report_definitions gap re-investigation, rptdef_material_
+// wastage_analysis "Material Wastage Analysis"): re-checked whether this
+// table's own postCycleCountAdjustment (erp-inventory-planning-service.ts)
+// could back that report. It IS a real movement-reason value on
+// erpStockLedgerEntries.voucherType ('cycle_count_adjustment', negative
+// quantityChange = counted-below-system = the closest real proxy for
+// shrinkage/wastage this codebase has -- the row's older data_gap_note
+// claiming "no distinct movement-reason column exists" was stale). Left
+// data_gap anyway, for two independently-real reasons, not "no mechanism
+// exists":
+//   1. Zero real usage anywhere: 0 erpCycleCountPlans, 0 erpCycleCountLines
+//      rows in the live DB (verified by direct SQL, not assumed) -- the
+//      whole erp_stock_ledger_entries table has only 12 rows total (1 org),
+//      all voucherType='manual_receipt'. Flipping status to 'built' against
+//      a signal with zero rows anywhere fails the exact do_not_assume rule 2
+//      bar this branch already applied to "Cost Report by Material"
+//      (report-engine-service.ts TABLE_REGISTRY comment) -- an always-empty
+//      report that looks built but is unverifiable.
+//   2. Even with real cycle-count data, this table is warehouse-scoped only
+//      (no projectId) and erpStockLedgerEntries.projectId, while present in
+//      schema since Wave 120, is never actually written by ANY live code
+//      path (recordStockReceipt/recordStockIssue/postCycleCountAdjustment
+//      all omit it -- only materialConsumptionReport's SELECT reads it), so
+//      a construction-project-scoped wastage report can't be correctly
+//      computed from this table today regardless of point 1.
+// See that report_definitions row's own data_gap_note for the full current
+// explanation kept in sync with this comment.
+
 // ─── Wave 88 (Comparison CSV 2 gap analysis: CLM002 "Template Management" +
 // CLM003 "Clause Library" + CLM005 "Negotiation Tracking") ─────────────────
 // Clause library is reusable clause text, categorized/risk-rated. Contract
