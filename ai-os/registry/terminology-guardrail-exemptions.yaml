@@ -874,13 +874,13 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/services/org-branding-service.test.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated. Raised to 2, 2026-08-31 (rebase-and-merge of PR #968, superseding sibling PR #966): task-20260805-185202-ocid-020-gtm-cert-addendum added one new dated comment (line 283, citing the real UMR/PR context for the tagline-field test fixtures it adds) -- same class already covered by this exemption's own reasoning, not new example/sample data."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 2
   - file: src/lib/services/org-branding-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Raised to 3, 2026-08-04: OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH real fix (UMR-20260804-090421-c647) added one new comment citing the real Owner-decision date this fix implements -- same class already covered by this exemption's own reasoning, not new example/sample data. Raised to 4, 2026-08-31 (PR #1232 rebase onto current main): resolvePreAuthBrandByHost's own real bug fix (wrapping the previously-unguarded `db.query.productBranches.findFirst` call in try/catch so a DB outage degrades to null instead of 500ing \"/\"/\"/login\" pre-auth) added one new dated changelog comment (\"Real bug fixed 2026-08-15\") -- same class already covered by this exemption's own reasoning, not new example/sample data."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Raised to 3, 2026-08-04: OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH real fix (UMR-20260804-090421-c647) added one new comment citing the real Owner-decision date this fix implements -- same class already covered by this exemption's own reasoning, not new example/sample data. Raised to 5, 2026-08-31 (merge of two independent concurrent PRs onto main -- PR #1232's accessibility-gap-closure rebase and PR #968's ocid-020-gtm-cert-addendum both touched this file's own `resolvePreAuthBrandByHost`/PreAuthBrand region in the same window): (a) PR #1232 wrapped the previously-unguarded `db.query.productBranches.findFirst` call in try/catch so a DB outage degrades to null instead of 500ing \"/\"/\"/login\" pre-auth, adding one new dated changelog comment (\"Real bug fixed 2026-08-15\"); (b) PR #968 added a new `tagline` field to `PreAuthBrand`/the same query, adding one new dated comment (line 249, citing the real UMR context) -- both are the same class already covered by this exemption's own reasoning, not new example/sample data; the merge combined both real code changes (try/catch AND the tagline field) into the same final function body."
     findings_by_category:
-      hardcoded_iso_date: 4
+      hardcoded_iso_date: 5
   - file: src/lib/services/org-provisioning-service.test.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated."
     findings_by_category:
@@ -1232,3 +1232,31 @@ exemptions:
     reason: "AI Cost Governance & FinOps gap-closure (task-20260718-095002, 2026-08-15): 3 pre-existing genuine dated comments unrelated to this PR's own change (a new FinOps nav item) -- Priority 11 Owner-directive comment (line 132, 2026-07-13), VERIDIAN Review Framework Wave B CRM comment (line 167, 2026-07-17), and the veridian-ui-kit migration comment (line 539, 2026-07-19) -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments. Grandfathered here because this is the first PR to touch this file since the guardrail's Phase 3 CI wiring."
     findings_by_category:
       hardcoded_iso_date: 3
+  - file: src/app/contact/page.tsx
+    reason: "task-20260805-185202-ocid-020-gtm-cert-addendum (rebased and merged as replacement PR for #968, superseding sibling PR #966, 2026-08-31): 1 genuine dated code comment (line 9) citing the real UMR instruction this per-host-brand-resolution fix implements -- same class as this codebase's other exempted dated gap-closure comments, not example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/data-policy/page.tsx
+    reason: "task-20260805-185202-ocid-020-gtm-cert-addendum (rebased and merged as replacement PR for #968, superseding sibling PR #966, 2026-08-31): 1 genuine dated code comment (line 7) citing the real UMR instruction this per-host-brand-resolution fix implements -- same class as this codebase's other exempted dated gap-closure comments, not example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/pricing/page.tsx
+    reason: "task-20260805-185202-ocid-020-gtm-cert-addendum (rebased and merged as replacement PR for #968, superseding sibling PR #966, 2026-08-31): 1 genuine dated code comment (line 6) citing the real UMR instruction this per-host-brand-resolution fix implements -- same class as this codebase's other exempted dated gap-closure comments, not example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/pricing/pricing-client.tsx
+    reason: "task-20260805-185202-ocid-020-gtm-cert-addendum (rebased and merged as replacement PR for #968, superseding sibling PR #966, 2026-08-31): new file (extracted client component from pricing/page.tsx's server/client split) -- 2 genuine dated code comments (lines 117, 163) citing the real UMR instruction this per-host-brand-resolution fix implements -- same class as this codebase's other exempted dated gap-closure comments, not example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 2
+  - file: src/app/privacy/page.tsx
+    reason: "task-20260805-185202-ocid-020-gtm-cert-addendum (rebased and merged as replacement PR for #968, superseding sibling PR #966, 2026-08-31): 1 genuine dated code comment (line 7) citing the real UMR instruction this per-host-brand-resolution fix implements -- same class as this codebase's other exempted dated gap-closure comments, not example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/terms/page.tsx
+    reason: "task-20260805-185202-ocid-020-gtm-cert-addendum (rebased and merged as replacement PR for #968, superseding sibling PR #966, 2026-08-31): 1 genuine dated code comment (line 7) citing the real UMR instruction this per-host-brand-resolution fix implements -- same class as this codebase's other exempted dated gap-closure comments, not example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/components/LegalShell.tsx
+    reason: "task-20260805-185202-ocid-020-gtm-cert-addendum (rebased and merged as replacement PR for #968, superseding sibling PR #966, 2026-08-31): 1 genuine dated code comment (line 22) citing the real UMR instruction for extending this shared component with an optional per-host brand prop -- same class as this codebase's other exempted dated gap-closure comments, not example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1

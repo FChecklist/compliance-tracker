@@ -245,6 +245,15 @@ export async function getBrandingAssetPath(orgId: string, kind: "logo" | "favico
 export interface PreAuthBrand {
   productBranchId: string
   brandName: string
+  // GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN (OCID-020 addendum,
+  // 2026-08-05): the one other real, already-existing product_branches
+  // column a per-host marketing page can honestly use -- "marketing
+  // one-liner, e.g. 'Run every marketplace from one place'" per this same
+  // table's own column comment above. Nullable: most branches (including
+  // the real PROJEXA row as of this writing) have never had one set;
+  // callers must fall back to their own existing default copy, exactly
+  // like `brandName`'s own null-means-platform-default contract.
+  tagline: string | null
 }
 
 // Deliberately permissive host normalization (strip a trailing :port, lowercase)
@@ -295,10 +304,10 @@ export const resolvePreAuthBrandByHost = cache(async (host: string | null | unde
   try {
     const branch = await db.query.productBranches.findFirst({
       where: eq(sql`lower(${productBranches.hostDomain})`, normalized),
-      columns: { id: true, displayName: true },
+      columns: { id: true, displayName: true, tagline: true },
     })
     if (!branch) return null
-    return { productBranchId: branch.id, brandName: branch.displayName }
+    return { productBranchId: branch.id, brandName: branch.displayName, tagline: branch.tagline ?? null }
   } catch {
     return null
   }

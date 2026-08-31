@@ -10592,6 +10592,20 @@ export const constructionExpenseEntries = complianceSchemaDB.table('construction
   linkedEntityType: text('linked_entity_type'), // 'erp_purchase_invoice'|'erp_cash_voucher'|'construction_attendance'|null (manual entry)
   linkedEntityId: text('linked_entity_id'),
   recordedById: text('recorded_by_id').notNull(),
+  // F_020 (R43 fault, project-financials -> GL posting pipeline): set once
+  // createExpenseEntry successfully posts a balanced journal entry for this
+  // expense (debit the expense-head account, credit the org's Accounts
+  // Payable control account -- see construction-expense-service.ts's
+  // postConstructionExpenseEntryToGL). Nullable and stays null forever when
+  // posting was skipped (ERP module not enabled for this org, no chart of
+  // accounts set up yet, or the accounting period covering expenseDate is
+  // closed) -- matches this schema's own established
+  // journalEntryId-nullable-pointer convention (erpSalesInvoices,
+  // erpPurchaseInvoices, erpPaymentEntries, erp_fixed_assets etc.), never a
+  // second source of truth: debit/credit amounts always live on
+  // erp_journal_entry_lines, this is purely a traceability pointer + an
+  // idempotency guard against double-posting the same entry.
+  journalEntryId: text('journal_entry_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
