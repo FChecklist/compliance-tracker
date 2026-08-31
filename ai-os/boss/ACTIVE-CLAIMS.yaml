@@ -6284,6 +6284,44 @@ active:
       compilation, no live DB). Not touching capture.ts/embed.ts/chunker.ts
       (they don't exist on this branch's base) or any other CRR P2/P3 file.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-080006-business-rules-engine--rule-lifecycle-ma) -- Business Rules Engine / Rule Lifecycle Management (VERIDIAN Review Framework gap-closure, 4 findings) [rebased off PR #1237 onto current main 2026-08-30; original PR #1237 closed as superseded, replacement PR opened from branch rebase-wt-1237 -- see that PR's own body for the real new number/URL]"
+    claimed_at: "2026-08-15T (original session); rebase-and-supersede pass 2026-08-30T"
+    claim: |
+      Building a new generic, reusable Business Rules Engine module (does not
+      exist today -- automationRules/erpPricingRules/moduleRuleConfigs/
+      documentMatchingRules are all single-condition, no lifecycle status, no
+      versioning): condition-tree (AND/OR nesting) + action schema, modeled
+      on approvalWorkflowStepDefinitions' conditionField/Operator/Value
+      precedent per the finding's own recommendation. Covers 3 of the 4
+      findings in one PR: Business Rule Engine Completeness, Business Rule
+      Versioning (version snapshots + rollback), Business Rule Testing
+      Framework (dry-run against a sample record, no side effects). Business
+      Rule Simulation (4th finding, Low priority) explicitly deferred per the
+      finding's own recommendation ("revisit after base engine and testing
+      framework ship") -- documented as deferred in PROGRESS, not silently
+      dropped.
+      File scope (new files, all additive): src/lib/db/schema.ts (new
+      businessRules/businessRuleVersions/businessRuleTestRuns tables +
+      enums only), drizzle/ (new additive migration),
+      src/lib/services/business-rules-service.ts (+ .test.ts),
+      src/app/api/business-rules/** (new route tree).
+      Explicitly NOT touching permission-service.ts's ERP_ACTION_ROLES
+      table structure (per task prompt), automationRules/erpPricingRules/
+      moduleRuleConfigs/documentMatchingRules (existing single-condition
+      engines, left as-is), or any other in-flight worker's declared scope.
+      Checked this file live before claiming -- no other active entry
+      touches a business-rules-engine area.
+
+      Rebase note (2026-08-30): merged current main into worker branch
+      worker/task-20260718-080006-business-rules-engine--rule-lifecycle-ma
+      to replace stale PR #1237. Two real conflicts: this file (resolved by
+      moving this entry here, keeping the unrelated BYOAI active entry as a
+      sibling untouched) and src/lib/db/schema.ts (large conflict-marker
+      span was a line-diff artifact, not a real wide conflict -- reset to
+      main and hand-applied this branch's actual schema diff, see that
+      file's own history/PR for detail). Dropped an unrelated
+      `.git-tmp/*` automated-checkpoint commit's scratch files rather than
+      committing them.
   - session_label: "claude-code (task-20260718-075006-audit---governance--complete-audit-stamp) -- Audit & Governance: Complete Audit Stamp gap-closure [DONE, merged via rebase-wt-1234 replacing stale PR #1234]"
     claimed_at: "2026-08-15T (this session, invocation 14/20)"
     merged_as: "FChecklist/compliance-tracker PR replacing #1234 (rebased onto current main 2026-08-30, resynced a second time same day after 3 more real merges landed -- final migration number 0337 after two renumberings: 0313->0335->0337, see drizzle/0337_audit_logs_session_office_stamp.sql's own header for the exact collision history)."
