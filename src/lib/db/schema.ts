@@ -12493,3 +12493,77 @@ export const crrIngestError = complianceSchemaDB.table('crr_ingest_error', {
   retryCount: integer('retry_count').default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── AI Model Lifecycle & Benchmarking / Ongoing Quality Monitoring
+// (VERIDIAN Review Framework gap-closure, 2026-08-15) ────────────────────
+// 3 real gaps closed here, investigated against the live codebase first
+// (not assumed from the eval report, per this task's own instruction):
+//   1. Per-role quality regression: promptfooconfig.yaml + .github/
+//      workflows/ai-prompt-evals.yml is real but PR-triggered only (zero
+//      `schedule:` blocks anywhere in this repo's workflows) and scores
+//      PROMPT TEMPLATES, not AI Team ROLES (roster.ts) -- there was no
+//      persisted, per-role, time-series quality signal anywhere.
+//      role_quality_runs below is that signal: one row per recurring eval
+//      pass for one role, reusing the existing prompt_eval_cases/
+//      prompt_versions infrastructure (a role's roster.ts `promptKey` IS a
+//      real prompt_templates.template_key -- team-service.ts's runRole()
+//      already resolves it that exact way) rather than inventing a second
+//      eval-case format.
+//   2. Cost-per-quality-point: token_usage_ledger (real, per-role cost)
+//      and any quality signal were never joined anywhere --
+//      model-scorecard-service.ts's own header explicitly calls out
+//      token_usage_ledger as "a different, already-shipped capability" it
+//      deliberately does NOT duplicate/join. cost-quality-service.ts joins
+//      role_quality_runs (this wave's new quality signal) against
+//      token_usage_ledger rows tagged `taskSummary = 'role_quality_run:<id>'`
+//      by role-quality-regression-service.ts's own eval calls -- no new
+//      cost column needed here, the exact-id tag makes the join precise
+//      instead of a fuzzy time-window heuristic.
+//   3. Provider-outage/role-failure correlation: confirmed zero persisted
+//      outage/incident table anywhere (d1-metrics-tracker-service.ts's own
+//      "Safe Autonomy" section independently confirms this same absence
+//      for the adjacent escalation-events case). provider_outage_windows
+//      is the outage-window table the recommended approach asked for;
+//      provider-outage-service.ts's correlateOutageWithRoleFailures() is
+//      the correlation query, joined against platform.dispatch_outcomes
+//      (already has role_key + model_used + status + dispatched_at, no
+//      new columns needed on that table).
+//
+// Both tables live in the `platform` schema (not `compliance`), mirroring
+// platform.dispatch_outcomes (drizzle/0300) exactly: platform-internal,
+// no owning customer org, fail-closed RLS (service_role bypass only, no
+// app_runtime/anon/authenticated policy) -- same rationale as that
+// migration's own header. Hand-written migration (drizzle.config.ts's
+// schemaFilter is ['compliance'] only, so drizzle-kit generate never sees
+// the `platform` schema -- same reason dispatch_outcomes' own migration
+// was hand-written).
+export const roleQualityRuns = platformSchemaDB.table('role_quality_runs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  roleKey: text('role_key').notNull(), // AI Team role_key (roster.ts)
+  model: text('model').notNull(), // role.model at the time this run executed
+  promptTemplateKey: text('prompt_template_key').notNull(), // role.promptKey -- which template's eval cases were run
+  totalCases: integer('total_cases').notNull(),
+  passedCases: integer('passed_cases').notNull(),
+  passRate: numeric('pass_rate').notNull(), // passedCases / totalCases, 0..1; NaN is never stored -- totalCases=0 runs are not inserted (see role-quality-regression-service.ts)
+  avgLatencyMs: integer('avg_latency_ms'),
+  // Rolling baseline computed AT WRITE TIME from this role's own prior runs
+  // (see computeRegression() in role-quality-regression-service.ts) --
+  // null on a role's first-ever run (no baseline exists yet, not "0% baseline").
+  baselinePassRate: numeric('baseline_pass_rate'),
+  regressionDetected: boolean('regression_detected').notNull().default(false),
+  triggeredBy: text('triggered_by').notNull().default('scheduled'), // 'scheduled' (Vercel cron) | 'manual' (admin-triggered re-run)
+  errorNote: text('error_note'), // set when one or more eval cases errored (LLM call failure) rather than scored fail -- partial-results are still stored, not silently discarded, but flagged so a 100% pass rate from e.g. 1-of-5 successful calls is never misread as clean
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const providerOutageWindows = platformSchemaDB.table('provider_outage_windows', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  provider: text('provider').notNull(), // LLMProvider ('groq'|'openai'|'anthropic'|'google'|'openrouter'|'cerebras')
+  model: text('model'), // null = applies to every model routed through this provider during the window
+  startedAt: timestamp('started_at').notNull(),
+  endedAt: timestamp('ended_at'), // null = still ongoing / unresolved
+  source: text('source').notNull().default('manual'), // 'manual' (admin-recorded, e.g. from a provider status page) | 'auto_detected' (promoted from findCandidateOutageWindows()'s failure-cluster heuristic)
+  detectionNote: text('detection_note'),
+  recordedById: text('recorded_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
