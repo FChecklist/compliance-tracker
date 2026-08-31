@@ -132,8 +132,46 @@ main-side collision on the report itself.
       set in the exemptions manifest above covers it exactly. Did not
       attempt to fix the wider pre-existing repo-wide gap -- out of scope
       for this PR and not something CI enforces.
-- [x] Pushed `rebase-sweep2-652`, opened replacement PR, closed #652 with a
-      comment pointing at the replacement, checked real CI on the new PR.
+- [x] Pushed `rebase-sweep2-652`, opened replacement PR #1521, closed #652
+      with a comment pointing at the replacement.
+- [x] `gh pr view 1521 --json mergeable` immediately after opening showed
+      `CONFLICTING` -- `main` had moved one commit further (PR #1519,
+      `rebase-sweep2-655`, CRM-007 "Sales Representative Performance
+      Dashboard" -- itself another same-shaped rebase-sweep replacement,
+      landed while this task's own merge/push/PR-open sequence was in
+      flight) since the `origin/main` this branch was merged against.
+      Fetched again and merged that one commit forward -- 3 more real
+      conflicts, same direct-read discipline as above:
+      - `drizzle/meta/_journal.json` -- CRM-007's own rebase had
+        independently landed idx 329/number `0507` for its own migration
+        (`0507_crm007_sales_rep_performance_report_definition.sql`) --
+        the exact idx AND exact number this task had just claimed for
+        SD-006's own migration. Re-checked the true current highest via
+        `git ls-tree -r origin/main -- drizzle/` again (now `0507`, CRM-007's),
+        renamed SD-006's migration file + tag to `0508`, re-appended as
+        journal idx 330 after CRM-007's idx 329 (kept verbatim). Re-verified:
+        no duplicate numeric prefixes on disk, idx sequential 0-330, no
+        duplicate tags.
+      - `ai-os/boss/ACTIVE-CLAIMS.yaml` -- pure insertion-point collision
+        (CRM-007's own claim-registration entry vs. this task's), not a
+        real content conflict -- both entries kept, CRM-007's first
+        (already-landed on `main`), this task's own directly after.
+      - `PROGRESS.md` -- this file; CRM-007's own rebase-sweep had, by the
+        same repo convention, replaced `main`'s prior single entry with
+        ITS OWN current entry. Per that same convention (only the most
+        recently landed task's entry is current), kept this task's own
+        entry as current again -- it is the one still being landed now.
+      Re-validated after this second round: JSON/YAML parse clean,
+      `grep` for conflict markers clean repo-wide on the staged diff,
+      `bun test src/lib/services/report-engine-service.test.ts` still
+      26/26 pass, `bunx tsc --noEmit` still clean. Also caught and fixed
+      (both merge rounds): the Windows worktree checkout/edit path had
+      picked up CRLF line endings on `report-engine-service.ts` and
+      `_journal.json`, diverging from this repo's real LF convention on
+      both (confirmed against `main`'s own committed blobs) and inflating
+      their diffs to whole-file rewrites -- normalized both back to LF,
+      shrinking the real diffs to their true, minimal size.
+- [x] Re-pushed, checked real CI on PR #1521 again post-merge.
 
 ## Remaining
 - [ ] None beyond real CI's own build/E2E/etc. jobs, checked directly on
