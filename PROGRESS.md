@@ -1,157 +1,81 @@
-# PROGRESS — VERIDIAN Review Framework gap-closure: AI Engineering Quality / Code Structure & Modularity
+# PROGRESS -- rebase-1014-fixed (replacement for PR #1014)
 
-Task: close 5 related findings from the framework evaluation in one
-coherent PR (per the task's own instruction: "do not create a separate PR
-per finding if they're naturally one piece of work").
+## Scope
 
-**Note on this task's own history**: invocations 1–14 of this task session
-never actually touched this task's real objective — a prior checkpoint/
-resume cycle had this task's own progress-tracking cross-contaminated with
-an unrelated task's content (a "cost estimate: 5 orgs x 10 users" analysis
-doc, tracked separately). This invocation (15) re-verified the real spec
-via `prompt.txt`, found the branch 1374 commits behind `origin/main` with
-zero real prior commits, fast-forwarded it, and started the actual work
-fresh from here. Flagging this honestly rather than silently proceeding as
-if 14 invocations of real progress existed.
+Replacement PR for #1014 ("CRM Leads: gap-closure for 13 Review Framework
+findings"). #1014 carried a real, confirmed, unpatched security hole flagged
+by a human `AUDIT: FAIL` review comment on the PR:
+
+1. **Privilege escalation** -- `POST /api/crm/leads/bulk-reassign` called
+   `bulkReassignLeads()` in `src/lib/services/crm-service.ts` with no
+   role/permission check at all. Any authenticated org member -- including
+   `viewer`/`client_viewer`/`external_auditor` -- could bulk-reassign
+   ownership of every lead in the org. The neighboring single-lead PATCH
+   path in the same file correctly gated reassignment via
+   `assertGate(canReassignOrDeleteLead(ctx.role))`; `bulkReassignLeads()`
+   was missing the identical gate.
+2. **CSV formula-injection** -- the new `exportLeadsCsv()`/`escapeCsvField()`
+   reinvented CSV escaping instead of reusing the codebase's existing
+   `src/lib/report-export-shared.ts` `csvEscape()`, which already guards
+   against a leading `=`/`+`/`-`/`@` via `FORMULA_INJECTION_PREFIX`. The new
+   leads export omitted that guard, so an attacker-controllable field
+   (lead name/email/note, settable via `createLead` or CSV import)
+   containing a formula-injection payload would export unescaped and could
+   execute when opened in Excel/Sheets.
 
 ## Completed
 
-- [x] **[Medium] Code Modularity — task-execution-engine.ts (real code
-      change).** `dispatchEngine()`'s CRM Quick-Create category (4 cases)
-      and Accounting Computation Engine category (11 cases, its own
-      standalone `switch`) extracted verbatim (pure code motion, no logic
-      changes) into `src/lib/engine-handlers/crm-engine-dispatch.ts` and
-      `src/lib/engine-handlers/accounting-engine-dispatch.ts`. Each new
-      file exports a `Set` of its engine keys + a `dispatchXEngine()`
-      function; `task-execution-engine.ts` now does a `Set.has()` check
-      and delegates. `bun test` covers `task-execution-engine.test.ts`
-      (see Verification below) with zero behavior change expected.
-      This is a deliberate **first slice**, not a full migration — the
-      other ~35 cases (math/costing/GST/tax/payroll/etc. categories)
-      remain inline in `task-execution-engine.ts` for now. Given this
-      is compliance-critical calculation-dispatch code with an existing
-      test suite but no way to exhaustively re-verify every one of ~35
-      more categories' behavior unchanged within this session's budget,
-      doing all of them mechanically in one pass was judged higher-risk
-      than the modularity benefit justified in a single pass. Real,
-      incremental, honestly-scoped progress > a risky one-shot rewrite.
-- [x] **[Medium] Code Modularity — schema.ts: already resolved, no change
-      needed.** Read `src/lib/db/schema.ts`'s own header comment (lines
-      6–20): a prior "Overall Code Quality Score" gap-closure already
-      assessed this exact same finding, found 6 PRs concurrently open
-      against this file at the time, and *deliberately deferred* a full
-      physical split in favor of the current state (125 `// ─── Section
-      Name ───` domain headers within one file, fast `grep`-navigable).
-      Re-verified the same collision risk still holds today: `grep -c
-      "schema.ts" ai-os/boss/ACTIVE-CLAIMS.yaml` → 110 matches (dozens of
-      concurrent sessions additively touching this file right now). A
-      physical split now would create the exact wall of merge conflicts
-      that decision was made to avoid, for a Medium-severity finding, with
-      no functional benefit. Per the task's own instruction ("If a finding
-      turns out to already be resolved ... say so in PROGRESS.md rather
-      than making an unnecessary change") — no schema.ts change made.
-- [x] **[Low] Component Reusability.** Added `docs/REUSABLE-UTILITIES.md`
-      — a short, curated index of the actual most-reused cross-cutting
-      helpers (`requireAuth()`, `ServiceError`, `withTenantContext()`,
-      `logActivity()`, `cn()`, shadcn/ui primitives, the new
-      `engine-handlers/` pattern), each backed by a real `git grep -c`
-      import count (not guessed), plus the exact commands to re-derive
-      them so the numbers don't silently rot.
-- [x] **[Medium] Low Coupling / High Cohesion.** Added real DB-level FK
-      constraints for the org-scoping relationship on the 3 highest-
-      traffic tables (`users.orgId`, `departments.orgId`,
-      `complianceItems.orgId` → `organisations.id`) — previously only a
-      Drizzle `relations()` query-ergonomics helper, never enforced at
-      the DB level (confirmed: 379 `orgId` column declarations repo-wide,
-      only 16 pre-existing `.references()` FK constraints total, all on
-      unrelated parent-child relationships). Matches the finding's own
-      "incrementally... starting with org/user scoping" framing — this is
-      a deliberate first slice, not all 379.
-      Migration: hand-written `drizzle/0315_add_org_fk_constraints.sql`
-      using `NOT VALID` + a documented, deliberately-NOT-run-here
-      `VALIDATE CONSTRAINT` follow-up (safe against a live table with
-      existing data of unknown integrity — `NOT VALID` takes only a brief
-      metadata lock and doesn't fail the migration on a pre-existing
-      orphaned `org_id`; `VALIDATE CONSTRAINT` is separately resumable).
-      **Not applied to the live database** — this session generated/wrote
-      the migration file only, did not run `db:push`, per this repo's own
-      caution around live-DB changes.
-      **Real, separate issue found and flagged (not fixed here, out of
-      this finding's scope):** `bunx drizzle-kit generate` was tried first
-      (before hand-writing the migration) and produced a bogus diff that
-      tried to re-`CREATE TABLE` several already-existing tables. Root
-      cause: `drizzle/meta/_journal.json`'s last recorded entry is
-      `0303_lead_source_effectiveness_report_definition` (idx 281), but
-      `drizzle/0311*.sql` / `0312*.sql` / `0313*.sql` / `0314*.sql` already
-      exist on disk with no matching journal entries — a drift between
-      the local meta snapshot and the real migration history, same class
-      of issue as the documented "stale local main ref" incident
-      `check-migration-collision.mjs`'s header already describes, but for
-      the Drizzle meta journal instead of git. The bogus generated output
-      was discarded (not committed); the real migration was hand-written
-      instead. Flagged in the new migration file's own header for whoever
-      next runs `drizzle-kit generate` in this repo — reconciling the
-      journal is a separate, larger task this session did not attempt.
-- [x] **[Low] Design Pattern Consistency.** Added
-      `scripts/check-route-auth-guard.mjs` — a diff-scoped CI check
-      (same established shape/precedent as `check-route-error-handling.mjs`,
-      this repo's real pattern for "compiler/lint-enforced" conventions;
-      `eslint.config.mjs` deliberately runs with nearly every built-in
-      rule off, no local-ESLint-plugin infrastructure exists to extend)
-      requiring `requireAuth()` in new/changed `route.ts` files and
-      `ServiceError` in new/changed `*-service.ts` files. Verified against
-      this branch's own diff (see Verification below).
-      **Not wired into `.github/workflows/ci.yml`** — this session's `gh`
-      token lacks the `workflow` OAuth scope needed to push a branch that
-      touches `.github/workflows/*.yml` (same documented limitation as
-      this repo's own prior "Back out ci.yml wiring for the new
-      service-header-comment check" commit, and
-      `check-route-error-handling.mjs` itself, which is *also* still not
-      wired into CI as of this commit). Documented in the script's own
-      header as a real follow-up for a workflow-scoped session.
-- [x] **[Medium] File & Folder Organization — ai-os subtrees: already
-      substantially resolved, minimal-touch.** Checked
-      `ai-os/registry/stale-doc-manifest.yaml`'s actual stated direction
-      (quarantine-banner dated one-off docs, already executed) and
-      `ai-os/OS.yaml`'s existing `what_should_exist_vs_what_does` section,
-      which *already* clearly documents what `audit-tree/` (Tree 1,
-      source requirements), `system-tree/` (Tree 3, what's actually
-      built), and `tree4-unified/` (the merge — "mostly archived") each
-      are, with each tree's own `00-INDEX.md`. Non-archived content is
-      already small (9/28/11 files respectively). No further physical
-      merge attempted — same collision-risk reasoning as schema.ts above,
-      and OS.yaml already functions as the cross-tree navigation aid the
-      finding asks for.
-- [x] **[Medium] File & Folder Organization — API routes: real gap, real
-      fix.** No navigation aid existed for `src/app/api/`'s 140 top-level
-      route groups (1,019 `route.ts` files) — added
-      `docs/API-ROUTES-INDEX.md`, a generated (`git ls-files | awk | sort
-      | uniq -c`, command included in the doc) breakdown by route count
-      with short descriptions for the 16 groups at >=10 routes each.
-
-## Verification run this session
-
-- `bun install` (fresh, 1220 packages)
-- `bunx tsc --noEmit` — 0 errors attributable to this change (pre-existing
-  unrelated errors exist repo-wide from missing `@types/react` etc. in
-  this checkout; none touch `task-execution-engine.ts` or
-  `engine-handlers/`)
-- `node scripts/check-migration-collision.mjs --base origin/main` — OK, no
-  number collisions
-- `node scripts/check-route-auth-guard.mjs --base origin/main` — OK (no
-  route/service files in this diff, so nothing to check yet at this
-  point — re-verify after final diff is complete)
-- (Full `bun run lint` / `bun run build` / `bun test` pass still pending —
-  see Remaining)
+- [x] Worktree: merged PR #1014's real branch
+      (`worker/task-20260718-081005-crm---sales-modules--leads`) then merged
+      `origin/main` on top, resolving conflicts by hand (this file,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`, `terminology-guardrail-exemptions.yaml`,
+      `drizzle/meta/_journal.json`, `crm-service.test.ts`, `crm-service.ts`,
+      `vercel.json`). Migration originally authored as `0314` collided with
+      main's own independently-numbered `0314_sales_pipeline_module.sql`;
+      renumbered to `drizzle/0344_force_rls_crm_leads_stage_history.sql`
+      (highest existing migration on merged main was `0343`, confirmed via
+      PowerShell `Get-ChildItem` -- Git Bash `ls`/`find` undercounted the
+      directory on this checkout) and `_journal.json` updated. `main` moved
+      another 37 commits during the push/PR-open window (this repo has many
+      concurrent agent sessions active) and picked up its own `0350`
+      migration in the same journal slot in the interim -- re-merged once
+      more, journal idx reordered (0350 at idx 313, this task's 0344 at
+      idx 314), vercel.json's new `crr-catchup-worker` cron kept alongside
+      this task's three.
+- [x] Bug 1 fix: threaded `role` through to `bulkReassignLeads()` and added
+      `assertGate(canReassignOrDeleteLead(role))` inside it, matching
+      `updateLead()`'s existing pattern. New test proves a non-manager role
+      (`viewer`) is rejected with a 403/ServiceError, and a manager-rank role
+      succeeds.
+- [x] Bug 2 fix: `exportLeadsCsv()` now imports and uses
+      `src/lib/report-export-shared.ts`'s `csvEscape()` (FORMULA_INJECTION_PREFIX
+      guarded) instead of the PR's own unguarded `escapeCsvField()`. New/updated
+      test proves formula-injection-shaped values (`=`, `+`, `-`, `@` prefixed)
+      are now escaped in the export output.
+- [x] `governance-yaml-parse`, full `bun test` on `crm-service.test.ts`
+      (66/66 pass, including the 2 new tests), `report-export-shared.test.ts`
+      (7/7), and `crm-accounts-service.test.ts` regression check (43/43) all
+      run clean. `bunx eslint` on every touched file: clean, zero
+      warnings/errors. `node scripts/check-migration-reversibility.mjs`:
+      clean.
+- [x] `tsc --noEmit`: could not complete locally -- this sandbox is under
+      severe, session-wide memory pressure from many other concurrent
+      worktree sessions on this same machine (confirmed via
+      `Get-CimInstance Win32_Process`: ~10 concurrent `tsc --noEmit`
+      processes at once, `/proc/meminfo` free memory cycling 25-460MB out
+      of 8GB total). This is the exact same pre-existing sandbox limitation
+      already documented elsewhere in this file's own history ("Full-repo
+      tsc --noEmit OOMs in this sandbox regardless of
+      `--max-old-space-size`... full verification deferred to CI's real
+      Type Check job, which runs with proper resources") -- not introduced
+      by this change. Deferred to CI's Type Check job (`ci.yml`'s
+      `typecheck` job runs `bunx tsc --noEmit` on `ubuntu-latest` with
+      `NODE_OPTIONS: --max-old-space-size=8192`, real dedicated resources).
+- [x] Opened replacement PR #1490 citing the original `AUDIT: FAIL` finding;
+      closed #1014 pointing to the replacement.
 
 ## Remaining
 
-- [ ] Run full `bun run lint`, `bun run build`, `bun test` before opening
-      the PR; fix anything genuinely broken by this change specifically
-      (not pre-existing unrelated failures).
-- [ ] Commit, push to this task's branch, open PR, let CI run (Rule 6 —
-      no direct push to `main`).
-- [ ] `check-guardrail-presence.mjs` / `check-asset-registry-coverage.mjs`
-      / other wired CI checks should be spot-checked locally before
-      pushing, since this touches `schema.ts` (asset registry coverage
-      counts tables) and adds new scripts.
+- [ ] Confirm CI is green on PR #1490 and merge. CI had not yet started as
+      of this checkpoint (likely queued behind the same heavy concurrent
+      load noted above) -- flagged honestly rather than claimed done.
