@@ -50,7 +50,7 @@ type SignatureStatus = {
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-ct-cloud text-ct-muted",
-  pending_approval: "bg-ct-saffron/20 text-ct-saffron",
+  pending_approval: "bg-ct-saffron/20 text-ct-saffron-text",
   approved: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-700",
 };

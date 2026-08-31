@@ -40,8 +40,8 @@ type MarginSummary = { totalCost: number; totalPrice: number; totalMargin: numbe
 
 const STATUS_COLORS: Record<string, string> = {
   specified: "bg-ct-cloud text-ct-muted",
-  ordered: "bg-ct-saffron/20 text-ct-saffron",
-  received: "bg-ct-saffron/20 text-ct-saffron",
+  ordered: "bg-ct-saffron/20 text-ct-saffron-text",
+  received: "bg-ct-saffron/20 text-ct-saffron-text",
   installed: "bg-green-100 text-green-700",
 };
 const CATEGORIES = ["furniture", "fixture", "equipment", "finish", "textile", "lighting", "other"];

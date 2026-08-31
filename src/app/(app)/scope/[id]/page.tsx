@@ -64,7 +64,7 @@ type Comparison = {
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-ct-cloud text-ct-muted",
-  submitted: "bg-ct-saffron/20 text-ct-saffron",
+  submitted: "bg-ct-saffron/20 text-ct-saffron-text",
   approved: "bg-green-100 text-green-700",
   superseded: "bg-red-100 text-red-700",
 };
@@ -349,7 +349,7 @@ export default function ScopeDetailPage() {
             <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
               {comparison.warnings.length > 0 && (
                 <div className="rounded-lg border border-ct-saffron/40 bg-ct-saffron/10 p-3 space-y-1">
-                  {comparison.warnings.map((w, i) => <p key={i} className="text-xs text-ct-saffron">{w}</p>)}
+                  {comparison.warnings.map((w, i) => <p key={i} className="text-xs text-ct-saffron-text">{w}</p>)}
                 </div>
               )}
               {comparison.added.length > 0 && (
@@ -407,7 +407,7 @@ export default function ScopeDetailPage() {
                   <Input placeholder="Unit" value={line.unit} onChange={(e) => updateRevisionLine(i, "unit", e.target.value)} />
                   <Input placeholder="Qty" type="number" value={line.quantity} onChange={(e) => updateRevisionLine(i, "quantity", e.target.value)} />
                   <Input placeholder="Rate" type="number" value={line.rate} onChange={(e) => updateRevisionLine(i, "rate", e.target.value)} />
-                  <Button variant="ghost" size="icon" onClick={() => setRevisionLines((prev) => prev.filter((_, idx) => idx !== i))} disabled={revisionLines.length === 1}>
+                  <Button variant="ghost" size="icon" aria-label="Remove line" onClick={() => setRevisionLines((prev) => prev.filter((_, idx) => idx !== i))} disabled={revisionLines.length === 1}>
                     <Trash2 className="size-4" />
                   </Button>
                 </div>

@@ -6342,6 +6342,31 @@ recently_completed:
       trusting the PR description), which posted a real AUDIT: PASS with all 8
       required structured fields after one format correction (Title-Case
       labels, not camelCase).
+  - session_label: "claude-code (task-20260718-074005-accessibility--wcag-compliance---visual) -- Accessibility (WCAG Compliance) / Visual Accessibility: color contrast + icon aria-label sweep [DONE, PR #1226 rebased onto current main and re-opened as a new PR -- see this repo's PR history for the successor]"
+    claimed_at: "2026-08-15T (this session, closed same session)"
+    claim: |
+      SPEC: VERIDIAN Review Framework gap-closure, 2 findings -- (1) Saffron brand accent fails
+      WCAG AA contrast on light backgrounds, recommended fix: new 'Saffron-text' variant token +
+      audit/swap every Saffron-on-light text usage; (2) inconsistent alt-text/icon-labeling
+      coverage, recommended fix: add eslint-plugin-jsx-a11y CI gate first, then a one-time sweep
+      of icon-only buttons.
+
+      Branch was 1326 commits behind origin/main (stuck since 2026-07-18, 13 prior invocations
+      never produced real code -- reset to origin/main before starting real work). Both findings
+      re-verified live against current code, both still real (Saffron ~2.6:1 measured via
+      relative-luminance calc; 48/57 size="icon" buttons missing any accessible name, confirmed
+      via a scripted sweep).
+
+      File scope: `src/app/globals.css` (new `--color-ct-saffron-text` token + pend-under30-text
+      fix), `eslint.config.mjs` + `package.json` (jsx-a11y recommended ruleset as a real CI gate,
+      6 rule keys downgraded to warn with documented rationale for pre-existing out-of-scope
+      violations), 101 `.tsx` files (240 `text-ct-saffron` -> `text-ct-saffron-text` renames),
+      26 files (46 icon-only buttons given aria-label), `global-error.tsx`/`MessageContent.tsx`/
+      `ui/pagination.tsx` (3 small real jsx-a11y fixes surfaced by turning the gate on). Did NOT
+      touch `src/lib/services/permission-service.ts` or any other in-flight worker's scope.
+      `bun run lint` 0 errors/35 warnings, `bunx tsc --noEmit` 0 errors, `bun test` 2549 pass/0
+      fail across 224 files (full suite, confirmation run -- no service-layer logic touched).
+      Full detail in this task's own `PROGRESS.md`.
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |

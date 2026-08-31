@@ -72,7 +72,7 @@ function FrameHome() {
       </div>
       <div className="p-5 sm:p-7 min-h-[280px] bg-gradient-to-b from-white to-ct-cream">
         <div className="flex items-start gap-3">
-          <span className="grid size-9 place-items-center rounded-full bg-ct-saffron/15 text-ct-saffron shrink-0">
+          <span className="grid size-9 place-items-center rounded-full bg-ct-saffron/15 text-ct-saffron-text shrink-0">
             <Sparkles className="size-4" />
           </span>
           <div>
@@ -115,7 +115,7 @@ function FrameComposer() {
         <div className="mt-3 flex items-center gap-2 rounded-xl border border-ct-border bg-white px-3 py-2.5 text-sm text-ct-muted">
           <Paperclip className="size-4 shrink-0" />
           Select a task above to begin…
-          <Send className="ml-auto size-4 shrink-0 text-ct-saffron" />
+          <Send className="ml-auto size-4 shrink-0 text-ct-saffron-text" />
         </div>
       </div>
     </div>

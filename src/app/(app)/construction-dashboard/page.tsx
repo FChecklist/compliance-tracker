@@ -111,13 +111,13 @@ export default function ConstructionDashboardPage() {
             <Card className="rounded-xl shadow-card bg-white">
               <CardContent className="pt-4 flex items-center justify-between">
                 <div><p className="text-xs text-ct-muted">Active Projects</p><p className="text-2xl font-heading text-ct-navy">{data.totalProjects}</p></div>
-                <Building2 className="size-6 text-ct-saffron" />
+                <Building2 className="size-6 text-ct-saffron-text" />
               </CardContent>
             </Card>
             <Card className="rounded-xl shadow-card bg-white">
               <CardContent className="pt-4 flex items-center justify-between">
                 <div><p className="text-xs text-ct-muted">Total Budget</p><p className="text-2xl font-heading text-ct-navy">{money(data.totalBudget)}</p></div>
-                <Wallet className="size-6 text-ct-saffron" />
+                <Wallet className="size-6 text-ct-saffron-text" />
               </CardContent>
             </Card>
             <Card className="rounded-xl shadow-card bg-white">
@@ -129,7 +129,7 @@ export default function ConstructionDashboardPage() {
             <Card className="rounded-xl shadow-card bg-white">
               <CardContent className="pt-4 flex items-center justify-between">
                 <div><p className="text-xs text-ct-muted">Total Expenses</p><p className="text-2xl font-heading text-ct-navy">{money(data.totalExpenses)}</p></div>
-                <Receipt className="size-6 text-ct-saffron" />
+                <Receipt className="size-6 text-ct-saffron-text" />
               </CardContent>
             </Card>
           </div>

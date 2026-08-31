@@ -177,10 +177,10 @@ function Nav() {
       <div className="mx-auto max-w-6xl px-5 flex items-center justify-between h-16">
         <Link href="/office" className="flex items-center gap-2">
           <span className="grid size-7 place-items-center rounded-lg bg-ct-navy text-white">
-            <Sparkles className="size-4 text-ct-saffron" />
+            <Sparkles className="size-4 text-ct-saffron-text" />
           </span>
           <span className="font-heading text-lg text-ct-navy tracking-tight">
-            VERIDIAN <span className="text-ct-saffron">OFFICE</span>
+            VERIDIAN <span className="text-ct-saffron-text">OFFICE</span>
           </span>
         </Link>
 
@@ -259,7 +259,7 @@ function Hero() {
             <h1 className="mt-6 font-heading text-4xl leading-[1.08] text-ct-navy sm:text-5xl xl:text-6xl">
               Tell it what to do.
               <br />
-              <span className="text-ct-saffron">Consider it done.</span>
+              <span className="text-ct-saffron-text">Consider it done.</span>
             </h1>
 
             <p className="mx-auto lg:mx-0 mt-5 max-w-xl text-lg text-ct-slate">
@@ -348,7 +348,7 @@ function Pain() {
             </ul>
             <div className="mt-5 rounded-xl bg-ct-saffron/5 border border-ct-saffron/30 p-3.5">
               <div className="flex items-start gap-2 text-sm text-ct-navy">
-                <Sparkles className="mt-0.5 size-4 shrink-0 text-ct-saffron" />
+                <Sparkles className="mt-0.5 size-4 shrink-0 text-ct-saffron-text" />
                 <span>{p.flip}</span>
               </div>
             </div>
@@ -374,7 +374,7 @@ function ModulesOrbit() {
       <div className="mx-auto max-w-6xl px-5 py-20">
         <div className="text-center">
           <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">
-            One brain. <span className="text-ct-saffron">Fifty arms.</span>
+            One brain. <span className="text-ct-saffron-text">Fifty arms.</span>
           </h2>
           <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
             Everything a large corporate buys in an SAP-class platform — 50+ modules across every department — with one
@@ -428,7 +428,7 @@ function ModulesOrbit() {
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <div className="grid size-20 sm:size-40 place-items-center rounded-full bg-ct-navy text-center shadow-[0_0_80px_rgba(245,130,10,0.35)]">
               <div>
-                <Sparkles className="mx-auto size-4 sm:size-6 text-ct-saffron" />
+                <Sparkles className="mx-auto size-4 sm:size-6 text-ct-saffron-text" />
                 <div className="mt-0.5 sm:mt-1 font-heading text-white text-[11px] sm:text-base leading-tight">VERIDIAN AI</div>
                 <div className="text-[8px] sm:text-[10px] text-white/60">your assistant</div>
               </div>
@@ -487,7 +487,7 @@ function How() {
         <div className="mt-4 grid sm:grid-cols-2 gap-3">
           {ASK_EXAMPLES.map((e) => (
             <div key={e} className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm text-ct-navy">
-              <Sparkles className="size-4 shrink-0 text-ct-saffron" />
+              <Sparkles className="size-4 shrink-0 text-ct-saffron-text" />
               &ldquo;{e}&rdquo;
             </div>
           ))}
@@ -511,7 +511,7 @@ function Wow() {
         <div className="mt-12 grid md:grid-cols-2 gap-5">
           {WOW.map((w) => (
             <div key={w.title} className="rounded-2xl border border-white/10 bg-white/5 p-7">
-              <Sparkles className="size-5 text-ct-saffron" />
+              <Sparkles className="size-5 text-ct-saffron-text" />
               <h3 className="mt-3 text-xl font-semibold">{w.title}</h3>
               <p className="mt-2 text-white/70">{w.line}</p>
             </div>
@@ -530,7 +530,7 @@ function Roi() {
           <Wallet className="size-4" /> The maths that makes it easy
         </div>
         <h2 className="mt-5 font-heading text-3xl md:text-5xl text-ct-navy">
-          <span className="text-ct-saffron">10×</span> the output. <span className="text-ct-saffron">2×</span> the savings.
+          <span className="text-ct-saffron-text">10×</span> the output. <span className="text-ct-saffron-text">2×</span> the savings.
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-ct-slate">
           One VERIDIAN seat replaces a stack of subscriptions and hours of manual work. Teams do 10× more, make almost
@@ -559,7 +559,7 @@ function Stories() {
     <section id="stories" className="bg-white border-y border-ct-border/60">
       <div className="mx-auto max-w-6xl px-5 py-20">
         <div className="text-center">
-          <div className="flex items-center justify-center gap-1 text-ct-saffron">
+          <div className="flex items-center justify-center gap-1 text-ct-saffron-text">
             {[0, 1, 2, 3, 4].map((i) => (
               <Star key={i} className="size-5 fill-current" />
             ))}
@@ -569,7 +569,7 @@ function Stories() {
         <div className="mt-12 grid md:grid-cols-3 gap-5">
           {STORIES.map((s) => (
             <div key={s.org} className="rounded-2xl border border-ct-border bg-ct-cream p-7">
-              <Quote className="size-6 text-ct-saffron" />
+              <Quote className="size-6 text-ct-saffron-text" />
               <p className="mt-3 text-ct-navy">{s.quote}</p>
               <div className="mt-5 border-t border-ct-border pt-4">
                 <div className="font-semibold text-ct-navy">{s.who}</div>
@@ -604,7 +604,7 @@ function FinalCta() {
   return (
     <section className="mx-auto max-w-6xl px-5 pb-24">
       <div className="rounded-3xl bg-ct-navy px-8 py-16 text-center text-white">
-        <ShieldCheck className="mx-auto size-8 text-ct-saffron" />
+        <ShieldCheck className="mx-auto size-8 text-ct-saffron-text" />
         <h2 className="mt-4 font-heading text-3xl md:text-5xl">Get your evenings back.</h2>
         <p className="mx-auto mt-4 max-w-xl text-white/70">
           One complete system. 50+ modules. An assistant for every employee. The deadlines get met, the follow-ups get
@@ -633,7 +633,7 @@ function Footer() {
       <div className="mx-auto max-w-6xl px-5 py-10 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <span className="grid size-6 place-items-center rounded-md bg-ct-navy text-white">
-            <Sparkles className="size-3.5 text-ct-saffron" />
+            <Sparkles className="size-3.5 text-ct-saffron-text" />
           </span>
           <span className="font-heading text-ct-navy">VERIDIAN</span>
           <span className="text-sm text-ct-muted">— your complete office, run by AI</span>

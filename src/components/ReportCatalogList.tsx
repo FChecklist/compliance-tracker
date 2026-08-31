@@ -80,7 +80,7 @@ function CatalogCard({ entry }: { entry: FullCatalogEntry }) {
     <div className="rounded-lg border border-ct-border p-3">
       <div className="flex items-start justify-between gap-2 mb-1">
         {entry.source === "static" && entry.directlyNavigable ? (
-          <Link href={entry.route} className="text-sm font-medium text-ct-navy hover:text-ct-saffron transition-colors">
+          <Link href={entry.route} className="text-sm font-medium text-ct-navy hover:text-ct-saffron-text transition-colors">
             {entry.name}
           </Link>
         ) : (

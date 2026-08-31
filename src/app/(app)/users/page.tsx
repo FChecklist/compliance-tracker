@@ -31,7 +31,7 @@ type UserRow = {
 };
 
 const ROLE_BADGE: Record<string, string> = {
-  admin: "bg-ct-accent text-ct-saffron",
+  admin: "bg-ct-accent text-ct-saffron-text",
   manager: "bg-emerald-50 text-ct-teal",
   member: "bg-blue-50 text-blue-700",
   viewer: "bg-gray-100 text-gray-600",
@@ -110,7 +110,7 @@ export default function UsersPage() {
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-9 w-9">
-                            <AvatarFallback className="bg-ct-accent text-ct-saffron text-xs font-bold">
+                            <AvatarFallback className="bg-ct-accent text-ct-saffron-text text-xs font-bold">
                               {getInitials(user.name)}
                             </AvatarFallback>
                           </Avatar>

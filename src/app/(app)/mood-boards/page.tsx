@@ -35,7 +35,7 @@ type MoodBoard = { id: string; title: string; roomOrArea: string | null; status:
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-ct-cloud text-ct-muted",
-  shared: "bg-ct-saffron/20 text-ct-saffron",
+  shared: "bg-ct-saffron/20 text-ct-saffron-text",
   approved: "bg-green-100 text-green-700",
 };
 

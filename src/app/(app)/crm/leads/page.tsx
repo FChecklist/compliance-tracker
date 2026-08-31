@@ -35,7 +35,7 @@ type Lead = {
 
 const LEAD_STATUS_COLORS: Record<string, string> = {
   new: "bg-ct-cloud text-ct-muted",
-  contacted: "bg-ct-saffron/20 text-ct-saffron",
+  contacted: "bg-ct-saffron/20 text-ct-saffron-text",
   qualified: "bg-ct-teal/20 text-ct-teal",
   converted: "bg-green-100 text-green-700",
   lost: "bg-red-100 text-red-700",
@@ -217,7 +217,7 @@ export default function CrmLeadsPage() {
                     <p className="text-xs text-ct-muted">{lead.contactEmail || "No contact"} {lead.source ? `· ${lead.source}` : ""}</p>
                   </Link>
                   {lead.aiScore != null && (
-                    <Badge variant="outline" className="text-xs gap-1"><Sparkles className="size-3 text-ct-saffron" /> {lead.aiScore}</Badge>
+                    <Badge variant="outline" className="text-xs gap-1"><Sparkles className="size-3 text-ct-saffron-text" /> {lead.aiScore}</Badge>
                   )}
                   <Badge className={`text-xs border-0 ${LEAD_STATUS_COLORS[lead.status] ?? "bg-ct-cloud text-ct-muted"}`}>{lead.status}</Badge>
                   {!lead.convertedClientId && lead.status !== "lost" && lead.status !== "converted" && (

@@ -35,7 +35,7 @@ type User = { id: string; name: string };
 const LIFECYCLE_COLORS: Record<string, string> = {
   prospect: "bg-ct-cloud text-ct-muted",
   active_client: "bg-green-100 text-green-700",
-  dormant: "bg-ct-saffron/20 text-ct-saffron",
+  dormant: "bg-ct-saffron/20 text-ct-saffron-text",
   churned: "bg-red-100 text-red-700",
 };
 
@@ -195,7 +195,7 @@ export default function CrmAccountsPage() {
           <div className="rounded-xl border border-ct-border bg-white divide-y divide-ct-border">
             {accounts.map((a) => (
               <div key={a.id} className="px-4 py-3 flex items-center gap-3">
-                <Building2 className="size-4 text-ct-saffron shrink-0" />
+                <Building2 className="size-4 text-ct-saffron-text shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-ct-navy">{a.name}</p>
                   <p className="text-xs text-ct-muted">
