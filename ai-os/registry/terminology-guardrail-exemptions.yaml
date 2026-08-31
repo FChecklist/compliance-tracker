@@ -1054,9 +1054,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/task-execution-engine.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 12 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 12 pre-existing finding(s) reviewed and closed, not migrated. Bumped 12 -> 19 (rebase of PR #1257 onto main, 2026-08-31): this repo's terminology-guardrail-check CI job was removed 2026-08-18 (PR #1301), so this count had silently drifted since -- direct read of the real current file found 19, all real dated gap-closure/changelog comments (R48/R63/R65 workstreams already merged into main, plus this rebase's own REBASE NOTE header on dispatchTool() at line 134 documenting the task-execution/*.ts modularity-split merge and its R48-preservation fix) -- same class as every other entry here, not example/sample data. Not attempting to attribute each of the 7 to a specific prior PR; the direct-read total (19) is what matters for this gate."
     findings_by_category:
-      hardcoded_iso_date: 12
+      hardcoded_iso_date: 19
   - file: src/lib/task-tightening.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -1256,3 +1256,11 @@ exemptions:
     reason: "task-20260805-185202-ocid-020-gtm-cert-addendum (rebased and merged as replacement PR for #968, superseding sibling PR #966, 2026-08-31): 1 genuine dated code comment (line 22) citing the real UMR instruction for extending this shared component with an optional per-host brand prop -- same class as this codebase's other exempted dated gap-closure comments, not example/sample data."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: src/lib/task-execution/compliance-tools.ts
+    reason: "task-20260718-112006-retry-1--ai-engineering-quality--code-s (rebased and merged as replacement PR for #1257, 2026-08-31): new file, part of dispatchTool()'s modularity extraction (see task-execution-engine.ts's own header). 1 genuine dated comment (line 128), relocated verbatim from task-execution-engine.ts's own already-exempted get_penalty_estimate gap-closure comment -- same class as that file's exemption entry, not example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/task-execution/construction-tools.ts
+    reason: "task-20260718-112006-retry-1--ai-engineering-quality--code-s (rebased and merged as replacement PR for #1257, 2026-08-31): new file, part of dispatchTool()'s modularity extraction. 2 genuine dated comments -- a relocated-verbatim R48 gap-closure comment (line 44, financial-redaction gate, same class as task-execution-engine.ts's already-exempted R48 comment) and this rebase's own REBASE NOTE header (line 8) documenting why the redaction gate was re-added to this extraction -- not example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 2
