@@ -28,6 +28,58 @@ placeholder. When new `/api/v1/**` routes ship, add an entry here in the
 same PR (matching the standing convention documented for `AGENTS.md`'s
 change-history habits elsewhere in this repo) rather than backfilling later.
 
+## Versioning Policy
+
+**Added 2026-08-15** (VERIDIAN Review Framework gap-closure, Architecture &
+Design / Reusability Across Scope: "Feature Reusability Across
+Projects/Modules" — recommended adding versioning like
+`/api/v1/projexa` vs `/api/v2/projexa` before breaking changes. The `/api/v1`
+prefix itself has existed since 2026-07-03 (Wave 11, see the dated entry
+below) and every route added since has landed under it; what this section
+adds is the explicit policy for when a *second* version becomes necessary,
+which didn't exist as a written rule before now — see "Known gaps in this
+history" below, which already flagged this exact gap.
+
+- **The version prefix (`v1`) versions the *contract*, not the product.**
+  One `/api/v1/**` surface is shared by every caller — the web app's own
+  `(app)/` UI (indirectly, through the same service layer), PROJEXA, MCP
+  tools, and third-party integrations. `/api/v1/projexa/**` is a
+  product-scoped **alias namespace within v1**, not a separate version —
+  PROJEXA reuses the same contract version as core VERIDIAN because its
+  routes haven't needed a breaking change relative to `v1`'s guarantees.
+  A future `/api/v2/projexa/**` would only appear if PROJEXA specifically
+  needed a breaking change that couldn't be made additively; it would not
+  imply the rest of `/api/v1/**` moves too, and vice versa. Versioning is
+  scoped per top-level namespace segment (`/api/v1/<namespace>/**`), not
+  monolithic per-repo.
+- **Additive changes stay on the current version — no new prefix.** Adding
+  a new endpoint, adding a new optional/nullable response field, adding a
+  new optional request parameter, or widening an enum are all additive and
+  ship under the existing `v1` prefix with a dated entry in this changelog
+  (this has been the actual pattern for every entry below — e.g. the
+  nullable `companyId` attribution field added 2026-07-16, multi-currency
+  fields added 2026-07-15). No consumer's existing integration breaks.
+- **A breaking change requires a new version prefix, not a silent change to
+  `v1`.** Breaking = removing/renaming a field or endpoint, changing a
+  field's type or semantics, tightening a previously-optional
+  request parameter to required, or changing an enum's existing values
+  (not just adding new ones). When one is genuinely needed: introduce
+  `/api/v2/<namespace>/**` for just that namespace, keep `v1` serving
+  unchanged traffic, and record the change here with an explicit
+  **Breaking** label and a migration note for existing integrators.
+- **Deprecation window:** once a `v2` route exists for a namespace, its `v1`
+  equivalent is marked deprecated in `generateOpenApiDocument()`'s schema
+  description (not silently removed) and kept live for a minimum of 90 days
+  from the `v2` route's ship date before removal is even considered, with
+  removal itself requiring a dated changelog entry and the Owner's sign-off,
+  the same posture this repo already applies to any other hard-to-reverse,
+  outward-facing change. No `v1` route has been
+  deprecated as of this writing — every entry below is additive.
+- **No breaking change has shipped yet** — the contract has stayed at
+  `1.0.0` through every entry below (see "Known gaps in this history").
+  This policy exists so the *next* one, whenever it happens, has a rule to
+  follow instead of being decided ad hoc.
+
 ---
 
 ## 2026-07-30

@@ -1,157 +1,130 @@
-# PROGRESS — VERIDIAN Review Framework gap-closure: AI Engineering Quality / Code Structure & Modularity
+# PROGRESS -- task-20260718-075004-architecture---design--reusability-acros
 
-Task: close 5 related findings from the framework evaluation in one
-coherent PR (per the task's own instruction: "do not create a separate PR
-per finding if they're naturally one piece of work").
+VERIDIAN Review Framework gap-closure: Architecture & Design / Reusability
+Across Scope (2 Low findings).
 
-**Note on this task's own history**: invocations 1–14 of this task session
-never actually touched this task's real objective — a prior checkpoint/
-resume cycle had this task's own progress-tracking cross-contaminated with
-an unrelated task's content (a "cost estimate: 5 orgs x 10 users" analysis
-doc, tracked separately). This invocation (15) re-verified the real spec
-via `prompt.txt`, found the branch 1374 commits behind `origin/main` with
-zero real prior commits, fast-forwarded it, and started the actual work
-fresh from here. Flagging this honestly rather than silently proceeding as
-if 14 invocations of real progress existed.
+## Investigation (read-before-code, per task instructions)
+
+Both findings' recommended fixes were checked against the live codebase
+before writing anything, per the task's own instruction that the evaluation
+may be stale:
+
+- **Finding 1 ("Feature Reusability Across Projects/Modules" — "Reuse is
+  via API integration, not shared library code"):** the recommended
+  mitigation ("Add API versioning e.g. `/api/v1/projexa` vs
+  `/api/v2/projexa` before breaking changes") turned out to be **already
+  built** — `/api/v1/**` has existed since Wave 11 (2026-07-03) and
+  `/api/v1/projexa/**` is a live, ~60-route alias namespace inside it
+  (`src/app/api/v1/projexa/**`). `docs/API_CHANGELOG.md` already documents
+  every route added under it. What was genuinely still missing — and what
+  `ERP_BENCHMARK_COMPARISON.md`'s own INT004 row already flagged as an open
+  gap ("formal API versioning policy are not yet fully built out") — was a
+  **written policy** for when a `v2` becomes necessary, not the versioning
+  mechanism itself. The underlying architectural critique (reuse via API
+  calls rather than a shared library) is real and structurally bigger than
+  a Low-severity, doc-scoped finding — noted honestly below rather than
+  attempted here.
+- **Finding 2 ("Module Reusability Across Industries" — "Core domain
+  modeling is still CA-firm/compliance-first... Document which of the 416
+  tables are compliance-specific vs universal"):** the table count has
+  grown to **431** since the evaluation was written (schema.ts is the live
+  source of truth, confirmed via `git grep -c "\.table(" src/lib/db/schema.ts`
+  — a plain recursive `grep`/`find` in this environment silently caps at 51
+  results, so `git grep` was used instead). No such classification existed
+  anywhere in the repo before this PR.
 
 ## Completed
 
-- [x] **[Medium] Code Modularity — task-execution-engine.ts (real code
-      change).** `dispatchEngine()`'s CRM Quick-Create category (4 cases)
-      and Accounting Computation Engine category (11 cases, its own
-      standalone `switch`) extracted verbatim (pure code motion, no logic
-      changes) into `src/lib/engine-handlers/crm-engine-dispatch.ts` and
-      `src/lib/engine-handlers/accounting-engine-dispatch.ts`. Each new
-      file exports a `Set` of its engine keys + a `dispatchXEngine()`
-      function; `task-execution-engine.ts` now does a `Set.has()` check
-      and delegates. `bun test` covers `task-execution-engine.test.ts`
-      (see Verification below) with zero behavior change expected.
-      This is a deliberate **first slice**, not a full migration — the
-      other ~35 cases (math/costing/GST/tax/payroll/etc. categories)
-      remain inline in `task-execution-engine.ts` for now. Given this
-      is compliance-critical calculation-dispatch code with an existing
-      test suite but no way to exhaustively re-verify every one of ~35
-      more categories' behavior unchanged within this session's budget,
-      doing all of them mechanically in one pass was judged higher-risk
-      than the modularity benefit justified in a single pass. Real,
-      incremental, honestly-scoped progress > a risky one-shot rewrite.
-- [x] **[Medium] Code Modularity — schema.ts: already resolved, no change
-      needed.** Read `src/lib/db/schema.ts`'s own header comment (lines
-      6–20): a prior "Overall Code Quality Score" gap-closure already
-      assessed this exact same finding, found 6 PRs concurrently open
-      against this file at the time, and *deliberately deferred* a full
-      physical split in favor of the current state (125 `// ─── Section
-      Name ───` domain headers within one file, fast `grep`-navigable).
-      Re-verified the same collision risk still holds today: `grep -c
-      "schema.ts" ai-os/boss/ACTIVE-CLAIMS.yaml` → 110 matches (dozens of
-      concurrent sessions additively touching this file right now). A
-      physical split now would create the exact wall of merge conflicts
-      that decision was made to avoid, for a Medium-severity finding, with
-      no functional benefit. Per the task's own instruction ("If a finding
-      turns out to already be resolved ... say so in PROGRESS.md rather
-      than making an unnecessary change") — no schema.ts change made.
-- [x] **[Low] Component Reusability.** Added `docs/REUSABLE-UTILITIES.md`
-      — a short, curated index of the actual most-reused cross-cutting
-      helpers (`requireAuth()`, `ServiceError`, `withTenantContext()`,
-      `logActivity()`, `cn()`, shadcn/ui primitives, the new
-      `engine-handlers/` pattern), each backed by a real `git grep -c`
-      import count (not guessed), plus the exact commands to re-derive
-      them so the numbers don't silently rot.
-- [x] **[Medium] Low Coupling / High Cohesion.** Added real DB-level FK
-      constraints for the org-scoping relationship on the 3 highest-
-      traffic tables (`users.orgId`, `departments.orgId`,
-      `complianceItems.orgId` → `organisations.id`) — previously only a
-      Drizzle `relations()` query-ergonomics helper, never enforced at
-      the DB level (confirmed: 379 `orgId` column declarations repo-wide,
-      only 16 pre-existing `.references()` FK constraints total, all on
-      unrelated parent-child relationships). Matches the finding's own
-      "incrementally... starting with org/user scoping" framing — this is
-      a deliberate first slice, not all 379.
-      Migration: hand-written `drizzle/0315_add_org_fk_constraints.sql`
-      using `NOT VALID` + a documented, deliberately-NOT-run-here
-      `VALIDATE CONSTRAINT` follow-up (safe against a live table with
-      existing data of unknown integrity — `NOT VALID` takes only a brief
-      metadata lock and doesn't fail the migration on a pre-existing
-      orphaned `org_id`; `VALIDATE CONSTRAINT` is separately resumable).
-      **Not applied to the live database** — this session generated/wrote
-      the migration file only, did not run `db:push`, per this repo's own
-      caution around live-DB changes.
-      **Real, separate issue found and flagged (not fixed here, out of
-      this finding's scope):** `bunx drizzle-kit generate` was tried first
-      (before hand-writing the migration) and produced a bogus diff that
-      tried to re-`CREATE TABLE` several already-existing tables. Root
-      cause: `drizzle/meta/_journal.json`'s last recorded entry is
-      `0303_lead_source_effectiveness_report_definition` (idx 281), but
-      `drizzle/0311*.sql` / `0312*.sql` / `0313*.sql` / `0314*.sql` already
-      exist on disk with no matching journal entries — a drift between
-      the local meta snapshot and the real migration history, same class
-      of issue as the documented "stale local main ref" incident
-      `check-migration-collision.mjs`'s header already describes, but for
-      the Drizzle meta journal instead of git. The bogus generated output
-      was discarded (not committed); the real migration was hand-written
-      instead. Flagged in the new migration file's own header for whoever
-      next runs `drizzle-kit generate` in this repo — reconciling the
-      journal is a separate, larger task this session did not attempt.
-- [x] **[Low] Design Pattern Consistency.** Added
-      `scripts/check-route-auth-guard.mjs` — a diff-scoped CI check
-      (same established shape/precedent as `check-route-error-handling.mjs`,
-      this repo's real pattern for "compiler/lint-enforced" conventions;
-      `eslint.config.mjs` deliberately runs with nearly every built-in
-      rule off, no local-ESLint-plugin infrastructure exists to extend)
-      requiring `requireAuth()` in new/changed `route.ts` files and
-      `ServiceError` in new/changed `*-service.ts` files. Verified against
-      this branch's own diff (see Verification below).
-      **Not wired into `.github/workflows/ci.yml`** — this session's `gh`
-      token lacks the `workflow` OAuth scope needed to push a branch that
-      touches `.github/workflows/*.yml` (same documented limitation as
-      this repo's own prior "Back out ci.yml wiring for the new
-      service-header-comment check" commit, and
-      `check-route-error-handling.mjs` itself, which is *also* still not
-      wired into CI as of this commit). Documented in the script's own
-      header as a real follow-up for a workflow-scoped session.
-- [x] **[Medium] File & Folder Organization — ai-os subtrees: already
-      substantially resolved, minimal-touch.** Checked
-      `ai-os/registry/stale-doc-manifest.yaml`'s actual stated direction
-      (quarantine-banner dated one-off docs, already executed) and
-      `ai-os/OS.yaml`'s existing `what_should_exist_vs_what_does` section,
-      which *already* clearly documents what `audit-tree/` (Tree 1,
-      source requirements), `system-tree/` (Tree 3, what's actually
-      built), and `tree4-unified/` (the merge — "mostly archived") each
-      are, with each tree's own `00-INDEX.md`. Non-archived content is
-      already small (9/28/11 files respectively). No further physical
-      merge attempted — same collision-risk reasoning as schema.ts above,
-      and OS.yaml already functions as the cross-tree navigation aid the
-      finding asks for.
-- [x] **[Medium] File & Folder Organization — API routes: real gap, real
-      fix.** No navigation aid existed for `src/app/api/`'s 140 top-level
-      route groups (1,019 `route.ts` files) — added
-      `docs/API-ROUTES-INDEX.md`, a generated (`git ls-files | awk | sort
-      | uniq -c`, command included in the doc) breakdown by route count
-      with short descriptions for the 16 groups at >=10 routes each.
+- [x] Investigated both findings against the live codebase first (see
+      above) — Finding 1's recommended mechanism was already built;
+      Finding 2's classification genuinely didn't exist.
+- [x] `scripts/classify-schema-tables.mjs` — new static-analysis script
+      (parses `src/lib/db/schema.ts` directly, no DB access) that
+      classifies every one of the 431 `complianceSchemaDB.table(...)`
+      definitions into `universal` / `compliance` / `industry_vertical`,
+      via name-prefix/keyword rules with a section-header fallback.
+      Re-runnable as the schema grows (per CLAUDE.md, "growing every
+      wave"): `node scripts/classify-schema-tables.mjs > docs/TABLE_REUSABILITY_CLASSIFICATION.md`.
+      Iterated until zero tables fell through to "uncategorized", and
+      manually caught + fixed one real classification bug from the
+      section-header fallback (10 generic platform-infra tables — e.g.
+      `application_errors`, `platform_assets`, `instruction_packages` —
+      that only *live* under schema.ts's "Construction Intelligence (Wave
+      120)" comment for chronological reasons, not because they're
+      construction-domain tables).
+- [x] `docs/TABLE_REUSABILITY_CLASSIFICATION.md` — generated output:
+      **322 (74.7%)** universal/platform, **87 (20.2%)**
+      compliance-specific (CA-firm/Indian-regulatory), **22 (5.1%)**
+      industry-vertical (PROJEXA construction/interior-design) — the
+      PROJEXA slice is itself live evidence the platform core already
+      generalizes across a second industry, not just CA-firm compliance.
+      Notes the `compliance` Postgres schema name itself as a known
+      naming-legacy artifact from the original product scope (renaming it
+      is a real migration, out of scope for a Low/doc finding).
+- [x] `docs/API_CHANGELOG.md` — added a **Versioning Policy** section:
+      what counts as additive vs. breaking, that versioning is scoped per
+      top-level namespace (`/api/v1/<namespace>/**`, so a future
+      `/api/v2/projexa/**` wouldn't force the rest of `/api/v1/**` to move),
+      and a 90-day-minimum deprecation window for any future `v1`→`v2`
+      migration. No breaking change has actually shipped yet, so nothing
+      currently needs deprecating — this is the rule for *when* one does.
+- [x] `ERP_BENCHMARK_COMPARISON.md` — updated the stale INT004 row (still
+      said rate limiting AND versioning policy were "not yet fully built
+      out"; rate limiting actually landed in Wave 96, and versioning policy
+      is now built via the above) to reflect the real, current state.
 
-## Verification run this session
+## PR status
 
-- `bun install` (fresh, 1220 packages)
-- `bunx tsc --noEmit` — 0 errors attributable to this change (pre-existing
-  unrelated errors exist repo-wide from missing `@types/react` etc. in
-  this checkout; none touch `task-execution-engine.ts` or
-  `engine-handlers/`)
-- `node scripts/check-migration-collision.mjs --base origin/main` — OK, no
-  number collisions
-- `node scripts/check-route-auth-guard.mjs --base origin/main` — OK (no
-  route/service files in this diff, so nothing to check yet at this
-  point — re-verify after final diff is complete)
-- (Full `bun run lint` / `bun run build` / `bun test` pass still pending —
-  see Remaining)
+- Original PR #1225 (branch
+  `worker/task-20260718-075004-architecture---design--reusability-acros`
+  → `main`) went conflicting as main advanced (mergeable=CONFLICTING at
+  rebase time — main had moved on `PROGRESS.md` and
+  `ai-os/boss/ACTIVE-CLAIMS.yaml`; `docs/API_CHANGELOG.md` auto-merged
+  cleanly, its "Versioning Policy" addition sitting alongside other same-
+  week PRs' own additive inserts there).
+- Posted the required `AUDIT: PASS` structured verdict comment on #1225
+  (Rule 10 / `mandatory-audit-check.yml`) — passed validation. #1225's
+  initial `opened` pull_request event never triggered `CI.yml` or
+  `mandatory-audit-check.yml` at all (0 check-runs beyond Vercel Preview
+  Comments as of the original PR).
+- Rebased onto current `main` on branch `rebase-batch-1225`: resolved the
+  `PROGRESS.md` conflict (kept this task's own real content, this note
+  included) and the `ACTIVE-CLAIMS.yaml` conflict (kept both sides' real
+  `recently_completed` entries — main's side had ~3170 lines of other
+  sessions' entries added at the same insertion point since this task's
+  branch point; nothing deleted).
+- **Real bug found + fixed during rebase:** re-ran this PR's own
+  `scripts/classify-schema-tables.mjs` against current `main`'s
+  `schema.ts` (475 tables now, up from 431 when this PR was authored) and
+  it reported 40 tables (8.4%) as `uncategorized` — a real rule-coverage
+  gap versus this PR's own stated goal ("iterated until zero tables fell
+  through to uncategorized"), not present in the committed doc because the
+  doc was generated before those 40 tables existed. Read each table's real
+  `schema.ts` definition/section comment (not guessed from name alone) and
+  added 15 new classification rules covering all 40 — all landed as
+  `universal` (ticketing/HR/business-rules-engine/ABAC/support-session/
+  AI-orchestration-pipeline/CRR document-RAG platform infra; none turned
+  out compliance- or industry-specific on inspection). Regenerated
+  `docs/TABLE_REUSABILITY_CLASSIFICATION.md`: now 475 tables total, 352
+  (74.1%) universal, 89 (18.7%) compliance, 34 (7.2%) industry-vertical, 0
+  uncategorized — proportions close to the original 74.7/20.2/5.1 split,
+  industry-vertical share grew slightly as PROJEXA's own construction
+  tables grew 22→34 in the same window.
+- Original PR #1225 closed as superseded; see the replacement PR opened
+  from `rebase-batch-1225` for final CI status.
 
 ## Remaining
 
-- [ ] Run full `bun run lint`, `bun run build`, `bun test` before opening
-      the PR; fix anything genuinely broken by this change specifically
-      (not pre-existing unrelated failures).
-- [ ] Commit, push to this task's branch, open PR, let CI run (Rule 6 —
-      no direct push to `main`).
-- [ ] `check-guardrail-presence.mjs` / `check-asset-registry-coverage.mjs`
-      / other wired CI checks should be spot-checked locally before
-      pushing, since this touches `schema.ts` (asset registry coverage
-      counts tables) and adds new scripts.
+- [ ] None for these 2 findings — both closed as documentation-only
+      changes, matching what their own "Recommended approach" text asked
+      for. No source/runtime code was touched (correctly — neither finding
+      asked for one), and `permission-service.ts`'s `ERP_ACTION_ROLES`
+      table was not touched.
+- [ ] Not attempted, flagged for a future, larger-scoped task if the Owner
+      wants it: Finding 1's deeper architectural point (PROJEXA reuses
+      VERIDIAN's modules via `/api/v1/projexa/**` HTTP calls, not a shared
+      in-process library) is real and would be a genuine refactor —
+      extracting shared service-layer code both products import directly.
+      That's a real engineering project, not something a Low-severity
+      finding's own recommended fix asked for, and well beyond what a
+      single doc-scoped PR should attempt.
