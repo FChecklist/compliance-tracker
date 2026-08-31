@@ -57,8 +57,9 @@ PR's gap.
         field (an unrelated, independently-added end_user_org/gateway
         feature) alongside the PR's own `dispatchId` field. Diffed the
         result against `origin/main` afterward to confirm the change is
-        exactly the PR's intended 2-function/2-field addition, nothing
-        dropped or duplicated.
+        exactly the PR's intended 2-function/2-field addition (+86/-2,
+        matching the original PR's own diff stat exactly), nothing dropped
+        or duplicated.
       - `src/lib/db/schema.ts` -- git flagged this as ONE conflict
         spanning virtually the entire 774KB/12.8k-line file (criss-cross
         artifact, same cause as above), not a real content conflict at any
@@ -68,14 +69,19 @@ PR's gap.
         645d80be -- src/lib/db/schema.ts`) at its correct location (right
         after the `aiRoutingAuditLog` table, before the Task Register
         section) -- both new enums + both new tables, byte-for-byte as
-        authored, confirmed present exactly once afterward.
+        authored. Independently verified the result against `origin/main`
+        via Python's `difflib.SequenceMatcher(autojunk=False)` (git's own
+        diff view is a poor cosmetic match on this file -- see the CRLF
+        note below): exactly one real change, a clean 58-line insert at
+        line 12239, nothing else touched.
 - [x] `src/app/api/ai/team/dispatch/route.ts` merged automatically (both
       git's 3-way merge and, for one later hunk, `git cherry-pick`'s own
       resolution correctly hoisted `estimateCostUsd(...)` into a shared
       `dispatchCostUsd` local now reused by both the pre-existing
       `activity_log` write and this PR's new `mother_router_memory`
       outcome write) -- no manual conflict resolution needed, diffed
-      against `origin/main` afterward to confirm correctness.
+      against `origin/main` afterward to confirm correctness (+63/-8,
+      matching the original PR's own diff stat exactly).
 - [x] Cherry-pick sequencer hygiene: an earlier `git cherry-pick --no-commit
       <3 commits>` attempt (superseded by the per-commit approach above)
       left a stale `.git/.../sequencer/todo` behind after its first
@@ -96,7 +102,9 @@ PR's gap.
       of collision as the precedent `#582->#1513` rebase-sweep documented
       elsewhere in this file's own history and in `ACTIVE-CLAIMS.yaml`.
       Checked the TRUE current highest via `git ls-tree -r origin/main --
-      drizzle/` (0504, 328 real migration files), not a stale local
+      drizzle/` (0504, 332 real `.sql` files -- `ls`/`find` globs on this
+      Windows shell undercounted, 302 and 51 respectively on two different
+      attempts; `git ls-tree` is the reliable source), not a stale local
       checkout, and renumbered to 0505 (confirmed free). `git mv`'d the
       file, added the corresponding `drizzle/meta/_journal.json` entry
       (`idx: 327`, `tag: 0505_mother_router_roster_memory`), and confirmed
@@ -104,21 +112,75 @@ PR's gap.
       before or after the rename. The migration's own internal comments
       cite `drizzle/0231` (`ai_routing_audit_log`) and `drizzle/0249`
       (`task_register`) for context -- both unrelated, both still accurate
-      on current main, left unchanged.
+      on current main, left unchanged. Noted, not fixed (pre-existing,
+      unrelated to this PR): `origin/main` already has a 5-file gap between
+      real `.sql` files (332) and journal entries (327) before this branch
+      touches anything; this branch's own file+journal-entry pair keeps
+      that same gap at 5, not widening it.
+- [x] **CRLF line-ending contamination, found and fixed.** This worktree's
+      checkout picked up `core.autocrlf=true` from the machine's system
+      gitconfig (`C:/Program Files/Git/etc/gitconfig`) despite the parent
+      clone's own `C:/ct/ct/.git/config` overriding it to `false` -- cause
+      not fully root-caused (worktree config inheritance is normally
+      shared, not per-worktree, so this may be a transient checkout-time
+      quirk rather than a real config gap), but the effect was real: the
+      working-tree copies of `schema.ts`, `mother-router.ts`,
+      `dispatch/route.ts`, and `ai-os/boss/ACTIVE-CLAIMS.yaml` all ended up
+      CRLF at various points while every other file in the repo (and
+      `origin/main`'s own committed blobs) stayed LF. This is exactly the
+      class of drift `.gitattributes`' own `E102_MIGRATION_LEDGER_LINE_ENDING_HASH_SPLIT`
+      comment warns about for `drizzle/*.sql` -- not itself a `.sql` file
+      here, but the same failure mode, and it was also inflating `git
+      diff`'s own output into apparent full-file rewrites (tens of
+      thousands of +/- lines for what were real few-line changes),
+      confusing verification. Caught via a byte-level CRLF/LF count on
+      every touched file against `origin/main`'s own committed line
+      endings, fixed by normalizing all 4 files back to LF with a
+      binary-mode (not text-mode -- Python's text-mode `open(..., 'w')`
+      round-trips through the platform's own newline convention and was
+      the proximate cause of at least one of these conversions) read/write,
+      then re-verified byte-for-byte correctness and clean diff stats
+      against `origin/main` for every file afterward.
+      - `ai-os/boss/ACTIVE-CLAIMS.yaml`: also had a real, independent
+        indentation bug in the new claim entry the PR's own commit added
+        (0-space list-item indent; this file's actual convention,
+        confirmed against every neighboring entry, is 2-space), which is
+        what `check-governance-yaml-parse.mjs` (below) caught for real --
+        fixed by re-indenting exactly that entry's lines, nothing else.
 
 ## Validation run
 
-- [ ] `node scripts/check-governance-yaml-parse.mjs`
-- [ ] `bunx tsc --noEmit` (or `node_modules/.bin/tsc.exe --noEmit`)
-- [ ] `bun test` for touched test files
-- [ ] Migration collision/integrity checks
+- [x] `node scripts/check-governance-yaml-parse.mjs` -- FAILED on first run
+      (the real `ai-os/boss/ACTIVE-CLAIMS.yaml` indentation bug above),
+      PASSED after the fix: all 5 governance YAML files parse cleanly.
+- [x] `node_modules/.bin/tsc.exe --noEmit`
+      (`NODE_OPTIONS=--max-old-space-size=6144`, this repo's documented
+      Windows fallback) -- first run showed 4 `Cannot find module` errors
+      (`@axe-core/playwright`, `@huggingface/transformers` x2,
+      `@mlc-ai/web-llm`), none in a file this PR touches; root-caused to
+      this worktree's first `bun install` not having fully installed those
+      3 declared (non-optional) `package.json` dependencies (confirmed
+      present in the separate `C:/ct/ct` reference checkout's own
+      `node_modules`, absent here) -- a second `bun install` in this
+      worktree installed all 3 (125 packages), and the re-run passed with
+      **zero errors**.
+- [x] `bun test src/lib/ai-router/mother-router.test.ts` (the one existing
+      test file covering a source file this PR modifies -- this PR itself
+      adds no new test file) -- **30 pass, 0 fail, 72 expect() calls**.
+- [x] `node scripts/check-migration-integrity.mjs` /
+      `check-migration-schema-drift.mjs` -- both ran (DB-comparison leg
+      skipped, no `DATABASE_URL` set locally, as documented in each
+      script's own header); 328 journal entries confirmed present on this
+      branch (327 on `origin/main` + this PR's 1).
+      `check-migration-collision.mjs --base origin/main` hit the
+      documented Windows-only `execSync`/`2>/dev/null` parsing artifact
+      (real CI runs on `ubuntu-latest`, unaffected) -- replicated its real
+      logic by hand via `git ls-tree -r origin/main -- drizzle/` instead
+      (see the renumbering entry above).
 
 ## Remaining
 
-- [ ] Run real validation (governance YAML parse, `tsc --noEmit`, `bun
-      test`, migration checks).
-- [ ] Commit the renumbering, push `rebase-sweep2-585`, open replacement PR
-      citing #585.
+- [ ] Push `rebase-sweep2-585`, open replacement PR citing #585.
 - [ ] Close #585 as superseded with a comment linking the replacement.
 - [ ] Check real CI on the replacement PR, merge only when genuinely green
       (modulo documented-ambient jobs: E2E, Vercel platform-block, Secret
