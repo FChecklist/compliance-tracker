@@ -158,8 +158,8 @@ export function IntentCommandPalette({
           >
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                {row.intent?.pinned && <Pin className="size-3 text-ct-saffron shrink-0" />}
-                {row.intent?.favorite && <Star className="size-3 text-ct-saffron shrink-0" />}
+                {row.intent?.pinned && <Pin className="size-3 text-ct-saffron-text shrink-0" />}
+                {row.intent?.favorite && <Star className="size-3 text-ct-saffron-text shrink-0" />}
                 <span className="truncate text-[13px] font-medium text-ct-navy">{row.displayLabel}</span>
               </div>
               {row.chatMessage && (
@@ -172,7 +172,7 @@ export function IntentCommandPalette({
                   type="button"
                   title={row.intent.pinned ? "Unpin" : "Pin"}
                   onClick={async () => { await toggleField(row.intent!.intentId, "pinned"); setRows((r) => r.map((x) => x.key === row.key && x.intent ? { ...x, intent: { ...x.intent, pinned: !x.intent.pinned } } : x)); }}
-                  className="grid size-6 place-items-center rounded hover:bg-white text-ct-muted hover:text-ct-saffron"
+                  className="grid size-6 place-items-center rounded hover:bg-white text-ct-muted hover:text-ct-saffron-text"
                 >
                   <Pin className="size-3.5" />
                 </button>

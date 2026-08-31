@@ -197,7 +197,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="rounded-xl shadow-card bg-white">
-          <CardHeader className="pb-2"><CardTitle className="text-base text-ct-navy flex items-center gap-2"><Building2 className="size-4 text-ct-saffron" /> Profile</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base text-ct-navy flex items-center gap-2"><Building2 className="size-4 text-ct-saffron-text" /> Profile</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -266,7 +266,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
 
       <Card className="rounded-xl shadow-card bg-white">
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <CardTitle className="text-base text-ct-navy flex items-center gap-2"><Users className="size-4 text-ct-saffron" /> Contacts</CardTitle>
+          <CardTitle className="text-base text-ct-navy flex items-center gap-2"><Users className="size-4 text-ct-saffron-text" /> Contacts</CardTitle>
           <Dialog open={contactOpen} onOpenChange={setContactOpen}>
             <DialogTrigger asChild><Button size="sm" variant="outline"><UserPlus className="size-3.5 mr-1" /> Add Contact</Button></DialogTrigger>
             <DialogContent>
@@ -301,7 +301,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-ct-navy flex items-center gap-1.5">
                       {c.name}
-                      {c.isPrimary && <Badge variant="outline" className="text-[10px] gap-1"><Star className="size-2.5 text-ct-saffron" /> Primary</Badge>}
+                      {c.isPrimary && <Badge variant="outline" className="text-[10px] gap-1"><Star className="size-2.5 text-ct-saffron-text" /> Primary</Badge>}
                     </p>
                     <p className="text-xs text-ct-muted">{c.title ?? "No title"} {c.email ? `· ${c.email}` : ""} {c.phone ? `· ${c.phone}` : ""}</p>
                   </div>

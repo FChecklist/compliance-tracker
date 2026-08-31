@@ -707,6 +707,7 @@ function MobileSheetTrigger(props: { overdueCount: number; docCount: number; not
           variant="ghost"
           size="icon"
           className="text-ct-slate hover:bg-ct-cloud hover:text-ct-navy"
+          aria-label="Open navigation menu"
         >
           <LayoutDashboard className="size-5" />
         </Button>

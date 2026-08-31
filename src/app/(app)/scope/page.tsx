@@ -39,7 +39,7 @@ type LineItemDraft = {
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-ct-cloud text-ct-muted",
-  submitted: "bg-ct-saffron/20 text-ct-saffron",
+  submitted: "bg-ct-saffron/20 text-ct-saffron-text",
   approved: "bg-green-100 text-green-700",
   superseded: "bg-red-100 text-red-700",
 };
@@ -186,7 +186,7 @@ export default function ScopePage() {
                     <Input className="w-28" placeholder="Item Code" value={line.itemCode} onChange={(e) => updateLine(i, "itemCode", e.target.value)} />
                     <Input className="w-36" placeholder="Parent Item Code" value={line.parentItemCode} onChange={(e) => updateLine(i, "parentItemCode", e.target.value)} />
                     <Input className="w-28" placeholder="Breakdown %" type="number" value={line.breakdownPercentage} onChange={(e) => updateLine(i, "breakdownPercentage", e.target.value)} />
-                    <Button className="shrink-0" variant="ghost" size="icon" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} disabled={lines.length === 1}>
+                    <Button className="shrink-0" variant="ghost" size="icon" aria-label="Remove line" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} disabled={lines.length === 1}>
                       <Trash2 className="size-4" />
                     </Button>
                   </div>

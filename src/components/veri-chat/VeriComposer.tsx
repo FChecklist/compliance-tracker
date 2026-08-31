@@ -100,7 +100,7 @@ function AiThreadSwitcher() {
       <button
         type="button"
         onClick={() => setPickerOpen(true)}
-        className="inline-flex items-center gap-1 text-[11px] font-medium text-ct-saffron hover:text-ct-saffron/80"
+        className="inline-flex items-center gap-1 text-[11px] font-medium text-ct-saffron-text hover:text-ct-saffron-text/80"
         title="Start a new workflow thread"
       >
         <Plus className="size-3.5" /> New thread
@@ -730,7 +730,7 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
               undiscoverable. Plain link to /connectors, not a popover --
               real data-ingestion through these connections isn't built yet,
               so there's nothing to preview inline here. */}
-          <Link href="/connectors" className="inline-flex items-center gap-1 text-[11px] font-medium text-ct-muted hover:text-ct-saffron transition-colors shrink-0" title="Connect your tools">
+          <Link href="/connectors" className="inline-flex items-center gap-1 text-[11px] font-medium text-ct-muted hover:text-ct-saffron-text transition-colors shrink-0" title="Connect your tools">
             <Link2 className="size-3.5" />
             {connectedConnectorsCount > 0 && <span className="font-semibold">{connectedConnectorsCount}</span>}
           </Link>
@@ -743,7 +743,7 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
         )}
 
         {isThreadOpen && (
-          <button type="button" onClick={closeThread} className="text-[11.5px] font-semibold text-ct-saffron mt-1">
+          <button type="button" onClick={closeThread} className="text-[11.5px] font-semibold text-ct-saffron-text mt-1">
             Back
           </button>
         )}
