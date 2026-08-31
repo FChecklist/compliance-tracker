@@ -46,12 +46,16 @@ import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 type LineItem = {
   id: string; itemCode: string | null; description: string; unit: string;
   quantity: string; rate: string; amount: string; computedRate: number | null;
+  parentLineItemId: string | null; breakdownPercentage: string | null;
 };
 type Boq = {
   id: string; projectId: string; version: number; title: string; status: string;
   parentBoqId: string | null; createdAt: string; lineItems: LineItem[];
 };
-type LineItemDraft = { description: string; unit: string; quantity: string; rate: string };
+type LineItemDraft = {
+  description: string; unit: string; quantity: string; rate: string;
+  itemCode: string; parentItemCode: string; breakdownPercentage: string;
+};
 type Comparison = {
   added: LineItem[]; removed: LineItem[];
   changed: { key: string; previous: LineItem; current: LineItem; quantityChange: number; rateChange: number; netVariation: number }[];
@@ -60,15 +64,46 @@ type Comparison = {
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-ct-cloud text-ct-muted",
-  submitted: "bg-ct-saffron/20 text-ct-saffron",
+  submitted: "bg-ct-saffron/20 text-ct-saffron-text",
   approved: "bg-green-100 text-green-700",
   superseded: "bg-red-100 text-red-700",
 };
 
-const toDraft = (items: LineItem[]): LineItemDraft[] =>
-  items.length > 0
-    ? items.map((i) => ({ description: i.description, unit: i.unit, quantity: i.quantity, rate: i.rate }))
-    : [{ description: "", unit: "", quantity: "", rate: "" }];
+const toDraft = (items: LineItem[]): LineItemDraft[] => {
+  if (items.length === 0) {
+    return [{ description: "", unit: "", quantity: "", rate: "", itemCode: "", parentItemCode: "", breakdownPercentage: "" }];
+  }
+  // Resolve a non-blank code for every row so parent/child links survive the
+  // round-trip even when itemCode was never set server-side -- synthesised
+  // codes are guaranteed unique against every real itemCode in this list.
+  const usedCodes = new Set(
+    items.map((i) => i.itemCode).filter((c): c is string => Boolean(c && c.trim()))
+  );
+  const codeById = new Map<string, string>();
+  items.forEach((i) => {
+    let code = i.itemCode && i.itemCode.trim() ? i.itemCode.trim() : "";
+    if (!code) {
+      let candidate = `_row_${i.id}`;
+      let n = 0;
+      while (usedCodes.has(candidate)) {
+        n += 1;
+        candidate = `_row_${i.id}_${n}`;
+      }
+      code = candidate;
+      usedCodes.add(code);
+    }
+    codeById.set(i.id, code);
+  });
+  return items.map((i) => ({
+    description: i.description,
+    unit: i.unit,
+    quantity: i.quantity,
+    rate: i.rate,
+    itemCode: codeById.get(i.id) ?? "",
+    parentItemCode: i.parentLineItemId ? codeById.get(i.parentLineItemId) ?? "" : "",
+    breakdownPercentage: i.breakdownPercentage ?? "",
+  }));
+};
 
 export default function ScopeDetailPage() {
   const params = useParams<{ id: string }>();
@@ -160,7 +195,11 @@ export default function ScopeDetailPage() {
   };
 
   const createRevision = async () => {
-    const validLines = revisionLines.filter((l) => l.description.trim() && l.unit.trim() && l.quantity && l.rate);
+    const validLines = revisionLines.filter((l) => {
+      if (!l.description.trim() || !l.unit.trim()) return false;
+      if (l.parentItemCode.trim()) return true;
+      return Boolean(l.quantity && l.rate);
+    });
     if (validLines.length === 0) {
       toast.error("Add at least one complete line item");
       return;
@@ -172,7 +211,12 @@ export default function ScopeDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: revisionTitle || undefined,
-          lineItems: validLines.map((l) => ({ description: l.description, unit: l.unit, quantity: Number(l.quantity), rate: Number(l.rate) })),
+          lineItems: validLines.map((l) => ({
+            description: l.description, unit: l.unit, quantity: Number(l.quantity), rate: Number(l.rate),
+            itemCode: l.itemCode.trim() ? l.itemCode.trim() : undefined,
+            parentItemCode: l.parentItemCode.trim() ? l.parentItemCode.trim() : undefined,
+            breakdownPercentage: l.breakdownPercentage.trim() ? Number(l.breakdownPercentage) : undefined,
+          })),
         }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Failed");
@@ -190,7 +234,23 @@ export default function ScopeDetailPage() {
   if (loading) return <p className="text-sm text-ct-muted">Loading...</p>;
   if (!boq) return <p className="text-sm text-ct-muted">BOQ not found.</p>;
 
-  const total = boq.lineItems.reduce((sum, i) => sum + Number(i.amount), 0);
+  const total = boq.lineItems.filter((i) => !i.parentLineItemId).reduce((sum, i) => sum + Number(i.amount), 0);
+
+  // R48 gap-closure (2026-08-30, F016: "Running total of child percentages
+  // shown per parent"). Per-child "X% of parent" already existed (line
+  // below), but nothing summed those children back up per parent -- real,
+  // confirmed gap. Grouped once here rather than per-row to avoid an O(n^2)
+  // scan; deliberately NOT clamped/validated against 100 (F015: weights are
+  // NOT forced to sum to 100, so this is a live readout, not a gate).
+  const childPercentTotalByParentId = new Map<string, number>();
+  for (const item of boq.lineItems) {
+    if (item.parentLineItemId && item.breakdownPercentage) {
+      childPercentTotalByParentId.set(
+        item.parentLineItemId,
+        (childPercentTotalByParentId.get(item.parentLineItemId) ?? 0) + Number(item.breakdownPercentage)
+      );
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -246,9 +306,17 @@ export default function ScopeDetailPage() {
               <TableBody>
                 {boq.lineItems.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium text-ct-navy">
+                    <TableCell className={`font-medium text-ct-navy ${item.parentLineItemId ? "pl-8" : ""}`}>
                       {item.description}
                       {item.itemCode && <span className="ml-2 font-mono text-[10px] text-ct-muted">{item.itemCode}</span>}
+                      {item.parentLineItemId && item.breakdownPercentage && (
+                        <span className="ml-2 text-[10px] text-ct-muted">{item.breakdownPercentage}% of parent</span>
+                      )}
+                      {!item.parentLineItemId && childPercentTotalByParentId.has(item.id) && (
+                        <span className="ml-2 text-[10px] text-ct-muted">
+                          (children: {childPercentTotalByParentId.get(item.id)}%)
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-ct-muted">{item.unit}</TableCell>
                     <TableCell className="text-right">{item.quantity}</TableCell>
@@ -281,7 +349,7 @@ export default function ScopeDetailPage() {
             <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
               {comparison.warnings.length > 0 && (
                 <div className="rounded-lg border border-ct-saffron/40 bg-ct-saffron/10 p-3 space-y-1">
-                  {comparison.warnings.map((w, i) => <p key={i} className="text-xs text-ct-saffron">{w}</p>)}
+                  {comparison.warnings.map((w, i) => <p key={i} className="text-xs text-ct-saffron-text">{w}</p>)}
                 </div>
               )}
               {comparison.added.length > 0 && (
@@ -339,12 +407,12 @@ export default function ScopeDetailPage() {
                   <Input placeholder="Unit" value={line.unit} onChange={(e) => updateRevisionLine(i, "unit", e.target.value)} />
                   <Input placeholder="Qty" type="number" value={line.quantity} onChange={(e) => updateRevisionLine(i, "quantity", e.target.value)} />
                   <Input placeholder="Rate" type="number" value={line.rate} onChange={(e) => updateRevisionLine(i, "rate", e.target.value)} />
-                  <Button variant="ghost" size="icon" onClick={() => setRevisionLines((prev) => prev.filter((_, idx) => idx !== i))} disabled={revisionLines.length === 1}>
+                  <Button variant="ghost" size="icon" aria-label="Remove line" onClick={() => setRevisionLines((prev) => prev.filter((_, idx) => idx !== i))} disabled={revisionLines.length === 1}>
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
               ))}
-              <Button variant="outline" size="sm" onClick={() => setRevisionLines((prev) => [...prev, { description: "", unit: "", quantity: "", rate: "" }])}>
+              <Button variant="outline" size="sm" onClick={() => setRevisionLines((prev) => [...prev, { description: "", unit: "", quantity: "", rate: "", itemCode: "", parentItemCode: "", breakdownPercentage: "" }])}>
                 <Plus className="size-3.5 mr-1" /> Add Line
               </Button>
             </div>

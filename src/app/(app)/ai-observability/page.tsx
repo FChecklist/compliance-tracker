@@ -253,7 +253,7 @@ export default function AiObservabilityPage() {
                         {t.costUsd !== null ? `$${t.costUsd.toFixed(5)}` : "—"}
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" className="size-7" onClick={(e) => { e.stopPropagation(); setSelectedId(t.id); }}>
+                        <Button variant="ghost" size="icon" className="size-7" aria-label="View execution details" onClick={(e) => { e.stopPropagation(); setSelectedId(t.id); }}>
                           <Eye className="size-3.5" />
                         </Button>
                       </TableCell>
@@ -270,10 +270,10 @@ export default function AiObservabilityPage() {
               Page {page} of {totalPages} ({total} executions)
             </p>
             <div className="flex gap-1">
-              <Button variant="outline" size="icon" className="size-8" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+              <Button variant="outline" size="icon" className="size-8" aria-label="Previous page" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                 <ChevronLeft className="size-4" />
               </Button>
-              <Button variant="outline" size="icon" className="size-8" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+              <Button variant="outline" size="icon" className="size-8" aria-label="Next page" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
                 <ChevronRight className="size-4" />
               </Button>
             </div>

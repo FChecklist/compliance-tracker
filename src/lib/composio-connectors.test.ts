@@ -106,3 +106,185 @@ describe("executeAction", () => {
     await expect(executeAction("GMAIL_FETCH_EMAILS", "ca_1", "user_1")).rejects.toThrow(/HTTP 401/)
   })
 })
+
+// CRR-158 (OAuth scope allow-list gate, owner ruling 28 Aug 2026 --
+// platform.claude_log id 127): evaluateToolkitScopes/classifyConnectorAction
+// Category/evaluateConnectorGate are all pure -- no network, no DB -- so
+// they're tested directly against fixture scope lists here, same style as
+// the executeAction tests above test the real Composio-facing half of this
+// file. connector-scope-gate-service.test.ts covers the DB-touching
+// execution wrapper (mocked executeAction/logActivity) built on top of
+// evaluateConnectorGate, per this repo's "never a live DB from a .test.ts
+// file" discipline.
+import {
+  evaluateToolkitScopes,
+  classifyConnectorActionCategory,
+  evaluateConnectorGate,
+  getAuthConfigScopes,
+  GOOGLE_CONNECTOR_SCOPE_ALLOW_LIST,
+  KNOWN_DELETE_CAPABLE_SCOPES,
+} from "./composio-connectors"
+
+describe("evaluateToolkitScopes -- CRR-158 allow-list comparison", () => {
+  test("passes when every requested scope is on the toolkit's recorded allow-list", () => {
+    const result = evaluateToolkitScopes("gmail", [
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/gmail.send",
+    ])
+    expect(result.pass).toBe(true)
+    expect(result.violations).toEqual([])
+  })
+
+  test("fails on a scope absent from the recorded allow-list", () => {
+    const result = evaluateToolkitScopes("gmail", ["https://www.googleapis.com/auth/gmail.metadata"])
+    expect(result.pass).toBe(false)
+    expect(result.violations).toEqual([
+      expect.objectContaining({ type: "not_allow_listed", scope: "https://www.googleapis.com/auth/gmail.metadata" }),
+    ])
+  })
+
+  test("fails on a known delete-capable scope even though it would technically also cover read/write", () => {
+    const result = evaluateToolkitScopes("googledrive", ["https://www.googleapis.com/auth/drive"])
+    expect(result.pass).toBe(false)
+    expect(result.violations).toEqual([
+      expect.objectContaining({ type: "delete_scope", scope: "https://www.googleapis.com/auth/drive" }),
+    ])
+  })
+
+  test("fails on the Gmail full-mailbox scope specifically", () => {
+    const result = evaluateToolkitScopes("gmail", ["https://mail.google.com/"])
+    expect(result.pass).toBe(false)
+    expect(result.violations[0]?.type).toBe("delete_scope")
+  })
+
+  test("fails closed for a toolkit with no recorded allow-list (e.g. slack) -- nothing recorded means nothing permitted", () => {
+    const result = evaluateToolkitScopes("slack", ["channels:read"])
+    expect(result.pass).toBe(false)
+    expect(result.violations[0]?.type).toBe("no_allow_list_recorded")
+  })
+
+  test("passes for a toolkit with no recorded allow-list when it requests zero scopes", () => {
+    const result = evaluateToolkitScopes("slack", [])
+    expect(result.pass).toBe(true)
+  })
+
+  test("every Google Sheets/Docs edit+write scope from the owner ruling is present on the allow-list", () => {
+    expect(GOOGLE_CONNECTOR_SCOPE_ALLOW_LIST.googlesheets?.map((e) => e.scope)).toContain(
+      "https://www.googleapis.com/auth/spreadsheets"
+    )
+    expect(GOOGLE_CONNECTOR_SCOPE_ALLOW_LIST.googledocs?.map((e) => e.scope)).toContain(
+      "https://www.googleapis.com/auth/documents"
+    )
+  })
+
+  test("KNOWN_DELETE_CAPABLE_SCOPES never overlaps any recorded allow-list entry", () => {
+    for (const [, entries] of Object.entries(GOOGLE_CONNECTOR_SCOPE_ALLOW_LIST)) {
+      for (const entry of entries ?? []) {
+        expect(KNOWN_DELETE_CAPABLE_SCOPES.has(entry.scope)).toBe(false)
+      }
+    }
+  })
+})
+
+describe("classifyConnectorActionCategory -- CRR-158 action classification", () => {
+  const cases: Array<[string, ReturnType<typeof classifyConnectorActionCategory>]> = [
+    ["GMAIL_FETCH_EMAILS", "read"],
+    ["GOOGLEDRIVE_FIND_FILE", "read"],
+    ["GMAIL_SEND_EMAIL", "write"],
+    ["GOOGLEDRIVE_UPLOAD_FILE", "write"],
+    ["GMAIL_MODIFY_THREAD_LABELS", "edit"],
+    ["GOOGLESHEETS_BATCH_UPDATE", "edit"],
+    ["GMAIL_DELETE_MESSAGE", "delete"],
+    ["GOOGLEDRIVE_TRASH_FILE", "delete"],
+    ["GOOGLEDRIVE_PERMANENTLY_DELETE_FILE", "delete"],
+  ]
+  for (const [slug, expected] of cases) {
+    test(`classifies ${slug} as ${expected}`, () => {
+      expect(classifyConnectorActionCategory(slug)).toBe(expected)
+    })
+  }
+})
+
+describe("evaluateConnectorGate -- CRR-158 combined pure gate decision", () => {
+  test("PASS: an allow-listed write scope + a write action + an audit descriptor", () => {
+    const verdict = evaluateConnectorGate({
+      toolkit: "gmail",
+      actionSlug: "GMAIL_SEND_EMAIL",
+      requestedScopes: ["https://www.googleapis.com/auth/gmail.send"],
+      audit: { orgId: "org_1", entityType: "gmail_message", entityId: "msg_1" },
+    })
+    expect(verdict.allowed).toBe(true)
+    expect(verdict.category).toBe("write")
+    expect(verdict.violations).toEqual([])
+  })
+
+  test("PASS: a read action never needs an audit descriptor", () => {
+    const verdict = evaluateConnectorGate({
+      toolkit: "gmail",
+      actionSlug: "GMAIL_FETCH_EMAILS",
+      requestedScopes: ["https://www.googleapis.com/auth/gmail.readonly"],
+    })
+    expect(verdict.allowed).toBe(true)
+  })
+
+  test("FAIL: scope outside the allow-list", () => {
+    const verdict = evaluateConnectorGate({
+      toolkit: "googledrive",
+      actionSlug: "GOOGLEDRIVE_FIND_FILE",
+      requestedScopes: ["https://www.googleapis.com/auth/drive.appdata"],
+    })
+    expect(verdict.allowed).toBe(false)
+    expect(verdict.violations.some((v) => v.type === "not_allow_listed")).toBe(true)
+  })
+
+  test("FAIL: a delete-category action is refused unconditionally, even with an otherwise-allow-listed scope", () => {
+    const verdict = evaluateConnectorGate({
+      toolkit: "gmail",
+      actionSlug: "GMAIL_DELETE_MESSAGE",
+      requestedScopes: ["https://www.googleapis.com/auth/gmail.modify"],
+      audit: { orgId: "org_1", entityType: "gmail_message", entityId: "msg_1" },
+    })
+    expect(verdict.allowed).toBe(false)
+    expect(verdict.violations.some((v) => v.type === "delete_scope")).toBe(true)
+  })
+
+  test("FAIL: a write action with an allow-listed scope but no audit descriptor", () => {
+    const verdict = evaluateConnectorGate({
+      toolkit: "gmail",
+      actionSlug: "GMAIL_SEND_EMAIL",
+      requestedScopes: ["https://www.googleapis.com/auth/gmail.send"],
+    })
+    expect(verdict.allowed).toBe(false)
+    expect(verdict.violations).toEqual([expect.objectContaining({ type: "write_action_missing_audit" })])
+  })
+})
+
+describe("getAuthConfigScopes -- live 'record the exact OAuth scopes requested in auth_config' fetch", () => {
+  test("GETs /auth_configs/{id} and returns the scopes array", async () => {
+    let capturedUrl: string | undefined
+    globalThis.fetch = (async (url: string) => {
+      capturedUrl = url
+      return { ok: true, json: async () => ({ scopes: ["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"] }) }
+    }) as unknown as typeof fetch
+
+    const scopes = await getAuthConfigScopes("gmail")
+    expect(capturedUrl).toBe("https://backend.composio.dev/api/v3/auth_configs/ac_011eZbN9n-gT")
+    expect(scopes).toEqual(["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"])
+  })
+
+  test("parses a nested data.scopes shape as a fallback", async () => {
+    globalThis.fetch = (async () => ({
+      ok: true,
+      json: async () => ({ data: { scopes: "https://www.googleapis.com/auth/drive.readonly, https://www.googleapis.com/auth/drive.file" } }),
+    })) as unknown as typeof fetch
+
+    const scopes = await getAuthConfigScopes("googledrive")
+    expect(scopes).toEqual(["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/drive.file"])
+  })
+
+  test("returns an empty array rather than throwing on an unrecognised response shape", async () => {
+    globalThis.fetch = (async () => ({ ok: true, json: async () => ({}) })) as unknown as typeof fetch
+    const scopes = await getAuthConfigScopes("googlesheets")
+    expect(scopes).toEqual([])
+  })
+})

@@ -42,6 +42,16 @@ export async function createKpiDefinition(ctx: { orgId: string }, input: KpiDefi
   })
 }
 
+// Real-screen conversion (2026-08-30): single-definition lookup for the
+// KPI Object Page -- listKpiDefinitions never needed one before.
+export async function getKpiDefinition(ctx: { orgId: string }, definitionId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const definition = await db.query.constructionKpiDefinitions.findFirst({ where: and(eq(constructionKpiDefinitions.id, definitionId), eq(constructionKpiDefinitions.orgId, ctx.orgId)) })
+    if (!definition) throw new ServiceError("KPI definition not found", 404)
+    return definition
+  })
+}
+
 export async function listKpiEntries(ctx: { orgId: string }, kpiDefinitionId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const definition = await db.query.constructionKpiDefinitions.findFirst({ where: and(eq(constructionKpiDefinitions.id, kpiDefinitionId), eq(constructionKpiDefinitions.orgId, ctx.orgId)) })

@@ -13,14 +13,23 @@ export const dynamic = "force-dynamic";
 // module, matching how crm/accounts already stood on its own.
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { UserPlus, Target, Building2, Users, Megaphone, Sparkles, TrendingUp } from "lucide-react";
+import { UserPlus, Target, Building2, Users, Megaphone, Sparkles, TrendingUp, Kanban } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { ModuleNotEnabledCard } from "@/components/ModuleNotEnabledCard";
 
 type Counts = { leads: number; opportunities: number; accounts: number; contacts: number; campaigns: number };
 
 const MODULES = [
   { key: "leads", href: "/crm/leads", label: "Leads", icon: UserPlus, description: "Prospects not yet a client" },
   { key: "opportunities", href: "/crm/opportunities", label: "Opportunities", icon: Target, description: "Deals in progress, tracked stage by stage" },
+  // Sales Pipeline closure (2026-08-07): the config-driven Kanban board
+  // (drag-and-drop stage transitions, search/filter/bulk-reassign, AI
+  // pipeline insight) lives on its own page rather than a card grid tile,
+  // matching how the Wave 3 refactor (2026-07-21) moved every other
+  // sub-area's full management UI off this overview and onto a dedicated
+  // route. No live `counts` entry for it (it's not a flat record count --
+  // it's the same opportunities already counted above, viewed by stage).
+  { key: "pipeline", href: "/crm/pipeline", label: "Pipeline", icon: Kanban, description: "Kanban board -- drag deals through your configured stages" },
   { key: "accounts", href: "/crm/accounts", label: "Accounts", icon: Building2, description: "Company-level records and subsidiary hierarchy" },
   { key: "contacts", href: "/crm/contacts", label: "Contacts", icon: Users, description: "Every named person across your account book" },
   { key: "campaigns", href: "/crm/campaigns", label: "Campaigns", icon: Megaphone, description: "Marketing efforts leads can be attributed to" },
@@ -28,6 +37,11 @@ const MODULES = [
 
 export default function CrmPage() {
   const [counts, setCounts] = useState<Counts | null>(null);
+  const [salesEnabled, setSalesEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setSalesEnabled(d.salesEnabled ?? false)).catch(() => setSalesEnabled(false));
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -47,14 +61,18 @@ export default function CrmPage() {
     });
   }, []);
 
+  if (salesEnabled === false) {
+    return <ModuleNotEnabledCard moduleName="CRM" settingsSection="Sales & CRM" />;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-heading text-ct-navy flex items-center gap-2"><Sparkles className="size-5 text-ct-saffron" /> CRM</h1>
+          <h1 className="text-2xl font-heading text-ct-navy flex items-center gap-2"><Sparkles className="size-5 text-ct-saffron-text" /> CRM</h1>
           <p className="text-sm text-ct-muted mt-1">Lead-to-client pipeline -- how you actually get a new client, and keep the ones you have.</p>
         </div>
-        <Link href="/crm/sales-pipeline" className="flex items-center gap-1.5 text-sm text-ct-saffron hover:text-ct-navy transition-colors">
+        <Link href="/crm/sales-pipeline" className="flex items-center gap-1.5 text-sm text-ct-saffron-text hover:text-ct-navy transition-colors">
           <TrendingUp className="size-4" /> Sales Pipeline Dashboard
         </Link>
       </div>
@@ -67,8 +85,10 @@ export default function CrmPage() {
               <Card className="rounded-xl shadow-card bg-white hover:shadow-md transition-shadow h-full">
                 <CardContent className="p-5 space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="grid place-items-center size-9 rounded-lg bg-ct-saffron/10"><Icon className="size-4.5 text-ct-saffron" /></div>
-                    <span className="text-2xl font-heading text-ct-navy">{counts ? counts[m.key as keyof Counts] : "—"}</span>
+                    <div className="grid place-items-center size-9 rounded-lg bg-ct-saffron/10"><Icon className="size-4.5 text-ct-saffron-text" /></div>
+                    {m.key !== "pipeline" && (
+                      <span className="text-2xl font-heading text-ct-navy">{counts ? counts[m.key as keyof Counts] : "—"}</span>
+                    )}
                   </div>
                   <p className="text-sm font-semibold text-ct-navy">{m.label}</p>
                   <p className="text-xs text-ct-muted">{m.description}</p>
