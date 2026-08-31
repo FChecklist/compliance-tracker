@@ -29,7 +29,7 @@ export async function getBillingPlanForOrg(orgId: string): Promise<BillingPlan |
   // string) falls back to 'free' rather than throwing -- billing math
   // should degrade to "no charge" on an unpriced plan, never crash a
   // dashboard render.
-  return plan ?? db.query.platformBillingPlans.findFirst({ where: eq(platformBillingPlans.planKey, "free") }) ?? null
+  return plan ?? (await db.query.platformBillingPlans.findFirst({ where: eq(platformBillingPlans.planKey, "free") })) ?? null
 }
 
 export type InvoiceLineItems = {
