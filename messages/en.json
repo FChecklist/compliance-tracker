@@ -60,6 +60,7 @@
       "constructionDesign": {
         "title": "Construction (Design & Progress)",
         "items": {
+          "designStudio": "Design Studio",
           "floorPlans": "Floor Plans",
           "moodBoards": "Mood Boards",
           "ffe": "FF&E",

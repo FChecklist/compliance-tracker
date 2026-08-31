@@ -85,6 +85,7 @@ import {
   HardHat,
   CircleDollarSign,
   Box,
+  LayoutGrid,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -230,6 +231,11 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
         // never had a UI for it (memory: "Drawings&3D/Design Studio still
         // open, deliberately not faked" from R63 -- now built).
         { label: t("sections.construction.items.drawings"), href: "/drawings", icon: Box },
+        // R66 (Sumeet's requirement, PROJEXA-AI.COM): unified entry point
+        // over the 4 design-related items directly below it (floor plans/
+        // mood boards/FF&E/drawings above) -- see src/app/(app)/design-
+        // studio/page.tsx's own header comment.
+        { label: t("sections.constructionDesign.items.designStudio"), href: "/design-studio", icon: LayoutGrid },
         { label: t("sections.constructionDesign.items.floorPlans"), href: "/floor-plans", icon: LayoutPanelLeft },
         { label: t("sections.constructionDesign.items.moodBoards"), href: "/mood-boards", icon: Palette },
         { label: t("sections.constructionDesign.items.ffe"), href: "/ffe", icon: Sofa },
