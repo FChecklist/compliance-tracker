@@ -814,6 +814,117 @@ async function computeContractorPerformanceReport(ctx: { orgId: string }): Promi
   })
 }
 
+/**
+ * Labour Productivity Analysis (R65 gap closure, 2026-08-31). Was
+ * status='data_gap' with note: "No per-worker output linkage exists between
+ * construction_attendance (labour input, by roster entry) and
+ * construction_work_progress_entries (quantity output, by activity) --
+ * activities are not assigned to specific workers." Verified fresh against
+ * the live schema -- that's still true and stays true after this fix:
+ * construction_attendance has no activityId/taskId column (it's recorded by
+ * a supervisor/foreman against a roster entry, not against what that worker
+ * built that day -- see that table's own header comment above), so a real
+ * per-WORKER output metric genuinely cannot be built from this schema
+ * without a new column. NOT worked around here by inventing one.
+ *
+ * What IS real and buildable with NO new schema: a PROJECT-level labour
+ * productivity metric -- the standard way this KPI is reported in practice
+ * once a workforce isn't individually task-tracked ("value of work put in
+ * place per worker-day deployed"). Two real, independently-grouped
+ * aggregates, joined only by projectId in JS after grouping -- deliberately
+ * NOT a single row-level SQL join of attendance to progress entries, which
+ * would fan out every attendance row across every progress entry in the
+ * same project (and vice versa), inflating both totals:
+ *   - Labour input: construction_attendance -- worker-days (present=1,
+ *     half_day=0.5, absent=0, the same convention dailyCost already uses at
+ *     write time) and total labour cost.
+ *   - Output: construction_work_progress_entries, valued in currency
+ *     (quantity_done x its BOQ line's rate) rather than summed as raw
+ *     quantity -- activities on one project are measured in different units
+ *     (sqm/cum/nos/...), so summing quantity_done across activities would
+ *     be dimensionally meaningless. Only entryBasis='DELTA' rows count
+ *     (SNAPSHOT is a cumulative reading, not an additive period quantity --
+ *     the same discipline construction-dashboard-service.ts's own
+ *     earned-value query already applies), and only rows with a
+ *     boq_line_item_id (nullable -- an entry logged against an activity
+ *     with no BOQ line link has no rate to value it by, and is honestly
+ *     excluded rather than guessed at).
+ *
+ * Params: `projectId` (optional -- omit for an org-wide per-project
+ * breakdown). `periodStart`/`periodEnd` (optional ISO dates, inclusive) --
+ * omit both for all-time totals (the default). Real live data confirms why
+ * that's the right default: attendance and BOQ-valued progress entries are
+ * logged on independent cadences (e.g. one real project's attendance rows
+ * span 2026-07-06..07-13 while its progress rows span 2026-08-01..08-20,
+ * zero overlap), so a hardcoded trailing-window would silently return zero
+ * far more often than not; a caller who wants one real window passes it.
+ */
+async function computeLabourProductivityAnalysis(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = typeof params.projectId === "string" && params.projectId ? params.projectId : undefined
+  const periodStart = typeof params.periodStart === "string" && params.periodStart ? params.periodStart : undefined
+  const periodEnd = typeof params.periodEnd === "string" && params.periodEnd ? params.periodEnd : undefined
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const attendanceWhere = [eq(constructionAttendance.orgId, ctx.orgId)]
+    if (projectId) attendanceWhere.push(eq(constructionAttendance.projectId, projectId))
+    if (periodStart) attendanceWhere.push(gte(constructionAttendance.attendanceDate, periodStart))
+    if (periodEnd) attendanceWhere.push(lte(constructionAttendance.attendanceDate, periodEnd))
+
+    const progressWhere = [
+      eq(constructionWorkProgressEntries.orgId, ctx.orgId),
+      eq(constructionWorkProgressEntries.entryBasis, "DELTA"),
+    ]
+    if (projectId) progressWhere.push(eq(constructionWorkProgressEntries.projectId, projectId))
+    if (periodStart) progressWhere.push(gte(constructionWorkProgressEntries.entryDate, periodStart))
+    if (periodEnd) progressWhere.push(lte(constructionWorkProgressEntries.entryDate, periodEnd))
+
+    const [labourRows, outputRows] = await Promise.all([
+      db.select({
+        projectId: constructionAttendance.projectId,
+        workerDays: sql<number>`coalesce(sum(case when ${constructionAttendance.status} = 'present' then 1 when ${constructionAttendance.status} = 'half_day' then 0.5 else 0 end), 0)::float`,
+        labourCost: sql<number>`coalesce(sum(${constructionAttendance.dailyCost}), 0)::float`,
+      }).from(constructionAttendance).where(and(...attendanceWhere)).groupBy(constructionAttendance.projectId),
+
+      db.select({
+        projectId: constructionWorkProgressEntries.projectId,
+        valueOfWorkDone: sql<number>`coalesce(sum(${constructionWorkProgressEntries.quantityDone}::numeric * ${constructionBoqLineItems.rate}::numeric), 0)::float`,
+      }).from(constructionWorkProgressEntries)
+        .innerJoin(constructionBoqLineItems, eq(constructionWorkProgressEntries.boqLineItemId, constructionBoqLineItems.id))
+        .where(and(...progressWhere))
+        .groupBy(constructionWorkProgressEntries.projectId),
+    ])
+
+    const byProject = new Map<string, { workerDays: number; labourCost: number; valueOfWorkDone: number }>()
+    for (const r of labourRows) byProject.set(r.projectId, { workerDays: Number(r.workerDays), labourCost: Number(r.labourCost), valueOfWorkDone: 0 })
+    for (const r of outputRows) {
+      const existing = byProject.get(r.projectId)
+      if (existing) existing.valueOfWorkDone = Number(r.valueOfWorkDone)
+      else byProject.set(r.projectId, { workerDays: 0, labourCost: 0, valueOfWorkDone: Number(r.valueOfWorkDone) })
+    }
+
+    const columns = ["Project ID", "Worker-Days", "Labour Cost", "Value of Work Progressed (BOQ-valued)", "Value Progressed per Worker-Day", "Labour Cost as % of Value Progressed"]
+
+    if (byProject.size === 0) {
+      return { columns, rows: [], note: `No attendance or BOQ-valued progress entries found${projectId ? ` for project ${projectId}` : ""}${periodStart || periodEnd ? " in the given period" : ""}.` }
+    }
+
+    const rows = Array.from(byProject.entries()).map(([pid, v]) => ({
+      "Project ID": pid,
+      "Worker-Days": Math.round(v.workerDays * 10) / 10,
+      "Labour Cost": Math.round(v.labourCost),
+      "Value of Work Progressed (BOQ-valued)": Math.round(v.valueOfWorkDone),
+      "Value Progressed per Worker-Day": v.workerDays > 0 ? Math.round(v.valueOfWorkDone / v.workerDays) : "N/A",
+      "Labour Cost as % of Value Progressed": v.valueOfWorkDone > 0 ? Math.round((v.labourCost / v.valueOfWorkDone) * 1000) / 10 : "N/A",
+    }))
+
+    return {
+      columns,
+      rows,
+      note: "Project-level productivity, not per-worker: construction_attendance records labour by roster entry with no activity/task link, so output cannot be traced to an individual worker from this schema. Output is valued in currency (quantity_done x the BOQ line's rate) rather than summed in physical units, since activities on the same project use different units (sqm/cum/nos/...); only DELTA-basis entries with a linked BOQ line item are counted -- SNAPSHOT entries and activity-only entries with no boq_line_item_id are excluded (no rate to value them by) rather than guessed at.",
+    }
+  })
+}
+
 /** Monthly trend of punch-list/snag items raised, org-wide. */
 async function computeSnagTrendAnalysis(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -1822,6 +1933,7 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   vendors_delayed_purchase_orders: computeVendorsDelayedPurchaseOrders,
   safety_incidents_this_month: computeSafetyIncidentsThisMonth,
   contractor_performance_report: computeContractorPerformanceReport,
+  labour_productivity_analysis: computeLabourProductivityAnalysis,
   snag_trend_analysis: computeSnagTrendAnalysis,
   risk_heat_map: computeRiskHeatMap,
   issue_resolution_analysis: computeIssueResolutionAnalysis,
