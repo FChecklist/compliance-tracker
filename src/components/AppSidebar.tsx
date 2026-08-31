@@ -605,6 +605,28 @@ function CountBadge({ count, color = "bg-ct-saffron text-white" }: { count: numb
   );
 }
 
+// R-1224-REBASE (accessibility PR #1224 rebase, 2026-08-31): PR #1224's own
+// version of this region hand-rolled a two-<nav>-landmark sidebar (separate
+// "Quick navigation" / "Modules" <nav aria-label> elements, per-Link
+// aria-current) directly in this file. Between that PR's Aug-15 creation and
+// this rebase, the veridian-ui-kit migration (2026-07-19 wave, landed on
+// main before this PR's branch was cut... no -- landed AFTER, but merged to
+// main before this rebase) replaced that hand-rolled markup with
+// buildSharedSections()+<SharedAppSidebar> below: nav rendering (the actual
+// <nav>/<Link> DOM) now lives in the external @fchecklist/veridian-ui-kit
+// package (github.com/FChecklist/veridian-ui-kit, pinned v0.4.0), not in
+// this file. PR #1224's target lines no longer exist to apply to -- kept
+// main's real, already-shipped shared-component version here rather than
+// reverting it to restore the PR's obsolete direct-markup approach (that
+// would delete real, later, working code to force a stale diff to apply).
+// The one item that DID carry forward unchanged either way --
+// MobileSheetTrigger's `aria-label="Open navigation menu"` -- is preserved
+// below. The rest of PR #1224's intent (labelled <nav> landmarks,
+// aria-current per item) is not achievable from compliance-tracker alone
+// anymore: the shared AppSidebar component (see node_modules/@fchecklist/
+// veridian-ui-kit/src/shell/AppSidebar.tsx) renders one unlabelled <nav>
+// with no aria-current on its <Link>s, and fixing that requires a change to
+// that separate repo, out of this PR's scope. Flagged, not silently dropped.
 function buildSharedSections(
   t: ReturnType<typeof useTranslations>,
   overdueCount: number, docCount: number, noticeCount: number, accountType: string,
