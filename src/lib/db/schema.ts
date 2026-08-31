@@ -12276,6 +12276,64 @@ export const aiRoutingAuditLog = platformSchemaDB.table('ai_routing_audit_log', 
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Mother Router / AI Agent Roster persistent memory (ai-os gap
+// mother-router-roster-memory, 2026-07-26) ─────────────────────────────────
+// Genuinely distinct from ai_routing_audit_log above: that table is a
+// point-in-time RESOLUTION log (which model/provider a single resolveModel()
+// call picked and why, written once, never updated). This table is a
+// per-dispatch MEMORY row that starts at resolution time and is UPDATED once
+// the dispatch's real-world outcome/cost become known after execution
+// completes -- the thing a "Mother Router" needs to eventually learn from
+// (which resolved (role, model) pairs for which capability actually
+// succeeded, and at what cost), which a write-once audit log cannot serve on
+// its own. dispatchId is the join key a caller uses to update the same row
+// it inserted at resolution time; cross_ref_work_item_id additionally links
+// this row to the task_register/activity_log row the dispatch produced, so
+// this table's own rows can be cross-referenced against those existing
+// records without re-deriving them.
+export const motherRouterMemoryOutcomeEnum = platformSchemaDB.enum('mother_router_memory_outcome', ['pending', 'success', 'failure', 'escalated'])
+
+export const motherRouterMemory = platformSchemaDB.table('mother_router_memory', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  dispatchId: text('dispatch_id').notNull().unique(),
+  ts: timestamp('ts').notNull().defaultNow(),
+  inputCapabilityTag: text('input_capability_tag'),
+  resolvedRole: text('resolved_role'),
+  resolvedModel: text('resolved_model').notNull(),
+  outcome: motherRouterMemoryOutcomeEnum('outcome').notNull().default('pending'),
+  cost: numeric('cost', { precision: 12, scale: 6 }),
+  crossRefWorkItemId: text('cross_ref_work_item_id'),
+})
+
+// ai_agent_memory: the roster-side counterpart -- one row per real AI
+// Workforce (roster.ts) dispatch, written from the one actual dispatch
+// decision point that runs a roster role (/api/ai/team/dispatch's POST
+// handler), since roster.ts itself is static role data with no dispatch
+// call site of its own. Distinct from task_register above: that table
+// carries the full Instruction Contract/Execution Report CONTENT for
+// AIROUTER-01 Phase 2 softwareTeamLevel dispatches specifically; this table
+// is a lightweight per-agent memory row for EVERY roster dispatch (level or
+// no level), the thing agent-directory-service.ts-style "how has this role
+// performed" lookups need without parsing every task_register/activity_log
+// row's jsonb content.
+// Deliberately the same 4 values as task-register-service.ts's own
+// TaskRegisterStatus ('in_progress' | 'completed' | 'failed' | 'escalated')
+// -- a softwareTeamLevel dispatch's ai_agent_memory row reuses that exact
+// status; an ordinary (no level) dispatch maps its own completed/
+// requires-review outcome onto the same 4-value vocabulary rather than
+// inventing a parallel one.
+export const aiAgentMemoryOutcomeEnum = platformSchemaDB.enum('ai_agent_memory_outcome', ['in_progress', 'completed', 'failed', 'escalated'])
+
+export const aiAgentMemory = platformSchemaDB.table('ai_agent_memory', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  roleId: text('role_id').notNull(), // roster.ts roleKey
+  ts: timestamp('ts').notNull().defaultNow(),
+  taskId: text('task_id'),
+  outcome: aiAgentMemoryOutcomeEnum('outcome').notNull(),
+  escalationFlag: boolean('escalation_flag').notNull().default(false),
+  crossRefWorkItemId: text('cross_ref_work_item_id'),
+})
+
 // ─── Task Register (AIROUTER-01 Phase 2, Software Team L0-L5, 2026-07-19)
 // ─────────────────────────────────────────────────────────────────────────
 // Genuinely distinct from ai_routing_audit_log above: that table logs

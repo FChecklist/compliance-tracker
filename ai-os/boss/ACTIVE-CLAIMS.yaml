@@ -12000,3 +12000,42 @@ recently_completed:
       Content otherwise unchanged from the original PR. Original PR #582
       closed as superseded; see its own closing comment for the replacement
       PR URL.
+
+# ── claim registered 2026-07-26 (this session) ──────────────────────────
+  - session_label: >-
+      claude-code (this session, CLI) --
+      mother-router-and-roster-persistent-memory
+    claimed_at: "2026-07-26T (this session)"
+    claim: >-
+      Redispatch of task-20260720-* (originally blocked by a spend-governance
+      gate before any work started; a 2026-07-26 relevance-triage pass
+      independently reconfirmed the gap is still real -- see this task's own
+      workspace PROGRESS.md for the honest note that the triage's cited
+      evidence files, ai-os/SYSTEM_MEMORY_ARCHITECTURE.yaml and
+      ai-os/TIER3_RELEVANCE_TRIAGE_REPORT_2026-07-26.md, do not actually
+      exist anywhere in this repo's git history -- the underlying gap itself
+      was independently re-verified against live schema.ts regardless: zero
+      matches for mother_router_memory/ai_agent_memory). Adding ground-up
+      persistent memory: new platform.mother_router_memory table
+      (dispatch_id, ts, input_capability_tag, resolved_role, resolved_model,
+      outcome, cost, cross_ref_work_item_id) written from
+      src/lib/ai-router/mother-router.ts's resolveModel() (every scope, not
+      just software_team), and new platform.ai_agent_memory table (role_id,
+      ts, task_id, outcome, escalation_flag, cross_ref_work_item_id) written
+      from the one real roster-driven dispatch decision point,
+      src/app/api/ai/team/dispatch/route.ts's POST handler (roster.ts itself
+      is static role data with no dispatch call site of its own). Real
+      Drizzle migration applied to the live Supabase DB via the Supabase MCP.
+    scope_note: >-
+      File scope: src/lib/db/schema.ts (additive only -- 2 new platform-schema
+      tables), new drizzle/*.sql migration, src/lib/ai-router/mother-router.ts
+      (add memory-write calls inside resolveModel(), no change to existing
+      resolution/audit-log logic), src/app/api/ai/team/dispatch/route.ts (add
+      ai_agent_memory write near the existing activity_log/task_register
+      writes at the end of POST), roster.ts untouched (no dispatch logic
+      lives there). Checked this file for collisions before starting: no
+      other active entry names mother-router.ts, roster.ts, or any
+      mother_router_memory/ai_agent_memory concept; the nearest related
+      entries (Mother Router Phase 1, AIROUTER-01 Phase 2 task-register,
+      V2-5 BYOB) are all already-merged, closed work on the same files, not
+      concurrent in-flight claims.

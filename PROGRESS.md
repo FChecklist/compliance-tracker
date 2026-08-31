@@ -1,192 +1,270 @@
-# PROGRESS -- rebase-sweep2-604 (replacement for PR #604)
+# PROGRESS -- rebase-sweep2-585 (replacement for PR #585)
 
 ## Scope
 
-Replacement PR for #604 ("TET engine increment 1: trace core + shield gate",
-branch `worker/task-20260727-153110-tet-engine-increment-1--trace-core---reu`).
-Triage confirmed a real, additive, well-evidenced feature PR: direct fetch
-confirmed `src/lib/services/task-execution-trace-service.ts` and
-`src/lib/services/tet-shield-gate.ts` both 404 on main, and a grep of main's
-full `schema.ts` plus the complete drizzle migrations listing for 'shield',
-'_trace', 'executionTrace', 'trace', 'trace|shield' returned zero matches --
-the TET (Task Execution Trace) concept did not exist on main under any name.
-Real substantive diff confirmed via `git diff --stat origin/main...HEAD`:
-8 files, +631/-251 (new `drizzle/0268_task_execution_traces.sql`, `schema.ts`
-+35, `task-execution-trace-service.ts` +161 with a +155-line test file,
-`tet-shield-gate.ts` +97). CI on the original PR was largely green
-(`gh pr checks 604`: Build/Type Check/Unit Tests/E2E Tests/audit-check/Vercel
-ALL PASS -- only Asset Registry Coverage Check and Terminology Guardrail
-Check failed, both repo-specific doc/registry-metadata gates, not
-functional/compile failures; neither job even exists any more in current
-main's `ci.yml` -- superseded/consolidated during the 325+ commits this
-rebase caught up on).
+Replacement PR for #585 (`rca-task-20260726-172016-mother-...`, branch
+`feat/mother-router-roster-persistent-memory`). Triage confirmed a real,
+additive, well-evidenced gap: independently re-ran `grep -i
+mother_router_memory` / `grep -i ai_agent_memory` against current main's
+`src/lib/db/schema.ts` (774KB) -- zero matches, both. Independently confirmed
+`src/app/api/ai/team/dispatch/route.ts` on current main still has no
+`dispatchOutcomes`/`ai_agent_memory`/`recordMotherRouterOutcome` wiring --
+`resolveMotherRouterModel()` there is only used for a fire-and-forget
+audit-log call, no memory write. Checked the one plausibly-related table,
+`platform.dispatchOutcomes` (does exist on main) -- its own schema comment
+says it's written by `team-service.ts`'s `runRole()` /
+`dispatch-repo.ts`'s `dispatchRepoTask()`, a different call path from
+`mother-router.ts`'s `resolveModel()` / the roster-driven
+`/api/ai/team/dispatch` endpoint this PR targets. Does not supersede this
+PR's gap.
 
 ## Completed
 
-- [x] Worktree: `git worktree add -b rebase-sweep2-604` off
-      `origin/worker/task-20260727-153110-tet-engine-increment-1--trace-core---reu`,
-      in a scratch temp dir (`C:\Users\Dell\AppData\Local\Temp\wtree-sweep2-604`),
-      per this repo's standard rebase-sweep protocol.
-- [x] Reference checkout (`C:/ct/ct`) was a shallow clone -- `git merge-base
-      HEAD origin/main` initially failed with no common ancestor. Ran
-      `git fetch --unshallow origin` in the worktree (full history, 1762
-      commits on origin/main vs. 55 on the shallow HEAD) before attempting
-      the merge; merge-base then resolved cleanly to `df665722` (the same
-      commit the branch's own PROGRESS.md history shows as its last real
-      main-sync point).
-- [x] **First merge pass** (`git merge origin/main` @ `243b0660`) -- 4 real
-      conflicts, all in files this PR's own diff touches (not stale-ancestry
-      noise): `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml`,
-      `drizzle/meta/_journal.json`, `src/lib/db/schema.ts`. Resolved each
-      with real judgment (see below), not a blind ours/theirs pick.
-- [x] **`PROGRESS.md`:** replaced wholesale with this entry, this repo's own
-      established convention (confirmed by the file's own history --
-      rebase-sweep2-582's entry documents the same rule) -- holds only the
-      current active entry, not a concatenation of both sides' history.
-- [x] **`ai-os/boss/ACTIVE-CLAIMS.yaml`:** kept both sides' real claim
-      entries (the PR branch's original TET-engine claim plus every
-      `recently_completed` entry main had already accumulated since); no
-      actual key collision between the two sides, so this was a genuine
-      union, not a conflict requiring a choice.
-- [x] **`drizzle/meta/_journal.json`:** kept main's full entry list (325+
-      migrations landed on main since this branch's base) and appended this
-      PR's own `0268_task_execution_traces` entry at the end, matching the
-      journal's append-only convention.
-- [x] **Migration renumbering: 0268 -> 0505.** The `drizzle/meta/_journal.json`
-      conflict itself was the tell: main's side of the conflict carried a
-      *different* real entry already at idx 265 --
-      `0268_pms_time_entry_approval_flow` (PR #613) -- so `0268` had
-      genuinely collided, same class of race as the #582/#576 rebase-sweeps'
-      0264 collision. (`ai-os/boss/ACTIVE-CLAIMS.yaml` shows a third
-      contender for 0268 too -- `0268_sales_pipeline_dashboard_targets` --
-      confirming this number was fought over by multiple concurrent
-      sessions; `0268_pms_time_entry_approval_flow` is the one that actually
-      landed on main.) Confirmed the TRUE current highest via
-      `git ls-tree -r origin/main -- drizzle/` (0504, matching
-      rebase-sweep2-582's own last-renumber note in this file's prior
-      entry) and renumbered this PR's migration to **0505**: `git mv
-      drizzle/0268_task_execution_traces.sql
-      drizzle/0505_task_execution_traces.sql`, added a matching
-      `_journal.json` entry (idx 327, tag `0505_task_execution_traces`),
-      and updated `schema.ts`'s `taskExecutionTraces` comment block to
-      document the renumber and its real cause. No self-reference to the
-      old number existed inside the migration SQL itself or in
-      `src/lib/services/task-execution-trace-service.ts` /
-      `tet-shield-gate.ts` / their test file (confirmed via repo-wide grep
-      for "0268") -- the rename was mechanical and self-contained.
-- [x] **`src/lib/db/schema.ts`:** additive-only conflict -- main had grown
-      many new table exports since this branch's base; kept all of main's
-      additions and re-added this PR's own `taskExecutionTraces` export
-      (and its relations block) at the same relative location the PR
-      originally used, immediately after the nearest table it was inserted
-      next to on the original branch. No overlapping edits to the same
-      lines on both sides -- a real, mechanical additive merge. **Line-ending
-      gotcha found and fixed:** the actual diff vs. `origin/main` initially
-      showed as a whole-file rewrite (every line) despite the content being
-      correct -- root cause was `core.autocrlf=true` (this worktree's
-      inherited setting) normalizing the working copy to LF for the diff
-      comparison while `origin/main`'s stored blob for this file (and for
-      `ai-os/boss/ACTIVE-CLAIMS.yaml` / `drizzle/meta/_journal.json`) is
-      genuinely CRLF/LF as committed, not autocrlf-normalized storage.
-      Set `git config --local core.autocrlf false` in this worktree (not
-      global) and re-normalized the 3 affected files to match each one's
-      own real stored convention (`schema.ts`: CRLF, matching its existing
-      content; `ACTIVE-CLAIMS.yaml`/`_journal.json`: LF, matching theirs) --
-      confirmed clean via `git diff --stat origin/main -- <file>` collapsing
-      to the true small additive diff in every case afterward.
-- [x] `bun install` in the worktree -- 1203 packages initially, then 83 more
-      after the merge (main had grown new deps, incl. `@axe-core/playwright`
-      which a first `tsc --noEmit` pass flagged missing -- a second
-      `bun install` after the merge resolved it, not a real code issue).
-- [x] `node scripts/check-governance-yaml-parse.mjs` -- passed.
-- [x] `bunx tsc --noEmit` (`node_modules/.bin/tsc.exe --noEmit`,
-      `NODE_OPTIONS=--max-old-space-size=8192` per this repo's documented
-      Windows/OOM convention) -- clean, 0 errors, full repo.
-- [x] `bun test src/lib/services/task-execution-trace-service.test.ts` --
-      3 pass / 0 fail (the PR's own new test file, unmodified by the merge).
-- [x] `bun test` (full repo, local, no `--isolate`) -- 3439 pass / 9 fail.
-      Independently confirmed via a separate, clean `origin/main` checkout
-      that the identical failure class (role-check 403-vs-200 in
-      `dunning-list`/`finance-dashboard` route tests) already exists on
-      `main` itself when run as part of the full suite (12 fail there), but
-      all pass in isolation on both `main` and this branch -- a pre-existing
-      full-suite mock-leak/test-order issue (`ci.yml`'s own `unit-tests` job
-      comments document this exact class, fixed there by `bun test
-      --isolate`, which this local run didn't use). Not a regression from
-      this merge; real CI's own `Unit Tests` job (which does use
-      `--isolate`) confirmed clean on the pushed PR.
-- [x] `bun run lint` -- 0 errors (138 pre-existing complexity warnings
-      elsewhere in the repo, none in touched files).
-- [x] `node scripts/check-migration-integrity.mjs` -- 328 journal entries
-      present, no live-DB comparison (no `DATABASE_URL` locally, matches
-      this job's own documented no-DB-access behavior).
-- [x] `node scripts/check-migration-collision.mjs` / `check-route-error-
-      handling.mjs` / `check-new-test-coverage.mjs` -- all hit the
-      documented Windows/`cmd.exe` `execSync` artifact locally (silently
-      no-op or partial output); manually verified each one's real question
-      by hand instead (migration number free via `git ls-tree`; zero
-      route.ts files touched; a new `*.test.ts` file present in the diff).
-- [x] Regenerated `docs/master/TEST_COVERAGE_GAP.md` (this PR touches
-      `src/lib/services`) by importing `buildStats`/`renderReport` directly
-      from `scripts/report-test-coverage-gap.mjs` via a `file://` URL and
-      doing the fs read/write by hand -- the documented `isMain`
-      self-invocation bug no-ops the script's normal CLI path in this shell.
-      103/231 service files now have a sibling test (up from 102/229).
-- [x] Verified `drizzle/0505_task_execution_traces.sql`'s staged blob is
-      LF-only per `.gitattributes`' `drizzle/*.sql text eol=lf` rule
-      (confirmed via `git cat-file -p :<path>`, not just the working-tree
-      file, since `git add` applies the attribute's clean filter
-      independent of `core.autocrlf`).
-- [x] Pushed `rebase-sweep2-604`, opened replacement PR #1518, closed #604
-      as superseded (`gh pr close 604 --comment "Superseded by real rebase
-      PR: ...#1518"`).
-- [x] **Real CI on #1518, first push:** every must-fix job green -- Build,
-      Type Check, Lint, Unit Tests, Migration Number Collision Check,
-      Migration Integrity Check (AR-12), Migration Schema Drift Check,
-      Governance YAML Parse Check, New Test Coverage Check, Test Coverage
-      Gap Report Check, Route Error Handling Check, Documentation Sentinel
-      Check, Secret Scanning, Security Pattern Check all `pass`. `E2E Tests`
-      failed -- root-caused via the real job log to 6 failures, all
-      pre-existing and unrelated to this PR's backend-only diff: 5 are
-      site-wide WCAG `color-contrast` axe violations (accessibility.spec.ts,
-      a UI/CSS concern this PR never touches) and 1 is `the minted session
-      must resolve to a real org` (an auth/session E2E fixture issue,
-      unrelated to the TET trace table). `Vercel` failed with "Deployment
-      was blocked" -- the documented platform-wide block, not this PR.
-      Both are this repo's own documented known-ambient, non-blocking
-      categories.
-- [x] **`gh pr merge 1518 --squash` failed for real** on the first attempt:
-      "not mergeable: the merge commit cannot be cleanly created". Re-checked
-      `gh pr view 1518 --json mergeable,mergeStateStatus`: `CONFLICTING` /
-      `DIRTY` -- the exact same concurrent-rebase-sweep race
-      `check-migration-collision.mjs`'s own header and this file's
-      rebase-sweep2-582 entry already documented: a **different,
-      concurrent** rebase-sweep session (PR #583 -> replacement, "V2-17: HR
-      validation UX + payroll rate-seed audit + HR dashboard caching +
-      load-test harness") merged to main (`d70f0cd0`) a few minutes after
-      this branch's own merge-base. Confirmed via `git log HEAD..origin/main`
-      -- exactly 1 new commit, touching `PROGRESS.md`,
-      `ai-os/boss/ACTIVE-CLAIMS.yaml`, `docs/master/TEST_COVERAGE_GAP.md`
-      (the same 3 rolling-log files, expected) plus HR-domain files this PR
-      never touches (`hr-service.ts`, `hr-dashboard-service.ts`, etc. --
-      zero real overlap with `task-execution-trace-service.ts` /
-      `tet-shield-gate.ts` / `schema.ts` / the 0505 migration). **Second
-      merge pass:** `git fetch origin main && git merge origin/main` against
-      the fresh `d70f0cd0` tip -- 3 conflicts, all in the same 3 rolling-log
-      files, same resolution pattern as the first pass (`PROGRESS.md`
-      replaced wholesale again; `ACTIVE-CLAIMS.yaml` unioned again --
-      zero real key collision; `TEST_COVERAGE_GAP.md` regenerated again via
-      the same direct-import workaround, now reflecting `hr-dashboard-
-      service.ts` too). No `drizzle/`, `schema.ts`, or TET-file conflicts
-      this round -- confirmed via `git ls-tree -r origin/main -- drizzle/`
-      that `0505` is still free (main's highest is still `0504`; #583's
-      replacement added no migration).
+- [x] Worktree: attempted a real `git merge origin/main` onto PR #585's
+      actual branch first, per this repo's standard rebase-sweep protocol.
+      The branch's own history turned out to be genuinely diverged from
+      current main -- merge-base is `7d8c6f28`, dated 2026-07-26, with main
+      1507 commits ahead of it vs. the branch's own 3. A literal merge
+      produced 121 conflicted files (`AA`/`UU`/`UD`), the overwhelming
+      majority in files this PR never touched (CRM/ERP/floor-plans/
+      punch-list pages, etc.), and several of those were flagged `AA`
+      (add/add) even though the blob was byte-identical between the
+      merge-base and the PR branch tip -- a criss-cross/multi-merge-base
+      artifact from this repo's heavy rebase/squash history, not a real
+      content conflict. Aborted that merge. Instead, confirmed the PR's own
+      real diff via local git (`git diff --name-status <merge-base>
+      origin/feat/mother-router-roster-persistent-memory`): exactly 6 files
+      -- `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+      `drizzle/0264_mother_router_roster_memory.sql` (new),
+      `src/app/api/ai/team/dispatch/route.ts`,
+      `src/lib/ai-router/mother-router.ts`, `src/lib/db/schema.ts`. Reset a
+      fresh branch to `origin/main` and cherry-picked the PR's 3 real
+      commits (`2adc22b8`, `645d80be`, `ec4d6216`) instead of merging the
+      stale branch wholesale.
+- [x] Resolved real conflicts:
+      - `ai-os/boss/ACTIVE-CLAIMS.yaml` -- append-only claims log; kept
+        HEAD's content (everything main had accumulated since the
+        merge-base, including the closed-out entry for the analogous
+        #582->#1513 rebase-sweep) and appended this task's own claim entry
+        from the PR's commit, unchanged.
+      - `PROGRESS.md` (this file) -- replaced wholesale, this repo's own
+        established convention (holds only the current active entry).
+      - `src/lib/ai-router/mother-router.ts` -- two small real hunks: (1)
+        import line -- kept main's own `sql` import (genuinely used at
+        line ~626, added independently since the merge-base) alongside the
+        PR's own `motherRouterMemory`/`createId` additions; (2)
+        `MotherRouterResolution` type -- kept main's own `resolvedConfig`
+        field (an unrelated, independently-added end_user_org/gateway
+        feature) alongside the PR's own `dispatchId` field. Diffed the
+        result against `origin/main` afterward to confirm the change is
+        exactly the PR's intended 2-function/2-field addition (+86/-2,
+        matching the original PR's own diff stat exactly), nothing dropped
+        or duplicated.
+      - `src/lib/db/schema.ts` -- git flagged this as ONE conflict
+        spanning virtually the entire 774KB/12.8k-line file (criss-cross
+        artifact, same cause as above), not a real content conflict at any
+        specific line. Resolved by taking `origin/main`'s version of the
+        file whole (`git checkout --ours`) and manually re-inserting the
+        PR's own real, isolated 58-line addition (`git diff <merge-base>
+        645d80be -- src/lib/db/schema.ts`) at its correct location (right
+        after the `aiRoutingAuditLog` table, before the Task Register
+        section) -- both new enums + both new tables, byte-for-byte as
+        authored. Independently verified the result against `origin/main`
+        via Python's `difflib.SequenceMatcher(autojunk=False)` (git's own
+        diff view is a poor cosmetic match on this file -- see the CRLF
+        note below): exactly one real change, a clean 58-line insert at
+        line 12239, nothing else touched.
+- [x] `src/app/api/ai/team/dispatch/route.ts` merged automatically (both
+      git's 3-way merge and, for one later hunk, `git cherry-pick`'s own
+      resolution correctly hoisted `estimateCostUsd(...)` into a shared
+      `dispatchCostUsd` local now reused by both the pre-existing
+      `activity_log` write and this PR's new `mother_router_memory`
+      outcome write) -- no manual conflict resolution needed, diffed
+      against `origin/main` afterward to confirm correctness (+63/-8,
+      matching the original PR's own diff stat exactly).
+- [x] Cherry-pick sequencer hygiene: an earlier `git cherry-pick --no-commit
+      <3 commits>` attempt (superseded by the per-commit approach above)
+      left a stale `.git/.../sequencer/todo` behind after its first
+      conflict was resolved with a plain `git commit` instead of
+      `--continue`. This caused one later `--continue` to silently replay
+      an already-committed pick a second time and conflict against itself.
+      Caught it (the second "Add ground-up persistent memory..." conflict
+      immediately following its own successful commit was the tell),
+      manually removed the stale `sequencer`/`CHERRY_PICK_HEAD` state (not
+      `--abort`, which would have targeted the sequence's original
+      pre-cherry-pick HEAD and risked discarding both already-good
+      commits), `git reset --hard HEAD` back to the last known-good commit,
+      and re-verified `git log`/`git status`/a full diff against
+      `origin/main` were clean before proceeding.
+- [x] **Migration renumbering: 0264 -> 0505.** `drizzle/0264_...` was
+      already taken on current main by an unrelated, already-merged
+      migration (`0264_helpdesk_tiered_sla_team_routing.sql`) -- same class
+      of collision as the precedent `#582->#1513` rebase-sweep documented
+      elsewhere in this file's own history and in `ACTIVE-CLAIMS.yaml`.
+      Checked the TRUE current highest via `git ls-tree -r origin/main --
+      drizzle/` (0504, 332 real `.sql` files -- `ls`/`find` globs on this
+      Windows shell undercounted, 302 and 51 respectively on two different
+      attempts; `git ls-tree` is the reliable source), not a stale local
+      checkout, and renumbered to 0505 (confirmed free). `git mv`'d the
+      file, added the corresponding `drizzle/meta/_journal.json` entry
+      (`idx: 327`, `tag: 0505_mother_router_roster_memory`), and confirmed
+      no other file in the repo referenced the old `0264_...` filename
+      before or after the rename. The migration's own internal comments
+      cite `drizzle/0231` (`ai_routing_audit_log`) and `drizzle/0249`
+      (`task_register`) for context -- both unrelated, both still accurate
+      on current main, left unchanged. Noted, not fixed (pre-existing,
+      unrelated to this PR): `origin/main` already has a 5-file gap between
+      real `.sql` files (332) and journal entries (327) before this branch
+      touches anything; this branch's own file+journal-entry pair keeps
+      that same gap at 5, not widening it.
+- [x] **CRLF line-ending contamination, found and fixed.** This worktree's
+      checkout picked up `core.autocrlf=true` from the machine's system
+      gitconfig (`C:/Program Files/Git/etc/gitconfig`) despite the parent
+      clone's own `C:/ct/ct/.git/config` overriding it to `false` -- cause
+      not fully root-caused (worktree config inheritance is normally
+      shared, not per-worktree, so this may be a transient checkout-time
+      quirk rather than a real config gap), but the effect was real: the
+      working-tree copies of `schema.ts`, `mother-router.ts`,
+      `dispatch/route.ts`, and `ai-os/boss/ACTIVE-CLAIMS.yaml` all ended up
+      CRLF at various points while every other file in the repo (and
+      `origin/main`'s own committed blobs) stayed LF. This is exactly the
+      class of drift `.gitattributes`' own `E102_MIGRATION_LEDGER_LINE_ENDING_HASH_SPLIT`
+      comment warns about for `drizzle/*.sql` -- not itself a `.sql` file
+      here, but the same failure mode, and it was also inflating `git
+      diff`'s own output into apparent full-file rewrites (tens of
+      thousands of +/- lines for what were real few-line changes),
+      confusing verification. Caught via a byte-level CRLF/LF count on
+      every touched file against `origin/main`'s own committed line
+      endings, fixed by normalizing all 4 files back to LF with a
+      binary-mode (not text-mode -- Python's text-mode `open(..., 'w')`
+      round-trips through the platform's own newline convention and was
+      the proximate cause of at least one of these conversions) read/write,
+      then re-verified byte-for-byte correctness and clean diff stats
+      against `origin/main` for every file afterward.
+      - `ai-os/boss/ACTIVE-CLAIMS.yaml`: also had a real, independent
+        indentation bug in the new claim entry the PR's own commit added
+        (0-space list-item indent; this file's actual convention,
+        confirmed against every neighboring entry, is 2-space), which is
+        what `check-governance-yaml-parse.mjs` (below) caught for real --
+        fixed by re-indenting exactly that entry's lines, nothing else.
+
+## Validation run
+
+- [x] `node scripts/check-governance-yaml-parse.mjs` -- FAILED on first run
+      (the real `ai-os/boss/ACTIVE-CLAIMS.yaml` indentation bug above),
+      PASSED after the fix: all 5 governance YAML files parse cleanly.
+- [x] `node_modules/.bin/tsc.exe --noEmit`
+      (`NODE_OPTIONS=--max-old-space-size=6144`, this repo's documented
+      Windows fallback) -- first run showed 4 `Cannot find module` errors
+      (`@axe-core/playwright`, `@huggingface/transformers` x2,
+      `@mlc-ai/web-llm`), none in a file this PR touches; root-caused to
+      this worktree's first `bun install` not having fully installed those
+      3 declared (non-optional) `package.json` dependencies (confirmed
+      present in the separate `C:/ct/ct` reference checkout's own
+      `node_modules`, absent here) -- a second `bun install` in this
+      worktree installed all 3 (125 packages), and the re-run passed with
+      **zero errors**.
+- [x] `bun test src/lib/ai-router/mother-router.test.ts` (the one existing
+      test file covering a source file this PR modifies -- this PR itself
+      adds no new test file) -- **30 pass, 0 fail, 72 expect() calls**.
+- [x] `node scripts/check-migration-integrity.mjs` /
+      `check-migration-schema-drift.mjs` -- both ran (DB-comparison leg
+      skipped, no `DATABASE_URL` set locally, as documented in each
+      script's own header); 328 journal entries confirmed present on this
+      branch (327 on `origin/main` + this PR's 1).
+      `check-migration-collision.mjs --base origin/main` hit the
+      documented Windows-only `execSync`/`2>/dev/null` parsing artifact
+      (real CI runs on `ubuntu-latest`, unaffected) -- replicated its real
+      logic by hand via `git ls-tree -r origin/main -- drizzle/` instead
+      (see the renumbering entry above).
+
+## Real CI, first push (PR #1517)
+
+Pushed, opened https://github.com/FChecklist/compliance-tracker/pull/1517
+("... [was #585]"), closed #585 as superseded. Real CI's own **Unit Tests**
+job caught a real, genuine bug -- not this rebase-sweep's own doing, latent
+in the original PR #585's own diff, apparently never actually verified
+against real CI before now:
+
+- `src/app/api/ai/team/dispatch/route.test.ts` (untouched by #585's own
+  diff) `mock.module("@/lib/ai-router/mother-router", ...)` replaces the
+  WHOLE module -- `dispatch/route.ts` now imports the new
+  `recordMotherRouterOutcome` export, which the mock never listed, so
+  loading the route under test failed with a real
+  `SyntaxError: Export named 'recordMotherRouterOutcome' not found` before
+  any test body ran (7 of 7 tests in that file failed this way on CI).
+  Fixed by adding a no-op `recordMotherRouterOutcome: mock(async () => {})`
+  to the mock.
+- Fixing that surfaced a second, related real bug locally (CI's run order
+  didn't happen to hit it, but it is real): the same mock's generic
+  `db.insert(): { values: ... }` handler ignores which table it was called
+  with and unconditionally writes into the `rows` Map keyed by `taskId`,
+  which `task-register-service.ts` (real, unmocked in this file) also
+  reads from. `dispatch/route.ts`'s new fire-and-forget
+  `db.insert(aiAgentMemory).values({roleId, taskId, ...})` call hits that
+  same generic handler and clobbers the real taskRegister row for that
+  `taskId` with an `ai_agent_memory`-shaped one, breaking the multi-step L2
+  workflow test's second call (`steps.length` came back 1, not 2). Fixed
+  by making the mock's `insert` check the real `table` argument
+  (`table !== real.taskRegister`) and no-op for any other table.
+- Confirmed both were real: reproduced locally
+  (`bun test src/app/api/ai/team/dispatch/route.test.ts`, 7/7 failing
+  before either fix, 7/7 passing after both), then re-ran the FULL suite
+  (`bun test`, 3450 tests) -- 9 failures remained, but 2 of them
+  (`finance-dashboard/route.test.ts`, `tasks/[id]/status/route.test.ts`,
+  neither touched by this PR) reproduce identically with our two touched
+  test files EXCLUDED from the run entirely, and pass cleanly when run in
+  isolation -- pre-existing, local test-order-dependent flakiness (global
+  `mock.module` state bleeding between files in this machine's own
+  file-discovery order), not a real regression; consistent with CI's own
+  Unit Tests job (different run order) never flagging them. The other 7 --
+  all from `dispatch/route.test.ts` -- were the real, now-fixed bug above.
+
+## Real CI, second push -- all real checks green
+
+After pushing the Unit Tests fix, `gh pr checks 1517` came back **all real
+checks passing**: Build, Documentation Sentinel Check, Governance YAML Parse
+Check, Lint, Migration Integrity Check (AR-12), Migration Number Collision
+Check, Migration Schema Drift Check, New Test Coverage Check, Route Error
+Handling Check, Secret Scanning, Security Pattern Check, Test Coverage Gap
+Report Check, Type Check, **Unit Tests** (42s). Only the two
+documented-ambient jobs stayed red (E2E Tests, Vercel platform-block).
+
+## Real merge race, caught before merging
+
+`gh pr view 1517 --json mergeable,mergeStateStatus` came back
+`CONFLICTING`/`DIRTY` right as CI finished -- the exact same class of race
+this file's own #582->#1513 precedent documents: a **concurrent** rebase-sweep
+session (this repo's own convention, working PR #583 -> replacement, in
+parallel with this session) merged `d70f0cd0` ("V2-17... [was #583]") to
+`origin/main` a few minutes after this branch was pushed, touching the same
+2 shared files this rebase-sweep also touches (`PROGRESS.md`,
+`ai-os/boss/ACTIVE-CLAIMS.yaml`) -- not a real content collision in either
+file's substance, just two concurrent sessions both appending to the same
+append-only files. `git fetch origin main` + `git merge origin/main`
+confirmed: this PR's own migration number (`0505`) does NOT collide with
+anything the concurrent session added (checked `git ls-tree -r origin/main
+-- drizzle/` again after the fetch) -- only `PROGRESS.md` and
+`ACTIVE-CLAIMS.yaml` conflicted, and both were the same whole-file
+criss-cross-diff artifact seen earlier in this same file. Resolved the same
+way as before: `PROGRESS.md` -- kept ours entirely (session-scratch
+convention, the other session's own PROGRESS.md content is irrelevant to
+this branch). `ACTIVE-CLAIMS.yaml` -- took `origin/main`'s real, current,
+full content (`git checkout --theirs`, confirmed via direct `git cat-file`
+that it genuinely includes the concurrent session's own new entry, inserted
+mid-file at line ~6561, not at the tail) and re-appended this branch's own
+real, isolated 39-line entry (diffed against the old merge-base to extract
+it cleanly) at the true tail. Independently verified via
+`difflib.SequenceMatcher(autojunk=False)` against a fresh `git cat-file -p
+origin/main:...`: exactly one real change, a clean 39-line insert at the
+very end, nothing else touched, matching origin/main byte-for-byte
+everywhere else. Also re-fixed CRLF (this worktree's checkout picked it up
+again on the `git checkout --theirs` step -- see the earlier CRLF note,
+same root cause, same fix).
 
 ## Remaining
 
-- [ ] Re-push `rebase-sweep2-604` after this second merge pass, re-verify
-      real CI green on #1518 (treating E2E/Vercel as known-ambient per this
-      file's own record above), then merge for real -- confirmed via
-      `gh pr view --json state,mergedAt` afterward, not assumed. Re-check
-      `mergeable`/`mergeStateStatus` isn't `CONFLICTING`/`DIRTY` again from
-      a third concurrent session before merging.
+- [ ] Commit the merge, push, re-check `gh pr view --json
+      mergeable,mergeStateStatus` is `MERGEABLE` and CI is still green after
+      the merge commit, then merge for real -- confirmed via `gh pr view
+      --json state,mergedAt` afterward, not assumed.
