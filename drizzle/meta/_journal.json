@@ -2318,6 +2318,20 @@
       "when": 1788286300000,
       "tag": "0508_sd006_sales_by_material_service_type_report_definition",
       "breakpoints": true
+    },
+    {
+      "idx": 331,
+      "version": "7",
+      "when": 1788286600000,
+      "tag": "0509_prompt_translation_localization_marketplace",
+      "breakpoints": true
+    },
+    {
+      "idx": 332,
+      "version": "7",
+      "when": 1788286700000,
+      "tag": "0510_register_prompt_marketplace_listings",
+      "breakpoints": true
     }
   ]
 }

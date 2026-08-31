@@ -2471,94 +2471,6 @@ active:
       entries for genuine dated comments and test-fixture dates in the 3
       files above), PROGRESS.md, this file. No schema/table changes. No
       overlap with any other open PR found during the collision check above.
-  - session_label: "claude-code (sd-006-sales-by-material-service-type) -- SD-006 Sales by Material / Service Type"
-    claimed_at: "2026-07-30T (this session)"
-    claim: |
-      Task: build SD-006 "Sales by Material / Service Type" (sap_mapping.sqlite
-      sap_reports, module SD, priority MEDIUM, veridian_mapping_status
-      BUILD_NEW as of 2026-07-28) -- SAP's material/material-group revenue
-      breakdown, per that row's own implementation_notes renamed "Revenue by
-      Service Type": groups erp_sales_invoice_items lines by item or item
-      group and sums Total Net Revenue, with an optional Gross Profit/Margin
-      % proxy (erp_items.standard_buying_rate x quantity).
-
-      Real finding: erp_sales_invoice_items.item_id (Wave 60) already exists
-      and is nullable -- the data model supports the grouping, but no report
-      function anywhere performs this aggregation (confirmed via grep across
-      src/lib/services/*.ts). Adding a new deterministic_formula report to
-      report-engine-service.ts's FORMULA_REGISTRY (same pattern as SD-002's
-      computeBillingDueList, PR #638) -- NOT erp-selling-service.ts (that
-      file's own header says aggregation/reporting reads belong in
-      report-engine-service.ts; erp-selling-service.ts is for document
-      CRUD/workflow, which SD-006 is not).
-
-      No collision found with any other open SD-* PR (checked SD-002 #629/
-      638, SD-007 #644 merged, FI-AP-005 #637, FI-GL-007 #647, FI-AR-006
-      #645 via `gh pr list` -- none touch erp_sales_invoice_items grouping
-      or report-engine-service.ts's FORMULA_REGISTRY sales-by-item slot).
-    scope_note: >-
-      File scope: compliance-tracker only --
-      src/lib/services/report-engine-service.ts (new
-      aggregateSalesByMaterialServiceType pure function + FORMULA_REGISTRY
-      entry, additive), src/lib/services/report-engine-service.test.ts (new
-      tests), a new hand-written drizzle migration seeding one
-      compliance.report_definitions row, PROGRESS.md, this file.
-  - session_label: "claude-code (crm-007-sales-rep-performance-dashboard) -- CRM-007 Sales Representative Performance Dashboard"
-    claimed_at: "2026-07-30T (this session)"
-    claim: |
-      Task: build CRM-007 "Sales Representative Performance Dashboard"
-      (sap_mapping.sqlite sap_reports, module CRM, priority LOW,
-      veridian_mapping_status BUILD_NEW as of 2026-07-28), read fresh from
-      the sqlite row directly (business_purpose/calculation_logic/
-      input_data_required/output_format/veridian_gap_notes/
-      implementation_notes), not a summary.
-
-      No collision found in this file's `active:`/`recently_completed:`
-      entries or in `gh pr list`/ACTIVE-CLAIMS grep for "CRM-007"/"Sales
-      Rep" before starting. Real finding confirmed directly against
-      schema.ts (not trusted secondhand from the sqlite row's own
-      citations): ownerId already exists on both crm_leads and
-      crm_opportunities (used by bulkReassignLeads/bulkReassignOpportunities
-      in crm-service.ts), so per-rep grouping was always possible, but no
-      per-sales-rep aggregated dashboard existed anywhere -- confirmed by
-      grepping crm-service.ts and crm-activities-service.ts fresh. NO NEW
-      SCHEMA needed: crm_opportunities (estimatedValue/stage/ownerId/
-      aiWinProbability/createdAt), crm_stage_history (won/lost transition
-      dates via changedAt), and crm_activities (assignedToId) already carry
-      every column this report aggregates over.
-
-      Added aggregateSalesRepPerformance()/getSalesRepPerformanceDashboard()
-      to crm-service.ts (pure aggregator + thin DB-fetching wrapper, same
-      split aggregateDesignerTimesheetCosts/designerTimesheetReport
-      established in construction-reports-service.ts), a new route at
-      GET /api/v1/projexa/sales-rep-performance, and one report_definitions
-      migration (drizzle/0276, executionType='external_service',
-      classifications=["sales"] only so it resolves to the "custom" domain
-      per report-engine-service.ts's deriveReportDomainFromClassifications,
-      matching SD-007/FI-GL-007's own documented reasoning for that choice).
-
-      Two honest, disclosed gaps (never fabricated, see crm-service.ts's own
-      header comment on this section): (1) Revenue Target / Target
-      Achievement % -- the sqlite row's own input_data_required says a
-      per-rep-per-period revenue target is a "prerequisite data element";
-      grepped schema.ts fresh, no target/quota table exists anywhere in this
-      codebase, so both fields report null on every rep row. (2) Weighted
-      Pipeline Value uses aiWinProbability (the only per-opportunity win
-      probability this schema has) -- opportunities never run through
-      analyzeOpportunity() are honestly excluded from the weighted sum, not
-      assumed at 0%/100%.
-    scope_note: >-
-      File scope: compliance-tracker only --
-      src/lib/services/crm-service.ts (new aggregateSalesRepPerformance/
-      getSalesRepPerformanceDashboard functions, additive, rest of file
-      untouched), src/lib/services/crm-service.test.ts (new file -- this
-      file had zero test coverage before this task), src/app/api/v1/projexa/
-      sales-rep-performance/route.ts (new route), a new hand-written drizzle
-      migration (0276) seeding one compliance.report_definitions row,
-      ai-os/registry/terminology-guardrail-exemptions.yaml (3 new/updated
-      entries for genuine dated comments and test-fixture dates in the 3
-      files above), PROGRESS.md, this file. No schema/table changes. No
-      overlap with any other open PR found during the collision check above.
   - session_label: "claude-code (sd-007-sales-order-document-flow-overview) -- SD-007 Sales Order Document-Flow Overview"
     claimed_at: "2026-07-30T (this session)"
     claim: |
@@ -2880,7 +2792,6 @@ active:
       >4h, work already merged per PROJEXA_GAP_ANALYSIS.md's own
       described-as-current behavior) entries about route/UI creation, not
       this validation logic. No active claim on this file.
-  - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj)"
   - session_label: "claude-code (task-20260727-100954-erp-hr-gaps--expense-reimbursement--loan) -- Phase 0 HR gap closure: employee expense/reimbursement, employee loans/salary advances, KRA/weighted-goal + 360 performance appraisal, shift management/roster"
     claimed_at: "2026-07-27T (this session)"
     claim: |
@@ -5648,101 +5559,6 @@ active:
       via that spike's own header comment -- real blocker, not proceeding
       with it). Branch: worktree-prompt-cache-phase1.
 
-  - session_label: "claude-code (this session, CLI) -- Priority 17 completion (PR #350 unblock + full-scope re-sweep)"
-    claimed_at: "2026-07-15T (this session)"
-    claim: |
-      Owner directive 2026-07-15: "complete priority 17." 3 of 4 Wave 1
-      workstreams already merged (multi-office #342/projexa#18, PMS depth
-      #340/projexa#19, Inventory/Procurement #346/projexa#17). This session:
-      (1) investigating why compliance-tracker PR #350 (multi-currency
-      Selling & Buying, branch priority17-multicurrency-selling-buying-v3)
-      cannot get a GitHub Actions check-suite to trigger -- confirmed via
-      `gh api .../actions/runs` that Actions is firing normally on other
-      branches/PRs in the same window (not a repo-wide outage), and zero
-      runs have ever been recorded for that exact branch name; PR #350 is
-      also now `mergeable_state: dirty` against current main. Attempting one
-      genuinely fresh branch off current origin/main carrying the same diff
-      (not reusing #350/#348/#344's branch history) before concluding this
-      needs real time to clear. (2) once landed, re-sweeping the full
-      PRIORITY-17 scope statement (every module, real production depth,
-      multi-tenant/currency/country/office) for anything past the 4 named
-      Wave-1 workstreams still genuinely incomplete -- reporting a punch-list
-      with file:line evidence, not assuming Wave 1 == all of Priority 17.
-      Full detail: CONTROLLER.yaml PRIORITY-17 dispatch_2026_07_15b. Scope:
-      compliance-tracker only (src/lib/db/schema.ts currency-related fields,
-      erp-selling-service.ts, erp-buying-service.ts, and whatever the
-      re-sweep finds). Does NOT touch src/lib/supabase/auth-guard.ts or any
-      auth/membership-shape change in schema.ts -- that's PLATFORM-01's
-      territory, confirmed via this file's own active entries before
-      starting.
-
-      UPDATE (same session): PR #350's stuck check-suite was a real,
-      branch-specific delivery problem, not a repo-wide outage or a code
-      issue -- confirmed by opening this very claim-registration PR (#355)
-      moments earlier and watching its own CI trigger immediately. Recreated
-      the diff on a genuinely fresh branch off current origin/main
-      (priority17-multicurrency-selling-buying-v4, PR #356) rather than
-      reusing #350/#348/#344's branch history. One real semantic conflict
-      surfaced during rebase (not just textual): the already-merged
-      Inventory/Procurement PR #346 had added its own ActorCtx dbUser-or-
-      apiKey union type to erp-buying-service.ts; the stale branch
-      duplicated this as a second type (BuyingActorCtx) instead of reusing
-      it -- resolved by reusing main's ActorCtx and dropping the duplicate.
-      Migration renumbered drizzle/0204 -> 0208 (main gained 4 migrations,
-      0204-0207, from other merged work since this branch was first cut).
-      PR #356 result: all 4 required branch-protection checks green (Lint/
-      Type Check/Build/Unit Tests), plus CodeQL/Sentinel/Guardrail-Presence/
-      Doc-checks all green -- only the Mandatory Audit Check is red, which
-      is the expected/correct state (this session is the implementer, not
-      the auditor -- AGENTS.md Rule 7c requires the non-implementing agent
-      to post the AUDIT: PASS/FAIL verdict, not self-certification). PR #350
-      closed as superseded (comment posted pointing to #356). Left #356
-      open, unmerged, for the supervising session's audit + merge.
-
-      UPDATE (new dispatch, same claim -- currency-hardcoding re-sweep
-      close_out_2026_07_15 follow-through): the re-sweep item "(1) ~10
-      components still hardcode INR/en-IN/rupee-symbol formatting outside
-      the 3 files fixed by projexa#24" is now fixed for real. Grepped both
-      repos' src/ trees for literal "rupee sign", "INR", and
-      .toLocaleString("en-IN") -- found 12 real bugs in projexa (beyond the
-      3 already-fixed) and 9 in compliance-tracker's own (app)/ UI, of which
-      2 (partner/[token] and /sales-hq commission dashboards) were
-      reclassified and left UNTOUCHED after finding they render VERIDIAN's
-      own platform commission ledger (salesCommissionPlans.currency,
-      defaults "INR" but is itself per-plan-overridable and not tied to any
-      customer org's ERP base currency) -- flagged as a deeper
-      cross-currency-aggregation question, not a simple symbol-formatting
-      bug, out of this task's scope. Also left ChallanSection.tsx's
-      GST-challan amount untouched (legitimately INR-only, paid to the
-      Indian government regardless of org currency) and roughly 17 other
-      compliance-tracker files with genuinely India-statutory amounts (GST
-      notices, penalties, Companies Act registers) untouched for the same
-      reason -- full split documented in each repo's PR. Consolidated:
-      created projexa/src/lib/currency.ts (currencyLabel() + useCurrencies()
-      hook) and compliance-tracker/src/lib/currency-format.ts (same shape,
-      backed by the existing session-authenticated /api/erp/currencies
-      route) -- every one of the 12+9 fixed files, plus the 3 already-fixed
-      projexa files (previously 3 separate local copies), now imports from
-      one shared module per repo instead of repeating the copy-paste
-      pattern. One file (compliance-tracker's public, session-less
-      client-portal/[token]/page.tsx) couldn't use the shared hook (no
-      session to call /api/erp/currencies) -- threaded the org's
-      base-currency code through its own existing token-scoped response
-      instead (getClientPortalData() in firm-client-portal-service.ts), raw
-      `db` query against erpCurrencies directly rather than
-      erp-accounting-service.ts's listCurrencies() (which hard-gates on
-      requireErpEnabled() and would 403 a firm-only org with no ERP branch
-      enabled). projexa's server-rendered src/app/(app)/dashboard/page.tsx
-      also couldn't import the "use client" shared lib (Server Component
-      boundary) -- kept a small local server-safe duplicate there instead,
-      flagged rather than forced into the shared module. bunx tsc --noEmit
-      clean in both repos; bun run lint 0 errors in projexa (1 pre-existing
-      unrelated warning in data-table.tsx, untouched by this diff).
-      Branch: priority17-currency-hardcoding-sweep (both repos), worktrees
-      compliance-tracker/.claude/worktrees/priority17-currency-sweep and
-      projexa/.claude/worktrees/priority17-currency-sweep. NOT merged by
-      this session -- left for the supervising session's audit per standing
-      dispatch instructions.
   - session_label: "claude-code (this session) -- REVIEW-FRAMEWORK-WAVE4 Track 1b item 1: live exchange-rate feed"
     claimed_at: "2026-07-17T (this session)"
     claim: |
@@ -6737,6 +6553,192 @@ active:
       (CI test asserting both modes via drizzle-orm's own PgDialect SQL
       compilation, no live DB). Not touching capture.ts/embed.ts/chunker.ts
       (they don't exist on this branch's base) or any other CRR P2/P3 file.
+  - session_label: "claude-code (task-20260728-160922-fix-pr--618-real-audit-fail-reason) -- Fix PR #618's real AUDIT:FAIL reason"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Owner-directed: PR #618 (phase_8 prompt translation/localization/
+      marketplace) had mergeable=CONFLICTING and its most recent supervisor
+      audit comment (2026-07-28T10:03:54Z) said FAIL, citing "the diff
+      supplied for this review is materially incomplete" -- 3 of 4 new
+      service files + their tests never shown, prompt-export-import-
+      service.ts truncated mid-function.
+      Root-caused this for real (not trusting the auditor's self-report):
+      `ai-os/scripts/supervisor-entrypoint.sh` line 56 does
+      `git diff "origin/$DEFAULT_BRANCH"...HEAD | head -c 60000` before
+      handing the diff to the reviewing LLM. PR #618's actual diff is
+      95,994 bytes -- computed the exact cumulative byte offset per file
+      in diff order and confirmed the 60,000-byte cutoff lands exactly
+      mid-file inside prompt-export-import-service.ts (54,406 -> 60,557
+      bytes), which is precisely the truncation point the auditor
+      described. This is an audit-pipeline defect, not a defect in PR
+      #618's own code -- confirmed via `gh api .../pulls/618/files` that
+      every file's patch is present and untruncated at the GitHub API
+      level.
+      Found an abandoned prior session's workspace
+      (task-20260728-122700-investigate-pr--618-real-audit-fail-reas,
+      no live systemd unit, never pushed/registered a claim) had already
+      independently merged origin/main into this branch and wrote an
+      uncommitted fix for the OTHER audit finding (drizzle/0269's
+      self-correcting create-then-drop-then-recreate RLS-policy
+      narrative) -- reviewed it, it was correct, redid the same fix
+      myself on this branch after verifying independently.
+      Also flagging (not silently fixing without sign-off): the live,
+      operational copy of supervisor-entrypoint.sh is in the separate
+      claude-control repo (/opt/veridian/repos/claude-control), not this
+      repo's stale ai-os/scripts/ mirror -- raising its 60000 cap is a
+      shared-infrastructure change affecting every task's audit across
+      the whole AI-OS, out of this task's compliance-tracker-only scope,
+      and needs explicit owner sign-off before I touch it.
+    scope_note: >-
+      File scope: compliance-tracker, worker/task-20260728-051737-owner-engine-phase-8-real-gaps
+      (PR #618's own branch, pushed to directly per this task's
+      "re-adopt" instruction) -- drizzle/0269_prompt_translation_localization_marketplace.sql
+      (RLS/GRANT cleanup only) and
+      src/lib/services/prompt-export-import-service.test.ts (mock leak
+      fix only). No changes to any other service/route/schema file in
+      that PR. Checked ACTIVE-CLAIMS for collisions: no other active
+      entry touches PR #618 or these files.
+  - session_label: "claude-code (task-20260728-051737-owner-engine-phase-8-real-gaps) -- VERIDIAN_Architecture_v2.0 phase_8: build the 5 real remaining gap items (prompt translation/localization/marketplace/export/import)"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Closes the 5 gap items independently re-audited as entirely unbuilt
+      in ai-os/audits/owner_engine_reaudit_2026-07-27.md (merged to main):
+      engine-prompt-translation, engine-prompt-localization,
+      engine-prompt-marketplace, engine-prompt-export,
+      engine-prompt-import. PR #589 (increment 1, see the now-superseded
+      claim this entry replaces below in recently_completed) only did a
+      scoping-only pass for these 5 plus real work on the other 2 of 7
+      phase_8 items (engine-dspy-integration, engine-ai-learning -- both
+      genuinely done, not touched by this task). Authoritative scope read
+      directly from ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml
+      (`phase_8_dspy_learning_distribution_engines`) in the sibling
+      claude-control repo (read-only).
+
+      Plan: extend the existing Prompt Operating System
+      (prompt-os-resolver.ts / prompt-os-service.ts, Wave 22/23) rather than
+      building a parallel prompt-management layer, per this task's own
+      CONSTRAINTS. New platform-wide tables (prompt_translations,
+      prompt_localizations, prompt_marketplace_listings) alongside the
+      existing promptTemplates/promptVersions tables. Translation calls a
+      real LLM via resolveModelConfig()+callLLMJson() (same pattern as
+      every other *-service.ts in this codebase), persisted so it doesn't
+      re-translate on every request. Localization is a distinct second LLM
+      pass layered on top of an existing translation (date/number format +
+      cultural-phrasing adaptation), not a duplicate of translation.
+      Marketplace is platform-wide browse/list (orgId nullable, attribution
+      only -- same posture as workerAgents' publish flow, not new
+      cross-tenant RLS), with a real screen. Export/import is a portable
+      JSON bundle format for one template + its versions, distinct from PR
+      #561's git-tracked-file-tree GitOps exporter (verified via `gh pr
+      view 561 --json files` before starting -- that script only exports
+      to `prompt-registry/` for git review, has zero import counterpart,
+      and is not phase_8 work).
+
+      File scope (compliance-tracker): src/lib/db/schema.ts (3 new
+      tables), one new hand-authored drizzle/0268_*.sql migration (this
+      repo's drizzle-kit generate has known meta/ drift issues per prior
+      sessions' notes -- hand-authoring follows the existing 0265/0266
+      pattern), src/lib/services/prompt-translation-service.ts,
+      prompt-localization-service.ts, prompt-marketplace-service.ts,
+      prompt-export-import-service.ts (+ colocated *.test.ts each),
+      permission-service.ts (new PROMPT_ACTION_ROLES entries, all
+      veridian_admin -- same bar as every existing prompt action, not
+      loosened), new API routes under src/app/api/prompt-os/{translate,
+      localize,export,import}/route.ts and src/app/api/prompt-marketplace/
+      route.ts, new src/app/(app)/prompt-marketplace/page.tsx screen.
+      Does not touch src/lib/prompt-security/, phase_9's Gateway G05
+      wiring, capability-learning-service.ts, or any cron/.timer unit
+      (task's own CONSTRAINTS: disabled cron/systemd timers stay disabled).
+
+      Collision check before starting: `git pull origin main` run fresh
+      immediately before this entry. Grepped this file for "phase_8"/
+      "prompt-translation"/"prompt-localization"/"prompt-marketplace"/
+      "prompt-export"/"prompt-import" -- only the stale increment-1 entry
+      below (PR #589, confirmed MERGED via `gh pr view 589`), no other
+      active or recent collision.
+
+      STATUS UPDATE (2026-07-28, same session): implementation complete --
+      all 4 services + colocated tests (27/27 pass), schema + hand-authored
+      0268 migration (not applied live, left for the supervising session
+      same as 0262's convention), permission entries, 5 API routes, and the
+      /prompt-marketplace screen all built. `npx tsc --noEmit` clean
+      (repo-wide). Full-repo `bun test`: 2255/2258 pass, the 3 failures
+      pre-exist on this branch without any of this PR's changes (verified
+      via `git stash` before/after) in unrelated files. Opened PR #618
+      (github.com/FChecklist/compliance-tracker/pull/618), not self-merged
+      per AGENTS.md Rule 7(c)/Rule 10 -- needs a fresh supervisor audit.
+
+      STATUS UPDATE (2026-07-29, task-20260728-122700-investigate-pr--618-
+      real-audit-fail-reas): PR #618 went through 2 real FAIL cycles after
+      the above, both already fixed on the live PR branch
+      (worker/task-20260728-051737-owner-engine-phase-8-real-gaps) before
+      this task started -- confirmed by reading all 9 issue-comments via
+      `gh api repos/FChecklist/compliance-tracker/issues/618/comments`:
+      (1) drizzle/0269's first RLS pass used SELECT-only policies on
+      app_runtime while granting INSERT/UPDATE -- since app_runtime is
+      NOSUPERUSER NOBYPASSRLS (drizzle/0215), RLS still blocked every
+      insert/update despite the GRANT; fixed with FOR ALL USING(true)/WITH
+      CHECK(true) policies + the missing UPDATE grants (commit faa52ec0).
+      (2) A cross-test mock leak: prompt-export-import-service.test.ts's
+      `mock.module("./prompt-os-service", ...)` stubbed a simplified,
+      semver-incorrect `nextSemanticVersion` that leaked into
+      prompt-os-service.test.ts's own real tests for the same function
+      whenever the full suite ran in one process (bun's mock.module()
+      replaces the module for the rest of the test process, not just the
+      one file) -- fixed by not mocking a pure function already covered by
+      its own suite (same commit). (3) A later real-CI-blocking gap: new
+      migration 0270 (marketplace-listings registration) plus missing
+      asset-registry-coverage.yaml / terminology-guardrail-exemptions.yaml
+      entries for the new tables/routes -- fixed in commit 9a80acf7. Final
+      audit comment (2026-07-29T00:41:31Z) is AUDIT: PASS, reviewed against
+      the real `git diff origin/main...HEAD` (not the truncated pasted
+      diff), all 27 changed files, `npx tsc --noEmit` clean, 41/41 phase_8
+      test files passing. `gh pr checks 618` now shows all checks green
+      including `audit-check`. `gh api .../pulls/618` shows
+      mergeable=true, mergeable_state=behind (PR branch is just behind
+      main, not conflicting -- no fix needed for that on its own). Per
+      this task's own instruction ("if tier2 ... leave it open and
+      documented for Owner review") and the audit comment's own
+      `risk tier: tier2` classification, this session is NOT merging PR
+      #618 despite the PASS -- leaving it open for Owner
+      (raajat.agarwal@gmail.com) to merge. Both 0269 and 0270 remain
+      hand-authored, NOT applied to the live DB (deliberately, same
+      convention as prior migrations) -- whoever merges must apply both
+      live. No further code changes made by this task; this was a
+      read/verify/document pass since the real fixes were already pushed
+      and passed audit before this task's first invocation completed.
+  - session_label: "claude-code (sd-006-sales-by-material-service-type) -- SD-006 Sales by Material / Service Type"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      Task: build SD-006 "Sales by Material / Service Type" (sap_mapping.sqlite
+      sap_reports, module SD, priority MEDIUM, veridian_mapping_status
+      BUILD_NEW as of 2026-07-28) -- SAP's material/material-group revenue
+      breakdown, per that row's own implementation_notes renamed "Revenue by
+      Service Type": groups erp_sales_invoice_items lines by item or item
+      group and sums Total Net Revenue, with an optional Gross Profit/Margin
+      % proxy (erp_items.standard_buying_rate x quantity).
+
+      Real finding: erp_sales_invoice_items.item_id (Wave 60) already exists
+      and is nullable -- the data model supports the grouping, but no report
+      function anywhere performs this aggregation (confirmed via grep across
+      src/lib/services/*.ts). Adding a new deterministic_formula report to
+      report-engine-service.ts's FORMULA_REGISTRY (same pattern as SD-002's
+      computeBillingDueList, PR #638) -- NOT erp-selling-service.ts (that
+      file's own header says aggregation/reporting reads belong in
+      report-engine-service.ts; erp-selling-service.ts is for document
+      CRUD/workflow, which SD-006 is not).
+
+      No collision found with any other open SD-* PR (checked SD-002 #629/
+      638, SD-007 #644 merged, FI-AP-005 #637, FI-GL-007 #647, FI-AR-006
+      #645 via `gh pr list` -- none touch erp_sales_invoice_items grouping
+      or report-engine-service.ts's FORMULA_REGISTRY sales-by-item slot).
+    scope_note: >-
+      File scope: compliance-tracker only --
+      src/lib/services/report-engine-service.ts (new
+      aggregateSalesByMaterialServiceType pure function + FORMULA_REGISTRY
+      entry, additive), src/lib/services/report-engine-service.test.ts (new
+      tests), a new hand-written drizzle migration seeding one
+      compliance.report_definitions row, PROGRESS.md, this file.
 recently_completed:
   - session_label: "claude-code (rebase-sweep2-583) -- V2-17 HR performance/error-handling + payroll rate audit [DONE, real rebase-merge PR #583 -> replacement PR, this rebase-sweep session]"
     completed_at: "2026-09-01T (this session)"
@@ -10629,14 +10631,6 @@ recently_completed:
       (DEBT-02, a different-axis doc, not this pass's scope). This session
       has no further active claims.
 
-  - session_label: "Super Boss (Claude Desktop) -- this session"
-    completed_at: "2026-07-14T (same day, small scoped fix)"
-    claim: "Fixed 3 Vercel crons (audit-cadence, dispatch-completion-monitor, report-schedules) exceeding the Hobby plan's once-per-day limit, which was silently failing every deployment. All 3 now run once daily at non-colliding times -- none had a real sub-daily latency requirement (report-schedules' own code comment already claimed 'once daily' but vercel.json had it hourly, a real pre-existing bug now fixed to match). Scope: vercel.json + 2 route.ts comment updates only, no cron logic changed."
-
-  - session_label: "Super Boss (Claude Desktop) -- this session"
-    completed_at: "2026-07-14T06:57:24Z"
-    claim: "Full PageAgent removal (Owner directive: \"remove PageAgent it doesn fit VERIDIAN\") -- PR #317 merged. Deleted the component, both API routes, the settings-config route, and personal-model-resolver.ts; dropped personal_model_config table + organisations.pageAgentEnabled column (drizzle/0196, applied live); updated VERIDIAN_AI_CONSTITUTION.md/docs/master/ARCHITECTURE.md/VERIDIAN_HUMAN_INPUT_OUTPUT_TAXONOMY.md's '3 wired call sites' claims to 2; updated check-guardrail-presence.mjs's manifest per Operating Rule 9. See ai-os/MASTER-TRACKER.yaml closed_priorities #21 for full detail. This session has no further active claims."
-
   - session_label: "claude-code (sub-agent) -- Sales Engine channel-coverage audit + Dependabot PR triage"
     completed_at: "2026-07-14T (same day as claim)"
     claim: |
@@ -11553,88 +11547,6 @@ recently_completed:
       first batch.
 
 # ── claim registered 2026-07-21 (background session) ──────────────────
-  - session_label: >-
-      claude-code (background session, this task) --
-      wave8-retire-projexa-duplicate-composer
-    claimed_at: 2026-07-21T (this session)
-    claim: >-
-      Owner directive (follow-on to the 2026-07-21 CRM+PROJEXA merge plan's
-      Wave 8): confirm whether PROJEXA's local mode-pill/chain-selector/
-      chatbox composer (src/components/veri-chat/VeriComposer.tsx and
-      related files in the separate FChecklist/projexa repo) is genuinely
-      superseded now that compliance-tracker has the equivalent
-      VeriChatPanel.tsx/VeriComposer.tsx/capability-tree-service.ts (merged
-      Waves 4-7). If no live PROJEXA route still imports it and Wave 10's
-      DNS cutover has already happened, delete the duplicate and PR it. If
-      PROJEXA is still a live, separately-deployed app depending on it (Wave
-      10 not yet done), do NOT delete -- document findings only and leave as
-      a follow-up, per explicit Owner instruction not to break a live
-      deployment to hit a completeness goal.
-    scope_note: >-
-      File scope: FChecklist/projexa repo only (src/components/veri-chat/**
-      and any importers), read-first via a fresh isolated clone, not the
-      shared /opt/veridian/repos/projexa checkout. No compliance-tracker
-      code changes in this claim. Checked this file for collisions before
-      starting: no other active entry names PROJEXA's own local composer
-      files as in-progress work (the 2026-07-21 Wave0 CRM+PROJEXA claim
-      above holds Waves 5-10 for a separate Owner sign-off on brand infra;
-      this claim is narrower -- read-only confirmation + conditional
-      deletion of one already-superseded duplicate, not the brand merge
-      itself).
-      scope_note: >-
-        File scope: FChecklist/projexa repo only (src/components/veri-chat/**
-        and any importers), read-first via a fresh isolated clone, not the
-        shared /opt/veridian/repos/projexa checkout. No compliance-tracker
-        code changes in this claim. Checked this file for collisions before
-        starting: no other active entry names PROJEXA's own local composer
-        files as in-progress work (the 2026-07-21 Wave0 CRM+PROJEXA claim
-        above holds Waves 5-10 for a separate Owner sign-off on brand infra;
-        this claim is narrower -- read-only confirmation + conditional
-        deletion of one already-superseded duplicate, not the brand merge
-        itself).
-
-  - session_label: >-
-      claude-code (background session, this task) --
-      fix-6-duplicate-migration-numbers
-    claimed_at: 2026-07-21T (this session)
-    claim: >-
-      Unrelated pre-existing technical debt found in review: drizzle/*.sql
-      migration filename prefixes 0172, 0173, 0198, 0204, 0211, 0214 each
-      have two different files sharing the same leading number on main.
-      Reconfirm which pairs still collide (main has moved -- prior sessions'
-      claims elsewhere in this file already show at least one of these
-      numbers, e.g. 0198 and 0204, were renumbered once before, so a fresh
-      check is required, not an assumption). For each real remaining
-      duplicate, renumber the later-added file (per git log) to the next
-      free number after the current highest migration, update
-      drizzle/meta/_journal.json and any other repo reference to the old
-      filename, one PR (or one per fix), CI green, merge.
-    scope_note: >-
-      File scope: compliance-tracker only, drizzle/*.sql (rename only, no
-      schema content changes) + drizzle/meta/_journal.json + any doc/
-      manifest referencing an old migration filename. Fresh isolated clone
-      at /opt/veridian/workspace/wave8-tasks/, not the shared repos/
-      compliance-tracker checkout. No overlap with the CRM/PROJEXA work
-      above -- pure numbering fix, no schema/business-logic changes.
-      scope_note: >-
-        File scope: compliance-tracker only, drizzle/*.sql (rename only, no
-        schema content changes) + drizzle/meta/_journal.json + any doc/
-        manifest referencing an old migration filename. Fresh isolated clone
-        at /opt/veridian/workspace/wave8-tasks/, not the shared repos/
-        compliance-tracker checkout. No overlap with the CRM/PROJEXA work
-        above -- pure numbering fix, no schema/business-logic changes.
-
-# ── claims closed 2026-07-21 (background session) ──────────────────────
-# Both claims registered above under 'claim registered 2026-07-21
-# (background session)' are now CLOSED. Outcomes logged as
-# ai-os/boss/COMPLETED.yaml WAVE-197 (PROJEXA composer: investigated,
-# confirmed still-live via src/app/(app)/layout.tsx import chain in a
-# fresh FChecklist/projexa clone, deletion deferred until after Wave 10's
-# DNS cutover -- no code change, no PR) and WAVE-198 (6 duplicate drizzle
-# migration number prefixes renumbered, PR #545 MERGED). No open work
-# remains under either claim.
-
-# ── claim closed 2026-07-26 (task-20260726-171129) ──────────────────────
   - session_label: "claude-code (task-20260726-171129-tier2-fix--pr-563-migration-drift-ci-fai) -- Fixed PR #563's two disclosed CI-blocking defects + a related pre-existing OS.yaml index drift [PUSHED, PR OPEN]"
     claimed_at: "2026-07-26T (this session, closed same session)"
     claim: |
@@ -12146,40 +12058,17 @@ recently_completed:
       PR URL.
 
 # ── claim registered 2026-07-26 (this session) ──────────────────────────
-  - session_label: >-
-      claude-code (this session, CLI) --
-      mother-router-and-roster-persistent-memory
-    claimed_at: "2026-07-26T (this session)"
-    claim: >-
-      Redispatch of task-20260720-* (originally blocked by a spend-governance
-      gate before any work started; a 2026-07-26 relevance-triage pass
-      independently reconfirmed the gap is still real -- see this task's own
-      workspace PROGRESS.md for the honest note that the triage's cited
-      evidence files, ai-os/SYSTEM_MEMORY_ARCHITECTURE.yaml and
-      ai-os/TIER3_RELEVANCE_TRIAGE_REPORT_2026-07-26.md, do not actually
-      exist anywhere in this repo's git history -- the underlying gap itself
-      was independently re-verified against live schema.ts regardless: zero
-      matches for mother_router_memory/ai_agent_memory). Adding ground-up
-      persistent memory: new platform.mother_router_memory table
-      (dispatch_id, ts, input_capability_tag, resolved_role, resolved_model,
-      outcome, cost, cross_ref_work_item_id) written from
-      src/lib/ai-router/mother-router.ts's resolveModel() (every scope, not
-      just software_team), and new platform.ai_agent_memory table (role_id,
-      ts, task_id, outcome, escalation_flag, cross_ref_work_item_id) written
-      from the one real roster-driven dispatch decision point,
-      src/app/api/ai/team/dispatch/route.ts's POST handler (roster.ts itself
-      is static role data with no dispatch call site of its own). Real
-      Drizzle migration applied to the live Supabase DB via the Supabase MCP.
-    scope_note: >-
-      File scope: src/lib/db/schema.ts (additive only -- 2 new platform-schema
-      tables), new drizzle/*.sql migration, src/lib/ai-router/mother-router.ts
-      (add memory-write calls inside resolveModel(), no change to existing
-      resolution/audit-log logic), src/app/api/ai/team/dispatch/route.ts (add
-      ai_agent_memory write near the existing activity_log/task_register
-      writes at the end of POST), roster.ts untouched (no dispatch logic
-      lives there). Checked this file for collisions before starting: no
-      other active entry names mother-router.ts, roster.ts, or any
-      mother_router_memory/ai_agent_memory concept; the nearest related
-      entries (Mother Router Phase 1, AIROUTER-01 Phase 2 task-register,
-      V2-5 BYOB) are all already-merged, closed work on the same files, not
-      concurrent in-flight claims.
+  - session_label: "claude-code (task-20260727-094843-architecture-phase-8-increment-1--dspy-e) -- VERIDIAN_Architecture_v2.0 phase_8 increment 1: DSPy evaluation/decision + engine-ai-learning wiring + scoping-only pass for 5 zero-prior-art engines [MERGED PR #589]"
+    claimed_at: "2026-07-27T (this session, closed same session)"
+    claim: |
+      COMPLETED: PR #589 merged 2026-07-27T11:24:34Z. engine-dspy-integration
+      (real, justified reject decision) and engine-ai-learning (real
+      extension to capability-learning-service.ts) done for real. The
+      other 5 named gap items (engine-prompt-translation, -localization,
+      -marketplace, -export, -import) were only scoped, not built, per
+      this PR's own "increment 1" framing -- independently re-confirmed
+      unbuilt by ai-os/audits/owner_engine_reaudit_2026-07-27.md (merged
+      to main) and picked up as real implementation work by
+      task-20260728-051737-owner-engine-phase-8-real-gaps (see `active:`
+      above). Moved here from `active:` since it was left un-migrated
+      after merge -- no open work remains under this original claim.

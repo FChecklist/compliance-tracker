@@ -2452,6 +2452,84 @@ export const promptEvalRuns = complianceSchemaDB.table('prompt_eval_runs', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── VERIDIAN_Architecture_v2.0 phase_8 (2026-07-28): Prompt Translation /
+// Localization / Marketplace / Export-Import Engines ─────────────────────
+// (`phase_8_dspy_learning_distribution_engines`, gap items
+// engine-prompt-translation/-localization/-marketplace/-export/-import --
+// PR #589 built the phase's other 2 items, engine-dspy-integration and
+// engine-ai-learning, but explicitly scoped-only these 5; independently
+// re-audited as entirely unbuilt in
+// ai-os/audits/owner_engine_reaudit_2026-07-27.md). Same platform-wide
+// posture as prompt_templates/prompt_versions above -- prompt content is a
+// platform-governed asset, not tenant data, so none of these 3 tables has
+// an org_id that RLS scopes reads by; where org context is recorded
+// (prompt_marketplace_listings.publishedByOrgId) it is attribution only,
+// same convention as worker_agents' publish flow (schema.ts's workerAgents
+// table above).
+
+// Real LLM translation of a stored prompt version's content into another
+// language, persisted so a given (version, locale) pair is translated at
+// most once (service-layer cache-then-call, see
+// prompt-translation-service.ts) rather than re-translating on every
+// request. Distinct from ai-response-locale.ts's languageDirectiveFor(),
+// which only tells a *live* LLM call what language to reply in -- this
+// table stores a translated copy of the prompt's own system-instruction
+// text itself, independent of any particular execution.
+export const promptTranslations = complianceSchemaDB.table('prompt_translations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  promptVersionId: text('prompt_version_id').notNull(),
+  locale: text('locale').notNull(), // one of ai-response-locale.ts's AI_RESPONSE_LANGUAGES keys
+  translatedContent: text('translated_content').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// A SECOND, distinct LLM pass on top of an existing prompt_translations
+// row -- real locale-aware adaptation (date/number format conventions,
+// culturally-appropriate phrasing), not a duplicate translation. Always
+// depends on a prompt_translations row for the same (promptVersionId,
+// locale) existing first (prompt-localization-service.ts translates on
+// demand if missing, reusing prompt-translation-service.ts rather than
+// duplicating the LLM-call plumbing).
+export const promptLocalizations = complianceSchemaDB.table('prompt_localizations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  promptTranslationId: text('prompt_translation_id').notNull(),
+  localizedContent: text('localized_content').notNull(),
+  // Real, non-fabricated evidence of what locale-specific formatting this
+  // pass grounded itself in -- Intl.DateTimeFormat/Intl.NumberFormat sample
+  // outputs for the target locale, fed into the LLM prompt as ground truth
+  // and stored here so a reviewer can see exactly what the model was asked
+  // to match, not just trust its output.
+  formattingSamples: jsonb('formatting_samples').notNull().default({}),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Minimal, real browse/list surface for sharing a prompt version across
+// orgs -- prompt content is already platform-wide (not per-org data, see
+// header above), so "marketplace" here means "which Production-lifecycle
+// versions has an admin opted to list for browsing," not a new cross-
+// tenant data-sharing mechanism. publishedByOrgId/publishedByUserId are
+// attribution only (nullable, same posture as workerAgents.orgId) -- every
+// authenticated user across every org can read `status='listed'` rows.
+export const promptMarketplaceListings = complianceSchemaDB.table('prompt_marketplace_listings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  promptVersionId: text('prompt_version_id').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  tags: jsonb('tags').notNull().default([]), // string[]
+  status: text('status').notNull().default('listed'), // 'listed' | 'unlisted'
+  publishedByOrgId: text('published_by_org_id'),
+  publishedByUserId: text('published_by_user_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── Self-Improvement Loops + Knowledge Flow (Wave 5) ────────────────────
 // Platform-operational tables, NOT tenant data -- loop_executions and
 // friends have no app_runtime RLS policy at all (service_role bypass only),

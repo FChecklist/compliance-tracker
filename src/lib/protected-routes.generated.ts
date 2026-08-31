@@ -78,6 +78,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/posh",
   "/problem-records",
   "/prompt-eval",
+  "/prompt-marketplace",
   "/punch-list",
   "/rbi",
   "/recruitment",

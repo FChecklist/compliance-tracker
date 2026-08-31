@@ -19,6 +19,8 @@
 # specific answer, not the generic placeholder.
 
 registered:
+  - table: prompt_marketplace_listings
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618, drizzle/0270): a real, admin-authored listing over a Production-lifecycle prompt version (publishToMarketplace() requires a non-empty `title` distinct from the underlying prompt template's own name) -- genuine display-name column, not a content blob like its sibling prompt_translations/prompt_localizations. name_column=title, purpose_column=description, owner_column=published_by_user_id, org_column=published_by_org_id (attribution only -- every org can read a 'listed' entry, same posture as workerAgents.orgId), auto_register_asset_trg attached."
   - table: departments
     reason: "domain C (drizzle/0155): org-scoped org-chart unit -- auto_register_asset_trg attached, name_column=name, owner_column=head_id"
   - table: committees
@@ -848,6 +850,10 @@ exempted:
     reason: "same reasoning as worker_agents -- app-managed via Priority 3's registry service, not a boolean-active concept"
   - table: prompt_versions
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: prompt_translations
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): no genuine display-name column -- an append-only translated-content row keyed by (prompt_version_id, locale), same class as the already-exempted prompt_versions (a content blob, not a named platform asset)."
+  - table: prompt_localizations
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): no genuine display-name column -- an append-only localized-content row on top of a prompt_translations row (prompt_translation_id FK), same class as the already-exempted prompt_versions/prompt_translations (a content blob, not a named platform asset)."
   - table: related_party_transactions
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: report_schedules
