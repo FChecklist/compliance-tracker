@@ -24,6 +24,7 @@ import { detectHighImpactAction } from "@/lib/high-impact-action-detector";
 import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSignal } from "@/lib/floor-tier-escalation";
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine";
 import { registerAllGuardrails, TASK_FREE_TEXT_PLANNING_LEAF } from "@/lib/guardrail-registrations";
+import { decideActionAutonomy } from "@/lib/action-autonomy-decision";
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
 import { runTaskReflection } from "@/lib/loops/task-reflection";
 import { nextEscalationRung } from "@/lib/escalation-ladder";
@@ -210,17 +211,44 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
     const dept = await db.query.departments.findFirst({ where: and(eq(departments.id, departmentId), eq(departments.orgId, orgId)) });
     if (!dept) throw new Error("Department not found");
 
+    // R65 Part B ("80% software, no approval needed / 20% needs human
+    // approval"): the real, general cross-module autonomy gate -- see
+    // action-autonomy-decision.ts's own header for why this is a
+    // generalization of the exact requiresAudit logic already proven live
+    // in /api/ai/team/dispatch/route.ts, not a parallel invention. A
+    // compliance item carrying a large penalty/filing amount is the one
+    // real risk signal available at creation time here; this is a plain
+    // deterministic, form-driven create (no LLM judgment call), so no
+    // confidencePercentage is passed -- only risk gates it.
+    const financialAmountInr = amountRaw != null && amountRaw !== "" ? Number(amountRaw) : null;
+    const autonomy = decideActionAutonomy({
+      riskFactors: { financialAmountInr: Number.isFinite(financialAmountInr) ? financialAmountInr : null, blastRadius: "single" },
+    });
+    // Reuses the existing 'draft' status (already a real, valid
+    // complianceStatusEnum value) as the "needs human review before this is
+    // treated as an active compliance obligation" state -- no schema change
+    // needed. A human reviewing drafts simply moves it to 'pending' via the
+    // existing update_compliance_status dispatch path once satisfied.
+    const initialStatus = autonomy.decision === "pending_review" ? "draft" : "pending";
+
     const [item] = await db.insert(complianceItems).values({
       title, complianceType: complianceType as typeof VALID_COMPLIANCE_TYPES[number],
       dueDate: parsedDueDate, departmentId, orgId,
       amount: amountRaw != null && amountRaw !== "" ? String(amountRaw) : null,
-    }).returning({ id: complianceItems.id, title: complianceItems.title, dueDate: complianceItems.dueDate });
+      status: initialStatus,
+    }).returning({ id: complianceItems.id, title: complianceItems.title, dueDate: complianceItems.dueDate, status: complianceItems.status });
 
     const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
     if (dbUser) {
-      await logActivity({ tx: db, action: "create", entityType: "ComplianceItem", entityId: item.id, details: `Created compliance item: ${item.title}`, orgId, dbUser });
+      await logActivity({
+        tx: db, action: "create", entityType: "ComplianceItem", entityId: item.id,
+        details: autonomy.decision === "pending_review"
+          ? `Created compliance item: ${item.title} (needs review before activation -- ${autonomy.reason})`
+          : `Created compliance item: ${item.title}`,
+        orgId, dbUser,
+      });
     }
-    return item;
+    return { ...item, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason };
   }
 
   // Gap closure, 2026-07-10: get_penalty_estimate was registered with zero

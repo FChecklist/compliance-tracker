@@ -1366,6 +1366,23 @@ export const tasks = complianceSchemaDB.table('tasks', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// R65 Part B ("Task Responsibility - Multiple peoples"): tasks.userId stays
+// the single primary/denormalized owner (unchanged, every existing caller
+// keeps working exactly as before) -- this is the real multi-assignee
+// source, the identical pattern pmsIssueAssignees already establishes for
+// PMS Issues (pmsIssues.assigneeId is that table's own denormalized-cache
+// comment; same relationship here). A task can now have zero or more
+// CO-assignees in addition to its primary owner, without needing a second
+// migration to widen userId into an array or add a second nullable column
+// per extra assignee.
+export const taskAssignees = complianceSchemaDB.table('task_assignees', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  taskId: text('task_id').notNull(),
+  userId: text('user_id').notNull(),
+  addedById: text('added_by_id'), // who added this co-assignee, nullable to match assignedById's own nullability precedent above
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const taskExecutionPlan = complianceSchemaDB.table('task_execution_plan', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   taskId: text('task_id').notNull(),
