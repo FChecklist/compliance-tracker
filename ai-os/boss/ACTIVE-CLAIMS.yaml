@@ -11797,8 +11797,8 @@ recently_completed:
       ownership looks wrong is a finding for the Owner, not an autonomous change.
 
   - session_label: "claude-code (worker task-20260718-064004-ai-documentation--documentation-lifecycl) -- AI Documentation / Documentation Lifecycle gap-closure, real merge (not just re-dispatch)"
-    completed_at: "2026-08-15T (this session)"
-    merged_as: "pending PR from worker/task-20260718-064004-ai-documentation--documentation-lifecycl"
+    completed_at: "2026-08-15T (this session); resynced and merged 2026-08-31"
+    merged_as: "merged via replacement PR (branch rebase-batch-1211, supersedes original PR #1211 which was closed for staleness) after a routine rebase onto current main -- no real conflicts, see that PR's description for the resync summary"
     summary: |
       This exact 5-finding gap (auto-doc-gen, versioning, accuracy, completeness, sync-with-code)
       was already fully built by PR #685 (scripts/check-doc-drift.mjs + SYSTEM-AUDIT-ROUND-3.md +

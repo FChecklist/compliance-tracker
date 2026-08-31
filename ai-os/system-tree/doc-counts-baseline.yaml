@@ -22,11 +22,25 @@
 #   Only api_routes had moved (991 -> 995, 0.4% drift, well within
 #   tolerance); tables/enums/app_pages/components were unchanged. Refreshed
 #   here as routine upkeep, not because the check failed.
-generated_at: "2026-08-15"
+#   2026-08-31: re-verified against live main while rebasing this PR onto
+#   current main (replacement PR superseding #1211, which had gone stale
+#   across ~2 more weeks of fast-moving main). Running scripts/check-doc-drift.mjs
+#   against the actual pre-rebase counts genuinely FAILED this time (not
+#   hypothetical -- verified by running it): enums moved 130 -> 146 (12.3%
+#   drift) and api_routes moved 995 -> 1109 (11.5% drift), both over the 10%
+#   tolerance. tables (443 -> 476, 7.4%) and app_pages/components (163 -> 169,
+#   81 -> 84, 3.7% each) stayed within tolerance. Per this file's own header
+#   instruction, only the counts below are refreshed here (routine upkeep,
+#   matching the 2026-08-15 precedent) -- the per-domain guardrails/rules
+#   text in ai-os/system-tree/11-13-*.yaml was NOT re-synthesized against the
+#   new enum/route counts; that remains real, open, judgment-heavy work for
+#   a future SYSTEM-AUDIT round (see SYSTEM-AUDIT-ROUND-3.md's own
+#   recommended audit cadence), not something to fake here.
+generated_at: "2026-08-31"
 tolerance_pct: 10
 counts:
-  tables: 443
-  enums: 130
-  api_routes: 995
-  app_pages: 163
-  components: 81
+  tables: 476
+  enums: 146
+  api_routes: 1109
+  app_pages: 169
+  components: 84
