@@ -6358,6 +6358,38 @@ active:
       compilation, no live DB). Not touching capture.ts/embed.ts/chunker.ts
       (they don't exist on this branch's base) or any other CRR P2/P3 file.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-075004-architecture---design--reusability-acros) -- VERIDIAN Review Framework: Architecture & Design / Reusability Across Scope, 2 Low findings"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "FChecklist/compliance-tracker (rebased PR, was #1225 -- see rebase-batch-1225-fresh branch)"
+    summary: |
+      Both findings checked against live code first, per the task's own
+      instruction that the evaluation may be stale. Finding 1 ("Feature
+      Reusability Across Projects/Modules", recommended fix "Add API
+      versioning e.g. /api/v1/projexa vs /api/v2/projexa before breaking
+      changes") turned out to be already built -- /api/v1/** has existed
+      since Wave 11 (2026-07-03) and /api/v1/projexa/** is a live ~60-route
+      alias namespace; what was genuinely missing (and already flagged by
+      ERP_BENCHMARK_COMPARISON.md's own INT004 row) was a written
+      versioning policy, not the mechanism -- added one as a new section in
+      docs/API_CHANGELOG.md (additive-vs-breaking rules, per-namespace
+      version scoping, 90-day deprecation window). Finding 2 ("Module
+      Reusability Across Industries", "document which of the 416 tables
+      are compliance-specific vs universal") had a real, previously
+      undocumented gap -- built scripts/classify-schema-tables.mjs (static
+      analysis of schema.ts, no DB access, re-runnable as the schema
+      grows) and generated docs/TABLE_REUSABILITY_CLASSIFICATION.md: of
+      431 live tables (grown from 416 since the evaluation), 322 (74.7%)
+      universal/platform, 87 (20.2%) compliance-specific, 22 (5.1%)
+      industry-vertical (PROJEXA construction/interior-design -- itself
+      live evidence of cross-industry reuse). Caught and fixed one real
+      classification bug during review: 10 generic platform-infra tables
+      (application_errors, platform_assets, instruction_packages, etc.)
+      only live under schema.ts's "Construction Intelligence (Wave 120)"
+      comment for chronological reasons and were initially mis-bucketed as
+      industry_vertical by the section-header fallback before an explicit
+      name rule was added. Doc-only changes (2 new files, 2 docs edited);
+      did not touch permission-service.ts's ERP_ACTION_ROLES or any other
+      in-flight track's scope.
   - session_label: "claude-code (task-20260718-072002-ai-model-lifecycle---benchmarking--ongoi) -- VERIDIAN Review Framework gap-closure, 3 findings: per-role quality regression tracking, cost-per-quality-point tracking, provider-outage/role-failure correlation [DONE, PR #1229 rebased onto main and re-opened, this rebase session]"
     claimed_at: "2026-08-15T (this session)"
     merged_as: "FChecklist/compliance-tracker (rebased PR, was #1229 -- see rebase-wt-1229 branch)"
