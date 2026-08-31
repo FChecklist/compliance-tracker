@@ -357,7 +357,7 @@ describe("resolvePreAuthBrandByHost (Stage 1: pre-authentication, domain-based r
   })
 
   // Accessibility (WCAG Compliance) gap-closure, PR #1232's own real E2E
-  // Tests failure (2026-08-15): this function's own header comment has
+  // Tests failure: this function's own header comment has
   // always claimed "never throws", but until this fix the `db.query...
   // findFirst(...)` call below was NOT wrapped in a try/catch -- a DB
   // outage (down, unreachable, connection refused) propagated as an
