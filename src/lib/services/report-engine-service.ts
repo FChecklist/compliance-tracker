@@ -53,7 +53,7 @@
 
 import {
   db, reportDefinitions,
-  crmLeads, crmOpportunities, crmAccounts, crmContacts, erpQuotations, erpSalesOrders, erpSalesInvoices, erpCustomers,
+  crmLeads, crmOpportunities, crmAccounts, crmContacts, crmSalesTargets, erpQuotations, erpSalesOrders, erpSalesInvoices, erpCustomers,
   salesReferrals, salesCommissionAccruals, veriMeetings,
   complianceItems, notices, risks, pmsIssues, pmsMilestones, incidents,
   constructionBoqs, constructionWorkProgressEntries, constructionAttendance, constructionLabourRoster,
@@ -2017,6 +2017,60 @@ async function computeWardrobeSalesReport(ctx: { orgId: string }): Promise<Repor
 }
 
 /**
+ * R65 (2026-08-31): closes the shared root gap for 3 report_definitions
+ * rows (Booking vs Target Report, KPI: Sales Target Achievement %, Sales
+ * Target Achievement) -- their data_gap_note said "no sales-target table
+ * exists anywhere in the schema," which was stale: crmSalesTargets (a real,
+ * org+month-scoped target row) was added later (2026-07-27, Sales Pipeline
+ * Interactive Dashboard) and has simply never been wired to any report.
+ * "Actual bookings" reuses the same real metric the already-built Revenue
+ * Booking Report uses -- sum(erp_sales_invoices.grandTotal) -- restricted to
+ * submitted/partially_paid/paid/overdue (booked/recognized revenue), never
+ * draft (not yet committed) or cancelled (never happened).
+ */
+async function computeSalesTargetAchievement(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const monthParam = typeof params.month === "string" ? params.month : undefined
+  const now = new Date()
+  const monthStart = monthParam ?? `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`
+  const start = new Date(monthStart + "T00:00:00Z")
+  if (Number.isNaN(start.getTime())) throw new ServiceError("Invalid month param -- expected YYYY-MM-01", 400)
+  const nextMonthStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1))
+  const nextMonthStr = `${nextMonthStart.getUTCFullYear()}-${String(nextMonthStart.getUTCMonth() + 1).padStart(2, "0")}-01`
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [targetRow, invoiceRows] = await Promise.all([
+      db.query.crmSalesTargets.findFirst({ where: and(eq(crmSalesTargets.orgId, ctx.orgId), eq(crmSalesTargets.month, monthStart)) }),
+      db.query.erpSalesInvoices.findMany({
+        where: and(
+          eq(erpSalesInvoices.orgId, ctx.orgId),
+          gte(erpSalesInvoices.postingDate, monthStart),
+          lt(erpSalesInvoices.postingDate, nextMonthStr),
+          inArray(erpSalesInvoices.status, ["submitted", "partially_paid", "paid", "overdue"])
+        ),
+        columns: { grandTotal: true },
+      }),
+    ])
+
+    const actual = invoiceRows.reduce((sum, inv) => sum + Number(inv.grandTotal ?? 0), 0)
+    const target = targetRow ? Number(targetRow.targetValue) : null
+
+    if (target === null) {
+      return {
+        columns: ["Month", "Target", "Actual Bookings", "Achievement %"],
+        rows: [],
+        note: `No sales target has been set for ${monthStart.slice(0, 7)} yet (crm_sales_targets has no row for this org/month). Actual bookings for the month so far: ₹${actual.toLocaleString("en-IN")} -- set a target for this month to see achievement %.`,
+      }
+    }
+
+    const achievementPct = target > 0 ? Math.round((actual / target) * 1000) / 10 : 0
+    return {
+      columns: ["Month", "Target", "Actual Bookings", "Achievement %"],
+      rows: [{ Month: monthStart.slice(0, 7), Target: target, "Actual Bookings": Math.round(actual * 100) / 100, "Achievement %": achievementPct }],
+    }
+  })
+}
+
+/**
  * FI-GL-007 (Subledger-to-GL Reconciliation) -- thin {columns,rows} reshape
  * over erp-financial-report-service.ts#subledgerToGlReconciliation, the
  * real computation (see that function's own header comment for the full
@@ -2131,6 +2185,7 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   cost_overrun_report: computeCostOverrunReport,
   profitability_analysis: computeProfitabilityAnalysis,
   material_cost_report: computeMaterialCostReport,
+  sales_target_achievement: computeSalesTargetAchievement,
   tender_register: computeTenderRegister,
   tender_pipeline: computeTenderPipeline,
   tender_win_loss: computeTenderWinLoss,
