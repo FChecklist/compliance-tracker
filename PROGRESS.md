@@ -47,7 +47,7 @@ duplication/conflict.
         field names (itemCode/itemName/itemGroupId/standardBuyingRate/
         groupName) against current schema.ts directly, not assumed.
       - `src/lib/services/report-engine-service.test.ts`: +SD-006's full
-        `aggregateSalesByMaterialServiceType` test suite (6 tests, pure
+        `aggregateSalesByMaterialServiceType` test suite (5 tests, pure
         function, no DB).
       - 6 new API routes under `src/app/api/erp/reports/{ap-aging,
         customer-balances,customer-credit-exposure,customer-line-items,
@@ -56,17 +56,36 @@ duplication/conflict.
 - [x] Migration-registration gap fixed (this was #997's real, disclosed
       defect: it never registered its 7 migrations in
       `drizzle/meta/_journal.json` at all). Renumbered #997's original
-      `0318`-`0324` to genuinely free `0501`-`0507` (main's real highest
-      migration is `0500`, confirmed via `git cat-file -p
-      origin/main:drizzle/meta/_journal.json`; checked
-      `ai-os/boss/ACTIVE-CLAIMS.yaml`'s live `active:` section for any
-      `05xx` reservation -- none found) and appended all 7 as new
-      contiguous `_journal.json` entries (idx 322-328), validated as
-      well-formed JSON.
+      `0318`-`0324` to genuinely free `0501`-`0507` and registered all 7
+      as new `_journal.json` entries.
+- [x] `governance-yaml-parse`: clean. `bun test` on touched/new test files:
+      `report-engine-service.test.ts` 26/26 pass (5 new SD-006 tests),
+      `erp-invoicing-service.test.ts` 61/61 pass (regression check, no
+      failures from the new AP/AR functions).
+- [x] Manually verified (Windows sandbox's `check-migration-collision.mjs`
+      hits the same `import.meta.url`-on-Windows path bug documented below
+      for the coverage-gap script -- worked around by checking directly):
+      no duplicate migration-number prefix anywhere in `drizzle/`.
+- [x] `main` moved twice during this work (PR #1495 governance-script fix,
+      then PR #1496 "rebase-1020-v2" platform billing). Re-merged both
+      times. The second merge's `drizzle/meta/_journal.json` auto-merged
+      INCORRECTLY (git's line-based merge produced a duplicate `idx: 322`
+      and a non-contiguous tail, because PR #1496 had inserted its own
+      `0400_platform_billing_plans_invoices` entry in the *middle* of the
+      sequence, shifting every idx after it) -- caught by re-validating
+      idx-contiguity after every merge (not trusting a clean `git merge`
+      exit code alone), and fixed by rebuilding the journal from
+      `origin/main`'s real authoritative copy plus this PR's 7 entries
+      appended after its real tail (idx 323-329), rather than trusting
+      git's textual merge of a semantically-ordered JSON array.
+      `PROGRESS.md` conflicts (3-way, both re-merges) resolved by
+      replace-wholesale each time, per this file's own documented
+      one-entry-only convention.
+- [x] `tsc --noEmit`: did not complete locally (same pre-existing
+      sandbox resource-pressure limitation as PR #1497/PROGRESS.md's own
+      prior entry) -- deferred to CI's real Type Check job.
 
 ## Remaining
-- [ ] governance-yaml-parse, tsc --noEmit, bun test (new files) -- run and
-      confirm clean.
 - [ ] Push, open PR, close #997 citing this plan.
 - [ ] Wait for real CI, merge if green (same standard as PR #1497 -- treat
       pre-existing/unrelated CI noise, if any, the same way, not blindly).
