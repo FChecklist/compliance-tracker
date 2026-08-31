@@ -81,7 +81,7 @@ function MfaChallengeForm() {
             </CardHeader>
             <CardContent className="space-y-5">
               {loading ? (
-                <div className="flex justify-center py-6"><Loader2 className="size-6 animate-spin text-ct-saffron" /></div>
+                <div className="flex justify-center py-6"><Loader2 className="size-6 animate-spin text-ct-saffron-text" /></div>
               ) : !factorId ? (
                 <p className="text-sm text-ct-error text-center">No verified authenticator found. Contact your administrator.</p>
               ) : (
@@ -110,7 +110,7 @@ function MfaChallengeForm() {
 
 export default function MfaChallengePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gradient-navy"><Loader2 className="size-8 text-ct-saffron animate-spin" /></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gradient-navy"><Loader2 className="size-8 text-ct-saffron-text animate-spin" /></div>}>
       <MfaChallengeForm />
     </Suspense>
   );

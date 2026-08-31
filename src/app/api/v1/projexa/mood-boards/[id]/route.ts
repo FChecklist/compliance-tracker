@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { updateMoodBoardStatus, addMoodBoardItem, ServiceError } from "@/lib/services/interior-design-service"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { getMoodBoard, updateMoodBoard, updateMoodBoardStatus, addMoodBoardItem, ServiceError } from "@/lib/services/interior-design-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
+// Real-screen conversion (2026-08-30): single-board GET for the Mood Board
+// Object Page -- only the list function existed before.
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const ctx = await requireAuthOrApiKey(request)
+  if (ctx.response) return ctx.response
+  if (!ctx.orgId) return requireOrg(ctx)!
+
+  try {
+    const { id } = await params
+    const board = await getMoodBoard({ orgId: ctx.orgId }, id)
+    return NextResponse.json(board)
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("v1 projexa mood-board get error:", error)
+    return NextResponse.json({ error: "Failed to fetch mood board" }, { status: 500 })
+  }
+}
+
+// action: "status" (body.status) | plain title/roomOrArea/description fields
+// (real update -- didn't exist before this conversion, only status changes
+// did).
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
@@ -14,9 +35,15 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params
     const body = await request.json()
-    if (body.action !== "status") return NextResponse.json({ error: "action must be 'status'" }, { status: 400 })
-    const board = await updateMoodBoardStatus({ orgId: ctx.orgId }, id, body.status)
-    return NextResponse.json(board)
+    if (body.action === "status") {
+      const board = await updateMoodBoardStatus({ orgId: ctx.orgId }, id, body.status)
+      return NextResponse.json(board)
+    }
+    if (body.title !== undefined || body.roomOrArea !== undefined || body.description !== undefined) {
+      const board = await updateMoodBoard({ orgId: ctx.orgId }, id, { title: body.title, roomOrArea: body.roomOrArea, description: body.description })
+      return NextResponse.json(board)
+    }
+    return NextResponse.json({ error: "Provide { action: \"status\", status } or one of title/roomOrArea/description" }, { status: 400 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa mood-board update error:", error)

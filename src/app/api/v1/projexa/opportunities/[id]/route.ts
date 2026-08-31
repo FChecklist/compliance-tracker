@@ -2,11 +2,32 @@
 // crm-service.ts's updateOpportunity. AI analysis (analyzeOpportunity) and
 // follow-up-task chaining are deliberately NOT aliased here -- see the
 // sibling leads/[id]/route.ts comment for the same Wave 1 scope note.
+//
+// Real-screen conversion (2026-08-30): added GET -- getOpportunity()
+// already existed but had no route. Delete is deliberately NOT aliased
+// either, same reasoning as leads/[id]/route.ts's own comment.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { updateOpportunity, ServiceError } from "@/lib/services/crm-service"
+import { getOpportunity, updateOpportunity, ServiceError } from "@/lib/services/crm-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
+
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const ctx = await requireAuthOrApiKey(request)
+  if (ctx.response) return ctx.response
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  try {
+    const { id } = await params
+    const opportunity = await getOpportunity({ orgId: ctx.orgId }, id)
+    if (!opportunity) return NextResponse.json({ error: "Opportunity not found" }, { status: 404 })
+    return NextResponse.json(opportunity)
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("v1 projexa opportunity get error:", error)
+    return NextResponse.json({ error: "Failed to fetch opportunity" }, { status: 500 })
+  }
+}
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)

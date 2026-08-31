@@ -35,6 +35,11 @@ type AuditLog = {
   actorRole: string;
   ipAddress: string | null;
   userAgent: string | null;
+  // Complete Audit Stamp (task-20260718-075006): Session + Office, the two
+  // fields the finding named as missing. Routinely null -- see api/audit
+  // route's comment.
+  sessionId: string | null;
+  officeId: string | null;
   createdAt: string;
 };
 
@@ -48,7 +53,7 @@ const ACTION_BADGE: Record<string, string> = {
   login: "bg-gray-100 text-gray-600",
   logout: "bg-gray-100 text-gray-600",
   export: "bg-cyan-100 text-cyan-700",
-  invite: "bg-ct-accent text-ct-saffron",
+  invite: "bg-ct-accent text-ct-saffron-text",
   view: "bg-gray-100 text-gray-500",
   payment_recorded: "bg-emerald-100 text-emerald-700",
   dispatch_recorded: "bg-cyan-100 text-cyan-700",
@@ -189,6 +194,7 @@ export default function AuditPage() {
                 <TableHead className="text-xs font-semibold text-ct-navy hidden sm:table-cell">Entity</TableHead>
                 <TableHead className="text-xs font-semibold text-ct-navy hidden md:table-cell">Details</TableHead>
                 <TableHead className="text-xs font-semibold text-ct-navy hidden lg:table-cell">IP / Device</TableHead>
+                <TableHead className="text-xs font-semibold text-ct-navy hidden xl:table-cell">Session / Office</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -204,7 +210,7 @@ export default function AuditPage() {
                   ))
                 : logs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-ct-muted text-sm">
+                    <TableCell colSpan={7} className="h-24 text-center text-ct-muted text-sm">
                       No audit logs found.
                     </TableCell>
                   </TableRow>
@@ -239,6 +245,10 @@ export default function AuditPage() {
                         {log.ipAddress ?? "—"}
                         {log.userAgent ? <span className="block truncate">{log.userAgent}</span> : null}
                       </TableCell>
+                      <TableCell className="text-[10px] text-ct-muted hidden xl:table-cell max-w-[140px] truncate" title={[log.sessionId, log.officeId].filter(Boolean).join(" / ") || undefined}>
+                        {log.sessionId ? <span className="block truncate">Session {log.sessionId.slice(0, 8)}</span> : <span className="block text-ct-muted/60">—</span>}
+                        {log.officeId ? <span className="block truncate">Office {log.officeId.slice(0, 8)}</span> : null}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -257,6 +267,7 @@ export default function AuditPage() {
                 variant="outline"
                 size="icon"
                 className="size-8"
+                aria-label="Previous page"
                 disabled={page <= 1}
                 onClick={() => setPage(page - 1)}
               >
@@ -266,6 +277,7 @@ export default function AuditPage() {
                 variant="outline"
                 size="icon"
                 className="size-8"
+                aria-label="Next page"
                 disabled={page >= totalPages}
                 onClick={() => setPage(page + 1)}
               >

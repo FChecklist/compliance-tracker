@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  RotateCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,19 +53,30 @@ type WebhookEvent = (typeof WEBHOOK_EVENTS)[number]["id"];
 
 interface DeliveryLog {
   id: string;
-  statusCode: number;
+  eventType: string;
+  statusCode: number | null;
   success: boolean;
-  timestamp: string;
+  attempt: number;
+  // Set only on rows created by the manual "Redeliver" action (points back
+  // at the original failed delivery it replayed) -- null for every row the
+  // automatic retry loop wrote. See migration 0313.
+  redeliveryOfId: string | null;
+  createdAt: string;
 }
 
+// Matches the real shape returned by GET /api/settings/webhooks (`events`
+// is the raw comma-separated string stored in the DB, `isActive`/
+// `recentDeliveries` match the column/field names the API actually uses).
 interface Webhook {
   id: string;
   name: string;
   url: string;
-  events: WebhookEvent[];
-  active: boolean;
-  lastDeliveryStatus: "success" | "failed" | "pending" | null;
-  deliveryLogs: DeliveryLog[];
+  events: string;
+  isActive: boolean;
+  lastDeliveryAt: string | null;
+  lastStatusCode: number | null;
+  createdAt: string;
+  recentDeliveries: DeliveryLog[];
 }
 
 function truncateUrl(url: string, maxLength: number = 40): string {
@@ -77,10 +89,17 @@ function getEventLabel(eventId: string): string {
   return found ? found.label : eventId;
 }
 
-function getStatusCodeColor(code: number): string {
+function getStatusCodeColor(code: number | null): string {
+  if (code === null) return "bg-red-100 text-red-700 border-red-200";
   if (code >= 200 && code < 300) return "bg-emerald-100 text-emerald-700 border-emerald-200";
   if (code >= 400 && code < 500) return "bg-amber-100 text-amber-700 border-amber-200";
   return "bg-red-100 text-red-700 border-red-200";
+}
+
+function getLastDeliveryStatus(webhook: Webhook): "success" | "failed" | null {
+  const latest = webhook.recentDeliveries[0];
+  if (!latest) return null;
+  return latest.success ? "success" : "failed";
 }
 
 export default function WebhookSection() {
@@ -89,6 +108,7 @@ export default function WebhookSection() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [redeliveringIds, setRedeliveringIds] = useState<Set<string>>(new Set());
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -101,7 +121,7 @@ export default function WebhookSection() {
       const res = await fetch("/api/settings/webhooks");
       if (!res.ok) throw new Error("Failed to fetch webhooks");
       const data = await res.json();
-      setWebhooks(data);
+      setWebhooks(data.webhooks ?? []);
     } catch {
       toast.error("Failed to load webhooks");
     } finally {
@@ -172,17 +192,46 @@ export default function WebhookSection() {
       const res = await fetch(`/api/settings/webhooks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: !currentActive }),
+        body: JSON.stringify({ isActive: !currentActive }),
       });
       if (!res.ok) throw new Error("Failed to toggle webhook");
       setWebhooks((prev) =>
-        prev.map((w) => (w.id === id ? { ...w, active: !currentActive } : w))
+        prev.map((w) => (w.id === id ? { ...w, isActive: !currentActive } : w))
       );
       toast.success(
         !currentActive ? "Webhook activated" : "Webhook deactivated"
       );
     } catch {
       toast.error("Failed to update webhook");
+    }
+  };
+
+  // Manual dead-letter recovery: replay a single failed delivery (identified
+  // by its webhookDeliveries row) against the webhook's current URL/secret.
+  // Backed by /api/settings/webhooks/[id]/redeliver, which reuses the
+  // payload already stored on that row -- see webhook-deliver.ts.
+  const handleRedeliver = async (webhookId: string, deliveryId: string) => {
+    setRedeliveringIds((prev) => new Set(prev).add(deliveryId));
+    try {
+      const res = await fetch(`/api/settings/webhooks/${webhookId}/redeliver`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deliveryId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to redeliver");
+      toast.success(
+        data.success ? "Redelivered successfully" : `Redelivery failed (status ${data.statusCode ?? "n/a"})`
+      );
+      fetchWebhooks();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to redeliver webhook");
+    } finally {
+      setRedeliveringIds((prev) => {
+        const next = new Set(prev);
+        next.delete(deliveryId);
+        return next;
+      });
     }
   };
 
@@ -374,6 +423,8 @@ export default function WebhookSection() {
         <div className="space-y-3 max-h-[480px] overflow-y-auto">
           {webhooks.map((webhook) => {
             const isExpanded = expandedIds.has(webhook.id);
+            const lastDeliveryStatus = getLastDeliveryStatus(webhook);
+            const eventList = webhook.events.split(",").map((e) => e.trim()).filter(Boolean);
             return (
               <div
                 key={webhook.id}
@@ -386,14 +437,12 @@ export default function WebhookSection() {
                       <h4 className="text-sm font-semibold text-ct-navy truncate">
                         {webhook.name}
                       </h4>
-                      {webhook.lastDeliveryStatus && (
+                      {lastDeliveryStatus && (
                         <span className="shrink-0">
-                          {webhook.lastDeliveryStatus === "success" ? (
+                          {lastDeliveryStatus === "success" ? (
                             <CheckCircle2 className="size-3.5 text-emerald-500" />
-                          ) : webhook.lastDeliveryStatus === "failed" ? (
-                            <XCircle className="size-3.5 text-red-500" />
                           ) : (
-                            <Loader2 className="size-3.5 text-amber-500 animate-spin" />
+                            <XCircle className="size-3.5 text-red-500" />
                           )}
                         </span>
                       )}
@@ -408,8 +457,8 @@ export default function WebhookSection() {
 
                   <div className="flex items-center gap-2 shrink-0">
                     <Switch
-                      checked={webhook.active}
-                      onCheckedChange={() => handleToggle(webhook.id, webhook.active)}
+                      checked={webhook.isActive}
+                      onCheckedChange={() => handleToggle(webhook.id, webhook.isActive)}
                     />
                     <Button
                       variant="ghost"
@@ -424,7 +473,7 @@ export default function WebhookSection() {
 
                 {/* Event Badges */}
                 <div className="flex flex-wrap gap-1.5 mt-2.5">
-                  {webhook.events.map((event) => (
+                  {eventList.map((event) => (
                     <Badge
                       key={event}
                       variant="secondary"
@@ -433,7 +482,7 @@ export default function WebhookSection() {
                       {getEventLabel(event)}
                     </Badge>
                   ))}
-                  {!webhook.active && (
+                  {!webhook.isActive && (
                     <Badge
                       variant="outline"
                       className="text-[10px] font-medium text-ct-muted border-ct-muted/30"
@@ -444,7 +493,7 @@ export default function WebhookSection() {
                 </div>
 
                 {/* Delivery Logs Toggle */}
-                {webhook.deliveryLogs && webhook.deliveryLogs.length > 0 && (
+                {webhook.recentDeliveries && webhook.recentDeliveries.length > 0 && (
                   <button
                     onClick={() => toggleExpanded(webhook.id)}
                     className="flex items-center gap-1 mt-2.5 text-xs text-ct-muted hover:text-ct-navy transition-colors"
@@ -454,35 +503,68 @@ export default function WebhookSection() {
                     ) : (
                       <ChevronDown className="size-3" />
                     )}
-                    Recent deliveries ({webhook.deliveryLogs.length})
+                    Recent deliveries ({webhook.recentDeliveries.length})
                   </button>
                 )}
 
                 {/* Delivery Logs */}
-                {isExpanded && webhook.deliveryLogs && (
+                {isExpanded && webhook.recentDeliveries && (
                   <div className="mt-2 space-y-1.5 border-t pt-2.5">
-                    {webhook.deliveryLogs.map((log) => (
-                      <div
-                        key={log.id}
-                        className="flex items-center justify-between text-xs py-1"
-                      >
-                        <div className="flex items-center gap-2">
-                          {log.success ? (
-                            <CheckCircle2 className="size-3 text-emerald-500" />
-                          ) : (
-                            <XCircle className="size-3 text-red-500" />
-                          )}
-                          <span className="text-ct-muted">
-                            {new Date(log.timestamp).toLocaleString()}
-                          </span>
-                        </div>
-                        <span
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-medium border ${getStatusCodeColor(log.statusCode)}`}
+                    {webhook.recentDeliveries.map((log) => {
+                      const isRedelivering = redeliveringIds.has(log.id);
+                      return (
+                        <div
+                          key={log.id}
+                          className="flex items-center justify-between text-xs py-1 gap-2"
                         >
-                          {log.statusCode}
-                        </span>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-2 min-w-0">
+                            {log.success ? (
+                              <CheckCircle2 className="size-3 text-emerald-500 shrink-0" />
+                            ) : (
+                              <XCircle className="size-3 text-red-500 shrink-0" />
+                            )}
+                            <span className="text-ct-muted truncate">
+                              {new Date(log.createdAt).toLocaleString()}
+                            </span>
+                            {log.redeliveryOfId && (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] font-medium text-ct-teal border-ct-teal/30 shrink-0"
+                              >
+                                Manual
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-medium border ${getStatusCodeColor(log.statusCode)}`}
+                            >
+                              {log.statusCode ?? "ERR"}
+                            </span>
+                            {/* Dead-letter recovery: a failed delivery (typically
+                                one that exhausted all 3 automatic attempts) can
+                                be manually replayed here against the webhook's
+                                current URL, using this row's stored payload. */}
+                            {!log.success && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-ct-muted hover:text-ct-teal"
+                                title="Redeliver this event"
+                                disabled={isRedelivering}
+                                onClick={() => handleRedeliver(webhook.id, log.id)}
+                              >
+                                {isRedelivering ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <RotateCw className="size-3" />
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

@@ -9,6 +9,18 @@ import { getLocale, getMessages } from "next-intl/server";
 import { veridianHeadingFont, veridianSansFont } from "@fchecklist/veridian-ui-kit/tokens/fonts";
 import "./globals.css";
 
+// OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, Stage 1 real
+// implementation (UMR-20260804-090421-c647): a real, independent review of
+// this branch's first attempt correctly caught that a dynamic
+// generateMetadata() calling headers() at the ROOT layout forces Next.js's
+// documented dynamic-API propagation across the ENTIRE route subtree --
+// every page under this layout, including purely static marketing pages
+// with no need for host-based branding, would silently lose static
+// generation and gain an unbounded per-request product_branches DB query.
+// Reverted to the exact original static export (unchanged from before this
+// OCID); the real per-request dynamic title now lives ONLY on the two real
+// pages that actually need it -- see their own generateMetadata() exports
+// in src/app/page.tsx and src/app/login/page.tsx.
 export const metadata: Metadata = {
   // Repositioned 2026-07-07 (Wave 112): the site root is now VERIDIAN
   // COGNITIVE AI OS — the research-lab identity above the whole product
@@ -29,7 +41,9 @@ export const metadata: Metadata = {
     "purpose-bound AI",
     "accountable AI",
   ],
-  icons: { icon: "/logo-mark.svg" },
+  icons: { icon: "/logo-mark.svg", apple: "/logo-mark.svg" },
+  themeColor: "#1C2B3A",
+  appleWebApp: { capable: true },
   openGraph: {
     title: "VERIDIAN COGNITIVE AI OS — AI Cognitive Research",
     description:

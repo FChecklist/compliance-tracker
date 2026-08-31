@@ -164,3 +164,48 @@ describe("getSalesOrderDocumentFlow (SD-007 'Sales Order Document-Flow Overview'
     await expect(getSalesOrderDocumentFlow({ orgId: ORG_ID }, "does-not-exist")).rejects.toBeInstanceOf(ServiceError)
   })
 })
+
+// A4S14_customers_01: live data had two ACTIVE erp_customers rows named
+// "Meridian Hospitality Group" in the same org -- createCustomer() had no
+// uniqueness check at all. These tests cover the pre-check this fix adds
+// (the real backstop is the DB's own partial unique index, see
+// drizzle/0328_erp_customers_active_name_unique.sql -- not exercisable from
+// a unit test that mocks the db layer).
+describe("createCustomer (A4S14_customers_01: reject a duplicate active name)", () => {
+  test("creating a customer whose name matches an existing ACTIVE customer (case/whitespace-insensitive) throws a 409, not a silent second row", async () => {
+    const findFirst = mock(async () => ({ id: "cust-existing", customerName: "Meridian Hospitality Group" }))
+    const insert = mock(() => { throw new Error("insert should not be called when a duplicate is found") })
+    const db = { query: { erpCustomers: { findFirst } }, insert }
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(db)),
+    }))
+    await mock.module("./erp-enablement-service", () => ({ requireErpEnabled: mock(async () => undefined) }))
+
+    const { createCustomer, ServiceError } = await import("./erp-selling-service")
+    await expect(
+      createCustomer({ orgId: ORG_ID }, { customerName: "  meridian HOSPITALITY group  " }),
+    ).rejects.toMatchObject({ status: 409 })
+    await expect(
+      createCustomer({ orgId: ORG_ID }, { customerName: "meridian hospitality group" }),
+    ).rejects.toBeInstanceOf(ServiceError)
+    expect(findFirst).toHaveBeenCalled()
+  })
+
+  test("a genuinely new name is created normally (findFirst returns nothing -> insert proceeds)", async () => {
+    const findFirst = mock(async () => undefined)
+    const created = { id: "cust-new", customerName: "Riverside Logistics", isActive: true }
+    const returning = mock(async () => [created])
+    const values = mock(() => ({ returning }))
+    const insert = mock(() => ({ values }))
+    const db = { query: { erpCustomers: { findFirst } }, insert }
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(db)),
+    }))
+    await mock.module("./erp-enablement-service", () => ({ requireErpEnabled: mock(async () => undefined) }))
+
+    const { createCustomer } = await import("./erp-selling-service")
+    const result = await createCustomer({ orgId: ORG_ID }, { customerName: "Riverside Logistics" })
+    expect(result).toEqual(created)
+    expect(insert).toHaveBeenCalled()
+  })
+})

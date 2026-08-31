@@ -7,7 +7,8 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
 import {
-  computeHierarchicalAmount, diffLineItems, computeTotalVariation, findScopeReductionViolations,
+  computeHierarchicalAmount, deriveLineItemQuantityAndRate, diffLineItems, computeTotalVariation, findScopeReductionViolations,
+  resolveProgressByLineItem, toLineItemInput,
   ServiceError, type BoqLineItemInput, type BoqLineItemRow, type ChangedLineItem,
 } from "./construction-boq-service"
 
@@ -87,6 +88,90 @@ describe("computeHierarchicalAmount -- Sub-Task Amount = Main QTY * Main RATE * 
   })
 })
 
+// R45 seq 7 / E-127 -- "Settle the two child-rate conventions." Two real,
+// contradictory conventions existed: (A) construction-boq-service.ts /
+// schema.ts computed a child's `amount` from the ROOT's qty*rate*breakdown%
+// while leaving the child's OWN stored quantity/rate columns as whatever a
+// caller happened to submit, unenforced; (B) work-progress-report-pdf.ts's
+// computeRows() read a line's own `rate` column DIRECTLY (qty x rate) to
+// price progress recorded against that specific child line, which is only
+// correct if the child's stored rate already equals the F2-derived value --
+// something nothing guaranteed. Settled per platform.sumeet_spec row BOQ-10
+// (the real, confirmed customer BoQ spec). NOTE: an earlier version of this
+// comment claimed this was "cross-checked against production, 477/477 real
+// child rows matched F2/F3 exactly" -- that was FALSE (an adversarial verify
+// pass 2026-08-24 caught it: real count was 503 total / 287 matching / 216
+// mismatching, mostly harmless e2e noise plus 18 real pre-fix demo-org rows,
+// since backfilled -- see construction-reports-service.ts's
+// earnedValueReport() header for the full, real numbers). BOQ-10 is the
+// spec regardless of that false historical-verification claim -- a child's
+// quantity/rate are DERIVED (F2/F3), not independently entered --
+// this is now enforced at the one write path (insertLineItems), closing the
+// gap that let convention (B) silently disagree with convention (A).
+// These tests would FAIL if that enforcement were ever removed and a child
+// row's own submitted quantity/rate were trusted again.
+describe("deriveLineItemQuantityAndRate -- canonical child-rate rule (R45 seq 7 / E-127)", () => {
+  test("a root-level item (no parentItemCode) keeps its own quantity/rate exactly as entered -- F1", () => {
+    const item: BoqLineItemInput = { description: "Excavation", unit: "cum", quantity: 100, rate: 50 }
+    expect(deriveLineItemQuantityAndRate(item, new Map())).toEqual({ quantity: 100, rate: 50 })
+  })
+
+  test("a child's quantity is the ROOT's quantity, unscaled -- F3", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
+    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 30, description: "Frame 01", unit: "sqm", quantity: 0, rate: 0 }
+    expect(deriveLineItemQuantityAndRate(sub, new Map([["M1", main]])).quantity).toBe(472)
+  })
+
+  test("a child's rate is ROOT rate x breakdown% / 100 -- F2 (the Sumeet spec's own worked example: 108 x 30% = 32.4)", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
+    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 30, description: "Frame 01", unit: "sqm", quantity: 0, rate: 0 }
+    expect(deriveLineItemQuantityAndRate(sub, new Map([["M1", main]])).rate).toBeCloseTo(32.4, 6)
+  })
+
+  test("*** THE CORE FIX ***: a child's OWN submitted quantity/rate are IGNORED and overwritten by the derived root values -- proves independent entry (convention B) is no longer possible", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
+    // caller submits garbage/stale quantity+rate on a child row -- must not survive.
+    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 30, description: "Frame 01", unit: "sqm", quantity: 999999, rate: 1 }
+    expect(deriveLineItemQuantityAndRate(sub, new Map([["M1", main]]))).toEqual({ quantity: 472, rate: 32.4 })
+  })
+
+  test("a child submitted with quantity/rate both 0 (the historically 'always 0' assumption) still derives the correct non-zero values", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
+    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 15, description: "Gypsum Board 01", unit: "sqm", quantity: 0, rate: 0 }
+    expect(deriveLineItemQuantityAndRate(sub, new Map([["M1", main]]))).toEqual({ quantity: 472, rate: 16.2 })
+  })
+
+  test("multi-level nesting (Main -> Sub -> Sub-sub) derives off the ROOT Main's qty/rate, not the immediate parent Sub's", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "cum", quantity: 100, rate: 50 }
+    const sub: BoqLineItemInput = { itemCode: "S1", parentItemCode: "M1", breakdownPercentage: 40, description: "Sub", unit: "cum", quantity: 0, rate: 0 }
+    const subsub: BoqLineItemInput = { parentItemCode: "S1", breakdownPercentage: 50, description: "Sub-sub", unit: "cum", quantity: 0, rate: 0 }
+    const byCode = new Map([["M1", main], ["S1", sub]])
+    expect(deriveLineItemQuantityAndRate(subsub, byCode)).toEqual({ quantity: 100, rate: 25 })
+  })
+
+  test("computeHierarchicalAmount's output equals derived quantity x derived rate (F4) -- amount and the stored columns can never disagree", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
+    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 30, description: "Frame 01", unit: "sqm", quantity: 0, rate: 0 }
+    const byCode = new Map([["M1", main]])
+    const { quantity, rate } = deriveLineItemQuantityAndRate(sub, byCode)
+    expect(computeHierarchicalAmount(sub, byCode)).toBe(quantity * rate)
+    expect(computeHierarchicalAmount(sub, byCode)).toBeCloseTo(15292.8, 6) // Sumeet spec's own worked example, item 1.01 Frame 01
+  })
+
+  test("missing breakdownPercentage on a child item throws a 400 ServiceError, same as computeHierarchicalAmount", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "cum", quantity: 100, rate: 50 }
+    const sub: BoqLineItemInput = { parentItemCode: "M1", description: "Sub", unit: "cum", quantity: 0, rate: 0 }
+    expect(() => deriveLineItemQuantityAndRate(sub, new Map([["M1", main]]))).toThrow(ServiceError)
+  })
+
+  test("a circular parentItemCode chain throws rather than looping forever, same as computeHierarchicalAmount", () => {
+    const a: BoqLineItemInput = { itemCode: "A", parentItemCode: "B", breakdownPercentage: 50, description: "A", unit: "cum", quantity: 0, rate: 0 }
+    const b: BoqLineItemInput = { itemCode: "B", parentItemCode: "A", breakdownPercentage: 50, description: "B", unit: "cum", quantity: 0, rate: 0 }
+    const byCode = new Map([["A", a], ["B", b]])
+    expect(() => deriveLineItemQuantityAndRate(a, byCode)).toThrow(ServiceError)
+  })
+})
+
 describe("diffLineItems -- hierarchy-aware revision comparison", () => {
   test("qty/rate unchanged, only breakdownPercentage moved -- now flagged as changed (previously invisible to the diff)", () => {
     const prev = [row({ id: "p1", itemCode: "S1", parentLineItemId: "main-id", quantity: "0", rate: "0", breakdownPercentage: "40", amount: "2000" })]
@@ -151,29 +236,35 @@ describe("computeTotalVariation -- the running total variation value across a re
   })
 })
 
+// R12 point 7 (Option B): findScopeReductionViolations now looks up
+// progress by the CURRENT/removed line item's own `id`, via the map
+// loadLatestProgressByLineItem()/resolveProgressByLineItem() produce --
+// not by activityId any more (that lookup now lives one layer down, inside
+// the resolver). Every test below is keyed by item id, not activityId, to
+// match the new resolver output shape.
 describe("findScopeReductionViolations -- the Owner's hard-block rule for descoping completed work", () => {
   test("a positive variation on a line item with completed progress is never a violation", () => {
     const changed: ChangedLineItem[] = [{
       key: "M1", previous: row({ id: "p1", activityId: "act-1" }), current: row({ id: "c1", activityId: "act-1" }),
       quantityChange: 10, rateChange: 0, breakdownPercentageChange: 0, netVariation: 500, isSubItem: false,
     }]
-    const violations = findScopeReductionViolations({ removed: [], changed }, new Map([["act-1", 60]]))
+    const violations = findScopeReductionViolations({ removed: [], changed }, new Map([["c1", 60]]))
     expect(violations).toHaveLength(0)
   })
 
-  test("removing a line item entirely is blocked when its activity has any recorded completed progress", () => {
+  test("removing a line item entirely is blocked when the resolver found it >0% complete", () => {
     const removed = [row({ id: "r1", description: "Brickwork", activityId: "act-1" })]
-    const violations = findScopeReductionViolations({ removed, changed: [] }, new Map([["act-1", 25]]))
+    const violations = findScopeReductionViolations({ removed, changed: [] }, new Map([["r1", 25]]))
     expect(violations).toHaveLength(1)
     expect(violations[0]).toContain("Brickwork")
   })
 
-  test("a negative variation (reduced quantity/amount) on a line item is blocked when its activity has completed progress", () => {
+  test("a negative variation (reduced quantity/amount) on a line item is blocked when the resolver found it >0% complete", () => {
     const changed: ChangedLineItem[] = [{
       key: "M1", previous: row({ id: "p1", activityId: "act-1", description: "Plastering" }), current: row({ id: "c1", activityId: "act-1", description: "Plastering" }),
       quantityChange: -10, rateChange: 0, breakdownPercentageChange: 0, netVariation: -500, isSubItem: false,
     }]
-    const violations = findScopeReductionViolations({ removed: [], changed }, new Map([["act-1", 40]]))
+    const violations = findScopeReductionViolations({ removed: [], changed }, new Map([["c1", 40]]))
     expect(violations).toHaveLength(1)
     expect(violations[0]).toContain("Plastering")
   })
@@ -184,14 +275,138 @@ describe("findScopeReductionViolations -- the Owner's hard-block rule for descop
       key: "M2", previous: row({ id: "p2", activityId: "act-2" }), current: row({ id: "c2", activityId: "act-2" }),
       quantityChange: -5, rateChange: 0, breakdownPercentageChange: 0, netVariation: -200, isSubItem: false,
     }]
-    // act-1 has an explicit 0% entry, act-2 has no entry in the map at all -- neither should block.
-    const violations = findScopeReductionViolations({ removed, changed }, new Map([["act-1", 0]]))
+    // r1 has an explicit 0% entry, c2 has no entry in the map at all -- neither should block.
+    const violations = findScopeReductionViolations({ removed, changed }, new Map([["r1", 0]]))
     expect(violations).toHaveLength(0)
   })
 
-  test("a line item with no activityId at all can never be blocked -- there is no progress source to check it against", () => {
+  test("a line item with no entry in the resolved progress map at all can never be blocked", () => {
     const removed = [row({ id: "r1", activityId: null })]
-    const violations = findScopeReductionViolations({ removed, changed: [] }, new Map([["act-1", 90]]))
+    const violations = findScopeReductionViolations({ removed, changed: [] }, new Map([["some-other-item", 90]]))
     expect(violations).toHaveLength(0)
+  })
+})
+
+// R12 point 7 (Option B): the pure merge core of loadLatestProgressByLineItem
+// -- factored out so it's testable without a live DB (this file's own
+// established convention). `byLineItemId`/`byActivityId` simulate what the
+// DB query would have already produced (most-recent percentComplete per
+// key); this function only decides which key wins per item.
+describe("resolveProgressByLineItem -- boq_line_item_id first, activity_id fallback (R12 point 7 / Option B)", () => {
+  test("an entry linked by boq_line_item_id is found by the resolver", () => {
+    const items = [row({ id: "li-1", activityId: null })]
+    const result = resolveProgressByLineItem(items, new Map([["li-1", 45]]), new Map())
+    expect(result.get("li-1")).toBe(45)
+  })
+
+  test("a legacy entry linked ONLY by activity_id is STILL found (fallback)", () => {
+    const items = [row({ id: "li-2", activityId: "act-9" })]
+    const result = resolveProgressByLineItem(items, new Map(), new Map([["act-9", 70]]))
+    expect(result.get("li-2")).toBe(70)
+  })
+
+  // Edge case (cycle 2): both links set and disagreeing -- boq_line_item_id
+  // must win, per the point's own explicit rule ("IF boq_line_item_id is
+  // set THEN it wins"), not whichever map happens to be checked first.
+  test("edge case: both links set and disagreeing -- the direct boq_line_item_id link wins over the activity_id fallback", () => {
+    const items = [row({ id: "li-3", activityId: "act-3" })]
+    const result = resolveProgressByLineItem(items, new Map([["li-3", 80]]), new Map([["act-3", 20]]))
+    expect(result.get("li-3")).toBe(80)
+  })
+
+  // Edge case (cycle 2): neither link set -- no entry at all, not a 0.
+  test("edge case: neither link set -- the item has no entry in the resolved map (not a 0)", () => {
+    const items = [row({ id: "li-4", activityId: null })]
+    const result = resolveProgressByLineItem(items, new Map(), new Map())
+    expect(result.has("li-4")).toBe(false)
+  })
+
+  test("multiple items each resolve independently -- one via direct link, one via fallback, one with nothing", () => {
+    const items = [
+      row({ id: "li-5", activityId: "act-5" }), // has a direct link entry
+      row({ id: "li-6", activityId: "act-6" }), // only a fallback entry
+      row({ id: "li-7", activityId: "act-7" }), // no entry anywhere
+    ]
+    const byLineItemId = new Map([["li-5", 33]])
+    const byActivityId = new Map([["act-6", 66]])
+    const result = resolveProgressByLineItem(items, byLineItemId, byActivityId)
+    expect(result.get("li-5")).toBe(33)
+    expect(result.get("li-6")).toBe(66)
+    expect(result.has("li-7")).toBe(false)
+  })
+})
+
+// R12 point 7 acceptance test: "A revision reducing scope below recorded
+// progress returns 409 through the NEW path." createBoqRevision() itself
+// needs a live DB (withTenantContext), so this chains the two pure
+// functions the guard is actually built from -- resolveProgressByLineItem
+// then findScopeReductionViolations -- exactly as loadLatestProgressByLineItem
+// -> findScopeReductionViolations are chained for real inside
+// createBoqRevision(), proving the NEW (boq_line_item_id-first) path
+// produces the violation createBoqRevision() then throws a 409 for.
+describe("R12 point 7 -- the 409 guard's full pure pipeline through the NEW (boq_line_item_id) path", () => {
+  test("a revision reducing scope on a line item whose progress is linked ONLY by boq_line_item_id (no activity fallback needed) is blocked", () => {
+    const changed: ChangedLineItem[] = [{
+      key: "M1", previous: row({ id: "p1", activityId: null, description: "Frame 01" }), current: row({ id: "c1", activityId: null, description: "Frame 01" }),
+      quantityChange: -50, rateChange: 0, breakdownPercentageChange: 0, netVariation: -1000, isSubItem: false,
+    }]
+    const resolved = resolveProgressByLineItem([changed[0].current], new Map([["c1", 55]]), new Map())
+    const violations = findScopeReductionViolations({ removed: [], changed }, resolved)
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toContain("Frame 01")
+  })
+
+  test("a legacy line item (activity_id only, no direct link) reducing scope is STILL blocked through the fallback", () => {
+    const removed = [row({ id: "r1", activityId: "act-legacy", description: "Legacy Item" })]
+    const resolved = resolveProgressByLineItem(removed, new Map(), new Map([["act-legacy", 40]]))
+    const violations = findScopeReductionViolations({ removed, changed: [] }, resolved)
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toContain("Legacy Item")
+  })
+})
+
+// R44 seq3: real defect found while building the COMPARE archetype --
+// createBoqRevision used to default a missing `lineItems` to `[]`, silently
+// creating an EMPTY revision instead of "create WITH REFERENCE" (M31). The
+// fix is this pure round-trip: a persisted row -> toLineItemInput() -> the
+// same BoqLineItemInput shape insertLineItems() (and therefore
+// createBoqRevision()) accepts, so copy-forward reuses the normal insert
+// path rather than a separate clone query.
+describe("toLineItemInput -- copy-forward round-trip for create-with-reference", () => {
+  test("a plain flat item round-trips every field insertLineItems() reads", () => {
+    const persisted = row({
+      id: "p1", activityId: "act-1", itemCode: "C001", description: "Excavation", unit: "cum",
+      quantity: "100", rate: "50", amount: "5000",
+      materialCost: "10", labourCost: "20", equipmentCost: "5", overheadPercent: "8", profitPercent: "12",
+    })
+    const input = toLineItemInput(persisted, new Map())
+    expect(input).toEqual({
+      activityId: "act-1", itemCode: "C001", parentItemCode: undefined, breakdownPercentage: undefined,
+      description: "Excavation", unit: "cum", quantity: 100, rate: 50,
+      materialCost: 10, labourCost: 20, equipmentCost: 5, overheadPercent: 8, profitPercent: 12,
+    })
+  })
+
+  test("null optional DB fields become undefined (not null) -- BoqLineItemInput's fields are all optional, never nullable", () => {
+    const persisted = row({ id: "p1", description: "Plain item", unit: "nos", quantity: "1", rate: "1" })
+    const input = toLineItemInput(persisted, new Map())
+    expect(input.activityId).toBeUndefined()
+    expect(input.itemCode).toBeUndefined()
+    expect(input.parentItemCode).toBeUndefined()
+    expect(input.materialCost).toBeUndefined()
+  })
+
+  test("a sub-item's parentLineItemId (a row id) resolves back to the parent's itemCode via the id->itemCode map", () => {
+    const sub = row({ id: "c1", itemCode: "S1", parentLineItemId: "main-row-id", breakdownPercentage: "40", description: "Sub", unit: "cum", quantity: "0", rate: "0" })
+    const input = toLineItemInput(sub, new Map([["main-row-id", "M1"]]))
+    expect(input.parentItemCode).toBe("M1")
+    expect(input.breakdownPercentage).toBe(40)
+  })
+
+  test("a whole revision's worth of items (153, matching the real 'Sumeet Sample Scope' BOQ) round-trips to the same count with amounts preserved", () => {
+    const persisted = Array.from({ length: 153 }, (_, i) => row({ id: `p${i}`, itemCode: `C${i}`, description: `Item ${i}`, unit: "nos", quantity: "10", rate: "5", amount: "50" }))
+    const mapped = persisted.map((item) => toLineItemInput(item, new Map()))
+    expect(mapped).toHaveLength(153)
+    expect(mapped.every((i) => i.quantity === 10 && i.rate === 5)).toBe(true)
   })
 })

@@ -57,13 +57,18 @@ export async function listEvalRuns(evalCaseId: string) {
   })
 }
 
-function renderTemplate(content: string, variables: Record<string, string>): string {
+// Exported (additive, no behavior change) so role-quality-regression-
+// service.ts's per-role recurring eval can reuse the exact same
+// substitution/scoring logic instead of forking a second copy -- both
+// ultimately run the same promptEvalCases rows, just against a
+// role-resolved production version instead of a caller-supplied one.
+export function renderTemplate(content: string, variables: Record<string, string>): string {
   let rendered = content
   for (const [key, value] of Object.entries(variables)) rendered = rendered.replaceAll(`{{${key}}}`, value)
   return rendered
 }
 
-function scoreKeywords(output: string, expectedKeywords: string[]): { passed: boolean; missingKeywords: string[] } {
+export function scoreKeywords(output: string, expectedKeywords: string[]): { passed: boolean; missingKeywords: string[] } {
   const lowerOutput = output.toLowerCase()
   const missingKeywords = expectedKeywords.filter((k) => !lowerOutput.includes(k.toLowerCase()))
   return { passed: missingKeywords.length === 0, missingKeywords }

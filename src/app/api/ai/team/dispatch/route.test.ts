@@ -61,6 +61,12 @@ async function setupMocks(runRoleResponses?: string[]) {
         content,
         usage: { promptTokens: 300, completionTokens: 200 },
         role: { roleKey, team: "ENGINEERING", title: "Full Stack Developer", model: "z-ai/glm-5.2", promptKey: "ai_team.fullstack_developer" },
+        // VERIDIAN Review Framework gap-closure (2026-08-15, A/B / shadow-
+        // testing capability): runRole()'s real return shape now always
+        // includes modelVariant -- "primary" here since none of these
+        // tests configure an active rollout (resolveDispatchModel below is
+        // stubbed to always resolve "primary" too, matching).
+        modelVariant: "primary" as const,
       }
     }),
     runGuardrailLevel: mock(async () => []),
@@ -68,6 +74,12 @@ async function setupMocks(runRoleResponses?: string[]) {
 
   mock.module("@/lib/ai-team/roster-overrides", () => ({
     resolveEffectiveModel: mock(async () => "z-ai/glm-5.2"),
+    // A/B / shadow-testing gap-closure: the route now calls
+    // resolveDispatchModel() (not resolveEffectiveModel()) for its tier
+    // pre-flight check. None of these tests configure a rollout, so this
+    // always resolves the same "primary" model the runRole() stub above
+    // already returns.
+    resolveDispatchModel: mock(async () => ({ model: "z-ai/glm-5.2", variant: "primary" as const })),
   }))
 
   mock.module("@/lib/ai-router/mother-router", () => ({
