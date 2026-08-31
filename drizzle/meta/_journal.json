@@ -2276,6 +2276,13 @@
       "when": 1788285700000,
       "tag": "0502_construction_expense_entries_rework",
       "breakpoints": true
+    },
+    {
+      "idx": 325,
+      "version": "7",
+      "when": 1788285800000,
+      "tag": "0503_v2_16_crm_perf_indexes",
+      "breakpoints": true
     }
   ]
 }

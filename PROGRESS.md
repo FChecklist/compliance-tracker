@@ -1,107 +1,123 @@
-# PROGRESS -- rebase-sweep2-530 (replacement for PR #530)
+# PROGRESS -- rebase-sweep2-576 (replacement for PR #576)
 
 ## Scope
 
-Replacement PR for #530 ("Audit198 gap closure (wave 4): Explainability /
-RCA & Error Handling / Task Guardrails / Deduplication-SSOT"). Triage
-confirmed real, additive work: a genuinely new file
-(`src/lib/rca-closure-gate.ts`, 85 lines, + its test) and a real,
-non-destructive guardrail wired into the existing
-`src/app/api/incidents/[id]/route.ts` -- `checkIncidentClosure()` blocks an
-incident from silently advancing to `closed` without a CAPA owner set
-(ARTICLE-028/030), returning a 422 with guidance rather than deleting or
-corrupting any data. PR's real branch
-(`audit198-gap-wave4-explainability-rca-guardrails`, `mergeable: CONFLICTING`,
-52 commits behind) was rebased onto fresh `origin/main` here and re-opened
-as a fresh PR.
+Replacement PR for #576 ("V2-16: CRM performance-under-load composite
+indexes + load-test harness"). Triage confirmed real, additive,
+genuinely-missing work: 8 additive `CREATE INDEX IF NOT EXISTS` composite
+indexes (`drizzle/0264_v2_16_crm_perf_indexes.sql` on the original branch),
+a real synthetic load-test harness (`scripts/crm-perf-load-test.ts`, seeds
+110k rows, measures EXPLAIN ANALYZE before/after against a disposable local
+Postgres container -- 6 of 8 query patterns confirmed measurably faster, up
+to 103.8x, the other 2 honestly reported as ~1x with root-cause
+explanation), and its results doc
+(`docs/testing/CRM_PERF_LOAD_TEST_RESULTS.md`). Confirmed via
+`gh api search/code` for `crm_leads+org_id+status+created_at`,
+`crm-perf-load-test`, and `idx_crm_leads` against the repo -- zero hits pre-merge,
+functionality genuinely absent from `main`. `gh pr checks 576`: Build /
+Lint / Type Check / Unit Tests / E2E / Terminology Guardrail / Secret
+Scanning / Security Pattern Check all passed; only Metadata Index Coverage
+Check (pre-existing repo-wide backlog, same pattern as unrelated PR #554)
+and `audit-check` (missing auditor comment) were red.
 
 ## Completed
 
-- [x] Worktree: merged PR #530's real branch onto fresh `origin/main`.
-      3 real conflicts resolved:
-      - `ai-os/scripts/audit198/category-checkers.mjs` -- add/add conflict
-        (merge-base predates the `ai-os/scripts/audit198/` directory, so
-        both branches "added" this file independently). PR #530's branch
-        added 4 new `CATEGORY_INFRA` entries (EXPLAINABILITY/
-        RCA_ERROR_HANDLING/TASK_GUARDRAILS_ZERO_AMBIGUITY/
-        DEDUPLICATION_SSOT); `origin/main` had independently grown 2
-        different entries (REUSE_COMPONENTIZATION/RECOVERY_RESILIENCE) from
-        other merged waves. Every other category entry was byte-identical
-        on both sides. Resolved additively: kept all 22 categories from
-        both sides. Verified via a Node import check (`Object.keys(CATEGORY_INFRA)`
-        lists all 22, no duplicates) and `node --check` for syntax.
-      - `ai-os/scripts/audit198/results/audit198-results.json` +
-        `audit198-summary.md` -- same add/add pattern, but these are fully
-        deterministic, re-runnable generated reports (per `run-audit.mjs`'s
-        own header). A full 198-item live re-run in this sandbox's
-        Windows/git-bash grep-child-process-spawn environment was taking
-        far longer than practical (30+ min, still <10% through by wall-clock
-        estimate). Instead: ran `node ai-os/scripts/audit198/run-audit.mjs
-        --only=<27 ids>` for exactly the 27 items across the 4 wave-4
-        categories (the only items whose evidence actually changed by this
-        PR) against the real merged repo state, then merged those 27 fresh,
-        live-derived entries onto `origin/main`'s own full 198-item snapshot
-        (generated 2026-08-31, the most current baseline available -- HEAD's
-        original snapshot was from 2026-07-21, over a month stale, with 57
-        of the other 171 items' verdicts having since drifted on `main` for
-        unrelated reasons). Every one of the 198 entries in the merged file
-        is real, live-derived evidence from one of these two genuine runs --
-        none fabricated. Regenerated `summary.md` by reproducing
-        `run-audit.mjs`'s own summary-rendering logic exactly (same
-        `VALID_STATUSES` order, same per-category breakdown format) so the
-        file is indistinguishable in shape from a full live run's output.
-        The next full scheduled run (`node ai-os/scripts/audit198/run-audit.mjs`
-        via the recommended crontab) will naturally re-converge everything
-        to one fully-fresh snapshot.
-      - `PROGRESS.md` and `drizzle/meta/_journal.json` did NOT conflict this
-        time. Verified no duplicate migration indices (325 entries, max idx
-        324, zero dups) via a direct Node check against the merged
-        `drizzle/meta/_journal.json`. Post-merge, `drizzle/` is byte-identical
-        to `origin/main`'s -- this PR never touched any migration.
-- [x] `bun install` (full) then targeted `bun add` for 3 packages
-      (`@axe-core/playwright`, `@huggingface/transformers`, `@mlc-ai/web-llm`)
-      that were declared in `package.json`/`bun.lock` but silently missing
-      from `node_modules` after the first full install (a real, transient
-      gap in this environment, not caused by the merge) -- `bun add`'s
-      side-effect of pinning exact versions in `package.json`/`bun.lock` was
-      reverted via `git checkout`, keeping only the packages themselves.
-- [x] `node scripts/check-governance-yaml-parse.mjs` -- pass (5/5 governance
-      YAML files parse cleanly).
-- [x] `bunx tsc --noEmit` -- pass, 0 errors. First attempt hit the same
-      known V8 OOM signature CI's own `typecheck` job comment documents
-      (`--max-old-space-size=8192` already wired into `ci.yml`); reproduced
-      locally with that same env var and got a clean pass.
-- [x] `bun run lint` (`eslint .`) -- pass, 0 errors (138 pre-existing
-      complexity/a11y warnings across the whole codebase, none introduced by
-      this merge, no `--max-warnings` gate configured).
-- [x] `bun test --isolate src/lib/rca-closure-gate.test.ts` (CI's exact
-      invocation + placeholder DB env vars) -- 10/10 pass.
-- [x] Manually verified `src/app/api/incidents/[id]/route.ts`'s new
-      `checkIncidentClosure()` call sits inside the route's existing
-      `try/catch` (with a dedicated `IncidentClosureBlockedError` -> 422
-      branch) -- confirms Route Error Handling Check would pass in real CI;
-      local `node scripts/check-route-error-handling.mjs` and
-      `check-migration-collision.mjs` both hit a real Windows/git-bash
-      `execSync` + Unix pipe (`2>/dev/null | head -100`) incompatibility in
-      this sandbox (`"The system cannot find the path specified"`, a cmd.exe
-      artifact, not present on CI's `ubuntu-latest` runners) -- worked
-      around by direct manual verification instead of trusting the local
-      script exit code.
-- [x] `docs/master/TEST_COVERAGE_GAP.md` -- regenerated via the documented
-      workaround (`buildStats`/`renderReport` imported directly from a
-      `file://` URL, since `scripts/report-test-coverage-gap.mjs`'s own
-      `isMain` self-invocation check silently no-ops in this shell). Output
-      was byte-identical to what the merge had already staged -- no change
-      needed.
-- [x] Pushed `rebase-sweep2-530`, opened replacement PR, closed #530 with a
-      pointer to it.
+- [x] Fetched the PR's real head branch
+      (`worker/task-20260726-171957-crm-performance-under-load-indexes---loa`)
+      and diffed it against fresh `origin/main`. `gh pr view 576` reported
+      `mergeable: CONFLICTING` / `mergeStateStatus: DIRTY`; the earlier
+      triage attributed this to a single migration-number collision
+      (`drizzle/0264_v2_16_crm_perf_indexes.sql` vs. an unrelated,
+      already-present `main` file that had independently claimed
+      `0264_helpdesk_tiered_sla_team_routing.sql`). Confirmed that
+      collision is real, but a straight `git merge origin/main` on the PR's
+      actual head branch surfaced ~130 additional conflicted files across
+      `src/lib/services/*`, `src/app/**`, `ai-os/**`, etc. -- because that
+      worker branch forked from `main` a long time ago and never stayed in
+      sync (its own history already contains one earlier, now-stale
+      "merge main in" commit from 2026-07-26). None of those ~130 files
+      are touched by this PR's actual feature commit
+      (`git show --stat` on the PR's real content commit shows exactly 5
+      files: `PROGRESS.md`, `docs/testing/CRM_PERF_LOAD_TEST_RESULTS.md`,
+      the load-test JSON summary, the migration, and the load-test
+      script) -- confirmed independently against GitHub's own
+      `gh pr diff 576 --name-only`, which reports the same 6-file scope
+      (adding `ai-os/boss/ACTIVE-CLAIMS.yaml`, a claim-bookkeeping-only
+      diff). Concluded the ~130-file conflict set is 100% stale-branch
+      noise, not a real conflict in this PR's substance.
+- [x] Rather than merge the full stale branch (and hand-resolve ~130
+      unrelated conflicts, most of them in core business logic I have no
+      basis to arbitrate), built a fresh branch off current `origin/main`
+      and carried over only the PR's real, reviewed content directly:
+      - `scripts/crm-perf-load-test.ts` -- copied the branch's *final*
+        version (post its own `6e4e51e9` TS2345/TS2339 fix commit), not
+        the version from the original feature commit, since the original
+        had a real type error later fixed on the same branch.
+      - `docs/testing/CRM_PERF_LOAD_TEST_crm-perftest-1785086878738_SUMMARY.json`
+        -- copied unchanged (no relevant `main` drift, no filename
+        references inside).
+      - `drizzle/0264_v2_16_crm_perf_indexes.sql` -- copied unchanged but
+        **renamed to `drizzle/0503_v2_16_crm_perf_indexes.sql`**. `0264` is
+        genuinely taken on `main` (`0264_helpdesk_tiered_sla_team_routing.sql`).
+        Checked the *true* current highest migration number directly via
+        `git ls-tree -r origin/main -- drizzle/` (not the stale local
+        checkout) -- highest file-name number is `0502`
+        (`0502_construction_expense_entries_rework`), and
+        `drizzle/meta/_journal.json` on `origin/main` confirms the same:
+        325 entries, `idx: 324` is the last, tag
+        `0502_construction_expense_entries_rework`. Renumbered to `0503`
+        (next free slot) and appended `idx: 325` /
+        `tag: "0503_v2_16_crm_perf_indexes"` to the journal. The migration
+        file's own text needed no edits -- it is additive-only
+        (`CREATE INDEX IF NOT EXISTS`) and never references its own
+        filename number internally; its comments referencing "migration
+        0031" / "migration 0219" / "migration 0087" / "migration 0092" are
+        describing *other, pre-existing* indexes, unaffected by this
+        rename. Two other carried-over files *did* hardcode the old
+        `0264_...` filename and needed real edits, not a blind copy --
+        caught by grepping the whole tree for `0264_v2_16` after the
+        rename: `scripts/crm-perf-load-test.ts` had a live
+        `readFileSync("drizzle/0264_...")` call that would have thrown at
+        runtime against the renamed file (updated to `0503_...`, plus its
+        header comment), and `docs/testing/CRM_PERF_LOAD_TEST_RESULTS.md`
+        had 3 prose/link references to the old filename (updated to
+        `0503_...`). Confirmed via a final tree-wide grep that only this
+        PROGRESS.md's own narrative text (describing "the original
+        branch") still says `0264` -- everything functional says `0503`.
+      - `PROGRESS.md` -- replaced wholesale with this entry, per this
+        repo's own convention (holds only the current active sweep, not a
+        concatenated history).
+      - Deliberately did **not** touch `ai-os/boss/ACTIVE-CLAIMS.yaml` /
+        `COMPLETED.yaml`. The original PR branch had 3 commits stacked on
+        top of the real feature commit re-editing `ACTIVE-CLAIMS.yaml`
+        (register claim / note PR opened / record merge-conflict
+        resolution), but as of current `origin/main` there is **zero**
+        existing reference to `V2-16` or `#576` in either file --
+        confirmed via a direct grep of both (11,892 and 3,169 lines) --
+        meaning whatever those 3 commits recorded was never carried onto
+        `main` and the claim isn't currently tracked there at all. Rather
+        than guess at a schema and hand-splice a new entry into an
+        11k-line YAML file I have no strong basis to validate, left both
+        files untouched -- this PR's actual deliverable (the indexes +
+        load-test harness + results doc) is unaffected either way.
+- [x] `node scripts/check-governance-yaml-parse.mjs` -- pass.
+- [x] `bunx tsc --noEmit` -- pass, 0 errors (confirms the carried-over
+      post-fix version of `crm-perf-load-test.ts` is clean).
+- [x] `bun run lint` (`eslint .`) -- pass, 0 errors.
+- [x] `bun test` -- no test files were added or modified by this PR's real
+      scope (the load-test script is a standalone harness invoked directly
+      via `bun run`/`tsx` against a disposable container, not part of the
+      `bun test` suite); confirmed no new/changed `*.test.ts` files in this
+      diff, so there is nothing new for `bun test` to cover.
 
 ## Not done / deferred
 
-- Migration Integrity Check (AR-12) and Migration Schema Drift Check both
-  need a real `DATABASE_URL` and were not run locally (CI treats an
-  unreachable DB as a warning, not a failure, for exactly this reason) --
-  not a concern here since this PR touches zero migration files.
-- E2E Tests, Vercel, Secret Scanning (pre-existing findings only), and
-  Promptfoo Evals are the documented known-ambient CI signals this repo's
-  convention does not block merges on.
+- The migration itself remains **not applied** to any live/shared
+  database, same Tier2-holds-for-Owner-sign-off convention the original
+  PR already documented (see the migration file's own header).
+- `ai-os/boss/ACTIVE-CLAIMS.yaml` / `COMPLETED.yaml` bookkeeping for this
+  claim -- explicitly skipped, see above.
+- E2E Tests, Vercel (platform-wide blocked), Secret Scanning
+  (pre-existing findings only), and Promptfoo Evals are the documented
+  known-ambient CI signals this repo's convention does not block merges
+  on.
