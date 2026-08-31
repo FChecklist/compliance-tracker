@@ -178,10 +178,51 @@ PR's gap.
       logic by hand via `git ls-tree -r origin/main -- drizzle/` instead
       (see the renumbering entry above).
 
+## Real CI, first push (PR #1517)
+
+Pushed, opened https://github.com/FChecklist/compliance-tracker/pull/1517
+("... [was #585]"), closed #585 as superseded. Real CI's own **Unit Tests**
+job caught a real, genuine bug -- not this rebase-sweep's own doing, latent
+in the original PR #585's own diff, apparently never actually verified
+against real CI before now:
+
+- `src/app/api/ai/team/dispatch/route.test.ts` (untouched by #585's own
+  diff) `mock.module("@/lib/ai-router/mother-router", ...)` replaces the
+  WHOLE module -- `dispatch/route.ts` now imports the new
+  `recordMotherRouterOutcome` export, which the mock never listed, so
+  loading the route under test failed with a real
+  `SyntaxError: Export named 'recordMotherRouterOutcome' not found` before
+  any test body ran (7 of 7 tests in that file failed this way on CI).
+  Fixed by adding a no-op `recordMotherRouterOutcome: mock(async () => {})`
+  to the mock.
+- Fixing that surfaced a second, related real bug locally (CI's run order
+  didn't happen to hit it, but it is real): the same mock's generic
+  `db.insert(): { values: ... }` handler ignores which table it was called
+  with and unconditionally writes into the `rows` Map keyed by `taskId`,
+  which `task-register-service.ts` (real, unmocked in this file) also
+  reads from. `dispatch/route.ts`'s new fire-and-forget
+  `db.insert(aiAgentMemory).values({roleId, taskId, ...})` call hits that
+  same generic handler and clobbers the real taskRegister row for that
+  `taskId` with an `ai_agent_memory`-shaped one, breaking the multi-step L2
+  workflow test's second call (`steps.length` came back 1, not 2). Fixed
+  by making the mock's `insert` check the real `table` argument
+  (`table !== real.taskRegister`) and no-op for any other table.
+- Confirmed both were real: reproduced locally
+  (`bun test src/app/api/ai/team/dispatch/route.test.ts`, 7/7 failing
+  before either fix, 7/7 passing after both), then re-ran the FULL suite
+  (`bun test`, 3450 tests) -- 9 failures remained, but 2 of them
+  (`finance-dashboard/route.test.ts`, `tasks/[id]/status/route.test.ts`,
+  neither touched by this PR) reproduce identically with our two touched
+  test files EXCLUDED from the run entirely, and pass cleanly when run in
+  isolation -- pre-existing, local test-order-dependent flakiness (global
+  `mock.module` state bleeding between files in this machine's own
+  file-discovery order), not a real regression; consistent with CI's own
+  Unit Tests job (different run order) never flagging them. The other 7 --
+  all from `dispatch/route.test.ts` -- were the real, now-fixed bug above.
+
 ## Remaining
 
-- [ ] Push `rebase-sweep2-585`, open replacement PR citing #585.
-- [ ] Close #585 as superseded with a comment linking the replacement.
-- [ ] Check real CI on the replacement PR, merge only when genuinely green
-      (modulo documented-ambient jobs: E2E, Vercel platform-block, Secret
-      Scanning on pre-existing files, Promptfoo Evals timeout).
+- [ ] Push the fix commit, re-check real CI on PR #1517 -- Unit Tests
+      specifically -- merge only when genuinely green (modulo
+      documented-ambient jobs: E2E, Vercel platform-block, Secret Scanning
+      on pre-existing files, Promptfoo Evals timeout).
