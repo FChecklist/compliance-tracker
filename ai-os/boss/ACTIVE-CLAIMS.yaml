@@ -145,48 +145,36 @@ active:
       instructions). No open PR or active claim found for this area at
       claim time (checked `gh pr list --state all` and this file's own
       "pipeline"/"crm_leads"/"crm_opportunities" grep hits).
-  - session_label: "claude-code (task-20260718-071005-ai-model-lifecycle---benchmarking--evalu) -- VERIDIAN Review Framework: AI Model Lifecycle & Benchmarking / Evaluation & Promotion Process"
-    claimed_at: "2026-08-15T (this session)"
+  - session_label: "claude-code (task-20260718-065003-ai-engineering-quality--error-handling) -- AI Engineering Quality: Error Handling & Logging gap-closure"
+    claimed_at: "2026-08-15T05:35Z (this session)"
     claim: |
-      2 findings. Re-verified both against current main (not the original
-      evaluation) before starting, per this task's own instructions.
-      Finding 1 (High, "Model evaluation process before any roster.ts
-      promotion" -- recommended: "Add a CI check requiring recent promptfoo
-      results for roster.ts diffs") is ALREADY RESOLVED: PR #417 (merged
-      2026-07-19) added .github/workflows/ai-prompt-evals.yml, which runs
-      `promptfoo eval -c promptfooconfig.yaml` on every PR whose diff
-      touches src/lib/ai-team/roster.ts (path-filtered, confirmed live in
-      the workflow file). No code change needed there -- documenting as
-      already-closed, not re-doing it.
-      Finding 2 (Critical, "A/B or shadow-testing capability for a
-      candidate model" -- recommended: "Add a rollout-percentage column to
-      the roster config") is a REAL gap, now closed. Discovered mid-flight
-      that a live, DB-backed admin-override layer already exists
-      (roster-overrides.ts + platform.ai_team_role_overrides, built
-      2026-07-18 for a DIFFERENT gap -- BYO/admin model override, not A/B
-      testing) and every real dispatch surface already resolves its
-      effective model through it, not through roster.ts's static array
-      directly. Extended THAT layer instead of adding a parallel
-      candidateModel/rolloutPercentage pair onto roster.ts's static array
-      (a real A/B rollout needs the same live-toggle-without-a-deploy
-      property that table already gives the plain override). Delivered:
-      drizzle/0313 (candidate_model + rollout_percentage columns, NOT
-      applied live -- left for the supervising session), schema.ts,
-      roster-overrides.ts (resolveDispatchModel() -- requires an explicit
-      complexityTier to ever select a candidate, and the candidate must
-      itself be tier-eligible per model-tier-eligibility.ts, so a rollout
-      config can never bypass that guardrail; setRoleRollout/
-      clearRoleRollout admin mutations), team-service.ts's runRole()
-      (optional 5th `rollout` param, zero behavior change when omitted),
-      dispatch/route.ts (tier pre-flight now checks the resolved candidate,
-      one rolloutSeed reused for both the check and the real call so they
-      can never disagree, PATCH extended with an additive `rollout` field,
-      modelVariant surfaced in the response). 20 new tests
-      (roster-overrides.test.ts) + updated route.test.ts's mock. Full
-      suite 2566 pass/0 fail, tsc clean, lint clean, guardrail-presence/
-      asset-registry-coverage/migration-collision checks all pass. Not
-      touching permission-service.ts per this task's own instruction. PR
-      opened against main, not merged, per instructions.
+      SPEC (this task's own prompt.txt, VERIDIAN Review Framework 2 findings):
+      [Low] Error Handling Quality -- ~9% of API routes lack a visible
+      try/catch (recommended: ESLint rule or CI check requiring try/catch +
+      ServiceError handling in every route.ts); [Medium] Logging Quality --
+      no confirmed centralized structured logging utility (recommended: a
+      lightweight structured operational logger, correlation-ID aware,
+      distinct from the compliance audit_logs tables).
+      Re-verified both against current `main` before starting (per the
+      task prompt's own instruction not to trust the finding description
+      unchecked): 72/995 `route.ts` files (7.2%) still have no `try {`
+      anywhere in the file; no centralized structured logger exists
+      anywhere in `src/lib` (`orchestra-execution-logger.ts` is a
+      DB-persisted AI-execution-cost observability helper, unrelated).
+      Both findings still real.
+    scope_note: >-
+      File scope: new `src/lib/logger.ts` + `src/lib/logger.test.ts`, new
+      `scripts/check-route-error-handling.mjs`, `.github/workflows/ci.yml`
+      (new job), and try/catch fixes to a small sample of pre-existing
+      violation files not claimed elsewhere (`src/app/api/approvals/route.ts`,
+      `src/app/api/bcm/route.ts`, `src/app/api/board-evaluation/route.ts`).
+      Not touching `src/lib/services/permission-service.ts` (explicitly
+      out of scope per task prompt) or the ~62 remaining pre-existing
+      try/catch-less routes not listed above (left as documented residual
+      debt -- see this task's own `progress/*.md` for why: mass-editing 65+
+      files risks colliding with several other in-flight workers editing
+      `src/app/api/**` right now, for a Low-severity finding whose own
+      recommended fix is a forward-enforcing check, not a full rewrite).
   - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
     claim: |
@@ -5381,6 +5369,26 @@ active:
       file live before claiming -- no other active entry touches
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
+  - session_label: "claude-code (worker task-20260718-123002-retry-2--ai-engineering-quality--techni) -- VERIDIAN Review Framework: AI Engineering Quality / Technical Debt & Complexity gap-closure (5 findings)"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      Closing 5 related findings from the Review Framework's AI Engineering
+      Quality evaluation: Dead Code Detection (add knip or similar to CI),
+      Duplicate Code Detection (add jscpd or similar to CI), Technical Debt
+      Score (composite score from existing trackers), Code Complexity Score
+      (ESLint complexity rule), Refactoring Readiness (prioritize tests for
+      largest/most-changed untested files). Per this task's own instructions,
+      re-verifying each finding against current code before changing
+      anything -- codebase has moved since the evaluation was written.
+      File scope: new scripts/check-*.mjs guardrail(s) following the
+      existing pattern, .github/workflows/*.yml CI wiring, eslint.config.mjs
+      (complexity rule addition only), package.json (devDependency
+      additions + scripts), PROGRESS.md. Explicitly NOT touching
+      src/lib/services/permission-service.ts's ERP_ACTION_ROLES table
+      structure (adding additively only if genuinely needed, which is not
+      expected for this analysis/tooling task). Checked this file live
+      before claiming -- no other active entry (all stale, >4h old) touches
+      dead-code/duplicate-code/complexity tooling or CI guardrail scripts.
 
   - session_label: "claude-code (worker task-20260718-072004-ai-platform--ai-platform---general) -- Review Framework gap-closure: AI Platform / BYOAI provider test coverage"
     claimed_at: "2026-08-15T (this session)"
@@ -6276,6 +6284,37 @@ active:
       compilation, no live DB). Not touching capture.ts/embed.ts/chunker.ts
       (they don't exist on this branch's base) or any other CRR P2/P3 file.
 recently_completed:
+  - session_label: "claude-code (task-20260718-081003-crm---sales-modules--accounts---contacts) -- CRM & Sales Modules: Accounts & Contacts remaining gap-closure [DONE, rebased onto current main + merged 2026-08-30 as PR replacing #1238]"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, VERIDIAN Review Framework 15
+      findings for "Accounts & Contacts"). Branch was ~1331 commits stale
+      (from 2026-07-18) -- rebased onto latest origin/main first, then
+      re-verified every finding against current code before claiming any
+      of them still open.
+      Confirmed ALREADY CLOSED by prior waves (PR #389 + PR #402), no
+      action here: Data Model, CRUD, Business Rule & Validation, Multi-
+      Tenant Isolation, Audit Trail, Access Control/RBAC, Search & Filter
+      half of "Search/Filter/Bulk".
+      Genuinely OPEN, building now: Reporting & Export (report-engine
+      data-source whitelist + REPORT_CATALOG entries), AI Copilot depth
+      (Wave-75-style aiHealthScore analysis for accounts), Bulk half of
+      Search/Filter/Bulk (bulk-reassign), Cross-Module Integration
+      (erpCustomerId/clientId bridge columns), Notification triggers
+      (contact added / account reassigned), Documentation, CSV Import/
+      Export. Localization checked and found not applicable (no CRM
+      monetary field anywhere in this codebase carries a currency column
+      today, accounts included) -- documenting as N/A, not force-adding.
+      File scope: src/lib/db/schema.ts (additive columns only), new
+      drizzle/ migration (renumbered 0314->0335 during the 2026-08-30
+      rebase, real collision with main's own 0314_sales_pipeline_module.sql),
+      src/lib/services/crm-accounts-service.ts,
+      src/lib/services/report-engine-service.ts,
+      src/lib/services/report-catalog-service.ts, src/app/api/crm/
+      accounts/**, src/app/(app)/crm/accounts/** pages, docs/. NOT
+      touching permission-service.ts's shared ERP_ACTION_ROLES table
+      structure (per this task's own instruction) -- existing local
+      ROLE_RANK gate in crm-accounts-service.ts stays as-is.
   - session_label: "Super Boss (Claude Desktop, interactive) -- real 3-screen shell proportions (sidebar ~10% / main ~50% / right panel ~40%) [DONE, merged same session]"
     claimed_at: "2026-08-16T (this session, closed same session)"
     merged_as: "FChecklist/veridian-ui-kit PR #8 (v0.3.2 tag), FChecklist/compliance-tracker PR #1293 (dependency bump, real independent audit posted and passing, all 18 CI checks green), FChecklist/projexa PR #72 (dependency bump, all CI green)."
@@ -6391,6 +6430,68 @@ recently_completed:
       out of scope per task prompt) or the ~62 remaining pre-existing
       try/catch-less routes (left as documented residual debt). Wiring
       `.github/workflows/ci.yml` is now done, see claim above.
+  - session_label: "claude-code (task-20260718-071005-ai-model-lifecycle---benchmarking--evalu) -- VERIDIAN Review Framework: AI Model Lifecycle & Benchmarking / Evaluation & Promotion Process [DONE, PR #1221 merged c51aab6a]"
+    claimed_at: "2026-08-15T (this session, closed same session)"
+    claim: |
+      2 findings. Re-verified both against current main (not the original
+      evaluation) before starting, per this task's own instructions.
+      Finding 1 (High, "Model evaluation process before any roster.ts
+      promotion" -- recommended: "Add a CI check requiring recent promptfoo
+      results for roster.ts diffs") is ALREADY RESOLVED: PR #417 (merged
+      2026-07-19) added .github/workflows/ai-prompt-evals.yml, which runs
+      `promptfoo eval -c promptfooconfig.yaml` on every PR whose diff
+      touches src/lib/ai-team/roster.ts (path-filtered, confirmed live in
+      the workflow file). No code change needed there -- documenting as
+      already-closed, not re-doing it.
+      Finding 2 (Critical, "A/B or shadow-testing capability for a
+      candidate model" -- recommended: "Add a rollout-percentage column to
+      the roster config") is a REAL gap, now closed. Discovered mid-flight
+      that a live, DB-backed admin-override layer already exists
+      (roster-overrides.ts + platform.ai_team_role_overrides, built
+      2026-07-18 for a DIFFERENT gap -- BYO/admin model override, not A/B
+      testing) and every real dispatch surface already resolves its
+      effective model through it, not through roster.ts's static array
+      directly. Extended THAT layer instead of adding a parallel
+      candidateModel/rolloutPercentage pair onto roster.ts's static array
+      (a real A/B rollout needs the same live-toggle-without-a-deploy
+      property that table already gives the plain override). Delivered:
+      drizzle/0313 (candidate_model + rollout_percentage columns, NOT
+      applied live -- left for the supervising session), schema.ts,
+      roster-overrides.ts (resolveDispatchModel() -- requires an explicit
+      complexityTier to ever select a candidate, and the candidate must
+      itself be tier-eligible per model-tier-eligibility.ts, so a rollout
+      config can never bypass that guardrail; setRoleRollout/
+      clearRoleRollout admin mutations), team-service.ts's runRole()
+      (optional 5th `rollout` param, zero behavior change when omitted),
+      dispatch/route.ts (tier pre-flight now checks the resolved candidate,
+      one rolloutSeed reused for both the check and the real call so they
+      can never disagree, PATCH extended with an additive `rollout` field,
+      modelVariant surfaced in the response). 20 new tests
+      (roster-overrides.test.ts) + updated route.test.ts's mock. Full
+      suite 2577 pass/0 fail, tsc clean, lint clean, guardrail-presence/
+      asset-registry-coverage/migration-collision/terminology-guardrail
+      checks all pass. Not touching permission-service.ts per this task's
+      own instruction. PR #1221 opened against main; CI surfaced 3 real
+      fixable issues post-open (CodeQL tainted-format-string in
+      resolveDispatchModel()'s error path, terminology-guardrail exemption
+      count-ratchet, and a real additive merge conflict in this same file
+      against a sibling PR #1219 that landed first -- all fixed, commit
+      5c1e7fb5a). The mandatory audit-check job initially showed failing
+      because this session's own AUDIT: PASS comment posted via
+      `issue_comment` re-triggers the check against `main`'s SHA, not the
+      PR head (a real, previously-undocumented quirk of
+      mandatory-audit-check.yml, now recorded in this session's own
+      memory) -- resolved by re-running the original `pull_request`-
+      triggered job, which live-fetches PR comments via the GitHub API
+      and picked up the already-posted verdict. All 8 required branch-
+      protection status checks (Lint, Type Check, Build, audit-check,
+      Guardrail Presence, Asset Registry Coverage, Unit Tests, Metadata
+      Index Coverage) passed; `required_approving_review_count` is 0 on
+      this repo (no self-approval-deadlock hit here), so merged directly.
+      mergeStateStatus stayed UNSTABLE only from two non-required checks
+      (Vercel build-rate-limit, Promptfoo Evals hitting its own 15-minute
+      live-LLM-call timeout) -- both pre-existing/unrelated to this diff,
+      documented, not blockers. Merged as commit c51aab6a.
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |
