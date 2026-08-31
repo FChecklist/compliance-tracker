@@ -74,7 +74,16 @@ export async function importFile(
       await db.update(gstImportBatches).set({ status: "staged", totalRows: adapted.totalRows, stagedCount: adapted.rows.length }).where(eq(gstImportBatches.id, batch.id))
       await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "gst_import.staged", entityType: "gst_import_batch", entityId: batch.id, details: `${adapted.rows.length} rows` })
 
-      return { batchId: batch.id, status: "staged", totalRows: adapted.totalRows, stagedCount: adapted.rows.length, mapping: adapted.mapping, confidence: adapted.confidence }
+      // E-43: surface any per-row "amount cell couldn't be parsed, imported
+      // as 0" reports (adaptImportFile -> mapRowToDraft/adaptTallyXml) in the
+      // same response that already reports stagedCount -- same channel/shape
+      // as construction-boq-import-service.ts's parseBoqSpreadsheet
+      // importSummary.warnings, so a malformed cell is visible to the
+      // uploader immediately instead of only discoverable by re-deriving the
+      // sheet's own total later.
+      const warnings = adapted.rows.flatMap(r => r.warnings.map(w => `Row ${r.sourceRow}: ${w}`))
+
+      return { batchId: batch.id, status: "staged", totalRows: adapted.totalRows, stagedCount: adapted.rows.length, mapping: adapted.mapping, confidence: adapted.confidence, warnings }
     })
   } catch (err) {
     if (batchId) {
@@ -111,9 +120,11 @@ export async function updateMapping(ctx: GstContext, batchId: string, mapping: C
     if (!SPREADSHEET_SOURCES.includes(batch.sourceType as GstSourceType)) throw new ServiceError("Column mapping only applies to spreadsheet-based sources", 400)
 
     const rows = await db.query.gstImportStagingRows.findMany({ where: eq(gstImportStagingRows.batchId, batchId) })
+    const warnings: string[] = []
     for (const row of rows) {
-      const draft = mapRowToDraft(row.rawData as Record<string, unknown>, mapping)
+      const { draft, warnings: rowWarnings } = mapRowToDraft(row.rawData as Record<string, unknown>, mapping)
       await db.update(gstImportStagingRows).set({ mappedData: draft, mappingConfidence: "1" }).where(eq(gstImportStagingRows.id, row.id))
+      warnings.push(...rowWarnings.map(w => `Row ${row.sourceRow}: ${w}`))
     }
 
     const existing = await db.query.gstSourceProfiles.findFirst({
@@ -125,7 +136,7 @@ export async function updateMapping(ctx: GstContext, batchId: string, mapping: C
       await db.insert(gstSourceProfiles).values({ orgId: ctx.orgId, clientId: batch.clientId, sourceType: batch.sourceType, columnMapping: mapping })
     }
 
-    return { updated: rows.length }
+    return { updated: rows.length, warnings }
   })
 }
 

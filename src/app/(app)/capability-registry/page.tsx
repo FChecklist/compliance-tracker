@@ -104,7 +104,7 @@ export default function CapabilityRegistryPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Database className="size-5 text-ct-saffron" />
+        <Database className="size-5 text-ct-saffron-text" />
         <div>
           <h1 className="text-2xl font-heading text-ct-navy">Capability Registry</h1>
           <p className="text-sm text-ct-muted mt-1">What VERI FDE checks before ever proposing a new Worker Agent -- a semantic index of every worker agent, automation rule, and module, so requests are matched against what already exists instead of re-deriving the same context every time.</p>
@@ -175,7 +175,7 @@ export default function CapabilityRegistryPage() {
               <Card key={i} className="rounded-xl shadow-card bg-white">
                 <CardContent className="pt-4 space-y-2">
                   <div className="flex items-center gap-2">
-                    <AlertTriangle className="size-4 text-ct-saffron" />
+                    <AlertTriangle className="size-4 text-ct-saffron-text" />
                     <Badge variant="secondary" className="text-xs">{Math.round(dup.score * 100)}% similar</Badge>
                   </div>
                   <p className="text-sm text-ct-navy"><span className="font-semibold">{dup.a.entityType}:</span> {dup.a.content}</p>

@@ -8,6 +8,7 @@
 // build time.
 import Link from "next/link";
 import Image from "next/image";
+import type { PreAuthBrand } from "@/lib/services/org-branding-service";
 
 export const COMPANY = {
   legalName: "SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED",
@@ -17,14 +18,28 @@ export const COMPANY = {
   contactEmail: "raajat.agarwal@gmail.com", // swap for a branded legal/compliance inbox when available
 };
 
-export function LegalShell({ title, updated, children }: { title: string; updated: string; children: React.ReactNode }) {
+// GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN (OCID-020 addendum,
+// 2026-08-05): `brand` is optional and defaults to undefined/null-safe --
+// /data-policy (the third page sharing this shell) passes nothing and
+// renders byte-identical to before this change; /terms and /privacy pass
+// the real per-host brand resolved by their own async page.tsx, same
+// resolvePreAuthBrandByHost() contract /login already uses. Deliberately
+// only swaps the nav wordmark + footer attribution line -- the legal body
+// content each page renders as `children` names the real legal entity and
+// product bundle, which does not change per visiting host.
+export function LegalShell({ title, updated, brand, children }: { title: string; updated: string; brand?: PreAuthBrand | null; children: React.ReactNode }) {
+  const brandLabel = brand?.brandName ?? COMPANY.brand;
   return (
     <main className="min-h-screen bg-[#F4F1E8] text-[#1a1a17] antialiased">
       <nav className="border-b border-[#1a1a17]/10">
         <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5 font-heading text-lg tracking-tight">
-            <Image src="/logo-mark.svg" alt="VERIDIAN" width={24} height={24} />
-            <span>VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span></span>
+            <Image src="/logo-mark.svg" alt={brand?.brandName ?? "VERIDIAN"} width={24} height={24} />
+            {brand ? (
+              <span>{brand.brandName}</span>
+            ) : (
+              <span>VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span></span>
+            )}
           </Link>
           <div className="flex gap-5 text-sm text-[#1a1a17]/60">
             <Link href="/terms" className="hover:text-[#1a1a17]">Terms</Link>
@@ -45,7 +60,7 @@ export function LegalShell({ title, updated, children }: { title: string; update
       <footer className="border-t border-[#1a1a17]/10">
         <div className="mx-auto flex max-w-4xl flex-col gap-2 px-6 py-8 text-xs text-[#1a1a17]/50">
           <span>
-            {COMPANY.brand} is owned and operated by {COMPANY.legalName}, a company {COMPANY.incorporation}.
+            {brandLabel} is owned and operated by {COMPANY.legalName}, a company {COMPANY.incorporation}.
           </span>
           <span>© {new Date().getFullYear()} {COMPANY.legalName}. All rights reserved.</span>
         </div>

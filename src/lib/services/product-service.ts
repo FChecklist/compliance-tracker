@@ -50,10 +50,28 @@ export async function listProjects(ctx: { orgId: string }, productId: string) {
   )
 }
 
-/** Org-wide, not scoped to a single product -- the VERIDIAN AI PMS project picker (Wave 27) needs every project regardless of which product it sits under. */
-export async function listAllProjectsForOrg(ctx: { orgId: string }) {
+/**
+ * Org-wide, not scoped to a single product -- the VERIDIAN AI PMS project picker (Wave 27) needs every project regardless of which product it sits under.
+ *
+ * R48 gap-closure (2026-08-30, F002: "A project manager sees only projects
+ * she is assigned to"). This previously returned every active project in
+ * the org unconditionally, for every caller -- a real, confirmed gap: a
+ * "manager"-ranked user (this schema's only per-project assignment is
+ * `projects.leadUserId` -- there is no separate project-membership table)
+ * saw every other manager's projects too. `assignedToUserId` narrows to
+ * projects that user leads; branch_manager/admin/veridian_admin (rank >=4,
+ * the real oversight tier) deliberately keep full org-wide visibility --
+ * only the exact "manager" rank this business_rule names gets narrowed, so
+ * this stays additive rather than a behavior change for every caller.
+ */
+export async function listAllProjectsForOrg(ctx: { orgId: string }, assignedToUserId?: string) {
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.projects.findMany({ where: eq(projects.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.name) })
+    db.query.projects.findMany({
+      where: assignedToUserId
+        ? and(eq(projects.orgId, ctx.orgId), eq(projects.leadUserId, assignedToUserId))
+        : eq(projects.orgId, ctx.orgId),
+      orderBy: (t, { asc }) => asc(t.name),
+    })
   )
 }
 
@@ -111,7 +129,7 @@ export async function createProject(
 
 // Task #46 (CRM feature-parity gap analysis): projects.leadUserId
 // only ever carried a single owner -- no way to represent a multi-person
-// project team. Adds the project_team_members junction table (drizzle/0302),
+// project team. Adds the project_team_members junction table (drizzle/0511),
 // same shape as pmsMeetingParticipants/conversationParticipants/
 // userClientAccess (id/parentId/userId + one discriminator column). Placed
 // here rather than crm-service.ts (which has zero project-related code --

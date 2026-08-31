@@ -11,8 +11,21 @@
 import { describe, test, expect, mock } from "bun:test"
 import { NextRequest } from "next/server"
 
-function mockAuth(ctx: { orgId: string | null; response?: Response | null; scopeErr?: Response | null }) {
+async function mockAuth(ctx: { orgId: string | null; response?: Response | null; scopeErr?: Response | null }) {
+  // R60/E-138: must spread ...actual -- this factory used to replace the
+  // WHOLE @/lib/supabase/auth-guard module with only these two exports,
+  // which silently "worked" under bun test's default (non---isolate) run
+  // only by accident: some other file's mock (which does spread ...actual)
+  // would leave a complete module registered in the shared global cache,
+  // and this file's incomplete one would piggyback on it. Under bun test
+  // --isolate (fresh module graph per file, no cross-file leakage), a
+  // transitive import elsewhere in this route's chain needing hasRole from
+  // this module threw "Export named 'hasRole' not found" for real --
+  // confirmed by reproducing locally with --isolate, applying only this
+  // one-line change, and getting a clean pass across repeated runs.
+  const actual = await import("@/lib/supabase/auth-guard")
   mock.module("@/lib/supabase/auth-guard", () => ({
+    ...actual,
     requireAuthOrApiKey: mock(async () => ({
       orgId: ctx.orgId,
       dbUser: null,
@@ -38,7 +51,7 @@ function getRequest(query = "") {
 
 describe("GET /api/v1/projexa/module-chain", () => {
   test("calls buildCapabilityTree with the authenticated caller's own orgId only", async () => {
-    mockAuth({ orgId: "org-b" })
+    await mockAuth({ orgId: "org-b" })
     const buildCapabilityTree = await mockTree([{ key: "grc", label: "VERI GRC AI", leaf: false, children: [] }])
 
     const { GET } = await import("./route")
@@ -50,7 +63,7 @@ describe("GET /api/v1/projexa/module-chain", () => {
   })
 
   test("a different org's key resolves a different orgId into buildCapabilityTree -- no cross-tenant bleed", async () => {
-    mockAuth({ orgId: "org-other" })
+    await mockAuth({ orgId: "org-other" })
     const buildCapabilityTree = await mockTree([{ key: "erp", label: "VERI ERP", leaf: false, children: [] }])
 
     const { GET } = await import("./route")
@@ -61,7 +74,7 @@ describe("GET /api/v1/projexa/module-chain", () => {
   })
 
   test("filters the construction_intelligence branch out of the response (PROJEXA already owns that via its own endpoint)", async () => {
-    mockAuth({ orgId: "org-b" })
+    await mockAuth({ orgId: "org-b" })
     await mockTree([
       { key: "grc", label: "VERI GRC AI", leaf: false, children: [] },
       { key: "construction_intelligence", label: "Construction Intelligence", leaf: false, children: [] },
@@ -76,7 +89,7 @@ describe("GET /api/v1/projexa/module-chain", () => {
   })
 
   test("forwards ?module= as moduleScope", async () => {
-    mockAuth({ orgId: "org-b" })
+    await mockAuth({ orgId: "org-b" })
     const buildCapabilityTree = await mockTree([])
 
     const { GET } = await import("./route")
@@ -86,7 +99,7 @@ describe("GET /api/v1/projexa/module-chain", () => {
   })
 
   test("an organisation-less caller gets 400, buildCapabilityTree is never called", async () => {
-    mockAuth({ orgId: null })
+    await mockAuth({ orgId: null })
     const buildCapabilityTree = await mockTree([])
 
     const { GET } = await import("./route")
@@ -97,7 +110,7 @@ describe("GET /api/v1/projexa/module-chain", () => {
   })
 
   test("an invalid/missing API key never reaches buildCapabilityTree", async () => {
-    mockAuth({ orgId: null, response: new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }) })
+    await mockAuth({ orgId: null, response: new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }) })
     const buildCapabilityTree = await mockTree([])
 
     const { GET } = await import("./route")
@@ -108,7 +121,7 @@ describe("GET /api/v1/projexa/module-chain", () => {
   })
 
   test("a key without read scope is rejected with 403 before buildCapabilityTree runs", async () => {
-    mockAuth({ orgId: "org-b", scopeErr: new Response(JSON.stringify({ error: "scoped" }), { status: 403 }) })
+    await mockAuth({ orgId: "org-b", scopeErr: new Response(JSON.stringify({ error: "scoped" }), { status: 403 }) })
     const buildCapabilityTree = await mockTree([])
 
     const { GET } = await import("./route")

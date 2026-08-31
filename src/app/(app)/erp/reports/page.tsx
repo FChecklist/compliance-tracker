@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { hasTrialBalanceFooterRows } from "@/lib/erp-reports-guards";
 
 type AccountRow = { accountId: string; accountName: string; accountNumber: string | null; totalDebit: number; totalCredit: number; netBalance: number };
 type Company = { id: string; companyName: string; abbr: string | null; isGroup: boolean };
@@ -123,7 +124,7 @@ export default function ErpReportsPage() {
                     {(tb?.accounts ?? []).length === 0 ? <tr><td colSpan={3} className="p-6 text-center text-ct-muted">No posted transactions yet.</td></tr>
                       : tb!.accounts.map((a) => <tr key={a.accountId} className="hover:bg-ct-row-hover"><td className="p-3">{a.accountNumber ? `${a.accountNumber} — ` : ""}{a.accountName}</td><td className="p-3 text-right">{fmt(a.totalDebit)}</td><td className="p-3 text-right">{fmt(a.totalCredit)}</td></tr>)}
                   </tbody>
-                  {tb && tb.accounts.length > 0 && (
+                  {hasTrialBalanceFooterRows(tb) && (
                     <tfoot><tr className="border-t-2 border-ct-navy font-medium"><td className="p-3">Total {tb.isBalanced ? <Badge className="bg-green-100 text-green-700 ml-2">Balanced</Badge> : <Badge className="bg-red-100 text-red-700 ml-2">Out of balance</Badge>}</td><td className="p-3 text-right">{fmt(tb.totalDebit)}</td><td className="p-3 text-right">{fmt(tb.totalCredit)}</td></tr></tfoot>
                   )}
                 </table>
@@ -183,21 +184,21 @@ export default function ErpReportsPage() {
               <Card className="rounded-xl shadow-card bg-white"><CardContent className="p-4 space-y-2">
                 <h3 className="font-medium text-ct-navy mb-2">Operating Activities</h3>
                 <div className="flex justify-between text-xs"><span>Net Profit</span><span>{fmt(cf?.netProfit ?? 0)}</span></div>
-                <div className="flex justify-between text-xs"><span>Change in Receivables</span><span>{fmt(-(cf?.operating.receivableChange ?? 0))}</span></div>
-                <div className="flex justify-between text-xs"><span>Change in Stock</span><span>{fmt(-(cf?.operating.stockChange ?? 0))}</span></div>
-                <div className="flex justify-between text-xs"><span>Change in Payables</span><span>{fmt(-(cf?.operating.payableChange ?? 0))}</span></div>
-                <div className="flex justify-between text-xs"><span>Other Working Capital</span><span>{fmt(-(cf?.operating.otherWorkingCapitalChange ?? 0))}</span></div>
-                <div className="flex justify-between border-t-2 border-ct-navy font-medium pt-2"><span>Net Operating Cash Flow</span><span>{fmt(cf?.operating.cashFlow ?? 0)}</span></div>
+                <div className="flex justify-between text-xs"><span>Change in Receivables</span><span>{fmt(-(cf?.operating?.receivableChange ?? 0))}</span></div>
+                <div className="flex justify-between text-xs"><span>Change in Stock</span><span>{fmt(-(cf?.operating?.stockChange ?? 0))}</span></div>
+                <div className="flex justify-between text-xs"><span>Change in Payables</span><span>{fmt(-(cf?.operating?.payableChange ?? 0))}</span></div>
+                <div className="flex justify-between text-xs"><span>Other Working Capital</span><span>{fmt(-(cf?.operating?.otherWorkingCapitalChange ?? 0))}</span></div>
+                <div className="flex justify-between border-t-2 border-ct-navy font-medium pt-2"><span>Net Operating Cash Flow</span><span>{fmt(cf?.operating?.cashFlow ?? 0)}</span></div>
               </CardContent></Card>
               <Card className="rounded-xl shadow-card bg-white"><CardContent className="p-4 space-y-2">
                 <h3 className="font-medium text-ct-navy mb-2">Investing Activities</h3>
-                <div className="flex justify-between text-xs"><span>Change in Fixed Assets</span><span>{fmt(-(cf?.investing.fixedAssetChange ?? 0))}</span></div>
-                <div className="flex justify-between border-t-2 border-ct-navy font-medium pt-2"><span>Net Investing Cash Flow</span><span>{fmt(cf?.investing.cashFlow ?? 0)}</span></div>
+                <div className="flex justify-between text-xs"><span>Change in Fixed Assets</span><span>{fmt(-(cf?.investing?.fixedAssetChange ?? 0))}</span></div>
+                <div className="flex justify-between border-t-2 border-ct-navy font-medium pt-2"><span>Net Investing Cash Flow</span><span>{fmt(cf?.investing?.cashFlow ?? 0)}</span></div>
               </CardContent></Card>
               <Card className="rounded-xl shadow-card bg-white"><CardContent className="p-4 space-y-2">
                 <h3 className="font-medium text-ct-navy mb-2">Financing Activities</h3>
-                <div className="flex justify-between text-xs"><span>Other Liabilities &amp; Equity</span><span>{fmt(-(cf?.financing.otherLiabilityEquityChange ?? 0))}</span></div>
-                <div className="flex justify-between border-t-2 border-ct-navy font-medium pt-2"><span>Net Financing Cash Flow</span><span>{fmt(cf?.financing.cashFlow ?? 0)}</span></div>
+                <div className="flex justify-between text-xs"><span>Other Liabilities &amp; Equity</span><span>{fmt(-(cf?.financing?.otherLiabilityEquityChange ?? 0))}</span></div>
+                <div className="flex justify-between border-t-2 border-ct-navy font-medium pt-2"><span>Net Financing Cash Flow</span><span>{fmt(cf?.financing?.cashFlow ?? 0)}</span></div>
               </CardContent></Card>
             </div>
             <Card className="rounded-xl shadow-card bg-white mt-4"><CardContent className="p-4 flex justify-between items-center">

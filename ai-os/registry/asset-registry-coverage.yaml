@@ -19,6 +19,8 @@
 # specific answer, not the generic placeholder.
 
 registered:
+  - table: prompt_marketplace_listings
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618, drizzle/0270): a real, admin-authored listing over a Production-lifecycle prompt version (publishToMarketplace() requires a non-empty `title` distinct from the underlying prompt template's own name) -- genuine display-name column, not a content blob like its sibling prompt_translations/prompt_localizations. name_column=title, purpose_column=description, owner_column=published_by_user_id, org_column=published_by_org_id (attribution only -- every org can read a 'listed' entry, same posture as workerAgents.orgId), auto_register_asset_trg attached."
   - table: departments
     reason: "domain C (drizzle/0155): org-scoped org-chart unit -- auto_register_asset_trg attached, name_column=name, owner_column=head_id"
   - table: committees
@@ -79,6 +81,8 @@ registered:
     reason: "VERIDIAN Review Framework remediation, Wave B CRM Accounts & Contacts (drizzle/0219): org-scoped company-level account record, same class as crm_leads/crm_opportunities -- auto_register_asset_trg attached, name_column=name, owner_column=owner_id, no purpose/active column (no genuine fit)"
   - table: crm_contacts
     reason: "VERIDIAN Review Framework remediation, Wave B CRM Accounts & Contacts (drizzle/0219): org-scoped person record belonging to a crm_account -- auto_register_asset_trg attached, name_column=name, no owner_column (belongs to the account, not assigned to a rep directly, matching clients/erp_customers' own NULL-owner precedent), no purpose/active column"
+  - table: crm_pipeline_stages
+    reason: "VERIDIAN Review Framework gap-closure, Sales Pipeline (drizzle/0225, 2026-08-07): org-scoped per-entityType pipeline/stage config, same class as hr_holidays (has a genuine display-name column) unlike the already-exempted crm_stage_history ledger -- auto_register_asset_trg attached, name_column=label, no owner/purpose/active column"
   - table: crm_activities
     reason: "VERIDIAN CRM Wave 1 (2026-07-21, drizzle/0251): Tasks/Meetings/Calls tied to any CRM record (lead/opportunity/account/contact) via a polymorphic entity_type+entity_id link -- auto_register_asset_trg attached (asset_registration_config row + trigger created in drizzle/0251 itself), asset_type other, name_column=subject, owner_column=assigned_to_id, org_column=org_id, no purpose/active column (no genuine fit)"
   - table: crm_campaigns
@@ -323,7 +327,13 @@ registered:
     reason: "AIROUTER-01 (drizzle/0226): PLATFORM-WIDE by design (no org_id column -- a shared catalog of every AI model/provider pair the platform knows about, same class as module_registry/subscription_plans) -- auto_register_asset_trg attached, name_column=model (a genuine human-recognizable identifier e.g. \"z-ai/glm-5.2\"), purpose_column=notes, active_column=NULL (status is a real Postgres enum active/disabled/deprecated, not boolean, matching training_courses's own precedent)"
   - table: construction_progress_claims
     reason: "PHASE-2-CROSSREF workflow-track gap-closure (SD-002/SD-007, drizzle/0269 creates the table, drizzle/0270 registers it): asset_type=workflow -- the table IS the milestone_achieved->drafted->submitted->client_approved->invoiced state machine, not master data, distinct from construction_interim_bills (still grandfather-exempted) which holds the computed bill amount this workflow eventually produces -- auto_register_asset_trg attached, name_column=milestone_description (no dedicated display-name column), org_column=org_id, owner_column=created_by_id, active_column=NULL (status is a 6-value enum, not boolean)"
+  - table: platform_billing_plans
+    reason: "VERIDIAN Review Framework gap-closure, Commercial/Subscription & Pricing Model (drizzle/0400, renumbered from this task's original 0225 -- collided with main's own independently-numbered 0225_support_sessions.sql): platform-wide priced list (no org_id, same class as gst_gstin_master/gst_hsn_master) counterpart to src/app/pricing/page.tsx's PLANS array -- auto_register_asset_trg attached, name_column=name, active_column=is_active (genuine TRUE-means-active flag), no owner column exists"
+  - table: platform_billing_invoices
+    reason: "VERIDIAN Review Framework gap-closure, Commercial/Subscription & Pricing Model (drizzle/0400, renumbered from this task's original 0225 -- collided with main's own independently-numbered 0225_support_sessions.sql): org-scoped generated bill (base fee + seat fee + token-consumption overage) -- auto_register_asset_trg attached, name_column=invoice_number (integer, per-org sequence, same convention as erp_sales_invoices/erp_rfqs), owner_column=NULL (platform-generated, not created by a specific user), active_column=NULL (status is draft/finalized/paid/void, not boolean)"
 exempted:
+  - table: crm_sales_targets
+    reason: "Sales Pipeline dashboard (2026-07-28): org-scoped monthly sales target row, real RLS attached (drizzle/0268), not yet reviewed for UMR auto_register_asset_trg registration -- tracked as a follow-on, same as this repo established pattern for newly-added tables pending full registry review."
   - table: crm_lost_reasons
     reason: "VERIDIAN CRM Wave 1 (2026-07-21, drizzle/0251): a small org-configurable picklist of Lost Reasons for crm_opportunities.lost_reason_id (Odoo reference pattern) -- comparable to a status/enum table, not itself a trackable business asset, matching this schema's own precedent of not registering lookup/config tables. Deliberately NOT registered, judgment documented in drizzle/0251's own header at the time it was written."
   - table: access_review_certifications
@@ -842,6 +852,10 @@ exempted:
     reason: "same reasoning as worker_agents -- app-managed via Priority 3's registry service, not a boolean-active concept"
   - table: prompt_versions
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: prompt_translations
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): no genuine display-name column -- an append-only translated-content row keyed by (prompt_version_id, locale), same class as the already-exempted prompt_versions (a content blob, not a named platform asset)."
+  - table: prompt_localizations
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): no genuine display-name column -- an append-only localized-content row on top of a prompt_translations row (prompt_translation_id FK), same class as the already-exempted prompt_versions/prompt_translations (a content blob, not a named platform asset)."
   - table: related_party_transactions
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: report_schedules
