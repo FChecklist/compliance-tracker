@@ -112,6 +112,23 @@ harness script). Lint, Unit Tests, and the core `hr-dashboard-service.ts`/
 - [x] No migration files touched by this PR -- `drizzle/meta/_journal.json`
       renumbering not applicable here.
 
+- [x] **Real CI on PR #1516 caught a second genuine finding this session's
+      local validation had missed**: "Route Error Handling Check" failed for
+      real -- `src/app/api/hr/dashboard/route.ts` (new) exported `GET` with
+      no `try {` anywhere in the file (this repo's own CI guard,
+      `scripts/check-route-error-handling.mjs`, a textual "does `try {`
+      appear anywhere" check). Fixed for real: wrapped the `getHrDashboardKpis`
+      call in try/catch, added `getCorrelationId`/`logger.error` per this
+      repo's own documented `src/lib/logger.ts` usage pattern (matching
+      `src/app/api/hr/employees/route.ts`'s established shape). Re-verified
+      locally (`grep -n "try {"` + a clean `tsc --noEmit` re-run) and
+      confirmed real-CI-green afterward, not just locally. The script itself
+      hits the same Windows/cmd.exe `2>/dev/null` execSync incompatibility
+      already documented for `check-migration-collision.mjs` (silently
+      reports "no changed files" locally on Windows) -- real CI (Ubuntu)
+      caught the actual violation correctly; did not attempt to fix the
+      script's Windows portability, out of scope for this PR.
+
 ## Remaining
 
 - [x] Pushed `rebase-sweep2-583`, opened replacement PR
