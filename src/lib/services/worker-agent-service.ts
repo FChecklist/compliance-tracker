@@ -132,7 +132,13 @@ export async function proposeWorkerAgent(
     after(() => indexCapability(
       "worker_agent", agent.id,
       buildCapabilityContent({ name: agent.name, domain: agent.domain, description: agent.description, inputSchema: agent.inputSchema, outputSchema: agent.outputSchema }),
-      agent.orgId
+      // CRR-018/019: agent.orgId is null for tier='user' (scoped by userId,
+      // not orgId, per this function's own header comment) -- that is NOT
+      // the same thing as platform-wide, and marking it is_platform_scope
+      // would leak this agent into every other org's capability search.
+      // ctx.orgId (the proposer's own org) is always real and is the
+      // correct scope for the index entry regardless of tier.
+      ctx.orgId
     ).catch((err) => console.error("Failed to index worker agent capability:", err)))
 
     // Wave 21: index the agent's serviceable domain path(s) -- the domain

@@ -13,7 +13,7 @@ export type PromptVersionMatch = { promptVersionId: string; score: number; machi
  * compiles can find it as a semantic-similarity match. Call this after
  * prompt-os-service.ts's createPromptVersion() returns a real row id.
  */
-export async function indexCompiledPromptVersion(promptVersionId: string, machinePrompt: string, orgId?: string | null): Promise<void> {
+export async function indexCompiledPromptVersion(promptVersionId: string, machinePrompt: string, orgId: string): Promise<void> {
   await indexPromptVersion(promptVersionId, machinePrompt, orgId)
 }
 

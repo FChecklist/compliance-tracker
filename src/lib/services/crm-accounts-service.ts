@@ -10,13 +10,23 @@
 // single domain. Gated behind the same 'sales' product branch as
 // crm-service.ts (requireSalesEnabled) -- crm/accounts is a sibling surface
 // under the same Sales & CRM nav section.
-import { crmAccounts, crmContacts, crmLeads, crmOpportunities, users } from "@/lib/db"
+import { crmAccounts, crmContacts, crmLeads, crmOpportunities, notifications, users } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { eq, and, ilike, sql } from "drizzle-orm"
+import { eq, and, ilike, inArray, sql } from "drizzle-orm"
 import { logActivity } from "@/lib/audit"
 import { ServiceError } from "./compliance-service"
 import { requireSalesEnabled } from "./crm-enablement-service"
 import type { PagedResult } from "./crm-service"
+// AI Copilot / Worker Agent Integration Depth gap-closure: same Wave 75 CRM
+// Intelligence call chain crm-service.ts's scoreLead/analyzeOpportunity
+// already use (resolveModelConfig -> resolvePromptTemplate -> enforcePolicy
+// -> callLLMJson -> recordOrchestraExecution), reused verbatim rather than
+// reinvented for accounts.
+import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
+import { callLLMJson } from "@/lib/llm-client"
+import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
+import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 // VERIDIAN Review Framework Wave 4 (2026-07-17): RBAC gate for this file.
 // A parallel track in the same wave was asked to build a shared,
 // cross-cutting permission-check utility (checked `gh pr list --state all`
@@ -352,6 +362,17 @@ export async function updateAccount(ctx: CrmAccountContext, accountId: string, p
       .set({ ...columns, lifecycleStage: columns.lifecycleStage as AccountRow["lifecycleStage"] | undefined, updatedAt: new Date() })
       .where(eq(crmAccounts.id, accountId)).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "crm_account.updated", entityType: "crm_account", entityId: accountId })
+    // Notification & Alert Trigger Correctness gap-closure: notify the newly
+    // assigned owner (if it's not the actor reassigning it to themselves).
+    if (isReassignment && updated.ownerId && updated.ownerId !== ctx.userId) {
+      await db.insert(notifications).values({
+        userId: updated.ownerId,
+        title: `Account assigned to you: ${updated.name}`,
+        message: `You are now the owner of the "${updated.name}" account.`,
+        type: "assignment",
+        metadata: { accountId },
+      })
+    }
     return updated
   })
 }
@@ -493,6 +514,20 @@ export async function createContact(ctx: CrmAccountContext, accountId: string, i
       phone: input.phone || null, isPrimary: input.isPrimary ?? false, createdById: ctx.userId,
     }).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "crm_contact.created", entityType: "crm_contact", entityId: contact.id, details: JSON.stringify({ accountId }) })
+    // Notification & Alert Trigger Correctness gap-closure: notify the
+    // account's owner (if any, and if they didn't add the contact
+    // themselves) that a new contact was added -- same
+    // `db.insert(notifications)` pattern task-service.ts/ticket-service.ts/
+    // compliance-service.ts already use, no new notification plumbing.
+    if (account.ownerId && account.ownerId !== ctx.userId) {
+      await db.insert(notifications).values({
+        userId: account.ownerId,
+        title: `New contact added: ${account.name}`,
+        message: `${contact.name} was added as a contact for account "${account.name}".`,
+        type: "system",
+        metadata: { accountId, contactId: contact.id },
+      })
+    }
     return contact
   })
 }
@@ -570,4 +605,228 @@ export async function listContactsPaged(ctx: { orgId: string }, opts: ListContac
     ])
     return { items, total: Number(totalRows[0]?.count ?? 0), page, pageSize }
   })
+}
+
+// ─── Search, Filter & Bulk Operations gap-closure (bulk half) ─────────────
+// search/filter already existed (listAccountsPaged). No bulk endpoint
+// existed for accounts, unlike v1/projexa/leads/bulk-reassign's precedent
+// for leads/opportunities (crm-service.ts's bulkReassignLeads/
+// bulkReassignOpportunities). Gated at the same manager-rank bar as a
+// single-account reassignment (canReassignOrDeleteAccount) -- reassigning
+// many accounts at once is not a lower bar than reassigning one.
+export async function bulkReassignAccounts(ctx: CrmAccountContext, accountIds: string[], ownerId: string | null) {
+  await requireSalesEnabled(ctx.orgId)
+  assertGate(canReassignOrDeleteAccount(ctx.dbUser.role))
+  if (!accountIds?.length) throw new ServiceError("accountIds is required", 400)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const updated = await db.update(crmAccounts).set({ ownerId, updatedAt: new Date() })
+      .where(and(eq(crmAccounts.orgId, ctx.orgId), inArray(crmAccounts.id, accountIds))).returning()
+    await logActivity({
+      tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "crm_account.bulk_reassigned",
+      entityType: "crm_account", entityId: "bulk", details: JSON.stringify({ accountIds: updated.map((a) => a.id), ownerId }),
+    })
+    if (ownerId && ownerId !== ctx.userId && updated.length) {
+      await db.insert(notifications).values({
+        userId: ownerId,
+        title: `${updated.length} account(s) assigned to you`,
+        message: `You are now the owner of ${updated.length} CRM account(s): ${updated.map((a) => a.name).join(", ")}.`,
+        type: "assignment",
+        metadata: { accountIds: updated.map((a) => a.id) },
+      })
+    }
+    return updated
+  })
+}
+
+// ─── AI Copilot / Worker Agent Integration Depth gap-closure ──────────────
+// Extends the Wave 75 CRM Intelligence pattern (crm-service.ts's
+// scoreLead/analyzeOpportunity) to accounts -- same call chain
+// (resolveModelConfig -> resolvePromptTemplate -> enforcePolicy ->
+// callLLMJson -> recordOrchestraExecution), reasoning over the account's
+// own structured fields plus its real linked-contact/opportunity signal
+// (no free-text notes field on crm_accounts either, same honest "this is
+// genuinely all the signal available" caveat as the lead/opportunity
+// versions).
+function daysSince(date: Date): number {
+  return Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+export async function analyzeAccountHealth(ctx: CrmAccountContext, accountId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const account = await db.query.crmAccounts.findFirst({ where: and(eq(crmAccounts.id, accountId), eq(crmAccounts.orgId, ctx.orgId)) })
+    if (!account) throw new ServiceError("Account not found", 404)
+    assertGate(canEditAccount(ctx.dbUser.role, account.ownerId, ctx.userId))
+
+    const [contacts, opportunities] = await Promise.all([
+      db.query.crmContacts.findMany({ where: and(eq(crmContacts.accountId, accountId), eq(crmContacts.orgId, ctx.orgId)) }),
+      db.query.crmOpportunities.findMany({ where: and(eq(crmOpportunities.accountId, accountId), eq(crmOpportunities.orgId, ctx.orgId)) }),
+    ])
+
+    // Same threat-model reasoning as crm-service.ts's scoreLead/
+    // analyzeOpportunity -- account.name is the one genuinely user-authored
+    // field reaching the model here.
+    const policyDecision = enforcePolicy(
+      { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.analyze_account" },
+      account.name
+    )
+    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403)
+
+    const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
+    if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
+
+    const systemPrompt = await resolvePromptTemplate("crm_intelligence.analyze_account")
+    const openOpportunities = opportunities.filter((o) => o.stage !== "won" && o.stage !== "lost")
+    const userMessage = [
+      `Account: "${account.name}"`,
+      `Industry: ${account.industry ?? "unknown"}`,
+      `Lifecycle stage: ${account.lifecycleStage}`,
+      `Days since created: ${daysSince(account.createdAt)}`,
+      `Days since last update: ${daysSince(account.updatedAt)}`,
+      `Contacts on file: ${contacts.length} (primary contact set: ${contacts.some((c) => c.isPrimary)})`,
+      `Linked opportunities: ${opportunities.length} total, ${openOpportunities.length} open`,
+      opportunities.length
+        ? `Opportunity stages: ${opportunities.map((o) => `${o.stage}${o.aiWinProbability != null ? ` (${o.aiWinProbability}% win probability)` : ""}`).join(", ")}`
+        : "No linked opportunities",
+    ].join("\n")
+
+    const startedAt = Date.now()
+    const { data: result, usage } = await callLLMJson<{ healthScore: number; riskFactors: string[]; recommendedAction: string }>(
+      modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 400 }, modelConfig.fallback
+    )
+
+    recordOrchestraExecution({
+      orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.analyze_account",
+      input: { accountId }, output: { healthScore: result.healthScore },
+      status: "completed", durationMs: Date.now() - startedAt,
+      provider: modelConfig.provider, model: modelConfig.model, usage,
+    })
+
+    const [updated] = await db.update(crmAccounts).set({
+      aiHealthScore: Math.round(result.healthScore), aiRiskFactors: result.riskFactors ?? [],
+      aiRecommendedAction: result.recommendedAction, aiAnalyzedAt: new Date(),
+    }).where(eq(crmAccounts.id, accountId)).returning()
+    return updated
+  })
+}
+
+// ─── Data Import/Export Template Fidelity gap-closure ─────────────────────
+// CSV export/import for an org's account book -- high-value for onboarding
+// an org's existing account list, per this finding's own recommended
+// approach. Export reuses report-export-shared.ts's rowsToCSV (same CSV
+// generator src/app/api/v1/reports/definitions/[id]/run/route.ts already
+// uses) at the route layer; this returns plain rows. Import reuses the
+// existing generic spreadsheet parser (src/lib/ingest/parser.ts#parseFile,
+// same one construction-boq-import-service.ts's parseBoqSpreadsheet already
+// wraps) rather than hand-rolling a second CSV tokenizer.
+
+export async function listAllAccountsForExport(ctx: { orgId: string }) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.crmAccounts.findMany({ where: eq(crmAccounts.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.name) })
+  )
+}
+
+export type AccountImportRow = {
+  name: string; industry?: string; website?: string; lifecycleStage?: string
+  ownerEmail?: string; billingCity?: string; billingCountry?: string
+}
+
+const IMPORT_HEADER_ALIASES: Record<keyof AccountImportRow, string[]> = {
+  name: ["name", "account name", "company", "company name"],
+  industry: ["industry"],
+  website: ["website", "url", "domain"],
+  lifecycleStage: ["lifecycle stage", "lifecyclestage", "stage"],
+  ownerEmail: ["owner email", "owneremail", "owner", "assigned to"],
+  billingCity: ["billing city", "city"],
+  billingCountry: ["billing country", "country"],
+}
+
+function findHeader(headers: string[], aliases: string[]): string | undefined {
+  const normalized = headers.map((h) => h.trim().toLowerCase())
+  for (const alias of aliases) {
+    const idx = normalized.indexOf(alias)
+    if (idx !== -1) return headers[idx]
+  }
+  return undefined
+}
+
+/** Maps a raw parsed spreadsheet (headers + rows, see parseFile()'s ParseResult) into AccountImportRow[] using case-insensitive header aliasing -- pure, no DB/network, unit-testable directly. */
+export function mapAccountImportRows(headers: string[], rows: Record<string, string | number | null | undefined>[]): AccountImportRow[] {
+  const headerFor = Object.fromEntries(
+    (Object.keys(IMPORT_HEADER_ALIASES) as (keyof AccountImportRow)[]).map((field) => [field, findHeader(headers, IMPORT_HEADER_ALIASES[field])])
+  ) as Record<keyof AccountImportRow, string | undefined>
+
+  return rows.map((row) => {
+    const get = (field: keyof AccountImportRow): string | undefined => {
+      const header = headerFor[field]
+      const value = header ? row[header] : undefined
+      return value === null || value === undefined ? undefined : String(value).trim() || undefined
+    }
+    return {
+      name: get("name") ?? "",
+      industry: get("industry"),
+      website: get("website"),
+      lifecycleStage: get("lifecycleStage"),
+      ownerEmail: get("ownerEmail"),
+      billingCity: get("billingCity"),
+      billingCountry: get("billingCountry"),
+    }
+  })
+}
+
+export type AccountImportResult = {
+  created: AccountRow[]
+  errors: { row: number; name: string; error: string }[]
+  totalRows: number
+}
+
+/**
+ * Imports a batch of already-parsed rows (see mapAccountImportRows above).
+ * Row-level partial success by design -- one malformed/duplicate row must
+ * not fail the whole batch import of an org's existing account list. Each
+ * row runs through the exact same createAccount() validation a single
+ * manual create would, INCLUDING the duplicate-account check (not
+ * bypassed with confirmDuplicate) -- a row that collides with an existing
+ * account, or an earlier row already created in this same batch, becomes
+ * an error row the caller can review rather than a silently-created
+ * duplicate.
+ */
+export async function importAccountsFromRows(ctx: CrmAccountContext, rows: AccountImportRow[]): Promise<AccountImportResult> {
+  await requireSalesEnabled(ctx.orgId)
+  assertGate(canCreateCrmRecord(ctx.dbUser.role))
+  if (!rows.length) throw new ServiceError("No rows to import", 400)
+
+  const emails = [...new Set(rows.map((r) => r.ownerEmail?.toLowerCase()).filter((e): e is string => Boolean(e)))]
+  const ownerByEmail = new Map<string, string>()
+  if (emails.length) {
+    const ownerRows = await withTenantContext({ orgId: ctx.orgId }, (db) =>
+      db.query.users.findMany({ where: and(eq(users.orgId, ctx.orgId), inArray(users.email, emails)), columns: { id: true, email: true } })
+    )
+    for (const u of ownerRows) if (u.email) ownerByEmail.set(u.email.toLowerCase(), u.id)
+  }
+
+  const created: AccountRow[] = []
+  const errors: AccountImportResult["errors"] = []
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 2 // header is row 1 in the source file
+    const name = row.name?.trim()
+    if (!name) { errors.push({ row: rowNum, name: row.name ?? "", error: "name is required" }); continue }
+    let ownerId: string | undefined
+    if (row.ownerEmail) {
+      ownerId = ownerByEmail.get(row.ownerEmail.toLowerCase())
+      if (!ownerId) { errors.push({ row: rowNum, name, error: `No org member found with email "${row.ownerEmail}"` }); continue }
+    }
+    try {
+      const account = await createAccount(ctx, {
+        name, industry: row.industry, website: row.website, lifecycleStage: row.lifecycleStage,
+        ownerId, billingCity: row.billingCity, billingCountry: row.billingCountry,
+      })
+      created.push(account)
+    } catch (error) {
+      errors.push({ row: rowNum, name, error: error instanceof ServiceError ? error.message : "Failed to create account" })
+    }
+  }
+  return { created, errors, totalRows: rows.length }
 }

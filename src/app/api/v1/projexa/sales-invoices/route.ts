@@ -40,7 +40,11 @@ function toInvoiceShape(inv: { id: string; invoiceNumber: number; customerId: st
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ salesInvoices: [], total: 0, page: 1, limit: 25, totalPages: 0 })
+  // E-52: previously returned 200 { salesInvoices: [], ... } here -- a
+  // broken org context looked identical to "authenticated tenant, zero
+  // invoices" on financial data. POST below already returns 400 for the
+  // identical missing-orgId condition; GET now matches it.
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const sp = request.nextUrl.searchParams

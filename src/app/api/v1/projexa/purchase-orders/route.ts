@@ -9,7 +9,7 @@
 // toVendorShape() convention (supplierId -> vendorId in the response), the
 // underlying erp_purchase_orders table is unchanged.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listPurchaseOrders, createPurchaseOrder, ServiceError, type PurchaseOrderItemInput } from "@/lib/services/erp-buying-service"
 
 function toPurchaseOrderShape(po: Awaited<ReturnType<typeof listPurchaseOrders>>[number]) {
@@ -31,7 +31,7 @@ function toPurchaseOrderShape(po: Awaited<ReturnType<typeof listPurchaseOrders>>
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ purchaseOrders: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const params = request.nextUrl.searchParams
   try {

@@ -1,13 +1,13 @@
 // Priority 15 (PROJEXA GRC module): thin ALIASING route over
 // risk-register-service.ts's third-party/vendor risk profiles.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listVendorRiskProfiles, createVendorRiskProfile, ServiceError } from "@/lib/services/risk-register-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ vendors: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const vendors = await listVendorRiskProfiles({ orgId: ctx.orgId })

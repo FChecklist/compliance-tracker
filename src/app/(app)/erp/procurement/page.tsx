@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ModuleNotEnabledCard } from "@/components/ModuleNotEnabledCard";
 
 type Supplier = { id: string; supplierName: string };
 type Requisition = { id: string; requisitionNumber: number; postingDate: string; purpose: string | null; status: string; items: { description: string; quantity: string; estimatedRate: string | null }[] };
@@ -44,6 +45,7 @@ export default function ErpProcurementPage() {
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erpEnabled, setErpEnabled] = useState<boolean | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [compareRfqId, setCompareRfqId] = useState<string>("");
@@ -90,6 +92,9 @@ export default function ErpProcurementPage() {
   }, []);
 
   useEffect(load, [load]);
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setErpEnabled(d.erpEnabled ?? false)).catch(() => setErpEnabled(false));
+  }, []);
 
   const createRequisition = async () => {
     setCreatingReq(true);
@@ -183,6 +188,10 @@ export default function ErpProcurementPage() {
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to convert quotation to a purchase order"); return; }
     toast.success("Purchase order created as draft — manage it on the Goods Receipt page");
   };
+
+  if (erpEnabled === false) {
+    return <ModuleNotEnabledCard moduleName="ERP" settingsSection="ERP" />;
+  }
 
   return (
     <div className="space-y-4">

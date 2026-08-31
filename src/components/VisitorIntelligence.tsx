@@ -148,7 +148,7 @@ export function VisitorIntelligence({ page, productKey }: { page: string; produc
       <div className="w-full max-w-md rounded-2xl bg-white p-7 shadow-2xl">
         <div className="flex items-start justify-between">
           <span className="grid size-10 place-items-center rounded-xl bg-ct-navy text-white">
-            <Sparkles className="size-5 text-ct-saffron" />
+            <Sparkles className="size-5 text-ct-saffron-text" />
           </span>
           <button onClick={dismiss} aria-label="Close offer" className="text-ct-muted hover:text-ct-navy p-1">
             <X className="size-5" />
@@ -158,7 +158,7 @@ export function VisitorIntelligence({ page, productKey }: { page: string; produc
         <p className="mt-2 text-sm leading-relaxed text-ct-slate">{offer.body}</p>
         <div className="mt-4 rounded-lg border border-dashed border-ct-saffron bg-ct-saffron/5 px-4 py-2.5 text-center">
           <span className="text-xs uppercase tracking-wider text-ct-muted">Your code · valid {offer.validHours}h</span>
-          <div className="font-heading text-lg tracking-widest text-ct-saffron">{offer.code}</div>
+          <div className="font-heading text-lg tracking-widest text-ct-saffron-text">{offer.code}</div>
         </div>
         <div className="mt-5 flex gap-3">
           <Link href="/signup" onClick={accept} className="flex-1">
