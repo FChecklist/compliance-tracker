@@ -220,9 +220,51 @@ against real CI before now:
   Unit Tests job (different run order) never flagging them. The other 7 --
   all from `dispatch/route.test.ts` -- were the real, now-fixed bug above.
 
+## Real CI, second push -- all real checks green
+
+After pushing the Unit Tests fix, `gh pr checks 1517` came back **all real
+checks passing**: Build, Documentation Sentinel Check, Governance YAML Parse
+Check, Lint, Migration Integrity Check (AR-12), Migration Number Collision
+Check, Migration Schema Drift Check, New Test Coverage Check, Route Error
+Handling Check, Secret Scanning, Security Pattern Check, Test Coverage Gap
+Report Check, Type Check, **Unit Tests** (42s). Only the two
+documented-ambient jobs stayed red (E2E Tests, Vercel platform-block).
+
+## Real merge race, caught before merging
+
+`gh pr view 1517 --json mergeable,mergeStateStatus` came back
+`CONFLICTING`/`DIRTY` right as CI finished -- the exact same class of race
+this file's own #582->#1513 precedent documents: a **concurrent** rebase-sweep
+session (this repo's own convention, working PR #583 -> replacement, in
+parallel with this session) merged `d70f0cd0` ("V2-17... [was #583]") to
+`origin/main` a few minutes after this branch was pushed, touching the same
+2 shared files this rebase-sweep also touches (`PROGRESS.md`,
+`ai-os/boss/ACTIVE-CLAIMS.yaml`) -- not a real content collision in either
+file's substance, just two concurrent sessions both appending to the same
+append-only files. `git fetch origin main` + `git merge origin/main`
+confirmed: this PR's own migration number (`0505`) does NOT collide with
+anything the concurrent session added (checked `git ls-tree -r origin/main
+-- drizzle/` again after the fetch) -- only `PROGRESS.md` and
+`ACTIVE-CLAIMS.yaml` conflicted, and both were the same whole-file
+criss-cross-diff artifact seen earlier in this same file. Resolved the same
+way as before: `PROGRESS.md` -- kept ours entirely (session-scratch
+convention, the other session's own PROGRESS.md content is irrelevant to
+this branch). `ACTIVE-CLAIMS.yaml` -- took `origin/main`'s real, current,
+full content (`git checkout --theirs`, confirmed via direct `git cat-file`
+that it genuinely includes the concurrent session's own new entry, inserted
+mid-file at line ~6561, not at the tail) and re-appended this branch's own
+real, isolated 39-line entry (diffed against the old merge-base to extract
+it cleanly) at the true tail. Independently verified via
+`difflib.SequenceMatcher(autojunk=False)` against a fresh `git cat-file -p
+origin/main:...`: exactly one real change, a clean 39-line insert at the
+very end, nothing else touched, matching origin/main byte-for-byte
+everywhere else. Also re-fixed CRLF (this worktree's checkout picked it up
+again on the `git checkout --theirs` step -- see the earlier CRLF note,
+same root cause, same fix).
+
 ## Remaining
 
-- [ ] Push the fix commit, re-check real CI on PR #1517 -- Unit Tests
-      specifically -- merge only when genuinely green (modulo
-      documented-ambient jobs: E2E, Vercel platform-block, Secret Scanning
-      on pre-existing files, Promptfoo Evals timeout).
+- [ ] Commit the merge, push, re-check `gh pr view --json
+      mergeable,mergeStateStatus` is `MERGEABLE` and CI is still green after
+      the merge commit, then merge for real -- confirmed via `gh pr view
+      --json state,mergedAt` afterward, not assumed.
