@@ -35,6 +35,11 @@ type AuditLog = {
   actorRole: string;
   ipAddress: string | null;
   userAgent: string | null;
+  // Complete Audit Stamp (task-20260718-075006): Session + Office, the two
+  // fields the finding named as missing. Routinely null -- see api/audit
+  // route's comment.
+  sessionId: string | null;
+  officeId: string | null;
   createdAt: string;
 };
 
@@ -189,6 +194,7 @@ export default function AuditPage() {
                 <TableHead className="text-xs font-semibold text-ct-navy hidden sm:table-cell">Entity</TableHead>
                 <TableHead className="text-xs font-semibold text-ct-navy hidden md:table-cell">Details</TableHead>
                 <TableHead className="text-xs font-semibold text-ct-navy hidden lg:table-cell">IP / Device</TableHead>
+                <TableHead className="text-xs font-semibold text-ct-navy hidden xl:table-cell">Session / Office</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -204,7 +210,7 @@ export default function AuditPage() {
                   ))
                 : logs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-ct-muted text-sm">
+                    <TableCell colSpan={7} className="h-24 text-center text-ct-muted text-sm">
                       No audit logs found.
                     </TableCell>
                   </TableRow>
@@ -238,6 +244,10 @@ export default function AuditPage() {
                       <TableCell className="text-[10px] text-ct-muted hidden lg:table-cell max-w-[160px] truncate">
                         {log.ipAddress ?? "—"}
                         {log.userAgent ? <span className="block truncate">{log.userAgent}</span> : null}
+                      </TableCell>
+                      <TableCell className="text-[10px] text-ct-muted hidden xl:table-cell max-w-[140px] truncate" title={[log.sessionId, log.officeId].filter(Boolean).join(" / ") || undefined}>
+                        {log.sessionId ? <span className="block truncate">Session {log.sessionId.slice(0, 8)}</span> : <span className="block text-ct-muted/60">—</span>}
+                        {log.officeId ? <span className="block truncate">Office {log.officeId.slice(0, 8)}</span> : null}
                       </TableCell>
                     </TableRow>
                   ))

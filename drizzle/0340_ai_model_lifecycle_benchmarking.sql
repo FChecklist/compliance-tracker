@@ -4,6 +4,14 @@
 -- platform-schema/RLS/grant posture as platform.dispatch_outcomes
 -- (drizzle/0300_stage12_dispatch_outcomes.sql) -- platform-internal, no
 -- owning customer org, fail-closed RLS (service_role bypass only).
+--
+-- Renumbered 0335 -> 0340 during a rebase onto current main (2026-08-31):
+-- 0335 was independently claimed by 0335_crm_accounts_ai_and_bridge_
+-- columns.sql (PR #1475), and 0336/0337/0338 were likewise claimed by
+-- real merged work (construction_tenders, audit_logs_session_office_stamp,
+-- business_rules_engine) by the time this rebase was completed; 0339 is
+-- separately reserved (webhook-redelivery, not yet on main as of this
+-- rebase) -- 0340 was the next genuinely free slot.
 
 CREATE TABLE IF NOT EXISTS platform.role_quality_runs (
   id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
