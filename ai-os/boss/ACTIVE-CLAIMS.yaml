@@ -2415,6 +2415,62 @@ active:
       unit tests. No collision found with any other active claim in this
       file as of this timestamp (grepped for FI-AP-006/FI-AR-006, no
       hits).
+  - session_label: "claude-code (crm-007-sales-rep-performance-dashboard) -- CRM-007 Sales Representative Performance Dashboard"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      Task: build CRM-007 "Sales Representative Performance Dashboard"
+      (sap_mapping.sqlite sap_reports, module CRM, priority LOW,
+      veridian_mapping_status BUILD_NEW as of 2026-07-28), read fresh from
+      the sqlite row directly (business_purpose/calculation_logic/
+      input_data_required/output_format/veridian_gap_notes/
+      implementation_notes), not a summary.
+
+      No collision found in this file's `active:`/`recently_completed:`
+      entries or in `gh pr list`/ACTIVE-CLAIMS grep for "CRM-007"/"Sales
+      Rep" before starting. Real finding confirmed directly against
+      schema.ts (not trusted secondhand from the sqlite row's own
+      citations): ownerId already exists on both crm_leads and
+      crm_opportunities (used by bulkReassignLeads/bulkReassignOpportunities
+      in crm-service.ts), so per-rep grouping was always possible, but no
+      per-sales-rep aggregated dashboard existed anywhere -- confirmed by
+      grepping crm-service.ts and crm-activities-service.ts fresh. NO NEW
+      SCHEMA needed: crm_opportunities (estimatedValue/stage/ownerId/
+      aiWinProbability/createdAt), crm_stage_history (won/lost transition
+      dates via changedAt), and crm_activities (assignedToId) already carry
+      every column this report aggregates over.
+
+      Added aggregateSalesRepPerformance()/getSalesRepPerformanceDashboard()
+      to crm-service.ts (pure aggregator + thin DB-fetching wrapper, same
+      split aggregateDesignerTimesheetCosts/designerTimesheetReport
+      established in construction-reports-service.ts), a new route at
+      GET /api/v1/projexa/sales-rep-performance, and one report_definitions
+      migration (drizzle/0276, executionType='external_service',
+      classifications=["sales"] only so it resolves to the "custom" domain
+      per report-engine-service.ts's deriveReportDomainFromClassifications,
+      matching SD-007/FI-GL-007's own documented reasoning for that choice).
+
+      Two honest, disclosed gaps (never fabricated, see crm-service.ts's own
+      header comment on this section): (1) Revenue Target / Target
+      Achievement % -- the sqlite row's own input_data_required says a
+      per-rep-per-period revenue target is a "prerequisite data element";
+      grepped schema.ts fresh, no target/quota table exists anywhere in this
+      codebase, so both fields report null on every rep row. (2) Weighted
+      Pipeline Value uses aiWinProbability (the only per-opportunity win
+      probability this schema has) -- opportunities never run through
+      analyzeOpportunity() are honestly excluded from the weighted sum, not
+      assumed at 0%/100%.
+    scope_note: >-
+      File scope: compliance-tracker only --
+      src/lib/services/crm-service.ts (new aggregateSalesRepPerformance/
+      getSalesRepPerformanceDashboard functions, additive, rest of file
+      untouched), src/lib/services/crm-service.test.ts (new file -- this
+      file had zero test coverage before this task), src/app/api/v1/projexa/
+      sales-rep-performance/route.ts (new route), a new hand-written drizzle
+      migration (0276) seeding one compliance.report_definitions row,
+      ai-os/registry/terminology-guardrail-exemptions.yaml (3 new/updated
+      entries for genuine dated comments and test-fixture dates in the 3
+      files above), PROGRESS.md, this file. No schema/table changes. No
+      overlap with any other open PR found during the collision check above.
   - session_label: "claude-code (sd-007-sales-order-document-flow-overview) -- SD-007 Sales Order Document-Flow Overview"
     claimed_at: "2026-07-30T (this session)"
     claim: |
@@ -2810,6 +2866,49 @@ active:
       touches this file/directory scope. `git pull origin main` run fresh
       immediately before this entry.
 
+  - session_label: "claude-code (task-20260727-094843-architecture-phase-8-increment-1--dspy-e) -- VERIDIAN_Architecture_v2.0 phase_8 increment 1: DSPy evaluation/decision + engine-ai-learning wiring + scoping-only pass for 5 zero-prior-art engines"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      phase_8_dspy_learning_distribution_engines increment 1 of
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml (lives in
+      repo claude-control, target_repo: compliance-tracker). Depends on
+      phase_2_compiler_pipeline_intelligence_engines (done) and
+      phase_4_defense_in_depth_security_quality (done, PR #562 merged
+      2026-07-27) -- both satisfied.
+
+      Increment 1 scope: (1) engine-dspy-integration -- evaluate DSPy
+      Python-package installability against services/doc-processing/'s
+      real existing Python microservice stack, make a real justified
+      adopt/reject decision (doc template:
+      ai-os/BROWSER_LITE_LLM_TECH_DECISION_2026-07-27.md), and if adopted
+      wire a minimal signature-based compilation path alongside (not
+      replacing) phase_2's keyword-based compiler with a real before/after
+      quality/token-count comparison on one real prompt. (2) engine-ai-
+      learning -- re-verify capability-learning-service.ts's current real
+      state (file:line) and wire this gap item onto it, extending only if
+      genuinely needed, not duplicating. (3) Scoping-only pass (NOT
+      implementation) for the 5 zero-prior-art engines (engine-prompt-
+      translation, engine-prompt-localization, engine-prompt-marketplace,
+      engine-prompt-export, engine-prompt-import) -- schema/table design +
+      build estimate per engine, registered as planned (status: planned,
+      not built) MASTER_INDEX.yaml entries in claude-control.
+
+      File scope (compliance-tracker): possible new
+      src/lib/prompt-compiler/ or adjacent dspy-integration module (only
+      if DSPy is adopted), extension of the existing capability-learning-
+      service.ts (not a new file), new
+      ai-os/VERIDIAN_V2_DSPY_TECH_DECISION_2026-07-27.md-equivalent doc.
+      Does not touch phase_4's src/lib/prompt-security/ or phase_9's
+      Gateway G05 wiring files. Also touches claude-control (separate
+      repo, coordinate-not-run-inside): phase_8's status in
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml,
+      ai-os/MASTER_INDEX.yaml (5 planned entries).
+
+      Collision check before starting: grepped ACTIVE-CLAIMS.yaml for
+      "phase_8"/"dspy"/"DSPy"/"capability-learning" -- zero matches, no
+      active or recent collision. query-knowledge
+      "veridian_v2_dspy_learning" --tag domain:veridian_architecture_v2
+      confirmed found=0 live before starting.
   - session_label: "claude-code (task-20260727-094516-architecture-phase-5-increment-2--webllm) -- VERIDIAN_Architecture_v2.0 phase_5_browser_execution_tiers increment 2 of N: real WebLLM/Transformers.js model wiring + tool-calling + worker-pool deepening"
     claimed_at: "2026-07-27T (this session, registered slightly after real work began -- noted honestly per this file's own Rule 4 spirit)"
     claim: |
@@ -6608,105 +6707,38 @@ active:
       live. No further code changes made by this task; this was a
       read/verify/document pass since the real fixes were already pushed
       and passed audit before this task's first invocation completed.
-  - session_label: "claude-code (crm-007-sales-rep-performance-dashboard) -- CRM-007 Sales Representative Performance Dashboard"
+  - session_label: "claude-code (sd-006-sales-by-material-service-type) -- SD-006 Sales by Material / Service Type"
     claimed_at: "2026-07-30T (this session)"
     claim: |
-      Task: build CRM-007 "Sales Representative Performance Dashboard"
-      (sap_mapping.sqlite sap_reports, module CRM, priority LOW,
-      veridian_mapping_status BUILD_NEW as of 2026-07-28), read fresh from
-      the sqlite row directly (business_purpose/calculation_logic/
-      input_data_required/output_format/veridian_gap_notes/
-      implementation_notes), not a summary.
+      Task: build SD-006 "Sales by Material / Service Type" (sap_mapping.sqlite
+      sap_reports, module SD, priority MEDIUM, veridian_mapping_status
+      BUILD_NEW as of 2026-07-28) -- SAP's material/material-group revenue
+      breakdown, per that row's own implementation_notes renamed "Revenue by
+      Service Type": groups erp_sales_invoice_items lines by item or item
+      group and sums Total Net Revenue, with an optional Gross Profit/Margin
+      % proxy (erp_items.standard_buying_rate x quantity).
 
-      No collision found in this file's `active:`/`recently_completed:`
-      entries or in `gh pr list`/ACTIVE-CLAIMS grep for "CRM-007"/"Sales
-      Rep" before starting. Real finding confirmed directly against
-      schema.ts (not trusted secondhand from the sqlite row's own
-      citations): ownerId already exists on both crm_leads and
-      crm_opportunities (used by bulkReassignLeads/bulkReassignOpportunities
-      in crm-service.ts), so per-rep grouping was always possible, but no
-      per-sales-rep aggregated dashboard existed anywhere -- confirmed by
-      grepping crm-service.ts and crm-activities-service.ts fresh. NO NEW
-      SCHEMA needed: crm_opportunities (estimatedValue/stage/ownerId/
-      aiWinProbability/createdAt), crm_stage_history (won/lost transition
-      dates via changedAt), and crm_activities (assignedToId) already carry
-      every column this report aggregates over.
+      Real finding: erp_sales_invoice_items.item_id (Wave 60) already exists
+      and is nullable -- the data model supports the grouping, but no report
+      function anywhere performs this aggregation (confirmed via grep across
+      src/lib/services/*.ts). Adding a new deterministic_formula report to
+      report-engine-service.ts's FORMULA_REGISTRY (same pattern as SD-002's
+      computeBillingDueList, PR #638) -- NOT erp-selling-service.ts (that
+      file's own header says aggregation/reporting reads belong in
+      report-engine-service.ts; erp-selling-service.ts is for document
+      CRUD/workflow, which SD-006 is not).
 
-      Added aggregateSalesRepPerformance()/getSalesRepPerformanceDashboard()
-      to crm-service.ts (pure aggregator + thin DB-fetching wrapper, same
-      split aggregateDesignerTimesheetCosts/designerTimesheetReport
-      established in construction-reports-service.ts), a new route at
-      GET /api/v1/projexa/sales-rep-performance, and one report_definitions
-      migration (drizzle/0276, executionType='external_service',
-      classifications=["sales"] only so it resolves to the "custom" domain
-      per report-engine-service.ts's deriveReportDomainFromClassifications,
-      matching SD-007/FI-GL-007's own documented reasoning for that choice).
-
-      Two honest, disclosed gaps (never fabricated, see crm-service.ts's own
-      header comment on this section): (1) Revenue Target / Target
-      Achievement % -- the sqlite row's own input_data_required says a
-      per-rep-per-period revenue target is a "prerequisite data element";
-      grepped schema.ts fresh, no target/quota table exists anywhere in this
-      codebase, so both fields report null on every rep row. (2) Weighted
-      Pipeline Value uses aiWinProbability (the only per-opportunity win
-      probability this schema has) -- opportunities never run through
-      analyzeOpportunity() are honestly excluded from the weighted sum, not
-      assumed at 0%/100%.
+      No collision found with any other open SD-* PR (checked SD-002 #629/
+      638, SD-007 #644 merged, FI-AP-005 #637, FI-GL-007 #647, FI-AR-006
+      #645 via `gh pr list` -- none touch erp_sales_invoice_items grouping
+      or report-engine-service.ts's FORMULA_REGISTRY sales-by-item slot).
     scope_note: >-
       File scope: compliance-tracker only --
-      src/lib/services/crm-service.ts (new aggregateSalesRepPerformance/
-      getSalesRepPerformanceDashboard functions, additive, rest of file
-      untouched), src/lib/services/crm-service.test.ts (new file -- this
-      file had zero test coverage before this task), src/app/api/v1/projexa/
-      sales-rep-performance/route.ts (new route), a new hand-written drizzle
-      migration (0276) seeding one compliance.report_definitions row,
-      ai-os/registry/terminology-guardrail-exemptions.yaml (3 new/updated
-      entries for genuine dated comments and test-fixture dates in the 3
-      files above), PROGRESS.md, this file. No schema/table changes. No
-      overlap with any other open PR found during the collision check above.
-  - session_label: "claude-code (task-20260727-094843-architecture-phase-8-increment-1--dspy-e) -- VERIDIAN_Architecture_v2.0 phase_8 increment 1: DSPy evaluation/decision + engine-ai-learning wiring + scoping-only pass for 5 zero-prior-art engines"
-    claimed_at: "2026-07-27T (this session)"
-    claim: |
-      phase_8_dspy_learning_distribution_engines increment 1 of
-      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml (lives in
-      repo claude-control, target_repo: compliance-tracker). Depends on
-      phase_2_compiler_pipeline_intelligence_engines (done) and
-      phase_4_defense_in_depth_security_quality (done, PR #562 merged
-      2026-07-27) -- both satisfied.
-
-      Increment 1 scope: (1) engine-dspy-integration -- evaluate DSPy
-      Python-package installability against services/doc-processing/'s
-      real existing Python microservice stack, make a real justified
-      adopt/reject decision (doc template:
-      ai-os/BROWSER_LITE_LLM_TECH_DECISION_2026-07-27.md), and if adopted
-      wire a minimal signature-based compilation path alongside (not
-      replacing) phase_2's keyword-based compiler with a real before/after
-      quality/token-count comparison on one real prompt. (2) engine-ai-
-      learning -- re-verify capability-learning-service.ts's current real
-      state (file:line) and wire this gap item onto it, extending only if
-      genuinely needed, not duplicating. (3) Scoping-only pass (NOT
-      implementation) for the 5 zero-prior-art engines (engine-prompt-
-      translation, engine-prompt-localization, engine-prompt-marketplace,
-      engine-prompt-export, engine-prompt-import) -- schema/table design +
-      build estimate per engine, registered as planned (status: planned,
-      not built) MASTER_INDEX.yaml entries in claude-control.
-
-      File scope (compliance-tracker): possible new
-      src/lib/prompt-compiler/ or adjacent dspy-integration module (only
-      if DSPy is adopted), extension of the existing capability-learning-
-      service.ts (not a new file), new
-      ai-os/VERIDIAN_V2_DSPY_TECH_DECISION_2026-07-27.md-equivalent doc.
-      Does not touch phase_4's src/lib/prompt-security/ or phase_9's
-      Gateway G05 wiring files. Also touches claude-control (separate
-      repo, coordinate-not-run-inside): phase_8's status in
-      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml,
-      ai-os/MASTER_INDEX.yaml (5 planned entries).
-
-      Collision check before starting: grepped ACTIVE-CLAIMS.yaml for
-      "phase_8"/"dspy"/"DSPy"/"capability-learning" -- zero matches, no
-      active or recent collision. query-knowledge
-      "veridian_v2_dspy_learning" --tag domain:veridian_architecture_v2
-      confirmed found=0 live before starting.
+      src/lib/services/report-engine-service.ts (new
+      aggregateSalesByMaterialServiceType pure function + FORMULA_REGISTRY
+      entry, additive), src/lib/services/report-engine-service.test.ts (new
+      tests), a new hand-written drizzle migration seeding one
+      compliance.report_definitions row, PROGRESS.md, this file.
 recently_completed:
   - session_label: "claude-code (rebase-sweep2-583) -- V2-17 HR performance/error-handling + payroll rate audit [DONE, real rebase-merge PR #583 -> replacement PR, this rebase-sweep session]"
     completed_at: "2026-09-01T (this session)"
