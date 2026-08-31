@@ -228,7 +228,7 @@ export default function TicketDetailPage() {
 
         {surveys.map((s) => (
           <Badge key={s.id} variant="outline" className="text-xs gap-1">
-            <Star className="size-3 text-ct-saffron" />
+            <Star className="size-3 text-ct-saffron-text" />
             {s.csatScore != null ? `CSAT ${s.csatScore}/5` : ""}{s.csatScore != null && s.npsScore != null ? " · " : ""}{s.npsScore != null ? `NPS ${s.npsScore}/10` : ""}
           </Badge>
         ))}

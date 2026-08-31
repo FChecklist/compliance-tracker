@@ -17,8 +17,8 @@ export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { recordStockReceipt } from "./erp-inventory-service"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { ErpContext, ActorCtx } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 // Priority 17 Wave 1 (PROJEXA Procurement workflow exposure): widened to the
 // same dbUser-or-apiKey actor union already precedented by erp-invoicing-
@@ -26,10 +26,6 @@ export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$
 // calls server-to-server with a shared Bearer API key, never a session
 // cookie. submitPurchaseReceipt calls recordStockReceipt() internally,
 // which now accepts this same union (erp-inventory-service.ts, this wave).
-export type ActorCtx = { orgId: string; userId: string } & (
-  | { dbUser: typeof users.$inferSelect; apiKey?: never }
-  | { dbUser?: never; apiKey: { id: string; name: string } }
-)
 
 type ReceiptItemInput = { purchaseOrderItemId?: string; itemId?: string; quantity?: number; warehouseId: string; rate?: number }
 

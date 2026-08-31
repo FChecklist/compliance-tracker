@@ -7,7 +7,7 @@
 // aggregation, not new tables. Also owns isPeriodOpenForDate(), the
 // Tier 1 #3 fix (erp_accounting_periods) that gates journal-entry
 // posting so these reports stay trustworthy in production.
-import { erpAccounts, erpJournalEntries, erpJournalEntryLines, erpAccountingPeriods, erpFiscalYears, erpPeriodClosingChecklistItems, erpCostCenters } from "@/lib/db"
+import { erpAccounts, erpJournalEntries, erpJournalEntryLines, erpAccountingPeriods, erpFiscalYears, erpPeriodClosingChecklistItems, erpCostCenters, erpSalesInvoices, erpPurchaseInvoices } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, lte, gte, sql, inArray, ne, isNotNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -452,5 +452,283 @@ export async function profitAndLossByCostCenter(ctx: { orgId: string }, fromDate
       totalIncome: costCenterRollups.reduce((sum, c) => sum + c.income, 0),
       totalExpense: costCenterRollups.reduce((sum, c) => sum + c.expense, 0),
     }
+  })
+}
+
+/**
+ * Pure, DB-free tree roll-up: sums each node's own amount plus every
+ * descendant's own amount, through a flat parentId-linked node list.
+ * Independently unit-testable without a DB, same discipline as
+ * erp-invoicing-service.ts's computeInvoiceTaxTotals. Shared by
+ * erp-accounting-service.ts's costCenterHierarchyReport (CO-003) and this
+ * file's own glAccountGroupBalancesSummary (FI-GL-008) -- both are the
+ * identical shape of problem (roll a real parent/child dimension tree up
+ * to each ancestor) over two different tables, so the recursion itself is
+ * written once here rather than duplicated.
+ */
+export function rollUpTree(nodeIds: string[], parentIdOf: (id: string) => string | null, ownAmountOf: (id: string) => number): Map<string, number> {
+  const childrenByParent = new Map<string | null, string[]>()
+  for (const id of nodeIds) {
+    const key = parentIdOf(id)
+    if (!childrenByParent.has(key)) childrenByParent.set(key, [])
+    childrenByParent.get(key)!.push(id)
+  }
+  const totals = new Map<string, number>()
+  function rollUp(id: string): number {
+    const cached = totals.get(id)
+    if (cached !== undefined) return cached
+    const children = childrenByParent.get(id) ?? []
+    const total = ownAmountOf(id) + children.reduce((sum, c) => sum + rollUp(c), 0)
+    totals.set(id, total)
+    return total
+  }
+  for (const id of nodeIds) rollUp(id)
+  return totals
+}
+
+function dayBefore(isoDate: string): string {
+  const d = new Date(isoDate)
+  d.setDate(d.getDate() - 1)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * SAP FS10N equivalent (FI-GL-002, EXTEND_EXISTING, sap_mapping.sqlite/
+ * sap_reports "G/L Account Balances Display", engine_track=calculation):
+ * trialBalance already computes every account's cumulative closing balance
+ * -- per gap_notes this is meant to stay "a direct filter of this existing
+ * output, not new logic". The one genuine addition is the opening/period-
+ * debit/period-credit breakdown FS10N shows per account, which
+ * trialBalance's single asOfDate snapshot doesn't expose -- built from two
+ * more accountBalancesInRange calls, the same primitive trialBalance
+ * itself is built on.
+ */
+export async function glAccountBalanceDisplay(ctx: { orgId: string }, accountIds: string[], fromDate: string, toDate: string, scope?: CompanyScope) {
+  await requireErpEnabled(ctx.orgId)
+  const companyIds = await resolveCompanyScope(ctx, scope)
+  const [opening, period, closing] = await Promise.all([
+    accountBalancesInRange(ctx.orgId, null, dayBefore(fromDate), companyIds),
+    accountBalancesInRange(ctx.orgId, fromDate, toDate, companyIds),
+    accountBalancesInRange(ctx.orgId, null, toDate, companyIds),
+  ])
+  const openingById = new Map(opening.map((b) => [b.accountId, b]))
+  const periodById = new Map(period.map((b) => [b.accountId, b]))
+  const idSet = new Set(accountIds)
+
+  const accounts = closing
+    .filter((b) => idSet.has(b.accountId))
+    .map((b) => {
+      const o = openingById.get(b.accountId)
+      const p = periodById.get(b.accountId)
+      return {
+        accountId: b.accountId,
+        accountName: b.accountName,
+        accountNumber: b.accountNumber,
+        rootType: b.rootType,
+        accountType: b.accountType,
+        openingBalance: o?.netBalance ?? 0,
+        periodDebit: p?.totalDebit ?? 0,
+        periodCredit: p?.totalCredit ?? 0,
+        closingBalance: b.netBalance,
+      }
+    })
+    .sort((a, b) => (a.accountNumber ?? "").localeCompare(b.accountNumber ?? ""))
+
+  return { fromDate, toDate, accounts }
+}
+
+/**
+ * SAP-equivalent GL account group roll-up (FI-GL-008, EXTEND_EXISTING,
+ * "G/L Account Group Balances Summary"): erpAccounts already carries the
+ * same real parentAccountId/isGroup hierarchy pattern as erpCostCenters --
+ * trialBalance gives per-account closing balances, but nothing rolls those
+ * up to each group node. Recursive roll-up mirrors erp-accounting-
+ * service.ts's costCenterHierarchyReport (same shape of problem, different
+ * tree).
+ */
+export type GlAccountGroupNode = {
+  accountId: string
+  accountName: string
+  accountNumber: string | null
+  isGroup: boolean
+  rootType: string
+  ownBalance: number
+  totalBalance: number
+  children: GlAccountGroupNode[]
+}
+
+export async function glAccountGroupBalancesSummary(ctx: { orgId: string }, asOfDate: string, scope?: CompanyScope) {
+  await requireErpEnabled(ctx.orgId)
+  const trial = await trialBalance(ctx, asOfDate, scope)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const allAccounts = await db.query.erpAccounts.findMany({ where: eq(erpAccounts.orgId, ctx.orgId) })
+    const balanceByAccountId = new Map(trial.accounts.map((a) => [a.accountId, a.netBalance]))
+    const byId = new Map(allAccounts.map((a) => [a.id, a]))
+    const childrenByParent = new Map<string | null, typeof allAccounts>()
+    for (const a of allAccounts) {
+      const key = a.parentAccountId ?? null
+      if (!childrenByParent.has(key)) childrenByParent.set(key, [])
+      childrenByParent.get(key)!.push(a)
+    }
+
+    const totals = rollUpTree(allAccounts.map((a) => a.id), (id) => byId.get(id)?.parentAccountId ?? null, (id) => balanceByAccountId.get(id) ?? 0)
+
+    function buildNode(a: (typeof allAccounts)[number]): GlAccountGroupNode {
+      return {
+        accountId: a.id,
+        accountName: a.accountName,
+        accountNumber: a.accountNumber,
+        isGroup: a.isGroup,
+        rootType: a.rootType,
+        ownBalance: balanceByAccountId.get(a.id) ?? 0,
+        totalBalance: totals.get(a.id) ?? 0,
+        children: (childrenByParent.get(a.id) ?? []).map(buildNode),
+      }
+    }
+
+    const roots = childrenByParent.get(null) ?? []
+    return { asOfDate, groups: roots.map(buildNode) }
+  })
+}
+
+// ─── FI-GL-007: Subledger-to-GL Reconciliation (SAP gap analysis,
+// sap_mapping.sqlite/sap_reports id='FI-GL-007', module FI-GL, MEDIUM
+// priority, BUILD_NEW). This is the GENERAL AR+AP version -- FI-AA-006
+// (Asset-to-GL Reconciliation, erp-fixed-assets-service.ts) is the
+// fixed-asset-specific sibling; this function deliberately does not touch
+// fixed-asset accounts or erp_fixed_assets/erp_depreciation_schedules. ───
+//
+// Real finding this is grounded in: submitSalesInvoice/submitPurchaseInvoice
+// (erp-invoicing-service.ts) already post a REAL, balanced journal entry to
+// the org's accountType='receivable'/'payable' control account (resolved
+// via that file's findControlAccount()) every time an invoice is submitted.
+// So a subledger-to-GL reconciliation is genuinely meaningful here, not a
+// no-op: the subledger (erp_sales_invoices/erp_purchase_invoices' own
+// outstandingAmount) and the GL (this file's own trialBalance()) are two
+// independently-maintained numbers that SHOULD always agree -- a non-zero
+// variance is a real signal (a manual journal entry posted directly to the
+// control account bypassing the invoice/payment flow, a data bug, or a
+// currency-conversion drift), exactly the "fundamental control" SAP's own
+// version of this report exists to catch.
+//
+// Honest scope: only AR and AP are included, matching what this codebase
+// actually posts to the GL today.
+//   - Fixed assets: FI-AA-006's scope (separate function) -- deliberately
+//     excluded here.
+//   - Inventory/stock (erpAccounts.accountType = 'stock'): recordStockReceipt/
+//     recordStockIssue (erp-inventory-service.ts) never insert an
+//     erp_journal_entries/erp_journal_entry_lines row at all, so there is no
+//     GL stock-account balance yet to reconcile the stock ledger against.
+//     Left out rather than faked, not an oversight.
+
+/** Absolute variance below this is treated as balanced (rounding noise), matching accounting-engine.ts's verifyBalancesNetToZero and trialBalance()/balanceSheet()'s own isBalanced convention. */
+export const SUBLEDGER_RECONCILIATION_TOLERANCE = 0.01
+
+/**
+ * Pure -- independently unit-testable without a DB, same discipline as
+ * erp-invoicing-service.ts's computeInvoiceTaxTotals. Isolates the actual
+ * "is this in balance" judgment from the DB-touching aggregation around it.
+ */
+export function computeSubledgerVariance(subledgerTotal: number, glBalance: number): { variance: number; isReconciled: boolean } {
+  const variance = glBalance - subledgerTotal
+  return { variance, isReconciled: Math.abs(variance) < SUBLEDGER_RECONCILIATION_TOLERANCE }
+}
+
+/**
+ * Pure -- flips a GL account's raw debit-minus-credit netBalance into the
+ * "amount owed" figure the matching subledger total is expressed in.
+ * Receivable is an asset (debit-natured): netBalance IS the owed-to-us
+ * figure already. Payable is a liability (credit-natured): flip sign, the
+ * identical convention balanceSheet() already uses for totalLiabilities.
+ */
+export function glControlAccountBalance(netBalance: number, subledger: "receivable" | "payable"): number {
+  // `|| 0` only normalizes the -0 edge case (netBalance exactly 0) to plain
+  // 0 -- never changes any other value, since -0 is the only falsy result
+  // -netBalance can produce.
+  return subledger === "receivable" ? netBalance : -netBalance || 0
+}
+
+export type SubledgerReconciliationRow = {
+  subledger: "receivable" | "payable"
+  glAccountIds: string[]
+  glAccountNames: string[]
+  subledgerTotal: number
+  glBalance: number
+  variance: number
+  isReconciled: boolean
+}
+
+export type SubledgerReconciliationReport = {
+  asOfDate: string
+  rows: SubledgerReconciliationRow[]
+  allReconciled: boolean
+}
+
+const RECONCILABLE_INVOICE_STATUSES = ["submitted", "partially_paid", "overdue"] as const
+
+/**
+ * FI-GL-007: for each of AR and AP, compares the subledger's own total
+ * outstanding balance against the GL's control-account balance as of a
+ * date. See this section's header comment above for the full design and
+ * honest scope.
+ *
+ * Subledger total = sum of every non-cancelled, non-fully-paid invoice's
+ * outstandingAmount as of asOfDate, converted to base currency via each
+ * invoice's own snapshotted exchangeRate -- the identical conversion
+ * submitSalesInvoice/submitPurchaseInvoice used when they originally posted
+ * the GL entry (never re-fetched, so a later FX-rate change never silently
+ * shifts this number out from under an old invoice already on the books).
+ *
+ * GL balance = trialBalance()'s own accountType='receivable'/'payable'
+ * row(s), summed and sign-adjusted via glControlAccountBalance(). There is
+ * normally exactly one of each -- findControlAccount() (erp-invoicing-
+ * service.ts) requires exactly one match at posting time -- summing
+ * degrades safely to that single account in the normal case, and is the
+ * conservative choice (captures wherever a posting actually landed) if an
+ * org somehow tags more than one account with the same accountType.
+ */
+export async function subledgerToGlReconciliation(ctx: { orgId: string }, asOfDate: string, scope?: CompanyScope): Promise<SubledgerReconciliationReport> {
+  await requireErpEnabled(ctx.orgId)
+  const companyIds = await resolveCompanyScope(ctx, scope)
+  const tb = await trialBalance(ctx, asOfDate, scope)
+  // trialBalance() only lists accounts with at least one posted journal
+  // line (an INNER JOIN through erp_journal_entry_lines) -- a real,
+  // chart-of-accounts-configured control account with zero activity so far
+  // (a brand-new org, or one that's never invoiced anything yet) simply
+  // won't appear in it. Querying erpAccounts directly here, separately from
+  // trialBalance's own activity-only list, is what lets a genuinely
+  // "no control account configured at all" org be told that honestly,
+  // instead of being shown the exact same message as an org whose control
+  // account is configured but just hasn't posted anything yet.
+  const netBalanceByAccountId = new Map(tb.accounts.map((a) => [a.accountId, a.netBalance]))
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const arConditions = [eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.status, RECONCILABLE_INVOICE_STATUSES), lte(erpSalesInvoices.postingDate, asOfDate)]
+    if (companyIds) arConditions.push(inArray(erpSalesInvoices.companyId, companyIds))
+    const arInvoices = await db.select({ outstandingAmount: erpSalesInvoices.outstandingAmount, exchangeRate: erpSalesInvoices.exchangeRate }).from(erpSalesInvoices).where(and(...arConditions))
+    const arSubledgerTotal = arInvoices.reduce((sum, inv) => sum + Number(inv.outstandingAmount) * Number(inv.exchangeRate), 0)
+
+    const apConditions = [eq(erpPurchaseInvoices.orgId, ctx.orgId), inArray(erpPurchaseInvoices.status, RECONCILABLE_INVOICE_STATUSES), lte(erpPurchaseInvoices.postingDate, asOfDate)]
+    if (companyIds) apConditions.push(inArray(erpPurchaseInvoices.companyId, companyIds))
+    const apInvoices = await db.select({ outstandingAmount: erpPurchaseInvoices.outstandingAmount, exchangeRate: erpPurchaseInvoices.exchangeRate }).from(erpPurchaseInvoices).where(and(...apConditions))
+    const apSubledgerTotal = apInvoices.reduce((sum, inv) => sum + Number(inv.outstandingAmount) * Number(inv.exchangeRate), 0)
+
+    const configuredAccounts = await db.select({ id: erpAccounts.id, accountName: erpAccounts.accountName, accountType: erpAccounts.accountType })
+      .from(erpAccounts).where(and(eq(erpAccounts.orgId, ctx.orgId), inArray(erpAccounts.accountType, ["receivable", "payable"])))
+
+    const buildRow = (subledger: "receivable" | "payable", subledgerTotal: number): SubledgerReconciliationRow => {
+      const glAccounts = configuredAccounts.filter((a) => a.accountType === subledger)
+      const glBalance = glAccounts.reduce((sum, a) => sum + glControlAccountBalance(netBalanceByAccountId.get(a.id) ?? 0, subledger), 0)
+      const { variance, isReconciled } = computeSubledgerVariance(subledgerTotal, glBalance)
+      return {
+        subledger,
+        glAccountIds: glAccounts.map((a) => a.id),
+        glAccountNames: glAccounts.map((a) => a.accountName),
+        subledgerTotal, glBalance, variance, isReconciled,
+      }
+    }
+
+    const rows = [buildRow("receivable", arSubledgerTotal), buildRow("payable", apSubledgerTotal)]
+    return { asOfDate, rows, allReconciled: rows.every((r) => r.isReconciled) }
   })
 }

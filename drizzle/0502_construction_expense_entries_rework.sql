@@ -1,0 +1,29 @@
+-- R65 gap-closure: report_definitions row 'Rework Analysis'
+-- (rptdef_rework_analysis, classifications
+-- ["financial","quality_safety","construction"], formulaKey
+-- rework_analysis) was status='data_gap'. Verified live 2026-08-31: the
+-- note's core claim is real and current -- construction_expense_entries.
+-- expense_head (material/labour/transport/subcontractor/equipment/misc)
+-- has no way to flag an entry as rework cost, and
+-- construction_punch_list_items carries no cost field of its own.
+--
+-- Deliberately NOT adding a 7th expense_head enum value ('rework'):
+-- rework can legitimately span any existing head (re-poured material,
+-- re-done labour, a re-hired subcontractor visit, etc), so collapsing it
+-- into a single new head would throw away the real head classification
+-- an entry already has. A separate boolean tag composes with the
+-- existing enum instead of replacing it, and sidesteps Postgres's
+-- ALTER TYPE ... ADD VALUE restriction (cannot run inside the same
+-- transaction that uses the new value). Punch-list-item cost is left
+-- alone -- out of scope for this closure; the report is costed off real
+-- expense entries, which already carry a real `amount`.
+--
+-- Additive, NOT NULL DEFAULT false (matches this same table's own
+-- boolean-flag convention, e.g. construction_site_instructions.cost_impact/
+-- time_impact) -- expand-only, compliance.* is live tenant data (60 real
+-- construction_expense_entries rows across 2 orgs/8 projects as of
+-- 2026-08-31 are unaffected, all read back as is_rework=false, which is
+-- the correct answer: none of them were ever rework, there was no way to
+-- say so until now).
+ALTER TABLE "compliance"."construction_expense_entries"
+  ADD COLUMN "is_rework" boolean NOT NULL DEFAULT false;

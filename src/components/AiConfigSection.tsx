@@ -211,7 +211,7 @@ export default function AiConfigSection() {
       <CardHeader>
         <div className="flex items-center gap-2.5">
           <div className="size-10 rounded-xl bg-ct-saffron/10 flex items-center justify-center">
-            <Brain className="size-5 text-ct-saffron" />
+            <Brain className="size-5 text-ct-saffron-text" />
           </div>
           <div>
             <CardTitle className="text-base font-semibold text-ct-navy">
@@ -359,7 +359,7 @@ export default function AiConfigSection() {
         <div className="flex items-center justify-between py-1">
           <div className="flex items-center gap-3">
             <div className="size-9 rounded-lg bg-ct-saffron/10 flex items-center justify-center">
-              <Zap className="size-4 text-ct-saffron" />
+              <Zap className="size-4 text-ct-saffron-text" />
             </div>
             <div>
               <Label className="text-sm font-medium text-ct-navy">

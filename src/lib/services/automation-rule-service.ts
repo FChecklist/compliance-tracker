@@ -23,11 +23,35 @@ function getPayloadField(payload: Record<string, unknown>, field: string): unkno
   return field.split(".").reduce<unknown>((acc, key) => (acc && typeof acc === "object" ? (acc as Record<string, unknown>)[key] : undefined), payload)
 }
 
-function conditionsMatch(conditions: unknown, payload: Record<string, unknown>): boolean {
+// E95_AUTOMATION_PERCENTCOMPLETE_STRING_STRICT_EQUALITY (R62 task B4, fixed
+// 2026-08-28): numeric Postgres columns (e.g. construction_work_progress
+// .percent_complete, a `numeric` column -- schema.ts) come back from
+// Drizzle/postgres.js as STRINGS on read, while a rule's triggerConditions
+// .value is typically authored as a plain JS number (jsonb stores it as a
+// JSON number, the natural way to enter a 0-100 percent). Plain `===` then
+// silently fails to match "100" against 100 forever, with no error
+// anywhere -- see construction-progress-service.ts:144/154-155. Compare
+// numerically when both sides represent the same finite number; fall back
+// to strict `===` for everything else so this stays narrow -- it does not
+// turn `equals` into loose (`==`) comparison generally (no "" == 0 / false
+// == 0 style footguns; see the "" vs 0 regression test).
+function valuesMatch(actual: unknown, expected: unknown): boolean {
+  if (actual === expected) return true
+  const actualNumericish = typeof actual === "number" || (typeof actual === "string" && actual.trim() !== "")
+  const expectedNumericish = typeof expected === "number" || (typeof expected === "string" && expected.trim() !== "")
+  if (actualNumericish && expectedNumericish) {
+    const a = typeof actual === "number" ? actual : Number(actual)
+    const b = typeof expected === "number" ? expected : Number(expected)
+    if (!Number.isNaN(a) && !Number.isNaN(b)) return a === b
+  }
+  return false
+}
+
+export function conditionsMatch(conditions: unknown, payload: Record<string, unknown>): boolean {
   if (!conditions || typeof conditions !== "object") return true
   const cond = conditions as Partial<TriggerCondition>
   if (!cond.field) return true // no condition set -- rule fires on every event of this triggerType
-  return getPayloadField(payload, cond.field) === cond.value
+  return valuesMatch(getPayloadField(payload, cond.field), cond.value)
 }
 
 export async function listAutomationRules(ctx: { orgId: string }) {
