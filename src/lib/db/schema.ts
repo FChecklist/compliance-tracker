@@ -12477,10 +12477,16 @@ export const sourceObject = complianceSchemaDB.table('source_object', {
 // embeddings.embedding and task_embedding elsewhere in this file). HNSW
 // index and a GIN tsvector index (search_vector, generated column) also
 // live only in the migration, not modeled here, same reason.
+// docUid (CRR-223, migration crr223_doc_uid_storage_key): the parent
+// source_object's own permanent doc_uid, denormalised onto every chunk so a
+// chunk resolves back to its document by the permanent id without a join --
+// backfilled from source_object_id for every pre-existing row, NOT NULL
+// going forward (embed.ts's storeChunkEmbedding always supplies it).
 export const documentChunk = complianceSchemaDB.table('document_chunk', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   sourceObjectId: text('source_object_id').notNull().references(() => sourceObject.id, { onDelete: 'restrict' }),
   orgId: text('org_id').notNull(),
+  docUid: text('doc_uid').notNull(),
   seq: integer('seq').notNull(),
   page: integer('page'),
   charStart: integer('char_start'),

@@ -113,7 +113,13 @@ export async function generateEmbedding(
   return result.vector;
 }
 
-async function generateEmbeddingUncached(
+// CRR-079/080 (P3-BRIDGE): exported so src/lib/crr/embed.ts's
+// storeChunkEmbedding can reuse the exact same real-vs-hash-pseudo-vector
+// provider chain (OpenRouter -> Groq -> hash fallback) and isReal signal for
+// compliance.document_chunk rows, instead of forking a second copy of this
+// same provider-selection logic. Was previously module-private -- this is
+// the first cross-module consumer.
+export async function generateEmbeddingUncached(
   text: string,
   apiKey?: string
 ): Promise<{ vector: number[]; isReal: boolean }> {
