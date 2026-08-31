@@ -6463,6 +6463,67 @@ active:
       (CI test asserting both modes via drizzle-orm's own PgDialect SQL
       compilation, no live DB). Not touching capture.ts/embed.ts/chunker.ts
       (they don't exist on this branch's base) or any other CRR P2/P3 file.
+  - session_label: "claude-code (task-20260815-033857-owner-mandate--z-ai-gtm-findings-closure, CONTINUED by task-20260815-041523-z-ai-gtm-findings-files-are-now-real-and) -- Owner standing mandate: closure of the Z.ai black-box audit of PROJEXA AI COM, one point at a time, governing UMR-20260806-101802-a350 [rebased onto current main and being carried to merge as replacement for PR #1202]"
+    claimed_at: "2026-08-15T04:00Z (task-20260815-033857); continued 2026-08-15T~04:20Z (task-20260815-041523, this session)"
+    continuation_note: >-
+      task-20260815-033857's own worker unit went inactive mid-cycle (confirmed dead via
+      superboss-register.py umr_tasks, not a live competing session -- reconciler marked
+      UMR-20260806-101802-a350 completed_unmerged at 04:04:33Z citing this same branch/PR
+      still open with real commits) before it could mint child UMRs for the 4 points it
+      fixed or get its PR merged. task-20260815-041523 (this session) picked up that same
+      still-open PR (#1200), independently live-re-verified its 4 fix claims (CSP/XFO
+      headers absent, sitemap.xml wrong domain, /forgot-password 404 all reproduced
+      exactly as claimed pre-merge; passcode-login rate-limiting code independently
+      confirmed real), fixed a real CI failure the dead worker never got to (Terminology
+      Guardrail Check: 2 new unexempted hardcoded_iso_date findings in next.config.ts +
+      src/app/sitemap.ts from this PR's own dated verification comments -- registered
+      permanent exemptions in ai-os/registry/terminology-guardrail-exemptions.yaml,
+      re-ran the check locally to confirm it now passes clean), and is carrying this PR to
+      merge. Cherry-picked the dead worker's commit onto this session's own assigned
+      branch rather than pushing to the old branch directly, per this platform's
+      per-worker branch-isolation enforcement (pretooluse_worker_enforcement.py blocks a
+      worker from committing to any branch but its own).
+    claim: |
+      SPEC (Owner standing mandate, separate from and additional to OCID-020): merge Z.ai's 8
+      real black-box report parts into one file, enumerate every real distinct point (CB/HP/MP/
+      OBS findings + individually-verdicted sub-checks), mint a real child UMR per point, then
+      work each point verify -> understand -> fix-plan -> implement -> audit -> retest -> certify
+      boolean, never fabricating a pass, holding what can't be verified from this server.
+
+      Found on arrival (per Rule 12, checked the real indexes first): inventory phase already
+      done by a prior cycle -- `/opt/veridian/ai-os/memory/zai-gtm-findings/Part1..8_*.txt` (the
+      8 real files), `ZAI_BLACKBOX_AUDIT_MERGED.md` (merge), `ZAI_BLACKBOX_AUDIT_POINTS_MANIFEST.json`
+      (139 real enumerated points: 11 CB, 20 HP, 20 MP, 10 OBS, 78 sub-checks) all exist, dated
+      2026-08-14. Closure phase had minted exactly 10 child UMRs so far (`zai-gtm-tranche1-p8-cb-
+      01..10`, parented to owner-task UMR-20260806-144454-d00c, 2026-08-06), and every one of
+      those 10 only completed the VERIFY sub-step (evidence_json holds a `reproduce_verdict` only
+      -- no fix/audit/retest/certify recorded on any of them). p8-cb-01 itself was still `queued`,
+      never verified.
+
+      This session's real, independently-verified-live (not trusting the 2026-08-06 tranche1
+      verdicts unchecked) work: found the P8-CB-04 "no rate limiting on /api/auth/passcode-login"
+      verdict was WRONG -- live curl (7 consecutive POSTs) shows real 429 after 5 fails; code
+      (passcode-login-service.ts, committed 2026-07-24, predates the 2026-08-06 tranche1 check)
+      already has real dual email+IP rate limiting; the tranche1 git-grep evidence for this point
+      used an unescaped `|`-alternation pattern without `-E`, a real tooling bug that produced a
+      false "zero matches". Live-reconfirmed P8-CB-02 (no CSP), P8-CB-03 (no X-Frame-Options),
+      P8-CB-09 (sitemap.xml points at veridian-ai-os.vercel.app not the real projexa-ai.com
+      domain), and P8-CB-10/P1-OBS-003 (/forgot-password 404) as genuinely still reproducing, and
+      implemented real code fixes for all four in this repo (next.config.ts headers(), src/app/
+      forgot-password/page.tsx new redirect + login-form.tsx prompt banner, src/app/sitemap.ts +
+      robots.ts domain fix) -- see this task's own progress file for exact file list. Fix retest
+      against the live site is pending this PR's own merge+deploy, so none of these are certified
+      closed yet in this cycle -- verify+fix+audit steps done, retest+certify explicitly held for
+      a follow-up cycle once live. P8-CB-01/P1-BLOCKER-001 (invalid demo Supabase Auth
+      credentials) confirmed genuinely blocked from this server: no SUPABASE_SERVICE_ROLE_KEY or
+      DATABASE_URL in this session's env, only SUPABASE_ACCESS_TOKEN -- held, not fabricated.
+    scope_note: >-
+      File scope: next.config.ts, src/app/forgot-password/page.tsx (new), src/app/login/login-
+      form.tsx, src/app/sitemap.ts, src/app/robots.ts, messages/en.json, messages/hi.json, this
+      ACTIVE-CLAIMS entry, this task's own progress/*.md. No schema/DB/CI changes. Does not touch
+      P8-CB-08 (brand-name inconsistency, a separate Owner brand decision already tracked under
+      OCID-038) or P8-CB-05/06/07 (Supabase dashboard rate limits, cookie HttpOnly, PWA icons --
+      out of scope for this cycle's batch, left for a follow-up).
 recently_completed:
   - session_label: "claude-code (worker task-20260718-075004-architecture---design--reusability-acros) -- VERIDIAN Review Framework: Architecture & Design / Reusability Across Scope, 2 Low findings"
     completed_at: "2026-08-15T (this session)"

@@ -1256,3 +1256,11 @@ exemptions:
     reason: "task-20260805-185202-ocid-020-gtm-cert-addendum (rebased and merged as replacement PR for #968, superseding sibling PR #966, 2026-08-31): 1 genuine dated code comment (line 22) citing the real UMR instruction for extending this shared component with an optional per-host brand prop -- same class as this codebase's other exempted dated gap-closure comments, not example/sample data."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: next.config.ts
+    reason: "Owner mandate task-20260815-033857 (Z.ai black-box audit closure, governing UMR-20260806-101802-a350, points P8-CB-02/P8-CB-03), continued by task-20260815-041523: 2 genuine dated design-rationale comments -- line 8, a pre-existing veridian-ui-kit migration date (2026-07-19) predating this PR; line 30, this PR's own new headers() addition citing the live curl -sI verification date (2026-08-15) that found CSP/X-Frame-Options missing. Not example/placeholder data, same class as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 2
+  - file: src/app/sitemap.ts
+    reason: "Owner mandate task-20260815-033857 (Z.ai black-box audit closure, governing UMR-20260806-101802-a350, point P8-CB-09 Sitemap.xml references different domain), continued by task-20260815-041523: 1 genuine dated design-rationale comment (line 7) citing the live-verification date the wrong-domain finding was reconfirmed on before fixing BASE. Not example/placeholder data, same class as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
