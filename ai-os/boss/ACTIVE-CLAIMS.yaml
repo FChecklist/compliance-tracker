@@ -3065,7 +3065,6 @@ active:
       ai-os/PREVIEW_DEPLOYMENT_SPOTCHECK_2026-07-26.md (new),
       ai-os/boss/ACTIVE-CLAIMS.yaml (this entry), PROGRESS.md.
 
-
   - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
     claimed_at: "2026-07-26T (this session)"
     claim: |
@@ -6595,6 +6594,50 @@ active:
       compilation, no live DB). Not touching capture.ts/embed.ts/chunker.ts
       (they don't exist on this branch's base) or any other CRR P2/P3 file.
 recently_completed:
+  - session_label: "claude-code (rebase-sweep2-583) -- V2-17 HR performance/error-handling + payroll rate audit [DONE, real rebase-merge PR #583 -> replacement PR, this rebase-sweep session]"
+    completed_at: "2026-09-01T (this session)"
+    merged_as: "FChecklist/compliance-tracker (rebased PR #1516, was #583 -- see rebase-sweep2-583 branch)"
+    summary: |
+      Original branch worker/task-20260726-172000-hr-performance-error-handling---payroll
+      carried 3 real commits (2026-07-26T18:17-19:02Z, 5d80ab90/c9605210/68f24877) that were
+      genuinely missing on main: src/lib/services/hr-dashboard-service.ts,
+      src/app/api/hr/dashboard/route.ts, scripts/hr-payroll-load-test.ts all 404'd on main,
+      hr-service.ts was modified not duplicated. The prior audit-check FAIL comment was
+      confirmed stale/pre-redispatch (described a different, genuinely-empty branch state
+      that contradicts this branch's real 3-commit/987-line diff) -- same misattribution
+      pattern already seen on PR #582.
+
+      A literal `git merge origin/main` onto the PR's own branch (per this repo's standard
+      protocol) was attempted first and produced 123 conflicting files across totally
+      unrelated subsystems (CRM, ERP invoicing/selling/contract, chat-service,
+      prompt-compiler, orchestra-model-resolver, package.json, bun.lock, CI workflow,
+      db/schema.ts) -- not real, resolvable conflicts, just noise from a stale internal
+      "merge origin/main into worker branch" commit (68f24877) done back on 2026-07-26
+      whose ancestry has since diverged catastrophically from main's squash-merge history
+      (`git rev-list --left-right --count origin/main...HEAD` showed 1331/309). Aborted
+      that merge. Instead: reset a fresh branch to current `origin/main` and cherry-picked
+      just the real work commit (5d80ab90, 15 files, +986/-91). Only 2 real conflicts
+      resulted -- PROGRESS.md (replaced wholesale, this repo's own convention) and this
+      file (union-merged: kept every existing `active:` entry, moved this task's own claim
+      here to `recently_completed` since the work completes within this same session).
+      Re-checked for collisions before writing this entry: no other active or
+      recently_completed entry names V2-17, payroll rate audit, HR dashboard caching, or a
+      payroll/recruitment/attendance/vendor-scorecard load-test harness.
+
+      Delivered scope unchanged from the original commit: (1)
+      ai-os/PAYROLL_RATE_SEED_AUDIT_2026-07-26.md; (2) employee/onboarding validation UX
+      fixes (employmentType enum + dateOfJoining/dateOfBirth checks in hr-service.ts's
+      upsertEmployeeProfile, extracted as validateEmployeeProfileInput; stage validation in
+      src/app/api/me/onboarding-stage/route.ts); (3) new hr-dashboard-service.ts (HR
+      dashboard KPI aggregation + in-process TTL cache) and GET /api/hr/dashboard route,
+      wired into the HR page UI; (4) scripts/hr-payroll-load-test.ts (load-test harness,
+      not executed by the original author -- no bun/DATABASE_URL in that sandbox); (5) an
+      N+1 fix in erp-buying-service.ts's listSupplierScorecards (3N sequential queries ->
+      3 total), with a test proving the batched math matches. File scope: hr-service.ts,
+      hr-dashboard-service.ts (new), erp-buying-service.ts,
+      src/app/api/hr/dashboard/route.ts (new), src/app/api/me/onboarding-stage/route.ts,
+      src/app/(app)/hr/page.tsx, scripts/hr-payroll-load-test.ts (new), 3 new .test.ts
+      files, the 2 docs above.
   - session_label: "claude-code (worker task-20260718-075004-architecture---design--reusability-acros) -- VERIDIAN Review Framework: Architecture & Design / Reusability Across Scope, 2 Low findings"
     completed_at: "2026-08-15T (this session)"
     merged_as: "FChecklist/compliance-tracker (rebased PR, was #1225 -- see rebase-batch-1225-fresh branch)"
