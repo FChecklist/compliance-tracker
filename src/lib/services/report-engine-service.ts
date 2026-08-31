@@ -1498,6 +1498,87 @@ async function computeInteriorVariationOrderAnalysis(ctx: { orgId: string }, par
 }
 
 /**
+ * R65 (Rework Analysis, report_definitions rptdef_rework_analysis,
+ * classifications ["financial","quality_safety","construction"],
+ * formulaKey rework_analysis). Was status='data_gap':
+ * construction_expense_entries.expense_head (material/labour/transport/
+ * subcontractor/equipment/misc) had no way to flag an entry as the cost
+ * of REDOING work already done once -- verified real and current against
+ * live schema before this closure (60 real expense entries across 2
+ * orgs/8 projects as of 2026-08-31, none previously taggable as rework).
+ *
+ * Closed with construction_expense_entries.isRework (this same change --
+ * see that column's own schema.ts comment for why a boolean composed
+ * WITH expenseHead, not a 7th enum value: rework can occur under ANY
+ * head, so collapsing it into one new head would throw away the real
+ * head classification an entry already has). This report is a
+ * filtered/annotated cut of the existing expense-entry stream, not a new
+ * entity -- real amount, real project, real date, no fabricated or
+ * estimated figures. construction_punch_list_items is deliberately left
+ * out of scope: it has no cost field of its own, and the report is fully
+ * costable off real expense entries alone.
+ *
+ * projectId is optional (org-wide rollup when omitted, matching
+ * computeInteriorVariationOrderAnalysis's precedent for a newly-added tag
+ * column). Honestly notes when zero entries are tagged rework yet (true
+ * for all pre-existing entries today -- untaggable retroactively) rather
+ * than fabricating a result.
+ */
+async function computeReworkAnalysis(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = params.projectId ? String(params.projectId) : undefined
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(constructionExpenseEntries.orgId, ctx.orgId)]
+    if (projectId) conditions.push(eq(constructionExpenseEntries.projectId, projectId))
+    const entries = await db
+      .select({
+        projectId: constructionExpenseEntries.projectId,
+        projectName: projects.name,
+        expenseHead: constructionExpenseEntries.expenseHead,
+        description: constructionExpenseEntries.description,
+        amount: constructionExpenseEntries.amount,
+        expenseDate: constructionExpenseEntries.expenseDate,
+        isRework: constructionExpenseEntries.isRework,
+      })
+      .from(constructionExpenseEntries)
+      .innerJoin(projects, eq(constructionExpenseEntries.projectId, projects.id))
+      .where(and(...conditions))
+
+    const totalExpense = entries.reduce((sum, e) => sum + Number(e.amount), 0)
+    const reworkEntries = entries.filter((e) => e.isRework).sort((a, b) => b.expenseDate.localeCompare(a.expenseDate))
+    const reworkTotal = reworkEntries.reduce((sum, e) => sum + Number(e.amount), 0)
+    const reworkPct = totalExpense > 0 ? (reworkTotal / totalExpense) * 100 : 0
+
+    const byHead = new Map<string, { total: number; count: number }>()
+    for (const e of reworkEntries) {
+      const cur = byHead.get(e.expenseHead) ?? { total: 0, count: 0 }
+      cur.total += Number(e.amount)
+      cur.count += 1
+      byHead.set(e.expenseHead, cur)
+    }
+    const headBreakdown = [...byHead.entries()]
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([head, v]) => `${head}: ${Math.round(v.total)} (${v.count})`)
+      .join(", ")
+
+    const rows = reworkEntries.map((e) => ({
+      Date: e.expenseDate,
+      Project: e.projectName,
+      "Expense Head": e.expenseHead,
+      Description: e.description ?? "",
+      Amount: Math.round(Number(e.amount)),
+    }))
+
+    return {
+      columns: ["Date", "Project", "Expense Head", "Description", "Amount"],
+      rows,
+      note: reworkEntries.length > 0
+        ? `${reworkEntries.length} rework-tagged expense entr${reworkEntries.length === 1 ? "y" : "ies"}${projectId ? "" : " across all projects"} totalling ${Math.round(reworkTotal)} -- ${reworkPct.toFixed(1)}% of ${projectId ? "this project's" : "org-wide"} total logged expense (${Math.round(totalExpense)}). By head: ${headBreakdown}.`
+        : `No expense entry is currently tagged as rework${projectId ? " for this project" : ""}. construction_expense_entries.is_rework is a new boolean field (this closure) -- it exists so an entry CAN be marked rework going forward, but nothing retroactively tags the ${entries.length} expense entr${entries.length === 1 ? "y" : "ies"} that already exist${projectId ? " for this project" : ""} (totalling ${Math.round(totalExpense)}). Tag an entry as rework from the Expenses page to see it here.`,
+    }
+  })
+}
+
+/**
  * Pure predicate: is a billing schedule genuinely due for billing as of a
  * given date? Extracted standalone (same precedent as
  * deriveReportDomainFromClassifications above) so the "what counts as due"
@@ -2077,6 +2158,7 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   interior_profit_by_room_analysis: interiorProfitByRoomAnalysis,
   interior_designer_productivity_analysis: interiorDesignerProductivityAnalysis,
   interior_variation_order_analysis: computeInteriorVariationOrderAnalysis,
+  rework_analysis: computeReworkAnalysis,
   billing_due_list: computeBillingDueList,
   customer_payment_behavior_dso: computeCustomerPaymentBehavior,
   vendor_payment_behavior_dpo: computeVendorPaymentBehavior,

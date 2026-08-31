@@ -10708,6 +10708,16 @@ export const constructionExpenseEntries = complianceSchemaDB.table('construction
   // erp_journal_entry_lines, this is purely a traceability pointer + an
   // idempotency guard against double-posting the same entry.
   journalEntryId: text('journal_entry_id'),
+  // R65 gap-closure (Rework Analysis, rptdef_rework_analysis): flags this
+  // entry as rework cost -- redoing material/labour/subcontractor/etc work
+  // already done once, not new work. Deliberately a boolean composed WITH
+  // expenseHead, not a 7th expense_head enum value: rework can occur under
+  // any existing head (re-poured material, re-done labour, ...), so a new
+  // head would throw away the real classification an entry already has.
+  // Nullable-safe via NOT NULL DEFAULT false -- every pre-existing row
+  // reads back as "not rework", the correct answer since there was no way
+  // to say otherwise before this column existed.
+  isRework: boolean('is_rework').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
