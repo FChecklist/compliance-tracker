@@ -1,6 +1,8 @@
-import { complianceItems, departments, notices, tasks } from "@/lib/db"
+import { complianceItems, departments, notices, tasks, users } from "@/lib/db"
 import { type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, asc, gte, lte, ne, sql } from "drizzle-orm"
+import { decideActionAutonomy } from "@/lib/action-autonomy-decision"
+import { logActivity } from "@/lib/audit"
 
 // VERIDIAN Review Framework gap-closure (AI Engineering Quality / Code
 // Structure & Modularity): extracted from task-execution-engine.ts's
@@ -115,14 +117,49 @@ export async function dispatchComplianceTool(
     if (!complianceItemId || !validStatuses.includes(newStatus)) throw new Error("Missing or invalid complianceItemId/newStatus")
     const existing = await db.query.complianceItems.findFirst({
       where: and(eq(complianceItems.id, complianceItemId), eq(complianceItems.orgId, orgId)),
-      columns: { id: true, title: true, status: true },
+      columns: { id: true, title: true, status: true, amount: true },
     })
     if (!existing) throw new Error("Compliance item not found")
+
+    // R65 Part B: the real risk here isn't the status field itself, it's
+    // silently closing out (completed) or waiving (not_applicable) an item
+    // carrying a large penalty/filing amount -- the same signal
+    // create_compliance_item's own gate already uses at creation time. Any
+    // other transition (pending/in_progress/overdue/draft) is a routine
+    // workflow move, not a financial decision, so it's left ungated --
+    // matches the 80/20 intent of gating the 20% that's actually
+    // consequential, not every write indiscriminately.
+    const isTerminalTransition = newStatus === "completed" || newStatus === "not_applicable"
+    const itemAmount = existing.amount != null ? Number(existing.amount) : null
+    const autonomy = decideActionAutonomy({
+      riskFactors: {
+        financialAmountInr: isTerminalTransition && Number.isFinite(itemAmount) ? itemAmount : null,
+        blastRadius: "single",
+      },
+    })
+    // When the gate says review first, the item lands in 'draft' -- the
+    // same "not yet an active/closed obligation" state create_compliance_item's
+    // gate uses -- instead of the requested status; a human moves it on from
+    // there via this same dispatch path once satisfied. Nothing is silently
+    // dropped: the originally-requested status is preserved in the audit
+    // log and the return value.
+    const appliedStatus = autonomy.decision === "pending_review" ? "draft" : newStatus
     const [updated] = await db.update(complianceItems)
-      .set({ status: newStatus as typeof existing.status, updatedAt: new Date(), ...(newStatus === "completed" ? { completedAt: new Date() } : {}) })
+      .set({ status: appliedStatus as typeof existing.status, updatedAt: new Date(), ...(appliedStatus === "completed" ? { completedAt: new Date() } : {}) })
       .where(eq(complianceItems.id, complianceItemId))
       .returning({ id: complianceItems.id, title: complianceItems.title, status: complianceItems.status })
-    return { ...updated, previousStatus: existing.status }
+
+    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) })
+    if (dbUser) {
+      await logActivity({
+        tx: db, action: "update", entityType: "ComplianceItem", entityId: complianceItemId,
+        details: autonomy.decision === "pending_review"
+          ? `Status change ${existing.status} -> ${newStatus} held for review, applied as 'draft' instead (${autonomy.reason})`
+          : `Status change: ${existing.status} -> ${updated.status}`,
+        orgId, dbUser,
+      })
+    }
+    return { ...updated, previousStatus: existing.status, requestedStatus: newStatus, autonomyDecision: autonomy.decision, autonomyReason: autonomy.reason }
   }
 
   // Gap closure, 2026-07-10: get_penalty_estimate was registered with zero
