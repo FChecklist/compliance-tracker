@@ -673,6 +673,40 @@ export const auditLogs = complianceSchemaDB.table('audit_logs', {
   // ever amended.
   supportSessionId: text('support_session_id'),
   actingOnBehalfOfUserId: text('acting_on_behalf_of_user_id'),
+  // VERIDIAN Review Framework: Audit & Governance / Complete Audit Stamp
+  // (Medium finding, task-20260718-075006): the stamp already had
+  // time/date (createdAt), IP (ipAddress), a "machine" proxy (userAgent),
+  // user (userId/actorName/actorRole) and org (orgId) -- this closes the
+  // two still-missing fields the finding named, Session and Office.
+  // Both nullable/additive, same convention as supportSessionId above --
+  // every pre-existing row and every pre-existing logActivity() call site
+  // is completely unaffected (null = no session/office context available,
+  // which is also the CORRECT value for background monitor/cron-triggered
+  // writes that have no real HTTP session at all, e.g. src/lib/monitors/*).
+  //
+  // sessionId is populated automatically by logActivity() from the
+  // inbound request's session cookie (see audit.ts's deriveSessionId) --
+  // no call site needs to pass it. It intentionally does NOT reuse
+  // supportSessionId's concept (that names a support_sessions row for
+  // impersonation; this is "which browser/device session performed this
+  // write", true for every actor including non-impersonated ones) and does
+  // NOT reuse userActiveSessions.id (that table is only populated for
+  // orgs with sessionLimitEnforcementEnabled turned on -- see
+  // session-limit-service.ts -- so it can't cover every org unconditionally
+  // the way this column needs to).
+  sessionId: text('session_id'),
+  // officeId maps to branches.id (this codebase's existing multi-office/
+  // multi-branch concept -- see the `branches` table above; there is no
+  // separate "offices" table, `branches` already IS that concept, e.g.
+  // clients.branchId). Opt-in pass-through param on logActivity(), same
+  // "additive, not auto-derived" posture as clientId above -- most orgs
+  // have never configured branches (no dedicated branch-management UI
+  // exists yet as of this migration), so auto-deriving it from clientId on
+  // every write would mean an extra DB lookup per audit row for a field
+  // that would be null for the overwhelming majority of orgs anyway.
+  // Callers that DO know the office/branch context of the write (e.g. a
+  // route that already loaded the client's branchId) can pass it directly.
+  officeId: text('office_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -5149,6 +5183,24 @@ export const crmAccounts = complianceSchemaDB.table('crm_accounts', {
   // the loop the same way crmLeads.convertedClientId already does for the
   // Wave-1 `clients` table.
   convertedFromLeadId: text('converted_from_lead_id'),
+  // VERIDIAN Review Framework "Accounts & Contacts" gap-closure (Cross-Module
+  // Integration Consistency): an account is the unification point between
+  // the ERP selling identity (erp_customers) and VERIDIAN's own compliance-
+  // client identity (clients), the same bare-text/no-FK/nullable bridge-
+  // column convention crmOpportunities.erpCustomerId/crmLeads.clientId
+  // already established -- not a hard merge of the 3 identity spaces.
+  erpCustomerId: text('erp_customer_id'),
+  clientId: text('client_id'),
+  // AI Copilot / Worker Agent Integration Depth gap-closure: extends the
+  // Wave 75 CRM Intelligence pattern (crmLeads.aiScore / crmOpportunities.
+  // aiWinProbability) to accounts -- analyzeAccountHealth() in
+  // crm-accounts-service.ts populates these. Same shape as
+  // crmOpportunities' ai* columns (score + risk factors + one recommended
+  // action + a timestamp marking whether/when this has ever been run).
+  aiHealthScore: integer('ai_health_score'), // 0-100, higher = healthier account relationship
+  aiRiskFactors: jsonb('ai_risk_factors').notNull().default([]),
+  aiRecommendedAction: text('ai_recommended_action'),
+  aiAnalyzedAt: timestamp('ai_analyzed_at'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -10607,6 +10659,81 @@ export const constructionChangeOrders = complianceSchemaDB.table('construction_c
   esignatureRequestId: text('esignature_request_id'), // nullable FK -- set once sent for signature
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── R65 gap-closure (report_definitions data_gap cluster, 8 reports:
+// Tender Register/Pipeline/Win-Loss/Costing, BOQ Submission, Pre-Bid
+// Meeting, EMD Tracking, Contract Award). Genuinely distinct from
+// erp_rfqs/erp_rfq_items/erp_rfq_suppliers -- those are PROCUREMENT RFQs
+// (this org buying from suppliers); a TENDER is this org BIDDING to win a
+// client contract. Mapping RFQ data onto these reports would misrepresent
+// procurement requests as sales bids (see each report's own data_gap_note,
+// now closed by this table). ─────────
+export const constructionTenderStageEnum = complianceSchemaDB.enum('construction_tender_stage', ['identified', 'pre_bid', 'costing', 'submitted', 'won', 'lost', 'awarded'])
+export const constructionTenderEmdStatusEnum = complianceSchemaDB.enum('construction_tender_emd_status', ['not_paid', 'paid', 'refunded', 'forfeited'])
+
+export const constructionTenders = complianceSchemaDB.table('construction_tenders', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id'), // nullable -- a tender may not yet be linked to a project (only once/if awarded)
+  tenderNumber: text('tender_number').notNull(), // the issuing authority's own reference number, not an internal sequence
+  issuingAuthority: text('issuing_authority').notNull(), // the client/authority who floated the tender
+  title: text('title').notNull(),
+  estimatedValue: numeric('estimated_value').notNull().default('0'),
+  emdAmount: numeric('emd_amount').notNull().default('0'),
+  emdStatus: constructionTenderEmdStatusEnum('emd_status').notNull().default('not_paid'),
+  submissionDeadline: date('submission_deadline', { mode: 'string' }),
+  stage: constructionTenderStageEnum('stage').notNull().default('identified'),
+  lossReason: text('loss_reason'), // set only when stage='lost'
+  wonAt: timestamp('won_at'),
+  // Set only when stage='awarded' -- bridges to the resulting sales order the
+  // same bare-text/no-FK convention crmOpportunities.erpCustomerId already
+  // established (see schema.ts's crmAccounts comment above for the
+  // precedent), not a hard FK.
+  contractAwardSalesOrderId: text('contract_award_sales_order_id'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// BOQ submitted WITH a bid -- distinct from constructionBoqLineItems (the
+// EXECUTION-side BOQ tracked against actual progress once a project exists).
+// A tender's own bid BOQ is fixed at submission time and never revised
+// against site progress, so it does not belong in that table.
+export const constructionTenderBoqItems = complianceSchemaDB.table('construction_tender_boq_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  tenderId: text('tender_id').notNull(),
+  itemCode: text('item_code'),
+  description: text('description').notNull(),
+  unit: text('unit').notNull(),
+  quantity: numeric('quantity').notNull().default('0'),
+  rate: numeric('rate').notNull().default('0'),
+  amount: numeric('amount').notNull().default('0'), // quantity * rate, computed by the service layer on write (matches constructionBoqLineItems's own convention)
+})
+
+export const constructionTenderPreBidMeetings = complianceSchemaDB.table('construction_tender_pre_bid_meetings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  tenderId: text('tender_id').notNull(),
+  meetingDate: date('meeting_date', { mode: 'string' }).notNull(),
+  queriesRaised: text('queries_raised'),
+  clarificationsReceived: text('clarifications_received'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionTendersRelations = relations(constructionTenders, ({ many }) => ({
+  boqItems: many(constructionTenderBoqItems),
+  preBidMeetings: many(constructionTenderPreBidMeetings),
+}))
+
+export const constructionTenderBoqItemsRelations = relations(constructionTenderBoqItems, ({ one }) => ({
+  tender: one(constructionTenders, { fields: [constructionTenderBoqItems.tenderId], references: [constructionTenders.id] }),
+}))
+
+export const constructionTenderPreBidMeetingsRelations = relations(constructionTenderPreBidMeetings, ({ one }) => ({
+  tender: one(constructionTenders, { fields: [constructionTenderPreBidMeetings.tenderId], references: [constructionTenders.id] }),
+}))
 
 // ─── Wave 142 (PROJEXA gap analysis: interior design workflow -- mood
 // boards, FF&E specification, procurement markup). Confirmed via research:
