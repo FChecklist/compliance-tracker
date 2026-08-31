@@ -64,6 +64,14 @@ export async function GET(request: NextRequest) {
         actorRole: log.actorRole,
         ipAddress: log.ipAddress,
         userAgent: log.userAgent,
+        // VERIDIAN Review Framework: Audit & Governance / Complete Audit
+        // Stamp (task-20260718-075006) -- sessionId/officeId close the two
+        // fields the finding named as missing from the audit stamp. Both
+        // routinely null (session for background/monitor-triggered rows,
+        // office for orgs that haven't configured branches) -- see
+        // schema.ts's auditLogs comment.
+        sessionId: log.sessionId,
+        officeId: log.officeId,
         createdAt: log.createdAt.toISOString(),
       })),
       total: count,
