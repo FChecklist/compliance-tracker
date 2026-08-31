@@ -42,6 +42,7 @@ export { ServiceError }
 import { requireErpEnabled } from "./erp-enablement-service"
 import { logActivity } from "@/lib/audit"
 import type { PagedResult } from "./crm-service"
+import { ActorCtx } from "./actor-context"
 import { isSelfApproval } from "./approval-workflow-service"
 
 // Priority 17 Wave 1 (multi-currency Selling & Buying): identical
@@ -65,10 +66,7 @@ export async function resolveDocumentCurrency(db: TenantDb, orgId: string, curre
 // createSalesInvoice -- a Bearer-API-key caller (PROJEXA's callVeridian(),
 // which never carries a session cookie) never has a dbUser, so logActivity
 // needs the apiKey branch wired through explicitly rather than assumed.
-type SellingActorCtx = { orgId: string; userId: string } & (
-  | { dbUser: typeof users.$inferSelect; apiKey?: never }
-  | { dbUser?: never; apiKey: { id: string; name: string } }
-)
+type SellingActorCtx = ActorCtx
 
 function actorLogFields(ctx: SellingActorCtx) {
   return ctx.dbUser ? ({ dbUser: ctx.dbUser } as const) : ({ apiKey: ctx.apiKey } as const)
