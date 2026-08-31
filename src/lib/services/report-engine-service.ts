@@ -81,6 +81,11 @@ import {
   tenderRegisterReport, tenderPipelineByStage, tenderWinLossReport, tenderCostingReport,
   boqSubmissionReport, preBidMeetingReport, emdTrackingReport, contractAwardReport,
 } from "./construction-tender-service"
+import {
+  threeDDesignApprovalReport, designConsultationReport, designRevisionReport,
+  furniturePackageReport, interiorPackageComparisonReport, modularKitchenSalesReport,
+  roomWiseEstimateReport, wardrobeSalesReport,
+} from "./interior-sales-package-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
 import { requireReportDomainEnabled, isReportDomainEnabledForOrg } from "./report-domain-enablement-service"
 import { ServiceError } from "./compliance-service"
@@ -1597,6 +1602,38 @@ async function computeContractAwardReport(ctx: { orgId: string }): Promise<Repor
   return rowsToResult(await contractAwardReport(ctx), "No tenders have reached 'awarded' stage yet for this org.")
 }
 
+/**
+ * R65 (2026-08-31, interior design sales-package gap closure):
+ * interior-sales-package-service.ts's own header explains why this is a
+ * genuinely new SALES-side entity, distinct from Wave 142/143's
+ * interiorFfeItems/interiorMoodBoards (design/execution infrastructure).
+ * Closes 8 report_definitions data_gap rows.
+ */
+async function computeThreeDDesignApprovalReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await threeDDesignApprovalReport(ctx), "No interior sales packages logged yet for this org.")
+}
+async function computeDesignConsultationReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await designConsultationReport(ctx), "No design consultations booked yet for this org.")
+}
+async function computeDesignRevisionReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await designRevisionReport(ctx), "No interior sales packages have been revised yet for this org.")
+}
+async function computeFurniturePackageReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await furniturePackageReport(ctx), "No furniture packages sold yet for this org.")
+}
+async function computeInteriorPackageComparisonReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await interiorPackageComparisonReport(ctx), "No interior sales packages logged yet for this org.")
+}
+async function computeModularKitchenSalesReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await modularKitchenSalesReport(ctx), "No modular kitchen packages sold yet for this org.")
+}
+async function computeRoomWiseEstimateReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await roomWiseEstimateReport(ctx), "No room-wise estimate packages logged yet for this org.")
+}
+async function computeWardrobeSalesReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await wardrobeSalesReport(ctx), "No wardrobe packages sold yet for this org.")
+}
+
 export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   materials_running_low: computeMaterialsRunningLow,
   sales_dashboard: computeSalesDashboard,
@@ -1635,6 +1672,14 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   pre_bid_meeting_report: computePreBidMeetingReport,
   emd_tracking_report: computeEmdTrackingReport,
   contract_award_report: computeContractAwardReport,
+  interior_3d_design_approval_report: computeThreeDDesignApprovalReport,
+  interior_design_consultation_report: computeDesignConsultationReport,
+  interior_design_revision_report: computeDesignRevisionReport,
+  interior_furniture_package_report: computeFurniturePackageReport,
+  interior_package_comparison_report: computeInteriorPackageComparisonReport,
+  interior_modular_kitchen_sales_report: computeModularKitchenSalesReport,
+  interior_room_wise_estimate_report: computeRoomWiseEstimateReport,
+  interior_wardrobe_sales_report: computeWardrobeSalesReport,
   delayed_tasks_report: computeDelayedTasksReport,
   look_ahead_plan: computeLookAheadPlan,
   interior_mood_board_approval_report: interiorMoodBoardApprovalReport,

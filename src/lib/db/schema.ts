@@ -10860,6 +10860,92 @@ export const interiorFurniturePlacements = complianceSchemaDB.table('interior_fu
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── R65 gap-closure (report_definitions data_gap cluster, 8 reports: 3D
+// Design Approval, Design Consultation, Design Revision, Furniture Package,
+// Interior Package Comparison, Modular Kitchen Sales, Room-wise Estimate,
+// Wardrobe Sales Report). Genuinely distinct from Wave 142/143's
+// interiorMoodBoards/interiorFfeItems/interiorFloorPlans/interiorMaterials
+// above -- those are DESIGN/EXECUTION-side infrastructure (what gets
+// specified, placed, and installed once a project is already underway).
+// Nothing in that schema, or in erp_quotation_items/erp_sales_order_items
+// (generic description/quantity/rate/amount lines), lets this org actually
+// SELL an interior design package: interiorFfeItems has no package
+// grouping, no tier, no 3D-design-approval workflow, and no link back to a
+// quotation/sales order. This table is the SALES-side entity those 8
+// reports were actually asking for -- a furniture set, a modular kitchen, a
+// wardrobe, or a room-wise estimate sold as ONE first-class line item with
+// its own package tier and 3D-design-approval status, distinct from a
+// generic quotation/sales-order line. Confirmed before building this: no
+// existing tier/consultation/3D-design-approval concept anywhere in this
+// schema (the only other 'tier' hits are the unrelated AI-model-routing
+// complexityTier/model-tier-eligibility columns elsewhere in this file) and
+// interiorFfeStatusEnum ('specified'|'ordered'|'received'|'installed', Wave
+// 142 above) is a materially different concept -- FF&E fulfillment status,
+// not a design-approval workflow -- so it is reused nowhere here rather
+// than being duplicated. ─────────────────────────────────────────────────
+export const interiorSalesPackageTypeEnum = complianceSchemaDB.enum('interior_sales_package_type', ['furniture', 'modular_kitchen', 'wardrobe', 'room_wise_estimate', 'other'])
+export const interiorDesignApprovalStatusEnum = complianceSchemaDB.enum('interior_design_approval_status', ['not_started', 'in_progress', 'shared_for_approval', 'approved', 'revision_requested'])
+
+export const interiorSalesPackages = complianceSchemaDB.table('interior_sales_packages', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id'), // nullable -- a package can be sold pre-project (during consultation/quotation), same convention as constructionTenders.projectId above
+  // Sales-pipeline bridge columns -- same bare-text/no-hard-FK convention as
+  // crmOpportunities.erpCustomerId (see that column's own comment above) and
+  // erpSalesOrders.opportunityId/quotationId's carry-forward discipline. All
+  // three are independently nullable because a package can be captured at
+  // consultation time (before any quotation exists) and carried forward as
+  // the deal progresses -- never required to be set all at once.
+  opportunityId: text('opportunity_id'), // nullable link into crm_opportunities
+  quotationId: text('quotation_id'), // nullable link into erp_quotations, once quoted
+  salesOrderId: text('sales_order_id'), // nullable link into erp_sales_orders, once converted
+  packageType: interiorSalesPackageTypeEnum('package_type').notNull().default('other'),
+  // Free text, not an enum -- no existing tier concept anywhere in this
+  // schema to converge on, and different orgs name their tiers differently
+  // ("Standard"/"Premium"/"Luxury" is an example, not a fixed vocabulary).
+  // Matches roomOrArea's own free-text-over-enum precedent (interiorMoodBoards above).
+  packageTier: text('package_tier'),
+  roomOrArea: text('room_or_area'), // e.g. "Living Room" -- same convention as interiorMoodBoards.roomOrArea above
+  title: text('title').notNull(),
+  totalValue: numeric('total_value').notNull().default('0'), // sum of line items, computed by the service layer on write (matches constructionTenderBoqItems.amount's own convention)
+  designApprovalStatus: interiorDesignApprovalStatusEnum('design_approval_status').notNull().default('not_started'),
+  consultationBookedAt: timestamp('consultation_booked_at'), // nullable -- set once a design consultation is booked; null means never booked
+  consultationHeldAt: timestamp('consultation_held_at'), // nullable -- set once the booked consultation actually took place; distinct from booked (a booked consultation can be rescheduled or no-showed)
+  // Simple CURRENT-revision counter, not a full revision history log --
+  // "Design Revision History" is a DIFFERENT report_definitions row
+  // (explicitly out of scope for this closure -- see
+  // interior-sales-package-service.ts's own header). Increments via
+  // recordDesignRevision() every time the design changes after being shared
+  // for approval, giving Design Revision Report an honest "how many times
+  // has this been revised" count without duplicating that other report's job.
+  revisionNumber: integer('revision_number').notNull().default(1),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Line items within a package -- same shape/rationale as
+// constructionTenderBoqItems above (a tender's fixed bid BOQ): a package's
+// sold line items are fixed at sale time, computed query-time rollups
+// (amount = quantity * rate) rather than a second denormalized total.
+export const interiorSalesPackageItems = complianceSchemaDB.table('interior_sales_package_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  packageId: text('package_id').notNull(),
+  description: text('description').notNull(),
+  quantity: numeric('quantity').notNull().default('1'),
+  rate: numeric('rate').notNull().default('0'),
+  amount: numeric('amount').notNull().default('0'), // quantity * rate, computed by the service layer on write (matches constructionTenderBoqItems.amount's own convention)
+})
+
+export const interiorSalesPackagesRelations = relations(interiorSalesPackages, ({ many }) => ({
+  items: many(interiorSalesPackageItems),
+}))
+
+export const interiorSalesPackageItemsRelations = relations(interiorSalesPackageItems, ({ one }) => ({
+  package: one(interiorSalesPackages, { fields: [interiorSalesPackageItems.packageId], references: [interiorSalesPackages.id] }),
+}))
+
 // ─── Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Logging & Monitoring
 // section) ───────────────────────────────────────────────────────────────
 // No APM/error-tracking service exists anywhere in this codebase -- 527
