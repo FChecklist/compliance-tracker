@@ -12,11 +12,16 @@ const TEMPLATE = [
 export async function GET() {
   const { response } = await requireAuth()
   if (response) return response
-  return new NextResponse(TEMPLATE, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="leads-import-template.csv"`,
-    },
-  })
+  try {
+    return new NextResponse(TEMPLATE, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="leads-import-template.csv"`,
+      },
+    })
+  } catch (error) {
+    console.error("CRM leads import template error:", error)
+    return NextResponse.json({ error: "Failed to generate import template" }, { status: 500 })
+  }
 }
