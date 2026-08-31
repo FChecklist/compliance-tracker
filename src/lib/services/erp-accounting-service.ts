@@ -8,7 +8,7 @@
 // if the org has configured one for 'erp_journal_entry' -- if not, it
 // posts immediately, matching every other module's current no-approval
 // default behavior.
-import { db, erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, users, organisations } from "@/lib/db"
+import { db, erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, erpSuppliers, erpCustomers, users, organisations } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, sql, desc, lte, gte, like, inArray, isNotNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -831,4 +831,87 @@ export async function createTaxWithholdingCategory(
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_tax_withholding_category.created", entityType: "erp_tax_withholding_category", entityId: category.id })
     return category
   })
+}
+
+// ─── FI-AP-001 / FI-AR-001: Vendor / Customer Line Item Display ───────────
+// PHASE-2-CROSSREF (sap_mapping.sqlite sap_reports, engine_track=
+// 'calculation') ids FI-AP-001 and FI-AR-001, both HIGH priority,
+// EXTEND_EXISTING(erpJournalEntryLines partyType=supplier/customer). Same
+// shape as CO-001's listJournalEntryLinesByCostCenter above (SAP KSB1's
+// sibling FBL1N/FBL5N line-item displays) -- filters erp_journal_entry_lines
+// by partyType instead of costCenterId. partyId is a polymorphic text
+// column (no DB-level FK to erp_suppliers/erp_customers, see schema.ts's
+// own comment on it), so the party name is resolved with a separate lookup
+// query and merged in application code rather than an (impossible) SQL
+// join.
+export type PartyLineItemFilters = { partyIds?: string[]; fromDate?: string; toDate?: string; page?: number; limit?: number }
+
+async function listJournalEntryLinesByParty(ctx: { orgId: string }, partyType: "supplier" | "customer", filters: PartyLineItemFilters = {}) {
+  await requireErpEnabled(ctx.orgId)
+  const page = Math.max(1, filters.page ?? 1)
+  const limit = Math.min(200, Math.max(1, filters.limit ?? 50))
+  const offset = (page - 1) * limit
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(erpJournalEntries.orgId, ctx.orgId), eq(erpJournalEntryLines.partyType, partyType)]
+    if (filters.partyIds?.length) conditions.push(inArray(erpJournalEntryLines.partyId, filters.partyIds))
+    if (filters.fromDate) conditions.push(gte(erpJournalEntries.postingDate, filters.fromDate))
+    if (filters.toDate) conditions.push(lte(erpJournalEntries.postingDate, filters.toDate))
+    const where = and(...conditions)
+
+    const [lines, [{ count }]] = await Promise.all([
+      db
+        .select({
+          journalEntryId: erpJournalEntries.id,
+          postingDate: erpJournalEntries.postingDate,
+          referenceType: erpJournalEntries.referenceType,
+          referenceId: erpJournalEntries.referenceId,
+          userRemark: erpJournalEntries.userRemark,
+          accountId: erpAccounts.id,
+          accountName: erpAccounts.accountName,
+          accountNumber: erpAccounts.accountNumber,
+          partyId: erpJournalEntryLines.partyId,
+          debit: erpJournalEntryLines.debit,
+          credit: erpJournalEntryLines.credit,
+          lineRemark: erpJournalEntryLines.remark,
+        })
+        .from(erpJournalEntryLines)
+        .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+        .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
+        .where(where)
+        .orderBy(desc(erpJournalEntries.postingDate))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(erpJournalEntryLines)
+        .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+        .where(where),
+    ])
+
+    const partyIds = [...new Set(lines.map((l) => l.partyId).filter((id): id is string => !!id))]
+    const partyNameById = new Map<string, string>()
+    if (partyIds.length) {
+      if (partyType === "supplier") {
+        const suppliers = await db.query.erpSuppliers.findMany({ where: and(eq(erpSuppliers.orgId, ctx.orgId), inArray(erpSuppliers.id, partyIds)) })
+        for (const s of suppliers) partyNameById.set(s.id, s.supplierName)
+      } else {
+        const customers = await db.query.erpCustomers.findMany({ where: and(eq(erpCustomers.orgId, ctx.orgId), inArray(erpCustomers.id, partyIds)) })
+        for (const c of customers) partyNameById.set(c.id, c.customerName)
+      }
+    }
+
+    const linesWithPartyName = lines.map((l) => ({ ...l, partyName: l.partyId ? (partyNameById.get(l.partyId) ?? "Unknown") : null }))
+    return { lines: linesWithPartyName, total: count, page, limit, totalPages: Math.ceil(count / limit) }
+  })
+}
+
+/** FI-AP-001 (SAP FBL1N equivalent): every journal entry line posted against a vendor. */
+export async function listVendorLineItems(ctx: { orgId: string }, filters: PartyLineItemFilters = {}) {
+  return listJournalEntryLinesByParty(ctx, "supplier", filters)
+}
+
+/** FI-AR-001 (SAP FBL5N equivalent): every journal entry line posted against a customer. */
+export async function listCustomerLineItems(ctx: { orgId: string }, filters: PartyLineItemFilters = {}) {
+  return listJournalEntryLinesByParty(ctx, "customer", filters)
 }

@@ -24,7 +24,7 @@ import {
   users, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, or, isNull, lte, gte, gt, sql, inArray } from "drizzle-orm"
+import { and, eq, or, isNull, isNotNull, lte, gte, gt, sql, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
@@ -1623,4 +1623,217 @@ export async function getFinanceDashboard(ctx: { orgId: string }) {
     topOverdueInvoices: aging.invoices.filter((i) => i.daysOverdue > 0).slice(0, 5),
     revenue: { thisMonth: thisMonthPnl.totalIncome, lastMonth: lastMonthPnl.totalIncome },
   }
+}
+
+// ─── FI-AP-003: Vendor Items Aging Report ──────────────────────────────────
+// PHASE-2-CROSSREF (sap_mapping.sqlite sap_reports, id='FI-AP-003', module
+// FI, priority HIGH, veridian_mapping_status='EXTEND_EXISTING(erp-invoicing-
+// service.ts:arAgingReport pattern)'). The classic AP mirror of arAgingReport
+// above -- same bucket boundaries (current/1-30/31-60/61-90/90+) and the
+// same "pure snapshot over an existing outstandingAmount/dueDate column, no
+// new schema" shape, just walking erp_purchase_invoices + erp_suppliers
+// instead of erp_sales_invoices + erp_customers.
+export async function apAgingReport(ctx: { orgId: string }, asOfDate?: string) {
+  await requireErpEnabled(ctx.orgId)
+  const asOf = asOfDate ?? new Date().toISOString().slice(0, 10)
+  const asOfMs = new Date(asOf).getTime()
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoices = await db.query.erpPurchaseInvoices.findMany({
+      where: and(eq(erpPurchaseInvoices.orgId, ctx.orgId), inArray(erpPurchaseInvoices.status, ["submitted", "partially_paid", "overdue"])),
+      with: { supplier: true },
+    })
+
+    const buckets = { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90Plus: 0 }
+    const rows = invoices
+      .filter((inv) => Number(inv.outstandingAmount) > 0.01)
+      .map((inv) => {
+        const dueMs = new Date(inv.dueDate ?? inv.postingDate).getTime()
+        const daysOverdue = Math.floor((asOfMs - dueMs) / 86400000)
+        const outstanding = Number(inv.outstandingAmount)
+        let bucket: "current" | "1-30" | "31-60" | "61-90" | "90+"
+        if (daysOverdue <= 0) { bucket = "current"; buckets.current += outstanding }
+        else if (daysOverdue <= 30) { bucket = "1-30"; buckets.d1_30 += outstanding }
+        else if (daysOverdue <= 60) { bucket = "31-60"; buckets.d31_60 += outstanding }
+        else if (daysOverdue <= 90) { bucket = "61-90"; buckets.d61_90 += outstanding }
+        else { bucket = "90+"; buckets.d90Plus += outstanding }
+        return {
+          invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, supplierId: inv.supplierId,
+          supplierName: inv.supplier?.supplierName ?? null, dueDate: inv.dueDate, postingDate: inv.postingDate,
+          outstandingAmount: inv.outstandingAmount, daysOverdue: Math.max(0, daysOverdue), bucket, status: inv.status,
+        }
+      })
+      .sort((a, b) => b.daysOverdue - a.daysOverdue)
+
+    const totalOutstanding = buckets.current + buckets.d1_30 + buckets.d31_60 + buckets.d61_90 + buckets.d90Plus
+    return { asOfDate: asOf, buckets, totalOutstanding, invoices: rows }
+  })
+}
+
+// ─── FI-AP-002 / FI-AR-002: Vendor Balances / Customer Balances ───────────
+// PHASE-2-CROSSREF ids FI-AP-002 (EXTEND_EXISTING(erpSuppliers.creditLimit
+// pattern)) and FI-AR-002 (EXTEND_EXISTING(erpCustomers + outstandingAmount
+// pattern)), both HIGH priority. Neither arAgingReport nor apAgingReport
+// above answer "who do we owe/who owes us the most overall" without first
+// summing buckets by eye -- this is the pre-drill-down summary-per-party
+// view SAP calls FBL1N/FBL5N's "balances" variant, plus the party's
+// creditLimit (when set) for at-a-glance headroom, matching the codebase's
+// existing FI-AR-005-style credit-check convention. Grouped over
+// erp_purchase_invoices/erp_sales_invoices' own outstandingAmount -- no new
+// schema, and no per-line-item "open vs cleared" distinction exists in this
+// data model (see FI-AP-004/FI-AR-007 in this same PHASE-2-CROSSREF wave for
+// that finer-grained single-account view), so this sums each party's
+// currently-outstanding (non-fully-paid) invoices only.
+export type PartyBalanceRow = {
+  partyId: string
+  partyName: string
+  invoiceCount: number
+  totalOutstanding: number
+  creditLimit: number | null
+}
+
+export async function vendorBalances(ctx: { orgId: string }): Promise<{ balances: PartyBalanceRow[]; grandTotal: number }> {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [rows, suppliers] = await Promise.all([
+      db
+        .select({
+          supplierId: erpPurchaseInvoices.supplierId,
+          invoiceCount: sql<number>`count(*)::int`,
+          totalOutstanding: sql<string>`coalesce(sum(${erpPurchaseInvoices.outstandingAmount}), 0)`,
+        })
+        .from(erpPurchaseInvoices)
+        .where(and(eq(erpPurchaseInvoices.orgId, ctx.orgId), inArray(erpPurchaseInvoices.status, ["submitted", "partially_paid", "overdue"])))
+        .groupBy(erpPurchaseInvoices.supplierId),
+      db.query.erpSuppliers.findMany({ where: eq(erpSuppliers.orgId, ctx.orgId) }),
+    ])
+    const supplierById = new Map(suppliers.map((s) => [s.id, s]))
+
+    const balances = rows
+      .map((r) => ({
+        partyId: r.supplierId,
+        partyName: supplierById.get(r.supplierId)?.supplierName ?? "Unknown supplier",
+        invoiceCount: r.invoiceCount,
+        totalOutstanding: Number(r.totalOutstanding),
+        creditLimit: supplierById.get(r.supplierId)?.creditLimit != null ? Number(supplierById.get(r.supplierId)!.creditLimit) : null,
+      }))
+      .filter((b) => b.totalOutstanding > 0.01)
+      .sort((a, b) => b.totalOutstanding - a.totalOutstanding)
+
+    return { balances, grandTotal: balances.reduce((sum, b) => sum + b.totalOutstanding, 0) }
+  })
+}
+
+export async function customerBalances(ctx: { orgId: string }): Promise<{ balances: PartyBalanceRow[]; grandTotal: number }> {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [rows, customers] = await Promise.all([
+      db
+        .select({
+          customerId: erpSalesInvoices.customerId,
+          invoiceCount: sql<number>`count(*)::int`,
+          totalOutstanding: sql<string>`coalesce(sum(${erpSalesInvoices.outstandingAmount}), 0)`,
+        })
+        .from(erpSalesInvoices)
+        .where(and(eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.status, ["submitted", "partially_paid", "overdue"])))
+        .groupBy(erpSalesInvoices.customerId),
+      db.query.erpCustomers.findMany({ where: eq(erpCustomers.orgId, ctx.orgId) }),
+    ])
+    const customerById = new Map(customers.map((c) => [c.id, c]))
+
+    const balances = rows
+      .map((r) => ({
+        partyId: r.customerId,
+        partyName: customerById.get(r.customerId)?.customerName ?? "Unknown customer",
+        invoiceCount: r.invoiceCount,
+        totalOutstanding: Number(r.totalOutstanding),
+        creditLimit: customerById.get(r.customerId)?.creditLimit != null ? Number(customerById.get(r.customerId)!.creditLimit) : null,
+      }))
+      .filter((b) => b.totalOutstanding > 0.01)
+      .sort((a, b) => b.totalOutstanding - a.totalOutstanding)
+
+    return { balances, grandTotal: balances.reduce((sum, b) => sum + b.totalOutstanding, 0) }
+  })
+}
+
+// ─── FI-AR-005: Customer Credit Exposure ───────────────────────────────────
+// PHASE-2-CROSSREF id FI-AR-005, MEDIUM priority, EXTEND_EXISTING(erp-
+// invoicing-service.ts creditLimit gate) -- submitSalesInvoice already
+// gates a single new invoice against a customer's creditLimit (Wave 84);
+// this is the reporting counterpart that shows TOTAL exposure (open AR +
+// open, not-yet-fully-invoiced sales orders) against that same limit for
+// every customer at once, not just a single-invoice point check.
+// "Open order value" = a sales order's own grandTotal minus the grandTotal
+// of every non-cancelled sales invoice that carries that order's id in its
+// salesOrderId column (erp_sales_invoices.sales_order_id, Wave 60) --
+// floored at 0 so an order invoiced for more than its own order value
+// (a real possibility via change orders raised as separate invoices) never
+// shows a negative "still to bill" figure. This schema has no separate
+// "special liabilities" (guarantees, pending down-payment requests)
+// concept, so that PHASE-2-CROSSREF input is honestly omitted rather than
+// approximated.
+export type CreditExposureRow = {
+  customerId: string
+  customerName: string
+  creditLimit: number | null
+  openArBalance: number
+  openOrderValue: number
+  totalExposure: number
+  remainingHeadroom: number | null
+  utilizationPct: number | null
+  status: "ok" | "warning" | "over_limit"
+}
+
+export async function customerCreditExposure(ctx: { orgId: string }): Promise<{ rows: CreditExposureRow[] }> {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [customers, openInvoices, orders, orderInvoices] = await Promise.all([
+      db.query.erpCustomers.findMany({ where: eq(erpCustomers.orgId, ctx.orgId) }),
+      db
+        .select({ customerId: erpSalesInvoices.customerId, outstandingAmount: erpSalesInvoices.outstandingAmount })
+        .from(erpSalesInvoices)
+        .where(and(eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.status, ["submitted", "partially_paid", "overdue"]))),
+      db.query.erpSalesOrders.findMany({ where: and(eq(erpSalesOrders.orgId, ctx.orgId), sql`${erpSalesOrders.status} != 'cancelled'`) }),
+      db
+        .select({ salesOrderId: erpSalesInvoices.salesOrderId, grandTotal: erpSalesInvoices.grandTotal })
+        .from(erpSalesInvoices)
+        .where(and(eq(erpSalesInvoices.orgId, ctx.orgId), sql`${erpSalesInvoices.status} != 'cancelled'`, isNotNull(erpSalesInvoices.salesOrderId))),
+    ])
+
+    const arByCustomer = new Map<string, number>()
+    for (const inv of openInvoices) arByCustomer.set(inv.customerId, (arByCustomer.get(inv.customerId) ?? 0) + Number(inv.outstandingAmount))
+
+    const invoicedByOrder = new Map<string, number>()
+    for (const inv of orderInvoices) {
+      if (!inv.salesOrderId) continue
+      invoicedByOrder.set(inv.salesOrderId, (invoicedByOrder.get(inv.salesOrderId) ?? 0) + Number(inv.grandTotal))
+    }
+
+    const openOrderByCustomer = new Map<string, number>()
+    for (const so of orders) {
+      const invoiced = invoicedByOrder.get(so.id) ?? 0
+      const open = Math.max(0, Number(so.grandTotal) - invoiced)
+      openOrderByCustomer.set(so.customerId, (openOrderByCustomer.get(so.customerId) ?? 0) + open)
+    }
+
+    const rows: CreditExposureRow[] = customers
+      .map((c) => {
+        const openArBalance = arByCustomer.get(c.id) ?? 0
+        const openOrderValue = openOrderByCustomer.get(c.id) ?? 0
+        const totalExposure = openArBalance + openOrderValue
+        const creditLimit = c.creditLimit != null ? Number(c.creditLimit) : null
+        const remainingHeadroom = creditLimit != null ? creditLimit - totalExposure : null
+        const utilizationPct = creditLimit != null && creditLimit > 0 ? (totalExposure / creditLimit) * 100 : null
+        let status: "ok" | "warning" | "over_limit" = "ok"
+        if (utilizationPct != null) {
+          if (utilizationPct >= 100) status = "over_limit"
+          else if (utilizationPct >= 80) status = "warning"
+        }
+        return { customerId: c.id, customerName: c.customerName, creditLimit, openArBalance, openOrderValue, totalExposure, remainingHeadroom, utilizationPct, status }
+      })
+      .filter((r) => r.totalExposure > 0.01 || r.creditLimit != null)
+      .sort((a, b) => b.totalExposure - a.totalExposure)
+
+    return { rows }
+  })
 }

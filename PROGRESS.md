@@ -1,77 +1,72 @@
-# PROGRESS -- rebase-995-v2 (replacement for PR #995, winner of #995 vs #997)
+# PROGRESS -- cherry-997-remainder (SD-006 + 6 AP/AR reports, remainder of #997)
 
 ## Scope
 
-PR #995 and PR #997 independently built the same 5 report engines
-(CO-001, CO-003, FI-GL-002, FI-GL-007, FI-GL-008). #995 was chosen as the
-winner: it registers its migrations correctly in
-`drizzle/meta/_journal.json` (#997 does not) and routes cost-center reports
-under `/api/v1/projexa/` matching main's existing convention (`ar-aging`,
-`asset-to-gl-reconciliation` already live there; #997 instead used a new
-`/api/erp/reports/` prefix for these two). #997's 6 unique reports
-(SD-006, FI-AP-001/002/003, FI-AR-001/002/005) are NOT part of this PR --
-tracked separately as a follow-up PR that cherry-picks just that remainder
-onto this PR once merged.
+PR #997 built the same 5 shared calculation-track engines as PR #995
+(CO-001, CO-003, FI-GL-002, FI-GL-007, FI-GL-008), plus 6 reports unique to
+it: SD-006 (Sales by Material/Service Type) and 6 AP/AR reports (FI-AP-001
+Vendor Line Items, FI-AR-001 Customer Line Items, FI-AP-002 Vendor
+Balances, FI-AP-003 AP Aging, FI-AR-002 Customer Balances, FI-AR-005
+Customer Credit Exposure). #995 was already merged (PR #1497) for the
+shared 5 -- this PR hand-applies ONLY #997's unique remainder onto the
+now-current main, skipping the 5 already-merged engines entirely to avoid
+duplication/conflict.
 
 ## Completed
-- [x] Found two stale local leftovers from an earlier same-day attempt at
-      this exact rebase (`rebase-995` and `rebase-995-b2`, both unpushed) --
-      both had silently deleted unrelated, still-live main functionality
-      (crm-service.ts -432 lines, action-autonomy-decision.ts removed
-      entirely + its test, CRM leads bulk-reassign/export/import routes
-      removed, 3 internal cron routes removed, `drizzle/0360_task_assignees`
-      itself deleted). Discarded both rather than building on top of a
-      corrupted base; did a fresh `git worktree add -b rebase-995-v2` from
-      current `origin/main` instead and a real 3-way `git merge` of PR #995's
-      actual source branch (`worker/task-20260806-091101-build-extend-
-      calculation-track-engines`, verified HEAD SHA matches GitHub exactly).
-- [x] Real merge conflicts (4 files, everything else auto-merged clean):
-      `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (both resolved
-      keep-both/append at the time -- corrected below, see note), `src/lib/
-      services/report-engine-service.ts` (two purely-additive import/
-      function-registry hunks, combined both sides), `drizzle/meta/
-      _journal.json` (renumbered, see below).
-- [x] Migration collision: PR #995's 5 migrations were authored as
-      `0313`-`0317` back when main was at that point (Aug 6); main was then
-      at `0360` (idx 315 in `_journal.json`, confirmed via `git cat-file -p
-      origin/main:drizzle/meta/_journal.json` -- plain `git show` truncates
-      blob output at ~31 lines on this box, a known gotcha). Checked
-      `ai-os/boss/ACTIVE-CLAIMS.yaml`'s live `active:` section and all ~30
-      currently-open PRs for any real reserved migration number above 0360:
-      none found. Renumbered all 5 to `0361`-`0365` (file renames via
-      `git mv` + matching `_journal.json` idx 316-320, contiguous, valid
-      JSON verified).
-- [x] `governance-yaml-parse`: clean. `bun test` on the two touched/new test
-      files: `erp-financial-report-service.test.ts` 17/17 pass,
-      `report-engine-service.test.ts` 21/21 pass. Repo-wide sweep for
-      leftover merge-conflict markers: none.
-- [x] `tsc --noEmit`: did not complete locally after ~40 minutes -- this
-      sandbox was under severe multi-session resource pressure (90+
-      concurrent `bash` processes observed at the time), the same
-      pre-existing sandbox limitation already documented elsewhere in this
-      file's own history. Deferred to CI's real Type Check job.
-- [x] Pushed, opened PR #1497 ("... [was #995]"), closed #995 citing
-      supersession.
-- [x] `main` moved 11 commits during the push/PR-open window (picked up
-      PR #1492 "rebase-968" and #1493 "rebase-1430-f020-gl-posting") --
-      re-merged `origin/main` into this branch. Real conflicts this pass:
-      `PROGRESS.md`, `drizzle/meta/_journal.json` only (both from the
-      routine append-only files; no code-file conflicts -- confirmed via
-      `git diff` on the incoming commit range touching none of the 5
-      service/route files this PR changes).
-- [x] **Correction on this re-merge**: this file (`PROGRESS.md`) explicitly
-      documents its own convention two entries back ("this file follows this
-      repo's established convention of holding only the *current* active
-      entry, not an accumulated log ... a prior invocation of this same task
-      had mistakenly concatenated three old entries end-to-end here instead;
-      that mistake is corrected in this pass, not repeated"). My first
-      conflict resolution on this file (the keep-both/append noted above)
-      repeated exactly that mistake. Fixed here: replaced wholesale with
-      only this current entry, per the file's own documented rule.
+- [x] Fetched PR #997's real source branch
+      (`worker/task-20260806-104218-build-extend-calculation-track-engines`),
+      verified its HEAD SHA matches GitHub exactly.
+- [x] Diffed #997 against its own real merge-base to isolate its true
+      30-file scope, then read every touched file's diff function-by-
+      function to separate the 5 already-merged shared functions
+      (`listJournalEntryLinesByCostCenter`/CO-001,
+      `costCenterHierarchyReport`/CO-003 in erp-accounting-service.ts;
+      `glAccountBalanceDisplay`/FI-GL-002,
+      `glAccountGroupBalancesSummary`/FI-GL-008,
+      `subledgerToGlReconciliation`+helpers/FI-GL-007 in
+      erp-financial-report-service.ts, plus its FORMULA_REGISTRY entry in
+      report-engine-service.ts) from the 7 genuinely unique ones. Confirmed
+      by name against current main (post-#1497) that the 5 shared functions
+      already exist there -- skipped erp-financial-report-service.ts and
+      erp-financial-report-service.test.ts entirely (100% shared-5 content,
+      zero unique lines), and skipped the CO-001/CO-003 code already inside
+      erp-accounting-service.ts's diff.
+- [x] Hand-applied the genuinely unique remainder:
+      - `src/lib/services/erp-accounting-service.ts`: +listVendorLineItems
+        (FI-AP-001) / +listCustomerLineItems (FI-AR-001) /
+        +listJournalEntryLinesByParty helper, +erpSuppliers/erpCustomers
+        imports.
+      - `src/lib/services/erp-invoicing-service.ts`: +apAgingReport
+        (FI-AP-003), +vendorBalances/+customerBalances (FI-AP-002/
+        FI-AR-002), +customerCreditExposure (FI-AR-005), +isNotNull import.
+      - `src/lib/services/report-engine-service.ts`: +SD-006
+        (`aggregateSalesByMaterialServiceType` pure function +
+        `salesByMaterialServiceTypeReport` DB wrapper +
+        `sales_by_material_service_type` FORMULA_REGISTRY entry),
+        +erpSalesInvoiceItems/erpItems/erpItemGroups imports. Verified all
+        field names (itemCode/itemName/itemGroupId/standardBuyingRate/
+        groupName) against current schema.ts directly, not assumed.
+      - `src/lib/services/report-engine-service.test.ts`: +SD-006's full
+        `aggregateSalesByMaterialServiceType` test suite (6 tests, pure
+        function, no DB).
+      - 6 new API routes under `src/app/api/erp/reports/{ap-aging,
+        customer-balances,customer-credit-exposure,customer-line-items,
+        vendor-balances,vendor-line-items}/route.ts` -- copied verbatim
+        from #997 (function names/signatures unchanged).
+- [x] Migration-registration gap fixed (this was #997's real, disclosed
+      defect: it never registered its 7 migrations in
+      `drizzle/meta/_journal.json` at all). Renumbered #997's original
+      `0318`-`0324` to genuinely free `0501`-`0507` (main's real highest
+      migration is `0500`, confirmed via `git cat-file -p
+      origin/main:drizzle/meta/_journal.json`; checked
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`'s live `active:` section for any
+      `05xx` reservation -- none found) and appended all 7 as new
+      contiguous `_journal.json` entries (idx 322-328), validated as
+      well-formed JSON.
 
 ## Remaining
-- [ ] Push this re-merge, confirm CI is green on PR #1497 for real (not
-      assumed), merge.
-- [ ] Move the corresponding `ai-os/boss/ACTIVE-CLAIMS.yaml` entry
-      (`task-20260806-091101-build-extend-calculation-track-engines`) from
-      `active:` to `recently_completed:` once merged, per this file's Rule 3.
+- [ ] governance-yaml-parse, tsc --noEmit, bun test (new files) -- run and
+      confirm clean.
+- [ ] Push, open PR, close #997 citing this plan.
+- [ ] Wait for real CI, merge if green (same standard as PR #1497 -- treat
+      pre-existing/unrelated CI noise, if any, the same way, not blindly).

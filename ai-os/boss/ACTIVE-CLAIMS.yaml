@@ -40,6 +40,33 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (cherry-997-remainder) -- SD-006 + 6 AP/AR calculation-track engines: hand-applied remainder of PR #997 after PR #995 (PR #1497) merged the shared 5 engines"
+    claimed_at: "2026-08-31T (this session)"
+    claim: |
+      PR #995 and PR #997 independently built the same 5 report engines (CO-001, CO-003,
+      FI-GL-002, FI-GL-007, FI-GL-008). Owner decision: #995 wins the shared 5 (correct
+      drizzle/meta/_journal.json registration + matches main's existing /api/v1/projexa/
+      routing convention that #997 didn't use) -- merged as PR #1497. This claim covers
+      the separate follow-up: #997's own 6 unique reports (SD-006 Sales by Material/
+      Service Type, FI-AP-001 Vendor Line Items, FI-AR-001 Customer Line Items, FI-AP-002
+      Vendor Balances, FI-AP-003 AP Aging, FI-AR-002 Customer Balances, FI-AR-005 Customer
+      Credit Exposure), hand-extracted from #997's real diff (skipping every line
+      belonging to the 5 already-merged shared functions) and applied onto current main
+      in a fresh worktree (branch cherry-997-remainder).
+
+      #997's own real, disclosed defect (never registered its migrations in
+      drizzle/meta/_journal.json at all) is fixed here: renumbered 0318-0324 ->
+      0501-0507 (main's real highest migration is 0500) and registered all 7 as
+      contiguous _journal.json entries.
+
+      File scope: src/lib/services/erp-accounting-service.ts (+listVendorLineItems/
+      +listCustomerLineItems), src/lib/services/erp-invoicing-service.ts
+      (+apAgingReport/+vendorBalances/+customerBalances/+customerCreditExposure),
+      src/lib/services/report-engine-service.ts (+SD-006 formula +registry entry)
+      (+.test.ts), 6 new API routes under src/app/api/erp/reports/**, 7 new drizzle
+      migrations + _journal.json, PROGRESS.md, this file. Does NOT touch
+      erp-financial-report-service.ts or its test file -- #997's diff there was 100%
+      the already-merged shared-5 content (FI-GL-002/007/008), zero unique lines.
   - session_label: "claude-code (task-20260805-185202-ocid-020-gtm-cert-addendum--fix-pre-auth) -- real fix for GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN: /pricing, /contact, /terms, /privacy still render hardcoded VERIDIAN wordmark/tagline/footer text instead of resolving per-host brand"
     claimed_at: "2026-08-05T18:52Z (this session, in progress)"
     claim: |

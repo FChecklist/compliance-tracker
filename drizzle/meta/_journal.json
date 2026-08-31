@@ -2255,6 +2255,55 @@
       "when": 1788174991342,
       "tag": "0500_construction_expense_journal_entry_id",
       "breakpoints": true
+    },
+    {
+      "idx": 322,
+      "version": "7",
+      "when": 1788175000000,
+      "tag": "0501_fi_ap_001_vendor_line_items_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 323,
+      "version": "7",
+      "when": 1788175001000,
+      "tag": "0502_fi_ar_001_customer_line_items_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 324,
+      "version": "7",
+      "when": 1788175002000,
+      "tag": "0503_fi_ap_002_vendor_balances_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 325,
+      "version": "7",
+      "when": 1788175003000,
+      "tag": "0504_fi_ap_003_ap_aging_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 326,
+      "version": "7",
+      "when": 1788175004000,
+      "tag": "0505_fi_ar_002_customer_balances_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 327,
+      "version": "7",
+      "when": 1788175005000,
+      "tag": "0506_fi_ar_005_customer_credit_exposure_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 328,
+      "version": "7",
+      "when": 1788175006000,
+      "tag": "0507_sd006_sales_by_material_service_type_report_definition",
+      "breakpoints": true
     }
   ]
 }
