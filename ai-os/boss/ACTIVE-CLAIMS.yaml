@@ -421,6 +421,63 @@ active:
       matching this file's own pre-existing 2026-08-02 finding ("https://projexa-ai.com does not
       serve the PROJEXA application right now... routing... explicitly deferred") -- a real
       domain/deployment-routing gap, not a page-code bug, left untouched here.
+  - session_label: "claude-code (task-20260806-091101-build-extend-calculation-track-engines) -- rebuild 5 stranded calculation-track engines (CO-001/CO-003/FI-GL-002/FI-GL-007/FI-GL-008) from dead sibling PRs #643/#647"
+    claimed_at: "2026-08-06T09:11Z (this session)"
+    claim: |
+      SPEC: build/extend only calculation-track engines marked BUILD_NEW/EXTEND_EXISTING in the
+      real PHASE-2-CROSSREF (`sap_reports` table, `/opt/veridian/ai-os/memory/sap_mapping.sqlite`,
+      `engine_track`/`veridian_mapping_status` columns -- confirmed via direct sqlite query, same
+      resolution the workflow-track sibling task (`task-20260729-112447`) already established).
+      Scope: `engine_track='calculation' AND veridian_mapping_status IN (BUILD_NEW,
+      EXTEND_EXISTING(...))` = 36 rows.
+      COLLISION CHECK: this exact task title has been dispatched repeatedly since 2026-07-29 (a
+      known dispatcher-duplication class, per the workflow-track sibling's own claim entry below).
+      Found real prior work, not starting from scratch: PR #643 (DIRECTIVE-001-PHASE-3-BUILD-CALC)
+      was rebased 2026-07-31 down to 4 clean surviving functions (CO-001, CO-003, FI-GL-002,
+      FI-GL-008 -- its other 4 originally-claimed functions are confirmed already separately merged:
+      FI-AR-006/PR #645, FI-AP-006/PR #651, FI-AA-006/PR #648; FI-GL-007 was deliberately dropped
+      from #643 in favor of the separately-open PR #647 which builds it more completely). Both #643
+      and #647 are currently `mergeable: CONFLICTING`/stale (multiple unrelated merges into main
+      since), and #647's `audit-check` is failing (no AUDIT verdict posted yet). Independently
+      re-verified via `git grep` on `origin/main` that none of CO-001/CO-003/FI-GL-002/FI-GL-007/
+      FI-GL-008's function names exist anywhere on main today, and no other open PR claims them.
+      Plan: reimplement these 5 functions fresh on a clean branch off current main (same designs
+      already reviewed/tsc-clean in #643/#647, not re-derived from scratch), add the report_definitions
+      migration + report-catalog-service.ts entry + API route + real tests each is currently missing
+      (a gap both #643 and #647 already disclosed, not introduced here), and register each in
+      wiring_registry immediately per-function per this task's own spec, rather than force-pushing
+      onto either stale/conflicting branch. Leaving PR #643/#647 as-is (not closing them) for whoever
+      owns reconciling those branches -- noting the overlap here per this file's protocol #4.
+    status_update: |
+      2026-08-06 (later same session): all 5 functions implemented fresh on this branch (real
+      DB-backed logic, no placeholders) + report_definitions migrations (drizzle/0313-0317) +
+      report-catalog-service.ts entries + 5 API routes + 17 new DB-free unit tests. Checked
+      wiring_registry directly (generate_wiring_registry.py): it's a mechanically regenerated
+      snapshot from existing catalogs, not a manual per-file registration step -- confirmed no
+      precedent PR for this same task (FI-AA-006 #648, FI-AR-006 #645, FI-AP-006 #651, HCM-006
+      #654) performed one either. tsc --noEmit clean, bun test 2529/2529 pass. PR open:
+      https://github.com/FChecklist/compliance-tracker/pull/995 -- awaiting CI, will move this
+      entry to recently_completed once merged.
+      NOT touching: SD-006 (open PR #652, real code, CONFLICTING) or CO-006 (open PR #653, real code,
+      CONFLICTING) -- both already have complete implementations (migrations/routes/tests) sitting in
+      their own open PRs; redoing them here would be pure duplication, reconciling those merge
+      conflicts is a separate task, not a build/extend gap.
+    scope_note: >-
+      File scope: compliance-tracker only -- src/lib/services/erp-accounting-service.ts (+test),
+      src/lib/services/erp-financial-report-service.ts (+test), new drizzle migrations, new API
+      routes under src/app/api/v1/projexa/, src/lib/services/report-catalog-service.ts (append-only,
+      end of array per established merge-conflict-avoidance convention), PROGRESS.md, this file. No
+      overlap with PR #643/#647/#652/#653's own branches (this is a fresh branch off main).
+    status_update_2026-08-31_rebase995v2: |
+      PR #997 independently built the SAME 5 engines with a different implementation. Owner
+      decision: #995 wins the shared 5 (correct _journal.json registration + matches main's
+      `/api/v1/projexa/` routing convention that #997 didn't use); #997's own 6 unique reports
+      (SD-006 + FI-AP-001/002/003 + FI-AR-001/002/005) move to a separate follow-up PR after this
+      one merges. Rebased #995's real source branch onto current main (branch `rebase-995-v2`,
+      fresh worktree -- discarded two stale/corrupted same-day local rebase attempts,
+      `rebase-995`/`rebase-995-b2`, that had silently deleted unrelated live main code). Migrations
+      renumbered `0313-0317` -> `0361-0365` (main's real highest is now `0360`; checked this file's
+      live `active:` section + all open PRs for higher reserved numbers, none found).
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
@@ -3946,6 +4003,27 @@ active:
       (Banking Engine section only), docs/master/CAPABILITY_COVERAGE.md,
       PROGRESS.md. No permission-service.ts or RBAC touch -- out of scope
       for this area. Full detail in this task's own PROGRESS.md.
+  - session_label: "claude-code (worker task-20260718-074004-accessibility--wcag-compliance---navigat) -- Accessibility (WCAG): Navigation & Input Accessibility"
+    claimed_at: "2026-08-15T (this session, invocation 14/20)"
+    pr: "https://github.com/FChecklist/compliance-tracker/pull/1224 (superseded 2026-08-31: rebased onto current main and re-opened as a new PR after main advanced substantially since Aug-15 creation -- see that rebase's own PR body for the real conflicts hit, incl. the veridian-ui-kit sidebar/topbar migration that superseded most of this claim's original AppSidebar.tsx work)"
+    claim: |
+      Task had 20 prior invocations that never touched real code (all either
+      OpenRouter-balance pre-flight rejections or blank in_progress/failed
+      checkpoints with only PROGRESS.md modified -- see task.yaml checkpoint
+      history). No spec beyond the title existed (no prompt.txt in the
+      workspace). Scoped it myself to the persistent authenticated-app nav
+      chrome: src/components/AppShell.tsx, src/components/AppSidebar.tsx,
+      src/components/AppTopbar.tsx, messages/{en,hi}.json. Added: a
+      skip-to-main-content link + id="main-content"/tabIndex={-1} landmark
+      on both <main> branches (WCAG 2.4.1 Bypass Blocks); aria-label on the
+      two sidebar <nav> landmarks (quick-nav + modules) and aria-current=
+      "page" on every nav Link, sidebar mobile hamburger trigger; aria-label
+      on the topbar's icon-only notification bell (includes unread count),
+      sidebar-collapse toggle, and user-menu trigger (WCAG 4.1.2 Name/Role/
+      Value, 2.4.4 Link Purpose). Did NOT touch the shadcn Form/FormControl
+      primitives (src/components/ui/form.tsx) -- already wires aria-invalid/
+      aria-describedby/htmlFor correctly, verified by reading it, not a real
+      gap. Scope is these ~4 files only; no DB/API/RLS surface touched.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
@@ -6440,6 +6518,38 @@ active:
       compilation, no live DB). Not touching capture.ts/embed.ts/chunker.ts
       (they don't exist on this branch's base) or any other CRR P2/P3 file.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-075004-architecture---design--reusability-acros) -- VERIDIAN Review Framework: Architecture & Design / Reusability Across Scope, 2 Low findings"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "FChecklist/compliance-tracker (rebased PR, was #1225 -- see rebase-batch-1225-fresh branch)"
+    summary: |
+      Both findings checked against live code first, per the task's own
+      instruction that the evaluation may be stale. Finding 1 ("Feature
+      Reusability Across Projects/Modules", recommended fix "Add API
+      versioning e.g. /api/v1/projexa vs /api/v2/projexa before breaking
+      changes") turned out to be already built -- /api/v1/** has existed
+      since Wave 11 (2026-07-03) and /api/v1/projexa/** is a live ~60-route
+      alias namespace; what was genuinely missing (and already flagged by
+      ERP_BENCHMARK_COMPARISON.md's own INT004 row) was a written
+      versioning policy, not the mechanism -- added one as a new section in
+      docs/API_CHANGELOG.md (additive-vs-breaking rules, per-namespace
+      version scoping, 90-day deprecation window). Finding 2 ("Module
+      Reusability Across Industries", "document which of the 416 tables
+      are compliance-specific vs universal") had a real, previously
+      undocumented gap -- built scripts/classify-schema-tables.mjs (static
+      analysis of schema.ts, no DB access, re-runnable as the schema
+      grows) and generated docs/TABLE_REUSABILITY_CLASSIFICATION.md: of
+      431 live tables (grown from 416 since the evaluation), 322 (74.7%)
+      universal/platform, 87 (20.2%) compliance-specific, 22 (5.1%)
+      industry-vertical (PROJEXA construction/interior-design -- itself
+      live evidence of cross-industry reuse). Caught and fixed one real
+      classification bug during review: 10 generic platform-infra tables
+      (application_errors, platform_assets, instruction_packages, etc.)
+      only live under schema.ts's "Construction Intelligence (Wave 120)"
+      comment for chronological reasons and were initially mis-bucketed as
+      industry_vertical by the section-header fallback before an explicit
+      name rule was added. Doc-only changes (2 new files, 2 docs edited);
+      did not touch permission-service.ts's ERP_ACTION_ROLES or any other
+      in-flight track's scope.
   - session_label: "claude-code (task-20260718-072002-ai-model-lifecycle---benchmarking--ongoi) -- VERIDIAN Review Framework gap-closure, 3 findings: per-role quality regression tracking, cost-per-quality-point tracking, provider-outage/role-failure correlation [DONE, PR #1229 rebased onto main and re-opened, this rebase session]"
     claimed_at: "2026-08-15T (this session)"
     merged_as: "FChecklist/compliance-tracker (rebased PR, was #1229 -- see rebase-wt-1229 branch)"

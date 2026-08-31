@@ -1,96 +1,77 @@
-# PROGRESS — 2026-08-31: rebase-and-merge of PR #968 (supersedes sibling PR #966)
+# PROGRESS -- rebase-995-v2 (replacement for PR #995, winner of #995 vs #997)
 
-Two independent PRs (#968, #966), opened 48 minutes apart against the same real gap
-(GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN: /pricing, /contact, /terms, /privacy
-render hardcoded VERIDIAN wordmark instead of resolving per-host brand), neither aware
-of the other. Decision (owner-directed): #968 is the broader/more complete PR --
-it covers /pricing, /contact, /terms, /privacy AND a real tagline field on
-`PreAuthBrand` (org-branding-service.ts, backed by the pre-existing unused
-`product_branches.tagline` column) that #966 does not touch. #966 is narrower
-(pricing only) but does include a real, honest cross-PR collision check in its own
-body, correctly finding and deferring to sibling PR #965 (a different, already-real
-PR covering /signup + /mfa-challenge, unaffected by this decision).
+## Scope
 
-Rebase performed in an isolated worktree (`rebase-968` branch): fetched PR #968's
-real head branch (`worker/task-20260805-185202-ocid-020-gtm-cert-addendum--fix-pre-auth`),
-merged it onto fresh `origin/main`, then merged `origin/main` again to pick up
-anything that landed mid-rebase. Opened as PR #1492. `main` moved forward again
-(picking up #1490 "rebase-1014-fixed" and #1491) before #1492 could merge, so this
-entry also covers that second, later re-merge.
+PR #995 and PR #997 independently built the same 5 report engines
+(CO-001, CO-003, FI-GL-002, FI-GL-007, FI-GL-008). #995 was chosen as the
+winner: it registers its migrations correctly in
+`drizzle/meta/_journal.json` (#997 does not) and routes cost-center reports
+under `/api/v1/projexa/` matching main's existing convention (`ar-aging`,
+`asset-to-gl-reconciliation` already live there; #997 instead used a new
+`/api/erp/reports/` prefix for these two). #997's 6 unique reports
+(SD-006, FI-AP-001/002/003, FI-AR-001/002/005) are NOT part of this PR --
+tracked separately as a follow-up PR that cherry-picks just that remainder
+onto this PR once merged.
 
-## Conflicts resolved
-- `PROGRESS.md`: this file follows this repo's established convention of holding only
-  the *current* active entry, not an accumulated log (confirmed against origin/main's
-  real content, which itself held only its own single latest entry, "rebase-1014-fixed",
-  with nothing older). Replaced wholesale with this entry rather than concatenating --
-  a prior invocation of this same task had mistakenly concatenated three old entries
-  end-to-end here instead; that mistake is corrected in this pass, not repeated.
-- `ai-os/boss/ACTIVE-CLAIMS.yaml`: kept-both -- current main's full `active:`/
-  `recently_completed:` sections preserved verbatim, with PR #968's own
-  `task-20260805-185202-ocid-020-gtm-cert-addendum` claim entry (absent from main,
-  since the PR hadn't merged yet) inserted at the top of `active:`. Re-validated
-  parseable with `js-yaml` (`json: true` mode, matching
-  `check-governance-yaml-parse.mjs`'s own loader) both before and after. Auto-merged
-  clean on the later re-merge against #1490/#1491 -- no further hand resolution needed.
-- `ai-os/registry/terminology-guardrail-exemptions.yaml`: auto-merged clean on the
-  later re-merge (main's own concurrent edits were in unrelated entries).
-- `src/app/pricing/page.tsx`: real conflict -- HEAD (current main at the time) still had
-  the old, pre-split, fully-client-side monolithic page; PR #968's side is the new async
-  Server Component + `pricing-client.tsx` split. Took PR #968's side. Main had
-  independently made 5 small unrelated changes to the old file since PR #968 branched
-  (2026-08-05) -- an `aria-hidden="true"` accessibility fix on the decorative logo
-  glyph, and 4 `text-ct-saffron` -> `text-ct-saffron-text` design-token renames
-  (confirmed real and repo-wide via `git diff <merge-base> origin/main`, and that
-  `ct-saffron-text` is genuinely used in 20+ other files) -- both re-applied onto the
-  new `pricing-client.tsx` so neither regresses.
-- This PR's own body claims a `bunfig.toml` addition; confirmed via
-  `git diff --cached --name-only` that no such file is actually part of the real diff
-  -- ignored per the triage note, harmless stale claim.
+## Completed
+- [x] Found two stale local leftovers from an earlier same-day attempt at
+      this exact rebase (`rebase-995` and `rebase-995-b2`, both unpushed) --
+      both had silently deleted unrelated, still-live main functionality
+      (crm-service.ts -432 lines, action-autonomy-decision.ts removed
+      entirely + its test, CRM leads bulk-reassign/export/import routes
+      removed, 3 internal cron routes removed, `drizzle/0360_task_assignees`
+      itself deleted). Discarded both rather than building on top of a
+      corrupted base; did a fresh `git worktree add -b rebase-995-v2` from
+      current `origin/main` instead and a real 3-way `git merge` of PR #995's
+      actual source branch (`worker/task-20260806-091101-build-extend-
+      calculation-track-engines`, verified HEAD SHA matches GitHub exactly).
+- [x] Real merge conflicts (4 files, everything else auto-merged clean):
+      `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (both resolved
+      keep-both/append at the time -- corrected below, see note), `src/lib/
+      services/report-engine-service.ts` (two purely-additive import/
+      function-registry hunks, combined both sides), `drizzle/meta/
+      _journal.json` (renumbered, see below).
+- [x] Migration collision: PR #995's 5 migrations were authored as
+      `0313`-`0317` back when main was at that point (Aug 6); main was then
+      at `0360` (idx 315 in `_journal.json`, confirmed via `git cat-file -p
+      origin/main:drizzle/meta/_journal.json` -- plain `git show` truncates
+      blob output at ~31 lines on this box, a known gotcha). Checked
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`'s live `active:` section and all ~30
+      currently-open PRs for any real reserved migration number above 0360:
+      none found. Renumbered all 5 to `0361`-`0365` (file renames via
+      `git mv` + matching `_journal.json` idx 316-320, contiguous, valid
+      JSON verified).
+- [x] `governance-yaml-parse`: clean. `bun test` on the two touched/new test
+      files: `erp-financial-report-service.test.ts` 17/17 pass,
+      `report-engine-service.test.ts` 21/21 pass. Repo-wide sweep for
+      leftover merge-conflict markers: none.
+- [x] `tsc --noEmit`: did not complete locally after ~40 minutes -- this
+      sandbox was under severe multi-session resource pressure (90+
+      concurrent `bash` processes observed at the time), the same
+      pre-existing sandbox limitation already documented elsewhere in this
+      file's own history. Deferred to CI's real Type Check job.
+- [x] Pushed, opened PR #1497 ("... [was #995]"), closed #995 citing
+      supersession.
+- [x] `main` moved 11 commits during the push/PR-open window (picked up
+      PR #1492 "rebase-968" and #1493 "rebase-1430-f020-gl-posting") --
+      re-merged `origin/main` into this branch. Real conflicts this pass:
+      `PROGRESS.md`, `drizzle/meta/_journal.json` only (both from the
+      routine append-only files; no code-file conflicts -- confirmed via
+      `git diff` on the incoming commit range touching none of the 5
+      service/route files this PR changes).
+- [x] **Correction on this re-merge**: this file (`PROGRESS.md`) explicitly
+      documents its own convention two entries back ("this file follows this
+      repo's established convention of holding only the *current* active
+      entry, not an accumulated log ... a prior invocation of this same task
+      had mistakenly concatenated three old entries end-to-end here instead;
+      that mistake is corrected in this pass, not repeated"). My first
+      conflict resolution on this file (the keep-both/append noted above)
+      repeated exactly that mistake. Fixed here: replaced wholesale with
+      only this current entry, per the file's own documented rule.
 
-## Terminology Guardrail Check
-`node scripts/check-terminology-guardrail.mjs` found 10 real (not previously
-exempted) `hardcoded_iso_date` findings across 9 files touched by this PR --
-all genuine dated code comments (this repo's established "cite the real UMR/date
-this change implements" convention), not example/placeholder data. Added/raised
-exemption entries in `ai-os/registry/terminology-guardrail-exemptions.yaml` (2 raised:
-`org-branding-service.ts` 3->4, `org-branding-service.test.ts` 1->2; 7 new file
-entries: contact/data-policy/pricing/privacy/terms page.tsx, pricing-client.tsx,
-LegalShell.tsx). Re-ran the check clean after.
-
-**Real, honestly-flagged finding: this check (and the mandatory-audit-check.yml
-workflow this task's own setup instructions expected to gate this PR) were BOTH
-already removed from this repo 13 days before this task ran** -- commit `c37f91c9`
-("chore: remove dispatch machinery workflows and guardrail scripts", PR #1301,
-2026-08-18, real Owner-authored commit) deleted `mandatory-audit-check.yml` and
-dropped `terminology-guardrail-check` (plus guardrail-presence, asset-registry-
-coverage, metadata-index-coverage, doc-quarantine-banner, doc-cross-references) from
-`ci.yml`'s job list entirely -- confirmed by reading `ci.yml`'s actual current job
-names (`lint`, `typecheck`, `build`, `unit-tests`, `migration-collision-check`,
-`route-error-handling-check`, `migration-integrity-check`,
-`governance-yaml-parse-check`, `migration-schema-drift-check`, `new-test-coverage`,
-`test-coverage-gap-report`, E2E) and via `git log --all -- .github/workflows/
-mandatory-audit-check.yml`. Neither check can fail CI on this PR today. Did the
-guardrail-exemption work anyway (real debt, real governance file, still worth
-keeping accurate even though nothing currently enforces it) and posted a genuine
-`AUDIT: PASS` comment per Rule 7(c)'s still-sound doer/auditor-separation practice
--- but not framed as satisfying a CI gate that no longer exists.
-
-## Verification run this session
-- `node scripts/check-governance-yaml-parse.mjs` -- pass (5/5 governance files parse)
-- `node scripts/check-terminology-guardrail.mjs --file <9 touched files>` -- pass,
-  0 new findings, after the exemption updates above
-- `bunx tsc --noEmit` (`NODE_OPTIONS=--max-old-space-size=4096`) -- clean, no errors
-  attributable to this change
-- `bun test src/lib/services/org-branding-service.test.ts` -- pass (see this file's
-  own commit history for the earlier machine-load timeout flake root-cause note,
-  unrelated to this PR's diff)
-
-## Remaining (this later re-merge pass)
-- [x] Re-merge `origin/main` (picked up #1490 "rebase-1014-fixed" and #1491
-      "r65-part-b-autonomy-gate") -- only `PROGRESS.md` needed hand resolution,
-      `ai-os/boss/ACTIVE-CLAIMS.yaml` and `terminology-guardrail-exemptions.yaml`
-      auto-merged clean.
-- [x] Close #966 for real -- an earlier invocation of this task had posted #966's
-      "closing as superseded" comment but never actually called the close-PR API;
-      the PR was still open. Closed for real this pass.
-- [ ] Push, wait for CI, merge #1492.
+## Remaining
+- [ ] Push this re-merge, confirm CI is green on PR #1497 for real (not
+      assumed), merge.
+- [ ] Move the corresponding `ai-os/boss/ACTIVE-CLAIMS.yaml` entry
+      (`task-20260806-091101-build-extend-calculation-track-engines`) from
+      `active:` to `recently_completed:` once merged, per this file's Rule 3.
