@@ -77,7 +77,7 @@ export function ApprovalMatrixSection() {
                     <td className="p-3">
                       {step.requiredApprovals}
                       {step.highImpactCategory && (
-                        <Badge className={`ml-2 ${step.fourEyesSatisfied ? "bg-ct-teal/10 text-ct-teal" : "bg-ct-saffron/10 text-ct-saffron"}`}>
+                        <Badge className={`ml-2 ${step.fourEyesSatisfied ? "bg-ct-teal/10 text-ct-teal" : "bg-ct-saffron/10 text-ct-saffron-text"}`}>
                           {step.fourEyesSatisfied ? "four-eyes" : "four-eyes required"}
                         </Badge>
                       )}

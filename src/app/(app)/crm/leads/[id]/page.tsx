@@ -32,7 +32,7 @@ type StageHistoryEntry = { id: string; fromStage: string | null; toStage: string
 type Activity = { id: string; activityType: string; subject: string; dueDate: string | null; status: string; priority: string; notes: string | null; createdAt: string };
 
 const LEAD_STATUS_COLORS: Record<string, string> = {
-  new: "bg-ct-cloud text-ct-muted", contacted: "bg-ct-saffron/20 text-ct-saffron", qualified: "bg-ct-teal/20 text-ct-teal",
+  new: "bg-ct-cloud text-ct-muted", contacted: "bg-ct-saffron/20 text-ct-saffron-text", qualified: "bg-ct-teal/20 text-ct-teal",
   converted: "bg-green-100 text-green-700", lost: "bg-red-100 text-red-700",
 };
 
@@ -140,7 +140,7 @@ export default function LeadDetailPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="rounded-xl shadow-card bg-white md:col-span-2">
-          <CardHeader><CardTitle className="text-sm font-semibold text-ct-navy flex items-center gap-2"><Sparkles className="size-4 text-ct-saffron" /> AI Score</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm font-semibold text-ct-navy flex items-center gap-2"><Sparkles className="size-4 text-ct-saffron-text" /> AI Score</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {lead.aiScore != null ? (
               <>

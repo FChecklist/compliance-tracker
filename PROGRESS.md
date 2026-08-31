@@ -1,309 +1,110 @@
-# PROGRESS -- task-20260729-112447-build-extend-workflow-track-engines
+# PROGRESS -- rebase-sweep2-655 (replacement for PR #655)
+
+## Scope
+
+Replacement PR for #655 (CRM-007 "Sales Representative Performance
+Dashboard", branch `crm-007-sales-rep-performance-dashboard`). Triage
+confirmed a real, additive, well-evidenced gap: independently fetched
+current main's `src/lib/services/crm-service.ts` (1792 lines) and grepped
+for `salesRepPerformance`/`SalesRepPerformance`/`aggregateSalesRepPerformance`/
+`getSalesRepPerformanceDashboard` -- zero matches. The PR adds a new pure
+aggregator `aggregateSalesRepPerformance()` + `getSalesRepPerformanceDashboard()`
+and a new route `GET /api/v1/projexa/sales-rep-performance` -- real,
+still-missing functionality, distinct from the pipeline-overview and
+pipeline-dashboard functions already on main (`getSalesPipelineOverview`
+at crm-service.ts:961, `getSalesPipelineDashboardData` at :1168).
 
 ## Completed
-- [x] Read AGENTS.md/CLAUDE.md governance chain and `ai-os/boss/ACTIVE-CLAIMS.yaml` protocol before picking work
-- [x] Located the real PHASE-2-CROSSREF: `sap_reports` table in `/opt/veridian/ai-os/memory/sap_mapping.sqlite`
-      (`engine_track` + `veridian_mapping_status` columns), not a markdown file -- confirmed via direct sqlite
-      query and cross-checked against PR #624 / task-20260729-001528's discoverability doc.
-- [x] Scoped work: `engine_track='workflow' AND veridian_mapping_status IN ('BUILD_NEW', 'EXTEND_EXISTING(...)')`
-      = 2 rows: **SD-002** (Billing Due List) and **SD-007** (Sales Order -- Status Overview). Both BUILD_NEW.
-      0 workflow-track EXTEND_EXISTING rows exist. (Treasury-002 is workflow-track but REUSE_EXISTING -- out of
-      scope by spec.)
-- [x] Found the real `wiring_registry`: live sqlite table in `/opt/veridian/ai-os/memory/superboss-register.sqlite`
-      (host-level, shared, NOT this repo), registered via `/opt/veridian/scripts/superboss-register.py
-      register-entity` per `ai-os/WIRING_ENGINE_SCHEMA_2026-07-25.yaml` (separate claude-control repo).
-- [x] Collision check: 8 sibling branches with the identical task title exist (dispatcher duplication storm,
-      2026-07-29 09:29-11:19Z, affecting both workflow-track and calculation-track build tasks). Only 2 have any
-      commit beyond main, both claim-registration-only, zero engine code, no open PR. Proceeding given the tiny
-      real scope (2 engines) and zero competing implementation -- registered claim in ACTIVE-CLAIMS.yaml
-      documenting this.
-- [x] Dispatched research agent to survey existing workflow/state-machine patterns in this repo before writing
-      any code, per spec's "these are state machines, do not force the wrong shape" instruction. Findings:
-      erp-selling-service.ts's `QUOTATION_TRANSITIONS`/`updateQuotationStatus` (explicit `Record<Status,
-      readonly Status[]>` transition table) is the established convention -- no shared state-machine helper
-      exists in this repo, every status-flow service hand-rolls its own map. `constructionInterimBills` has NO
-      status column (generateInterimBill() goes straight from work-progress % to a posted invoice in one call) --
-      confirmed a new table is genuinely needed, not an extension of an existing one.
-- [x] Built both engines as ONE service, `src/lib/services/construction-billing-workflow-service.ts` (they share
-      the same underlying table/state machine -- SD-002 is the queue view, SD-007 is the per-claim trace view):
-      - New table `constructionProgressClaims` + `constructionClaimStatusEnum` (schema.ts + hand-written
-        migration `drizzle/0269_construction_progress_claims_workflow.sql`, same convention as
-        0268_pms_time_entry_approval_flow.sql -- drizzle-kit generate can't diff against an accurate baseline,
-        confirmed via that migration's own header)
-      - State machine: `milestone_achieved -> drafted -> submitted -> client_approved -> invoiced` (+ `rejected`
-        bounce-back to `drafted`), modeled on `QUOTATION_TRANSITIONS`
-      - `invoiceApprovedClaim` delegates the real bill computation to the existing `generateInterimBill()` --
-        never recomputes it, this service's job stops at the state transition
-      - `listBillingDueQueue` = SD-002's "Ready to Bill" worklist (overdue flag when scheduledDate has passed)
-      - `getClaimTimeline` = SD-007's "Claim Timeline" document-flow trace (claim -> interim bill -> sales
-        invoice -> payment, `isStuck` flag past a documented 14-day threshold)
-- [x] Wired 7 API routes under `src/app/api/construction/progress-claims/` (list/create, draft, submit, approve,
-      reject, invoice, timeline), mirroring `interim-bills/route.ts` and `kpi-entries/[id]/approve/route.ts`'s
-      exact `requireAuth`/`requireRole`/`ServiceError` conventions
-- [x] Registered the new engine file in the real wiring_registry immediately after writing it (`register-entity`
-      CLI, `entity_id: file-0586774ff0fd`) -- `verification_status: PATH_MISSING` is honest, not a defect: the
-      canonical path (`repos/compliance-tracker/...`) won't exist until this branch merges
-- [x] 14 unit tests (`construction-billing-workflow-service.test.ts`, same mock-`withTenantContext` pattern as
-      `pms-time-service.test.ts`) -- all pass, plus the 2 neighboring service test files (38 total, 0 fail)
-- [x] `tsc --noEmit` clean on all new/changed files, `eslint` clean, `check-terminology-guardrail.mjs`/
-      `check-guardrail-presence.mjs`/`check-metadata-index-coverage.mjs`/`check-migration-collision.mjs` all pass
 
-- [x] Opened PR #629: https://github.com/FChecklist/compliance-tracker/pull/629
+- [x] Worktree: `git merge origin/main` onto the PR's real head branch
+      (`crm-007-sales-rep-performance-dashboard`) in a scratch worktree at
+      `C:\Users\Dell\AppData\Local\Temp\wtree-sweep2-655`. 5 real conflicts
+      -- `PROGRESS.md`, `ai-os/registry/terminology-guardrail-exemptions.yaml`,
+      `drizzle/meta/_journal.json`, `src/lib/services/crm-service.test.ts`,
+      `src/lib/services/crm-service.ts` -- all 5 exactly matching this repo's
+      documented recurring gotchas, none skipped or force-picked:
+      - `PROGRESS.md` -- replaced wholesale (this file, this repo's own
+        established convention: holds only the current active entry). The
+        PR branch's own copy had drifted from that convention (it had
+        accumulated 5 unrelated stale task entries ahead of its own real
+        `crm-007-sales-rep-performance-dashboard` entry, inherited from an
+        old base rather than replaced along the way) -- not perpetuated
+        here.
+      - `src/lib/services/crm-service.ts` -- two hunks. Import line: unioned
+        both sides' additions (`gte` from the PR + `ne`/`or`/`z`/
+        `buildPipelineDeals` from main, no overlap). Function-body hunk: a
+        clean both-sides-added-independently conflict (empty
+        `\|\|\|\|\|\|\|` base) -- the PR's own new
+        `aggregateSalesRepPerformance()`/`getSalesRepPerformanceDashboard()`
+        section and main's own independently-added "VERIDIAN Review
+        Framework gap-closure" section (orphan-check/CSV export-import/
+        auto-scoring/overdue-notify) don't share a single symbol name --
+        kept both in full, no drop.
+      - `src/lib/services/crm-service.test.ts` -- same shape, three hunks
+        (header comment, imports+first describe-block run, second
+        describe-block run): merged the header comment to document both
+        histories rather than picking one, unioned the import list, kept
+        both sides' describe blocks in full (verified zero test-name/
+        symbol collisions before merging).
+      - `drizzle/meta/_journal.json` + the migration file itself -- a real
+        `0302` collision (PR's own new
+        `0302_crm007_sales_rep_performance_report_definition.sql` vs.
+        main's own already-merged, unrelated
+        `0302_sales_pipeline_dashboard_targets.sql`). Checked the TRUE
+        current highest via `git ls-tree -r origin/main -- drizzle/` (0506,
+        not trusted from a stale local checkout) -- confirmed 0507 free,
+        `git mv`'d the file to `drizzle/0507_crm007_sales_rep_performance_
+        report_definition.sql`, appended the matching journal entry
+        (`idx: 329`, `tag: 0507_crm007_sales_rep_performance_report_
+        definition`) after main's own last entry (`idx: 328`/`0506_...`)
+        rather than replacing anything. Confirmed no other file in the repo
+        references the old `0302_crm007...` filename, and confirmed no
+        duplicate migration-number prefixes remain anywhere under
+        `drizzle/` after the rename.
+      - `ai-os/registry/terminology-guardrail-exemptions.yaml` -- did not
+        resolve by arithmetic guessing. After fixing the two real code
+        conflicts above, ran the exact `PATTERN_FAMILIES` regexes
+        `scripts/check-terminology-guardrail.mjs` itself uses directly
+        against the merged `crm-service.ts`/`crm-service.test.ts`/new
+        `route.ts` files to get real, current counts: `crm-service.ts`
+        `hardcoded_iso_date` 14 (main's own accumulated 12 + this PR's own
+        2 new dated header-comment lines); `crm-service.test.ts`
+        `hardcoded_iso_date` 11 / `placeholder_company_name` 5 (main's own
+        `placeholder_company_name` baseline untouched, `hardcoded_iso_date`
+        genuinely 11 post-merge -- both branches' header/describe-block
+        dates plus this PR's own 5 test-fixture literals, not a naive 5+5
+        sum); new entry for `src/app/api/v1/projexa/sales-rep-performance/
+        route.ts` at 1. Re-ran `node scripts/check-terminology-guardrail.mjs
+        --file <the 3 files>` afterward -- passed clean with these exact
+        counts as the recorded baseline.
+- [x] `bun install` in the worktree -- 1203 packages installed clean.
 
-## Remaining
-- [ ] CI + merge (per AGENTS.md Rule 6, no self-merge without CI green)
-- [ ] Move this task's ACTIVE-CLAIMS.yaml entry to recently_completed once merged
+## Validation run
 
-- [ ] None -- task complete, PR #615 awaiting CI + review/merge
-
-# PROGRESS -- task-20260728-051733-owner-engine-phase-5-real-gaps
-
-## Completed
-- [x] Read AGENTS.md/CONSTITUTION.yaml/ACTIVE-CLAIMS.yaml governance chain, registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (commit 0b99c670, pushed)
-- [x] Read phase_5_browser_execution_tiers scope from claude-control's VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml
-- [x] Verified SPEC's cited PROJEXA prior art (src/lib/offline/work-progress-queue.ts, PR #54) does NOT exist anywhere in this repo's history -- `git log --all --diff-filter=A --name-only` zero matches, `gh pr view 54` is the unrelated VERI Reward engine. Built sync-engine.ts fresh instead of adapting a nonexistent file.
-- [x] Real NPU inference: src/lib/browser-execution/npu-engine.ts -- reuses transformers-engine.ts's exact model (Xenova/all-MiniLM-L6-v2) via @huggingface/transformers' real `device: "webnn-npu"` execution provider (confirmed real in devices.d.ts's DEVICE_TYPES), gated by tier-orchestrator's new shouldAttemptNpu
-- [x] Real Built-in AI inference: src/lib/browser-execution/builtin-ai-engine.ts -- real window.LanguageModel / window.ai.languageModel call path, gated by tier-orchestrator's new shouldAttemptBuiltinAi
-- [x] tier-orchestrator.ts: added shouldAttemptNpu/shouldAttemptBuiltinAi gates (same pattern as existing shouldAttemptWebLlm) + tests in tier-orchestrator.test.ts
-- [x] Cross-tier storage layer: src/lib/browser-execution/cross-tier-storage.ts -- real OPFS backend, real Cache API backend, IndexedDB backend that reuses (not replaces) model-cache.ts's IndexedDbModelCache; priority-ordered put/get/delete with real fallback chain
-- [x] Browser-sync engine: src/lib/browser-execution/sync-engine.ts -- OfflineQueue with real same-entity coalescing (the "two queued offline changes to the same record" scenario), resolveConflict() for remote (server-side) conflicts, syncQueue() push pass, pullDeltaSync() delta sync, SyncMutex for concurrent-sync serialization
-- [x] Full test suites for all 4 new files + orchestrator additions (npu-engine.test.ts, builtin-ai-engine.test.ts, cross-tier-storage.test.ts, sync-engine.test.ts)
-- [x] `npx tsc --noEmit` clean (NODE_OPTIONS=--max-old-space-size=8192 needed -- repo-wide tsc is memory-heavy under this server's shared load)
-- [x] `bun test src/lib/browser-execution` -- 108 pass, 0 fail
-
-- [x] Registered litert-spike as a real entry (`litert_spike_browser_execution_prior_art`) in this repo's own ai-os/MASTER_INDEX.yaml `registries:` list (canonical_path_repo per that file's own header -- no cross-repo write needed) + regenerated the stale `quick_reference` block via ai-os/scripts/generate_quick_reference.py per that block's own protocol. `grep -q litert-spike ai-os/MASTER_INDEX.yaml` passes (phase_5's own success criterion).
-- [x] ACTIVE-CLAIMS.yaml entry updated with STATUS UPDATE (implementation complete, PR opened) -- left in `active:` (not moved to `recently_completed:`) since the PR is not yet merged, per that file's own protocol #3
-
-- [x] PR opened: https://github.com/FChecklist/compliance-tracker/pull/616 -- all real CI checks pass (Lint, Type Check, Build, Unit Tests, E2E Tests, Analyze, Guardrail Presence, Secret Scanning, Security Pattern, Terminology Guardrail, Doc Cross-Reference/Quarantine/Sentinel, Metadata Index Coverage, Asset Registry Coverage). `audit-check` correctly still fails (awaiting the mandatory human/auditor "AUDIT: PASS/FAIL" comment -- exactly the fresh supervisor audit this task's own EXPECTED_OUTPUT requires, not bypassed). `Vercel` failed on an unrelated deployment rate-limit, not a code issue.
-
-## Remaining
-- [ ] PR #616 needs a fresh supervisor audit before merge (this task does not self-merge per EXPECTED_OUTPUT)
-- [ ] Once merged: move ai-os/boss/ACTIVE-CLAIMS.yaml entry from `active:` to `recently_completed:`
-
-# PROGRESS -- task-20260728-043316-design-studio-timesheets--designer-wise
-
-## Completed
-- [x] Read governance docs, registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml
-- [x] Audited existing infra: confirmed designer-wise Budget-vs-Actual cut (byDesigner) already exists in construction-reports-service.ts (PR #597 + audit fix 46d6967d) -- SCOPE item 1 already satisfied, no rebuild needed
-- [x] Audited existing infra: confirmed a full KPI designer-fills/manager-approves table pair already exists (constructionKpiDefinitions/constructionKpiEntries, construction-kpi-service.ts, /api/construction/kpi-entries + /[id]/approve) -- SCOPE item 3 already satisfied, not duplicating
-
-- [x] Schema: added `pmsTimeEntryApprovalStatusEnum` (draft/submitted/approved/rejected) + approvalStatus/approvedById/approvedAt/rejectionReason columns to `pmsTimeEntries` (schema.ts)
-- [x] Hand-written migration `drizzle/0268_pms_time_entry_approval_flow.sql` + `_journal.json` entry (same drizzle/meta snapshot-gap approach documented in 0267's header)
-- [x] Service: `submitTimeEntry`/`approveTimeEntry`/`rejectTimeEntry` in pms-time-service.ts, modeled on construction-kpi-service.ts's submitKpiEntry/approveKpiEntry (self-approval blocked, state-machine enforced)
-- [x] API routes: `/api/pms/time-entries/[id]/{submit,approve,reject}` -- approve/reject gated via `requireRole(dbUser, "manager")`
-- [x] Report: `designerApprovalStatusReport`/`aggregateDesignerApprovalStatus` (designer-wise approval-status view) in construction-reports-service.ts
-- [x] Report: `workAnalysisReport`/`aggregateWorkAnalysis` (hours by task/category per designer over a period) in construction-reports-service.ts
-- [x] Registered both new reports (`designer-approval-status`, `work-analysis`) in REPORT_REGISTRY + dispatcher route (dateFrom/dateTo query params for work-analysis)
-- [x] Tests: existing designer-wise Budget-vs-Actual cut tests (PR #597) still pass unmodified; new pure-aggregator tests for both new reports; new state-machine tests (self-approval blocked, wrong-state transitions blocked, happy path) in pms-time-service.test.ts; new route-level access-control test (member 403'd, manager allowed) in approve/route.test.ts
-- [x] Verified: `bunx tsc --noEmit` clean; `bun test construction-reports-service.test.ts` (10 pass, includes all pre-existing PR #597 tests); full `bun test` -- 2244 pass, 0 fail
-- [x] Commit + push
+- [x] `node scripts/check-governance-yaml-parse.mjs` -- PASSED, all 5
+      governance YAML files parse cleanly.
+- [x] `node_modules/.bin/tsc.exe --noEmit` (`NODE_OPTIONS=--max-old-space-
+      size=8192`, this repo's documented Windows fallback) -- clean, zero
+      errors/output.
+- [x] `bun run lint` -- clean, zero errors/warnings reported.
+- [x] `bun test src/lib/services/crm-service.test.ts` (the touched test
+      file) -- **76 pass, 0 fail, 175 expect() calls**.
+- [x] `bun test` (full suite, run via PowerShell `Out-File` -- Bash's own
+      `>` redirect truncates this repo's larger command output, a
+      documented gotcha, confirmed again here: a first Bash-redirected
+      attempt cut off mid-file with no final summary line) -- **3469 pass,
+      5 skip, 9 fail, 8138 expect() calls** across 3483 tests/296 files.
+      All 9 failures are in `src/app/api/v1/projexa/{accounts,ar-aging,
+      dunning-list,finance-dashboard}/route.test.ts` -- none touched by
+      this PR (whose only real-code changes are `crm-service.ts`/
+      `crm-service.test.ts`). Re-ran those 4 files alone in isolation:
+      **21 pass, 0 fail** -- confirms pre-existing, local test-order-
+      dependent flakiness (global `mock.module` state bleeding between
+      files in this machine's own file-discovery order, the same class
+      already documented elsewhere in this repo's history), not a real
+      regression from this merge.
 
 ## Remaining
-- [ ] Open PR, request supervisor audit (per EXPECTED_OUTPUT -- not self-merged)
 
-# PROGRESS -- task-20260728-050606-verify-excel-boq-importer-against-real-p
-
-## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no collision with
-      `construction-boq-import-service.ts`; registered this task's own
-      claim there.
-- [x] Reconstructed the real prospect BoQ file's structural quirks
-      (`ai-os/PROSPECT_GAP_BACKLOG_2026-07-28.md`'s "Sample Scope with Sub
-      Task.xlsx", Sl No / Category / Dwg Code / Description (Task) / Sub
-      Task / QTY / UNIT / Breakdown % / RATE / AMOUNT columns) as a real
-      `.xlsx` buffer built with the `xlsx` package -- category header rows
-      with no Sl No, numbered task rows ("1.01"/"2.01") with multi-line
-      descriptions containing embedded `Location :<name>` annotations, and
-      unlabeled sub-task rows (Frame/Gypsum Board/Rockwool/Taping/Sanding)
-      with their own Breakdown %.
-- [x] Ran the real importer (`parseBoqSpreadsheet`) against this fixture
-      and recorded the actual (pre-fix) result: **it failed badly**. All 9
-      real task/sub-task rows were dropped ("skipped (no description)"),
-      leaving only 2 garbage line items -- the bare category labels
-      ("PARTITION AND LINING", "FALSE CEILING") with quantity=0, rate=0.
-      Root cause, confirmed by inspecting `mapBoqHeaders`'s actual output:
-      - `"Sl No"` was not in the `itemCode` alias list at all (only "s no"
-        / "sno" / "sr no" were) -- so `itemCode` never mapped, and the
-        dot-delimited-parent-inference this file relies on had nothing to
-        infer from.
-      - `description` mapped to the `"Category"` column instead of
-        `"Description (Task)"`, because `mapBoqHeaders` picked the first
-        *header* (in sheet order) that matched *any* alias for a field,
-        and `"category"` was listed as a valid description alias (for
-        simple sheets with no dedicated description column) -- so it won
-        over the real `"Description (Task)"` column purely by column
-        position, and `"Description (Task)"` normalizes to `"description
-        task"`, which wasn't in the alias list anyway.
-      - There was no handling at all for unlabeled sub-task rows (Sub Task
-        column filled, Description blank) or for inferring their parent
-        task positionally (no dot-delimited item code exists for them).
-- [x] Fixed `construction-boq-import-service.ts` (import/parsing layer
-      only -- `computeHierarchicalAmount()` untouched, per task
-      constraint):
-      - Added `"sl no"` to the `itemCode` alias list.
-      - Made `mapBoqHeaders` resolve each field by trying its aliases in
-        priority order and taking the first header that matches the
-        *most preferred* alias, instead of the first header (in sheet
-        order) matching *any* alias -- so a dedicated `"Description
-        (Task)"` column now always wins over the `"category"` fallback
-        alias when both are present. Added `"description task"` as a
-        recognized alias.
-      - Added a new `subTask` field (aliases: "sub task"/"subtask"/
-        "sub-task"). `mapRowsToLineItems` now falls back to the Sub Task
-        column's value as the row's description when the Description
-        column is blank -- this is what makes the real unlabeled
-        sub-task rows (Frame/Gypsum Board/...) survive at all instead of
-        being skipped as "no description".
-      - Added positional parent-child inference: a row with no itemCode
-        of its own, whose description came from the Sub Task fallback
-        (not a real Description value), and that has a breakdownPercentage
-        set, is attached to the itemCode of the nearest preceding row that
-        had one. This resets correctly at each new task row, so sub-tasks
-        never bleed across two different parent tasks.
-- [x] Added a real regression test,
-      `parseBoqSpreadsheet -- real prospect BoQ file shape`, in
-      `construction-boq-import-service.test.ts`, building a real xlsx
-      buffer with the exact quirks above and asserting: both category
-      rows are skipped (not turned into garbage line items), both task
-      rows keep their full multi-line description (including the
-      `Location :` text), and each task's 5 (then 2) sub-task rows attach
-      to the correct parent with the correct breakdown percentages,
-      summing to 100% for the first task.
-- [x] Verified: `NODE_OPTIONS="--max-old-space-size=8192" npx tsc --noEmit`
-      -- clean, zero errors (`tsc --noEmit` alone OOMs on this repo's full
-      project graph regardless of this change; the memory-flag invocation
-      is the working equivalent). `bun test
-      src/lib/services/construction-boq-import-service.test.ts` -- 6 pass,
-      0 fail, 50 expect() calls. Also re-ran
-      `construction-boq-service.test.ts` (the hierarchy/amount-calculation
-      layer this importer feeds) as a regression check -- 19 pass, 0 fail,
-      unaffected.
-- [x] Constraint check: no cron entries or systemd `.timer` units were
-      touched by this task (scope was entirely
-      `construction-boq-import-service.ts` + its test file).
-
-## Remaining
-- [ ] Open a PR on this task's branch (real code fix was required --
-      outcome (1) from the task spec, not the verification-only outcome).
-
-# PROGRESS -- sd-007-sales-order-document-flow-overview
-
-## Completed
-- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml, found a real collision (PR #629
-      also self-labels part of its work SD-007), verified via git/gh (not
-      the sqlite gap-analysis file's own citations) that PR #629's
-      getClaimTimeline() is scoped entirely to the brand-new
-      construction_progress_claims workflow table, distinct from the
-      pre-existing generic ERP Sales & Distribution chain this task covers
-      -- registered a claim documenting the distinction, committed+pushed
-      first (commit 8b4f0720), before any real code.
-- [x] Discovered the real FK chain already on main (Priority 15/Wave
-      60-84, zero new schema needed): erp_quotations (quotationId) ->
-      erp_sales_orders (soNumber/status) -> erp_sales_invoices
-      (salesOrderId) -> erp_payment_entries (invoiceType='sales_invoice'/
-      invoiceId) + erp_sales_credit_notes (salesInvoiceId) +
-      erp_sales_returns (salesInvoiceId).
-- [x] Added getSalesOrderDocumentFlow() to erp-selling-service.ts (additive,
-      reuses existing withTenantContext/ServiceError/requireErpEnabled
-      conventions already in that file).
-- [x] New route GET /api/v1/projexa/sales-order-document-flow/[id].
-- [x] New report_definitions row (drizzle/0269, platform-wide,
-      executionType='external_service'), following the exact precedent
-      PR #637 (FI-AP-005) established.
-- [x] 3 new tests in erp-selling-service.test.ts (real quotation->order->
-      invoice->payment->credit-note->return 6-hop chain; standalone order
-      with no invoices yet; not-found -> 404), same mock-withTenantContext
-      pattern as construction-reports-service.test.ts/tenant-isolation.test.ts.
-- [x] Verified: bunx tsc --noEmit -- 0 errors. bun run lint -- 0 errors (3
-      pre-existing warnings, unrelated files). bun test (full suite) --
-      2305 pass, 0 fail, 4568 expect() calls (includes the 3 new tests).
-- [x] Honest gap: no post-order change-order document exists in this
-      schema (only a pre-order quotation revision) -- disclosed in the
-      report_definitions row's description, not fabricated.
-
-## Remaining
-- [ ] None for this task's own scope -- PR opened, awaiting review/merge.
-      Separately unresolved (not this task's job to fix): PR #629 and PR
-      #638 both still open and both touch SD-002; reconciling those two is
-      a decision for whoever reviews/merges them, not addressed here.
-
-# PROGRESS -- crm-007-sales-rep-performance-dashboard
-
-## Completed
-- [x] Read AGENTS.md/CLAUDE.md governance chain; grepped
-      `ai-os/boss/ACTIVE-CLAIMS.yaml` and `gh pr list`/`gh pr view 629/638/
-      644/647` for "CRM-007"/"Sales Rep" collisions -- none found. Registered
-      this task's own claim there before writing code.
-- [x] Read the full `sap_reports` row (`id='CRM-007'`) from
-      `/opt/veridian/ai-os/memory/sap_mapping.sqlite` directly via SSH (hit
-      this repo's documented connectivity-fluctuation pattern -- a few calls
-      timed out mid-session, retried per the 3-tier protocol and succeeded)
-      -- read every field (business_purpose/calculation_logic/
-      input_data_required/output_format/veridian_gap_notes/
-      implementation_notes/priority=LOW/engine_track=hybrid), not a summary.
-- [x] Confirmed the row's own veridian_gap_notes directly against
-      schema.ts/crm-service.ts/crm-activities-service.ts: ownerId already on
-      crm_leads/crm_opportunities (bulkReassignLeads/bulkReassignOpportunities
-      precedent), crm_activities.assignedToId already exists for activity
-      attribution, crm_stage_history already carries won/lost transition
-      dates -- NO NEW SCHEMA needed, genuinely an aggregation gap only.
-- [x] Grepped schema.ts fresh for any revenue-target/quota table (the
-      row's own input_data_required calls a per-rep-per-period target a
-      "prerequisite data element") -- found none. Disclosed as an honest gap
-      (revenueTarget/targetAchievementPercent always null), not fabricated.
-- [x] Added `aggregateSalesRepPerformance()` (pure, DB-free aggregator) +
-      `getSalesRepPerformanceDashboard()` (thin DB-fetching wrapper) to
-      crm-service.ts -- per-rep pipeline value, AI-win-probability-weighted
-      pipeline value (aiWinProbability, honestly excluding never-scored
-      opportunities), closed won/lost revenue, win rate, average deal size,
-      average sales cycle (via crm_stage_history), and activity count (via
-      crm_activities.assignedToId). Same pure-aggregator/DB-wrapper split
-      construction-reports-service.ts's aggregateDesignerTimesheetCosts
-      established.
-- [x] New route `GET /api/v1/projexa/sales-rep-performance` (optional
-      periodStart/periodEnd/ownerIds query params), same requireAuthOrApiKey
-      shape as the sibling `/api/v1/projexa/sales-pipeline` route.
-- [x] New report_definitions migration (re-fetched `origin/main` fresh
-      immediately before finalizing the number -- caught a real collision:
-      FI-AR-006 (#645) merged mid-session and had already claimed 0275,
-      renumbered to `drizzle/0276_crm007_sales_rep_performance_report_
-      definition.sql` + matching `_journal.json` entry). INSERT-only, no
-      schema/table changes. classifications=["sales"] only (deliberately no
-      "financial"/"compliance"/"construction"/"project") so
-      deriveReportDomainFromClassifications() resolves this to the "custom"
-      domain, same reasoning FI-GL-007's migration documents for its own
-      classification choice.
-- [x] New tests in `crm-service.test.ts` (this file had zero coverage
-      before this task): 8 tests directly against the pure aggregator with
-      3 distinct reps + an unassigned bucket (2 won/1 lost/1 open for rep-a,
-      1 won/1 lost for rep-b, 2 open/0 closed for rep-c) proving win-rate,
-      revenue, avg-deal-size, avg-sales-cycle, and activity-count math per
-      rep, plus the null-not-zero honesty checks (rep-c's win rate/avg deal
-      size/avg cycle all null, not 0); 2 tests against the DB-wired wrapper
-      with a mocked `@/lib/db/tenant-scoped`/`./crm-enablement-service`
-      (same "capture real modules, restore in afterEach" convention as
-      erp-selling-service.test.ts) proving the period/ownerIds filters and
-      rep-name join really work end-to-end.
-- [x] Terminology Guardrail: re-ran `node scripts/check-terminology-
-      guardrail.mjs --file <3 changed/new files>` before finalizing (not
-      trusting an earlier count) -- 8 new (unexempted) hardcoded_iso_date
-      findings (2 in crm-service.ts's new header comments, 5 in the new
-      test file's dated comment/fixture literals, 1 in the new route's
-      header comment). Added/raised 3 entries in
-      `ai-os/registry/terminology-guardrail-exemptions.yaml` with real,
-      specific reasons; re-ran the check clean afterward.
-- [x] Verified: `bunx tsc --noEmit` (NODE_OPTIONS=--max-old-space-size=8192)
-      -- clean, 0 errors. `bun run lint` -- 0 errors, 3 pre-existing
-      warnings (litigation/[id]/route.ts, data-table.tsx, VeriComposer.tsx),
-      all unrelated to this change. `bun test` (full suite) -- 2383 pass, 5
-      skip, 4 fail -- all 4 pre-existing/environment (2 simulated-Groq-
-      network-failure tests in defense-in-depth.test.ts, 1 simulated-db-
-      unreachable test in connector-data-service.test.ts, 1 live-filesystem
-      lookup in prompt-governance-service.test.ts), none touch crm-service.ts
-      or this task's new files; `bun test src/lib/services/crm-service.test.ts`
-      on its own -- 10 pass, 0 fail, 62 expect() calls.
-
-## Remaining
-- [ ] PR opened, needs a fresh supervisor audit before merge (this task
-      does not self-merge, per EXPECTED_OUTPUT/AGENTS.md Rule 7c) -- messaged
-      "main" to request it rather than self-certifying.
+- [ ] Commit the merge, push, open the replacement PR, close #655 as
+      superseded, check real CI, merge only when genuinely green.

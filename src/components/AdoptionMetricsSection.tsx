@@ -117,7 +117,7 @@ export default function AdoptionMetricsSection() {
           {metrics.topPerformingDepartment && (
             <div className="rounded-lg border p-3 space-y-1">
               <div className="flex items-center gap-1.5">
-                <Trophy className="h-3.5 w-3.5 text-ct-saffron" />
+                <Trophy className="h-3.5 w-3.5 text-ct-saffron-text" />
                 <span className="text-xs font-medium">Top-Performing Team</span>
               </div>
               <div className="text-sm font-semibold text-ct-navy">{metrics.topPerformingDepartment.departmentName}</div>

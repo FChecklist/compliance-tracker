@@ -3,7 +3,7 @@
 -- compliance.report_definitions row (org_id = NULL, created_by = 'system'),
 -- following the exact executionType='external_service' precedent
 -- drizzle/0183_sales_report_definitions.sql established and this wave's own
--- sibling PRs (FI-AR-004's drizzle/0225_fi_ar_004_dunning_list.sql,
+-- sibling PRs (FI-AR-004's drizzle/0290_fi_ar_004_dunning_list.sql,
 -- FI-AP-005's drizzle/0269_ap_payment_proposal_report_definition.sql) reuse
 -- -- see erp-payment-entries-service.ts's new
 -- subcontractorPaymentApplicationStatus() (this same PR) for the real

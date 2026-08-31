@@ -302,7 +302,7 @@ export default function PenaltiesPage() {
       {/* Section 2: Manual Calculator */}
       <div>
         <h2 className="text-lg font-semibold text-ct-navy mb-3 flex items-center gap-2">
-          <Calculator className="size-5 text-ct-saffron" />
+          <Calculator className="size-5 text-ct-saffron-text" />
           Penalty Calculator
         </h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

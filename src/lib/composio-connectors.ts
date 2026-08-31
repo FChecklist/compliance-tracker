@@ -174,6 +174,206 @@ export type ExecuteActionResult<T = unknown> = {
   error: string | null
 }
 
+// ─── OAuth scope allow-list gate (CRR-158) ──────────────────────────────
+// Owner ruling, 28 Aug 2026 (platform.claude_log id 127, "OWNER RULING 28
+// AUG 2026: Google connectors (Mail, Drive, Sheets, Docs), per-user, read +
+// edit + write. Extends R-C16, rewrites CRR-158, answers CRR-156"):
+// connecting Google Mail/Drive/Sheets/Docs for every end user is approved
+// with READ, EDIT and WRITE rights. This SUPERSEDES CRR-158's original
+// read-only prohibition -- the ruling's own words: "THE CONTROL WAS
+// REPLACED, NOT REMOVED: the gate now fails on any scope outside a recorded
+// allow-list, on any delete scope, and on any write or edit action that
+// produces no audit row."
+//
+// This is a validation/enforcement layer, not live Google OAuth enablement.
+// CRR-007 (verify COMPOSIO_API_KEY) is BLOCKED -- provisioning it means
+// paying for a Composio plan, and a Composio purchase is a standing
+// DECLINED item (CRR-007). Nothing below has been exercised against a real
+// Google account or a live Composio call this session; the allow-list
+// scopes are Google's own publicly documented OAuth 2.0 scope URIs
+// (developers.google.com scope reference), sourced from documentation the
+// same way this file's other toolkit/auth_config facts above were
+// originally recorded, not re-verified live in this session.
+//
+// Deliberately per-toolkit rather than one global list: Gmail/Drive/Sheets/
+// Docs are the only 4 toolkits the ruling named. Every other toolkit in
+// CONNECTOR_TOOLKITS above (Slack, Notion, GitHub, ...) has NO recorded
+// allow-list -- evaluateToolkitScopes() below fails closed for those
+// (nothing recorded = nothing permitted), matching the ruling's own
+// "replaced, not removed" posture rather than silently permitting whatever
+// scopes a not-yet-reviewed toolkit happens to request.
+export type ScopeLevel = "read" | "edit" | "write"
+
+export type ScopeAllowListEntry = {
+  /** The exact OAuth 2.0 scope URI Google issues. */
+  scope: string
+  level: ScopeLevel
+  description: string
+}
+
+export const GOOGLE_CONNECTOR_SCOPE_ALLOW_LIST: Partial<Record<ConnectorToolkit, ScopeAllowListEntry[]>> = {
+  gmail: [
+    { scope: "https://www.googleapis.com/auth/gmail.readonly", level: "read", description: "Read all resources and their metadata -- no write operations." },
+    { scope: "https://www.googleapis.com/auth/gmail.modify", level: "edit", description: "All read/write operations except immediate, permanent deletion of threads and messages (moves to Trash instead)." },
+    { scope: "https://www.googleapis.com/auth/gmail.labels", level: "edit", description: "Create, read, update, and delete labels only." },
+    { scope: "https://www.googleapis.com/auth/gmail.compose", level: "write", description: "Create, read, update, and delete drafts; send messages and drafts." },
+    { scope: "https://www.googleapis.com/auth/gmail.send", level: "write", description: "Send messages only -- no read/modify access." },
+  ],
+  googledrive: [
+    { scope: "https://www.googleapis.com/auth/drive.readonly", level: "read", description: "See and download all Drive files." },
+    { scope: "https://www.googleapis.com/auth/drive.metadata.readonly", level: "read", description: "See metadata (not content) for all Drive files." },
+    { scope: "https://www.googleapis.com/auth/drive.file", level: "write", description: "Per-file access: create new files, and read/write only files this app opened or created -- deliberately NOT the unrestricted 'drive' scope, see KNOWN_DELETE_CAPABLE_SCOPES below." },
+  ],
+  googlesheets: [
+    { scope: "https://www.googleapis.com/auth/spreadsheets.readonly", level: "read", description: "See all Google Sheets spreadsheets." },
+    { scope: "https://www.googleapis.com/auth/spreadsheets", level: "edit", description: "See, edit and create Google Sheets spreadsheets (Google provides no narrower edit-only scope for Sheets) -- application code must never invoke a delete/trash action under this scope regardless of what it technically permits; see classifyConnectorActionCategory's 'delete' category, which this gate refuses unconditionally." },
+  ],
+  googledocs: [
+    { scope: "https://www.googleapis.com/auth/documents.readonly", level: "read", description: "See all Google Docs documents." },
+    { scope: "https://www.googleapis.com/auth/documents", level: "edit", description: "See, edit and create Google Docs documents. Deleting the underlying file requires a separate Drive scope, not granted here." },
+  ],
+}
+
+// Scopes Google documents as granting full-account / permanent-delete
+// capability well beyond read+edit+write. Flagged with their own violation
+// type on ANY toolkit, unconditionally -- never eligible for an allow-list
+// above no matter how this file is edited later, since "no delete scope" is
+// its own, independent CRR-158 gate_fail condition, not merely "unlisted".
+export const KNOWN_DELETE_CAPABLE_SCOPES: ReadonlySet<string> = new Set<string>([
+  "https://mail.google.com/", // Gmail full-mailbox scope -- permanent delete, bypasses Trash
+  "https://www.googleapis.com/auth/drive", // Drive full scope -- can permanently delete any file, not just app-created ones
+])
+
+export type ScopeViolationType =
+  | "delete_scope"
+  | "not_allow_listed"
+  | "no_allow_list_recorded"
+  | "write_action_missing_audit"
+
+export type ScopeViolation = { type: ScopeViolationType; scope?: string; detail: string }
+
+export type ScopeEvaluation = { toolkit: ConnectorToolkit; pass: boolean; violations: ScopeViolation[] }
+
+/** Compares one toolkit's actually-requested/granted scopes against its recorded allow-list. Pure -- no network, no DB. */
+export function evaluateToolkitScopes(toolkit: ConnectorToolkit, requestedScopes: string[]): ScopeEvaluation {
+  const allowList = GOOGLE_CONNECTOR_SCOPE_ALLOW_LIST[toolkit]
+
+  if (!allowList) {
+    // Deny-by-default: no allow-list has been recorded/owner-approved for
+    // this toolkit, so nothing is permitted for it yet -- not "anything
+    // goes because nobody wrote a rule".
+    const violations: ScopeViolation[] = requestedScopes.map((scope) => ({
+      type: "no_allow_list_recorded",
+      scope,
+      detail: `No scope allow-list is recorded for '${toolkit}'. Every requested scope fails closed until one is written and owner-approved (see CRR-158).`,
+    }))
+    return { toolkit, pass: violations.length === 0, violations }
+  }
+
+  const allowedScopeStrings = new Set(allowList.map((e) => e.scope))
+  const violations: ScopeViolation[] = []
+  for (const scope of requestedScopes) {
+    if (KNOWN_DELETE_CAPABLE_SCOPES.has(scope)) {
+      violations.push({ type: "delete_scope", scope, detail: `'${scope}' grants permanent-delete/full-account capability -- never permitted, regardless of allow-list (CRR-158 gate_fail).` })
+      continue
+    }
+    if (!allowedScopeStrings.has(scope)) {
+      violations.push({ type: "not_allow_listed", scope, detail: `'${scope}' is not on the recorded allow-list for '${toolkit}'.` })
+    }
+  }
+  return { toolkit, pass: violations.length === 0, violations }
+}
+
+export type ConnectorActionCategory = "read" | "write" | "edit" | "delete"
+
+// Composio/Google action (tool) slugs are consistently verb-bearing
+// SCREAMING_SNAKE_CASE (e.g. GMAIL_SEND_EMAIL, GOOGLEDRIVE_FIND_FILE,
+// GOOGLESHEETS_BATCH_UPDATE) -- classified by keyword, checked most-
+// destructive-first so e.g. "PERMANENTLY_DELETE" never falls through to the
+// "delete" branch's own narrower siblings by accident.
+const DELETE_ACTION_PATTERN = /(DELETE|TRASH|PURGE|REMOVE)/
+const WRITE_ACTION_PATTERN = /(SEND|CREATE|COMPOSE|DRAFT|INSERT|APPEND|UPLOAD|ADD_)/
+const EDIT_ACTION_PATTERN = /(UPDATE|MODIFY|EDIT|PATCH|RENAME|MOVE|REPLACE|SET_|LABEL)/
+
+/** Classifies a Composio action slug into the category CRR-158's gate reasons about. Pure, keyword-based -- never calls Composio. */
+export function classifyConnectorActionCategory(actionSlug: string): ConnectorActionCategory {
+  const s = actionSlug.toUpperCase()
+  if (DELETE_ACTION_PATTERN.test(s)) return "delete"
+  if (WRITE_ACTION_PATTERN.test(s)) return "write"
+  if (EDIT_ACTION_PATTERN.test(s)) return "edit"
+  return "read"
+}
+
+/** The minimum a caller must supply for a write/edit action to be auditable -- the actor (who) is added by the real DB-writing wrapper in connector-scope-gate-service.ts, not needed for this pure gate decision. */
+export type ConnectorAuditDescriptor = {
+  orgId: string
+  entityType: string
+  entityId: string // the target file/message id
+  details?: string
+}
+
+export type ConnectorGateVerdict = {
+  toolkit: ConnectorToolkit
+  actionSlug: string
+  category: ConnectorActionCategory
+  allowed: boolean
+  violations: ScopeViolation[]
+}
+
+/**
+ * The single pure CRR-158 gate decision -- combines the scope-vs-allow-list
+ * check with the action being attempted. evaluateToolkitScopes() alone
+ * can't see this: a connected account might hold only read scopes yet still
+ * be asked to run a write action, or hold a legitimately-granted write scope
+ * but the caller simply forgot to pass audit info. No network, no DB --
+ * real execution (connector-scope-gate-service.ts) must call this FIRST and
+ * refuse to call Composio at all when `allowed` is false.
+ */
+export function evaluateConnectorGate(params: {
+  toolkit: ConnectorToolkit
+  actionSlug: string
+  requestedScopes: string[]
+  audit?: ConnectorAuditDescriptor
+}): ConnectorGateVerdict {
+  const category = classifyConnectorActionCategory(params.actionSlug)
+  const scopeEval = evaluateToolkitScopes(params.toolkit, params.requestedScopes)
+  const violations: ScopeViolation[] = [...scopeEval.violations]
+
+  if (category === "delete") {
+    violations.push({
+      type: "delete_scope",
+      detail: `'${params.actionSlug}' is classified as a delete action -- CRR-158 forbids deleting customer data under any scope, independent of which scopes are granted.`,
+    })
+  } else if ((category === "write" || category === "edit") && !params.audit) {
+    violations.push({
+      type: "write_action_missing_audit",
+      detail: `'${params.actionSlug}' is a ${category} action against a user's Google account and requires an audit descriptor (orgId, entityType, entityId) -- none was supplied, so this call is refused before Composio is ever invoked.`,
+    })
+  }
+
+  return { toolkit: params.toolkit, actionSlug: params.actionSlug, category, allowed: violations.length === 0, violations }
+}
+
+/**
+ * Live-fetches the scopes actually configured on a toolkit's auth_config
+ * from Composio (GET /auth_configs/{id}) -- the "record the exact OAuth
+ * scopes requested in auth_config" half of CRR-158. Defensive parsing
+ * (several plausible response shapes) for the same disclosed reason
+ * connector-data-service.ts's normalizers are: not verified against a live
+ * call this session (COMPOSIO_API_KEY is not configured -- CRR-007 BLOCKED,
+ * standing declined purchase). Callers should feed the result straight into
+ * evaluateToolkitScopes()/evaluateConnectorGate() as `requestedScopes`.
+ */
+export async function getAuthConfigScopes(toolkit: ConnectorToolkit): Promise<string[]> {
+  const { authConfigId } = CONNECTOR_TOOLKITS[toolkit]
+  const data = await composioFetch(`/auth_configs/${authConfigId}`)
+  const raw =
+    data?.scopes ?? data?.data?.scopes ?? data?.auth_config?.scopes ?? data?.data?.auth_config?.scopes ?? []
+  if (Array.isArray(raw)) return raw.map(String)
+  if (typeof raw === "string") return raw.split(",").map((s) => s.trim()).filter(Boolean)
+  return []
+}
+
 /**
  * Executes a real Composio tool/action against an already-connected account
  * -- e.g. GMAIL_FETCH_EMAILS, GOOGLEDRIVE_FIND_FILE. `appUserId` must be the

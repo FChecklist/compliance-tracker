@@ -42,6 +42,21 @@ describe("detectLowConfidenceResponse", () => {
     const result = detectLowConfidenceResponse("")
     expect(result.detected).toBe(false)
   })
+
+  // GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION (closed 2026-08-30):
+  // a genuine refusal used to persist with confidence_label = "high" --
+  // identical to a genuinely confident reply. This is the exact live reply
+  // that surfaced the gap (OCID-052, 2026-08-03).
+  test("fires on a real refusal reply, not just a hedge", () => {
+    const result = detectLowConfidenceResponse("Boss, I'm sorry—I can't help with that.")
+    expect(result.detected).toBe(true)
+  })
+
+  test("fires on other common refusal phrasing", () => {
+    expect(detectLowConfidenceResponse("I'm not able to help with that request.").detected).toBe(true)
+    expect(detectLowConfidenceResponse("That's outside my scope, sorry.").detected).toBe(true)
+    expect(detectLowConfidenceResponse("I'm not allowed to discuss that.").detected).toBe(true)
+  })
 })
 
 describe("checkPreCallEscalation", () => {
