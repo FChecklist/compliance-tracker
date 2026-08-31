@@ -143,6 +143,7 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
+    "nanoid": "^3.3.18",
     "js-yaml": "^4.2.0",
     "postcss": "^8.5.23",
     "prismjs": "^1.30.0",
