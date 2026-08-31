@@ -96,6 +96,24 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // manage initial focus deliberately) -- 3 existing uses are legitimate
     // UX (MFA code input, inline-edit field autofocus), off rather than warn.
     "jsx-a11y/no-autofocus": "off",
+
+    // VERIDIAN Review Framework gap-closure, "Code Complexity Score"
+    // finding (AI Engineering Quality / Technical Debt & Complexity): "Add
+    // ESLint's complexity rule with a threshold, starting with the largest
+    // orchestration files." "warn" (not "error") deliberately -- `bun run
+    // lint` (this repo's CI Lint job) only fails on errors, not warnings,
+    // so this surfaces every function over the threshold in `bun run lint`
+    // output and in any IDE without breaking the build on day one across a
+    // 1000+ file codebase that has never been measured against this rule
+    // before. Threshold 20 is ESLint's own documented default for this
+    // rule (not picked to be lenient) -- confirmed against real files: it
+    // already flags the codebase's largest orchestration files (e.g.
+    // task-execution-engine.ts, guardrail-engine.ts,
+    // erp-payment-entries-service.ts), matching the finding's own
+    // "starting with the largest orchestration files" framing, without
+    // drowning `bun run lint` output in trivial single-branch functions a
+    // lower threshold would also catch.
+    complexity: ["warn", 20],
   },
 }, {
   ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "public/litert-spike/wasm/**", "public/litert-spike-embeddings/wasm/**"]

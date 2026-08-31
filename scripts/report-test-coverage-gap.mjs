@@ -65,7 +65,17 @@ export function buildStats(allFileNames, lineCounts) {
     }
   })
   const testedCount = rows.filter((r) => r.hasTest).length
-  const untested = rows.filter((r) => !r.hasTest).sort((a, b) => b.lines - a.lines)
+  // Secondary sort key (filename, ascending) makes tie-breaking deterministic:
+  // readdirSync()'s listing order is filesystem/OS-dependent (Windows NTFS vs
+  // Linux ext4 don't guarantee the same order), so without a tiebreaker, two
+  // files with an identical line count could land in a different relative
+  // order depending on which OS generated the report -- causing --check to
+  // spuriously report the committed doc as "stale" on CI (Linux) even when a
+  // local regen (Windows) produced byte-identical content modulo tie order.
+  // Real bug found + fixed 2026-08-30 (PR #1472's CI hit exactly this).
+  const untested = rows
+    .filter((r) => !r.hasTest)
+    .sort((a, b) => b.lines - a.lines || a.file.localeCompare(b.file))
   return { total: rows.length, testedCount, untested }
 }
 

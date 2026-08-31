@@ -31,9 +31,9 @@ import { logActivity } from "@/lib/audit"
 import { isPeriodOpenForDate, trialBalance, profitAndLoss } from "./erp-financial-report-service"
 import { didRevenuePost, recordAuditTrigger } from "@/lib/audit-event-triggers"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { ErpContext, ActorCtx } from "./actor-context"
 import { listBankAccounts } from "./erp-vendor-master-service"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 // ============================================================
 // Tax Templates (Wave 49 schema, no consumer until now -- invoicing needs
@@ -1019,7 +1019,7 @@ export async function vendorPaymentBehaviorReport(
 // across several invoices) is a real, larger feature left for a follow-up.
 // ============================================================
 
-export type RecordPaymentActorCtx = { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } })
+export type RecordPaymentActorCtx = ActorCtx
 
 export async function recordSalesInvoicePayment(
   ctx: RecordPaymentActorCtx,

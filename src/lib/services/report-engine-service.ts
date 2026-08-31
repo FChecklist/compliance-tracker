@@ -53,7 +53,7 @@
 
 import {
   db, reportDefinitions,
-  crmLeads, crmOpportunities, erpQuotations, erpSalesOrders, erpSalesInvoices, erpCustomers,
+  crmLeads, crmOpportunities, crmAccounts, crmContacts, erpQuotations, erpSalesOrders, erpSalesInvoices, erpCustomers,
   salesReferrals, salesCommissionAccruals, veriMeetings,
   complianceItems, notices, risks, pmsIssues, pmsMilestones, incidents,
   constructionBoqs, constructionWorkProgressEntries, constructionAttendance, constructionLabourRoster,
@@ -77,6 +77,10 @@ import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, t
 import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport, projectPeriodReport } from "./construction-reports-service"
 import { customerPaymentBehaviorReport, vendorPaymentBehaviorReport } from "./erp-invoicing-service"
 import { listStockBalances } from "./erp-inventory-service"
+import {
+  tenderRegisterReport, tenderPipelineByStage, tenderWinLossReport, tenderCostingReport,
+  boqSubmissionReport, preBidMeetingReport, emdTrackingReport, contractAwardReport,
+} from "./construction-tender-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
 import { requireReportDomainEnabled, isReportDomainEnabledForOrg } from "./report-domain-enablement-service"
 import { ServiceError } from "./compliance-service"
@@ -246,6 +250,23 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
       aiWinProbability: crmOpportunities.aiWinProbability, aiRecommendedAction: crmOpportunities.aiRecommendedAction,
       expectedCloseDate: crmOpportunities.expectedCloseDate,
     },
+  },
+  // VERIDIAN Review Framework "Accounts & Contacts" gap-closure (Reporting &
+  // Export Accuracy): crm_accounts/crm_contacts had no reportable surface
+  // at all (unlike crm_leads/crm_opportunities just above) -- an org
+  // couldn't build even a simple "accounts by lifecycle stage" or "contacts
+  // per account" ad-hoc report via the Reports & Analysis Engine. Same
+  // whitelist convention as every other entry in this registry.
+  crm_accounts: {
+    table: crmAccounts, orgIdColumn: crmAccounts.orgId,
+    columns: {
+      lifecycleStage: crmAccounts.lifecycleStage, ownerId: crmAccounts.ownerId, industry: crmAccounts.industry,
+      companyId: crmAccounts.companyId, aiHealthScore: crmAccounts.aiHealthScore, parentAccountId: crmAccounts.parentAccountId,
+    },
+  },
+  crm_contacts: {
+    table: crmContacts, orgIdColumn: crmContacts.orgId,
+    columns: { accountId: crmContacts.accountId, isPrimary: crmContacts.isPrimary },
   },
   // Priority 17 final gap: companyId whitelisted here now that erp_quotations
   // carries the column -- direct continuation of #365, which left this exact
@@ -1531,6 +1552,51 @@ async function computeMonthlyProjectReport(ctx: { orgId: string }, params: Recor
   }
 }
 
+// Small shared helper: several R65 formula wrappers below delegate to a
+// service-layer function that already returns real, shaped plain-object
+// rows (construction-tender-service.ts's own report functions) -- this
+// just infers `columns` from the first row's keys rather than each wrapper
+// repeating that boilerplate. Matches every hand-written {columns, rows}
+// literal elsewhere in this file for the same column set.
+function rowsToResult(rows: Record<string, string | number>[], emptyNote?: string): ReportDefinitionResult {
+  if (rows.length === 0) return { columns: [], rows: [], note: emptyNote ?? "No data yet." }
+  return { columns: Object.keys(rows[0]), rows }
+}
+
+/**
+ * R65 (2026-08-30, tender/bid/EMD tracking gap closure): construction-
+ * tender-service.ts's own header explains why this is a genuinely new
+ * entity, distinct from erp_rfqs (procurement RFQs, not sales bids).
+ * Closes 8 report_definitions data_gap rows.
+ */
+async function computeTenderRegister(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await tenderRegisterReport(ctx), "No tenders logged yet for this org.")
+}
+async function computeTenderPipeline(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await tenderPipelineByStage(ctx), "No tenders logged yet for this org.")
+}
+async function computeTenderWinLoss(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await tenderWinLossReport(ctx), "No won/lost/awarded tenders yet for this org.")
+}
+async function computeTenderCosting(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const tenderId = typeof params.tenderId === "string" ? params.tenderId : undefined
+  return rowsToResult(await tenderCostingReport(ctx, tenderId), "No tenders logged yet for this org.")
+}
+async function computeBoqSubmissionReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const tenderId = typeof params.tenderId === "string" ? params.tenderId : undefined
+  return rowsToResult(await boqSubmissionReport(ctx, tenderId), "No tender BOQ items submitted yet for this org.")
+}
+async function computePreBidMeetingReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const tenderId = typeof params.tenderId === "string" ? params.tenderId : undefined
+  return rowsToResult(await preBidMeetingReport(ctx, tenderId), "No pre-bid meetings logged yet for this org.")
+}
+async function computeEmdTrackingReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await emdTrackingReport(ctx), "No tenders with an EMD amount logged yet for this org.")
+}
+async function computeContractAwardReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await contractAwardReport(ctx), "No tenders have reached 'awarded' stage yet for this org.")
+}
+
 export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   materials_running_low: computeMaterialsRunningLow,
   sales_dashboard: computeSalesDashboard,
@@ -1561,6 +1627,14 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   design_change_impact_analysis: computeDesignChangeImpactAnalysis,
   cost_overrun_report: computeCostOverrunReport,
   profitability_analysis: computeProfitabilityAnalysis,
+  tender_register: computeTenderRegister,
+  tender_pipeline: computeTenderPipeline,
+  tender_win_loss: computeTenderWinLoss,
+  tender_costing: computeTenderCosting,
+  boq_submission_report: computeBoqSubmissionReport,
+  pre_bid_meeting_report: computePreBidMeetingReport,
+  emd_tracking_report: computeEmdTrackingReport,
+  contract_award_report: computeContractAwardReport,
   delayed_tasks_report: computeDelayedTasksReport,
   look_ahead_plan: computeLookAheadPlan,
   interior_mood_board_approval_report: interiorMoodBoardApprovalReport,
