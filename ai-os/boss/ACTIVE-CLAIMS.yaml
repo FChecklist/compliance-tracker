@@ -6342,6 +6342,33 @@ recently_completed:
       trusting the PR description), which posted a real AUDIT: PASS with all 8
       required structured fields after one format correction (Title-Case
       labels, not camelCase).
+  - session_label: "claude-code (worker task-20260718-073004-api-governance--rate-limiting--versionin) -- webhook delivery manual dead-letter redelivery"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "PR pending (branch worker/task-20260718-073004-api-governance--rate-limiting--versionin)"
+    summary: |
+      VERIDIAN Review Framework gap-closure, API Governance / Webhook
+      Reliability: "Retry is capped at 3 attempts with no dead-letter/
+      manual-replay path". Re-verified against current code first -- gap
+      was still real. Added a nullable additive
+      webhook_deliveries.redelivery_of_id column (migration 0225), a new
+      redeliverWebhookDelivery() in src/lib/webhook-deliver.ts (shares the
+      sign/send logic with the existing 3-attempt automatic deliverWebhook,
+      which is unchanged) that replays a stored failed delivery's
+      payload/eventType against the webhook's current URL/secret, a new
+      auth+tenant-scoped POST /api/settings/webhooks/[id]/redeliver route,
+      and a "Redeliver" action + "Manual" badge in WebhookSection.tsx. Unit
+      tests added (webhook-deliver.test.ts, 5/5 pass); tsc/eslint clean on
+      all changed files. Did not touch permission-service.ts (not needed --
+      route already gated via requireAuth + withTenantContext, same as the
+      existing GET/PATCH/DELETE routes in that file). Merged in a real,
+      concurrent conflict against main's own webhook-deliver.ts change
+      (RES-02 Phase 1 webhook-delivery-outcome-monitor) -- combined both:
+      kept the shared sendWebhookAttempt() abstraction and added the
+      delivered/attemptsMade/lastStatusCode tracking + post-loop monitor
+      call from main's version, deliberately NOT invoking the monitor from
+      the manual redeliverWebhookDelivery() path (that accounting is for
+      the automatic pipeline, not a human-initiated replay already visible
+      in the UI).
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |
