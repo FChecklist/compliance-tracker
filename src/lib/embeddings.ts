@@ -113,7 +113,13 @@ export async function generateEmbedding(
   return result.vector;
 }
 
-async function generateEmbeddingUncached(
+// CRR-079/080 (P3-BRIDGE): exported so src/lib/crr/embed.ts's
+// storeChunkEmbedding can reuse the exact same real-vs-hash-pseudo-vector
+// provider chain (OpenRouter -> Groq -> hash fallback) and isReal signal for
+// compliance.document_chunk rows, instead of forking a second copy of this
+// same provider-selection logic. Was previously module-private -- this is
+// the first cross-module consumer.
+export async function generateEmbeddingUncached(
   text: string,
   apiKey?: string
 ): Promise<{ vector: number[]; isReal: boolean }> {
@@ -148,6 +154,90 @@ async function generateEmbeddingUncached(
   // Last resort: deterministic hash-based pseudo-embedding (1536 dimensions)
   console.warn("No real embedding provider available (OpenRouter and Groq both unavailable) — using hash-based pseudo-vector. Semantic search quality will be degraded.");
   return { vector: hashToVector(text, 1536), isReal: false };
+}
+
+// CRR-081 (P3-BRIDGE): batches N texts into ONE HTTP call to the embeddings
+// provider instead of N separate calls -- both OpenRouter's and Groq's
+// embeddings endpoints are OpenAI-compatible and accept `input` as either a
+// single string or an array of strings, returning one `data[]` entry per
+// input (each carrying its own `index`, not necessarily response-ordered,
+// per the OpenAI embeddings API shape -- sorted back into request order
+// below rather than assumed). Reuses the exact same two providers/models/
+// fallback order as generateEmbeddingUncached above (OpenRouter ->
+// Groq -> hash pseudo-vector) -- this is a batch-shaped call against the
+// same endpoints, not a second embedding call path. All-or-nothing per
+// batch: if the provider call itself fails, every text in that batch falls
+// back to a hash pseudo-vector together (isReal: false), the same
+// coarse-grained failure mode the single-text path already has -- a caller
+// that needs D-1 (CRR-017/080) discipline still checks isReal per item and
+// refuses to persist any one degraded vector individually.
+export async function generateEmbeddingsBatchUncached(
+  texts: string[],
+  apiKey?: string
+): Promise<{ vector: number[]; isReal: boolean }[]> {
+  if (texts.length === 0) return [];
+
+  const openRouterResult = await tryOpenRouterEmbeddingBatch(texts);
+  if (openRouterResult) return openRouterResult.map((vector) => ({ vector, isReal: true }));
+
+  const key = apiKey || process.env.GROQ_API_KEY;
+  if (key) {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/embeddings", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "nomic-embed-text",
+          input: texts.map((t) => t.slice(0, 8000)),
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const rows = [...data.data].sort((a: { index: number }, b: { index: number }) => a.index - b.index);
+        if (rows.length === texts.length) {
+          return rows.map((r: { embedding: number[] }) => ({ vector: r.embedding, isReal: true }));
+        }
+        console.warn(`Groq batch embedding API returned ${rows.length} vectors for ${texts.length} inputs — using fallback`);
+      } else {
+        console.warn("Groq batch embedding API returned", res.status, "— using fallback");
+      }
+    } catch (err) {
+      console.warn("Groq batch embedding fetch failed:", err, "— using fallback");
+    }
+  }
+
+  // Last resort: deterministic hash-based pseudo-embedding, one per text.
+  console.warn(`No real embedding provider available for a batch of ${texts.length} texts (OpenRouter and Groq both unavailable) — using hash-based pseudo-vectors. Semantic search quality will be degraded.`);
+  return texts.map((text) => ({ vector: hashToVector(text, 1536), isReal: false }));
+}
+
+async function tryOpenRouterEmbeddingBatch(texts: string[]): Promise<number[][] | null> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/embeddings", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "openai/text-embedding-3-small", input: texts.map((t) => t.slice(0, 8000)) }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const rows = [...data.data].sort((a: { index: number }, b: { index: number }) => a.index - b.index);
+      if (rows.length === texts.length) {
+        return rows.map((r: { embedding: number[] }) => r.embedding);
+      }
+      console.warn(`OpenRouter batch embedding API returned ${rows.length} vectors for ${texts.length} inputs — trying next fallback`);
+      return null;
+    }
+    console.warn("OpenRouter batch embedding API returned", res.status, "— trying next fallback");
+  } catch (err) {
+    console.warn("OpenRouter batch embedding fetch failed:", err, "— trying next fallback");
+  }
+  return null;
 }
 
 /**

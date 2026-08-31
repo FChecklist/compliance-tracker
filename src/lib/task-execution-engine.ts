@@ -8,6 +8,12 @@ import { buildMultiDomainPurposeClause, resolveOrgDomains, isToolAllowedForDomai
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
+// AI Engineering Quality / Code Structure & Modularity gap-closure ("Code
+// Modularity" finding): first two slices of dispatchEngine()'s incremental
+// extraction into per-category service modules. See each file's own
+// header for scope/provenance.
+import { CRM_ENGINE_KEYS, dispatchCrmEngine } from "@/lib/engine-handlers/crm-engine-dispatch";
+import { ACCOUNTING_ENGINE_KEYS, dispatchAccountingEngine } from "@/lib/engine-handlers/accounting-engine-dispatch";
 import { searchAssistantMemories, recordAssistantMemory } from "@/lib/services/assistant-memory-service";
 import { assertValidDispatchOutput } from "@/lib/dispatch-output-validator";
 import { assertBusinessRulesBeforeExecution } from "@/lib/business-rule-validator";
@@ -464,59 +470,13 @@ async function dispatchEngine(db: TenantDb, orgId: string, userId: string, engin
     });
   }
 
+  // VERIDIAN CRM Wave 4 engine category -- extracted to
+  // engine-handlers/crm-engine-dispatch.ts (AI Engineering Quality / Code
+  // Structure & Modularity gap-closure, "Code Modularity" finding). Pure
+  // code motion: same cases, same behavior, now a separate module.
+  if (CRM_ENGINE_KEYS.has(engineKey)) return dispatchCrmEngine(engineKey, orgId, userId, inputs);
+
   switch (engineKey) {
-    // VERIDIAN CRM Wave 4 (2026-07-21): structured, zero-LLM record
-    // creation -- the capability-tree leaf (capability-tree-service.ts's
-    // buildCrmQuickCreateNodes()) already collected every field via
-    // inputFields before this ever runs, so there is nothing left for an
-    // AI to interpret. userId (from this function's own new param, Wave 4)
-    // is what makes createdById real instead of a system placeholder.
-    case "crm_create_lead_engine": {
-      const { createLead } = await import("@/lib/services/crm-service");
-      const name = String(inputs.name ?? "").trim();
-      if (!name) throw new Error("name is required");
-      return createLead(
-        { orgId, userId },
-        {
-          name,
-          contactEmail: inputs.contactEmail ? String(inputs.contactEmail) : undefined,
-          contactPhone: inputs.contactPhone ? String(inputs.contactPhone) : undefined,
-          source: inputs.source ? String(inputs.source) : undefined,
-        }
-      );
-    }
-    case "crm_create_opportunity_engine": {
-      const { createOpportunity } = await import("@/lib/services/crm-service");
-      const name = String(inputs.name ?? "").trim();
-      const leadId = String(inputs.leadId ?? "").trim();
-      if (!name) throw new Error("name is required");
-      if (!leadId) throw new Error("leadId is required");
-      return createOpportunity(
-        { orgId, userId },
-        { name, leadId, estimatedValue: inputs.estimatedValue != null ? Number(inputs.estimatedValue) : undefined }
-      );
-    }
-    case "crm_create_activity_engine": {
-      const { createActivity } = await import("@/lib/services/crm-activities-service");
-      const entityType = String(inputs.entityType ?? "");
-      const entityId = String(inputs.entityId ?? "").trim();
-      const activityType = String(inputs.activityType ?? "");
-      const subject = String(inputs.subject ?? "").trim();
-      if (!["lead", "opportunity", "account", "contact"].includes(entityType)) throw new Error("entityType must be lead, opportunity, account, or contact");
-      if (!entityId) throw new Error("entityId is required");
-      if (!["task", "meeting", "call"].includes(activityType)) throw new Error("activityType must be task, meeting, or call");
-      if (!subject) throw new Error("subject is required");
-      return createActivity(
-        { orgId, userId },
-        { entityType: entityType as "lead" | "opportunity" | "account" | "contact", entityId, activityType: activityType as "task" | "meeting" | "call", subject, dueDate: inputs.dueDate ? String(inputs.dueDate) : undefined }
-      );
-    }
-    case "crm_create_campaign_engine": {
-      const { createCampaign } = await import("@/lib/services/crm-campaigns-service");
-      const name = String(inputs.name ?? "").trim();
-      if (!name) throw new Error("name is required");
-      return createCampaign({ orgId, userId }, { name, campaignType: inputs.campaignType ? String(inputs.campaignType) : undefined });
-    }
     // R48/R64 gap-closure (2026-08-30, workstream 2: real erp writes,
     // matching the exact same safety posture as the crm_create_*_engine
     // cases above -- capability-tree-service.ts's buildErpQuickCreateNodes()
@@ -853,87 +813,12 @@ async function dispatchEngine(db: TenantDb, orgId: string, userId: string, engin
     }
   }
 
-  // Accounting Computation Engine (tree4-unified/50-completion-plan area 8,
-  // Wave 167) -- 11 of 20 registered engines. The other 9
-  // (double_entry_engine, journal_posting_engine, ledger_posting_engine,
-  // trial_balance_engine, profit_loss_engine, balance_sheet_engine,
-  // cash_flow_engine, financial_year_closing_engine, chart_of_accounts_engine)
-  // are already implemented in erp-accounting-service.ts/erp-financial-
-  // report-service.ts as real, DB-backed ERP product functions (per
-  // accounting-engine.ts's own header comment) -- deliberately NOT
-  // re-dispatched here as a second surface; see this session's log for why.
-  switch (engineKey) {
-    case "opening_balance_engine": {
-      const { computeOpeningBalance } = await import("@/lib/engines/accounting-engine");
-      return { openingBalance: computeOpeningBalance(Number(inputs.priorClosingBalance)) };
-    }
-    case "closing_balance_engine": {
-      const { computeClosingBalance } = await import("@/lib/engines/accounting-engine");
-      return { closingBalance: computeClosingBalance(Number(inputs.openingBalance), Number(inputs.totalDebits), Number(inputs.totalCredits), truthy(inputs.isDebitNormal)) };
-    }
-    case "balance_verification_engine": {
-      // AI Architecture / Explainability & Transparency gap-closure
-      // (2026-07-18): the *Explained() variant -- see accounting-engine.ts's
-      // header comment. Safe here specifically because this dispatch's
-      // return value is only ever JSON.stringify'd into a task chat message
-      // (executeEngineDispatch, below) and sanity-checked by
-      // assertValidDispatchOutput (tolerates any nested shape, only rejects
-      // NaN/Infinity numbers) -- adding fields doesn't break either.
-      const { verifyBalancesNetToZeroExplained } = await import("@/lib/engines/accounting-engine");
-      const balances = inputs.balances as { accountId: string; debit: number; credit: number }[];
-      if (!Array.isArray(balances)) throw new Error("balances must be an array");
-      return verifyBalancesNetToZeroExplained(balances);
-    }
-    case "consolidation_engine": {
-      const { consolidateBalances } = await import("@/lib/engines/accounting-engine");
-      const entityBalances = inputs.entityBalances as { entityId: string; accountId: string; amount: number }[];
-      const intercompanyAccountIds = inputs.intercompanyAccountIds as string[];
-      if (!Array.isArray(entityBalances) || !Array.isArray(intercompanyAccountIds)) throw new Error("entityBalances and intercompanyAccountIds must both be arrays");
-      return consolidateBalances(entityBalances, intercompanyAccountIds);
-    }
-    case "fund_flow_engine": {
-      const { computeFundFlow } = await import("@/lib/engines/accounting-engine");
-      return computeFundFlow(Number(inputs.openingWorkingCapital), Number(inputs.closingWorkingCapital));
-    }
-    case "statement_changes_equity_engine": {
-      const { statementOfChangesInEquity } = await import("@/lib/engines/accounting-engine");
-      return statementOfChangesInEquity({
-        openingBalance: Number(inputs.openingBalance), profitForPeriod: Number(inputs.profitForPeriod),
-        dividendsPaid: inputs.dividendsPaid ? Number(inputs.dividendsPaid) : undefined,
-        capitalIntroduced: inputs.capitalIntroduced ? Number(inputs.capitalIntroduced) : undefined,
-        otherComprehensiveIncome: inputs.otherComprehensiveIncome ? Number(inputs.otherComprehensiveIncome) : undefined,
-      });
-    }
-    case "notes_to_accounts_generator": {
-      const { generateNotesToAccounts } = await import("@/lib/engines/accounting-engine");
-      const lineItems = inputs.lineItems as { accountId: string; noteCategory: string; amount: number }[];
-      if (!Array.isArray(lineItems)) throw new Error("lineItems must be an array");
-      return generateNotesToAccounts(lineItems);
-    }
-    case "voucher_validation_engine": {
-      const { validateVoucher } = await import("@/lib/engines/accounting-engine");
-      const lines = inputs.lines as { accountId: string }[];
-      if (!Array.isArray(lines)) throw new Error("lines must be an array");
-      return validateVoucher({ debitTotal: Number(inputs.debitTotal), creditTotal: Number(inputs.creditTotal), lines });
-    }
-    case "duplicate_entry_detection_engine": {
-      const { detectDuplicateEntries } = await import("@/lib/engines/accounting-engine");
-      const entries = inputs.entries as { id: string; date: string; amount: number; accountId: string; reference?: string }[];
-      if (!Array.isArray(entries)) throw new Error("entries must be an array");
-      return { duplicateGroups: detectDuplicateEntries(entries) };
-    }
-    case "suspense_account_detection_engine": {
-      const { detectSuspenseAccountBalance } = await import("@/lib/engines/accounting-engine");
-      return detectSuspenseAccountBalance(Number(inputs.suspenseAccountBalance));
-    }
-    case "ledger_reconciliation_engine": {
-      const { reconcileLedgers } = await import("@/lib/engines/accounting-engine");
-      const ledgerA = inputs.ledgerA as { reference: string; amount: number }[];
-      const ledgerB = inputs.ledgerB as { reference: string; amount: number }[];
-      if (!Array.isArray(ledgerA) || !Array.isArray(ledgerB)) throw new Error("ledgerA and ledgerB must both be arrays");
-      return reconcileLedgers(ledgerA, ledgerB);
-    }
-  }
+  // Accounting Computation Engine -- extracted to engine-handlers/
+  // accounting-engine-dispatch.ts (AI Engineering Quality / Code Structure
+  // & Modularity gap-closure, "Code Modularity" finding). Pure code
+  // motion: same cases, same behavior, now a separate module. See that
+  // file's header for the "11 of 20 registered engines" provenance note.
+  if (ACCOUNTING_ENGINE_KEYS.has(engineKey)) return dispatchAccountingEngine(engineKey, inputs);
 
   // Payroll Engine (tree4-unified/50-completion-plan area 8, Wave 167) --
   // 14 of 18 registered engines. pf_calculator/esi_calculator/

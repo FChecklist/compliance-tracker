@@ -35,7 +35,13 @@ by a human `AUDIT: FAIL` review comment on the PR:
       renumbered to `drizzle/0344_force_rls_crm_leads_stage_history.sql`
       (highest existing migration on merged main was `0343`, confirmed via
       PowerShell `Get-ChildItem` -- Git Bash `ls`/`find` undercounted the
-      directory on this checkout) and `_journal.json` updated (idx 313).
+      directory on this checkout) and `_journal.json` updated. `main` moved
+      another 37 commits during the push/PR-open window (this repo has many
+      concurrent agent sessions active) and picked up its own `0350`
+      migration in the same journal slot in the interim -- re-merged once
+      more, journal idx reordered (0350 at idx 313, this task's 0344 at
+      idx 314), vercel.json's new `crr-catchup-worker` cron kept alongside
+      this task's three.
 - [x] Bug 1 fix: threaded `role` through to `bulkReassignLeads()` and added
       `assertGate(canReassignOrDeleteLead(role))` inside it, matching
       `updateLead()`'s existing pattern. New test proves a non-manager role
@@ -46,12 +52,30 @@ by a human `AUDIT: FAIL` review comment on the PR:
       guarded) instead of the PR's own unguarded `escapeCsvField()`. New/updated
       test proves formula-injection-shaped values (`=`, `+`, `-`, `@` prefixed)
       are now escaped in the export output.
-- [x] `governance-yaml-parse`, `tsc --noEmit`, and full `bun test` on
-      `crm-service.test.ts` (plus any other touched test files) run clean,
-      including the 2 new tests.
-- [x] Opened replacement PR citing the original `AUDIT: FAIL` finding; closed
-      #1014 pointing to the replacement.
+- [x] `governance-yaml-parse`, full `bun test` on `crm-service.test.ts`
+      (66/66 pass, including the 2 new tests), `report-export-shared.test.ts`
+      (7/7), and `crm-accounts-service.test.ts` regression check (43/43) all
+      run clean. `bunx eslint` on every touched file: clean, zero
+      warnings/errors. `node scripts/check-migration-reversibility.mjs`:
+      clean.
+- [x] `tsc --noEmit`: could not complete locally -- this sandbox is under
+      severe, session-wide memory pressure from many other concurrent
+      worktree sessions on this same machine (confirmed via
+      `Get-CimInstance Win32_Process`: ~10 concurrent `tsc --noEmit`
+      processes at once, `/proc/meminfo` free memory cycling 25-460MB out
+      of 8GB total). This is the exact same pre-existing sandbox limitation
+      already documented elsewhere in this file's own history ("Full-repo
+      tsc --noEmit OOMs in this sandbox regardless of
+      `--max-old-space-size`... full verification deferred to CI's real
+      Type Check job, which runs with proper resources") -- not introduced
+      by this change. Deferred to CI's Type Check job (`ci.yml`'s
+      `typecheck` job runs `bunx tsc --noEmit` on `ubuntu-latest` with
+      `NODE_OPTIONS: --max-old-space-size=8192`, real dedicated resources).
+- [x] Opened replacement PR #1490 citing the original `AUDIT: FAIL` finding;
+      closed #1014 pointing to the replacement.
 
 ## Remaining
 
-- [ ] None once CI is confirmed green on the replacement PR.
+- [ ] Confirm CI is green on PR #1490 and merge. CI had not yet started as
+      of this checkpoint (likely queued behind the same heavy concurrent
+      load noted above) -- flagged honestly rather than claimed done.

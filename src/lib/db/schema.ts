@@ -205,7 +205,16 @@ export const departments = complianceSchemaDB.table('departments', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   name: text('name').notNull(),
   description: text('description'),
-  orgId: text('org_id').notNull(),
+  // AI Engineering Quality / Code Structure & Modularity gap-closure
+  // ([Medium] "Low Coupling / High Cohesion" -- "Data-layer coupling is
+  // implicit, not enforced"): org/user scoping is the highest-traffic
+  // relationship in this schema, so it's the incremental starting point
+  // for real FK enforcement (the `org: one(organisations, ...)` in
+  // departmentsRelations below was always query-ergonomics only, never a
+  // DB-level constraint). See this migration's own header for the
+  // NOT VALID / VALIDATE CONSTRAINT rollout note before applying to a
+  // live database with existing rows.
+  orgId: text('org_id').notNull().references(() => organisations.id),
   headId: text('head_id').unique(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -221,7 +230,12 @@ export const users = complianceSchemaDB.table('users', {
   avatarUrl: text('avatar_url'),
   isActive: boolean('is_active').notNull().default(true),
   lastLoginAt: timestamp('last_login_at'),
-  orgId: text('org_id'),
+  // See departments.orgId above for why this is now a real FK (same
+  // gap-closure) -- nullable is preserved as-is (stage-0-only accounts
+  // legitimately have orgId IS NULL, see the accountStage comment below;
+  // a nullable FK column accepts NULL without checking it against
+  // organisations, only non-null values are validated).
+  orgId: text('org_id').references(() => organisations.id),
   departmentId: text('department_id'),
   onboardingCompleted: boolean('onboarding_completed').notNull().default(false), // M-20
   onboardingStage: text('onboarding_stage').notNull().default('profile'), // OnboardingChecklist.tsx step ids: profile|compliance|upload|invite|ai-config
@@ -301,7 +315,9 @@ export const complianceItems = complianceSchemaDB.table('compliance_items', {
   paidDate: timestamp('paid_date'),           // G-21
   departmentId: text('department_id').notNull(),
   assignedToId: text('assigned_to_id'),
-  orgId: text('org_id').notNull(),
+  // See departments.orgId above for why this is now a real FK (same
+  // gap-closure).
+  orgId: text('org_id').notNull().references(() => organisations.id),
   clientId: text('client_id'), // Wave 1 -- nullable during rollout, backfilled for existing rows
   // M-09: Period / Financial Year
   period: text('period'),                     // e.g. "June 2026", "Q1 FY2026-27"
@@ -455,6 +471,20 @@ export const documents = complianceSchemaDB.table('documents', {
   // "auto-tagged, please confirm" instead of silently presenting a rule's
   // guess as if a person had typed it.
   autoClassified: boolean('auto_classified').notNull().default(false),
+  // CRR-084 (P3-BRIDGE): the real compliance.documents.source_object_id
+  // column already existed live (added by an earlier CRR P2 schema-
+  // foundation migration) but had no Drizzle model until now -- pure ORM
+  // drift, not a new column/migration. Nullable: every pre-CRR-084 upload
+  // (and any route that doesn't go through the createSourceObject capture
+  // path) has no source_object row to point at. No FK declared here on
+  // purpose -- sourceObject.id is a text primary key in a different logical
+  // domain (capture/ingest) than documents' own row lifecycle (retention,
+  // disposal, versioning), and CRR-078's own dedup contract means a single
+  // source_object can legitimately be pointed at by more than one documents
+  // row (the same bytes uploaded to two different documents entries) --
+  // an unenforced advisory link, not an ownership relationship worth a
+  // restrict/cascade decision this pass.
+  sourceObjectId: text('source_object_id'),
 })
 
 // Priority 13 (Document Correspondent/Type Auto-Classification): a real,
