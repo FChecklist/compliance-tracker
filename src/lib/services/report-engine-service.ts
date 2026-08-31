@@ -67,7 +67,7 @@ import {
   interiorFurniturePlacements, interiorMaterials, users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, or, isNull, isNotNull, inArray, sql, gte, lt, lte, type SQL } from "drizzle-orm"
+import { and, eq, or, isNull, isNotNull, inArray, sql, gte, lt, lte, ilike, type SQL } from "drizzle-orm"
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson, stripJsonFence } from "@/lib/llm-client"
@@ -1444,6 +1444,60 @@ async function interiorDesignerProductivityAnalysis(ctx: { orgId: string }, para
 }
 
 /**
+ * Analysis 11: Variation Order Analysis (report_definitions
+ * a973e9a4-0e75-4c44-a6e2-05351f8779d3, classifications
+ * ["interior_design","project","financial"], formulaKey
+ * interior_variation_order_analysis). Was status='data_gap': construction_
+ * change_orders (Wave 141) tracks cost_impact/schedule_impact_days/status
+ * per project, but had no field distinguishing an interior-design-caused
+ * scope change from civil/MEP/other-trade -- confirmed real and current
+ * against live schema before this closure (see this table's own `trade`
+ * column comment in schema.ts, added by this same change).
+ *
+ * The generic, UNTAGGED, org-wide version of "change order cost/schedule
+ * impact" already exists (computeDesignChangeImpactAnalysis above,
+ * formulaKey design_change_impact_analysis, grouped by project) -- this is
+ * deliberately NOT a duplicate of that: it filters to change orders whose
+ * new `trade` column matches an interior-design value, a genuinely
+ * different (narrower, subject-scoped) cut the generic report cannot do.
+ *
+ * `trade` is free text (matching constructionLabourRoster.trade/
+ * erpSuppliers.trade's own no-fixed-vocabulary convention), so the filter
+ * is a case-insensitive substring match ('%interior%') rather than an
+ * exact-equality lookup against an invented enum -- tolerates "Interior
+ * Design", "Interiors", "Interior Fit-out", etc, the same way a human
+ * would type it.
+ */
+async function computeInteriorVariationOrderAnalysis(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = params.projectId ? String(params.projectId) : undefined
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(constructionChangeOrders.orgId, ctx.orgId), ilike(constructionChangeOrders.trade, "%interior%")]
+    if (projectId) conditions.push(eq(constructionChangeOrders.projectId, projectId))
+    const changeOrders = await db.query.constructionChangeOrders.findMany({
+      where: and(...conditions),
+      orderBy: (t, { desc }) => desc(t.number),
+    })
+    const rows = changeOrders.map((co) => ({
+      "CO #": co.number,
+      Title: co.title,
+      Trade: co.trade ?? "",
+      "Cost Impact": Math.round(Number(co.costImpact)),
+      "Schedule Impact (Days)": co.scheduleImpactDays,
+      Status: co.status,
+    }))
+    const totalCostImpact = Math.round(changeOrders.reduce((sum, co) => sum + Number(co.costImpact), 0))
+    const totalScheduleImpactDays = changeOrders.reduce((sum, co) => sum + co.scheduleImpactDays, 0)
+    return {
+      columns: ["CO #", "Title", "Trade", "Cost Impact", "Schedule Impact (Days)", "Status"],
+      rows,
+      note: changeOrders.length > 0
+        ? `${changeOrders.length} interior-design-scoped change order(s)${projectId ? "" : " across all projects"} -- total cost impact ${totalCostImpact >= 0 ? "+" : ""}${totalCostImpact}, total schedule impact ${totalScheduleImpactDays >= 0 ? "+" : ""}${totalScheduleImpactDays} day(s). Scoped via construction_change_orders.trade ILIKE '%interior%', a free-text field populated only for change orders created (or edited) after it existed -- older change orders predating it read as trade=NULL and are correctly excluded here, not silently mislabeled.`
+        : "No change order is currently tagged with an interior-design trade. construction_change_orders.trade is a new free-text field (this closure, matching construction_labour_roster.trade's convention) -- it exists so a change order CAN be marked interior-design-scoped going forward, but nothing retroactively tags the change orders that already exist. Generic, untagged change-order cost/schedule impact is already covered by the 'Design Change Impact Analysis' report (formulaKey design_change_impact_analysis).",
+    }
+  })
+}
+
+/**
  * Pure predicate: is a billing schedule genuinely due for billing as of a
  * given date? Extracted standalone (same precedent as
  * deriveReportDomainFromClassifications above) so the "what counts as due"
@@ -2022,6 +2076,7 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   interior_vendor_lead_time_analysis: interiorVendorLeadTimeAnalysis,
   interior_profit_by_room_analysis: interiorProfitByRoomAnalysis,
   interior_designer_productivity_analysis: interiorDesignerProductivityAnalysis,
+  interior_variation_order_analysis: computeInteriorVariationOrderAnalysis,
   billing_due_list: computeBillingDueList,
   customer_payment_behavior_dso: computeCustomerPaymentBehavior,
   vendor_payment_behavior_dpo: computeVendorPaymentBehavior,

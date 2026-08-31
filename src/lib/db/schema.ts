@@ -10830,6 +10830,20 @@ export const constructionChangeOrders = complianceSchemaDB.table('construction_c
   approvedAt: timestamp('approved_at'),
   esignatureRequestId: text('esignature_request_id'), // nullable FK -- set once sent for signature
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // R65 gap-closure (report_definitions 'Variation Order Analysis',
+  // classifications ["interior_design","project","financial"]): the row's
+  // own data_gap_note was real and current -- nothing distinguished an
+  // interior-design-caused scope change from a civil/MEP/other-trade one,
+  // so an "interior" filter would have silently mislabeled generic data.
+  // Nullable free text, matching constructionPunchListItems.trade/
+  // constructionLabourRoster.trade/erpSuppliers.trade's own established
+  // convention (real live values there: "Carpentry"/"Civil"/"Electrical"/
+  // etc, user-entered, no fixed vocabulary) rather than inventing a new
+  // enum this codebase has no other precedent for. Existing rows are null
+  // (no retroactive trade can be inferred) -- only change orders created
+  // or edited after this field exists can be genuinely trade-scoped; see
+  // computeInteriorVariationOrderAnalysis in report-engine-service.ts.
+  trade: text('trade'),
 })
 
 // ─── R65 gap-closure (report_definitions data_gap cluster, 8 reports:

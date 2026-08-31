@@ -2262,6 +2262,13 @@
       "when": 1788174991342,
       "tag": "0500_construction_expense_journal_entry_id",
       "breakpoints": true
+    },
+    {
+      "idx": 323,
+      "version": "7",
+      "when": 1788285600000,
+      "tag": "0501_construction_change_order_trade",
+      "breakpoints": true
     }
   ]
 }
