@@ -399,6 +399,85 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     classifications: ["financial", "procurement", "construction"],
     periodicity: "on_demand",
   },
+
+  // CO-001/CO-003/FI-GL-002/FI-GL-007/FI-GL-008 (SAP gap-analysis
+  // calculation-track engines, sap_mapping.sqlite/sap_reports): 4
+  // EXTEND_EXISTING GL/cost-center reports + 1 BUILD_NEW reconciliation
+  // report. No dedicated UI page yet for any of the 5 -- API-only, same
+  // honest "no dashboard surface" caveat this wave's other recent entries
+  // already disclose. Appended at the end of this array (not inserted near
+  // other FI-*/CO-* entries above) to avoid a real merge-conflict collision
+  // with those still-open sibling PRs editing the same region.
+  {
+    id: "erp-cost-center-line-items",
+    name: "Cost Center Line Item Display",
+    description: "Every posted journal-entry line that carries a cost center, showing both the GL account and the cost center on one row -- SAP KSB1 equivalent.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-accounting-service.ts#listJournalEntryLinesByCostCenter",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/cost-center-line-items)"],
+    route: "/api/v1/projexa/cost-center-line-items",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
+  {
+    id: "erp-cost-center-hierarchy",
+    name: "Cost Center Hierarchy Report",
+    description: "Overhead spending (expense-account postings tagged with a cost center) rolled up through the real cost-center parent/child tree.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-accounting-service.ts#costCenterHierarchyReport",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/cost-center-hierarchy)"],
+    route: "/api/v1/projexa/cost-center-hierarchy",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
+  {
+    id: "erp-gl-account-balance-display",
+    name: "G/L Account Balances Display",
+    description: "Per selected GL account: opening balance, period debit/credit movement, and closing balance over a date range -- SAP FS10N equivalent, a direct filter of Trial Balance's existing output.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-financial-report-service.ts#glAccountBalanceDisplay",
+    outputFormats: ["on-screen table (JSON API: GET /api/erp/reports/gl-account-balance-display)"],
+    route: "/api/erp/reports/gl-account-balance-display",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. Requires at least one accountId query param. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
+  {
+    id: "erp-gl-account-group-balances",
+    name: "G/L Account Group Balances Summary",
+    description: "Trial Balance's per-account closing balances rolled up through the real chart-of-accounts group hierarchy, as of a date.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-financial-report-service.ts#glAccountGroupBalancesSummary",
+    outputFormats: ["on-screen table (JSON API: GET /api/erp/reports/gl-account-group-balances)"],
+    route: "/api/erp/reports/gl-account-group-balances",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
+  {
+    id: "erp-subledger-gl-reconciliation",
+    name: "Subledger-to-GL Reconciliation",
+    description: "Month-end close control comparing each real subledger's own total outstanding balance (AR/AP) against its corresponding GL control-account balance from the Trial Balance -- a non-zero variance flags a real problem before the books are considered reliable. Fixed-asset reconciliation is a separate report (Asset-to-GL Reconciliation); inventory/stock is not included because stock movements do not yet post to the GL in this codebase.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-financial-report-service.ts#subledgerToGlReconciliation",
+    outputFormats: ["on-screen table (JSON API: GET /api/erp/reports/subledger-gl-reconciliation)"],
+    route: "/api/erp/reports/subledger-gl-reconciliation",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
 ]
 
 export function getReportCatalogEntry(id: string): ReportCatalogEntry | undefined {

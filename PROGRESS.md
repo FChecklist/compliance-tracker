@@ -79,3 +79,48 @@ by a human `AUDIT: FAIL` review comment on the PR:
 - [ ] Confirm CI is green on PR #1490 and merge. CI had not yet started as
       of this checkpoint (likely queued behind the same heavy concurrent
       load noted above) -- flagged honestly rather than claimed done.
+
+---
+
+# PROGRESS -- rebase-995-v2 (replacement for PR #995, winner of #995 vs #997)
+
+## Scope
+
+PR #995 and PR #997 independently built the same 5 report engines
+(CO-001, CO-003, FI-GL-002, FI-GL-007, FI-GL-008). #995 was chosen as the
+winner: it registers its migrations correctly in
+`drizzle/meta/_journal.json` (#997 does not) and routes cost-center reports
+under `/api/v1/projexa/` matching main's existing convention (`ar-aging`,
+`asset-to-gl-reconciliation` already live there; #997 instead used a new
+`/api/erp/reports/` prefix for these two). #997's 6 unique reports
+(SD-006, FI-AP-001/002/003, FI-AR-001/002/005) are NOT part of this PR --
+tracked separately as a follow-up PR that cherry-picks just that remainder
+onto this PR once merged.
+
+## Completed
+- [x] Found two stale local leftovers from an earlier same-day attempt at
+      this exact rebase (`rebase-995` and `rebase-995-b2`, both unpushed) --
+      both had silently deleted unrelated, still-live main functionality
+      (crm-service.ts -432 lines, action-autonomy-decision.ts removed
+      entirely + its test, CRM leads bulk-reassign/export/import routes
+      removed, 3 internal cron routes removed, `drizzle/0360_task_assignees`
+      itself deleted). Discarded both rather than building on top of a
+      corrupted base; did a fresh `git worktree add -b rebase-995-v2` from
+      current `origin/main` instead and a real 3-way `git merge` of PR #995's
+      actual source branch (`worker/task-20260806-091101-build-extend-
+      calculation-track-engines`, verified HEAD SHA matches GitHub exactly).
+- [x] Real merge conflicts (4 files, everything else auto-merged clean):
+      `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (both resolved
+      keep-both/append), `src/lib/services/report-engine-service.ts` (two
+      purely-additive import/function-registry hunks, combined both sides),
+      `drizzle/meta/_journal.json` (renumbered, see below).
+- [x] Migration collision: PR #995's 5 migrations were authored as
+      `0313`-`0317` back when main was at that point (Aug 6); main is now at
+      `0360` (idx 315 in `_journal.json`, confirmed via `git cat-file -p
+      origin/main:drizzle/meta/_journal.json` -- plain `git show` truncates
+      blob output at ~31 lines on this box, a known gotcha). Checked
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`'s live `active:` section and all ~30
+      currently-open PRs for any real reserved migration number above 0360:
+      none found. Renumbered all 5 to genuinely free `0361`-`0365`
+      (file renames via `git mv` + matching `_journal.json` idx 316-320
+      appended after idx 315, contiguous, valid JSON verified).

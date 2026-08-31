@@ -10,10 +10,10 @@
 // default behavior.
 import { db, erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, users, organisations } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, sql, desc, lte, gte, like } from "drizzle-orm"
+import { and, eq, sql, desc, lte, gte, like, inArray, isNotNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { isPeriodOpenForDate } from "./erp-financial-report-service"
+import { isPeriodOpenForDate, rollUpTree } from "./erp-financial-report-service"
 import { startApprovalWorkflow } from "./approval-workflow-service"
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
@@ -170,6 +170,136 @@ export async function listJournalEntries(ctx: { orgId: string }, filters: { stat
         : eq(erpJournalEntries.orgId, ctx.orgId),
       orderBy: (t, { desc }) => desc(t.postingDate),
     })
+  })
+}
+
+// SAP KSB1 equivalent (CO-001, EXTEND_EXISTING, sap_mapping.sqlite/
+// sap_reports "Cost Center Line Item Display", engine_track=calculation):
+// listJournalEntries above has no cost-center dimension at all -- this is
+// the drill-down a controller reaches for after spotting a variance on a
+// cost-center summary, so it needs the GL account AND the cost center on
+// one line (gap_notes: "the user should see one line item and see both
+// 'which account' and 'which department' without switching reports"), not
+// a second, separate FBL3N-style GL-only line-item view.
+export type CostCenterLineItemFilters = { costCenterIds?: string[]; fromDate?: string; toDate?: string; page?: number; limit?: number }
+
+export async function listJournalEntryLinesByCostCenter(ctx: { orgId: string }, filters: CostCenterLineItemFilters = {}) {
+  await requireErpEnabled(ctx.orgId)
+  const page = Math.max(1, filters.page ?? 1)
+  const limit = Math.min(200, Math.max(1, filters.limit ?? 50))
+  const offset = (page - 1) * limit
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(erpJournalEntries.orgId, ctx.orgId), isNotNull(erpJournalEntryLines.costCenterId)]
+    if (filters.costCenterIds?.length) conditions.push(inArray(erpJournalEntryLines.costCenterId, filters.costCenterIds))
+    if (filters.fromDate) conditions.push(gte(erpJournalEntries.postingDate, filters.fromDate))
+    if (filters.toDate) conditions.push(lte(erpJournalEntries.postingDate, filters.toDate))
+    const where = and(...conditions)
+
+    const [lines, [{ count }]] = await Promise.all([
+      db
+        .select({
+          journalEntryId: erpJournalEntries.id,
+          postingDate: erpJournalEntries.postingDate,
+          referenceType: erpJournalEntries.referenceType,
+          referenceId: erpJournalEntries.referenceId,
+          userRemark: erpJournalEntries.userRemark,
+          accountId: erpAccounts.id,
+          accountName: erpAccounts.accountName,
+          accountNumber: erpAccounts.accountNumber,
+          costCenterId: erpJournalEntryLines.costCenterId,
+          debit: erpJournalEntryLines.debit,
+          credit: erpJournalEntryLines.credit,
+          lineRemark: erpJournalEntryLines.remark,
+        })
+        .from(erpJournalEntryLines)
+        .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+        .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
+        .where(where)
+        .orderBy(desc(erpJournalEntries.postingDate))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(erpJournalEntryLines)
+        .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+        .where(where),
+    ])
+
+    return { lines, total: count, page, limit, totalPages: Math.ceil(count / limit) }
+  })
+}
+
+// SAP-equivalent cost center hierarchy roll-up (CO-003, EXTEND_EXISTING,
+// "Cost Center Hierarchy Report"): erp_cost_centers already carries a real
+// parent_cost_center_id/is_group tree (Wave 52) but nothing sums child
+// balances up to each parent node -- this is a genuine new aggregation on
+// top of existing data, not new schema. Deliberately shallow-tree-friendly
+// per gap_notes ("do not over-engineer the hierarchy... a simple flat
+// list... is often more practical"): the recursion handles any depth
+// correctly, but a real firm's data will only ever be 2-3 levels.
+export type CostCenterHierarchyNode = {
+  costCenterId: string
+  name: string
+  isGroup: boolean
+  ownAmount: number
+  totalAmount: number
+  children: CostCenterHierarchyNode[]
+}
+
+export async function costCenterHierarchyReport(ctx: { orgId: string }, fromDate: string, toDate: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const costCenters = await db.query.erpCostCenters.findMany({ where: eq(erpCostCenters.orgId, ctx.orgId) })
+
+    // Overhead cost centers are cost/expense objects (gap_notes: "Office/
+    // Admin, Project Management, Estimating..." -- all spend, not revenue)
+    // -- expense accounts are debit-natured, so debit-credit reads as
+    // positive spend, matching the report's own "total overhead spending"
+    // framing.
+    const rows = await db
+      .select({
+        costCenterId: erpJournalEntryLines.costCenterId,
+        totalDebit: sql<string>`coalesce(sum(${erpJournalEntryLines.debit}), 0)`,
+        totalCredit: sql<string>`coalesce(sum(${erpJournalEntryLines.credit}), 0)`,
+      })
+      .from(erpJournalEntryLines)
+      .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+      .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
+      .where(and(
+        eq(erpJournalEntries.orgId, ctx.orgId),
+        eq(erpJournalEntries.status, "submitted"),
+        gte(erpJournalEntries.postingDate, fromDate),
+        lte(erpJournalEntries.postingDate, toDate),
+        eq(erpAccounts.rootType, "expense"),
+        isNotNull(erpJournalEntryLines.costCenterId),
+      ))
+      .groupBy(erpJournalEntryLines.costCenterId)
+
+    const ownAmountById = new Map(rows.map((r) => [r.costCenterId as string, Number(r.totalDebit) - Number(r.totalCredit)]))
+    const byId = new Map(costCenters.map((cc) => [cc.id, cc]))
+    const childrenByParent = new Map<string | null, typeof costCenters>()
+    for (const cc of costCenters) {
+      const key = cc.parentCostCenterId ?? null
+      if (!childrenByParent.has(key)) childrenByParent.set(key, [])
+      childrenByParent.get(key)!.push(cc)
+    }
+
+    const totals = rollUpTree(costCenters.map((cc) => cc.id), (id) => byId.get(id)?.parentCostCenterId ?? null, (id) => ownAmountById.get(id) ?? 0)
+
+    function buildNode(cc: (typeof costCenters)[number]): CostCenterHierarchyNode {
+      return {
+        costCenterId: cc.id,
+        name: cc.name,
+        isGroup: cc.isGroup,
+        ownAmount: ownAmountById.get(cc.id) ?? 0,
+        totalAmount: totals.get(cc.id) ?? 0,
+        children: (childrenByParent.get(cc.id) ?? []).map(buildNode),
+      }
+    }
+
+    const roots = childrenByParent.get(null) ?? []
+    return { fromDate, toDate, roots: roots.map(buildNode) }
   })
 }
 
