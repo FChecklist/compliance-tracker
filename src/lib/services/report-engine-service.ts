@@ -77,6 +77,7 @@ import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, type ReportCategory } from "./report-taxonomy"
 import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport, projectPeriodReport } from "./construction-reports-service"
 import { customerPaymentBehaviorReport, vendorPaymentBehaviorReport } from "./erp-invoicing-service"
+import { getMaterialCostReport } from "./construction-materials-service"
 import { listStockBalances } from "./erp-inventory-service"
 import {
   tenderRegisterReport, tenderPipelineByStage, tenderWinLossReport, tenderCostingReport,
@@ -1655,6 +1656,54 @@ function rowsToResult(rows: Record<string, string | number>[], emptyNote?: strin
 }
 
 /**
+ * R65 (2026-08-31, report-definitions gap closure): "Cost Report by
+ * Material"'s own data_gap_note (dated 2026-08-22) said construction_
+ * materials was already registered in TABLE_REGISTRY with a real orgId
+ * column, but status was deliberately left data_gap because the table had
+ * 0 rows for EVERY org -- do_not_assume rule 2, flipping to 'built' off
+ * zero-everywhere data would produce an empty report that LOOKS built but
+ * is unverified. That note is now stale: real construction_material_
+ * receipts rows exist (verified via a fresh SQL count before writing this,
+ * not trusted from the note). The real per-material aggregation was ALSO
+ * already built and shipped independently on 2026-08-30 --
+ * construction-materials-service.ts#getMaterialCostReport(), the backend
+ * for the /site-materials "Cost Report" tab (proxied through api/v1/
+ * construction/materials/cost-report/route.ts, real SQL sum/groupBy over
+ * construction_material_receipts, same precedent as construction-
+ * valuation-service.ts's previousBilledAmountsByLineItem). This wrapper is
+ * pure plumbing, not new computation: reshape its real {materialId, name,
+ * spec, unit, totalQuantityReceived, totalCost, averageUnitCost} rows into
+ * the {columns, rows} shape the report engine expects. Project-scoped
+ * (constructionMaterials.projectId is NOT NULL -- there is no org-wide
+ * "all materials" view of this table), matching that route's own required
+ * projectId query param.
+ */
+async function computeMaterialCostReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = String(params.projectId ?? "")
+  if (!projectId) throw new ServiceError("projectId is required for the Cost Report by Material", 400)
+  const rows = await getMaterialCostReport(ctx, projectId)
+  if (rows.length === 0) {
+    return {
+      columns: ["Material", "Spec", "Unit", "Qty Received", "Total Cost", "Avg Unit Cost"],
+      rows: [],
+      note: "No material receipts logged yet for this project -- log inbound receipts against a material (Materials module) before this report has anything to aggregate. A material with a master list price but zero receipts does not appear here.",
+    }
+  }
+  return {
+    columns: ["Material", "Spec", "Unit", "Qty Received", "Total Cost", "Avg Unit Cost"],
+    rows: rows.map((r) => ({
+      Material: r.name,
+      Spec: r.spec ?? "",
+      Unit: r.unit,
+      "Qty Received": r.totalQuantityReceived,
+      "Total Cost": r.totalCost,
+      "Avg Unit Cost": r.averageUnitCost,
+    })),
+    note: "Total Cost/Avg Unit Cost are computed from real inbound receipts (construction_material_receipts), not the material master's list unitCost -- a material with a master price but zero receipts logged does not appear here (see construction-materials-service.ts#getMaterialCostReport).",
+  }
+}
+
+/**
  * R65 (2026-08-30, tender/bid/EMD tracking gap closure): construction-
  * tender-service.ts's own header explains why this is a genuinely new
  * entity, distinct from erp_rfqs (procurement RFQs, not sales bids).
@@ -1781,6 +1830,7 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   design_change_impact_analysis: computeDesignChangeImpactAnalysis,
   cost_overrun_report: computeCostOverrunReport,
   profitability_analysis: computeProfitabilityAnalysis,
+  material_cost_report: computeMaterialCostReport,
   tender_register: computeTenderRegister,
   tender_pipeline: computeTenderPipeline,
   tender_win_loss: computeTenderWinLoss,
