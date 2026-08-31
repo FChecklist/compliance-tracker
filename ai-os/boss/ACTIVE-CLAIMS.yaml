@@ -11795,3 +11795,30 @@ recently_completed:
       `ai-os/boss/ACTIVE-CLAIMS.yaml`. No visibility or permission changes to any repository (PM
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
+
+  - session_label: "claude-code (worker task-20260718-064004-ai-documentation--documentation-lifecycl) -- AI Documentation / Documentation Lifecycle gap-closure, real merge (not just re-dispatch)"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "pending PR from worker/task-20260718-064004-ai-documentation--documentation-lifecycl"
+    summary: |
+      This exact 5-finding gap (auto-doc-gen, versioning, accuracy, completeness, sync-with-code)
+      was already fully built by PR #685 (scripts/check-doc-drift.mjs + SYSTEM-AUDIT-ROUND-3.md +
+      doc-counts-baseline.yaml, AUDIT: PASS 2026-08-02) and PR #1039 (4 new MASTER-TRACKER.yaml
+      GAP entries the audit found), but both sat OPEN and unmerged for about two weeks -- this
+      task's own branch had gone 920 commits behind origin/main (compounded by a shallow-clone
+      workspace that blocked git merge-base until git fetch --unshallow), and gh pr merge --admin
+      on both now fails with a real merge conflict, not the previously-documented self-approval
+      review deadlock.
+      Checked branch protection live (gh api repos/.../branches/main/protection):
+      required_approving_review_count is now 0 -- that deadlock is resolved and no longer
+      applicable, superseding the prior memory that it was the standing blocker.
+      Real action taken: merged origin/main into this task's own branch (now unshallowed, current),
+      re-applied PR #685's system-tree diffs (00-INDEX.md, 11/12/13 yaml, 50-merged-tree.yaml) and
+      new files (check-doc-drift.mjs, doc-counts-baseline.yaml, SYSTEM-AUDIT-ROUND-3.md) cleanly
+      -- all applied with zero conflicts, since these particular counts had not moved since
+      2026-08-01 except api_routes 991 to 995, updated in the baseline -- plus PR #1039's 4
+      MASTER-TRACKER.yaml GAP entries. Verified scripts/check-doc-drift.mjs actually passes
+      (via bun run) against live current main.
+      Did not touch .github/workflows/ci.yml to wire the check into CI -- this session's gh token
+      still lacks the workflow scope (a push touching that path is rejected), same known blocker
+      documented by prior sessions on this gap; left as an explicit follow-up rather than silently
+      skipped.
