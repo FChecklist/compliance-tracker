@@ -11,7 +11,9 @@ const PASSWORD_HASH = await bcrypt.hash('Test@1234', 10)
 async function seed() {
   console.log('Seeding compliance schema...')
 
-  // Org
+  // Org -- also doubles as the interim API sandbox org for external
+  // /api/v1/** integrators until a dedicated sandbox flag exists; see
+  // docs/API_SANDBOX.md.
   const [org] = await db.insert(schema.organisations).values({
     name: 'Acme Corp',
     slug: 'acme-corp',

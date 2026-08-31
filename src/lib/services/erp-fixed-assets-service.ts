@@ -21,28 +21,24 @@
 // disposal.
 import {
   erpAssetCategories, erpFixedAssets, erpDepreciationSchedules, erpAssetMovements, erpAssetDisposals,
-  erpAccounts, departments, users,
+  erpAccounts, erpJournalEntries, erpJournalEntryLines, departments, users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, lte } from "drizzle-orm"
+import { and, eq, lte, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
 import { startApprovalWorkflow } from "./approval-workflow-service"
-import { createJournalEntry, voidDraftJournalEntry, type JournalEntryLineInput } from "./erp-accounting-service"
+import { createJournalEntry, submitJournalEntry, voidDraftJournalEntry, type JournalEntryLineInput } from "./erp-accounting-service"
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
+import { ErpContext, ActorCtx } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 // Matches erp-accounting-service.ts's createJournalEntry / erp-procurement-
 // workflow-service.ts's createPurchaseRequisition precedent exactly: "basic
 // create" operations accept either a real session user or a server-to-server
 // API key actor, while anything that starts an approval workflow or posts to
 // the GL (submit/dispose/depreciation-run) keeps requiring a real dbUser.
-export type ActorCtx = { orgId: string; userId: string } & (
-  | { dbUser: typeof users.$inferSelect; apiKey?: never }
-  | { dbUser?: never; apiKey: { id: string; name: string } }
-)
 
 function actorLogFields(ctx: ActorCtx) {
   return ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }
@@ -444,6 +440,26 @@ export async function submitFixedAsset(ctx: ErpContext, assetId: string, input: 
       lines,
     })
     journalEntryId = je.id
+    // FI-AA-006 (Asset-to-GL Reconciliation, 2026-07-30) real-bug fix:
+    // createJournalEntry only ever inserts a 'draft' entry (it's the
+    // shared, human-reviewable manual-JE primitive) -- and, unlike
+    // erp-invoicing-service.ts (which writes status:'submitted' directly
+    // for its own automatically-computed sales/purchase-invoice postings),
+    // a repo-wide grep found ZERO callers of submitJournalEntry/
+    // markJournalEntrySubmittedFromApproval anywhere in this file before
+    // this fix. Every acquisition/depreciation/disposal entry this module
+    // ever created sat permanently in 'draft', invisible to
+    // accountBalancesInRange (erp-financial-report-service.ts) -- the query
+    // every Trial Balance/Balance Sheet/P&L filters on status='submitted' --
+    // a real, silent GL-integrity gap discovered while building the
+    // Asset-to-GL Reconciliation report itself (a naive reconciliation
+    // would otherwise show 100% variance for every org, forever, not a
+    // meaningful check). Fixed by routing through the SAME
+    // submitJournalEntry every manual entry already uses: posts
+    // immediately if this org has no approval workflow configured for
+    // entityType 'erp_journal_entry' (the default), or starts one if it
+    // does -- never bypassing that existing, org-configurable gate.
+    await submitJournalEntry(ctx, je.id)
   }
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -573,6 +589,29 @@ export async function runDepreciationBatch(ctx: ErpContext, input: { asOfDate: s
       }
       failed.push({ scheduleId: row.id, assetId: asset.id, error: error instanceof Error ? error.message : String(error) })
       continue
+    }
+
+    // FI-AA-006 real-bug fix: see submitFixedAsset's identical comment
+    // above for the full writeup (createJournalEntry-created entries were
+    // never being submitted, anywhere in this file). Submitted only NOW,
+    // after the schedule/asset write above has already committed -- if
+    // submitJournalEntry itself fails (e.g. the accounting period closed
+    // in the tiny window since this row's own isPeriodOpenForDate check
+    // above), the depreciation is still genuinely posted/committed
+    // (schedule marked isPosted, asset's accumulatedDepreciation/
+    // currentValue updated) -- only the JE's draft->submitted transition
+    // failed, so this is reported as a real failure needing manual
+    // attention (a JE stuck in draft) rather than silently swallowed or
+    // double-processed on the next run (the schedule row is already
+    // isPosted:true, so it will never be re-selected by the `pending`
+    // query above regardless of this outcome).
+    if (journalEntryId) {
+      try {
+        await submitJournalEntry(ctx, journalEntryId)
+      } catch (error) {
+        failed.push({ scheduleId: row.id, assetId: asset.id, error: `Depreciation posted but GL entry ${journalEntryId} could not be submitted: ${error instanceof Error ? error.message : String(error)}` })
+        continue
+      }
     }
 
     results.push({ scheduleId: row.id, assetId: asset.id, journalEntryId, depreciationAmount: Number(row.depreciationAmount) })
@@ -798,8 +837,9 @@ export async function finalizeAssetDisposal(ctx: { orgId: string; userId: string
   // rethrow the original error unchanged (single-document action, same
   // "throw and let the caller see the real failure" convention as
   // submitFixedAsset).
+  let result
   try {
-    return await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    result = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
       await db.update(erpAssetDisposals).set({ status: "completed", journalEntryId }).where(eq(erpAssetDisposals.id, disposalId))
       const [updatedAsset] = await db.update(erpFixedAssets).set({
         status: disposal.disposalType === "sale" ? "disposed" : "scrapped",
@@ -816,6 +856,36 @@ export async function finalizeAssetDisposal(ctx: { orgId: string; userId: string
     }
     throw error
   }
+
+  // FI-AA-006 real-bug fix: see submitFixedAsset's identical comment above
+  // for the full writeup. Deliberately OUTSIDE the try/catch above (not
+  // nested inside it, as an earlier draft of this fix had it -- caught by
+  // independent audit review of this same PR): that catch's
+  // voidDraftJournalEntry call exists specifically for "the disposal write
+  // itself failed, so the JE it created is orphaned and must be
+  // cancelled" -- nesting the submit call inside it meant a submit-only
+  // failure (the disposal write already committed successfully) would
+  // re-throw into that SAME catch, which would then unconditionally
+  // cancel a real, already-associated JE for a disposal that had already
+  // completed -- silently reintroducing a narrower version of the exact
+  // GL-integrity gap this PR exists to fix. Now, a submit failure here
+  // leaves the JE simply sitting in 'draft' (inspectable and resubmittable
+  // via the manual Journal Entries submit route), not voided -- the
+  // correct, recoverable outcome for "the disposal succeeded, only the
+  // GL posting's own submit step failed."
+  if (journalEntryId) {
+    try {
+      await submitJournalEntry(ctx, journalEntryId)
+    } catch (error) {
+      // The disposal itself is genuinely committed at this point -- only
+      // the GL entry's own draft->submitted transition failed. Thrown
+      // (not silently swallowed), matching this function's own
+      // established "throw and let the caller see the real failure"
+      // posture for a single-document action.
+      throw new ServiceError(`Disposal completed but GL entry ${journalEntryId} could not be submitted -- it remains in 'draft' and can be submitted manually via the Journal Entries screen: ${error instanceof Error ? error.message : String(error)}`, 502)
+    }
+  }
+  return result
 }
 
 /** Called from the approval-decide route once a disposal's workflow instance is rejected -- the disposal stays a real, visible 'rejected' record rather than lingering forever as 'pending'; the asset itself is untouched, still 'in_use'. */
@@ -826,5 +896,215 @@ export async function markAssetDisposalRejectedFromApproval(ctx: { orgId: string
     if (!updated) throw new ServiceError("Disposal not found", 404)
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_asset_disposal.rejected", entityType: "erp_asset_disposal", entityId: disposalId })
     return updated
+  })
+}
+
+// ============================================================
+// FI-AA-006 (SAP gap-analysis "Asset-to-GL Reconciliation", MEDIUM
+// priority, 2026-07-30): month-end control comparing the fixed-asset
+// sub-ledger's aggregate gross cost / accumulated depreciation / net book
+// value, per asset category, against the real posted balance of that
+// category's own mapped GL accounts (erp_asset_categories.assetAccountId /
+// accumulatedDepreciationAccountId -- both have existed since Wave B, and
+// submitFixedAsset/runDepreciationBatch/finalizeAssetDisposal above already
+// post real acquisition/depreciation/disposal entries against them).
+//
+// Real, independently-verified discovery while building this (not blindly
+// trusted from sap_mapping.sqlite's own gap_notes, which only speculatively
+// suggested composing trialBalance + accounting-engine.ts's
+// reconcileLedgers): every entry those three functions ever created sat
+// permanently in GL status 'draft' -- confirmed by a repo-wide grep finding
+// zero callers of submitJournalEntry/markJournalEntrySubmittedFromApproval
+// anywhere in this file before this same wave's fix above. A naive
+// reconciliation against accountBalancesInRange (which every Trial
+// Balance/Balance Sheet/P&L filters on status='submitted') would therefore
+// have shown 100% variance for every org, forever -- not a meaningful
+// check. Fixed at the root (the three submitJournalEntry call sites added
+// above), not worked around here.
+//
+// accounting-engine.ts's reconcileLedgers was considered and rejected: it
+// matches individual transactions between two ledgers by reference+amount
+// (built for e.g. bank reconciliation) -- this report compares two
+// AGGREGATE totals (a sub-ledger sum vs a GL account balance), which has no
+// natural per-line "reference" to match on. A direct variance check (GL
+// balance vs sub-ledger total, per SAP's own documented calculation logic
+// for this exact report) is the correct tool, not a reuse-for-its-own-sake
+// of a differently-shaped engine.
+//
+// Honest, known scope limits (not hidden):
+// 1. erp_fixed_assets has no dated historical snapshot -- purchaseCost/
+//    accumulatedDepreciation/currentValue always reflect "as of now", never
+//    "as of asOfDate". The GL side genuinely supports an arbitrary asOfDate
+//    (same postingDate filter accountBalancesInRange uses); the sub-ledger
+//    side does not. Meaningful, apples-to-apples use is therefore "run
+//    today" or "run immediately after period-end, before any later-period
+//    posting" -- an asOfDate in the past is honestly flagged on the return
+//    value (isStaleComparison) rather than silently misrepresented as a
+//    real historical sub-ledger snapshot.
+// 2. A category with no assetAccountId/accumulatedDepreciationAccountId
+//    configured cannot be reconciled at all (status: 'not_mapped') --
+//    reported per-category rather than silently excluded or forced into a
+//    comparison that isn't meaningful.
+// ============================================================
+
+export type AssetCategoryLedgerTotals = {
+  categoryId: string
+  categoryName: string
+  assetAccountId: string | null
+  accumulatedDepreciationAccountId: string | null
+  subledgerGrossCost: number
+  subledgerAccumulatedDepreciation: number
+}
+
+export type AssetGlReconciliationLine = {
+  categoryId: string
+  categoryName: string
+  assetAccountId: string | null
+  accumulatedDepreciationAccountId: string | null
+  subledgerGrossCost: number
+  subledgerAccumulatedDepreciation: number
+  subledgerNbv: number
+  glGrossCost: number | null
+  glAccumulatedDepreciation: number | null
+  glNbv: number | null
+  grossCostVariance: number | null
+  accumulatedDepreciationVariance: number | null
+  nbvVariance: number | null
+  status: "reconciled" | "variance" | "not_mapped"
+  note?: string
+}
+
+/**
+ * Pure core (no DB): per-category variance = sub-ledger total minus GL
+ * balance (a positive variance reads as "sub-ledger ahead of GL", the more
+ * intuitive direction for a control-account tie-out). The accumulated
+ * depreciation account is a contra-asset (credit-natured) -- its raw
+ * debit-minus-credit balance is negated before comparison so both sides
+ * express "total accumulated depreciation" as a positive number.
+ */
+export function computeAssetGlReconciliation(
+  categories: AssetCategoryLedgerTotals[],
+  glBalancesByAccountId: Map<string, number>,
+  toleranceAbs = 0.01
+): AssetGlReconciliationLine[] {
+  return categories.map((cat) => {
+    const subledgerNbv = round2(cat.subledgerGrossCost - cat.subledgerAccumulatedDepreciation)
+    if (!cat.assetAccountId || !cat.accumulatedDepreciationAccountId) {
+      return {
+        categoryId: cat.categoryId, categoryName: cat.categoryName,
+        assetAccountId: cat.assetAccountId, accumulatedDepreciationAccountId: cat.accumulatedDepreciationAccountId,
+        subledgerGrossCost: cat.subledgerGrossCost, subledgerAccumulatedDepreciation: cat.subledgerAccumulatedDepreciation, subledgerNbv,
+        glGrossCost: null, glAccumulatedDepreciation: null, glNbv: null,
+        grossCostVariance: null, accumulatedDepreciationVariance: null, nbvVariance: null,
+        status: "not_mapped",
+        note: "This category has no Asset Account and/or Accumulated Depreciation Account configured on erp_asset_categories -- GL reconciliation is not possible until both are set.",
+      }
+    }
+    const glGrossCost = round2(glBalancesByAccountId.get(cat.assetAccountId) ?? 0)
+    const glAccumulatedDepreciation = round2(-(glBalancesByAccountId.get(cat.accumulatedDepreciationAccountId) ?? 0))
+    const glNbv = round2(glGrossCost - glAccumulatedDepreciation)
+    const grossCostVariance = round2(cat.subledgerGrossCost - glGrossCost)
+    const accumulatedDepreciationVariance = round2(cat.subledgerAccumulatedDepreciation - glAccumulatedDepreciation)
+    const nbvVariance = round2(subledgerNbv - glNbv)
+    const isReconciled = Math.abs(grossCostVariance) <= toleranceAbs && Math.abs(accumulatedDepreciationVariance) <= toleranceAbs
+    return {
+      categoryId: cat.categoryId, categoryName: cat.categoryName,
+      assetAccountId: cat.assetAccountId, accumulatedDepreciationAccountId: cat.accumulatedDepreciationAccountId,
+      subledgerGrossCost: cat.subledgerGrossCost, subledgerAccumulatedDepreciation: cat.subledgerAccumulatedDepreciation, subledgerNbv,
+      glGrossCost, glAccumulatedDepreciation, glNbv,
+      grossCostVariance, accumulatedDepreciationVariance, nbvVariance,
+      status: isReconciled ? "reconciled" : "variance",
+    }
+  })
+}
+
+/**
+ * DB wrapper: aggregates every 'in_use' asset's live purchaseCost/
+ * accumulatedDepreciation per category (draft assets were never
+ * capitalized/posted; disposed/scrapped assets were already removed from
+ * the GL by finalizeAssetDisposal above -- including either would double-
+ * count against a GL balance that no longer reflects them), reads each
+ * mapped account's real submitted balance as of asOfDate the exact same
+ * way erp-financial-report-service.ts's trialBalance/balanceSheet do
+ * (status='submitted', postingDate <= asOfDate), then runs the pure
+ * variance check above.
+ */
+export async function assetToGlReconciliation(ctx: { orgId: string }, input: { asOfDate?: string } = {}) {
+  await requireErpEnabled(ctx.orgId)
+  const today = new Date().toISOString().slice(0, 10)
+  const asOfDate = input.asOfDate ?? today
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const categories = await db.query.erpAssetCategories.findMany({ where: eq(erpAssetCategories.orgId, ctx.orgId) })
+    const assets = await db.query.erpFixedAssets.findMany({
+      where: and(eq(erpFixedAssets.orgId, ctx.orgId), eq(erpFixedAssets.status, "in_use")),
+    })
+
+    const byCategory = new Map<string, { grossCost: number; accumulatedDepreciation: number }>()
+    for (const asset of assets) {
+      const agg = byCategory.get(asset.assetCategoryId) ?? { grossCost: 0, accumulatedDepreciation: 0 }
+      agg.grossCost += Number(asset.purchaseCost)
+      agg.accumulatedDepreciation += Number(asset.accumulatedDepreciation)
+      byCategory.set(asset.assetCategoryId, agg)
+    }
+
+    const accountIds = [...new Set(
+      categories.flatMap((c) => [c.assetAccountId, c.accumulatedDepreciationAccountId]).filter((id): id is string => !!id)
+    )]
+
+    const glBalancesByAccountId = new Map<string, number>()
+    if (accountIds.length > 0) {
+      const rows = await db
+        .select({
+          accountId: erpAccounts.id,
+          totalDebit: sql<string>`coalesce(sum(${erpJournalEntryLines.debit}), 0)`,
+          totalCredit: sql<string>`coalesce(sum(${erpJournalEntryLines.credit}), 0)`,
+        })
+        .from(erpJournalEntryLines)
+        .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+        .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
+        .where(and(
+          eq(erpJournalEntries.orgId, ctx.orgId),
+          eq(erpJournalEntries.status, "submitted"),
+          lte(erpJournalEntries.postingDate, asOfDate),
+          inArray(erpAccounts.id, accountIds)
+        ))
+        .groupBy(erpAccounts.id)
+      for (const r of rows) glBalancesByAccountId.set(r.accountId, Number(r.totalDebit) - Number(r.totalCredit))
+    }
+
+    const categoryTotals: AssetCategoryLedgerTotals[] = categories
+      .map((c) => {
+        const agg = byCategory.get(c.id) ?? { grossCost: 0, accumulatedDepreciation: 0 }
+        return {
+          categoryId: c.id, categoryName: c.categoryName,
+          assetAccountId: c.assetAccountId, accumulatedDepreciationAccountId: c.accumulatedDepreciationAccountId,
+          subledgerGrossCost: round2(agg.grossCost), subledgerAccumulatedDepreciation: round2(agg.accumulatedDepreciation),
+        }
+      })
+      // Drop categories with zero in_use assets AND no GL mapping configured
+      // -- nothing real to report either side. A category with a mapping
+      // but zero current assets is KEPT (a real, meaningful all-zero
+      // reconciled row -- e.g. every asset in that category has since been
+      // disposed) rather than silently hidden.
+      .filter((c) => c.subledgerGrossCost !== 0 || c.subledgerAccumulatedDepreciation !== 0 || (c.assetAccountId && c.accumulatedDepreciationAccountId))
+
+    const lines = computeAssetGlReconciliation(categoryTotals, glBalancesByAccountId)
+    const totalSubledgerNbv = round2(lines.reduce((sum, l) => sum + l.subledgerNbv, 0))
+    const totalGlNbv = round2(lines.filter((l) => l.glNbv !== null).reduce((sum, l) => sum + (l.glNbv as number), 0))
+    const unmappedCategoryCount = lines.filter((l) => l.status === "not_mapped").length
+    const varianceCategoryCount = lines.filter((l) => l.status === "variance").length
+
+    return {
+      asOfDate,
+      isStaleComparison: asOfDate < today, // see this section's own doc comment: sub-ledger side is always "now"
+      lines,
+      totalSubledgerNbv,
+      totalGlNbv,
+      totalNbvVariance: round2(totalSubledgerNbv - totalGlNbv),
+      unmappedCategoryCount,
+      varianceCategoryCount,
+      isFullyReconciled: varianceCategoryCount === 0 && unmappedCategoryCount === 0,
+    }
   })
 }

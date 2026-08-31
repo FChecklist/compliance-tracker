@@ -4,7 +4,15 @@
 // chain -- this phase's own success-criteria "2-tier fallback... executes
 // end to end" claim, exercised deterministically via injected envs.
 import { describe, expect, test } from "bun:test"
-import { planExecution, planParallelism, requiresServerEscalation, shouldAttemptWebLlm, TIER_PRIORITY } from "./tier-orchestrator"
+import {
+  planExecution,
+  planParallelism,
+  requiresServerEscalation,
+  shouldAttemptBuiltinAi,
+  shouldAttemptNpu,
+  shouldAttemptWebLlm,
+  TIER_PRIORITY,
+} from "./tier-orchestrator"
 
 describe("planExecution", () => {
   test("selects npu first when every tier is available", () => {
@@ -61,6 +69,31 @@ describe("shouldAttemptWebLlm", () => {
 
   test("false when the plan bottomed out at server (no navigator at all)", () => {
     expect(shouldAttemptWebLlm(planExecution({}), {})).toBe(false)
+  })
+})
+
+describe("shouldAttemptNpu", () => {
+  test("true when npu is selected (navigator.ml present)", () => {
+    const env = { navigator: { ml: {} } }
+    expect(shouldAttemptNpu(planExecution(env))).toBe(true)
+  })
+  test("false when npu is absent -- a lower tier wins selection instead", () => {
+    const env = { navigator: { gpu: {} } }
+    expect(shouldAttemptNpu(planExecution(env))).toBe(false)
+  })
+})
+
+describe("shouldAttemptBuiltinAi", () => {
+  test("true when builtin-ai is selected (navigator.ml absent, window.ai present)", () => {
+    const env = { window: { ai: {} } }
+    expect(shouldAttemptBuiltinAi(planExecution(env))).toBe(true)
+  })
+  test("false when npu outranks builtin-ai", () => {
+    const env = { navigator: { ml: {} }, window: { ai: {} } }
+    expect(shouldAttemptBuiltinAi(planExecution(env))).toBe(false)
+  })
+  test("false when the plan bottomed out at server", () => {
+    expect(shouldAttemptBuiltinAi(planExecution({}))).toBe(false)
   })
 })
 

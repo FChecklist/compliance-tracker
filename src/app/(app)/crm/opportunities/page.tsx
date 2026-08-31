@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ModuleNotEnabledCard } from "@/components/ModuleNotEnabledCard";
 
 type Opportunity = {
   id: string; name: string; leadId: string | null; clientId: string | null; stage: string;
@@ -38,7 +39,7 @@ type LostReason = { id: string; reasonText: string };
 const STAGES = ["prospecting", "proposal", "negotiation", "won", "lost"] as const;
 const STAGE_LABELS: Record<string, string> = { prospecting: "Prospecting", proposal: "Proposal", negotiation: "Negotiation", won: "Won", lost: "Lost" };
 const STAGE_COLORS: Record<string, string> = {
-  prospecting: "bg-ct-cloud text-ct-muted", proposal: "bg-ct-saffron/20 text-ct-saffron", negotiation: "bg-ct-teal/20 text-ct-teal",
+  prospecting: "bg-ct-cloud text-ct-muted", proposal: "bg-ct-saffron/20 text-ct-saffron-text", negotiation: "bg-ct-teal/20 text-ct-teal",
   won: "bg-green-100 text-green-700", lost: "bg-red-100 text-red-700",
 };
 
@@ -54,6 +55,7 @@ export default function CrmOpportunitiesPage() {
   const [loading, setLoading] = useState(true);
   const [scoringId, setScoringId] = useState<string | null>(null);
   const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
+  const [salesEnabled, setSalesEnabled] = useState<boolean | null>(null);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -86,6 +88,9 @@ export default function CrmOpportunitiesPage() {
   }, [page, view]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setSalesEnabled(d.salesEnabled ?? false)).catch(() => setSalesEnabled(false));
+  }, []);
 
   const createOpportunity = async () => {
     if (!name.trim() || !leadId) return;
@@ -161,7 +166,7 @@ export default function CrmOpportunitiesPage() {
           {opp.expectedCloseDate ? ` · closes ${new Date(opp.expectedCloseDate).toLocaleDateString()}` : ""}
         </p>
         {opp.aiWinProbability != null && (
-          <Badge variant="outline" className="text-xs gap-1"><Sparkles className="size-3 text-ct-saffron" /> {opp.aiWinProbability}% win</Badge>
+          <Badge variant="outline" className="text-xs gap-1"><Sparkles className="size-3 text-ct-saffron-text" /> {opp.aiWinProbability}% win</Badge>
         )}
         <Select value={opp.stage} onValueChange={(v) => updateStage(opp.id, v)}>
           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
@@ -180,6 +185,10 @@ export default function CrmOpportunitiesPage() {
       </CardContent>
     </Card>
   );
+
+  if (salesEnabled === false) {
+    return <ModuleNotEnabledCard moduleName="CRM" settingsSection="Sales & CRM" />;
+  }
 
   return (
     <div className="space-y-4">
@@ -272,7 +281,7 @@ export default function CrmOpportunitiesPage() {
                     <p className="text-sm font-medium text-ct-navy hover:underline">{opp.name}</p>
                     <p className="text-xs text-ct-muted">{fmt(opp.estimatedValue) ?? "No value set"}{opp.expectedCloseDate ? ` · closes ${new Date(opp.expectedCloseDate).toLocaleDateString()}` : ""}</p>
                   </Link>
-                  {opp.aiWinProbability != null && <Badge variant="outline" className="text-xs gap-1"><Sparkles className="size-3 text-ct-saffron" /> {opp.aiWinProbability}%</Badge>}
+                  {opp.aiWinProbability != null && <Badge variant="outline" className="text-xs gap-1"><Sparkles className="size-3 text-ct-saffron-text" /> {opp.aiWinProbability}%</Badge>}
                   <Badge className={`text-xs border-0 ${STAGE_COLORS[opp.stage] ?? "bg-ct-cloud text-ct-muted"}`}>{STAGE_LABELS[opp.stage] ?? opp.stage}</Badge>
                   <Select value={opp.stage} onValueChange={(v) => updateStage(opp.id, v)}>
                     <SelectTrigger className="w-[130px] h-8 text-xs"><SelectValue /></SelectTrigger>

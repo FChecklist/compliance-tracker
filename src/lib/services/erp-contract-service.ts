@@ -8,6 +8,7 @@ import {
   erpContracts, erpContractAmendments, erpContractBillingSchedules, erpContractRevenueSchedules,
   erpContractObligations, erpSubscriptionPlans, erpSubscriptions, erpCustomers, users,
   clmClauses, clmContractTemplates, clmTemplateClauses, erpContractNegotiationRounds,
+  erpSalesInvoices,
 } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
@@ -16,6 +17,7 @@ export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
 import { isSelfApproval } from "./approval-workflow-service"
+import { createSalesInvoice } from "./erp-invoicing-service"
 
 export type ErpContractContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -180,6 +182,75 @@ export async function addBillingSchedule(ctx: { orgId: string }, contractId: str
       contractId, billingFrequency: input.billingFrequency, nextBillingDate: input.nextBillingDate, amount: String(input.amount),
     }).returning()
     return schedule
+  })
+}
+
+/**
+ * SD-002 (Billing Due List) date-advance helper: how far to push
+ * nextBillingDate forward once a recurring schedule's current cycle has
+ * been invoiced. 'milestone' is deliberately absent (one-off, handled by
+ * the caller deactivating the schedule instead of advancing it).
+ */
+export function advanceBillingDate(dateStr: string, frequency: "monthly" | "quarterly" | "half_yearly" | "annually"): string {
+  const d = new Date(`${dateStr}T00:00:00Z`)
+  if (frequency === "monthly") d.setUTCMonth(d.getUTCMonth() + 1)
+  else if (frequency === "quarterly") d.setUTCMonth(d.getUTCMonth() + 3)
+  else if (frequency === "half_yearly") d.setUTCMonth(d.getUTCMonth() + 6)
+  else if (frequency === "annually") d.setUTCFullYear(d.getUTCFullYear() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * SD-002 (Billing Due List) action half -- the real "generate the invoice"
+ * link a caller reaches from report-engine-service.ts#computeBillingDueList's
+ * worklist. Reuses erp-invoicing-service.ts#createSalesInvoice (Wave 60) via
+ * a description-only line item (no erp_items catalog entry required for a
+ * milestone/period billing charge) instead of reimplementing invoice
+ * creation, matching this file's own "reuse existing infrastructure"
+ * discipline (see the Wave 71 header comment above). Sets the new
+ * billing_schedule_id pointer (same migration as this PR) on the created
+ * invoice so it can be traced back to the schedule that produced it.
+ *
+ * Design decision (2026-07-30, none of this existed before): a 'milestone'
+ * schedule is one-off, so isActive is set false after billing -- it never
+ * reappears on the due list. A recurring schedule (monthly/quarterly/
+ * half_yearly/annually) instead has nextBillingDate advanced to the next
+ * period and lastInvoiceId reset to null, so the SAME row becomes the next
+ * cycle's due item -- erp_contract_billing_schedules has exactly one row
+ * per contract-billing-line, not one row per historical period, so this is
+ * the only way a recurring schedule can ever be due more than once without
+ * a schema change beyond this PR's scope. Flagged explicitly in the PR
+ * description as a real design choice, not a pre-existing documented
+ * behavior.
+ */
+export async function generateInvoiceFromBillingSchedule(
+  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  contractId: string,
+  scheduleId: string
+) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const contract = await db.query.erpContracts.findFirst({ where: and(eq(erpContracts.id, contractId), eq(erpContracts.orgId, ctx.orgId)) })
+    if (!contract) throw new ServiceError("Contract not found", 404)
+    const schedule = await db.query.erpContractBillingSchedules.findFirst({ where: and(eq(erpContractBillingSchedules.id, scheduleId), eq(erpContractBillingSchedules.contractId, contractId)) })
+    if (!schedule) throw new ServiceError("Billing schedule not found", 404)
+    if (!schedule.isActive) throw new ServiceError("This billing schedule is no longer active", 400)
+    if (schedule.lastInvoiceId) throw new ServiceError("This billing schedule has already been invoiced for its current cycle", 400)
+
+    const invoice = await createSalesInvoice(ctx, {
+      customerId: contract.customerId,
+      postingDate: new Date().toISOString().slice(0, 10),
+      items: [{ description: `${contract.title} -- ${schedule.billingFrequency} billing`, quantity: 1, rate: Number(schedule.amount) }],
+    })
+    await db.update(erpSalesInvoices).set({ billingScheduleId: schedule.id }).where(eq(erpSalesInvoices.id, invoice.id))
+
+    if (schedule.billingFrequency === "milestone") {
+      const [updated] = await db.update(erpContractBillingSchedules).set({ lastInvoiceId: invoice.id, isActive: false }).where(eq(erpContractBillingSchedules.id, scheduleId)).returning()
+      return { invoice, schedule: updated }
+    }
+    const nextBillingDate = advanceBillingDate(schedule.nextBillingDate, schedule.billingFrequency as "monthly" | "quarterly" | "half_yearly" | "annually")
+    const [updated] = await db.update(erpContractBillingSchedules).set({ lastInvoiceId: null, nextBillingDate }).where(eq(erpContractBillingSchedules.id, scheduleId)).returning()
+    return { invoice, schedule: updated }
   })
 }
 

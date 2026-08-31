@@ -7,17 +7,28 @@
 // Tree shape: org's enabled product branches -> their active modules,
 // grouped by domain -> real Worker Agents serving that domain (falling back
 // to the module list itself if no agent has been built for that domain
-// yet) -> Product -> that product's real Projects (Wave 19 L2 scope layer),
-// each with a generic project-action leaf set carrying the real projectId
-// for direct tasks.projectId scoping -> plus Customer/Vendor top-level
-// branches populated from real erpCustomers/erpSuppliers, each with a
+// yet) -> Product/Customer/Vendor top-level ERP branches, each populated
+// from the real ERP master data (erpItems/erpCustomers/erpSuppliers) with a
 // generic entity-action leaf set. The tree is only ever as complete as
 // what's actually enabled/registered for this org -- it grows automatically
-// as more branches/modules/agents/products/projects/customers get added,
-// rather than needing a taxonomy maintainer.
+// as more branches/modules/agents/items/customers get added, rather than
+// needing a taxonomy maintainer.
+//
+// Bug fix, 2026-07-27 (fix-veri-erp-product-chain-bug--shows-pr): the
+// "Product" branch used to source from `products`/`projects` -- an
+// unrelated PMS product-line/project grouping (see schema.ts's `products`
+// table, "a product's real Projects... Wave 19 L2 scope layer") -- so
+// selecting a real ERP Product surfaced Project rows and project-management
+// actions (Status update/Log a task/Flag a risk) instead of product ones.
+// Fixed to source from erpItems, the real ERP sellable-item/product master
+// (item_code, standard_selling_rate, stock flags -- see erp-inventory-
+// service.ts), matching how Customer/Vendor already source from
+// erpCustomers/erpSuppliers. `products`/`projects` (PMS grouping) is
+// untouched -- it's real data for other features, just never the right
+// source for this ERP entity-type branch.
 import {
   orgProductBranchEnablements, productBranches, productBranchModules, moduleRegistry,
-  workerAgents, erpCustomers, erpSuppliers, products, projects, computationEngines, complianceItems,
+  workerAgents, erpCustomers, erpSuppliers, erpItems, projects, computationEngines, complianceItems,
   gstImportBatches, gstCanonicalInvoices, gstReturnPeriods, departments, savedReports, taskCapabilities,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
@@ -887,24 +898,24 @@ Object.assign(WIRED_ENGINE_INPUT_FIELDS, COSTING_WIRED_ENGINE_INPUT_FIELDS)
 // customer/vendor" (invoice prep, reminders, GST filing) aren't domain-
 // grouped the same way as Finance/Compliance/etc. agents are, so this list
 // is the placeholder leaf set until those get their own domain tagging.
-const GENERIC_ENTITY_ACTIONS: CapabilityNode[] = [
+// Exported (was module-private) so the fix-veri-erp-product-chain-bug--
+// shows-pr regression test can assert this stays exactly what Customer/
+// Vendor render, unaffected by the sibling Product-branch fix below.
+export const GENERIC_ENTITY_ACTIONS: CapabilityNode[] = [
   { key: "invoice_preparation", label: "Invoice preparation", leaf: true },
   { key: "send_reminder", label: "Send reminder", leaf: true },
   { key: "gst_filing", label: "GST filing", leaf: true },
 ]
 
-// Same placeholder-leaf-set idea as GENERIC_ENTITY_ACTIONS, but for a
-// specific real project -- each leaf carries that project's real id so the
-// composer can pass it straight through to tasks.projectId (createTask
-// already accepts projectId, Wave 19) instead of relying on breadcrumb text
-// alone.
-function genericProjectActions(projectId: string): CapabilityNode[] {
-  return [
-    { key: "status_update", label: "Status update", leaf: true, projectId },
-    { key: "log_task", label: "Log a task", leaf: true, projectId },
-    { key: "flag_risk", label: "Flag a risk", leaf: true, projectId },
-  ]
-}
+// Same placeholder-leaf-set idea as GENERIC_ENTITY_ACTIONS, but for a real
+// ERP item/product (erpItems) -- product-management actions, not the
+// project-management actions a Product leaf used to carry before the
+// 2026-07-27 fix (see this file's header note). Exported for the same
+// direct-unit-test reason as GENERIC_ENTITY_ACTIONS above.
+export const GENERIC_PRODUCT_ACTIONS: CapabilityNode[] = [
+  { key: "update_price_stock", label: "Update price/stock", leaf: true },
+  { key: "create_quotation", label: "Create a quotation", leaf: true },
+]
 
 // D5.B7 (tree4-unified 50-completion-plan area 1, "per-module/per-page Mode
 // Pill and Chain option auto-adaptation"): the capability tree used to be
@@ -968,6 +979,7 @@ const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
   construction: "Construction (PROJEXA)",
   "AI-ops": "AI Ops",
   custom: "Custom Reports",
+  CRM: "Sales & CRM",
 }
 
 // New "Reports & Analysis" branch, built from the unified REPORT_CATALOG
@@ -1135,6 +1147,41 @@ function buildCrmQuickCreateNodes(): CapabilityNode[] {
   return [{ key: "crm_quick_create", label: "Create", leaf: false, children: leaves }]
 }
 
+// R48/R64 gap-closure (2026-08-30, workstream 2: "writes for erp domain").
+// Real, confirmed gap: buildCrmQuickCreateNodes() above has 4 real write
+// pills (Lead/Opportunity/Activity/Campaign, all form-based -- fixedInputs/
+// inputFields, never LLM-guessed args, same safety convention as
+// update_compliance_status/create_compliance_item); the ERP branch had ZERO
+// write pills of any kind, only reads (PR #1457's 12 functions). Built on
+// the exact same shape: a flat form (no nested-array UI needed anywhere
+// else in this composer, so createSalesOrder's real `items` array is
+// represented here as ONE line item's fields and wrapped into items:[...]
+// at dispatch time -- a genuine simplification for the quick-create pill,
+// not a different code path from the real multi-line service function).
+function buildErpQuickCreateNodes(): CapabilityNode[] {
+  const leaves: CapabilityNode[] = [
+    {
+      key: "erp_create_customer_engine", label: "Create a Customer", leaf: true, engineKey: "erp_create_customer_engine",
+      inputFields: [
+        { key: "customerName", label: "Customer name", type: "text" },
+        { key: "gstin", label: "GSTIN (optional)", type: "text", optional: true },
+        { key: "creditLimit", label: "Credit limit (optional)", type: "number", optional: true },
+      ],
+    },
+    {
+      key: "erp_create_sales_order_engine", label: "Create a Sales Order", leaf: true, engineKey: "erp_create_sales_order_engine",
+      inputFields: [
+        { key: "customerId", label: "Customer ID", type: "text" },
+        { key: "orderDate", label: "Order date (YYYY-MM-DD)", type: "text" },
+        { key: "itemDescription", label: "Line item description", type: "text" },
+        { key: "quantity", label: "Quantity", type: "number", optional: true },
+        { key: "rate", label: "Rate", type: "number" },
+      ],
+    },
+  ]
+  return [{ key: "erp_quick_create", label: "Create", leaf: false, children: leaves }]
+}
+
 export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: string; userId?: string }): Promise<CapabilityNode[]> {
   const tree = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const branchNodes = await buildBranchNodes(db, ctx.orgId)
@@ -1148,7 +1195,8 @@ export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: st
     const reportCatalogNodes = await buildReportCatalogNodes({ orgId: ctx.orgId })
     const learnedCapabilityNodes = await buildLearnedCapabilityNodes(db, ctx.orgId)
     const crmQuickCreateNodes = buildCrmQuickCreateNodes()
-    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes, ...reportCatalogNodes, ...learnedCapabilityNodes, ...crmQuickCreateNodes]
+    const erpQuickCreateNodes = buildErpQuickCreateNodes()
+    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes, ...reportCatalogNodes, ...learnedCapabilityNodes, ...crmQuickCreateNodes, ...erpQuickCreateNodes]
 
     const allowedKeys = ctx.moduleScope ? MODULE_SCOPE_TOP_LEVEL_KEYS[ctx.moduleScope] : undefined
     const scopedStaticNodes = allowedKeys ? staticNodes.filter((n) => allowedKeys.includes(n.key)) : staticNodes
@@ -1171,14 +1219,14 @@ export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: st
 // Construction Intelligence (PROJEXA), Wave 128. Mirrors
 // buildGstReconciliationNodes()'s shape: check the worker_agents actually
 // exist for this platform tier first (empty tree if this wave hasn't been
-// applied), then build real per-project leaf nodes. Unlike the GST tree,
-// these don't need dynamic batch-pairing -- each is a single project-scoped
-// (or org-wide) read query, so this reuses genericProjectActions()'s
-// projectId-carrying leaf shape rather than a bespoke structure. Project
-// scoping here is generic `projects` (there's no dedicated "construction
-// project" flag -- a project becomes construction-flavored simply by having
-// constructionBoqs/constructionCategories rows, matching how buildProductNodes
-// above also lists all active projects without a domain filter).
+// applied), then build real per-project leaf nodes, each carrying a
+// projectId-scoped fixedInputs leaf shape. Unlike the GST tree, these don't
+// need dynamic batch-pairing -- each is a single project-scoped (or
+// org-wide) read query. Project scoping here is generic `projects` (there's
+// no dedicated "construction project" flag -- a project becomes
+// construction-flavored simply by having constructionBoqs/
+// constructionCategories rows) and is unrelated to the ERP "Product" branch
+// below, which sources from erpItems, not `projects`.
 // Exported (unlike the other builders here) so /api/v1/projexa/capability-tree
 // can call this subtree directly instead of the full buildCapabilityTree() --
 // PROJEXA must never see GST/compliance/other product nodes, only its own.
@@ -1267,6 +1315,59 @@ async function buildCalculatorNodes(db: TenantDb): Promise<CapabilityNode[]> {
   return [{ key: "calculators", label: "Calculators", leaf: false, children: categoryNodes }]
 }
 
+// Root-cause fix for platform.error_log E-27 ("21 published worker agents
+// with real code references are unreachable"): module_registry.domain is a
+// fixed snake_case taxonomy (project_management, erp, hr, compliance, ...)
+// while workerAgents.domain is a free-text, often hierarchical display
+// string ("Construction > Project Intelligence") that worker-agent-
+// service.ts's own resolveDomainGroupKey()/DOMAIN_GROUP_PREFIXES already
+// treats as a *different*, coarser taxonomy (construction/cross_cutting/
+// finance/india_compliance/general) built for the Agent Hierarchy Registry
+// sidebar. Neither taxonomy was ever the same set of values as
+// module_registry's, so buildBranchNodes()'s old lookup
+// (`eq(workerAgents.domain, domain)`) always missed and every domain
+// silently fell back to the raw module list below -- even domains with
+// real, published, code-backed worker agents.
+//
+// This map bridges the two taxonomies at the fidelity buildBranchNodes
+// actually needs: the full hierarchical path, not the collapsed AHR group
+// key -- "Cross-Cutting > Data Access" and "Cross-Cutting > Reporting" serve
+// different module domains (compliance vs reporting) and must not collapse
+// together the way resolveDomainGroupKey() deliberately collapses them for
+// its own, unrelated purpose. Verified against the real live values in both
+// tables (module_registry.domain / worker_agents.domain, Supabase project
+// pcrjmlpuqsbocqfwoxod, 2026-08-28) -- every domain string on the right of
+// " > " that had at least one published/approved worker agent is covered.
+//
+// Hand-curated, same discipline as DOMAIN_GROUP_PREFIXES: grows only when a
+// new worker-agent domain is proposed, never auto-derived. An unmapped
+// domain is not a regression -- it just falls back to the raw module list,
+// exactly like every domain did before this fix.
+const AGENT_DOMAIN_TO_MODULE_DOMAINS: Record<string, string[]> = {
+  "india compliance > penalty calculation": ["compliance"],
+  "cross-cutting > data access": ["compliance"],
+  "cross-cutting > reporting": ["reporting"],
+  "construction > project intelligence": ["project_management"],
+  "finance > gst reconciliation": ["erp"],
+}
+
+// True when `agentDomain` (a real workerAgents.domain value -- flat or
+// "Category > Subcategory") should be treated as serving `moduleDomain` (a
+// real module_registry.domain snake_case key). Exact case-insensitive
+// equality is checked first -- covers the case both sides already agree
+// (e.g. module_registry's "compliance" and a worker agent proposed directly
+// under the flat domain "compliance") -- then the curated bridge table
+// above for every hierarchical/renamed case that equality can never catch.
+// Exported so this bridge, the actual fix for E-27, is directly
+// unit-testable without touching the DB, matching this file's established
+// pattern for markDeterministic().
+export function agentDomainServesModuleDomain(agentDomain: string | null | undefined, moduleDomain: string): boolean {
+  if (!agentDomain) return false
+  const normalized = agentDomain.trim().toLowerCase()
+  if (normalized === moduleDomain.toLowerCase()) return true
+  return (AGENT_DOMAIN_TO_MODULE_DOMAINS[normalized] ?? []).includes(moduleDomain)
+}
+
 async function buildBranchNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {
   const enablements = await db.query.orgProductBranchEnablements.findMany({
     where: and(eq(orgProductBranchEnablements.orgId, orgId), eq(orgProductBranchEnablements.isEnabled, true)),
@@ -1275,6 +1376,18 @@ async function buildBranchNodes(db: TenantDb, orgId: string): Promise<Capability
 
   const branchIds = enablements.map((e) => e.productBranchId)
   const branches = await db.query.productBranches.findMany({ where: inArray(productBranches.id, branchIds) })
+
+  // Fetched once, filtered in JS per domain below via
+  // agentDomainServesModuleDomain() -- the old code's per-domain
+  // eq(workerAgents.domain, domain) can't express the taxonomy bridge, and
+  // the table is small enough (dozens of rows) that one query up front is
+  // both simpler and cheaper than the old N-queries-per-branch pattern.
+  const eligibleAgents = await db.query.workerAgents.findMany({
+    where: and(
+      inArray(workerAgents.lifecycleStatus, ["approved", "published"]),
+      inArray(workerAgents.tier, ["global", "customer"]),
+    ),
+  })
 
   const tree: CapabilityNode[] = []
   for (const branch of branches) {
@@ -1292,17 +1405,23 @@ async function buildBranchNodes(db: TenantDb, orgId: string): Promise<Capability
     const domains = Array.from(new Set(modules.map((m) => m.domain)))
     const domainNodes: CapabilityNode[] = []
     for (const domain of domains) {
-      const modsInDomain = modules.filter((m) => m.domain === domain)
-      const agents = await db.query.workerAgents.findMany({
-        where: and(
-          inArray(workerAgents.lifecycleStatus, ["approved", "published"]),
-          inArray(workerAgents.tier, ["global", "customer"]),
-          eq(workerAgents.domain, domain)
-        ),
-      })
-      const children: CapabilityNode[] = agents.length > 0
-        ? agents.map((a) => ({ key: a.id, label: a.name, leaf: true, codeReference: a.codeReference }))
-        : modsInDomain.map((m) => ({ key: m.moduleKey, label: m.displayName, leaf: true }))
+      const agents = eligibleAgents.filter((a) => agentDomainServesModuleDomain(a.domain, domain))
+      // R48/R64 gap-closure (2026-08-30, F051: "No visible pill may be
+      // unwired -- unwired ones are hidden, not greyed"). Real, confirmed
+      // gap: when a domain had zero eligible worker_agents (confirmed live
+      // for "erp" -- 0 of the real published/approved agents serve that
+      // domain, only Construction/Cross-Cutting/GST/India-Compliance do),
+      // this used to fall back to rendering every module in that domain as
+      // a `leaf: true` pill with NO codeReference at all -- visible,
+      // clickable, and with nothing for dispatchTool()/resolveDynamicChainId
+      // to actually run. That's exactly the "VERI ERP shows 20 clickable
+      // module pills with zero resolvable children" defect. Fixed: a domain
+      // with no eligible agent contributes NO children at all (skip it,
+      // don't fake a leaf) -- if every domain under a branch is unwired,
+      // domainNodes stays empty and the whole branch pill (e.g. "VERI ERP")
+      // correctly disappears too, rather than showing an empty shell.
+      if (agents.length === 0) continue
+      const children: CapabilityNode[] = agents.map((a) => ({ key: a.id, label: a.name, leaf: true, codeReference: a.codeReference }))
       domainNodes.push({ key: domain, label: domain, leaf: false, children })
     }
 
@@ -1314,30 +1433,15 @@ async function buildBranchNodes(db: TenantDb, orgId: string): Promise<Capability
 }
 
 async function buildProductNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {
-  const activeProducts = await db.query.products.findMany({
-    where: and(eq(products.orgId, orgId), eq(products.isActive, true)),
+  const activeItems = await db.query.erpItems.findMany({
+    where: and(eq(erpItems.orgId, orgId), eq(erpItems.isActive, true)),
   })
-  if (activeProducts.length === 0) return []
+  if (activeItems.length === 0) return []
 
-  const productIds = activeProducts.map((p) => p.id)
-  const activeProjects = await db.query.projects.findMany({
-    where: and(inArray(projects.productId, productIds), eq(projects.isActive, true)),
-  })
-
-  const productChildren: CapabilityNode[] = []
-  for (const product of activeProducts) {
-    const projectsForProduct = activeProjects.filter((pr) => pr.productId === product.id)
-    if (projectsForProduct.length === 0) continue
-    productChildren.push({
-      key: product.id, label: product.name, leaf: false,
-      children: projectsForProduct.map((pr) => ({
-        key: pr.id, label: pr.name, leaf: false, children: genericProjectActions(pr.id),
-      })),
-    })
-  }
-  if (productChildren.length === 0) return []
-
-  return [{ key: "product", label: "Product", leaf: false, children: productChildren }]
+  return [{
+    key: "product", label: "Product", leaf: false,
+    children: activeItems.map((item) => ({ key: item.id, label: item.itemName, leaf: false, children: GENERIC_PRODUCT_ACTIONS })),
+  }]
 }
 
 async function buildEntityNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {

@@ -34,7 +34,7 @@ type Rfi = {
 
 const STATUS_COLORS: Record<string, string> = {
   open: "bg-red-100 text-red-700",
-  answered: "bg-ct-saffron/20 text-ct-saffron",
+  answered: "bg-ct-saffron/20 text-ct-saffron-text",
   closed: "bg-green-100 text-green-700",
 };
 

@@ -2,13 +2,13 @@
 // recruitment-service.ts's real ATS (job openings -> candidates ->
 // applications -> stage pipeline).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listJobOpenings, createJobOpening, ServiceError } from "@/lib/services/recruitment-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ jobOpenings: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const jobOpenings = await listJobOpenings({ orgId: ctx.orgId })

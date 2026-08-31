@@ -15,7 +15,7 @@
 // affected" list in that same plan: all construction/field modules already
 // work without an entitlement gate).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import {
   listCategories, createCategory, listActivities, createActivity, ServiceError,
 } from "@/lib/services/construction-progress-service"
@@ -25,14 +25,23 @@ const DEFAULT_CATEGORY_NAME = "General"
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ activities: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const projectId = request.nextUrl.searchParams.get("projectId")
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })
 
   try {
-    const activities = await listActivities({ orgId: ctx.orgId }, { projectId })
-    return NextResponse.json({ activities })
+    const [activities, categories] = await Promise.all([
+      listActivities({ orgId: ctx.orgId }, { projectId }),
+      // Additive: PROJEXA's Work Progress Report needs each activity's
+      // category NAME (not just categoryId) for its Category column and
+      // category-wise breakdown, and no v1 route exposed categories at all
+      // before this (listCategories() was only ever called internally, from
+      // this same file's POST handler's auto-provisioning). Read-only,
+      // additive field, no schema or service-layer change.
+      listCategories({ orgId: ctx.orgId }, projectId),
+    ])
+    return NextResponse.json({ activities, categories })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa work-progress activities list error:", error)

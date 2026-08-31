@@ -1,6 +1,7 @@
 import { db, workerAgents, moduleRegistry, embeddings } from "@/lib/db"
 import { eq, inArray } from "drizzle-orm"
 import { indexCapability, buildCapabilityContent } from "@/lib/services/capability-registry-service"
+import { PLATFORM_SCOPE_ORG_ID } from "@/lib/embeddings"
 
 /**
  * Gap-closure fix, 2026-07-09 (AUDIT_2026-07-09.md, Memory Architecture
@@ -52,11 +53,23 @@ export async function runCapabilityIndexFreshnessAudit(): Promise<{
   const missingModules = allModules.filter((m) => !indexedModuleKeys.has(m.moduleKey))
 
   for (const a of missingAgents) {
+    // CRR-018/019: org_id is null for two different reasons on this table --
+    // tier='global' agents are genuinely platform-wide (safe to mark
+    // is_platform_scope). tier='user' agents are null because they're scoped
+    // by userId instead, NOT platform-wide -- marking those is_platform_scope
+    // would leak a personal agent into every other org's capability search.
+    // This sweep has no per-agent proposer context to resolve the correct
+    // org for the tier='user' case, so it deliberately skips those rather
+    // than guessing; worker-agent-service.ts's own creation-time hook
+    // (which does have ctx.orgId) indexes them correctly already.
+    if (a.orgId == null && a.tier !== "global") {
+      continue
+    }
     try {
       await indexCapability(
         "worker_agent", a.id,
         buildCapabilityContent({ name: a.name, domain: a.domain, description: a.description, inputSchema: a.inputSchema, outputSchema: a.outputSchema }),
-        a.orgId
+        a.orgId ?? PLATFORM_SCOPE_ORG_ID
       )
       agentsIndexed++
     } catch (err) {
@@ -67,7 +80,8 @@ export async function runCapabilityIndexFreshnessAudit(): Promise<{
 
   for (const m of missingModules) {
     try {
-      await indexCapability("module", m.moduleKey, buildCapabilityContent({ name: m.displayName, domain: m.domain, description: m.description }), null)
+      // Modules are platform-wide by design -- see capability-backfill-service.ts's identical comment.
+      await indexCapability("module", m.moduleKey, buildCapabilityContent({ name: m.displayName, domain: m.domain, description: m.description }), PLATFORM_SCOPE_ORG_ID)
       modulesIndexed++
     } catch (err) {
       errors++

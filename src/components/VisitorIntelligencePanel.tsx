@@ -67,7 +67,7 @@ export function VisitorIntelligencePanel() {
             <BarChart3 className="size-5 text-ct-teal" /> Visitor Intelligence — last 30 days
           </h2>
           <Button onClick={runAnalysis} disabled={analyzing} variant="outline" className="rounded-full">
-            {analyzing ? <Loader2 className="size-4 animate-spin mr-1.5" /> : <Brain className="size-4 mr-1.5 text-ct-saffron" />}
+            {analyzing ? <Loader2 className="size-4 animate-spin mr-1.5" /> : <Brain className="size-4 mr-1.5 text-ct-saffron-text" />}
             Run VERIDIAN SALES AI analysis
           </Button>
         </div>

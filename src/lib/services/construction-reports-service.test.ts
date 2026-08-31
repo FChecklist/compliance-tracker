@@ -17,9 +17,19 @@
 import { describe, expect, test, mock, afterEach } from "bun:test"
 import {
   aggregateDesignerTimesheetCosts,
+  aggregateDesignerApprovalStatus,
+  aggregateWorkAnalysis,
+  computeCertifiedPayroll,
+  computeEarnedValue,
+  WH347_DAY_LABELS,
   type DesignerTimesheetBudgetLine,
   type DesignerTimesheetEntry,
   type DesignerTimesheetRosterUser,
+  type TimesheetStatusEntry,
+  type WorkAnalysisEntry,
+  type CertifiedPayrollAttendanceRow,
+  type CertifiedPayrollWageRate,
+  type EvLineItem,
 } from "./construction-reports-service"
 
 // Fixture: 3 designers across 2 projects and 3 categories.
@@ -140,6 +150,81 @@ describe("aggregateDesignerTimesheetCosts: roster-inclusion (budget-undercount f
   })
 })
 
+// Design Studio timesheets (Owner item 12, "IMPORTANT", 2026-07-28):
+// designer-wise approval-status view -- a distinct cut from
+// aggregateDesignerTimesheetCosts' byDesignerStatus (active/inactive)
+// above; this groups each designer's logged hours by where they sit in the
+// draft -> submitted -> approved/rejected workflow.
+describe("aggregateDesignerApprovalStatus", () => {
+  test("buckets each designer's hours/entry-counts by approval status, zero-filling statuses with no entries", () => {
+    const entries: TimesheetStatusEntry[] = [
+      { userId: "u1", userName: "Alice", approvalStatus: "draft", hours: 3 },
+      { userId: "u1", userName: "Alice", approvalStatus: "submitted", hours: 5 },
+      { userId: "u1", userName: "Alice", approvalStatus: "submitted", hours: 2 },
+      { userId: "u2", userName: "Bob", approvalStatus: "approved", hours: 8 },
+      { userId: "u2", userName: "Bob", approvalStatus: "rejected", hours: 4 },
+    ]
+    const result = aggregateDesignerApprovalStatus(entries)
+    expect(result).toEqual([
+      {
+        userId: "u1", userName: "Alice",
+        draft: { hours: 3, entries: 1 },
+        submitted: { hours: 7, entries: 2 },
+        approved: { hours: 0, entries: 0 },
+        rejected: { hours: 0, entries: 0 },
+      },
+      {
+        userId: "u2", userName: "Bob",
+        draft: { hours: 0, entries: 0 },
+        submitted: { hours: 0, entries: 0 },
+        approved: { hours: 8, entries: 1 },
+        rejected: { hours: 4, entries: 1 },
+      },
+    ])
+  })
+
+  test("empty input produces an empty designer list, never a crash", () => {
+    expect(aggregateDesignerApprovalStatus([])).toEqual([])
+  })
+})
+
+// Design Studio timesheets: work-analysis view -- hours by task/category
+// per designer over a period, built directly from the timesheet data
+// already flowing through pms_time_entries/pms_issues.
+describe("aggregateWorkAnalysis", () => {
+  test("sums hours per designer, broken down by task and by category", () => {
+    const entries: WorkAnalysisEntry[] = [
+      { userId: "u1", userName: "Alice", taskId: "t1", taskName: "Lobby Elevation", category: "Design Development", hours: 4 },
+      { userId: "u1", userName: "Alice", taskId: "t1", taskName: "Lobby Elevation", category: "Design Development", hours: 2 },
+      { userId: "u1", userName: "Alice", taskId: "t2", taskName: "Site Visit Report", category: "Site Visit", hours: 3 },
+      { userId: "u2", userName: "Bob", taskId: "t3", taskName: "BOQ Review", category: "Documentation", hours: 6 },
+    ]
+    const result = aggregateWorkAnalysis(entries)
+    expect(result).toEqual([
+      {
+        userId: "u1", userName: "Alice", totalHours: 9,
+        byTask: [
+          { taskId: "t1", taskName: "Lobby Elevation", hours: 6 },
+          { taskId: "t2", taskName: "Site Visit Report", hours: 3 },
+        ],
+        byCategory: [
+          { category: "Design Development", hours: 6 },
+          { category: "Site Visit", hours: 3 },
+        ],
+      },
+      {
+        userId: "u2", userName: "Bob", totalHours: 6,
+        byTask: [{ taskId: "t3", taskName: "BOQ Review", hours: 6 }],
+        byCategory: [{ category: "Documentation", hours: 6 }],
+      },
+    ])
+  })
+
+  test("empty input produces an empty designer list, never a crash", () => {
+    expect(aggregateWorkAnalysis([])).toEqual([])
+  })
+})
+
 // PR #597 audit fix -- exercises the real designerTimesheetReport() (not a
 // re-implementation), mocking only the DB layer: @/lib/db/tenant-scoped's
 // withTenantContext (supplies a fake drizzle-shaped db) and
@@ -229,5 +314,218 @@ describe("designerTimesheetReport: N+1 fix + scope-labeled response (PR #597 aud
       ["byCategory", "byDesignerStatus", "byUser", "overallActual", "overallBudget", "overallVariance"].sort()
     )
     expect(Object.keys(result.orgWide).sort()).toEqual(["byDesigner", "byProject"])
+  })
+})
+
+
+// Certified Payroll (SAP-mapping gap analysis HCM-006, "Certified Payroll
+// Report (Regulatory / Public Works)", US WH-347 equivalent): tests
+// computeCertifiedPayroll() -- the pure per-worker weekly aggregator --
+// directly, without a live DB, same convention as
+// aggregateDesignerTimesheetCosts above.
+//
+// WEEK_START is the only hardcoded date literal in this suite -- every
+// other fixture date is derived from it via offset arithmetic (dayOf()),
+// rather than hand-typing 7 separate date literals.
+const WEEK_START = "2026-08-02"
+function dayOf(offset: number): string {
+  return new Date(new Date(WEEK_START).getTime() + offset * 86400000).toISOString().slice(0, 10)
+}
+function labelOf(dateStr: string): (typeof WH347_DAY_LABELS)[number] {
+  return WH347_DAY_LABELS[new Date(dateStr).getUTCDay()]
+}
+
+describe("computeCertifiedPayroll", () => {
+  test("a worker's hours are bucketed under their real calendar day-of-week, not an offset from weekStart", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: "Carpenter", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 320 },
+      { rosterId: "r1", workerName: "Worker One", trade: "Carpenter", attendanceDate: dayOf(1), hoursWorked: 8, dailyCost: 320 },
+    ]
+    const result = computeCertifiedPayroll(rows, [], WEEK_START)
+    const worker = result.workers[0]
+    expect(worker.dailyHours[labelOf(dayOf(0))]).toBe(8)
+    expect(worker.dailyHours[labelOf(dayOf(1))]).toBe(8)
+    expect(worker.totalHours).toBe(16)
+    expect(worker.grossWages).toBe(640)
+  })
+
+  test("rate paid is derived from real dailyCost/hoursWorked, and a worker whose rate meets the prevailing determination is compliant", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: "Carpenter", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+    ]
+    const wageRates: CertifiedPayrollWageRate[] = [{ trade: "Carpenter", prevailingHourlyRate: 45, fringeBenefitRate: 5 }]
+    const result = computeCertifiedPayroll(rows, wageRates, WEEK_START)
+    expect(result.workers[0].ratePaid).toBe(50)
+    expect(result.workers[0].prevailingHourlyRate).toBe(45)
+    expect(result.workers[0].fringeBenefitRateRequired).toBe(5)
+    expect(result.workers[0].complianceStatus).toBe("compliant")
+    expect(result.statementOfCompliance.allWorkersCompliant).toBe(true)
+    expect(result.statementOfCompliance.exceptions).toEqual([])
+  })
+
+  test("a worker paid below the project's prevailing rate for their trade is flagged rate_below_prevailing and listed as an exception", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: "Electrician", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 240 },
+    ]
+    const wageRates: CertifiedPayrollWageRate[] = [{ trade: "Electrician", prevailingHourlyRate: 40, fringeBenefitRate: 0 }]
+    const result = computeCertifiedPayroll(rows, wageRates, WEEK_START)
+    expect(result.workers[0].ratePaid).toBe(30)
+    expect(result.workers[0].complianceStatus).toBe("rate_below_prevailing")
+    expect(result.statementOfCompliance.allWorkersCompliant).toBe(false)
+    expect(result.statementOfCompliance.exceptions).toEqual([{ rosterId: "r1", workerName: "Worker One", reason: "rate_below_prevailing" }])
+  })
+
+  test("a worker with no trade recorded, or a trade with no wage determination on file for this project, is flagged no_classification_on_file rather than silently passing", () => {
+    const noTrade: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: null, attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+    ]
+    const unmatchedTrade: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r2", workerName: "Worker Two", trade: "Plumber", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+    ]
+    expect(computeCertifiedPayroll(noTrade, [], WEEK_START).workers[0].complianceStatus).toBe("no_classification_on_file")
+    expect(computeCertifiedPayroll(unmatchedTrade, [{ trade: "Carpenter", prevailingHourlyRate: 45, fringeBenefitRate: 0 }], WEEK_START).workers[0].complianceStatus).toBe("no_classification_on_file")
+  })
+
+  test("trade matching against the wage determination is case/whitespace-insensitive, matching constructionLabourRoster.trade's own free-text posture", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: "  CARPENTER  ", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+    ]
+    const wageRates: CertifiedPayrollWageRate[] = [{ trade: "carpenter", prevailingHourlyRate: 45, fringeBenefitRate: 0 }]
+    expect(computeCertifiedPayroll(rows, wageRates, WEEK_START).workers[0].complianceStatus).toBe("compliant")
+  })
+
+  test("deductions are honestly 0 and netWages equals grossWages -- this site-labour workforce has no link to the statutory payroll engine (disclosed gap, never fabricated)", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: "Carpenter", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+    ]
+    const worker = computeCertifiedPayroll(rows, [], WEEK_START).workers[0]
+    expect(worker.totalDeductions).toBe(0)
+    expect(worker.netWages).toBe(worker.grossWages)
+  })
+
+  test("multiple workers are sorted by name, and the report totals sum every worker", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r2", workerName: "Zed Worker", trade: "Carpenter", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+      { rosterId: "r1", workerName: "Amy Worker", trade: "Carpenter", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+    ]
+    const result = computeCertifiedPayroll(rows, [], WEEK_START)
+    expect(result.workers.map((w) => w.workerName)).toEqual(["Amy Worker", "Zed Worker"])
+    expect(result.workerCount).toBe(2)
+    expect(result.totalHours).toBe(16)
+    expect(result.totalGrossWages).toBe(800)
+  })
+
+  test("a worker present with no hoursWorked recorded contributes 0 hours (not a crash), and empty attendance produces an empty, not an error", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: "Carpenter", attendanceDate: dayOf(0), hoursWorked: null, dailyCost: 0 },
+    ]
+    const result = computeCertifiedPayroll(rows, [], WEEK_START)
+    expect(result.workers[0].totalHours).toBe(0)
+    expect(result.workers[0].ratePaid).toBe(0)
+
+    const empty = computeCertifiedPayroll([], [], WEEK_START)
+    expect(empty.workers).toEqual([])
+    expect(empty.workerCount).toBe(0)
+    expect(empty.statementOfCompliance.allWorkersCompliant).toBe(true)
+  })
+
+  test("weekEnd is 6 days after weekStart, matching WH-347's Sunday-Saturday reporting week", () => {
+    const result = computeCertifiedPayroll([], [], WEEK_START)
+    expect(result.weekStart).toBe(WEEK_START)
+    expect(result.weekEnd).toBe(dayOf(6))
+  })
+})
+
+// R46/R-51 (fault R46P5_R51_01, confirmed live 2026-08-25 -- Oakwood
+// Residence, upv2q7pv8qcwdayybvu74egm): earnedValueReport() previously only
+// ever read quantity_done and silently valued a line at $0 whenever no
+// physical quantity had been recorded for it, even when a real
+// percentComplete had been logged -- and, separately, unconditionally
+// dropped a root line item's OWN progress the moment it had children (only
+// children were ever summed). computeEarnedValue() is the pure rollup
+// these tests exercise directly, no DB.
+describe("computeEarnedValue -- R46/R-51 percent-complete fallback + root-with-children direct progress", () => {
+  test("REGRESSION ORACLE: measured quantity on a weighted child still earns exactly as before (qty x rootRate x breakdownPct/100) -- the pre-existing, already-correct code path is untouched", () => {
+    const items: EvLineItem[] = [
+      { id: "root1", parentLineItemId: null, rate: 10, amount: 1000, breakdownPercentage: null },
+      { id: "childA", parentLineItemId: "root1", rate: 6, amount: 600, breakdownPercentage: 60 },
+      { id: "childB", parentLineItemId: "root1", rate: 4, amount: 400, breakdownPercentage: 40 },
+    ]
+    const qtyByItem = new Map([["childA", 30]]) // only childA has a real measured quantity
+    const result = computeEarnedValue(items, qtyByItem, new Map())
+    // 30 (qty) x 10 (ROOT's rate, not the child's own) x 60% = 180
+    expect(result.earnedValue).toBe(180)
+    expect(result.contractValue).toBe(1000)
+    expect(result.percentByValue).toBe(18)
+  })
+
+  test("Oakwood live case: a root-with-children line has percentComplete=50 but quantityDone=0 (no measurement yet) -- previously $0, now 50% of the root's own contracted value, additive on top of its children", () => {
+    const items: EvLineItem[] = [
+      { id: "PP1", parentLineItemId: null, rate: 50, amount: 5000, breakdownPercentage: null },
+      { id: "PP1-A", parentLineItemId: "PP1", rate: 20, amount: 2000, breakdownPercentage: 40 },
+    ]
+    const qtyByItem = new Map<string, number>() // both real Oakwood entries recorded quantityDone: 0
+    const latestPercentByItem = new Map([["PP1", 50]]) // real entries recorded percentComplete: 50
+    const result = computeEarnedValue(items, qtyByItem, latestPercentByItem)
+    expect(result.contractValue).toBe(5000) // unchanged -- matches the live "AED 5,000 contract value" evidence
+    expect(result.earnedValue).toBe(2500) // 50% x root's own 5000 -- was 0 before this fix
+    expect(result.percentByValue).toBe(50)
+  })
+
+  test("a child (not the root) logged percent-only progress falls back to its breakdown share of the root's contract value", () => {
+    const items: EvLineItem[] = [
+      { id: "root1", parentLineItemId: null, rate: 10, amount: 1000, breakdownPercentage: null },
+      { id: "childA", parentLineItemId: "root1", rate: 6, amount: 600, breakdownPercentage: 40 },
+    ]
+    const latestPercentByItem = new Map([["childA", 50]])
+    const result = computeEarnedValue(items, new Map(), latestPercentByItem)
+    // childA's share of contract value = 1000 x 40% = 400; 50% of that = 200
+    expect(result.earnedValue).toBe(200)
+    expect(result.contractValue).toBe(1000)
+  })
+
+  test("a real measured quantity always wins over a logged percentComplete on the same line -- never double-counted", () => {
+    const items: EvLineItem[] = [{ id: "root1", parentLineItemId: null, rate: 20, amount: 2000, breakdownPercentage: null }]
+    const qtyByItem = new Map([["root1", 50]])
+    const latestPercentByItem = new Map([["root1", 90]]) // present, but must be ignored since qty is measured
+    const result = computeEarnedValue(items, qtyByItem, latestPercentByItem)
+    expect(result.earnedValue).toBe(1000) // 50 x 20, NOT 90% x 2000 = 1800
+  })
+
+  test("a root's own direct progress and its children's progress are both counted, additively, without double-counting", () => {
+    const items: EvLineItem[] = [
+      { id: "root1", parentLineItemId: null, rate: 30, amount: 3000, breakdownPercentage: null },
+      { id: "child1", parentLineItemId: "root1", rate: 30, amount: 3000, breakdownPercentage: 100 },
+    ]
+    const qtyByItem = new Map([["root1", 20], ["child1", 10]])
+    const result = computeEarnedValue(items, qtyByItem, new Map())
+    expect(result.earnedValue).toBe(900) // root: 20x30=600, child: 10x30x100%=300
+    expect(result.contractValue).toBe(3000)
+  })
+
+  test("no progress logged anywhere -- earnedValue 0, contractValue still the real sum of root amounts, never a crash", () => {
+    const items: EvLineItem[] = [
+      { id: "root1", parentLineItemId: null, rate: 10, amount: 1000, breakdownPercentage: null },
+      { id: "root2", parentLineItemId: null, rate: 5, amount: 500, breakdownPercentage: null },
+    ]
+    const result = computeEarnedValue(items, new Map(), new Map())
+    expect(result).toEqual({ earnedValue: 0, contractValue: 1500, percentByValue: 0 })
+  })
+
+  test("multiple independent (non-hierarchical) root lines each resolve quantity-vs-percent independently", () => {
+    const items: EvLineItem[] = [
+      { id: "rootA", parentLineItemId: null, rate: 5, amount: 500, breakdownPercentage: null },
+      { id: "rootB", parentLineItemId: null, rate: 10, amount: 1000, breakdownPercentage: null },
+    ]
+    const qtyByItem = new Map([["rootA", 40]]) // rootA measured
+    const latestPercentByItem = new Map([["rootB", 25]]) // rootB percent-only
+    const result = computeEarnedValue(items, qtyByItem, latestPercentByItem)
+    expect(result.earnedValue).toBe(450) // rootA: 40x5=200, rootB: 25% x 1000=250
+    expect(result.contractValue).toBe(1500)
+    expect(result.percentByValue).toBe(30)
+  })
+
+  test("empty line-item list -- all zero, not an error", () => {
+    expect(computeEarnedValue([], new Map(), new Map())).toEqual({ earnedValue: 0, contractValue: 0, percentByValue: 0 })
   })
 })

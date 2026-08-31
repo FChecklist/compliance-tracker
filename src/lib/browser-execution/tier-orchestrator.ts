@@ -104,6 +104,34 @@ export function shouldAttemptWebLlm(plan: ExecutionPlan, env?: Parameters<typeof
 }
 
 /**
+ * engine-browser-npu (increment 3, real inference wiring): the real gate
+ * deciding whether npu-engine.ts's real WebNN inference call should run for
+ * this plan. Unlike shouldAttemptWebLlm there is no secondary hardware
+ * check beyond selection itself -- detectNpuTier's own `navigator.ml`
+ * presence check already IS the real prerequisite (there is no WebNN
+ * equivalent of "GPU present but WASM-only", the tier is either usable or
+ * it isn't) -- kept here anyway, not inlined in npu-engine.ts, so
+ * tier-orchestrator.ts stays the single source of truth for "should tier X
+ * actually run" across every tier, matching shouldAttemptWebLlm's own
+ * precedent.
+ */
+export function shouldAttemptNpu(plan: ExecutionPlan): boolean {
+  return plan.selectedTier === "npu"
+}
+
+/**
+ * engine-browser-builtin-ai (increment 3, real inference wiring): the real
+ * gate deciding whether builtin-ai-engine.ts's real window.ai /
+ * window.LanguageModel call should run for this plan. Same reasoning as
+ * shouldAttemptNpu above -- detectBuiltinAiTier's own presence check is
+ * the real prerequisite, this function exists only to keep tier SELECTION
+ * centralized here rather than duplicated per engine file.
+ */
+export function shouldAttemptBuiltinAi(plan: ExecutionPlan): boolean {
+  return plan.selectedTier === "builtin-ai"
+}
+
+/**
  * stack-browser-compute / stack-parallelism (deepening): the real
  * parallelism plan for a BATCH of independent browser-tier tasks (e.g.
  * embedding N chunks via the transformers tier, see

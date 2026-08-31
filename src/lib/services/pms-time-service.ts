@@ -62,6 +62,54 @@ export async function deleteTimeEntry(ctx: { orgId: string; userId: string }, en
   })
 }
 
+// Design Studio timesheets approval flow (Owner item 12, "IMPORTANT",
+// 2026-07-28): draft (designer editing, logTime's default) -> submitted
+// (designer done for the day) -> approved/rejected (manager review).
+// Modeled directly on construction-kpi-service.ts's submitKpiEntry/
+// approveKpiEntry -- role gating (submit=owner, approve/reject=manager+)
+// is enforced at the route layer via requireRole, self-approval blocked
+// here the same way approveKpiEntry blocks it.
+export async function submitTimeEntry(ctx: { orgId: string; userId: string }, entryId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.pmsTimeEntries.findFirst({ where: and(eq(pmsTimeEntries.id, entryId), eq(pmsTimeEntries.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Time entry not found", 404)
+    if (existing.userId !== ctx.userId) throw new ServiceError("Only the logging user may submit this entry", 403)
+    if (existing.approvalStatus !== "draft") throw new ServiceError("Only a draft time entry can be submitted", 400)
+
+    const [row] = await db.update(pmsTimeEntries)
+      .set({ approvalStatus: "submitted" })
+      .where(eq(pmsTimeEntries.id, entryId)).returning()
+    return row
+  })
+}
+
+async function reviewTimeEntry(ctx: { orgId: string; userId: string }, entryId: string, decision: "approved" | "rejected", rejectionReason?: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.pmsTimeEntries.findFirst({ where: and(eq(pmsTimeEntries.id, entryId), eq(pmsTimeEntries.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Time entry not found", 404)
+    if (existing.approvalStatus !== "submitted") throw new ServiceError("Only a submitted time entry can be reviewed", 400)
+    if (existing.userId === ctx.userId) throw new ServiceError("The submitter cannot review their own time entry", 403)
+
+    const [row] = await db.update(pmsTimeEntries)
+      .set({
+        approvalStatus: decision,
+        approvedById: ctx.userId,
+        approvedAt: new Date(),
+        rejectionReason: decision === "rejected" ? (rejectionReason || null) : null,
+      })
+      .where(eq(pmsTimeEntries.id, entryId)).returning()
+    return row
+  })
+}
+
+export async function approveTimeEntry(ctx: { orgId: string; userId: string }, entryId: string) {
+  return reviewTimeEntry(ctx, entryId, "approved")
+}
+
+export async function rejectTimeEntry(ctx: { orgId: string; userId: string }, entryId: string, rejectionReason?: string) {
+  return reviewTimeEntry(ctx, entryId, "rejected", rejectionReason)
+}
+
 export async function listBillableRates(ctx: { orgId: string }) {
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.pmsBillableRates.findMany({ where: eq(pmsBillableRates.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.validFrom) })
