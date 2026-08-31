@@ -6284,6 +6284,52 @@ active:
       compilation, no live DB). Not touching capture.ts/embed.ts/chunker.ts
       (they don't exist on this branch's base) or any other CRR P2/P3 file.
 recently_completed:
+  - session_label: "claude-code (task-20260718-072002-ai-model-lifecycle---benchmarking--ongoi) -- VERIDIAN Review Framework gap-closure, 3 findings: per-role quality regression tracking, cost-per-quality-point tracking, provider-outage/role-failure correlation [DONE, PR #1229 rebased onto main and re-opened, this rebase session]"
+    claimed_at: "2026-08-15T (this session)"
+    merged_as: "FChecklist/compliance-tracker (rebased PR, was #1229 -- see rebase-wt-1229 branch)"
+    claim: |
+      SPEC (this task's own prompt.txt): 3 High findings under "AI Model
+      Lifecycle & Benchmarking / Ongoing Quality Monitoring" -- (1) per-role
+      quality regression not tracked over time (promptfoo/CI eval is
+      PR-triggered only, prompt-level not role-level, never persisted to a
+      trend table); (2) cost tracking (token_usage_ledger) and quality
+      tracking are not joined anywhere; (3) no provider-outage table and no
+      correlation of outage windows against role/task failures exists.
+      Investigated current code first (Explore agent, file:line citations)
+      before writing anything, per this task's own instruction: confirmed
+      all 3 gaps genuinely still open (adjacent-but-different infra exists:
+      promptEvalCases/Runs, model-scorecard-service.ts, token-usage-service.ts,
+      dispatch_outcomes -- none of it closes these 3). Building as one
+      coherent module extending that existing infra (not duplicating it):
+      new platform-schema tables `role_quality_runs` + `provider_outage_windows`,
+      services role-quality-regression-service.ts / cost-quality-service.ts
+      (joins role_quality_runs against token_usage_ledger) /
+      provider-outage-service.ts (correlation query + failure-cluster
+      auto-detect), a Vercel cron (`/api/internal/role-quality-regression/run`,
+      same pattern as every other vercel.json cron) for the recurring job,
+      and veridian_admin-gated `/api/ai/team/*` read/write routes, same
+      posture as the existing token-usage/scorecard routes.
+    scope_note: >-
+      File scope: src/lib/db/schema.ts (2 new tables, additive only),
+      one new drizzle/ migration + meta/_journal.json entry, new
+      src/lib/services/{role-quality-regression,cost-quality,provider-outage}-service.ts
+      (+.test.ts), new src/app/api/internal/role-quality-regression/run/route.ts
+      + src/app/api/ai/team/{role-quality,cost-quality,provider-outages}/*
+      routes, vercel.json (additive cron entry), this ACTIVE-CLAIMS entry,
+      PROGRESS.md. Explicitly NOT touching
+      src/lib/services/permission-service.ts's ERP_ACTION_ROLES (per this
+      task's own instruction) or any other in-flight worker's declared
+      scope -- checked this file live before claiming, no collision found.
+      Original PR #1229 was stale against main; this rebase session first
+      re-merged the PR's own worker branch (4 real conflicts: this file,
+      drizzle migration journal, schema.ts, vercel.json), then re-merged
+      current main a second time (2 more real conflicts: this file again,
+      and the migration journal again) -- migration renumbered 0335->0340
+      after discovering 0335/0336/0337/0338 had all been independently
+      claimed by other real merged/reserved work by the time this rebase
+      landed (see drizzle/0340_ai_model_lifecycle_benchmarking.sql's own
+      header for the exact collision history) -- and re-opened as a fresh
+      PR.
   - session_label: "claude-code (worker task-20260718-080006-business-rules-engine--rule-lifecycle-ma) -- Business Rules Engine / Rule Lifecycle Management (VERIDIAN Review Framework gap-closure, 4 findings) [rebased off PR #1237 onto current main 2026-08-30; original PR #1237 closed as superseded, replacement PR opened from branch rebase-wt-1237 -- see that PR's own body for the real new number/URL]"
     claimed_at: "2026-08-15T (original session); rebase-and-supersede pass 2026-08-30T"
     claim: |
