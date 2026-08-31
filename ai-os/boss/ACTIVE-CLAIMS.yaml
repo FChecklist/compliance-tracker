@@ -11890,3 +11890,34 @@ recently_completed:
       `ai-os/boss/ACTIVE-CLAIMS.yaml`. No visibility or permission changes to any repository (PM
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
+  - session_label: "claude-code (task-20260726-172004-search-performance-explain-analyze---gin) -- V2-20 Search performance EXPLAIN ANALYZE + GIN index [DONE, PR #582 rebased onto main and re-opened, this rebase session]"
+    claimed_at: "2026-07-26T (original session); rebase-merged 2026-09-01"
+    claim: |
+      V2-20-SEARCH-PERF (CSV row #67): EXPLAIN ANALYZE on search-service.ts's
+      searchAll() (the plain-ilike Standard search behind /api/search) at
+      realistic org-scale volume (benchmarked via a rolled-back live-DB
+      transaction, not a permanent change), confirming a Seq Scan on
+      compliance_items/tasks/clients and adding a pg_trgm GIN index per
+      searched column. File scope: drizzle/0504_search_perf_gin_trgm_indexes.sql
+      (new migration, renumbered twice during this rebase: 0264 (original
+      PR) -> 0503 -> 0504, since both prior numbers were independently
+      claimed by other, unrelated migrations already merged to main by the
+      time this session pushed; NOT applied live -- Tier2 hold),
+      ai-os/EXPLAIN_ANALYZE_SEARCH_PERF_2026-07-26.md (new results doc). No
+      changes to search-service.ts itself (pg_trgm accelerates the existing
+      ilike() calls transparently). Also flagged (not fixed -- out of scope):
+      undocumented live-DB drift on compliance_items (search_vector/embedding/
+      ct2_-prefixed indexes+trigger with no migration file and no code
+      references) discovered while checking for existing indexes.
+
+      Original PR #582 (branch worker/task-20260726-172004-search-performance-explain-analyze---gin)
+      had genuinely diverged git history from current main (its merge-base
+      predates ~325 subsequent migrations and hundreds of unrelated service
+      changes; a literal `git merge origin/main` produced 20+ conflicts in
+      files this PR never touched). Rather than resolve unrelated conflicts,
+      reset a fresh branch to origin/main and replayed this PR's real,
+      GitHub-confirmed 5-file diff (`gh pr diff 582 --name-only`) directly,
+      renumbering only the one genuine collision (the migration number).
+      Content otherwise unchanged from the original PR. Original PR #582
+      closed as superseded; see its own closing comment for the replacement
+      PR URL.
