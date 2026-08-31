@@ -41,6 +41,13 @@ shaping from scratch.
 | Helper | What it's for |
 |---|---|
 | `src/lib/engine-handlers/*.ts` | Per-domain `dispatchXEngine()` handlers extracted out of `task-execution-engine.ts`'s `dispatchEngine()` (see that file's own header). New engine categories should land here as a new file + `Set` of engine keys, not as more inline cases in the monolith. |
+| `src/lib/task-execution/*.ts` | Per-domain `dispatchXTool()` handlers extracted out of `task-execution-engine.ts`'s sibling `dispatchTool()` (same finding, different function — see that file's own header for why `dispatchEngine()` above and `dispatchTool()` here were split by two different rebases of the same gap-closure task without colliding). New structured-dispatch tool codes for compliance/GST/construction should land here, not as more inline cases in the monolith. |
+
+## AI / LLM layer
+
+| Helper | Import count | What it's for |
+|---|---|---|
+| `callLLMJson()` / `estimateCostUsd()` / `MODEL_PRICING` — `@/lib/llm-client` | ~43 files import from it, 5 direct `callLLMJson(` call sites | The single provider-dispatch + cost-accounting chokepoint for every LLM call in the app (Anthropic/Groq/Cerebras/OpenRouter). Don't hand-roll a fetch to a model provider; go through this. |
 
 ## How the counts above were produced
 
