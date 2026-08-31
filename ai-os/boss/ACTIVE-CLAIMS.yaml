@@ -116,6 +116,54 @@ active:
       new docs/API-ROUTES-INDEX.md, PROGRESS.md. Did not touch
       src/lib/services/permission-service.ts or any other in-flight
       worker's declared scope, per this task's own prompt.txt instruction.
+  - session_label: "claude-code (worker task-20260718-112006-retry-1--ai-engineering-quality--code-s) -- VERIDIAN Review Framework: AI Engineering Quality / Code Structure & Modularity gap-closure, 5 findings (invocation 14/20 2026-08-15: rebased onto current main and merged as replacement PR (was #1257) on 2026-08-31)"
+    claimed_at: "2026-08-15T12:xx (this session, invocation 14/20 -- invocations 1-13 all died at PRE-FLIGHT credit_accountant rejection, no real work done before now)"
+    claim: |
+      5 findings (this task's own prompt.txt), same underlying task as the
+      retry-0 entry above (task-20260718-111007-retry-0, was #1288) -- both
+      retries independently ran and both opened PRs; this one (retry-1,
+      #1257) is the one rebased/merged second, after retry-0 was already on
+      main. Re-verified all 5 against current source before starting
+      (schema.ts is genuinely 11,543 lines/693KB; 323 orgId columns with
+      zero FK constraints; no REUSABLE-UTILITIES doc; eslint.config.mjs has
+      nearly every rule off with no requireAuth-enforcing check; ai-os/OS.yaml
+      already documents the audit-tree/system-tree/tree4-unified
+      relationship, so that half of the File & Folder Organization finding
+      is already resolved -- not duplicated here).
+      Collision check: dozens of active/recent entries in this file touch
+      schema.ts additively, and several touch task-execution-engine.ts's
+      dispatchEngine() switch specifically -- a full mechanical split of
+      either file (the finding's literal recommended approach) would
+      conflict with all of them. NOT doing that; instead extracted
+      dispatchTool() (a separate, uncontested ~265-line if-chain in the same
+      file) into src/lib/task-execution/{compliance,gst,construction}-tools.ts,
+      left dispatchEngine() itself untouched. This is a genuinely different
+      slice of the same file than retry-0's dispatchEngine()/engine-handlers
+      extraction, so the two are complementary, not duplicate, on that part.
+      Rebase-time finding (2026-08-31): the Low Coupling/High Cohesion
+      finding's FK-constraint work (schema.ts .references() additions on
+      departments/users/complianceItems.orgId + a hand-written drizzle
+      migration) turned out to be byte-for-byte the same 3 tables/columns
+      retry-0 already landed on main as drizzle/0350_add_org_fk_constraints.sql
+      -- both retries independently picked the same "highest-traffic org-
+      scoped tables" per the finding's own wording. Kept retry-0's already-
+      merged version at rebase time and dropped this PR's own now-redundant
+      migration file + schema.ts hunk rather than re-applying a duplicate
+      (would fail at deploy time with "constraint already exists"). Also at
+      rebase time: threaded main's independently-landed R48 `role` param /
+      financialsAllowed redaction (added to dispatchTool() after this PR's
+      branch point) through into the newly-extracted
+      construction-tools.ts's dispatchConstructionTool(), which otherwise
+      would have silently dropped that redaction.
+      File scope (as actually merged): src/lib/task-execution-engine.ts
+      (dispatchTool() only) + new src/lib/task-execution/*.ts, new
+      docs/architecture/REUSABLE-UTILITIES.md, new
+      scripts/check-route-requireauth.mjs (not wired into CI -- this
+      session's gh token lacks `workflow` scope), new src/app/api/README.md.
+      Did NOT touch src/lib/services/permission-service.ts's ERP_ACTION_ROLES
+      table structure (per this task's own prompt.txt instruction), and did
+      NOT re-add the FK migration/schema.ts change already covered by #1288
+      (see rebase-time finding above).
   - session_label: "claude-code (worker task-20260718-083006-cache---synchronization--cache-utilizati) -- Prompt & Cache Management Framework Phase 2: cache utilization report + prediction [PR #1017, invocation 14/20 2026-08-15: re-verified live state -- required_approving_review_count is now 0 (the prior self-approval deadlock is resolved/no longer blocking), but the branch had drifted 225 commits behind main and gone CONFLICTING -- re-merging main and re-resolving conflicts now to get CI green again before merging]"
     claimed_at: "2026-08-07T (this session)"
     claim: |
