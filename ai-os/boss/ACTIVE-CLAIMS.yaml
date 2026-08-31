@@ -40,6 +40,34 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-185202-ocid-020-gtm-cert-addendum--fix-pre-auth) -- real fix for GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN: /pricing, /contact, /terms, /privacy still render hardcoded VERIDIAN wordmark/tagline/footer text instead of resolving per-host brand"
+    claimed_at: "2026-08-05T18:52Z (this session, in progress)"
+    claim: |
+      SPEC (child of UMR-20260802-165606-4413/OCID-020, per PM instruction UMR-20260805-142048-4edb
+      item 6): independently confirmed this session via WebFetch that projexa-ai.com's /pricing,
+      /contact, /terms, /privacy pages still render hardcoded VERIDIAN wordmark/tagline/footer text
+      instead of resolving per-host brand -- same root-cause class as PR #886 (login, merged) and
+      PR #954 (signup + mfa-challenge, open) but broader in scope: `PreAuthBrand`
+      (org-branding-service.ts) currently only carries `brandName`/`productBranchId`; PR #954's own
+      commit message explicitly flagged /pricing as a "materially larger per-string copy pass...
+      better scoped as its own follow-up" and left it undone. Scope: extend `PreAuthBrand` with a
+      real `tagline` field (backed by the pre-existing, already-unused `product_branches.tagline`
+      DB column -- no new migration needed), wire `resolvePreAuthBrandByHost()`'s per-host
+      resolution into /pricing (currently 100% client-only, no brand resolution at all),
+      /contact, /terms, /privacy (already async Server Components; just missing the
+      headers()+resolvePreAuthBrandByHost() call login/signup already use), mirroring the
+      established mechanical wordmark/title-swap pattern (never rewriting substantive legal-body
+      prose in /terms or /privacy -- that names the real legal entity and product bundle, unrelated
+      to which host a visitor arrived on).
+    scope_note: >-
+      File scope: src/lib/services/org-branding-service.ts (+.test.ts), src/app/pricing/**,
+      src/app/contact/page.tsx, src/app/terms/page.tsx, src/app/privacy/page.tsx,
+      src/components/LegalShell.tsx (shared with /data-policy, extending its brand prop as
+      optional -- zero-cost, no behavior change unless a brand is passed). No DB schema/migration
+      changes (tagline column already exists, unused). Does not touch PR #954's own scope
+      (/signup, /mfa-challenge) or the root `/` page's redirect-based approach (that page's
+      VERIDIAN-research-lab editorial copy is real, brand-specific narrative -- a materially
+      different situation from these 4 generic marketing/legal utility pages).
   - session_label: "claude-code (worktree wf_bd33ae67-033-4) -- CRR-158: OAuth connector scope allow-list gate"
     claimed_at: "2026-08-28T (this session)"
     claim: |
