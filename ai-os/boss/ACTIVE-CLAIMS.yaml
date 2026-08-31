@@ -2471,6 +2471,94 @@ active:
       entries for genuine dated comments and test-fixture dates in the 3
       files above), PROGRESS.md, this file. No schema/table changes. No
       overlap with any other open PR found during the collision check above.
+  - session_label: "claude-code (sd-006-sales-by-material-service-type) -- SD-006 Sales by Material / Service Type"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      Task: build SD-006 "Sales by Material / Service Type" (sap_mapping.sqlite
+      sap_reports, module SD, priority MEDIUM, veridian_mapping_status
+      BUILD_NEW as of 2026-07-28) -- SAP's material/material-group revenue
+      breakdown, per that row's own implementation_notes renamed "Revenue by
+      Service Type": groups erp_sales_invoice_items lines by item or item
+      group and sums Total Net Revenue, with an optional Gross Profit/Margin
+      % proxy (erp_items.standard_buying_rate x quantity).
+
+      Real finding: erp_sales_invoice_items.item_id (Wave 60) already exists
+      and is nullable -- the data model supports the grouping, but no report
+      function anywhere performs this aggregation (confirmed via grep across
+      src/lib/services/*.ts). Adding a new deterministic_formula report to
+      report-engine-service.ts's FORMULA_REGISTRY (same pattern as SD-002's
+      computeBillingDueList, PR #638) -- NOT erp-selling-service.ts (that
+      file's own header says aggregation/reporting reads belong in
+      report-engine-service.ts; erp-selling-service.ts is for document
+      CRUD/workflow, which SD-006 is not).
+
+      No collision found with any other open SD-* PR (checked SD-002 #629/
+      638, SD-007 #644 merged, FI-AP-005 #637, FI-GL-007 #647, FI-AR-006
+      #645 via `gh pr list` -- none touch erp_sales_invoice_items grouping
+      or report-engine-service.ts's FORMULA_REGISTRY sales-by-item slot).
+    scope_note: >-
+      File scope: compliance-tracker only --
+      src/lib/services/report-engine-service.ts (new
+      aggregateSalesByMaterialServiceType pure function + FORMULA_REGISTRY
+      entry, additive), src/lib/services/report-engine-service.test.ts (new
+      tests), a new hand-written drizzle migration seeding one
+      compliance.report_definitions row, PROGRESS.md, this file.
+  - session_label: "claude-code (crm-007-sales-rep-performance-dashboard) -- CRM-007 Sales Representative Performance Dashboard"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      Task: build CRM-007 "Sales Representative Performance Dashboard"
+      (sap_mapping.sqlite sap_reports, module CRM, priority LOW,
+      veridian_mapping_status BUILD_NEW as of 2026-07-28), read fresh from
+      the sqlite row directly (business_purpose/calculation_logic/
+      input_data_required/output_format/veridian_gap_notes/
+      implementation_notes), not a summary.
+
+      No collision found in this file's `active:`/`recently_completed:`
+      entries or in `gh pr list`/ACTIVE-CLAIMS grep for "CRM-007"/"Sales
+      Rep" before starting. Real finding confirmed directly against
+      schema.ts (not trusted secondhand from the sqlite row's own
+      citations): ownerId already exists on both crm_leads and
+      crm_opportunities (used by bulkReassignLeads/bulkReassignOpportunities
+      in crm-service.ts), so per-rep grouping was always possible, but no
+      per-sales-rep aggregated dashboard existed anywhere -- confirmed by
+      grepping crm-service.ts and crm-activities-service.ts fresh. NO NEW
+      SCHEMA needed: crm_opportunities (estimatedValue/stage/ownerId/
+      aiWinProbability/createdAt), crm_stage_history (won/lost transition
+      dates via changedAt), and crm_activities (assignedToId) already carry
+      every column this report aggregates over.
+
+      Added aggregateSalesRepPerformance()/getSalesRepPerformanceDashboard()
+      to crm-service.ts (pure aggregator + thin DB-fetching wrapper, same
+      split aggregateDesignerTimesheetCosts/designerTimesheetReport
+      established in construction-reports-service.ts), a new route at
+      GET /api/v1/projexa/sales-rep-performance, and one report_definitions
+      migration (drizzle/0276, executionType='external_service',
+      classifications=["sales"] only so it resolves to the "custom" domain
+      per report-engine-service.ts's deriveReportDomainFromClassifications,
+      matching SD-007/FI-GL-007's own documented reasoning for that choice).
+
+      Two honest, disclosed gaps (never fabricated, see crm-service.ts's own
+      header comment on this section): (1) Revenue Target / Target
+      Achievement % -- the sqlite row's own input_data_required says a
+      per-rep-per-period revenue target is a "prerequisite data element";
+      grepped schema.ts fresh, no target/quota table exists anywhere in this
+      codebase, so both fields report null on every rep row. (2) Weighted
+      Pipeline Value uses aiWinProbability (the only per-opportunity win
+      probability this schema has) -- opportunities never run through
+      analyzeOpportunity() are honestly excluded from the weighted sum, not
+      assumed at 0%/100%.
+    scope_note: >-
+      File scope: compliance-tracker only --
+      src/lib/services/crm-service.ts (new aggregateSalesRepPerformance/
+      getSalesRepPerformanceDashboard functions, additive, rest of file
+      untouched), src/lib/services/crm-service.test.ts (new file -- this
+      file had zero test coverage before this task), src/app/api/v1/projexa/
+      sales-rep-performance/route.ts (new route), a new hand-written drizzle
+      migration (0276) seeding one compliance.report_definitions row,
+      ai-os/registry/terminology-guardrail-exemptions.yaml (3 new/updated
+      entries for genuine dated comments and test-fixture dates in the 3
+      files above), PROGRESS.md, this file. No schema/table changes. No
+      overlap with any other open PR found during the collision check above.
   - session_label: "claude-code (sd-007-sales-order-document-flow-overview) -- SD-007 Sales Order Document-Flow Overview"
     claimed_at: "2026-07-30T (this session)"
     claim: |
