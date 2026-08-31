@@ -87,11 +87,26 @@ and gets a genuine green CI run before merging.
 - [x] This PR's own self-reported "bunx tsc --noEmit clean / bun run lint
       clean / bun test 1425/1425 pass" numbers were NOT trusted (triage
       confirmed zero real GitHub Actions runs ever executed on #1020's head
-      commit) -- re-verified for real on the rebased head: `governance-
-      yaml-parse`, `tsc --noEmit`, and `bun test` on
-      `platform-billing-service.test.ts` all run directly in this session
-      before push (see this file's own Remaining section / the replacement
-      PR's CI for the authoritative real result, not this bullet).
+      commit) -- re-verified for real on the rebased head before push:
+      `node scripts/check-governance-yaml-parse.mjs` passed clean;
+      `bun test src/lib/services/platform-billing-service.test.ts` genuinely
+      passed 4/4 (12 expect() calls); `bun test` on
+      `tenant-isolation.test.ts` (one of this rebase's hand-resolved
+      conflicts) also genuinely passed 68/68 regression-checking the manual
+      merge resolution. `bunx tsc --noEmit` could NOT be completed locally
+      -- this sandbox is under severe, session-wide memory pressure from
+      many other concurrent worktree sessions on this same machine
+      (confirmed live: `Get-CimInstance Win32_OperatingSystem` showed
+      0.01-0.08GB free out of 7.82GB total while it ran, and many other
+      `node`/`tsc`/`bunx` processes from sibling sessions already
+      competing for that same headroom) -- the exact same pre-existing
+      sandbox limitation already documented elsewhere in this repo's other
+      rebase sessions. Deferred to CI's real Type Check job (`ci.yml`'s
+      `typecheck` job runs `bunx tsc --noEmit` on `ubuntu-latest` with
+      `NODE_OPTIONS: --max-old-space-size=8192`, real dedicated resources)
+      -- this task does not claim tsc is clean until that job is
+      confirmed green for real; see the replacement PR's actual CI run,
+      not a self-report, for that result.
 
 ## Remaining
 
