@@ -10660,6 +10660,81 @@ export const constructionChangeOrders = complianceSchemaDB.table('construction_c
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── R65 gap-closure (report_definitions data_gap cluster, 8 reports:
+// Tender Register/Pipeline/Win-Loss/Costing, BOQ Submission, Pre-Bid
+// Meeting, EMD Tracking, Contract Award). Genuinely distinct from
+// erp_rfqs/erp_rfq_items/erp_rfq_suppliers -- those are PROCUREMENT RFQs
+// (this org buying from suppliers); a TENDER is this org BIDDING to win a
+// client contract. Mapping RFQ data onto these reports would misrepresent
+// procurement requests as sales bids (see each report's own data_gap_note,
+// now closed by this table). ─────────
+export const constructionTenderStageEnum = complianceSchemaDB.enum('construction_tender_stage', ['identified', 'pre_bid', 'costing', 'submitted', 'won', 'lost', 'awarded'])
+export const constructionTenderEmdStatusEnum = complianceSchemaDB.enum('construction_tender_emd_status', ['not_paid', 'paid', 'refunded', 'forfeited'])
+
+export const constructionTenders = complianceSchemaDB.table('construction_tenders', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id'), // nullable -- a tender may not yet be linked to a project (only once/if awarded)
+  tenderNumber: text('tender_number').notNull(), // the issuing authority's own reference number, not an internal sequence
+  issuingAuthority: text('issuing_authority').notNull(), // the client/authority who floated the tender
+  title: text('title').notNull(),
+  estimatedValue: numeric('estimated_value').notNull().default('0'),
+  emdAmount: numeric('emd_amount').notNull().default('0'),
+  emdStatus: constructionTenderEmdStatusEnum('emd_status').notNull().default('not_paid'),
+  submissionDeadline: date('submission_deadline', { mode: 'string' }),
+  stage: constructionTenderStageEnum('stage').notNull().default('identified'),
+  lossReason: text('loss_reason'), // set only when stage='lost'
+  wonAt: timestamp('won_at'),
+  // Set only when stage='awarded' -- bridges to the resulting sales order the
+  // same bare-text/no-FK convention crmOpportunities.erpCustomerId already
+  // established (see schema.ts's crmAccounts comment above for the
+  // precedent), not a hard FK.
+  contractAwardSalesOrderId: text('contract_award_sales_order_id'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// BOQ submitted WITH a bid -- distinct from constructionBoqLineItems (the
+// EXECUTION-side BOQ tracked against actual progress once a project exists).
+// A tender's own bid BOQ is fixed at submission time and never revised
+// against site progress, so it does not belong in that table.
+export const constructionTenderBoqItems = complianceSchemaDB.table('construction_tender_boq_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  tenderId: text('tender_id').notNull(),
+  itemCode: text('item_code'),
+  description: text('description').notNull(),
+  unit: text('unit').notNull(),
+  quantity: numeric('quantity').notNull().default('0'),
+  rate: numeric('rate').notNull().default('0'),
+  amount: numeric('amount').notNull().default('0'), // quantity * rate, computed by the service layer on write (matches constructionBoqLineItems's own convention)
+})
+
+export const constructionTenderPreBidMeetings = complianceSchemaDB.table('construction_tender_pre_bid_meetings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  tenderId: text('tender_id').notNull(),
+  meetingDate: date('meeting_date', { mode: 'string' }).notNull(),
+  queriesRaised: text('queries_raised'),
+  clarificationsReceived: text('clarifications_received'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionTendersRelations = relations(constructionTenders, ({ many }) => ({
+  boqItems: many(constructionTenderBoqItems),
+  preBidMeetings: many(constructionTenderPreBidMeetings),
+}))
+
+export const constructionTenderBoqItemsRelations = relations(constructionTenderBoqItems, ({ one }) => ({
+  tender: one(constructionTenders, { fields: [constructionTenderBoqItems.tenderId], references: [constructionTenders.id] }),
+}))
+
+export const constructionTenderPreBidMeetingsRelations = relations(constructionTenderPreBidMeetings, ({ one }) => ({
+  tender: one(constructionTenders, { fields: [constructionTenderPreBidMeetings.tenderId], references: [constructionTenders.id] }),
+}))
+
 // ─── Wave 142 (PROJEXA gap analysis: interior design workflow -- mood
 // boards, FF&E specification, procurement markup). Confirmed via research:
 // no OSS library exists for either (the one loosely-related repo found,

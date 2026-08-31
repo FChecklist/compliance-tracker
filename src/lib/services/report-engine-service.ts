@@ -77,6 +77,10 @@ import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, t
 import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport, projectPeriodReport } from "./construction-reports-service"
 import { customerPaymentBehaviorReport, vendorPaymentBehaviorReport } from "./erp-invoicing-service"
 import { listStockBalances } from "./erp-inventory-service"
+import {
+  tenderRegisterReport, tenderPipelineByStage, tenderWinLossReport, tenderCostingReport,
+  boqSubmissionReport, preBidMeetingReport, emdTrackingReport, contractAwardReport,
+} from "./construction-tender-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
 import { requireReportDomainEnabled, isReportDomainEnabledForOrg } from "./report-domain-enablement-service"
 import { ServiceError } from "./compliance-service"
@@ -1548,6 +1552,51 @@ async function computeMonthlyProjectReport(ctx: { orgId: string }, params: Recor
   }
 }
 
+// Small shared helper: several R65 formula wrappers below delegate to a
+// service-layer function that already returns real, shaped plain-object
+// rows (construction-tender-service.ts's own report functions) -- this
+// just infers `columns` from the first row's keys rather than each wrapper
+// repeating that boilerplate. Matches every hand-written {columns, rows}
+// literal elsewhere in this file for the same column set.
+function rowsToResult(rows: Record<string, string | number>[], emptyNote?: string): ReportDefinitionResult {
+  if (rows.length === 0) return { columns: [], rows: [], note: emptyNote ?? "No data yet." }
+  return { columns: Object.keys(rows[0]), rows }
+}
+
+/**
+ * R65 (2026-08-30, tender/bid/EMD tracking gap closure): construction-
+ * tender-service.ts's own header explains why this is a genuinely new
+ * entity, distinct from erp_rfqs (procurement RFQs, not sales bids).
+ * Closes 8 report_definitions data_gap rows.
+ */
+async function computeTenderRegister(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await tenderRegisterReport(ctx), "No tenders logged yet for this org.")
+}
+async function computeTenderPipeline(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await tenderPipelineByStage(ctx), "No tenders logged yet for this org.")
+}
+async function computeTenderWinLoss(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await tenderWinLossReport(ctx), "No won/lost/awarded tenders yet for this org.")
+}
+async function computeTenderCosting(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const tenderId = typeof params.tenderId === "string" ? params.tenderId : undefined
+  return rowsToResult(await tenderCostingReport(ctx, tenderId), "No tenders logged yet for this org.")
+}
+async function computeBoqSubmissionReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const tenderId = typeof params.tenderId === "string" ? params.tenderId : undefined
+  return rowsToResult(await boqSubmissionReport(ctx, tenderId), "No tender BOQ items submitted yet for this org.")
+}
+async function computePreBidMeetingReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const tenderId = typeof params.tenderId === "string" ? params.tenderId : undefined
+  return rowsToResult(await preBidMeetingReport(ctx, tenderId), "No pre-bid meetings logged yet for this org.")
+}
+async function computeEmdTrackingReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await emdTrackingReport(ctx), "No tenders with an EMD amount logged yet for this org.")
+}
+async function computeContractAwardReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return rowsToResult(await contractAwardReport(ctx), "No tenders have reached 'awarded' stage yet for this org.")
+}
+
 export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   materials_running_low: computeMaterialsRunningLow,
   sales_dashboard: computeSalesDashboard,
@@ -1578,6 +1627,14 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   design_change_impact_analysis: computeDesignChangeImpactAnalysis,
   cost_overrun_report: computeCostOverrunReport,
   profitability_analysis: computeProfitabilityAnalysis,
+  tender_register: computeTenderRegister,
+  tender_pipeline: computeTenderPipeline,
+  tender_win_loss: computeTenderWinLoss,
+  tender_costing: computeTenderCosting,
+  boq_submission_report: computeBoqSubmissionReport,
+  pre_bid_meeting_report: computePreBidMeetingReport,
+  emd_tracking_report: computeEmdTrackingReport,
+  contract_award_report: computeContractAwardReport,
   delayed_tasks_report: computeDelayedTasksReport,
   look_ahead_plan: computeLookAheadPlan,
   interior_mood_board_approval_report: interiorMoodBoardApprovalReport,
