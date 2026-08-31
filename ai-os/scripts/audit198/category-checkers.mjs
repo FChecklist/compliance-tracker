@@ -27,6 +27,31 @@ export const CATEGORY_INFRA = {
       { file: "src/lib/model-tier-eligibility.ts", markers: ["export function checkTierEligibility"] },
     ],
   },
+  // Hand-verified 2026-07-21 (audit198 gap-closure wave 3, before this
+  // entry existed the category fell through to per-item keyword grep
+  // only -- see run-audit.mjs's infraForCategory() fallback comment):
+  // this category's general-purpose mechanism is real, live code, just
+  // never registered here. capability-learning-service.ts's
+  // findApprovedPackage()/recordExecutionOutcome() is the "reusable AI
+  // solution -> structured, versioned, software-replayable knowledge"
+  // pipeline (instruction_packages rows); capability-audit-service.ts's
+  // closeImprovementLoop() is what actually CONVERTS a closed AI-driven
+  // improvement into that structured knowledge AND a discoverable
+  // platform_assets (Universal Metadata Registry) row; software-coverage-
+  // service.ts's classifyExecutionWithReliability() is the shared
+  // decision function both task-execution-engine.ts/chat-service.ts AND
+  // (as of this same PR) team-service.ts's runRole() now call before
+  // treating a request as needing fresh AI work; memory-tier-registry.ts
+  // is the explicit OPERATIONAL vs LONG_TERM_KNOWLEDGE metadata registry
+  // (ARTICLE-050) this category's items also cover.
+  REUSE_COMPONENTIZATION: {
+    infraChecks: [
+      { file: "src/lib/services/capability-learning-service.ts", markers: ["export async function findApprovedPackage", "export async function recordExecutionOutcome"] },
+      { file: "src/lib/services/capability-audit-service.ts", markers: ["export async function closeImprovementLoop"] },
+      { file: "src/lib/services/software-coverage-service.ts", markers: ["export function classifyExecutionWithReliability"] },
+      { file: "src/lib/services/memory-tier-registry.ts", markers: ["export function classifyMemoryTier"] },
+    ],
+  },
   MONITORING_INFRA: {
     infraChecks: [
       { file: "src/lib/monitor-protocol.ts", markers: [] },

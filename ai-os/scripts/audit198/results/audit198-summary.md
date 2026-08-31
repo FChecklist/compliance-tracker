@@ -1,15 +1,15 @@
 # Audit198 Results Summary
 
-Generated: 2026-08-31T18:56:14.207Z
+Generated: 2026-08-31T18:57:05.155Z
 Items scored: 198 / 198
 
 ## Status counts
 
-- ENFORCED: 25
-- PARTIALLY_ENFORCED: 149
+- ENFORCED: 27
+- PARTIALLY_ENFORCED: 146
 - POLICY_ONLY: 0
 - NOT_APPLICABLE_YET: 0
-- NOT_YET_BUILT: 19
+- NOT_YET_BUILT: 20
 - EVIDENCE_UNAVAILABLE: 0
 - NEEDS_HUMAN_JUDGMENT: 5
 
@@ -19,7 +19,7 @@ Items scored: 198 / 198
 - **SOFTWARE_FIRST_AI_SECOND** (Software-First / AI-Second core doctrine, 17 items): ENFORCED=3, PARTIALLY_ENFORCED=14
 - **VISION_STRATEGIC** (Aspirational vision / long-term strategic objectives, 17 items): PARTIALLY_ENFORCED=16, NEEDS_HUMAN_JUDGMENT=1
 - **PERSONALIZATION** (Per-user/per-org personalization, 2 items): PARTIALLY_ENFORCED=2
-- **REUSE_COMPONENTIZATION** (Converting AI solutions into reusable software components, 12 items): PARTIALLY_ENFORCED=9, NOT_YET_BUILT=3
+- **REUSE_COMPONENTIZATION** (Converting AI solutions into reusable software components, 12 items): PARTIALLY_ENFORCED=10, ENFORCED=2
 - **CONFIDENCE_ROUTING** (Confidence-threshold based software-vs-AI routing, 7 items): ENFORCED=2, PARTIALLY_ENFORCED=5
 - **MONITORING_INFRA** (Continuous system/infra monitoring, 9 items): PARTIALLY_ENFORCED=9
 - **ORCHESTRATOR_GOVERNANCE** (Central AI orchestrator, agent roles/authority/routing, 4 items): ENFORCED=4
@@ -41,7 +41,7 @@ Items scored: 198 / 198
 - **OPEN_SOURCE_REUSE** (Studying industry solutions, preferring OSS, 2 items): NEEDS_HUMAN_JUDGMENT=1, PARTIALLY_ENFORCED=1
 - **INTEGRATIONS_API_GOVERNANCE** (External integrations, API versioning/deprecation/dependency hygiene, 5 items): PARTIALLY_ENFORCED=4, ENFORCED=1
 - **CACHING** (Cache layers: use, invalidation, logging, 6 items): PARTIALLY_ENFORCED=6
-- **RECOVERY_RESILIENCE** (Checkpointing, rollback, graceful failure, resumability, 10 items): PARTIALLY_ENFORCED=10
+- **RECOVERY_RESILIENCE** (Checkpointing, rollback, graceful failure, resumability, 10 items): PARTIALLY_ENFORCED=6, NOT_YET_BUILT=4
 - **COMPLETION_RATE_KPI** (100% completion target, measurable KPIs, 4 items): PARTIALLY_ENFORCED=4
 - **DOCUMENTATION** (Module/workflow/decision documentation, 3 items): PARTIALLY_ENFORCED=3
 - **SECURITY_RLS_ACCESS** (Security, RBAC, RLS, secrets management, AI write-guardrails, 6 items): ENFORCED=2, PARTIALLY_ENFORCED=4
