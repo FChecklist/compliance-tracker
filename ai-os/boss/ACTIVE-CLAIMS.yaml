@@ -40,6 +40,42 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260727-153110-tet-engine-increment-1--trace-core---reu) -- TET engine increment 1: Task Execution Trace core + client-facing security shield gate"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Increment 1 of the end-user TET (Task Execution Trace) engine: (1) new
+      task_execution_traces table (migration + RLS, same
+      app_runtime_org_scoped/service_role_bypass template as
+      0197_prompt_cache_metrics.sql) + task-execution-trace-service.ts
+      (start/append-step/complete/fail a trace via withTenantContext,
+      per-org/per-user); (2) a client-facing security shield gate for
+      TET-engine actions that REUSES the existing 4-layer defense-in-depth
+      prompt-security module (src/lib/prompt-security/ -- layer1
+      classifyInput + layer3 evaluateWithLlamaGuard, fail-closed like
+      defense-in-depth.ts) instead of reimplementing regex filtering; (3)
+      wiring so every gated action records started -> shield-pass/block ->
+      completed/failed. Per this task's own SCOPE item 4, PROGRESS.md also
+      gets a written gap-map for the REMAINING TET scope (4-tier JWT
+      context switching, predictive caching, realtime sync, Claude-Code-
+      style UI, learning loop) -- explicitly NOT built in this increment.
+
+      Collision check before starting: grepped this file for "tet"/"task
+      execution trace"/"prompt-security" -- zero other active or recent
+      entries touch task_execution_traces, task-execution-trace-service.ts,
+      or add new call sites into src/lib/prompt-security/ (the module
+      itself was built and merged by a separate, already-closed
+      task-20260726-043023-phase4-defense-in-depth-prompt-security entry --
+      this task only calls its existing exported functions, does not modify
+      that module's own files).
+    scope_note: >-
+      File scope: src/lib/db/schema.ts (new taskExecutionTraces table +
+      migration only), new src/lib/services/task-execution-trace-service.ts
+      + .test.ts, a new shield-gate module under src/lib/services/ or
+      src/lib/tet/ calling into (not modifying) src/lib/prompt-security/,
+      PROGRESS.md. Does not touch src/lib/prompt-security/*.ts,
+      auth-guard.ts's JWT logic, PWA/IndexedDB sync infra, or
+      capability-learning-service.ts (all reused/extended in later
+      increments per this task's own gap-map, not this one).
   - session_label: "claude-code (task-20260805-185202-ocid-020-gtm-cert-addendum--fix-pre-auth) -- real fix for GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN: /pricing, /contact, /terms, /privacy still render hardcoded VERIDIAN wordmark/tagline/footer text instead of resolving per-host brand"
     claimed_at: "2026-08-05T18:52Z (this session, in progress)"
     claim: |
