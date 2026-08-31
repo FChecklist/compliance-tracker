@@ -89,6 +89,7 @@ import {
   roomWiseEstimateReport, wardrobeSalesReport,
 } from "./interior-sales-package-service"
 import { subledgerToGlReconciliation, SUBLEDGER_RECONCILIATION_TOLERANCE } from "./erp-financial-report-service"
+import { calculateCriticalPath } from "./schedule-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
 import { requireReportDomainEnabled, isReportDomainEnabledForOrg } from "./report-domain-enablement-service"
 import { ServiceError } from "./compliance-service"
@@ -1910,6 +1911,57 @@ async function computeSubledgerToGlReconciliation(ctx: { orgId: string }, params
   }
 }
 
+/**
+ * R65 (2026-08-31, report-definitions gap closure): "Critical Path
+ * Report"'s own data_gap_note (dated 2026-07-13) said pms_issue_relations
+ * tracks blocks/blocked_by dependencies with lag_days but "no critical-path
+ * (CPM) algorithm is implemented over that graph yet". That note is stale
+ * -- Wave 140 (PROJEXA Gantt/critical-path/baseline/resource-leveling gap
+ * analysis) already built a real CPM computation in schedule-service.ts#
+ * calculateCriticalPath(): forward pass (earliest start/finish) then
+ * backward pass (latest start/finish) over the predecessor->successor DAG
+ * built from pms_issue_relations' typed blocks/blocked_by rows + lagDays,
+ * topologically ordered via Kahn's algorithm, float = LS - ES, critical =
+ * float <= 0. It just never got wired into a report_definitions row. This
+ * is pure plumbing, not new computation: reshape that function's real
+ * per-issue {title, startDate, dueDate, completionPercentage, floatDays,
+ * isCritical} rows into the {columns, rows} shape the report engine
+ * expects. Project-scoped (a critical path is meaningless without a single
+ * project's dependency graph), matching the SPI/CPI/Earned-Value formulas'
+ * own required projectId param.
+ */
+async function computeCriticalPathReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = String(params.projectId ?? "")
+  if (!projectId) throw new ServiceError("projectId is required for the Critical Path Report", 400)
+  const tasks = await calculateCriticalPath(ctx, projectId)
+  if (tasks.length === 0) {
+    return {
+      columns: ["Task", "Start Date", "Due Date", "% Complete", "Float (Days)", "On Critical Path?"],
+      rows: [],
+      note: "No active (non-archived) issues found for this project -- log tasks with start/due dates and blocks/blocked_by relations (Schedule module) before a critical path can be computed.",
+    }
+  }
+  const sorted = [...tasks].sort((a, b) => {
+    if (a.isCritical !== b.isCritical) return a.isCritical ? -1 : 1
+    return (a.startDate ?? "9999-99-99").localeCompare(b.startDate ?? "9999-99-99") || a.title.localeCompare(b.title)
+  })
+  const criticalCount = tasks.filter((t) => t.isCritical).length
+  return {
+    columns: ["Task", "Start Date", "Due Date", "% Complete", "Float (Days)", "On Critical Path?"],
+    rows: sorted.map((t) => ({
+      Task: t.title,
+      "Start Date": t.startDate ?? "(not set)",
+      "Due Date": t.dueDate ?? "(not set)",
+      "% Complete": t.completionPercentage,
+      "Float (Days)": t.floatDays ?? "N/A",
+      "On Critical Path?": t.isCritical ? "Yes" : "No",
+    })),
+    note: criticalCount > 0
+      ? `${criticalCount} of ${tasks.length} task(s) are on the critical path (zero or negative float) -- a slip on any of them delays the whole project. Float (Days) is Late Start minus Early Start from a forward/backward pass over each task's real startDate/dueDate and its blocks/blocked_by relations (with lagDays); "N/A" means the task has no dependency relation at all, so critical/float is not meaningful for it. A task missing either startDate or dueDate defaults to a nominal 1-day duration so it can still sit in the graph.`
+      : `No task is on the critical path for this project -- either no task yet has a blocks/blocked_by dependency relation (Schedule module), or the dependency graph has a cycle (blocks/blocked_by relations that loop back on each other), which this computation deliberately leaves as float=N/A rather than guess at.`,
+  }
+}
+
 export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   materials_running_low: computeMaterialsRunningLow,
   sales_dashboard: computeSalesDashboard,
@@ -1928,6 +1980,7 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   portfolio_completion_percent: computePortfolioCompletionPercent,
   portfolio_budget_utilization: computePortfolioBudgetUtilization,
   todays_site_progress: computeTodaysSiteProgress,
+  critical_path_report: computeCriticalPathReport,
   weekly_project_report: computeWeeklyProjectReport,
   labour_on_site_today: computeLabourOnSiteToday,
   vendors_delayed_purchase_orders: computeVendorsDelayedPurchaseOrders,
