@@ -1598,6 +1598,45 @@ export const promptCacheMetrics = complianceSchemaDB.table('prompt_cache_metrics
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// TET Engine (Task Execution Trace) increment 1 (2026-07-27) -- logs the
+// real lifecycle of a user-initiated action executed through the TET
+// engine: started -> zero or more steps -> a security-shield-gate verdict
+// -> completed/failed/shield_blocked. Distinct from orchestraExecutions
+// above: that table logs an LLM CALL's lifecycle (provider/model/tokens);
+// this table logs a USER ACTION's lifecycle, which may not involve an LLM
+// call at all, and always carries the shield gate's pass/block verdict
+// before execution runs. See task-execution-trace-service.ts for the real
+// read/write logic, src/lib/services/tet-shield-gate.ts for the gate
+// itself (reuses src/lib/prompt-security/'s existing layer1/layer3 rather
+// than a new filter), and PROGRESS.md for the increment-1 gap-map against
+// the full TET engine spec (JWT context switching, predictive caching,
+// realtime sync, Claude-Code-style UI, learning loop -- none built here).
+// Migration renumbered 0268 -> 0505 during the #604 rebase-sweep merge:
+// 0268 had since been taken by an unrelated, already-merged migration
+// (0268_pms_time_entry_approval_flow.sql); 0505 confirmed free via
+// git ls-tree -r origin/main -- drizzle/ at merge time.
+export const taskExecutionTraces = complianceSchemaDB.table('task_execution_traces', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  // Caller-defined identifier for which TET action this is, e.g.
+  // "checklist.complete_item" -- deliberately free-text (not an enum) so
+  // new TET actions never require a schema migration to start tracing.
+  actionKey: text('action_key').notNull(),
+  status: text('status').notNull().default('started'), // 'started' | 'shield_blocked' | 'completed' | 'failed'
+  shieldVerdict: text('shield_verdict'), // 'pass' | 'block' -- null until the gate has actually run
+  shieldBlockReason: text('shield_block_reason'),
+  // Ordered [{ name, detail, at }] -- append-only, one entry per
+  // appendTraceStep() call plus the gate's own pass/block step.
+  steps: jsonb('steps').notNull().default([]),
+  input: jsonb('input'),
+  output: jsonb('output'),
+  error: text('error'),
+  startedAt: timestamp('started_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // Wave 166 (tree4-unified/10-merged-governance-layer.yaml U-D14.B1.S1 "Tool
 // Health" gap): a NEW table rather than columns on orchestraExecutions,
 // deliberately -- a single execution (one row there) can invoke several
