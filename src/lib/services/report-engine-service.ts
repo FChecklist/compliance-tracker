@@ -87,6 +87,7 @@ import {
   furniturePackageReport, interiorPackageComparisonReport, modularKitchenSalesReport,
   roomWiseEstimateReport, wardrobeSalesReport,
 } from "./interior-sales-package-service"
+import { subledgerToGlReconciliation, SUBLEDGER_RECONCILIATION_TOLERANCE } from "./erp-financial-report-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
 import { requireReportDomainEnabled, isReportDomainEnabledForOrg } from "./report-domain-enablement-service"
 import { ServiceError } from "./compliance-service"
@@ -1773,6 +1774,36 @@ async function computeSalesTargetAchievement(ctx: { orgId: string }, params: Rec
   })
 }
 
+/**
+ * FI-GL-007 (Subledger-to-GL Reconciliation) -- thin {columns,rows} reshape
+ * over erp-financial-report-service.ts#subledgerToGlReconciliation, the
+ * real computation (see that function's own header comment for the full
+ * design, honest scope, and why this reconciliation is genuinely meaningful
+ * rather than a no-op in this codebase). params.asOfDate/companyId/
+ * consolidate mirror the same optional params trial-balance/cash-flow's own
+ * FORMULA_REGISTRY-adjacent report routes already accept.
+ */
+async function computeSubledgerToGlReconciliation(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const asOfDate = typeof params.asOfDate === "string" && params.asOfDate ? params.asOfDate : new Date().toISOString().slice(0, 10)
+  const companyId = typeof params.companyId === "string" ? params.companyId : undefined
+  const result = await subledgerToGlReconciliation(ctx, asOfDate, companyId ? { companyId, consolidate: params.consolidate === true } : undefined)
+
+  return {
+    columns: ["Subledger", "GL Control Account(s)", "Subledger Total", "GL Balance", "Variance", "Reconciled"],
+    rows: result.rows.map((r) => ({
+      Subledger: r.subledger === "receivable" ? "Accounts Receivable" : "Accounts Payable",
+      "GL Control Account(s)": r.glAccountNames.length ? r.glAccountNames.join(", ") : "(none configured)",
+      "Subledger Total": Math.round(r.subledgerTotal * 100) / 100,
+      "GL Balance": Math.round(r.glBalance * 100) / 100,
+      Variance: Math.round(r.variance * 100) / 100,
+      Reconciled: r.isReconciled ? "Yes" : "NO -- investigate",
+    })),
+    note: result.allReconciled
+      ? `Both AR and AP reconcile to the GL as of ${asOfDate} (within the ${SUBLEDGER_RECONCILIATION_TOLERANCE} rounding tolerance).`
+      : `At least one subledger does NOT reconcile to the GL as of ${asOfDate} -- see the flagged row(s) above. Fixed-asset reconciliation is a separate report (FI-AA-006); inventory/stock is not included here because stock movements do not yet post a journal entry to the GL in this codebase.`,
+  }
+}
+
 export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   materials_running_low: computeMaterialsRunningLow,
   sales_dashboard: computeSalesDashboard,
@@ -1834,6 +1865,7 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   billing_due_list: computeBillingDueList,
   customer_payment_behavior_dso: computeCustomerPaymentBehavior,
   vendor_payment_behavior_dpo: computeVendorPaymentBehavior,
+  subledger_to_gl_reconciliation: computeSubledgerToGlReconciliation,
 }
 
 // ─── AI recipe executor (ai_recipe) ───────────────────────────────────────

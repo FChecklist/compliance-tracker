@@ -393,6 +393,8 @@ index:
       covers: "Owner directive 2026-07-20 ('make MASTER_INDEX.yaml logical for you or any AI'): mechanically generates a compact, scannable quick-reference list (id + path + status + auto-extracted one-line summary)."
     - path: ai-os/scripts/generate_task_checklist.py
       covers: "Owner directive 2026-07-20: software-generates the self-use task checklist prompt (files/process/instructions per task) instead of a hand-maintained one."
+    - path: ai-os/scripts/gtm_security_audit_gitleaksignore.txt
+      covers: "Reviewed gitleaks false-positive suppression list for OCID-020 category 3 (security audit), read by gtm_check_security_audit.py's GITLEAKSIGNORE_PATH constant. Added task-20260815-215959-rca-and-resume--gtm-certification-worker: this file previously existed only transiently in a local checkout and was never committed, so every fresh-clone security-audit run lost the suppression list and re-flagged the same 17 already-reviewed, non-secret matches (Composio OAuth authConfigId public identifiers + hardcoded webhook-signature TEST fixture strings) as new findings. Committing it here makes the review durable; see the file's own header for the full per-finding rationale and the fingerprint format."
     - path: ai-os/scripts/health-check-15min.py
       covers: "VERIDIAN-DEV 15-minute health check (L0 tier, zero AI cost): systemd unit status + in_progress task checkpoint staleness."
     - path: ai-os/scripts/import-memory-history.py
