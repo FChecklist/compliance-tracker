@@ -40,6 +40,34 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-185202-ocid-020-gtm-cert-addendum--fix-pre-auth) -- real fix for GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN: /pricing, /contact, /terms, /privacy still render hardcoded VERIDIAN wordmark/tagline/footer text instead of resolving per-host brand"
+    claimed_at: "2026-08-05T18:52Z (this session, in progress)"
+    claim: |
+      SPEC (child of UMR-20260802-165606-4413/OCID-020, per PM instruction UMR-20260805-142048-4edb
+      item 6): independently confirmed this session via WebFetch that projexa-ai.com's /pricing,
+      /contact, /terms, /privacy pages still render hardcoded VERIDIAN wordmark/tagline/footer text
+      instead of resolving per-host brand -- same root-cause class as PR #886 (login, merged) and
+      PR #954 (signup + mfa-challenge, open) but broader in scope: `PreAuthBrand`
+      (org-branding-service.ts) currently only carries `brandName`/`productBranchId`; PR #954's own
+      commit message explicitly flagged /pricing as a "materially larger per-string copy pass...
+      better scoped as its own follow-up" and left it undone. Scope: extend `PreAuthBrand` with a
+      real `tagline` field (backed by the pre-existing, already-unused `product_branches.tagline`
+      DB column -- no new migration needed), wire `resolvePreAuthBrandByHost()`'s per-host
+      resolution into /pricing (currently 100% client-only, no brand resolution at all),
+      /contact, /terms, /privacy (already async Server Components; just missing the
+      headers()+resolvePreAuthBrandByHost() call login/signup already use), mirroring the
+      established mechanical wordmark/title-swap pattern (never rewriting substantive legal-body
+      prose in /terms or /privacy -- that names the real legal entity and product bundle, unrelated
+      to which host a visitor arrived on).
+    scope_note: >-
+      File scope: src/lib/services/org-branding-service.ts (+.test.ts), src/app/pricing/**,
+      src/app/contact/page.tsx, src/app/terms/page.tsx, src/app/privacy/page.tsx,
+      src/components/LegalShell.tsx (shared with /data-policy, extending its brand prop as
+      optional -- zero-cost, no behavior change unless a brand is passed). No DB schema/migration
+      changes (tagline column already exists, unused). Does not touch PR #954's own scope
+      (/signup, /mfa-challenge) or the root `/` page's redirect-based approach (that page's
+      VERIDIAN-research-lab editorial copy is real, brand-specific narrative -- a materially
+      different situation from these 4 generic marketing/legal utility pages).
   - session_label: "claude-code (worktree wf_bd33ae67-033-4) -- CRR-158: OAuth connector scope allow-list gate"
     claimed_at: "2026-08-28T (this session)"
     claim: |
@@ -3864,6 +3892,27 @@ active:
       (Banking Engine section only), docs/master/CAPABILITY_COVERAGE.md,
       PROGRESS.md. No permission-service.ts or RBAC touch -- out of scope
       for this area. Full detail in this task's own PROGRESS.md.
+  - session_label: "claude-code (worker task-20260718-074004-accessibility--wcag-compliance---navigat) -- Accessibility (WCAG): Navigation & Input Accessibility"
+    claimed_at: "2026-08-15T (this session, invocation 14/20)"
+    pr: "https://github.com/FChecklist/compliance-tracker/pull/1224 (superseded 2026-08-31: rebased onto current main and re-opened as a new PR after main advanced substantially since Aug-15 creation -- see that rebase's own PR body for the real conflicts hit, incl. the veridian-ui-kit sidebar/topbar migration that superseded most of this claim's original AppSidebar.tsx work)"
+    claim: |
+      Task had 20 prior invocations that never touched real code (all either
+      OpenRouter-balance pre-flight rejections or blank in_progress/failed
+      checkpoints with only PROGRESS.md modified -- see task.yaml checkpoint
+      history). No spec beyond the title existed (no prompt.txt in the
+      workspace). Scoped it myself to the persistent authenticated-app nav
+      chrome: src/components/AppShell.tsx, src/components/AppSidebar.tsx,
+      src/components/AppTopbar.tsx, messages/{en,hi}.json. Added: a
+      skip-to-main-content link + id="main-content"/tabIndex={-1} landmark
+      on both <main> branches (WCAG 2.4.1 Bypass Blocks); aria-label on the
+      two sidebar <nav> landmarks (quick-nav + modules) and aria-current=
+      "page" on every nav Link, sidebar mobile hamburger trigger; aria-label
+      on the topbar's icon-only notification bell (includes unread count),
+      sidebar-collapse toggle, and user-menu trigger (WCAG 4.1.2 Name/Role/
+      Value, 2.4.4 Link Purpose). Did NOT touch the shadcn Form/FormControl
+      primitives (src/components/ui/form.tsx) -- already wires aria-invalid/
+      aria-describedby/htmlFor correctly, verified by reading it, not a real
+      gap. Scope is these ~4 files only; no DB/API/RLS surface touched.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
@@ -6396,6 +6445,38 @@ active:
       compilation, no live DB). Not touching capture.ts/embed.ts/chunker.ts
       (they don't exist on this branch's base) or any other CRR P2/P3 file.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-075004-architecture---design--reusability-acros) -- VERIDIAN Review Framework: Architecture & Design / Reusability Across Scope, 2 Low findings"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "FChecklist/compliance-tracker (rebased PR, was #1225 -- see rebase-batch-1225-fresh branch)"
+    summary: |
+      Both findings checked against live code first, per the task's own
+      instruction that the evaluation may be stale. Finding 1 ("Feature
+      Reusability Across Projects/Modules", recommended fix "Add API
+      versioning e.g. /api/v1/projexa vs /api/v2/projexa before breaking
+      changes") turned out to be already built -- /api/v1/** has existed
+      since Wave 11 (2026-07-03) and /api/v1/projexa/** is a live ~60-route
+      alias namespace; what was genuinely missing (and already flagged by
+      ERP_BENCHMARK_COMPARISON.md's own INT004 row) was a written
+      versioning policy, not the mechanism -- added one as a new section in
+      docs/API_CHANGELOG.md (additive-vs-breaking rules, per-namespace
+      version scoping, 90-day deprecation window). Finding 2 ("Module
+      Reusability Across Industries", "document which of the 416 tables
+      are compliance-specific vs universal") had a real, previously
+      undocumented gap -- built scripts/classify-schema-tables.mjs (static
+      analysis of schema.ts, no DB access, re-runnable as the schema
+      grows) and generated docs/TABLE_REUSABILITY_CLASSIFICATION.md: of
+      431 live tables (grown from 416 since the evaluation), 322 (74.7%)
+      universal/platform, 87 (20.2%) compliance-specific, 22 (5.1%)
+      industry-vertical (PROJEXA construction/interior-design -- itself
+      live evidence of cross-industry reuse). Caught and fixed one real
+      classification bug during review: 10 generic platform-infra tables
+      (application_errors, platform_assets, instruction_packages, etc.)
+      only live under schema.ts's "Construction Intelligence (Wave 120)"
+      comment for chronological reasons and were initially mis-bucketed as
+      industry_vertical by the section-header fallback before an explicit
+      name rule was added. Doc-only changes (2 new files, 2 docs edited);
+      did not touch permission-service.ts's ERP_ACTION_ROLES or any other
+      in-flight track's scope.
   - session_label: "claude-code (task-20260718-072002-ai-model-lifecycle---benchmarking--ongoi) -- VERIDIAN Review Framework gap-closure, 3 findings: per-role quality regression tracking, cost-per-quality-point tracking, provider-outage/role-failure correlation [DONE, PR #1229 rebased onto main and re-opened, this rebase session]"
     claimed_at: "2026-08-15T (this session)"
     merged_as: "FChecklist/compliance-tracker (rebased PR, was #1229 -- see rebase-wt-1229 branch)"

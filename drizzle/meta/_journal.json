@@ -2220,6 +2220,13 @@
       "when": 1787839218000,
       "tag": "0400_platform_billing_plans_invoices",
       "breakpoints": true
+    },
+    {
+      "idx": 317,
+      "version": "7",
+      "when": 1788174991342,
+      "tag": "0500_construction_expense_journal_entry_id",
+      "breakpoints": true
     }
   ]
 }
