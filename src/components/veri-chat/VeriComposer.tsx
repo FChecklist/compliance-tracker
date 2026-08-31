@@ -26,6 +26,9 @@ import { HIGH_IMPACT_CATEGORY_GUIDANCE, type HighImpactCategory } from "@/lib/hi
 import { ChainRows, pathSegmentDisplay, pathDisplayString, nodeChildrenAt, expandPathsForSend, ChainSelectorDialog, findCalculatorSuggestions, type ChainSelectorResult } from "./ChainSelector";
 import { IntentCommandPalette } from "./IntentCommandPalette";
 import { saveIntent } from "@/lib/browser-intent-cache";
+import { compileInBrowser } from "@/lib/browser-execution/client-compile";
+import { AiConnectorPicker } from "@/components/ai-link/AiConnectorPicker";
+import { Bot } from "lucide-react";
 
 const FIXED_LABELS: Record<string, string> = { discuss: "Discuss", chats: "Chats", todo: "To Do" };
 
@@ -97,7 +100,7 @@ function AiThreadSwitcher() {
       <button
         type="button"
         onClick={() => setPickerOpen(true)}
-        className="inline-flex items-center gap-1 text-[11px] font-medium text-ct-saffron hover:text-ct-saffron/80"
+        className="inline-flex items-center gap-1 text-[11px] font-medium text-ct-saffron-text hover:text-ct-saffron-text/80"
         title="Start a new workflow thread"
       >
         <Plus className="size-3.5" /> New thread
@@ -125,13 +128,11 @@ function resolveLeaf(tree: CapabilityNode[], path: PathSegment[]): CapabilityNod
 }
 
 export default function VeriComposer({ connectedConnectorsCount = 0 }: { connectedConnectorsCount?: number }) {
-  const { tree, treeLoading, composerMode, setComposerMode, activeTaskId, activeConversationId, closeThread, aiThreadId, activeAiThreadId, bumpRefresh } = useVeriChat();
+  const { tree, treeLoading, composerMode, setComposerMode, activeTaskId, activeConversationId, closeThread, aiThreadId, activeAiThreadId, bumpRefresh, selectedPath, setSelectedPath } = useVeriChat();
   const router = useRouter();
 
-  const [selectedPath, setSelectedPath] = useState<PathSegment[]>([]);
   const [value, setValue] = useState("");
   const [sending, setSending] = useState(false);
-  const [queue, setQueue] = useState<{ path: PathSegment[]; text: string; display: string }[]>([]);
   const [engineInputValues, setEngineInputValues] = useState<Record<string, string>>({});
   const textareaRef = useAutoGrowTextarea(value, 160);
   // Wave 146 (VERIDIAN.docx joint implementation plan, Phase 2, High-Impact
@@ -166,6 +167,13 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
   // recall of previous chain+text submissions, opened via "/" or Tab while
   // the chat box is empty. See IntentCommandPalette.tsx / browser-intent-cache.ts.
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // R63 (owner directive, 2026-08-29): the per-user AI-delegation link +
+  // multi-provider connector picker, at the bottom-left of this persistent
+  // composer. Collapsed behind a toggle by default -- this component mounts
+  // once and renders on every page (see the file header comment), so its
+  // always-visible footprint has to stay small; the full picker (a provider
+  // grid) only mounts once the user actually asks for it.
+  const [aiLinkOpen, setAiLinkOpen] = useState(false);
 
   function requestHighImpactConfirmation(category: string | null, categoryLabel: string | null, matchedPhrase: string | null): Promise<ConfirmationResolution> {
     return new Promise((resolve) => setPendingConfirmation({ category, categoryLabel, matchedPhrase, resolve }));
@@ -231,6 +239,33 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     });
   }
 
+  // VERIDIAN_Architecture_v2.0 phase_5 (browser_execution_tiers): the real
+  // browser-to-server handoff for BOTH Owner-directed input surfaces --
+  // Option 2 (free-text `discuss` chat, below) and Option 1 (chain/mode-pill
+  // dispatch, dispatchInstruction() below, wired in increment 2). Runs
+  // phase_2's real deterministic analyzer client-side (FIRST execution),
+  // then hands the raw text + browser tier metadata to
+  // /api/prompt-compiler/execute for the deterministic SECOND-pass
+  // SOFTWARE execution -- fire-and-forget, best-effort telemetry/
+  // compiled-prompt logging that never blocks or fails the actual chat
+  // send / task creation that follows it.
+  function runBrowserFirstPass(text: string) {
+    try {
+      const draft = compileInBrowser(text);
+      void fetch("/api/prompt-compiler/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rawText: text,
+          browserCompiled: { tier: draft.tier, fallbackChain: draft.fallbackChain, compileMs: draft.compileMs },
+        }),
+      }).catch(() => {});
+    } catch {
+      // Browser-native FIRST pass is a best-effort enrichment, never a
+      // requirement for the real chat send that follows it.
+    }
+  }
+
   async function dispatchInstruction(path: PathSegment[], text: string, engineInputs?: Record<string, string>) {
     // D8/D5.B4.S2 minimum 2-level chain gate -- mirrors task-service.ts's
     // createTask() server-side check so the user sees a clear message
@@ -249,6 +284,13 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     // Fire-and-forget: never blocks the real send, and browser-intent-cache.ts
     // swallows its own errors.
     void saveIntent({ composerMode, selectedPath: path, displayLabel: displayCrumb, chatMessage: text });
+    // Increment 2 of phase_5_browser_execution_tiers: Option 1's own
+    // browser-to-server handoff -- same FIRST-pass compiler + fire-and-
+    // forget /api/prompt-compiler/execute call as discuss mode gets, run
+    // once per chain send (not once per expanded concrete path below,
+    // since expandPathsForSend() fans a single user instruction out into
+    // several dispatch targets that all share the same raw text).
+    if (text) runBrowserFirstPass(text);
     const concretePaths = expandPathsForSend(path);
     for (const p of concretePaths) {
       const crumb = pathDisplayString(p);
@@ -421,6 +463,7 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
         // workflow-specific one via the thread switcher.
         const targetThreadId = activeAiThreadId ?? aiThreadId;
         if (!targetThreadId) { toast.error("VERI AI isn't ready yet — try again in a moment"); return; }
+        runBrowserFirstPass(text);
         const res = await fetch(`/api/conversations/${targetThreadId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -441,25 +484,23 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     }
   }
 
-  function queueCurrent() {
+  // VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md §3.2.5: "must actually
+  // create another task using the SAME chain, not stage-and-reset." Replaces
+  // the old queueCurrent()/sendAllQueued() stage-then-reset mechanism --
+  // dispatches immediately against the already-selected chain and clears
+  // only the typed message, so selectedPath stays intact for the next
+  // instruction against that identical chain right away.
+  async function createSimilarTaskAgain() {
+    if (sending) return;
     const text = value.trim();
     if (!text || !chainComplete) return;
-    // Same D8/D5.B4.S2 gate as dispatchInstruction() -- checked here too so
-    // a <2-level path never even makes it into the queue (dispatchInstruction
-    // would reject it later anyway, but silently from the queuer's point of
-    // view since sendAllQueued() doesn't surface which item failed).
-    if (selectedPath.length < 2) {
-      toast.error("Select at least 2 levels — a category and a sub-option — before queuing.");
-      return;
+    setSending(true);
+    try {
+      await dispatchInstruction(selectedPath, text);
+      setValue("");
+    } finally {
+      setSending(false);
     }
-    setQueue((q) => [...q, { path: selectedPath, text, display: pathDisplayString(selectedPath) }]);
-    setValue("");
-    setSelectedPath(preseedKeyForMode(composerMode) ? [preseedKeyForMode(composerMode)!] : []);
-  }
-
-  async function sendAllQueued() {
-    for (const item of queue) await dispatchInstruction(item.path, item.text);
-    setQueue([]);
   }
 
   // Restores a previously-cached workflow into the composer. Local-cache
@@ -615,23 +656,6 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
           </div>
         )}
 
-        {queue.length > 0 && isChainMode && !isThreadOpen && (
-          <div className="rounded-xl border border-ct-border bg-ct-cloud/50 px-3 py-2 mb-2">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[11px] font-semibold text-ct-slate">Queued</span>
-              <button type="button" onClick={sendAllQueued} className="text-[11px] font-semibold text-ct-saffron">Send all ({queue.length})</button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {queue.map((item, idx) => (
-                <span key={idx} className="inline-flex items-center gap-1.5 rounded-full border border-ct-border bg-white px-2.5 py-1 text-[11px]">
-                  {item.display} — {item.text.slice(0, 24)}{item.text.length > 24 ? "…" : ""}
-                  <button type="button" onClick={() => setQueue((q) => q.filter((_, i) => i !== idx))} className="text-ct-muted hover:text-red-500">×</button>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className="relative rounded-2xl border border-ct-border bg-white shadow-sm px-4 pt-3 pb-2.5">
           {isChainMode && !isThreadOpen && (
             <IntentCommandPalette
@@ -668,9 +692,9 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
             </button>
             <div className="flex items-center gap-2">
               {isChainMode && !isThreadOpen && (
-                <button type="button" onClick={queueCurrent} disabled={!chainComplete || !value.trim()} title="Stage this and start another instruction"
+                <button type="button" onClick={createSimilarTaskAgain} disabled={sending || !chainComplete || !value.trim()} title="Dispatch this against the same chain, keeping it selected for the next one"
                   className="px-3 h-9 rounded-lg text-[12.5px] font-semibold text-ct-slate border border-ct-border hover:bg-ct-cloud disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                  + Add another
+                  Create similar task again
                 </button>
               )}
               <button type="button" onClick={send} disabled={disabled || sending || (needsEngineInputs ? !engineInputsFilled : !value.trim())}
@@ -681,23 +705,45 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
           </div>
         </div>
         <div className="flex items-center justify-between mt-1.5 px-1">
-          <p className="text-[11px] text-ct-muted">
-            {isThreadOpen ? "Enter sends" : isChainMode ? (chainComplete ? "Enter sends, chain resets after each message" : "Complete the chain above to start typing") : composerMode === "discuss" ? "Enter sends — ask anything, no task selection needed" : "Pick a conversation on the right to start typing"}
-          </p>
+          <div className="flex items-center gap-3 min-w-0">
+            <p className="text-[11px] text-ct-muted truncate">
+              {isThreadOpen ? "Enter sends" : isChainMode ? (chainComplete ? "Enter sends, chain resets after each message" : "Complete the chain above to start typing") : composerMode === "discuss" ? "Enter sends — ask anything, no task selection needed" : "Pick a conversation on the right to start typing"}
+            </p>
+            {/* R63 (owner directive, 2026-08-29): bottom-left of the chat box
+                -- lets the user copy their own AI-delegation link and connect
+                it to Claude/ChatGPT/Gemini/Z.ai/DeepSeek etc, so that AI can
+                submit tasks/chat on their behalf. Collapsed by default, see
+                the aiLinkOpen state comment above. */}
+            <button
+              type="button"
+              onClick={() => setAiLinkOpen((v) => !v)}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-ct-muted hover:text-ct-saffron transition-colors shrink-0"
+              title="Connect an external AI (Claude, ChatGPT, Gemini, etc) to work on your behalf"
+            >
+              <Bot className="size-3.5" />
+              Connect your AI
+            </button>
+          </div>
           {/* Connectors.docx wave (2026-07-10): minimal discovery affordance
               -- most users never open the sidebar's ADMIN section, so VERI
               Connect (13 one-click OAuth toolkits) was effectively
               undiscoverable. Plain link to /connectors, not a popover --
               real data-ingestion through these connections isn't built yet,
               so there's nothing to preview inline here. */}
-          <Link href="/connectors" className="inline-flex items-center gap-1 text-[11px] font-medium text-ct-muted hover:text-ct-saffron transition-colors shrink-0" title="Connect your tools">
+          <Link href="/connectors" className="inline-flex items-center gap-1 text-[11px] font-medium text-ct-muted hover:text-ct-saffron-text transition-colors shrink-0" title="Connect your tools">
             <Link2 className="size-3.5" />
             {connectedConnectorsCount > 0 && <span className="font-semibold">{connectedConnectorsCount}</span>}
           </Link>
         </div>
 
+        {aiLinkOpen && (
+          <div className="mt-1.5">
+            <AiConnectorPicker />
+          </div>
+        )}
+
         {isThreadOpen && (
-          <button type="button" onClick={closeThread} className="text-[11.5px] font-semibold text-ct-saffron mt-1">
+          <button type="button" onClick={closeThread} className="text-[11.5px] font-semibold text-ct-saffron-text mt-1">
             Back
           </button>
         )}

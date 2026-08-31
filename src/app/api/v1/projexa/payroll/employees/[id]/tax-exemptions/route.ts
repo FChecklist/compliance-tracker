@@ -1,7 +1,7 @@
 // Priority 15 (PROJEXA HR & Payroll, full-depth pass): declared tax-saving
 // exemptions per employee per financial year, fed into computeAnnualTds.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listEmployeeTaxExemptions, createEmployeeTaxExemption, ServiceError } from "@/lib/services/erp-payroll-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -9,7 +9,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 export async function GET(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ exemptions: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const { id } = await params

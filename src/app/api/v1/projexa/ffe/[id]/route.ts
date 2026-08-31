@@ -1,8 +1,28 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { updateFfeItemStatus, updateFfeItemDimensions, ServiceError } from "@/lib/services/interior-design-service"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { getFfeItem, updateFfeItemStatus, updateFfeItemDimensions, ServiceError } from "@/lib/services/interior-design-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
+
+// Real-screen conversion (2026-08-30): the FF&E schedule never had a detail
+// route -- only status could be advanced (via PATCH below), and dimensions
+// (widthCm/depthCm/heightCm, needed once an item is placed into a floor
+// plan) had a real backend function but no UI at all.
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const ctx = await requireAuthOrApiKey(request)
+  if (ctx.response) return ctx.response
+  if (!ctx.orgId) return requireOrg(ctx)!
+
+  try {
+    const { id } = await params
+    const item = await getFfeItem({ orgId: ctx.orgId }, id)
+    return NextResponse.json(item)
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("v1 projexa ffe get error:", error)
+    return NextResponse.json({ error: "Failed to fetch FF&E item" }, { status: 500 })
+  }
+}
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)

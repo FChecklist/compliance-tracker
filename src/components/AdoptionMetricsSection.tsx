@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { TrendingUp, Users, Bot, Video, CheckSquare, FileBarChart, MessageSquare, Building2, Trophy, TrendingDown } from "lucide-react";
+import { TrendingUp, Users, Bot, Video, CheckSquare, FileBarChart, MessageSquare, Building2, Trophy, TrendingDown, MousePointerClick } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 
@@ -21,6 +21,9 @@ interface AdoptionMetrics {
   tasksCompleted: number;
   reportsGenerated: number;
   aiConversations: number;
+  modePillUsedCount: number;
+  freeTextSkippedCount: number;
+  modePillUsageRate: number | null;
   departmentsActive: number;
   totalDepartments: number;
   hoursSaved: null;
@@ -75,6 +78,14 @@ export default function AdoptionMetricsSection() {
     { label: "Tasks Completed", value: metrics.tasksCompleted, sub: "org-wide, all time", icon: CheckSquare },
     { label: "Reports Generated", value: metrics.reportsGenerated, sub: "saved report definitions", icon: FileBarChart },
     { label: "AI Conversations", value: metrics.aiConversations, sub: "AI-thread chats started", icon: MessageSquare },
+    {
+      label: "Mode-Pill Usage",
+      value: metrics.modePillUsageRate === null ? "N/A" : `${metrics.modePillUsageRate}%`,
+      sub: metrics.modePillUsageRate === null
+        ? "no Chain Selector decisions recorded yet"
+        : `${metrics.modePillUsedCount} mode-pill vs ${metrics.freeTextSkippedCount} free-text`,
+      icon: MousePointerClick,
+    },
     { label: "Departments Active", value: `${metrics.departmentsActive} / ${metrics.totalDepartments}`, sub: "with at least 1 active user", icon: Building2 },
   ];
 
@@ -106,7 +117,7 @@ export default function AdoptionMetricsSection() {
           {metrics.topPerformingDepartment && (
             <div className="rounded-lg border p-3 space-y-1">
               <div className="flex items-center gap-1.5">
-                <Trophy className="h-3.5 w-3.5 text-ct-saffron" />
+                <Trophy className="h-3.5 w-3.5 text-ct-saffron-text" />
                 <span className="text-xs font-medium">Top-Performing Team</span>
               </div>
               <div className="text-sm font-semibold text-ct-navy">{metrics.topPerformingDepartment.departmentName}</div>

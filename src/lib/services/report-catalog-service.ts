@@ -29,7 +29,15 @@
 // below for all 26 pre-existing entries with real values, not left blank.
 import type { ReportCategory } from "./report-taxonomy"
 
-export type ReportDomain = "compliance" | "ERP" | "construction" | "AI-ops" | "custom"
+// "CRM" added 2026-08-07 (Sales Pipeline gap-closure, "Reporting & Export
+// Accuracy" finding): getSalesPipelineOverview() (crm-service.ts) was
+// computed but had no catalog entry at all -- classifications already had
+// a "sales" value (report-taxonomy.ts) with zero real entries using it.
+// Gated to the 'sales' product branch, not 'ERP' -- see
+// report-domain-enablement-service.ts's REPORT_DOMAIN_BRANCH_GATE; CRM/
+// Sales is its own purchasable branch (crm-enablement-service.ts), not part
+// of ERP, so mislabeling this "ERP" would gate it against the wrong module.
+export type ReportDomain = "compliance" | "ERP" | "construction" | "AI-ops" | "custom" | "CRM"
 
 export type ReportCatalogEntry = {
   id: string
@@ -65,15 +73,16 @@ const CONSTRUCTION_REPORT_META: { id: string; name: string; description: string;
   { id: "construction-material-consumption", name: "Material Consumption Report", description: "Net stock movement per item for the project (negative = consumed).", classifications: ["procurement", "resource", "construction"] },
   { id: "construction-vendor-cost", name: "Vendor Cost Report", description: "Labour-vendor cost by vendor (purchase-invoice-based vendor cost not included -- no project_id on that table yet).", classifications: ["financial", "vendor_management", "construction"] },
   { id: "construction-manpower-cost", name: "Manpower Cost Report", description: "Attendance-based labour cost and worker-days, summed by trade.", classifications: ["resource", "financial", "hr", "construction"] },
-  { id: "construction-designer-timesheet", name: "Designer Timesheet Report", description: "PMS time-entry hours summed by user, for this project's issues.", classifications: ["resource", "project"] },
+  { id: "construction-designer-timesheet", name: "Designer Timesheet Report", description: "PMS time-entry hours summed by user, plus Budget-vs-Actual broken down by category, designer, project, and designer status.", classifications: ["resource", "project", "financial"] },
   { id: "construction-kpi", name: "KPI Report", description: "Approved KPI entries for the project's KPI definitions.", classifications: ["project", "executive", "construction"] },
   { id: "construction-revenue", name: "Revenue Report", description: "Non-cancelled sales invoices for the project, with total value.", classifications: ["financial", "revenue", "sales", "construction"] },
   { id: "construction-expense", name: "Expense Report", description: "Expense entries for the project, summarized by expense head.", classifications: ["financial", "construction"] },
   { id: "construction-category-progress", name: "Category Progress Report", description: "Latest % complete averaged per activity category.", classifications: ["project", "construction"] },
   { id: "construction-project-completion", name: "Project Completion Report", description: "Overall completion % (from the project dashboard) plus a per-category breakdown.", classifications: ["project", "executive", "construction"] },
+  { id: "construction-certified-payroll", name: "Certified Payroll Report", description: "US WH-347-shaped weekly per-worker breakdown for public-works projects: hours by day, trade classification, rate paid vs. the project's prevailing-wage determination, gross wages, and a compliance statement flagging shortfalls (deductions and fringe-benefits-paid are honestly not tracked for this site-labour workforce).", classifications: ["hr", "financial", "compliance", "construction"] },
 ]
 
-const CONSTRUCTION_ROUTE_NOTE = "Real, auth-required API endpoint (GET /api/construction/reports/<reportName>?projectId=<id>, also aliased at /api/v1/projexa/reports/<reportName> for API-key callers) -- returns real DB-backed JSON. No dedicated UI page renders it yet, so there is nothing to navigate straight to without already knowing a projectId (and, for weekly-project, a weekStart)."
+const CONSTRUCTION_ROUTE_NOTE = "Real, auth-required API endpoint (GET /api/construction/reports/<reportName>?projectId=<id>, also aliased at /api/v1/projexa/reports/<reportName> for API-key callers) -- returns real DB-backed JSON. No dedicated UI page renders it yet, so there is nothing to navigate straight to without already knowing a projectId (and, for weekly-project and certified-payroll, a weekStart)."
 
 const CONSTRUCTION_ENTRIES: ReportCatalogEntry[] = CONSTRUCTION_REPORT_META.map(({ id, name, description, classifications }) => {
   const reportName = id.replace(/^construction-/, "")
@@ -155,6 +164,54 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     periodicity: "on_demand",
   },
 
+  // FI-AR-004 (SAP gap-analysis "Dunning List", HIGH priority, 2026-07-30):
+  // real overdue-customer-invoice list grouped by aging bucket, with each
+  // row's real dunningLevel/lastDunningSentAt (new erp_sales_invoices
+  // columns, see schema.ts) and a suggestedDunningLevel derived from its
+  // bucket. No dedicated UI page yet -- API-only, same honest "no
+  // dashboard surface" caveat as the construction/AI-ops entries below.
+  // (Note: its sibling AR Aging report -- erp-invoicing-service.ts's
+  // arAgingReport, exposed at /api/v1/projexa/ar-aging -- has the exact
+  // same catalog gap: real, working, but never added to this list before
+  // this wave. Left as-is here since fixing that is outside FI-AR-004's
+  // scope, but flagged honestly rather than silently worked around.)
+  {
+    id: "erp-dunning-list",
+    name: "Dunning List",
+    description: "Every overdue, non-fully-paid customer invoice grouped by aging bucket (1-30/31-60/61-90/90+ days overdue), with its real dunning level (Friendly Reminder/Formal Notice/Final Demand) and a suggested next level to drive collections follow-up.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-invoicing-service.ts#dunningList",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/dunning-list)"],
+    route: "/api/v1/projexa/dunning-list",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "revenue", "customer"],
+    periodicity: "on_demand",
+  },
+
+  // FI-AP-007 (SAP gap-analysis "Subcontractor Retention Summary", HIGH
+  // priority, 2026-07-30): per-subcontractor retention withheld/released/
+  // still-held, computed from real erp_purchase_invoices.retentionAmount/
+  // retentionReleasedAmount (new columns, see schema.ts). No dedicated UI
+  // page yet -- API-only, same honest "no dashboard surface" caveat as the
+  // FI-AR-004 entry immediately above this wave's sibling PRs and the
+  // construction/AI-ops entries below.
+  {
+    id: "erp-subcontractor-retention-summary",
+    name: "Subcontractor Retention Summary",
+    description: "Per-subcontractor summary of retention withheld from bills to date, how much has been released, and how much remains held -- the review worklist before releasing retention at practical completion or after the defects-liability period. Groups by subcontractor (supplier); no subcontractor-contract table exists in this schema to group by contract instead.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-invoicing-service.ts#subcontractorRetentionSummary",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/subcontractor-retention-summary)"],
+    route: "/api/v1/projexa/subcontractor-retention-summary",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "procurement", "construction"],
+    periodicity: "on_demand",
+  },
+
   // ── Construction / PROJEXA reports (construction-reports-service.ts) ─
   ...CONSTRUCTION_ENTRIES,
 
@@ -222,6 +279,28 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     periodicity: "daily",
   },
 
+  // ── Sales / CRM reports (crm-service.ts) ──────────────────────────────
+  // Sales Pipeline gap-closure (2026-08-07): getSalesPipelineOverview() was
+  // already fully implemented (leadsByStatus, opportunitiesByStage,
+  // winRate, openPipelineValue) with a real in-app consumer as of this
+  // wave -- the Pipeline tab on /crm. Previously only reachable via the
+  // /api/v1/projexa/sales-pipeline external-API alias, with zero catalog
+  // entry and zero UI page.
+  {
+    id: "sales-pipeline-overview",
+    name: "Sales Pipeline Overview",
+    description: "Lead funnel by status, opportunity funnel by stage (count + base-currency value), win rate, open pipeline value, and overdue follow-up counts.",
+    domain: "CRM",
+    sourceService: "src/lib/services/crm-service.ts#getSalesPipelineOverview",
+    outputFormats: ["on-screen Kanban + summary cards (JSON API: GET /api/v1/projexa/sales-pipeline)", "CSV (GET /api/crm/pipeline/export)"],
+    route: "/crm",
+    routeNote: "Real live page -- 'Pipeline' tab. No required query params.",
+    directlyNavigable: true,
+    category: "software_report",
+    classifications: ["sales", "org_specific"],
+    periodicity: "on_demand",
+  },
+
   // ── Custom / user-authored reports (custom-report-service.ts) ────────
   {
     id: "custom-report",
@@ -237,6 +316,168 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     classifications: ["user_specific", "org_specific"],
     periodicity: "on_demand",
   },
+
+  // FI-AP-008 (SAP gap-analysis "Subcontractor Payment Application Status",
+  // HIGH priority): worklist of every subcontractor payment application --
+  // a real erp_payment_entries pay/supplier row linked to a purchase
+  // invoice, already carrying a genuine draft -> submitted ->
+  // approved/rejected workflow with real submittedAt/decidedAt timestamps
+  // (Wave B, VERIDIAN Review Framework) -- plus subcontractor invoices with
+  // no payment application started yet. No dedicated UI page yet --
+  // API-only, same honest "no dashboard surface" caveat as this file's
+  // other entries. Appended at the end of this array (not inserted near
+  // the FI-AR-004/FI-AP-007 entries above) to avoid a real merge-conflict
+  // collision with those still-open sibling PRs editing the same region.
+  {
+    id: "erp-subcontractor-payment-application-status",
+    name: "Subcontractor Payment Application Status",
+    description: "Every subcontractor payment application with its real current status, submission date, amount, and days-in-current-status aging -- a worklist for whoever manages subcontractor payments.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-payment-entries-service.ts#subcontractorPaymentApplicationStatus",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/subcontractor-payment-application-status)"],
+    route: "/api/v1/projexa/subcontractor-payment-application-status",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "procurement", "construction"],
+    periodicity: "on_demand",
+  },
+
+  // FI-AA-006 (SAP gap-analysis "Asset-to-GL Reconciliation", MEDIUM
+  // priority): per asset-category comparison of the fixed-asset sub-ledger's
+  // aggregate gross cost / accumulated depreciation / net book value
+  // against the real posted GL balance of that category's own mapped Asset
+  // Account / Accumulated Depreciation Account. A real, independently-found
+  // GL-posting bug (fixed in this same PR, see erp-fixed-assets-service.ts's
+  // own header comment) meant every fixed-asset journal entry ever created
+  // sat permanently in draft, invisible to any GL balance query -- fixed at
+  // the root rather than papered over here. No dedicated UI page yet --
+  // API-only, same honest "no dashboard surface" caveat this file's other
+  // recent entries (FI-AR-004/FI-AP-005/FI-AP-007/FI-AP-008) already
+  // disclose. Appended at the end of this array (not inserted near other
+  // FI-* entries above) to avoid a real merge-conflict collision with those
+  // still-open sibling PRs editing the same region.
+  {
+    id: "erp-asset-to-gl-reconciliation",
+    name: "Asset-to-GL Reconciliation",
+    description: "Per asset-category comparison of the fixed-asset sub-ledger's gross cost / accumulated depreciation / net book value against the real posted balance of that category's mapped GL accounts -- a month-end control flagging any variance for investigation.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-fixed-assets-service.ts#assetToGlReconciliation",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/asset-to-gl-reconciliation)"],
+    route: "/api/v1/projexa/asset-to-gl-reconciliation",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "construction"],
+    periodicity: "on_demand",
+  },
+
+  // FI-AP-006 (SAP gap-analysis "Vendor Payment History / Payment Behavior
+  // Analysis", MEDIUM priority, BUILD_NEW): per-supplier real average
+  // days-to-pay, DPO (Days Payable Outstanding), and a fixed
+  // payment-reliability classification. category='software_analysis'
+  // (CATEGORY 2, a calculated ratio -- same as SPI/CPI) rather than
+  // 'software_report', matching how the identically-shaped AR-side sibling
+  // (FI-AR-006 Customer Payment Behavior / DSO, a separate still-open PR
+  // as of this writing) would be classified. No dedicated UI page yet --
+  // API-only, same honest "no dashboard surface" caveat this file's other
+  // recent entries (FI-AR-004/FI-AP-005/FI-AP-007/FI-AP-008/FI-AA-006)
+  // already disclose. Appended at the end of this array (not inserted near
+  // other FI-* entries above) to avoid a real merge-conflict collision with
+  // those still-open sibling PRs editing the same region.
+  {
+    id: "erp-vendor-payment-behavior",
+    name: "Vendor Payment History / Payment Behavior Analysis",
+    description: "Per-supplier historical payment-behavior metric across all their invoices: real average days-to-pay for invoices with a discoverable payment-completion date, the industry-standard DPO (Days Payable Outstanding) formula, and a fixed payment-reliability classification (consistently_early/on_time/late/chronically_late) against the supplier's real agreed terms. SAP FBL1N/DPO-analysis equivalent.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-invoicing-service.ts#vendorPaymentBehaviorReport",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/vendor-payment-behavior)"],
+    route: "/api/v1/projexa/vendor-payment-behavior",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_analysis",
+    classifications: ["financial", "procurement", "construction"],
+    periodicity: "on_demand",
+  },
+
+  // CO-001/CO-003/FI-GL-002/FI-GL-007/FI-GL-008 (SAP gap-analysis
+  // calculation-track engines, sap_mapping.sqlite/sap_reports): 4
+  // EXTEND_EXISTING GL/cost-center reports + 1 BUILD_NEW reconciliation
+  // report. No dedicated UI page yet for any of the 5 -- API-only, same
+  // honest "no dashboard surface" caveat this wave's other recent entries
+  // already disclose. Appended at the end of this array (not inserted near
+  // other FI-*/CO-* entries above) to avoid a real merge-conflict collision
+  // with those still-open sibling PRs editing the same region.
+  {
+    id: "erp-cost-center-line-items",
+    name: "Cost Center Line Item Display",
+    description: "Every posted journal-entry line that carries a cost center, showing both the GL account and the cost center on one row -- SAP KSB1 equivalent.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-accounting-service.ts#listJournalEntryLinesByCostCenter",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/cost-center-line-items)"],
+    route: "/api/v1/projexa/cost-center-line-items",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
+  {
+    id: "erp-cost-center-hierarchy",
+    name: "Cost Center Hierarchy Report",
+    description: "Overhead spending (expense-account postings tagged with a cost center) rolled up through the real cost-center parent/child tree.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-accounting-service.ts#costCenterHierarchyReport",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/cost-center-hierarchy)"],
+    route: "/api/v1/projexa/cost-center-hierarchy",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
+  {
+    id: "erp-gl-account-balance-display",
+    name: "G/L Account Balances Display",
+    description: "Per selected GL account: opening balance, period debit/credit movement, and closing balance over a date range -- SAP FS10N equivalent, a direct filter of Trial Balance's existing output.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-financial-report-service.ts#glAccountBalanceDisplay",
+    outputFormats: ["on-screen table (JSON API: GET /api/erp/reports/gl-account-balance-display)"],
+    route: "/api/erp/reports/gl-account-balance-display",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. Requires at least one accountId query param. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
+  {
+    id: "erp-gl-account-group-balances",
+    name: "G/L Account Group Balances Summary",
+    description: "Trial Balance's per-account closing balances rolled up through the real chart-of-accounts group hierarchy, as of a date.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-financial-report-service.ts#glAccountGroupBalancesSummary",
+    outputFormats: ["on-screen table (JSON API: GET /api/erp/reports/gl-account-group-balances)"],
+    route: "/api/erp/reports/gl-account-group-balances",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
+  {
+    id: "erp-subledger-gl-reconciliation",
+    name: "Subledger-to-GL Reconciliation",
+    description: "Month-end close control comparing each real subledger's own total outstanding balance (AR/AP) against its corresponding GL control-account balance from the Trial Balance -- a non-zero variance flags a real problem before the books are considered reliable. Fixed-asset reconciliation is a separate report (Asset-to-GL Reconciliation); inventory/stock is not included because stock movements do not yet post to the GL in this codebase.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-financial-report-service.ts#subledgerToGlReconciliation",
+    outputFormats: ["on-screen table (JSON API: GET /api/erp/reports/subledger-gl-reconciliation)"],
+    route: "/api/erp/reports/subledger-gl-reconciliation",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
 ]
 
 export function getReportCatalogEntry(id: string): ReportCatalogEntry | undefined {
@@ -244,7 +485,7 @@ export function getReportCatalogEntry(id: string): ReportCatalogEntry | undefine
 }
 
 export function listReportCatalogByDomain(): Record<ReportDomain, ReportCatalogEntry[]> {
-  const byDomain: Record<ReportDomain, ReportCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [] }
+  const byDomain: Record<ReportDomain, ReportCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [], CRM: [] }
   for (const entry of REPORT_CATALOG) byDomain[entry.domain].push(entry)
   return byDomain
 }

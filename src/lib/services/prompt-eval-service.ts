@@ -9,11 +9,13 @@
 // (real, verifiable pass/fail), never an LLM-judging-an-LLM call.
 import { db, promptTemplates, promptVersions, promptEvalCases, promptEvalRuns, users } from "@/lib/db"
 import { eq } from "drizzle-orm"
-import { hasRole } from "@/lib/supabase/auth-guard"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { callLLM, estimateCostUsd, type LLMProvider } from "@/lib/llm-client"
 import { platformApiKeyFor } from "@/lib/orchestra-model-resolver"
+import { requirePromptPermissionForUser } from "./permission-service"
+import { checkPromptEvalBudget, recordPromptGovernanceEvent } from "./prompt-governance-service"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
 
 export type PromptEvalContext = { userId: string; dbUser: typeof users.$inferSelect }
 
@@ -21,7 +23,7 @@ export async function createEvalCase(
   ctx: PromptEvalContext,
   input: { templateKey: string; name: string; inputVariables?: Record<string, string>; userMessage: string; expectedKeywords: string[] }
 ) {
-  if (!hasRole(ctx.dbUser, "veridian_admin")) throw new ServiceError("Creating an eval case requires veridian_admin", 403)
+  requirePromptPermissionForUser(ctx.dbUser, "prompt.eval.create_case")
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
   if (!input.userMessage?.trim()) throw new ServiceError("userMessage is required", 400)
   if (!input.expectedKeywords || input.expectedKeywords.length === 0) throw new ServiceError("at least one expectedKeyword is required", 400)
@@ -55,13 +57,18 @@ export async function listEvalRuns(evalCaseId: string) {
   })
 }
 
-function renderTemplate(content: string, variables: Record<string, string>): string {
+// Exported (additive, no behavior change) so role-quality-regression-
+// service.ts's per-role recurring eval can reuse the exact same
+// substitution/scoring logic instead of forking a second copy -- both
+// ultimately run the same promptEvalCases rows, just against a
+// role-resolved production version instead of a caller-supplied one.
+export function renderTemplate(content: string, variables: Record<string, string>): string {
   let rendered = content
   for (const [key, value] of Object.entries(variables)) rendered = rendered.replaceAll(`{{${key}}}`, value)
   return rendered
 }
 
-function scoreKeywords(output: string, expectedKeywords: string[]): { passed: boolean; missingKeywords: string[] } {
+export function scoreKeywords(output: string, expectedKeywords: string[]): { passed: boolean; missingKeywords: string[] } {
   const lowerOutput = output.toLowerCase()
   const missingKeywords = expectedKeywords.filter((k) => !lowerOutput.includes(k.toLowerCase()))
   return { passed: missingKeywords.length === 0, missingKeywords }
@@ -73,9 +80,15 @@ export async function runEval(
   ctx: PromptEvalContext,
   input: { evalCaseId: string; promptVersionId: string; provider: string; model: string }
 ) {
-  if (!hasRole(ctx.dbUser, "veridian_admin")) throw new ServiceError("Running an eval requires veridian_admin", 403)
+  requirePromptPermissionForUser(ctx.dbUser, "prompt.eval.run")
   if (!EVAL_PROVIDERS.includes(input.provider as LLMProvider)) throw new ServiceError(`provider must be one of: ${EVAL_PROVIDERS.join(", ")}`, 400)
   if (!input.model?.trim()) throw new ServiceError("model is required", 400)
+
+  // Cost Optimization Engine (engine-cost-optimization) budget guardrail --
+  // fails closed once today's accumulated prompt-eval spend hits the
+  // configured cap, before any LLM call is made.
+  const budget = await checkPromptEvalBudget()
+  if (!budget.allowed) throw new ServiceError(budget.reason ?? "Prompt eval daily budget exceeded", 429)
 
   const evalCase = await db.query.promptEvalCases.findFirst({ where: eq(promptEvalCases.id, input.evalCaseId) })
   if (!evalCase) throw new ServiceError("Eval case not found", 404)
@@ -103,6 +116,21 @@ export async function runEval(
       estimatedCostUsd: estimateCostUsd(input.model, result.usage)?.toString(),
       runById: ctx.userId,
     }).returning()
+
+    // Audit Engine (engine-audit) deepening -- extends coverage from
+    // CHANGE-only (prompt-os-service.ts's "new_prompt" trigger on version
+    // creation) to an EXECUTION event, the gap analysis's own confirmed
+    // remaining gap. Best-effort, orgless-admin-skips, same posture as
+    // every other prompt-lifecycle audit write in this codebase.
+    if (ctx.dbUser.orgId) {
+      await withTenantContext({ orgId: ctx.dbUser.orgId, userId: ctx.userId }, (tx) =>
+        recordPromptGovernanceEvent(tx, {
+          orgId: ctx.dbUser.orgId!, dbUser: ctx.dbUser, entityId: row.id,
+          action: "prompt_eval.run",
+          details: `Eval case "${evalCase.name}" run against prompt version ${promptVersion.version} (${provider}/${input.model}): ${passed ? "passed" : "failed"}.`,
+        })
+      ).catch((err) => console.error(`[audit] failed to record prompt_eval.run for run ${row.id}:`, err))
+    }
     return row
   } catch (error) {
     const latencyMs = Date.now() - startedAt

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { classifyTask, runRole, runGuardrailLevel, getRole } from "@/lib/ai-team/team-service"
-import { resolveEffectiveModel } from "@/lib/ai-team/roster-overrides"
+import { resolveDispatchModel } from "@/lib/ai-team/roster-overrides"
 import { RoleNotCallableError } from "@/lib/ai-team/team-service"
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine"
 import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF, HANDOVER_PROTOCOL_LEAF } from "@/lib/guardrail-registrations"
 import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
 import { checkTierEligibility } from "@/lib/model-tier-eligibility"
-import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router"
+import { resolveModel as resolveMotherRouterModel, resolveTenantAiConfig } from "@/lib/ai-router/mother-router"
 import { validateLevelDispatch, capabilityCategoryForLevel, levelEscalatesOnConfidenceThreshold, COMPLEXITY_TIER_FOR_CATEGORY, SOFTWARE_TEAM_LADDER, type SoftwareTeamLevel, type CapabilityCategory } from "@/lib/ai-router/software-team-ladder"
 import { validateInstructionContract, taskTypeForStepCount, WORKER_ESCALATION_CONFIDENCE_THRESHOLD, type InstructionContract, type ExecutionReport, type ExecutionStepStatus } from "@/lib/ai-router/instruction-contract"
 import { registerInstructionContract, recordExecutionReport, getTaskRecord } from "@/lib/ai-router/task-register-service"
@@ -219,7 +219,21 @@ export async function POST(request: NextRequest) {
     // targetRole.model here while an override silently ran a different,
     // ineligible model would be a real guardrail bypass, not just a stale
     // check.
-    const effectiveModel = (await resolveEffectiveModel(classification.role)) ?? targetRole.model
+    //
+    // VERIDIAN Review Framework gap-closure (2026-08-15, A/B / shadow-
+    // testing capability): resolveDispatchModel() replaces
+    // resolveEffectiveModel() here so an active rollout's CANDIDATE (not
+    // just the plain override) is what actually gets tier-checked --
+    // otherwise a candidate could be dispatched below without ever passing
+    // this gate. `rolloutSeed` is drawn ONCE and reused for the real
+    // runRole() call below (the retry loop's own runRole() call does not
+    // carry tenantConfig either -- see that call site's own established
+    // behavior -- so it isn't threaded a rollout, same posture), so the
+    // model checked here is guaranteed to be the model that actually runs,
+    // not an independently-redrawn bucket.
+    const rolloutSeed = Math.random()
+    const dispatchResolution = await resolveDispatchModel(classification.role, complexityTier!, rolloutSeed)
+    const effectiveModel = dispatchResolution?.model ?? targetRole.model
     const tierCheck = checkTierEligibility(effectiveModel, complexityTier!)
     if (!tierCheck.eligible) {
       if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, complexityTier, errorReason: tierCheck.reason, durationMs: Date.now() - dispatchStartedAt })
@@ -252,6 +266,20 @@ export async function POST(request: NextRequest) {
       // present when the caller declared a level -- an ordinary dispatch
       // with no level keeps resolving purely by tier, unchanged.
       capabilityCategory: resolvedCapabilityCategory,
+      // Super Boss v2 plan task V2-5 (BYOB, 2026-07-20): pass the dispatching
+      // org's id so resolveModel() resolves that org's tenant_ai_config and
+      // prefers its model (if any) inside computeSoftwareTeamResolution() --
+      // still gated through the SAME checkTierEligibility() call as every
+      // other candidate (an ineligible tenant model silently downgrades,
+      // never a guardrail bypass, AGENTS.md Operating Rule 9). This
+      // resolveMotherRouterModel call is fire-and-forget audit-logging only
+      // (its resolution is deliberately NOT consumed as the dispatch model
+      // here -- see the comment block just above); the tenant config that
+      // actually DRIVES the LLM call is resolved once below and threaded
+      // into runRole(), so the same tenant config feeds both the audit log
+      // and the real call. Omitted/undefined when there's no org context
+      // (a platform-level run) -> resolves exactly as before.
+      orgId: orgId ?? undefined,
     }).catch((err) => console.error("[mother-router] audit logging failed (non-fatal):", err))
 
     // AIROUTER-01 Phase 2 (Part B): register the Instruction Contract
@@ -318,6 +346,47 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Super Boss v2 plan task V2-5 (BYOB, 2026-07-20): resolve the
+    // dispatching org's own BYO AI config ONCE, here, so the same value
+    // drives both the fire-and-forget Mother Router audit log above (which
+    // decides whether the tenant model is tier-eligible and prefers it) AND
+    // the real runRole() call below (which actually uses it). When the org
+    // has an active, non-inert tenant_ai_config AND that tenant model is
+    // tier-eligible for THIS dispatch's complexityTier, runRole() calls the
+    // tenant's OWN model + key + baseUrl instead of the platform OpenRouter
+    // key.
+    //
+    // GUARDRAIL-NO-BYPASS (the task's DONE CRITERIA, AGENTS.md Operating
+    // Rule 9): the tenant model is run through the SAME checkTierEligibility()
+    // the platform effectiveModel already passed through above. An
+    // ineligible tenant model is SILENTLY DOWNGRADED -- the tenant override
+    // is dropped here and runRole() falls back to the platform effectiveModel
+    // (which already passed the gate at line ~220), never granted anyway.
+    // This is the real dispatch surface's enforcement; the audit-log
+    // resolveMotherRouterModel() call above independently records the same
+    // downgrade reason. The pre-flight tierCheck at line ~220 ran on the
+    // PLATFORM effectiveModel, so a tenant override that replaces it MUST be
+    // re-gated here -- otherwise a tenant could route an ineligible model
+    // past a gate that only saw the platform model. That re-gate is the
+    // `if (!tenantTierCheck.eligible) tenantAiConfig = null` line below.
+    //
+    // Null (no org context, no active/inert-free config, resolution
+    // failure, OR tenant model ineligible for this tier) -> runRole
+    // behaves exactly as before (platform key). Non-fatal: a resolution
+    // failure falls back to the platform path, same posture as every
+    // other best-effort write here.
+    let tenantAiConfig = orgId ? await resolveTenantAiConfig(orgId).catch((err) => {
+      console.error("[dispatch] tenant AI config resolution failed (non-fatal, falling back to platform key):", err)
+      return null
+    }) : null
+    if (tenantAiConfig) {
+      const tenantTierCheck = checkTierEligibility(tenantAiConfig.model, complexityTier!)
+      if (!tenantTierCheck.eligible) {
+        console.warn(`[dispatch] tenant BYO model "${tenantAiConfig.model}" is not eligible for ${complexityTier} tier -- silently downgrading to platform effectiveModel (no guardrail bypass, AGENTS.md Rule 9): ${tenantTierCheck.reason}`)
+        tenantAiConfig = null
+      }
+    }
+
     const platformGuardrails = await runGuardrailLevel("GUARDRAIL_PLATFORM", task)
     const blocked = platformGuardrails.find((g) => /\bBLOCK\b/i.test(g.verdict) || /\bFAIL\b/i.test(g.verdict))
     if (blocked) {
@@ -334,7 +403,11 @@ export async function POST(request: NextRequest) {
       }, { status: 422 })
     }
 
-    let execution = await runRole(classification.role, task)
+    // `rolloutSeed` reused from the tier pre-flight check above -- resolves
+    // to the exact same variant that already passed checkTierEligibility.
+    // Only takes effect when tenantAiConfig is absent (runRole's own
+    // precedence: a tenant's BYO model always wins over a platform rollout).
+    let execution = await runRole(classification.role, task, tenantAiConfig ?? undefined, undefined, { complexityTier: complexityTier!, randomValue: rolloutSeed })
     let retryCount = 0
     // Audit round 2 (GLM-5.2, m7 finding): tokens_used previously reflected
     // only the FINAL retry attempt's usage -- a step that retried once
@@ -604,7 +677,14 @@ export async function POST(request: NextRequest) {
       // multi-step L2/L3 workflow is actually finished.
       status: requiresAudit ? "pending_review" : "completed",
       classification,
-      executedBy: { roleKey: execution.role.roleKey, title: execution.role.title, model: execution.role.model },
+      // modelVariant (2026-08-15, A/B / shadow-testing gap-closure):
+      // "primary" for every dispatch unless an admin-configured rollout
+      // (roster-overrides.ts's setRoleRollout) was live AND this
+      // particular call happened to bucket into the candidate -- lets a
+      // caller/reviewer distinguish a candidate-model response from an
+      // ordinary one without having to separately look up the role's
+      // current rollout config.
+      executedBy: { roleKey: execution.role.roleKey, title: execution.role.title, model: execution.role.model, modelVariant: execution.modelVariant },
       output: execution.content,
       usage: execution.usage,
       requiresAudit,
@@ -671,10 +751,33 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { roleKey, model, reason } = body as { roleKey?: string; model?: string | null; reason?: string }
+    const { roleKey, model, reason, rollout } = body as {
+      roleKey?: string
+      model?: string | null
+      reason?: string
+      // VERIDIAN Review Framework gap-closure (2026-08-15, A/B / shadow-
+      // testing capability): a separate, additive action from `model`
+      // above -- `rollout: null` clears an active rollout, an object
+      // sets/replaces one, and omitting the key entirely (the default)
+      // leaves any existing rollout untouched.
+      rollout?: { candidateModel: string; rolloutPercentage: number } | null
+    }
     if (!roleKey) return NextResponse.json({ error: "roleKey is required" }, { status: 400 })
 
-    const { setRoleOverride, clearRoleOverride } = await import("@/lib/ai-team/roster-overrides")
+    const { setRoleOverride, clearRoleOverride, setRoleRollout, clearRoleRollout } = await import("@/lib/ai-team/roster-overrides")
+
+    if (rollout !== undefined) {
+      if (rollout === null) {
+        await clearRoleRollout(roleKey)
+      } else {
+        await setRoleRollout(roleKey, rollout.candidateModel, rollout.rolloutPercentage, dbUser.id, reason)
+      }
+      // A body with ONLY `rollout` (no `model` key at all) is done here --
+      // falling through to the `model` handling below would incorrectly
+      // clearRoleOverride() the row this call just wrote.
+      if (model === undefined) return NextResponse.json({ status: rollout === null ? "rollout_cleared" : "rollout_set", roleKey, rollout })
+    }
+
     if (model === null || model === undefined) {
       await clearRoleOverride(roleKey)
       return NextResponse.json({ status: "cleared", roleKey })

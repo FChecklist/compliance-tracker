@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
-import { callLLM } from "@/lib/llm-client";
+import { runDefenseInDepth } from "@/lib/prompt-security";
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
 import { retrieveRelevantKbPages } from "@/lib/services/knowledge-base-service";
@@ -94,15 +94,41 @@ export async function POST(request: NextRequest) {
 
   const startedAt = Date.now();
   try {
-    const { content: reply, usage } = await callLLM(
-      modelConfig.provider,
-      modelConfig.model,
-      modelConfig.apiKey,
+    // Phase_4 defense-in-depth audit fix (2026-07-26): this used to call
+    // callLLM() directly with none of the new 4-layer prompt-security
+    // pipeline -- the only real LLM call site in the repo, left completely
+    // unprotected by a PR whose entire point was "defense in depth".
+    // groqApiKey is the platform's own Groq key (Llama Guard/Prompt Guard
+    // are always Groq-hosted regardless of which provider modelConfig
+    // resolves to, per defense-in-depth.ts's own option comment) -- null
+    // (Layer 3 skipped, Layer 1/2/4 still run) if it isn't configured.
+    // llmOptions/fallback forwarded so this loses none of the
+    // enablePromptCache/fallback behavior the direct callLLM() call had.
+    const defenseResult = await runDefenseInDepth({
+      provider: modelConfig.provider,
+      model: modelConfig.model,
+      apiKey: modelConfig.apiKey,
       systemPrompt,
-      messageForLlm,
-      { enablePromptCache: true },
-      modelConfig.fallback
-    );
+      userMessage: messageForLlm,
+      groqApiKey: process.env.GROQ_API_KEY ?? null,
+      llmOptions: { enablePromptCache: true },
+      fallback: modelConfig.fallback,
+    });
+
+    if (defenseResult.blocked) {
+      recordOrchestraExecution({
+        orgId, userId: dbUser?.id, layerKey: "user_assistant_oa", eventType: "help.ask",
+        input: { currentPath, systemPrompt: redactPii(systemPrompt), question: redactPii(normalizedQuestion) },
+        output: { reason: "defense_in_depth_blocked", blockReason: defenseResult.blockReason },
+        status: "gated",
+        durationMs: Date.now() - startedAt,
+        provider: modelConfig.provider, model: modelConfig.model,
+      });
+      return NextResponse.json({ answer: FALLBACK_ANSWER });
+    }
+
+    const reply = defenseResult.content;
+    const usage = defenseResult.usage;
 
     // Same software-first gate as chat-service.ts's generateAiReply() -- a
     // raw LLM claim of completed action must never reach the user
@@ -117,11 +143,14 @@ export async function POST(request: NextRequest) {
         : { reason: gateResult.reason, matchedPhrase: "matchedPhrase" in gateResult ? gateResult.matchedPhrase : undefined },
       status: gateResult.passed ? "completed" : "gated",
       durationMs: Date.now() - startedAt,
-      provider: modelConfig.provider, model: modelConfig.model, usage,
+      provider: modelConfig.provider, model: modelConfig.model, usage: usage ?? undefined,
     });
     recordPromptCacheMetric({
       orgId, layerKey: "user_assistant_oa", fingerprint: promptCacheFingerprint,
-      provider: modelConfig.provider, model: modelConfig.model, usage,
+      // Non-null: usage is only ever null on a blocked DefenseInDepthResult
+      // (no real callLLM() happened), and the `defenseResult.blocked` check
+      // above already returned in that case.
+      provider: modelConfig.provider, model: modelConfig.model, usage: usage!,
     });
 
     if (!gateResult.passed) {
