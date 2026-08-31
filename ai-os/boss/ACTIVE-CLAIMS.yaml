@@ -5921,6 +5921,44 @@ active:
       ERP_ACTION_ROLES table structure or any other in-flight worker's
       declared scope.
 
+  - session_label: "claude-code (worker task-20260718-171007) -- Commercial / Subscription & Pricing Model gap-closure"
+    claimed_at: "2026-08-07T (this session)"
+    claim: |
+      Review Framework findings: "Per-User AI Subscription Model" (no real
+      per-user AI subscription billing implemented) and "Base Subscription +
+      Token Consumption Pricing" (no base-subscription-plus-token-consumption
+      customer billing; existing token_usage_ledger is internal AI-ops cost
+      monitoring only, not customer-facing).
+      Verified both gaps still real by reading current code first: (1)
+      src/lib/org-license-service.ts is per-seat *license count* enforcement
+      only -- no $ amount, no invoice, no payment gateway. erp_subscriptions/
+      erp_subscription_plans (schema.ts) are the ERP module's tracking of
+      *customers'* own subscriptions -- not VERIDIAN's own billing of orgs.
+      (2) src/lib/services/token-usage-service.ts + tokenUsageLedger table
+      are explicitly internal Finance-facing cost reporting, not a
+      customer-facing usage-to-invoice pipeline.
+      Plan: additive DB schema for platform billing plans + generated
+      period invoices (base fee + seat count * seat price + token overage,
+      computed from existing org-license-service seat count and
+      tokenUsageLedger usage scoped scope='product_orchestra' per org), a
+      new platform-billing-service.ts, admin-gated API route(s), and an
+      admin UI page. NOT integrating a live payment processor (Stripe etc)
+      -- no real payment credentials exist in this environment/repo and
+      provisioning one is a business decision, not something an agent can
+      or should do unilaterally; will document that honestly in PROGRESS.md
+      and scaffold a clearly-stubbed gateway interface point instead of
+      pretending to charge real cards.
+      File scope: src/lib/db/schema.ts (new platform_billing_plans /
+      platform_billing_invoices tables only), drizzle/ (new additive
+      migration), new src/lib/services/platform-billing-service.ts, new
+      src/app/api/billing/* routes, new admin UI page under
+      src/app/(app)/settings/ or src/app/(app)/billing/. Explicitly NOT
+      touching erp_subscriptions/erp_subscription_plans, org-license-service
+      seat-enforcement logic itself (read-only reuse), or
+      permission-service.ts's ERP_ACTION_ROLES table (per this task's own
+      instructions) -- any new permission-service entry needed will be
+      additive-only.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 # Restored 2026-07-19 (this session): this key had gone missing on main --

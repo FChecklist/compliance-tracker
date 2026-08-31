@@ -9802,6 +9802,80 @@ export const tokenUsageLedger = complianceSchemaDB.table('token_usage_ledger', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Platform Billing (Commercial / Subscription & Pricing Model) ───────
+// VERIDIAN Review Framework gap-closure, 2026-08-07: two related findings
+// -- "Per-User AI Subscription Model" and "Base Subscription + Token
+// Consumption Pricing" -- both boiled down to the same real gap on
+// investigation: src/app/pricing/page.tsx markets per-seat tiered pricing,
+// org-license-service.ts enforces seat *counts*, and tokenUsageLedger
+// already tracks real AI cost per org -- but nothing ever turned any of
+// that into an actual customer-facing $ invoice. This is that missing
+// layer: platform_billing_plans is the priced counterpart to the pricing
+// page's PLANS array (base fee + per-seat price + an included AI-cost
+// allowance before overage), and platform_billing_invoices is a generated,
+// per-org-per-period bill computed from the existing, real seat count
+// (org-license-service.getLicenseStatus) and existing, real AI spend
+// (cost-guard.ts's getMonthlySpend / tokenUsageLedger, scope=
+// 'product_orchestra') -- deliberately reusing those functions rather than
+// re-deriving seat/usage numbers a second way. Does NOT integrate a live
+// payment processor: no real payment-gateway credentials exist in this
+// environment, and provisioning one is a business decision for the Owner,
+// not something to fabricate -- see platform-billing-service.ts's
+// paymentGatewayRef field and payment-gateway-client.ts's stub for the
+// honest seam left for that follow-up.
+export const platformBillingPlans = complianceSchemaDB.table('platform_billing_plans', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  // Matches organisations.plan's free-text values (e.g. 'free',
+  // 'professional', 'enterprise') and src/app/pricing/page.tsx's PLANS --
+  // the bridge key between "what an org is marked as" and "what it's
+  // actually priced at". Unique: exactly one active price list per plan key.
+  planKey: text('plan_key').notNull().unique(),
+  name: text('name').notNull(),
+  baseFeeMonthlyUsd: numeric('base_fee_monthly_usd').notNull().default('0'),
+  perSeatMonthlyUsd: numeric('per_seat_monthly_usd').notNull().default('0'),
+  // AI cost (tokenUsageLedger.estimatedCostUsd) included in the base fee
+  // before token-consumption overage billing kicks in -- the "Base
+  // Subscription + Token Consumption Pricing" finding's actual mechanism.
+  includedAiCostUsd: numeric('included_ai_cost_usd').notNull().default('0'),
+  // Markup multiplier applied to AI cost beyond the included allowance,
+  // e.g. 1.30 = pass through internal cost plus a 30% margin. 1.00 would
+  // be at-cost passthrough; intentionally not defaulted to 1.00 so a plan
+  // row always states its real margin decision explicitly.
+  overageMultiplier: numeric('overage_multiplier').notNull().default('1.30'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const platformBillingInvoices = complianceSchemaDB.table('platform_billing_invoices', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull().references(() => organisations.id),
+  planId: text('plan_id').notNull().references(() => platformBillingPlans.id),
+  invoiceNumber: integer('invoice_number').notNull(), // per-org sequence, same max()+1 convention as erp_sales_invoices
+  periodStart: timestamp('period_start').notNull(),
+  periodEnd: timestamp('period_end').notNull(),
+  seatCount: integer('seat_count').notNull(),
+  baseFeeUsd: numeric('base_fee_usd').notNull(),
+  seatFeeUsd: numeric('seat_fee_usd').notNull(),
+  aiCostUsd: numeric('ai_cost_usd').notNull(), // raw internal cost consumed this period (from tokenUsageLedger)
+  includedAiCostUsd: numeric('included_ai_cost_usd').notNull(), // snapshot from the plan at generation time
+  overageAiCostUsd: numeric('overage_ai_cost_usd').notNull(), // max(0, aiCostUsd - includedAiCostUsd)
+  overageChargeUsd: numeric('overage_charge_usd').notNull(), // overageAiCostUsd * plan.overageMultiplier, snapshot
+  totalUsd: numeric('total_usd').notNull(),
+  status: text('status').notNull().default('draft'), // 'draft' | 'finalized' | 'paid' | 'void'
+  // Deliberately nullable and unused until a real payment gateway is wired
+  // (see payment-gateway-client.ts) -- never fabricated, never set to a
+  // fake "success" value.
+  paymentGatewayRef: text('payment_gateway_ref'),
+  generatedAt: timestamp('generated_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const platformBillingInvoicesRelations = relations(platformBillingInvoices, ({ one }) => ({
+  org: one(organisations, { fields: [platformBillingInvoices.orgId], references: [organisations.id] }),
+  plan: one(platformBillingPlans, { fields: [platformBillingInvoices.planId], references: [platformBillingPlans.id] }),
+}))
+
 // ─── VERIDIAN Computational Engine Library (VCEL) ────────────────────────
 // Built 2026-07-08 per the founder's "VERIDIAN Computational Engineering"
 // principle: every deterministic business computation should be executed
