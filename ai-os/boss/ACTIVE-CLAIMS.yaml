@@ -6371,6 +6371,37 @@ recently_completed:
       trusting the PR description), which posted a real AUDIT: PASS with all 8
       required structured fields after one format correction (Title-Case
       labels, not camelCase).
+  - session_label: "claude-code (worker task-20260718-075002-architecture---design--engineering-princ) -- VERIDIAN Review Framework gap-closure: Architecture & Design / Engineering Principles (3 findings) [DONE, rebased onto current main 2026-08-30 as PR replacing #1228]"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: |
+      Rebase of PR #1228 onto current main (2026-08-30). Closed 3 findings in
+      one PR: (1) Low, "Systems-First Engineering Principle" -- audited
+      every real AI/LLM call site, confirmed all route through the central
+      src/lib/llm-client.ts already; gap did not hold up under inspection,
+      documented in docs/adr/0001-centralized-ai-call-site.md rather than
+      making an unnecessary change. (2) Low, "First-Principles Design
+      Methodology" -- new docs/adr/ folder (README + 2 real ADRs). (3)
+      Medium, "Elimination of Duplicate Functionality" -- ran jscpd across
+      src/lib/engines/ + src/lib/services/ (0.80% duplicated lines, 30
+      clones, 258 files -- low overall), then hand-followed jscpd's clone
+      hits to a real, larger duplicate-type cluster it under-counted: the
+      ActorCtx/ErpContext dbUser-or-apiKey actor-context type shape was
+      independently redefined across 22 files in src/lib/services/ (6
+      same-named, 5 under different local names for the identical
+      structure, 18 with the related ErpContext shape, 7 overlapping).
+      Consolidated into new src/lib/services/actor-context.ts; all sites
+      now import it, 5 differently-named exports kept as one-line type
+      aliases for zero external-call-site changes. Did not touch
+      permission-service.ts/ERP_ACTION_ROLES. Verification: tsc --noEmit
+      clean, eslint 0 errors (3 pre-existing warnings), bun test
+      src/lib/services 1202 pass/0 fail, guardrail-presence/doc-
+      quarantine-banner/metadata-index-coverage/doc-cross-reference checks
+      all pass. Branch was 1326 commits behind main at claim time --
+      merged origin/main in, resolved 8 real merge conflicts (mostly
+      import-line collisions with other sessions' concurrent additions to
+      the same files; also found and fixed one more duplicate-type
+      instance, FraudContext in fraud-case-service.ts, surfaced during
+      conflict review) before opening the PR.
   - session_label: "claude-code (task-20260718-065003-ai-engineering-quality--error-handling) -- AI Engineering Quality: Error Handling & Logging gap-closure -- structured logger + route error-handling CI check, PR #1219 merged to main; ci.yml wiring follow-up rebased onto current main and reopened (see this repo's PR history for #1235's replacement) [DONE]"
     claimed_at: "2026-08-15T05:35Z (this session, closed same session)"
     claim: |
