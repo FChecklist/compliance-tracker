@@ -1,157 +1,70 @@
-# PROGRESS — VERIDIAN Review Framework gap-closure: AI Engineering Quality / Code Structure & Modularity
+# PROGRESS -- rebase-995-b2: replacement PR for #995 (CO-001/CO-003/FI-GL-002/FI-GL-007/FI-GL-008)
 
-Task: close 5 related findings from the framework evaluation in one
-coherent PR (per the task's own instruction: "do not create a separate PR
-per finding if they're naturally one piece of work").
-
-**Note on this task's own history**: invocations 1–14 of this task session
-never actually touched this task's real objective — a prior checkpoint/
-resume cycle had this task's own progress-tracking cross-contaminated with
-an unrelated task's content (a "cost estimate: 5 orgs x 10 users" analysis
-doc, tracked separately). This invocation (15) re-verified the real spec
-via `prompt.txt`, found the branch 1374 commits behind `origin/main` with
-zero real prior commits, fast-forwarded it, and started the actual work
-fresh from here. Flagging this honestly rather than silently proceeding as
-if 14 invocations of real progress existed.
+Task: PR #995 and PR #997 both independently built the same 5 report
+engines (CO-001, CO-003, FI-GL-002, FI-GL-007, FI-GL-008). Verified #995
+was the better implementation of the shared 5 (real drizzle/meta/_journal.json
+registration; cost-center routes correctly placed under
+`/api/v1/projexa/` matching main's existing convention, e.g.
+`ar-aging`/`asset-to-gl-reconciliation`) -- confirmed by diffing both PRs
+and checking main's real route tree before choosing. #997's 7 additional
+unique reports (SD-006 + 6 AP/AR reports, migrations 0318-0324 on its own
+stale branch) are explicitly out of scope here; they are the subject of a
+separate follow-up PR after this one merges, cherry-picked from #997 with
+its own journal-registration gap fixed at that time.
 
 ## Completed
-
-- [x] **[Medium] Code Modularity — task-execution-engine.ts (real code
-      change).** `dispatchEngine()`'s CRM Quick-Create category (4 cases)
-      and Accounting Computation Engine category (11 cases, its own
-      standalone `switch`) extracted verbatim (pure code motion, no logic
-      changes) into `src/lib/engine-handlers/crm-engine-dispatch.ts` and
-      `src/lib/engine-handlers/accounting-engine-dispatch.ts`. Each new
-      file exports a `Set` of its engine keys + a `dispatchXEngine()`
-      function; `task-execution-engine.ts` now does a `Set.has()` check
-      and delegates. `bun test` covers `task-execution-engine.test.ts`
-      (see Verification below) with zero behavior change expected.
-      This is a deliberate **first slice**, not a full migration — the
-      other ~35 cases (math/costing/GST/tax/payroll/etc. categories)
-      remain inline in `task-execution-engine.ts` for now. Given this
-      is compliance-critical calculation-dispatch code with an existing
-      test suite but no way to exhaustively re-verify every one of ~35
-      more categories' behavior unchanged within this session's budget,
-      doing all of them mechanically in one pass was judged higher-risk
-      than the modularity benefit justified in a single pass. Real,
-      incremental, honestly-scoped progress > a risky one-shot rewrite.
-- [x] **[Medium] Code Modularity — schema.ts: already resolved, no change
-      needed.** Read `src/lib/db/schema.ts`'s own header comment (lines
-      6–20): a prior "Overall Code Quality Score" gap-closure already
-      assessed this exact same finding, found 6 PRs concurrently open
-      against this file at the time, and *deliberately deferred* a full
-      physical split in favor of the current state (125 `// ─── Section
-      Name ───` domain headers within one file, fast `grep`-navigable).
-      Re-verified the same collision risk still holds today: `grep -c
-      "schema.ts" ai-os/boss/ACTIVE-CLAIMS.yaml` → 110 matches (dozens of
-      concurrent sessions additively touching this file right now). A
-      physical split now would create the exact wall of merge conflicts
-      that decision was made to avoid, for a Medium-severity finding, with
-      no functional benefit. Per the task's own instruction ("If a finding
-      turns out to already be resolved ... say so in PROGRESS.md rather
-      than making an unnecessary change") — no schema.ts change made.
-- [x] **[Low] Component Reusability.** Added `docs/REUSABLE-UTILITIES.md`
-      — a short, curated index of the actual most-reused cross-cutting
-      helpers (`requireAuth()`, `ServiceError`, `withTenantContext()`,
-      `logActivity()`, `cn()`, shadcn/ui primitives, the new
-      `engine-handlers/` pattern), each backed by a real `git grep -c`
-      import count (not guessed), plus the exact commands to re-derive
-      them so the numbers don't silently rot.
-- [x] **[Medium] Low Coupling / High Cohesion.** Added real DB-level FK
-      constraints for the org-scoping relationship on the 3 highest-
-      traffic tables (`users.orgId`, `departments.orgId`,
-      `complianceItems.orgId` → `organisations.id`) — previously only a
-      Drizzle `relations()` query-ergonomics helper, never enforced at
-      the DB level (confirmed: 379 `orgId` column declarations repo-wide,
-      only 16 pre-existing `.references()` FK constraints total, all on
-      unrelated parent-child relationships). Matches the finding's own
-      "incrementally... starting with org/user scoping" framing — this is
-      a deliberate first slice, not all 379.
-      Migration: hand-written `drizzle/0315_add_org_fk_constraints.sql`
-      using `NOT VALID` + a documented, deliberately-NOT-run-here
-      `VALIDATE CONSTRAINT` follow-up (safe against a live table with
-      existing data of unknown integrity — `NOT VALID` takes only a brief
-      metadata lock and doesn't fail the migration on a pre-existing
-      orphaned `org_id`; `VALIDATE CONSTRAINT` is separately resumable).
-      **Not applied to the live database** — this session generated/wrote
-      the migration file only, did not run `db:push`, per this repo's own
-      caution around live-DB changes.
-      **Real, separate issue found and flagged (not fixed here, out of
-      this finding's scope):** `bunx drizzle-kit generate` was tried first
-      (before hand-writing the migration) and produced a bogus diff that
-      tried to re-`CREATE TABLE` several already-existing tables. Root
-      cause: `drizzle/meta/_journal.json`'s last recorded entry is
-      `0303_lead_source_effectiveness_report_definition` (idx 281), but
-      `drizzle/0311*.sql` / `0312*.sql` / `0313*.sql` / `0314*.sql` already
-      exist on disk with no matching journal entries — a drift between
-      the local meta snapshot and the real migration history, same class
-      of issue as the documented "stale local main ref" incident
-      `check-migration-collision.mjs`'s header already describes, but for
-      the Drizzle meta journal instead of git. The bogus generated output
-      was discarded (not committed); the real migration was hand-written
-      instead. Flagged in the new migration file's own header for whoever
-      next runs `drizzle-kit generate` in this repo — reconciling the
-      journal is a separate, larger task this session did not attempt.
-- [x] **[Low] Design Pattern Consistency.** Added
-      `scripts/check-route-auth-guard.mjs` — a diff-scoped CI check
-      (same established shape/precedent as `check-route-error-handling.mjs`,
-      this repo's real pattern for "compiler/lint-enforced" conventions;
-      `eslint.config.mjs` deliberately runs with nearly every built-in
-      rule off, no local-ESLint-plugin infrastructure exists to extend)
-      requiring `requireAuth()` in new/changed `route.ts` files and
-      `ServiceError` in new/changed `*-service.ts` files. Verified against
-      this branch's own diff (see Verification below).
-      **Not wired into `.github/workflows/ci.yml`** — this session's `gh`
-      token lacks the `workflow` OAuth scope needed to push a branch that
-      touches `.github/workflows/*.yml` (same documented limitation as
-      this repo's own prior "Back out ci.yml wiring for the new
-      service-header-comment check" commit, and
-      `check-route-error-handling.mjs` itself, which is *also* still not
-      wired into CI as of this commit). Documented in the script's own
-      header as a real follow-up for a workflow-scoped session.
-- [x] **[Medium] File & Folder Organization — ai-os subtrees: already
-      substantially resolved, minimal-touch.** Checked
-      `ai-os/registry/stale-doc-manifest.yaml`'s actual stated direction
-      (quarantine-banner dated one-off docs, already executed) and
-      `ai-os/OS.yaml`'s existing `what_should_exist_vs_what_does` section,
-      which *already* clearly documents what `audit-tree/` (Tree 1,
-      source requirements), `system-tree/` (Tree 3, what's actually
-      built), and `tree4-unified/` (the merge — "mostly archived") each
-      are, with each tree's own `00-INDEX.md`. Non-archived content is
-      already small (9/28/11 files respectively). No further physical
-      merge attempted — same collision-risk reasoning as schema.ts above,
-      and OS.yaml already functions as the cross-tree navigation aid the
-      finding asks for.
-- [x] **[Medium] File & Folder Organization — API routes: real gap, real
-      fix.** No navigation aid existed for `src/app/api/`'s 140 top-level
-      route groups (1,019 `route.ts` files) — added
-      `docs/API-ROUTES-INDEX.md`, a generated (`git ls-files | awk | sort
-      | uniq -c`, command included in the doc) breakdown by route count
-      with short descriptions for the 16 groups at >=10 routes each.
-
-## Verification run this session
-
-- `bun install` (fresh, 1220 packages)
-- `bunx tsc --noEmit` — 0 errors attributable to this change (pre-existing
-  unrelated errors exist repo-wide from missing `@types/react` etc. in
-  this checkout; none touch `task-execution-engine.ts` or
-  `engine-handlers/`)
-- `node scripts/check-migration-collision.mjs --base origin/main` — OK, no
-  number collisions
-- `node scripts/check-route-auth-guard.mjs --base origin/main` — OK (no
-  route/service files in this diff, so nothing to check yet at this
-  point — re-verify after final diff is complete)
-- (Full `bun run lint` / `bun run build` / `bun test` pass still pending —
-  see Remaining)
+- [x] Verified #995 vs #997 claims for real (journal.json hunk present in
+      #995's diff, absent in #997's; #995's routes under `/api/v1/projexa/`
+      confirmed against `main`'s live directory listing) before proceeding.
+- [x] Found an existing local worktree (`C:\...\wtree-r-995`, branch
+      `rebase-995`) already mid-merge on this exact task, with an
+      uncommitted change ~37 minutes old -- not pushed to origin, no
+      listed peer session showed as active, but could not rule out a live
+      unlisted concurrent process. Left it untouched; did this work in a
+      disambiguated worktree/branch (`wtree-r-995-b2` / `rebase-995-b2`)
+      per the keep-both pattern instead of colliding with it.
+- [x] Fetched #995's real source branch
+      (`worker/task-20260806-091101-build-extend-calculation-track-engines`)
+      and merged it into a fresh worktree off current `origin/main`.
+- [x] Resolved a REAL migration-number collision: #995's 5 migrations were
+      numbered 0313-0317, which the current `main` had already reassigned
+      to 5 unrelated, already-merged migrations (ai_team_role_overrides,
+      sales_pipeline_module, construction_progress_boq_line_link,
+      construction_labour_employee_code, construction_materials_and_
+      receipts). Verified the real current max migration number is 0350
+      (not 0320 -- an initial `ls | sed | sort` pass undercounted; cross-
+      checked with a Python directory listing per the known Git-Bash
+      listing-reliability gotcha) and renumbered #995's 5 migrations to
+      genuinely free 0351-0355, preserving their original relative order
+      (CO-001, CO-003, FI-GL-002, FI-GL-008, FI-GL-007). Rebuilt
+      `drizzle/meta/_journal.json`'s entries array by hand (kept every
+      real `main` entry, appended 5 new idx/when/tag entries for the
+      renumbered migrations) -- verified valid JSON and correct entry
+      count before proceeding.
+- [x] Resolved the `report-engine-service.ts` conflict: an import-list
+      collision (kept both main's tender/interior-sales-package imports
+      and #995's `subledgerToGlReconciliation` import) and a function-body
+      collision where both sides added new functions after the same
+      docblock-opening line (kept `main`'s R65 functions, then #995's
+      `computeSubledgerToGlReconciliation`, re-adding the `/**` opener
+      #995's half had lost to the shared context line). Confirmed
+      `subledger_to_gl_reconciliation` is registered in FORMULA_REGISTRY.
+- [x] Resolved `ai-os/boss/ACTIVE-CLAIMS.yaml` conflict (kept-both:
+      main's active claims + #995's, with #995's claim entry updated to
+      reflect this rebase).
+- [x] This file (fresh replacement log rather than a textual merge of two
+      unrelated per-branch logs, matching this repo's existing convention
+      where each task branch writes its own PROGRESS.md from scratch).
 
 ## Remaining
-
-- [ ] Run full `bun run lint`, `bun run build`, `bun test` before opening
-      the PR; fix anything genuinely broken by this change specifically
-      (not pre-existing unrelated failures).
-- [ ] Commit, push to this task's branch, open PR, let CI run (Rule 6 —
-      no direct push to `main`).
-- [ ] `check-guardrail-presence.mjs` / `check-asset-registry-coverage.mjs`
-      / other wired CI checks should be spot-checked locally before
-      pushing, since this touches `schema.ts` (asset registry coverage
-      counts tables) and adds new scripts.
+- [ ] Run governance-yaml-parse, `tsc --noEmit`, `bun test` -- fix
+      anything genuinely broken by this rebase specifically.
+- [ ] Commit, push to `rebase-995-b2`, open replacement PR
+      ("... [was #995]"), close #995 citing supersession.
+- [ ] Wait for real CI (not assumed clean -- #995's original CI had many
+      failures attributed to a same-day GitHub Actions infra outage; that
+      claim needs a real fresh CI run to confirm, not blind trust).
+- [ ] Merge if green.
+- [ ] Start part (b): cherry-pick #997's unique SD-006 + 6 AP/AR reports
+      onto the now-updated main in a separate follow-up PR, fixing #997's
+      journal-registration gap this time; close #997 citing this plan.
