@@ -8,9 +8,13 @@
 -- pre-existing row and every pre-existing logActivity() call site is
 -- completely unaffected.
 --
--- Renamed from 0313 to 0335 during the rebase of PR #1234 onto current
--- main (2026-08-30): 0313 was already taken by
--- 0313_ai_team_role_overrides_rollout.sql (merged to main separately),
--- and 0334 was the highest migration number on main at rebase time.
+-- Renamed 0313 -> 0335 during the rebase of PR #1234 onto current main
+-- (2026-08-30): 0313 was already taken by
+-- 0313_ai_team_role_overrides_rollout.sql (merged to main separately).
+-- Renamed again 0335 -> 0337 during a second resync of the same rebase
+-- (same day): 0335 was independently claimed by
+-- 0335_crm_accounts_ai_and_bridge_columns.sql (merged to main via PR
+-- #1475) and 0336 by a real pending R65 migration (PR #1479, not yet
+-- merged at rename time) -- 0337 was the next genuinely free slot.
 ALTER TABLE compliance.audit_logs ADD COLUMN IF NOT EXISTS session_id text;
 ALTER TABLE compliance.audit_logs ADD COLUMN IF NOT EXISTS office_id text;
