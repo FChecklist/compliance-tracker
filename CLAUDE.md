@@ -38,8 +38,8 @@ Before doing anything nontrivial in this repo, read these in order — they are 
 - `bun run dev` — start dev server (port 3000)
 - `bun run build` — production build
 - `bun test --isolate` — run the test suite. **Always pass `--isolate`, matching `.github/workflows/ci.yml`** — 27+ route.test.ts files mock `@/lib/supabase/auth-guard` via `mock.module()` without restoring it, which (confirmed via a real repro during the R1-R64 recheck, 2026-08-30) leaks a stale/incomplete mock across files in a bare `bun test` run, causing spurious role-gate test failures that look exactly like a live RBAC bug but aren't (module-chain/route.test.ts's own header comment documents the same root cause independently). `--isolate` gives every test file a fresh module graph, eliminating the leak — bare `bun test` is not a reliable signal on this repo and should not be used to diagnose failures.
-- `bun run db:generate` — generate Drizzle migration
-- `bun run db:push` — push schema to Supabase
+- `bun run db:generate` — generate Drizzle migration. Use this for any real schema change bound for production; only covers the `compliance` schema (see drizzle.config.ts's own comment — `platform` schema tables need a hand-written migration).
+- `bun run db:push` — push schema to Supabase directly, no migration file. Ad-hoc/local dev only — this codebase has documented real production drift from schema changes applied out-of-band (`drizzle/0245`'s own migration header: "Hand-authored SQL, applied out-of-band via the Supabase MCP"), so a change meant to ship should go through `db:generate` + a committed, reviewed migration instead.
 - `bun run db:seed` — seed database (src/db/seed.ts)
 
 ## Env Vars Required

@@ -10,8 +10,11 @@ export const platformSchemaDB = pgSchema('platform')
 
 // VERIDIAN Review Framework, "Overall Code Quality Score" (Medium) gap
 // closure: this file is ~10,200 lines but already internally organized by
-// domain via 125 `// ─── Section Name ───` comment headers below (grep -c
-// "^// ─── " src/lib/db/schema.ts to recount). A full physical split into
+// domain via `// ─── Section Name ───` comment headers below (156 of them
+// as of 2026-09-01's R66 code-quality inspection, up from 125 when this
+// note was first written -- this count drifts as sections are added, so
+// re-run `grep -c "^// ─── " src/lib/db/schema.ts` rather than trusting a
+// number here). A full physical split into
 // per-domain files is the ideal end state but is deliberately deferred here
 // -- 6 PRs were open concurrently against this file at last check (gh pr
 // list --state open --json number,files --jq '[.[] | select(.files[].path
