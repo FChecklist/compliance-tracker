@@ -2402,6 +2402,13 @@
       "when": 1788287700000,
       "tag": "0520_r65_partc_phase1_memory_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 343,
+      "version": "7",
+      "when": 1788287800000,
+      "tag": "0521_pm_teams_project_groups_templates",
+      "breakpoints": true
     }
   ]
 }

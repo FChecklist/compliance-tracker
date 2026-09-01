@@ -12658,6 +12658,171 @@ export const supportSessionsRelations = relations(supportSessions, ({ one }) => 
   targetUser: one(users, { fields: [supportSessions.targetUserId], references: [users.id] }),
 }))
 
+// ─── Generic PM Teams + Project Groups/Templates (Task #47 PM gap analysis,
+// 2026-07-31) ────────────────────────────────────────────────────────────
+// Finalized gap analysis: only helpdesk `ticket_teams` (schema.ts above)
+// existed as any kind of "team" concept before this wave, and it's a
+// narrower, helpdesk-routing-specific entity (single leadUserId, no real
+// membership roster, ticket-routing target). Neither PM Teams, Project
+// Groups, nor Project Templates reuse or extend it -- `pmTeams` below is
+// modeled after its shape (org-scoped, text/createId PK, isDefault flag,
+// optional lead) but is a genuinely new, decoupled table with its own real
+// membership table, since ticket_teams has none to extend.
+//
+// Deliberately NOT gated behind PMS enablement (org_product_branch_enablements)
+// -- like ticket_teams, this is a generic org-level construct usable by any
+// product branch, not a PMS-only concept.
+export const pmTeamMemberRoleEnum = complianceSchemaDB.enum('pm_team_member_role', ['lead', 'member'])
+
+export const pmTeams = complianceSchemaDB.table('pm_teams', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  leadUserId: text('lead_user_id'),
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// The real membership roster ticket_teams never had -- a team can have many
+// members, each with a role. Unique(teamId, userId) enforced in the
+// migration (one membership row per user per team).
+export const pmTeamMembers = complianceSchemaDB.table('pm_team_members', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  teamId: text('team_id').notNull(),
+  userId: text('user_id').notNull(),
+  role: pmTeamMemberRoleEnum('role').notNull().default('member'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Grouping related projects together (e.g. "Q3 Client Rollouts", a program
+// spanning several individual projects) -- many-to-many via
+// projectGroupProjects, since a project can reasonably belong to more than
+// one group (unlike Project <-> Team, where "primary team" is a real
+// concept -- see projectTeamAssignments.isPrimary below).
+export const projectGroups = complianceSchemaDB.table('project_groups', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  color: text('color'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const projectGroupProjects = complianceSchemaDB.table('project_group_projects', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  groupId: text('group_id').notNull(),
+  projectId: text('project_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// A project's working team(s) -- the missing link `pmTeams` needs to be a
+// project's "default team" (per this task's spec). No projectMembers/
+// pmsProjectMembers table existed anywhere in this schema before this wave
+// (confirmed by grep) -- this is that missing link, scoped through pmTeams
+// rather than a raw per-user roster, so "assign this team to this project"
+// is one row, not N.
+export const projectTeamAssignments = complianceSchemaDB.table('project_team_assignments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  teamId: text('team_id').notNull(),
+  isPrimary: boolean('is_primary').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Reusable project structure -- phases + tasks captured as a JSON snapshot
+// (not live references to a source project's rows), so a template survives
+// independently of whatever later happens to the project it was captured
+// from. Deliberately does NOT clone into pms_issues/pms_milestones (out of
+// scope per this task's spec, and those additionally require an org to have
+// the 'pms' product branch enabled plus seeded issue types/statuses --
+// projectPhases/projectTasks below are new, minimal, ungated generic
+// constructs so template cloning works for any org). `phases`/`tasks` shape:
+// phases: {name, description, position}[]; tasks: {title, description,
+// position, phaseIndex}[] where phaseIndex indexes into phases[] (null = no
+// phase).
+export const projectTemplates = complianceSchemaDB.table('project_templates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  defaultTeamId: text('default_team_id'),
+  phases: jsonb('phases').notNull().default([]),
+  tasks: jsonb('tasks').notNull().default([]),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Real per-project phases/tasks -- what createProjectFromTemplate() actually
+// instantiates from a template's `phases`/`tasks` JSON snapshot. Generic and
+// ungated (see projectTemplates comment above), decoupled from both
+// pms_issues/pms_milestones and the unrelated AI-orchestration `tasks` table
+// (Wave 4, task_execution_plan/task_agent_executions) -- neither of those
+// fit a lightweight "checklist item under a project phase" shape.
+export const projectPhases = complianceSchemaDB.table('project_phases', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  position: integer('position').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const projectTasks = complianceSchemaDB.table('project_tasks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  phaseId: text('phase_id'),
+  title: text('title').notNull(),
+  description: text('description'),
+  position: integer('position').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const pmTeamsRelations = relations(pmTeams, ({ many }) => ({
+  members: many(pmTeamMembers),
+}))
+
+export const pmTeamMembersRelations = relations(pmTeamMembers, ({ one }) => ({
+  team: one(pmTeams, { fields: [pmTeamMembers.teamId], references: [pmTeams.id] }),
+  user: one(users, { fields: [pmTeamMembers.userId], references: [users.id] }),
+}))
+
+export const projectGroupsRelations = relations(projectGroups, ({ many }) => ({
+  groupProjects: many(projectGroupProjects),
+}))
+
+export const projectGroupProjectsRelations = relations(projectGroupProjects, ({ one }) => ({
+  group: one(projectGroups, { fields: [projectGroupProjects.groupId], references: [projectGroups.id] }),
+  project: one(projects, { fields: [projectGroupProjects.projectId], references: [projects.id] }),
+}))
+
+export const projectTeamAssignmentsRelations = relations(projectTeamAssignments, ({ one }) => ({
+  project: one(projects, { fields: [projectTeamAssignments.projectId], references: [projects.id] }),
+  team: one(pmTeams, { fields: [projectTeamAssignments.teamId], references: [pmTeams.id] }),
+}))
+
+export const projectTemplatesRelations = relations(projectTemplates, ({ one }) => ({
+  defaultTeam: one(pmTeams, { fields: [projectTemplates.defaultTeamId], references: [pmTeams.id] }),
+}))
+
+export const projectPhasesRelations = relations(projectPhases, ({ one, many }) => ({
+  project: one(projects, { fields: [projectPhases.projectId], references: [projects.id] }),
+  tasks: many(projectTasks),
+}))
+
+export const projectTasksRelations = relations(projectTasks, ({ one }) => ({
+  project: one(projects, { fields: [projectTasks.projectId], references: [projects.id] }),
+  phase: one(projectPhases, { fields: [projectTasks.phaseId], references: [projectPhases.id] }),
+}))
+
 // Point 118 (WhatsApp share): tokenised, expiring, individually-revocable
 // public read-only report links -- mirrors compliance.veri_meeting_share_links
 // (Wave 44) exactly in shape and RLS posture. orgId is a deliberate addition

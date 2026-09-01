@@ -1448,6 +1448,36 @@ active:
       reported in `src/app/signup/*` or `src/app/mfa-challenge/*` this
       round. No `drizzle/` migration files in this PR's diff either round,
       so no journal renumbering was needed.
+  - session_label: "claude-code (task-20260731-044026-pm--teams---project-groups-templates) -- Task #47 PM gap: generic PM Teams grouping + Project Groups/Templates [rebase-merged onto current main as replacement PR (was #667), per this repo's standard rebase-sweep protocol]"
+    claimed_at: "2026-07-31T (original session); rebase-merged 2026-09-01"
+    claim: |
+      PR #667 (superseded by its replacement PR, see rebase_note). Built genuinely new, generic
+      pmTeams (decoupled from helpdesk ticket_teams -- read only as a reference shape, not
+      extended, since ticket_teams has no membership table to extend) with a real
+      pm_team_members roster, many-to-many projectGroups (project_group_projects), and
+      projectTemplates that snapshot a project's phases/tasks as JSON and clone that structure
+      (plus default team assignment) into a new project via createProjectFromTemplate(). New
+      hand-written migration (renumbered during this rebase -- see rebase_note) with RLS
+      app_runtime_org_scoped + service_role_bypass on every table, covering indexes on every FK.
+      Clone targets new, minimal, ungated project_phases/project_tasks tables, deliberately not
+      pms_issues/pms_milestones (out of scope, PMS-branch-gated). bun test on the 3 new service
+      test files: 21 pass/0 fail. check-migration-collision.mjs and check-guardrail-presence.mjs
+      both clean. Local `bunx tsc --noEmit` OOM'd in the original session due to shared-machine
+      memory contention from other concurrent sessions -- not a code issue; deferred full
+      type-check verification to CI. Out of scope (per finalized gap analysis): pms_issues
+      columns, Automation Rules, other Project columns (status/access/rollup -- see sibling
+      worktree feat/pms-rollup-completion-task47 for that separate slice of "Task #47"), user
+      types, social feed.
+    rebase_note: >-
+      2026-09-01 rebase-merge sweep: this branch had drifted 1333 commits behind main. 4 real
+      conflicts (PROGRESS.md, this file, drizzle/meta/_journal.json, src/lib/db/schema.ts),
+      resolved with actual judgment, not blind pick-one-side. This file specifically: this
+      branch's own diff carried the file's old, pre-Phase-5 bloated state with this task's claim
+      entry buried in a `recently_completed:` section; origin/main had independently pruned this
+      file down to just its current `active:` list (no `recently_completed:` section left at
+      all). Kept main's current pruned content as-is (all of it, unmodified) and appended just
+      this one relevant entry back under a fresh `recently_completed:` section, per this repo's
+      documented convention -- did not reintroduce any of the rest of the stale bloated history.
   - session_label: "claude-code (task-20260731-044029-pm--social-collaboration-feed) -- Task #47 PM feature-parity: social/collaboration feed (broadcast posts + reactions + comment-replies) -- rebased onto current main and merged as replacement PR (was #665) on 2026-09-01"
     claimed_at: "2026-07-31T (this session)"
     claim: |
