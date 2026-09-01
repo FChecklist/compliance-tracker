@@ -10,6 +10,13 @@
 // withTenantContext + createMemoryRecord() call this phase adds) is
 // therefore a disclosed gap, not a silently-skipped one -- see this PR's
 // own description.
+//
+// R65 Part D Phase 3 (2026-09) adds markInProgress() to this same file, for
+// the same reason and under the same disclosed gap: it is a one-line
+// withTenantContext DB write with no pure logic of its own to extract and
+// unit test (unlike buildTaskResultMemoryContent()'s real string
+// formatting), so it is exercised by this repo's real-DB-backed
+// integration/E2E surface, not a mocked-DB unit test here.
 import { describe, expect, test } from "bun:test"
 import { buildTaskResultMemoryContent } from "./run-submission"
 

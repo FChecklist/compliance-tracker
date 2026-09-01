@@ -12964,9 +12964,36 @@ export const reportShareLinks = complianceSchemaDB.table('report_share_links', {
 // this feature from the first migration. Named `pipeline_tasks` instead --
 // everything else in the "how" (columns, statuses, project-resolution rule)
 // is unchanged.
+// R65 Part D Phase 3 (2026-09): the Phase 0 architecture report's §3.12
+// found 'in_progress'/'waiting' declared here since drizzle/0294 but never
+// assigned by any code path. 'in_progress' is now wired -- see
+// run-submission.ts's markInProgress(). 'waiting' is deliberately still
+// NOT wired: the one plausible call site (a segment with missingParams,
+// run-submission.ts's `if (c.missingParams.length > 0)` branch) has an
+// explicit M26 design decision on it ("do NOT mint a task that would run
+// with a guessed value") that this phase does not reverse without owner
+// sign-off -- wiring 'waiting' there would also change
+// RunSubmissionResult's shape and compliance.submissions.status for a case
+// PROJEXA's composer (a separate repo) already consumes today. Left as a
+// disclosed gap, not silently done. The Phase 0 report's own §4.2 also
+// recommended extending this enum with WAITING_FOR_APPROVAL/ESCALATED --
+// NOT done, because that directly contradicts the very next line's own
+// "M24's closed 5-status set... no sixth value" comment, which predates
+// and overrides that recommendation absent explicit owner sign-off to
+// reopen a set M24 deliberately closed.
 export const pipelineTaskStatusEnum = complianceSchemaDB.enum('pipeline_task_status', [
   'to_do', 'in_progress', 'waiting', 'done', 'blocked', // M24's closed 5-status set, verbatim -- no sixth value
 ])
+// R65 Part D Phase 3: 'ai'/'person' remain unwired, verified still
+// intentional, not an oversight -- every task this pipeline mints is
+// executed by executor.ts's software registry (executeTask()), by design
+// (directive rule §22/#27: "AI must NOT directly perform uncontrolled
+// database mutation... software validates, authorizes, executes, logs").
+// There is no path in run-submission.ts where the pipeline itself, rather
+// than a registered software function, is what executes a minted task, and
+// no human-approval-gated execution step exists yet either. Wiring either
+// value here would require building a genuinely new execution mode, not
+// just assigning an existing column -- out of this phase's scope.
 export const pipelineTaskExecutorEnum = complianceSchemaDB.enum('pipeline_task_executor', ['software', 'ai', 'person'])
 export const pipelineTaskProjectSourceEnum = complianceSchemaDB.enum('pipeline_task_project_source', ['inherited', 'stated'])
 // Not a closed set the way pipelineTaskStatusEnum is -- 'chat' covers a

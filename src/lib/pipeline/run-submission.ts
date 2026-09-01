@@ -334,6 +334,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       continue;
     }
 
+    await markInProgress(input.orgId, taskId);
     const outcome = await executeTask({
       orgId: input.orgId,
       userId: input.userId,
@@ -512,6 +513,11 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
   if (!hasExecutor(input.functionId)) {
     outcome = { success: false, error: `no executor is registered for function_id "${input.functionId}" yet` };
   } else {
+    // R65 Part D Phase 3 -- see markInProgress()'s own header comment. Only
+    // reached once hasExecutor() has already confirmed this task will
+    // actually run; the !hasExecutor branch above goes straight to blocked
+    // and never passes through 'in_progress'.
+    await markInProgress(input.orgId, taskId);
     outcome = await executeTask({
       orgId: input.orgId,
       userId: input.userId,
@@ -788,6 +794,35 @@ async function updateTask(orgId: string, taskId: string, status: TaskOutcome["st
       .update(pipelineTasks)
       .set({ status, result: (result as object | undefined) ?? null, error: error ?? null, updatedAt: new Date() })
       .where(eq(pipelineTasks.id, taskId))
+  );
+}
+
+/**
+ * R65 Part D Phase 3 -- wires `pipeline_task_status`'s 'in_progress' value
+ * (declared since drizzle/0294, never assigned by any code path until now --
+ * see the Phase 0 architecture report's §3.12 finding, confirmed still true
+ * immediately before this change). Deliberately a separate, narrower helper
+ * than updateTask(): 'in_progress' is a transient marker for whatever the
+ * executor is doing right now, not an outcome, so it never touches
+ * `result`/`error` (both are already null on a freshly-minted row) the way
+ * updateTask()'s terminal 'done'/'blocked' writes do.
+ *
+ * Called ONLY immediately before the one call in this file that can take
+ * real wall-clock time -- executeTask() -- and ONLY once every earlier
+ * synchronous guard (chat-verdict-write block, blocked-dependency,
+ * no-executor-registered) has already passed. A task that gets blocked by
+ * one of those guards never passes through 'in_progress' at all: it never
+ * started running, so reporting it as running would be a lie the same way
+ * skipping 'to_do' entirely would be.
+ *
+ * Real effect: GET /api/v1/projexa/tasks (tasks/route.ts) already groups
+ * `status: 'in_progress'` rows into its "running" bucket and has since R53
+ * Phase 6 -- that bucket has been silently, permanently empty because
+ * nothing ever wrote this value. This makes it real.
+ */
+async function markInProgress(orgId: string, taskId: string) {
+  await withTenantContext({ orgId }, (db) =>
+    db.update(pipelineTasks).set({ status: "in_progress", updatedAt: new Date() }).where(eq(pipelineTasks.id, taskId))
   );
 }
 
