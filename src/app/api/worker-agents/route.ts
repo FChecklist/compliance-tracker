@@ -32,7 +32,6 @@ export async function GET(request: NextRequest) {
         description: a.description,
         isImmutable: a.isImmutable,
         lifecycleStatus: a.lifecycleStatus,
-        supervisorWorkerAgentId: a.supervisorWorkerAgentId,
         domainGroup: a.domainGroup ? { id: a.domainGroup.id, key: a.domainGroup.key, name: a.domainGroup.name } : null,
         projectId: a.projectId,
         version: a.version,

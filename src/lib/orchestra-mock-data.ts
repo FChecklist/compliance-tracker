@@ -1,11 +1,14 @@
-// Preview data for the VERIDIAN AI Orchestra dashboard (src/app/(app)/orchestra).
+// Styling/label constants for the VERIDIAN AI Orchestra dashboard (src/app/(app)/orchestra).
 //
-// This is the same worker-agent taxonomy captured in orchestra_changes.md as the
-// canonical Wave 3 seed reference (33 global + firm/client/user tier examples).
-// None of this is backed by a real table yet -- worker_agents, ai_assistants, and
-// tasks land in Waves 2-4. This module exists so the preview page and the real
-// implementation share one source of truth for the example content, rather than
-// the mock data drifting from what actually gets seeded later.
+// worker_agents and tasks are real, populated tables now (see
+// lib/services/worker-agent-service.ts) -- the orchestra page and
+// AgentLibrarySheet fetch live data from the API rather than the
+// WORKER_AGENTS array below. What's still actually consumed from this
+// module today is styling/label constants (TIER_COLOR, TIER_LABEL,
+// ASSISTANT_COLOR, the AgentTier type) shared between the preview page and
+// the real implementation, plus this same worker-agent taxonomy captured in
+// orchestra_changes.md as the original Wave 3 seed reference (33 global +
+// firm/client/user tier examples).
 
 export type AgentTier = "global" | "firm" | "client" | "user";
 
