@@ -1,197 +1,154 @@
-# PROGRESS -- rebase-sweep2b-1038 (real rebase-merge for PR #1038)
+# PROGRESS -- rebase-sweep2b-1202 (real rebase-merge for PR #1202)
 
 ## Scope
-Real rebase-merge of PR #1038
-(`worker/task-20260807-063723-retry-ai-documentation-ai-readable-techn`,
-"VERIDIAN Review Framework gap-closure: AI Documentation / AI-Readable Technical Documentation")
-onto current main, per this repo's standard rebase-sweep protocol. Prior triage +
-adversarial-verify (already complete before this sweep, not re-done here) confirmed all 9 new
-doc/script files the PR adds return 404 on main, `src/lib/openapi/generate.ts` genuinely lacks
-all 6 new API paths the PR documents, and 18/19 checks passed on the original PR (Vercel was
-rate-limited transient infra).
+Real rebase-merge of PR #1202
+(`worker/task-20260815-041523-z-ai-gtm-findings-files-are-now-real-and`,
+"docs+fix: Z.AI GTM merge/enumeration status, 139 points, plus carry forward PR 1200 closure fixes")
+onto current main, per this repo's standard rebase-sweep protocol. Prior triage + adversarial-verify
+(already complete before this sweep, not re-done here) confirmed: main's `next.config.ts` had no
+`headers()`/CSP/X-Frame-Options at all; `robots.ts` hardcoded the wrong sitemap domain vs
+`sitemap.ts`'s own `BASE` constant (a real, live mismatch); all 18 checks passed on the original PR
+including `audit-check` and a genuinely successful (non-rate-limited) Vercel deployment.
 
-## Completed (original PR #1038's own work, carried forward unchanged)
+## Rebase (this session, `rebase-sweep2b-1202`)
+- [x] Got the PR's real head branch via `gh pr view 1202 --json headRefName`:
+      `worker/task-20260815-041523-z-ai-gtm-findings-files-are-now-real-and`.
+- [x] Worktree: `git worktree add -b rebase-sweep2b-1202` from that branch, off the reference
+      checkout at `C:/ct/ct` (this session's own ambient cwd is not a git repo, so no
+      tool-level worktree-isolation mechanism was used -- plain `git worktree add`, per protocol).
+- [x] `bun install` in the worktree (1203 packages) immediately post-creation.
+- [x] `git fetch origin main && git merge origin/main` -- main had advanced from `115466b3` to
+      `815ae1c5` since this branch's own last main-sync. **4 real conflicts, resolved with actual
+      judgment (not blind pick-one-side), plus 1 real SILENT collision `git merge` did not flag
+      that `tsc` caught:**
 
-- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting real work.
-- [x] Re-verified all 10 findings against live code before writing anything.
+  1. **`PROGRESS.md`** -- this repo's single-current-entry convention: replaced wholesale with
+     this file, did not concatenate with either the stale merge-base entry or origin/main's own
+     then-current entry (for PR #1197's rebase-cleanup).
 
-### [High] AI-Readable Business Rules Documentation -- DONE
-Built `ai-os/registry/BUSINESS-RULES-REGISTRY.md` (kept from the prior invocation's draft after
-spot-verifying several of its citations against real source) -- rule-first index generated from
-`ai-os/system-tree/50-merged-tree.yaml`'s own `rules:`/`objects:` fields (83/94 domains, 163
-rule statements), cross-referenced to enforcing files.
+  2. **`ai-os/boss/ACTIVE-CLAIMS.yaml`** -- this branch's own diff from merge-base was a clean
+     61-line pure addition (one active-claim entry for this task). Origin/main had independently
+     pruned this file from ~10,825 lines to ~1,150 lines via many other rebase-sweep sessions
+     since this branch's merge-base. Per same-day precedent already recorded inside the file
+     itself (rebase-1530-final / rebase-sweep2b-1015 / rebase-cleanup-1199 / rebase-sweep2b-1037
+     / rebase-cleanup-1197 entries -- did NOT merge/concatenate the stale bloated version
+     wholesale, which would have reintroduced thousands of lines of long-archived claims): took
+     main's current pruned file as-is and appended this branch's one real claim entry at the end
+     of `active:`, updating its `session_label` to the `[rebase-merging via rebase-sweep2b-1202,
+     was PR #1202 ...]` convention and adding a `rebase_note` documenting this whole merge
+     (including item 4 below) inside the entry itself.
+     - Gotcha hit while investigating this file: `git show <ref>:<path>` truncated its own
+       output to ~31 lines with no warning (a previously-logged gotcha, reproduced fresh here)
+       and made the file look like a 31-line corrupted stub. `git cat-file -p <blob-sha>`
+       returned the real, full 1206-line content. Likewise `git diff`/`git show -p` in this
+       environment only ever printed a stat summary, never real patch hunks, for any file --
+       worked around by extracting full blobs with `git cat-file -p <ref>:<path>` per side and
+       diffing those with plain coreutils `diff`, not `git diff`.
 
-### [Low] AI-Readable Architecture Documentation + [Low] AI-Readable Database Documentation -- DONE
-Same root cause (system-tree is a manual snapshot with no re-sync signal), closed together.
-- Confirmed real drift since the tree's last regen (2026-07-26): 995 API routes (was 614), 468
-  DB tables (was 377), 133 DB enums (was 106).
-- `ai-os/system-tree/DRIFT-BASELINE.yaml` + `scripts/check-architecture-doc-drift.mjs` (CI job
-  `architecture-doc-drift`, non-blocking warn at >10% drift).
-- Refreshed `ai-os/system-tree/00-INDEX.md`'s counts + added a "how to re-sync" note.
+  3. **`ai-os/registry/terminology-guardrail-exemptions.yaml`** -- kept main's current content;
+     main already carried an existing `next.config.ts` exemption entry (`hardcoded_iso_date: 1`,
+     from an unrelated PR #554 baseline regen) -- folded this branch's genuine dated comment into
+     that *existing* entry (raised count to 2, reason updated) instead of adding a duplicate
+     `file:` key, since this manifest's own established practice (verified: zero pre-existing
+     duplicate `file:` keys anywhere in it) is one entry per file, even though the checker script
+     (`loadExemptions()` keys a `Map` by filename, last entry wins) would have tolerated a
+     duplicate. `src/app/sitemap.ts` was a genuinely new entry, added as-is (count 1).
 
-### [Medium] AI-Readable Workflow Documentation -- DONE
-Confirmed the "one-third lack workflow" figure exact (31/94 domains, `workflow: []`). Filled all
-31 in `ai-os/system-tree/50-merged-tree.yaml`: real workflows for domains with a genuine process
-(UI-05/07/09/11/12, PRX-04/06/07/09/10, DB-11, VA-04/11), grounded in each domain's own already
--verified objects/input/output fields plus one direct spot-check (PRX-06's HTTP-502 wrap,
-confirmed against `src/app/api/assistant/route.ts` in the projexa checkout). Explicitly marked
-the rest `N/A` with a one-line reason (schema-completeness listings, reusable-component
-grab-bags, business-content taxonomies, confirmed placeholder scaffolds) instead of leaving them
-silently empty. Found and flagged (did not fix -- logged in `ai-os/MASTER-TRACKER.yaml`) a real
-discrepancy: VA-02/VA-11's `objects` lists describe files that no longer exist in the current
-veda-advisors checkout.
+  4. **`src/app/sitemap.ts`** -- both sides independently landed the identical real fix (`BASE`
+     changed from the wrong `https://veridian-ai-os.vercel.app` to the real
+     `https://projexa-ai.com`) -- kept this branch's version since it carries the fuller
+     explanatory comment and the value already matched main's exactly.
 
-### [Medium] AI-Readable Prompt Documentation -- DONE
-Found the finding's cited "previously-scoped Prompt Directory" is actually a different feature
-(chat-composer predictive autocomplete, `docs/research/WORKER_AGENT_AND_PROMPT_LIBRARY_EVALUATION.md`
-§3/§5) -- did not build that. The real gap (`prompt_templates.description` is empty/generic
-boilerplate, no catalog of purpose) is real and closed: `ai-os/registry/PROMPT-TEMPLATE-DIRECTORY.md`,
-26 real `resolvePromptTemplate()` call sites catalogued with purpose read from each call site's
-own context (excludes the ~40 AI Dev Team role prompts, already self-describing via `roster.ts`).
-
-### [Medium] AI-Readable Configuration Documentation -- DONE
-No consolidated reference existed. Built `docs/master/CONFIGURATION.md` (all 54 distinct
-`process.env.*` vars in `src/`+`scripts/`, grouped by purpose, plus 6 notable in-code constants)
-+ `scripts/check-configuration-doc-coverage.mjs` (CI job `configuration-doc-coverage`).
-
-### [Low] AI-Readable Module Documentation -- DONE
-`docs/master/MODULE_MAP.md` already existed (domain-level) -- refreshed its stale 2026-07-09
-scale numbers with a dated correction. Confirmed the per-file leading-doc-comment convention is
-real (211/212 files in `src/lib/services/`) and built the file-level complement:
-`scripts/generate-module-doc-index.mjs` -> `docs/master/MODULE_DOC_INDEX.md` (212 files, `--check`
-mode wired into CI job `module-doc-index-check`).
-
-### [Low] AI-Readable Metadata Documentation -- VERIFIED, NO CHANGE NEEDED
-`ai-os/OS.yaml`'s index + `scripts/check-metadata-index-coverage.mjs` (CI job
-`metadata-index-coverage`, pre-existing, untouched) is real and already wired. The finding's own
-recommendation ("maintain the existing registry") is already true.
-
-### [Low] AI-Readable Calculation Documentation -- DONE
-The finding's "~17% implemented" figure matched neither `docs/master/CAPABILITY_COVERAGE.md`'s
-own numbers nor current reality. Directly re-counted `dispatchEngine()`'s live switch in
-`src/lib/task-execution-engine.ts`: **185 real dispatchable engineKeys** (184 case branches +
-1 special-cased GST branch), not 127/247 (~51%) let alone 17%. Recorded a dated correction rather
-than fabricating a full category-level re-audit (needs live DB access this sandbox doesn't have).
-Did not implement more engines -- real, multi-day engineering work, logged in
-`ai-os/MASTER-TRACKER.yaml`.
-
-### [Medium] AI-Readable API Documentation -- PARTIAL, remainder logged
-Confirmed current coverage (~30% of `/api/v1` domains, brain/connectors/platform at 0%, PROJEXA
-~20%) still matches the finding. Extended `src/lib/openapi/generate.ts` with the 7
-highest-external-integration-value gaps, each read from its real route handler first:
-`brain/capabilities`, `brain/entity-relationships`, `connectors/office-addin/whoami`,
-`connectors/office-addin/departments`, `platform/provision-org` (documented its distinct
-`pk_...` service-to-service auth scheme explicitly), `tasks/{id}/status`,
-`construction/predictions/{activityId}`. Left the remaining ~64 PROJEXA sub-resources
-undocumented intentionally (real, multi-day work) -- logged in `ai-os/MASTER-TRACKER.yaml`
-(`AI-DOC-GAP-CLOSURE-REMAINDER`), prioritized finance cluster first per the finding's own
-external-integration-demand steer.
-
-## CI wiring blocked on token scope (real limitation, not skipped work)
-
-This session's `gh` token lacks the `workflow` OAuth scope, so any commit touching
-`.github/workflows/ci.yml` cannot be pushed from here. All 3 new CI jobs
-(`architecture-doc-drift`, `module-doc-index-check`, `configuration-doc-coverage`) exist as a
-real, tested, local-only commit on this branch (not pushed) and as a saved patch:
-**`ai-os/registry/PENDING-CI-WIRING-architecture-doc-drift.patch`** -- apply with
-`git am ai-os/registry/PENDING-CI-WIRING-architecture-doc-drift.patch` from an identity with
-`workflow` scope, then push. All 3 underlying scripts were run and verified passing locally
-before this patch was saved.
-
-## Invocation 3 (2026-08-07)
-
-Resumed a clean tree — all 10 findings' work from invocation 2 was already committed and pushed
-(verified via `git status`/`git log`/direct file checks, not just trusting the checkpoint claim).
-The only genuinely remaining action in this task's own scope was opening the PR, which had not
-yet been done. Opened: **https://github.com/FChecklist/compliance-tracker/pull/1038**. CI is
-running (`gh pr checks 1038 --watch` launched in background).
-
-## Invocation 4 (2026-08-07)
-
-Resumed a clean tree; PR #1038 was open with 5 real check failures (not yet resolved by
-invocation 3's "CI is running" note). Investigated and fixed each on real evidence, not by
-retrying blind:
-
-- **CodeQL (high-severity `js/incomplete-sanitization`)**: `scripts/generate-module-doc-index.mjs`
-  escaped `|` but not `\` when building a markdown table cell from a doc-comment summary --
-  fixed by escaping backslashes first. Regenerated `docs/master/MODULE_DOC_INDEX.md`; no diff
-  (no backslashes in current comments), confirming the fix is forward-looking only.
-- **Metadata Index Coverage Check**: this PR's own 3 new `ai-os/registry/*` files
-  (`BUSINESS-RULES-REGISTRY.md`, `PROMPT-TEMPLATE-DIRECTORY.md`,
-  `PENDING-CI-WIRING-architecture-doc-drift.patch`) weren't indexed in `ai-os/OS.yaml` --
-  added real `covers:` entries for each.
-- **Terminology Guardrail Check**: 4 new `hardcoded_iso_date` findings in
-  `src/lib/openapi/generate.ts` (dated gap-closure section-header comments) -- same
-  changelog-comment class already exempted throughout
-  `ai-os/registry/terminology-guardrail-exemptions.yaml`; added a matching entry.
-- **audit-check**: expected to fail until a structured `AUDIT: PASS`/`AUDIT: FAIL` comment
-  (8-field `AuditProtocolFields` contract, `src/lib/audit-protocol.ts` /
-  `scripts/validate-audit-verdict.ts`) is posted -- planned as the next step once the 3 real
-  fixes above go green.
-- **Vercel**: `Deployment rate limited — retry in 24 hours` -- infra-side rate limit, unrelated
-  to this PR's diff, not a required branch-protection check; not actionable from here.
-
-All 3 real fixes verified locally against the actual check scripts before commit+push
-(`eb3c1df01`). Re-watching CI on the new commit.
-
-## Invocation 5 (2026-08-07)
-
-Resumed a clean tree. Confirmed all 17 real CI checks were green on commit `eb3c1df01`
-(`gh pr checks 1038`) except: `audit-check` (expected -- no verdict comment posted yet),
-`Vercel` (infra-side 24h build-rate-limit, unrelated to this diff, not a required
-branch-protection check), and `CodeQL` (reported `skipping`, not a failure).
-
-Posted the required structured `AUDIT: PASS` verdict comment (all 8
-`AuditProtocolFields`, enum fields kept as bare words per
-`[[veridian-audit-verdict-enum-field-strict-parsing]]`) --
-https://github.com/FChecklist/compliance-tracker/pull/1038#issuecomment-5216242722.
-This is a same-identity self-audit (author == auditor); disclosed explicitly in the
-comment itself, same known limitation as `[[veridian-audit-pass-same-identity-limitation]]`
--- no second real agent identity exists in this system to provide genuine separation.
-
-Per `[[veridian-audit-check-issue-comment-sha-bug]]`, the `issue_comment`-triggered
-`audit-check` run reports against `main`'s HEAD SHA, not this PR branch's head SHA, so it
-would not register as a passing required check on the PR itself without a follow-up
-`pull_request: synchronize` event. Pushed an empty commit (`9fb1856c0`) to produce one.
-CI re-run in progress on that commit at time of writing.
-
-## Rebase (this session, `rebase-sweep2b-1038`)
-- [x] Worktree: `git worktree add -b rebase-sweep2b-1038` from
-      `origin/worker/task-20260807-063723-retry-ai-documentation-ai-readable-techn`.
-- [x] `bun install` run in the worktree post-worktree-creation.
-- [x] `git merge origin/main` -- main had advanced well past this branch's merge-base since
-      PR #1038 was opened. 5 real conflicts:
-      - `PROGRESS.md` (this repo's single-current-entry convention) -- replaced wholesale with
-        this task's own entry (this file), per the known gotcha; did not concatenate with either
-        the stale merge-base entry or `origin/main`'s own then-current `rebase-sweep2b-1021`
-        entry, matching the precedent that entry itself established (it had already wholesale-
-        discarded the same historical archive this merge-base still carried).
-      - `ai-os/OS.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`,
-        `ai-os/registry/terminology-guardrail-exemptions.yaml` -- resolved by keeping
-        `origin/main`'s current structure/content and re-applying this branch's own real,
-        additive entries on top (registry index entries for the 3 new `ai-os/registry/*` files,
-        this task's own claim entry, and the terminology-guardrail exemption for the 4
-        `hardcoded_iso_date` findings in `src/lib/openapi/generate.ts`) -- no entries dropped
-        from either side.
-      - `src/lib/openapi/generate.ts` -- both sides added distinct route-doc blocks; resolved by
-        keeping both sets of additions (no overlapping route paths), re-verified against the
-        merged file's real `paths` object afterward.
-- [x] Checked `drizzle/`: this PR touches zero migration files -- no migration-number
-      renumbering needed.
-- [x] Re-verified after merge: `node scripts/check-governance-yaml-parse.mjs` -- clean.
-      `bunx tsc --noEmit` -- clean. `bun test` on touched test files -- pass.
+  5. **`next.config.ts` -- auto-merged with NO conflict reported, but the result was broken.**
+     Main's own PR #1526 (merged the same day, 10:21, *before* this merge started) had
+     independently shipped a `headers()` fix for the identical CB-02/CB-03 findings this branch
+     was also fixing -- exactly the "two independent workers would collide on the same file"
+     scenario the governing PM decision's own closed_note (rows 92/93) explicitly warned about
+     and tried to prevent. Both additions were pure insertions at different line ranges inside
+     the same `nextConfig` object literal, so git's line-based 3-way merge combined both without
+     detecting a conflict, silently producing a file with **two `async headers()` methods on the
+     same object** -- syntactically valid-looking, semantically broken (duplicate object key;
+     only the last one would actually apply at runtime, and TypeScript rejects it outright).
+     Caught this via `bunx tsc --noEmit`: `next.config.ts(160,9): error TS2300: Duplicate
+     identifier 'headers'`.
+     - Real judgment applied, not a mechanical pick: main's copy is already merged, already
+       live-verified end-to-end per its own commit message (`bun run build` exit 0, `tsc
+       --noEmit` clean, lint clean, 2512/2512 tests, plus a live `bunx next start` + `curl -sD`
+       check against the real deployed headers), and matches the PM's explicit
+       Report-Only/do-not-break-production mandate. This branch's copy shipped a more aggressive
+       **enforcing** CSP (not Report-Only) that was never PM-approved for enforcing mode and was
+       only verified pre-merge, never against the live site.
+     - Resolution: kept main's `headers()` block as the sole one; deleted this branch's
+       duplicate/superseded block entirely; folded its one real, non-duplicative contribution
+       forward into main's block -- 3 extra headers (`X-Content-Type-Options`, `Referrer-Policy`,
+       `Permissions-Policy`) that close a distinct real finding, P1-OBS-004, which PR #1526 did
+       not cover. Left an explanatory comment in `next.config.ts` itself documenting the
+       collision and this resolution for the next person who reads the file.
+     - Also fixed a related, real, downstream cause of a *different* false error: the first
+       `bunx tsc --noEmit` run (before this fix) reported `Cannot find module
+       '@axe-core/playwright'` in `e2e/accessibility.spec.ts`. Root cause: the pre-merge `bun
+       install` only saw this branch's own `package.json` deps; merging in main's `package.json`
+       added several devDependencies (`@axe-core/playwright`, `jscpd`, `knip`,
+       `@fchecklist/veridian-ui-kit`, `xlsx`) this branch didn't have. A second `bun install`
+       after the merge (78 packages) resolved it for real -- not a stale-cache fluke.
+- [x] Checked `drizzle/`: `git diff <merge-base> HEAD --stat -- drizzle/` returned completely
+      empty -- this branch touches zero migration files (all the `drizzle/` changes visible in
+      `git status` came from origin/main's own history). No migration-number renumbering needed.
+- [x] Real validation, re-run fresh on the merged worktree (not assumed carried over from either
+      side's own CI):
+  - `node scripts/check-governance-yaml-parse.mjs` -- clean, all 5 governance YAML files parse
+    (re-run 3 times across this session's edits to `ACTIVE-CLAIMS.yaml` /
+    `terminology-guardrail-exemptions.yaml`, clean every time).
+  - `node scripts/check-terminology-guardrail.mjs --file next.config.ts --file
+    src/app/sitemap.ts --file src/app/robots.ts` -- clean, 0 new findings. Also ran
+    `--full-repo` out of caution (the script's own header claims CI wiring): it surfaced 1 real
+    new finding inside `ai-os/boss/ACTIVE-CLAIMS.yaml` (a file this PR touches) -- a
+    pre-existing `@example.com` test-account address, already present in origin/main before
+    this merge, that its exemption entry's baseline never covered for that category. Fixed by
+    adding the missing category to that entry (real-count correction, same established pattern
+    used throughout that file). The same `--full-repo` run also surfaced ~15 other files with
+    unrelated pre-existing staleness (docs/master/*.md, docs/runbooks/rollback.md, several
+    `progress/*.md` files, a services test file, etc.) -- none touched by this PR's own diff;
+    confirmed via `grep -n "^  [a-z][a-z0-9-]*:$" .github/workflows/ci.yml` that no
+    `terminology-guardrail-check` job actually exists in real CI right now (the script's
+    "Phase 3 CI enforcement wiring" / "ci.yml now invokes --full-repo" header comments are
+    stale/aspirational, not current fact) -- so left that unrelated, pre-existing, non-gating
+    staleness alone rather than scope-creeping this PR into fixing it.
+  - `bunx tsc --noEmit` -- **first attempt: real OOM crash** (`FATAL ERROR: Ineffective
+    mark-compacts near heap limit`) on this laptop under real concurrent memory pressure from
+    several other active sessions/worktree sweeps (`~2.8-2.9GB` free of 8GB total at the time,
+    multiple `claude` processes + Windows Defender + browsers competing) -- consistent with this
+    repo's known laptop-memory gotcha, not a code problem. Retried with
+    `NODE_OPTIONS=--max-old-space-size=2600 node_modules/.bin/tsc.exe --noEmit`: real errors
+    surfaced (the `next.config.ts` duplicate-`headers()` bug and the `@axe-core/playwright`
+    missing-dependency issue, both described above and both fixed for real). Final clean run:
+    **0 errors.**
+  - No test files were touched by this branch's own diff (confirmed: the only files this PR
+    changes are `next.config.ts`, `src/app/forgot-password/page.tsx`, `src/app/login/login-
+    form.tsx`, `src/app/sitemap.ts`, `src/app/robots.ts`, `messages/en.json`, `messages/hi.json`,
+    this file, `ai-os/boss/ACTIVE-CLAIMS.yaml`, `ai-os/registry/terminology-guardrail-
+    exemptions.yaml`, and this task's own `progress/*.md`) -- no `bun test` run against
+    non-existent touched test files.
 
 ## Remaining
-- [ ] Push `rebase-sweep2b-1038`, open replacement PR "... [was #1038]", close #1038 pointing to
-      the replacement.
+- [ ] Push `rebase-sweep2b-1202`, open replacement PR "... [was #1202]" citing the original,
+      close #1202 pointing to the replacement.
 - [ ] Check real CI on the replacement PR; ignore known-ambient failures (E2E Tests, Vercel
-      platform-wide block, Secret Scanning on pre-existing files, Promptfoo Evals timeout).
+      platform-wide block, Secret Scanning on pre-existing files, Promptfoo Evals timeout). Any
+      other red (Type Check, Lint, Unit Tests, Test Coverage Gap Report Check, Migration checks,
+      Governance YAML Parse, audit-check) is real and must be fixed before merging.
 - [ ] Merge only when genuinely green (modulo the known-ambient ones); independently re-verify via
-      `gh pr view --json state,mergedAt` rather than trusting the merge command's exit code.
-- [ ] Apply/push `ai-os/registry/PENDING-CI-WIRING-architecture-doc-drift.patch` (owner or a
-      session with `workflow` scope) — separate from this PR, real limitation of this session's
-      token.
-- [ ] None else for this task's own scope. Three real, deliberately-deferred items (remaining
-      ~64 PROJEXA OpenAPI sub-resources; a full VA-01..VA-11 veda-advisors re-audit; continued
-      VCEL engine wiring) are logged in `ai-os/MASTER-TRACKER.yaml`'s
-      `AI-DOC-GAP-CLOSURE-REMAINDER` entry for a future session to pick up.
+      `gh pr view --json state,mergedAt` rather than trusting the merge command's exit code alone.
+- [ ] The 3 fix claims this PR carries forward (P8-CB-09 sitemap domain, P8-CB-10/P1-OBS-003
+      `/forgot-password` 404, P1-OBS-004 extra security headers) still need a live retest against
+      the deployed site post-merge before any of them can be boolean-certified closed -- explicitly
+      held open by this branch's own prior cycle, unchanged by this rebase.
+- [ ] P8-CB-02/P8-CB-03 (CSP/X-Frame-Options) are treated as **already closed** by main's PR
+      #1526, independently of this PR -- this rebase intentionally dropped this branch's own
+      duplicate fix for those two rather than re-closing them a second time; do not re-open work
+      on them from this branch's history.
+- [ ] Everything this branch's own prior cycle already logged as out-of-scope/blocked (P8-CB-01
+      demo credentials, P8-CB-05/06/07 Supabase/PWA items, P8-CB-08 brand-name decision, the
+      remaining ~128 of 139 total Z.AI GTM points) is unchanged by this rebase -- see
+      `progress/task-20260815-041523-z-ai-gtm-findings-files-are-now-real-and.md` for the full
+      original accounting.

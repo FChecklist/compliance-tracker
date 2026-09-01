@@ -1253,3 +1253,121 @@ active:
       all run clean post-merge; no drizzle/ migrations in this PR's diff, so no journal
       renumbering was needed; no touched files under src/lib/services, so no TEST_COVERAGE_GAP.md
       regen was needed either.
+  - session_label: "claude-code (task-20260815-033857-owner-mandate--z-ai-gtm-findings-closure, CONTINUED by task-20260815-041523-z-ai-gtm-findings-files-are-now-real-and) -- Owner standing mandate: closure of the Z.ai black-box audit of PROJEXA AI COM, one point at a time, governing UMR-20260806-101802-a350 [rebase-merging via rebase-sweep2b-1202, was PR #1202 (itself carrying forward PR #1200's closure fixes), per this repo's standard rebase-sweep protocol]"
+    claimed_at: "2026-08-15T04:00Z (task-20260815-033857); continued 2026-08-15T~04:20Z (task-20260815-041523, this session); rebased 2026-09-01 (round 2, main advanced again mid-flight)"
+    continuation_note: >-
+      task-20260815-033857's own worker unit went inactive mid-cycle (confirmed dead via
+      superboss-register.py umr_tasks, not a live competing session -- reconciler marked
+      UMR-20260806-101802-a350 completed_unmerged at 04:04:33Z citing this same branch/PR
+      still open with real commits) before it could mint child UMRs for the 4 points it
+      fixed or get its PR merged. task-20260815-041523 (this session) picked up that same
+      still-open PR (#1200), independently live-re-verified its 4 fix claims (CSP/XFO
+      headers absent, sitemap.xml wrong domain, /forgot-password 404 all reproduced
+      exactly as claimed pre-merge; passcode-login rate-limiting code independently
+      confirmed real), fixed a real CI failure the dead worker never got to (Terminology
+      Guardrail Check: 2 new unexempted hardcoded_iso_date findings in next.config.ts +
+      src/app/sitemap.ts from this PR's own dated verification comments -- registered
+      permanent exemptions in ai-os/registry/terminology-guardrail-exemptions.yaml,
+      re-ran the check locally to confirm it now passes clean), and is carrying this PR to
+      merge. Cherry-picked the dead worker's commit onto this session's own assigned
+      branch rather than pushing to the old branch directly, per this platform's
+      per-worker branch-isolation enforcement (pretooluse_worker_enforcement.py blocks a
+      worker from committing to any branch but its own).
+    claim: |
+      SPEC (Owner standing mandate, separate from and additional to OCID-020): merge Z.ai's 8
+      real black-box report parts into one file, enumerate every real distinct point (CB/HP/MP/
+      OBS findings + individually-verdicted sub-checks), mint a real child UMR per point, then
+      work each point verify -> understand -> fix-plan -> implement -> audit -> retest -> certify
+      boolean, never fabricating a pass, holding what can't be verified from this server.
+
+      Found on arrival (per Rule 12, checked the real indexes first): inventory phase already
+      done by a prior cycle -- `/opt/veridian/ai-os/memory/zai-gtm-findings/Part1..8_*.txt` (the
+      8 real files), `ZAI_BLACKBOX_AUDIT_MERGED.md` (merge), `ZAI_BLACKBOX_AUDIT_POINTS_MANIFEST.json`
+      (139 real enumerated points: 11 CB, 20 HP, 20 MP, 10 OBS, 78 sub-checks) all exist, dated
+      2026-08-14. Closure phase had minted exactly 10 child UMRs so far (`zai-gtm-tranche1-p8-cb-
+      01..10`, parented to owner-task UMR-20260806-144454-d00c, 2026-08-06), and every one of
+      those 10 only completed the VERIFY sub-step (evidence_json holds a `reproduce_verdict` only
+      -- no fix/audit/retest/certify recorded on any of them). p8-cb-01 itself was still `queued`,
+      never verified.
+
+      This session's real, independently-verified-live (not trusting the 2026-08-06 tranche1
+      verdicts unchecked) work: found the P8-CB-04 "no rate limiting on /api/auth/passcode-login"
+      verdict was WRONG -- live curl (7 consecutive POSTs) shows real 429 after 5 fails; code
+      (passcode-login-service.ts, committed 2026-07-24, predates the 2026-08-06 tranche1 check)
+      already has real dual email+IP rate limiting; the tranche1 git-grep evidence for this point
+      used an unescaped `|`-alternation pattern without `-E`, a real tooling bug that produced a
+      false "zero matches". Live-reconfirmed P8-CB-02 (no CSP), P8-CB-03 (no X-Frame-Options),
+      P8-CB-09 (sitemap.xml points at veridian-ai-os.vercel.app not the real projexa-ai.com
+      domain), and P8-CB-10/P1-OBS-003 (/forgot-password 404) as genuinely still reproducing, and
+      implemented real code fixes for all four in this repo (next.config.ts headers(), src/app/
+      forgot-password/page.tsx new redirect + login-form.tsx prompt banner, src/app/sitemap.ts +
+      robots.ts domain fix) -- see this task's own progress file for exact file list. Fix retest
+      against the live site is pending this PR's own merge+deploy, so none of these are certified
+      closed yet in this cycle -- verify+fix+audit steps done, retest+certify explicitly held for
+      a follow-up cycle once live. P8-CB-01/P1-BLOCKER-001 (invalid demo Supabase Auth
+      credentials) confirmed genuinely blocked from this server: no SUPABASE_SERVICE_ROLE_KEY or
+      DATABASE_URL in this session's env, only SUPABASE_ACCESS_TOKEN -- held, not fabricated.
+    scope_note: >-
+      File scope: next.config.ts, src/app/forgot-password/page.tsx (new), src/app/login/login-
+      form.tsx, src/app/sitemap.ts, src/app/robots.ts, messages/en.json, messages/hi.json, this
+      ACTIVE-CLAIMS entry, this task's own progress/*.md. No schema/DB/CI changes. Does not touch
+      P8-CB-08 (brand-name inconsistency, a separate Owner brand decision already tracked under
+      OCID-038) or P8-CB-05/06/07 (Supabase dashboard rate limits, cookie HttpOnly, PWA icons --
+      out of scope for this cycle's batch, left for a follow-up).
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-sweep2b-1202, replacement for PR #1202), per this
+      repo's standard rebase-sweep protocol. Merged onto current main, which had independently
+      pruned this file's `active:` list to its current ~1,150-line set since this claim was
+      first written; per the same-day precedent recorded above (rebase-1530-final /
+      rebase-sweep2b-1015 / rebase-cleanup-1199 / rebase-sweep2b-1037 / rebase-cleanup-1197
+      entries), took main's current file as-is and appended this entry at the end of `active:`
+      rather than merging/concatenating the stale branch-point version of this file wholesale.
+
+      4 real conflicts resolved during this same merge, plus one real SILENT (non-conflicting)
+      collision `git merge` did not flag but `tsc` caught:
+
+      1. `PROGRESS.md` -- this repo's single-current-entry convention, replaced wholesale.
+
+      2. `ai-os/registry/terminology-guardrail-exemptions.yaml` -- kept main's current content;
+      main already carried its own `next.config.ts` exemption entry at `hardcoded_iso_date: 1`
+      from an unrelated PR #554 baseline regen, so this branch's genuine dated comment was
+      folded into that existing entry (count raised to 2, reason updated) rather than adding a
+      duplicate `file:` key -- `loadExemptions()` keys its lookup Map by filename, last entry
+      wins, so a duplicate key would have silently worked too, but one-entry-per-file matches
+      this manifest's own established practice; `src/app/sitemap.ts` was a genuinely new entry,
+      added as-is.
+
+      3. `src/app/sitemap.ts` -- both sides independently landed the identical fix (`BASE`
+      changed from the wrong `veridian-ai-os.vercel.app` to the real `projexa-ai.com`) -- kept
+      this branch's version since it carries the fuller explanatory comment and the value
+      already matches main's.
+
+      4. `next.config.ts` -- **auto-merged with NO conflict reported, but the result was
+      broken**: main's own PR #1526 (merged same day, 10:21, *before* this merge) had
+      independently shipped a `headers()` fix for the identical CB-02/CB-03 findings this
+      branch was also fixing -- exactly the "two independent workers would collide on the same
+      file" scenario the PM decision's own closed_note (rows 92/93) explicitly warned about.
+      Both additions were pure insertions at different line ranges in the same object literal,
+      so git's line-based 3-way merge combined both silently instead of flagging a conflict,
+      producing a file with two `async headers()` methods on `nextConfig` -- valid-looking but
+      broken (duplicate object key; `bunx tsc --noEmit` caught it as `TS2300: Duplicate
+      identifier 'headers'`, an OOM on the first attempt very nearly hid this behind a false
+      "just re-run it" read -- see `PROGRESS.md`). Real judgment call, not a mechanical pick:
+      main's copy is already merged, live-verified end-to-end (build/tsc/lint/2512 tests +
+      live `curl` against the deployed site per its own commit message), and matches the PM's
+      explicit Report-Only do-not-break-production mandate; this branch's copy shipped a more
+      aggressive *enforcing* CSP that was never PM-approved for enforcing mode and was only
+      verified pre-merge, not against the live site. Kept main's `headers()` block as the sole
+      one, dropped this branch's duplicate/superseded block entirely, and folded its one real
+      non-duplicative contribution forward into main's block: 3 extra headers
+      (X-Content-Type-Options, Referrer-Policy, Permissions-Policy) closing a distinct real
+      finding, P1-OBS-004, that PR #1526 did not cover. Re-verified clean after this fix:
+      `node scripts/check-governance-yaml-parse.mjs` and
+      `node scripts/check-terminology-guardrail.mjs --file next.config.ts --file
+      src/app/sitemap.ts --file src/app/robots.ts` both pass, `bunx tsc --noEmit` 0 errors
+      (needed `NODE_OPTIONS=--max-old-space-size=2600` on this laptop's ~2.8GB free RAM to
+      avoid a repeat OOM crash -- see `PROGRESS.md` for the full memory-pressure note).
+
+      No `drizzle/` conflicts and no migration files anywhere in this PR's diff (confirmed via
+      `git diff <merge-base> HEAD --stat -- drizzle/` returning empty), so no journal
+      renumbering was needed.
