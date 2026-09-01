@@ -935,3 +935,66 @@ active:
       `recently_completed:` section. No `drizzle/` conflicts and no
       migration files anywhere in this PR's diff, so no journal
       renumbering was needed.
+  - session_label: "claude-code (worker task-20260718-171005-cognitive-architecture--deterministic-fi) -- Cognitive Architecture: Deterministic-First Principles: deterministic-first riskLevel for detectBudgetScheduleRisk() [rebase-sweep2b-1037: real rebase-merge of PR #1037 onto current main, replacement PR #1538 OPEN -- PR #1037 itself closed as superseded]"
+    claimed_at: "2026-08-07T (original session); rebased+merged 2026-09-01"
+    claim: |
+      Task task-20260718-171005-cognitive-architecture--deterministic-fi
+      ("Cognitive Architecture: Deterministic-First Principles"). No
+      prompt.txt/spec artifact exists for this task beyond its title;
+      cross-checked its two retry siblings (task-20260718-172005-retry-1,
+      task-20260718-173005-retry-2, both `status: blocked`, no real work)
+      and the merged sibling theme task-20260718-171002 ("Cognitive
+      Consistency & Maturity", PR closing 13ee655ec) -- no prior session had
+      produced a written findings list specific to "Deterministic-First
+      Principles", so the original session generated its own real findings
+      against `CONSTITUTION.yaml`'s `software_first` section (SF-01/SF-02).
+
+      Fixed: `src/lib/services/construction-ai-service.ts`'s
+      `detectBudgetScheduleRisk()` -- `riskLevel` was LLM-decided from
+      purely numeric aggregates (`variance`, `delayedTaskCount`/
+      `totalTaskCount`) with no deterministic path at all, and threw a hard
+      400 when no AI model was configured for an org even though the
+      classification itself needs no AI. Added a pure, unit-tested (11/11
+      pass) `classifyBudgetScheduleRisk()` threshold function plus a
+      `templateBudgetScheduleRisk()` deterministic-fallback reasoning
+      generator; the LLM call (when a model IS configured) is now used only
+      for reasoning prose, with its own `riskLevel` output always
+      overridden by the deterministic value; when no model is configured,
+      a real deterministic template result is returned instead of a 400.
+      File scope: `src/lib/services/construction-ai-service.ts`, new
+      `construction-ai-service.test.ts`, `PROGRESS.md`,
+      `ai-os/MASTER-TRACKER.yaml`, this file. Explicitly did NOT touch
+      `crm-service.ts`'s `scoreLead`/`analyzeOpportunity` (same class of
+      finding, larger product-behavior-change risk -- flagged as a
+      follow-up, not silently dropped) or `ai-team/team-service.ts`'s
+      `classifyTask()` (routing/dispatch-path change, higher blast radius,
+      also flagged as a follow-up).
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-sweep2b-1037, replacement for PR
+      #1037), per this repo's standard rebase-sweep protocol. Prior triage +
+      adversarial-verify (already complete before this sweep, not re-done
+      here) independently re-confirmed the gap is still real and unaddressed
+      on current main: `detectBudgetScheduleRisk()` still throws when no AI
+      model is configured and `riskLevel` is still decided purely by the
+      LLM -- no `classifyBudgetScheduleRisk()`/`templateBudgetScheduleRisk()`
+      exists on main. Merged onto current main, which had independently
+      pruned this file's `active:` list to its current set and added many of
+      its own new entries since this claim was first written -- this entry
+      (describing PR #1037's real work) is re-appended here rather than
+      dropped, per the same precedent as the rebase-final-1019/
+      rebase-1530-final/rebase-sweep2b-1015 entries above. 3 real conflicts
+      resolved during the merge: `PROGRESS.md` (this repo's
+      single-current-entry convention, replaced wholesale), this same
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (resolved as described here), and
+      `ai-os/MASTER-TRACKER.yaml` (a purely additive
+      `GAP-CONSTRUCTION-AI-RISKLEVEL-LLM-ONLY-CLASSIFICATION` entry that
+      exists only on this branch -- main had no conflicting content in that
+      span, so it was kept as-is). No `drizzle/` conflicts -- this PR never
+      touches migrations. The original PR #1037's "merge blocked on
+      repo-wide review-identity deadlock" note is resolved by opening a
+      fresh replacement PR through this rebase-sweep protocol rather than
+      fighting the stale branch-protection state directly. New tests
+      (11/11) and existing suite re-run clean against the merged tree; real
+      validation (governance YAML parse, `tsc --noEmit`, `bun test`) done
+      fresh on the merged worktree, not assumed carried over from the
+      original PR's own CI run.
