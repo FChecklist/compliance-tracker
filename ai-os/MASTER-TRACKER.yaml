@@ -3084,6 +3084,20 @@ open_items:
         statically cached, since they now read the real Host header per-request). Real PR, independent
         review pending before merge -- not self-certified here.
 
+        2026-08-05 real extension (task-20260805-173250-real-comprehensive-end-to-end-browser-te,
+        UMR-20260805-130213-d627, PR #965): the same gap class -- pre-auth pages hardcoding "VERIDIAN AI"
+        with no host-based brand resolution -- was found live on two more pre-auth routes the original
+        fix above did not cover: /signup and /mfa-challenge, both showing the generic VERIDIAN shell on
+        projexa-ai.com instead of a PROJEXA-branded form. Fixed by extending the exact same, already-
+        hardened pattern (async Server Component page.tsx calling the existing, unmodified
+        resolvePreAuthBrandByHost(), passing the result as a plain prop into a new client form component)
+        to src/app/signup/page.tsx (+ new signup-form.tsx) and src/app/mfa-challenge/page.tsx (+ new
+        mfa-challenge-form.tsx). No new resolution/SQL logic introduced -- the prior round-3
+        LIKE-injection fix and its exact-match safeguard are inherited unmodified, and both pages fall
+        back to the byte-identical "VERIDIAN AI" default when no host matches. Superboss-reviewed
+        (tier2, approve) 2026-08-06; merge held pending real Owner/human sign-off per tier2 policy, not
+        yet merged as of this entry.
+
     - id: GAP-OCID038-OCID035-DUPLICATE-PRS
       name: "PR #777 and PR #782 both currently claim real content for OCID-035, under different titles -- RESOLVED, genuinely distinct content, numbering corrected"
       detail: "gh pr list (2026-08-03T07:2xZ): PR #777 'OCID-035 VERIDIAN Continuous Platform Evolution Runtime v1.0' and PR #782 'OCID-036 dispatch, real content OCID-035 VERIDIAN Universal Capability Discovery and Evolution Runtime...' -- both OPEN, both claim OCID-035, different subject titles. Not resolved by either PR as of this reading."
