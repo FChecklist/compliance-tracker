@@ -10,9 +10,11 @@ import { requirePermissionForUser } from "@/lib/services/permission-service"
 export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
+  // R66 code-quality fix: null check reordered before the permission
+  // check, matching the majority pattern elsewhere in this codebase.
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
   const roleErr = requirePermissionForUser(dbUser, "erp.hr_attendance.mark_other")
   if (roleErr) return roleErr
-  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const body = await request.json()

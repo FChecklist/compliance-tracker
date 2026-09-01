@@ -28,6 +28,15 @@ export async function GET() {
   if (response) return response
   if (!orgId) return NextResponse.json({ runs: [] })
 
-  const runs = await listReconciliationRuns({ orgId })
-  return NextResponse.json({ runs })
+  // R66 code-quality fix: GET had no try/catch while POST in this same
+  // file does (wraps runReconciliation in try/catch with ServiceError
+  // handling). Matching that style below.
+  try {
+    const runs = await listReconciliationRuns({ orgId })
+    return NextResponse.json({ runs })
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("GST reconciliation runs list error:", error)
+    return NextResponse.json({ error: "Failed to fetch reconciliation runs" }, { status: 500 })
+  }
 }

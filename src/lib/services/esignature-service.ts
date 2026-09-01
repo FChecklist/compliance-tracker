@@ -7,7 +7,7 @@
 // comparison) rather than a DocuSign/Documenso API wrapper.
 import { esignatureRequests, esignatureSigners, documents, erpContracts, constructionChangeOrders, users, db as rawDb } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { createId } from "@paralleldrive/cuid2"
@@ -190,6 +190,41 @@ export async function listSignatureRequests(ctx: { orgId: string }, filters: { l
       orderBy: (t, { desc }) => desc(t.createdAt),
       with: { signers: true },
     })
+  })
+}
+
+// R66 code-quality fix: an additive batched sibling to listSignatureRequests
+// above, NOT a replacement -- that function's single-linkedEntityId
+// signature is used elsewhere (e.g. the v1/projexa/change-orders/[id]/
+// signature-status alias route) and changing its contract to accept an
+// array risks breaking those callers with no way to verify locally in this
+// pass. This exists so a caller with many entity IDs (e.g.
+// veri-chat/approvals/route.ts's change-order aggregation) can fetch all of
+// them in one query instead of one query per ID. Returns only the latest
+// (first, since ordered desc) request per linkedEntityId, matching how
+// listSignatureRequests(...)[0] was already being used at every N+1 call
+// site this was introduced to fix.
+export async function listLatestSignatureRequestsForEntities(
+  ctx: { orgId: string },
+  filters: { linkedEntityType: string; linkedEntityIds: string[] }
+) {
+  if (filters.linkedEntityIds.length === 0) return new Map<string, Awaited<ReturnType<typeof listSignatureRequests>>[number]>()
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await db.query.esignatureRequests.findMany({
+      where: and(
+        eq(esignatureRequests.orgId, ctx.orgId),
+        eq(esignatureRequests.linkedEntityType, filters.linkedEntityType),
+        inArray(esignatureRequests.linkedEntityId, filters.linkedEntityIds)
+      ),
+      orderBy: (t, { desc }) => desc(t.createdAt),
+      with: { signers: true },
+    })
+    const latestByEntityId = new Map<string, (typeof rows)[number]>()
+    for (const row of rows) {
+      if (!row.linkedEntityId) continue
+      if (!latestByEntityId.has(row.linkedEntityId)) latestByEntityId.set(row.linkedEntityId, row)
+    }
+    return latestByEntityId
   })
 }
 
