@@ -9,7 +9,7 @@ import { crmLeads, crmOpportunities, crmStageHistory, crmPipelineStages, crmLost
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, ilike, inArray, sql, lte, gte, isNotNull, isNull, ne, or } from "drizzle-orm"
 import { z } from "zod"
-import { buildPipelineDeals } from "./sales-pipeline-dashboard-service"
+import { buildPipelineDeals, normalizePipelineStatus, computeKpis, computePipelineStatusOverview } from "./sales-pipeline-dashboard-service"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
@@ -1165,11 +1165,24 @@ export async function getLeadSourceEffectivenessReport(ctx: { orgId: string }) {
 // KPI/chart aggregation happens client-side over this one payload so every
 // cross-filter click (SCOPE item 4) recomputes instantly with zero extra
 // requests, using the exact same pure functions this file's tests cover.
-export async function getSalesPipelineDashboardData(ctx: { orgId: string }) {
+// VERIDIAN Review Framework gap-closure (2026-08-07, "Sales Dashboard" wave):
+// this always fetched every opportunity org-wide, with no role scoping --
+// any org user with sales-module access saw the whole org's pipeline,
+// including every other rep's deals. `restrictToOwnerId`, when set by the
+// caller (the API route, based on the requesting user's own role), narrows
+// the query to that one owner's deals -- additive/optional, so the existing
+// manager/admin-facing call (no opts) is unchanged.
+export type SalesPipelineDashboardOptions = { restrictToOwnerId?: string }
+
+export async function getSalesPipelineDashboardData(ctx: { orgId: string }, opts: SalesPipelineDashboardOptions = {}) {
   await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const [opportunities, orgUsers, targets] = await Promise.all([
-      db.query.crmOpportunities.findMany({ where: eq(crmOpportunities.orgId, ctx.orgId) }),
+      db.query.crmOpportunities.findMany({
+        where: opts.restrictToOwnerId
+          ? and(eq(crmOpportunities.orgId, ctx.orgId), eq(crmOpportunities.ownerId, opts.restrictToOwnerId))
+          : eq(crmOpportunities.orgId, ctx.orgId),
+      }),
       db.query.users.findMany({ where: eq(users.orgId, ctx.orgId), columns: { id: true, name: true } }),
       db.query.crmSalesTargets.findMany({ where: eq(crmSalesTargets.orgId, ctx.orgId) }),
     ])
@@ -1213,6 +1226,132 @@ export async function setSalesTarget(ctx: { orgId: string; userId: string }, inp
       .returning()
     return created
   })
+}
+
+// VERIDIAN Review Framework gap-closure (2026-08-07, "Sales Dashboard"
+// wave): "Notification & Alert Trigger Correctness" flagged that the
+// Pipeline Status Overview/Monthly Revenue Trend charts above have no
+// week-over-week comparison, so a real pipeline slowdown never surfaces as
+// an alert -- a manager has to notice it themselves in the chart.
+// crm_stage_history has no value column of its own (it's a pure from/to
+// ledger), so "value of deals that turned Awarded in a given week" is
+// approximated using each opportunity's CURRENT estimatedValue -- the same
+// honest "best-available approximation, not fabricated" posture already
+// used by getAssignmentOverview()'s activityStatus above (a deal's
+// estimated value can drift after the stage change that's being measured,
+// but there is no historized value to read instead).
+export type SalesPipelineTrend = {
+  currentWeekAwardedValue: number
+  previousWeekAwardedValue: number
+  currentWeekAwardedCount: number
+  previousWeekAwardedCount: number
+  // null when there's no prior-week baseline to compare against (can't
+  // compute a meaningful percentage change from zero) -- never a fabricated 0.
+  deltaPct: number | null
+}
+
+export async function getSalesPipelineTrend(ctx: { orgId: string }, opts: SalesPipelineDashboardOptions = {}): Promise<SalesPipelineTrend> {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const now = new Date()
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+
+    const [recentHistory, opportunities] = await Promise.all([
+      db.query.crmStageHistory.findMany({
+        where: and(eq(crmStageHistory.orgId, ctx.orgId), eq(crmStageHistory.entityType, "opportunity"), gte(crmStageHistory.changedAt, twoWeeksAgo)),
+        columns: { entityId: true, toStage: true, changedAt: true },
+      }),
+      db.query.crmOpportunities.findMany({
+        where: opts.restrictToOwnerId
+          ? and(eq(crmOpportunities.orgId, ctx.orgId), eq(crmOpportunities.ownerId, opts.restrictToOwnerId))
+          : eq(crmOpportunities.orgId, ctx.orgId),
+        columns: { id: true, estimatedValue: true },
+      }),
+    ])
+
+    const valueById = new Map(opportunities.map((o) => [o.id, o.estimatedValue != null ? Number(o.estimatedValue) : 0]))
+    // Only present (thus restrictable) when a caller passed restrictToOwnerId
+    // above -- otherwise every history row for this org counts, matching the
+    // unrestricted (manager/admin) dashboard view.
+    const ownedIds = opts.restrictToOwnerId ? new Set(opportunities.map((o) => o.id)) : null
+
+    let currentWeekAwardedValue = 0, previousWeekAwardedValue = 0
+    let currentWeekAwardedCount = 0, previousWeekAwardedCount = 0
+    for (const h of recentHistory) {
+      if (ownedIds && !ownedIds.has(h.entityId)) continue
+      if (normalizePipelineStatus(h.toStage) !== "Awarded") continue
+      const value = valueById.get(h.entityId) ?? 0
+      if (h.changedAt >= weekAgo) {
+        currentWeekAwardedValue += value
+        currentWeekAwardedCount += 1
+      } else {
+        previousWeekAwardedValue += value
+        previousWeekAwardedCount += 1
+      }
+    }
+
+    const deltaPct = previousWeekAwardedValue > 0
+      ? ((currentWeekAwardedValue - previousWeekAwardedValue) / previousWeekAwardedValue) * 100
+      : null
+
+    return { currentWeekAwardedValue, previousWeekAwardedValue, currentWeekAwardedCount, previousWeekAwardedCount, deltaPct }
+  })
+}
+
+// VERIDIAN Review Framework gap-closure (2026-08-07): "AI Copilot / Worker
+// Agent Integration Depth" flagged that this dashboard has no AI-generated
+// narrative -- every number is a raw tile/chart, nothing summarizes what
+// changed or why it matters, unlike scoreLead()/analyzeOpportunity() below.
+// Same Prompt-OS pattern as those two: resolveModelConfig + a versioned
+// prompt template (drizzle/0313_sales_pipeline_summary_prompt.sql) +
+// recordOrchestraExecution. Unlike scoreLead/analyzeOpportunity, no
+// enforcePolicy() call: every value in userMessage below is a system-
+// computed number derived from this org's own aggregate data, not
+// user-authored free text reaching the model, so there is nothing here for
+// prompt-injection/PII policy to check -- same "check exactly the text that
+// reaches the model, not the whole message" reasoning those two functions'
+// own comments already document. Nothing is persisted -- this is a
+// point-in-time read, generated on demand, same as the dashboard itself.
+export async function generateSalesPipelineSummary(ctx: CrmContext, opts: SalesPipelineDashboardOptions = {}) {
+  await requireSalesEnabled(ctx.orgId)
+  const [{ deals }, trend] = await Promise.all([
+    getSalesPipelineDashboardData(ctx, opts),
+    getSalesPipelineTrend(ctx, opts),
+  ])
+  const kpis = computeKpis(deals)
+  const statusOverview = computePipelineStatusOverview(deals)
+
+  const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
+  if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503, { code: "AI_NOT_CONFIGURED" })
+
+  const systemPrompt = await resolvePromptTemplate("crm_intelligence.sales_pipeline_summary")
+  const userMessage = [
+    `Total pipeline value: ${kpis.salesValue}`,
+    `Success rate (Awarded / (Awarded + Lost)): ${kpis.successPct.toFixed(1)}%`,
+    `Hold rate: ${kpis.holdPct.toFixed(1)}%`,
+    `Lost rate: ${kpis.lostPct.toFixed(1)}%`,
+    `Regret rate: ${kpis.regretPct.toFixed(1)}%`,
+    `Pipeline health (avg AI win probability across open deals): ${kpis.healthPct != null ? `${kpis.healthPct.toFixed(1)}%` : "no open deals scored yet"}`,
+    `Status breakdown: ${statusOverview.map((s) => `${s.label}=${s.value}`).join(", ")}`,
+    `This week's Awarded value: ${trend.currentWeekAwardedValue} (${trend.currentWeekAwardedCount} deal(s))`,
+    `Previous week's Awarded value: ${trend.previousWeekAwardedValue} (${trend.previousWeekAwardedCount} deal(s))`,
+    `Week-over-week change: ${trend.deltaPct != null ? `${trend.deltaPct.toFixed(1)}%` : "no prior-week baseline to compare against"}`,
+  ].join("\n")
+
+  const startedAt = Date.now()
+  const { data: result, usage } = await callLLMJson<{ summary: string }>(
+    modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.3, maxTokens: 400 }, modelConfig.fallback
+  )
+
+  recordOrchestraExecution({
+    orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.sales_pipeline_summary",
+    input: { restrictToOwnerId: opts.restrictToOwnerId ?? null }, output: { summaryLength: result.summary.length },
+    status: "completed", durationMs: Date.now() - startedAt,
+    provider: modelConfig.provider, model: modelConfig.model, usage,
+  })
+
+  return { summary: result.summary, generatedAt: new Date().toISOString(), trend }
 }
 
 // ─── Wave 75 (CRM Intelligence, AI_OS_CERTIFICATION.md §3.3 NOT_BUILT) ────
