@@ -54,5 +54,7 @@ auth/payment/destructive-data logic touched.
 - [x] Real validation on the merged worktree (not assumed carried over from the original PR's CI
       run): `node scripts/check-governance-yaml-parse.mjs`, `bunx tsc --noEmit`, `bun test` on the
       touched test file. See this session's own final report for exact pass/fail results.
-- [ ] Push `rebase-sweep2b-1037`, open replacement PR ("... [was #1037]"), close #1037 as superseded,
-      verify real CI green on the replacement, merge.
+- [x] Pushed `rebase-sweep2b-1037`, opened replacement PR #1538
+      (https://github.com/FChecklist/compliance-tracker/pull/1538, "... [was #1037]"), closed
+      #1037 as superseded.
+- [ ] Verify real CI green on #1538 (modulo known-ambient non-required items), then merge.

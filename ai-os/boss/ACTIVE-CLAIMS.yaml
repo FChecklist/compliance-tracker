@@ -869,7 +869,7 @@ active:
       Round 2 of an ongoing merge sweep -- main kept advancing (PR #1530 delegation-audit, PR
       #1036 cloud-deployment gap-closure) between round 1 (PR #1535 opened) and round 2 (this
       re-append). Re-appended here again since neither round's main tip carries this entry.
-  - session_label: "claude-code (worker task-20260718-171005-cognitive-architecture--deterministic-fi) -- Cognitive Architecture: Deterministic-First Principles: deterministic-first riskLevel for detectBudgetScheduleRisk() [rebase-sweep2b-1037: real rebase-merge of PR #1037 onto current main, replacement PR pending -- PR #1037 itself to be closed as superseded]"
+  - session_label: "claude-code (worker task-20260718-171005-cognitive-architecture--deterministic-fi) -- Cognitive Architecture: Deterministic-First Principles: deterministic-first riskLevel for detectBudgetScheduleRisk() [rebase-sweep2b-1037: real rebase-merge of PR #1037 onto current main, replacement PR #1538 OPEN -- PR #1037 itself closed as superseded]"
     claimed_at: "2026-08-07T (original session); rebased+merged 2026-09-01"
     claim: |
       Task task-20260718-171005-cognitive-architecture--deterministic-fi
