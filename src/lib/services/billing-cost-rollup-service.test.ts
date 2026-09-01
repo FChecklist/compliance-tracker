@@ -7,7 +7,16 @@
 // cost-reconciliation-service.test.ts's own header note, and
 // platform-billing-service.test.ts).
 import { describe, expect, test } from "bun:test"
-import { pickBestRate, pickActiveContract, computeAllocatedCost, computeCallBillableCost, type BillingRateRow, type BillingContractRow } from "./billing-cost-rollup-service"
+import {
+  pickBestRate,
+  pickActiveContract,
+  computeAllocatedCost,
+  computeCallBillableCost,
+  isEffectiveAsOf,
+  filterEffectiveAsOf,
+  type BillingRateRow,
+  type BillingContractRow,
+} from "./billing-cost-rollup-service"
 
 function rate(overrides: Partial<BillingRateRow> = {}): BillingRateRow {
   return {
@@ -215,5 +224,212 @@ describe("computeCallBillableCost -- Formula 2's token component for one AI call
     const default1_2 = computeCallBillableCost({ promptTokens: 10_000, completionTokens: 0 }, { inputTokenRate: "8", outputTokenRate: "25", tokenMultiplier: "1.2" })
     const custom1_5 = computeCallBillableCost({ promptTokens: 10_000, completionTokens: 0 }, { inputTokenRate: "8", outputTokenRate: "25", tokenMultiplier: "1.5" })
     expect(custom1_5.billableCost).toBeGreaterThan(default1_2.billableCost)
+  })
+})
+
+// ─── Phase 3: effective-window edge-case hardening ───────────────────────
+// isEffectiveAsOf/filterEffectiveAsOf used to live only as inline Drizzle
+// WHERE-clause fragments inside resolveActiveContract/resolveActiveBillingRate
+// -- untestable without a live DB. Extracted to pure functions (Phase 3, see
+// billing-cost-rollup-service.ts's own header) specifically so the real
+// boundary semantics behind directive §17's "September bills use V1, October
+// uses V2, no retroactive bleed" example -- and the analogous contract-expiry
+// case -- are actually verified, not just documented.
+
+describe("isEffectiveAsOf -- directive §14/§17 boundary semantics: [effective_from, effective_to)", () => {
+  test("asOf exactly at effective_from is effective (inclusive lower bound)", () => {
+    const row = rate({ effectiveFrom: new Date("2026-09-01T00:00:00.000Z"), effectiveTo: null, status: "active" })
+    expect(isEffectiveAsOf(row, new Date("2026-09-01T00:00:00.000Z"))).toBe(true)
+  })
+
+  test("asOf one millisecond before effective_from is NOT effective", () => {
+    const row = rate({ effectiveFrom: new Date("2026-09-01T00:00:00.000Z"), effectiveTo: null, status: "active" })
+    expect(isEffectiveAsOf(row, new Date("2026-08-31T23:59:59.999Z"))).toBe(false)
+  })
+
+  test("asOf exactly at effective_to is NOT effective (exclusive upper bound -- the critical expiry-boundary case)", () => {
+    const row = rate({ effectiveFrom: new Date("2026-09-01T00:00:00.000Z"), effectiveTo: new Date("2026-10-01T00:00:00.000Z"), status: "active" })
+    expect(isEffectiveAsOf(row, new Date("2026-10-01T00:00:00.000Z"))).toBe(false)
+  })
+
+  test("asOf one millisecond before effective_to is still effective", () => {
+    const row = rate({ effectiveFrom: new Date("2026-09-01T00:00:00.000Z"), effectiveTo: new Date("2026-10-01T00:00:00.000Z"), status: "active" })
+    expect(isEffectiveAsOf(row, new Date("2026-09-30T23:59:59.999Z"))).toBe(true)
+  })
+
+  test("null effective_to is open-ended -- effective arbitrarily far in the future", () => {
+    const row = rate({ effectiveFrom: new Date("2026-09-01T00:00:00.000Z"), effectiveTo: null, status: "active" })
+    expect(isEffectiveAsOf(row, new Date("2099-01-01T00:00:00.000Z"))).toBe(true)
+  })
+
+  test.each(["draft", "expired", "revoked"])(
+    "status '%s' is never effective even squarely inside its own date window (directive rules 9-11 -- draft/expired/revoked is not owner-approved-live)",
+    (status) => {
+      const row = rate({ effectiveFrom: new Date("2026-01-01T00:00:00.000Z"), effectiveTo: null, status })
+      expect(isEffectiveAsOf(row, new Date("2026-09-01T00:00:00.000Z"))).toBe(false)
+    }
+  )
+
+  test("'approved' and 'active' both count as effective by default", () => {
+    const approved = rate({ effectiveFrom: new Date("2026-01-01T00:00:00.000Z"), effectiveTo: null, status: "approved" })
+    const active = rate({ effectiveFrom: new Date("2026-01-01T00:00:00.000Z"), effectiveTo: null, status: "active" })
+    expect(isEffectiveAsOf(approved, new Date("2026-09-01T00:00:00.000Z"))).toBe(true)
+    expect(isEffectiveAsOf(active, new Date("2026-09-01T00:00:00.000Z"))).toBe(true)
+  })
+
+  test("a custom activeStatuses list overrides the default (e.g. treating 'draft' as previewable without touching the real default)", () => {
+    const draft = rate({ effectiveFrom: new Date("2026-01-01T00:00:00.000Z"), effectiveTo: null, status: "draft" })
+    expect(isEffectiveAsOf(draft, new Date("2026-09-01T00:00:00.000Z"))).toBe(false)
+    expect(isEffectiveAsOf(draft, new Date("2026-09-01T00:00:00.000Z"), ["draft"])).toBe(true)
+  })
+})
+
+describe("filterEffectiveAsOf -- composition over a candidate list", () => {
+  test("empty input -> empty output", () => {
+    expect(filterEffectiveAsOf([], new Date("2026-09-01T00:00:00.000Z"))).toEqual([])
+  })
+
+  test("filters out wrong-status and out-of-window rows, keeps only real matches", () => {
+    const asOf = new Date("2026-09-15T00:00:00.000Z")
+    const keep1 = rate({ id: "keep1", effectiveFrom: new Date("2026-09-01T00:00:00.000Z"), effectiveTo: null, status: "active" })
+    const wrongStatus = rate({ id: "draft", effectiveFrom: new Date("2026-09-01T00:00:00.000Z"), effectiveTo: null, status: "draft" })
+    const notYetEffective = rate({ id: "future", effectiveFrom: new Date("2026-10-01T00:00:00.000Z"), effectiveTo: null, status: "active" })
+    const alreadyExpired = rate({ id: "expired", effectiveFrom: new Date("2026-01-01T00:00:00.000Z"), effectiveTo: new Date("2026-09-01T00:00:00.000Z"), status: "active" })
+    const keep2 = rate({ id: "keep2", effectiveFrom: new Date("2026-08-01T00:00:00.000Z"), effectiveTo: new Date("2026-12-01T00:00:00.000Z"), status: "approved" })
+
+    const result = filterEffectiveAsOf([keep1, wrongStatus, notYetEffective, alreadyExpired, keep2], asOf)
+    expect(result.map((r) => r.id).sort()).toEqual(["keep1", "keep2"])
+  })
+})
+
+describe("Mid-period rate-version change -- directive §17's own worked example, generalized (Sept uses V1, Oct uses V2, no retroactive bleed)", () => {
+  const v1 = rate({
+    id: "v1",
+    orgId: null,
+    rateVersion: 1,
+    inputTokenRate: "10",
+    outputTokenRate: "30",
+    baseUserRate: "500",
+    effectiveFrom: new Date("2026-09-01T00:00:00.000Z"),
+    effectiveTo: new Date("2026-10-01T00:00:00.000Z"),
+    status: "active",
+  })
+  const v2 = rate({
+    id: "v2",
+    orgId: null,
+    rateVersion: 2,
+    inputTokenRate: "8",
+    outputTokenRate: "25",
+    baseUserRate: "450",
+    effectiveFrom: new Date("2026-10-01T00:00:00.000Z"),
+    effectiveTo: null,
+    status: "active",
+  })
+  const candidates = [v1, v2]
+
+  test("mid-September resolves to V1", () => {
+    const effective = filterEffectiveAsOf(candidates, new Date("2026-09-15T00:00:00.000Z"))
+    expect(pickBestRate(effective, null)).toEqual(v1)
+  })
+
+  test("the exact instant V2 starts (2026-10-01T00:00:00.000Z) resolves to V2, not V1 -- V1's effective_to is exclusive", () => {
+    const effective = filterEffectiveAsOf(candidates, new Date("2026-10-01T00:00:00.000Z"))
+    expect(pickBestRate(effective, null)).toEqual(v2)
+  })
+
+  test("one millisecond before V2 starts still resolves to V1 -- no early bleed", () => {
+    const effective = filterEffectiveAsOf(candidates, new Date("2026-09-30T23:59:59.999Z"))
+    expect(pickBestRate(effective, null)).toEqual(v1)
+  })
+
+  test("well into October resolves to V2", () => {
+    const effective = filterEffectiveAsOf(candidates, new Date("2026-10-15T00:00:00.000Z"))
+    expect(pickBestRate(effective, null)).toEqual(v2)
+  })
+
+  test("REGRESSION GUARD: a not-yet-effective higher-version rate must not win by version priority alone -- filtering by effective window must run BEFORE pickBestRate's version tie-break, not after", () => {
+    // If someone ever "optimized" resolveActiveBillingRate by calling
+    // pickBestRate on the RAW candidate list (skipping filterEffectiveAsOf
+    // first), this test fails: pickBestRate alone always prefers the
+    // highest rate_version, which would incorrectly select V2 during
+    // September even though V2 isn't effective yet.
+    const wrongOrder = pickBestRate(candidates, null) // no date filter at all
+    expect(wrongOrder).toEqual(v2) // proves pickBestRate alone is version-blind to dates
+    const rightOrder = pickBestRate(filterEffectiveAsOf(candidates, new Date("2026-09-15T00:00:00.000Z")), null)
+    expect(rightOrder).toEqual(v1) // the real resolver's actual composition gets it right
+  })
+})
+
+describe("Multiple concurrent effective rates -- no DB constraint prevents overlapping effective windows for the same (org, product, formula)", () => {
+  test("two ACTIVE rates with overlapping windows both pass the date filter; highest rate_version wins (rule 21)", () => {
+    const asOf = new Date("2026-09-15T00:00:00.000Z")
+    const older = rate({ id: "older", orgId: "org_1", rateVersion: 3, effectiveFrom: new Date("2026-08-01T00:00:00.000Z"), effectiveTo: null, status: "active" })
+    const overlappingNewer = rate({ id: "newer", orgId: "org_1", rateVersion: 4, effectiveFrom: new Date("2026-09-01T00:00:00.000Z"), effectiveTo: null, status: "active" })
+    const effective = filterEffectiveAsOf([older, overlappingNewer], asOf)
+    expect(effective).toHaveLength(2) // both genuinely pass the date/status filter at once
+    expect(pickBestRate(effective, "org_1")).toEqual(overlappingNewer)
+  })
+
+  test("three-way overlap resolves deterministically to the single highest version", () => {
+    const asOf = new Date("2026-09-15T00:00:00.000Z")
+    const rows = [
+      rate({ id: "r1", orgId: "org_1", rateVersion: 1, effectiveFrom: new Date("2026-01-01T00:00:00.000Z"), effectiveTo: null, status: "active" }),
+      rate({ id: "r2", orgId: "org_1", rateVersion: 5, effectiveFrom: new Date("2026-06-01T00:00:00.000Z"), effectiveTo: null, status: "approved" }),
+      rate({ id: "r3", orgId: "org_1", rateVersion: 3, effectiveFrom: new Date("2026-08-01T00:00:00.000Z"), effectiveTo: null, status: "active" }),
+    ]
+    const effective = filterEffectiveAsOf(rows, asOf)
+    expect(effective).toHaveLength(3)
+    expect(pickBestRate(effective, "org_1")?.id).toBe("r2")
+  })
+})
+
+describe("Contract expiry boundary conditions -- combined filterEffectiveAsOf -> pickActiveContract -> pickBestRate pipeline", () => {
+  const orgRate = rate({ id: "org_bare_rate", orgId: "org_1", contractId: null, rateVersion: 2 })
+  const contractRate = rate({ id: "org_contract_rate", orgId: "org_1", contractId: "contract_1", rateVersion: 1 })
+  const allRates = [orgRate, contractRate]
+
+  function resolveForAsOf(contracts: BillingContractRow[], asOf: Date) {
+    const effectiveContracts = filterEffectiveAsOf(contracts, asOf)
+    const activeContract = pickActiveContract(effectiveContracts)
+    return pickBestRate(allRates, "org_1", activeContract?.id ?? null)
+  }
+
+  test("one millisecond before expiry, the contract-backed rate still wins even though it has a LOWER version than the bare org rate", () => {
+    const expiringContract = contract({ id: "contract_1", effectiveFrom: new Date("2026-09-01T00:00:00.000Z"), effectiveTo: new Date("2026-12-01T00:00:00.000Z"), status: "active" })
+    const result = resolveForAsOf([expiringContract], new Date("2026-11-30T23:59:59.999Z"))
+    expect(result).toEqual(contractRate)
+  })
+
+  test("at the exact expiry instant, the contract no longer applies and resolution falls back to the bare org-specific rate (directive §17-style no-retroactive-bleed, applied to contracts)", () => {
+    const expiringContract = contract({ id: "contract_1", effectiveFrom: new Date("2026-09-01T00:00:00.000Z"), effectiveTo: new Date("2026-12-01T00:00:00.000Z"), status: "active" })
+    const result = resolveForAsOf([expiringContract], new Date("2026-12-01T00:00:00.000Z"))
+    expect(result).toEqual(orgRate)
+  })
+
+  test("a contract still in 'draft' status never applies even squarely inside its date window -- resolution falls back to the bare org rate", () => {
+    const draftContract = contract({ id: "contract_1", effectiveFrom: new Date("2026-09-01T00:00:00.000Z"), effectiveTo: null, status: "draft" })
+    const result = resolveForAsOf([draftContract], new Date("2026-09-15T00:00:00.000Z"))
+    expect(result).toEqual(orgRate)
+  })
+
+  test("a 'terminated' contract never applies even before its own effective_to (owner can terminate early -- status beats date window)", () => {
+    const terminatedContract = contract({ id: "contract_1", effectiveFrom: new Date("2026-01-01T00:00:00.000Z"), effectiveTo: new Date("2026-12-31T00:00:00.000Z"), status: "terminated" })
+    const result = resolveForAsOf([terminatedContract], new Date("2026-06-01T00:00:00.000Z"))
+    expect(result).toEqual(orgRate)
+  })
+
+  test("two simultaneously-effective contracts: the most-recently-approved one's id is what wins the rate tie-break (directive §14 level-1 tie-break, exercised through the full pipeline)", () => {
+    const olderApproval = contract({ id: "contract_1", approvedAt: new Date("2026-08-01T00:00:00.000Z"), effectiveFrom: new Date("2026-08-01T00:00:00.000Z"), effectiveTo: null, status: "active" })
+    const newerApproval = contract({ id: "contract_2", approvedAt: new Date("2026-09-01T00:00:00.000Z"), effectiveFrom: new Date("2026-08-15T00:00:00.000Z"), effectiveTo: null, status: "active" })
+    // A rate linked to the NEWER contract should win over one linked to the older contract.
+    const rateForNewerContract = rate({ id: "rate_for_contract_2", orgId: "org_1", contractId: "contract_2", rateVersion: 1 })
+    const rateForOlderContract = rate({ id: "rate_for_contract_1", orgId: "org_1", contractId: "contract_1", rateVersion: 9 }) // higher version, still must lose
+
+    const effectiveContracts = filterEffectiveAsOf([olderApproval, newerApproval], new Date("2026-09-15T00:00:00.000Z"))
+    const activeContract = pickActiveContract(effectiveContracts)
+    expect(activeContract?.id).toBe("contract_2")
+
+    const result = pickBestRate([rateForOlderContract, rateForNewerContract], "org_1", activeContract?.id ?? null)
+    expect(result).toEqual(rateForNewerContract)
   })
 })

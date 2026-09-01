@@ -14,6 +14,39 @@
 // `billingContracts`' schema.ts header for the full reasoning, including
 // the still-collapsed §14 levels 2-3 this phase does not resolve.
 //
+// PHASE 3 ADDITION (edge-case hardening, no schema change): extracts the
+// "is this row currently effective as of a given instant" decision --
+// previously expressed ONLY as inline Drizzle `lte(effectiveFrom, asOf)` /
+// `gt(effectiveTo, asOf)` WHERE-clause fragments inside
+// resolveActiveContract/resolveActiveBillingRate -- into pure, DB-free
+// `isEffectiveAsOf`/`filterEffectiveAsOf` functions. This is a real,
+// disclosed gap this phase closes: the exact boundary semantics that
+// decide "does September's rate or October's rate apply to this exact
+// millisecond" (directive §17's own worked example) were previously
+// untestable without a live database, matching this file's own documented
+// pure/DB-touching split (see billing-cost-rollup-service.test.ts's
+// header) -- so nothing ever actually verified them. Both DB-touching
+// resolvers below are refactored to fetch by (product/org/formula/
+// contract-scope) only and apply the SAME pure filter unit-tested in
+// billing-cost-rollup-service.test.ts -- this is a behavior-preserving
+// refactor (identical boundary semantics: effective_from inclusive,
+// effective_to exclusive/open-ended, status restricted to
+// approved/active), not a new resolution policy, and eliminates the risk
+// of the SQL's boundary logic silently drifting from what's documented and
+// tested. No schema/migration change -- pure application-layer logic only.
+// Still explicitly NOT built here (disclosed, not silently skipped): real
+// period-level PRORATION of a base/per-user charge across a mid-period rate
+// change (e.g. splitting one calendar month's base fee between two rate
+// versions pro-rata by days) -- that requires an actual billing period /
+// invoice-generation concept (Phase 6, not built yet). What this phase adds
+// is the correctness of "which single rate/contract applies at a given
+// instant," which any future proration logic will need as its foundation,
+// and per-call resolution (this file's own `backfillLedgerCosts`, which
+// resolves a rate per ledger row using that row's own `createdAt` as
+// `asOf`) already gets correct per-call pricing across a mid-period rate
+// change today -- proration only matters for period-level aggregate
+// charges (base_rate, base_user_rate), which aren't computed anywhere yet.
+//
 // TWO DELIBERATELY DIFFERENT COLUMNS, NOT ONE CONCEPT TWICE:
 //   - allocated_cost: VERIDIAN's own real internal spend (input_cost +
 //     output_cost + cache_cost, all already real/populated by Part D where
@@ -46,13 +79,65 @@
 //     (see backfillLedgerCosts's own doc comment for the idempotency
 //     contract this enforces).
 import { db, tokenUsageLedger, billingRates, billingProducts, billingContracts } from "@/lib/db"
-import { and, eq, gt, gte, isNull, lt, lte, or, sql } from "drizzle-orm"
+import { and, eq, gte, isNull, lt, or, sql } from "drizzle-orm"
 import { computeFormula2Gross } from "@/lib/billing/formula-engine"
 
 export type BillingRateRow = typeof billingRates.$inferSelect
 export type BillingContractRow = typeof billingContracts.$inferSelect
 
+/** The two statuses directive rules 9-11 treat as "this row is a real,
+ * owner-approved, currently-live commercial term" for both billing_rates
+ * and billing_contracts (their CHECK constraints share these two values --
+ * drizzle/0526, drizzle/0527). 'draft'/'expired'/'revoked'/'terminated'
+ * rows must never be selected regardless of their date window -- a draft
+ * sitting inside its own effective window is still not owner-approved. */
+const DEFAULT_ACTIVE_STATUSES = ["approved", "active"] as const
+
 // ─── Pure helpers (no DB) ──────────────────────────────────────────────
+
+/**
+ * Directive §14/§17's real boundary semantics for "is this row currently
+ * effective as of `asOf`": `effective_from` is an INCLUSIVE lower bound
+ * (a row becomes effective at the exact instant it starts), `effective_to`
+ * is an EXCLUSIVE upper bound when set, open-ended (always effective going
+ * forward) when null -- i.e. the half-open interval [effective_from,
+ * effective_to). This mirrors the exact `lte(effective_from, asOf)` /
+ * `gt(effective_to, asOf)` WHERE-clause semantics resolveActiveContract/
+ * resolveActiveBillingRate used prior to Phase 3, extracted here so the
+ * boundary itself is unit-testable without a database (see this file's
+ * Phase 3 header note). A row whose status isn't in `activeStatuses` is
+ * never effective, independent of its date window -- a 'draft'/'expired'/
+ * 'revoked'/'terminated' row inside its own effective window is still not
+ * an owner-approved live term (directive rules 9-11).
+ */
+export function isEffectiveAsOf<T extends { effectiveFrom: Date; effectiveTo: Date | null; status: string }>(
+  row: T,
+  asOf: Date,
+  activeStatuses: readonly string[] = DEFAULT_ACTIVE_STATUSES
+): boolean {
+  if (!activeStatuses.includes(row.status)) return false
+  if (row.effectiveFrom.getTime() > asOf.getTime()) return false
+  if (row.effectiveTo !== null && row.effectiveTo.getTime() <= asOf.getTime()) return false
+  return true
+}
+
+/** Filters a candidate list down to rows effective as of `asOf`, per
+ * `isEffectiveAsOf`. Zero, one, or MULTIPLE rows may come back "effective"
+ * at once -- directive rule 21 requires rates/contracts be versioned, never
+ * overwritten, but nothing in the schema (billing_rates/billing_contracts)
+ * enforces a DB constraint preventing two simultaneously-effective rows for
+ * the same (org, product, formula) -- this is a disclosed gap the same as
+ * `pickBestRate`/`pickActiveContract`'s own tie-break logic already
+ * documents; those functions are the deliberate tie-break for exactly this
+ * "multiple concurrent effective rows" case, applied downstream of this
+ * filter. */
+export function filterEffectiveAsOf<T extends { effectiveFrom: Date; effectiveTo: Date | null; status: string }>(
+  rows: T[],
+  asOf: Date,
+  activeStatuses: readonly string[] = DEFAULT_ACTIVE_STATUSES
+): T[] {
+  return rows.filter((row) => isEffectiveAsOf(row, asOf, activeStatuses))
+}
 
 /**
  * Directive §14's priority order. R65 Part E Phase 2 (drizzle/0527) takes
@@ -158,6 +243,13 @@ export async function resolveActiveContract(params: {
   formula: "formula_1" | "formula_2"
   asOf: Date
 }): Promise<BillingContractRow | null> {
+  // Fetches every contract for this (org, product, formula) regardless of
+  // status/date window -- status and effective-window filtering are now
+  // done by the pure, unit-tested `filterEffectiveAsOf` below (Phase 3),
+  // not inline SQL, so the exact boundary decision is the same code path
+  // covered by billing-cost-rollup-service.test.ts. Row counts here are
+  // always small (one org's contracts for one product/formula), so moving
+  // this filter out of SQL has no meaningful performance cost.
   const rows = await db
     .select()
     .from(billingContracts)
@@ -165,14 +257,11 @@ export async function resolveActiveContract(params: {
       and(
         eq(billingContracts.orgId, params.orgId),
         eq(billingContracts.productId, params.productId),
-        eq(billingContracts.formula, params.formula),
-        or(eq(billingContracts.status, "approved"), eq(billingContracts.status, "active")),
-        lte(billingContracts.effectiveFrom, params.asOf),
-        or(isNull(billingContracts.effectiveTo), gt(billingContracts.effectiveTo, params.asOf))
+        eq(billingContracts.formula, params.formula)
       )
     )
 
-  return pickActiveContract(rows)
+  return pickActiveContract(filterEffectiveAsOf(rows, params.asOf))
 }
 
 /**
@@ -191,6 +280,13 @@ export async function resolveActiveBillingRate(params: {
   const product = await db.query.billingProducts.findFirst({ where: eq(billingProducts.productKey, params.productKey) })
   if (!product) return null
 
+  // Fetches every candidate rate for this product/formula/org-scope
+  // regardless of status/date window -- same Phase 3 change as
+  // resolveActiveContract above: status + effective-window filtering moved
+  // to the pure, unit-tested `filterEffectiveAsOf` so the exact "which rate
+  // applies at this instant" boundary decision (directive §17's own worked
+  // example) is covered by billing-cost-rollup-service.test.ts instead of
+  // living only in an inline SQL WHERE clause.
   const rows = await db
     .select()
     .from(billingRates)
@@ -198,12 +294,10 @@ export async function resolveActiveBillingRate(params: {
       and(
         eq(billingRates.productId, product.id),
         eq(billingRates.formula, params.formula),
-        or(eq(billingRates.status, "approved"), eq(billingRates.status, "active")),
-        lte(billingRates.effectiveFrom, params.asOf),
-        or(isNull(billingRates.effectiveTo), gt(billingRates.effectiveTo, params.asOf)),
         or(isNull(billingRates.orgId), eq(billingRates.orgId, params.orgId ?? "__no_org__"))
       )
     )
+  const effectiveRows = filterEffectiveAsOf(rows, params.asOf)
 
   // Contract lookup only makes sense for a real org -- a platform-internal
   // (orgId=null) resolution has no organization to hold a contract at all.
@@ -211,7 +305,7 @@ export async function resolveActiveBillingRate(params: {
     ? await resolveActiveContract({ orgId: params.orgId, productId: product.id, formula: params.formula, asOf: params.asOf })
     : null
 
-  return pickBestRate(rows, params.orgId, activeContract?.id ?? null)
+  return pickBestRate(effectiveRows, params.orgId, activeContract?.id ?? null)
 }
 
 export type BackfillSummary = {
