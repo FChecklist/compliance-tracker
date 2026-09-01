@@ -1,0 +1,47 @@
+{
+  // VERIDIAN Review Framework gap-closure, "Dead Code Detection" finding
+  // (AI Engineering Quality / Technical Debt & Complexity). Wired into CI
+  // via scripts/check-dead-code.mjs (a count ratchet against
+  // ai-os/registry/dead-code-baseline.yaml -- see that file's own header
+  // for the honest-limitation note).
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  // Additive to knip's built-in Next.js plugin (auto-detects
+  // src/app/**/{page,layout,route,...} as entry points already). These are
+  // real CLI entry points invoked directly (`node scripts/x.mjs` from CI
+  // workflows / package.json scripts), not dead code, but knip can't infer
+  // that without being told -- nothing else in the repo imports them.
+  "entry": [
+    "scripts/**/*.{mjs,ts}!",
+    "ai-os/scripts/**/*.mjs!",
+    "src/db/seed.ts"
+  ],
+  // examples/**: standalone reference/demo code, deliberately outside the
+  // app's real module graph. public/**: static assets, not part of the TS
+  // build. src/components/ui/**: shadcn/ui-generated components consumed
+  // via barrel-style imports that knip's static graph traces poorly,
+  // producing mostly false "unused export" positives.
+  "ignore": [
+    "examples/**",
+    "public/**",
+    "src/components/ui/**"
+  ],
+  // Used only via config/build tooling (postcss.config.mjs, tailwind's own
+  // CSS @import), or an implicit Next.js/Vercel image-optimization runtime
+  // dependency (sharp) -- never a direct source import, so knip can't see
+  // the real usage.
+  "ignoreDependencies": [
+    "@tailwindcss/postcss",
+    "tailwindcss",
+    "tw-animate-css",
+    "sharp"
+  ],
+  // promptfoo is deliberately installed globally in CI (npm install -g),
+  // NOT as a project dependency -- see .github/workflows/ai-prompt-evals.yml's
+  // own header (PR #417 rescue): promptfoo's bundled ajv@^8.x conflicts
+  // with this repo's ajv@6.14.0 override, needed by other tooling. Adding
+  // it here as a package.json dependency would reintroduce that conflict.
+  "ignoreBinaries": [
+    "promptfoo"
+  ],
+  "ignoreExportsUsedInFile": true
+}

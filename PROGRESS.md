@@ -1,25 +1,90 @@
-# PROGRESS -- task-20260731-044026-pm--teams---project-groups-templates
+# PROGRESS -- pr667-resume (real rebase-merge for PR #667)
 
-## Completed
-- [x] Read AGENTS.md/CLAUDE.md governance chain; registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (committed+pushed separately, before real work)
-- [x] Confirmed next-free migration number (0302) via freshly-fetched `origin/main`'s `drizzle/meta/_journal.json` + `ls drizzle/*.sql` (highest existing: 0301)
-- [x] Researched real conventions to mirror: `ticket_teams` shape (schema.ts:5503), PMS tables (`pmsMilestones`/`pmsIssues`), org-scoping (`org_id text NOT NULL REFERENCES compliance.organisations(id)`), hand-written-migration RLS pattern (`drizzle/0021_wave25_pms_enablement_and_core_issues.sql`), service-layer convention (`pms-issue-service.ts`, `ticket-service.ts`'s team CRUD), test harness pattern (`pms-time-service.test.ts`)
-- [x] Designed genuinely new, decoupled schema (appended to `src/lib/db/schema.ts`, NOT extending `ticket_teams`): `pmTeams` + `pmTeamMembers` (real membership roster, which ticket_teams never had), `projectGroups` + `projectGroupProjects` (many-to-many), `projectTeamAssignments` (project <-> team link, `isPrimary` flag = "default team"), `projectTemplates` (JSON snapshot of phases/tasks, captured either explicitly or from an existing project's real structure), `projectPhases` + `projectTasks` (new minimal ungated tables cloning targets -- deliberately NOT `pms_issues`/`pms_milestones`, out of scope + PMS-branch-gated)
-- [x] Hand-written migration `drizzle/0302_pm_teams_project_groups_templates.sql` (CREATE TABLE + RLS `app_runtime_org_scoped`/`service_role_bypass` policies + grants + covering indexes, same shape as 0021's), registered in `drizzle/meta/_journal.json`
-- [x] Service layer: `pm-team-service.ts` (list/get/create/update team, list/add/updateRole/remove member), `project-group-service.ts` (list/create/update group, list/add/remove group-project link), `project-template-service.ts` (list/get/create/update template incl. snapshot-from-existing-project, `createProjectFromTemplate` clone function + 2 pure helper functions `buildClonedPhaseRows`/`buildClonedTaskRows`)
-- [x] `bun install` (node_modules was missing in this fresh workspace)
-- [x] Tests written: `pm-team-service.test.ts`, `project-group-service.test.ts`, `project-template-service.test.ts` (incl. real template-clone-produces-real-cloned-structure test: phases created, tasks linked to their real cloned phase id, default team assignment created)
+## Scope
+Real rebase-merge of PR #667 (`worker/task-20260731-044026-pm--teams---project-groups-templates`,
+"PM Teams, Project Groups, and Project Templates (Task #47)") onto current main, per this repo's
+standard rebase-sweep protocol. A prior attempt at this same task failed partway through on a
+transient ECONNRESET network error (not a real decision) -- this is a fresh restart, new clone, new
+branch. Decision context already verified real before starting: grep of schema.ts for
+pmTeams/projectGroups/projectTemplates on main returns zero hits; every Team/Template match on main is
+unrelated; no team/group/template directories exist under PM API routes -- PR #667's tables
+(pm_teams, pm_team_members, project_groups, project_group_projects, project_templates,
+project_team_assignments, project_phases, project_tasks) and services are genuinely new
+functionality, not already shipped.
 
-- [x] `bun test` on the 3 new test files: 21 pass / 0 fail, 47 expect() calls
-- [x] `node scripts/check-migration-collision.mjs`: OK, no number collisions
-- [x] `node scripts/check-guardrail-presence.mjs`: passed, all 88 markers present
-- [x] Manual review of schema.ts diff, migration SQL, and all 3 service files for convention consistency, RLS coverage, FK indexing -- all clean
-- [~] `npx tsc --noEmit` locally OOM'd (exit 134, "JavaScript heap out of memory") -- NOT a code issue: `free -h` showed 13Gi/15Gi used, swap exhausted, by other concurrent Claude sessions' node processes on this shared machine (matches known shared-worktree resource contention). Per protocol (stop repeating an approach after a failure rather than burning cycles on a memory-starved retry that will very likely fail identically), did not retry locally. `.github/workflows/ci.yml` runs `bunx tsc --noEmit` as a dedicated CI step on a fresh runner -- deferring the full type-check gate to CI on the PR, consistent with `bun test` already passing and manual review finding no type issues.
+## Environment gotcha hit this session (new, not previously documented)
+The scratchpad working directory is NOT exclusive to this session despite being session-scoped by
+path -- a first clone into a generic `compliance-tracker` subdirectory was silently deleted out from
+under this session mid-task (almost certainly by another concurrent session doing unrelated PR work
+in the same physical scratchpad path -- evidence: dozens of other sessions' leftover files for
+different PRs, e.g. `pr673*.json`, `r65_part_c_phase1.js`, timestamped minutes apart from this
+session's own work, plus other sessions' own uniquely-named clone dirs like `ct2`/`r65c` showing
+they'd already learned this lesson). Fix: re-cloned into a uniquely-named directory
+(`pr667resume_9480ff4e`, keyed off this session's own id) instead of a generic name. Flagging this
+so a future session picks a collision-resistant clone directory name from the start.
 
-- [x] Committed + pushed service/schema/migration/test changes (`13c52d6c`)
-- [x] Opened PR #667 (https://github.com/FChecklist/compliance-tracker/pull/667) -- not merged, not self-audited, per Rule 7(c)
-- [x] Moved ACTIVE-CLAIMS.yaml entry from `active:` to `recently_completed:` with PR #667 reference, committed+pushed (`efddd2d4`)
-- [~] `KERNEL_CONSOLIDATION_STATUS.md` does not exist anywhere in this repo (confirmed via repo-wide grep) -- this "remaining" item from an earlier checkpoint appears to be stale boilerplate not applicable here; skipped.
+## Rebase (this session), branch `pr667-resume` off the PR's real head branch
+- [x] Got the PR's real head branch via `gh pr view 667 --json headRefName`:
+      `worker/task-20260731-044026-pm--teams---project-groups-templates`. Confirmed real state first:
+      `state=OPEN`, `mergeStateStatus=DIRTY`, `mergeable=CONFLICTING` (genuine conflicts expected,
+      not a stale/false signal).
+- [x] Fresh `gh repo clone`, `git checkout -b pr667-resume` off the PR's head branch (commit
+      `5f296ba2`), `git fetch origin main`. Branch had drifted **1333 commits** behind main.
+- [x] `git merge origin/main` -- **4 real conflicts, resolved with actual judgment, not blind
+      pick-one-side:**
 
-## Remaining
-- [ ] Task is code-complete and PR is open; nothing left for this session to do except watch CI on PR #667 (`bunx tsc --noEmit` in particular, given the local OOM) and respond if CI surfaces real type errors or the mandatory-audit-check gate needs another agent's audit comment per Rule 7(c)/10 (this session must NOT self-audit its own PR)
+  1. **`PROGRESS.md`** -- this repo's single-current-entry convention: replaced wholesale with this
+     file (this section), did not concatenate with either the stale merge-base entry or main's own
+     then-current entry (which was a different, still-in-progress rebase-sweep for PR #1212).
+
+  2. **`ai-os/boss/ACTIVE-CLAIMS.yaml`** -- this branch's own diff carried the file's old, pre-Phase-5
+     bloated state (its own claim for this task buried in a `recently_completed:` section, 4368 lines
+     total). Origin/main had independently pruned this file down to just its current `active:` list
+     (1450 lines, `recently_completed:` section removed entirely). Took main's current pruned content
+     as-is, unmodified, and appended just this task's one relevant entry back under a fresh
+     `recently_completed:` section at the end -- did not reintroduce any of the rest of the stale
+     bloated history. Validated: `python -c "import yaml; yaml.safe_load(...)"` parses clean, 35
+     active + 1 recently_completed entries.
+
+  3. **`drizzle/meta/_journal.json`** -- this branch's own migration entry (idx 279, tag
+     `0302_pm_teams_project_groups_templates`) collided with main's own independent use of `0302`
+     for an unrelated migration (`0302_sales_pipeline_dashboard_targets`, Sales Pipeline dashboard
+     targets). Found the TRUE current highest migration number the hard way, per this repo's own
+     documented gotcha (never trust a stale local checkout or the journal's own idx sequence):
+     `git ls-tree -r origin/main -- drizzle/`, parsed with a small Python script (a first attempt with
+     a bash grep/sed/sort pipeline silently produced garbled/wrong results on this shell -- did not
+     trust it, re-verified numerically in Python instead) -- main's real highest is
+     `0518_ai_cost_reconciliation` (journal idx 340). Renamed this branch's migration file
+     `drizzle/0302_pm_teams_project_groups_templates.sql` -> `drizzle/0519_pm_teams_project_groups_templates.sql`
+     (`git mv`) and appended a new journal entry (idx 341) after main's real idx-340 entry, instead of
+     splicing into the middle of main's list. Confirmed via targeted `Grep` that no other file
+     (docs, tests, services) references the old `0302_pm_teams...` name or number -- only PROGRESS.md
+     did, which is being wholesale-replaced anyway; `crm_sales_targets`-adjacent test files that
+     reference "0302" refer to main's own unrelated `0302_sales_pipeline_dashboard_targets.sql` and
+     were left untouched.
+
+  4. **`src/lib/db/schema.ts`** -- a large additive conflict that `git` initially rendered as 3
+     separate conflict hunks purely because of coincidental identical boilerplate lines
+     (`createdAt`/`updatedAt`/`})`) at table-closing points on both sides, not because there were 3
+     real separate insertion points. Verified this directly: pulled the full `schema.ts` from both
+     branch tips (`git cat-file -p <branch>:src/lib/db/schema.ts`) and confirmed both sides'
+     *entire* new content is one single contiguous append immediately after
+     `supportSessionsRelations` running to the literal end of file on both branches (this branch:
+     165 lines, the `pmTeams`/`pmTeamMembers`/`projectGroups`/`projectGroupProjects`/
+     `projectTeamAssignments`/`projectTemplates`/`projectPhases`/`projectTasks` tables + their
+     relations; main: 520 lines, several unrelated waves' tables --
+     `reportShareLinks`/`submissions`/`pipelineTasks`, the M28 screen-registry tables, RAG/erasure
+     tables, `roleQualityRuns`/`providerOutageWindows`). No real semantic collision between the two --
+     reconstructed the resolved file as: common prefix (unconflicted, already correctly
+     three-way-merged by git) + this branch's full 165-line block verbatim + main's full 520-line
+     block verbatim. Zero content dropped from either side, nothing hand-edited inside either block.
+
+## Remaining (this checkpoint)
+- [ ] `bun install`, then real validation: `node scripts/check-governance-yaml-parse.mjs`,
+      `bunx tsc --noEmit`, `bun test` on touched files.
+- [ ] Push `pr667-resume`, open replacement PR "... [was #667]", close #667 pointing to it.
+- [ ] Real CI (`gh pr checks`), retry transient network errors up to 5x. Known-ambient
+      non-blocking failures per this task: E2E Tests, Vercel (org-wide deployment-blocked), Secret
+      Scanning (only if pre-existing), Promptfoo Evals.
+- [ ] Merge only when genuinely green (`gh pr merge --squash --delete-branch`), then independently
+      verify via `gh pr view --json state,mergedAt` (not just the merge command's exit code).

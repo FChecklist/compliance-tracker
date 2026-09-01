@@ -316,7 +316,7 @@ export default function HomePage() {
             <div className="mt-6 rounded-2xl border border-ct-border bg-white/70 backdrop-blur px-5 py-4 shadow-sm">
               {!briefingReady ? (
                 <div className="flex items-center gap-3 text-sm text-ct-slate">
-                  <Loader2 className="size-4 animate-spin text-ct-saffron" />
+                  <Loader2 className="size-4 animate-spin text-ct-saffron-text" />
                   <span>{(firstRun ? FIRST_RUN_STEPS : WORKING_STEPS)[workingStep]}</span>
                 </div>
               ) : (
@@ -327,7 +327,7 @@ export default function HomePage() {
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                         50+ modules live
                       </span>
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-ct-saffron/10 px-3 py-1 text-xs font-semibold text-ct-saffron">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-ct-saffron/10 px-3 py-1 text-xs font-semibold text-ct-saffron-text">
                         <Sparkles className="size-3" /> Your assistant: on duty
                       </span>
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-ct-cloud px-3 py-1 text-xs font-semibold text-ct-slate">
@@ -439,17 +439,17 @@ export default function HomePage() {
         <div className="flex h-full flex-col bg-white">
           <div className="flex items-center justify-between border-b border-ct-border px-4 py-3">
             <div className="flex items-center gap-2">
-              <MessageSquare className="size-4 text-ct-saffron" />
+              <MessageSquare className="size-4 text-ct-saffron-text" />
               <span className="font-heading text-[15px] text-ct-navy">VERI Chat</span>
             </div>
-            <Link href="/chat" className="text-[11px] font-semibold text-ct-saffron hover:underline">Open all</Link>
+            <Link href="/chat" className="text-[11px] font-semibold text-ct-saffron-text hover:underline">Open all</Link>
           </div>
           <div className="flex-1 overflow-y-auto">
             {chats.length === 0 ? (
               <div className="px-5 py-10 text-center">
                 <MessageSquare className="mx-auto size-6 text-ct-muted/50" />
                 <p className="mt-3 text-sm text-ct-muted">No team conversations yet.</p>
-                <Link href="/chat" className="mt-2 inline-block text-[13px] font-semibold text-ct-saffron hover:underline">Start a chat →</Link>
+                <Link href="/chat" className="mt-2 inline-block text-[13px] font-semibold text-ct-saffron-text hover:underline">Start a chat →</Link>
               </div>
             ) : (
               chats.map((c) => (

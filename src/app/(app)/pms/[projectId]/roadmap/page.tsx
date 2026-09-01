@@ -89,7 +89,7 @@ export default function RoadmapPage() {
                 style={{ left: `${marker.left}%` }}
                 title={marker.label}
               >
-                <Milestone className="size-3.5 text-ct-saffron absolute -top-1 -left-[7px]" />
+                <Milestone className="size-3.5 text-ct-saffron-text absolute -top-1 -left-[7px]" />
               </div>
             ))}
             {timeline.bars.map((bar) => (

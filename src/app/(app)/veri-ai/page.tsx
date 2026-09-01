@@ -132,7 +132,7 @@ export default function VeriAiPage() {
     <div className="h-[calc(100vh-8rem)] flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Bot className="size-5 text-ct-saffron" />
+          <Bot className="size-5 text-ct-saffron-text" />
           <h1 className="font-heading text-xl text-ct-navy">VERI AI</h1>
         </div>
         {/* Wave 42 (VERI FDE, PLATFORM_STRATEGY.md §23): VERI AI is where a
@@ -180,6 +180,7 @@ export default function VeriAiPage() {
               disabled={attaching || !conversationId}
               onClick={() => fileInputRef.current?.click()}
               title="Attach a document for VERI AI to read"
+              aria-label="Attach a document for VERI AI to read"
             >
               {attaching ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
             </Button>
@@ -197,7 +198,7 @@ export default function VeriAiPage() {
               rows={1}
               className="min-h-[44px] max-h-[200px] resize-none text-sm overflow-y-auto"
             />
-            <Button onClick={() => send()} disabled={sending || !content.trim()} size="icon" className="shrink-0">
+            <Button onClick={() => send()} disabled={sending || !content.trim()} size="icon" className="shrink-0" aria-label="Send message">
               {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
             </Button>
           </div>

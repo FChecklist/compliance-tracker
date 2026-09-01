@@ -69,6 +69,29 @@ export async function createMeeting(
   })
 }
 
+// Real-screen conversion (2026-08-30): real update -- a reschedule or
+// duration correction had no path except deleting/re-creating the meeting
+// (and there was no delete either). No status/isCancelled column exists on
+// pms_meetings, so no Delete/Cancel action is offered here -- inventing one
+// without a real schema primitive would be exactly the "fake it" this
+// session's own standard rules out.
+export async function updateMeeting(
+  ctx: { orgId: string },
+  meetingId: string,
+  patch: Partial<{ title: string; scheduledAt: string; durationMinutes: number | null }>
+) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.pmsMeetings.findFirst({ where: and(eq(pmsMeetings.id, meetingId), eq(pmsMeetings.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Meeting not found", 404)
+    if (patch.title !== undefined && !patch.title.trim()) throw new ServiceError("title cannot be empty", 400)
+
+    const [row] = await db.update(pmsMeetings)
+      .set({ ...patch, scheduledAt: patch.scheduledAt !== undefined ? new Date(patch.scheduledAt) : undefined })
+      .where(eq(pmsMeetings.id, meetingId)).returning()
+    return row
+  })
+}
+
 export async function addMeetingOutcome(ctx: { orgId: string }, meetingId: string, notes: string) {
   if (!notes?.trim()) throw new ServiceError("notes is required", 400)
 

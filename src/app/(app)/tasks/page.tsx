@@ -256,7 +256,7 @@ function KanbanColumn({
                     <div className="flex gap-1.5 pt-1 border-t border-ct-border/50">
                       <Link
                         href={`/compliance/${item.id}`}
-                        className="flex-1 text-[10px] text-ct-muted hover:text-ct-saffron transition-colors flex items-center justify-center gap-1 py-1"
+                        className="flex-1 text-[10px] text-ct-muted hover:text-ct-saffron-text transition-colors flex items-center justify-center gap-1 py-1"
                         onClick={e => e.stopPropagation()}
                       >
                         View <ArrowRight className="size-3" />

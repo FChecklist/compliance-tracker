@@ -12,14 +12,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import type { PreAuthBrand } from "@/lib/services/org-branding-service";
 
-export function LoginForm() {
+// OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, Stage 1 real
+// implementation (UMR-20260804-090421-c647): `brand` is resolved
+// server-side by the async parent page.tsx (real HTTP Host header ->
+// product_branches lookup) and passed down as a plain prop -- this
+// component does no I/O of its own, matching the "enhance, don't build a
+// second engine" instruction. `null` (the common case: no host match) means
+// "render exactly what this page already rendered before this change" --
+// this must never look broken/different for the platform default.
+export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
   const t = useTranslations("Login");
   const tAuth = useTranslations("Auth");
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/home";
   const errorParam = searchParams.get("error");
+  // Owner mandate task-20260815-033857 (Z.ai black-box audit point
+  // P8-CB-10 / P1-OBS-003): /forgot-password redirects here with this
+  // marker (see src/app/forgot-password/page.tsx) rather than 404ing.
+  const forgotPasswordParam = searchParams.get("reason") === "forgot-password";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -193,9 +206,9 @@ export function LoginForm() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-3 mb-4">
-              <img src="/logo-mark.svg" alt="VERIDIAN AI" className="size-11 rounded-xl" />
+              <img src="/logo-mark.svg" alt={brand?.brandName ?? "VERIDIAN AI"} className="size-11 rounded-xl" />
               <span className="font-heading text-2xl text-white">
-                VERIDIAN AI
+                {brand?.brandName ?? "VERIDIAN AI"}
               </span>
             </div>
             <p className="text-white/60 text-sm">
@@ -217,6 +230,12 @@ export function LoginForm() {
               {errorParam && (
                 <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3 text-center">
                   {t("authFailed")}
+                </div>
+              )}
+
+              {forgotPasswordParam && (
+                <div className="bg-blue-50 border border-blue-200 text-blue-700 text-sm rounded-lg p-3 text-center">
+                  {t("forgotPasswordPrompt")}
                 </div>
               )}
 
@@ -253,6 +272,7 @@ export function LoginForm() {
                   <Input
                     id="email"
                     type="email"
+                    autoComplete="username"
                     placeholder={t("emailPlaceholder")}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -268,7 +288,7 @@ export function LoginForm() {
                     </Label>
                     <button
                       type="button"
-                      className="text-xs text-ct-saffron hover:underline"
+                      className="text-xs text-ct-saffron-text hover:underline"
                       onClick={handleMagicLink}
                     >
                       {t("sendMagicLink")}
@@ -277,6 +297,7 @@ export function LoginForm() {
                   <Input
                     id="password"
                     type="password"
+                    autoComplete="current-password"
                     placeholder={t("passwordPlaceholder")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -373,7 +394,7 @@ export function LoginForm() {
                 {t("noAccount")}{" "}
                 <Link
                   href="/signup"
-                  className="text-ct-saffron font-medium hover:underline"
+                  className="text-ct-saffron-text font-medium hover:underline"
                 >
                   {t("createOne")}
                 </Link>
@@ -385,6 +406,30 @@ export function LoginForm() {
           <p className="text-center text-xs text-white/40 mt-6">
             {tAuth("footer")}
           </p>
+          {/* OCID-020 category 23 fix (UMR-20260806-132527-30dc): the real
+              UX audit found /login rendered zero navLinks/footerLinks --
+              no way back to the marketing site and no help/contact entry
+              point pre-auth. These two links are the minimal real fix.
+              UMR-20260809-024850-5837 (H3, "User control and freedom"):
+              re-audited live and found these links genuinely render on the
+              deployed page (confirmed via a direct curl of the real HTML)
+              but the audit script's own real footerLinks extractor
+              (gtm_check_ux_audit.py, q('footer a')) only matches an actual
+              <footer> element -- this was a plain <div>, a real semantic-
+              markup gap, not a missing feature. Using <footer> here is the
+              honest fix (correct semantics, not a detector workaround) --
+              adding a second, redundant link instead would have been
+              dishonest padding for a check that was already satisfied in
+              substance. */}
+          <footer className="mt-2 flex items-center justify-center gap-4 text-xs text-white/50">
+            <Link href="/" className="hover:text-white/80 hover:underline">
+              Back to home
+            </Link>
+            <span aria-hidden="true">&middot;</span>
+            <Link href="/contact" className="hover:text-white/80 hover:underline">
+              Need help? Contact us
+            </Link>
+          </footer>
           <div className="mt-3 flex justify-center">
             <LanguageSwitcher className="text-[11px] bg-white/10 border border-white/20 rounded-md px-1.5 py-0.5 text-white/70" />
           </div>

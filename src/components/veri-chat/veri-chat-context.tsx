@@ -67,6 +67,23 @@ type AiThreadState = {
     chainSelection?: { modePill: string; pathKeys: string[] },
     skippedChainSelector?: boolean
   ) => Promise<string | null>;
+  // VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md §2 item 6 / §3.1.2:
+  // lifted out of VeriComposer.tsx's private useState so AppSidebar (and any
+  // other consumer outside the composer) can read/write the in-progress
+  // chain selection too -- e.g. syncing a sidebar-item click to the same
+  // chain the mode-pill picker builds. Lives in this repo's own inner
+  // context (not the shared veridian-ui-kit factory) per the spec's §2
+  // principle: this is product-real chain-selection state, not generic
+  // shell chrome.
+  selectedPath: PathSegment[];
+  setSelectedPath: (path: PathSegment[] | ((prev: PathSegment[]) => PathSegment[])) => void;
+  // GAP-VERI-TODO-STUCK-LOADING-NOT-READY root cause (MASTER-TRACKER.yaml):
+  // aiThreadId/activeAiThreadId start null and only populate once the
+  // /api/conversations fetch below resolves -- a composer submit in the
+  // window before that lands hits the null branch and reports "not ready"
+  // even though it would have succeeded a moment later. Exposed so the
+  // composer can gate submission on this instead of racing it.
+  aiThreadsLoading: boolean;
 };
 
 const AiThreadContext = createContext<AiThreadState | null>(null);
@@ -75,6 +92,8 @@ function AiThreadProvider({ children }: { children: ReactNode }) {
   const [aiThreadId, setAiThreadId] = useState<string | null>(null);
   const [activeAiThreadId, setActiveAiThreadId] = useState<string | null>(null);
   const [aiThreads, setAiThreads] = useState<AiThreadSummary[]>([]);
+  const [selectedPath, setSelectedPath] = useState<PathSegment[]>([]);
+  const [aiThreadsLoading, setAiThreadsLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/conversations")
@@ -89,7 +108,8 @@ function AiThreadProvider({ children }: { children: ReactNode }) {
           setActiveAiThreadId(primary.id);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setAiThreadsLoading(false));
   }, []);
 
   const switchAiThread = (id: string) => setActiveAiThreadId(id);
@@ -118,8 +138,8 @@ function AiThreadProvider({ children }: { children: ReactNode }) {
   };
 
   const value = useMemo<AiThreadState>(
-    () => ({ aiThreadId, activeAiThreadId, aiThreads, switchAiThread, createNewAiThread }),
-    [aiThreadId, activeAiThreadId, aiThreads]
+    () => ({ aiThreadId, activeAiThreadId, aiThreads, switchAiThread, createNewAiThread, selectedPath, setSelectedPath, aiThreadsLoading }),
+    [aiThreadId, activeAiThreadId, aiThreads, selectedPath, aiThreadsLoading]
   );
 
   return <AiThreadContext.Provider value={value}>{children}</AiThreadContext.Provider>;

@@ -25,7 +25,7 @@ export async function GET() {
     const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       const [balance, history, achievements, streaks] = await Promise.all([
         getPointsBalance(db, orgId, dbUser.id),
-        listPointsHistory(db, orgId, dbUser.id, 20),
+        listPointsHistory(db, orgId, dbUser.id, { limit: 20 }),
         listAchievementsWithProgress(db, orgId, dbUser.id),
         listStreaks(db, orgId, dbUser.id),
       ])

@@ -6,8 +6,8 @@
 // orchestra-model-resolver.ts's platform-scoped reads -- this ledger spans
 // both platform-internal (no org) and per-org rows, so it was never a fit
 // for withTenantContext's org-scoped model.
-import { db, tokenUsageLedger } from "@/lib/db"
-import { sql, gte, and, isNotNull } from "drizzle-orm"
+import { db, tokenUsageLedger, organisations } from "@/lib/db"
+import { sql, gte, and, isNotNull, eq } from "drizzle-orm"
 import { estimateCostUsd, estimateCacheSavingsUsd, type LLMUsage } from "@/lib/llm-client"
 import { buildSpendForecast, startOfMonthUtc, type SpendForecast } from "@/lib/spend-forecast"
 
@@ -56,6 +56,14 @@ export type TokenUsageSummaryRow = {
   cacheSavingsUsd: number
 }
 
+// VERIDIAN Review Framework remediation (AI Cost Governance & FinOps,
+// 2026-08-01): "per-tenant AI cost visibility available to Finance" --
+// byOrg already grouped by the real org_id, but nothing resolved it to a
+// human-readable org name, so the only consumer that could make sense of it
+// was a query to organisations run by hand. groupLabel carries that name
+// (falling back to the raw id if the org was since deleted).
+export type TokenUsageSummaryOrgRow = TokenUsageSummaryRow & { groupLabel: string | null }
+
 export type TokenUsageSummary = {
   sinceDays: number
   totalCostUsd: number
@@ -68,7 +76,7 @@ export type TokenUsageSummary = {
   byScope: TokenUsageSummaryRow[]
   byRole: TokenUsageSummaryRow[]
   byModel: TokenUsageSummaryRow[]
-  byOrg: TokenUsageSummaryRow[]
+  byOrg: TokenUsageSummaryOrgRow[]
   // AI Cost Governance & FinOps gap-closure (2026-07-18): "forecasted vs
   // actual monthly AI spend," platform-wide (across every org + AI-Team
   // internal spend combined) -- the Finance-facing counterpart to
@@ -112,9 +120,11 @@ export async function getTokenUsageSummary(sinceDays = 7): Promise<TokenUsageSum
     db.select({ groupKey: tokenUsageLedger.model, ...AGG_COLUMNS })
       .from(tokenUsageLedger).where(sinceClause)
       .groupBy(tokenUsageLedger.model).orderBy(sql`4 desc`),
-    db.select({ groupKey: tokenUsageLedger.orgId, ...AGG_COLUMNS })
-      .from(tokenUsageLedger).where(and(sinceClause, isNotNull(tokenUsageLedger.orgId)))
-      .groupBy(tokenUsageLedger.orgId).orderBy(sql`4 desc`),
+    db.select({ groupKey: tokenUsageLedger.orgId, groupLabel: organisations.name, ...AGG_COLUMNS })
+      .from(tokenUsageLedger)
+      .leftJoin(organisations, eq(organisations.id, tokenUsageLedger.orgId))
+      .where(and(sinceClause, isNotNull(tokenUsageLedger.orgId)))
+      .groupBy(tokenUsageLedger.orgId, organisations.name).orderBy(sql`5 desc`),
     db.select({
       requests: sql<number>`count(*)::int`,
       estimatedCostUsd: sql<number>`coalesce(sum(${tokenUsageLedger.estimatedCostUsd}), 0)::float`,
@@ -134,4 +144,40 @@ export async function getTokenUsageSummary(sinceDays = 7): Promise<TokenUsageSum
     byOrg,
     platformMonthlyForecast,
   }
+}
+
+export type OrgUsageForPeriod = {
+  requests: number
+  promptTokens: number
+  completionTokens: number
+  estimatedCostUsd: number
+}
+
+/**
+ * Real AI cost for one org, one arbitrary [periodStart, periodEnd) window --
+ * the exact aggregation platform-billing-service.ts needs to turn a period
+ * into an invoice line item. cost-guard.ts's getMonthlySpend() is the
+ * sibling "always current calendar month" version of this same query; this
+ * is the arbitrary-period generalization for billing, which cost-guard.ts's
+ * live spend-cap check has no reason to need. Scoped to
+ * scope='product_orchestra' only, same reasoning as cost-guard.ts:
+ * 'ai_team_internal' spend is platform-owned (orgId is null on those rows
+ * by design) and was never the customer's usage to bill for.
+ */
+export async function getOrgUsageForPeriod(orgId: string, periodStart: Date, periodEnd: Date): Promise<OrgUsageForPeriod> {
+  const [row] = await db
+    .select({
+      requests: sql<number>`count(*)::int`,
+      promptTokens: sql<number>`coalesce(sum(${tokenUsageLedger.promptTokens}), 0)::int`,
+      completionTokens: sql<number>`coalesce(sum(${tokenUsageLedger.completionTokens}), 0)::int`,
+      estimatedCostUsd: sql<number>`coalesce(sum(${tokenUsageLedger.estimatedCostUsd}), 0)::float`,
+    })
+    .from(tokenUsageLedger)
+    .where(and(
+      eq(tokenUsageLedger.orgId, orgId),
+      eq(tokenUsageLedger.scope, "product_orchestra"),
+      gte(tokenUsageLedger.createdAt, periodStart),
+      sql`${tokenUsageLedger.createdAt} < ${periodEnd}`,
+    ))
+  return row ?? { requests: 0, promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 }
 }
