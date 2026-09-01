@@ -48,7 +48,7 @@ export type BillingRateRow = typeof billingRates.$inferSelect
 /**
  * Directive §14's priority order, collapsed to the 2 real levels this
  * schema supports today (org-specific row > standard row -- see
- * drizzle/0525's own header for why the middle 2 levels need
+ * drizzle/0526's own header for why the middle 2 levels need
  * billing_contracts, not built yet). Ties within a level are broken by the
  * highest rate_version (directive rule 21: rates are versioned, never
  * overwritten -- the highest version among currently-effective rows is the
