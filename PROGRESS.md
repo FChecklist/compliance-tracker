@@ -79,9 +79,33 @@ so a future session picks a collision-resistant clone directory name from the st
      three-way-merged by git) + this branch's full 165-line block verbatim + main's full 520-line
      block verbatim. Zero content dropped from either side, nothing hand-edited inside either block.
 
+## Real validation (this session, post-merge)
+- [x] `bun install` -- 1249 packages, clean.
+- [x] `node scripts/check-governance-yaml-parse.mjs` -- clean, all 5 governance YAML files parse.
+- [x] `NODE_OPTIONS=--max-old-space-size=6144 node_modules/.bin/tsc.exe --noEmit` -- **0 errors**
+      (unlike the original session, no local OOM this time).
+- [x] `bun test` on the 3 touched service test files -- 21 pass / 0 fail, 47 expect() calls (same
+      counts as the original PR).
+- [x] `node scripts/check-terminology-guardrail.mjs --file src/lib/db/schema.ts` -- initially
+      **failed** (1 new unexempted `hardcoded_iso_date` finding: this PR's own section-header
+      comment "...Task #47 PM gap analysis, 2026-07-31..."). Same benign class as every other entry
+      in `ai-os/registry/terminology-guardrail-exemptions.yaml` for this file (dated section-header
+      comment, not example/sample data) -- raised the registered count 102 -> 103 with a cited
+      reason, re-ran clean.
+- [x] `node scripts/check-migration-collision.mjs` -- reports its own known Windows portability
+      quirk ("system cannot find the path specified" from an internal `head`/`2>/dev/null` pipeline
+      under cmd.exe) but exits 0. Manually re-verified in Python instead of trusting that alone: 345
+      `drizzle/*.sql` files, zero duplicate leading numbers; `0519_pm_teams_project_groups_templates.sql`
+      is the only `0519_*`, main's own `0302_sales_pipeline_dashboard_targets.sql` is untouched.
+- [x] `node scripts/check-migration-integrity.mjs` / `check-migration-schema-drift.mjs` -- both
+      clean locally (no `DATABASE_URL` set in this sandbox, so only the file<->journal leg ran; 342
+      journal entries, matches the file count). CI runs these against a real DB.
+- [x] `bun run lint` -- clean, zero findings.
+- [x] Manually confirmed via targeted `Grep` that no `<<<<<<<`/`=======`/`>>>>>>>` markers remain
+      anywhere in the working tree, and cleaned up this session's own scratch analysis files
+      (`git clean`) before committing so nothing extraneous ships in the PR diff.
+
 ## Remaining (this checkpoint)
-- [ ] `bun install`, then real validation: `node scripts/check-governance-yaml-parse.mjs`,
-      `bunx tsc --noEmit`, `bun test` on touched files.
 - [ ] Push `pr667-resume`, open replacement PR "... [was #667]", close #667 pointing to it.
 - [ ] Real CI (`gh pr checks`), retry transient network errors up to 5x. Known-ambient
       non-blocking failures per this task: E2E Tests, Vercel (org-wide deployment-blocked), Secret
