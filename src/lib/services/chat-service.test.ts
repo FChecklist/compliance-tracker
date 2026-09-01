@@ -197,6 +197,14 @@ describe("formatGlossaryBlock -- V2-13 org-glossary hook", () => {
 // generateAiReply()'s actual searchMemories() call site are therefore NOT
 // covered by an automated test in this PR -- a disclosed gap, not a silent
 // one (see this PR's own description).
+//
+// R65 Part C Phase 4 (group-chat memory wiring): the same gap applies to
+// this phase's two new call sites -- generateVeriGroupReply()'s
+// fetchRelevantMemories() call and sendMessage()'s captureMemorableStatement()
+// call in the group-chat-with-VERI branch -- both reuse the exact same pure
+// functions already exercised below (detectMemorableStatement,
+// formatMemoryBlock), so no new pure logic was introduced that isn't
+// already covered here.
 describe("detectMemorableStatement -- R65 Part C Phase 3 memory-capture gate", () => {
   test("no match for ordinary chat with no instruction/preference phrase", () => {
     expect(detectMemorableStatement("show me overdue items")).toBeNull()

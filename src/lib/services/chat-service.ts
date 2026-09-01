@@ -101,8 +101,9 @@ export function detectClarificationRequest(replyText: string): boolean {
 // standing instruction or preference worth remembering", same cheap-and-
 // reliable-over-an-LLM-call posture as CLARIFICATION_PHRASES/floor-tier-
 // escalation.ts's own phrase lists just above -- not a model call, and
-// never run for every message (see its one call site in sendMessage()
-// below, gated to the 1:1 AI thread only).
+// never run for every message (see captureMemorableStatement()'s two call
+// sites in sendMessage() below -- the 1:1 AI thread, and, as of Phase 4,
+// a group-chat message that explicitly addresses VERI).
 //
 // HONEST, DISCLOSED GAP vs. the directive: §12 wants the raw sentence
 // converted to a fully CANONICAL form before embedding (its own worked
@@ -712,15 +713,17 @@ export function formatMemoryBlock(memories: { content: string; memoryType: strin
   )
 }
 
-// R65 Part C Phase 3: how many candidate memories generateAiReply() below
-// asks for per turn. Small and fixed, matching GLOSSARY/HISTORY's own
-// bounded-context posture rather than an unbounded retrieval.
+// R65 Part C Phase 3: how many candidate memories generateAiReply() (and,
+// as of Phase 4, generateVeriGroupReply()) ask for per turn. Small and
+// fixed, matching GLOSSARY/HISTORY's own bounded-context posture rather
+// than an unbounded retrieval.
 const RELEVANT_MEMORY_LIMIT = 5
 
 /**
  * Best-effort, same posture as listGlossaryTerms's own `.catch(() => [])`
- * just below this function's one call site -- a memory-retrieval failure
- * (no embedding provider configured for this org, a transient DB issue, ...)
+ * at both of this function's call sites (generateAiReply(), and, as of
+ * Phase 4, generateVeriGroupReply()) -- a memory-retrieval failure (no
+ * embedding provider configured for this org, a transient DB issue, ...)
  * must never block or fail the chat reply itself.
  *
  * requestingUserId scopes out a DIFFERENT user's own USER-scope memories --
@@ -1043,6 +1046,17 @@ async function generateAiReply(
 // orchestra layer for model resolution -- see this wave's migration
 // (0159_priority6_veri_chat_participant.sql) comment for why a whole new
 // layer wasn't stood up for one narrow additive feature.
+//
+// R65 Part C Phase 4 (group-chat memory wiring): Phase 3 wired memory
+// retrieval into generateAiReply() (the 1:1 AI thread) only and explicitly
+// left this function untouched. This phase closes that gap by reusing the
+// SAME fetchRelevantMemories()/formatMemoryBlock() pair Phase 3 already
+// built -- no new retrieval logic, just a second call site. `userId` here
+// is the human who @-mentioned VERI in this message, so
+// fetchRelevantMemories()'s own requestingUserId scoping (see its header)
+// still means this only ever surfaces THAT participant's own USER-scope
+// memories, never a different group member's -- unchanged privacy posture
+// from the 1:1 case, just applied to a multi-participant conversation.
 async function generateVeriGroupReply(
   orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string,
   conversationContext: ConversationContextRef = NO_CONVERSATION_CONTEXT
@@ -1076,14 +1090,19 @@ async function generateVeriGroupReply(
     const groupOrgDomains = await resolveOrgDomains(orgId)
     const purposeSystemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildMultiDomainPurposeClause(groupOrgDomains))
     // V2-13: same glossary + linked-entity wiring as generateAiReply() above.
-    const [glossaryTerms, contextEntitySummary] = await Promise.all([
+    // R65 Part C Phase 4: relevant memory fetched in the same parallel batch
+    // and folded into the same static-prefix systemPrompt string, exactly
+    // matching generateAiReply()'s own assembly pattern (Phase 3).
+    const [glossaryTerms, contextEntitySummary, relevantMemories] = await Promise.all([
       listGlossaryTerms({ orgId }).catch(() => []),
       fetchContextEntitySummary(orgId, userId, conversationContext),
+      fetchRelevantMemories(orgId, userId, userMessage),
     ])
     const systemPrompt = [
       purposeSystemPrompt,
       formatGlossaryBlock(glossaryTerms),
       formatContextEntityBlock(contextEntitySummary),
+      formatMemoryBlock(relevantMemories),
     ].filter(Boolean).join("\n\n")
     const history = await buildConversationHistory(orgId, userId, conversationId, triggerMessageId)
     const normalizedMessage = normalizeForLlm(userMessage)
@@ -1160,6 +1179,39 @@ async function generateVeriGroupReply(
   }
 }
 
+// R65 Part C Phase 4 (group-chat memory wiring -- directive §4/§13/§39):
+// shared by both memory-capture call sites in sendMessage() below (the 1:1
+// AI thread, and the group-chat-with-VERI path this phase adds) so the
+// capture logic itself has exactly one implementation, matching this
+// codebase's "reuse, don't duplicate" convention. Same non-blocking,
+// best-effort posture Phase 3 established inline: detectMemorableStatement()
+// decides whether to remember at all, and a capture failure (most commonly:
+// no real embedding provider configured for this org) is caught and logged
+// here, never surfaced to the user and never able to undo a reply that
+// already succeeded.
+function captureMemorableStatement(ctx: ChatContext, conversationId: string, messageId: string, content: string): void {
+  const memorable = detectMemorableStatement(content)
+  if (!memorable) return
+  after(async () => {
+    try {
+      await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+        createMemoryRecord(db, ctx.orgId, {
+          scopeType: "USER",
+          userId: ctx.userId,
+          memoryType: memorable.memoryType,
+          content,
+          provenanceType: "USER_CONFIRMED",
+          sourceType: "message",
+          sourceId: messageId,
+          source: { sourceKind: "CONVERSATION", conversationId },
+        })
+      )
+    } catch (err) {
+      console.error("Memory capture failed (non-blocking):", err)
+    }
+  })
+}
+
 export async function sendMessage(
   ctx: ChatContext,
   conversationId: string,
@@ -1230,6 +1282,16 @@ export async function sendMessage(
   if (!result.isAiThread && result.veriParticipant && detectVeriMention(content)) {
     const [aiMessage] = await generateVeriGroupReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content, conversationContext)
     response.aiReply = { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
+
+    // R65 Part C Phase 4: capture gated on the SAME condition as retrieval
+    // just above (a message that explicitly addresses VERI) -- deliberately
+    // narrower than the 1:1 AI thread's "every message in the thread"
+    // capture below, since an ordinary group conversation also carries
+    // messages never meant for VERI at all. Gating on detectVeriMention()
+    // here is this path's equivalent of "every message in the AI thread is
+    // inherently addressed to VERI" (the 1:1 thread has no such distinction
+    // to make, by construction).
+    captureMemorableStatement(ctx, conversationId, result.message.id, content)
   }
 
   if (result.isAiThread) {
@@ -1237,37 +1299,13 @@ export async function sendMessage(
     response.aiReply = { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
 
     // R65 Part C Phase 3 (memory pipeline wiring, directive §4/§13/§39):
-    // best-effort memory capture, gated by detectMemorableStatement()'s own
-    // conservative phrase heuristic (see its header for the honest gap vs.
-    // the directive's full canonicalization step). Runs in the SAME after()
-    // background slot the FDE evaluation just below already established for
-    // "extra processing once the visible reply is already generated and
-    // saved" -- never blocks or slows the chat response, and a capture
-    // failure (most commonly: no real embedding provider configured for
-    // this org, which createMemoryRecord()/storeEmbedding() throw for by
-    // design) is caught and logged here, never surfaced to the user and
-    // never able to undo the reply that already succeeded.
-    const memorable = detectMemorableStatement(content)
-    if (memorable) {
-      after(async () => {
-        try {
-          await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
-            createMemoryRecord(db, ctx.orgId, {
-              scopeType: "USER",
-              userId: ctx.userId,
-              memoryType: memorable.memoryType,
-              content,
-              provenanceType: "USER_CONFIRMED",
-              sourceType: "message",
-              sourceId: result.message.id,
-              source: { sourceKind: "CONVERSATION", conversationId },
-            })
-          )
-        } catch (err) {
-          console.error("Memory capture failed (non-blocking):", err)
-        }
-      })
-    }
+    // best-effort memory capture -- see captureMemorableStatement()'s own
+    // header for the full reasoning (phrase heuristic, non-blocking
+    // after()-slot posture, honest gap vs. the directive's full
+    // canonicalization step). Phase 4 extracted this call site's original
+    // inline logic into that shared helper, unchanged, so the group-chat
+    // call site above could reuse it too.
+    captureMemorableStatement(ctx, conversationId, result.message.id, content)
 
     // Inline VERI FDE evaluation (fire-and-forget, non-blocking, PASSIVE).
     // VERI FDE's own embedding-based capability check
