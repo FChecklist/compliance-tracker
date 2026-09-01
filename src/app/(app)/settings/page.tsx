@@ -21,6 +21,7 @@ import {
   TrendingUp,
   KeyRound,
   Paintbrush,
+  Activity,
   CreditCard,
 } from "lucide-react";
 import OrgLimitsSection from "@/components/OrgLimitsSection";
@@ -40,6 +41,8 @@ import PasscodeSection from "@/components/PasscodeSection";
 import WebhookSection from "@/components/WebhookSection";
 import PmsEnablementSection from "@/components/PmsEnablementSection";
 import SsoSection from "@/components/SsoSection";
+import SystemHealthSection from "@/components/SystemHealthSection";
+import DeploymentHistorySection from "@/components/DeploymentHistorySection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,6 +82,11 @@ const SETTINGS_NAV = [
   { id: "branding", label: "Branding", icon: Paintbrush },
   { id: "adoption", label: "Adoption Dashboard", icon: TrendingUp },
   { id: "sso", label: "SSO (SAML)", icon: ShieldAlert },
+  // Cloud Deployment / Deployment Operations gap-closure:
+  // Performance Monitoring + Deployment Audit Trail findings, both closed
+  // by adding the missing simple ops dashboards.
+  { id: "system-health", label: "System Health", icon: Activity },
+  { id: "deployments", label: "Deployments", icon: Rocket },
   { id: "about", label: "About", icon: Info },
 ];
 
@@ -660,6 +668,42 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent>
                 <SsoSection />
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "system-health" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <Activity className="size-4" />
+                  System Health
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isAdmin ? (
+                  <SystemHealthSection />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Only admins can view system health.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "deployments" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <Rocket className="size-4" />
+                  Deployments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isAdmin ? (
+                  <DeploymentHistorySection />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Only admins can view deployment history.</p>
+                )}
               </CardContent>
             </Card>
           )}

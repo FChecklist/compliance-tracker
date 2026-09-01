@@ -816,7 +816,46 @@ active:
       substantive finding -- a fresh, correctly-enumerated verdict (severity:
       none) is required on this rebased head before the audit gate can
       genuinely pass.
-  - session_label: "claude-code (task-20260718-083002-crm---sales-modules--veri-reward--gamifi) -- VERIDIAN Review Framework gap-closure: VERI Reward (Gamification & Referral), 11 findings [rebase-sweep2b-1015: real rebase-merge of PR #1015 onto current main, replacement PR pending -- PR #1015 itself to be closed as superseded]"
+  - session_label: "claude-code (rebase-1530-final) -- replacement PR for #579 (itself already once replaced as #1530): V2-11 Delegation expiry enforcement audit + wire into 2 real checkpoints"
+    claimed_at: "2026-09-01T (this session)"
+    claim: |
+      SPEC: real broken-access-control fix -- a low-rank user could
+      self-grant payment-approval authority via delegation. Wires
+      `isDelegatedByAuthorizedDelegator()` (src/lib/services/
+      delegation-service.ts) into `decideApprovalStep()`
+      (approval-workflow-service.ts) and the new `canDecidePaymentEntry()`/
+      `decidePaymentEntry()` gate (erp-payment-entries-service.ts), checking
+      the delegator's own rank (>= MANAGER_RANK) before honoring a
+      delegation. Owner-approved "merge as-is" 2026-09-01 after resolving
+      the open policy question (below) about this PR's stale audit-check
+      verdict.
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-1530-final, second replacement
+      for original PR #579 -- #579 was already rebased once as #1530
+      "...[was #579]", which had itself drifted behind main again under
+      heavy concurrent merge activity). Merged onto current main (4 commits
+      ahead: #1529/#1531/#1533/#1532). One real conflict: `PROGRESS.md`
+      (this repo's single-current-entry convention, replaced wholesale).
+      This file (`ACTIVE-CLAIMS.yaml`) and `ai-os/registry/terminology-
+      guardrail-exemptions.yaml` merged automatically with no conflict --
+      neither PR #579/#1530 nor this rebase's own commits ever touched
+      either file, so main's current pruned/rotated state was taken as-is;
+      this entry is newly appended here (not previously present) per the
+      standing precedent set by the rebase-final-1019 and rebase-1014-fixed
+      entries above. No `drizzle/` conflicts and no migration files in this
+      PR at all, so no renumbering was needed. Security-relevant checkpoints
+      re-verified directly against the merged tree: `decideApprovalStep()`
+      and `decidePaymentEntry()`/`canDecidePaymentEntry()` both still call
+      `isDelegatedByAuthorizedDelegator()` correctly post-merge -- no
+      unrelated conflict silently dropped the fix. Resolved policy question
+      (previously blocking, per this PR's own prior PROGRESS.md entry):
+      current main's branch-protection required checks are Lint/Type
+      Check/Build/Unit Tests only (no `mandatory-audit-check` job --
+      repo-wide removed 2026-08-18 per commit c37f91c9); owner confirmed
+      this convention is intentionally sufficient for this PR too, no fresh
+      manual security re-review required. Explicit owner instruction:
+      "merge as-is" -- no further review needed.
+  - session_label: "claude-code (task-20260718-083002-crm---sales-modules--veri-reward--gamifi) -- VERIDIAN Review Framework gap-closure: VERI Reward (Gamification & Referral), 11 findings [rebase-sweep2b-1015: real rebase-merge of PR #1015 onto current main, replacement PR #1535 OPEN -- PR #1015 itself closed as superseded]"
     claimed_at: "2026-09-01T00:xxZ (this session)"
     claim: |
       Scope: src/lib/services/veri-reward-service.ts, src/app/api/veri-reward/**,
@@ -827,6 +866,6 @@ active:
       CSV export of points history, i18n investigation. Not touching
       src/lib/services/permission-service.ts's shared ERP_ACTION_ROLES table structure except
       additively (new keys only), per this task's own explicit instruction.
-      Original PR #1015 had 539 commits of main drift since its merge-base; this claim entry
-      was itself missing from main's own pruned/grown active list (never previously appended),
-      re-appended here per this file's own protocol as part of the rebase-merge.
+      Round 2 of an ongoing merge sweep -- main kept advancing (PR #1530 delegation-audit, PR
+      #1036 cloud-deployment gap-closure) between round 1 (PR #1535 opened) and round 2 (this
+      re-append). Re-appended here again since neither round's main tip carries this entry.
