@@ -13,7 +13,7 @@ import { createId } from "@paralleldrive/cuid2"
 import { after } from "next/server"
 import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver"
 import { callLLM, type ChatTurn } from "@/lib/llm-client"
-import { buildPurposeClause, buildUserContextBlock, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
+import { buildMultiDomainPurposeClause, resolveOrgDomains, buildUserContextBlock, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { getPreferredAiResponseLocale } from "@/lib/ai-response-locale"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
@@ -135,9 +135,26 @@ async function ensureAiThread(ctx: ChatContext): Promise<string> {
       senderId: null,
       content:
         `Hi${first ? ` ${first}` : ""} — I'm **VERI**, your assistant, reporting for work. 👋\n\n` +
-        `Your workspace is set up and all your modules are switched on — finance, sales, CRM, HR, operations, compliance. From today, you tell me what you need in plain words, and I do it.\n\n` +
+        `Your workspace has finance, sales, CRM, HR, operations and compliance pages set up -- browse them any time from the sidebar. In this chat today, I can act on requests inside the ` +
+        `**compliance** domain (and construction/project data, if that's enabled for your org); ask me anything else and I'll tell you honestly if it's not wired up yet.\n\n` +
+        // R63 gap-closure (2026-08-29): the previous 3 examples here ("raise
+        // an invoice", "add my first customer", "set up payroll") had ZERO
+        // corresponding AI tool behind them -- confirmed live, reproduced the
+        // exact refusal ("I can only handle compliance-related tasks...").
+        // Root cause: DEFAULT_DOMAIN in purpose-bound-ai.ts is hardcoded to
+        // "compliance" at every call site (chat-service.ts x2,
+        // task-execution-engine.ts x2), and DOMAIN_ALLOWED_TOOLS["erp"] is
+        // still an empty Set (its own comment: "schema-only wave, no
+        // service layer or AI tool exists for this domain yet" -- stale,
+        // written before ERP's real build-out, never updated). Fixing that
+        // properly means designing real, safe (read vs. write) AI tools for
+        // erp/crm/hr, a genuine feature project -- out of scope for this
+        // fix. This message now only advertises examples with a real,
+        // already-registered tool behind them (compliance domain's own
+        // DOMAIN_ALLOWED_TOOLS set), so the AI's very first message to a
+        // new user stops promising things it cannot do.
         `Three easy ways to start:\n` +
-        `1. **Give me a task** — "raise an invoice", "add my first customer", "set up payroll".\n` +
+        `1. **Give me a task** — "show me overdue items", "list my departments", "what's my GST filing status".\n` +
         `2. **Ask me anything** about running your business.\n` +
         `3. **Tell me one thing you do every week** that you'd love to never do again — I'll take it over.\n\n` +
         `Nothing important happens without your yes — you approve, I do. What shall I take off your plate first?`,
@@ -678,7 +695,11 @@ async function generateAiReply(
   try {
     const locale = await getPreferredAiResponseLocale()
     const systemPromptTemplate = await resolvePromptTemplate("chat.ai_thread_system", "production", locale)
-    const purposeSystemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    // R63 gap-closure (2026-08-29): was buildPurposeClause(DEFAULT_DOMAIN) --
+    // hardcoded "compliance" regardless of what this org actually has
+    // enabled. resolveOrgDomains() names every domain real for THIS org.
+    const orgDomains = await resolveOrgDomains(orgId)
+    const purposeSystemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildMultiDomainPurposeClause(orgDomains))
     // V2-13: glossary + linked-entity context, both best-effort and both
     // appended to the STATIC system prompt (not messageForLlm below) -- see
     // formatGlossaryBlock/formatContextEntityBlock's own headers. Fetched in
@@ -934,7 +955,10 @@ async function generateVeriGroupReply(
   try {
     const locale = await getPreferredAiResponseLocale()
     const systemPromptTemplate = await resolvePromptTemplate("chat.veri_group_participant", "production", locale)
-    const purposeSystemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    // R63 gap-closure (2026-08-29): was buildPurposeClause(DEFAULT_DOMAIN),
+    // hardcoded to "compliance" -- same fix as generateAiReply() above.
+    const groupOrgDomains = await resolveOrgDomains(orgId)
+    const purposeSystemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildMultiDomainPurposeClause(groupOrgDomains))
     // V2-13: same glossary + linked-entity wiring as generateAiReply() above.
     const [glossaryTerms, contextEntitySummary] = await Promise.all([
       listGlossaryTerms({ orgId }).catch(() => []),

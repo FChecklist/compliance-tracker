@@ -29,6 +29,10 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/home";
   const errorParam = searchParams.get("error");
+  // Owner mandate task-20260815-033857 (Z.ai black-box audit point
+  // P8-CB-10 / P1-OBS-003): /forgot-password redirects here with this
+  // marker (see src/app/forgot-password/page.tsx) rather than 404ing.
+  const forgotPasswordParam = searchParams.get("reason") === "forgot-password";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -229,6 +233,12 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
                 </div>
               )}
 
+              {forgotPasswordParam && (
+                <div className="bg-blue-50 border border-blue-200 text-blue-700 text-sm rounded-lg p-3 text-center">
+                  {t("forgotPasswordPrompt")}
+                </div>
+              )}
+
               <Button
                 type="button"
                 variant="outline"
@@ -278,7 +288,7 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
                     </Label>
                     <button
                       type="button"
-                      className="text-xs text-ct-saffron hover:underline"
+                      className="text-xs text-ct-saffron-text hover:underline"
                       onClick={handleMagicLink}
                     >
                       {t("sendMagicLink")}
@@ -384,7 +394,7 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
                 {t("noAccount")}{" "}
                 <Link
                   href="/signup"
-                  className="text-ct-saffron font-medium hover:underline"
+                  className="text-ct-saffron-text font-medium hover:underline"
                 >
                   {t("createOne")}
                 </Link>

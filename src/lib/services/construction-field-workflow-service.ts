@@ -35,6 +35,16 @@ export async function createRfi(ctx: { orgId: string; userId: string }, input: R
   })
 }
 
+// Real-screen conversion (2026-08-30): single-RFI lookup for the RFI
+// Object Page -- only listRfis (all) existed before.
+export async function getRfi(ctx: { orgId: string }, rfiId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rfi = await db.query.constructionRfis.findFirst({ where: and(eq(constructionRfis.id, rfiId), eq(constructionRfis.orgId, ctx.orgId)) })
+    if (!rfi) throw new ServiceError("RFI not found", 404)
+    return rfi
+  })
+}
+
 export async function listRfis(ctx: { orgId: string }, projectId: string, filters: { status?: string } = {}) {
   return withTenantContext({ orgId: ctx.orgId }, (db) => {
     const conditions = [eq(constructionRfis.orgId, ctx.orgId), eq(constructionRfis.projectId, projectId)]
@@ -78,6 +88,16 @@ export async function createSubmittal(ctx: { orgId: string; userId: string }, in
       dueDate: input.dueDate ?? null, submittedById: ctx.userId,
     }).returning()
     return row
+  })
+}
+
+// Real-screen conversion (2026-08-30): single-submittal lookup for the
+// Submittal Object Page -- only listSubmittals (all) existed before.
+export async function getSubmittal(ctx: { orgId: string }, submittalId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const submittal = await db.query.constructionSubmittals.findFirst({ where: and(eq(constructionSubmittals.id, submittalId), eq(constructionSubmittals.orgId, ctx.orgId)) })
+    if (!submittal) throw new ServiceError("Submittal not found", 404)
+    return submittal
   })
 }
 
@@ -125,6 +145,16 @@ export async function createPunchListItem(ctx: { orgId: string; userId: string }
       assignedToId: input.assignedToId ?? null, dueDate: input.dueDate ?? null, createdById: ctx.userId,
     }).returning()
     return row
+  })
+}
+
+// Real-screen conversion (2026-08-30): single-item lookup for the Punch
+// List Object Page -- only listPunchListItems (all) existed before.
+export async function getPunchListItem(ctx: { orgId: string }, itemId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const item = await db.query.constructionPunchListItems.findFirst({ where: and(eq(constructionPunchListItems.id, itemId), eq(constructionPunchListItems.orgId, ctx.orgId)) })
+    if (!item) throw new ServiceError("Punch list item not found", 404)
+    return item
   })
 }
 

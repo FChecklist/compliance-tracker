@@ -77,7 +77,7 @@ export function ProductSalesSection({ product }: { product: string }) {
           {cards.map((c) => (
             <div key={c.title} className="flex flex-col rounded-2xl border border-ct-border/60 bg-ct-cream p-7">
               <span className="grid size-10 place-items-center rounded-xl bg-ct-navy text-white">
-                <c.icon className="size-5 text-ct-saffron" />
+                <c.icon className="size-5 text-ct-saffron-text" />
               </span>
               <h3 className="mt-5 font-heading text-xl text-ct-navy">{c.title}</h3>
               <p className="mt-2 flex-1 text-sm leading-relaxed text-ct-slate">{c.body}</p>

@@ -105,7 +105,7 @@ export default function OrchestraPage() {
       {/* Missing pieces roadmap */}
       <div className="rounded-lg border bg-card px-4 py-3">
         <div className="flex items-center gap-1.5 mb-2">
-          <Sparkles className="size-3.5 text-ct-saffron" />
+          <Sparkles className="size-3.5 text-ct-saffron-text" />
           <span className="text-sm font-semibold text-ct-navy">What's not built yet</span>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-ct-muted">
@@ -123,7 +123,7 @@ export default function OrchestraPage() {
 function RoadmapItem({ wave, label }: { wave: string; label: string }) {
   return (
     <div className="flex gap-2">
-      <span className="shrink-0 font-mono text-[10px] font-semibold text-ct-saffron bg-ct-cloud px-1.5 py-0.5 rounded h-fit">
+      <span className="shrink-0 font-mono text-[10px] font-semibold text-ct-saffron-text bg-ct-cloud px-1.5 py-0.5 rounded h-fit">
         {wave}
       </span>
       <span className="leading-snug">{label}</span>

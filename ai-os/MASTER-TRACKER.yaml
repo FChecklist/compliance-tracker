@@ -607,6 +607,35 @@ open_items:
       recommendation: "Do NOT start any veda-advisors <-> VERIDIAN integration work without a separate, explicit Owner go-ahead -- this entry exists to record the scope decision and prevent 2 opposite mistakes: (a) a future session assuming veda-advisors is already VERIDIAN-integrated because it's declared in-scope, and (b) a future session starting the actual migration unprompted because the declaration exists. Treat this exactly like Priority 13's BIM/IFC item -- deliberately deferred, not ratified-against, do not re-raise as a build task until the Owner brings it up again."
       first_raised: "2026-07-14, Owner review of the FChecklist/VERIDIAN AI OS design description"
 
+    - id: AI-DOC-GAP-CLOSURE-REMAINDER
+      name: "AI Documentation gap-closure (UMR-20260801-170930-2080 sub-task, 2026-08-07) -- 3 real, deliberately-deferred remainders"
+      detail: |
+        All 10 findings from this closure were re-verified against live code and addressed
+        (business rules registry, architecture/database drift check, calculation-coverage
+        re-verification, module doc index, configuration reference, prompt template directory,
+        workflow-field fill, metadata registry verified as already-sound, OpenAPI extension --
+        see PROGRESS.md in that task's workspace for full detail). Three items were confirmed
+        real but deliberately not built in this pass, real multi-day work each:
+        (1) The remaining ~64 PROJEXA OpenAPI sub-resources beyond the 7 added
+        (src/lib/openapi/generate.ts) -- prioritize the finance cluster first
+        (journal-entries, sales-invoices, purchase-orders, trial-balance, balance-sheet,
+        profit-and-loss, bank-reconciliation) per the finding's own external-integration-demand
+        steer.
+        (2) A full VA-01..VA-11 re-audit of the veda-advisors checkout -- VA-02/VA-11's
+        `objects` lists describe files (website/, memory-notes/, code-by-zai/, Linkedin.md,
+        linkedin_auto_update.js) that no longer match the current checkout structure (the repo
+        root now IS what was called code-by-zai/, and the LinkedIn files are gone from every
+        branch) -- found and flagged, not fixed, while filling ai-os/system-tree/
+        50-merged-tree.yaml's workflow fields.
+        (3) Continued VCEL engine wiring -- dispatchEngine()'s real case count is 185 today
+        (re-verified directly, see docs/master/CAPABILITY_COVERAGE.md's dated correction), not
+        the finding's cited ~17% nor this doc's own prior 127/247 figure; closing the remaining
+        gap between catalogued and dispatch-wired engines is real engineering work, tracked at
+        docs/master/CAPABILITY_COVERAGE.md's own "real gap" section (99 product modules with
+        zero worker agents is the largest single piece).
+      recommendation: "No action required unless a future session picks up one of the 3 items above -- this entry exists so that work isn't silently lost once the closing task's own workspace/PROGRESS.md is no longer the active context."
+      first_raised: "2026-08-07"
+
   real_gaps_not_yet_built:
     # These are the still-accurate, still-open items from the old GAPS.yaml
     # (46 items) / 30-gap-backlog.yaml (11 items) catalogs, AFTER removing
@@ -831,6 +860,44 @@ open_items:
         origin/main` on a fresh clone, never trusted from `gh pr view`'s own report alone.
       size: n/a
       recommendation: "None -- this is a real, final status rollup, not an open item. OCID-020's own broader completion claim should cite this entry, not commit 11a5de5e, going forward."
+
+    - id: GAP-API-ME-SEQUENTIAL-AWAITS-ADMIN-FLASH
+      name: "GET /api/me ran 9 independent lookups as 9 sequential awaits (~5-9s total); settings/page.tsx's isAdmin had no loading gate, so admin-gated tabs flashed a false 'Only admins can view...' during that window -- CLOSED, real fix merged (PR #929)"
+      old_ids: []
+      status: "CLOSED -- real rebase-merge of PR #929 onto main (rebase-sweep2b-929), this task's own real re-verification confirmed both symptoms were still present on main prior to this merge"
+      detail: |
+        Distinct from, and complementary to, `GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING` above
+        (PR #930, `fetchMeWithSessionRetry`): that entry's own recommendation explicitly flagged an
+        open follow-up -- "worth a real follow-up gap to harden `/api/me` itself... rather than
+        requiring every caller to replicate this client-side pattern" -- because its fix was a
+        client-side retry for the intermittent all-null-fields `200` race, not a fix to `/api/me`'s
+        own sequential-lookup latency. This gap is that follow-up.
+
+        Independently re-confirmed still real on `main` immediately before this rebase-merge (not
+        re-triaged, per this task's own dispatch instructions -- prior triage + adversarial-verify
+        already established this): `src/app/api/me/route.ts` on `main` ran its org-row lookup plus
+        6 feature-flag checks (`pmsEnabled`, `veriChatV2Enabled`, `firmEnabled`, `erpEnabled`,
+        `salesEnabled`, plus `branding`/`subscriptionPlanStatus`/`assistantsUsedByCurrentUser`) as
+        sequential `await`s, none depending on another's result. `src/app/(app)/settings/page.tsx`'s
+        `isAdmin` was still a plain `useState(false)` with no loading gate, so a real admin who
+        opens an admin-gated tab (Subscription Plan, Organisation, Seats & AI Spend, Branding,
+        Adoption Dashboard) while that multi-second `/api/me` call is in flight sees a false
+        "Only admins can view..." message indistinguishable from an actual permissions denial.
+      size: S
+      recommendation: |
+        CLOSED. Two real fixes: (1) `src/app/api/me/route.ts` now runs all 9 lookups concurrently
+        via `Promise.all` -- they are genuinely independent. (2) `src/app/(app)/settings/page.tsx`
+        gates every admin-only section on a new `profileLoaded` state (a real loading skeleton)
+        instead of asserting "not admin" before the `/api/me` fetch has had a chance to resolve.
+        Merged onto `main` alongside, not in place of, PR #930's own `fetchMeWithSessionRetry`
+        null-body-race retry wrapper and its unmount-safety `cancelled` cleanup -- both real fixes
+        for two different real races are now present in the same `useEffect`. Real tests:
+        `src/app/api/me/route.test.ts` -- a real timing assertion proves the lookups run
+        concurrently (fails if this ever regresses to sequential awaits), plus response-shape and
+        no-org-id coverage. `tsc --noEmit` clean, governance YAML parse clean, targeted `bun test`
+        clean, re-verified against this merge's own actual post-merge file content (not assumed
+        from the pre-merge PR diff alone).
+
     - id: GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS
       name: "GET /api/me returns 500 (empty body) for every authenticated user on live projexa-ai.com, confirmed live -- severity: high, blocks the topbar/VERI-Chat-Home shell and every OCID-047..052 re-test that depends on /api/me"
       old_ids: []
@@ -1311,7 +1378,18 @@ open_items:
         actually exists live (e.g. spot-check expected tables/columns per
         migration, or a more general drift-detection query), distinct from
         `check-migration-collision.mjs`'s narrower number-collision check.
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck) -- built scripts/check-migration-schema-drift.mjs
+        (distinct from check-migration-integrity.mjs/AR-12, which only proves the migration FILE's
+        bytes still match the ledger, not that the DDL actually exists live). Parses CREATE TABLE /
+        (multi-clause) ALTER TABLE ADD COLUMN, replays add/drop in journal order, checks
+        schema-agnostically against information_schema (tolerates a legitimate post-migration
+        schema move, e.g. the real confirmed compliance.worker_agents -> platform.worker_agents,
+        same class of move already closed for product_branches). Verified against real production
+        data before landing: 458 expected tables + 356 expected columns parsed from all 305 real
+        migration files, zero missing live. Wired into ci.yml as migration-schema-drift-check.
+        Would have caught the exact real 0264/email-intelligence incident this gap was raised
+        from -- confirmed via a dedicated regression test reproducing that migration's own DDL
+        shape."
       first_raised: "OCID-020 certification sweep, 2026-08-03 (UMR-20260802-165606-4413, UMR-20260803-012711-18b4)"
       related_but_distinct: |
         Real cross-reference, added 2026-08-03 (`UMR-20260803-025317-0c64`,
@@ -2034,7 +2112,14 @@ open_items:
         workspace was merged-from-main immediately before that retrigger should be treated as a
         higher-than-usual candidate for a false-reject and worth one free retry before treating
         a reject as a real finding requiring a code/content fix.
-      status: open
+      status: "moot 2026-08-30 (R1-R64 recheck) -- the reviewer this bug lived in
+        (scripts/supervisor-entrypoint.sh's Claude-driven review, systemd-unit-based) is no
+        longer active for anything: confirmed via `grep -rl supervisor-entrypoint .github/`
+        (zero hits -- no current GitHub Actions workflow invokes it) and a repo-wide reference
+        search (only old, already-superseded governance markdown files mention it). Casualty of
+        the PM-hierarchy/dispatch-fleet apparatus this reviewer belonged to, superseded by the
+        VERIDIAN-DEV server decommission (2026-08-25, see feedback_bypass_server_direct_work
+        memory) -- not fixed, just no longer live infrastructure to regress."
       first_raised: "compliance-tracker PR #776/#774 re-review rounds, 2026-08-03"
 
     - id: GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION
@@ -2213,7 +2298,18 @@ open_items:
         `supervisor-entrypoint.sh` to explicitly re-run
         `mandatory-audit-check.yml` itself (not via `issue_comment`), which
         does not have this bug.
-      status: open
+      status: "moot 2026-08-30 (R1-R64 recheck) -- `.github/workflows/mandatory-audit-check.yml`
+        no longer exists in this repo (confirmed via a real file search; current CI workflows are
+        lint/typecheck/build/unit-tests/migration-collision-check/migration-integrity-check/
+        governance-yaml-parse-check/migration-schema-drift-check/e2e -- none named this), and
+        `supervisor-entrypoint.sh` (the systemd-unit-driven autonomous reviewer this bug's
+        workaround depended on) is no longer referenced by any active workflow or process --
+        confirmed via `grep -rl supervisor-entrypoint .github/` (zero hits) and a repo-wide
+        reference search (only old, already-superseded governance markdown files mention it).
+        Both are casualties of the whole PM-hierarchy/dispatch-fleet/UMR-worker apparatus this
+        gap's own reviewer belonged to, superseded by the VERIDIAN-DEV server decommission
+        (2026-08-25, see feedback_bypass_server_direct_work memory) -- not fixed, just no longer
+        live infrastructure for anything to be blocked on."
       first_raised: "Independent Agent-tool review of PR #795, 2026-08-03 (UMR-20260803-085428-9332)"
 
     - id: GAP-ACTIVE-CLAIMS-YAML-PARSE-ERROR
@@ -2322,7 +2418,13 @@ open_items:
         `scripts/check-governance-yaml-parse.mjs`) and re-run the same real
         break/restore verification already proven locally, this time against a
         real GitHub Actions run, before merging.
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck) -- the credential wall this gap describes was
+        specific to VERIDIAN-DEV's shared server OAuth token, which is moot now that server is
+        decommissioned (2026-08-25). This session's own `git push` of `.github/workflows/ci.yml`
+        (this same PR) succeeded, confirming the `workflow` OAuth scope is available from this
+        environment. Wired the already-written, already-tested `scripts/check-governance-yaml-
+        parse.mjs` into ci.yml as the `governance-yaml-parse-check` job -- no new script needed,
+        the real work was already done back on 2026-08-03, only the push was blocked."
       first_raised: "This session, 2026-08-03, while executing PM decision UMR-20260803-142309-da1f (UMR-20260802-165606-4413, OCID-020)"
 
     - id: GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION
@@ -2362,7 +2464,18 @@ open_items:
         agree on what VERI Chat is actually scoped to. Add a real regression test: send a benign,
         in-scope question from each named domain (at minimum accounting/finance, given this is the one
         caught live) to a fresh test org and assert the reply is not a refusal.
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck, found ALREADY fixed by an earlier round --
+        R63 gap-closure, 2026-08-29, per its own comment in purpose-bound-ai.ts) -- discovered
+        this while verifying the gap live, not assumed from the tracker's own stale 'open'
+        status. buildPurposeClause(DEFAULT_DOMAIN) (the single hardcoded 'compliance' clause
+        that caused this contradiction) is no longer called by chat-service.ts's real system
+        prompt assembly. Both real call sites (generateAiReply's main chat path,
+        line ~698-702; the group-participant path, line ~958-961) now call
+        buildMultiDomainPurposeClause(await resolveOrgDomains(orgId)) instead -- names every
+        domain this specific org actually has enabled (compliance always + erp/sales/pms per
+        real enablement checks), reconciling the PURPOSE_CLAUSE with the persona paragraph's own
+        stated domain list. Confirmed by reading both real call sites directly, not just the
+        function definitions."
       first_raised: "This session, 2026-08-03, real live test during OCID-052 execution (UMR-20260803-142956-d931, UMR-20260802-165606-4413 OCID-020)"
 
     - id: GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION
@@ -2393,7 +2506,13 @@ open_items:
         `GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION` since a correct fix there should reduce how
         often this path is even exercised, but the confidence-heuristic gap is real and separate
         regardless of that fix.
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck) -- extended LOW_CONFIDENCE_PHRASES
+        (floor-tier-escalation.ts) with real refusal-language patterns (\"i can't help with
+        that,\" \"i'm not able to,\" \"outside my scope,\" \"i'm not allowed to,\" etc.), per this
+        gap's own recommended fix shape. Added a regression test reproducing the exact live
+        refusal reply that surfaced this gap (\"Boss, I'm sorry-I can't help with that.\") plus 3
+        other common refusal phrasings -- all now correctly detected, deriveConfidenceLabel()
+        downgrades them from the previous incorrect \"high\"."
       first_raised: "This session, 2026-08-03, real live test during OCID-052 execution (UMR-20260803-142956-d931, UMR-20260802-165606-4413 OCID-020)"
 
     - id: GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS
@@ -2465,6 +2584,17 @@ open_items:
         (every real test this session used the Admin-API-signup + hand-built-cookie pattern instead of
         driving the actual login form's UI).)"
       first_raised: "This session, 2026-08-03, real live test during OCID-052 execution (UMR-20260803-142956-d931, UMR-20260802-165606-4413 OCID-020)"
+      moot_note: "2026-08-30 (R1-R64 recheck): this gap was specific to VERIDIAN-DEV's shared,
+        no-sudo, interactive server environment, which is permanently decommissioned
+        (2026-08-25, see feedback_bypass_server_direct_work memory) -- the LD_LIBRARY_PATH
+        workaround it describes has nothing left to apply to. CI's own e2e job (ci.yml) is
+        unaffected and always was: `bunx playwright install --with-deps chromium` runs a fresh,
+        correctly-provisioned browser install on every GitHub Actions run (ubuntu-latest, real
+        sudo/apt access in that environment), with no shared-server staleness for this class of
+        bug to accumulate in. Not marking status itself 'closed' -- the one genuinely unconfirmed
+        item (a full interactive sign-up/login-form UI flow, as opposed to the
+        Admin-API-signup + hand-built-cookie pattern every real test here used) is still real and
+        untested, just no longer blocked by missing system libraries specifically."
 
     - id: GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL
       name: "End users have no visible way whatsoever to tell a deterministic-routed VERI Chat reply apart from a genuine AI-escalated one on the real, live, primary rendering surface (/home) -- stronger than merely 'unintentional,' the one component with confidence-badge logic is structurally unreachable for the AI thread"
@@ -2765,6 +2895,16 @@ open_items:
       status: "open (real gap confirmed and documented; not authorized for implementation by this
         OCID)"
       first_raised: "task-20260804-045439-register-ocid-058--universal-task-regist, 2026-08-04 (this task's own dispatch, citing UMR-20260804-035943-3c38)"
+      recheck_note: "2026-08-30 (R1-R64 recheck): left untouched, deliberately -- this is a real
+        architectural decision among 3 named options (L/S/XS), explicitly gated on a PM/Owner
+        choice this session has no standing to make unilaterally. Separately, every record type
+        this gap discusses (umr_tasks, work_items, task.yaml, dispatch-owner-task.sh,
+        superboss-register.py) belongs to the PM-hierarchy/dispatch-fleet apparatus superseded by
+        the VERIDIAN-DEV server decommission (2026-08-25) -- current work runs bare on the laptop
+        with no PM/dispatch tier, so this gap's real-world urgency is materially lower than when
+        raised, even though the gap itself (no genuine multi-actor UTR structure) remains
+        technically true of the schema. Left open rather than closed or moot: the schema state
+        this gap describes has not changed, only how much anything currently depends on it has."
 
     - id: GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED
       name: "task-execution-engine.ts and mother-router.ts are not wired to each other -- RESOLVED via scoped Mother Router migration"
@@ -2973,7 +3113,16 @@ open_items:
       detail: "gh repo view FChecklist/projexa's description: 'Frontend for the AI-native construction ERP, built on VERIDIAN AI OS via API.' Per ai-os/EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md Sec1.9, the projexa repo has its own 11-table schema (not a schemaless pure client). gh api search/code for a compliance-tracker/VERIDIAN API base URL inside the projexa repo returned 0 hits (GitHub code search, not exhaustive, but a real negative signal). May be intentional local caching/offline support, or may be real architectural drift from the repo's own stated design intent -- not resolved this pass."
       size: M
       recommendation: "Whoever picks up cross-repo integration work should read the projexa repo directly (not GitHub code search only) to determine whether it genuinely calls a shared VERIDIAN API anywhere, and reconcile the repo description with real behavior either way."
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck) -- this entry's own discovery_brief below (2026-08-04)
+        already substantively answered the question this gap raised: PROJEXA genuinely IS an
+        extensively-wired thin client (195 real call sites, all local tables tenant/auth/billing/
+        UI-collaboration only, zero construction data persisted locally), matching its stated design
+        intent for the data layer. The recommendation's own action (read the repo directly, reconcile
+        stated vs. real behavior) was already done in that same pass -- just never flipped this
+        entry's status field to match. The one thread the brief itself flags as genuinely NOT unified
+        (auth/session -- PROJEXA runs its own separate Supabase Auth with no user-level SSO to
+        VERIDIAN) is a distinct, already-separately-tracked, owner-sign-off-gated item (the
+        Schedule/Design-Studio cross-system identity-bridge gap), not left open under this entry."
       first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
       discovery_brief: |
         2026-08-04, per PM decision UMR-20260804-011851-676b (discovery/documentation only, no
@@ -3274,8 +3423,46 @@ open_items:
         unlike this finding's own void 15s check), capture the real network
         request/response for whatever endpoint backs the task list and the
         composer submit action, and root-cause from there.
-      status: open
+      status: needs_verification
       first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072925-cacf)"
+      root_cause_found: |
+        2026-08-04, `UMR-20260803-042801-ec4b`/OCID-038, real PM decision
+        `task-20260804-115640-ocid-038-investigate-stalled-sub-agent-v`
+        (PR #894, not yet merged): independently root-caused both halves via
+        direct source read. (1) Composer toast: `aiThreadId`/
+        `activeAiThreadId` (`veri-chat-context.tsx`) start `null` and only
+        populate via an un-gated async `fetch("/api/conversations")`; no
+        loading gate disabled the composer while that was in flight -- a real
+        client-side race, not a backend error. (2) `/veri-todo` slow load:
+        `veri-todo-service.ts`'s `listVeriTodos()` ran 6 sequential
+        (non-`Promise.all`) DB round-trips.
+      real_fix_applied: |
+        2026-08-04, `UMR-20260803-042801-ec4b`/OCID-038, real PM decision
+        `task-20260804-125242-ocid-038-independently-verify-self-discl`
+        (implementation authorized under `task-20260804-111301`'s real PM
+        decision on these 3 end-user-testing gaps): real fix for both halves,
+        using the root cause above rather than guessing.
+        (1) `veri-chat-context.tsx`: added a real `aiThreadsLoading` boolean
+        (true until the `/api/conversations` fetch settles, success or
+        failure, via `.finally()`), exposed through `useVeriChat()`/
+        `useVeriChatOptional()`. `VeriComposer.tsx`: composer textarea/send
+        button now disable (with a "Loading VERI AI..." placeholder) for the
+        real window `composerMode === "discuss"` is racing that fetch,
+        closing the race instead of letting a submit hit the null branch. The
+        existing "VERI AI isn't ready yet" toast is kept as defense-in-depth
+        for a genuine fetch failure (aiThreadsLoading settles false with no
+        thread) -- that is a real error state, not a race, and should still
+        surface.
+        (2) `veri-todo-service.ts`'s `listVeriTodos()`: the 3 independent
+        queries (`taskRows`, `commitmentRows`, `assigneeRows`) now run via
+        `Promise.all` instead of 3 sequential `await`s. The remaining chain
+        (`issueRows` -> `statusRows` -> `projectRows`) has a real data
+        dependency at each step and stays sequential -- not parallelized
+        blind.
+        Not yet independently re-verified live against `projexa-ai.com` (that
+        needs a fresh authenticated session post-merge) -- `status` held at
+        `needs_verification`, not flipped to a closed state, per this
+        tracker's own no-false-completion standard.
       reverification_2026_08_04: |
         Real re-verification, `UMR-20260802-165606-4413` OCID-020 (parent chain
         also citing `UMR-20260803-042801-ec4b` OCID-038, the original finding's
@@ -3338,6 +3525,24 @@ open_items:
         confirm a graceful fallback instead of a blank page.
       status: open
       first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072940-6a88)"
+      implementation_note: |
+        2026-08-04, real implementation authorized (UMR-20260804-105822-a267): a real minimal
+        app-shell service worker (`public/sw.js`) + a real, plain static offline fallback page
+        (`public/offline.html`) added -- network-first for navigation requests only, falls back to
+        the cached offline page on a genuine network failure; every other request (API calls,
+        data fetches, static assets) passes straight through, untouched, since this app is
+        almost entirely dynamic/authenticated and caching API responses would risk stale/wrong
+        data. Deliberately NOT a full offline-first cache -- matches the real, narrow scope this
+        gap's own recommendation asked for. Registered inside `AppShell.tsx` (the authenticated
+        app shell, the exact real mount point the original gap was observed inside). Real, local
+        verification done: `bunx tsc --noEmit` clean, `bunx eslint` clean, `node --check
+        public/sw.js` confirms valid JS syntax, real unconstrained `bun run build` clean.
+        `status` deliberately left `open`, not flipped to `resolved`: this gap's own
+        recommendation explicitly requires "re-run this same real offline test to confirm a
+        graceful fallback instead of a blank page" against a real live session -- that live
+        re-test requires this fix to actually be deployed first (Vercel auto-deploys on merge to
+        `main`), so it is a genuine post-merge step, not something that can be honestly claimed
+        before the PR merges. Real PR opened, independent review pending, no self-certification.
 
     - id: GAP-MOBILE-VIEWPORT-BLANK-CONTENT
       name: "At a real 390x844 mobile viewport, the main content area rendered blank in an already-authenticated session (severity: unconfirmed -- single real observation, sidebar itself responded correctly)"
@@ -3368,6 +3573,71 @@ open_items:
         checked against it), or specific to this single observation.
       status: open
       first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072955-3132)"
+      second_investigation_disclosure: |
+        2026-08-04, real PM decision `UMR-20260803-042801-ec4b`/OCID-038
+        (`task-20260804-111301`'s authorization, executed by that task's own
+        interactive executor session): a second, independent mobile-viewport
+        re-test was dispatched. Self-disclosed outcome (informal, in that
+        session's own checkpoint note -- same "never persisted to git" gap
+        as its VERI-todo sibling, see PR #894): genuinely blocked by real
+        Supabase rate limiting across 9 real attempts over ~42 minutes, zero
+        real reproduction achieved either way (not confirmed reproducible,
+        not confirmed fixed). Separately self-disclosed: a wrong Admin-API
+        filter assumption during that investigation caused one unintended
+        `email_confirm: true` write on an unrelated pre-existing test/
+        enablement account (not a real customer), reported fixed immediately.
+      cooldown: |
+        Real PM decision (this task, `task-20260804-125242-ocid-038-
+        independently-verify-self-discl`, `UMR-20260803-042801-ec4b`): do not
+        burn further attempts against the same real rate limiter right now.
+        Paused as of 2026-08-04T13:30:54Z; do not retry before
+        2026-08-04T14:00:54Z (30 real minutes). Freed capacity redirected to
+        the already-root-caused GAP-VERI-TODO-STUCK-LOADING-NOT-READY (real
+        fix applied this same session, see that entry's `real_fix_applied`)
+        rather than to OCID-020 next steps, since `task-20260804-125247`
+        (OCID-020's own sibling task, same PM directive) was independently
+        confirmed already covering the OCID-020 live re-verification angle
+        (PR #895) -- redirecting there too would have been duplicate work
+        under this file's own ACTIVE-CLAIMS protocol.
+      self_disclosure_independent_verification: |
+        2026-08-04T13:19Z, this task
+        (`task-20260804-125242-ocid-038-independently-verify-self-discl`):
+        per standing no-false-completion discipline, did NOT accept the
+        "reported fixed immediately" narration above at face value. No
+        git/PR record of the disclosure or the specific affected account
+        exists anywhere in this repo (exhaustively searched) -- verification
+        had to be done via direct DB forensics instead of reading a written
+        admission. Fetched all 281 real Supabase Auth users via the live
+        Admin API and computed `email_confirmed_at - created_at` for every
+        account; one account is a massive statistical outlier matching the
+        disclosure's own description exactly: `e2e-enablement-
+        1785814031425@example.com` (id `92b0c96c-3e28-44db-ab54-
+        1b787b55e399`) -- a non-deliverable `@example.com` test/enablement
+        account, created `2026-08-04T03:27:12.042948Z`, confirmed 7h45m
+        later at `2026-08-04T11:12:55.603993Z` (7 seconds before
+        `task-20260804-111301`, the task that dispatched this same mobile-
+        viewport sub-agent, was even created) -- vs. its own sibling test
+        account's baseline pattern of same-second confirm-at-creation, and
+        vs. the structural fact that an `@example.com` address can never
+        receive a real confirmation email, so the only real mechanism that
+        could have set this field is a direct Admin-API write. High
+        confidence this is the disclosed account, via timing/pattern
+        correlation, not a written admission (none exists to cite).
+        **Real, live-verified current state as of 2026-08-04T13:19Z: the
+        account's `email_confirmed_at`/`confirmed_at` are STILL populated
+        with that exact write's timestamp -- NOT reverted to null/
+        unconfirmed.** The "reported fixed immediately" claim does not hold
+        under independent verification: whatever "fixed" meant, it did not
+        restore this account to its real pre-write state (and Supabase's
+        Admin API has no documented mechanism to null an already-set
+        `email_confirmed_at` back out, so an exact restoration may not even
+        be achievable via that API -- flagging honestly per this task's own
+        instruction to document real current state when prior state can't be
+        restored, rather than fabricating a "resolved" outcome). No further
+        action taken on the account itself (read-only verification, zero
+        writes made by this session) -- a real decision on whether/how to
+        correct a non-customer test account's stray confirmed flag is an
+        Owner call, not something to unilaterally act on here.
       reverification_2026_08_04: |
         Real re-verification, `UMR-20260802-165606-4413` OCID-020 (parent chain
         also citing `UMR-20260803-042801-ec4b` OCID-038, the original finding's
@@ -3437,7 +3707,10 @@ open_items:
         as a duplicate. Not a destructive/credential-rotation action -- safe to action without the
         Owner authorization OCID-054 was withholding, whenever someone picks up veda-advisors PR
         hygiene."
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck) -- both PRs were still open and MERGEABLE 26 days
+        after first_raised (`gh pr diff` confirmed byte-identical, single-line diffs). Merged #13
+        (merge commit, mergedAt 2026-08-30T10:57:00Z, branch deleted), commented on #14 citing #13
+        and closed it as a duplicate. `.env` is no longer tracked on veda-advisors main."
       first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
 
     - id: GAP-12-REPOS-SECRET-SCANNING-DISABLED
@@ -3460,7 +3733,17 @@ open_items:
       recommendation: "Enable GitHub secret scanning (Settings -> Code security -> Secret scanning)
         on all 12 repos currently missing it. Non-destructive, does not require the credential-
         rotation/deletion authorization OCID-054 withheld -- safe to action independently."
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck) -- live gh api check found projexa had already
+        been enabled separately since first_raised; enabled on the remaining 11
+        (claude-control/veridian-scripts/veridian-ai-os/zai-sap-reports-queue/
+        infisuite-reverse-engineering/odoo-reverse-engineering/zoho-reverse-engineering/
+        veridian-ui-kit/global-revenue-engine/veridian-brain/sumeet-spec) via
+        `gh api -X PATCH repos/FChecklist/<repo> -f security_and_analysis[secret_scanning][status]=enabled`,
+        each verified individually afterward via a fresh GET. All 15 real FChecklist repos now
+        have secret scanning enabled. Push protection (a separate, distinct setting) was
+        deliberately left untouched -- out of scope of this gap's own recommendation, and it can
+        block pushes on a detection, a workflow-affecting change this recheck did not have
+        standing to make unilaterally."
       first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
 
     - id: GAP-GLOBAL-REVENUE-ENGINE-EMPTY-ORPHAN
@@ -3493,7 +3776,153 @@ open_items:
         (read each, determine which is canonical, close the rest as superseded with a citation).
         Not actioned by OCID-054 (discovery-only scope)."
       status: open
+      recheck_note: "2026-08-30 (R1-R64 recheck): re-measured live rather than trusting the 26-day-old
+        count -- 30 open PRs, 14 CONFLICTING today (was 24/30). The original OCID-041..046 docs
+        cluster has aged out of the list entirely; today's conflicting set is a different, newer mix
+        (R43/R46/R48/R52/R57/R62 test-guard PRs, AI-governance/FinOps gap-closure PRs, a security
+        CVE pin, and two PRs -- #1298/#1299 -- that are themselves about disposing of a much larger,
+        422-PR historical backlog). Deliberately NOT reconciled in this pass: this is real judgment
+        work across other sessions'/people's in-flight PRs spanning many unrelated topics, not a
+        mechanical or safe-by-inspection fix like the veda-advisors duplicate-PR case above -- closing
+        the wrong one risks discarding real pending work. Left as a genuine, real, appropriately-sized
+        follow-up, with the count corrected so it isn't read as stale."
       first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
+
+    - id: GAP-CONSTRUCTION-AI-RISKLEVEL-LLM-ONLY-CLASSIFICATION
+      name: "construction-ai-service.ts's detectBudgetScheduleRisk() had riskLevel decided by the LLM alone from purely numeric aggregates, violating CONSTITUTION.yaml's own software_first doctrine (SF-01/SF-02: deterministic software decides first, AI is the fallback)"
+      old_ids: []
+      detail: |
+        Found by task-20260718-171005-cognitive-architecture--deterministic-fi ("Cognitive
+        Architecture: Deterministic-First Principles" -- title-only dispatch, no prompt.txt spec
+        artifact; this session generated its own real findings against `CONSTITUTION.yaml`'s
+        `software_first` section since no prior session had produced one for this theme). A
+        codebase-wide audit for LLM call sites doing classification/scoring on purely structured
+        (non-free-text) input without a deterministic pre-check -- mirroring this repo's own
+        established pattern (`risk-classification.ts`'s `classifyRisk()`, `response-engine.ts`'s
+        "software decides which predefined label applies" doctrine) -- found 3 ranked candidates:
+        (1) `crm-service.ts`'s `scoreLead()`/`analyzeOpportunity()`, (2) `construction-ai-service.ts`'s
+        `detectBudgetScheduleRisk()`, (3) `ai-team/team-service.ts`'s `classifyTask()` (already a
+        self-documented, deferred follow-up in `capability-tree-service.ts:1032`).
+
+        `detectBudgetScheduleRisk()`'s `riskLevel` ("low"/"medium"/"high") was decided by the LLM
+        alone from `variance`, `delayedTaskCount`, and `totalTaskCount` -- all numbers, no free text
+        -- even though the prompt template itself
+        (`0105_wave123_construction_ai_prompts.sql`) already says "Base riskLevel primarily on
+        variance ... and the proportion of delayed tasks," i.e. it was asking the model to compute a
+        threshold a pure function can compute for real. It also threw a 400 whenever no AI model was
+        configured for the org, even though classification never needed AI in the first place.
+      size: "S -- one service function, additive."
+      recommendation: |
+        Add a pure `classifyBudgetScheduleRisk()` threshold function (most-severe-first, same style
+        as `risk-classification.ts`'s `classifyRisk()`) and use it for the real `riskLevel`; keep the
+        LLM call (when a model IS configured) for reasoning prose only, discarding its own `riskLevel`
+        output; return a deterministic template result when no model is configured instead of a 400.
+      status: resolved
+      first_raised: "task-20260718-171005-cognitive-architecture--deterministic-fi, 2026-08-07 (real codebase audit against CONSTITUTION.yaml's software_first section)"
+      resolved: |
+        2026-08-07, same session. Added `classifyBudgetScheduleRisk()` (pure, most-severe-first
+        threshold checks over overspend-ratio and delayed-task-ratio) and `templateBudgetScheduleRisk()`
+        (deterministic fallback reasoning text) to `construction-ai-service.ts`. `detectBudgetScheduleRisk()`
+        now always computes `riskLevel` deterministically; the LLM call (when a model is configured) is
+        used only for reasoning prose, and its own `riskLevel` output is always discarded and overridden.
+        When no AI model is configured, returns the real deterministic template result instead of
+        throwing 400.
+
+        Verification: new `construction-ai-service.test.ts` (11 tests) covering on-budget/under-budget,
+        medium/high overspend thresholds, medium/high delayed-ratio thresholds, "the more severe of the
+        two signals wins", and zero-budget/zero-tasks not dividing by zero -- 11/11 pass (`bun test`).
+        `bunx eslint` clean on both touched files. `bunx tsc --noEmit` run with a larger heap
+        (`--max-old-space-size=8192`, this box's default heap OOMs on this repo's size regardless of
+        this change) to confirm no type regressions.
+
+        **Real, disclosed follow-ups (NOT done here, flagged not silently dropped):** candidate (1)
+        `crm-service.ts`'s `scoreLead()`/`analyzeOpportunity()` is the same class of finding but a
+        larger product-behavior-change risk (changes what "AI-scored" means for existing leads/
+        opportunities) -- needs its own scoped task/PM decision. Candidate (3)
+        `ai-team/team-service.ts`'s `classifyTask()` is a routing/dispatch-path change with higher
+        blast radius (AI Dev Team task routing) -- also left for a separate task.
+
+    - id: GAP-UI07-UNRESTRICTED-API-KEY-WEBHOOK-MINTING
+      name: "Any authenticated user, including the lowest 'viewer' rank, can mint a write-scoped API key or register a webhook (with its secret) via /settings -- no role gate, no activity-log entry"
+      old_ids: []
+      detail: |
+        Found by `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md` (2026-08-01/07, real code-grounded
+        research pass on domain `UI-07` as part of AI Documentation / Documentation Lifecycle
+        gap-closure, task-20260718-064004). "Admin pages" is a UI-section label, not an enforced
+        boundary: the sidebar's Admin section has no role conditional, `GET /api/users` and
+        `GET /api/departments` have no `requireRole` call (only their write paths are gated), and
+        most significantly `ApiKeySection`/`WebhookSection` in `/settings` render unconditionally
+        (unlike the `isAdmin`-gated sections around them) with their backing routes calling only
+        `requireAuth()`, never `requireRole()` -- and neither route writes an activity-log entry
+        on mint/register. Flagged in the audit doc, not fixed there (a permission/auth-guard code
+        change, outside a documentation-lifecycle task's declared scope, and outside
+        `permission-service.ts`/`auth-guard.ts`, which other in-flight workers may own -- see
+        `prompt.txt`'s standing instruction not to touch `ERP_ACTION_ROLES`'s shared structure).
+      size: "S -- add `requireRole()` (or equivalent org-admin check) to the API-key mint and
+        webhook-register routes, gate `ApiKeySection`/`WebhookSection`'s rendering the same way
+        the surrounding `isAdmin` sections already are, and add the missing activity-log entry on
+        both mint and register."
+      recommendation: "Dedicated permission/auth-guard fix, additive-only against
+        `ERP_ACTION_ROLES` per this repo's current file-scope convention. Verify with a real
+        viewer-rank test account: confirm it can no longer mint a key/register a webhook via the
+        API directly (not just that the UI section is hidden)."
+      status: open
+      first_raised: "ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md, 2026-08-01/07 (AI Documentation / Documentation Lifecycle gap-closure, task-20260718-064004)"
+
+    - id: GAP-DB02-COMPLIANCE-STATUS-NO-SIGNOFF
+      name: "Marking a compliance item 'completed' or resolving an audit point has no sign-off/maker-checker gate, despite DB-02 (compliance core) being real Postgres-RLS-scoped and role-ranked for create/update/delete"
+      old_ids: []
+      detail: |
+        Found by `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md` (domain `DB-02`, same audit pass as
+        `GAP-UI07-UNRESTRICTED-API-KEY-WEBHOOK-MINTING` above). The domain's guardrails are real
+        for access control (`withTenantContext()` RLS, role-ranked writes) but there is no
+        four-eyes/maker-checker step before a compliance item is marked completed or an audit
+        point resolved -- a single actor's own action is final. Flagged, not fixed (out of scope
+        for the documentation-lifecycle task that found it).
+      size: "S-M -- likely the same approval-engine pattern already used for DB-15's ERP
+        period-close (four-eyes floor + self-approval block via `permission-service.ts`), applied
+        to the compliance-item/audit-point completion routes."
+      recommendation: "Confirm with the Owner whether this is an intended product gap (fast
+        single-actor closure) or a real compliance-integrity gap before building a sign-off gate
+        -- this is a workflow/product decision, not purely a security bug."
+      status: open
+      first_raised: "ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md, 2026-08-01/07 (AI Documentation / Documentation Lifecycle gap-closure, task-20260718-064004)"
+
+    - id: GAP-DB05-INGEST-CONFIRM-REJECT-NO-ROLE-GATE
+      name: "Staged-import ingest confirm/reject routes call only requireAuth(), not requireRole() -- any authenticated user can confirm/reject a staged import, not just admins"
+      old_ids: []
+      detail: |
+        Found by `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md` (domain `DB-05`, same audit pass as
+        the two entries above). The rest of `DB-05`'s guardrails are real (admin-only access-review
+        certification, a `revoked` decision hard-blocks login, post-confirm edits are genuinely
+        blocked) -- this one route pair is the gap. Flagged, not fixed.
+      size: XS -- add the missing `requireRole()` call to both routes, same pattern already used
+        elsewhere in this domain.
+      recommendation: "Add the role gate; add a regression test asserting a non-admin authenticated
+        user gets a 403 on both routes."
+      status: open
+      first_raised: "ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md, 2026-08-01/07 (AI Documentation / Documentation Lifecycle gap-closure, task-20260718-064004)"
+
+    - id: GAP-UI02-CAPA-FINDING-OWNERSHIP-LABEL-ONLY
+      name: "/audit-engagements' CAPA finding 'ownership' is a label, not an enforced gate -- any manager+ can close any finding, and closing auto-passes the retest"
+      old_ids: []
+      detail: |
+        Found by `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md` (domain `UI-02`, same audit pass as
+        the three entries above). The rest of `UI-02`'s guardrails are real (`/ingest`'s review UI
+        is genuinely wired to the API, `/audit`'s trail viewer has no write route at all) -- CAPA
+        finding closure is the gap: ownership is displayed but not checked before allowing close,
+        and closing a finding auto-passes its retest with no separate verification step. Flagged,
+        not fixed. Related, lower-severity cosmetic note from the same audit: `UI-08`'s
+        period-close button isn't client-side disabled when its checklist is incomplete (the
+        server-side gate still holds, so this is a UX polish item, not a security gap).
+      size: S -- enforce assigned-owner (or a defined escalation role) before allowing close;
+        separate the retest verification step from the close action.
+      recommendation: "Product/workflow decision needed on who besides the assigned owner should
+        be allowed to close a finding (e.g. a manager override with a reason) before building the
+        enforcement -- don't just lock it to 'assigned owner only' without confirming that's the
+        intended process."
+      status: open
+      first_raised: "ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md, 2026-08-01/07 (AI Documentation / Documentation Lifecycle gap-closure, task-20260718-064004)"
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
@@ -4646,3 +5075,68 @@ closed_priorities:
       feat/agent-review-registry. PR opened, NOT merged by this session per
       standing dispatch instructions -- left for the supervising session's
       audit.
+
+  - priority: 26
+    name: "Prompt & Cache Management Framework Phase 2: cache utilization report + prediction (CACHE-05/CACHE-06)"
+    summary: |
+      Task worker (task-20260718-083006-cache---synchronization--cache-
+      utilizati), title "Cache & Synchronization: Cache Utilization &
+      Prediction" -- no matching spec doc found anywhere in this repo
+      (checked this file and confirmed control/CONTROLLER.yaml, cited by
+      CACHE-01's own `source` field, does not exist here); interpreted
+      honestly as closing the real gap Priority 23's own Phase 1 left
+      open. Confirmed via `git grep promptCacheMetrics` before writing
+      anything: only schema.ts (table def), prompt-cache/metrics.ts (the
+      Phase 1 writer), and chat-service.ts (its one call site) matched --
+      the table was a write-only sink with zero readers, zero API routes,
+      zero aggregation.
+
+      Built src/lib/prompt-cache/utilization.ts:
+      getCacheUtilizationSummary(sinceDays) (platform-wide report,
+      grouped by layer and by day -- total calls, cache-attempted, real
+      hits defined as cacheReadTokens > 0 not just attempted, hit rate,
+      tokens, estimated USD saved) and predictNextDayCacheSavings() (a
+      documented trailing <=7-day moving average over real daily
+      buckets -- deliberately NOT a trained model or external forecasting
+      library; `confidence` is a data-volume signal stated honestly as
+      such, not a statistical error bound). buildLayerSummaries()/
+      buildDailyBuckets() exported as pure functions specifically so
+      they're unit-testable without a DB (8 tests, all passing).
+      Added estimatePromptCacheSavingsUsd() to llm-client.ts, additive
+      next to the existing estimateCostUsd() -- Anthropic's published
+      cache pricing (reads 0.1x base price, writes 1.25x), null for
+      unpriced models, same honest-limitation convention as
+      estimateCostUsd. New veridian_admin-gated GET
+      /api/ai/team/cache-utilization route, matching the sibling
+      /api/ai/team/token-usage route's posture (platform-wide,
+      cross-org observability data, not exposed to every user).
+
+      Uses the raw `db` client rather than withTenantContext, following
+      token-usage-service.ts's own precedent and reasoning (this is a
+      platform-wide ledger, not an org-scoped resource).
+
+      Deliberately NOT built this pass: any new write site --
+      CACHE-03's Phase 1 gap (only chat-service.ts's generateAiReply is
+      wired) is unchanged; a UI/dashboard page (this route follows the
+      existing API-only convention already used by /scorecard,
+      /governance-health, /d1-metrics, /token-usage -- none of which have
+      a dedicated page either); any true statistical forecasting model
+      (would need meaningfully more historical data than a fresh Phase 1
+      table has accumulated to validate against).
+
+      bun test: 8/8 new tests pass. eslint clean on every changed/new
+      file. Full-project `tsc --noEmit` could NOT be independently
+      confirmed this pass -- attempted twice (foreground with 6GB heap,
+      then background with 8GB heap), both times killed by this box's own
+      resource pressure before completing (see Priority 25's own note
+      above confirming a full tsc run normally completes with 21
+      pre-existing, unrelated package-mismatch errors as its clean
+      baseline -- this is a today's-load problem, not evidence tsc itself
+      is broken here). Risk assessed as low, not zero: every new query
+      shape directly mirrors an already-compiling precedent
+      (db.select().groupBy() matches token-usage-service.ts's
+      getTokenUsageSummary() exactly; the db.execute(sql\`...\`) + `as
+      unknown as {...}[]` cast matches report-engine-service.ts's
+      computeSnagTrendAnalysis()) -- flagged here honestly rather than
+      silently claimed clean; the next session touching this area should
+      run a full tsc pass once box load allows.

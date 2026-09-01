@@ -574,7 +574,8 @@ domains:
     from src/lib/ai-team/roster.ts's 57-role build-time org chart (GOV-05). Two different things sharing
     the word 'roster' -- do not conflate.
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- these are persistent governance state files themselves (indexed, not re-transcribed); there is no user-facing process to describe beyond what input/output above already state.
   source: 10-compliance-tracker-governance
   repo: compliance-tracker
 - id: API-01
@@ -1039,7 +1040,18 @@ domains:
     amount.'
   - 'compliance_type enum: GST, TDS, MCA, PF, ESIC, INCOME_TAX, ROC, LABOUR, ENVIRONMENTAL, OTHER.'
   - 'compliance_status enum: pending, in_progress, completed, overdue, not_applicable, draft.'
-  guardrails: []
+  guardrails:
+  - Org/client isolation is real Postgres RLS, not app-level filtering only -- withTenantContext()
+    (src/lib/db/tenant-scoped.ts:44-79) runs every query as the app_runtime role (no RLS bypass) inside a
+    transaction that sets app.current_org_id/current_client_ids/current_user_id, read by RLS policies via
+    compliance.current_org_id() etc. Every compliance-service.ts operation goes through it.
+  - Create/update require role >= member, delete requires role >= manager, via requireRoleOrScope/ROLE_RANK
+    (src/app/api/compliance/route.ts, [id]/route.ts; src/lib/supabase/auth-guard.ts).
+  - 'Round 3 finding (2026-08-01): NOT a guardrail, a real gap -- marking a compliance_items row "completed"
+    has no extra sign-off beyond the ordinary member-role update check (compliance-service.ts), and
+    audit_points status changes (src/app/api/audit-points/[id]/route.ts) require only requireAuth(), no
+    requireRole() at all -- any org member can resolve an audit point. No maker-checker gate exists on
+    either table.'
   workflow:
   - See API-01's workflow -- this is the table it operates on.
   source: 12-compliance-tracker-database
@@ -1112,7 +1124,19 @@ domains:
   rules:
   - ingestion_batch_status / ingestion_item_status enums drive the shared staged-import pattern reused
     by both compliance/import (API-01) and gst-reconciliation/import (API-11) and documents/ingest (API-12).
-  guardrails: []
+  guardrails:
+  - Certifying an access review requires admin role -- PATCH .../certifications/[certId]/route.ts calls
+    requireRole(dbUser, "admin") before recording confirmed/revoked.
+  - A revoked decision is a real enforcement mechanism, not just a status field -- requireAuth()
+    (src/lib/supabase/auth-guard.ts) queries accessReviewCertifications for decision='revoked' and, if
+    found, hard-blocks login with 401 "account has been deactivated."
+  - The staged-import gate is real, not cosmetic -- POST /api/ingest/[batchId]/confirm/route.ts refuses
+    already-confirmed/cancelled batches, filters out rejected items and (unless force_duplicates) duplicates,
+    only promotes reviewStatus=approved/edited rows; PATCH .../items/[itemId]/route.ts blocks edits once
+    a batch is confirmed/cancelled.
+  - 'Round 3 finding (2026-08-01): NOT a guardrail, a real gap -- neither ingest route calls requireRole,
+    only requireAuth, so any authenticated org member (not just admin/manager) can approve/reject/confirm
+    an import batch.'
   workflow:
   - File uploaded -> staged as ingestion_items -> reviewed row-by-row -> confirmed/rejected -> confirmed
     rows promoted into their real target table.
@@ -1163,12 +1187,24 @@ domains:
   input: A legal matter, litigation case, or IP asset.
   output: Rows behind API-13's litigation/legal-matters/legal-opinions/legal-vendors/ip-portfolio routes.
   rules:
-  - litigation_stage enum tracks case progression; legal_opinions/[id]/generate (API-13) drafts against
-    this table using AI, human-reviewed before finalization.
-  guardrails: []
+  - 'litigation_stage enum tracks case progression.'
+  - 'CORRECTED 2026-08-01 (Round 3, was previously inaccurate): legal_opinions/[id]/generate does NOT
+    use AI. src/lib/services/legal-opinion-service.ts''s own header states it is "deliberately NOT
+    generative/AI authoring" -- it is a CLM-template token-substitution engine (plain {{token}}
+    substitution over clause text a human wrote), not an LLM drafting legal content. There is also no
+    status/finalization field or route on legal_opinions -- generateOpinionDraft simply overwrites
+    bodyText each time it is called; no "finalize" step exists in code to human-review.'
+  guardrails:
+  - Access is org-scoped via withTenantContext/orgId filtering in every route (src/app/api/litigation/route.ts,
+    src/app/api/legal-opinions/route.ts); writes (create litigation matter, generate legal opinion) require
+    manager role via requireRole(dbUser, "manager").
+  - 'Round 3 finding (2026-08-01): NOT a guardrail, a real gap -- GET/read routes have no role restriction
+    beyond org membership (no dedicated "legal" role exists in this codebase''s role model, no legal.*
+    entries in permission-service.ts''s ERP_ACTION_ROLES), and there is no human-review/approval gate on
+    legal_opinions because there is no finalization step at all -- see the corrected rules entry above.'
   workflow:
-  - Matter opened -> tracked through litigation_stage -> spend logged -> opinion drafted (AI-assisted)
-    and finalized.
+  - Matter opened -> tracked through litigation_stage -> spend logged -> opinion template populated via
+    token substitution (role-gated to manager, no further review/finalize step in code).
   source: 12-compliance-tracker-database
   repo: compliance-tracker
 - id: DB-08
@@ -1267,7 +1303,8 @@ domains:
   output: The scope object PMS issues, ERP contracts, and construction domains attach to via projectId.
   rules: []
   guardrails: []
-  workflow: []
+  workflow:
+  - A product/project record is created (via ERP or PMS) -> other domains (PMS issues, ERP contracts, construction modules) attach to it as their scope object via projectId.
   source: 12-compliance-tracker-database
   repo: compliance-tracker
 - id: DB-12
@@ -1360,7 +1397,18 @@ domains:
   rules:
   - This is the DB side of the token-resolved public routes in API-08's guardrails list -- the tokens
     themselves live in these tables, resolved server-side.
-  guardrails: []
+  guardrails:
+  - E-signature is a genuine first-party signing flow, not a status flag -- submitSignature()
+    (src/lib/services/esignature-service.ts) captures signature image data, method, IP, user-agent, and
+    timestamp, and computes a SHA-256 hash of the linked document/contract/change-order both at
+    request-creation (documentHash) and at signing time (documentHashAtSigning) for tamper detection.
+  - Signing order is enforced server-side, not just advisory -- if signOrder is set, submitSignature
+    checks for any earlier-ordered pending signer and throws 409 "An earlier signer in the sequence has
+    not signed yet"; getSigningSession's isMyTurn mirrors this for the UI.
+  - Guest/share tokens (conversationShareLinks, conversationGuestAccess, esignatureSigners.accessToken)
+    are opaque per-token, time-bound (e.g. 30-day e-sig token validity, 72h default chat share-link
+    expiry) and revocable; expired/revoked/voided tokens return a generic 404/409 rather than
+    distinguishing "expired" from "never existed" (getSharedConversation), preventing enumeration.
   workflow:
   - Owner creates a share link/guest access grant -> external party uses the token -> scoped access granted
     without a full account.
@@ -1407,7 +1455,24 @@ domains:
   - ~40 ERP-specific enums exist (erp_account_root_type, erp_journal_entry_status, erp_invoice_status,
     erp_payment_type, erp_party_type, erp_asset_status, erp_depreciation_method, erp_period_status, approval_workflow_instance_status/step_status/condition_operator,
     and ~28 more listed in full in the enum inventory).
-  guardrails: []
+  guardrails:
+  - approvalWorkflowDefinitions/Instances/StepInstances/StepApprovals are a real, entity-agnostic
+    multi-step approval engine (src/lib/services/approval-workflow-service.ts) with quorum-per-step
+    (requiredApprovals), role-rank gating (decideApprovalStep), and a hard-enforced four-eyes floor of 2
+    approvers for any step matching the platform's "critical action" taxonomy, even if an admin configures
+    it lower (enforceFourEyesFloor). Self-approval is explicitly blocked (isSelfApproval(), checked in
+    decideApprovalStep) -- a user cannot approve/reject their own submitted request.
+  - Journal-entry posting refuses closed periods -- submitJournalEntry() calls isPeriodOpenForDate() and
+    throws 409 if the period covering the posting date is closed (erp-accounting-service.ts,
+    erp-financial-report-service.ts). If an approval_workflow_definition is active for erp_journal_entry,
+    the entry stays pending until approved; otherwise it auto-posts (documented "no workflow = auto-approved"
+    fallback, matching every other module's default).
+  - 'Closing a period is gated -- closePeriod() requires the closing checklist complete AND a prior sign-off
+    (erp-financial-report-service.ts); reopening requires admin rank (stricter than the manager bar most
+    "hard to undo" actions get) and clears sign-off, forcing re-review. Route-level role gates use the
+    centralized permission-service.ts ERP_ACTION_ROLES table (e.g. erp.journal_entries.submit=manager,
+    erp.fiscal_periods.close=manager, erp.fiscal_periods.reopen=admin), enforced via requirePermissionForUser
+    in the API routes.'
   workflow:
   - See API-03's workflow -- this is a genuine double-entry general ledger with real debit/credit line
     items, not a simplified 'amount' model.
@@ -1430,7 +1495,8 @@ domains:
   output: See API-09/13.
   rules: []
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- schema-completeness listing; the real workflow lives at API-09 (recruitment/performance) and API-13 (CLM, e-signature), not here.
   source: 12-compliance-tracker-database
   repo: compliance-tracker
 - id: DB-17
@@ -1495,7 +1561,8 @@ domains:
   - This is the DB source-of-truth PROJEXA's own client (20-projexa.yaml) reads/writes exclusively through
     the v1/construction and v1/projexa API surface -- PROJEXA itself owns none of these tables.
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- schema-completeness listing; the real workflow lives at each corresponding API domain (API-05, API-06, API-10, API-11, API-16), not here.
   source: 12-compliance-tracker-database
   repo: compliance-tracker
 - id: UI-01
@@ -1540,7 +1607,15 @@ domains:
   rules:
   - /penalties is a real calculator UI over GOV-07's tax engines (income-tax-engine.ts, tds-engine.ts,
     gst-engine.ts), not a separate calculation implementation.
-  guardrails: []
+  guardrails:
+  - /ingest's row-by-row approve/reject is real and wired to DB-05's ingest API (ingest/page.tsx's
+    setReviewStatus/approveAll/confirmImport).
+  - /audit's trail viewer is genuinely read-only -- src/app/api/audit/route.ts exports only GET, no
+    PATCH/PUT/DELETE handler exists anywhere for audit_logs.
+  - 'Round 3 finding (2026-08-01): NOT a guardrail, a real gap -- /audit-engagements'' "CAPA-owned
+    findings" ownership is a label, not an enforced gate. ownerId is set at creation
+    (risk-register-service.ts) but advanceAuditFindingCapaStatus never checks it; any role >= manager can
+    advance/close ANY finding, and closing auto-sets retestResult="passed" with no real retest step.'
   workflow:
   - Item created/imported -> tracked through /compliance/[id]'s tabs -> reported on via /reports -> penalties
     calculated when overdue -> everything auditable via /audit.
@@ -1595,7 +1670,8 @@ domains:
   guardrails:
   - SectorGate.tsx (SectorGateNotice) blocks sebi/rbi/irdai for orgs whose entityType doesn't match, at
     the UI layer.
-  workflow: []
+  workflow:
+  - User navigates to a Risk/Regulatory/Integrity page -> if the org's entity type doesn't match a sector-gated page's requirement (SEBI/RBI/IRDAI), a SectorGateNotice is shown instead of the workspace -> otherwise the real risk/regulatory data (API-13, DB-08/09) renders.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: UI-06
@@ -1630,8 +1706,27 @@ domains:
   - /settings is the single largest settings surface, backed by ~10 dedicated sub-panel components (AiConfigSection,
     AiAssistantsSection, PersonalAiConfigSection, OrchestraModelConfigSection, ApiKeySection, WebhookSection,
     MfaSection, SsoSection, PmsEnablementSection) -- see UI-13.
-  guardrails: []
-  workflow: []
+  guardrails:
+  - 'settings/page.tsx self-hides some admin-only fields via a fetched isAdmin flag (org-details,
+    org-limits, branding, adoption-metrics), and SSO is also backed server-side (POST /api/settings/sso/route.ts
+    requires requireRole(dbUser,"admin")).'
+  - MFA, once enrolled, is a real session-wide edge gate, not a settings toggle -- src/proxy.ts checks
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel() on every protected route and redirects to
+    /mfa-challenge until AAL2 is satisfied.
+  - 'Round 3 finding (2026-08-01), same class as Round 2''s UI-10 finding -- flagged, not fixed, out of
+    scope for this documentation pass: "Admin pages" is a UI-section label here, not a uniformly
+    admin-only surface. The sidebar''s entire Admin section (Users, Departments, Access Review, Settings,
+    Audit Log) is shown to every role unconditionally (AppSidebar.tsx has no role conditional); GET
+    /api/users and GET /api/departments are open to any org member (no requireRole -- only the POST/write
+    paths require manager/admin). Most notably: ApiKeySection and WebhookSection render unconditionally in
+    /settings (not wrapped in isAdmin unlike the sections above them), and their backing routes
+    (api/settings/api-keys/route.ts, api/settings/webhooks/route.ts) call only requireAuth() -- never
+    requireRole -- so any authenticated org member, including the lowest viewer rank, can mint a
+    write-scoped API key or register a webhook (with its secret) with zero audit-log entry (no
+    logActivity call in either file). Surfaced here for the Owner/next session, not remediated by this
+    task (documentation-lifecycle scope, not a security-fix task).'
+  workflow:
+  - Admin opens /users, /departments, or a /settings tab -> submits a configuration change -> persisted via the corresponding admin API route -> reflected immediately in the same view.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: UI-08
@@ -1653,7 +1748,15 @@ domains:
   rules:
   - Every tabbed page here maps 1:1 onto a DB-15 sub-domain -- the UI tab structure mirrors the schema's
     own domain grouping almost exactly.
-  guardrails: []
+  guardrails:
+  - The periods page (erp/periods/page.tsx) shows Sign Off/Close buttons only when a period's status is
+    "open" and swaps to a Reopen button otherwise -- the primary client-side gate is status-conditional
+    rendering, not a disabled attribute.
+  - 'Round 3 finding (2026-08-01): NOT a guardrail, a minor real gap, same pattern as Round 2''s UI-10
+    finding -- the Close button is not disabled when the month-end checklist is incomplete (only shows a
+    green hint line); the real gate is 100% server-side (DB-15''s assertChecklistComplete/sign-off check
+    in erp-financial-report-service.ts). A user can click Close early and gets a 409 toast, but the UI
+    does not pre-block it.'
   workflow:
   - See API-03/DB-15's workflow.
   source: 13-compliance-tracker-ui
@@ -1667,7 +1770,8 @@ domains:
   output: Rendered CRM/Sales-HQ workspace.
   rules: []
   guardrails: []
-  workflow: []
+  workflow:
+  - User opens /crm (Leads/Opportunities tabs), or /sales-hq if admin -> views/edits records fetched via API-10 -> /sales-hq additionally surfaces VisitorIntelligencePanel's anonymous-visitor data.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: UI-10
@@ -1720,7 +1824,8 @@ domains:
   - Every ticket IS a VERI Chat conversation underneath -- not a separate messaging system, a real architectural
     reuse.
   guardrails: []
-  workflow: []
+  workflow:
+  - User opens a knowledge/support/meetings page, e.g. /tickets -> the underlying VERI Chat conversation loads (guest access supported) -> /veri-meetings separately runs AI-assisted extraction (meeting_intelligence.extract, see ai-os/registry/PROMPT-TEMPLATE-DIRECTORY.md) over recorded minutes, producing task-linked action items.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: UI-12
@@ -1736,7 +1841,8 @@ domains:
   - Both are opt-in per org -- absent from the sidebar entirely for orgs that haven't enabled them, not
     just hidden/disabled.
   guardrails: []
-  workflow: []
+  workflow:
+  - If pmsEnabled/firmEnabled is on for the org, user opens /pms or /the-firm-practice -> navigates ProjectNav/Practice Cockpit sub-tabs -> reads/writes via API-04/API-05 -> the module is hidden entirely otherwise (product-branch gate, see docs/master/MODULE_MAP.md).
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: UI-13
@@ -1751,7 +1857,8 @@ domains:
   output: The consistent app frame around all ~130 pages.
   rules: []
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- the shared layout/navigation shell rendered around every authenticated page; not itself a user-facing process.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: UI-14
@@ -1790,7 +1897,8 @@ domains:
   - MismatchBubble.tsx is the UI surface for DB-10's instruction_mismatch_detections -- visible only to
     the commitment's original assigner, a real privacy-scoped rendering decision.
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- a grab-bag of reusable components, each already described under the feature domain that actually uses it (chat, PMS, ERP, e-signature); no single shared workflow to state here.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: UI-16
@@ -1817,7 +1925,8 @@ domains:
   - ForgeIntakeComposer.tsx explicitly reuses VeriComposer's Mode-Pills/Chain-Selector mechanism for the
     PUBLIC (unauthenticated) lead-intake flow at /forge -- confirmed by code comment.
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- shared top-level utility/primitive components (same class as UI-15); each is described under its consuming domain.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: PRX-01
@@ -1866,7 +1975,8 @@ domains:
   - assistant_queries is a SYNCHRONOUS stand-in for VERIDIAN's real async task system, per its own code
     comment in schema.ts and api/assistant/route.ts.
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- local DB tables only (tenant/auth/chat plumbing). The real workflow is PRX-07's (the routes that read/write these tables).
   source: 20-projexa
   repo: projexa
 - id: PRX-03
@@ -1900,7 +2010,8 @@ domains:
   - 'Every list page shares one pattern: server component calls callVeridian(''/dashboard''), takes data.projects[0],
     passes projectId to a client component -- a real, confirmed gap: no project switcher exists.'
   guardrails: []
-  workflow: []
+  workflow:
+  - User opens an authenticated PROJEXA page (e.g. /schedule, /rfis) -> the page loads the org's FIRST project (no project-switcher UI exists yet, see PRX-01) -> data is fetched entirely through VERIDIAN's real API via PRX-06's proxy routes.
   source: 20-projexa
   repo: projexa
 - id: PRX-05
@@ -1953,7 +2064,8 @@ domains:
   - All 20 of these routes call requireAuth() first, then are pure passthroughs to callVeridian -- matches
     API-06/API-02(v1/projexa) on the VERIDIAN side exactly.
   guardrails: []
-  workflow: []
+  workflow:
+  - PROJEXA page calls a PRX-06 route -> the route forwards the request to VERIDIAN's real API with the org's Bearer key held server-side -> VERIDIAN's response is returned as-is, or wrapped as HTTP 502 if the upstream call fails (confirmed in source, src/app/api/assistant/route.ts).
   source: 20-projexa
   repo: projexa
 - id: PRX-07
@@ -1967,7 +2079,8 @@ domains:
   output: PRX-02's local tables.
   rules: []
   guardrails: []
-  workflow: []
+  workflow:
+  - PROJEXA page calls a PRX-07 route -> the route reads/writes PRX-02's local Supabase/Drizzle tables directly -- no VERIDIAN call, used only for chat/todo data that's local to PROJEXA itself.
   source: 20-projexa
   repo: projexa
 - id: PRX-08
@@ -1982,7 +2095,8 @@ domains:
   output: The consistent app frame.
   rules: []
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- the shared layout/navigation shell (same class as UI-13); not itself a process.
   source: 20-projexa
   repo: projexa
 - id: PRX-09
@@ -2003,7 +2117,8 @@ domains:
   output: Rendered feature UI, all following a load/create/transition/toast pattern.
   rules: []
   guardrails: []
-  workflow: []
+  workflow:
+  - Each domain feature client component follows the same real load, create, transition, toast pattern -- fetch current records via PRX-06, submit a create/update action, drive the record through its status lifecycle, show a toast on success/failure (already stated in this domain's own objects field above, promoted here as its workflow).
   source: 20-projexa
   repo: projexa
 - id: PRX-10
@@ -2020,7 +2135,8 @@ domains:
   - Confirmed by its own code comments to be a deliberate UI port of VERIDIAN's design, not an independent
     reimplementation.
   guardrails: []
-  workflow: []
+  workflow:
+  - User picks a fixed mode pill, or a dynamic 'chain' mode built from the live capability tree (PRX-06's /api/capability-tree) -> the query is staged in a queue -> submitted via /api/discuss or /api/assistant -> the response renders in VeriChatPanel's Overview/Queries/Chats/To Do tabs.
   source: 20-projexa
   repo: projexa
 - id: PRX-11
@@ -2042,7 +2158,8 @@ domains:
     aliases onto the px-* palette ''so copied VERIDIAN components don''t need hand-editing'' -- a DELIBERATE,
     self-documented workaround, not an accidental oversight.'
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- shadcn primitives plus a handful of components confirmed dead/unreferenced (see objects above); nothing to describe as a process.
   source: 20-projexa
   repo: projexa
 - id: PRX-12
@@ -2059,7 +2176,8 @@ domains:
   output: N/A.
   rules: []
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- infrastructure (DB client, Supabase helpers, hooks), not a user-facing process.
   source: 20-projexa
   repo: projexa
 - id: PRX-13
@@ -2083,7 +2201,8 @@ domains:
   output: N/A.
   rules: []
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- this is the domain vocabulary/data-shape the UI/API layer encodes, not a process itself. The real processes are PRX-06's and PRX-09's workflows above.
   source: 20-projexa
   repo: projexa
 - id: VA-01
@@ -2126,7 +2245,8 @@ domains:
   - No repo-root .git -- code-by-zai/ is itself a separate git checkout of FChecklist/veda-advisors nested
     inside this folder, which is the actual tracked repo.
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- repo top-level structure listing, not a process.
   source: 30-veda-advisors
   repo: veda-advisors
 - id: VA-03
@@ -2160,7 +2280,8 @@ domains:
   - /founders, /students, /india share the same inline-style layout pattern (copy-pasted, not shared as
     components) -- content differs, structure doesn't.
   guardrails: []
-  workflow: []
+  workflow:
+  - Visitor lands on / (which iframes the static generated demo.html -- the homepage is literally a wrapper, not a native React page) -> navigates to /founders, /students, or /india for BSCVI-methodology content -> or reaches /stage0, the one real interactive flow (see VA-07 for its Stage 0 READINESS funnel detail).
   source: 30-veda-advisors
   repo: veda-advisors
 - id: VA-05
@@ -2175,7 +2296,8 @@ domains:
     documented as IMPLEMENTED in ai-os/registry/ARTIFACTS.yaml -- that registry file is confirmed aspirational/stale,
     not a description of real code. See VA-09.
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- two stub routes, one unused and one serving a static HTML file off disk; no real request/response process to describe.
   source: 30-veda-advisors
   repo: veda-advisors
 - id: VA-06
@@ -2195,7 +2317,8 @@ domains:
   - .env (DATABASE_URL only) and .env.local (Supabase keys) are BOTH tracked in the working tree -- 2
     open PRs (#13/#14) exist to fix this, per VEDA_ADVISORS_GOVERNANCE.md's own honesty ledger.
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- backend infrastructure fact (Supabase is the real backing store; Prisma+SQLite is unused leftover template boilerplate), not a process.
   source: 30-veda-advisors
   repo: veda-advisors
 - id: VA-07
@@ -2236,7 +2359,8 @@ domains:
   - Repeated verbatim across /founders, docs/strategy.md, and linkedin_auto_update.js -- the canonical
     description lives in docs/strategy.md.
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- business methodology content (the BSCVI 3.0 stage list itself), not code. VA-04/VA-07 describe how it's actually surfaced to a user.
   source: 30-veda-advisors
   repo: veda-advisors
 - id: VA-09
@@ -2270,7 +2394,8 @@ domains:
     are the closest thing to a guardrail against VA-01's finding -- evidently insufficient, since the
     finding exists despite them (the flagged files may predate the scan, or the scan may not catch markdown-embedded
     credentials as reliably as source code).
-  workflow: []
+  workflow:
+  - N/A -- governance state files, same class as GOV-18; not a process.
   source: 30-veda-advisors
   repo: veda-advisors
 - id: VA-10
@@ -2288,7 +2413,8 @@ domains:
   - All 3 test files exercise logic/assertions that don't correspond to the app's actual current routes
     -- confirmed test/reality mismatch, not a false alarm.
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- test files confirmed disconnected from the real routes they claim to test (see this domain's own objects field); there is no real workflow to describe, that disconnect is the finding itself.
   source: 30-veda-advisors
   repo: veda-advisors
 - id: VA-11
@@ -2302,7 +2428,8 @@ domains:
   output: Rajat's LinkedIn profile updated to match the new BSCVI 3.0 brand copy.
   rules: []
   guardrails: []
-  workflow: []
+  workflow:
+  - Claude reads Linkedin.md/LinkedIn_update.md for the current BSCVI 3.0 brand copy -> operator manually pastes linkedin_auto_update.js into the browser DevTools console on Rajat's own LinkedIn profile page (works around Chrome MCP's LinkedIn domain block via clipboard-paste) -> the script rewrites Headline/About/a job description entry/Featured link in place.
   source: 30-veda-advisors
   repo: veda-advisors
 - id: VB-01
@@ -2318,7 +2445,8 @@ domains:
     compliance-tracker; see README." -- confirmed accurate: nothing beyond a README and package.json exists.'
   - Not worth a granular tree yet -- there is no functional surface to decompose.
   guardrails: []
-  workflow: []
+  workflow:
+  - N/A -- placeholder scaffold; nothing functional exists yet to describe a workflow for.
   source: 40-veridian-brain
   repo: veridian-brain
 count_of_domains: 94
