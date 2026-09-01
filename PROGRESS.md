@@ -1,143 +1,68 @@
-# PROGRESS -- pr667-resume (real rebase-merge for PR #667)
+# PROGRESS -- pr665-rebase-merge-20260901 (real rebase-merge for PR #665)
 
 ## Scope
-Real rebase-merge of PR #667 (`worker/task-20260731-044026-pm--teams---project-groups-templates`,
-"PM Teams, Project Groups, and Project Templates (Task #47)") onto current main, per this repo's
-standard rebase-sweep protocol. A prior attempt at this same task failed partway through on a
-transient ECONNRESET network error (not a real decision) -- this is a fresh restart, new clone, new
-branch. Decision context already verified real before starting: grep of schema.ts for
-pmTeams/projectGroups/projectTemplates on main returns zero hits; every Team/Template match on main is
-unrelated; no team/group/template directories exist under PM API routes -- PR #667's tables
-(pm_teams, pm_team_members, project_groups, project_group_projects, project_templates,
-project_team_assignments, project_phases, project_tasks) and services are genuinely new
-functionality, not already shipped.
+Real rebase-merge of PR #665 (`task-20260731-044029-pm-social-collaboration-feed`,
+"feat(pm): social/collaboration feed (Task #47)") onto current main, per this repo's standard
+rebase-sweep protocol. Decision context (already verified real before this sweep): no
+`src/app/api/social` directory exists on main; a grep of `schema.ts` for
+socialFeed/reactions/announcementPost returns zero hits; `social-feed-service.ts`,
+`posts`/`reactions`/`comments` routes, and the migration are genuinely new (additive
+alongside the pre-existing, separate `comments` reply-thread system, not a duplicate). A
+prior attempt at this rebase-merge failed with a transient network error (ECONNRESET)
+partway through -- not a real decision, redone fresh here.
 
-## Environment gotcha hit this session (new, not previously documented)
-The scratchpad working directory is NOT exclusive to this session despite being session-scoped by
-path -- a first clone into a generic `compliance-tracker` subdirectory was silently deleted out from
-under this session mid-task (almost certainly by another concurrent session doing unrelated PR work
-in the same physical scratchpad path -- evidence: dozens of other sessions' leftover files for
-different PRs, e.g. `pr673*.json`, `r65_part_c_phase1.js`, timestamped minutes apart from this
-session's own work, plus other sessions' own uniquely-named clone dirs like `ct2`/`r65c` showing
-they'd already learned this lesson). Fix: re-cloned into a uniquely-named directory
-(`pr667resume_9480ff4e`, keyed off this session's own id) instead of a generic name. Flagging this
-so a future session picks a collision-resistant clone directory name from the start.
+## Rebase (this session, `pr665-rebase-merge-20260901`), onto main at `f30358b2`
+- [x] Got the PR's real head branch via `gh pr view 665 --json headRefName`:
+      `task-20260731-044029-pm-social-collaboration-feed`.
+- [x] Cloned the repo fresh, checked out the head branch, branched
+      `pr665-rebase-merge-20260901` off it. (A first clone attempt mid-session vanished from
+      the local scratch directory between shell calls -- an environment hiccup on this
+      shared machine, not a real decision -- re-cloned fresh and redid the work below.)
+- [x] `git fetch origin main && git merge origin/main` -- **4 real conflicts, resolved with
+      actual judgment, not blind pick-one-side:**
 
-## Rebase (this session), branch `pr667-resume` off the PR's real head branch
-- [x] Got the PR's real head branch via `gh pr view 667 --json headRefName`:
-      `worker/task-20260731-044026-pm--teams---project-groups-templates`. Confirmed real state first:
-      `state=OPEN`, `mergeStateStatus=DIRTY`, `mergeable=CONFLICTING` (genuine conflicts expected,
-      not a stale/false signal).
-- [x] Fresh `gh repo clone`, `git checkout -b pr667-resume` off the PR's head branch (commit
-      `5f296ba2`), `git fetch origin main`. Branch had drifted **1333 commits** behind main.
-- [x] `git merge origin/main` -- **4 real conflicts, resolved with actual judgment, not blind
-      pick-one-side:**
+  1. **`PROGRESS.md`** -- this repo's single-current-entry convention: replaced wholesale
+     with this file (this section), did not concatenate with either the stale merge-base
+     entry or origin/main's own then-current entry (PR #1546/#1212's AI Cost Governance
+     rebase-sweep record).
 
-  1. **`PROGRESS.md`** -- this repo's single-current-entry convention: replaced wholesale with this
-     file (this section), did not concatenate with either the stale merge-base entry or main's own
-     then-current entry (which was a different, still-in-progress rebase-sweep for PR #1212).
+  2. **`ai-os/boss/ACTIVE-CLAIMS.yaml`** -- this branch's own diff from merge-base carried
+     the file's old, pre-prune, ~6,720-line bloated state (its own claim entry for this task
+     buried inside it, unchanged since 2026-07-31). Origin/main had independently pruned
+     this file down to its current, much smaller 1,450-line `active:` list. Did NOT
+     reintroduce the stale bloated version: took main's current pruned content as-is and
+     appended this branch's one real claim entry at the end of `active:`, with a
+     `rebase_note` documenting this merge (matching the convention already used by sibling
+     entries in the same file). Confirmed no collision with the sibling Task #47 entry
+     already on main (`task-20260731-044019-pm--project-status-access-rollup`) -- disjoint
+     file scope.
 
-  2. **`ai-os/boss/ACTIVE-CLAIMS.yaml`** -- this branch's own diff carried the file's old, pre-Phase-5
-     bloated state (its own claim for this task buried in a `recently_completed:` section, 4368 lines
-     total). Origin/main had independently pruned this file down to just its current `active:` list
-     (1450 lines, `recently_completed:` section removed entirely). Took main's current pruned content
-     as-is, unmodified, and appended just this task's one relevant entry back under a fresh
-     `recently_completed:` section at the end -- did not reintroduce any of the rest of the stale
-     bloated history. Validated: `python -c "import yaml; yaml.safe_load(...)"` parses clean, 35
-     active + 1 recently_completed entries.
+  3. **`drizzle/meta/_journal.json`** -- this branch's own migration entry (idx 279,
+     `0310_social_feed`) was appended at the wrong position relative to main's real current
+     history. Checked the TRUE current highest migration number the hard way, per this
+     repo's own documented gotcha (never trust a stale local checkout or the journal file's
+     own idx sequence): `git ls-tree -r origin/main -- drizzle/` shows main's real highest
+     numbered file is `0518_ai_cost_reconciliation` (idx 340). `0310` was already taken on
+     main by an unrelated, already-shipped migration -- renamed the migration file
+     `drizzle/0310_social_feed.sql` -> `drizzle/0519_social_feed.sql` (`git mv`, next free
+     slot after main's real 518, confirmed free via a fresh `ls drizzle/`) and added the
+     matching journal entry (idx 341) after main's real idx-340 entry, instead of splicing
+     into the middle of main's list. No other file in the repo referenced the old
+     `0310_social_feed` name (grepped `.md`/`.ts`/`.json`/`.yaml` repo-wide) besides this
+     branch's own now-replaced `PROGRESS.md`.
 
-  3. **`drizzle/meta/_journal.json`** -- this branch's own migration entry (idx 279, tag
-     `0302_pm_teams_project_groups_templates`) collided with main's own independent use of `0302`
-     for an unrelated migration (`0302_sales_pipeline_dashboard_targets`, Sales Pipeline dashboard
-     targets). Found the TRUE current highest migration number the hard way, per this repo's own
-     documented gotcha (never trust a stale local checkout or the journal's own idx sequence):
-     `git ls-tree -r origin/main -- drizzle/`, parsed with a small Python script (a first attempt with
-     a bash grep/sed/sort pipeline silently produced garbled/wrong results on this shell -- did not
-     trust it, re-verified numerically in Python instead) -- main's real highest is
-     `0518_ai_cost_reconciliation` (journal idx 340). Renamed this branch's migration file
-     `drizzle/0302_pm_teams_project_groups_templates.sql` -> `drizzle/0519_pm_teams_project_groups_templates.sql`
-     (`git mv`) and appended a new journal entry (idx 341) after main's real idx-340 entry, instead of
-     splicing into the middle of main's list. Confirmed via targeted `Grep` that no other file
-     (docs, tests, services) references the old `0302_pm_teams...` name or number -- only PROGRESS.md
-     did, which is being wholesale-replaced anyway; `crm_sales_targets`-adjacent test files that
-     reference "0302" refer to main's own unrelated `0302_sales_pipeline_dashboard_targets.sql` and
-     were left untouched.
-
-  4. **`src/lib/db/schema.ts`** -- a large additive conflict that `git` initially rendered as 3
-     separate conflict hunks purely because of coincidental identical boilerplate lines
-     (`createdAt`/`updatedAt`/`})`) at table-closing points on both sides, not because there were 3
-     real separate insertion points. Verified this directly: pulled the full `schema.ts` from both
-     branch tips (`git cat-file -p <branch>:src/lib/db/schema.ts`) and confirmed both sides'
-     *entire* new content is one single contiguous append immediately after
-     `supportSessionsRelations` running to the literal end of file on both branches (this branch:
-     165 lines, the `pmTeams`/`pmTeamMembers`/`projectGroups`/`projectGroupProjects`/
-     `projectTeamAssignments`/`projectTemplates`/`projectPhases`/`projectTasks` tables + their
-     relations; main: 520 lines, several unrelated waves' tables --
-     `reportShareLinks`/`submissions`/`pipelineTasks`, the M28 screen-registry tables, RAG/erasure
-     tables, `roleQualityRuns`/`providerOutageWindows`). No real semantic collision between the two --
-     reconstructed the resolved file as: common prefix (unconflicted, already correctly
-     three-way-merged by git) + this branch's full 165-line block verbatim + main's full 520-line
-     block verbatim. Zero content dropped from either side, nothing hand-edited inside either block.
-
-## Real validation (this session, post-merge)
-- [x] `bun install` -- 1249 packages, clean.
-- [x] `node scripts/check-governance-yaml-parse.mjs` -- clean, all 5 governance YAML files parse.
-- [x] `NODE_OPTIONS=--max-old-space-size=6144 node_modules/.bin/tsc.exe --noEmit` -- **0 errors**
-      (unlike the original session, no local OOM this time).
-- [x] `bun test` on the 3 touched service test files -- 21 pass / 0 fail, 47 expect() calls (same
-      counts as the original PR).
-- [x] `node scripts/check-terminology-guardrail.mjs --file src/lib/db/schema.ts` -- initially
-      **failed** (1 new unexempted `hardcoded_iso_date` finding: this PR's own section-header
-      comment "...Task #47 PM gap analysis, 2026-07-31..."). Same benign class as every other entry
-      in `ai-os/registry/terminology-guardrail-exemptions.yaml` for this file (dated section-header
-      comment, not example/sample data) -- raised the registered count 102 -> 103 with a cited
-      reason, re-ran clean.
-- [x] `node scripts/check-migration-collision.mjs` -- reports its own known Windows portability
-      quirk ("system cannot find the path specified" from an internal `head`/`2>/dev/null` pipeline
-      under cmd.exe) but exits 0. Manually re-verified in Python instead of trusting that alone: 345
-      `drizzle/*.sql` files, zero duplicate leading numbers; `0519_pm_teams_project_groups_templates.sql`
-      is the only `0519_*`, main's own `0302_sales_pipeline_dashboard_targets.sql` is untouched.
-- [x] `node scripts/check-migration-integrity.mjs` / `check-migration-schema-drift.mjs` -- both
-      clean locally (no `DATABASE_URL` set in this sandbox, so only the file<->journal leg ran; 342
-      journal entries, matches the file count). CI runs these against a real DB.
-- [x] `bun run lint` -- clean, zero findings.
-- [x] Manually confirmed via targeted `Grep` that no `<<<<<<<`/`=======`/`>>>>>>>` markers remain
-      anywhere in the working tree, and cleaned up this session's own scratch analysis files
-      (`git clean`) before committing so nothing extraneous ships in the PR diff.
-
-## PR #1547 opened (replacement for #667), #667 closed pointing to it
-- [x] Pushed `pr667-resume` -> `rebase-sweep-667`, opened
-      https://github.com/FChecklist/compliance-tracker/pull/1547, closed #667 with a comment
-      pointing to it.
-- [x] Real CI on #1547's first push surfaced 2 genuine failures local checks had missed:
-  1. **Type Check (real bug, pre-existing in the original PR's own code, never caught before now
-     because the original session's own local `tsc` OOM'd per its PROGRESS.md entry)**:
-     `src/lib/services/project-template-service.ts(175,7): error TS2322: Type '{...}' is not
-     assignable to type 'null'` -- `let teamAssignment = null` had no type annotation, so TS
-     inferred the literal type `null`, and the later `teamAssignment = assignment` (a real
-     Drizzle row) failed to typecheck. **Important local-tooling gotcha found this session:**
-     this session's own two local `tsc` runs (`node_modules/.bin/tsc.exe --noEmit`, both before
-     and, on re-check, even AFTER applying this fix) reported 0 errors both times -- i.e. this
-     binary invocation on this Windows/bash sandbox does not reliably catch real type errors that
-     CI's real Linux `bunx tsc --noEmit` run does catch. This is now the THIRD local-tooling
-     silent-no-op found in this one PR (alongside `check-migration-collision.mjs`'s known cmd.exe
-     pipeline quirk and `report-test-coverage-gap.mjs`'s known `isMain` self-invocation bug) --
-     **local `tsc` results in this sandbox are not trustworthy as a pass/fail gate; only real CI
-     output should be treated as authoritative for type-checking going forward.** Fixed the real
-     bug regardless: `let teamAssignment: typeof projectTeamAssignments.$inferSelect | null = null`
-     (matches this same file's own existing `createdPhases: (typeof projectPhases.$inferSelect)[]`
-     convention a few lines above).
-  2. **Test Coverage Gap Report Check**: `docs/master/TEST_COVERAGE_GAP.md` was stale (this PR adds
-     3 new tested service files). `node scripts/report-test-coverage-gap.mjs` silently no-ops on
-     this shell (known `isMain` self-invocation bug, confirmed by direct read of the script) --
-     regenerated by importing `buildStats`/`renderReport` directly via a `pathToFileURL` import and
-     doing the fs read/write myself. Real diff: 118/239 -> 121/242 tested service files (49.4% ->
-     50.0%), exactly the 3 files this PR adds.
-  3. Vercel failed (`Deployment was blocked`) -- known-ambient, org-wide, not a code defect.
-- [x] Pushed the fix commit, re-ran `gh pr checks` -- see below for the result.
+  4. **`src/lib/db/schema.ts`** -- a clean additive conflict: this branch added
+     `postAudienceTypeEnum`/`postReactionTypeEnum`/`posts`/`postAudienceMembers`/
+     `postReactions`/`postComments` (+ relations) right after `supportSessionsRelations`;
+     origin/main had independently added unrelated tables at/near the same insertion point
+     from other concurrent same-day PRs. No real semantic collision -- kept both sides'
+     blocks, in the order each side wrote them, verified no duplicate table/enum names.
 
 ## Remaining
-- [ ] Confirm the fix commit's CI is genuinely green (modulo the known-ambient Vercel/E2E/Secret
-      Scanning/Promptfoo lines).
-- [ ] Merge only when genuinely green (`gh pr merge --squash --delete-branch`), then independently
-      verify via `gh pr view --json state,mergedAt` (not just the merge command's exit code).
+- [ ] `bun install`, then real validation: `node scripts/check-governance-yaml-parse.mjs`,
+      `bunx tsc --noEmit`, `bun test` for touched files.
+- [ ] Push, open replacement PR "... [was #665]", close #665 pointing to it.
+- [ ] Real CI (`gh pr checks`), retry transient network errors up to 5x.
+- [ ] Merge only when genuinely green (known-ambient non-blocking: E2E Tests, Vercel
+      org-wide deployment-blocked, Secret Scanning if pre-existing, Promptfoo Evals).
+- [ ] Independently verify merge via `gh pr view --json state,mergedAt`.

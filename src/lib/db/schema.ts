@@ -13342,3 +13342,86 @@ export const providerOutageWindows = platformSchemaDB.table('provider_outage_win
   recordedById: text('recorded_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+
+// ─── Social / Collaboration Feed (Task #47 PM feature-parity gap) ─────────
+// Reply-threads (`comments`, polymorphic entityType/entityId) and private
+// messaging (`conversations`/`conversationParticipants`/`messages`) already
+// existed -- this is the missing third piece, a real broadcast/react feed.
+// Reuses established shapes rather than inventing new ones: postComments
+// mirrors `comments`' reply-thread shape (scoped to postId, not a
+// polymorphic entityType/entityId, since posts are a single new entity
+// type -- no need for the polymorphism `comments` carries); postAudienceMembers
+// mirrors `conversationParticipants`' explicit-join-table audience/
+// participant model, not a jsonb array.
+export const postAudienceTypeEnum = complianceSchemaDB.enum('post_audience_type', ['org', 'restricted'])
+// Fixed, small reaction taxonomy -- a real Postgres enum, not free text, per
+// this task's own constraint. Kept intentionally small (5 values) rather
+// than an open-ended emoji picker.
+export const postReactionTypeEnum = complianceSchemaDB.enum('post_reaction_type', ['like', 'celebrate', 'support', 'insightful', 'curious'])
+
+export const posts = complianceSchemaDB.table('posts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  authorId: text('author_id').notNull(),
+  body: text('body').notNull(),
+  projectId: text('project_id'), // optional link
+  taskId: text('task_id'), // optional link
+  // 'org': visible to every member of orgId. 'restricted': visible only to
+  // the author + rows in postAudienceMembers -- a real, queryable defined
+  // audience (see assertPostVisible in social-feed-service.ts), not an
+  // implicit "whoever happens to query" default.
+  audienceType: postAudienceTypeEnum('audience_type').notNull().default('org'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const postAudienceMembers = complianceSchemaDB.table('post_audience_members', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  postId: text('post_id').notNull(),
+  userId: text('user_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const postReactions = complianceSchemaDB.table('post_reactions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  postId: text('post_id').notNull(),
+  userId: text('user_id').notNull(),
+  reactionType: postReactionTypeEnum('reaction_type').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  // One reaction per user per post (toggle/replace semantics in the service
+  // layer, not additive) -- enforced by a real unique constraint, see the
+  // migration.
+})
+
+export const postComments = complianceSchemaDB.table('post_comments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  postId: text('post_id').notNull(),
+  authorId: text('author_id').notNull(),
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const postsRelations = relations(posts, ({ one, many }) => ({
+  author: one(users, { fields: [posts.authorId], references: [users.id] }),
+  project: one(projects, { fields: [posts.projectId], references: [projects.id] }),
+  task: one(tasks, { fields: [posts.taskId], references: [tasks.id] }),
+  audienceMembers: many(postAudienceMembers),
+  reactions: many(postReactions),
+  comments: many(postComments),
+}))
+
+export const postAudienceMembersRelations = relations(postAudienceMembers, ({ one }) => ({
+  post: one(posts, { fields: [postAudienceMembers.postId], references: [posts.id] }),
+  user: one(users, { fields: [postAudienceMembers.userId], references: [users.id] }),
+}))
+
+export const postReactionsRelations = relations(postReactions, ({ one }) => ({
+  post: one(posts, { fields: [postReactions.postId], references: [posts.id] }),
+  user: one(users, { fields: [postReactions.userId], references: [users.id] }),
+}))
+
+export const postCommentsRelations = relations(postComments, ({ one }) => ({
+  post: one(posts, { fields: [postComments.postId], references: [posts.id] }),
+  author: one(users, { fields: [postComments.authorId], references: [users.id] }),
+}))
