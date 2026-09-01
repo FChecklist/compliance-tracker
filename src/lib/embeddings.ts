@@ -113,7 +113,13 @@ export async function generateEmbedding(
   return result.vector;
 }
 
-async function generateEmbeddingUncached(
+// CRR-079/080 (P3-BRIDGE): exported so src/lib/crr/embed.ts's
+// storeChunkEmbedding can reuse the exact same real-vs-hash-pseudo-vector
+// provider chain (OpenRouter -> Groq -> hash fallback) and isReal signal for
+// compliance.document_chunk rows, instead of forking a second copy of this
+// same provider-selection logic. Was previously module-private -- this is
+// the first cross-module consumer.
+export async function generateEmbeddingUncached(
   text: string,
   apiKey?: string
 ): Promise<{ vector: number[]; isReal: boolean }> {
@@ -150,6 +156,90 @@ async function generateEmbeddingUncached(
   return { vector: hashToVector(text, 1536), isReal: false };
 }
 
+// CRR-081 (P3-BRIDGE): batches N texts into ONE HTTP call to the embeddings
+// provider instead of N separate calls -- both OpenRouter's and Groq's
+// embeddings endpoints are OpenAI-compatible and accept `input` as either a
+// single string or an array of strings, returning one `data[]` entry per
+// input (each carrying its own `index`, not necessarily response-ordered,
+// per the OpenAI embeddings API shape -- sorted back into request order
+// below rather than assumed). Reuses the exact same two providers/models/
+// fallback order as generateEmbeddingUncached above (OpenRouter ->
+// Groq -> hash pseudo-vector) -- this is a batch-shaped call against the
+// same endpoints, not a second embedding call path. All-or-nothing per
+// batch: if the provider call itself fails, every text in that batch falls
+// back to a hash pseudo-vector together (isReal: false), the same
+// coarse-grained failure mode the single-text path already has -- a caller
+// that needs D-1 (CRR-017/080) discipline still checks isReal per item and
+// refuses to persist any one degraded vector individually.
+export async function generateEmbeddingsBatchUncached(
+  texts: string[],
+  apiKey?: string
+): Promise<{ vector: number[]; isReal: boolean }[]> {
+  if (texts.length === 0) return [];
+
+  const openRouterResult = await tryOpenRouterEmbeddingBatch(texts);
+  if (openRouterResult) return openRouterResult.map((vector) => ({ vector, isReal: true }));
+
+  const key = apiKey || process.env.GROQ_API_KEY;
+  if (key) {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/embeddings", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "nomic-embed-text",
+          input: texts.map((t) => t.slice(0, 8000)),
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const rows = [...data.data].sort((a: { index: number }, b: { index: number }) => a.index - b.index);
+        if (rows.length === texts.length) {
+          return rows.map((r: { embedding: number[] }) => ({ vector: r.embedding, isReal: true }));
+        }
+        console.warn(`Groq batch embedding API returned ${rows.length} vectors for ${texts.length} inputs — using fallback`);
+      } else {
+        console.warn("Groq batch embedding API returned", res.status, "— using fallback");
+      }
+    } catch (err) {
+      console.warn("Groq batch embedding fetch failed:", err, "— using fallback");
+    }
+  }
+
+  // Last resort: deterministic hash-based pseudo-embedding, one per text.
+  console.warn(`No real embedding provider available for a batch of ${texts.length} texts (OpenRouter and Groq both unavailable) — using hash-based pseudo-vectors. Semantic search quality will be degraded.`);
+  return texts.map((text) => ({ vector: hashToVector(text, 1536), isReal: false }));
+}
+
+async function tryOpenRouterEmbeddingBatch(texts: string[]): Promise<number[][] | null> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/embeddings", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "openai/text-embedding-3-small", input: texts.map((t) => t.slice(0, 8000)) }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const rows = [...data.data].sort((a: { index: number }, b: { index: number }) => a.index - b.index);
+      if (rows.length === texts.length) {
+        return rows.map((r: { embedding: number[] }) => r.embedding);
+      }
+      console.warn(`OpenRouter batch embedding API returned ${rows.length} vectors for ${texts.length} inputs — trying next fallback`);
+      return null;
+    }
+    console.warn("OpenRouter batch embedding API returned", res.status, "— trying next fallback");
+  } catch (err) {
+    console.warn("OpenRouter batch embedding fetch failed:", err, "— trying next fallback");
+  }
+  return null;
+}
+
 /**
  * Simple hash-based pseudo-embedding for fallback / dev environments.
  * Produces deterministic, normalised 1536-dim vectors from text.
@@ -168,15 +258,44 @@ function hashToVector(text: string, dims: number): number[] {
 }
 
 /**
+ * Sentinel passed as `orgId` by callers indexing a genuinely platform-wide
+ * entity (module registry rows, platform_assets with orgId null by design --
+ * see schema.ts's "orgId nullable, same convention as platformAssets"
+ * comments) that has no tenant at all, never a tenant that happens to be
+ * unknown. CRR-018 made orgId non-optional specifically so a caller can no
+ * longer accidentally OMIT it and silently fall through to NULL; this
+ * constant is the one deliberate, typed opt-in path that remains -- every
+ * other caller must pass a real org id or storeEmbedding throws.
+ */
+export const PLATFORM_SCOPE_ORG_ID = "__platform_scope__";
+
+/**
  * Store an embedding for an entity in the database.
  * Upserts based on entity_type + entity_id + content_hash.
+ *
+ * CRR-017/D-1: calls generateEmbeddingUncached (not the cached generateEmbedding)
+ * so it can see isReal and refuse to persist a hash pseudo-vector -- a garbage
+ * vector written to compliance.embeddings is undetectable after the fact and
+ * poisons every retrieval that touches it. CRR-018/D-2: orgId is mandatory --
+ * a NULL org_id was matched by findSimilar's old `OR org_id IS NULL` branch
+ * and became visible to every tenant. CRR-019: is_platform_scope is the
+ * explicit flag that replaces that implicit NULL -- set only via the
+ * PLATFORM_SCOPE_ORG_ID sentinel above, never by omission.
  */
 export async function storeEmbedding(
   entityType: string,
   entityId: string,
   content: string,
-  orgId?: string
+  orgId: string
 ): Promise<void> {
+  if (!orgId) {
+    // CRR-018: an empty string is not a tenant and defeats the check just
+    // as thoroughly as omitting the argument did.
+    throw new Error(
+      `storeEmbedding: orgId must be a non-empty string, or the PLATFORM_SCOPE_ORG_ID sentinel for a genuinely platform-wide entity (got: ${JSON.stringify(orgId)}) -- entity ${entityType}/${entityId}`
+    );
+  }
+  const isPlatformScope = orgId === PLATFORM_SCOPE_ORG_ID;
   const contentHash = createHash("sha256").update(content).digest("hex");
 
   // Check if we already have an embedding for this exact content
@@ -191,8 +310,15 @@ export async function storeEmbedding(
 
   if (existing) return; // Already embedded with same content
 
-  const vector = await generateEmbedding(content);
-  const vectorStr = `[${vector.join(",")}]`;
+  const result = await generateEmbeddingUncached(content);
+  if (!result.isReal) {
+    // CRR-017: no silent skip -- a missing embedding must look like a
+    // failure to the caller, never like a successful, quietly-degraded one.
+    throw new Error(
+      `storeEmbedding: no real embedding provider available for ${entityType}/${entityId} -- refusing to persist a hash pseudo-vector`
+    );
+  }
+  const vectorStr = `[${result.vector.join(",")}]`;
 
   const client = getRawClient();
 
@@ -201,15 +327,17 @@ export async function storeEmbedding(
 
   // Insert new embedding with raw SQL (Drizzle can't handle vector type)
   await client`
-    INSERT INTO compliance.embeddings (id, entity_type, entity_id, content_hash, content, org_id, embedding, created_at)
+    INSERT INTO compliance.embeddings (id, entity_type, entity_id, content_hash, content, org_id, embedding, is_real, is_platform_scope, created_at)
     VALUES (
       gen_random_uuid()::text,
       ${entityType},
       ${entityId},
       ${contentHash},
       ${content},
-      ${orgId || null},
+      ${isPlatformScope ? null : orgId},
       ${vectorStr}::vector,
+      ${result.isReal},
+      ${isPlatformScope},
       NOW()
     )
   `;
@@ -218,10 +346,18 @@ export async function storeEmbedding(
 /**
  * Find similar items using cosine similarity via pgvector.
  * Returns results ordered by most similar first.
+ *
+ * CRR-020/021: orgId is mandatory and there is exactly one query path.
+ * findSimilar(query) with no org used to perform a completely unfiltered
+ * vector scan across every tenant -- that branch is gone. The old
+ * `OR e.org_id IS NULL` clause that let Wave 43's platform-wide rows (module
+ * registry etc.) surface for every org is replaced by the explicit
+ * is_platform_scope flag (CRR-019), which only true intent -- not a leak
+ * path -- can set.
  */
 export async function findSimilar(
   query: string,
-  orgId?: string,
+  orgId: string,
   limit: number = 10
 ): Promise<{
   entityType: string;
@@ -229,38 +365,24 @@ export async function findSimilar(
   score: number;
   content: string;
 }[]> {
+  if (!orgId) {
+    throw new Error("findSimilar: orgId is required -- an unscoped vector search is a cross-tenant leak, not a feature");
+  }
   const queryVector = await generateEmbedding(query);
   const vectorStr = `[${queryVector.join(",")}]`;
 
   const client = getRawClient();
 
-  if (orgId) {
-    // Wave 43 (Capability Registry): also match org_id IS NULL rows -- e.g.
-    // moduleRegistry entries are platform-wide, not org-scoped, and were
-    // previously silently excluded from every org-scoped search. Zero
-    // behavior change for the existing compliance-item caller (compliance
-    // items are always org-scoped already, never null-org).
-    const rows = await client`
-      SELECT e.entity_type, e.entity_id, e.content,
-             1 - (e.embedding <=> ${vectorStr}::vector) as score
-      FROM compliance.embeddings e
-      WHERE e.org_id = ${orgId} OR e.org_id IS NULL
-      ORDER BY e.embedding <=> ${vectorStr}::vector
-      LIMIT ${limit}
-    `;
-    return rows.map((r) => ({
-      entityType: r.entity_type as string,
-      entityId: r.entity_id as string,
-      score: Number(r.score),
-      content: r.content as string,
-    }));
-  }
-
-  // No org filter
+  // Wave 43 (Capability Registry): also match is_platform_scope rows -- e.g.
+  // moduleRegistry entries are platform-wide, not org-scoped, and were
+  // previously silently excluded from every org-scoped search. Zero
+  // behavior change for the existing compliance-item caller (compliance
+  // items are always org-scoped already, never platform-scope).
   const rows = await client`
     SELECT e.entity_type, e.entity_id, e.content,
            1 - (e.embedding <=> ${vectorStr}::vector) as score
     FROM compliance.embeddings e
+    WHERE (e.org_id = ${orgId} OR e.is_platform_scope = true) AND e.is_real = true
     ORDER BY e.embedding <=> ${vectorStr}::vector
     LIMIT ${limit}
   `;

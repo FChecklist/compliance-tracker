@@ -11,16 +11,20 @@ import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
+import { ActorCtx, ErpContext } from "./actor-context"
 import { recordAndEscalateAnomaly } from "./risk-escalation-service"
 
-export type FraudContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
+// Same shape as the shared ErpContext (dbUser-only actor) -- kept under its
+// own name here since it predates actor-context.ts's consolidation and
+// nothing outside this file references it by name yet.
+export type FraudContext = ErpContext
 
 // Priority 15 (PROJEXA GRC alias): same dbUser-or-apiKey actor union as
 // erp-invoicing-service.ts's createSalesInvoice (Priority 13) -- PROJEXA's
 // Bearer-key caller never carries a session dbUser, so gating fraud-case
 // creation on FraudContext's strict dbUser would make it permanently
 // unreachable from PROJEXA rather than just "deferred".
-export type FraudActorCtx = { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } })
+export type FraudActorCtx = ActorCtx
 
 export type FraudCaseInput = {
   title: string

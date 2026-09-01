@@ -68,6 +68,14 @@ export class ServiceError extends Error {
   public remediationSteps?: string[]
   public readonly kind: ExceptionKind
   public readonly retryable: boolean
+  // `fields` is additive and optional (VERIDIAN Review Framework
+  // gap-closure, CRM Leads "Error Handling & Data Validation Messaging"):
+  // a per-field message map for callers that want to render Zod-style
+  // field-level feedback instead of one generic string. Every existing
+  // 2-arg `new ServiceError(message, status)` call site across the
+  // codebase is unaffected -- this parameter is optional and undefined
+  // unless a caller explicitly passes it.
+  public fields?: Record<string, string>
 
   constructor(
     message: string,
@@ -78,6 +86,7 @@ export class ServiceError extends Error {
       remediationSteps?: string[]
       kind?: ExceptionKind
       retryable?: boolean
+      fields?: Record<string, string>
     }
   ) {
     super(message)
@@ -87,6 +96,7 @@ export class ServiceError extends Error {
     this.remediationSteps = opts?.remediationSteps ?? catalogEntry?.remediationSteps
     this.kind = opts?.kind ?? (status >= 500 ? "system" : "business")
     this.retryable = opts?.retryable ?? this.kind === "system"
+    this.fields = opts?.fields
   }
 }
 
@@ -292,7 +302,7 @@ export async function getComplianceItem(ctx: ReadContext, id: string) {
     })),
     documents: item.documents.map((doc) => ({
       id: doc.id, name: doc.name, fileUrl: doc.fileUrl, fileType: doc.fileType, fileSize: doc.fileSize,
-      uploadedBy: { name: doc.uploadedBy.name }, createdAt: doc.createdAt.toISOString(),
+      uploadedBy: doc.uploadedBy ? { name: doc.uploadedBy.name } : null, createdAt: doc.createdAt.toISOString(),
     })),
     comments: item.comments.map((c) => ({
       id: c.id, content: c.content, author: { name: c.author.name, avatarUrl: c.author.avatarUrl }, createdAt: c.createdAt.toISOString(),

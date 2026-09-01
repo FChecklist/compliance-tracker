@@ -224,7 +224,7 @@ export default function IngestPage() {
             accept=".xlsx,.xls,.csv,.pdf"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
           />
-          <Upload className="mx-auto mb-4 text-ct-saffron" size={40} />
+          <Upload className="mx-auto mb-4 text-ct-saffron-text" size={40} />
           <p className="text-lg font-medium text-ct-navy mb-1">Drop your file here or click to browse</p>
           <p className="text-sm text-ct-muted mb-6">Supports Excel (.xlsx, .xls), CSV (.csv), and PDF (.pdf) — up to 10 MB</p>
           <div className="flex justify-center gap-6 text-xs text-ct-muted">
@@ -253,7 +253,7 @@ export default function IngestPage() {
       {/* ── Processing ── */}
       {uploading && (
         <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white rounded-xl border border-ct-border">
-          <Loader2 size={36} className="text-ct-saffron animate-spin" />
+          <Loader2 size={36} className="text-ct-saffron-text animate-spin" />
           <p className="text-ct-navy font-medium">Parsing file and extracting compliance items with AI…</p>
           <p className="text-ct-muted text-sm">This takes 10–30 seconds depending on file size.</p>
         </div>

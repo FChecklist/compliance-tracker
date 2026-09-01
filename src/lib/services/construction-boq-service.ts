@@ -19,7 +19,7 @@ import {
   constructionBoqs, constructionBoqLineItems, constructionWorkProgressEntries, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, or, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { isSelfApproval } from "./approval-workflow-service"
 export { ServiceError }
@@ -39,6 +39,13 @@ export type BoqLineItemInput = {
   breakdownPercentage?: number
   description: string
   unit: string
+  // R45 seq 7 / E-127 (canonical child-rate rule -- see
+  // deriveLineItemQuantityAndRate's doc comment): authoritative ONLY when
+  // parentItemCode is unset. When parentItemCode IS set, whatever is passed
+  // here is ignored and overwritten at write time with the root-derived
+  // value (QTY_child = QTY_root, RATE_child = RATE_root x breakdown%/100) --
+  // caller may submit 0, a stale value, or leave the UI field blank for a
+  // child row without affecting the stored result.
   quantity: number
   rate: number
   // Wave 125 (rate analysis / cost buildup): all optional. When supplied,
@@ -59,17 +66,14 @@ export type BoqInput = {
 }
 
 /**
- * Sub-Task Amount = Main QTY * Main RATE * Breakdown % -- the Owner's exact
- * formula. "Main" is the ROOT ancestor of the parentItemCode chain (found by
- * walking parentItemCode links until one has none), not necessarily the
- * immediate parent -- so a 3-level BoQ (Main -> Sub -> Sub-sub) still prices
- * every descendant off the same top-level quantity/rate. Pure, no DB access
- * -- independently unit-testable, matching this repo's convention (see
- * firm-billing-service.ts's resolveBillableRate).
+ * Walks a parentItemCode chain up to its ROOT ancestor (the item with no
+ * parentItemCode of its own) -- shared by deriveLineItemQuantityAndRate and
+ * (through it) computeHierarchicalAmount below, so the two can never
+ * disagree about which row "root" means. Not necessarily the immediate
+ * parent -- a 3-level BoQ (Main -> Sub -> Sub-sub) still resolves off the
+ * same top-level row.
  */
-export function computeHierarchicalAmount(item: BoqLineItemInput, byItemCode: Map<string, BoqLineItemInput>): number {
-  if (!item.parentItemCode) return item.quantity * item.rate
-
+function resolveRootAncestor(item: BoqLineItemInput, byItemCode: Map<string, BoqLineItemInput>): BoqLineItemInput {
   const seen = new Set<string>()
   let current = item
   while (current.parentItemCode) {
@@ -81,13 +85,69 @@ export function computeHierarchicalAmount(item: BoqLineItemInput, byItemCode: Ma
     if (!parent) throw new ServiceError(`parentItemCode "${current.parentItemCode}" does not match any itemCode in this submission`, 400)
     current = parent
   }
-
-  if (item.breakdownPercentage == null) throw new ServiceError(`breakdownPercentage is required for line item "${item.description}" (has a parentItemCode)`, 400)
-  return current.quantity * current.rate * (item.breakdownPercentage / 100)
+  return current
 }
 
-function withAmount(item: BoqLineItemInput, byItemCode: Map<string, BoqLineItemInput>) {
-  return { ...item, amount: computeHierarchicalAmount(item, byItemCode) }
+/**
+ * *** CANONICAL CHILD-RATE RULE -- settled R45 seq 7 / E-127. Do not
+ * reintroduce a second convention here. ***
+ *
+ * A child (sub-task) BoQ line item's OWN quantity/rate are NOT independently
+ * entered data -- they are DERIVED from the ROOT ancestor of the
+ * parentItemCode chain. This is the real, confirmed customer spec
+ * (platform.sumeet_spec row BOQ-10, "Sample Scope with Sub Task.xlsx",
+ * CONFIRMED). NOTE: an earlier version of this comment claimed this was
+ * verified against "477/477 real child rows -- 100% match, 0 exceptions" --
+ * that was FALSE (an adversarial verify pass 2026-08-24 caught it; see
+ * construction-reports-service.ts's earnedValueReport() header comment for
+ * the real, re-verified numbers and the resulting backfill). The formula
+ * below is the correct rule regardless of that false historical-verification
+ * claim -- it is the real customer spec and is enforced at write time here:
+ *   F1  AMOUNT_root  = QTY_root  x RATE_root                  (independently entered)
+ *   F2  RATE_child   = RATE_root x (breakdownPercentage / 100)
+ *   F3  QTY_child    = QTY_root                                (identical, always)
+ *   F4  AMOUNT_child = QTY_child x RATE_child = AMOUNT_root x (breakdownPercentage/100)
+ * A root-level item (no parentItemCode) keeps its own quantity/rate exactly
+ * as entered (F1) -- this function is a no-op for it.
+ *
+ * Before this fix, insertLineItems() stored whatever quantity/rate a caller
+ * submitted for a child row VERBATIM and un-enforced -- `amount` was still
+ * always computed correctly via root roll-up (computeHierarchicalAmount
+ * below), but the child's own stored rate/quantity COLUMNS could silently
+ * drift from F2/F3 whenever a caller (a manual API call, or a revision
+ * edited through scope/[id]/page.tsx, neither of which required the child's
+ * quantity/rate fields to be filled in consistently) supplied something
+ * else -- including 0, or nothing at all.
+ *
+ * That drift is exactly what let a SECOND, contradictory convention grow
+ * elsewhere: work-progress-report-pdf.ts's computeRows() reads a line's own
+ * `rate` column directly (qty x rate, no reference to breakdownPercentage or
+ * the parent) to price progress recorded against that specific line via
+ * boq_line_item_id -- correct IF F2 holds, silently wrong (undercounting,
+ * often to $0) whenever it doesn't. Deriving -- and overwriting whatever was
+ * submitted -- here, at the one real write path (insertLineItems), makes F2/
+ * F3 a real invariant instead of an accident of import data, so every
+ * current and future reader of this column (not just the one that happened
+ * to get audited for R45 seq 7) sees a value that's actually correct.
+ */
+export function deriveLineItemQuantityAndRate(item: BoqLineItemInput, byItemCode: Map<string, BoqLineItemInput>): { quantity: number; rate: number } {
+  if (!item.parentItemCode) return { quantity: item.quantity, rate: item.rate }
+  const root = resolveRootAncestor(item, byItemCode)
+  if (item.breakdownPercentage == null) throw new ServiceError(`breakdownPercentage is required for line item "${item.description}" (has a parentItemCode)`, 400)
+  return { quantity: root.quantity, rate: root.rate * (item.breakdownPercentage / 100) }
+}
+
+/**
+ * Sub-Task Amount = Main QTY * Main RATE * Breakdown % -- the Owner's exact
+ * formula (F4 above). A thin wrapper over deriveLineItemQuantityAndRate so
+ * `amount` and the child's own stored quantity/rate columns can never be
+ * computed from two different resolutions of "root". Pure, no DB access --
+ * independently unit-testable, matching this repo's convention (see
+ * firm-billing-service.ts's resolveBillableRate).
+ */
+export function computeHierarchicalAmount(item: BoqLineItemInput, byItemCode: Map<string, BoqLineItemInput>): number {
+  const { quantity, rate } = deriveLineItemQuantityAndRate(item, byItemCode)
+  return quantity * rate
 }
 
 /** material+labour+equipment costs, then +overhead%, then +profit% -- the standard construction rate-buildup order. Returns null when no cost-component fields are set (a plain BOQ line item with just a quoted rate). */
@@ -108,7 +168,145 @@ function computedRate(item: { materialCost: string | null; labourCost: string | 
  * way computeHierarchicalAmount does, so the error surfaces before any rows
  * are written rather than partway through.
  */
-async function insertLineItems(db: TenantDb, boqId: string, items: BoqLineItemInput[]) {
+/**
+ * R53 / R46M13_TC10_01 -- THE FALSE-POSITIVE SUCCESS GUARD.
+ *
+ * THE DEFECT: creating a weighted-sub-task BOQ (a parent plus breakdown-
+ * percentage children) through the real "New BOQ" dialog showed a green
+ * "BOQ created" toast and a cleanly closing dialog -- exactly like a real
+ * success -- while the children were not stored. The projexa half of that
+ * (a caller that did not check res.ok) is fixed in that repo. THIS is the
+ * backend half, and the backend half is the one that matters: the service
+ * could return 201 with children silently dropped, so a caller that DID
+ * check the status still had nothing to check.
+ *
+ * BoqLineItemInput is a TypeScript type. Types are erased at runtime, so
+ * before this function the request body was never validated at all. Three
+ * consequences, all of which produced a 201:
+ *
+ *   1. A client that spells a key snake_case ("parent_item_code" instead of
+ *      "parentItemCode") reads as undefined. Every row then falls into the
+ *      first batch as a ROOT: parent_line_item_id null, breakdown_percentage
+ *      null, and because deriveLineItemQuantityAndRate returns early when
+ *      parentItemCode is unset, child rows store their submitted 0/0 and an
+ *      amount of "0". The hierarchy is gone and the response says 201.
+ *   2. Duplicate itemCodes silently re-parent -- both the byItemCode map and
+ *      idByItemCode keep the LAST writer, so children attach to the wrong
+ *      parent with no error.
+ *   3. A row missing description/unit hits a raw Postgres 23502 that the
+ *      route turns into a generic 500 naming no field.
+ *
+ * EVERY CHECK HERE NAMES THE FIELD AND THE ROW. "A BOQ without a title is
+ * rejected with a message naming the title field" is requirement R-04's
+ * standard; there is no reason line items get a lower one.
+ */
+const SNAKE_CASE_TRAPS: ReadonlyArray<[string, string]> = [
+  ["item_code", "itemCode"],
+  ["parent_item_code", "parentItemCode"],
+  ["breakdown_percentage", "breakdownPercentage"],
+  ["activity_id", "activityId"],
+  ["material_cost", "materialCost"],
+  ["labour_cost", "labourCost"],
+  ["equipment_cost", "equipmentCost"],
+  ["overhead_percent", "overheadPercent"],
+  ["profit_percent", "profitPercent"],
+];
+
+/**
+ * R53 / R46M13_TC10_01, second pass. The line-item guard below protects the
+ * FIELDS of a line item; this protects the KEY that carries them.
+ *
+ * R-03 rules that "a BOQ may be created with a title and no line items", so
+ * an absent or empty lineItems is LEGAL and must stay legal. What is not
+ * legal is a caller that sent items under a name this service does not read:
+ * that body produces a header-only BOQ and a 201, which is the same
+ * false-positive success one level up. Rejecting only the recognised
+ * misspellings keeps R-03 intact while closing the hole.
+ */
+const LINE_ITEMS_KEY_TRAPS = ["line_items", "lineitems", "items", "lines", "boqLineItems", "boq_line_items"] as const;
+
+export function validateBoqBodyShape(input: unknown): void {
+  if (!input || typeof input !== "object") return;
+  const raw = input as Record<string, unknown>;
+  if (raw.lineItems !== undefined) return; // the caller used the right key
+  for (const trap of LINE_ITEMS_KEY_TRAPS) {
+    if (raw[trap] !== undefined) {
+      throw new ServiceError(`"${trap}" is not a recognised field -- use "lineItems"`, 400);
+    }
+  }
+}
+
+export function validateLineItemInputs(items: BoqLineItemInput[]): void {
+  const seenItemCodes = new Set<string>();
+
+  items.forEach((item, index) => {
+    const where = `line item ${index + 1}${item.itemCode ? ` (${item.itemCode})` : ""}`;
+    const raw = item as unknown as Record<string, unknown>;
+
+    // A misspelled key is REJECTED, never ignored. Ignoring it is what
+    // silently flattened the hierarchy while reporting success.
+    for (const [wrong, right] of SNAKE_CASE_TRAPS) {
+      if (raw[wrong] !== undefined) {
+        throw new ServiceError(`${where}: "${wrong}" is not a recognised field -- use "${right}"`, 400);
+      }
+    }
+
+    if (typeof item.description !== "string" || item.description.trim() === "") {
+      throw new ServiceError(`${where}: description is required`, 400);
+    }
+    if (typeof item.unit !== "string" || item.unit.trim() === "") {
+      throw new ServiceError(`${where}: unit is required`, 400);
+    }
+
+    if (item.itemCode) {
+      if (seenItemCodes.has(item.itemCode)) {
+        // Silently keeping the last one is how children end up under the
+        // wrong parent with a 201 and no complaint.
+        throw new ServiceError(`${where}: duplicate itemCode "${item.itemCode}" -- item codes must be unique within one BOQ`, 400);
+      }
+      seenItemCodes.add(item.itemCode);
+    }
+
+    // A child's quantity/rate are derived from its root, so they are only
+    // checked on roots -- checking them on children would reject exactly the
+    // blank fields R-13 says a child is allowed to leave blank.
+    if (!item.parentItemCode) {
+      for (const key of ["quantity", "rate"] as const) {
+        const v = item[key];
+        if (v !== undefined && (typeof v !== "number" || !Number.isFinite(v) || v < 0)) {
+          throw new ServiceError(`${where}: ${key} must be a non-negative number, got ${JSON.stringify(v)}`, 400);
+        }
+      }
+    }
+
+    if (item.parentItemCode && item.breakdownPercentage === undefined) {
+      throw new ServiceError(`${where}: breakdownPercentage is required when parentItemCode is set`, 400);
+    }
+  });
+}
+
+/**
+ * R53 / R46M13_TC10_01 -- the assertion that makes "BOQ created" mean it.
+ *
+ * Runs INSIDE the same transaction as the inserts, so a mismatch rolls the
+ * whole BOQ back rather than leaving a half-written one behind. A caller
+ * can now trust a 201 absolutely: either every line item the caller sent is
+ * stored, or there is no BOQ and an error says how many went missing.
+ */
+async function assertLineItemsPersisted(db: TenantDb, boqId: string, expected: number): Promise<void> {
+  const stored = await db.query.constructionBoqLineItems.findMany({
+    where: eq(constructionBoqLineItems.boqId, boqId),
+    columns: { id: true },
+  });
+  if (stored.length !== expected) {
+    throw new ServiceError(
+      `BOQ was not created: ${expected} line item(s) submitted but ${stored.length} stored. Nothing was saved.`,
+      500
+    );
+  }
+}
+
+async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items: BoqLineItemInput[]) {
   if (items.length === 0) return
   const byItemCode = new Map(items.filter((i) => i.itemCode).map((i) => [i.itemCode!, i]))
 
@@ -124,23 +322,31 @@ async function insertLineItems(db: TenantDb, boqId: string, items: BoqLineItemIn
     }
 
     const inserted = await db.insert(constructionBoqLineItems).values(
-      ready.map((item) => ({
-        boqId,
-        activityId: item.activityId || null,
-        itemCode: item.itemCode || null,
-        parentLineItemId: item.parentItemCode ? idByItemCode.get(item.parentItemCode)! : null,
-        breakdownPercentage: item.breakdownPercentage !== undefined ? String(item.breakdownPercentage) : null,
-        description: item.description,
-        unit: item.unit,
-        quantity: String(item.quantity),
-        rate: String(item.rate),
-        amount: String(withAmount(item, byItemCode).amount),
-        materialCost: item.materialCost !== undefined ? String(item.materialCost) : null,
-        labourCost: item.labourCost !== undefined ? String(item.labourCost) : null,
-        equipmentCost: item.equipmentCost !== undefined ? String(item.equipmentCost) : null,
-        overheadPercent: item.overheadPercent !== undefined ? String(item.overheadPercent) : null,
-        profitPercent: item.profitPercent !== undefined ? String(item.profitPercent) : null,
-      }))
+      ready.map((item) => {
+        // F2/F3 (see deriveLineItemQuantityAndRate's own doc comment): a
+        // child's quantity/rate are DERIVED from its root ancestor, not
+        // whatever this item's own input happened to carry -- amount then
+        // falls straight out of those two (F4), no separate root-walk.
+        const { quantity, rate } = deriveLineItemQuantityAndRate(item, byItemCode)
+        return {
+          orgId,
+          boqId,
+          activityId: item.activityId || null,
+          itemCode: item.itemCode || null,
+          parentLineItemId: item.parentItemCode ? idByItemCode.get(item.parentItemCode)! : null,
+          breakdownPercentage: item.breakdownPercentage !== undefined ? String(item.breakdownPercentage) : null,
+          description: item.description,
+          unit: item.unit,
+          quantity: String(quantity),
+          rate: String(rate),
+          amount: String(quantity * rate),
+          materialCost: item.materialCost !== undefined ? String(item.materialCost) : null,
+          labourCost: item.labourCost !== undefined ? String(item.labourCost) : null,
+          equipmentCost: item.equipmentCost !== undefined ? String(item.equipmentCost) : null,
+          overheadPercent: item.overheadPercent !== undefined ? String(item.overheadPercent) : null,
+          profitPercent: item.profitPercent !== undefined ? String(item.profitPercent) : null,
+        }
+      })
     ).returning({ id: constructionBoqLineItems.id, itemCode: constructionBoqLineItems.itemCode })
 
     for (const row of inserted) if (row.itemCode) idByItemCode.set(row.itemCode, row.id)
@@ -148,15 +354,59 @@ async function insertLineItems(db: TenantDb, boqId: string, items: BoqLineItemIn
   }
 }
 
+/**
+ * R44 seq3: the inverse of insertLineItems' row shape -- turns an already-
+ * persisted line item back into the BoqLineItemInput shape createBoqRevision
+ * accepts, so "copy the parent BOQ's line items forward" can reuse the exact
+ * same insert path a caller-supplied revision uses (no separate "clone" SQL
+ * path to keep in sync). `itemCodeById` resolves parentLineItemId (a row id)
+ * back to the parent's itemCode, since insertLineItems' hierarchy resolution
+ * works off itemCode, not row id.
+ */
+export function toLineItemInput(item: BoqLineItemRow, itemCodeById: Map<string, string>): BoqLineItemInput {
+  return {
+    activityId: item.activityId ?? undefined,
+    itemCode: item.itemCode ?? undefined,
+    parentItemCode: item.parentLineItemId ? itemCodeById.get(item.parentLineItemId) : undefined,
+    breakdownPercentage: item.breakdownPercentage !== null ? Number(item.breakdownPercentage) : undefined,
+    description: item.description,
+    unit: item.unit,
+    quantity: Number(item.quantity),
+    rate: Number(item.rate),
+    materialCost: item.materialCost !== null ? Number(item.materialCost) : undefined,
+    labourCost: item.labourCost !== null ? Number(item.labourCost) : undefined,
+    equipmentCost: item.equipmentCost !== null ? Number(item.equipmentCost) : undefined,
+    overheadPercent: item.overheadPercent !== null ? Number(item.overheadPercent) : undefined,
+    profitPercent: item.profitPercent !== null ? Number(item.profitPercent) : undefined,
+  }
+}
+
+/** Point 154 (R12): Rajat ruled 22 Aug the 25% figure is a COST CEILING, not
+ * a margin -- budget = amount * budgetPercentage / 100 (NOT the margin
+ * reading, amount * (1 - budgetPercentage/100), which is excluded). Computed
+ * at read time, same convention as computedRate() above -- not stored
+ * redundantly against the amount/budgetPercentage columns. */
+function computedBudget(item: { amount: string; budgetPercentage: string }): number {
+  return Number(item.amount) * (Number(item.budgetPercentage) / 100)
+}
+
 function withComputedRate(item: typeof constructionBoqLineItems.$inferSelect) {
-  return { ...item, computedRate: computedRate(item) }
+  return { ...item, computedRate: computedRate(item), computedBudget: computedBudget(item) }
 }
 
 export async function listBoqs(ctx: { orgId: string }, projectId: string) {
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.constructionBoqs.findMany({
       where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
-      orderBy: (t, { desc }) => desc(t.version),
+      // Point 177/E-116 fix: version DESC alone has no stable tiebreaker when a
+      // project has two or more INDEPENDENT (non-revision-chain) BOQs at the
+      // same version -- Postgres then returns them in an arbitrary physical
+      // order, so callers like work-progress/report/route.ts's
+      // `boqs.find(b => b.status !== "superseded")` silently picked whichever
+      // one the engine happened to return first, not the actual most-recent
+      // one. createdAt DESC as a secondary key makes the order deterministic
+      // and matches the intuitive meaning of "latest" when versions tie.
+      orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)],
     })
   )
 }
@@ -170,10 +420,45 @@ export async function getBoq(ctx: { orgId: string }, boqId: string) {
   })
 }
 
+// R39/R-C09 (Point 154 follow-on): sets a line item's budget/vendor overlay
+// AFTER the BOQ already exists -- budgetPercentage/vendorId/vendorAmount
+// were already real, live columns (Point 154, 22 Aug) with a default of 25
+// and a computedBudget() read-time helper, but no write path existed to
+// change them post-creation. Reuses those SAME columns -- does NOT add a
+// duplicate budget_pct/vendor_amount pair (that would be the exact D-3/B-3
+// drift this run is elsewhere fixing). budgetPercentage recomputes
+// computedBudget on every read automatically (it's derived, never stored),
+// so "override to 40% -> recomputes" needs no extra logic here at all.
+export async function updateLineItemBudget(
+  ctx: { orgId: string },
+  lineItemId: string,
+  input: { budgetPercentage?: number; vendorId?: string | null; vendorAmount?: number | null }
+) {
+  if (input.budgetPercentage !== undefined && (input.budgetPercentage < 0 || input.budgetPercentage > 100)) {
+    throw new ServiceError("budgetPercentage must be between 0 and 100", 400)
+  }
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, lineItemId) })
+    if (!existing) throw new ServiceError("Line item not found", 404)
+    const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, existing.boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
+    if (!boq) throw new ServiceError("Line item not found", 404)
+
+    const [updated] = await db.update(constructionBoqLineItems).set({
+      ...(input.budgetPercentage !== undefined ? { budgetPercentage: String(input.budgetPercentage) } : {}),
+      ...(input.vendorId !== undefined ? { vendorId: input.vendorId } : {}),
+      ...(input.vendorAmount !== undefined ? { vendorAmount: input.vendorAmount === null ? null : String(input.vendorAmount) } : {}),
+    }).where(eq(constructionBoqLineItems.id, lineItemId)).returning()
+    return withComputedRate(updated)
+  })
+}
+
 export async function createBoq(ctx: BoqContext, input: BoqInput) {
   const title = input.title?.trim()
   if (!title) throw new ServiceError("title is required", 400)
   if (!input.projectId) throw new ServiceError("projectId is required", 400)
+  // Before the transaction: a malformed body should never open one.
+  validateBoqBodyShape(input)
+  validateLineItemInputs(input.lineItems || [])
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const project = await db.query.projects.findFirst({ where: and(eq(projects.id, input.projectId), eq(projects.orgId, ctx.orgId)) })
@@ -183,13 +468,21 @@ export async function createBoq(ctx: BoqContext, input: BoqInput) {
       orgId: ctx.orgId, projectId: input.projectId, version: 1, title, createdById: ctx.userId,
     }).returning()
 
-    await insertLineItems(db, boq.id, input.lineItems || [])
+    const lineItems = input.lineItems || []
+    await insertLineItems(db, ctx.orgId, boq.id, lineItems)
+    await assertLineItemsPersisted(db, boq.id, lineItems.length)
     return getBoqRow(db, boq.id)
   })
 }
 
 async function getBoqRow(db: TenantDb, boqId: string) {
   const boq = await db.query.constructionBoqs.findFirst({ where: eq(constructionBoqs.id, boqId) })
+  // R53 / R46M13_TC10_01: `{ ...undefined }` is legal JavaScript, so without
+  // this guard a read that found nothing returned a 201 whose body carried
+  // no id and an empty lineItems array -- indistinguishable, to a caller,
+  // from a BOQ that was created and simply had no lines. getBoq() has always
+  // thrown 404 in this situation; this path silently did not.
+  if (!boq) throw new ServiceError("BOQ not found after write -- nothing was saved", 500)
   const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boqId) })
   return { ...boq, lineItems: lineItems.map(withComputedRate) }
 }
@@ -197,11 +490,32 @@ async function getBoqRow(db: TenantDb, boqId: string) {
 export async function createBoqRevision(
   ctx: BoqContext,
   parentBoqId: string,
-  input: { title?: string; lineItems: BoqLineItemInput[]; allowScopeReductionOverride?: boolean }
+  input: { title?: string; lineItems?: BoqLineItemInput[]; allowScopeReductionOverride?: boolean }
 ) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const parent = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, parentBoqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!parent) throw new ServiceError("Parent BOQ not found", 404)
+
+    // E-128 (real bug, found while investigating duplicate (project_id,
+    // version) rows): nothing previously stopped this function from being
+    // called twice for the same parent -- a double-submit or a retried
+    // request would each read the SAME parent.version and both insert
+    // version = parent.version + 1, giving one parent two sibling children
+    // that collide on version (verified live: parent n1aowsmdxp0xim4zb394zxb2
+    // had exactly this happen, 13 seconds apart). A revision chain's version
+    // numbers only mean anything if each parent supersedes into at most one
+    // child, so that -- not project-wide version uniqueness, which would
+    // wrongly reject the legitimate "two independent, non-chained BOQs both
+    // start at version 1" case documented on schema.ts's parentBoqId column
+    // -- is the real invariant. The DB now also enforces this at the layer
+    // that actually matters (parentBoqId UNIQUE) so a race loses to a clean
+    // constraint violation even if this check and the constraint-add race
+    // each other; this check exists so the common (non-racing) case gets a
+    // real 409 instead of a raw postgres unique-violation bubbling up.
+    const existingChild = await db.query.constructionBoqs.findFirst({ where: eq(constructionBoqs.parentBoqId, parent.id) })
+    if (existingChild) {
+      throw new ServiceError(`This BOQ has already been revised (revision ${existingChild.version}, id ${existingChild.id}) -- create a new revision from that one instead.`, 409)
+    }
 
     const previousItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, parent.id) })
 
@@ -210,7 +524,22 @@ export async function createBoqRevision(
       parentBoqId: parent.id, title: input.title?.trim() || parent.title, createdById: ctx.userId,
     }).returning()
 
-    await insertLineItems(db, boq.id, input.lineItems || [])
+    // R44 seq3 fix (real defect, found while building the COMPARE archetype):
+    // this used to default a missing `lineItems` to `[]`, so "create a
+    // revision" silently created an EMPTY one unless the caller happened to
+    // re-submit all previous items itself -- the opposite of "create WITH
+    // REFERENCE" (M31: "the single biggest typing saver in an ERP"). Only an
+    // *explicit* `input.lineItems` (including an explicit `[]`, a genuine
+    // "start this revision empty" caller intent) overrides the copy-forward
+    // default; `undefined` now means "copy every parent line item forward
+    // unchanged," matching the create-with-reference contract the TIMELINE/
+    // COMPARE archetypes' test oracle requires.
+    const itemCodeById = new Map(previousItems.filter((i) => i.itemCode).map((i) => [i.id, i.itemCode!]))
+    const lineItems = input.lineItems ?? previousItems.map((row) => toLineItemInput(row, itemCodeById))
+
+    validateLineItemInputs(lineItems)
+    await insertLineItems(db, ctx.orgId, boq.id, lineItems)
+    await assertLineItemsPersisted(db, boq.id, lineItems.length)
 
     // Owner directive: a negative variation (removing/reducing a line item)
     // must be blocked -- not just warned about -- when that item's linked
@@ -219,8 +548,21 @@ export async function createBoqRevision(
     // the row just inserted above), not just the violating line items.
     const currentItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boq.id) })
     const { removed, changed } = diffLineItems(previousItems, currentItems)
-    const progressByActivityId = await loadLatestProgressByActivityId(db, ctx.orgId, [...removed, ...changed.map((c) => c.current)])
-    const violations = findScopeReductionViolations({ removed, changed }, progressByActivityId)
+    // R36 fix (real bug, found while verifying R-23): a revision always
+    // inserts BRAND NEW line item rows, so `changed[i].current.id` never
+    // matches any existing progress entry's boq_line_item_id -- those were
+    // recorded against the PREVIOUS row. Load progress keyed by the
+    // PREVIOUS id (where it actually lives), then re-key each changed
+    // item's result onto its CURRENT id, since findScopeReductionViolations
+    // looks progress up by change.current.id. Removed items are unaffected
+    // (their "id" IS the previous/only id, already correct).
+    const progressByPreviousId = await loadLatestProgressByLineItem(db, ctx.orgId, [...removed, ...changed.map((c) => c.previous)])
+    const progressByLineItem = new Map(progressByPreviousId)
+    for (const c of changed) {
+      const pct = progressByPreviousId.get(c.previous.id)
+      if (pct !== undefined) progressByLineItem.set(c.current.id, pct)
+    }
+    const violations = findScopeReductionViolations({ removed, changed }, progressByLineItem)
     if (violations.length > 0 && !input.allowScopeReductionOverride) {
       throw new ServiceError(
         `Scope reduction blocked -- this revision would remove or reduce work already completed on site: ${violations.join("; ")}. ` +
@@ -280,18 +622,23 @@ export function computeTotalVariation(diff: { added: BoqLineItemRow[]; removed: 
  * soft warnings compareBoq() returns and the hard block createBoqRevision()
  * enforces -- kept as one function so the two can never disagree about what
  * counts as a violation. A violation is: a removed line item, or a changed
- * line item with a negative netVariation, whose linked activity has ANY
- * recorded completed progress (percentComplete > 0). progressByActivityId
- * is expected to hold each activity's MOST RECENT percentComplete only.
+ * line item with a negative netVariation, that the resolver found ANY
+ * recorded completed progress for (percentComplete > 0). R12 point 7
+ * (Option B): progressByLineItem is keyed by the line item's OWN id, not
+ * activityId -- produced by resolveProgressByLineItem()/
+ * loadLatestProgressByLineItem() below, which already resolved
+ * boq_line_item_id vs. activity_id per item. This function no longer knows
+ * or cares which link resolved it; it just holds each item's MOST RECENT
+ * percentComplete.
  */
 export function findScopeReductionViolations(
   diff: { removed: BoqLineItemRow[]; changed: ChangedLineItem[] },
-  progressByActivityId: Map<string, number>
+  progressByLineItem: Map<string, number>
 ): string[] {
   const violations: string[] = []
 
   for (const item of diff.removed) {
-    const pct = item.activityId ? progressByActivityId.get(item.activityId) : undefined
+    const pct = progressByLineItem.get(item.id)
     if (pct && pct > 0) {
       violations.push(`"${item.description}" is ${pct}% complete on site and would be removed entirely`)
     }
@@ -299,7 +646,7 @@ export function findScopeReductionViolations(
 
   for (const change of diff.changed) {
     if (change.netVariation >= 0) continue
-    const pct = change.current.activityId ? progressByActivityId.get(change.current.activityId) : undefined
+    const pct = progressByLineItem.get(change.current.id)
     if (pct && pct > 0) {
       violations.push(`"${change.current.description}" is ${pct}% complete on site -- this revision reduces its scope by ${Math.abs(change.netVariation)}`)
     }
@@ -308,19 +655,71 @@ export function findScopeReductionViolations(
   return violations
 }
 
-/** Most-recent percentComplete per activityId, for every activityId referenced by `items` -- the DB-touching half of the scope-reduction guard, kept separate from the pure violation logic above. */
-async function loadLatestProgressByActivityId(db: TenantDb, orgId: string, items: BoqLineItemRow[]): Promise<Map<string, number>> {
+/**
+ * Pure merge step of the R12 point 7 (Option B) resolver -- factored out
+ * from loadLatestProgressByLineItem() below purely so it's independently
+ * unit-testable without a live DB (same "don't touch withTenantContext/a
+ * live DB from a .test.ts file" convention as computeHierarchicalAmount/
+ * diffLineItems in this same file). `byLineItemId`/`byActivityId` are
+ * already-fetched "most recent percentComplete per key" maps; this
+ * function only decides, per item, which key wins. boq_line_item_id
+ * (direct link) ALWAYS wins over activity_id (fallback) when both would
+ * resolve to a value for the same item -- "IF boq_line_item_id is set THEN
+ * it wins" is the point's own explicit rule, not just "prefer whichever
+ * came first."
+ */
+export function resolveProgressByLineItem(
+  items: BoqLineItemRow[],
+  byLineItemId: Map<string, number>,
+  byActivityId: Map<string, number>
+): Map<string, number> {
+  const progressByLineItem = new Map<string, number>()
+  for (const item of items) {
+    if (byLineItemId.has(item.id)) { progressByLineItem.set(item.id, byLineItemId.get(item.id)!); continue }
+    if (item.activityId && byActivityId.has(item.activityId)) progressByLineItem.set(item.id, byActivityId.get(item.activityId)!)
+  }
+  return progressByLineItem
+}
+
+/**
+ * R12 point 7 (Option B): most-recent percentComplete per BOQ line item, for
+ * every item in `items` -- keyed by lineItem.id, not activityId, because
+ * progress belongs to a BOQ line, not to an activity (activity is a
+ * project-management concept; this table is shared by every VERIDIAN
+ * product). Resolves boq_line_item_id FIRST (the direct link); falls back
+ * to activity_id ONLY when no boq_line_item_id-linked entry exists for that
+ * item, so every pre-R12 (legacy, activity-only) progress entry keeps being
+ * found unchanged. ONE resolver -- both the 409 scope-reduction guard below
+ * and compareBoq()'s warnings call this same function (arch rule AR-01), so
+ * a third link type later is a one-place change here, not a sweep of every
+ * caller. The DB-touching half of the scope-reduction guard, kept separate
+ * from the pure merge/violation logic above.
+ */
+export async function loadLatestProgressByLineItem(db: TenantDb, orgId: string, items: BoqLineItemRow[]): Promise<Map<string, number>> {
+  const lineItemIds = items.map((i) => i.id)
   const activityIds = [...new Set(items.map((i) => i.activityId).filter((id): id is string => !!id))]
-  if (activityIds.length === 0) return new Map()
+
+  const conditions: SQL[] = []
+  if (lineItemIds.length > 0) conditions.push(inArray(constructionWorkProgressEntries.boqLineItemId, lineItemIds))
+  if (activityIds.length > 0) conditions.push(inArray(constructionWorkProgressEntries.activityId, activityIds))
+  if (conditions.length === 0) return new Map()
 
   const rows = await db.query.constructionWorkProgressEntries.findMany({
-    where: and(eq(constructionWorkProgressEntries.orgId, orgId), inArray(constructionWorkProgressEntries.activityId, activityIds)),
+    where: and(eq(constructionWorkProgressEntries.orgId, orgId), or(...conditions)),
     orderBy: (t, { desc }) => desc(t.entryDate),
   })
 
-  const progressByActivityId = new Map<string, number>()
-  for (const row of rows) if (!progressByActivityId.has(row.activityId)) progressByActivityId.set(row.activityId, row.percentComplete)
-  return progressByActivityId
+  // Most-recent entry per direct link (boq_line_item_id) and per fallback
+  // link (activity_id) -- kept as two separate maps because a single row
+  // can satisfy either lookup and "most recent" is per-key, not per-row.
+  const byLineItemId = new Map<string, number>()
+  const byActivityId = new Map<string, number>()
+  for (const row of rows) {
+    if (row.boqLineItemId && !byLineItemId.has(row.boqLineItemId)) byLineItemId.set(row.boqLineItemId, Number(row.percentComplete))
+    if (row.activityId && !byActivityId.has(row.activityId)) byActivityId.set(row.activityId, Number(row.percentComplete))
+  }
+
+  return resolveProgressByLineItem(items, byLineItemId, byActivityId)
 }
 
 /**
@@ -380,8 +779,18 @@ export async function compareBoq(ctx: { orgId: string }, boqId: string, options:
     const previousItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, against.id) })
 
     const { added, removed, changed } = diffLineItems(previousItems, currentItems)
-    const progressByActivityId = await loadLatestProgressByActivityId(db, ctx.orgId, [...removed, ...changed.map((c) => c.current)])
-    const warnings = findScopeReductionViolations({ removed, changed }, progressByActivityId)
+    // R36 fix: same bug as createBoqRevision (progress lives on the
+    // PREVIOUS line item's id, not the CURRENT/new one) -- see the comment
+    // there. Kept in sync deliberately so compareBoq()'s warnings and
+    // createBoqRevision()'s hard block can never disagree about what counts
+    // as a violation (this file's own docstring on findScopeReductionViolations).
+    const progressByPreviousId = await loadLatestProgressByLineItem(db, ctx.orgId, [...removed, ...changed.map((c) => c.previous)])
+    const progressByLineItem = new Map(progressByPreviousId)
+    for (const c of changed) {
+      const pct = progressByPreviousId.get(c.previous.id)
+      if (pct !== undefined) progressByLineItem.set(c.current.id, pct)
+    }
+    const warnings = findScopeReductionViolations({ removed, changed }, progressByLineItem)
     const totalVariation = computeTotalVariation({ added, removed, changed })
 
     return { added, removed, changed, warnings, totalVariation }
@@ -412,6 +821,37 @@ export async function submitBoq(ctx: { orgId: string }, boqId: string) {
     })
   }
   return row
+}
+
+// R46/E-126b: no DELETE existed for a BOQ at all -- the demo-gate smoke
+// suite (e2e/demo-gate-smoke.spec.ts) creates real, timestamped BOQs on
+// every CI run with nowhere to clean them up, so the count of ""R-B1
+// smoke ..."" rows on the shared demo project grew unbounded (165 -> 170 ->
+// 204 over three sessions) until an afterEach in that spec could call a
+// real endpoint. Scoped the same way every other mutator in this file is
+// (ctx.orgId via withTenantContext -- a caller can only ever delete a BOQ
+// inside their OWN org, so this is not demo/test-specific, just a normal
+// missing CRUD operation). Restricted to status "draft" only: once a BOQ
+// has been submitted/approved it represents real, potentially executed
+// scope and must go through submitBoq/approveBoq's own state machine (a
+// revision or explicit descope), never a silent delete -- this also means
+// the smoke suite's own BOQs (always left in "draft", never submitted)
+// are always eligible for its own afterEach to remove.
+export async function deleteBoq(ctx: { orgId: string }, boqId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
+    if (!boq) throw new ServiceError("BOQ not found", 404)
+    if (boq.status !== "draft") throw new ServiceError("Only a draft BOQ can be deleted -- submit/approve implies real scope that must be revised, not silently removed", 400)
+
+    const lineItemRows = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boqId) })
+    const lineItemIds = lineItemRows.map((li) => li.id)
+    if (lineItemIds.length > 0) {
+      await db.delete(constructionWorkProgressEntries).where(inArray(constructionWorkProgressEntries.boqLineItemId, lineItemIds))
+      await db.delete(constructionBoqLineItems).where(eq(constructionBoqLineItems.boqId, boqId))
+    }
+    await db.delete(constructionBoqs).where(eq(constructionBoqs.id, boqId))
+    return { deleted: true, id: boqId, lineItemsDeleted: lineItemIds.length }
+  })
 }
 
 export async function approveBoq(ctx: { orgId: string; userId: string }, boqId: string) {

@@ -219,7 +219,7 @@ export default function ClmLibraryPage() {
                         {templateDetail.clauses.length === 0 ? <li className="text-ct-muted">No clauses added yet.</li> : templateDetail.clauses.map((tc) => (
                           <li key={tc.id} className="flex items-center justify-between border-b border-ct-border py-1">
                             <span>{tc.position}. {tc.clause.title}</span>
-                            <Button size="icon" variant="ghost" onClick={() => removeClauseFromTemplate(tc.id)}><X className="w-3 h-3" /></Button>
+                            <Button size="icon" variant="ghost" aria-label="Remove clause" onClick={() => removeClauseFromTemplate(tc.id)}><X className="w-3 h-3" /></Button>
                           </li>
                         ))}
                       </ul>

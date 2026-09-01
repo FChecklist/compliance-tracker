@@ -23,7 +23,7 @@
 // once both branches land, purely for discoverability -- not required
 // functionally, since this file already imports getAssetByAssetId() rather
 // than reimplementing asset lookup.
-import { storeEmbedding, findSimilar } from "@/lib/embeddings"
+import { storeEmbedding, findSimilar, PLATFORM_SCOPE_ORG_ID } from "@/lib/embeddings"
 import { getAssetByAssetId } from "./asset-registry-service"
 import { db, platformAssets } from "@/lib/db"
 import { and, inArray, isNull, or, eq } from "drizzle-orm"
@@ -54,7 +54,9 @@ export async function indexAssetForSearch(assetId: string): Promise<void> {
   if (!asset) throw new ServiceError(`Asset ${assetId} not found`, 404)
 
   const content = buildAssetSearchContent(asset)
-  await storeEmbedding(ASSET_ENTITY_TYPE, asset.assetId, content, asset.orgId ?? undefined)
+  // CRR-018/019: platformAssets.orgId is nullable by design (same convention
+  // as moduleRegistry) -- that's the platform-scope case, made explicit.
+  await storeEmbedding(ASSET_ENTITY_TYPE, asset.assetId, content, asset.orgId ?? PLATFORM_SCOPE_ORG_ID)
 }
 
 export type AssetSearchMatch = typeof platformAssets.$inferSelect & { score: number }

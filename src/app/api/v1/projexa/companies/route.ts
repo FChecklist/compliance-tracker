@@ -7,13 +7,13 @@
 // capability was completely invisible to a real customer. Zero new business
 // logic here -- pure aliasing, matching every other /v1/projexa/* route.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listCompanies, createCompany, ServiceError, type CompanyInput } from "@/lib/services/erp-company-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ companies: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const companies = await listCompanies({ orgId: ctx.orgId })

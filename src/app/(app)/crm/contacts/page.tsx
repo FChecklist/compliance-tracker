@@ -76,7 +76,7 @@ export default function CrmContactsPage() {
           <div className="rounded-xl border border-ct-border bg-white divide-y divide-ct-border">
             {contacts.map((c) => (
               <Link key={c.id} href={`/crm/accounts/${c.accountId}`} className="px-4 py-3 flex items-center gap-3 hover:bg-ct-cloud/40">
-                <Users className="size-4 text-ct-saffron shrink-0" />
+                <Users className="size-4 text-ct-saffron-text shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-ct-navy">{c.name} {c.isPrimary && <Badge variant="outline" className="text-[10px] ml-1">Primary</Badge>}</p>
                   <p className="text-xs text-ct-muted">{c.title ?? "No title"} · {accountName(c.accountId)}</p>

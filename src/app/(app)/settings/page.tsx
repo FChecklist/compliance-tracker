@@ -21,9 +21,11 @@ import {
   TrendingUp,
   KeyRound,
   Paintbrush,
+  CreditCard,
 } from "lucide-react";
 import OrgLimitsSection from "@/components/OrgLimitsSection";
 import SubscriptionPlanSection from "@/components/SubscriptionPlanSection";
+import BillingSection from "@/components/BillingSection";
 import BrandingSection from "@/components/BrandingSection";
 import AdoptionMetricsSection from "@/components/AdoptionMetricsSection";
 import AiConfigSection from "@/components/AiConfigSection";
@@ -72,6 +74,7 @@ const SETTINGS_NAV = [
   { id: "webhooks", label: "Webhooks", icon: Webhook },
   { id: "org-limits", label: "Seats & AI Spend", icon: Users2 },
   { id: "subscription-plan", label: "Subscription Plan", icon: Bot },
+  { id: "billing", label: "Billing", icon: CreditCard },
   { id: "branding", label: "Branding", icon: Paintbrush },
   { id: "adoption", label: "Adoption Dashboard", icon: TrendingUp },
   { id: "sso", label: "SSO (SAML)", icon: ShieldAlert },
@@ -197,7 +200,7 @@ export default function SettingsPage() {
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full text-left",
                       isActive
-                        ? "bg-ct-accent text-ct-saffron font-bold"
+                        ? "bg-ct-accent text-ct-saffron-text font-bold"
                         : "text-ct-slate hover:bg-ct-cloud"
                     )}
                   >
@@ -230,7 +233,7 @@ export default function SettingsPage() {
                   <div>
                     <p className="font-semibold text-ct-navy">{profileName || '—'}</p>
                     <p className="text-sm text-ct-muted">{profileEmail || '—'}</p>
-                    <Badge variant="secondary" className="bg-ct-accent text-ct-saffron text-[10px] mt-1 font-medium capitalize">
+                    <Badge variant="secondary" className="bg-ct-accent text-ct-saffron-text text-[10px] mt-1 font-medium capitalize">
                       {profileRole || 'member'}
                     </Badge>
                   </div>
@@ -572,6 +575,20 @@ export default function SettingsPage() {
                 ) : (
                   <p className="text-sm text-muted-foreground">Only admins can view and change the organisation&apos;s subscription plan.</p>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "billing" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <CreditCard className="size-4" />
+                  Billing
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <BillingSection isAdmin={isAdmin} />
               </CardContent>
             </Card>
           )}

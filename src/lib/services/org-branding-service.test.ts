@@ -260,6 +260,7 @@ describe("resolvePreAuthBrandByHost (Stage 1: pre-authentication, domain-based r
       id: "branch-projexa",
       displayName: "PROJEXA",
       hostDomain: "projexa-ai.com",
+      tagline: null,
       ...overrides,
     }
   }
@@ -276,6 +277,33 @@ describe("resolvePreAuthBrandByHost (Stage 1: pre-authentication, domain-based r
     expect(result?.brandName).toBe("PROJEXA")
     expect(result?.productBranchId).toBe("branch-projexa")
     expect(findFirst).toHaveBeenCalled()
+  })
+
+  // GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN (OCID-020 addendum,
+  // 2026-08-05): real, scoped extension of PreAuthBrand -- a marketing page
+  // (e.g. /pricing) can use the branch's own tagline in place of hardcoded
+  // copy when one is configured, and must fall back to null (its own
+  // default copy) when it isn't -- exactly like the real PROJEXA row today.
+  test("a branch with a configured tagline passes it through on PreAuthBrand", async () => {
+    const findFirst = mock(async () => productBranchRow({ tagline: "Run every marketplace from one place" }))
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    const result = await resolvePreAuthBrandByHost("projexa-ai.com")
+    expect(result?.tagline).toBe("Run every marketplace from one place")
+  })
+
+  test("a branch with no tagline configured (the real PROJEXA row today) resolves tagline: null, not undefined", async () => {
+    const findFirst = mock(async () => productBranchRow())
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    const result = await resolvePreAuthBrandByHost("projexa-ai.com")
+    expect(result?.tagline).toBeNull()
   })
 
   test("a request to the base VERIDIAN platform domain does NOT resolve PROJEXA branding (no matching row)", async () => {
@@ -326,5 +354,28 @@ describe("resolvePreAuthBrandByHost (Stage 1: pre-authentication, domain-based r
     const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
     const result = await resolvePreAuthBrandByHost("PROJEXA-AI.COM")
     expect(result?.brandName).toBe("PROJEXA")
+  })
+
+  // Accessibility (WCAG Compliance) gap-closure, PR #1232's own real E2E
+  // Tests failure: this function's own header comment has
+  // always claimed "never throws", but until this fix the `db.query...
+  // findFirst(...)` call below was NOT wrapped in a try/catch -- a DB
+  // outage (down, unreachable, connection refused) propagated as an
+  // unhandled render error on every unauthenticated request to "/"/"/login"
+  // (both call this pre-auth, before any session exists). Regression test
+  // for the fix: a rejecting findFirst() must degrade to null (the
+  // platform-default brand, matching every other "unmatched host" outcome
+  // this function already returns), not reject/throw past this function's
+  // own boundary.
+  test("a DB error (findFirst rejects) degrades to null instead of throwing, matching the 'never a broken UI' contract", async () => {
+    const findFirst = mock(async () => {
+      throw new Error("ECONNREFUSED")
+    })
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    await expect(resolvePreAuthBrandByHost("projexa-ai.com")).resolves.toBeNull()
   })
 })
