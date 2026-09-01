@@ -1585,3 +1585,57 @@ active:
       src/lib/pipeline/classify.test.ts additions covering the new
       function. No changes to classify-only.ts, the /classify route, or
       any pipeline_tasks column/enum.
+  - session_label: "claude-code (subagent, R65 Part D Phase 3) -- wire pipeline_task_status's 'in_progress' value, verified-and-revised scope vs. the Phase 0 report's own §3.12/§4.2/Phase 3 recommendation"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      R65 Part D Phase 0 report (§3.12) found `pipelineTaskStatusEnum`'s
+      'in_progress'/'waiting' values and `pipelineTaskExecutorEnum`'s
+      'ai'/'person' values declared in the DB enum but never assigned by
+      any code path (confirmed again fresh in this session before starting
+      -- run-submission.ts still only ever wrote 'to_do'->'done'/'blocked'
+      and executor:'software' hardcoded). Report explicitly sequenced this
+      as its own Phase 3, and the just-merged Phase 4 claim above
+      explicitly deferred it as "separately scoped" -- confirmed no PR has
+      touched it since.
+
+      REVISED SCOPE, found only after inspecting real code (this claim's
+      original text below is kept for the record, not deleted -- it was
+      wrong on two points before implementation started): (1) schema.ts's
+      own comment on pipelineTaskStatusEnum says "M24's closed 5-status
+      set, verbatim -- no sixth value" -- this directly contradicts the
+      Phase 0 report's own §4.2 recommendation to extend the enum with
+      WAITING_FOR_APPROVAL/ESCALATED, so that extension is NOT done here,
+      no migration is added, and this is disclosed as a genuine
+      contradiction for the owner rather than silently resolved either
+      way. (2) Of the 4 declared-but-unused values, only 'in_progress' has
+      a real call site that doesn't require reversing an existing,
+      deliberate design decision: 'waiting''s one plausible fit (a segment
+      with missingParams) sits behind an explicit M26 comment ("do NOT
+      mint a task that would run with a guessed value") and would also
+      change RunSubmissionResult's shape for a case PROJEXA's composer (a
+      separate repo) already consumes -- left as a disclosed gap, not
+      reversed without sign-off. 'ai'/'person' (executor) have no call
+      site at all in this pipeline by design: every minted task is
+      executed by executor.ts's software registry, per directive rule
+      §22/#27 itself ("AI must NOT directly perform uncontrolled database
+      mutation... software validates, authorizes, executes"). Final real
+      change: src/lib/pipeline/run-submission.ts's markInProgress() sets
+      status='in_progress' immediately before the one call that can take
+      real wall-clock time (executeTask()), in both runSubmission() and
+      runDirectTask(), giving real data to GET /api/v1/projexa/tasks's
+      already-shipped but permanently-empty "running" bucket. No new
+      migration -- 'in_progress' already exists in the enum since
+      drizzle/0294. Does NOT touch AI escalation-tier dispatch/model-
+      selection wiring (Phase 6 in the report's own numbering).
+    scope_note: >-
+      File scope: src/lib/pipeline/run-submission.ts (new markInProgress()
+      helper + 2 call sites, additive only -- no existing call site's
+      behavior changed), src/lib/pipeline/run-submission.test.ts (header
+      comment disclosing the same untested-DB-write convention already
+      established for captureTaskResultMemory()), src/lib/db/schema.ts
+      (comments only, on pipelineTaskStatusEnum/pipelineTaskExecutorEnum --
+      no enum values added or removed, no column changes). No migration.
+      No changes to classify.ts's classifySubmission()/classifySegment(),
+      the submissions.classification column, any AI-router/escalation-
+      tier/model-selection file, or the token_usage_ledger columns from
+      Phase 2.
