@@ -8,6 +8,7 @@
 // count) but returns the full plan row, not just features.aiPackage --
 // callers here need assistantsPerUser/name, not the AI-routing string.
 import { db, organisations, subscriptionPlans, users, aiAssistants } from "@/lib/db"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, count, sql } from "drizzle-orm"
 
 export type ResolvedSubscriptionPlan = typeof subscriptionPlans.$inferSelect
@@ -59,13 +60,36 @@ export async function resolveSubscriptionPlan(orgId: string): Promise<ResolvedSu
 export async function provisionAiAssistantsForUser(userId: string, orgId: string): Promise<void> {
   const plan = await resolveSubscriptionPlan(orgId)
   const assistantCount = plan?.assistantsPerUser ?? 5 // schema column default, same fallback as an org with zero active plan rows
-  await db.insert(aiAssistants).values(
+  // R53 / F_021 -- REAL PRODUCTION ERROR, TWICE: "new row violates row-level
+  // security policy for table ai_assistants" (Vercel runtime, route
+  // /api/users, 2026-08-24T17:50-17:51Z).
+  //
+  // THE COMMENT AT THE CALL SITE WAS WRONG, NOT THE POLICY. api/users/route.ts
+  // said this "uses the raw (RLS-bypassing) db client deliberately". The
+  // module-level `db` is only RLS-bypassing if the ROLE behind DATABASE_URL
+  // carries rolbypassrls -- an environment property, never a code property,
+  // and not one this deployment has. compliance.ai_assistants has FORCE ROW
+  // LEVEL SECURITY and its policy requires compliance.current_user_id() to
+  // equal the row's user_id. Outside withTenantContext, set_config is never
+  // run, current_user_id() is NULL, `user_id = NULL` is NULL, and the insert
+  // is refused. The route's own users insert two statements earlier IS
+  // wrapped correctly, which is exactly why it succeeds while this failed.
+  //
+  // The comment's own stated requirement -- current_user_id() must equal the
+  // row's user_id -- is precisely what this now satisfies. The
+  // compliance.users row for userId is already committed by the caller
+  // before this runs, so the context is real, not asserted.
+  //
+  // NOT getProvisioningDb(): that module's header restricts it to the
+  // organisations INSERT, and borrowing an elevated connection to dodge a
+  // policy that is doing its job is how the next one of these gets written.
+  await withTenantContext({ orgId, userId }, (tx) => tx.insert(aiAssistants).values(
     Array.from({ length: assistantCount }, (_, i) => ({
       userId,
       assistantNumber: i + 1,
       label: `Assistant ${i + 1}`,
     }))
-  )
+  ))
 }
 
 // Task B/E shared status shape -- /api/me (read-only, every user) and the

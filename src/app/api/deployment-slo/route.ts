@@ -19,6 +19,16 @@ export async function GET(request: NextRequest) {
   const windowParam = request.nextUrl.searchParams.get("windowDays")
   const windowDays = windowParam && /^\d+$/.test(windowParam) ? Math.min(Math.max(Number(windowParam), 1), 365) : DEFAULT_SLO_WINDOW_DAYS
 
-  const slo = await getDeploymentSlo(windowDays)
-  return NextResponse.json(slo)
+  // 2026-09-01 rebase-sweep2b-1021 fix: this GET has real I/O
+  // (db.query.deploymentEvents + a best-effort Sentry fetch inside
+  // getDeploymentSlo) that can throw on a transient DB/network error --
+  // wrap it so callers get a clean JSON 500 instead of Next.js's generic
+  // error page, matching this repo's Route Error Handling Check convention.
+  try {
+    const slo = await getDeploymentSlo(windowDays)
+    return NextResponse.json(slo)
+  } catch (error) {
+    console.error("Deployment SLO computation error:", error)
+    return NextResponse.json({ error: "Failed to compute deployment SLO" }, { status: 500 })
+  }
 }

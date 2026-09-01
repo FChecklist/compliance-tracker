@@ -12,6 +12,13 @@ import { createSignatureRequest } from "./esignature-service"
 export type ChangeOrderInput = {
   projectId: string; title: string; description?: string; reason?: string
   costImpact?: number; scheduleImpactDays?: number
+  // R65 gap-closure: free text, no fixed vocabulary -- same convention as
+  // constructionLabourRoster.trade/erpSuppliers.trade (e.g. "Carpentry",
+  // "Civil", "Electrical"). Lets a caller mark a change order as
+  // interior-design-scoped (e.g. "Interior Design") vs civil/MEP/other,
+  // which report-engine-service.ts#computeInteriorVariationOrderAnalysis
+  // (formulaKey interior_variation_order_analysis) filters on.
+  trade?: string
 }
 
 export async function createChangeOrder(ctx: { orgId: string; userId: string }, input: ChangeOrderInput) {
@@ -23,6 +30,7 @@ export async function createChangeOrder(ctx: { orgId: string; userId: string }, 
       orgId: ctx.orgId, projectId: input.projectId, number: existing + 1,
       title: input.title.trim(), description: input.description ?? null, reason: input.reason ?? null,
       costImpact: String(input.costImpact ?? 0), scheduleImpactDays: input.scheduleImpactDays ?? 0,
+      trade: input.trade?.trim() || null,
       requestedById: ctx.userId,
     }).returning()
     return row

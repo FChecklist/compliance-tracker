@@ -1,0 +1,76 @@
+name: Domain Ownership Drift Check
+
+# Read-only guardrail against the recurring projexa-ai.com/www Vercel
+# domain misassignment (task-20260816-142705-find-and-eliminate-whatever-
+# keeps-reassi, UMR-20260816-142651-d552). Root cause: every prior
+# reassignment was a manual, unattended-by-code live Vercel API/CLI action
+# by a different agent session (see ai-os/DOMAIN_OWNERSHIP.yaml for the full
+# cited history) -- nothing in this repo can technically prevent a manual
+# dashboard/API change, so this instead detects drift fast: it polls the
+# real Vercel API every 15 minutes and fails (visible in the Actions tab +
+# GitHub's own failed-run notification) the moment a domain's live owning
+# project stops matching ai-os/DOMAIN_OWNERSHIP.yaml's canonical record.
+#
+# Installed 2026-08-30 (R1-R64/PR-backlog reconciliation pass, rebasing the
+# original PR #1295): the original PR staged this at ai-os/ci-templates/
+# domain-drift-check.yml.pending-workflow-scope because that session's git
+# push credential lacked the `workflow` OAuth scope GitHub requires for any
+# .github/workflows/* change. This session's own push of other workflow
+# files (e.g. governance-yaml-parse-check, migration-schema-drift-check)
+# succeeded, confirming that credential wall is no longer in the way --
+# installing for real rather than leaving it staged.
+#
+# GET-only. Never calls a mutating Vercel endpoint, and never uses
+# `vercel domains rm`/its REST equivalent (see AGENTS.md / DOMAIN_OWNERSHIP.
+# yaml's own rule 4 on why: it removes team ownership, a materially more
+# destructive operation than what any of these incidents ever needed).
+on:
+  schedule:
+    # GitHub's scheduler does not guarantee exact timing (can slip further
+    # under platform load) -- documented honestly, not oversold; still a
+    # large improvement over "noticed whenever a human happens to check."
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    name: Verify projexa-ai.com domains still point at the canonical project
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check each domain against ai-os/DOMAIN_OWNERSHIP.yaml
+        env:
+          VERCEL_ACCESS_TOKEN: ${{ secrets.VERCEL_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          TEAM="team_Iqx3zyb7sDdsdzcNskCFFsHD"
+          FAIL=0
+
+          # Canonical values from ai-os/DOMAIN_OWNERSHIP.yaml (kept in sync
+          # by hand -- see that file's rule 3 for when/how this changes).
+          DOMAINS="projexa-ai.com www.projexa-ai.com"
+          CANONICAL_PROJECT_ID="prj_JA9mwUdOfW3SKSxjG4jdPo0R2iVM"
+          CANONICAL_PROJECT_NAME="projexa"
+
+          for domain in $DOMAINS; do
+            echo "--- checking $domain ---"
+            resp=$(curl -sf "https://api.vercel.com/v9/projects/${CANONICAL_PROJECT_ID}/domains/${domain}?teamId=${TEAM}" \
+              -H "Authorization: Bearer ${VERCEL_ACCESS_TOKEN}") || {
+              echo "::error::GET for $domain against the canonical project ($CANONICAL_PROJECT_NAME) failed -- domain is NOT attached there. Drift detected."
+              FAIL=1
+              continue
+            }
+            actual_project=$(echo "$resp" | python3 -c "import json,sys; print(json.load(sys.stdin).get('projectId',''))")
+            if [ "$actual_project" != "$CANONICAL_PROJECT_ID" ]; then
+              echo "::error::$domain resolves to projectId=$actual_project, expected $CANONICAL_PROJECT_ID ($CANONICAL_PROJECT_NAME). Drift detected -- see ai-os/DOMAIN_OWNERSHIP.yaml before taking any action."
+              FAIL=1
+            else
+              echo "OK: $domain -> $CANONICAL_PROJECT_NAME ($actual_project)"
+            fi
+          done
+
+          if [ "$FAIL" -ne 0 ]; then
+            echo "::error::One or more domains have drifted from ai-os/DOMAIN_OWNERSHIP.yaml's canonical record. Read that file's rules before reassigning anything -- do not use 'vercel domains rm'."
+            exit 1
+          fi

@@ -66,7 +66,7 @@ type ProgressEstimate = { estimatedPercentComplete: number; reasoning: string; c
 
 function progressColor(pct: number) {
   if (pct >= 100) return "bg-green-100 text-green-700";
-  if (pct >= 50) return "bg-ct-saffron/20 text-ct-saffron";
+  if (pct >= 50) return "bg-ct-saffron/20 text-ct-saffron-text";
   return "bg-ct-cloud text-ct-muted";
 }
 
@@ -337,7 +337,7 @@ export default function WorkProgressPage() {
                           {activities.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}{a.unit ? ` (${a.unit})` : ""}</SelectItem>)}
                         </SelectContent>
                       </Select>
-                      <Button type="button" variant="outline" size="icon" onClick={() => setNewActivityOpen(true)} title="New activity">
+                      <Button type="button" variant="outline" size="icon" onClick={() => setNewActivityOpen(true)} title="New activity" aria-label="New activity">
                         <Plus className="size-4" />
                       </Button>
                     </div>
@@ -410,7 +410,7 @@ export default function WorkProgressPage() {
           </div>
 
           {summaryError && (
-            <Card className="rounded-xl border border-ct-saffron/40 bg-ct-saffron/10"><CardContent className="pt-4 text-sm text-ct-saffron">{summaryError}</CardContent></Card>
+            <Card className="rounded-xl border border-ct-saffron/40 bg-ct-saffron/10"><CardContent className="pt-4 text-sm text-ct-saffron-text">{summaryError}</CardContent></Card>
           )}
           {summary && (
             <Card className="rounded-xl shadow-card bg-white">
@@ -457,7 +457,7 @@ export default function WorkProgressPage() {
                         <TableCell className="text-ct-muted whitespace-nowrap">{new Date(e.entryDate).toLocaleDateString()}</TableCell>
                         <TableCell className="text-ct-navy">{activitiesById.get(e.activityId)?.name ?? <span className="font-mono text-xs">{e.activityId}</span>}</TableCell>
                         <TableCell>{e.quantityDone}</TableCell>
-                        <TableCell><Badge className={`text-xs border-0 ${progressColor(e.percentComplete)}`}>{e.percentComplete}%</Badge></TableCell>
+                        <TableCell><Badge className={`text-xs border-0 ${progressColor(Number(e.percentComplete))}`}>{e.percentComplete}%</Badge></TableCell>
                         <TableCell className="max-w-xs truncate text-ct-muted">{e.remarks ?? "--"}</TableCell>
                       </TableRow>
                     ))}

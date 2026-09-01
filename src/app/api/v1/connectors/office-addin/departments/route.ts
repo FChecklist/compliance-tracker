@@ -7,7 +7,7 @@
 // id/name only, no member counts or head info the internal route returns --
 // this is a picker, not a departments management surface.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { departments } from "@/lib/db"
 import { asc } from "drizzle-orm"
@@ -15,7 +15,7 @@ import { asc } from "drizzle-orm"
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ departments: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const rows = await withTenantContext({ orgId: ctx.orgId }, (db) =>

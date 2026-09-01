@@ -62,6 +62,18 @@ export async function searchKbPages(ctx: { orgId: string }, query: string) {
   })
 }
 
+// Real-screen conversion (2026-08-30): single-page lookup by id for the
+// Object Page -- getKbPageBySlug already existed (used by the public-facing
+// slug resolver) but nothing looked a page up by its own id, which is what
+// the list/search results and the Object Page's own URL actually carry.
+export async function getKbPage(ctx: { orgId: string }, pageId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const page = await db.query.knowledgeBasePages.findFirst({ where: and(eq(knowledgeBasePages.id, pageId), eq(knowledgeBasePages.orgId, ctx.orgId)) })
+    if (!page) throw new ServiceError("Knowledge base page not found", 404)
+    return page
+  })
+}
+
 export async function getKbPageBySlug(ctx: { orgId: string }, slug: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const page = await db.query.knowledgeBasePages.findFirst({
@@ -113,8 +125,22 @@ export async function createKbPage(
   })
 }
 
+// Real-screen conversion (2026-08-30): widened from KbContext (real dbUser
+// only) to the same dbUser-or-apiKey actor union createKbPage above already
+// uses -- the PROJEXA-facing PATCH route used to hard-block every API-key
+// caller with "This action requires a real user session, not an API key"
+// specifically because this function unconditionally set
+// `updatedById: ctx.userId`, which is a real FK to users.id and would 500
+// on an api_keys.id. createKbPage solved the identical problem with its own
+// `isRealUser` flag (see that function's Wave-29 comment) -- this mirrors
+// that fix: null out updatedById for an API-key actor instead of writing a
+// foreign id into a users FK, and branch the audit-trigger call the same
+// way submitSalesInvoice/submitSalesCreditNote do (erp-invoicing-service.ts
+// / erp-credit-note-service.ts, same session). KnowledgeBaseClient.tsx's
+// own comment claiming BOTH create and edit require a real session was
+// only half right -- create already worked; only edit was actually blocked.
 export async function updateKbPage(
-  ctx: KbContext,
+  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
   pageId: string,
   patch: Partial<{ title: string; content: string | null; isArchived: boolean; isPublished: boolean }>
 ) {
@@ -123,7 +149,7 @@ export async function updateKbPage(
     if (!existing) throw new ServiceError("Knowledge base page not found", 404)
 
     const [page] = await db.update(knowledgeBasePages)
-      .set({ ...patch, version: existing.version + 1, updatedById: ctx.userId, updatedAt: new Date() })
+      .set({ ...patch, version: existing.version + 1, updatedById: ctx.dbUser ? ctx.userId : null, updatedAt: new Date() })
       .where(eq(knowledgeBasePages.id, pageId)).returning()
 
     // Re-index on every real content/title change -- storeEmbedding() itself
@@ -137,10 +163,11 @@ export async function updateKbPage(
     // every real edit bumps `version` (see the comment above), so this fires
     // once per genuine update, not per no-op save. Best-effort: never lets a
     // logging failure break the page edit that already committed above.
-    await recordAuditTrigger({
-      tx: db, event: "knowledge_updated", entityType: "knowledge_base_page", entityId: page.id, orgId: ctx.orgId,
-      dbUser: ctx.dbUser, details: `Knowledge base page "${page.title}" updated to version ${page.version}.`,
-    }).catch((err) => console.error(`[audit-trigger] failed to record knowledge_updated for page ${page.id}:`, err))
+    await recordAuditTrigger(
+      ctx.dbUser
+        ? { tx: db, event: "knowledge_updated", entityType: "knowledge_base_page", entityId: page.id, orgId: ctx.orgId, dbUser: ctx.dbUser, details: `Knowledge base page "${page.title}" updated to version ${page.version}.` }
+        : { tx: db, event: "knowledge_updated", entityType: "knowledge_base_page", entityId: page.id, orgId: ctx.orgId, apiKey: ctx.apiKey, details: `Knowledge base page "${page.title}" updated to version ${page.version}.` }
+    ).catch((err) => console.error(`[audit-trigger] failed to record knowledge_updated for page ${page.id}:`, err))
 
     return page
   })
