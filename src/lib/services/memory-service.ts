@@ -548,3 +548,195 @@ export async function supersedeMemoryRecord(
 
   return { previous, next }
 }
+
+// ─── promoteMemoryRecord / archiveMemoryRecord ─────────────────────────
+//
+// Directive §29's own lifecycle diagram: TRANSIENT → CANDIDATE → CONFIRMED
+// → ACTIVE → SUPERSEDED → ARCHIVED. createMemoryRecord() (default
+// lifecycleState "CANDIDATE") and supersedeMemoryRecord() (the SUPERSEDED
+// transition) already exist -- the two functions below close the
+// remaining gap in the directive's own Phase 3 function list
+// (`archive_memory()`, `promote_memory()`), which had not been built by
+// any prior phase despite createMemoryRecord()/searchMemories() defaulting
+// every fresh CANDIDATE row to being retrievable forever with no way to
+// formally confirm, activate, or retire it.
+//
+// Directive §14 is the reason this matters, not just completeness: "AI-
+// inferred info must NOT auto-become authoritative fact -- important info
+// requires confirmation before promotion to durable org memory." Without
+// promoteMemoryRecord(), there is no code path that ever represents that
+// confirmation happening; without archiveMemoryRecord(), there is no way
+// to retire a memory that was never superseded by new content but is
+// simply no longer relevant (e.g. a rejected CANDIDATE, or an ACTIVE
+// memory an admin/user decides to retract outright).
+//
+// Neither function re-embeds or changes `content`/`content_hash` -- a
+// lifecycle-state change is not a content change, so directive §16 ("don't
+// re-embed unchanged content") applies here just as much as it did to
+// createMemoryRecord()/supersedeMemoryRecord()'s own embedding calls.
+//
+// Both functions are additive, real, and independently callable -- neither
+// is wired into any chat/task/UI call site by this change. That wiring
+// (e.g. a user explicitly confirming an AI-inferred preference, or a
+// future Phase 12 Settings UI "Confirm"/"Archive" action) is out of scope
+// here, the same incremental posture Phase 1 (schema-only) and Phase 2
+// (embedding-layer-only) themselves shipped under before Phase 3 wired
+// either of them into a real caller.
+
+// Kept as its own exported name (not a bare alias re-export) so a reader
+// of promoteMemoryRecord()/archiveMemoryRecord()'s signatures isn't left
+// looking at a type named after a different function -- structurally
+// identical to SupersedeMemoryRecordChangedBy (same {type, id?, reason?}
+// audit shape) by design, not by coincidence.
+export type MemoryLifecycleChangedBy = SupersedeMemoryRecordChangedBy
+
+export type PromotableLifecycleState = "CANDIDATE" | "CONFIRMED" | "ACTIVE"
+
+// The only legal single-step forward promotions this function will
+// perform -- deliberately does NOT allow skipping a level (e.g.
+// TRANSIENT -> ACTIVE, or CANDIDATE -> ACTIVE directly). A caller wanting
+// CONFIRMED -> ACTIVE after starting at CANDIDATE must call this function
+// twice, once per real transition -- matching the directive's own worked
+// example (§29) of each stage being a distinct, separately-earned step
+// ("AI guesses preference (CANDIDATE) -> user confirms (CONFIRMED) ->
+// repeated successful use (ACTIVE)").
+const LEGAL_PROMOTIONS: Partial<Record<LifecycleState, PromotableLifecycleState>> = {
+  TRANSIENT: "CANDIDATE",
+  CANDIDATE: "CONFIRMED",
+  CONFIRMED: "ACTIVE",
+}
+
+/**
+ * Appends one entry to `metadata.lifecycleHistory` (preserving every other
+ * existing metadata key untouched) -- the audit trail for a lifecycle-only
+ * change, since compliance.memory_versions (append-only content history,
+ * NOT NULL content_snapshot/content_hash) is the wrong shape for a
+ * transition that carries no new content. This is the same "traceable to
+ * who/when/why" provenance directive §28 requires of content changes,
+ * applied to state changes instead.
+ */
+function appendLifecycleHistory(
+  metadata: Record<string, unknown>,
+  entry: { from: string; to: string; changedBy: MemoryLifecycleChangedBy }
+): string {
+  const existing = Array.isArray(metadata.lifecycleHistory) ? metadata.lifecycleHistory : []
+  const next = [
+    ...existing,
+    {
+      from: entry.from,
+      to: entry.to,
+      changedByType: entry.changedBy.type,
+      changedById: entry.changedBy.id ?? null,
+      reason: entry.changedBy.reason ?? null,
+      at: new Date().toISOString(),
+    },
+  ]
+  return JSON.stringify({ ...metadata, lifecycleHistory: next })
+}
+
+/**
+ * Fetches a memory_records row by id (same RLS-governed, fail-closed
+ * lookup supersedeMemoryRecord() already uses) and guards against the
+ * GLOBAL/INDUSTRY (org_id NULL) admin/service_role-only path -- shared by
+ * promoteMemoryRecord() and archiveMemoryRecord() below so the same two
+ * checks aren't duplicated in both.
+ */
+async function fetchOwnOrgMemoryRecordOrThrow(tx: TenantDb, id: string, callerName: string): Promise<MemoryRecord> {
+  const rows = (await tx.execute(sql`SELECT * FROM compliance.memory_records WHERE id = ${id}`)) as RawMemoryRecordRow[]
+  if (rows.length === 0) {
+    // Either the id genuinely doesn't exist, or RLS filtered it out
+    // (belongs to a different org) -- both look identical to the caller,
+    // the correct fail-closed behavior (same reasoning as
+    // supersedeMemoryRecord()'s own not-found case).
+    throw new Error(`${callerName}: memory_records row ${id} not found`)
+  }
+  const record = mapMemoryRecordRow(rows[0])
+  if (record.orgId === null) {
+    throw new Error(
+      `${callerName}: ${id} is a GLOBAL/INDUSTRY-scoped memory (org_id IS NULL) -- changing its lifecycle state is an admin/service_role-only path per Phase 1's RLS design, not supported by this function`
+    )
+  }
+  return record
+}
+
+/**
+ * Advances one memory_records row exactly one legal step along the
+ * directive §29 lifecycle (TRANSIENT -> CANDIDATE -> CONFIRMED -> ACTIVE).
+ * `toState` must match the single legal next state for the row's CURRENT
+ * lifecycle_state -- this is a defensive, explicit contract (a caller
+ * assuming the wrong current state gets a clear error, never a silent
+ * "promoted to whatever came next") rather than an argument-less "advance
+ * one step" call.
+ *
+ * Throws if the row cannot be found under RLS, is a GLOBAL/INDUSTRY row,
+ * is already SUPERSEDED/ARCHIVED (terminal states with their own
+ * dedicated functions -- supersedeMemoryRecord()/archiveMemoryRecord(),
+ * not this one), or if `toState` does not match the one legal next step
+ * from the row's actual current state.
+ */
+export async function promoteMemoryRecord(
+  tx: TenantDb,
+  id: string,
+  toState: PromotableLifecycleState,
+  changedBy: MemoryLifecycleChangedBy
+): Promise<MemoryRecord> {
+  const current = await fetchOwnOrgMemoryRecordOrThrow(tx, id, "promoteMemoryRecord")
+
+  const legalNext = LEGAL_PROMOTIONS[current.lifecycleState as LifecycleState]
+  if (!legalNext || legalNext !== toState) {
+    throw new Error(
+      legalNext
+        ? `promoteMemoryRecord: ${id} is currently ${current.lifecycleState}; the only legal next state is ${legalNext}, not ${toState}`
+        : `promoteMemoryRecord: ${id} is currently ${current.lifecycleState}, which has no further promotion (SUPERSEDED/ARCHIVED are terminal here, or the state is already the highest promotable one -- see supersedeMemoryRecord()/archiveMemoryRecord() for the transitions this function does not perform)`
+    )
+  }
+
+  const metadataJson = appendLifecycleHistory(current.metadata, { from: current.lifecycleState, to: toState, changedBy })
+
+  const updatedRows = (await tx.execute(sql`
+    UPDATE compliance.memory_records
+    SET lifecycle_state = ${toState}, metadata = ${metadataJson}::jsonb, updated_at = now()
+    WHERE id = ${id}
+    RETURNING *
+  `)) as RawMemoryRecordRow[]
+
+  return mapMemoryRecordRow(updatedRows[0])
+}
+
+/**
+ * Retires a memory_records row permanently to lifecycle_state 'ARCHIVED' --
+ * reachable from ANY other lifecycle state (unlike promoteMemoryRecord(),
+ * which only allows one legal forward step). This is deliberate: a stale
+ * CANDIDATE that turned out to be a bad AI inference, an ACTIVE memory a
+ * user explicitly retracts, or a long-superseded row a retention policy
+ * wants to retire are all legitimate archive operations, and none of them
+ * have to pass through CONFIRMED/ACTIVE first.
+ *
+ * Sets `effective_to` to now() if it was not already set (a row
+ * supersedeMemoryRecord() already marked SUPERSEDED keeps its original
+ * effective_to from that transition, not a later archive-time one).
+ *
+ * Throws if the row cannot be found under RLS, is a GLOBAL/INDUSTRY row,
+ * or is already ARCHIVED (idempotency guard -- archiving twice is a no-op
+ * that should surface as a clear error, not silently succeed and rewrite
+ * lifecycleHistory a second time).
+ */
+export async function archiveMemoryRecord(tx: TenantDb, id: string, changedBy: MemoryLifecycleChangedBy): Promise<MemoryRecord> {
+  const current = await fetchOwnOrgMemoryRecordOrThrow(tx, id, "archiveMemoryRecord")
+
+  if (current.lifecycleState === "ARCHIVED") {
+    throw new Error(`archiveMemoryRecord: ${id} is already ARCHIVED`)
+  }
+
+  const metadataJson = appendLifecycleHistory(current.metadata, { from: current.lifecycleState, to: "ARCHIVED", changedBy })
+
+  const updatedRows = (await tx.execute(sql`
+    UPDATE compliance.memory_records
+    SET lifecycle_state = 'ARCHIVED', metadata = ${metadataJson}::jsonb,
+        effective_to = COALESCE(effective_to, now()), updated_at = now()
+    WHERE id = ${id}
+    RETURNING *
+  `)) as RawMemoryRecordRow[]
+
+  return mapMemoryRecordRow(updatedRows[0])
+}
