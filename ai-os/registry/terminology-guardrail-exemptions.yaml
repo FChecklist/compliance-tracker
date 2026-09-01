@@ -2320,6 +2320,10 @@ exemptions:
     reason: "Rebase-regenerated full-repo baseline (2026-09-01, real rescan against current main during PR #554's rebase-merge): bare-ISO-date-shape regex false positive. This repo names files, task IDs, and instruction IDs with an embedded date as standard practice (changelog/gap-closure/task-ID/commit-date references), which is what every non-comment/non-code instance in this category resolves to on direct read -- not human example/sample data. 1 finding(s) in this file."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: src/lib/ai-router/escalation-tier-catalog.ts
+    reason: "R65 Part D Phase 1, AI escalation tier model catalog (new file, PR against main 2026-09-01): all 12 findings are the same benign class this manifest already exempts throughout for sibling files (mother-router.ts, instruction-contract.ts, software-team-ladder.ts) -- dated header comments documenting when a real Phase 0/0.5 architecture report was written and when this file's live OpenRouter model-catalog verification was actually performed, plus per-constant note fields citing that same real verification date so a reviewer can see when each model ID was last confirmed live. Not human example/sample data, not a placeholder-shaped literal -- confirmed on direct read of every instance."
+    findings_by_category:
+      hardcoded_iso_date: 12
   - file: src/lib/ai-router/mother-router.test.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated."
     findings_by_category:
