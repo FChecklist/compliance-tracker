@@ -1405,3 +1405,46 @@ active:
       src/lib/services/token-usage-service.ts (byOrg groupLabel join, additive),
       drizzle/0518_ai_cost_reconciliation.sql (renumbered from 0304 during this rebase),
       docs/AI_COST_GOVERNANCE_FINOPS.md, PROGRESS.md, this file.
+  - session_label: "claude-code (rebase-sweep3-1536) -- fix(OCID-020): resolve real per-host brand mismatch on /signup and /mfa-challenge [rebase-merging via rebase-sweep3-1536, was PR #1536/#965, per this repo's standard rebase-sweep protocol]"
+    claimed_at: "2026-09-01T (this session); rebased 2026-09-01 (round 2, main advanced again mid-flight)"
+    claim: |
+      SPEC: real, already-verified-real per-host brand mismatch (same class as
+      the /login fix) -- /signup and /mfa-challenge page.tsx hardcoded
+      "VERIDIAN AI" instead of calling resolvePreAuthBrandByHost(). Converts
+      both to async Server Components that resolve the real pre-auth brand
+      server-side and hand it down as a prop to a new client form component,
+      mirroring login-form.tsx's own contract.
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-sweep3-1536), two rounds. Round 1
+      onto main at a97ed388: 4 real conflicts -- `PROGRESS.md`
+      (wholesale-replaced per convention), this file (main's then-current
+      pruned state kept as base, this entry appended), and
+      `src/app/signup/page.tsx` + `src/app/signup/signup-form.tsx`. The
+      signup conflict was substantive, not mechanical: main had
+      independently landed an identical real fix for the same /signup gap
+      (a separate concurrent session, same OCID-020/OCID-038 finding,
+      UMR-20260804-090421-c647 lineage) while this PR sat open -- confirmed
+      via direct blob diff (`git cat-file -p` on both sides) that the only
+      differences were cosmetic (comment wording, a `brandName` local
+      extracted once vs. repeated inline, and export style: this PR's
+      `export default function SignupPage` vs. main's `export function
+      SignupPageClient`), with no other file importing the losing name.
+      Resolved by keeping main's already-existing implementation verbatim
+      for both files (`git checkout --theirs`) rather than reintroducing a
+      functionally-redundant duplicate. This PR's own genuinely-still-
+      missing contribution -- the /mfa-challenge fix
+      (`src/app/mfa-challenge/page.tsx` + new `mfa-challenge-form.tsx`) --
+      merged cleanly with no conflict and was verified intact post-merge
+      (`resolvePreAuthBrandByHost()` call present, hardcoded "VERIDIAN AI"
+      replaced).
+
+      Round 2 onto main at 7c96552d (main advanced again by one commit --
+      PR #1202's own rebase-sweep -- while round 1 was being pushed): 2
+      conflicts, both this file and `PROGRESS.md` again (same wholesale-
+      replace/re-append handling as round 1); PR #1202 touched
+      `next.config.ts`/`login-form.tsx`/`sitemap.ts`/`robots.ts`/messages
+      files, none of which this PR touches, so no interaction with the
+      real /signup or /mfa-challenge fix -- confirmed no conflict was
+      reported in `src/app/signup/*` or `src/app/mfa-challenge/*` this
+      round. No `drizzle/` migration files in this PR's diff either round,
+      so no journal renumbering was needed.
