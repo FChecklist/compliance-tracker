@@ -8,9 +8,16 @@
 // for withTenantContext's org-scoped model.
 import { db, tokenUsageLedger, organisations } from "@/lib/db"
 import { sql, gte, and, isNotNull, eq } from "drizzle-orm"
-import { estimateCostUsd, estimateCacheSavingsUsd, type LLMUsage } from "@/lib/llm-client"
+import { estimateCostUsd, estimateCostBreakdownUsd, estimateCacheSavingsUsd, type LLMUsage } from "@/lib/llm-client"
 import { buildSpendForecast, startOfMonthUtc, type SpendForecast } from "@/lib/spend-forecast"
 
+// R65 Part D -- AI Usage Ledger (drizzle/0524, 2026-09-02): every new field
+// below is OPTIONAL and additive -- every pre-existing call site
+// (team-service.ts, prompt-cache/metrics.ts, role-quality-regression-
+// service.ts, log-usage/route.ts) keeps working unchanged if it never
+// passes any of them. See drizzle/0524's own header for the full
+// per-column rationale (which are real/populated today vs. disclosed,
+// not-yet-wired gaps).
 export type LogTokenUsageInput = {
   scope: "ai_team_internal" | "product_orchestra"
   orgId?: string | null
@@ -21,6 +28,21 @@ export type LogTokenUsageInput = {
   provider: string
   model: string
   usage: LLMUsage
+  veridianId?: string | null
+  veridianProductId?: string | null
+  chatId?: string | null
+  taskId?: string | null
+  routeId?: string | null
+  sessionId?: string | null
+  level?: string | null
+  aiRole?: string | null
+  /** Wall-clock ms for this call, when the caller already has one (e.g. LLMResult.durationMs) -- not measured here. */
+  durationMs?: number | null
+  /** 'SUBSCRIPTION_ALLOCATED' | 'METERED_API' (directive §28-29). Defaults to 'METERED_API' -- accurate for every current call site, none of which route through the local claude-cli/Claude-Max-subscription path (see drizzle/0524 header). */
+  providerCostType?: "SUBSCRIPTION_ALLOCATED" | "METERED_API"
+  /** Defaults true -- every current call site only logs after a successful LLM completion. Pass false + failureReason for a call site that starts logging failures. */
+  success?: boolean
+  failureReason?: string | null
 }
 
 /** Fire-and-forget-safe: caller decides whether to await or not. Never throws past a caught/logged failure. */
@@ -28,6 +50,7 @@ export async function logTokenUsage(input: LogTokenUsageInput): Promise<void> {
   try {
     const estimatedCostUsd = estimateCostUsd(input.model, input.usage)
     const cacheSavingsUsd = estimateCacheSavingsUsd(input.model, input.usage)
+    const costBreakdown = estimateCostBreakdownUsd(input.model, input.usage)
     await db.insert(tokenUsageLedger).values({
       scope: input.scope,
       orgId: input.orgId ?? null,
@@ -41,6 +64,22 @@ export async function logTokenUsage(input: LogTokenUsageInput): Promise<void> {
       completionTokens: input.usage.completionTokens,
       estimatedCostUsd: estimatedCostUsd !== null ? String(estimatedCostUsd) : null,
       cacheSavingsUsd: cacheSavingsUsd !== null ? String(cacheSavingsUsd) : null,
+      veridianId: input.veridianId ?? null,
+      veridianProductId: input.veridianProductId ?? null,
+      chatId: input.chatId ?? null,
+      taskId: input.taskId ?? null,
+      routeId: input.routeId ?? null,
+      sessionId: input.sessionId ?? null,
+      level: input.level ?? null,
+      aiRole: input.aiRole ?? null,
+      cacheReadTokens: input.usage.cacheReadTokens ?? null,
+      cacheCreationTokens: input.usage.cacheCreationTokens ?? null,
+      inputCost: costBreakdown !== null ? String(costBreakdown.inputCost) : null,
+      outputCost: costBreakdown !== null ? String(costBreakdown.outputCost) : null,
+      providerCostType: input.providerCostType ?? "METERED_API",
+      durationMs: input.durationMs ?? null,
+      success: input.success ?? true,
+      failureReason: input.failureReason ?? null,
     })
   } catch (err) {
     console.error("[token-usage] failed to log usage (non-fatal):", err)

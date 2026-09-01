@@ -990,6 +990,8 @@ async function generateAiReply(
     recordPromptCacheMetric({
       orgId, userId, layerKey: "user_assistant_oa", fingerprint: promptCacheFingerprint,
       provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
+      // R65 Part D -- AI Usage Ledger (drizzle/0524): same startedAt already used for recordOrchestraExecution's durationMs above.
+      durationMs: Date.now() - startedAt,
     })
     if (!gateResult.passed) {
       return withTenantContext({ orgId, userId }, (db) =>

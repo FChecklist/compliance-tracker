@@ -301,6 +301,10 @@ async function runRoleAndRecord(
     provider: tenantConfig?.provider ?? "openrouter",
     model: effectiveModel,
     usage: result.usage,
+    // R65 Part D -- AI Usage Ledger (drizzle/0524): result.durationMs is
+    // already centrally measured by callLLM() for every call, no extra
+    // instrumentation needed here.
+    durationMs: result.durationMs,
   })
 
   // Stage 12 (VERIDIAN_CONSOLIDATED_COMPLETION plan): a genuine top-level

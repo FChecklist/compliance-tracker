@@ -272,6 +272,22 @@ export function estimateCostUsd(model: string, usage: LLMUsage): number | null {
   return (usage.promptTokens / 1000) * pricing.promptPer1k + (usage.completionTokens / 1000) * pricing.completionPer1k;
 }
 
+// R65 Part D -- AI Usage Ledger (drizzle/0524, 2026-09-02): directive §27
+// wants separate input_cost/output_cost columns, not just one blended
+// figure. Same MODEL_PRICING table and same null-for-unrecognized-model
+// contract as estimateCostUsd above (its inputCost+outputCost sum equals
+// estimateCostUsd's return exactly) -- this just exposes the split that
+// was already being computed internally, rather than duplicating pricing
+// logic a second time.
+export function estimateCostBreakdownUsd(model: string, usage: LLMUsage): { inputCost: number; outputCost: number } | null {
+  const pricing = MODEL_PRICING[model];
+  if (!pricing) return null;
+  return {
+    inputCost: (usage.promptTokens / 1000) * pricing.promptPer1k,
+    outputCost: (usage.completionTokens / 1000) * pricing.completionPer1k,
+  };
+}
+
 // Anthropic's documented cache-hit discount: a cache read is billed at 10%
 // of the base input price (a 90% saving on those tokens) -- see
 // callAnthropic's cache_control comment above for the write-side premium

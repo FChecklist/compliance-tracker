@@ -16,6 +16,12 @@ export type RecordPromptCacheMetricInput = {
   provider: string;
   model: string;
   usage: LLMUsage;
+  // R65 Part D -- AI Usage Ledger (drizzle/0524, 2026-09-02): optional,
+  // additive -- both current call sites (chat-service.ts, api/help/ask)
+  // already compute this exact value (Date.now() - startedAt) one line
+  // above their own recordOrchestraExecution() call, so passing it through
+  // here is free. Undefined at any future call site that doesn't have it.
+  durationMs?: number;
 };
 
 export function recordPromptCacheMetric(params: RecordPromptCacheMetricInput): void {
@@ -57,5 +63,13 @@ export function recordPromptCacheMetric(params: RecordPromptCacheMetricInput): v
     provider: params.provider,
     model: params.model,
     usage: params.usage,
+    // R65 Part D -- AI Usage Ledger (drizzle/0524): params.usage already
+    // carries cacheReadTokens/cacheCreationTokens (read two lines above for
+    // cacheAttempted) -- forwarding them here closes the exact gap the
+    // R65 Part D Phase 0.5 follow-up flagged ("copy at write-time... given
+    // logTokenUsage()'s current shape").
+    cacheReadTokens: params.usage.cacheReadTokens ?? null,
+    cacheCreationTokens: params.usage.cacheCreationTokens ?? null,
+    durationMs: params.durationMs ?? null,
   });
 }
