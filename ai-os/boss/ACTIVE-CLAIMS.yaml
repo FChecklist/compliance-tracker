@@ -40,34 +40,49 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
+  - session_label: "claude-code (subagent, r65-parte-phase4-billing-periods) -- R65 Part E Billing Engine, Phase 4: billing_periods schema + day-weighted mid-period rate-change proration"
     claimed_at: "2026-09-02T (this session)"
     claim: |
       SPEC (memory: veridian_r65_part_e_billing_engine_directive_2026-09-01 + its Phase 0
-      architecture report veridian_r65_part_e_phase0_architecture_report_2026-09-01's "PM
-      decisions recorded" section). Phase 1 (PR #1567, merged) and Phase 2 (PR #1568, merged --
-      see recently_completed below) built billing_products/billing_rates/billing_contracts +
-      Formula 1/2 engines + cost-rollup/resolution service. Verified live state fresh before
-      starting: HEAD migration 0527 (`git ls-tree -r origin/main -- drizzle/`), no open PRs
-      (`gh pr list --state open`), no conflicting active claim in this file (grepped for
-      "R65 Part E"/"billing_"/"formula-engine"/"billing-cost-rollup" -- zero matches).
+      architecture report veridian_r65_part_e_phase0_architecture_report_2026-09-01). Phase 1
+      (PR #1567), Phase 2 (PR #1568), Phase 3 (PR #1573, merged -- relocated to
+      recently_completed below, was never moved by its own session) built billing_products/
+      billing_rates/billing_contracts, Formula 1/2 engines, and hardened effective-window
+      boundary logic. Verified live state fresh before starting: HEAD migration 0527
+      (`git ls-tree -r origin/main -- drizzle/`, `git log --oneline -1 origin/main` =
+      7c7bf1af), zero open PRs (`gh pr list --state open`), and re-verified again immediately
+      before naming this migration 0528.
 
-      Scoped increment: neither a new migration nor the deferred discount/credit pipeline
-      (§11-25, still genuinely tangled with real commercial numbers not yet approved). Instead:
-      extracted the "is this row currently effective as of a given instant" boundary decision --
-      previously ONLY inline Drizzle `lte(effective_from)/gt(effective_to)` WHERE-clause
-      fragments inside resolveActiveContract/resolveActiveBillingRate, untestable without a live
-      DB per this file's own pure/DB-touching test-split convention -- into pure, unit-tested
-      isEffectiveAsOf()/filterEffectiveAsOf() functions, then refactored both resolvers to use
-      them (behavior-preserving, same boundary semantics). Added 30 new tests covering directive
-      §17's mid-period rate-version-change example (generalized, incl. a regression guard),
-      multiple-concurrent-effective-rates scenarios, and contract-expiry boundary conditions
-      through the full resolution pipeline. Zero real rate/contract numbers invented -- same
-      posture as Phase 1/2. No schema/migration change.
+      Scoped increment (worktree r65-parte-phase4-billing-periods): Phase 3's own header
+      comment explicitly disclosed that real period-level proration of a base/per-user charge
+      across a mid-period rate change "requires an actual billing period / invoice-generation
+      concept that doesn't exist yet" -- this phase builds exactly that concept, and only that,
+      per the Phase 0 report's own conditional ("keep billing_periods inline unless a real
+      cross-entity need... emerges" -- Phase 3 is that emergence). New `compliance.billing_periods`
+      table (org_id/product_id/period_start/period_end/status open|closed/closed_at/closed_by),
+      RLS matching billing_contracts' posture (org-scoped SELECT to app_runtime, all writes
+      service_role-only -- a period gates what becomes billable, same conservative posture as
+      rules 9-11). New pure, DB-free `src/lib/billing/period-proration.ts`
+      (splitPeriodByRateBoundaries/computeProratedBaseCharge) implementing day-weighted
+      proration across a mid-period rate-version change, tested with plain day-count arithmetic
+      and illustrative (not real/approved) rate numbers, same test-fixture convention
+      formula-engine.test.ts already established. DB wiring in
+      billing-cost-rollup-service.ts: resolveRateSegmentsForPeriod/
+      computeProratedBaseChargeForPeriod (fetches overlapping billing_rates rows, delegates to
+      the pure module) + openBillingPeriod/closeBillingPeriod (close is one-way, no un-close
+      path, matching rule 29's never-silently-overwrite posture) +
+      rollupCostForBillingPeriod (thin wrapper resolving a period row's dates into the existing
+      rollupCostByDimension). Zero real rate/period numbers invented -- same posture as
+      Phase 1/2/3.
 
-      File scope: src/lib/services/billing-cost-rollup-service.ts + .test.ts only. Not touching
-      formula-engine.ts (already well-covered), billing_discounts/credits/events/invoices (still
-      deferred per Phase 0's own gate), platform_billing_invoices/platform-billing-service.ts, or
+      File scope: new drizzle/0528_r65_parte_billing_periods.sql, src/lib/db/schema.ts
+      (billingPeriods table, additive only), new src/lib/billing/period-proration.ts +
+      .test.ts, src/lib/services/billing-cost-rollup-service.ts + .test.ts (additive
+      functions only, no changes to existing exports' behavior), docs/master/
+      TEST_COVERAGE_GAP.md (regenerated). Not touching formula-engine.ts (already
+      well-covered), billing_discounts/credits/events/invoices (still deferred per Phase 0's
+      own gate -- genuinely tangled with real commercial numbers not yet approved),
+      platform_billing_invoices/platform-billing-service.ts, or
       ai_cost_reconciliations/cost-reconciliation-service.ts (PR #1546's area).
   - session_label: "claude-code (interactive, r65-partc-supersede-noop-fix) -- R65 Part C: fix supersedeMemoryRecord() byte-identical-content bug [PR #1571 OPEN, not yet merged]"
     claimed_at: "2026-09-02T (this session)"
@@ -1797,6 +1812,23 @@ active:
       real work" available under Rule 6, and disclosed as such rather than
       silently deviating from this file's own stated protocol.
 recently_completed:
+  - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution [DONE, merged as PR #1573 -- relocated here from active: by the Phase 4 session (r65-parte-phase4-billing-periods), which found this entry never moved after its own real merge, same never-relocated pattern the Phase 3 session itself found and fixed for Phase 2's entry below]"
+    claimed_at: "2026-09-02T00:00Z"
+    merged_as: "FChecklist/compliance-tracker PR #1573 (7c7bf1af), no schema/migration change."
+    claim: |
+      SPEC (memory: veridian_r65_part_e_billing_engine_directive_2026-09-01 + its Phase 0
+      architecture report veridian_r65_part_e_phase0_architecture_report_2026-09-01's "PM
+      decisions recorded" section). Extracted the "is this row currently effective as of a
+      given instant" boundary decision -- previously ONLY inline Drizzle
+      `lte(effective_from)/gt(effective_to)` WHERE-clause fragments inside
+      resolveActiveContract/resolveActiveBillingRate -- into pure, unit-tested
+      isEffectiveAsOf()/filterEffectiveAsOf() functions, then refactored both resolvers to use
+      them (behavior-preserving, same boundary semantics). Added 30 new tests covering
+      directive §17's mid-period rate-version-change example (generalized, incl. a regression
+      guard), multiple-concurrent-effective-rates scenarios, and contract-expiry boundary
+      conditions through the full resolution pipeline. Zero real rate/contract numbers
+      invented. No schema/migration change. File scope: src/lib/services/billing-cost-rollup-
+      service.ts + .test.ts only.
   - session_label: "claude-code (interactive, r65-parte-billing-contracts) -- R65 Part E Billing Engine, Phase 2: billing_contracts schema + wiring into resolveActiveBillingRate's Sec14 priority resolution [DONE, merged as PR #1568 -- relocated here from active: by the Phase 3 session (r65-parte-phase3-formula-edge-cases), which found this entry never moved after its own real merge; per this file's own documented convention of appending just the one relevant entry under a fresh recently_completed: section when main has been pruned back to just its active: list, same precedent as the Task #47 rebase note elsewhere in this file's own history]"
     claimed_at: "2026-09-02T00:00Z"
     merged_as: "FChecklist/compliance-tracker PR #1568 (commit bca8433e), drizzle/0527_r65_parte_billing_contracts.sql."
