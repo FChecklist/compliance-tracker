@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
 // (stat cards + create dialog with width/depth/height fields for a future
 // floor-plan placement + status-advance table) onto this repo's own
 // ProjectPicker shell.
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,14 +41,21 @@ type MarginSummary = { totalCost: number; totalPrice: number; totalMargin: numbe
 
 const STATUS_COLORS: Record<string, string> = {
   specified: "bg-ct-cloud text-ct-muted",
-  ordered: "bg-ct-saffron/20 text-ct-saffron",
-  received: "bg-ct-saffron/20 text-ct-saffron",
+  ordered: "bg-ct-saffron/20 text-ct-saffron-text",
+  received: "bg-ct-saffron/20 text-ct-saffron-text",
   installed: "bg-green-100 text-green-700",
 };
 const CATEGORIES = ["furniture", "fixture", "equipment", "finish", "textile", "lighting", "other"];
 const STATUSES = ["specified", "ordered", "received", "installed"];
 
-export default function FfePage() {
+function FfePageInner() {
+  // R66 (Design Studio hub): ?projectId= pre-selects the project when
+  // arriving from /design-studio's "Open" links -- same
+  // useSearchParams-in-Suspense convention as chat/page.tsx and
+  // reports/page.tsx's CustomReportsSection.
+  const searchParams = useSearchParams();
+  const initialProjectId = searchParams.get("projectId");
+
   const currencies = useCurrencies();
   const money = (n: number) => `${currencyLabel(undefined, currencies)}${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
@@ -77,11 +85,14 @@ export default function FfePage() {
       .then((d) => {
         const list: PickerProject[] = d.projects ?? [];
         setProjects(list);
-        if (list.length > 0) setProjectId((prev) => prev || list[0].id);
+        if (list.length > 0) {
+          const preselect = initialProjectId && list.some((p) => p.id === initialProjectId) ? initialProjectId : list[0].id;
+          setProjectId((prev) => prev || preselect);
+        }
       })
       .catch(() => toast.error("Failed to load projects"))
       .finally(() => setLoadingProjects(false));
-  }, []);
+  }, [initialProjectId]);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -279,5 +290,13 @@ export default function FfePage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function FfePage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-ct-muted">Loading...</div>}>
+      <FfePageInner />
+    </Suspense>
   );
 }

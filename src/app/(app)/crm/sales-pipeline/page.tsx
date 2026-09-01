@@ -216,7 +216,7 @@ export default function SalesPipelinePage() {
             {statusFilter && (
               <button
                 onClick={() => setStatusFilter(null)}
-                className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md bg-ct-saffron/10 text-ct-saffron hover:bg-ct-saffron/20 transition-colors"
+                className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md bg-ct-saffron/10 text-ct-saffron-text hover:bg-ct-saffron/20 transition-colors"
               >
                 {statusFilter} <X className="size-3" />
               </button>

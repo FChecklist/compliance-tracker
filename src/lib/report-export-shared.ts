@@ -22,7 +22,15 @@ export type ExportRow = Record<string, string | number>
 // characters after it fully intact (recoverable, not corrupted).
 const FORMULA_INJECTION_PREFIX = /^[=+\-@]/
 
-function csvEscape(value: string | number): string {
+// Exported (rebase of PR #1014, replacing it after a human AUDIT: FAIL):
+// crm-service.ts's exportLeadsCsv() used to reinvent CSV escaping locally
+// without this FORMULA_INJECTION_PREFIX guard -- an attacker-controllable
+// lead field (name/email/note, settable via createLead or CSV import)
+// starting with =/+/-/@ would export unescaped and could execute as a
+// formula when opened in Excel/Sheets. Exporting this so any CSV-emitting
+// call site in the codebase can reuse the one guarded implementation
+// instead of rewriting it.
+export function csvEscape(value: string | number): string {
   let s = String(value)
   if (FORMULA_INJECTION_PREFIX.test(s)) {
     s = `'${s}`

@@ -7,7 +7,7 @@
 // of the base shape from day one -- this route has no legacy flat-array
 // caller to preserve compatibility with.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { requirePermission } from "@/lib/services/permission-service"
 import { listQuotations, createQuotation, ServiceError, type QuotationItemInput } from "@/lib/services/erp-selling-service"
 
@@ -35,7 +35,7 @@ function toQuotationShape(q: Awaited<ReturnType<typeof listQuotations>>["items"]
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ quotations: [], total: 0, page: 1, pageSize: 25 })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const params = request.nextUrl.searchParams
   try {
