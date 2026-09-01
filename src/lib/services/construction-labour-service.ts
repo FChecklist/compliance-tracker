@@ -11,6 +11,7 @@ export { ServiceError }
 export type RosterInput = {
   projectId: string
   name: string
+  employeeCode?: string
   trade?: string
   skillLevel?: string
   vendorId?: string
@@ -36,9 +37,39 @@ export async function createRosterEntry(ctx: { orgId: string }, input: RosterInp
 
     const [row] = await db.insert(constructionLabourRoster).values({
       orgId: ctx.orgId, projectId: input.projectId, name,
+      employeeCode: input.employeeCode || null,
       trade: input.trade || null, skillLevel: input.skillLevel || null, vendorId: input.vendorId || null,
       dailyRate: String(input.dailyRate ?? 0),
     }).returning()
+    return row
+  })
+}
+
+// Real-screen conversion (2026-08-30): single-entry lookup + real update for
+// the Roster Object Page -- listRoster/createRosterEntry existed since Wave
+// 116 with no way to view or edit one entry (rate corrections, reassigning
+// a subcontractor, retiring a worker) short of re-creating it.
+export async function getRosterEntry(ctx: { orgId: string }, rosterId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const entry = await db.query.constructionLabourRoster.findFirst({ where: and(eq(constructionLabourRoster.id, rosterId), eq(constructionLabourRoster.orgId, ctx.orgId)) })
+    if (!entry) throw new ServiceError("Roster entry not found", 404)
+    return entry
+  })
+}
+
+export async function updateRosterEntry(
+  ctx: { orgId: string },
+  rosterId: string,
+  patch: Partial<{ name: string; employeeCode: string | null; trade: string | null; skillLevel: string | null; vendorId: string | null; dailyRate: number; isActive: boolean }>
+) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.constructionLabourRoster.findFirst({ where: and(eq(constructionLabourRoster.id, rosterId), eq(constructionLabourRoster.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Roster entry not found", 404)
+    if (patch.name !== undefined && !patch.name.trim()) throw new ServiceError("name cannot be empty", 400)
+
+    const [row] = await db.update(constructionLabourRoster)
+      .set({ ...patch, dailyRate: patch.dailyRate !== undefined ? String(patch.dailyRate) : undefined })
+      .where(eq(constructionLabourRoster.id, rosterId)).returning()
     return row
   })
 }

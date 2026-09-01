@@ -53,7 +53,7 @@ type VoiceMemoSummary = { id: string; status: string; transcript: string | null;
 type EmailItem = { id: string; subject: string; senderEmail: string | null; status: string; aiSummary: string | null; aiSuggestedWorkItems: SuggestedWorkItem[]; createdAt: string };
 
 const STATUS_LABEL: Record<string, string> = { pending: "Pending", in_progress: "In progress", completed: "Done", failed: "Failed", cancelled: "Cancelled" };
-const STATUS_COLOR: Record<string, string> = { pending: "text-amber-600", in_progress: "text-ct-saffron", completed: "text-emerald-600", failed: "text-red-600", cancelled: "text-ct-muted" };
+const STATUS_COLOR: Record<string, string> = { pending: "text-amber-600", in_progress: "text-ct-saffron-text", completed: "text-emerald-600", failed: "text-red-600", cancelled: "text-ct-muted" };
 
 function convoName(c: ConvoSummary): string {
   return c.title || c.otherParticipants.map((p) => p.name).join(", ") || "Conversation";
@@ -320,7 +320,7 @@ function VoiceList({ voiceMemos }: { voiceMemos: VoiceMemoSummary[] }) {
     return (
       <div className="p-4 space-y-3">
         <EmptyState text="No voice memos yet." />
-        <a href="/voice-tickets" className="block text-center text-xs font-medium text-ct-saffron hover:underline">
+        <a href="/voice-tickets" className="block text-center text-xs font-medium text-ct-saffron-text hover:underline">
           Record or upload a voice memo &rarr;
         </a>
       </div>
@@ -341,7 +341,7 @@ function VoiceList({ voiceMemos }: { voiceMemos: VoiceMemoSummary[] }) {
           <span className="text-xs text-ct-muted">{new Date(m.createdAt).toLocaleString()}</span>
         </a>
       ))}
-      <a href="/voice-tickets" className="block text-center text-xs font-medium text-ct-saffron hover:underline py-2">
+      <a href="/voice-tickets" className="block text-center text-xs font-medium text-ct-saffron-text hover:underline py-2">
         Open Voice Tickets &rarr;
       </a>
     </div>
@@ -418,7 +418,7 @@ function TaskThread({ task, detail, onBack, onMarkDone }: { task: TaskSummary; d
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {task.status !== "completed" && <button type="button" onClick={() => onMarkDone(task.id)} className="text-[11.5px] font-semibold text-emerald-600">Mark done</button>}
-          <button type="button" onClick={onBack} className="text-[11.5px] font-semibold text-ct-saffron">Back</button>
+          <button type="button" onClick={onBack} className="text-[11.5px] font-semibold text-ct-saffron-text">Back</button>
         </div>
       </div>
       <div className="space-y-3">
@@ -444,7 +444,7 @@ function ConvoThread({ convo, messages, onBack }: { convo: ConvoSummary; message
           <span>Chatting with</span>
           <span className="font-semibold text-ct-navy">{convoName(convo)}</span>
         </div>
-        <button type="button" onClick={onBack} className="text-[11.5px] font-semibold text-ct-saffron">Back</button>
+        <button type="button" onClick={onBack} className="text-[11.5px] font-semibold text-ct-saffron-text">Back</button>
       </div>
       <div className="space-y-3">
         {messages.map((m) => (
@@ -518,8 +518,8 @@ function MeetingThread({ meetingId, detail, onBack, onChanged }: { meetingId: st
           <p className="text-[11px] text-ct-muted">{new Date(detail.scheduledAt).toLocaleString()} · {detail.status === "published" ? "Published" : "Draft"}</p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <a href={`/veri-meetings/${detail.id}`} className="text-[11.5px] font-semibold text-ct-saffron">Open</a>
-          <button type="button" onClick={onBack} className="text-[11.5px] font-semibold text-ct-saffron">Back</button>
+          <a href={`/veri-meetings/${detail.id}`} className="text-[11.5px] font-semibold text-ct-saffron-text">Open</a>
+          <button type="button" onClick={onBack} className="text-[11.5px] font-semibold text-ct-saffron-text">Back</button>
         </div>
       </div>
 
@@ -565,7 +565,7 @@ function MeetingThread({ meetingId, detail, onBack, onChanged }: { meetingId: st
             placeholder="Add an action item…"
             className="flex-1 h-7 px-2 rounded-md border border-ct-border text-[12px]"
           />
-          <button type="button" onClick={addActionItem} disabled={addingAction || !newActionTitle.trim()} className="text-[11.5px] font-semibold text-ct-saffron shrink-0 disabled:opacity-40">Add</button>
+          <button type="button" onClick={addActionItem} disabled={addingAction || !newActionTitle.trim()} className="text-[11.5px] font-semibold text-ct-saffron-text shrink-0 disabled:opacity-40">Add</button>
         </div>
       </div>
 
@@ -574,7 +574,7 @@ function MeetingThread({ meetingId, detail, onBack, onChanged }: { meetingId: st
           <div className="space-y-1.5">
             <div className="flex items-center gap-1.5">
               <input readOnly value={shareLinks.shareUrl} className="flex-1 h-7 px-2 rounded-md border border-ct-border text-[11px] text-ct-muted" />
-              <button type="button" onClick={copyShareUrl} className="text-[11px] font-semibold text-ct-saffron shrink-0">Copy</button>
+              <button type="button" onClick={copyShareUrl} className="text-[11px] font-semibold text-ct-saffron-text shrink-0">Copy</button>
             </div>
             <div className="flex gap-1.5">
               <a href={shareLinks.whatsappHref} target="_blank" rel="noopener noreferrer" className="flex-1 text-center text-[11px] border border-ct-border rounded-md py-1 hover:bg-ct-cloud">WhatsApp</a>
@@ -582,7 +582,7 @@ function MeetingThread({ meetingId, detail, onBack, onChanged }: { meetingId: st
             </div>
           </div>
         ) : (
-          <button type="button" onClick={share} disabled={sharing} className="text-[11.5px] font-semibold text-ct-saffron disabled:opacity-40">
+          <button type="button" onClick={share} disabled={sharing} className="text-[11.5px] font-semibold text-ct-saffron-text disabled:opacity-40">
             {sharing ? "Creating link…" : "Share"}
           </button>
         )}
@@ -628,7 +628,7 @@ function EmailThread({ item, onBack, onChanged }: { item: EmailItem; onBack: () 
           <p className="font-semibold text-ct-navy text-[13px] truncate">{item.subject}</p>
           <p className="text-[11px] text-ct-muted truncate">{item.senderEmail ?? "Unknown sender"}</p>
         </div>
-        <button type="button" onClick={onBack} className="text-[11.5px] font-semibold text-ct-saffron shrink-0">Back</button>
+        <button type="button" onClick={onBack} className="text-[11.5px] font-semibold text-ct-saffron-text shrink-0">Back</button>
       </div>
 
       {item.aiSummary && <p className="text-[12.5px] text-ct-slate mb-3">{item.aiSummary}</p>}

@@ -53,7 +53,7 @@ export default function VeriTreasureWidget() {
         <CardContent className="p-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="grid size-10 place-items-center rounded-xl bg-ct-navy text-white">
-              <Gem className="size-5 text-ct-saffron" />
+              <Gem className="size-5 text-ct-saffron-text" />
             </span>
             <div>
               <p className="text-sm font-semibold text-ct-navy">VERI TREASURE</p>

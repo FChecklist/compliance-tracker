@@ -8,18 +8,18 @@
 // if the org has configured one for 'erp_journal_entry' -- if not, it
 // posts immediately, matching every other module's current no-approval
 // default behavior.
-import { db, erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, users } from "@/lib/db"
+import { db, erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, users, organisations } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, sql, desc, lte, gte, like } from "drizzle-orm"
+import { and, eq, sql, desc, lte, gte, like, inArray, isNotNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { isPeriodOpenForDate } from "./erp-financial-report-service"
+import { isPeriodOpenForDate, rollUpTree } from "./erp-financial-report-service"
 import { startApprovalWorkflow } from "./approval-workflow-service"
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
 import { fetchLiveRates, buildLiveRatePairs, type SkippedCurrency } from "@/lib/exchange-rate-feed-client"
+import { ErpContext } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 export type JournalEntryLineInput = {
   accountId: string
@@ -170,6 +170,136 @@ export async function listJournalEntries(ctx: { orgId: string }, filters: { stat
         : eq(erpJournalEntries.orgId, ctx.orgId),
       orderBy: (t, { desc }) => desc(t.postingDate),
     })
+  })
+}
+
+// SAP KSB1 equivalent (CO-001, EXTEND_EXISTING, sap_mapping.sqlite/
+// sap_reports "Cost Center Line Item Display", engine_track=calculation):
+// listJournalEntries above has no cost-center dimension at all -- this is
+// the drill-down a controller reaches for after spotting a variance on a
+// cost-center summary, so it needs the GL account AND the cost center on
+// one line (gap_notes: "the user should see one line item and see both
+// 'which account' and 'which department' without switching reports"), not
+// a second, separate FBL3N-style GL-only line-item view.
+export type CostCenterLineItemFilters = { costCenterIds?: string[]; fromDate?: string; toDate?: string; page?: number; limit?: number }
+
+export async function listJournalEntryLinesByCostCenter(ctx: { orgId: string }, filters: CostCenterLineItemFilters = {}) {
+  await requireErpEnabled(ctx.orgId)
+  const page = Math.max(1, filters.page ?? 1)
+  const limit = Math.min(200, Math.max(1, filters.limit ?? 50))
+  const offset = (page - 1) * limit
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(erpJournalEntries.orgId, ctx.orgId), isNotNull(erpJournalEntryLines.costCenterId)]
+    if (filters.costCenterIds?.length) conditions.push(inArray(erpJournalEntryLines.costCenterId, filters.costCenterIds))
+    if (filters.fromDate) conditions.push(gte(erpJournalEntries.postingDate, filters.fromDate))
+    if (filters.toDate) conditions.push(lte(erpJournalEntries.postingDate, filters.toDate))
+    const where = and(...conditions)
+
+    const [lines, [{ count }]] = await Promise.all([
+      db
+        .select({
+          journalEntryId: erpJournalEntries.id,
+          postingDate: erpJournalEntries.postingDate,
+          referenceType: erpJournalEntries.referenceType,
+          referenceId: erpJournalEntries.referenceId,
+          userRemark: erpJournalEntries.userRemark,
+          accountId: erpAccounts.id,
+          accountName: erpAccounts.accountName,
+          accountNumber: erpAccounts.accountNumber,
+          costCenterId: erpJournalEntryLines.costCenterId,
+          debit: erpJournalEntryLines.debit,
+          credit: erpJournalEntryLines.credit,
+          lineRemark: erpJournalEntryLines.remark,
+        })
+        .from(erpJournalEntryLines)
+        .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+        .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
+        .where(where)
+        .orderBy(desc(erpJournalEntries.postingDate))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(erpJournalEntryLines)
+        .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+        .where(where),
+    ])
+
+    return { lines, total: count, page, limit, totalPages: Math.ceil(count / limit) }
+  })
+}
+
+// SAP-equivalent cost center hierarchy roll-up (CO-003, EXTEND_EXISTING,
+// "Cost Center Hierarchy Report"): erp_cost_centers already carries a real
+// parent_cost_center_id/is_group tree (Wave 52) but nothing sums child
+// balances up to each parent node -- this is a genuine new aggregation on
+// top of existing data, not new schema. Deliberately shallow-tree-friendly
+// per gap_notes ("do not over-engineer the hierarchy... a simple flat
+// list... is often more practical"): the recursion handles any depth
+// correctly, but a real firm's data will only ever be 2-3 levels.
+export type CostCenterHierarchyNode = {
+  costCenterId: string
+  name: string
+  isGroup: boolean
+  ownAmount: number
+  totalAmount: number
+  children: CostCenterHierarchyNode[]
+}
+
+export async function costCenterHierarchyReport(ctx: { orgId: string }, fromDate: string, toDate: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const costCenters = await db.query.erpCostCenters.findMany({ where: eq(erpCostCenters.orgId, ctx.orgId) })
+
+    // Overhead cost centers are cost/expense objects (gap_notes: "Office/
+    // Admin, Project Management, Estimating..." -- all spend, not revenue)
+    // -- expense accounts are debit-natured, so debit-credit reads as
+    // positive spend, matching the report's own "total overhead spending"
+    // framing.
+    const rows = await db
+      .select({
+        costCenterId: erpJournalEntryLines.costCenterId,
+        totalDebit: sql<string>`coalesce(sum(${erpJournalEntryLines.debit}), 0)`,
+        totalCredit: sql<string>`coalesce(sum(${erpJournalEntryLines.credit}), 0)`,
+      })
+      .from(erpJournalEntryLines)
+      .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+      .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
+      .where(and(
+        eq(erpJournalEntries.orgId, ctx.orgId),
+        eq(erpJournalEntries.status, "submitted"),
+        gte(erpJournalEntries.postingDate, fromDate),
+        lte(erpJournalEntries.postingDate, toDate),
+        eq(erpAccounts.rootType, "expense"),
+        isNotNull(erpJournalEntryLines.costCenterId),
+      ))
+      .groupBy(erpJournalEntryLines.costCenterId)
+
+    const ownAmountById = new Map(rows.map((r) => [r.costCenterId as string, Number(r.totalDebit) - Number(r.totalCredit)]))
+    const byId = new Map(costCenters.map((cc) => [cc.id, cc]))
+    const childrenByParent = new Map<string | null, typeof costCenters>()
+    for (const cc of costCenters) {
+      const key = cc.parentCostCenterId ?? null
+      if (!childrenByParent.has(key)) childrenByParent.set(key, [])
+      childrenByParent.get(key)!.push(cc)
+    }
+
+    const totals = rollUpTree(costCenters.map((cc) => cc.id), (id) => byId.get(id)?.parentCostCenterId ?? null, (id) => ownAmountById.get(id) ?? 0)
+
+    function buildNode(cc: (typeof costCenters)[number]): CostCenterHierarchyNode {
+      return {
+        costCenterId: cc.id,
+        name: cc.name,
+        isGroup: cc.isGroup,
+        ownAmount: ownAmountById.get(cc.id) ?? 0,
+        totalAmount: totals.get(cc.id) ?? 0,
+        children: (childrenByParent.get(cc.id) ?? []).map(buildNode),
+      }
+    }
+
+    const roots = childrenByParent.get(null) ?? []
+    return { fromDate, toDate, roots: roots.map(buildNode) }
   })
 }
 
@@ -384,6 +514,118 @@ export async function listCurrencies(ctx: { orgId: string }) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpCurrencies.findMany({ where: eq(erpCurrencies.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.code) })
   })
+}
+
+/**
+ * R53 / R48_NO_CURRENCY_UI_01 -- the organisation's BASE CURRENCY, read and
+ * written as a single setting.
+ *
+ * WHY THIS LIVES HERE AND NOT ON organisations. The fault row says
+ * "compliance.organisations has no currency column at all" -- true, and not
+ * the gap. compliance.erp_currencies already holds it, provisioning already
+ * writes it (PR #1382), and 9 of 9 orgs already have exactly one base row
+ * (measured 26 Aug 2026). A new organisations.currency column would be a
+ * SECOND source of truth that drifts the first time one of the two is
+ * written alone -- which IS the R-62/R-63 defect, not the fix for it.
+ *
+ * NEITHER FUNCTION IS GATED ON requireErpEnabled, unlike listCurrencies().
+ * A brand-new org needs a currency BEFORE ERP is enabled; gating it the same
+ * way would put the setting out of reach of exactly the tenants that need it
+ * most -- a fresh UAE org with no base row, which is the R-63 condition.
+ */
+const CURRENCY_NAMES: Record<string, string> = {
+  AED: "UAE Dirham",
+  INR: "Indian Rupee",
+  USD: "US Dollar",
+  EUR: "Euro",
+  GBP: "Pound Sterling",
+  SAR: "Saudi Riyal",
+  QAR: "Qatari Riyal",
+  OMR: "Omani Rial",
+  BHD: "Bahraini Dinar",
+  KWD: "Kuwaiti Dinar",
+}
+
+export type BaseCurrencyResult = {
+  /** null when the org genuinely has no base currency -- REPORTED, never guessed. */
+  baseCurrency: { id: string; code: string; name: string; symbol: string | null } | null
+  /** the org's country, because it and the currency are the two inputs that pick a compliance engine. */
+  country: string | null
+}
+
+export async function getBaseCurrency(ctx: { orgId: string }): Promise<BaseCurrencyResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const row = await db.query.erpCurrencies.findFirst({
+      where: and(eq(erpCurrencies.orgId, ctx.orgId), eq(erpCurrencies.isBaseCurrency, true)),
+    })
+    const org = await db.query.organisations.findFirst({ where: eq(organisations.id, ctx.orgId) })
+    return {
+      baseCurrency: row ? { id: row.id, code: row.code, name: row.name, symbol: row.symbol ?? null } : null,
+      country: org?.country ?? null,
+    }
+  })
+}
+
+/**
+ * Promote a currency to the org's base. Creates the row if the org does not
+ * transact in that currency yet -- a UAE org switching to AED should not have
+ * to add AED as a line item first.
+ *
+ * ONE TRANSACTION, UNSET BEFORE SET. Migration 0326 adds a partial unique
+ * index on (org_id) WHERE is_base_currency, so two rows can no longer both
+ * claim it -- but the index would REJECT a set-before-unset, so the order
+ * here is load-bearing, not stylistic.
+ */
+export async function setBaseCurrency(
+  ctx: { orgId: string; userId: string },
+  code: string,
+  name?: string,
+  symbol?: string
+): Promise<BaseCurrencyResult> {
+  const normalised = code.trim().toUpperCase()
+  // A currency code is exactly three letters. Rejecting anything else here
+  // stops "AED " or "aed,inr" becoming a row nobody can find again.
+  if (!/^[A-Z]{3}$/.test(normalised)) {
+    throw new ServiceError(`code must be a 3-letter ISO currency code, got ${JSON.stringify(code)}`, 400)
+  }
+
+  await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.erpCurrencies.findFirst({
+      where: and(eq(erpCurrencies.orgId, ctx.orgId), eq(erpCurrencies.code, normalised)),
+    })
+
+    // UNSET FIRST. See the doc comment -- the partial unique index makes this
+    // order mandatory, not merely tidy.
+    await db
+      .update(erpCurrencies)
+      .set({ isBaseCurrency: false })
+      .where(and(eq(erpCurrencies.orgId, ctx.orgId), eq(erpCurrencies.isBaseCurrency, true)))
+
+    if (existing) {
+      await db.update(erpCurrencies).set({ isBaseCurrency: true }).where(eq(erpCurrencies.id, existing.id))
+    } else {
+      await db.insert(erpCurrencies).values({
+        orgId: ctx.orgId,
+        code: normalised,
+        // We know the ISO code, not the localised display name. Use the code
+        // for both rather than inventing a name we were not given -- same
+        // discipline as org-provisioning-service.ts.
+        name: name?.trim() || CURRENCY_NAMES[normalised] || normalised,
+        symbol: symbol?.trim() || normalised,
+        isBaseCurrency: true,
+      })
+    }
+  })
+
+  // NO logActivity() HERE, DELIBERATELY. It requires an open transaction plus
+  // a real dbUser or apiKey actor, and this function is reachable from both
+  // the session and the API-key path. Threading a half-built actor through
+  // just to write an audit row would be a worse record than none: an audit
+  // trail that misattributes the actor is more dangerous than one that is
+  // absent, because it will be believed. The route's own request logging
+  // already records who called it.
+
+  return getBaseCurrency({ orgId: ctx.orgId })
 }
 
 export type CurrencyInput = { code: string; name: string; symbol?: string; isBaseCurrency?: boolean }

@@ -1,6 +1,6 @@
 // Priority 15 (PROJEXA HR & Payroll, Wave 1): list payslips for a run.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { listPayslips, ServiceError } from "@/lib/services/erp-payroll-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -8,7 +8,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 export async function GET(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ payslips: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const { id } = await params

@@ -6,7 +6,7 @@
 // end-to-end. Search/filter/pagination/projectId linkage are part of the
 // base shape from day one -- no legacy flat-array caller to preserve.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { requirePermission } from "@/lib/services/permission-service"
 import { listSalesOrders, createSalesOrder, ServiceError, type SalesOrderItemInput } from "@/lib/services/erp-selling-service"
 
@@ -33,7 +33,7 @@ function toSalesOrderShape(so: Awaited<ReturnType<typeof listSalesOrders>>["item
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ salesOrders: [], total: 0, page: 1, pageSize: 25 })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const params = request.nextUrl.searchParams
   try {

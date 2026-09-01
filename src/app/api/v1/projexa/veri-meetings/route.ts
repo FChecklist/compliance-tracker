@@ -6,13 +6,13 @@
 // minutes/publish workflow) -- that route is untouched; this is a new,
 // separate module PROJEXA's MoM screen calls instead.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listVeriMeetings, createVeriMeeting, ServiceError } from "@/lib/services/veri-meeting-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ meetings: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const projectId = request.nextUrl.searchParams.get("projectId") ?? undefined
@@ -30,8 +30,11 @@ export async function POST(request: NextRequest) {
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey?.id
-  if (!ctx.orgId || !actorId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  // R39/R-C04: ctx.apiKey?.id is not a real compliance.users row -- see
+  // veriMeetings.createdById's schema.ts comment for the real production FK
+  // violation this fallback caused.
+  const actorId = ctx.dbUser?.id ?? null
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const body = await request.json()
