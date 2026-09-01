@@ -4282,9 +4282,38 @@ export const productsRelations = relations(products, ({ many }) => ({
   projects: many(projects),
 }))
 
-export const projectsRelations = relations(projects, ({ one }) => ({
+export const projectsRelations = relations(projects, ({ one, many }) => ({
   product: one(products, { fields: [projects.productId], references: [products.id] }),
   client: one(clients, { fields: [projects.clientId], references: [clients.id] }),
+  teamMembers: many(projectTeamMembers),
+}))
+
+// Task #46 (CRM feature-parity gap analysis): projects.leadUserId only ever
+// carried a single owner -- no way to represent a multi-person project team,
+// same shape gap client_accounts/tickets/meetings all had before their own
+// junction tables (userClientAccess/conversationParticipants/
+// pmsMeetingParticipants). Copies that exact shape: id/projectId/userId +
+// one discriminator column (role here, responseStatus there), org-scoped
+// directly (orgId column, not a join through projects) matching the
+// pmsMeetings precedent -- pmsMeetings itself is a direct child of
+// org+project and carries orgId directly for a single-column RLS policy,
+// rather than the two-hop EXISTS-join pmsMeetingParticipants (a child of
+// pmsMeetings, one level deeper) needs. leadUserId on projects is left
+// completely untouched for backward compatibility; the service layer keeps
+// it consistent with this table (see addProjectTeamMember in product-service.ts).
+export const projectTeamMembers = complianceSchemaDB.table('project_team_members', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  userId: text('user_id').notNull(),
+  role: text('role').notNull().default('member'), // free text: 'lead' | 'member' | 'contributor' -- same convention as pmsMeetingParticipants.responseStatus
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const projectTeamMembersRelations = relations(projectTeamMembers, ({ one }) => ({
+  project: one(projects, { fields: [projectTeamMembers.projectId], references: [projects.id] }),
+  user: one(users, { fields: [projectTeamMembers.userId], references: [users.id] }),
 }))
 
 // ─── VERIDIAN AI PMS (Wave 25) ────────────────────────────────────────────

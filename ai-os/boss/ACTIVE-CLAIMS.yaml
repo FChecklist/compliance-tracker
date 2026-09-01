@@ -40,6 +40,23 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260806-151843-f1d2) -- PM-approved proposals 92+93: CSP + X-Frame-Options on projexa-ai.com, ONE combined change [MERGED via rebase-final-994, was PR #994, superseding stale #994 after 755-commit main drift + real ACTIVE-CLAIMS.yaml conflict resolution]"
+    claimed_at: "2026-08-06T15:30Z (original session); rebased+merged 2026-09-01"
+    claim: |
+      SPEC (parent UMR-20260806-151843-f1d2, PM decision citing Z.AI track
+      UMR-20260806-101802-a350 / parent UMR-20260802-165606-4413 / OCID-020):
+      implement pm_decisions_pending rows id=92 (child UMR-20260806-145437-
+      9e9a, missing Content-Security-Policy) and id=93 (child UMR-20260806-
+      145437-3bed, missing X-Frame-Options/frame-ancestors) as ONE combined
+      change in next.config.ts's headers(), per both rows' own closed_note
+      ("MANDATORY COORDINATION... one worker, one PR, both findings
+      closed"). File scope: next.config.ts only. Real live enumeration of
+      projexa-ai.com's actual origins performed first (curl + real JS
+      bundle inspection across /, /login, /signup, /pricing) before writing
+      any policy; shipping Content-Security-Policy-Report-Only (not
+      enforcing) given genuine doubt the enumeration covers every
+      authenticated route. X-Frame-Options: DENY ships enforcing (zero-risk
+      per the PM decision's own note).
   - session_label: "claude-code (task-20260727-153110-tet-engine-increment-1--trace-core---reu) -- TET engine increment 1: Task Execution Trace core + client-facing security shield gate"
     claimed_at: "2026-07-27T (this session)"
     claim: |
