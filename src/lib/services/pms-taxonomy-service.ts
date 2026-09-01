@@ -4,10 +4,10 @@
 // already passed requirePmsEnabled() (enforced at the route layer).
 import {
   pmsIssueTypes, pmsIssueStatuses, pmsWorkflowTransitions, pmsLabels,
-  pmsEstimateSchemes, pmsEstimatePoints, pmsMilestones, projects,
+  pmsEstimateSchemes, pmsEstimatePoints, pmsMilestones, pmsIssues, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
 import { hasRole } from "@/lib/supabase/auth-guard"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
@@ -128,10 +128,53 @@ export async function createLabel(ctx: PmsContext, projectId: string, input: { n
   })
 }
 
+// Task #47 gap fix (PM-platform feature-parity gap analysis): pms_milestones
+// already has the right shape and links from pms_issues.milestoneId, but
+// nothing computed/derived a milestone's completion percentage from its
+// linked issues. Fixed as a query-time (on-read) aggregation -- same
+// deterministic-averaging pattern as construction-dashboard-service.ts's
+// progressPercent and pms-issue-service.ts's computeParentCompletionPercentage
+// (plain JS math, no denormalized column on pms_milestones, zero LLM/AI
+// involvement) -- not a stored column, matching this codebase's existing
+// convention for derived rollups.
+//
+// Averages each DIRECTLY linked issue's own stored completionPercentage
+// (not that issue's own subtask rollup) -- consistent with
+// computeParentCompletionPercentage's own "direct only, non-recursive"
+// scope decision, and avoids an extra N+1 fan-out query per milestone.
+// Zero linked issues returns 0 (not null): matches
+// construction-dashboard-service.ts's getProjectDashboard(), which also
+// defaults progressPercent to 0 when there's nothing to average yet,
+// rather than surfacing a "no data" null through this API.
+export function computeMilestoneCompletionPercentage(issueCompletionPercentages: number[]): number {
+  if (issueCompletionPercentages.length === 0) return 0
+  const total = issueCompletionPercentages.reduce((sum, v) => sum + Number(v), 0)
+  return Math.round(total / issueCompletionPercentages.length)
+}
+
+/** Batch-fetches linked issues' completionPercentage for a set of milestone ids, grouped by milestone. Excludes archived issues, matching pms-issue-service.ts's own isArchived-false convention. */
+async function fetchIssueCompletionByMilestone(db: TenantDb, milestoneIds: string[]): Promise<Map<string, number[]>> {
+  const byMilestone = new Map<string, number[]>()
+  if (milestoneIds.length === 0) return byMilestone
+  const linkedIssues = await db.query.pmsIssues.findMany({
+    where: and(inArray(pmsIssues.milestoneId, milestoneIds), eq(pmsIssues.isArchived, false)),
+    columns: { milestoneId: true, completionPercentage: true },
+  })
+  for (const issue of linkedIssues) {
+    if (!issue.milestoneId) continue
+    const arr = byMilestone.get(issue.milestoneId)
+    if (arr) arr.push(Number(issue.completionPercentage))
+    else byMilestone.set(issue.milestoneId, [Number(issue.completionPercentage)])
+  }
+  return byMilestone
+}
+
 export async function listMilestones(ctx: { orgId: string }, projectId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.pmsMilestones.findMany({ where: and(eq(pmsMilestones.orgId, ctx.orgId), eq(pmsMilestones.projectId, projectId)), orderBy: (t, { asc }) => asc(t.targetDate) })
-  )
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const milestones = await db.query.pmsMilestones.findMany({ where: and(eq(pmsMilestones.orgId, ctx.orgId), eq(pmsMilestones.projectId, projectId)), orderBy: (t, { asc }) => asc(t.targetDate) })
+    const issueMap = await fetchIssueCompletionByMilestone(db, milestones.map((m) => m.id))
+    return milestones.map((m) => ({ ...m, completionPercentage: computeMilestoneCompletionPercentage(issueMap.get(m.id) ?? []) }))
+  })
 }
 
 export async function createMilestone(
@@ -146,7 +189,9 @@ export async function createMilestone(
     const [row] = await db.insert(pmsMilestones).values({
       orgId: ctx.orgId, projectId, name, description: input.description || null, targetDate: input.targetDate || null,
     }).returning()
-    return row
+    // A brand-new milestone has no linked issues yet -- 0 by construction,
+    // kept explicit here so create/list response shapes always match.
+    return { ...row, completionPercentage: 0 }
   })
 }
 

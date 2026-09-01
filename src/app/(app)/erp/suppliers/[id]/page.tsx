@@ -30,7 +30,7 @@ type PortalLink = { id: string; token: string; expiresAt: string; revokedAt: str
 type Doc = { id: string; name: string; category: string | null; expiryDate: string | null; createdAt: string };
 
 const QUALIFICATION_COLORS: Record<string, string> = {
-  not_started: "bg-ct-cloud text-ct-muted", in_review: "bg-ct-saffron/20 text-ct-saffron",
+  not_started: "bg-ct-cloud text-ct-muted", in_review: "bg-ct-saffron/20 text-ct-saffron-text",
   qualified: "bg-green-100 text-green-700", rejected: "bg-red-100 text-red-700",
 };
 const SANCTION_COLORS: Record<string, string> = {

@@ -5,7 +5,11 @@ import { listTasks, createTask, ServiceError } from "@/lib/services/task-service
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ tasks: [] })
+  // E-52: previously returned 200 { tasks: [] } here -- a broken org context
+  // looked identical to "authenticated user, zero tasks". POST below
+  // already returns 400 "No organisation found" for the identical
+  // missing-orgId condition; GET now matches it verbatim.
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const assistantId = request.nextUrl.searchParams.get("assistantId") ?? undefined
