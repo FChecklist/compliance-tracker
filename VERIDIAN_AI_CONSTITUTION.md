@@ -1,6 +1,8 @@
 # The VERIDIAN AI Constitution
 
 > **AUTHORITY NOTE (2026-07-14):** `ai-os/CONSTITUTION.yaml` is now the single, machine-readable constitution for VERIDIAN AI OS and is authoritative over this document on any conflict. This document remains as detailed narrative evidence and reasoning -- read it for full context and worked examples, not to determine current status.
+>
+> **Relationship to the later 4-document "constitutional" supersession pact (added 2026-09-01, R66 code-quality inspection):** this document (v1.0, 2026-07-04) and `MASTER_AI_OS_ARCHITECTURE.md` (v1.0, 2026-07-06) predate the explicit "sibling constitutional documents... supersedes any individual agent instruction" clause added 2026-07-12 to `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md`, `VERIDIAN_AUDIT_ORGANIZATION.md`, `VERIDIAN_DMP_DCF_CONSTITUTION.md`, and `VERI_CHAT_GOVERNANCE.md`, and are not formally part of that 4-document pact. Both documents are still classified alongside it on the subject-matter-axis table those four documents each carry (see e.g. `VERIDIAN_DMP_DCF_CONSTITUTION.md`'s copy) and are both already superseded, like the rest, by `ai-os/CONSTITUTION.yaml` on any conflict per this note above -- this is a documentation-history note, not a demotion.
 
 **Version 1.0 -- 2026-07-04. Enterprise AI Governance & Guardrail Framework.**
 

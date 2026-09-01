@@ -1,6 +1,6 @@
 # VERIDIAN AI — Platform Strategy & Master Build List
 
-**Status:** Strategic direction, recapped and consolidated from an extended planning session. This document is the single source of truth for "what VERIDIAN AI is becoming and what has to be built to get there." Update it as decisions change — do not let it go stale like a one-off chat summary would.
+**Status:** Strategic direction, recapped and consolidated from an extended planning session. This document is the single source of truth for platform *strategy* -- "what VERIDIAN AI is becoming and what has to be built to get there" -- as distinct from the constitutional documents (`VERIDIAN_AI_CONSTITUTION.md` and siblings, all superseded on conflict by `ai-os/CONSTITUTION.yaml`), which govern current operating rules, not future direction. Update it as decisions change — do not let it go stale like a one-off chat summary would. (Scope clarified 2026-09-01, R66 code-quality inspection -- this document previously claimed "single source of truth" with no qualifier or cross-reference to the constitutional documents.)
 
 **Owner:** raajat.agarwal@gmail.com
 

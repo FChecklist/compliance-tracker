@@ -20,6 +20,15 @@ The source document assigns **GPT-OSS-120B to every layer of the audit organizat
 
 ## Relationship to the other three constitutional documents
 
+> **Disambiguation (added 2026-09-01, R66 code-quality inspection):** this
+> table classifies documents by **subject-matter axis**, a different
+> grouping from the **supersession pact** named in "Constitutional
+> authority" above (this document + `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md`
+> + `VERIDIAN_DMP_DCF_CONSTITUTION.md` + `VERI_CHAT_GOVERNANCE.md`). The two
+> lists are not meant to match -- see
+> `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md`'s own copy of this note for
+> the fuller explanation.
+
 | Document | Governs |
 |---|---|
 | `VERIDIAN_AI_CONSTITUTION.md` | What the AI may *do* |
