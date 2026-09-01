@@ -81,3 +81,4 @@ server.log
 # rather than committed. The model/vocab themselves are fetched directly from
 # HuggingFace at inference time (never written to disk here).
 /public/litert-spike-embeddings/wasm/
+.scratch/

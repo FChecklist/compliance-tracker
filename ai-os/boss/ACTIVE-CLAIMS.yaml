@@ -1162,3 +1162,45 @@ active:
       validation (governance YAML parse, `tsc --noEmit`, `bun test`) done
       fresh on the merged worktree, not assumed carried over from the
       original PR's own CI run.
+  - session_label: "claude-code (task-20260815-032657-merge-pr-954-959-962--exact-blocker-is-r) -- PM diagnosis + merge of PR #954/#959/#962 [DONE, PR #962 merged; #954/#959 real conflicts left for a follow-up code task; rebase-merged via rebase-cleanup-1197, replacement PR opened -- PR #1197 itself closed as superseded]"
+    claimed_at: "2026-08-15T00:00Z (this session, closed same session); rebased+merged 2026-09-01"
+    claim: |
+      SPEC premise (formal review-approval gate `reviewDecision=REVIEW_REQUIRED` is the sole blocker on
+      all three PRs, needing a "second reviewer bot identity") was CORRECTED with live evidence: branch
+      protection `required_approving_review_count` is `0` (confirmed still true as of 2026-08-15, per
+      `ai-os/memory/dead_ends.json` DEADEND-20260814-0001), `reviewDecision` is empty/null on all three
+      PRs, and no second GitHub identity exists in this environment (gh auth + both PATs all resolve to
+      the single `FChecklist` account). Real blockers, confirmed via live trial merges: PR #954 (real
+      conflict `src/app/signup/page.tsx`) and PR #959 (real conflict `src/app/pricing/page.tsx`) need
+      code-level conflict resolution -- out of this task's scope, left as a follow-up. PR #962 (next/
+      postcss CVE patch) had no conflict, just `mergeStateStatus=BEHIND` under `strict: true` required
+      status checks -- updated branch, re-verified CI green + fresh `AUDIT: PASS`, merged via
+      `gh pr merge --squash`. See `progress/task-20260815-032657-merge-pr-954-959-962--exact-blocker-is-r.md`
+      for full evidence trail.
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-cleanup-1197, replacement for PR
+      #1197), per this repo's standard rebase-sweep protocol. This PR is a
+      pure historical/audit-trail record (docs-only: `.gitignore` +1 line,
+      this file, and the `progress/*.md` file below it) -- no source code
+      at all, so there was nothing to re-verify against current main's
+      runtime behavior, only the file-level merge itself. Merged onto
+      current main, which had independently pruned this file's `active:`
+      list since this claim was first written -- the PR's own branch point
+      (2026-08-15) carried a ~10,825-line version of this file, while
+      current main's is ~1,150 lines; per the same-day precedent already
+      recorded above (rebase-1530-final / rebase-sweep2b-1015 /
+      rebase-cleanup-1199 / rebase-sweep2b-1037 entries), took main's
+      current file as-is and appended this entry at the end of `active:`
+      rather than merging/concatenating the stale bloated version wholesale
+      (which would have reintroduced thousands of lines of long-archived
+      claim entries). Only 1 real conflict on merge: this same
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (resolved as described here).
+      `.gitignore` (+1 line, `.scratch/`) auto-merged cleanly with no
+      conflict. The new
+      `progress/task-20260815-032657-merge-pr-954-959-962--exact-blocker-is-r.md`
+      file was confirmed absent from main (404) before merging, so no
+      collision there either. No `drizzle/` conflicts and no migration
+      files anywhere in this PR's diff, so no journal renumbering was
+      needed. Validated post-merge: `check-governance-yaml-parse.mjs`
+      clean, `tsc --noEmit` clean (0 errors) -- both expected trivially
+      given zero source files are touched by this PR.
