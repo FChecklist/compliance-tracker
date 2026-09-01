@@ -21,7 +21,7 @@ import { ServiceError } from "./compliance-service"
 // leave request should show up as actual attendance without a separate
 // manual step -- see hr-attendance-service.ts's syncLeaveIntoAttendance for
 // the full rationale (weekend skipping, not clobbering a real check-in).
-import { syncLeaveIntoAttendance } from "./hr-attendance-service"
+import { syncLeaveIntoAttendance, isValidDateString, assertNotFutureDate } from "./hr-attendance-service"
 import { isSelfApproval } from "./approval-workflow-service"
 export { ServiceError }
 
@@ -30,6 +30,14 @@ export type HrContext = { orgId: string; userId: string }
 // Priority 15 Wave 2: employmentStatusEnum.enumValues is the single source
 // of truth for valid values (schema.ts), not a re-typed literal union here.
 export type EmploymentStatus = (typeof employmentStatusEnum.enumValues)[number]
+
+// V2-17 HR validation UX cross-check (2026-07-26): employeeProfiles.employmentType
+// is a plain `text` column, not a real pg enum like employmentStatus (see
+// schema.ts's comment on that column for why) -- it previously had NO
+// server-side check at all, so a typo (e.g. "fulltime") would silently
+// persist and break anything switching on these 4 values downstream. This
+// list mirrors that column's own doc-comment; not a new decision.
+const VALID_EMPLOYMENT_TYPES = ["full_time", "part_time", "contract", "intern"]
 
 // Priority 17 remaining gap: companyId is an optional post-join filter (the
 // company dimension lives on employeeProfiles, not users) -- omitted means
@@ -67,17 +75,38 @@ export async function getOrgChart(ctx: { orgId: string }) {
   return { employees, roots: byManager.get("__root__") ?? [], byManager: Object.fromEntries(byManager) }
 }
 
-export async function upsertEmployeeProfile(
-  ctx: HrContext,
-  targetUserId: string,
-  input: {
-    employeeCode?: string; jobTitle?: string; employmentType?: string; dateOfJoining?: string; dateOfBirth?: string
-    employmentStatus?: EmploymentStatus; emergencyContactName?: string; emergencyContactPhone?: string; companyId?: string
-  }
-) {
+export type EmployeeProfileInput = {
+  employeeCode?: string; jobTitle?: string; employmentType?: string; dateOfJoining?: string; dateOfBirth?: string
+  employmentStatus?: EmploymentStatus; emergencyContactName?: string; emergencyContactPhone?: string; companyId?: string
+}
+
+// Pure -- no DB access -- so it can be unit-tested directly, matching this
+// codebase's established convention (see hr-attendance-service.ts's own
+// note) of not exercising withTenantContext/a live DB from a .test.ts file.
+export function validateEmployeeProfileInput(input: EmployeeProfileInput): void {
   if (input.employmentStatus && !employmentStatusEnum.enumValues.includes(input.employmentStatus)) {
     throw new ServiceError(`employmentStatus must be one of: ${employmentStatusEnum.enumValues.join(", ")}`, 400)
   }
+  if (input.employmentType && !VALID_EMPLOYMENT_TYPES.includes(input.employmentType)) {
+    throw new ServiceError(`employmentType must be one of: ${VALID_EMPLOYMENT_TYPES.join(", ")}`, 400)
+  }
+  // dateOfJoining is legitimately allowed in the future (onboarding a new
+  // hire ahead of their start date), so it only gets a format check --
+  // dateOfBirth can never be in the future, so it gets assertNotFutureDate's
+  // combined format-and-not-future check (same helper hr-attendance-service.ts
+  // already uses for attendance-event dates).
+  if (input.dateOfJoining && !isValidDateString(input.dateOfJoining)) {
+    throw new ServiceError("dateOfJoining must be a valid YYYY-MM-DD date", 400)
+  }
+  if (input.dateOfBirth) assertNotFutureDate(input.dateOfBirth, "dateOfBirth")
+}
+
+export async function upsertEmployeeProfile(
+  ctx: HrContext,
+  targetUserId: string,
+  input: EmployeeProfileInput
+) {
+  validateEmployeeProfileInput(input)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const targetUser = await db.query.users.findFirst({ where: and(eq(users.id, targetUserId), eq(users.orgId, ctx.orgId)) })
     if (!targetUser) throw new ServiceError("Employee not found", 404)

@@ -299,7 +299,7 @@ export function DocumentUploadSection() {
       <Card className="rounded-xl shadow-card bg-white">
         <CardHeader className="pb-3">
           <CardTitle className="text-base text-ct-navy flex items-center gap-2">
-            <Upload className="size-4 text-ct-saffron" />
+            <Upload className="size-4 text-ct-saffron-text" />
             Upload Document
           </CardTitle>
           <CardDescription className="text-xs text-ct-muted">
@@ -391,7 +391,7 @@ export function DocumentUploadSection() {
             <Card className="mt-4 rounded-xl border-ct-saffron/20 bg-amber-50/30">
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="size-4 text-ct-saffron animate-pulse" />
+                  <Sparkles className="size-4 text-ct-saffron-text animate-pulse" />
                   <span className="text-sm font-medium text-ct-navy">
                     AI is analyzing your document...
                   </span>

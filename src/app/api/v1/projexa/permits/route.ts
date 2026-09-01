@@ -26,7 +26,7 @@
 // qualify, how "expiring" is computed) stays entirely inside
 // listExpiringDocuments/listDocuments.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listExpiringDocuments, listDocuments, createDocumentRecord, ServiceError } from "@/lib/services/document-service"
 import { createClient } from "@supabase/supabase-js"
 
@@ -61,7 +61,7 @@ async function toPermitDto(doc: { id: string; name: string; metadata: unknown; e
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ permits: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const { searchParams } = request.nextUrl
@@ -91,8 +91,11 @@ export async function POST(request: NextRequest) {
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey?.id
-  if (!ctx.orgId || !actorId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  // R39/R-C14: ctx.apiKey?.id is not a real compliance.users row -- see
+  // documents.uploadedById's schema.ts comment for the real production FK
+  // violation this fallback caused.
+  const actorId = ctx.dbUser?.id ?? null
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const formData = await request.formData()

@@ -72,6 +72,96 @@ export function predecessorIdsOf(
 
 const COMPLETED_STATUS_GROUP = "completed" as const
 
+// Task #47 (PM feature-parity gap analysis): deterministic project-level
+// rollup, generalizing construction-dashboard-service.ts's
+// getProjectDashboard() pattern ("average of each activity's latest logged
+// percentComplete") from construction activities to pms_issues -- here the
+// per-issue completionPercentage IS the live value (no separate log table
+// to take "latest of" from), so the rollup is a straight average across the
+// project's non-archived issues. Pure/no I/O so it's directly unit-testable.
+export function calculateProjectRollupPercentage(
+  issues: Pick<typeof pmsIssues.$inferSelect, "completionPercentage" | "isArchived">[]
+): number {
+  const active = issues.filter((i) => !i.isArchived)
+  if (active.length === 0) return 0
+  const sum = active.reduce((total, i) => total + i.completionPercentage, 0)
+  return Math.round(sum / active.length)
+}
+
+/**
+ * Recomputes and persists projects.rollupPercentage from the project's own
+ * pms_issues -- called inline (not fire-and-forget) from createIssue()/
+ * updateIssue() below whenever an issue's completionPercentage or archived
+ * state can move the average, so the column is always current when read
+ * back (never a stale write nobody re-reads).
+ */
+export async function recalculateProjectRollup(db: TenantDb, orgId: string, projectId: string): Promise<number> {
+  const issues = await db.query.pmsIssues.findMany({
+    where: and(eq(pmsIssues.orgId, orgId), eq(pmsIssues.projectId, projectId)),
+    columns: { completionPercentage: true, isArchived: true },
+  })
+  const rollupPercentage = calculateProjectRollupPercentage(issues)
+  await db.update(projects).set({ rollupPercentage, updatedAt: new Date() }).where(and(eq(projects.id, projectId), eq(projects.orgId, orgId)))
+  return rollupPercentage
+}
+
+// Task #47 gap fix (PM-platform feature-parity gap analysis): pms_issues.
+// parentIssueId (self-FK, schema.ts) already supports real subtask nesting
+// and completionPercentage already exists as a column -- both written on
+// createIssue()/updateIssue() -- but nothing ever read parentIssueId back
+// to roll a parent's completion up from its children. Fixed here as a
+// query-time (on-read) aggregation, deliberately matching the exact
+// deterministic-averaging pattern construction-dashboard-service.ts's
+// getProjectDashboard() already uses for progressPercent (plain JS math,
+// no denormalized column, zero LLM/AI involvement per Owner mandate) --
+// chosen over a write-back/trigger-style recompute-and-persist because (a)
+// every other derived rollup in this codebase is query-time, not a stored
+// column kept in sync by triggers (kpi-hub-service.ts, erp-budget-
+// service.ts's getBudgetVariance, construction-dashboard-service.ts itself),
+// and (b) a write-back would need to fire on every child update AND
+// recursively fan out to grandparents, which the gap analysis does not ask
+// for and which isn't needed while completionPercentage stays a read-time
+// concern.
+//
+// Deliberately non-recursive / direct-children-only, matching the gap
+// analysis's literal ask ("average of its direct children's
+// completionPercentage"): a grandchild's own rollup is not re-derived when
+// averaging its parent -- only immediate children's own stored
+// completionPercentage values are averaged. Archived children are excluded
+// (matches this file's existing isArchived-false convention, e.g.
+// listIssues()'s default filter and construction-dashboard-service.ts's
+// delayedTaskCount). Leaf issues (no children) keep their own
+// manually-set completionPercentage completely untouched.
+export function computeParentCompletionPercentage(ownCompletionPercentage: number, childCompletionPercentages: number[]): number {
+  if (childCompletionPercentages.length === 0) return ownCompletionPercentage
+  const total = childCompletionPercentages.reduce((sum, v) => sum + Number(v), 0)
+  return Math.round(total / childCompletionPercentages.length)
+}
+
+/**
+ * Batch-fetches direct children's completionPercentage for a set of parent
+ * issue ids, grouped by parent. Shared by getIssue() (single issue),
+ * getIssueRow() (create/update return value), and listIssues() (project
+ * list) so every read path applies the exact same rollup rule -- also
+ * reused by schedule-service.ts's calculateCriticalPath() (Gantt) rather
+ * than duplicating this query there.
+ */
+export async function fetchChildCompletionByParent(db: TenantDb, parentIds: string[]): Promise<Map<string, number[]>> {
+  const byParent = new Map<string, number[]>()
+  if (parentIds.length === 0) return byParent
+  const children = await db.query.pmsIssues.findMany({
+    where: and(inArray(pmsIssues.parentIssueId, parentIds), eq(pmsIssues.isArchived, false)),
+    columns: { parentIssueId: true, completionPercentage: true },
+  })
+  for (const c of children) {
+    if (!c.parentIssueId) continue
+    const arr = byParent.get(c.parentIssueId)
+    if (arr) arr.push(Number(c.completionPercentage))
+    else byParent.set(c.parentIssueId, [Number(c.completionPercentage)])
+  }
+  return byParent
+}
+
 async function syncLabels(db: TenantDb, issueId: string, labelIds: string[] | undefined) {
   if (labelIds === undefined) return
   await db.delete(pmsIssueLabels).where(eq(pmsIssueLabels.issueId, issueId))
@@ -96,10 +186,12 @@ export async function listIssues(
     if (filters.milestoneId) conditions.push(eq(pmsIssues.milestoneId, filters.milestoneId))
     if (!filters.includeArchived) conditions.push(eq(pmsIssues.isArchived, false))
 
-    return db.query.pmsIssues.findMany({
+    const rows = await db.query.pmsIssues.findMany({
       where: and(...conditions),
       orderBy: (t, { asc }) => asc(t.position),
     })
+    const childMap = await fetchChildCompletionByParent(db, rows.map((r) => r.id))
+    return rows.map((r) => ({ ...r, completionPercentage: computeParentCompletionPercentage(r.completionPercentage, childMap.get(r.id) ?? []) }))
   })
 }
 
@@ -110,7 +202,9 @@ export async function getIssue(ctx: { orgId: string }, issueId: string) {
     const assignees = await db.query.pmsIssueAssignees.findMany({ where: eq(pmsIssueAssignees.issueId, issueId) })
     const labels = await db.query.pmsIssueLabels.findMany({ where: eq(pmsIssueLabels.issueId, issueId) })
     const relations = await db.query.pmsIssueRelations.findMany({ where: and(eq(pmsIssueRelations.orgId, ctx.orgId), eq(pmsIssueRelations.issueId, issueId)) })
-    return { ...issue, assigneeIds: assignees.map((a) => a.userId), labelIds: labels.map((l) => l.labelId), relations }
+    const childMap = await fetchChildCompletionByParent(db, [issueId])
+    const completionPercentage = computeParentCompletionPercentage(issue.completionPercentage, childMap.get(issueId) ?? [])
+    return { ...issue, completionPercentage, assigneeIds: assignees.map((a) => a.userId), labelIds: labels.map((l) => l.labelId), relations }
   })
 }
 
@@ -147,6 +241,7 @@ export async function createIssue(ctx: PmsContext, input: IssueInput) {
 
     await syncAssignees(db, issue.id, input.assigneeIds)
     await syncLabels(db, issue.id, input.labelIds)
+    await recalculateProjectRollup(db, ctx.orgId, input.projectId)
 
     return getIssueRow(db, issue.id)
   })
@@ -156,7 +251,12 @@ async function getIssueRow(db: TenantDb, issueId: string) {
   const issue = await db.query.pmsIssues.findFirst({ where: eq(pmsIssues.id, issueId) })
   const assignees = await db.query.pmsIssueAssignees.findMany({ where: eq(pmsIssueAssignees.issueId, issueId) })
   const labels = await db.query.pmsIssueLabels.findMany({ where: eq(pmsIssueLabels.issueId, issueId) })
-  return { ...issue, assigneeIds: assignees.map((a) => a.userId), labelIds: labels.map((l) => l.labelId) }
+  // Rollup applied here too (not just getIssue()/listIssues()) so
+  // createIssue()/updateIssue()'s own return value is never inconsistent
+  // with what a subsequent GET would show for the same issue.
+  const childMap = await fetchChildCompletionByParent(db, [issueId])
+  const completionPercentage = issue ? computeParentCompletionPercentage(issue.completionPercentage, childMap.get(issueId) ?? []) : undefined
+  return { ...issue, completionPercentage, assigneeIds: assignees.map((a) => a.userId), labelIds: labels.map((l) => l.labelId) }
 }
 
 export type IssuePatch = Partial<{
@@ -224,6 +324,13 @@ export async function updateIssue(ctx: PmsContext, issueId: string, patch: Issue
     }
     await syncAssignees(db, issueId, assigneeIds)
     await syncLabels(db, issueId, labelIds)
+
+    // Only recompute when this patch could actually move the average --
+    // skip the extra query+write on every unrelated field edit (title,
+    // description, assignees, ...).
+    if (patch.completionPercentage !== undefined || patch.isArchived !== undefined) {
+      await recalculateProjectRollup(db, ctx.orgId, existing.projectId)
+    }
 
     const row = await getIssueRow(db, issueId)
     return { row, previousStatusId: existing.statusId }

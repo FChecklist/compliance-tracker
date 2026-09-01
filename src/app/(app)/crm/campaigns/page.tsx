@@ -118,7 +118,7 @@ export default function CrmCampaignsPage() {
         <div className="rounded-xl border border-ct-border bg-white divide-y divide-ct-border">
           {campaigns.map((c) => (
             <div key={c.id} className="px-4 py-3 flex items-center gap-3">
-              <Megaphone className="size-4 text-ct-saffron shrink-0" />
+              <Megaphone className="size-4 text-ct-saffron-text shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-ct-navy">{c.name}</p>
                 <p className="text-xs text-ct-muted">
