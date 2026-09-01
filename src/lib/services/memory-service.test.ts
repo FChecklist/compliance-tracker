@@ -386,3 +386,206 @@ describe("supersedeMemoryRecord", () => {
     expect(calls.length).toBe(5)
   })
 })
+
+describe("promoteMemoryRecord", () => {
+  test("not-found id throws (unknown id or filtered out by RLS)", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { promoteMemoryRecord } = await import("./memory-service")
+    const { tx } = makeQueueTx([[]])
+
+    await expect(
+      promoteMemoryRecord(tx, "missing-id", "CONFIRMED", { type: "USER" })
+    ).rejects.toThrow(/not found/)
+  })
+
+  test("refuses a GLOBAL/INDUSTRY (org_id NULL) row", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { promoteMemoryRecord } = await import("./memory-service")
+    const { tx } = makeQueueTx([[rawRow({ org_id: null, scope_type: "GLOBAL" })]])
+
+    await expect(
+      promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { type: "SYSTEM" })
+    ).rejects.toThrow(/admin\/service_role-only path/)
+  })
+
+  test("CANDIDATE -> CONFIRMED: legal single-step promotion succeeds", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { promoteMemoryRecord } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([
+      [rawRow({ lifecycle_state: "CANDIDATE" })],
+      [rawRow({ lifecycle_state: "CONFIRMED" })],
+    ])
+
+    const result = await promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { type: "USER", id: "user-1" })
+
+    expect(result.lifecycleState).toBe("CONFIRMED")
+    expect(calls.length).toBe(2) // SELECT + UPDATE
+    const updateSql = JSON.stringify(calls[1])
+    expect(updateSql).toContain("CONFIRMED")
+    expect(updateSql).toContain("lifecycleHistory")
+  })
+
+  test("TRANSIENT -> CANDIDATE: legal single-step promotion succeeds", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { promoteMemoryRecord } = await import("./memory-service")
+    const { tx } = makeQueueTx([
+      [rawRow({ lifecycle_state: "TRANSIENT" })],
+      [rawRow({ lifecycle_state: "CANDIDATE" })],
+    ])
+
+    const result = await promoteMemoryRecord(tx, "mem-1", "CANDIDATE", { type: "SYSTEM" })
+    expect(result.lifecycleState).toBe("CANDIDATE")
+  })
+
+  test("CONFIRMED -> ACTIVE: legal single-step promotion succeeds", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { promoteMemoryRecord } = await import("./memory-service")
+    const { tx } = makeQueueTx([
+      [rawRow({ lifecycle_state: "CONFIRMED" })],
+      [rawRow({ lifecycle_state: "ACTIVE" })],
+    ])
+
+    const result = await promoteMemoryRecord(tx, "mem-1", "ACTIVE", { type: "AI", reason: "repeated successful use" })
+    expect(result.lifecycleState).toBe("ACTIVE")
+  })
+
+  test("rejects a skip-level promotion (CANDIDATE -> ACTIVE)", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { promoteMemoryRecord } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([[rawRow({ lifecycle_state: "CANDIDATE" })]])
+
+    await expect(
+      promoteMemoryRecord(tx, "mem-1", "ACTIVE", { type: "USER" })
+    ).rejects.toThrow(/only legal next state is CONFIRMED, not ACTIVE/)
+    expect(calls.length).toBe(1) // SELECT only, no UPDATE issued
+  })
+
+  test("rejects a backward/same-state promotion (ACTIVE -> CONFIRMED)", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { promoteMemoryRecord } = await import("./memory-service")
+    const { tx } = makeQueueTx([[rawRow({ lifecycle_state: "ACTIVE" })]])
+
+    await expect(
+      promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { type: "USER" })
+    ).rejects.toThrow(/has no further promotion/)
+  })
+
+  test("rejects promoting an already-SUPERSEDED record", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { promoteMemoryRecord } = await import("./memory-service")
+    const { tx } = makeQueueTx([[rawRow({ lifecycle_state: "SUPERSEDED", superseded_by_id: "mem-2" })]])
+
+    await expect(
+      promoteMemoryRecord(tx, "mem-1", "ACTIVE", { type: "USER" })
+    ).rejects.toThrow(/has no further promotion/)
+  })
+
+  test("rejects promoting an already-ARCHIVED record", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { promoteMemoryRecord } = await import("./memory-service")
+    const { tx } = makeQueueTx([[rawRow({ lifecycle_state: "ARCHIVED" })]])
+
+    await expect(
+      promoteMemoryRecord(tx, "mem-1", "CANDIDATE", { type: "USER" })
+    ).rejects.toThrow(/has no further promotion/)
+  })
+
+  test("preserves existing metadata keys while appending lifecycleHistory", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { promoteMemoryRecord } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([
+      [rawRow({ lifecycle_state: "CANDIDATE", metadata: { existingKey: "keepMe" } })],
+      [rawRow({ lifecycle_state: "CONFIRMED" })],
+    ])
+
+    await promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { type: "USER", id: "user-1", reason: "user confirmed it" })
+
+    const updateSql = JSON.stringify(calls[1])
+    expect(updateSql).toContain("existingKey")
+    expect(updateSql).toContain("keepMe")
+    expect(updateSql).toContain("user confirmed it")
+  })
+})
+
+describe("archiveMemoryRecord", () => {
+  test("not-found id throws (unknown id or filtered out by RLS)", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { archiveMemoryRecord } = await import("./memory-service")
+    const { tx } = makeQueueTx([[]])
+
+    await expect(archiveMemoryRecord(tx, "missing-id", { type: "USER" })).rejects.toThrow(/not found/)
+  })
+
+  test("refuses a GLOBAL/INDUSTRY (org_id NULL) row", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { archiveMemoryRecord } = await import("./memory-service")
+    const { tx } = makeQueueTx([[rawRow({ org_id: null, scope_type: "INDUSTRY" })]])
+
+    await expect(archiveMemoryRecord(tx, "mem-1", { type: "SYSTEM" })).rejects.toThrow(/admin\/service_role-only path/)
+  })
+
+  test("refuses to archive an already-archived record (idempotency guard)", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { archiveMemoryRecord } = await import("./memory-service")
+    const { tx } = makeQueueTx([[rawRow({ lifecycle_state: "ARCHIVED" })]])
+
+    await expect(archiveMemoryRecord(tx, "mem-1", { type: "USER" })).rejects.toThrow(/already ARCHIVED/)
+  })
+
+  test("archives a CANDIDATE record directly, without requiring CONFIRMED/ACTIVE first", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { archiveMemoryRecord } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([
+      [rawRow({ lifecycle_state: "CANDIDATE", effective_to: null })],
+      [rawRow({ lifecycle_state: "ARCHIVED" })],
+    ])
+
+    const result = await archiveMemoryRecord(tx, "mem-1", { type: "USER", reason: "rejected AI inference" })
+
+    expect(result.lifecycleState).toBe("ARCHIVED")
+    expect(calls.length).toBe(2)
+    const updateSql = JSON.stringify(calls[1])
+    expect(updateSql).toContain("ARCHIVED")
+    expect(updateSql).toContain("COALESCE")
+  })
+
+  test("archives an ACTIVE record", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { archiveMemoryRecord } = await import("./memory-service")
+    const { tx } = makeQueueTx([
+      [rawRow({ lifecycle_state: "ACTIVE" })],
+      [rawRow({ lifecycle_state: "ARCHIVED" })],
+    ])
+
+    const result = await archiveMemoryRecord(tx, "mem-1", { type: "AI", reason: "no longer relevant" })
+    expect(result.lifecycleState).toBe("ARCHIVED")
+  })
+
+  test("archives an already-SUPERSEDED record (retention cleanup)", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { archiveMemoryRecord } = await import("./memory-service")
+    const { tx } = makeQueueTx([
+      [rawRow({ lifecycle_state: "SUPERSEDED", superseded_by_id: "mem-2" })],
+      [rawRow({ lifecycle_state: "ARCHIVED" })],
+    ])
+
+    const result = await archiveMemoryRecord(tx, "mem-1", { type: "SYSTEM" })
+    expect(result.lifecycleState).toBe("ARCHIVED")
+  })
+})
