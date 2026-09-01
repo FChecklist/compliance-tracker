@@ -1,7 +1,7 @@
 import { whistleblowerCases } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
-import { desc } from "drizzle-orm"
+import { count, desc } from "drizzle-orm"
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { canAccess } from "@/lib/classification"
 import { logActivity } from "@/lib/audit"
@@ -50,13 +50,22 @@ export async function POST(request: NextRequest) {
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
   if (!canAccess(dbUser.role, "confidential")) return NextResponse.json({ error: "Insufficient clearance" }, { status: 403 })
 
-  const body = await request.json()
-  const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
-    const existing = await db.query.whistleblowerCases.findMany()
-    const caseRef = `WB-${String(existing.length + 1).padStart(3, "0")}`
-    const [wCase] = await db.insert(whistleblowerCases).values({ caseRef, category: body.category || "Other", receivedDate: new Date(), orgId, recordedById: dbUser.id }).returning()
-    await logActivity({ tx: db, action: "create", entityType: "WhistleblowerCase", entityId: wCase.id, details: "New whistleblower case logged (Confidential — case detail withheld from activity log)", orgId, dbUser, request })
-    return wCase
-  })
-  return NextResponse.json({ id: result.id, caseRef: result.caseRef }, { status: 201 })
+  try {
+    const body = await request.json()
+    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
+      // R66 code-quality fix: was `db.query.whistleblowerCases.findMany()`
+      // then `existing.length + 1` -- an unbounded full-table read on every
+      // case creation just to compute a count. A COUNT(*) query scales
+      // instead of growing with table size.
+      const [{ value }] = await db.select({ value: count() }).from(whistleblowerCases)
+      const caseRef = `WB-${String(value + 1).padStart(3, "0")}`
+      const [wCase] = await db.insert(whistleblowerCases).values({ caseRef, category: body.category || "Other", receivedDate: new Date(), orgId, recordedById: dbUser.id }).returning()
+      await logActivity({ tx: db, action: "create", entityType: "WhistleblowerCase", entityId: wCase.id, details: "New whistleblower case logged (Confidential — case detail withheld from activity log)", orgId, dbUser, request })
+      return wCase
+    })
+    return NextResponse.json({ id: result.id, caseRef: result.caseRef }, { status: 201 })
+  } catch (error) {
+    console.error("Whistleblower case create error:", error)
+    return NextResponse.json({ error: "Failed to log case" }, { status: 500 })
+  }
 }

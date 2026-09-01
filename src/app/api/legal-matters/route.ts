@@ -7,8 +7,16 @@ export async function GET() {
   if (response) return response
   if (!orgId) return NextResponse.json({ matters: [] })
 
-  const matters = await listMatters({ orgId })
-  return NextResponse.json({ matters })
+  // R66 code-quality fix: GET had no try/catch while POST in this same
+  // file does. Matching POST's own error-handling style below.
+  try {
+    const matters = await listMatters({ orgId })
+    return NextResponse.json({ matters })
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("Legal matters list error:", error)
+    return NextResponse.json({ error: "Failed to fetch legal matters" }, { status: 500 })
+  }
 }
 
 export async function POST(request: Request) {

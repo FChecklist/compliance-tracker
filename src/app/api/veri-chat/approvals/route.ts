@@ -7,7 +7,7 @@ import { listMyPendingApprovals } from "@/lib/services/approval-workflow-service
 import { listDraftedCommunications } from "@/lib/services/communication-drafting-service"
 import { listQuotations } from "@/lib/services/erp-selling-service"
 import { listChangeOrdersAwaitingApproval } from "@/lib/services/construction-change-order-service"
-import { listSignatureRequests } from "@/lib/services/esignature-service"
+import { listLatestSignatureRequestsForEntities } from "@/lib/services/esignature-service"
 
 // Priority 18a (VERI Chat second-screen unification): "everything currently
 // waiting on the current user's decision" was scattered across 5 real,
@@ -105,33 +105,42 @@ export async function GET() {
     (async () => {
       const changeOrders = await listChangeOrdersAwaitingApproval({ orgId })
       // Real signature progress, not a decision -- see this file's own
-      // header comment. Same underlying listSignatureRequests() the
+      // header comment. Same underlying esignature data the
       // v1/projexa/change-orders/[id]/signature-status alias route uses
       // for PROJEXA's UI, not a second data path.
-      await Promise.all(changeOrders.map(async (c) => {
+      //
+      // R66 code-quality fix: this used to call listSignatureRequests()
+      // once per change order inside the .map() below (N+1 queries).
+      // Batched into a single query via listLatestSignatureRequestsForEntities.
+      let latestByChangeOrderId: Awaited<ReturnType<typeof listLatestSignatureRequestsForEntities>> = new Map()
+      try {
+        latestByChangeOrderId = await listLatestSignatureRequestsForEntities(
+          { orgId },
+          { linkedEntityType: "change_order", linkedEntityIds: changeOrders.map((c) => c.id) }
+        )
+      } catch {
+        // One failed batch lookup must not blank out the rest of this feed --
+        // every change order below falls back to c.reason via the `latest`
+        // lookup below returning undefined for all of them.
+      }
+      for (const c of changeOrders) {
         let sub = c.reason ?? "—"
-        try {
-          const requests = await listSignatureRequests({ orgId }, { linkedEntityType: "change_order", linkedEntityId: c.id })
-          const latest = requests[0]
-          if (latest) {
-            const signedCount = latest.signers.filter((s) => s.status === "signed").length
-            const declined = latest.signers.find((s) => s.status === "declined")
-            sub = declined
-              ? `Declined by ${declined.name}${declined.declineReason ? ` — "${declined.declineReason}"` : ""}`
-              : `Awaiting signature (${signedCount} of ${latest.signers.length} signed)`
-          } else {
-            sub = "No signature request created yet"
-          }
-        } catch {
-          // Leave the fallback (c.reason) -- one change order's signature
-          // lookup failing must not blank out the rest of this feed.
+        const latest = latestByChangeOrderId.get(c.id)
+        if (latest) {
+          const signedCount = latest.signers.filter((s) => s.status === "signed").length
+          const declined = latest.signers.find((s) => s.status === "declined")
+          sub = declined
+            ? `Declined by ${declined.name}${declined.declineReason ? ` — "${declined.declineReason}"` : ""}`
+            : `Awaiting signature (${signedCount} of ${latest.signers.length} signed)`
+        } else {
+          sub = "No signature request created yet"
         }
         items.push({
           id: c.id, kind: "change_order",
           title: `Change order #${c.number}: ${c.title}`,
           sub, createdAt: c.createdAt.toISOString(), actionable: false,
         })
-      }))
+      }
     })(),
   ])
 

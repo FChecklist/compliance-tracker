@@ -23,9 +23,12 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
+  // R66 code-quality fix: null check reordered before the role check,
+  // matching the majority pattern elsewhere in this codebase (e.g.
+  // erp/buying/purchase-orders/route.ts).
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
   const roleErr = requireRole(dbUser, "member")
   if (roleErr) return roleErr
-  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const { id } = await params
