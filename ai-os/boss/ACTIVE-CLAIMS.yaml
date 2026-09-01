@@ -574,3 +574,59 @@ active:
       drizzle/0313_*.sql migration. NOT src/app/(app)/crm/dashboard/** or
       AppSidebar.tsx/messages/*.json -- the round-1 plan's file list, never
       actually created once round 2 corrected course.
+
+# ── claim registered 2026-07-31 (task-20260731-044019-pm--project-status-access-rollup) ──
+  - session_label: "claude-code (task-20260731-044019-pm--project-status-access-rollup) -- Task #47 PM feature-parity gap: projects.status/access/rollupPercentage/customTabs + Private/Public access control"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      Task #47 per the finalized PM gap analysis: extend the `projects`
+      table with status/access-level(Private/Public)/rollup-percentage/
+      customTabs, wire real Private/Public read-access enforcement, and
+      generalize the existing construction-domain deterministic rollup
+      pattern (construction-dashboard-service.ts's getProjectDashboard()
+      "average of latest logged percentComplete") to pms_issues. Read
+      schema.ts directly first (not assumed): confirmed all 4 fields are
+      genuinely absent from `projects` (Wave 25 only added issuePrefix/
+      issueSequence/leadUserId/startDate/targetDate/healthStatus/
+      parentProjectId) -- this is real new-column work, not just an
+      exposure fix. No existing PMS-issue rollup function found sitting
+      disconnected (checked pms-issue-service.ts/schedule-service.ts/
+      report-engine-service.ts) -- wrote calculateProjectRollupPercentage()
+      new, wired into createIssue()/updateIssue().
+      Migration: drizzle/0302_pms_project_status_access_rollup.sql
+      (next-free number confirmed against real drizzle/*.sql filenames on
+      a freshly-fetched origin/main -- drizzle/meta/_journal.json is stale/
+      stub at idx 3, not a reliable source here, consistent with 0267/0268's
+      own header notes on this).
+    scope_note: >-
+      File scope: compliance-tracker only -- src/lib/db/schema.ts (projects
+      table + 2 new enums), drizzle/0302_pms_project_status_access_rollup.sql,
+      src/lib/services/product-service.ts (canReadProject, createProjectDirect,
+      listAllProjectsForOrg signature change), src/lib/services/
+      pms-issue-service.ts (calculateProjectRollupPercentage,
+      recalculateProjectRollup, wired into createIssue/updateIssue),
+      src/app/api/projects/route.ts + [id]/route.ts, src/app/(app)/pms/page.tsx
+      (New Project form), pms-issue-service.test.ts + new
+      product-service.test.ts, PROGRESS.md, this file. Explicitly NOT
+      touching pms_issues columns/schema, Automation Rules, user types, PM
+      Teams, or the social feed, per this task's own CONSTRAINTS. Did not
+      apply the migration live -- no DATABASE_URL/Supabase MCP tool
+      available in this sandbox; flagged honestly in PROGRESS.md and the PR
+      description for the merging session.
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-sweep2b-664, replacement for PR
+      #664): merged onto current main, which had independently pruned this
+      file's `active:` list down to its current ~17-entry set (a legitimate
+      rolling cleanup per this file's own protocol #3, confirmed by diffing
+      the merge-base against origin/main) and added its own new entries
+      (e.g. the UMR-20260806-132527-30dc / OCID-020 category 23 entry
+      above). This entry (this task's own claim, describing PR #664's real
+      work) is re-appended here rather than dropped, since the PR itself
+      was still open/unmerged at rebase time. Also: this claim's own
+      migration number (0302) collided with main's own real
+      `0302_sales_pipeline_dashboard_targets.sql` (idx 279 in
+      drizzle/meta/_journal.json, which is fully current on main now, not
+      stale as earlier sessions found it) -- renamed to
+      `0512_pms_project_status_access_rollup.sql` (above main's true
+      highest, 0511) with a matching new _journal.json entry (idx 334), per
+      this repo's own migration-collision protocol.

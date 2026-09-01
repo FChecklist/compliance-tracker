@@ -72,6 +72,39 @@ export function predecessorIdsOf(
 
 const COMPLETED_STATUS_GROUP = "completed" as const
 
+// Task #47 (PM feature-parity gap analysis): deterministic project-level
+// rollup, generalizing construction-dashboard-service.ts's
+// getProjectDashboard() pattern ("average of each activity's latest logged
+// percentComplete") from construction activities to pms_issues -- here the
+// per-issue completionPercentage IS the live value (no separate log table
+// to take "latest of" from), so the rollup is a straight average across the
+// project's non-archived issues. Pure/no I/O so it's directly unit-testable.
+export function calculateProjectRollupPercentage(
+  issues: Pick<typeof pmsIssues.$inferSelect, "completionPercentage" | "isArchived">[]
+): number {
+  const active = issues.filter((i) => !i.isArchived)
+  if (active.length === 0) return 0
+  const sum = active.reduce((total, i) => total + i.completionPercentage, 0)
+  return Math.round(sum / active.length)
+}
+
+/**
+ * Recomputes and persists projects.rollupPercentage from the project's own
+ * pms_issues -- called inline (not fire-and-forget) from createIssue()/
+ * updateIssue() below whenever an issue's completionPercentage or archived
+ * state can move the average, so the column is always current when read
+ * back (never a stale write nobody re-reads).
+ */
+export async function recalculateProjectRollup(db: TenantDb, orgId: string, projectId: string): Promise<number> {
+  const issues = await db.query.pmsIssues.findMany({
+    where: and(eq(pmsIssues.orgId, orgId), eq(pmsIssues.projectId, projectId)),
+    columns: { completionPercentage: true, isArchived: true },
+  })
+  const rollupPercentage = calculateProjectRollupPercentage(issues)
+  await db.update(projects).set({ rollupPercentage, updatedAt: new Date() }).where(and(eq(projects.id, projectId), eq(projects.orgId, orgId)))
+  return rollupPercentage
+}
+
 // Task #47 gap fix (PM-platform feature-parity gap analysis): pms_issues.
 // parentIssueId (self-FK, schema.ts) already supports real subtask nesting
 // and completionPercentage already exists as a column -- both written on
@@ -208,6 +241,7 @@ export async function createIssue(ctx: PmsContext, input: IssueInput) {
 
     await syncAssignees(db, issue.id, input.assigneeIds)
     await syncLabels(db, issue.id, input.labelIds)
+    await recalculateProjectRollup(db, ctx.orgId, input.projectId)
 
     return getIssueRow(db, issue.id)
   })
@@ -290,6 +324,13 @@ export async function updateIssue(ctx: PmsContext, issueId: string, patch: Issue
     }
     await syncAssignees(db, issueId, assigneeIds)
     await syncLabels(db, issueId, labelIds)
+
+    // Only recompute when this patch could actually move the average --
+    // skip the extra query+write on every unrelated field edit (title,
+    // description, assignees, ...).
+    if (patch.completionPercentage !== undefined || patch.isArchived !== undefined) {
+      await recalculateProjectRollup(db, ctx.orgId, existing.projectId)
+    }
 
     const row = await getIssueRow(db, issueId)
     return { row, previousStatusId: existing.statusId }

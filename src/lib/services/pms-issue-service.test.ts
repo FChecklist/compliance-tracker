@@ -7,7 +7,7 @@
 // exists in this environment).
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { predecessorIdsOf, computeParentCompletionPercentage } from "./pms-issue-service"
+import { predecessorIdsOf, calculateProjectRollupPercentage, computeParentCompletionPercentage } from "./pms-issue-service"
 
 type Relation = { issueId: string; relatedIssueId: string; relationType: "blocks" | "blocked_by" | "duplicates" | "relates_to" }
 
@@ -53,6 +53,55 @@ describe("predecessorIdsOf", () => {
       { issueId: "unrelated-1", relatedIssueId: "unrelated-2", relationType: "blocks" },
     ]
     expect(predecessorIdsOf(relations, "this-issue").sort()).toEqual(["pred-A", "pred-B"])
+  })
+})
+
+// Task #47 (PM feature-parity gap analysis): generalizes construction-
+// dashboard-service.ts's getProjectDashboard() "average of latest logged
+// percentComplete" rollup pattern to pms_issues.completionPercentage.
+describe("calculateProjectRollupPercentage", () => {
+  test("no issues at all rolls up to 0", () => {
+    expect(calculateProjectRollupPercentage([])).toBe(0)
+  })
+
+  test("averages completionPercentage across all non-archived issues", () => {
+    const issues = [
+      { completionPercentage: 100, isArchived: false },
+      { completionPercentage: 50, isArchived: false },
+      { completionPercentage: 0, isArchived: false },
+    ]
+    // (100 + 50 + 0) / 3 = 50
+    expect(calculateProjectRollupPercentage(issues)).toBe(50)
+  })
+
+  test("archived issues are excluded from both the sum and the denominator", () => {
+    const issues = [
+      { completionPercentage: 100, isArchived: false },
+      { completionPercentage: 0, isArchived: true }, // would drag the average down to 50 if wrongly included
+    ]
+    expect(calculateProjectRollupPercentage(issues)).toBe(100)
+  })
+
+  test("only archived issues rolls up to 0, not NaN/division-by-zero", () => {
+    const issues = [
+      { completionPercentage: 80, isArchived: true },
+      { completionPercentage: 40, isArchived: true },
+    ]
+    expect(calculateProjectRollupPercentage(issues)).toBe(0)
+  })
+
+  test("rounds a non-integer average to the nearest whole percent", () => {
+    const issues = [
+      { completionPercentage: 100, isArchived: false },
+      { completionPercentage: 100, isArchived: false },
+      { completionPercentage: 0, isArchived: false },
+    ]
+    // 200 / 3 = 66.66... -> rounds to 67
+    expect(calculateProjectRollupPercentage(issues)).toBe(67)
+  })
+
+  test("a single fully-complete issue rolls up to 100", () => {
+    expect(calculateProjectRollupPercentage([{ completionPercentage: 100, isArchived: false }])).toBe(100)
   })
 })
 
