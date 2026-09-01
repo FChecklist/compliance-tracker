@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 type Problem = { id: string; title: string; rootCause: string | null; status: string; createdAt: string };
 
 const STATUS_COLORS: Record<string, string> = {
-  open: "bg-ct-saffron/20 text-ct-saffron",
+  open: "bg-ct-saffron/20 text-ct-saffron-text",
   investigating: "bg-ct-teal/20 text-ct-teal",
   resolved: "bg-green-100 text-green-700",
 };

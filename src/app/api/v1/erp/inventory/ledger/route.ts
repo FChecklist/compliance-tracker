@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { listStockLedger, ServiceError } from "@/lib/services/erp-inventory-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ entries: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const entries = await listStockLedger({ orgId: ctx.orgId }, {

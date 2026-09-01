@@ -1917,7 +1917,7 @@
       "idx": 273,
       "version": "7",
       "when": 1785403893145,
-      "tag": "0269_ap_purchase_invoice_retention",
+      "tag": "0291_ap_purchase_invoice_retention",
       "breakpoints": true
     },
     {
@@ -1958,8 +1958,393 @@
     {
       "idx": 279,
       "version": "7",
-      "when": 1785473202622,
-      "tag": "0302_project_team_members",
+      "when": 1785416573446,
+      "tag": "0302_sales_pipeline_dashboard_targets",
+      "breakpoints": true
+    },
+    {
+      "idx": 280,
+      "version": "7",
+      "when": 1785566543898,
+      "tag": "0303_lead_source_effectiveness_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 281,
+      "version": "7",
+      "when": 1785566543899,
+      "tag": "0311_content_search_view",
+      "breakpoints": true
+    },
+    {
+      "idx": 282,
+      "version": "7",
+      "when": 1785325200005,
+      "tag": "0315_construction_progress_boq_line_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 283,
+      "version": "7",
+      "when": 1787318988740,
+      "tag": "0316_construction_labour_employee_code",
+      "breakpoints": true
+    },
+    {
+      "idx": 284,
+      "version": "7",
+      "when": 1787319413036,
+      "tag": "0317_construction_materials_and_receipts",
+      "breakpoints": true
+    },
+    {
+      "idx": 285,
+      "version": "7",
+      "when": 1787319935013,
+      "tag": "0318_work_progress_percent_complete_numeric",
+      "breakpoints": true
+    },
+    {
+      "idx": 286,
+      "version": "7",
+      "when": 1787321961322,
+      "tag": "0319_report_share_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 287,
+      "version": "7",
+      "when": 1787322481455,
+      "tag": "0320_project_value_and_po_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 288,
+      "version": "7",
+      "when": 1785325200006,
+      "tag": "0290_fi_ar_004_dunning_list",
+      "breakpoints": true
+    },
+    {
+      "idx": 289,
+      "version": "7",
+      "when": 1785325200007,
+      "tag": "0312_stage1_preauth_brand_host_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 290,
+      "version": "7",
+      "when": 1785325200008,
+      "tag": "0313_ai_team_role_overrides_rollout",
+      "breakpoints": true
+    },
+    {
+      "idx": 291,
+      "version": "7",
+      "when": 1785325200009,
+      "tag": "0314_sales_pipeline_module",
+      "breakpoints": true
+    },
+    {
+      "idx": 292,
+      "version": "7",
+      "when": 1787322481456,
+      "tag": "0321_dynamic_chains_product_branch_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 293,
+      "version": "7",
+      "when": 1787412244153,
+      "tag": "0322_construction_boq_budget_percentage",
+      "breakpoints": true
+    },
+    {
+      "idx": 294,
+      "version": "7",
+      "when": 1787412244154,
+      "tag": "0323_construction_boq_parent_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 295,
+      "version": "7",
+      "when": 1787412245154,
+      "tag": "0324_r43_reuse_store",
+      "breakpoints": true
+    },
+    {
+      "idx": 296,
+      "version": "7",
+      "when": 1787753440762,
+      "tag": "0325_r53_pill_usage_chain_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 297,
+      "version": "7",
+      "when": 1787772543081,
+      "tag": "0326_r53_one_base_currency_per_org",
+      "breakpoints": true
+    },
+    {
+      "idx": 298,
+      "version": "7",
+      "when": 1787825814747,
+      "tag": "0327_crr_p2_schema_drizzle_sync",
+      "breakpoints": true
+    },
+    {
+      "idx": 299,
+      "version": "7",
+      "when": 1787839200000,
+      "tag": "0328_erp_customers_active_name_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1787839201000,
+      "tag": "0329_r63_pipeline_level_models",
+      "breakpoints": true
+    },
+    {
+      "idx": 301,
+      "version": "7",
+      "when": 1787839202000,
+      "tag": "0330_r63_user_ai_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 302,
+      "version": "7",
+      "when": 1787839203000,
+      "tag": "0331_r63_ai_connector_providers",
+      "breakpoints": true
+    },
+    {
+      "idx": 303,
+      "version": "7",
+      "when": 1787839204000,
+      "tag": "0332_r63_fix_auth_user_id_wrong_fk_target",
+      "breakpoints": true
+    },
+    {
+      "idx": 304,
+      "version": "7",
+      "when": 1787839205000,
+      "tag": "0333_r63_enable_rls_platform_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 305,
+      "version": "7",
+      "when": 1787839206000,
+      "tag": "0334_r62_b7_rls_six_tenant_tables_sync",
+      "breakpoints": true
+    },
+    {
+      "idx": 306,
+      "version": "7",
+      "when": 1787839207000,
+      "tag": "0335_crm_accounts_ai_and_bridge_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 307,
+      "version": "7",
+      "when": 1787839208000,
+      "tag": "0336_construction_tenders",
+      "breakpoints": true
+    },
+    {
+      "idx": 308,
+      "version": "7",
+      "when": 1787839209000,
+      "tag": "0337_audit_logs_session_office_stamp",
+      "breakpoints": true
+    },
+    {
+      "idx": 309,
+      "version": "7",
+      "when": 1787839210000,
+      "tag": "0338_business_rules_engine",
+      "breakpoints": true
+    },
+    {
+      "idx": 310,
+      "version": "7",
+      "when": 1787839211000,
+      "tag": "0339_webhook_manual_redelivery",
+      "breakpoints": true
+    },
+    {
+      "idx": 311,
+      "version": "7",
+      "when": 1787839212000,
+      "tag": "0340_ai_model_lifecycle_benchmarking",
+      "breakpoints": true
+    },
+    {
+      "idx": 312,
+      "version": "7",
+      "when": 1787839215000,
+      "tag": "0343_interior_sales_packages",
+      "breakpoints": true
+    },
+    {
+      "idx": 313,
+      "version": "7",
+      "when": 1787839216000,
+      "tag": "0350_add_org_fk_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 314,
+      "version": "7",
+      "when": 1785566544899,
+      "tag": "0344_force_rls_crm_leads_stage_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 315,
+      "version": "7",
+      "when": 1787839217000,
+      "tag": "0360_task_assignees",
+      "breakpoints": true
+    },
+    {
+      "idx": 316,
+      "version": "7",
+      "when": 1787839218000,
+      "tag": "0400_platform_billing_plans_invoices",
+      "breakpoints": true
+    },
+    {
+      "idx": 317,
+      "version": "7",
+      "when": 1787839219000,
+      "tag": "0361_co001_cost_center_line_item_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 318,
+      "version": "7",
+      "when": 1787839220000,
+      "tag": "0362_co003_cost_center_hierarchy_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 319,
+      "version": "7",
+      "when": 1787839221000,
+      "tag": "0363_fi_gl_002_gl_account_balance_display_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 320,
+      "version": "7",
+      "when": 1787839222000,
+      "tag": "0364_fi_gl_008_gl_account_group_balances_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 321,
+      "version": "7",
+      "when": 1787839223000,
+      "tag": "0365_fi_gl_007_subledger_gl_reconciliation_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 322,
+      "version": "7",
+      "when": 1788174991342,
+      "tag": "0500_construction_expense_journal_entry_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 323,
+      "version": "7",
+      "when": 1788285600000,
+      "tag": "0501_construction_change_order_trade",
+      "breakpoints": true
+    },
+    {
+      "idx": 324,
+      "version": "7",
+      "when": 1788285700000,
+      "tag": "0502_construction_expense_entries_rework",
+      "breakpoints": true
+    },
+    {
+      "idx": 325,
+      "version": "7",
+      "when": 1788285800000,
+      "tag": "0503_v2_16_crm_perf_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 326,
+      "version": "7",
+      "when": 1788285900000,
+      "tag": "0504_search_perf_gin_trgm_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 327,
+      "version": "7",
+      "when": 1788286000000,
+      "tag": "0505_task_execution_traces",
+      "breakpoints": true
+    },
+    {
+      "idx": 328,
+      "version": "7",
+      "when": 1788286100000,
+      "tag": "0506_mother_router_roster_memory",
+      "breakpoints": true
+    },
+    {
+      "idx": 329,
+      "version": "7",
+      "when": 1788286200000,
+      "tag": "0507_crm007_sales_rep_performance_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 330,
+      "version": "7",
+      "when": 1788286300000,
+      "tag": "0508_sd006_sales_by_material_service_type_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 331,
+      "version": "7",
+      "when": 1788286600000,
+      "tag": "0509_prompt_translation_localization_marketplace",
+      "breakpoints": true
+    },
+    {
+      "idx": 332,
+      "version": "7",
+      "when": 1788286700000,
+      "tag": "0510_register_prompt_marketplace_listings",
+      "breakpoints": true
+    },
+    {
+      "idx": 333,
+      "version": "7",
+      "when": 1788286800000,
+      "tag": "0511_sales_pipeline_summary_prompt",
+      "breakpoints": true
+    },
+    {
+      "idx": 334,
+      "version": "7",
+      "when": 1788286900000,
+      "tag": "0512_project_team_members",
       "breakpoints": true
     }
   ]

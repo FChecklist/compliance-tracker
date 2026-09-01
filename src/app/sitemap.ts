@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 // Wave 113 SEO: one sitemap for the whole public family. App pages behind
 // auth are deliberately absent.
-const BASE = "https://veridian-ai-os.vercel.app";
+const BASE = "https://projexa-ai.com";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();

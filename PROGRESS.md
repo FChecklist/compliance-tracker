@@ -1,24 +1,33 @@
-# PROGRESS -- task-20260731-043738-crm--project-team-junction-table
+# PROGRESS -- rebase-sweep2b-663 (real rebase-merge for PR #663)
+
+## Scope
+Real rebase-merge of PR #663 (`worker/task-20260731-043738-crm--project-team-junction-table`,
+"feat(crm): project team junction table") onto current main, per this repo's standard
+rebase-sweep protocol. Prior triage + adversarial-verify (already complete before this sweep,
+not re-done here) confirmed a real, additive, still-missing gap: a repo-wide grep for
+`project_team_members`/`projectTeamMembers`/`ProjectTeamMember` on main's schema.ts and src/
+returned zero hits -- main's `projects` table still only carries a single `leadUserId`, no
+team/member join table exists. PR #663's migration + service functions
+(`addProjectTeamMember`/`removeProjectTeamMember`/`listProjectTeamMembers` in
+product-service.ts) are genuinely new.
 
 ## Completed
-- [x] Read ACTIVE-CLAIMS.yaml, no collision found, registered claim
-- [x] Studied pmsMeetingParticipants/userClientAccess/conversationParticipants junction-table shape + 0269_construction_progress_claims_workflow.sql (most recent real RLS/migration convention)
-- [x] Added `projectTeamMembers` table to src/lib/db/schema.ts (org-scoped, projectId/userId/role, matches pmsMeetings-depth RLS convention)
-- [x] Hand-written migration drizzle/0302_project_team_members.sql (fetched origin/main fresh, confirmed 0301 was the real highest prefix) -- table + indexes + backfill from existing leadUserId + RLS
-- [x] Registered `project_team_members` as exempted (pure join table) in ai-os/registry/asset-registry-coverage.yaml
-- [x] Added addProjectTeamMember/removeProjectTeamMember/listProjectTeamMembers to product-service.ts (the real home of all other project CRUD -- crm-service.ts has zero project-related code), keeping leadUserId consistent via extracted pure helpers resolveLeadUserIdOnAdd/resolveLeadUserIdOnRemove
-- [x] Unit tests for the pure helpers in product-service.test.ts (no live-DB test, matching repo convention)
-
-- [x] Fixed stale `crm-service.ts` comment references in schema.ts and the migration SQL (functions actually live in product-service.ts)
-- [x] `npx tsc --noEmit` clean (exit 0, zero output) across the whole repo
-- [x] `bun test src/lib/services/product-service.test.ts` -- 8 pass, 0 fail
-- [x] Committed (3b7eb3bc) + pushed `worker/task-20260731-043738-crm--project-team-junction-table`, opened PR #663: https://github.com/FChecklist/compliance-tracker/pull/663 -- left CI-green, not merged, no AUDIT verdict posted (per spec constraints)
-
-- [x] CI green on all required checks: Lint, Type Check, Build, Unit Tests, plus every guardrail job (Terminology, Guardrail Presence, Asset Registry Coverage, Metadata Index Coverage, Doc Cross-Reference, Doc Quarantine Banner, Documentation Sentinel, Secret Scanning, Security Pattern, CodeQL/Analyze). Fixed a Terminology Guardrail Check failure (hardcoded `2026-07-31` ISO date in two comments) in a follow-up commit.
-- [x] `audit-check` fails as expected -- Rule 10's mandatory-audit gate, waiting on an independent auditor's `AUDIT: PASS/FAIL` comment (not self-certifiable). `Vercel` also fails, but that's an unrelated account build-rate-limit (vercel.com/.../upgradeToPro=build-rate-limit), not a required check and not caused by this PR's code.
+- [x] Worktree: `git worktree add -b rebase-sweep2b-663` from
+      `origin/worker/task-20260731-043738-crm--project-team-junction-table`, `bun install`
+      (1203 packages).
+- [x] `git merge origin/main` -- 3 real conflicts: `PROGRESS.md` (single-current-entry
+      convention -- replaced wholesale, as here), `ai-os/boss/ACTIVE-CLAIMS.yaml` (took
+      origin/main's version wholesale -- this task's own claim entry there is moot since the
+      task completes via this merge), `drizzle/meta/_journal.json` (renumbered this PR's
+      migration entry above the true current highest prefix on origin/main, verified via
+      `git ls-tree -r origin/main -- drizzle/`, not a stale local checkout).
 
 ## Remaining
-- [ ] None -- task complete. PR #663 open, CI-green on every required check, awaiting independent Rule 7(c) audit (out of scope for this session to self-certify).
-
-## Note
-`KERNEL_CONSOLIDATION_STATUS.md` (which the spec asked to append a PR line to) does not exist anywhere in this repo -- confirmed absent both locally and on a freshly-fetched `origin/main` (`git ls-tree -r origin/main --name-only | grep -i kernel` returns nothing). Treating this as a stale reference from a different task template rather than inventing a new file/section whose expected structure isn't specified. PR description itself documents what was built and links back to this task.
+- [ ] Validate: `node scripts/check-governance-yaml-parse.mjs`, `bunx tsc --noEmit`, `bun test`
+      for touched files.
+- [ ] Commit, push `rebase-sweep2b-663`.
+- [ ] Open replacement PR "... [was #663]", close #663 with a comment pointing to it.
+- [ ] Check real CI on the new PR (`gh pr checks`) -- retry on transient network errors up to
+      5 times; ignore known-ambient failures (E2E Tests, Vercel, Secret Scanning on pre-existing
+      files, Promptfoo Evals).
+- [ ] Merge the new PR only when genuinely green (modulo the known-ambient ones).

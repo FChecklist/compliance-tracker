@@ -1,0 +1,17 @@
+-- R63 (owner directive, 2026-08-29): compliance.users.auth_user_id had a
+-- foreign key pointing at THIS project's OWN local auth.users table --
+-- a legacy artifact from before the real auth backend moved to
+-- evpckeuxgvahguwsaeul. Confirmed live: 0 of 93 accounts with a
+-- compliance.users row had a correctly-matching auth_user_id (7
+-- mismatched, 86 null) -- every fresh login was one FK-violation-driven
+-- 500 away from breaking requireAuth()'s self-healing update
+-- (src/lib/supabase/auth-guard.ts:295), because that update can never
+-- satisfy a constraint against a database that isn't the real session's
+-- issuer. Real Postgres FKs cannot span two separate Supabase
+-- projects/databases -- there is no way to "point this at
+-- evpckeuxgvahguwsaeul" at the database engine level, so the fix is to
+-- stop enforcing it here and let the application layer (which already
+-- resolves users by email, a stable cross-project key -- see
+-- lookupUserByEmail()) be the source of truth, matching how every
+-- external-auth-provider integration works in practice.
+ALTER TABLE "compliance"."users" DROP CONSTRAINT IF EXISTS "users_auth_user_id_fkey";
