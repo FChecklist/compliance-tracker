@@ -6,13 +6,13 @@
 // (../wiki/*), which is a genuinely different concept (org-wide reference
 // docs vs. per-project working notes).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listKbPages, createKbPage, ServiceError } from "@/lib/services/knowledge-base-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ pages: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const pages = await listKbPages({ orgId: ctx.orgId })

@@ -10,8 +10,9 @@
 // organisations itself, the same precedent org-license-service.ts and
 // cost-guard.ts already established for this exact table).
 import { db, organisations, productBranches } from "@/lib/db"
-import { eq, and, ne } from "drizzle-orm"
+import { eq, and, ne, sql } from "drizzle-orm"
 import { createClient } from "@supabase/supabase-js"
+import { cache } from "react"
 
 export const ORG_BRANDING_BUCKET = "org-branding"
 
@@ -216,3 +217,98 @@ export async function getBrandingAssetPath(orgId: string, kind: "logo" | "favico
   const org = await db.query.organisations.findFirst({ where: eq(organisations.id, orgId) })
   return (kind === "logo" ? org?.logo : org?.faviconUrl) ?? null
 }
+
+// ─── Stage 1: pre-authentication, domain-based resolution ─────────────────
+// OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, real Owner decision
+// 2026-08-04 (UMR-20260804-090421-c647): "PROJEXA is not a separate
+// platform, it is the first brand built on the one VERIDIAN platform...
+// PROJEXA differs only through brand configuration, domain, logo, theme,
+// colours, fonts, marketing pages, product name, never separate platform
+// logic." The domain is only a lookup key into product_branches (the real,
+// existing brand-configuration table) -- it is not itself the platform.
+//
+// Real, deterministic priority order the Owner specified, each layer only
+// overriding the layers beneath it:
+//   1. host header        -- resolved HERE, before any session exists
+//   2. brand configuration -- resolved HERE, from the matched product_branches row
+//   3. tenant configuration
+//   4. organisation configuration  } -- Stage 2, resolveBranding() above,
+//   5. user preference             } unchanged, always runs strictly AFTER
+//   6. session override            } login and naturally wins by running later
+//
+// This function is the ENTIRE real scope of Stage 1: a host string in,
+// either a matched brand's real display name or null (meaning "show the
+// platform default, exactly as today"). It never touches org/session state
+// -- Stage 2 (resolveBranding, unchanged above) remains the only path once
+// a real session exists, per the Owner's explicit instruction to keep Stage
+// 2 exactly as it already works.
+export interface PreAuthBrand {
+  productBranchId: string
+  brandName: string
+  // GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN (OCID-020 addendum,
+  // 2026-08-05): the one other real, already-existing product_branches
+  // column a per-host marketing page can honestly use -- "marketing
+  // one-liner, e.g. 'Run every marketplace from one place'" per this same
+  // table's own column comment above. Nullable: most branches (including
+  // the real PROJEXA row as of this writing) have never had one set;
+  // callers must fall back to their own existing default copy, exactly
+  // like `brandName`'s own null-means-platform-default contract.
+  tagline: string | null
+}
+
+// Deliberately permissive host normalization (strip a trailing :port, lowercase)
+// -- matches how Next.js's own `headers().get("host")` value looks in
+// practice (e.g. "projexa-ai.com" in production, "localhost:3000" in dev),
+// without re-validating domain syntax (DOMAIN_RE above already owns that
+// for the org-level customDomain input path; this is a lookup, not a write).
+function normalizeHost(host: string | null | undefined): string | null {
+  if (!host) return null
+  const withoutPort = host.split(":")[0]
+  const trimmed = withoutPort.trim().toLowerCase()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+// Never throws -- an unmatched or missing host resolves to null (the
+// platform default), matching resolveBranding()'s own "never a broken UI"
+// posture above. Only ever reads product_branches; never writes.
+// Real, independent-review-caught security fix: `host` is the raw,
+// attacker-controlled HTTP Host header -- an EARLIER version of this
+// function used `ilike()`, which is LIKE-pattern matching, not exact
+// matching. A crafted `Host: %` or `Host: _` header would then match ANY/
+// arbitrary row with a non-null `hostDomain`, letting an attacker force
+// incorrect brand resolution pre-authentication. The intent here has always
+// been a case-insensitive EXACT match (not a fuzzy search like the real
+// ilike() precedent in crm-accounts-service.ts/crm-service.ts/
+// erp-selling-service.ts, which deliberately wraps user input in `%...%`
+// for intentional fuzzy search -- a materially different, non-comparable
+// use case). Real fix: compare `lower(host_domain) = normalized` via a raw
+// SQL `lower()` expression -- an exact match, immune to LIKE metacharacters
+// since no LIKE operator is used at all.
+// Real bug fixed 2026-08-15 (Accessibility/WCAG gap-closure e2e job,
+// PR #1232 E2E Tests failure): this function's own comment above has always
+// claimed "never throws", but the `await db.query...findFirst(...)` call
+// below was NOT wrapped in a try/catch, so any DB unavailability (down,
+// unreachable, connection refused) propagated as an unhandled render error
+// on "/" and "/login" -- both call this on every single request,
+// unauthenticated, before any session exists. Confirmed directly: with a
+// placeholder DATABASE_URL pointing at nothing real (the same CI-only
+// pattern the `build`/`unit-tests` jobs already use), "/" 500'd with
+// `ECONNREFUSED` instead of rendering. Caught and degrades to null (the
+// platform-default brand, matching every other "unmatched host" outcome
+// this function already returns) so a DB outage never takes down the
+// public marketing/login pages -- same "never a broken UI" posture
+// resolveBranding() above documents for the authenticated path.
+export const resolvePreAuthBrandByHost = cache(async (host: string | null | undefined): Promise<PreAuthBrand | null> => {
+  const normalized = normalizeHost(host)
+  if (!normalized) return null
+  try {
+    const branch = await db.query.productBranches.findFirst({
+      where: eq(sql`lower(${productBranches.hostDomain})`, normalized),
+      columns: { id: true, displayName: true, tagline: true },
+    })
+    if (!branch) return null
+    return { productBranchId: branch.id, brandName: branch.displayName, tagline: branch.tagline ?? null }
+  } catch {
+    return null
+  }
+})

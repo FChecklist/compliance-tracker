@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listKpiEntries, submitKpiEntry, ServiceError } from "@/lib/services/construction-kpi-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ entries: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const kpiDefinitionId = request.nextUrl.searchParams.get("kpiDefinitionId")
   if (!kpiDefinitionId) return NextResponse.json({ error: "kpiDefinitionId query param is required" }, { status: 400 })
