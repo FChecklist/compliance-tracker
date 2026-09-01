@@ -40,24 +40,35 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive, r65-parte-billing-contracts) -- R65 Part E Billing Engine, Phase 2: billing_contracts schema + wiring into resolveActiveBillingRate's §14 priority resolution"
-    claimed_at: "2026-09-02T00:00Z"
+  - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
+    claimed_at: "2026-09-02T (this session)"
     claim: |
-      SPEC (memory: veridian_r65_part_e_billing_engine_directive_2026-09-01, directive §14
-      commercial-terms priority order; Phase 0 report veridian_r65_part_e_phase0_architecture_
-      report_2026-09-01's gap table). Phase 1 (PR #1567, merged) built billing_products/
-      billing_rates + Formula 1/2 engines + cost-rollup service, collapsing §14's 4-level
-      priority to 2 real levels (org-specific billing_rates row > standard row). This claim adds
-      the missing authorization-header table (billing_contracts) and a nullable billing_rates.
-      contract_id FK, taking §14 to 3 real levels (contract-backed org rate > bare org-specific
-      rate > standard rate) -- no real rate/contract numbers invented, same posture as Phase 1.
-      File scope: drizzle/052x_r65_parte_billing_contracts.sql (new migration, exact number
-      re-verified immediately before writing), src/lib/db/schema.ts (billingContracts table +
-      billingRates.contractId column, additive only), src/lib/services/billing-cost-rollup-
-      service.ts + .test.ts (resolveActiveContract/pickActiveContract + pickBestRate extension),
-      docs/master/TEST_COVERAGE_GAP.md (regenerated). Not touching platform_billing_invoices/
-      platform-billing-service.ts (a separate, live invoice path, out of scope for this claim)
-      or ai_cost_reconciliations/cost-reconciliation-service.ts (PR #1546's area).
+      SPEC (memory: veridian_r65_part_e_billing_engine_directive_2026-09-01 + its Phase 0
+      architecture report veridian_r65_part_e_phase0_architecture_report_2026-09-01's "PM
+      decisions recorded" section). Phase 1 (PR #1567, merged) and Phase 2 (PR #1568, merged --
+      see recently_completed below) built billing_products/billing_rates/billing_contracts +
+      Formula 1/2 engines + cost-rollup/resolution service. Verified live state fresh before
+      starting: HEAD migration 0527 (`git ls-tree -r origin/main -- drizzle/`), no open PRs
+      (`gh pr list --state open`), no conflicting active claim in this file (grepped for
+      "R65 Part E"/"billing_"/"formula-engine"/"billing-cost-rollup" -- zero matches).
+
+      Scoped increment: neither a new migration nor the deferred discount/credit pipeline
+      (§11-25, still genuinely tangled with real commercial numbers not yet approved). Instead:
+      extracted the "is this row currently effective as of a given instant" boundary decision --
+      previously ONLY inline Drizzle `lte(effective_from)/gt(effective_to)` WHERE-clause
+      fragments inside resolveActiveContract/resolveActiveBillingRate, untestable without a live
+      DB per this file's own pure/DB-touching test-split convention -- into pure, unit-tested
+      isEffectiveAsOf()/filterEffectiveAsOf() functions, then refactored both resolvers to use
+      them (behavior-preserving, same boundary semantics). Added 30 new tests covering directive
+      §17's mid-period rate-version-change example (generalized, incl. a regression guard),
+      multiple-concurrent-effective-rates scenarios, and contract-expiry boundary conditions
+      through the full resolution pipeline. Zero real rate/contract numbers invented -- same
+      posture as Phase 1/2. No schema/migration change.
+
+      File scope: src/lib/services/billing-cost-rollup-service.ts + .test.ts only. Not touching
+      formula-engine.ts (already well-covered), billing_discounts/credits/events/invoices (still
+      deferred per Phase 0's own gate), platform_billing_invoices/platform-billing-service.ts, or
+      ai_cost_reconciliations/cost-reconciliation-service.ts (PR #1546's area).
   - session_label: "claude-code (subagent, R65 Part C) -- memory-service.ts lifecycle/scope-isolation/retrieval-ranking test-scenario batch (directive Phase 13 subset, service-layer only)"
     claimed_at: "2026-09-02T00:00Z"
     claim: |
@@ -1661,3 +1672,23 @@ active:
       the submissions.classification column, any AI-router/escalation-
       tier/model-selection file, or the token_usage_ledger columns from
       Phase 2.
+recently_completed:
+  - session_label: "claude-code (interactive, r65-parte-billing-contracts) -- R65 Part E Billing Engine, Phase 2: billing_contracts schema + wiring into resolveActiveBillingRate's Sec14 priority resolution [DONE, merged as PR #1568 -- relocated here from active: by the Phase 3 session (r65-parte-phase3-formula-edge-cases), which found this entry never moved after its own real merge; per this file's own documented convention of appending just the one relevant entry under a fresh recently_completed: section when main has been pruned back to just its active: list, same precedent as the Task #47 rebase note above in this file's own history]"
+    claimed_at: "2026-09-02T00:00Z"
+    merged_as: "FChecklist/compliance-tracker PR #1568 (commit bca8433e), drizzle/0527_r65_parte_billing_contracts.sql."
+    claim: |
+      SPEC (memory: veridian_r65_part_e_billing_engine_directive_2026-09-01, directive Section 14
+      commercial-terms priority order; Phase 0 report veridian_r65_part_e_phase0_architecture_
+      report_2026-09-01's gap table). Phase 1 (PR #1567, merged) built billing_products/
+      billing_rates + Formula 1/2 engines + cost-rollup service, collapsing Section 14's 4-level
+      priority to 2 real levels (org-specific billing_rates row > standard row). This PR added
+      the missing authorization-header table (billing_contracts) and a nullable billing_rates.
+      contract_id FK, taking Section 14 to 3 real levels (contract-backed org rate > bare
+      org-specific rate > standard rate) -- no real rate/contract numbers invented, same posture
+      as Phase 1. File scope: drizzle/0527_r65_parte_billing_contracts.sql, src/lib/db/schema.ts
+      (billingContracts table + billingRates.contractId column, additive only),
+      src/lib/services/billing-cost-rollup-service.ts + .test.ts (resolveActiveContract/
+      pickActiveContract + pickBestRate extension), docs/master/TEST_COVERAGE_GAP.md
+      (regenerated). Did not touch platform_billing_invoices/platform-billing-service.ts (a
+      separate, live invoice path) or ai_cost_reconciliations/cost-reconciliation-service.ts
+      (PR #1546's area).
