@@ -1532,3 +1532,38 @@ active:
       stale idx sequence). `src/lib/db/schema.ts` was a clean additive
       conflict -- both sides added new, disjoint tables at/near the same
       insertion point; kept both blocks.
+  - session_label: "claude-code (subagent, R65 Part D Phase 4) -- submission-level classification (CHAT_ONLY|TASK|MULTIPLE_TASKS), per R65 Part D directive §3 and the R65 Part D Phase 0 architecture report's own Phase 4 recommendation (§4.3, §5)"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      R65 Part D Phase 0 report named submission-level classification as the
+      lowest-risk, most self-contained untouched phase (no interaction with
+      the AI-router/model-selection work, which stays out of scope here per
+      explicit instruction not to attempt Phase 6 dispatch-wiring yet).
+      Adds a nullable `classification` column (new Postgres enum
+      'CHAT_ONLY'|'TASK'|'MULTIPLE_TASKS') to compliance.submissions, and a
+      new pure derivation function (classifySubmission(), in
+      src/lib/pipeline/classify.ts) computed from the existing per-segment
+      verdict array run-submission.ts's resolution pass already produces --
+      no new DB read, no new AI call. Does NOT touch classify-only.ts /
+      POST /api/v1/projexa/classify (that response shape is explicitly
+      contract-frozen, platform.claude_log id 28, 'r53-handshake' process
+      required before any change). Does NOT touch pipeline_task_status/
+      pipeline_task_executor enum wiring (R65 Part D Phase 3, separately
+      scoped). Not merging PR #1563 (R65 Part D Phase 2, AI Usage Ledger,
+      open as of this claim) -- branched from main directly since this
+      phase has no dependency on its ledger columns; migration numbered
+      0525 to account for 0524 already being claimed by that open PR (see
+      this PR's own description for the resulting journal.json idx-346
+      merge-order collision, disclosed not silently avoided).
+    scope_note: >-
+      File scope: src/lib/db/schema.ts (additive only -- one new enum, one
+      new nullable column on the existing `submissions` table), new
+      drizzle/0525_r65_partd_submission_classification.sql +
+      drizzle/meta/_journal.json entry, src/lib/pipeline/classify.ts (new
+      exported pure function + type, existing exports unchanged),
+      src/lib/pipeline/run-submission.ts (wire the new function's output
+      into runSubmission()/runDirectTask()'s existing submission-status
+      update call and RunSubmissionResult/return shape), new
+      src/lib/pipeline/classify.test.ts additions covering the new
+      function. No changes to classify-only.ts, the /classify route, or
+      any pipeline_tasks column/enum.
