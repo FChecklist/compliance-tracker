@@ -46,6 +46,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -127,6 +128,18 @@ export default function SettingsPage() {
   const [orgRegulatoryEntityType, setOrgRegulatoryEntityType] = useState('general');
   const [orgSaving, setOrgSaving] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  // Gap closure, real live-found bug (GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-
+  // RENDERING, OCID-050 independent re-verification, UMR-20260802-165606-4413):
+  // `isAdmin` defaults to false until this fetch resolves, and GET /api/me
+  // was live-measured taking ~5s (root cause fixed separately, in
+  // src/app/api/me/route.ts). Before this fix, a real admin who opened an
+  // admin-gated tab (Subscription Plan, Organisation, Seats & AI Spend,
+  // Branding, Adoption Dashboard) inside that window saw the real
+  // false-negative "Only admins can view..." message, indistinguishable
+  // from an actual permissions problem. `profileLoaded` lets those sections
+  // show a real loading skeleton instead of asserting "not admin" before
+  // this fetch has actually had a chance to say so.
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,7 +152,7 @@ export default function SettingsPage() {
       setOrgAccountType(d.orgAccountType ?? 'company');
       setOrgRegulatoryEntityType(d.orgRegulatoryEntityType ?? 'general');
       setIsAdmin(d.role === 'admin');
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => { if (!cancelled) setProfileLoaded(true); });
     return () => { cancelled = true; };
   }, []);
 
@@ -552,7 +565,9 @@ export default function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isAdmin ? (
+                {!profileLoaded ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : isAdmin ? (
                   <OrgLimitsSection />
                 ) : (
                   <p className="text-sm text-muted-foreground">Only admins can view and change seat and spend limits.</p>
@@ -570,7 +585,9 @@ export default function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isAdmin ? (
+                {!profileLoaded ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : isAdmin ? (
                   <SubscriptionPlanSection />
                 ) : (
                   <p className="text-sm text-muted-foreground">Only admins can view and change the organisation&apos;s subscription plan.</p>
@@ -602,7 +619,9 @@ export default function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isAdmin ? (
+                {!profileLoaded ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : isAdmin ? (
                   <BrandingSection />
                 ) : (
                   <p className="text-sm text-muted-foreground">Only admins can view and change organisation branding.</p>
@@ -620,7 +639,9 @@ export default function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isAdmin ? (
+                {!profileLoaded ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : isAdmin ? (
                   <AdoptionMetricsSection />
                 ) : (
                   <p className="text-sm text-muted-foreground">Only admins can view the org adoption dashboard.</p>

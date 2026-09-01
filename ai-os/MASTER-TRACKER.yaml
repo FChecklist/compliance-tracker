@@ -831,6 +831,44 @@ open_items:
         origin/main` on a fresh clone, never trusted from `gh pr view`'s own report alone.
       size: n/a
       recommendation: "None -- this is a real, final status rollup, not an open item. OCID-020's own broader completion claim should cite this entry, not commit 11a5de5e, going forward."
+
+    - id: GAP-API-ME-SEQUENTIAL-AWAITS-ADMIN-FLASH
+      name: "GET /api/me ran 9 independent lookups as 9 sequential awaits (~5-9s total); settings/page.tsx's isAdmin had no loading gate, so admin-gated tabs flashed a false 'Only admins can view...' during that window -- CLOSED, real fix merged (PR #929)"
+      old_ids: []
+      status: "CLOSED -- real rebase-merge of PR #929 onto main (rebase-sweep2b-929), this task's own real re-verification confirmed both symptoms were still present on main prior to this merge"
+      detail: |
+        Distinct from, and complementary to, `GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING` above
+        (PR #930, `fetchMeWithSessionRetry`): that entry's own recommendation explicitly flagged an
+        open follow-up -- "worth a real follow-up gap to harden `/api/me` itself... rather than
+        requiring every caller to replicate this client-side pattern" -- because its fix was a
+        client-side retry for the intermittent all-null-fields `200` race, not a fix to `/api/me`'s
+        own sequential-lookup latency. This gap is that follow-up.
+
+        Independently re-confirmed still real on `main` immediately before this rebase-merge (not
+        re-triaged, per this task's own dispatch instructions -- prior triage + adversarial-verify
+        already established this): `src/app/api/me/route.ts` on `main` ran its org-row lookup plus
+        6 feature-flag checks (`pmsEnabled`, `veriChatV2Enabled`, `firmEnabled`, `erpEnabled`,
+        `salesEnabled`, plus `branding`/`subscriptionPlanStatus`/`assistantsUsedByCurrentUser`) as
+        sequential `await`s, none depending on another's result. `src/app/(app)/settings/page.tsx`'s
+        `isAdmin` was still a plain `useState(false)` with no loading gate, so a real admin who
+        opens an admin-gated tab (Subscription Plan, Organisation, Seats & AI Spend, Branding,
+        Adoption Dashboard) while that multi-second `/api/me` call is in flight sees a false
+        "Only admins can view..." message indistinguishable from an actual permissions denial.
+      size: S
+      recommendation: |
+        CLOSED. Two real fixes: (1) `src/app/api/me/route.ts` now runs all 9 lookups concurrently
+        via `Promise.all` -- they are genuinely independent. (2) `src/app/(app)/settings/page.tsx`
+        gates every admin-only section on a new `profileLoaded` state (a real loading skeleton)
+        instead of asserting "not admin" before the `/api/me` fetch has had a chance to resolve.
+        Merged onto `main` alongside, not in place of, PR #930's own `fetchMeWithSessionRetry`
+        null-body-race retry wrapper and its unmount-safety `cancelled` cleanup -- both real fixes
+        for two different real races are now present in the same `useEffect`. Real tests:
+        `src/app/api/me/route.test.ts` -- a real timing assertion proves the lookups run
+        concurrently (fails if this ever regresses to sequential awaits), plus response-shape and
+        no-org-id coverage. `tsc --noEmit` clean, governance YAML parse clean, targeted `bun test`
+        clean, re-verified against this merge's own actual post-merge file content (not assumed
+        from the pre-merge PR diff alone).
+
     - id: GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS
       name: "GET /api/me returns 500 (empty body) for every authenticated user on live projexa-ai.com, confirmed live -- severity: high, blocks the topbar/VERI-Chat-Home shell and every OCID-047..052 re-test that depends on /api/me"
       old_ids: []
@@ -3420,6 +3458,24 @@ open_items:
         confirm a graceful fallback instead of a blank page.
       status: open
       first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072940-6a88)"
+      implementation_note: |
+        2026-08-04, real implementation authorized (UMR-20260804-105822-a267): a real minimal
+        app-shell service worker (`public/sw.js`) + a real, plain static offline fallback page
+        (`public/offline.html`) added -- network-first for navigation requests only, falls back to
+        the cached offline page on a genuine network failure; every other request (API calls,
+        data fetches, static assets) passes straight through, untouched, since this app is
+        almost entirely dynamic/authenticated and caching API responses would risk stale/wrong
+        data. Deliberately NOT a full offline-first cache -- matches the real, narrow scope this
+        gap's own recommendation asked for. Registered inside `AppShell.tsx` (the authenticated
+        app shell, the exact real mount point the original gap was observed inside). Real, local
+        verification done: `bunx tsc --noEmit` clean, `bunx eslint` clean, `node --check
+        public/sw.js` confirms valid JS syntax, real unconstrained `bun run build` clean.
+        `status` deliberately left `open`, not flipped to `resolved`: this gap's own
+        recommendation explicitly requires "re-run this same real offline test to confirm a
+        graceful fallback instead of a blank page" against a real live session -- that live
+        re-test requires this fix to actually be deployed first (Vercel auto-deploys on merge to
+        `main`), so it is a genuine post-merge step, not something that can be honestly claimed
+        before the PR merges. Real PR opened, independent review pending, no self-certification.
 
     - id: GAP-MOBILE-VIEWPORT-BLANK-CONTENT
       name: "At a real 390x844 mobile viewport, the main content area rendered blank in an already-authenticated session (severity: unconfirmed -- single real observation, sidebar itself responded correctly)"

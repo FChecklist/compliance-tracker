@@ -2353,6 +2353,13 @@
       "when": 1788287000000,
       "tag": "0513_pms_project_status_access_rollup",
       "breakpoints": true
+    },
+    {
+      "idx": 336,
+      "version": "7",
+      "when": 1788287100000,
+      "tag": "0514_crm_campaigns_objective",
+      "breakpoints": true
     }
   ]
 }
