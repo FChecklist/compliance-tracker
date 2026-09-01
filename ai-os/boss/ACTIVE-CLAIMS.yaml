@@ -724,3 +724,48 @@ active:
       no `objective` column on `crm_campaigns`, no `objective` field on
       `CreateCampaignInput`, and this PR's own test file 404s against main
       before this merge.
+  - session_label: "claude-code (worker task-20260718-083004-cache---synchronization--cache-integrity) -- VERIDIAN Review Framework: Cache & Synchronization / Cache Integrity & Security (3 findings) [rebase-merged via rebase-final-1019, was PR #1019, superseding stale #1019 after 530-commit main drift + real ACTIVE-CLAIMS.yaml/PROGRESS.md/terminology-guardrail-exemptions.yaml conflict resolution]"
+    claimed_at: "2026-08-07T (original session); rebased+merged 2026-09-01"
+    claim: |
+      SPEC: VERIDIAN Review Framework gap-closure, "Cache & Synchronization /
+      Cache Integrity & Security" -- 3 findings, closed together in one PR
+      since all three are the same module/area (server-side LLM response
+      cache +, for the offline finding, a genuinely new but small
+      client-side shell). [High] Cache Security & Encryption --
+      `src/lib/llm-response-cache.ts`'s `content` column now encrypted at
+      rest via the existing pgcrypto helper (`src/lib/ai-config-crypto.ts`),
+      reused rather than a new scheme. [Medium] Automatic Cache Invalidation
+      -- `CACHE_TTL` named presets (`HIGH_VOLATILITY`/`STANDARD`/
+      `LOW_VOLATILITY`) + a per-call `ttlMs` option. [Critical] Offline
+      Cache Support -- new read-only offline shell (`public/sw.js` +
+      `public/offline.html` + `OfflineShell.tsx` + `use-online-status.ts`),
+      allowlisted to FM register-digitization rows GET + construction
+      site-diary GET aliases; every cached API response rebuilt from JSON
+      body only (no `Set-Cookie` ever persisted to Cache Storage); full
+      Cache Storage purged on logout (`AppTopbar.tsx`'s `handleLogout`).
+      Added `src/lib/llm-response-cache.test.ts` (8 passing tests, was 0
+      coverage before).
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-final-1019, replacement for PR
+      #1019): merged onto current main, which had independently pruned this
+      file's `active:` list to its current set and added many of its own
+      new entries since this claim was first written -- this entry
+      (describing PR #1019's real work) is re-appended here rather than
+      dropped, per the same precedent as the rebase-sweep2b-668 entry
+      immediately above. 3 real conflicts resolved during the merge:
+      `PROGRESS.md` (this repo's single-current-entry convention, replaced
+      wholesale), this same `ai-os/boss/ACTIVE-CLAIMS.yaml` (this file,
+      resolved as described here), and
+      `ai-os/registry/terminology-guardrail-exemptions.yaml` (purely
+      additive on both sides -- kept all entries from both, deduped the
+      unchanged-on-both-sides ones). No `drizzle/` conflicts -- this PR
+      never touches migrations. Security-relevant diff (pgcrypto reuse,
+      service-worker cookie-stripping via `cacheBodyOnly()`, full
+      Cache-Storage purge on logout) re-verified directly against the
+      merged tree, not just the original PR description -- no gap found.
+      The original PR's audit-check failure (SHA 809ee88f) was a
+      verdict-comment formatting bug (free text in the "Severity
+      Classified" field instead of one of the required enum values), not a
+      substantive finding -- a fresh, correctly-enumerated verdict (severity:
+      none) is required on this rebased head before the audit gate can
+      genuinely pass.
