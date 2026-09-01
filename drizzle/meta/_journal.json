@@ -2332,6 +2332,13 @@
       "when": 1788286700000,
       "tag": "0510_register_prompt_marketplace_listings",
       "breakpoints": true
+    },
+    {
+      "idx": 333,
+      "version": "7",
+      "when": 1788286800000,
+      "tag": "0511_sales_pipeline_summary_prompt",
+      "breakpoints": true
     }
   ]
 }
