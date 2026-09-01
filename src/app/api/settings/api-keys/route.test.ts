@@ -11,6 +11,22 @@
 // @/lib/db, @/lib/db/tenant-scoped and @/lib/api-keys are all mocked (same
 // convention as route.test.ts.branding) so this exercises only the route's
 // own input-normalization logic, not a live DB.
+//
+// CI-break fix (2026-09-01, R66 #1550 gap-closure follow-up): #1550 added a
+// `requireRole` import to route.ts (admin-role gate for this route), but this
+// mock.module("@/lib/supabase/auth-guard", ...) factory was never updated to
+// provide it -- Bun's static-import-binding check on the mocked module then
+// failed every test in this file with "Export named 'requireRole' not found
+// in module ... auth-guard.ts", since a mock.module factory fully replaces
+// the module's exports rather than merging with the real ones. This is NOT a
+// circular-import problem: auth-guard.ts's real (unmocked) circular import
+// with org-join-code-service.ts (see that file's own header comment) was
+// independently verified to still resolve cleanly -- ROLE_RANK/UserRole are
+// only ever read inside function bodies on both sides, never at module top
+// level, so hoisting order never matters there. requireRole is stubbed as
+// always-passing here (this file's job is proving scopes-normalization, not
+// re-testing the role gate -- see access-control gate coverage precedent in
+// branding/route.test.ts if that's ever needed for this route).
 import { describe, test, expect, mock } from "bun:test"
 
 function dbUser() {
@@ -29,6 +45,7 @@ function mockModules() {
   const insertedValues: any[] = []
   mock.module("@/lib/supabase/auth-guard", () => ({
     requireAuth: mock(async () => ({ response: null, dbUser: dbUser(), orgId: "org-1" })),
+    requireRole: mock(() => null),
   }))
   mock.module("@/lib/api-keys", () => ({
     generateApiKey: mock(() => "vk_faketestkey1234567890"),
