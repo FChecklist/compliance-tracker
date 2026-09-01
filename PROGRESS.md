@@ -89,3 +89,13 @@ real Vercel API -- no destructive action, no auth-logic change.
       of main's current list again, same as round 1).
       `ai-os/registry/terminology-guardrail-exemptions.yaml` merged with zero conflict this
       round -- neither this branch nor `30b2b7b5` touched overlapping lines.
+
+## Round 3 merge (2026-09-01, later same session)
+- [x] Re-checked before final merge attempt: main had advanced 1 more commit (`93bf5c11`,
+      "Cognitive Architecture: deterministic-first riskLevel ... [was #1037]"). Merged --
+      3 conflicts: `PROGRESS.md` (replaced wholesale again, same convention), this same
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` merged automatically with zero conflict this round, and
+      `docs/master/TEST_COVERAGE_GAP.md` (the incoming commit touched its own src/lib/services
+      file too, regenerating the same report -- resolved by regenerating fresh from the
+      post-merge src/lib/services tree via the same buildStats()/renderReport() direct-import
+      workaround, rather than hand-merging the two independently-regenerated versions).

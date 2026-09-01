@@ -3759,6 +3759,61 @@ open_items:
         follow-up, with the count corrected so it isn't read as stale."
       first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
 
+    - id: GAP-CONSTRUCTION-AI-RISKLEVEL-LLM-ONLY-CLASSIFICATION
+      name: "construction-ai-service.ts's detectBudgetScheduleRisk() had riskLevel decided by the LLM alone from purely numeric aggregates, violating CONSTITUTION.yaml's own software_first doctrine (SF-01/SF-02: deterministic software decides first, AI is the fallback)"
+      old_ids: []
+      detail: |
+        Found by task-20260718-171005-cognitive-architecture--deterministic-fi ("Cognitive
+        Architecture: Deterministic-First Principles" -- title-only dispatch, no prompt.txt spec
+        artifact; this session generated its own real findings against `CONSTITUTION.yaml`'s
+        `software_first` section since no prior session had produced one for this theme). A
+        codebase-wide audit for LLM call sites doing classification/scoring on purely structured
+        (non-free-text) input without a deterministic pre-check -- mirroring this repo's own
+        established pattern (`risk-classification.ts`'s `classifyRisk()`, `response-engine.ts`'s
+        "software decides which predefined label applies" doctrine) -- found 3 ranked candidates:
+        (1) `crm-service.ts`'s `scoreLead()`/`analyzeOpportunity()`, (2) `construction-ai-service.ts`'s
+        `detectBudgetScheduleRisk()`, (3) `ai-team/team-service.ts`'s `classifyTask()` (already a
+        self-documented, deferred follow-up in `capability-tree-service.ts:1032`).
+
+        `detectBudgetScheduleRisk()`'s `riskLevel` ("low"/"medium"/"high") was decided by the LLM
+        alone from `variance`, `delayedTaskCount`, and `totalTaskCount` -- all numbers, no free text
+        -- even though the prompt template itself
+        (`0105_wave123_construction_ai_prompts.sql`) already says "Base riskLevel primarily on
+        variance ... and the proportion of delayed tasks," i.e. it was asking the model to compute a
+        threshold a pure function can compute for real. It also threw a 400 whenever no AI model was
+        configured for the org, even though classification never needed AI in the first place.
+      size: "S -- one service function, additive."
+      recommendation: |
+        Add a pure `classifyBudgetScheduleRisk()` threshold function (most-severe-first, same style
+        as `risk-classification.ts`'s `classifyRisk()`) and use it for the real `riskLevel`; keep the
+        LLM call (when a model IS configured) for reasoning prose only, discarding its own `riskLevel`
+        output; return a deterministic template result when no model is configured instead of a 400.
+      status: resolved
+      first_raised: "task-20260718-171005-cognitive-architecture--deterministic-fi, 2026-08-07 (real codebase audit against CONSTITUTION.yaml's software_first section)"
+      resolved: |
+        2026-08-07, same session. Added `classifyBudgetScheduleRisk()` (pure, most-severe-first
+        threshold checks over overspend-ratio and delayed-task-ratio) and `templateBudgetScheduleRisk()`
+        (deterministic fallback reasoning text) to `construction-ai-service.ts`. `detectBudgetScheduleRisk()`
+        now always computes `riskLevel` deterministically; the LLM call (when a model is configured) is
+        used only for reasoning prose, and its own `riskLevel` output is always discarded and overridden.
+        When no AI model is configured, returns the real deterministic template result instead of
+        throwing 400.
+
+        Verification: new `construction-ai-service.test.ts` (11 tests) covering on-budget/under-budget,
+        medium/high overspend thresholds, medium/high delayed-ratio thresholds, "the more severe of the
+        two signals wins", and zero-budget/zero-tasks not dividing by zero -- 11/11 pass (`bun test`).
+        `bunx eslint` clean on both touched files. `bunx tsc --noEmit` run with a larger heap
+        (`--max-old-space-size=8192`, this box's default heap OOMs on this repo's size regardless of
+        this change) to confirm no type regressions.
+
+        **Real, disclosed follow-ups (NOT done here, flagged not silently dropped):** candidate (1)
+        `crm-service.ts`'s `scoreLead()`/`analyzeOpportunity()` is the same class of finding but a
+        larger product-behavior-change risk (changes what "AI-scored" means for existing leads/
+        opportunities) -- needs its own scoped task/PM decision. Candidate (3)
+        `ai-team/team-service.ts`'s `classifyTask()` is a routing/dispatch-path change with higher
+        blast radius (AI Dev Team task routing) -- also left for a separate task.
+
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
