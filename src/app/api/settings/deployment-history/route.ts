@@ -23,18 +23,23 @@ export async function GET() {
     return NextResponse.json({ error: "Only admins can view deployment history" }, { status: 403 })
   }
 
-  const events = await db.query.deploymentEvents.findMany({
-    orderBy: desc(deploymentEvents.receivedAt),
-    limit: 25,
-  })
+  try {
+    const events = await db.query.deploymentEvents.findMany({
+      orderBy: desc(deploymentEvents.receivedAt),
+      limit: 25,
+    })
 
-  return NextResponse.json({
-    // Whether the receiver can even authenticate a real delivery -- see
-    // that route's own fail-closed check. Surfaced here so an admin looking
-    // at an empty list can tell "no deployments happened yet" apart from
-    // "the webhook was never actually registered/configured," which
-    // MASTER-TRACKER.yaml records as still an open, disclosed item.
-    receiverConfigured: Boolean(process.env.VERCEL_DEPLOYMENT_WEBHOOK_SECRET),
-    events,
-  })
+    return NextResponse.json({
+      // Whether the receiver can even authenticate a real delivery -- see
+      // that route's own fail-closed check. Surfaced here so an admin looking
+      // at an empty list can tell "no deployments happened yet" apart from
+      // "the webhook was never actually registered/configured," which
+      // MASTER-TRACKER.yaml records as still an open, disclosed item.
+      receiverConfigured: Boolean(process.env.VERCEL_DEPLOYMENT_WEBHOOK_SECRET),
+      events,
+    })
+  } catch (error) {
+    console.error("Deployment history fetch error:", error)
+    return NextResponse.json({ error: "Failed to load deployment history" }, { status: 500 })
+  }
 }

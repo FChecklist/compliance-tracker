@@ -27,23 +27,28 @@ export async function GET() {
     return NextResponse.json({ error: "Only admins can view system health" }, { status: 403 })
   }
 
-  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
-  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  try {
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-  const [recent, [{ count: count24h } = { count: 0 }], [{ count: count7d } = { count: 0 }]] = await Promise.all([
-    db.query.applicationErrors.findMany({
-      orderBy: desc(applicationErrors.createdAt),
-      limit: 20,
-      columns: { id: true, route: true, message: true, createdAt: true, digestId: true },
-    }),
-    db.select({ count: sql<number>`count(*)::int` }).from(applicationErrors).where(gte(applicationErrors.createdAt, since24h)),
-    db.select({ count: sql<number>`count(*)::int` }).from(applicationErrors).where(gte(applicationErrors.createdAt, since7d)),
-  ])
+    const [recent, [{ count: count24h } = { count: 0 }], [{ count: count7d } = { count: 0 }]] = await Promise.all([
+      db.query.applicationErrors.findMany({
+        orderBy: desc(applicationErrors.createdAt),
+        limit: 20,
+        columns: { id: true, route: true, message: true, createdAt: true, digestId: true },
+      }),
+      db.select({ count: sql<number>`count(*)::int` }).from(applicationErrors).where(gte(applicationErrors.createdAt, since24h)),
+      db.select({ count: sql<number>`count(*)::int` }).from(applicationErrors).where(gte(applicationErrors.createdAt, since7d)),
+    ])
 
-  return NextResponse.json({
-    sentryConfigured: Boolean(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN),
-    count24h,
-    count7d,
-    recent,
-  })
+    return NextResponse.json({
+      sentryConfigured: Boolean(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN),
+      count24h,
+      count7d,
+      recent,
+    })
+  } catch (error) {
+    console.error("System health fetch error:", error)
+    return NextResponse.json({ error: "Failed to load system health" }, { status: 500 })
+  }
 }
