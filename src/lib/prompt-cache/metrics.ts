@@ -62,14 +62,13 @@ export function recordPromptCacheMetric(params: RecordPromptCacheMetricInput): v
     layerKey: params.layerKey,
     provider: params.provider,
     model: params.model,
+    // R65 Part D -- AI Usage Ledger (drizzle/0524): logTokenUsage() already
+    // reads cacheReadTokens/cacheCreationTokens off `usage` itself (see its
+    // own body) -- params.usage (an LLMUsage) already carries both, so no
+    // separate top-level fields are needed here. An earlier version of this
+    // change passed them redundantly as top-level LogTokenUsageInput
+    // properties, which don't exist on that type (TS2353) -- removed.
     usage: params.usage,
-    // R65 Part D -- AI Usage Ledger (drizzle/0524): params.usage already
-    // carries cacheReadTokens/cacheCreationTokens (read two lines above for
-    // cacheAttempted) -- forwarding them here closes the exact gap the
-    // R65 Part D Phase 0.5 follow-up flagged ("copy at write-time... given
-    // logTokenUsage()'s current shape").
-    cacheReadTokens: params.usage.cacheReadTokens ?? null,
-    cacheCreationTokens: params.usage.cacheCreationTokens ?? null,
     durationMs: params.durationMs ?? null,
   });
 }
