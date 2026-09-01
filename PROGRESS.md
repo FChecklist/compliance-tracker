@@ -119,6 +119,13 @@ Cache Storage purged on logout (`AppTopbar.tsx`'s `handleLogout`).
       own `Type Check` job (full tsc, more memory than this local sandbox)
       is the authoritative check.
 - [x] `bun test src/lib/llm-response-cache.test.ts` -- 8 pass, 0 fail.
+- [x] **Round 3**: before pushing, re-fetched `origin/main` once more out of
+      the same caution that caught round 2 -- PR #1533 (OCID-050, GET
+      `/api/me` perf + settings `isAdmin` loading gate) had landed. Merged
+      cleanly except `PROGRESS.md` itself (single-current-entry convention,
+      this entry kept on top). Re-verified `ai-os/MASTER-TRACKER.yaml`
+      (also touched by #1533) still matches this manifest's exemption count
+      after the merge -- unaffected, passes. No other files overlapped.
 - [x] Push `rebase-final-1019`, open replacement PR citing #1019, close
       #1019 as superseded.
 - [ ] Verify real CI on the new PR (audit-check must genuinely pass with a
