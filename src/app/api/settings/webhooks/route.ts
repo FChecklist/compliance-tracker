@@ -1,8 +1,8 @@
 import { webhooks, webhookDeliveries } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
-import { eq, desc } from "drizzle-orm";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { eq, desc, inArray } from "drizzle-orm";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 
 const VALID_EVENTS = [
   "item.created",
@@ -28,9 +28,19 @@ function generateSecret(): string {
   return `whsec_${result}`;
 }
 
+// R66 gap-closure (code-quality inspection 2026-09-01, critical finding):
+// neither handler in this file previously called requireRole, so any
+// authenticated org member -- not just admin -- could read every webhook's
+// signing secret and register new webhooks pointed at an arbitrary HTTPS
+// URL, exfiltrating internal ERP/CRM events. Both handlers now gate on
+// requireRole(dbUser, "admin"), matching every sibling settings/* route
+// (branding, sso). GET also switched its per-webhook deliveries lookup from
+// an N+1 loop to a single batched query.
 export async function GET() {
-  const { response, orgId } = await requireAuth();
+  const { response, dbUser, orgId } = await requireAuth();
   if (response) return response;
+  const roleErr = requireRole(dbUser, "admin");
+  if (roleErr) return roleErr;
   if (!orgId) return NextResponse.json({ webhooks: [] });
 
   try {
@@ -39,36 +49,45 @@ export async function GET() {
         orderBy: desc(webhooks.createdAt),
       });
 
-      // For each webhook, get last 5 deliveries
-      return Promise.all(
-        items.map(async (w) => {
-          const deliveries = await db.query.webhookDeliveries.findMany({
-            where: eq(webhookDeliveries.webhookId, w.id),
+      // Batch-fetch the last 5 deliveries per webhook in one query instead
+      // of one query per webhook (R66 gap-closure: was an N+1 pattern).
+      const webhookIds = items.map((w) => w.id);
+      const allDeliveries = webhookIds.length
+        ? await db.query.webhookDeliveries.findMany({
+            where: inArray(webhookDeliveries.webhookId, webhookIds),
             orderBy: desc(webhookDeliveries.createdAt),
-            limit: 5,
-          });
-          return {
-            id: w.id,
-            name: w.name,
-            url: w.url,
-            secret: w.secret,
-            events: w.events,
-            isActive: w.isActive,
-            lastDeliveryAt: w.lastDeliveryAt?.toISOString() ?? null,
-            lastStatusCode: w.lastStatusCode,
-            createdAt: w.createdAt.toISOString(),
-            recentDeliveries: deliveries.map((d) => ({
-              id: d.id,
-              eventType: d.eventType,
-              statusCode: d.statusCode,
-              success: d.success,
-              attempt: d.attempt,
-              redeliveryOfId: d.redeliveryOfId,
-              createdAt: d.createdAt.toISOString(),
-            })),
-          };
-        })
-      );
+          })
+        : [];
+      const deliveriesByWebhookId = new Map<string, typeof allDeliveries>();
+      for (const d of allDeliveries) {
+        const list = deliveriesByWebhookId.get(d.webhookId) ?? [];
+        if (list.length < 5) list.push(d);
+        deliveriesByWebhookId.set(d.webhookId, list);
+      }
+
+      return items.map((w) => {
+        const deliveries = deliveriesByWebhookId.get(w.id) ?? [];
+        return {
+          id: w.id,
+          name: w.name,
+          url: w.url,
+          secret: w.secret,
+          events: w.events,
+          isActive: w.isActive,
+          lastDeliveryAt: w.lastDeliveryAt?.toISOString() ?? null,
+          lastStatusCode: w.lastStatusCode,
+          createdAt: w.createdAt.toISOString(),
+          recentDeliveries: deliveries.map((d) => ({
+            id: d.id,
+            eventType: d.eventType,
+            statusCode: d.statusCode,
+            success: d.success,
+            attempt: d.attempt,
+            redeliveryOfId: d.redeliveryOfId,
+            createdAt: d.createdAt.toISOString(),
+          })),
+        };
+      });
     });
 
     return NextResponse.json({ webhooks: results });
@@ -79,8 +98,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { response, orgId } = await requireAuth();
+  const { response, dbUser, orgId } = await requireAuth();
   if (response) return response;
+  const roleErr = requireRole(dbUser, "admin");
+  if (roleErr) return roleErr;
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 });
 
   try {
