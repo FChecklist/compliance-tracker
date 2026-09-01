@@ -2,12 +2,20 @@ import { apiKeys } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { desc } from "drizzle-orm";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 import { hashSHA256, generateApiKey } from "@/lib/api-keys";
 
+// R66 gap-closure (code-quality inspection 2026-09-01, critical finding):
+// neither handler in this file previously called requireRole, so any
+// authenticated org member -- not just admin -- could mint a new API key
+// with read/write scope, granting durable programmatic access to the org's
+// ERP/CRM/HR data. Both handlers now gate on requireRole(dbUser, "admin"),
+// matching every sibling settings/* route (branding, sso, webhooks).
 export async function GET() {
-  const { response, orgId } = await requireAuth();
+  const { response, dbUser, orgId } = await requireAuth();
   if (response) return response;
+  const roleErr = requireRole(dbUser, "admin");
+  if (roleErr) return roleErr;
   if (!orgId) return NextResponse.json({ keys: [] });
 
   try {
@@ -37,8 +45,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { response, orgId } = await requireAuth();
+  const { response, dbUser, orgId } = await requireAuth();
   if (response) return response;
+  const roleErr = requireRole(dbUser, "admin");
+  if (roleErr) return roleErr;
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 });
 
   try {
