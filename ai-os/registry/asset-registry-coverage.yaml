@@ -900,6 +900,8 @@ exempted:
     reason: "Priority 14/GAP-UMR-TABLE-COVERAGE 5th batch review (2026-07-14): has org_id but no display-name column (csat_score/nps_score/comment only) -- a survey-response row, same class as the already-exempted approval_preferences."
   - table: token_usage_ledger
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: ai_cost_reconciliations
+    reason: "AI Cost Governance & FinOps gap-closure (2026-08-01): a Finance-entered monthly reconciliation record (real provider invoice total vs. token_usage_ledger's own estimate for that provider+month), same posture as the token_usage_ledger row directly above it -- financial transaction/audit data, not a discoverable platform asset a user browses by name (there is no meaningful 'display name' for a row identified by period_month+provider). No org_id: provider invoices bill the whole platform, not a single tenant."
   - table: tool_health_events
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: prompt_cache_metrics

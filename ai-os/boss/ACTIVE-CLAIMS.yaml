@@ -424,6 +424,8 @@ active:
       recommended fix is a forward-enforcing check, not a full rewrite).
   - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
+  - session_label: "claude-code (task-20260801-173614-retry-ai-cost-governance-finops-cost-vis) -- VERIDIAN Review Framework gap-closure: AI Cost Governance & FinOps / Cost Visibility & Attribution [DELIVERABLE COMPLETE, PR #687 -- all CI checks pass incl. audit-check against true head SHA 94604b1f5, real AUDIT: PASS on record; merge blocked only by the repo-wide review-identity deadlock (see ai-os/boss/ACTIVE-CLAIMS.yaml history + PROGRESS.md), Owner action needed -- move to recently_completed once merged]"
+    claimed_at: "2026-08-01T (this session)"
     claim: |
       SPEC (this task's own prompt.txt, citing real UMR `UMR-20260803-084718-ce79`, OCID-046, parented
       to OCID-045 `UMR-20260803-084637-ada4` -- itself registered this same cycle, discovery-only,
@@ -1371,6 +1373,38 @@ active:
       No `drizzle/` conflicts and no migration files anywhere in this PR's diff (confirmed via
       `git diff <merge-base> HEAD --stat -- drizzle/` returning empty), so no journal
       renumbering was needed.
+  - session_label: "claude-code -- task-20260718-062003-ai-cost-governance---finops--cost-visibi [rebase-merging via rebase-sweep2b-1212, was PR #1212, per this repo's standard rebase-sweep protocol]"
+    claimed_at: "2026-08-15T (original session); rebased 2026-09-01"
+    claim: |
+      SPEC: VERIDIAN Review Framework "AI Cost Governance & FinOps" (4 findings). Real
+      implementation: per-tenant Finance UI (src/app/(app)/ai-cost-governance/page.tsx,
+      veridian_admin-gated, sidebar-linked), compliance.ai_cost_reconciliations table
+      (drizzle/0518, RLS + service_role policy), cost-reconciliation-service.ts (pure
+      helpers unit-tested; DB-touching functions follow cost-anomaly-service.ts's split),
+      GET/POST /api/finance/ai-cost-reconciliation, docs/AI_COST_GOVERNANCE_FINOPS.md.
+      Originally built as PR #687 (AUDIT: PASS, all-green CI) but left `mergeable:
+      CONFLICTING` for weeks as main advanced; PR #1212 rebased that same content onto
+      main once and reopened under this task's own assigned branch (worker's push-scope
+      guard blocked pushing directly to #687's branch). #687 was left open, citing #1212
+      as its replacement.
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-sweep2b-1212, replacement for PR #1212): merged
+      onto current main, which had independently pruned this file's `active:` list down to
+      its current set since #1212's branch last synced (confirmed by diffing the merge-base
+      against origin/main) -- did not reintroduce the stale bloated version, took main's
+      current content as-is and appended this one real entry. Also resolved a real
+      conflict in `ai-os/registry/terminology-guardrail-exemptions.yaml` (count bump for
+      `src/lib/db/schema.ts`'s baseline, verified against the real checker script, not
+      guessed) and `drizzle/meta/_journal.json` (renumbered the migration above main's
+      true current highest, verified via `git ls-tree -r origin/main -- drizzle/`), plus a
+      real logic conflict in `src/lib/services/token-usage-service.ts` and an additive-only
+      conflict in `src/lib/db/schema.ts` -- see PROGRESS.md for the full resolution detail.
+    scope_note: >-
+      File scope: src/app/(app)/ai-cost-governance/**, src/app/api/finance/**,
+      src/lib/services/cost-reconciliation-service.ts(+.test.ts),
+      src/lib/services/token-usage-service.ts (byOrg groupLabel join, additive),
+      drizzle/0518_ai_cost_reconciliation.sql (renumbered from 0304 during this rebase),
+      docs/AI_COST_GOVERNANCE_FINOPS.md, PROGRESS.md, this file.
   - session_label: "claude-code (rebase-sweep3-1536) -- fix(OCID-020): resolve real per-host brand mismatch on /signup and /mfa-challenge [rebase-merging via rebase-sweep3-1536, was PR #1536/#965, per this repo's standard rebase-sweep protocol]"
     claimed_at: "2026-09-01T (this session); rebased 2026-09-01 (round 2, main advanced again mid-flight)"
     claim: |

@@ -35,6 +35,14 @@
 # baseline (new, never-before-seen debt), never on the pre-existing count itself.
 #
 exemptions:
+  - file: src/app/(app)/ai-cost-governance/page.tsx
+    reason: "AI Cost Governance & FinOps gap-closure (2026-08-01, rebase-merged via rebase-sweep2b-1212, was PR #1212): 2 real dated comments -- the header comment documenting when this page's gap-closure work was done, and a comment citing the real 2026-07-18 date GET /api/ai/team/token-usage was originally built (existing, cited fact, not a new hardcoded example) -- not real business hardcoding, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 2
+  - file: src/lib/services/cost-reconciliation-service.test.ts
+    reason: "AI Cost Governance & FinOps gap-closure (2026-08-01, rebase-merged via rebase-sweep2b-1212, was PR #1212): 3 genuine test-fixture literal dates in parsePeriodMonth()'s unit tests (a valid month, a December-rollover month, and a malformed-input rejection case) -- functionally required inputs for the date-parsing logic under test, same out-of-scope class already applied to *.test.ts fixture data per Phase 2's directory-scoped rollout (task-20260724-115921)."
+    findings_by_category:
+      hardcoded_iso_date: 3
   - file: src/lib/engines/marketing-engine.test.ts
     reason: "Rebase-final-1019 real-count correction (2026-09-01, PR #1019's rebase-merge onto current main): this file (added by PR #668/#1529's own rebase-merge, already on main before this merge) had no prior exemption entry. 1 genuine dated gap-closure comment (line 2, Task #46 CRM Campaigns gap-closure, 2026-07-31) -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
     findings_by_category:
@@ -2461,9 +2469,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 5
   - file: src/lib/db/schema.ts
-    reason: "[carried from main, count re-verified 97 on 2026-09-01 rebase full-repo rescan, was 88] Rebase-sweep2-618 real-count correction (2026-09-01, PR #618's rebase-merge onto current main): raised to 100, same benign class. Rebase-final-1019 real-count correction (2026-09-01, PR #1019's rebase-merge onto current main): node scripts/check-terminology-guardrail.mjs --full-repo run for real post-merge found this file's true current count is 101, not 100 -- touched by a commit that landed on main after the prior full-repo baseline snapshot, unrelated to PR #1019 itself. Confirmed on spot-read: same benign class throughout (dated changelog/gap-closure/task-ID comments and governance-registry log entries), not hardcoded secrets, PII, or human example data. Raised to the real current count."
+    reason: "[carried from main, count re-verified 97 on 2026-09-01 rebase full-repo rescan, was 88] Rebase-sweep2-618 real-count correction (2026-09-01, PR #618's rebase-merge onto current main): raised to 100, same benign class. Rebase-final-1019 real-count correction (2026-09-01, PR #1019's rebase-merge onto current main): node scripts/check-terminology-guardrail.mjs --full-repo run for real post-merge found this file's true current count is 101, not 100 -- touched by a commit that landed on main after the prior full-repo baseline snapshot, unrelated to PR #1019 itself. Confirmed on spot-read: same benign class throughout (dated changelog/gap-closure/task-ID comments and governance-registry log entries), not hardcoded secrets, PII, or human example data. Raised to the real current count. Rebase-sweep2b-1212 real-count correction (2026-09-01, PR #1212's rebase-merge onto current main): PR #1212's own aiCostReconciliations table adds one real dated comment (line ~10080, '2026-08-01') -- verified via `node scripts/check-terminology-guardrail.mjs --file src/lib/db/schema.ts`, which reported exactly this one new finding and no others. Same benign class, not example/sample data. Raised 101 -> 102."
     findings_by_category:
-      hardcoded_iso_date: 101
+      hardcoded_iso_date: 102
   - file: src/lib/db/tenant-scoped.ts
     reason: "Rebase-regenerated full-repo baseline (2026-09-01, real rescan against current main during PR #554's rebase-merge): bare-ISO-date-shape regex false positive. This repo names files, task IDs, and instruction IDs with an embedded date as standard practice (changelog/gap-closure/task-ID/commit-date references), which is what every non-comment/non-code instance in this category resolves to on direct read -- not human example/sample data. 2 finding(s) in this file."
     findings_by_category:

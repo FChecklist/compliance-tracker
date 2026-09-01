@@ -232,6 +232,7 @@
           "documents": "Documents",
           "enterpriseKpiHub": "Enterprise KPI Hub",
           "aiObservability": "AI Observability",
+          "aiCostGovernance": "AI Cost & FinOps",
           "knowledgeBase": "Knowledge Base",
           "automation": "Automation",
           "metricAlerts": "Metric Alerts",

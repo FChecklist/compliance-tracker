@@ -2381,6 +2381,13 @@
       "when": 1788287400000,
       "tag": "0517_register_erp_statistical_key_figure_types",
       "breakpoints": true
+    },
+    {
+      "idx": 340,
+      "version": "7",
+      "when": 1788287500000,
+      "tag": "0518_ai_cost_reconciliation",
+      "breakpoints": true
     }
   ]
 }

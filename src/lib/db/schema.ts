@@ -10075,6 +10075,40 @@ export const tokenUsageLedger = complianceSchemaDB.table('token_usage_ledger', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── AI Cost Reconciliation (Finance) ─────────────────────────────────────
+// VERIDIAN Review Framework remediation (AI Cost Governance & FinOps,
+// 2026-08-01), two findings closed together: (1) "cost attribution
+// reconciles against actual OpenRouter/provider invoices" -- token_usage_
+// ledger.estimated_cost_usd is a token-count * MODEL_PRICING estimate,
+// never checked against what a provider actually billed; (2) "cost-per-
+// report / cost-per-AI-action are measurable, not estimated" -- true
+// per-request billing granularity isn't something OpenRouter/Groq/Cerebras/
+// Anthropic expose at all (their invoices are monthly aggregates), so an
+// exact per-action reconciliation isn't buildable; the recommended approach
+// for both findings was the same: manual monthly reconciliation first,
+// automate later only if drift turns out to be significant/recurring. This
+// table is that manual record: Finance enters the real invoice total for a
+// (provider, calendar month) once a bill arrives; estimated_ledger_usd is
+// snapshotted from token_usage_ledger at record time so the comparison
+// stays stable, and variance_usd/variance_pct give a standing "how far off
+// are our estimates" figure the UI surfaces next to every per-action cost
+// so nobody mistakes an estimate for a measured fact. No org_id -- provider
+// invoices bill the whole platform, not a single tenant, same platform-
+// governed posture as token_usage_ledger's own scope='ai_team_internal'
+// rows.
+export const aiCostReconciliations = complianceSchemaDB.table('ai_cost_reconciliations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  periodMonth: text('period_month').notNull(), // 'YYYY-MM-01', first-of-month, matches startOfMonthUtc's convention
+  provider: text('provider').notNull(), // matches token_usage_ledger.provider values, e.g. 'openrouter'
+  actualInvoiceUsd: numeric('actual_invoice_usd').notNull(), // Finance-entered, from the real provider bill
+  estimatedLedgerUsd: numeric('estimated_ledger_usd').notNull(), // sum(token_usage_ledger.estimated_cost_usd) for this provider+month, snapshotted at record time
+  varianceUsd: numeric('variance_usd').notNull(), // actual - estimated
+  variancePct: numeric('variance_pct'), // variance / actual * 100; null when actual is 0 (avoids a div-by-zero fabrication)
+  notes: text('notes'),
+  recordedByUserId: text('recorded_by_user_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── Platform Billing (Commercial / Subscription & Pricing Model) ───────
 // VERIDIAN Review Framework gap-closure, 2026-08-07: two related findings
 // -- "Per-User AI Subscription Model" and "Base Subscription + Token
