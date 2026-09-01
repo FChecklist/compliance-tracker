@@ -13260,3 +13260,89 @@ export const postCommentsRelations = relations(postComments, ({ one }) => ({
   post: one(posts, { fields: [postComments.postId], references: [posts.id] }),
   author: one(users, { fields: [postComments.authorId], references: [users.id] }),
 }))
+
+// ─── R65 Part C Phase 1 (persistent-memory schema foundation) ─────────────
+// Migration drizzle/0520_r65_partc_phase1_memory_schema.sql -- see that
+// file's own header for the full reuse-decision rationale (memory_store /
+// assistant_memories left untouched, embeddings/embedding_cache not
+// duplicated, "UMR" renamed to registry_ref to avoid colliding with
+// platform_assets' own UMR meaning). Phase 1 is schema only: no embedding
+// column yet (added by a later migration via raw SQL, not drizzle-kit,
+// same reason platform_assets/embeddings' own vector columns are raw
+// SQL -- pgvector types aren't in drizzle-orm's pg-core column set), and
+// no embedding-generation code (a later phase calls src/lib/embeddings.ts's
+// existing storeEmbedding()/findSimilar() instead of reimplementing it).
+//
+// scopeType can be GLOBAL/INDUSTRY (orgId NULL, platform-wide) or
+// ORGANIZATION/USER/PROJECT/TASK/CONVERSATION/DOCUMENT (orgId NOT NULL) --
+// enforced by memory_records_org_id_scope_consistency_check in the
+// migration, not representable as a plain Drizzle column constraint (this
+// schema.ts file has no CHECK-constraint helper usage anywhere else
+// either -- every CHECK in this codebase lives in the hand-written
+// migration SQL, e.g. asset_registration_config_asset_type_check).
+export const memoryRecords = complianceSchemaDB.table('memory_records', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  scopeType: text('scope_type').notNull(), // 'GLOBAL'|'INDUSTRY'|'ORGANIZATION'|'USER'|'PROJECT'|'TASK'|'CONVERSATION'|'DOCUMENT'
+  scopeId: text('scope_id'), // the scoped entity's own id, meaning depends on scopeType -- polymorphic, no single FK target (same shape as platformAssets.sourceTable/sourceId)
+  orgId: text('org_id'), // NULL for GLOBAL/INDUSTRY, NOT NULL otherwise (DB-enforced, see migration)
+  userId: text('user_id'),
+  industryId: text('industry_id'),
+  projectId: text('project_id'),
+  taskId: text('task_id'),
+  memoryType: text('memory_type').notNull(), // 'FACT'|'PREFERENCE'|'RULE'|'PROCEDURE'|'DECISION'|'CONTEXT'|'HISTORY'|'LESSON'|'PATTERN'|'WORKFLOW'|'TASK_RESULT'|'DOCUMENT_KNOWLEDGE'|'USER_INSTRUCTION'|'ORGANIZATION_INSTRUCTION'|'INDUSTRY_KNOWLEDGE'
+  content: text('content').notNull(), // canonical processed content
+  contentHash: text('content_hash').notNull(), // sha256 hex, indexed -- dedup/change-detection key
+  confidence: numeric('confidence'),
+  provenanceType: text('provenance_type').notNull(), // 'USER_CONFIRMED'|'DATABASE_CONFIRMED'|'SYSTEM_DERIVED'|'AI_INFERRED'|'EXTERNAL_SOURCE'
+  lifecycleState: text('lifecycle_state').notNull().default('CANDIDATE'), // 'TRANSIENT'|'CANDIDATE'|'CONFIRMED'|'ACTIVE'|'SUPERSEDED'|'ARCHIVED'
+  sourceType: text('source_type'),
+  sourceId: text('source_id'),
+  // Named registry_ref, NOT umr -- see this table's own header above and
+  // the migration's header for why. No FK constraint (deliberately, per
+  // spec) and no relation to platformAssets -- a plain free-text pointer.
+  registryRef: text('registry_ref'),
+  metadata: jsonb('metadata').notNull().default({}),
+  version: integer('version').notNull().default(1),
+  // Self-referencing, null when not superseded -- real FK constraint added
+  // in the migration (compliance.memory_records(id)), same convention as
+  // platformAssets.parentAssetId: no Drizzle `.references()` here (would
+  // require the AnyPgColumn self-ref workaround this codebase doesn't
+  // otherwise use), but genuinely enforced at the DB level.
+  supersededById: text('superseded_by_id'),
+  effectiveFrom: timestamp('effective_from').notNull().defaultNow(),
+  effectiveTo: timestamp('effective_to'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Provenance detail for a memoryRecords row -- org-scoped only through its
+// parent (no orgId column of its own), same shape as
+// erpSalesInvoiceItems -> erpSalesInvoices (RLS is an EXISTS join in the
+// migration, see 0041_wave49_erp_branch_and_accounting_schema.sql).
+export const memorySources = complianceSchemaDB.table('memory_sources', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  memoryRecordId: text('memory_record_id').notNull(), // FK -> memoryRecords.id ON DELETE CASCADE, added in the migration
+  sourceKind: text('source_kind').notNull(), // 'CONVERSATION'|'TASK'|'DOCUMENT'|'SHEET_ROW'|'MANUAL'
+  conversationId: text('conversation_id'),
+  taskId: text('task_id'),
+  documentId: text('document_id'),
+  sheetRowRef: text('sheet_row_ref'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Append-only version history of a memoryRecords row's content. Never
+// UPDATEd or DELETEd once written -- enforced at the DB level, not just by
+// convention: the migration's RLS grants app_runtime SELECT + INSERT only
+// on this table, no UPDATE/DELETE policy or grant exists for app_runtime
+// at all.
+export const memoryVersions = complianceSchemaDB.table('memory_versions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  memoryRecordId: text('memory_record_id').notNull(), // FK -> memoryRecords.id ON DELETE CASCADE, added in the migration
+  versionNumber: integer('version_number').notNull(),
+  contentSnapshot: text('content_snapshot').notNull(), // full content at this version
+  contentHash: text('content_hash').notNull(),
+  changedByType: text('changed_by_type').notNull(), // 'USER'|'SYSTEM'|'AI'
+  changedById: text('changed_by_id'),
+  changeReason: text('change_reason'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
