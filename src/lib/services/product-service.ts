@@ -50,6 +50,23 @@ export async function listProjects(ctx: { orgId: string }, productId: string) {
   )
 }
 
+// Task #47 (PM feature-parity gap analysis): the real project-read
+// authorization check. 'public' (the default, and every pre-existing
+// project's value) is unrestricted -- unchanged from before this column
+// existed. 'private' restricts reads to admins and the project's own
+// leadUserId; every other org member is blocked, including a member who
+// can see the org's other (public) projects fine. Pure/no I/O so it's
+// directly unit-testable without a live DB.
+export function canReadProject(
+  project: Pick<typeof projects.$inferSelect, "accessLevel" | "leadUserId">,
+  dbUser: typeof users.$inferSelect | null
+): boolean {
+  if (project.accessLevel !== "private") return true
+  if (!dbUser) return false
+  if (hasRole(dbUser, "admin")) return true
+  return project.leadUserId === dbUser.id
+}
+
 /**
  * Org-wide, not scoped to a single product -- the VERIDIAN AI PMS project picker (Wave 27) needs every project regardless of which product it sits under.
  *
@@ -58,21 +75,29 @@ export async function listProjects(ctx: { orgId: string }, productId: string) {
  * the org unconditionally, for every caller -- a real, confirmed gap: a
  * "manager"-ranked user (this schema's only per-project assignment is
  * `projects.leadUserId` -- there is no separate project-membership table)
- * saw every other manager's projects too. `assignedToUserId` narrows to
- * projects that user leads; branch_manager/admin/veridian_admin (rank >=4,
- * the real oversight tier) deliberately keep full org-wide visibility --
- * only the exact "manager" rank this business_rule names gets narrowed, so
- * this stays additive rather than a behavior change for every caller.
+ * saw every other manager's projects too. Narrows to projects that user
+ * leads for the exact "manager"/"senior_professional" ranks this
+ * business_rule names; branch_manager/admin/veridian_admin (rank >=4, the
+ * real oversight tier) deliberately keep full org-wide visibility, and
+ * member/viewer are left unfiltered too since this schema has no
+ * project-membership concept for them beyond leadUserId (a real, documented
+ * limitation -- see R48_PROGRESS.md's F002 entry).
+ *
+ * Task #47 (PM feature-parity gap analysis): also filters out 'private'
+ * projects the requesting user isn't authorized to read (see
+ * canReadProject()) -- applied on top of the above DB-level narrowing.
  */
-export async function listAllProjectsForOrg(ctx: { orgId: string }, assignedToUserId?: string) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+export async function listAllProjectsForOrg(ctx: { orgId: string }, dbUser: typeof users.$inferSelect | null) {
+  const scopeToLead = dbUser && (dbUser.role === "manager" || dbUser.role === "senior_professional") ? dbUser.id : undefined
+  const rows = await withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.projects.findMany({
-      where: assignedToUserId
-        ? and(eq(projects.orgId, ctx.orgId), eq(projects.leadUserId, assignedToUserId))
+      where: scopeToLead
+        ? and(eq(projects.orgId, ctx.orgId), eq(projects.leadUserId, scopeToLead))
         : eq(projects.orgId, ctx.orgId),
       orderBy: (t, { asc }) => asc(t.name),
     })
   )
+  return rows.filter((p) => canReadProject(p, dbUser))
 }
 
 /**
@@ -81,13 +106,27 @@ export async function listAllProjectsForOrg(ctx: { orgId: string }, assignedToUs
  * (or creates once) a hidden "General" default product per org, matching
  * how Plane/Huly/OpenProject present projects as the top-level PM concept.
  */
+const VALID_PROJECT_STATUSES = ["planning", "active", "paused", "completed", "cancelled"] as const
+const VALID_ACCESS_LEVELS = ["private", "public"] as const
+
 export async function createProjectDirect(
   ctx: ProductContext,
-  input: { name: string; description?: string; clientId?: string; issuePrefix?: string; leadUserId?: string; startDate?: string; targetDate?: string }
+  input: {
+    name: string; description?: string; clientId?: string; issuePrefix?: string; leadUserId?: string
+    startDate?: string; targetDate?: string
+    // Task #47: previously-hidden fields, now exposed in the New Project form.
+    status?: string; accessLevel?: string; customTabs?: { id: string; label: string }[]
+  }
 ) {
   if (!hasRole(ctx.dbUser, "admin")) throw new ServiceError("Creating a project requires admin role or higher", 403)
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
+  if (input.status !== undefined && !VALID_PROJECT_STATUSES.includes(input.status as typeof VALID_PROJECT_STATUSES[number])) {
+    throw new ServiceError(`status must be one of: ${VALID_PROJECT_STATUSES.join(", ")}`, 400)
+  }
+  if (input.accessLevel !== undefined && !VALID_ACCESS_LEVELS.includes(input.accessLevel as typeof VALID_ACCESS_LEVELS[number])) {
+    throw new ServiceError(`accessLevel must be one of: ${VALID_ACCESS_LEVELS.join(", ")}`, 400)
+  }
 
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     let product = await db.query.products.findFirst({ where: and(eq(products.orgId, ctx.orgId), eq(products.slug, "general")) })
@@ -101,6 +140,9 @@ export async function createProjectDirect(
       name, description: input.description?.trim() || null,
       issuePrefix: input.issuePrefix?.trim().toUpperCase() || null,
       leadUserId: input.leadUserId || null, startDate: input.startDate || null, targetDate: input.targetDate || null,
+      status: (input.status as typeof projects.$inferInsert.status) || "active",
+      accessLevel: (input.accessLevel as typeof projects.$inferInsert.accessLevel) || "public",
+      customTabs: input.customTabs ?? [],
     }).returning()
     return project
   })

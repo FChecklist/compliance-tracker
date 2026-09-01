@@ -35,6 +35,14 @@
 # baseline (new, never-before-seen debt), never on the pre-existing count itself.
 #
 exemptions:
+  - file: src/lib/engines/marketing-engine.test.ts
+    reason: "Rebase-final-1019 real-count correction (2026-09-01, PR #1019's rebase-merge onto current main): this file (added by PR #668/#1529's own rebase-merge, already on main before this merge) had no prior exemption entry. 1 genuine dated gap-closure comment (line 2, Task #46 CRM Campaigns gap-closure, 2026-07-31) -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: progress/task-20260718-083004-cache---synchronization--cache-integrity.md
+    reason: "rebase-final-1019 (2026-09-01, PR #1019's rebase-merge onto current main): this per-task progress log had no prior exemption entry. 3 genuine dated changelog/status comments, all documenting real CI-investigation history, none example/placeholder data: line 5 (a resume-invocation note, 2026-08-15), line 37 (a real GitHub Actions run-count observation, 2026-08-14), line 55 (a branch-sync timestamp reference, 2026-08-07) -- same pattern as this codebase's other dated gap-closure/progress comments."
+    findings_by_category:
+      hardcoded_iso_date: 3
   - file: .github/workflows/ai-prompt-evals.yml
     reason: "Rebase-regenerated full-repo baseline (2026-09-01, real rescan against current main during PR #554's rebase-merge): bare-ISO-date-shape regex false positive. This repo names files, task IDs, and instruction IDs with an embedded date as standard practice (changelog/gap-closure/task-ID/commit-date references), which is what every non-comment/non-code instance in this category resolves to on direct read -- not human example/sample data. 2 finding(s) in this file."
     findings_by_category:
@@ -281,9 +289,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 3
   - file: ai-os/MASTER-TRACKER.yaml
-    reason: "Rebase-regenerated full-repo baseline (2026-09-01, real rescan against current main during PR #554's rebase-merge): bare-ISO-date-shape regex false positive. This repo names files, task IDs, and instruction IDs with an embedded date as standard practice (changelog/gap-closure/task-ID/commit-date references), which is what every non-comment/non-code instance in this category resolves to on direct read -- not human example/sample data. 203 finding(s) in this file."
+    reason: "Rebase-final-1019 real-count correction (2026-09-01, PR #1019's rebase-merge onto current main): node scripts/check-terminology-guardrail.mjs --full-repo run for real post-merge found this file's true current hardcoded_iso_date count exceeds the baseline carried over from the pre-merge branches -- touched by commits that landed on main after the prior full-repo baseline snapshot, unrelated to PR #1019 itself. Confirmed on spot-read: every flagged instance is the same benign class this manifest already exempts throughout -- dated changelog/gap-closure/task-ID/tracker entries, not hardcoded secrets, PII, or human example data (including the one line referencing a since-addressed real PAT leak by description only, no literal credential). Raised to the real current count."
     findings_by_category:
-      hardcoded_iso_date: 203
+      hardcoded_iso_date: 204
   - file: ai-os/MASTER_INDEX.yaml
     reason: "Rebase-regenerated full-repo baseline (2026-09-01, real rescan against current main during PR #554's rebase-merge): bare-ISO-date-shape regex false positive. This repo names files, task IDs, and instruction IDs with an embedded date as standard practice (changelog/gap-closure/task-ID/commit-date references), which is what every non-comment/non-code instance in this category resolves to on direct read -- not human example/sample data. 137 finding(s) in this file."
     findings_by_category:
@@ -721,9 +729,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 38
   - file: ai-os/registry/asset-registry-coverage.yaml
-    reason: "Rebase-regenerated full-repo baseline (2026-09-01, real rescan against current main during PR #554's rebase-merge): bare-ISO-date-shape regex false positive. This repo names files, task IDs, and instruction IDs with an embedded date as standard practice (changelog/gap-closure/task-ID/commit-date references), which is what every non-comment/non-code instance in this category resolves to on direct read -- not human example/sample data. 84 finding(s) in this file. Rebase-sweep2-618 real-count correction (2026-09-01, PR #618's rebase-merge onto current main): node scripts/check-terminology-guardrail.mjs --full-repo run for real post-merge found this file's true current hardcoded_iso_date count exceeds the baseline carried over from the pre-merge branches -- some of these files were touched by commits that landed on main after the prior full-repo baseline snapshot, unrelated to PR #618 itself. Confirmed on direct read: every flagged instance is the same benign class this manifest already exempts throughout -- dated changelog/gap-closure/task-ID comments and governance-registry log entries, not hardcoded secrets, PII, or human example data. Raised to the real current count."
+    reason: "Rebase-regenerated full-repo baseline (2026-09-01, real rescan against current main during PR #554's rebase-merge): bare-ISO-date-shape regex false positive. This repo names files, task IDs, and instruction IDs with an embedded date as standard practice (changelog/gap-closure/task-ID/commit-date references), which is what every non-comment/non-code instance in this category resolves to on direct read -- not human example/sample data. 84 finding(s) in this file. Rebase-sweep2-618 real-count correction (2026-09-01, PR #618's rebase-merge onto current main): raised to 87, same benign class. Rebase-final-1019 real-count correction (2026-09-01, PR #1019's rebase-merge onto current main): node scripts/check-terminology-guardrail.mjs --full-repo run for real post-merge found this file's true current count is 88, not 87 -- touched by a commit that landed on main after the prior full-repo baseline snapshot, unrelated to PR #1019 itself. Confirmed on spot-read: same benign class throughout (dated changelog/gap-closure/task-ID comments and governance-registry log entries), not hardcoded secrets, PII, or human example data. Raised to the real current count."
     findings_by_category:
-      hardcoded_iso_date: 87
+      hardcoded_iso_date: 88
   - file: ai-os/registry/dead-code-baseline.yaml
     reason: "Rebase-regenerated full-repo baseline (2026-09-01, real rescan against current main during PR #554's rebase-merge): bare-ISO-date-shape regex false positive. This repo names files, task IDs, and instruction IDs with an embedded date as standard practice (changelog/gap-closure/task-ID/commit-date references), which is what every non-comment/non-code instance in this category resolves to on direct read -- not human example/sample data. 2 finding(s) in this file."
     findings_by_category:
@@ -2166,17 +2174,17 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/components/AppShell.tsx
-    reason: "Rebase-regenerated full-repo baseline (2026-09-01, real rescan against current main during PR #554's rebase-merge): bare-ISO-date-shape regex false positive. This repo names files, task IDs, and instruction IDs with an embedded date as standard practice (changelog/gap-closure/task-ID/commit-date references), which is what every non-comment/non-code instance in this category resolves to on direct read -- not human example/sample data. 4 finding(s) in this file."
+    reason: "Consolidated during rebase-final-1019 (2026-09-01, PR #1019's rebase-merge onto current main): this file previously had 3 separate exemption entries for itself in this manifest (a real bug -- the checker's loadExemptions() keys a Map by `file`, so only the LAST entry in file order was ever actually applied, silently dropping the other two's reasoning and, worse, undercounting the real total). Consolidated to one entry with the true current full-repo count, re-verified by direct regex scan against the merged tree (5, not 4 -- an unaccounted 5th instance at line 255, from an unrelated PR #1224 rebase note predating and untouched by this merge, was missed by every prior entry). All 5 are genuine dated design-rationale/changelog comments, none example/placeholder data: line 14 (this PR's OfflineShell wiring comment, 2026-08-07), line 41 (@fchecklist/veridian-ui-kit migration, 2026-07-19), line 60 (Priority 18b Owner directive, 2026-07-15), line 115 (Connectors sidebar/composer badge, Connectors.docx wave, 2026-07-10), line 255 (PR #1224 rebase note, 2026-08-31, cross-referencing a since-moved skip-link target)."
     findings_by_category:
-      hardcoded_iso_date: 4
+      hardcoded_iso_date: 5
   - file: src/components/AppSidebar.tsx
     reason: "[carried from main, count re-verified 7 on 2026-09-01 rebase full-repo rescan, was 3]"
     findings_by_category:
       hardcoded_iso_date: 7
   - file: src/components/AppTopbar.tsx
-    reason: "Rebase-regenerated full-repo baseline (2026-09-01, real rescan against current main during PR #554's rebase-merge): bare-ISO-date-shape regex false positive. This repo names files, task IDs, and instruction IDs with an embedded date as standard practice (changelog/gap-closure/task-ID/commit-date references), which is what every non-comment/non-code instance in this category resolves to on direct read -- not human example/sample data. 2 finding(s) in this file."
+    reason: "Consolidated during rebase-final-1019 (2026-09-01, PR #1019's rebase-merge onto current main): this file previously had 2 separate exemption entries for itself in this manifest (same Map-keyed-by-file bug documented on the AppShell.tsx entry above -- only the last entry in file order was ever actually applied). Consolidated to one entry with the true current count, re-verified by direct regex scan against the merged tree (3, not 2 -- an unaccounted 3rd instance at line 123, from an unrelated PR #1224 accessibility rebase note predating and untouched by this merge, was missed by both prior entries). All 3 are genuine dated design-rationale comments, none example/placeholder data: line 34 (@fchecklist/veridian-ui-kit migration, 2026-07-19), line 90 (this PR's own logout-cache-purge comment, 2026-08-07), line 123 (R-1224-REBASE accessibility note, 2026-08-31)."
     findings_by_category:
-      hardcoded_iso_date: 2
+      hardcoded_iso_date: 3
   - file: src/components/BillingSection.tsx
     reason: "Rebase-regenerated full-repo baseline (2026-09-01, real rescan against current main during PR #554's rebase-merge): bare-ISO-date-shape regex false positive. This repo names files, task IDs, and instruction IDs with an embedded date as standard practice (changelog/gap-closure/task-ID/commit-date references), which is what every non-comment/non-code instance in this category resolves to on direct read -- not human example/sample data. 1 finding(s) in this file."
     findings_by_category:
@@ -2456,9 +2464,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 5
   - file: src/lib/db/schema.ts
-    reason: "[carried from main, count re-verified 97 on 2026-09-01 rebase full-repo rescan, was 88] Rebase-sweep2-618 real-count correction (2026-09-01, PR #618's rebase-merge onto current main): node scripts/check-terminology-guardrail.mjs --full-repo run for real post-merge found this file's true current hardcoded_iso_date count exceeds the baseline carried over from the pre-merge branches -- some of these files were touched by commits that landed on main after the prior full-repo baseline snapshot, unrelated to PR #618 itself. Confirmed on direct read: every flagged instance is the same benign class this manifest already exempts throughout -- dated changelog/gap-closure/task-ID comments and governance-registry log entries, not hardcoded secrets, PII, or human example data. Raised to the real current count."
+    reason: "[carried from main, count re-verified 97 on 2026-09-01 rebase full-repo rescan, was 88] Rebase-sweep2-618 real-count correction (2026-09-01, PR #618's rebase-merge onto current main): raised to 100, same benign class. Rebase-final-1019 real-count correction (2026-09-01, PR #1019's rebase-merge onto current main): node scripts/check-terminology-guardrail.mjs --full-repo run for real post-merge found this file's true current count is 101, not 100 -- touched by a commit that landed on main after the prior full-repo baseline snapshot, unrelated to PR #1019 itself. Confirmed on spot-read: same benign class throughout (dated changelog/gap-closure/task-ID comments and governance-registry log entries), not hardcoded secrets, PII, or human example data. Raised to the real current count."
     findings_by_category:
-      hardcoded_iso_date: 100
+      hardcoded_iso_date: 101
   - file: src/lib/db/tenant-scoped.ts
     reason: "Rebase-regenerated full-repo baseline (2026-09-01, real rescan against current main during PR #554's rebase-merge): bare-ISO-date-shape regex false positive. This repo names files, task IDs, and instruction IDs with an embedded date as standard practice (changelog/gap-closure/task-ID/commit-date references), which is what every non-comment/non-code instance in this category resolves to on direct read -- not human example/sample data. 2 finding(s) in this file."
     findings_by_category:
@@ -2633,9 +2641,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 25
   - file: src/lib/llm-response-cache.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated. Raised to 2 for the Cache & Synchronization / Cache Integrity & Security gap-closure (2026-08-07): 1 more genuine dated gap-closure comment (line 25) documenting this PR's own encryption-at-rest + TTL-tuning changes -- same class as the pre-existing finding, not example/placeholder data."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 2
   - file: src/lib/loop-prevention.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -3617,6 +3625,18 @@ exemptions:
       hardcoded_iso_date: 7
   - file: src/lib/services/hr-dashboard-service.test.ts
     reason: "Rebase-sweep2-618 real-count correction (2026-09-01, PR #618's rebase-merge onto current main): node scripts/check-terminology-guardrail.mjs --full-repo run for real post-merge found this file's true current hardcoded_iso_date count exceeds the baseline carried over from the pre-merge branches -- some of these files were touched by commits that landed on main after the prior full-repo baseline snapshot, unrelated to PR #618 itself. Confirmed on direct read: every flagged instance is the same benign class this manifest already exempts throughout -- dated changelog/gap-closure/task-ID comments and governance-registry log entries, not hardcoded secrets, PII, or human example data. Raised to the real current count."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/components/OfflineShell.tsx
+    reason: "Cache & Synchronization / Cache Integrity & Security gap-closure (2026-08-07): new file, 1 genuine dated gap-closure comment (line 3) documenting this PR's own offline-shell registration/banner component -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/use-online-status.ts
+    reason: "Cache & Synchronization / Cache Integrity & Security gap-closure (2026-08-07): new file, 1 genuine dated gap-closure comment (line 6) documenting this PR's own navigator.onLine hook -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/llm-response-cache.test.ts
+    reason: "Cache & Synchronization / Cache Integrity & Security gap-closure (2026-08-07): new file, 1 genuine dated gap-closure comment (line 2) documenting what this new test file covers -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments (e.g. its own sibling src/lib/llm-response-cache.ts entry above)."
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/services/hr-dashboard-service.ts

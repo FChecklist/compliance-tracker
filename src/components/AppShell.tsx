@@ -11,6 +11,10 @@ import GlobalChatDock, { isDockHiddenForPath } from "@/components/GlobalChatDock
 // render tree — imported and rendered here as a fixed-position floating
 // widget that lives for the entire authenticated session.
 import HelpWidget from "@/components/HelpWidget";
+// Gap closure, 2026-08-07 ("Offline Cache Support") -- registers the
+// read-only offline-shell service worker and surfaces the offline banner;
+// see OfflineShell.tsx's own header for full scope.
+import OfflineShell from "@/components/OfflineShell";
 import TaskVisibilityPanel from "@/components/TaskVisibilityPanel";
 import { VeriChatProvider } from "@/components/veri-chat/veri-chat-context";
 import VeriComposer from "@/components/veri-chat/VeriComposer";
@@ -70,6 +74,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (me?.accountStage === "stage_0") router.replace("/stage0-chat");
   }, [me?.accountStage, router]);
+
+  // OCID-038 GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE, real fix
+  // (UMR-20260803-072940-6a88, real implementation authorized
+  // UMR-20260804-105822-a267): the real gap was directly observed inside an
+  // already-authenticated session going offline. Registration itself lives
+  // in OfflineShell.tsx (mounted below, both render branches of this
+  // component) rather than duplicated here -- a real rebase conflict
+  // between this fix and the Cache & Synchronization Offline Cache Support
+  // finding (PR #1019) independently added the same `navigator.serviceWorker
+  // .register("/sw.js")` call in both files; kept the one call site in
+  // OfflineShell.tsx, since it already mounts at this same authenticated
+  // app-shell wrap point for every render branch, and registering the same
+  // URL twice is redundant (though harmless -- the Service Worker spec
+  // treats a second .register() of the same URL as a no-op against the
+  // existing registration).
   const overdueCount = stats?.overdue ?? 0;
   const noticeCount = stats?.noticeCount ?? 0;
   const accountType = me?.orgAccountType ?? "company";
@@ -209,6 +228,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="print:hidden">
         <HelpWidget />
       </div>
+      <OfflineShell />
     </VeriChatProvider>
   ) : (
     <>
@@ -253,6 +273,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="print:hidden">
         <HelpWidget />
       </div>
+      <OfflineShell />
     </>
   );
 

@@ -4211,6 +4211,23 @@ export const products = complianceSchemaDB.table('products', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// Task #47 (PM feature-parity gap analysis): projects.status/access/
+// rollupPercentage/customTabs. All 3 agents' Wave-25 §14.2 study already
+// converged on additive `projects` columns as the right shape (see the
+// 7 columns below) -- this follows the identical pattern rather than a new
+// table. `pmsProjectStatusEnum` is a project-lifecycle state (Plane's own
+// "Project Status" feature: Planning/Active/Paused/Completed/Cancelled),
+// deliberately distinct from `healthStatus` (a RAG signal an admin sets by
+// hand) and from `isActive` (a coarse active/archived toggle predating
+// PMS). `pmsProjectAccessEnum` gates a project's own read path: existing
+// behavior for every pre-existing project is "any org member with API
+// access can read it" -- defaulting to 'public' preserves that for every
+// row that exists before this migration; only a project explicitly flipped
+// to 'private' by an admin (or created private) restricts reads to admins
+// + the project's own leadUserId (see product-service.ts's canReadProject()).
+export const pmsProjectStatusEnum = complianceSchemaDB.enum('pms_project_status', ['planning', 'active', 'paused', 'completed', 'cancelled'])
+export const pmsProjectAccessEnum = complianceSchemaDB.enum('pms_project_access', ['private', 'public'])
+
 export const projects = complianceSchemaDB.table('projects', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   productId: text('product_id').notNull(),
@@ -4231,6 +4248,22 @@ export const projects = complianceSchemaDB.table('projects', {
   targetDate: date('target_date', { mode: 'string' }),
   healthStatus: text('health_status'), // 'on_track' | 'at_risk' | 'off_track' | null -- free text, not enum, since only PMS-using projects ever set it
   parentProjectId: text('parent_project_id'),
+  // Task #47: project lifecycle status -- distinct from healthStatus/isActive, see comment above.
+  status: pmsProjectStatusEnum('status').notNull().default('active'),
+  // Task #47: Private/Public read-access gate -- see canReadProject() in product-service.ts.
+  accessLevel: pmsProjectAccessEnum('access_level').notNull().default('public'),
+  // Task #47: deterministic rollup of this project's pms_issues completion,
+  // generalizing construction-dashboard-service.ts's getProjectDashboard()
+  // "average of latest logged percentComplete" pattern to issues.completion
+  // Percentage. Written by pms-issue-service.ts's recalculateProjectRollup()
+  // on every issue create/update that can move it, and simply read back here
+  // -- never computed ad hoc at read time, unlike the construction figure.
+  rollupPercentage: integer('rollup_percentage').notNull().default(0),
+  // Task #47: admin-defined extra project tabs (e.g. a client-facing custom
+  // page), set at project creation -- {id, label}[], rendered client-side.
+  // No content/body per tab in this pass (that would need its own storage
+  // mechanism, e.g. pmsWikiPages -- out of scope; this is a nav-tab list only).
+  customTabs: jsonb('custom_tabs').notNull().default([]),
   // Point 121: user-entered project value, in the org base currency. NULL
   // means "not entered" -- COALESCEd against linked erp_purchase_orders.
   // grand_total at read time in construction-dashboard-service.ts, never
@@ -5474,6 +5507,12 @@ export const crmCampaigns = complianceSchemaDB.table('crm_campaigns', {
   orgId: text('org_id').notNull(),
   name: text('name').notNull(),
   campaignType: text('campaign_type'),
+  // Task #46 gap-closure (2026-07-31): the campaign's goal (e.g. "Brand
+  // Awareness", "Lead Generation", "Product Launch") -- distinct from
+  // campaignType (the channel/format, e.g. "Webinar", "Email") and from
+  // description (freeform notes). Additive, nullable, bare text, same
+  // convention as campaignType.
+  objective: text('objective'),
   status: text('status').notNull().default('planning'), // 'planning' | 'active' | 'completed' | 'cancelled'
   startDate: date('start_date', { mode: 'string' }),
   endDate: date('end_date', { mode: 'string' }),

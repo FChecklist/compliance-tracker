@@ -1,4 +1,4 @@
-# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
+﻿# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
 # direct response to the Owner naming 4 parallel Claude sessions working
 # across this codebase at once, with no existing mechanism for one session
@@ -40,6 +40,30 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, fix/ocid038-offline-service-worker) -- OCID-038 real gap closure: GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE, real minimal app-shell service worker [rebase-merging via rebase-sweep2b-889, was PR #889, per this repo's standard rebase-sweep protocol]"
+    claimed_at: "2026-08-04T11:05Z (original session); rebased 2026-09-01 (round 2, main advanced again mid-flight)"
+    claim: |
+      SPEC (PM directive UMR-20260804-105822-a267, parent OCID-038 UMR-20260803-042801-ec4b /
+      OCID-021 UMR-20260802-173631-ca85): real implementation authorized on
+      GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE. Add a real minimal app-shell service worker and
+      registration, then re-run the same real offline test against a real live session to
+      confirm a graceful fallback instead of a blank page.
+
+      Real implementation: `public/sw.js` (network-first for navigations only, falls back to a
+      new static `public/offline.html` on a genuine network failure; every other request type
+      passes straight through untouched -- deliberately NOT a full offline-first cache, since
+      this app is almost entirely dynamic/authenticated). Registered inside `AppShell.tsx`, the
+      exact real mount point the original gap was observed inside. Real local verification:
+      `tsc`/`eslint` clean, `node --check public/sw.js` confirms valid syntax, real unconstrained
+      build clean. The PM's own required final step -- re-running the real offline test against a
+      real live session -- is honestly deferred as a real post-merge step (Vercel auto-deploys on
+      merge; a service worker's real offline behavior cannot be honestly claimed working before
+      it is actually deployed).
+    scope_note: >-
+      File scope: `public/sw.js` (new), `public/offline.html` (new), `src/components/AppShell.tsx`
+      (registration only), `ai-os/MASTER-TRACKER.yaml`, this ACTIVE-CLAIMS entry, `PROGRESS.md`.
+      No changes to any other route, API, or data-fetching path -- this service worker never
+      intercepts or caches app data.
   - session_label: "claude-code (task-20260806-151843-f1d2) -- PM-approved proposals 92+93: CSP + X-Frame-Options on projexa-ai.com, ONE combined change [MERGED via rebase-final-994, was PR #994, superseding stale #994 after 755-commit main drift + real ACTIVE-CLAIMS.yaml conflict resolution]"
     claimed_at: "2026-08-06T15:30Z (original session); rebased+merged 2026-09-01"
     claim: |
@@ -574,3 +598,174 @@ active:
       drizzle/0313_*.sql migration. NOT src/app/(app)/crm/dashboard/** or
       AppSidebar.tsx/messages/*.json -- the round-1 plan's file list, never
       actually created once round 2 corrected course.
+
+# ── claim registered 2026-07-31 (task-20260731-044019-pm--project-status-access-rollup) ──
+  - session_label: "claude-code (task-20260731-044019-pm--project-status-access-rollup) -- Task #47 PM feature-parity gap: projects.status/access/rollupPercentage/customTabs + Private/Public access control"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      Task #47 per the finalized PM gap analysis: extend the `projects`
+      table with status/access-level(Private/Public)/rollup-percentage/
+      customTabs, wire real Private/Public read-access enforcement, and
+      generalize the existing construction-domain deterministic rollup
+      pattern (construction-dashboard-service.ts's getProjectDashboard()
+      "average of latest logged percentComplete") to pms_issues. Read
+      schema.ts directly first (not assumed): confirmed all 4 fields are
+      genuinely absent from `projects` (Wave 25 only added issuePrefix/
+      issueSequence/leadUserId/startDate/targetDate/healthStatus/
+      parentProjectId) -- this is real new-column work, not just an
+      exposure fix. No existing PMS-issue rollup function found sitting
+      disconnected (checked pms-issue-service.ts/schedule-service.ts/
+      report-engine-service.ts) -- wrote calculateProjectRollupPercentage()
+      new, wired into createIssue()/updateIssue().
+      Migration: drizzle/0302_pms_project_status_access_rollup.sql
+      (next-free number confirmed against real drizzle/*.sql filenames on
+      a freshly-fetched origin/main -- drizzle/meta/_journal.json is stale/
+      stub at idx 3, not a reliable source here, consistent with 0267/0268's
+      own header notes on this).
+    scope_note: >-
+      File scope: compliance-tracker only -- src/lib/db/schema.ts (projects
+      table + 2 new enums), drizzle/0302_pms_project_status_access_rollup.sql,
+      src/lib/services/product-service.ts (canReadProject, createProjectDirect,
+      listAllProjectsForOrg signature change), src/lib/services/
+      pms-issue-service.ts (calculateProjectRollupPercentage,
+      recalculateProjectRollup, wired into createIssue/updateIssue),
+      src/app/api/projects/route.ts + [id]/route.ts, src/app/(app)/pms/page.tsx
+      (New Project form), pms-issue-service.test.ts + new
+      product-service.test.ts, PROGRESS.md, this file. Explicitly NOT
+      touching pms_issues columns/schema, Automation Rules, user types, PM
+      Teams, or the social feed, per this task's own CONSTRAINTS. Did not
+      apply the migration live -- no DATABASE_URL/Supabase MCP tool
+      available in this sandbox; flagged honestly in PROGRESS.md and the PR
+      description for the merging session.
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-sweep2b-664, replacement for PR
+      #664): merged onto current main, which had independently pruned this
+      file's `active:` list down to its current ~17-entry set (a legitimate
+      rolling cleanup per this file's own protocol #3, confirmed by diffing
+      the merge-base against origin/main) and added its own new entries
+      (e.g. the UMR-20260806-132527-30dc / OCID-020 category 23 entry
+      above). This entry (this task's own claim, describing PR #664's real
+      work) is re-appended here rather than dropped, since the PR itself
+      was still open/unmerged at rebase time. Also: this claim's own
+      migration number (0302) collided with main's own real
+      `0302_sales_pipeline_dashboard_targets.sql` (idx 279 in
+      drizzle/meta/_journal.json, which is fully current on main now, not
+      stale as earlier sessions found it) -- renamed to
+      `0512_pms_project_status_access_rollup.sql` (above main's true
+      highest, 0511) with a matching new _journal.json entry (idx 334), per
+      this repo's own migration-collision protocol.
+
+# ── claim registered 2026-07-31 (task-20260731-043735-crm--campaigns-entity) ──
+  - session_label: "claude-code (task-20260731-043735-crm--campaigns-entity) -- Task #46: CRM Campaigns entity"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      Dispatched to build a `crmCampaigns` table + service CRUD + campaign
+      scoring wired to marketing-engine.ts, on the premise (per this task's
+      own spec) that "this is genuinely new -- no existing analog anywhere
+      in the 600+ table schema." That premise is now STALE: `crmCampaigns`
+      (schema.ts:5078), `src/lib/services/crm-campaigns-service.ts` (full
+      CRUD), API routes (`src/app/api/crm/campaigns/`), a UI page
+      (`src/app/(app)/crm/campaigns/page.tsx`), and the migration
+      (drizzle/0251_crm_wave1_activities_campaigns_lost_reasons.sql) were
+      already built and merged to main in "Wave 1"/"Wave 2" (commits
+      40423b71, b4b1ded1), well before this task was dispatched.
+      `calculateCampaignScore` already exists in marketing-engine.ts and is
+      already wired via task-execution-engine.ts -- confirmed reading both
+      files, not rebuilding.
+      Real remaining gap found on inspection: the table has name/type
+      (campaignType)/status/date-range/budget(budgeted_cost, actual_cost,
+      expected_revenue)/description/owner, but no `objective` column, which
+      this task's own SCOPE line names explicitly
+      ("name/type/objective/date-range/budget"). Adding that as a small
+      additive nullable-column migration (next real free number per
+      drizzle/meta/_journal.json, fetched fresh from origin/main: 0302,
+      journal frozen at idx 278/tag 0300 as of this claim) + service-layer
+      wiring. Also: marketing-engine.ts has zero test coverage today (no
+      `marketing-engine.test.ts` exists) -- adding one, matching this
+      repo's per-engine `.test.ts` convention (e.g. analytics-engine.test.ts),
+      covering all 6 exported pure functions including calculateCampaignScore.
+      Not touching: Lead/Deal attribution, Project-team junction,
+      Announcements, Import/Export, Items Master (all explicitly
+      out-of-scope per spec) or the already-complete CRUD/API/UI/migration
+      for the base campaign entity.
+    scope_note: >-
+      File scope: compliance-tracker only -- src/lib/db/schema.ts (add
+      `objective` column to crmCampaigns), one new hand-written migration
+      drizzle/0302_*.sql + matching drizzle/meta/_journal.json entry,
+      src/lib/services/crm-campaigns-service.ts (thread `objective` through
+      create/update), new src/lib/engines/marketing-engine.test.ts, and
+      this ACTIVE-CLAIMS.yaml entry. Note for the record: this task's spec
+      says to append a line to `KERNEL_CONSOLIDATION_STATUS.md`'s Task #46
+      section -- that file does not exist anywhere in this repo (confirmed:
+      `find . -iname "KERNEL_CONSOLIDATION_STATUS.md"` and a repo-wide grep
+      for "Task #46" across all .md files both came up empty). Not inventing
+      that file from scratch since nothing else in the repo references it;
+      flagging as a stale/wrong instruction in the spec rather than silently
+      working around it.
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-sweep2b-668, replacement for PR
+      #668): merged onto current main, which had independently pruned this
+      file's `active:` list to its current set (a legitimate rolling
+      cleanup per this file's own protocol #3, most recently by the
+      rebase-sweep2b-664 entry immediately above) and added many of its own
+      new entries since this claim was first written. This entry (this
+      task's own claim, describing PR #668's real work) is re-appended here
+      rather than dropped, since the PR itself was still open/unmerged at
+      rebase time. Also: this claim's own migration number (0302) collided
+      with main's own real `0302_sales_pipeline_dashboard_targets.sql`
+      (journal fully current on main at idx 335/tag
+      0513_pms_project_status_access_rollup as of this rebase, confirmed
+      via `git ls-tree -r origin/main -- drizzle/`) -- renamed to
+      `0514_crm_campaigns_objective.sql` (above main's true highest, 0513)
+      with a matching new _journal.json entry (idx 336), per this repo's
+      own migration-collision protocol. Prior triage + adversarial-verify
+      (already complete before this sweep, not re-done here) independently
+      re-confirmed the gap is still real and unaddressed on current main:
+      no `objective` column on `crm_campaigns`, no `objective` field on
+      `CreateCampaignInput`, and this PR's own test file 404s against main
+      before this merge.
+  - session_label: "claude-code (worker task-20260718-083004-cache---synchronization--cache-integrity) -- VERIDIAN Review Framework: Cache & Synchronization / Cache Integrity & Security (3 findings) [rebase-merged via rebase-final-1019, was PR #1019, superseding stale #1019 after 530-commit main drift + real ACTIVE-CLAIMS.yaml/PROGRESS.md/terminology-guardrail-exemptions.yaml conflict resolution]"
+    claimed_at: "2026-08-07T (original session); rebased+merged 2026-09-01"
+    claim: |
+      SPEC: VERIDIAN Review Framework gap-closure, "Cache & Synchronization /
+      Cache Integrity & Security" -- 3 findings, closed together in one PR
+      since all three are the same module/area (server-side LLM response
+      cache +, for the offline finding, a genuinely new but small
+      client-side shell). [High] Cache Security & Encryption --
+      `src/lib/llm-response-cache.ts`'s `content` column now encrypted at
+      rest via the existing pgcrypto helper (`src/lib/ai-config-crypto.ts`),
+      reused rather than a new scheme. [Medium] Automatic Cache Invalidation
+      -- `CACHE_TTL` named presets (`HIGH_VOLATILITY`/`STANDARD`/
+      `LOW_VOLATILITY`) + a per-call `ttlMs` option. [Critical] Offline
+      Cache Support -- new read-only offline shell (`public/sw.js` +
+      `public/offline.html` + `OfflineShell.tsx` + `use-online-status.ts`),
+      allowlisted to FM register-digitization rows GET + construction
+      site-diary GET aliases; every cached API response rebuilt from JSON
+      body only (no `Set-Cookie` ever persisted to Cache Storage); full
+      Cache Storage purged on logout (`AppTopbar.tsx`'s `handleLogout`).
+      Added `src/lib/llm-response-cache.test.ts` (8 passing tests, was 0
+      coverage before).
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-final-1019, replacement for PR
+      #1019): merged onto current main, which had independently pruned this
+      file's `active:` list to its current set and added many of its own
+      new entries since this claim was first written -- this entry
+      (describing PR #1019's real work) is re-appended here rather than
+      dropped, per the same precedent as the rebase-sweep2b-668 entry
+      immediately above. 3 real conflicts resolved during the merge:
+      `PROGRESS.md` (this repo's single-current-entry convention, replaced
+      wholesale), this same `ai-os/boss/ACTIVE-CLAIMS.yaml` (this file,
+      resolved as described here), and
+      `ai-os/registry/terminology-guardrail-exemptions.yaml` (purely
+      additive on both sides -- kept all entries from both, deduped the
+      unchanged-on-both-sides ones). No `drizzle/` conflicts -- this PR
+      never touches migrations. Security-relevant diff (pgcrypto reuse,
+      service-worker cookie-stripping via `cacheBodyOnly()`, full
+      Cache-Storage purge on logout) re-verified directly against the
+      merged tree, not just the original PR description -- no gap found.
+      The original PR's audit-check failure (SHA 809ee88f) was a
+      verdict-comment formatting bug (free text in the "Severity
+      Classified" field instead of one of the required enum values), not a
+      substantive finding -- a fresh, correctly-enumerated verdict (severity:
+      none) is required on this rebased head before the audit gate can
+      genuinely pass.
