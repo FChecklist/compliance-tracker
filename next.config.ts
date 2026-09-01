@@ -99,6 +99,21 @@ const nextConfig: NextConfig = {
   // for modern browsers once the CSP itself is later switched to
   // enforcing; X-Frame-Options is the legacy-browser-covering half of the
   // same fix, per decision three).
+  //
+  // 2026-09-01 rebase-sweep2b-1202 merge note: a second, independent worker
+  // (task-20260815-033857/041523, same governing UMR-20260806-101802-a350)
+  // built its own parallel CB-02/CB-03 fix on a different branch, plus a
+  // real, distinct P1-OBS-004 finding (X-Content-Type-Options,
+  // Referrer-Policy, and Permissions-Policy also absent) -- exactly the
+  // duplicate-worker collision the PM decision's own closed_note warned
+  // about. Since this repo's copy of the CSP/X-Frame-Options fix already
+  // merged, was live-verified, and matches the PM's explicit Report-Only
+  // mandate, the other branch's duplicate/more-aggressive enforcing-CSP
+  // headers() block was dropped during that merge rather than kept
+  // alongside this one (two `headers()` methods on the same object is an
+  // invalid duplicate key, and an enforcing CSP was never PM-approved).
+  // Its real, non-duplicative contribution -- the 3 extra headers below,
+  // closing the separate P1-OBS-004 finding -- was carried forward here.
   async headers() {
     return [
       {
@@ -111,6 +126,12 @@ const nextConfig: NextConfig = {
           {
             key: "X-Frame-Options",
             value: "DENY",
+          },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
           },
         ],
       },

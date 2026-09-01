@@ -12,16 +12,17 @@ fixed on `/login`.
 ## Completed
 - [x] Cloned the repo fresh, fetched `rebase-sweep2b-965` (PR #1536's own
       head branch) and `main`, branched `rebase-sweep3-1536` off the PR head.
-- [x] `git merge origin/main` -- 4 real conflicts:
+- [x] `git merge origin/main`, round 1 (main at `a97ed388`) -- 4 real
+      conflicts:
       - `PROGRESS.md` (this repo's single-current-entry convention) --
         replaced wholesale with this entry, per the known gotcha.
       - `ai-os/boss/ACTIVE-CLAIMS.yaml` -- main's current pruned `active:`
-        list (1255 lines) kept as base; this PR's own claim entry appended
-        at the end. (Note: neither this branch's nor main's prior tip
-        actually carried an entry specific to PR #965/#1536 -- both sides'
-        pre-merge content was leftover from unrelated concurrent tasks
-        [#1530/#579 delegation-expiry on the branch side], so there was
-        nothing of this PR's "own" to preserve beyond adding a fresh entry.)
+        list kept as base; this PR's own claim entry appended at the end.
+        (Note: neither this branch's nor main's prior tip actually carried
+        an entry specific to PR #965/#1536 -- both sides' pre-merge content
+        was leftover from unrelated concurrent tasks [#1530/#579
+        delegation-expiry on the branch side], so there was nothing of this
+        PR's "own" to preserve beyond adding a fresh entry.)
       - `src/app/signup/page.tsx` and `src/app/signup/signup-form.tsx` --
         substantive, not mechanical: main had independently landed an
         identical real fix for the same `/signup` gap while this PR sat
@@ -60,11 +61,26 @@ fixed on `/login`.
       (`git diff <merge-base> rebase-sweep2b-965`) -- 7 files touched, zero
       `*.test.ts` and zero `src/lib/services/*.ts` (the `check-new-test-
       coverage.mjs` gate's scope), so no new test coverage is required.
+- [x] Pushed `rebase-sweep3-1536` -> `origin/rebase-sweep2b-965` (fast-
+      forward, `ece38d48..3bd5924e`) -- PR #1536 picked it up directly.
+- [x] Re-checked PR #1536's mergeable state post-push: still
+      `CONFLICTING`/`DIRTY` -- main had advanced again by one more commit
+      (`7c96552d`, PR #1202's own rebase-sweep) in the few minutes between
+      round-1's merge and its push landing, confirming this repo's
+      unusually heavy concurrent rebase-sweep traffic today.
+- [x] `git merge origin/main`, round 2 (main at `7c96552d`) -- 2 conflicts,
+      both the same convention files again (`PROGRESS.md`, this file);
+      resolved the same way. PR #1202 touched `next.config.ts`,
+      `src/app/login/login-form.tsx`, `src/app/sitemap.ts`,
+      `src/app/robots.ts`, and `messages/*.json` -- none overlapping this
+      PR's `src/app/signup/*` / `src/app/mfa-challenge/*` scope; confirmed
+      no conflict was reported in either directory this round.
 
 ## Remaining
-- [ ] Push `rebase-sweep3-1536` to the PR's own head branch
-      (`rebase-sweep2b-965`) so PR #1536 picks it up directly (no new PR
-      number needed -- same-repo branch, direct push access confirmed).
+- [ ] Re-run validation after round 2 (governance YAML parse, tsc) before
+      pushing again.
+- [ ] Push round-2 merge to `rebase-sweep2b-965`, re-check PR #1536's
+      mergeable state immediately (main may advance again).
 - [ ] Check real CI on PR #1536; retry transient network errors up to 5
       times. Ignore known-ambient non-blocking failures (E2E Tests, Vercel
       org-wide deployment-blocked, Secret Scanning if pre-existing,

@@ -278,7 +278,8 @@
     "passcodePlaceholder": "0000",
     "signInWithPasscode": "Sign in with passcode",
     "passcodeInvalidFormat": "Enter your 4-digit passcode",
-    "passcodeLoginFailed": "Could not sign in with passcode. Please try again or use a magic link."
+    "passcodeLoginFailed": "Could not sign in with passcode. Please try again or use a magic link.",
+    "forgotPasswordPrompt": "There's no separate password reset yet — enter your email and select \"Send magic link instead\" below to sign in without a password."
   },
   "Signup": {
     "checkEmailTitle": "Check your email",
