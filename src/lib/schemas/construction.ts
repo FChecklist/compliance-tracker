@@ -35,6 +35,8 @@ export const createProgressEntrySchema = z.object({
   quantityDone: z.number(),
   percentComplete: z.number().min(0).max(100),
   remarks: z.string().optional(),
+  // R39/R-46: optional, defaults to DELTA server-side (construction-progress-service.ts).
+  entryBasis: z.enum(["DELTA", "SNAPSHOT"]).optional(),
 })
 
 export const createSiteDiarySchema = z.object({

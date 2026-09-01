@@ -9,7 +9,12 @@ import { listComplianceItems, createComplianceItem, ServiceError } from "@/lib/s
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ compliance: [], total: 0, page: 1, limit: 20, totalPages: 0 })
+  // E-52: previously returned 200 { compliance: [], ... } here -- a broken
+  // org context looked identical to "authenticated tenant, zero compliance
+  // items", and silently masked the same class of defect that produced the
+  // dashboard currency bug (E-11). POST below already returns 400 for the
+  // identical missing-orgId condition; GET now matches it.
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const { searchParams } = request.nextUrl

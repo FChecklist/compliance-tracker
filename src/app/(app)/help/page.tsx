@@ -68,13 +68,13 @@ async function PreAuthHelp() {
           <div className="hidden items-center gap-8 text-sm text-[#1a1a17]/70 md:flex">
             <Link href="/pricing" className="hover:text-[#1a1a17]">Pricing</Link>
             <Link href="/login" className="hover:text-[#1a1a17]">Log in</Link>
+            <Link
+              href="/contact"
+              className="rounded-full border border-[#1a1a17]/20 px-5 py-2 text-sm bg-[#1a1a17] text-[#F4F1E8]"
+            >
+              Contact Us
+            </Link>
           </div>
-          <Link
-            href="/contact"
-            className="rounded-full border border-[#1a1a17]/20 px-5 py-2 text-sm bg-[#1a1a17] text-[#F4F1E8]"
-          >
-            Contact Us
-          </Link>
         </div>
       </nav>
 

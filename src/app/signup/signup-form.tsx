@@ -316,7 +316,7 @@ function SignupForm({ brand }: { brand: PreAuthBrand | null }) {
                       <button
                         type="button"
                         onClick={() => setShowJoinCodeField(true)}
-                        className="text-xs text-ct-saffron font-medium hover:underline"
+                        className="text-xs text-ct-saffron-text font-medium hover:underline"
                       >
                         {t("haveJoinCode")}
                       </button>
@@ -384,7 +384,7 @@ function SignupForm({ brand }: { brand: PreAuthBrand | null }) {
                 {t("alreadyHaveAccount")}{" "}
                 <Link
                   href="/login"
-                  className="text-ct-saffron font-medium hover:underline"
+                  className="text-ct-saffron-text font-medium hover:underline"
                 >
                   {t("signIn")}
                 </Link>

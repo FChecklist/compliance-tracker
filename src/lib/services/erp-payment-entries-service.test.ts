@@ -93,6 +93,33 @@ describe("canDecidePaymentEntry -- the mandatory manager-rank + no-self-approval
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).not.toMatch(/rank/i)
   })
+
+  // V2-11 delegation-expiry-enforcement-audit: decidePaymentEntry() computes
+  // hasDelegatedAuthority via isDelegated() (expiry/revocation-aware -- see
+  // delegation-service.test.ts's resolveDelegatedAuthority coverage for
+  // that) and passes it in here. This mandatory-approval gate must still
+  // reject a below-rank actor whose delegation isn't (yet, or no longer)
+  // active -- an expired delegation is exactly the same as no delegation.
+  test("a below-manager-rank actor with hasDelegatedAuthority=false (no active delegation, e.g. expired) stays blocked", () => {
+    const result = canDecidePaymentEntry("member", "user_1", "user_2", false)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toMatch(/manager role or higher/i)
+  })
+
+  test("a below-manager-rank actor with hasDelegatedAuthority=true is let through", () => {
+    expect(canDecidePaymentEntry("member", "user_1", "user_2", true)).toEqual({ ok: true })
+  })
+
+  test("delegation does not override self-approval -- still blocked even with hasDelegatedAuthority=true", () => {
+    const result = canDecidePaymentEntry("member", "user_1", "user_1", true)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toMatch(/cannot approve or reject a payment entry you submitted yourself/i)
+  })
+
+  test("a manager-rank-or-above actor is unaffected by hasDelegatedAuthority either way (already allowed on rank alone)", () => {
+    expect(canDecidePaymentEntry("manager", "user_1", "user_2", false)).toEqual({ ok: true })
+    expect(canDecidePaymentEntry("manager", "user_1", "user_2", true)).toEqual({ ok: true })
+  })
 })
 
 // FI-AP-008 (sap_mapping.sqlite gap analysis, "Subcontractor Payment

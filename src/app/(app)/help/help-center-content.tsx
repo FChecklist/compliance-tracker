@@ -226,7 +226,7 @@ const CATEGORIES: Category[] = [
 
 const CATEGORY_COLORS: Record<Category, string> = {
   "Getting Started": "bg-ct-teal/10 text-ct-teal",
-  "Compliance Management": "bg-ct-saffron/10 text-ct-saffron",
+  "Compliance Management": "bg-ct-saffron/10 text-ct-saffron-text",
   "AI Features": "bg-purple-100 text-purple-700",
   "Advanced": "bg-ct-cloud text-ct-slate",
 };
@@ -300,14 +300,14 @@ export function HelpCentreContent() {
                         >
                           {category}
                         </Badge>
-                        <h3 className="text-sm font-semibold text-ct-navy group-hover:text-ct-saffron transition-colors">
+                        <h3 className="text-sm font-semibold text-ct-navy group-hover:text-ct-saffron-text transition-colors">
                           {article.title}
                         </h3>
                         <p className="text-xs text-ct-muted mt-1 line-clamp-2">
                           {article.description}
                         </p>
                       </div>
-                      <ChevronRight className="size-4 text-ct-border2 shrink-0 mt-6 group-hover:text-ct-saffron transition-colors" />
+                      <ChevronRight className="size-4 text-ct-border2 shrink-0 mt-6 group-hover:text-ct-saffron-text transition-colors" />
                     </div>
                   </CardContent>
                 </Card>
@@ -323,7 +323,7 @@ export function HelpCentreContent() {
           <p className="text-sm text-ct-muted">No articles match your search.</p>
           <Button
             variant="ghost"
-            className="mt-2 text-sm text-ct-saffron"
+            className="mt-2 text-sm text-ct-saffron-text"
             onClick={() => setSearch("")}
           >
             Clear search
