@@ -31,6 +31,7 @@ import { submitFdeRequest } from "./fde-service"
 import { resolveDynamicChainId } from "./task-service"
 import { runDialogueScriptTurn } from "./dialogue-script-executor"
 import { listGlossaryTerms } from "./glossary-service"
+import { searchMemories, createMemoryRecord, type MemorySearchMatch } from "./memory-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -93,6 +94,55 @@ export function detectClarificationRequest(replyText: string): boolean {
   const normalized = replyText.trim()
   if (!normalized) return false
   return CLARIFICATION_PHRASES.some((phrase) => toWordBoundaryRegex(phrase).test(normalized))
+}
+
+// R65 Part C Phase 3 (memory pipeline wiring, directive §12/§13/§39): a
+// deterministic, narrow phrase gate for "does this user message state a
+// standing instruction or preference worth remembering", same cheap-and-
+// reliable-over-an-LLM-call posture as CLARIFICATION_PHRASES/floor-tier-
+// escalation.ts's own phrase lists just above -- not a model call, and
+// never run for every message (see its one call site in sendMessage()
+// below, gated to the 1:1 AI thread only).
+//
+// HONEST, DISCLOSED GAP vs. the directive: §12 wants the raw sentence
+// converted to a fully CANONICAL form before embedding (its own worked
+// example: raw "Raj wants 30-day terms for ABC quotations" -> canonical
+// "Organization/User preference: ABC Ltd quotations normally use 30-day
+// payment terms"). That is a real understanding/rewriting step -- an LLM
+// call this phase does not add. What ships here instead: a conservative
+// phrase MATCH decides whether to remember at all, and the memory's content
+// is the user's own sentence, trimmed only, not rewritten. Flagged in this
+// PR's description as a real gap for a future phase, not silently glossed
+// over.
+const INSTRUCTION_PHRASES = [
+  "always ", "never ", "from now on", "going forward", "in future", "in the future",
+  "remember that", "remember to", "remember this", "don't ever", "please always", "please never",
+  "make sure you always", "make sure to always", "every time", "whenever i",
+]
+const PREFERENCE_PHRASES = [
+  "i prefer", "my preference is", "i'd rather", "i would rather", "i like it when",
+  "i want it to be", "we normally", "we usually", "our standard is", "our policy is",
+]
+// A very long message that happens to contain "always" somewhere is far
+// more likely to be a long question or a pasted document than a genuine
+// standing instruction -- capped so this heuristic stays targeted rather
+// than embedding arbitrary long-form text as a "memory" on a coincidental
+// substring match.
+const MEMORABLE_STATEMENT_MAX_CHARS = 500
+
+export type MemorableStatementMatch = { memoryType: "USER_INSTRUCTION" | "PREFERENCE"; matchedPhrase: string }
+
+export function detectMemorableStatement(content: string): MemorableStatementMatch | null {
+  const trimmed = content.trim()
+  if (!trimmed || trimmed.length > MEMORABLE_STATEMENT_MAX_CHARS) return null
+  const normalized = trimmed.toLowerCase()
+  for (const phrase of INSTRUCTION_PHRASES) {
+    if (normalized.includes(phrase)) return { memoryType: "USER_INSTRUCTION", matchedPhrase: phrase }
+  }
+  for (const phrase of PREFERENCE_PHRASES) {
+    if (normalized.includes(phrase)) return { memoryType: "PREFERENCE", matchedPhrase: phrase }
+  }
+  return null
 }
 
 async function ensureAiThread(ctx: ChatContext): Promise<string> {
@@ -627,6 +677,65 @@ export function formatGlossaryBlock(terms: { term: string; definition: string }[
   return `[This organisation's business terminology -- use these definitions whenever the user or conversation references these terms:]\n${lines.join("\n")}`
 }
 
+// R65 Part C Phase 3 -- memory retrieval wiring (directive §3/§6/§26-27: the
+// pipeline should retrieve relevant semantic memory before generating a
+// reply, so a returning user isn't asked something memory already answers).
+// Same char-budget-then-drop shape as GLOSSARY_BLOCK_CHAR_BUDGET/
+// formatGlossaryBlock above, bounded independently since memory content can
+// be considerably longer per entry than a glossary term.
+const MEMORY_BLOCK_CHAR_BUDGET = 2000
+
+/**
+ * Pure formatter -- unit-testable without a DB, same split as
+ * formatGlossaryBlock/formatContextEntityBlock above.
+ *
+ * Directive §37 ("software-first rule"): retrieved memory must never
+ * outrank live/authoritative data already in the conversation -- encoded
+ * directly in the block's own text, since a text system prompt has no other
+ * enforcement mechanism available to it.
+ */
+export function formatMemoryBlock(memories: { content: string; memoryType: string }[]): string {
+  if (memories.length === 0) return ""
+  const lines: string[] = []
+  let total = 0
+  for (const m of memories) {
+    const line = `- (${m.memoryType}) ${m.content}`
+    if (total + line.length > MEMORY_BLOCK_CHAR_BUDGET) break
+    lines.push(line)
+    total += line.length
+  }
+  if (lines.length === 0) return ""
+  return (
+    `[Relevant memory from past interactions with this user/organisation -- background context only. ` +
+    `If anything here conflicts with live data elsewhere in this conversation or with what the user just said, ` +
+    `trust the live data, not this memory:]\n${lines.join("\n")}`
+  )
+}
+
+// R65 Part C Phase 3: how many candidate memories generateAiReply() below
+// asks for per turn. Small and fixed, matching GLOSSARY/HISTORY's own
+// bounded-context posture rather than an unbounded retrieval.
+const RELEVANT_MEMORY_LIMIT = 5
+
+/**
+ * Best-effort, same posture as listGlossaryTerms's own `.catch(() => [])`
+ * just below this function's one call site -- a memory-retrieval failure
+ * (no embedding provider configured for this org, a transient DB issue, ...)
+ * must never block or fail the chat reply itself.
+ *
+ * requestingUserId scopes out a DIFFERENT user's own USER-scope memories --
+ * see searchMemories()'s own requestingUserId option (added by this same
+ * phase) for why RLS alone does not already guarantee that.
+ */
+async function fetchRelevantMemories(orgId: string, userId: string, userMessage: string): Promise<MemorySearchMatch[]> {
+  return withTenantContext({ orgId, userId }, (db) =>
+    searchMemories(db, userMessage, { requestingUserId: userId, limit: RELEVANT_MEMORY_LIMIT })
+  ).catch((err) => {
+    console.error("Memory retrieval failed (non-blocking):", err)
+    return []
+  })
+}
+
 async function generateAiReply(
   orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string,
   conversationContext: ConversationContextRef = NO_CONVERSATION_CONTEXT
@@ -704,14 +813,21 @@ async function generateAiReply(
     // appended to the STATIC system prompt (not messageForLlm below) -- see
     // formatGlossaryBlock/formatContextEntityBlock's own headers. Fetched in
     // parallel since neither depends on the other.
-    const [glossaryTerms, contextEntitySummary] = await Promise.all([
+    // R65 Part C Phase 3: relevant memory is fetched in the SAME parallel
+    // batch (neither depends on the others) and folded into the SAME
+    // static-prefix systemPrompt string -- reusing the exact context-
+    // assembly pattern V2-13 already established here rather than inventing
+    // a second, parallel one.
+    const [glossaryTerms, contextEntitySummary, relevantMemories] = await Promise.all([
       listGlossaryTerms({ orgId }).catch(() => []),
       fetchContextEntitySummary(orgId, userId, conversationContext),
+      fetchRelevantMemories(orgId, userId, userMessage),
     ])
     const systemPrompt = [
       purposeSystemPrompt,
       formatGlossaryBlock(glossaryTerms),
       formatContextEntityBlock(contextEntitySummary),
+      formatMemoryBlock(relevantMemories),
     ].filter(Boolean).join("\n\n")
     // Prompt & Cache Management Framework, Phase 1 (2026-07-14): systemPrompt
     // above is already the real static-prefix boundary for this call site --
@@ -1119,6 +1235,39 @@ export async function sendMessage(
   if (result.isAiThread) {
     const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content, conversationContext)
     response.aiReply = { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
+
+    // R65 Part C Phase 3 (memory pipeline wiring, directive §4/§13/§39):
+    // best-effort memory capture, gated by detectMemorableStatement()'s own
+    // conservative phrase heuristic (see its header for the honest gap vs.
+    // the directive's full canonicalization step). Runs in the SAME after()
+    // background slot the FDE evaluation just below already established for
+    // "extra processing once the visible reply is already generated and
+    // saved" -- never blocks or slows the chat response, and a capture
+    // failure (most commonly: no real embedding provider configured for
+    // this org, which createMemoryRecord()/storeEmbedding() throw for by
+    // design) is caught and logged here, never surfaced to the user and
+    // never able to undo the reply that already succeeded.
+    const memorable = detectMemorableStatement(content)
+    if (memorable) {
+      after(async () => {
+        try {
+          await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+            createMemoryRecord(db, ctx.orgId, {
+              scopeType: "USER",
+              userId: ctx.userId,
+              memoryType: memorable.memoryType,
+              content,
+              provenanceType: "USER_CONFIRMED",
+              sourceType: "message",
+              sourceId: result.message.id,
+              source: { sourceKind: "CONVERSATION", conversationId },
+            })
+          )
+        } catch (err) {
+          console.error("Memory capture failed (non-blocking):", err)
+        }
+      })
+    }
 
     // Inline VERI FDE evaluation (fire-and-forget, non-blocking, PASSIVE).
     // VERI FDE's own embedding-based capability check

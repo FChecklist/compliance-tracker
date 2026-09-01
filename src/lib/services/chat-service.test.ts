@@ -11,6 +11,7 @@ import { describe, expect, test } from "bun:test"
 import {
   shouldResolveDynamicChain, detectVeriMention, detectClarificationRequest,
   formatContextEntityBlock, formatGlossaryBlock, type ContextEntitySummary,
+  detectMemorableStatement, formatMemoryBlock,
 } from "./chat-service"
 
 describe("shouldResolveDynamicChain -- Priority 5 item E1", () => {
@@ -185,6 +186,75 @@ describe("formatGlossaryBlock -- V2-13 org-glossary hook", () => {
     const terms = Array.from({ length: 500 }, (_, i) => ({ term: `Term${i}`, definition: "x".repeat(50) }))
     const block = formatGlossaryBlock(terms)
     expect(block).not.toContain("Term499")
+    expect(block.length).toBeLessThan(3000)
+  })
+})
+
+// R65 Part C Phase 3: only the pure phrase-gate/formatter functions are
+// tested here -- see this file's own header comment for why everything
+// else in chat-service.ts (withTenantContext/DB/LLM-backed) goes untested
+// at this layer. sendMessage()'s actual createMemoryRecord() call site and
+// generateAiReply()'s actual searchMemories() call site are therefore NOT
+// covered by an automated test in this PR -- a disclosed gap, not a silent
+// one (see this PR's own description).
+describe("detectMemorableStatement -- R65 Part C Phase 3 memory-capture gate", () => {
+  test("no match for ordinary chat with no instruction/preference phrase", () => {
+    expect(detectMemorableStatement("show me overdue items")).toBeNull()
+    expect(detectMemorableStatement("what's my GST filing status")).toBeNull()
+    expect(detectMemorableStatement("thanks!")).toBeNull()
+  })
+
+  test("matches an explicit standing instruction as USER_INSTRUCTION", () => {
+    const result = detectMemorableStatement("From now on, always use 30-day payment terms for ABC Ltd quotations")
+    expect(result).not.toBeNull()
+    expect(result?.memoryType).toBe("USER_INSTRUCTION")
+  })
+
+  test("matches an explicit preference statement as PREFERENCE", () => {
+    const result = detectMemorableStatement("My preference is to see amounts in lakhs, not full rupees")
+    expect(result).not.toBeNull()
+    expect(result?.memoryType).toBe("PREFERENCE")
+  })
+
+  test("is case-insensitive", () => {
+    expect(detectMemorableStatement("ALWAYS CC me on invoice approvals")?.memoryType).toBe("USER_INSTRUCTION")
+  })
+
+  test("returns null for blank content", () => {
+    expect(detectMemorableStatement("   ")).toBeNull()
+  })
+
+  test("returns null for a very long message even if it contains a trigger phrase (targeted heuristic, not a document scanner)", () => {
+    const longText = `some preamble. ${"filler text ".repeat(60)} always remember this detail at the end`
+    expect(longText.length).toBeGreaterThan(500)
+    expect(detectMemorableStatement(longText)).toBeNull()
+  })
+
+  test("instruction phrases are checked before preference phrases when both could plausibly apply", () => {
+    // "always" (instruction) appears before "i prefer" (preference) in this
+    // sentence -- INSTRUCTION_PHRASES is checked first, so this resolves to
+    // USER_INSTRUCTION, a deterministic (not ambiguous) outcome.
+    const result = detectMemorableStatement("Always remember that i prefer dark mode")
+    expect(result?.memoryType).toBe("USER_INSTRUCTION")
+  })
+})
+
+describe("formatMemoryBlock -- R65 Part C Phase 3 memory retrieval wiring", () => {
+  test("empty memory list produces no block", () => {
+    expect(formatMemoryBlock([])).toBe("")
+  })
+
+  test("includes memory type and content, and the software-first trust-live-data instruction", () => {
+    const block = formatMemoryBlock([{ content: "ABC Ltd quotations normally use 30-day payment terms", memoryType: "PREFERENCE" }])
+    expect(block).toContain("PREFERENCE")
+    expect(block).toContain("ABC Ltd quotations normally use 30-day payment terms")
+    expect(block).toContain("trust the live data")
+  })
+
+  test("drops memories once the character budget is exceeded, rather than truncating mid-entry", () => {
+    const memories = Array.from({ length: 200 }, (_, i) => ({ content: `memory-${i}-`.repeat(20), memoryType: "FACT" }))
+    const block = formatMemoryBlock(memories)
+    expect(block).not.toContain("memory-199-")
     expect(block.length).toBeLessThan(3000)
   })
 })

@@ -267,6 +267,48 @@ describe("searchMemories", () => {
     const results = await searchMemories(tx, "an entirely novel query")
     expect(results).toEqual([])
   })
+
+  // R65 Part C Phase 3: cross-user USER-scope memory isolation. Real gap
+  // this option closes -- see SearchMemoriesOptions.requestingUserId's own
+  // header comment. Asserting on the compiled SQL text (not just that a
+  // result came back) because a query-shape regression here is exactly the
+  // kind of silent cross-user leak that would otherwise pass every other
+  // assertion in this file.
+  test("requestingUserId adds the scope_type<>'USER' OR user_id=<id> guard clause to the query", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { searchMemories } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([[]])
+
+    await searchMemories(tx, "what did the user ask for last time?", { requestingUserId: "user-1" })
+
+    expect(calls.length).toBe(1)
+    // Drizzle's sql`` template exposes its compiled fragments via
+    // queryChunks (verified directly against this repo's drizzle-orm
+    // version) -- asserting on the actual guard-clause TEXT and the actual
+    // bound parameter VALUE, not merely that "user_id" appears somewhere
+    // (it always does, in the SELECT column list, whether or not this
+    // option is set -- a weaker assertion would pass even with the filter
+    // silently missing).
+    const sqlText = JSON.stringify(calls[0])
+    expect(sqlText).toContain("scope_type <> 'USER' OR user_id =")
+    expect(sqlText).toContain("user-1")
+  })
+
+  test("omitting requestingUserId compiles no scope_type<>'USER' guard clause at all", async () => {
+    mockEmbeddingsModule({})
+    const dbExecute = mock(async () => [{ embedding: "[0.1,0.2,0.3]" }])
+    mockDbModule(dbExecute)
+    const { searchMemories } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([[{ ...rawRow(), score: 0.5 }]])
+
+    const results = await searchMemories(tx, "a query with no user scoping")
+
+    expect(calls.length).toBe(1)
+    expect(results).toHaveLength(1)
+    const sqlText = JSON.stringify(calls[0])
+    expect(sqlText).not.toContain("scope_type <> 'USER'")
+  })
 })
 
 describe("supersedeMemoryRecord", () => {
