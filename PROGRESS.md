@@ -1,3 +1,10 @@
+> **Note on this file (added 2026-09-01, R66 code-quality inspection):**
+> despite the generic name, this is an in-flight task scratchpad, not a
+> stable running log -- it gets overwritten with whatever task is
+> currently in progress (271 commits' worth of history shows this).
+> For durable per-task records use `progress/` (plural), which already
+> holds this exact content type per-task instead of one shared file.
+
 # PROGRESS -- pr665-rebase-merge-20260901 (real rebase-merge for PR #665)
 
 ## Scope
