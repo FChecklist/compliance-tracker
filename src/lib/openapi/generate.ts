@@ -6,6 +6,21 @@
 // receipts/issues), erp/procurement (requisitions), documents, and
 // pms/meetings + pms/time-entries -- the remaining ~30 domains are still
 // not yet on /api/v1, intentionally absent here rather than faked.
+//
+// AI Documentation gap-closure, 2026-08-07 (UMR-20260801-170930-2080
+// sub-task, [Medium] AI-Readable API Documentation): added the 7 highest
+// external-integration-value gaps identified by re-reading the real route
+// files -- brain/capabilities + brain/entity-relationships (the new Brain
+// namespace's first 2 real consumers), connectors/office-addin/whoami +
+// /departments (the Office Add-in connector's own onboarding calls),
+// platform/provision-org (service-to-service org provisioning, a sibling
+// product's backend, not a customer's own key), and two already-partial
+// paths that were missing their own sub-resource (tasks/{id}/status,
+// construction/predictions/{activityId}). The remaining ~64 PROJEXA
+// sub-resources (see `find src/app/api/v1/projexa -maxdepth 1 -type d`)
+// are still not covered here -- real, multi-day work, tracked in
+// ai-os/MASTER-TRACKER.yaml, prioritized finance cluster first per this
+// same finding's own "external-integration demand" steer.
 import { z } from "zod"
 import {
   createComplianceItemSchema, updateComplianceItemSchema,
@@ -40,7 +55,7 @@ export function generateOpenApiDocument() {
       title: "VERIDIAN AI — Platform API",
       version: "1.0.0",
       description:
-        "The stable, versioned external contract for building on VERIDIAN AI -- a mobile app, ChatGPT Action, Claude connector, reseller white-label app, custom client integration, or a sibling product like PROJEXA (Construction Intelligence AI OS) all target this surface instead of the internal (app)/ UI's routes, which can change without notice. Covers compliance, tasks, notices, the full construction domain, erp/budgets, erp/inventory (ledger/receipts/issues), erp/procurement (requisitions), documents, reports (the Reports & Analysis Engine's report_definitions catalog + generic execution dispatcher), and pms/meetings + pms/time-entries; the remaining ~30 GRC/ERP/PMS modules are not yet exposed here. Change history: docs/API_CHANGELOG.md. Testing safely before using a real org: docs/API_SANDBOX.md (no dedicated sandbox environment exists yet -- that doc is honest about the interim state). Rate limiting: each API key has its own configurable requests-per-minute cap, unlimited by default -- see docs/API_RATE_LIMITS.md in the repo for the full default/available values and how a 429 is returned.",
+        "The stable, versioned external contract for building on VERIDIAN AI -- a mobile app, ChatGPT Action, Claude connector, reseller white-label app, custom client integration, or a sibling product like PROJEXA (Construction Intelligence AI OS) all target this surface instead of the internal (app)/ UI's routes, which can change without notice. Covers compliance, tasks, notices, the full construction domain, erp/budgets, erp/inventory (ledger/receipts/issues), erp/procurement (requisitions), documents, reports (the Reports & Analysis Engine's report_definitions catalog + generic execution dispatcher), pms/meetings + pms/time-entries, the Brain namespace (capabilities search, entity relationships), the Office Add-in connector (whoami, departments), and platform-level org provisioning (service-to-service only, not a customer key); the remaining ~30 GRC/ERP/PMS modules plus ~64 PROJEXA sub-resources are not yet exposed here. Change history: docs/API_CHANGELOG.md. Testing safely before using a real org: docs/API_SANDBOX.md (no dedicated sandbox environment exists yet -- that doc is honest about the interim state). Rate limiting: each API key has its own configurable requests-per-minute cap, unlimited by default -- see docs/API_RATE_LIMITS.md in the repo for the full default/available values and how a 429 is returned.",
     },
     servers: [{ url: "https://veridian-compliance-ai.vercel.app/api/v1" }],
     // Wave 124: every /projexa/* path is tagged "PROJEXA" so an external
@@ -114,6 +129,13 @@ export function generateOpenApiDocument() {
           summary: "Update a task", operationId: "updateTask",
           parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
           requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/UpdateTask" } } } },
+          responses: { "200": { description: "OK" }, "404": { description: "Not found" } },
+        },
+      },
+      "/tasks/{id}/status": {
+        get: {
+          summary: "Lightweight status-only read (distinct from GET /tasks/{id}, which also returns the execution plan + chat) -- what the MCP get_task_status tool calls",
+          operationId: "getTaskStatus", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
           responses: { "200": { description: "OK" }, "404": { description: "Not found" } },
         },
       },
@@ -195,6 +217,68 @@ export function generateOpenApiDocument() {
         post: { summary: "Submit a KPI entry (designer fills)", operationId: "submitKpiEntry", requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/SubmitKpiEntry" } } } }, responses: { "201": { description: "Created" } } },
       },
       "/construction/kpi-entries/{id}/approve": { post: { summary: "Approve a submitted KPI entry (manager approves)", operationId: "approveKpiEntry", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "OK" }, "403": { description: "Submitter cannot self-approve" } } } },
+      "/construction/predictions/{activityId}": {
+        get: {
+          summary: "Deterministic predicted completion date for an activity (velocity-based, no AI) -- same underlying prediction as /projexa/predictions/{activityId}", operationId: "predictActivityCompletion",
+          parameters: [{ name: "activityId", in: "path", required: true, schema: { type: "string" } }],
+          responses: { "200": { description: "OK" }, "404": { description: "Not found" } },
+        },
+      },
+
+      // ─── AI Documentation gap-closure, 2026-08-07: Brain namespace ─────
+      // (Wave 153 groundwork -- thin wrappers over existing services, no
+      // new data model, no code moved -- see each route's own header.)
+      "/brain/capabilities": {
+        get: {
+          summary: "Embedding-similarity search over the capability registry (Chain Selector leaves) for a free-text query", operationId: "brainCapabilitiesSearch",
+          parameters: [
+            { name: "query", in: "query", required: true, schema: { type: "string" } },
+            { name: "limit", in: "query", required: false, description: "Default 10, capped at 25", schema: { type: "integer" } },
+          ],
+          responses: { "200": { description: "OK" }, "400": { description: "query is required" } },
+        },
+      },
+      "/brain/entity-relationships": {
+        get: {
+          summary: "Real, live-computed neighbor list for an entity in the platform's entity graph (entity-graph-service.ts)", operationId: "brainEntityRelationships",
+          parameters: [
+            { name: "entityType", in: "query", required: true, schema: { type: "string" } },
+            { name: "entityId", in: "query", required: true, schema: { type: "string" } },
+          ],
+          responses: { "200": { description: "OK" }, "400": { description: "entityType and entityId are required" } },
+        },
+      },
+
+      // ─── AI Documentation gap-closure, 2026-08-07: Office Add-in connector ───
+      "/connectors/office-addin/whoami": {
+        get: {
+          summary: "Confirms the caller's vk_... API key is valid and returns which org/key it resolves to -- what the Office Add-in task pane calls right after a user pastes in their key", operationId: "connectorsOfficeAddinWhoami",
+          responses: { "200": { description: "OK" }, "400": { description: "No organisation on this account" } },
+        },
+      },
+      "/connectors/office-addin/departments": {
+        get: {
+          summary: "Minimal id/name department list for the Office Add-in's 'Create compliance item' form dropdown -- deliberately narrower than the internal (session-only) /api/departments route", operationId: "connectorsOfficeAddinDepartments",
+          responses: { "200": { description: "OK" } },
+        },
+      },
+
+      // ─── AI Documentation gap-closure, 2026-08-07: Platform provisioning ───
+      "/platform/provision-org": {
+        post: {
+          summary: "Service-to-service tenant provisioning -- a sibling product's own BACKEND (e.g. PROJEXA) calls this at ITS OWN signup time to provision a fresh, isolated VERIDIAN org for one of its customers. Authenticated ONLY by a platform_applications bearer token (Authorization: Bearer pk_...), NOT a customer vk_... API key -- this endpoint is not reachable with the bearerAuth scheme documented above.",
+          operationId: "platformProvisionOrg",
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { type: "object", required: ["customerOrgName"], properties: {
+              customerOrgName: { type: "string" },
+              country: { type: "string", description: "Defaults to IN" },
+              primaryCurrency: { type: "string", description: "Defaults to INR" },
+            } } } },
+          },
+          responses: { "200": { description: "OK -- new org provisioned" }, "401": { description: "Invalid/missing platform application token" }, "400": { description: "customerOrgName is required" } },
+        },
+      },
 
       // ─── Wave 119: existing ERP/PMS/Documents modules ──────────────────
       "/erp/budgets": {

@@ -40,6 +40,20 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260807-063723-retry-ai-documentation-ai-readable-techn) -- VERIDIAN Review Framework gap-closure: AI Documentation / AI-Readable Technical Documentation (10 findings, UMR-20260801-173423-9aa1) [rebase-merging via rebase-sweep2b-1038, was PR #1038, per this repo's standard rebase-sweep protocol]"
+    claimed_at: "2026-08-07T07:00Z (original session); rebased 2026-09-01"
+    claim: |
+      SPEC (redispatch of task-20260718-064002, sub-task of UMR-20260801-170930-2080): close 10
+      AI-Readable-Documentation findings (Architecture/API/Database/Workflow/Business-Rules/
+      Metadata/Module/Prompt/Configuration/Calculation) in one coherent PR. Re-verifying each
+      finding against live code before changing anything, per the task's own instruction, rather
+      than trusting the evaluation's framing as still-accurate. File scope: `ai-os/system-tree/*`,
+      `ai-os/registry/*` (new business-rules + prompt-template-directory docs, additive only),
+      `docs/master/*` (CONFIGURATION.md new, CAPABILITY_COVERAGE.md correction note,
+      MODULE_MAP.md refresh), `src/lib/openapi/generate.ts` (additive path coverage only),
+      `scripts/check-*.mjs` (new, additive), `.github/workflows/ci.yml` (new job wiring only),
+      `PROGRESS.md`. Not touching `src/lib/services/permission-service.ts`'s `ERP_ACTION_ROLES`
+      table or any other in-flight worker's declared scope.
   - session_label: "claude-code (interactive, fix/ocid038-offline-service-worker) -- OCID-038 real gap closure: GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE, real minimal app-shell service worker [rebase-merging via rebase-sweep2b-889, was PR #889, per this repo's standard rebase-sweep protocol]"
     claimed_at: "2026-08-04T11:05Z (original session); rebased 2026-09-01 (round 2, main advanced again mid-flight)"
     claim: |

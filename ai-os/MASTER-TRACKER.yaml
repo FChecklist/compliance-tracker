@@ -607,6 +607,35 @@ open_items:
       recommendation: "Do NOT start any veda-advisors <-> VERIDIAN integration work without a separate, explicit Owner go-ahead -- this entry exists to record the scope decision and prevent 2 opposite mistakes: (a) a future session assuming veda-advisors is already VERIDIAN-integrated because it's declared in-scope, and (b) a future session starting the actual migration unprompted because the declaration exists. Treat this exactly like Priority 13's BIM/IFC item -- deliberately deferred, not ratified-against, do not re-raise as a build task until the Owner brings it up again."
       first_raised: "2026-07-14, Owner review of the FChecklist/VERIDIAN AI OS design description"
 
+    - id: AI-DOC-GAP-CLOSURE-REMAINDER
+      name: "AI Documentation gap-closure (UMR-20260801-170930-2080 sub-task, 2026-08-07) -- 3 real, deliberately-deferred remainders"
+      detail: |
+        All 10 findings from this closure were re-verified against live code and addressed
+        (business rules registry, architecture/database drift check, calculation-coverage
+        re-verification, module doc index, configuration reference, prompt template directory,
+        workflow-field fill, metadata registry verified as already-sound, OpenAPI extension --
+        see PROGRESS.md in that task's workspace for full detail). Three items were confirmed
+        real but deliberately not built in this pass, real multi-day work each:
+        (1) The remaining ~64 PROJEXA OpenAPI sub-resources beyond the 7 added
+        (src/lib/openapi/generate.ts) -- prioritize the finance cluster first
+        (journal-entries, sales-invoices, purchase-orders, trial-balance, balance-sheet,
+        profit-and-loss, bank-reconciliation) per the finding's own external-integration-demand
+        steer.
+        (2) A full VA-01..VA-11 re-audit of the veda-advisors checkout -- VA-02/VA-11's
+        `objects` lists describe files (website/, memory-notes/, code-by-zai/, Linkedin.md,
+        linkedin_auto_update.js) that no longer match the current checkout structure (the repo
+        root now IS what was called code-by-zai/, and the LinkedIn files are gone from every
+        branch) -- found and flagged, not fixed, while filling ai-os/system-tree/
+        50-merged-tree.yaml's workflow fields.
+        (3) Continued VCEL engine wiring -- dispatchEngine()'s real case count is 185 today
+        (re-verified directly, see docs/master/CAPABILITY_COVERAGE.md's dated correction), not
+        the finding's cited ~17% nor this doc's own prior 127/247 figure; closing the remaining
+        gap between catalogued and dispatch-wired engines is real engineering work, tracked at
+        docs/master/CAPABILITY_COVERAGE.md's own "real gap" section (99 product modules with
+        zero worker agents is the largest single piece).
+      recommendation: "No action required unless a future session picks up one of the 3 items above -- this entry exists so that work isn't silently lost once the closing task's own workspace/PROGRESS.md is no longer the active context."
+      first_raised: "2026-08-07"
+
   real_gaps_not_yet_built:
     # These are the still-accurate, still-open items from the old GAPS.yaml
     # (46 items) / 30-gap-backlog.yaml (11 items) catalogs, AFTER removing
