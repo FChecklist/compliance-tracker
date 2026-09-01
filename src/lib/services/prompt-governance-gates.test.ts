@@ -25,6 +25,22 @@
 /// <reference types="bun-types" />
 import { describe, expect, test, mock, afterEach } from "bun:test"
 import type { TenantDb } from "@/lib/db/tenant-scoped"
+// Captured at module-load time, BEFORE any mock.module("@/lib/db", ...) call
+// below runs -- this is the real module's full export surface (every schema
+// table, incl. auditLogs/complianceItems/departments/notices/notifications
+// that compliance-service.ts and audit.ts pull in transitively through
+// prompt-governance-service.ts's own `import { ServiceError } from
+// "./compliance-service"` / logActivity() chain). `db` itself is a lazy
+// Proxy (see db/index.ts) so importing it here has no live-connection side
+// effect. Spread into the mock factory's return value below so replacing
+// "@/lib/db" for THIS module's own test doubles (db.query.*, db.select)
+// doesn't also silently drop every OTHER named export something else in the
+// import chain needs -- a bare `{ db, promptEvalRuns, ... }` factory return
+// previously did exactly that, surfacing as "Export named 'auditLogs' not
+// found in module ... db.ts" for every test in this file, since ESM named
+// exports are checked at link time for the whole module graph, not lazily
+// per access.
+import * as actualDbModule from "@/lib/db"
 
 type MockDbOptions = {
   platformRuleValue?: number
@@ -43,6 +59,7 @@ function buildMockDb(opts: MockDbOptions) {
     }),
   }))
   return {
+    ...actualDbModule,
     db: {
       query: {
         moduleRuleConfigs: { findFirst: moduleRuleConfigsFindFirst },

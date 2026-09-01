@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listComplianceItems, createComplianceItem, ServiceError, serviceErrorBody } from "@/lib/services/compliance-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ compliance: [], total: 0, page: 1, limit: 20, totalPages: 0 })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const { searchParams } = request.nextUrl

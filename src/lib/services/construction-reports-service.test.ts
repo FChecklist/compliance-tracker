@@ -20,6 +20,7 @@ import {
   aggregateDesignerApprovalStatus,
   aggregateWorkAnalysis,
   computeCertifiedPayroll,
+  computeEarnedValue,
   WH347_DAY_LABELS,
   type DesignerTimesheetBudgetLine,
   type DesignerTimesheetEntry,
@@ -28,6 +29,7 @@ import {
   type WorkAnalysisEntry,
   type CertifiedPayrollAttendanceRow,
   type CertifiedPayrollWageRate,
+  type EvLineItem,
 } from "./construction-reports-service"
 
 // Fixture: 3 designers across 2 projects and 3 categories.
@@ -431,5 +433,99 @@ describe("computeCertifiedPayroll", () => {
     const result = computeCertifiedPayroll([], [], WEEK_START)
     expect(result.weekStart).toBe(WEEK_START)
     expect(result.weekEnd).toBe(dayOf(6))
+  })
+})
+
+// R46/R-51 (fault R46P5_R51_01, confirmed live 2026-08-25 -- Oakwood
+// Residence, upv2q7pv8qcwdayybvu74egm): earnedValueReport() previously only
+// ever read quantity_done and silently valued a line at $0 whenever no
+// physical quantity had been recorded for it, even when a real
+// percentComplete had been logged -- and, separately, unconditionally
+// dropped a root line item's OWN progress the moment it had children (only
+// children were ever summed). computeEarnedValue() is the pure rollup
+// these tests exercise directly, no DB.
+describe("computeEarnedValue -- R46/R-51 percent-complete fallback + root-with-children direct progress", () => {
+  test("REGRESSION ORACLE: measured quantity on a weighted child still earns exactly as before (qty x rootRate x breakdownPct/100) -- the pre-existing, already-correct code path is untouched", () => {
+    const items: EvLineItem[] = [
+      { id: "root1", parentLineItemId: null, rate: 10, amount: 1000, breakdownPercentage: null },
+      { id: "childA", parentLineItemId: "root1", rate: 6, amount: 600, breakdownPercentage: 60 },
+      { id: "childB", parentLineItemId: "root1", rate: 4, amount: 400, breakdownPercentage: 40 },
+    ]
+    const qtyByItem = new Map([["childA", 30]]) // only childA has a real measured quantity
+    const result = computeEarnedValue(items, qtyByItem, new Map())
+    // 30 (qty) x 10 (ROOT's rate, not the child's own) x 60% = 180
+    expect(result.earnedValue).toBe(180)
+    expect(result.contractValue).toBe(1000)
+    expect(result.percentByValue).toBe(18)
+  })
+
+  test("Oakwood live case: a root-with-children line has percentComplete=50 but quantityDone=0 (no measurement yet) -- previously $0, now 50% of the root's own contracted value, additive on top of its children", () => {
+    const items: EvLineItem[] = [
+      { id: "PP1", parentLineItemId: null, rate: 50, amount: 5000, breakdownPercentage: null },
+      { id: "PP1-A", parentLineItemId: "PP1", rate: 20, amount: 2000, breakdownPercentage: 40 },
+    ]
+    const qtyByItem = new Map<string, number>() // both real Oakwood entries recorded quantityDone: 0
+    const latestPercentByItem = new Map([["PP1", 50]]) // real entries recorded percentComplete: 50
+    const result = computeEarnedValue(items, qtyByItem, latestPercentByItem)
+    expect(result.contractValue).toBe(5000) // unchanged -- matches the live "AED 5,000 contract value" evidence
+    expect(result.earnedValue).toBe(2500) // 50% x root's own 5000 -- was 0 before this fix
+    expect(result.percentByValue).toBe(50)
+  })
+
+  test("a child (not the root) logged percent-only progress falls back to its breakdown share of the root's contract value", () => {
+    const items: EvLineItem[] = [
+      { id: "root1", parentLineItemId: null, rate: 10, amount: 1000, breakdownPercentage: null },
+      { id: "childA", parentLineItemId: "root1", rate: 6, amount: 600, breakdownPercentage: 40 },
+    ]
+    const latestPercentByItem = new Map([["childA", 50]])
+    const result = computeEarnedValue(items, new Map(), latestPercentByItem)
+    // childA's share of contract value = 1000 x 40% = 400; 50% of that = 200
+    expect(result.earnedValue).toBe(200)
+    expect(result.contractValue).toBe(1000)
+  })
+
+  test("a real measured quantity always wins over a logged percentComplete on the same line -- never double-counted", () => {
+    const items: EvLineItem[] = [{ id: "root1", parentLineItemId: null, rate: 20, amount: 2000, breakdownPercentage: null }]
+    const qtyByItem = new Map([["root1", 50]])
+    const latestPercentByItem = new Map([["root1", 90]]) // present, but must be ignored since qty is measured
+    const result = computeEarnedValue(items, qtyByItem, latestPercentByItem)
+    expect(result.earnedValue).toBe(1000) // 50 x 20, NOT 90% x 2000 = 1800
+  })
+
+  test("a root's own direct progress and its children's progress are both counted, additively, without double-counting", () => {
+    const items: EvLineItem[] = [
+      { id: "root1", parentLineItemId: null, rate: 30, amount: 3000, breakdownPercentage: null },
+      { id: "child1", parentLineItemId: "root1", rate: 30, amount: 3000, breakdownPercentage: 100 },
+    ]
+    const qtyByItem = new Map([["root1", 20], ["child1", 10]])
+    const result = computeEarnedValue(items, qtyByItem, new Map())
+    expect(result.earnedValue).toBe(900) // root: 20x30=600, child: 10x30x100%=300
+    expect(result.contractValue).toBe(3000)
+  })
+
+  test("no progress logged anywhere -- earnedValue 0, contractValue still the real sum of root amounts, never a crash", () => {
+    const items: EvLineItem[] = [
+      { id: "root1", parentLineItemId: null, rate: 10, amount: 1000, breakdownPercentage: null },
+      { id: "root2", parentLineItemId: null, rate: 5, amount: 500, breakdownPercentage: null },
+    ]
+    const result = computeEarnedValue(items, new Map(), new Map())
+    expect(result).toEqual({ earnedValue: 0, contractValue: 1500, percentByValue: 0 })
+  })
+
+  test("multiple independent (non-hierarchical) root lines each resolve quantity-vs-percent independently", () => {
+    const items: EvLineItem[] = [
+      { id: "rootA", parentLineItemId: null, rate: 5, amount: 500, breakdownPercentage: null },
+      { id: "rootB", parentLineItemId: null, rate: 10, amount: 1000, breakdownPercentage: null },
+    ]
+    const qtyByItem = new Map([["rootA", 40]]) // rootA measured
+    const latestPercentByItem = new Map([["rootB", 25]]) // rootB percent-only
+    const result = computeEarnedValue(items, qtyByItem, latestPercentByItem)
+    expect(result.earnedValue).toBe(450) // rootA: 40x5=200, rootB: 25% x 1000=250
+    expect(result.contractValue).toBe(1500)
+    expect(result.percentByValue).toBe(30)
+  })
+
+  test("empty line-item list -- all zero, not an error", () => {
+    expect(computeEarnedValue([], new Map(), new Map())).toEqual({ earnedValue: 0, contractValue: 0, percentByValue: 0 })
   })
 })

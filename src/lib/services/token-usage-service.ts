@@ -7,7 +7,7 @@
 // both platform-internal (no org) and per-org rows, so it was never a fit
 // for withTenantContext's org-scoped model.
 import { db, tokenUsageLedger } from "@/lib/db"
-import { sql, gte, and, isNotNull } from "drizzle-orm"
+import { sql, gte, and, isNotNull, eq } from "drizzle-orm"
 import { estimateCostUsd, estimateCacheSavingsUsd, type LLMUsage } from "@/lib/llm-client"
 import { buildSpendForecast, startOfMonthUtc, type SpendForecast } from "@/lib/spend-forecast"
 
@@ -134,4 +134,40 @@ export async function getTokenUsageSummary(sinceDays = 7): Promise<TokenUsageSum
     byOrg,
     platformMonthlyForecast,
   }
+}
+
+export type OrgUsageForPeriod = {
+  requests: number
+  promptTokens: number
+  completionTokens: number
+  estimatedCostUsd: number
+}
+
+/**
+ * Real AI cost for one org, one arbitrary [periodStart, periodEnd) window --
+ * the exact aggregation platform-billing-service.ts needs to turn a period
+ * into an invoice line item. cost-guard.ts's getMonthlySpend() is the
+ * sibling "always current calendar month" version of this same query; this
+ * is the arbitrary-period generalization for billing, which cost-guard.ts's
+ * live spend-cap check has no reason to need. Scoped to
+ * scope='product_orchestra' only, same reasoning as cost-guard.ts:
+ * 'ai_team_internal' spend is platform-owned (orgId is null on those rows
+ * by design) and was never the customer's usage to bill for.
+ */
+export async function getOrgUsageForPeriod(orgId: string, periodStart: Date, periodEnd: Date): Promise<OrgUsageForPeriod> {
+  const [row] = await db
+    .select({
+      requests: sql<number>`count(*)::int`,
+      promptTokens: sql<number>`coalesce(sum(${tokenUsageLedger.promptTokens}), 0)::int`,
+      completionTokens: sql<number>`coalesce(sum(${tokenUsageLedger.completionTokens}), 0)::int`,
+      estimatedCostUsd: sql<number>`coalesce(sum(${tokenUsageLedger.estimatedCostUsd}), 0)::float`,
+    })
+    .from(tokenUsageLedger)
+    .where(and(
+      eq(tokenUsageLedger.orgId, orgId),
+      eq(tokenUsageLedger.scope, "product_orchestra"),
+      gte(tokenUsageLedger.createdAt, periodStart),
+      sql`${tokenUsageLedger.createdAt} < ${periodEnd}`,
+    ))
+  return row ?? { requests: 0, promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0 }
 }

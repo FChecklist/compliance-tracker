@@ -52,6 +52,20 @@ const LOW_CONFIDENCE_PHRASES = [
   "i don't have enough information", "i do not have enough information",
   "it's hard to say", "it is hard to say", "i can't be certain",
   "i cannot be certain", "not entirely sure", "i might be wrong",
+  // GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION (closed 2026-08-30,
+  // R1-R64 recheck): a genuine model REFUSAL (e.g. "Boss, I'm sorry—I can't
+  // help with that.", the exact live reply that surfaced this gap) matched
+  // none of the hedge phrases above, so it persisted with
+  // confidence_label = "high" -- identical, confidence-wise, to a genuinely
+  // confident correct answer. Refusal is a different failure mode than
+  // hedging, but for this label's purpose (never "high" for a reply that
+  // didn't actually help) it belongs on the same list, per this gap's own
+  // recommendation.
+  "i can't help with that", "i cannot help with that",
+  "i'm not able to help with that", "i am not able to help with that",
+  "i'm not able to", "i am not able to", "i can't assist with that",
+  "i cannot assist with that", "that's outside my scope", "that is outside my scope",
+  "outside my scope", "i'm not allowed to", "i am not allowed to",
 ]
 
 export function detectLowConfidenceResponse(replyText: string): { detected: boolean; matchedPhrase: string | null } {
