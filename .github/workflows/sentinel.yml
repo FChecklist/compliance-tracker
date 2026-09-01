@@ -9,20 +9,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      # Deployment Security gap-closure (Cloud Deployment / Deployment
-      # Operations review, "secret-scan is advisory not blocking"):
-      # `continue-on-error: true` previously swallowed a real gitleaks
-      # finding so this job always reported success regardless of its own
-      # result. Removed -- a genuine leak now fails this job for real.
-      # Follow-up (not done blind in this same change): add "Secret
-      # Scanning" to the repo's required_status_checks once a few real
-      # runs of this job on the live history have been confirmed clean --
-      # that's a repo-wide branch-protection change affecting every PR
-      # from every concurrent session, so it needs its own verified,
-      # deliberate rollout rather than riding in as a side effect here.
       - name: Scan for secrets
         uses: gitleaks/gitleaks-action@v3
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        # R60 T9: this job ran with continue-on-error: true, so it never
+        # actually failed the build even on a real detected secret -- a
+        # check with no failing case is not a check. GitHub's own secret
+        # scanning/push protection was auto-disabled when these repos went
+        # private (GitHub Free has neither for private repos, GHAS is paid
+        # and declined) -- this job is the real replacement and now
+        # actually enforces. Proven with a real planted-then-rejected test
+        # commit, not just this config change alone.
   docs-check:
     name: Documentation Sentinel Check
     runs-on: ubuntu-latest

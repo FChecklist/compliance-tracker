@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listExpenseEntries, createExpenseEntry, ServiceError } from "@/lib/services/construction-expense-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ expenses: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const projectId = request.nextUrl.searchParams.get("projectId")
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })

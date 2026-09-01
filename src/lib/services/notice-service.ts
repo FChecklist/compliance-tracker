@@ -128,7 +128,7 @@ export async function getNotice(ctx: ReadContext, id: string) {
       complianceItem: item.complianceItem ? { id: item.complianceItem.id, title: item.complianceItem.title, complianceType: item.complianceItem.complianceType, status: item.complianceItem.status } : null,
       createdAt: item.createdAt.toISOString(), updatedAt: item.updatedAt.toISOString(),
     },
-    documents: item.documents.map((doc) => ({ id: doc.id, name: doc.name, fileType: doc.fileType, fileSize: doc.fileSize, uploadedBy: { name: doc.uploadedBy.name }, createdAt: doc.createdAt.toISOString() })),
+    documents: item.documents.map((doc) => ({ id: doc.id, name: doc.name, fileType: doc.fileType, fileSize: doc.fileSize, uploadedBy: doc.uploadedBy ? { name: doc.uploadedBy.name } : null, createdAt: doc.createdAt.toISOString() })),
     comments: noticeComments.map((c) => ({ id: c.id, content: c.content, author: { name: c.author.name, avatarUrl: c.author.avatarUrl }, createdAt: c.createdAt.toISOString() })),
     auditLogs: logs.map((log) => ({ id: log.id, action: log.action, entityType: log.entityType, entityId: log.entityId, details: log.details, userName: log.user?.name ?? log.actorName, createdAt: log.createdAt.toISOString() })),
   }

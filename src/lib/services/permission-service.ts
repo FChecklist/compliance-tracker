@@ -239,6 +239,18 @@ export const ERP_ACTION_ROLES = {
   "erp.banking.import_statement": "member", // upload a bank statement file -- routine data entry, does not post to GL
   "erp.banking.match_line": "member", // link a bank line to an existing JE -- routine reconciliation, doesn't move money
   "erp.banking.ignore_line": "member", // mark a line as ignored -- routine reconciliation cleanup
+
+  // Sales Pipeline (VERIDIAN Review Framework gap-closure, task-20260718-
+  // 082004, 2026-08-07): a single additive key, not a full RBAC pass over
+  // CRM leads/opportunities (those routes' own "Access Control" finding, if
+  // any, is a separate workstream -- confirmed not in this task's 14
+  // findings). Configuring the org's pipeline stage definitions (which
+  // stages exist, which are terminal/won/lost) reshapes how every rep's
+  // Kanban board and stage-transition validation behaves org-wide -- same
+  // "master-data configuration = manager" bar as
+  // erp.fixed_assets.category_manage/erp.chart_of_accounts.create above,
+  // not routine data entry.
+  "crm.pipeline_stages.manage": "manager",
 } as const satisfies Record<string, UserRole>
 
 export type ErpAction = keyof typeof ERP_ACTION_ROLES
@@ -334,6 +346,15 @@ export const PROMPT_ACTION_ROLES = {
   "prompt.template.assign_owner": "veridian_admin", // Governance Engine: assign/change a template's steward
   "prompt.eval.create_case": "veridian_admin", // author an eval case
   "prompt.eval.run": "veridian_admin", // execute an eval case against a version
+  // VERIDIAN_Architecture_v2.0 phase_8 (2026-07-28): engine-prompt-
+  // translation/-localization/-marketplace/-export/-import. Same
+  // veridian_admin bar as every other prompt-OS write above -- prompt
+  // content remains a platform-governed asset either way these actions
+  // touch it (AGENTS.md Rule 9: not loosened without Owner sign-off).
+  "prompt.translation.create": "veridian_admin", // translate a prompt version into another language
+  "prompt.localization.create": "veridian_admin", // locale-adapt an existing translation
+  "prompt.marketplace.publish": "veridian_admin", // list/unlist a Production version on the marketplace
+  "prompt.import.run": "veridian_admin", // ingest an exported prompt bundle
 } as const satisfies Record<string, UserRole>
 
 export type PromptAction = keyof typeof PROMPT_ACTION_ROLES

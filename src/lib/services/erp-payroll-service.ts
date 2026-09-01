@@ -22,8 +22,8 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { ErpContext } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 // ============================================================
 // Salary Components (master data: Basic, HRA, Special Allowance, ...)
@@ -152,6 +152,20 @@ export async function listPayrollRuns(ctx: { orgId: string }) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpPayrollRuns.findMany({ where: eq(erpPayrollRuns.orgId, ctx.orgId), orderBy: (t, { desc }) => [desc(t.year), desc(t.month)] })
+  })
+}
+
+// Real-screen conversion (2026-08-30): single-run lookup for the Payroll
+// Run Object Page -- read-only, no dbUser required (unlike every write
+// action in this file, which stays identity-bridge-blocked -- see
+// PROJEXA_REAL_SCREEN_CONVERSION_TRACKER.md module #21 for why that's a
+// deliberate posture, not a bug, same as Employees' module #8 finding).
+export async function getPayrollRun(ctx: { orgId: string }, runId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const run = await db.query.erpPayrollRuns.findFirst({ where: and(eq(erpPayrollRuns.id, runId), eq(erpPayrollRuns.orgId, ctx.orgId)) })
+    if (!run) throw new ServiceError("Payroll run not found", 404)
+    return run
   })
 }
 
