@@ -24,6 +24,10 @@ export function MessageContent({ content }: { content: string }) {
     <div className="text-sm break-words [&_p]:whitespace-pre-wrap [&_p:not(:last-child)]:mb-2">
       <ReactMarkdown
         components={{
+          // False positive: react-markdown always passes the link text
+          // through `props.children`, the lint rule just can't see through
+          // the spread.
+          // eslint-disable-next-line jsx-a11y/anchor-has-content
           a: ({ ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2" />,
           code: ({ className, children, ...props }) => {
             const isBlock = /language-/.test(className || "");

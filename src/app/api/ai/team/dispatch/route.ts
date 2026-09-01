@@ -7,7 +7,8 @@ import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-en
 import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF, HANDOVER_PROTOCOL_LEAF } from "@/lib/guardrail-registrations"
 import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
 import { checkTierEligibility } from "@/lib/model-tier-eligibility"
-import { resolveModel as resolveMotherRouterModel, resolveTenantAiConfig } from "@/lib/ai-router/mother-router"
+import { resolveModel as resolveMotherRouterModel, resolveTenantAiConfig, recordMotherRouterOutcome, type MotherRouterOutcome } from "@/lib/ai-router/mother-router"
+import { db, aiAgentMemory } from "@/lib/db"
 import { validateLevelDispatch, capabilityCategoryForLevel, levelEscalatesOnConfidenceThreshold, COMPLEXITY_TIER_FOR_CATEGORY, SOFTWARE_TEAM_LADDER, type SoftwareTeamLevel, type CapabilityCategory } from "@/lib/ai-router/software-team-ladder"
 import { validateInstructionContract, taskTypeForStepCount, WORKER_ESCALATION_CONFIDENCE_THRESHOLD, type InstructionContract, type ExecutionReport, type ExecutionStepStatus } from "@/lib/ai-router/instruction-contract"
 import { registerInstructionContract, recordExecutionReport, getTaskRecord } from "@/lib/ai-router/task-register-service"
@@ -257,6 +258,18 @@ export async function POST(request: NextRequest) {
     // it (see software-team-ladder.ts's L4 comment).
     const resolvedCapabilityCategory = softwareTeamLevel ? (callerCapabilityCategory ?? capabilityCategoryForLevel(softwareTeamLevel) ?? undefined) : undefined
 
+    // Ground-up persistent memory (ai-os gap mother-router-roster-memory,
+    // 2026-07-26): generated HERE, synchronously, rather than read back from
+    // resolveMotherRouterModel()'s own return value -- that call stays
+    // fire-and-forget (unawaited) below, matching its pre-existing,
+    // deliberate "audit-logging only, never consumed" scope decision (see
+    // the comment block below). Passing our own id in lets
+    // platform.mother_router_memory's row be written under an id this route
+    // already knows, so it can call recordMotherRouterOutcome() once this
+    // dispatch's real outcome/cost are known further down, without having
+    // to await the resolution call just to learn its id.
+    const motherRouterDispatchId = createId()
+
     void resolveMotherRouterModel({
       scope: "software_team",
       model: targetRole.model,
@@ -280,7 +293,7 @@ export async function POST(request: NextRequest) {
       // and the real call. Omitted/undefined when there's no org context
       // (a platform-level run) -> resolves exactly as before.
       orgId: orgId ?? undefined,
-    }).catch((err) => console.error("[mother-router] audit logging failed (non-fatal):", err))
+    }, motherRouterDispatchId).catch((err) => console.error("[mother-router] audit logging failed (non-fatal):", err))
 
     // AIROUTER-01 Phase 2 (Part B): register the Instruction Contract
     // BEFORE execution, matching the Owner's "genuinely PRE-execution"
@@ -558,18 +571,20 @@ export async function POST(request: NextRequest) {
     })
     const confidenceBand = bandConfidence(confidencePercentage)
 
+    // Real cost when this model's pricing is known (estimateCostUsd returns
+    // null for an unpriced model), never fabricated. execution.role.model
+    // (not targetRole.model) -- reflects the model actually called, in case
+    // an override was in effect. Computed once, shared by activity_log
+    // below and the mother_router_memory outcome write further down.
+    const dispatchCostUsd = estimateCostUsd(execution.role.model!, execution.usage)
+
     const activityRow = orgId
       ? await recordActivity({
           orgId, userId: dbUser.id, activityType: "ai_team_dispatch",
           lifecycleStage,
           objective, roleKey: classification.role, complexityTier,
           durationMs: Date.now() - dispatchStartedAt,
-          // Real cost when this model's pricing is known (estimateCostUsd
-          // returns null for an unpriced model) -- forwarded to the
-          // reflection row's cost verdict, never fabricated.
-          // execution.role.model (not targetRole.model) -- reflects the
-          // model actually called, in case an override was in effect.
-          costUsd: estimateCostUsd(execution.role.model!, execution.usage) ?? undefined,
+          costUsd: dispatchCostUsd ?? undefined,
           riskLevel,
           selfAssessment: handoverFieldCheck.passed ? selfAssessmentFields : undefined,
           confidencePercentage,
@@ -665,6 +680,46 @@ export async function POST(request: NextRequest) {
       // because no level was declared" apart from "report was lost to a
       // DB failure." Surfaced explicitly below.
       if (!recorded.ok) reportPersistenceFailed = true
+    }
+
+    // Ground-up persistent memory (ai-os gap mother-router-roster-memory,
+    // 2026-07-26): the real dispatch-decision-point writes -- this is the
+    // one place in the codebase a roster.ts role's dispatch actually
+    // completes with a known outcome, so it's the one place
+    // platform.ai_agent_memory can be written from (roster.ts itself is
+    // static role data with no dispatch call site of its own). Mirrors
+    // taskRegisterStatus when a softwareTeamLevel workflow tracked one;
+    // otherwise derived from this call's own qaGate/requiresAudit verdict,
+    // using the same 4-value vocabulary (see schema.ts's
+    // aiAgentMemoryOutcomeEnum comment). Fire-and-forget, non-fatal --
+    // never blocks or fails a real dispatch response.
+    const agentOutcome: "in_progress" | "completed" | "failed" | "escalated" =
+      softwareTeamLevel && taskRegisterStatus
+        ? (taskRegisterStatus as "in_progress" | "completed" | "failed" | "escalated")
+        : qaGate.passed
+          ? "completed"
+          : "escalated"
+    const crossRefWorkItemId = activityRow?.id ?? taskId ?? null
+
+    db.insert(aiAgentMemory).values({
+      roleId: classification.role,
+      taskId: taskId ?? null,
+      outcome: agentOutcome,
+      escalationFlag: softwareTeamLevel ? (requiresAudit || agentOutcome === "escalated") : requiresAudit,
+      crossRefWorkItemId,
+    }).catch((err: unknown) => console.error("[ai-agent-memory] failed to write ai_agent_memory row (non-fatal):", err))
+
+    // Same 4-value outcome, translated to mother_router_memory's own
+    // outcome vocabulary (schema.ts's motherRouterMemoryOutcomeEnum) --
+    // 'in_progress' (a multi-step L2/L3 workflow with more steps still
+    // ahead) intentionally leaves the row at its 'pending' default rather
+    // than being written here; the workflow's LAST step call is what
+    // finalizes it.
+    if (motherRouterDispatchId && agentOutcome !== "in_progress") {
+      const motherRouterOutcome: MotherRouterOutcome = agentOutcome === "completed" ? "success" : agentOutcome === "failed" ? "failure" : "escalated"
+      void recordMotherRouterOutcome(motherRouterDispatchId, motherRouterOutcome, dispatchCostUsd, crossRefWorkItemId).catch((err) =>
+        console.error("[mother-router] failed to record outcome (non-fatal):", err)
+      )
     }
 
     return NextResponse.json({

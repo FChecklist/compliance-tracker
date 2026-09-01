@@ -346,6 +346,15 @@ export const PROMPT_ACTION_ROLES = {
   "prompt.template.assign_owner": "veridian_admin", // Governance Engine: assign/change a template's steward
   "prompt.eval.create_case": "veridian_admin", // author an eval case
   "prompt.eval.run": "veridian_admin", // execute an eval case against a version
+  // VERIDIAN_Architecture_v2.0 phase_8 (2026-07-28): engine-prompt-
+  // translation/-localization/-marketplace/-export/-import. Same
+  // veridian_admin bar as every other prompt-OS write above -- prompt
+  // content remains a platform-governed asset either way these actions
+  // touch it (AGENTS.md Rule 9: not loosened without Owner sign-off).
+  "prompt.translation.create": "veridian_admin", // translate a prompt version into another language
+  "prompt.localization.create": "veridian_admin", // locale-adapt an existing translation
+  "prompt.marketplace.publish": "veridian_admin", // list/unlist a Production version on the marketplace
+  "prompt.import.run": "veridian_admin", // ingest an exported prompt bundle
 } as const satisfies Record<string, UserRole>
 
 export type PromptAction = keyof typeof PROMPT_ACTION_ROLES

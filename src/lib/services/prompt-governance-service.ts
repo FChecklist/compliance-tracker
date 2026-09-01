@@ -210,7 +210,7 @@ export async function assignPromptTemplateOwner(
 // with interpolated input, which would be a command-injection surface for
 // no real benefit here.
 import { readdirSync, readFileSync, type Dirent } from "node:fs"
-import { join } from "node:path"
+import { join, sep } from "node:path"
 
 const DEPENDENCY_SCAN_ROOT = join(process.cwd(), "src")
 const SCAN_EXTENSIONS = new Set([".ts", ".tsx"])
@@ -265,7 +265,13 @@ export function getPromptTemplateDependents(templateKey: string): PromptDependen
       }
       if (!content.includes("resolvePromptTemplate(")) continue
       if (content.includes(needle) || content.includes(needleAlt)) {
-        dependents.push({ file: file.slice(process.cwd().length + 1) })
+        // Normalize to forward slashes: join()/readdirSync() walk with the
+        // OS-native separator, so on Windows this would otherwise emit
+        // "src\\app\\api\\..." -- inconsistent with every other path string
+        // in this repo (git, imports, the UI this surfaces to) and with what
+        // callers/tests reasonably expect a "file path" string to look like
+        // regardless of the OS the governance read happens to run on.
+        dependents.push({ file: file.slice(process.cwd().length + 1).split(sep).join("/") })
       }
     }
   } catch {

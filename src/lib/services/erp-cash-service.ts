@@ -13,8 +13,8 @@ export { ServiceError }
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { ErpContext } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 export async function listCashAccounts(ctx: { orgId: string }) {
   await requireErpEnabled(ctx.orgId)

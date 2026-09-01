@@ -8,7 +8,7 @@
 // `constructionDrawings` table would fragment retention/versioning/
 // auto-classification that this row already gets for free.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listDocuments, createDocumentRecord, ServiceError } from "@/lib/services/document-service"
 import { createClient } from "@supabase/supabase-js"
 
@@ -48,7 +48,7 @@ async function toDrawingDto(
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ drawings: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const projectId = request.nextUrl.searchParams.get("projectId")
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })
@@ -77,8 +77,11 @@ export async function POST(request: NextRequest) {
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey?.id
-  if (!ctx.orgId || !actorId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  // R39/R-C14: ctx.apiKey?.id is not a real compliance.users row -- see
+  // documents.uploadedById's schema.ts comment for the real production FK
+  // violation this fallback caused.
+  const actorId = ctx.dbUser?.id ?? null
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const formData = await request.formData()

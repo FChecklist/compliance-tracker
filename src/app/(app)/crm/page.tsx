@@ -69,10 +69,10 @@ export default function CrmPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-heading text-ct-navy flex items-center gap-2"><Sparkles className="size-5 text-ct-saffron" /> CRM</h1>
+          <h1 className="text-2xl font-heading text-ct-navy flex items-center gap-2"><Sparkles className="size-5 text-ct-saffron-text" /> CRM</h1>
           <p className="text-sm text-ct-muted mt-1">Lead-to-client pipeline -- how you actually get a new client, and keep the ones you have.</p>
         </div>
-        <Link href="/crm/sales-pipeline" className="flex items-center gap-1.5 text-sm text-ct-saffron hover:text-ct-navy transition-colors">
+        <Link href="/crm/sales-pipeline" className="flex items-center gap-1.5 text-sm text-ct-saffron-text hover:text-ct-navy transition-colors">
           <TrendingUp className="size-4" /> Sales Pipeline Dashboard
         </Link>
       </div>
@@ -85,7 +85,7 @@ export default function CrmPage() {
               <Card className="rounded-xl shadow-card bg-white hover:shadow-md transition-shadow h-full">
                 <CardContent className="p-5 space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="grid place-items-center size-9 rounded-lg bg-ct-saffron/10"><Icon className="size-4.5 text-ct-saffron" /></div>
+                    <div className="grid place-items-center size-9 rounded-lg bg-ct-saffron/10"><Icon className="size-4.5 text-ct-saffron-text" /></div>
                     {m.key !== "pipeline" && (
                       <span className="text-2xl font-heading text-ct-navy">{counts ? counts[m.key as keyof Counts] : "—"}</span>
                     )}

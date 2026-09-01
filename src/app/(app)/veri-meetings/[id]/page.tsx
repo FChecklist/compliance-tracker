@@ -268,7 +268,7 @@ export default function VeriMeetingDetailPage() {
         <div className="rounded-xl border border-ct-border bg-white p-6 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-ct-navy uppercase tracking-wide flex items-center gap-2">
-              <Sparkles className="size-4 text-ct-saffron" /> AI Intelligence
+              <Sparkles className="size-4 text-ct-saffron-text" /> AI Intelligence
             </h2>
             <Button size="sm" variant="outline" onClick={generateIntelligence} disabled={generatingIntelligence || !minutes.trim()}>
               {generatingIntelligence ? <Loader2 className="size-3.5 mr-1 animate-spin" /> : <RefreshCw className="size-3.5 mr-1" />}

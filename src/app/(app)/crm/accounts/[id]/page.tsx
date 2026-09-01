@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-// VERIDIAN Review Framework Wave B (2026-07-17): account detail page --
+// VERIDIAN Review Framework Wave B: account detail page --
 // profile edit, billing/shipping address, contacts roster (primary-contact
 // aware), linked leads/opportunities, and child accounts (subsidiaries).
 // Mirrors /erp/customers/[id]'s list+detail shape, extended with the
@@ -12,7 +12,7 @@ import { useEffect, useState, useCallback, use as usePromise } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
 import {
-  ArrowLeft, Loader2, MapPin, Users, Target, UserPlus, Star, Trash2, Building2,
+  ArrowLeft, Loader2, MapPin, Users, Target, UserPlus, Star, Trash2, Building2, Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { CountrySelect, StateSelect } from "@/components/ui/country-state-select";
+import { resolveCountryChange, resolveStateChange } from "@/lib/data/geography";
 
 type Account = {
   id: string; name: string; industry: string | null; website: string | null;
@@ -35,6 +37,7 @@ type Account = {
   shippingSameAsBilling: boolean;
   shippingLine1: string | null; shippingLine2: string | null; shippingCity: string | null;
   shippingState: string | null; shippingPostalCode: string | null; shippingCountry: string | null;
+  aiHealthScore: number | null; aiRiskFactors: string[]; aiRecommendedAction: string | null; aiAnalyzedAt: string | null;
 };
 type Contact = { id: string; name: string; title: string | null; email: string | null; phone: string | null; isPrimary: boolean };
 type Lead = { id: string; name: string; status: string };
@@ -58,6 +61,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const [analyzing, setAnalyzing] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [contactName, setContactName] = useState("");
   const [contactTitle, setContactTitle] = useState("");
@@ -119,6 +123,20 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  const analyze = async () => {
+    setAnalyzing(true);
+    try {
+      const res = await fetch(`/api/crm/accounts/${id}/analyze`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast.success("Account analyzed");
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to analyze account");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const setPrimaryContact = async (contactId: string) => {
     try {
       const res = await fetch(`/api/crm/contacts/${contactId}`, {
@@ -162,9 +180,26 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
+      <Card className="rounded-xl shadow-card bg-white">
+        <CardHeader className="pb-2"><CardTitle className="text-base text-ct-navy flex items-center gap-2"><Sparkles className="size-4 text-ct-saffron" /> AI Analysis</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {account.aiHealthScore != null ? (
+            <>
+              <p className="text-2xl font-heading text-ct-navy">{account.aiHealthScore}%<span className="text-sm text-ct-muted"> health score</span></p>
+              {account.aiRiskFactors?.length > 0 && <p className="text-sm text-ct-muted">Risks: {account.aiRiskFactors.join(", ")}</p>}
+              {account.aiRecommendedAction && <p className="text-sm text-ct-navy">Suggested: {account.aiRecommendedAction}</p>}
+            </>
+          ) : <p className="text-sm text-ct-muted">Not analyzed yet.</p>}
+          <Button size="sm" variant="outline" onClick={analyze} disabled={analyzing}>
+            {analyzing ? <Loader2 className="size-3.5 animate-spin mr-1" /> : null}
+            {account.aiHealthScore != null ? "Re-analyze" : "Analyze this account"}
+          </Button>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="rounded-xl shadow-card bg-white">
-          <CardHeader className="pb-2"><CardTitle className="text-base text-ct-navy flex items-center gap-2"><Building2 className="size-4 text-ct-saffron" /> Profile</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base text-ct-navy flex items-center gap-2"><Building2 className="size-4 text-ct-saffron-text" /> Profile</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -207,9 +242,20 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
             <Input placeholder="Line 2" defaultValue={account.billingLine2 ?? ""} onBlur={(e) => e.target.value !== (account.billingLine2 ?? "") && patchAccount({ billingLine2: e.target.value || null })} />
             <div className="grid grid-cols-2 gap-2">
               <Input placeholder="City" defaultValue={account.billingCity ?? ""} onBlur={(e) => e.target.value !== (account.billingCity ?? "") && patchAccount({ billingCity: e.target.value || null })} />
-              <Input placeholder="State" defaultValue={account.billingState ?? ""} onBlur={(e) => e.target.value !== (account.billingState ?? "") && patchAccount({ billingState: e.target.value || null })} />
+              {/* Cascading select: filtered by billingCountry. Uses the same
+                  resolveStateChange()/resolveCountryChange() cascade logic
+                  (src/lib/data/geography.ts) as the shipping block below and
+                  PartyAddressesAndContacts.tsx -- one real, tested rule, not
+                  three copies of it. */}
+              <StateSelect country={account.billingCountry} value={account.billingState} onValueChange={(v) => {
+                const next = resolveStateChange({ country: account.billingCountry, state: account.billingState, city: account.billingCity }, v);
+                patchAccount({ billingState: next.state, billingCity: next.city });
+              }} />
               <Input placeholder="Postal Code" defaultValue={account.billingPostalCode ?? ""} onBlur={(e) => e.target.value !== (account.billingPostalCode ?? "") && patchAccount({ billingPostalCode: e.target.value || null })} />
-              <Input placeholder="Country" defaultValue={account.billingCountry ?? ""} onBlur={(e) => e.target.value !== (account.billingCountry ?? "") && patchAccount({ billingCountry: e.target.value || null })} />
+              <CountrySelect value={account.billingCountry} onValueChange={(v) => {
+                const next = resolveCountryChange({ country: account.billingCountry, state: account.billingState, city: account.billingCity }, v);
+                patchAccount({ billingCountry: next.country, billingState: next.state, billingCity: next.city });
+              }} />
             </div>
             <div className="flex items-center gap-2 pt-2">
               <Checkbox checked={account.shippingSameAsBilling} onCheckedChange={(v) => patchAccount({ shippingSameAsBilling: !!v })} id="same-as-billing" />
@@ -221,9 +267,15 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                 <Input placeholder="Line 1" defaultValue={account.shippingLine1 ?? ""} onBlur={(e) => e.target.value !== (account.shippingLine1 ?? "") && patchAccount({ shippingLine1: e.target.value || null })} />
                 <div className="grid grid-cols-2 gap-2">
                   <Input placeholder="City" defaultValue={account.shippingCity ?? ""} onBlur={(e) => e.target.value !== (account.shippingCity ?? "") && patchAccount({ shippingCity: e.target.value || null })} />
-                  <Input placeholder="State" defaultValue={account.shippingState ?? ""} onBlur={(e) => e.target.value !== (account.shippingState ?? "") && patchAccount({ shippingState: e.target.value || null })} />
+                  <StateSelect country={account.shippingCountry} value={account.shippingState} onValueChange={(v) => {
+                    const next = resolveStateChange({ country: account.shippingCountry, state: account.shippingState, city: account.shippingCity }, v);
+                    patchAccount({ shippingState: next.state, shippingCity: next.city });
+                  }} />
                   <Input placeholder="Postal Code" defaultValue={account.shippingPostalCode ?? ""} onBlur={(e) => e.target.value !== (account.shippingPostalCode ?? "") && patchAccount({ shippingPostalCode: e.target.value || null })} />
-                  <Input placeholder="Country" defaultValue={account.shippingCountry ?? ""} onBlur={(e) => e.target.value !== (account.shippingCountry ?? "") && patchAccount({ shippingCountry: e.target.value || null })} />
+                  <CountrySelect value={account.shippingCountry} onValueChange={(v) => {
+                    const next = resolveCountryChange({ country: account.shippingCountry, state: account.shippingState, city: account.shippingCity }, v);
+                    patchAccount({ shippingCountry: next.country, shippingState: next.state, shippingCity: next.city });
+                  }} />
                 </div>
               </div>
             )}
@@ -233,7 +285,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
 
       <Card className="rounded-xl shadow-card bg-white">
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <CardTitle className="text-base text-ct-navy flex items-center gap-2"><Users className="size-4 text-ct-saffron" /> Contacts</CardTitle>
+          <CardTitle className="text-base text-ct-navy flex items-center gap-2"><Users className="size-4 text-ct-saffron-text" /> Contacts</CardTitle>
           <Dialog open={contactOpen} onOpenChange={setContactOpen}>
             <DialogTrigger asChild><Button size="sm" variant="outline"><UserPlus className="size-3.5 mr-1" /> Add Contact</Button></DialogTrigger>
             <DialogContent>
@@ -268,7 +320,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-ct-navy flex items-center gap-1.5">
                       {c.name}
-                      {c.isPrimary && <Badge variant="outline" className="text-[10px] gap-1"><Star className="size-2.5 text-ct-saffron" /> Primary</Badge>}
+                      {c.isPrimary && <Badge variant="outline" className="text-[10px] gap-1"><Star className="size-2.5 text-ct-saffron-text" /> Primary</Badge>}
                     </p>
                     <p className="text-xs text-ct-muted">{c.title ?? "No title"} {c.email ? `· ${c.email}` : ""} {c.phone ? `· ${c.phone}` : ""}</p>
                   </div>

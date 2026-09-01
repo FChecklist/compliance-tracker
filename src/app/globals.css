@@ -38,12 +38,29 @@
   --color-ct-white: #FFFFFF;
   --color-ct-row-hover: #FAFBFF;
 
+  /* ─── WCAG AA Text Variant ───
+     VERIDIAN Review Framework remediation (Accessibility / Visual
+     Accessibility, 2026-07-18): --color-ct-saffron (the brand accent,
+     imported from @fchecklist/veridian-ui-kit above) is #F5820A, which
+     only reaches ~2.6:1 contrast against this app's light backgrounds
+     (white/cream/card) -- well under WCAG 2.1 AA's 4.5:1 minimum for
+     normal text. #F5820A itself is NOT changed (it's the shared
+     cross-product brand token -- see the import comment at the top of
+     this file) and stays correct as-is for non-text uses (borders,
+     tinted chip backgrounds, saffron-on-dark-navy contexts, which already
+     clear ~5.5:1). This new token is a darker, same-hue variant
+     (verified >=4.5:1 against #FFFFFF/#FFFDF9/the pend-under30 tint) for
+     every place Saffron is used as TEXT (or an icon glyph via
+     currentColor) on a light background -- use `text-ct-saffron-text`
+     instead of `text-ct-saffron` for those. */
+  --color-ct-saffron-text: #B45309;
+
   /* ─── Pendency Colors ─── */
   --color-ct-pend-overdue-bg: #FDECEB;
   --color-ct-pend-overdue-text: #C0392B;
   --color-ct-pend-overdue-border: #E8A39D;
   --color-ct-pend-under30-bg: #FEF3E2;
-  --color-ct-pend-under30-text: #F5820A;
+  --color-ct-pend-under30-text: #B45309;
   --color-ct-pend-under30-border: #FAC88A;
   --color-ct-pend-under60-bg: #FEF9EC;
   --color-ct-pend-under60-text: #E67E22;

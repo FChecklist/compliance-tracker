@@ -6,13 +6,13 @@
 // quotations (a different table, a different direction of the deal) --
 // this is a SUPPLIER quotation received in response to an RFQ.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listSupplierQuotations, createSupplierQuotation, ServiceError } from "@/lib/services/erp-procurement-workflow-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ quotations: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const rfqId = request.nextUrl.searchParams.get("rfqId") ?? undefined

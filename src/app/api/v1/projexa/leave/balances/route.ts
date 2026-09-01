@@ -1,12 +1,12 @@
 // Priority 15 (PROJEXA HR & Payroll, Wave 1): leave balance ledger.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listLeaveBalances, setLeaveBalance, ServiceError } from "@/lib/services/hr-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ balances: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const userId = request.nextUrl.searchParams.get("userId") || undefined
