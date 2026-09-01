@@ -20,8 +20,8 @@ export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { startApprovalWorkflow } from "./approval-workflow-service"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { ErpContext, ActorCtx } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 // Priority 17 Wave 1 (PROJEXA Procurement workflow exposure): widened to the
 // same dbUser-or-apiKey actor union already precedented by erp-invoicing-
@@ -34,10 +34,6 @@ export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$
 // real session, not an API key" precedent already used for quotation
 // approval elsewhere in this codebase; the route layer surfaces that as an
 // honest 400 rather than silently working around it.
-export type ActorCtx = { orgId: string; userId: string } & (
-  | { dbUser: typeof users.$inferSelect; apiKey?: never }
-  | { dbUser?: never; apiKey: { id: string; name: string } }
-)
 
 type RequisitionItemInput = { itemId?: string; description: string; quantity?: number; estimatedRate?: number }
 
@@ -183,6 +179,20 @@ export async function createRfq(
     await db.insert(erpRfqSuppliers).values(input.supplierIds.map((supplierId) => ({ rfqId: rfq.id, supplierId })))
 
     await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_rfq.created", entityType: "erp_rfq", entityId: rfq.id })
+    return rfq
+  })
+}
+
+// Real-screen conversion (2026-08-30): single-RFQ lookup for the RFQ
+// Object Page -- only listRfqs (all) existed before.
+export async function getRfq(ctx: { orgId: string }, rfqId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rfq = await db.query.erpRfqs.findFirst({
+      where: and(eq(erpRfqs.id, rfqId), eq(erpRfqs.orgId, ctx.orgId)),
+      with: { items: true, suppliers: true },
+    })
+    if (!rfq) throw new ServiceError("RFQ not found", 404)
     return rfq
   })
 }

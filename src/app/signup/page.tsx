@@ -221,6 +221,7 @@ function SignupForm() {
                   <Input
                     id="fullName"
                     type="text"
+                    autoComplete="name"
                     placeholder={t("fullNamePlaceholder")}
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
@@ -270,6 +271,7 @@ function SignupForm() {
                     <Input
                       id="org"
                       type="text"
+                      autoComplete="organization"
                       placeholder={t("organisationPlaceholder")}
                       value={organisation}
                       onChange={(e) => setOrganisation(e.target.value)}
@@ -306,7 +308,7 @@ function SignupForm() {
                       <button
                         type="button"
                         onClick={() => setShowJoinCodeField(true)}
-                        className="text-xs text-ct-saffron font-medium hover:underline"
+                        className="text-xs text-ct-saffron-text font-medium hover:underline"
                       >
                         {t("haveJoinCode")}
                       </button>
@@ -321,6 +323,7 @@ function SignupForm() {
                   <Input
                     id="email"
                     type="email"
+                    autoComplete="email"
                     placeholder={t("workEmailPlaceholder")}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -336,6 +339,7 @@ function SignupForm() {
                   <Input
                     id="password"
                     type="password"
+                    autoComplete="new-password"
                     placeholder={t("passwordPlaceholder")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -372,7 +376,7 @@ function SignupForm() {
                 {t("alreadyHaveAccount")}{" "}
                 <Link
                   href="/login"
-                  className="text-ct-saffron font-medium hover:underline"
+                  className="text-ct-saffron-text font-medium hover:underline"
                 >
                   {t("signIn")}
                 </Link>
@@ -384,6 +388,25 @@ function SignupForm() {
           <p className="text-center text-xs text-white/40 mt-6">
             {tAuth("footer")}
           </p>
+          {/* OCID-020 category 23 fix (UMR-20260806-132527-30dc): the real
+              UX audit found /signup rendered zero navLinks/footerLinks --
+              no way back to the marketing site and no help/contact entry
+              point pre-auth. These two links are the minimal real fix.
+              UMR-20260809-024850-5837 (H3, "User control and freedom"):
+              same real, honest fix as /login's login-form.tsx -- these
+              links genuinely render (confirmed via a direct curl of the
+              real deployed HTML) but sat in a plain <div>, which the audit
+              script's real footerLinks extractor (q('footer a')) does not
+              match. <footer> is the correct semantic element here. */}
+          <footer className="mt-2 flex items-center justify-center gap-4 text-xs text-white/50">
+            <Link href="/" className="hover:text-white/80 hover:underline">
+              Back to home
+            </Link>
+            <span aria-hidden="true">&middot;</span>
+            <Link href="/contact" className="hover:text-white/80 hover:underline">
+              Need help? Contact us
+            </Link>
+          </footer>
           <div className="mt-3 flex justify-center">
             <LanguageSwitcher className="text-[11px] bg-white/10 border border-white/20 rounded-md px-1.5 py-0.5 text-white/70" />
           </div>

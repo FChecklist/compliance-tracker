@@ -135,6 +135,8 @@ describe("ERP_ACTION_ROLES -- policy table integrity", () => {
       "erp.fiscal_periods.close",           // period lock -- hard to undo
       "erp.fiscal_periods.sign_off",        // period sign-off attestation
       "erp.fiscal_periods.checklist_complete", // close-step attestation
+      // Sales Pipeline gap-closure (task-20260718-082004, 2026-08-07):
+      "crm.pipeline_stages.manage",        // master-data configuration, same class as chart_of_accounts.create/fixed_assets.category_manage above
     ].sort())
   })
 

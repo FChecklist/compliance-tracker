@@ -1,18 +1,16 @@
-# PROGRESS -- task-20260807-063723-retry-ai-documentation-ai-readable-techn
+# PROGRESS -- rebase-sweep2b-1038 (real rebase-merge for PR #1038)
 
-VERIDIAN Review Framework gap-closure: AI Documentation / AI-Readable Technical Documentation
-(10 findings, sub-task of `UMR-20260801-170930-2080`). Every finding was re-verified against
-live code before any change was made, per the task's own instruction.
+## Scope
+Real rebase-merge of PR #1038
+(`worker/task-20260807-063723-retry-ai-documentation-ai-readable-techn`,
+"VERIDIAN Review Framework gap-closure: AI Documentation / AI-Readable Technical Documentation")
+onto current main, per this repo's standard rebase-sweep protocol. Prior triage +
+adversarial-verify (already complete before this sweep, not re-done here) confirmed all 9 new
+doc/script files the PR adds return 404 on main, `src/lib/openapi/generate.ts` genuinely lacks
+all 6 new API paths the PR documents, and 18/19 checks passed on the original PR (Vercel was
+rate-limited transient infra).
 
-**Note on this invocation (2/20):** the checkpoint this invocation resumed from claimed a large
-amount of work as "Completed" in its summary, but almost none of it existed as committed or
-on-disk files -- only the claim-registration commit and one uncommitted draft file
-(`ai-os/registry/BUSINESS-RULES-REGISTRY.md`) were real. That draft file was verified for real
-content (spot-checked several citations against actual source) and found genuinely good, so it
-was kept and committed; everything else below was built fresh this invocation, each item
-verified against real code/grep output before being written, and pushed in small, real commits.
-
-## Completed
+## Completed (original PR #1038's own work, carried forward unchanged)
 
 - [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting real work.
 - [x] Re-verified all 10 findings against live code before writing anything.
@@ -157,10 +155,39 @@ would not register as a passing required check on the PR itself without a follow
 `pull_request: synchronize` event. Pushed an empty commit (`9fb1856c0`) to produce one.
 CI re-run in progress on that commit at time of writing.
 
+## Rebase (this session, `rebase-sweep2b-1038`)
+- [x] Worktree: `git worktree add -b rebase-sweep2b-1038` from
+      `origin/worker/task-20260807-063723-retry-ai-documentation-ai-readable-techn`.
+- [x] `bun install` run in the worktree post-worktree-creation.
+- [x] `git merge origin/main` -- main had advanced well past this branch's merge-base since
+      PR #1038 was opened. 5 real conflicts:
+      - `PROGRESS.md` (this repo's single-current-entry convention) -- replaced wholesale with
+        this task's own entry (this file), per the known gotcha; did not concatenate with either
+        the stale merge-base entry or `origin/main`'s own then-current `rebase-sweep2b-1021`
+        entry, matching the precedent that entry itself established (it had already wholesale-
+        discarded the same historical archive this merge-base still carried).
+      - `ai-os/OS.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+        `ai-os/registry/terminology-guardrail-exemptions.yaml` -- resolved by keeping
+        `origin/main`'s current structure/content and re-applying this branch's own real,
+        additive entries on top (registry index entries for the 3 new `ai-os/registry/*` files,
+        this task's own claim entry, and the terminology-guardrail exemption for the 4
+        `hardcoded_iso_date` findings in `src/lib/openapi/generate.ts`) -- no entries dropped
+        from either side.
+      - `src/lib/openapi/generate.ts` -- both sides added distinct route-doc blocks; resolved by
+        keeping both sets of additions (no overlapping route paths), re-verified against the
+        merged file's real `paths` object afterward.
+- [x] Checked `drizzle/`: this PR touches zero migration files -- no migration-number
+      renumbering needed.
+- [x] Re-verified after merge: `node scripts/check-governance-yaml-parse.mjs` -- clean.
+      `bunx tsc --noEmit` -- clean. `bun test` on touched test files -- pass.
+
 ## Remaining
-- [ ] Confirm `audit-check` shows green against commit `9fb1856c0` specifically (not just
-      that a comment exists) once the synchronize-triggered run completes, then merge via
-      `gh pr merge --squash` (no direct push to `main` per Rule 6).
+- [ ] Push `rebase-sweep2b-1038`, open replacement PR "... [was #1038]", close #1038 pointing to
+      the replacement.
+- [ ] Check real CI on the replacement PR; ignore known-ambient failures (E2E Tests, Vercel
+      platform-wide block, Secret Scanning on pre-existing files, Promptfoo Evals timeout).
+- [ ] Merge only when genuinely green (modulo the known-ambient ones); independently re-verify via
+      `gh pr view --json state,mergedAt` rather than trusting the merge command's exit code.
 - [ ] Apply/push `ai-os/registry/PENDING-CI-WIRING-architecture-doc-drift.patch` (owner or a
       session with `workflow` scope) — separate from this PR, real limitation of this session's
       token.

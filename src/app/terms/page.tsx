@@ -1,14 +1,28 @@
+import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { LegalShell, COMPANY } from "@/components/LegalShell";
+import { resolvePreAuthBrandByHost } from "@/lib/services/org-branding-service";
 
-export const metadata: Metadata = {
-  title: "Terms & Conditions — VERIDIAN AI OS",
-  description: "Terms and Conditions governing the use of VERIDIAN AI OS and all its products.",
-};
+// GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN (OCID-020 addendum,
+// 2026-08-05): same root-cause class as GAP-OCID038-PROJEXA-DOMAIN-BRAND-
+// MISMATCH already fixed on /login -- only the title's brand mention
+// resolves per-host; the description below stays as-is, since it describes
+// the real legal product bundle (Terms governing VERIDIAN AI OS and all
+// products under it), not the visiting host's own brand.
+export async function generateMetadata(): Promise<Metadata> {
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
+  return {
+    title: `Terms & Conditions — ${brand?.brandName ?? "VERIDIAN AI OS"}`,
+    description: "Terms and Conditions governing the use of VERIDIAN AI OS and all its products.",
+  };
+}
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
   return (
-    <LegalShell title="Terms & Conditions" updated="7 July 2026">
+    <LegalShell title="Terms & Conditions" updated="7 July 2026" brand={brand}>
       <section>
         <h2>1. Who we are</h2>
         <p>

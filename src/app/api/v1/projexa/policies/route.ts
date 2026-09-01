@@ -2,13 +2,13 @@
 // risk-register-service.ts's Policy Library (draft -> under_review ->
 // published maker-checker lifecycle, versioned history).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listPolicies, createPolicy, ServiceError } from "@/lib/services/risk-register-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ policies: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const policies = await listPolicies({ orgId: ctx.orgId })

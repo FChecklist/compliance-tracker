@@ -3,13 +3,13 @@
 // itself a read-only tree over the pre-existing users.reportingToId/
 // departmentId columns.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { getOrgChart, ServiceError } from "@/lib/services/hr-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ employees: [], roots: [], byManager: {} })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const chart = await getOrgChart({ orgId: ctx.orgId })
