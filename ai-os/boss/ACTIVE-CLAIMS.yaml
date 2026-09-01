@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive, r65-partc-supersede-noop-fix) -- R65 Part C: fix supersedeMemoryRecord() byte-identical-content bug"
+  - session_label: "claude-code (interactive, r65-partc-supersede-noop-fix) -- R65 Part C: fix supersedeMemoryRecord() byte-identical-content bug [PR #1571 OPEN, not yet merged]"
     claimed_at: "2026-09-02T (this session)"
     claim: |
       Owner directive: pick the next unblocked increment of R65 Part C
