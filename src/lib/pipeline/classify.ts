@@ -20,7 +20,13 @@ import { KNOWN_VERBS } from "./segment";
 
 export type SegmentVerdict = "task" | "chat" | "gap";
 
-export type ResolutionSource = "phrase_map" | "structural" | "last_action" | "level1";
+// R65 Part D -- "reuse_cache" added (2026-09). A hit against
+// compliance.reuse_cache (a previously-successful Level 1 resolution for
+// this exact user+project+normalised text, replayed with zero model calls
+// -- see src/lib/pipeline/reuse-cache.ts's own header for the full
+// argument). Purely additive: no exhaustive switch anywhere in this repo
+// depends on this union being closed (verified by grep before adding this).
+export type ResolutionSource = "phrase_map" | "structural" | "last_action" | "level1" | "reuse_cache";
 
 /** What Level 0 or Level 1 resolved this segment to. Null when neither could. */
 export type ResolvedFunction = {

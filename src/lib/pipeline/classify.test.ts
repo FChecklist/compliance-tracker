@@ -38,6 +38,21 @@ describe("classifySegment() -- R53 Phase 4's three rules", () => {
     expect(c.gapReason).toBeNull();
   });
 
+  // R65 Part D -- a reuse_cache hit (src/lib/pipeline/reuse-cache.ts) is
+  // just another ResolutionSource as far as classifySegment() is concerned;
+  // this is what makes it safe to add without an exhaustive-switch break
+  // anywhere in this file.
+  test("resolves via reuse_cache -> same verdict as any other WRITE resolution", () => {
+    const c = classifySegment({
+      text: "PP1 is 50% done",
+      resolution: resolvedTo("record_work_progress", { params: { itemCode: "PP1", percent: 50 }, source: "reuse_cache", level: 0 }),
+      nature: write,
+    });
+    expect(c.verdict).toBe("task");
+    expect(c.source).toBe("reuse_cache");
+    expect(c.level).toBe(0);
+  });
+
   test("imperative that resolves to nothing -> GAP, with an honest message and a gap reason", () => {
     const c = classifySegment({ text: "approve VO-014", resolution: null, nature: null });
     expect(c.verdict).toBe("gap");
