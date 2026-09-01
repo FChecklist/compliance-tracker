@@ -136,6 +136,10 @@ export const ERP_ACTION_ROLES = {
   // Cost Centers
   "erp.cost_centers.create": "member", // routine reference data entry
 
+  // Statistical Key Figures (CO-006, Controlling domain)
+  "erp.statistical_key_figure_types.create": "member", // routine reference master data, no financial impact
+  "erp.statistical_key_figure_postings.create": "member", // records a non-financial metric value, not a GL posting
+
   // Sales Invoices
   "erp.sales_invoices.create": "member", // creates draft, not yet posted
   "erp.sales_invoices.submit": "manager", // posts to GL, fires webhook, moves money

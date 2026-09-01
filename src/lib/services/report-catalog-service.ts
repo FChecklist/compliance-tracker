@@ -478,6 +478,38 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     classifications: ["financial", "org_specific"],
     periodicity: "on_demand",
   },
+
+  // CO-006 (SAP gap-analysis "Statistical Key Figure Report", LOW
+  // priority): plan/actual, per-cost-center values for a non-financial
+  // allocation-basis metric (headcount, square meters, machine hours,
+  // etc.), summed from postings within the requested accounting
+  // period(s). Genuinely new schema (erp_statistical_key_figure_types /
+  // erp_statistical_key_figure_postings) -- zero SKF concept existed in
+  // this codebase before this PR. Honest caveat: the sap_mapping.sqlite
+  // row's own implementation_notes field argues against building this as
+  // a standalone report at all (prefers letting a future overhead-
+  // allocation feature pick a driver from existing data instead of
+  // requiring separate SKF master data/postings) -- this report is kept
+  // deliberately optional and standalone, nothing else in this codebase
+  // depends on it being populated. No dedicated UI page yet -- API-only,
+  // same honest "no dashboard surface" caveat this file's other recent
+  // entries already disclose. Appended at the end of this array (not
+  // inserted near other ERP entries above) to avoid a real merge-conflict
+  // collision with other still-open sibling PRs editing the same region.
+  {
+    id: "erp-statistical-key-figure-report",
+    name: "Statistical Key Figure Report",
+    description: "Plan vs actual values (with variance) of statistical key figures -- non-financial per-cost-center metrics such as headcount, square meters, or machine hours -- used as allocation-basis drivers. A verification tool for confirming allocation-basis data before running an overhead allocation cycle.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-costing-service.ts#statisticalKeyFigureReport",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/statistical-key-figure-report)"],
+    route: "/api/v1/projexa/statistical-key-figure-report",
+    routeNote: "Real, auth-required API endpoint (requires accountingPeriodIds query param) -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial"],
+    periodicity: "on_demand",
+  },
 ]
 
 export function getReportCatalogEntry(id: string): ReportCatalogEntry | undefined {

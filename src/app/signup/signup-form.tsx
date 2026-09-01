@@ -22,19 +22,18 @@ type JoinCodePreview =
   | { valid: true; orgName: string; role: string }
   | { valid: false; reason: string };
 
-// OCID-020 real comprehensive browser certification finding, GAP-OCID038-
-// PROJEXA-DOMAIN-BRAND-MISMATCH (same class as UMR-20260804-090421-c647's
-// /login fix): `brand` is resolved server-side by the async parent
-// page.tsx (real HTTP Host header -> product_branches lookup) and passed
-// down as a plain prop, mirroring LoginForm's own contract exactly -- this
-// component does no I/O of its own. `null` (the common case: no host
-// match) means "render exactly what this page already rendered before this
-// change" -- must never look broken/different for the platform default.
+// OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, continuing Stage 1
+// (UMR-20260804-090421-c647) to /signup (real UX audit finding, OCID-020
+// category 23 H2/H4, 2026-08-14): `brand` is resolved server-side by the
+// async parent page.tsx (real HTTP Host header -> product_branches lookup),
+// same pattern as login-form.tsx's own `brand` prop. `null` (no host match)
+// renders exactly what this page rendered before this change.
 function SignupForm({ brand }: { brand: PreAuthBrand | null }) {
   const t = useTranslations("Signup");
   const tAuth = useTranslations("Auth");
   const router = useRouter();
   const searchParams = useSearchParams();
+  const brandName = brand?.brandName ?? "VERIDIAN AI";
   // Wave 109 (Sales Engine): a /r/[token] redirect appends ?ref=<token> --
   // threaded into signUp()'s options.data so autoProvisionUser() can
   // resolve it into a sales_referrals row at org-creation time.
@@ -152,9 +151,9 @@ function SignupForm({ brand }: { brand: PreAuthBrand | null }) {
           <div className="relative w-full max-w-md px-4">
             <div className="text-center mb-8">
               <div className="inline-flex items-center gap-3 mb-4">
-                <img src="/logo-mark.svg" alt={brand?.brandName ?? "VERIDIAN AI"} className="size-11 rounded-xl" />
+                <img src="/logo-mark.svg" alt={brandName} className="size-11 rounded-xl" />
                 <span className="font-heading text-2xl text-white">
-                  {brand?.brandName ?? "VERIDIAN AI"}
+                  {brandName}
                 </span>
               </div>
             </div>
@@ -201,9 +200,9 @@ function SignupForm({ brand }: { brand: PreAuthBrand | null }) {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-3 mb-4">
-              <img src="/logo-mark.svg" alt={brand?.brandName ?? "VERIDIAN AI"} className="size-11 rounded-xl" />
+              <img src="/logo-mark.svg" alt={brandName} className="size-11 rounded-xl" />
               <span className="font-heading text-2xl text-white">
-                {brand?.brandName ?? "VERIDIAN AI"}
+                {brandName}
               </span>
             </div>
             <p className="text-white/60 text-sm">
@@ -425,7 +424,7 @@ function SignupForm({ brand }: { brand: PreAuthBrand | null }) {
   );
 }
 
-export default function SignupPage({ brand }: { brand: PreAuthBrand | null }) {
+export function SignupPageClient({ brand }: { brand: PreAuthBrand | null }) {
   // useSearchParams() requires a Suspense boundary in the App Router.
   return (
     <Suspense fallback={null}>

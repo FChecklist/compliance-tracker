@@ -51,6 +51,8 @@ import { readFileSync } from "fs"
 // justified exception.
 const TRIVIAL_ROUTE_EXEMPTIONS = new Set([
   // Example: "src/app/api/health/route.ts", // static payload, no I/O, cannot throw
+  "src/app/api/forge/captcha/route.ts", // generateCaptcha() is pure Math.random()+btoa() over ASCII digits, no I/O, no service calls -- see forge-captcha.ts's own header
+  "src/app/api/v1/openapi.json/route.ts", // generateOpenApiDocument() is a pure function over static zod schemas, no I/O, no service calls -- see src/lib/openapi/generate.ts's own header
 ])
 
 const HTTP_HANDLER_RE = /export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/

@@ -607,6 +607,35 @@ open_items:
       recommendation: "Do NOT start any veda-advisors <-> VERIDIAN integration work without a separate, explicit Owner go-ahead -- this entry exists to record the scope decision and prevent 2 opposite mistakes: (a) a future session assuming veda-advisors is already VERIDIAN-integrated because it's declared in-scope, and (b) a future session starting the actual migration unprompted because the declaration exists. Treat this exactly like Priority 13's BIM/IFC item -- deliberately deferred, not ratified-against, do not re-raise as a build task until the Owner brings it up again."
       first_raised: "2026-07-14, Owner review of the FChecklist/VERIDIAN AI OS design description"
 
+    - id: AI-DOC-GAP-CLOSURE-REMAINDER
+      name: "AI Documentation gap-closure (UMR-20260801-170930-2080 sub-task, 2026-08-07) -- 3 real, deliberately-deferred remainders"
+      detail: |
+        All 10 findings from this closure were re-verified against live code and addressed
+        (business rules registry, architecture/database drift check, calculation-coverage
+        re-verification, module doc index, configuration reference, prompt template directory,
+        workflow-field fill, metadata registry verified as already-sound, OpenAPI extension --
+        see PROGRESS.md in that task's workspace for full detail). Three items were confirmed
+        real but deliberately not built in this pass, real multi-day work each:
+        (1) The remaining ~64 PROJEXA OpenAPI sub-resources beyond the 7 added
+        (src/lib/openapi/generate.ts) -- prioritize the finance cluster first
+        (journal-entries, sales-invoices, purchase-orders, trial-balance, balance-sheet,
+        profit-and-loss, bank-reconciliation) per the finding's own external-integration-demand
+        steer.
+        (2) A full VA-01..VA-11 re-audit of the veda-advisors checkout -- VA-02/VA-11's
+        `objects` lists describe files (website/, memory-notes/, code-by-zai/, Linkedin.md,
+        linkedin_auto_update.js) that no longer match the current checkout structure (the repo
+        root now IS what was called code-by-zai/, and the LinkedIn files are gone from every
+        branch) -- found and flagged, not fixed, while filling ai-os/system-tree/
+        50-merged-tree.yaml's workflow fields.
+        (3) Continued VCEL engine wiring -- dispatchEngine()'s real case count is 185 today
+        (re-verified directly, see docs/master/CAPABILITY_COVERAGE.md's dated correction), not
+        the finding's cited ~17% nor this doc's own prior 127/247 figure; closing the remaining
+        gap between catalogued and dispatch-wired engines is real engineering work, tracked at
+        docs/master/CAPABILITY_COVERAGE.md's own "real gap" section (99 product modules with
+        zero worker agents is the largest single piece).
+      recommendation: "No action required unless a future session picks up one of the 3 items above -- this entry exists so that work isn't silently lost once the closing task's own workspace/PROGRESS.md is no longer the active context."
+      first_raised: "2026-08-07"
+
   real_gaps_not_yet_built:
     # These are the still-accurate, still-open items from the old GAPS.yaml
     # (46 items) / 30-gap-backlog.yaml (11 items) catalogs, AFTER removing
@@ -3772,6 +3801,142 @@ open_items:
         the wrong one risks discarding real pending work. Left as a genuine, real, appropriately-sized
         follow-up, with the count corrected so it isn't read as stale."
       first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
+
+    - id: GAP-CONSTRUCTION-AI-RISKLEVEL-LLM-ONLY-CLASSIFICATION
+      name: "construction-ai-service.ts's detectBudgetScheduleRisk() had riskLevel decided by the LLM alone from purely numeric aggregates, violating CONSTITUTION.yaml's own software_first doctrine (SF-01/SF-02: deterministic software decides first, AI is the fallback)"
+      old_ids: []
+      detail: |
+        Found by task-20260718-171005-cognitive-architecture--deterministic-fi ("Cognitive
+        Architecture: Deterministic-First Principles" -- title-only dispatch, no prompt.txt spec
+        artifact; this session generated its own real findings against `CONSTITUTION.yaml`'s
+        `software_first` section since no prior session had produced one for this theme). A
+        codebase-wide audit for LLM call sites doing classification/scoring on purely structured
+        (non-free-text) input without a deterministic pre-check -- mirroring this repo's own
+        established pattern (`risk-classification.ts`'s `classifyRisk()`, `response-engine.ts`'s
+        "software decides which predefined label applies" doctrine) -- found 3 ranked candidates:
+        (1) `crm-service.ts`'s `scoreLead()`/`analyzeOpportunity()`, (2) `construction-ai-service.ts`'s
+        `detectBudgetScheduleRisk()`, (3) `ai-team/team-service.ts`'s `classifyTask()` (already a
+        self-documented, deferred follow-up in `capability-tree-service.ts:1032`).
+
+        `detectBudgetScheduleRisk()`'s `riskLevel` ("low"/"medium"/"high") was decided by the LLM
+        alone from `variance`, `delayedTaskCount`, and `totalTaskCount` -- all numbers, no free text
+        -- even though the prompt template itself
+        (`0105_wave123_construction_ai_prompts.sql`) already says "Base riskLevel primarily on
+        variance ... and the proportion of delayed tasks," i.e. it was asking the model to compute a
+        threshold a pure function can compute for real. It also threw a 400 whenever no AI model was
+        configured for the org, even though classification never needed AI in the first place.
+      size: "S -- one service function, additive."
+      recommendation: |
+        Add a pure `classifyBudgetScheduleRisk()` threshold function (most-severe-first, same style
+        as `risk-classification.ts`'s `classifyRisk()`) and use it for the real `riskLevel`; keep the
+        LLM call (when a model IS configured) for reasoning prose only, discarding its own `riskLevel`
+        output; return a deterministic template result when no model is configured instead of a 400.
+      status: resolved
+      first_raised: "task-20260718-171005-cognitive-architecture--deterministic-fi, 2026-08-07 (real codebase audit against CONSTITUTION.yaml's software_first section)"
+      resolved: |
+        2026-08-07, same session. Added `classifyBudgetScheduleRisk()` (pure, most-severe-first
+        threshold checks over overspend-ratio and delayed-task-ratio) and `templateBudgetScheduleRisk()`
+        (deterministic fallback reasoning text) to `construction-ai-service.ts`. `detectBudgetScheduleRisk()`
+        now always computes `riskLevel` deterministically; the LLM call (when a model is configured) is
+        used only for reasoning prose, and its own `riskLevel` output is always discarded and overridden.
+        When no AI model is configured, returns the real deterministic template result instead of
+        throwing 400.
+
+        Verification: new `construction-ai-service.test.ts` (11 tests) covering on-budget/under-budget,
+        medium/high overspend thresholds, medium/high delayed-ratio thresholds, "the more severe of the
+        two signals wins", and zero-budget/zero-tasks not dividing by zero -- 11/11 pass (`bun test`).
+        `bunx eslint` clean on both touched files. `bunx tsc --noEmit` run with a larger heap
+        (`--max-old-space-size=8192`, this box's default heap OOMs on this repo's size regardless of
+        this change) to confirm no type regressions.
+
+        **Real, disclosed follow-ups (NOT done here, flagged not silently dropped):** candidate (1)
+        `crm-service.ts`'s `scoreLead()`/`analyzeOpportunity()` is the same class of finding but a
+        larger product-behavior-change risk (changes what "AI-scored" means for existing leads/
+        opportunities) -- needs its own scoped task/PM decision. Candidate (3)
+        `ai-team/team-service.ts`'s `classifyTask()` is a routing/dispatch-path change with higher
+        blast radius (AI Dev Team task routing) -- also left for a separate task.
+
+    - id: GAP-UI07-UNRESTRICTED-API-KEY-WEBHOOK-MINTING
+      name: "Any authenticated user, including the lowest 'viewer' rank, can mint a write-scoped API key or register a webhook (with its secret) via /settings -- no role gate, no activity-log entry"
+      old_ids: []
+      detail: |
+        Found by `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md` (2026-08-01/07, real code-grounded
+        research pass on domain `UI-07` as part of AI Documentation / Documentation Lifecycle
+        gap-closure, task-20260718-064004). "Admin pages" is a UI-section label, not an enforced
+        boundary: the sidebar's Admin section has no role conditional, `GET /api/users` and
+        `GET /api/departments` have no `requireRole` call (only their write paths are gated), and
+        most significantly `ApiKeySection`/`WebhookSection` in `/settings` render unconditionally
+        (unlike the `isAdmin`-gated sections around them) with their backing routes calling only
+        `requireAuth()`, never `requireRole()` -- and neither route writes an activity-log entry
+        on mint/register. Flagged in the audit doc, not fixed there (a permission/auth-guard code
+        change, outside a documentation-lifecycle task's declared scope, and outside
+        `permission-service.ts`/`auth-guard.ts`, which other in-flight workers may own -- see
+        `prompt.txt`'s standing instruction not to touch `ERP_ACTION_ROLES`'s shared structure).
+      size: "S -- add `requireRole()` (or equivalent org-admin check) to the API-key mint and
+        webhook-register routes, gate `ApiKeySection`/`WebhookSection`'s rendering the same way
+        the surrounding `isAdmin` sections already are, and add the missing activity-log entry on
+        both mint and register."
+      recommendation: "Dedicated permission/auth-guard fix, additive-only against
+        `ERP_ACTION_ROLES` per this repo's current file-scope convention. Verify with a real
+        viewer-rank test account: confirm it can no longer mint a key/register a webhook via the
+        API directly (not just that the UI section is hidden)."
+      status: open
+      first_raised: "ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md, 2026-08-01/07 (AI Documentation / Documentation Lifecycle gap-closure, task-20260718-064004)"
+
+    - id: GAP-DB02-COMPLIANCE-STATUS-NO-SIGNOFF
+      name: "Marking a compliance item 'completed' or resolving an audit point has no sign-off/maker-checker gate, despite DB-02 (compliance core) being real Postgres-RLS-scoped and role-ranked for create/update/delete"
+      old_ids: []
+      detail: |
+        Found by `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md` (domain `DB-02`, same audit pass as
+        `GAP-UI07-UNRESTRICTED-API-KEY-WEBHOOK-MINTING` above). The domain's guardrails are real
+        for access control (`withTenantContext()` RLS, role-ranked writes) but there is no
+        four-eyes/maker-checker step before a compliance item is marked completed or an audit
+        point resolved -- a single actor's own action is final. Flagged, not fixed (out of scope
+        for the documentation-lifecycle task that found it).
+      size: "S-M -- likely the same approval-engine pattern already used for DB-15's ERP
+        period-close (four-eyes floor + self-approval block via `permission-service.ts`), applied
+        to the compliance-item/audit-point completion routes."
+      recommendation: "Confirm with the Owner whether this is an intended product gap (fast
+        single-actor closure) or a real compliance-integrity gap before building a sign-off gate
+        -- this is a workflow/product decision, not purely a security bug."
+      status: open
+      first_raised: "ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md, 2026-08-01/07 (AI Documentation / Documentation Lifecycle gap-closure, task-20260718-064004)"
+
+    - id: GAP-DB05-INGEST-CONFIRM-REJECT-NO-ROLE-GATE
+      name: "Staged-import ingest confirm/reject routes call only requireAuth(), not requireRole() -- any authenticated user can confirm/reject a staged import, not just admins"
+      old_ids: []
+      detail: |
+        Found by `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md` (domain `DB-05`, same audit pass as
+        the two entries above). The rest of `DB-05`'s guardrails are real (admin-only access-review
+        certification, a `revoked` decision hard-blocks login, post-confirm edits are genuinely
+        blocked) -- this one route pair is the gap. Flagged, not fixed.
+      size: XS -- add the missing `requireRole()` call to both routes, same pattern already used
+        elsewhere in this domain.
+      recommendation: "Add the role gate; add a regression test asserting a non-admin authenticated
+        user gets a 403 on both routes."
+      status: open
+      first_raised: "ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md, 2026-08-01/07 (AI Documentation / Documentation Lifecycle gap-closure, task-20260718-064004)"
+
+    - id: GAP-UI02-CAPA-FINDING-OWNERSHIP-LABEL-ONLY
+      name: "/audit-engagements' CAPA finding 'ownership' is a label, not an enforced gate -- any manager+ can close any finding, and closing auto-passes the retest"
+      old_ids: []
+      detail: |
+        Found by `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md` (domain `UI-02`, same audit pass as
+        the three entries above). The rest of `UI-02`'s guardrails are real (`/ingest`'s review UI
+        is genuinely wired to the API, `/audit`'s trail viewer has no write route at all) -- CAPA
+        finding closure is the gap: ownership is displayed but not checked before allowing close,
+        and closing a finding auto-passes its retest with no separate verification step. Flagged,
+        not fixed. Related, lower-severity cosmetic note from the same audit: `UI-08`'s
+        period-close button isn't client-side disabled when its checklist is incomplete (the
+        server-side gate still holds, so this is a UX polish item, not a security gap).
+      size: S -- enforce assigned-owner (or a defined escalation role) before allowing close;
+        separate the retest verification step from the close action.
+      recommendation: "Product/workflow decision needed on who besides the assigned owner should
+        be allowed to close a finding (e.g. a manager override with a reason) before building the
+        enforcement -- don't just lock it to 'assigned owner only' without confirming that's the
+        intended process."
+      status: open
+      first_raised: "ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md, 2026-08-01/07 (AI Documentation / Documentation Lifecycle gap-closure, task-20260718-064004)"
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without

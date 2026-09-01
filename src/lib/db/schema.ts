@@ -8811,6 +8811,66 @@ export const erpBudgetLineItemsRelations = relations(erpBudgetLineItems, ({ one 
   account: one(erpAccounts, { fields: [erpBudgetLineItems.accountId], references: [erpAccounts.id] }),
 }))
 
+// ─── Statistical Key Figures (CO-006, sap_mapping.sqlite gap analysis,
+// module CO, BUILD_NEW/LOW, veridian_existing_equivalent=None) ───────────
+// SAP's statistical key figures (SKFs) are non-financial, per-cost-center
+// metrics -- headcount, square meters, machine hours, etc. -- used as CO
+// allocation drivers (e.g. allocate rent by square meters per cost
+// center). Confirmed via a fresh grep of this file and src/lib/services/
+// immediately before writing this that zero SKF concept existed anywhere
+// in this codebase. Reuses the existing erpCostCenters/erpAccountingPeriods
+// dimensions rather than inventing parallel ones (same "reuse existing
+// dimensions" precedent erpBudgets above documents).
+//
+// Deliberately lighter than SAP's own two-transaction model (KB21N posts
+// actuals, KP46 enters plan, as separate master-data-heavy transactions):
+// one master-data table (types: name + unit of measure) and ONE posting
+// table carrying a plan/actual version tag directly, so an org can record
+// a value without standing up a parallel SKF posting workflow. See this
+// PR's own description for the honest caveat this simplification is
+// responding to (sap_mapping.sqlite's own implementation_notes field for
+// CO-006 argues against building a *mandatory* SKF system at all -- this
+// keeps it a lightweight, optional, standalone verification report, not a
+// dependency of any future overhead-allocation engine).
+//
+// Matches SAP's own calculation logic: actual values for a given SKF/cost
+// center/period are the SUM of all postings (not a single upserted value)
+// -- KB21N-style multiple postings per period are additive, not
+// overwritten; same for plan.
+export const erpStatisticalKeyFigureVersionEnum = complianceSchemaDB.enum('erp_statistical_key_figure_version', ['plan', 'actual'])
+
+export const erpStatisticalKeyFigureTypes = complianceSchemaDB.table('erp_statistical_key_figure_types', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(), // e.g. "Number of Employees", "Square Meters Occupied", "Machine Hours"
+  unitOfMeasure: text('unit_of_measure').notNull(), // SAP UoM convention, e.g. "EA", "SQM", "HRS"
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpStatisticalKeyFigurePostings = complianceSchemaDB.table('erp_statistical_key_figure_postings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  statKeyFigureTypeId: text('stat_key_figure_type_id').notNull(),
+  costCenterId: text('cost_center_id').notNull(),
+  accountingPeriodId: text('accounting_period_id').notNull(), // erp_accounting_periods -- gives both period and (via its own fiscalYearId) fiscal year
+  version: erpStatisticalKeyFigureVersionEnum('version').notNull(),
+  value: numeric('value').notNull(),
+  postedById: text('posted_by_id'),
+  remark: text('remark'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpStatisticalKeyFigureTypesRelations = relations(erpStatisticalKeyFigureTypes, ({ many }) => ({
+  postings: many(erpStatisticalKeyFigurePostings),
+}))
+
+export const erpStatisticalKeyFigurePostingsRelations = relations(erpStatisticalKeyFigurePostings, ({ one }) => ({
+  statKeyFigureType: one(erpStatisticalKeyFigureTypes, { fields: [erpStatisticalKeyFigurePostings.statKeyFigureTypeId], references: [erpStatisticalKeyFigureTypes.id] }),
+  costCenter: one(erpCostCenters, { fields: [erpStatisticalKeyFigurePostings.costCenterId], references: [erpCostCenters.id] }),
+  accountingPeriod: one(erpAccountingPeriods, { fields: [erpStatisticalKeyFigurePostings.accountingPeriodId], references: [erpAccountingPeriods.id] }),
+}))
+
 // ─── Wave 71 (Contract & Commercial Lifecycle Management) ────────────────
 // Per COMPARISON_CSV_GAP_ANALYSIS.md: Sales>Contract Management was a
 // complete gap -- the existing `contractComplianceItems` table (Integrity
