@@ -46,10 +46,15 @@ export default async function ContactPage({
             <Image src="/logo-mark.svg" alt={brand?.brandName ?? "VERIDIAN"} width={28} height={28} priority />
             {wordmark}
           </Link>
+          {/* OCID-020 category 23 fix (2026-08-14, real UX audit H2/H4):
+              "On cost" -> "Pricing" (the conventional label /pricing itself
+              uses, per the audit's heuristic-2 finding) and links to the
+              real /pricing route instead of an in-page anchor that doesn't
+              exist on this page. */}
           <div className="hidden items-center gap-8 text-sm text-[#1a1a17]/70 md:flex">
             <Link href="/#research" className="hover:text-[#1a1a17]">Research</Link>
             <Link href="/#products" className="hover:text-[#1a1a17]">Products</Link>
-            <Link href="/#cost" className="hover:text-[#1a1a17]">On cost</Link>
+            <Link href="/pricing" className="hover:text-[#1a1a17]">Pricing</Link>
             <Link href="/join-us" className="hover:text-[#1a1a17]">Join Us</Link>
           </div>
           <Link
@@ -87,11 +92,21 @@ export default async function ContactPage({
         </div>
       </section>
 
+      {/* OCID-020 category 23 fix (2026-08-14, real UX audit H4): real
+          footer links (Home, Pricing, Log in) matching /pricing's own
+          footer link set -- the audit found /contact had no footer links
+          at all while /pricing had this exact set, a real consistency
+          gap. */}
       <footer className="border-t border-[#1a1a17]/10">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2 font-heading">
             <Image src="/logo-mark.svg" alt={brand?.brandName ?? "VERIDIAN"} width={22} height={22} />
             {wordmark}
+          </div>
+          <div className="flex items-center gap-6 text-sm text-[#1a1a17]/70">
+            <Link href="/" className="hover:text-[#1a1a17]">Home</Link>
+            <Link href="/pricing" className="hover:text-[#1a1a17]">Pricing</Link>
+            <Link href="/login" className="hover:text-[#1a1a17]">Log in</Link>
           </div>
           <div className="text-sm text-[#1a1a17]/50">© {new Date().getFullYear()} {brand?.brandName ?? "VERIDIAN AI"}</div>
         </div>
