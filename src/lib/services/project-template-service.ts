@@ -167,7 +167,7 @@ export async function createProjectFromTemplate(
     const taskRows = buildClonedTaskRows(templateTasks, ctx.orgId, project.id, phaseIdByIndex)
     const createdTasks = taskRows.length > 0 ? await db.insert(projectTasks).values(taskRows).returning() : []
 
-    let teamAssignment = null
+    let teamAssignment: typeof projectTeamAssignments.$inferSelect | null = null
     if (template.defaultTeamId) {
       const [assignment] = await db.insert(projectTeamAssignments).values({
         orgId: ctx.orgId, projectId: project.id, teamId: template.defaultTeamId, isPrimary: true,
