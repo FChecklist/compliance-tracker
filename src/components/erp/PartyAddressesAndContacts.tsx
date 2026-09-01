@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { CountrySelect, StateSelect } from "@/components/ui/country-state-select";
+import { resolveCountryChange, resolveStateChange } from "@/lib/data/geography";
 
 type Address = { id: string; addressType: string; line1: string; line2: string | null; city: string | null; state: string | null; postalCode: string | null; country: string | null; isPrimary: boolean };
 type Contact = { id: string; contactName: string; designation: string | null; email: string | null; phone: string | null; isPrimary: boolean };
@@ -127,11 +129,22 @@ export function PartyAddressesAndContacts({ entityType, entityId }: { entityType
                 <div><Label>Address Line 2 (optional)</Label><Input value={line2} onChange={(e) => setLine2(e.target.value)} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>City</Label><Input value={city} onChange={(e) => setCity(e.target.value)} /></div>
-                  <div><Label>State</Label><Input value={stateVal} onChange={(e) => setStateVal(e.target.value)} /></div>
+                  {/* Cascading select, filtered by the country picked below.
+                      Uses the same resolveStateChange()/resolveCountryChange()
+                      cascade logic (src/lib/data/geography.ts) as the CRM
+                      account billing/shipping address blocks -- one real,
+                      tested rule shared across every address form. */}
+                  <div><Label>State</Label><StateSelect country={country || null} value={stateVal || null} onValueChange={(v) => {
+                    const next = resolveStateChange({ country: country || null, state: stateVal || null, city: city || null }, v);
+                    setStateVal(next.state ?? ""); setCity(next.city ?? "");
+                  }} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Postal Code</Label><Input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} /></div>
-                  <div><Label>Country</Label><Input value={country} onChange={(e) => setCountry(e.target.value)} /></div>
+                  <div><Label>Country</Label><CountrySelect value={country || null} onValueChange={(v) => {
+                    const next = resolveCountryChange({ country: country || null, state: stateVal || null, city: city || null }, v);
+                    setCountry(next.country ?? ""); setStateVal(next.state ?? ""); setCity(next.city ?? "");
+                  }} /></div>
                 </div>
                 <div className="flex items-center gap-2">
                   <input type="checkbox" checked={addrPrimary} onChange={(e) => setAddrPrimary(e.target.checked)} />

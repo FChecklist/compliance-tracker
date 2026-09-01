@@ -14,6 +14,7 @@ import { discoverWorkerAgent } from "./worker-agent-service"
 import { listAutomationRules } from "./automation-rule-service"
 import { listModules } from "./module-registry-service"
 import { indexCapability, buildCapabilityContent } from "./capability-registry-service"
+import { PLATFORM_SCOPE_ORG_ID } from "@/lib/embeddings"
 // Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): dynamic_chain's own backfill source --
 // every chain created before task-service.ts's resolveDynamicChainId got
 // its indexing hook (this same wave) needs this one-off catch-up, same
@@ -95,7 +96,14 @@ export async function backfillCapabilityIndex(ctx: { orgId: string; userId: stri
       indexCapability(
         "worker_agent", a.id,
         buildCapabilityContent({ name: a.name, domain: a.domain, description: a.description, inputSchema: a.inputSchema, outputSchema: a.outputSchema }),
-        a.orgId
+        // CRR-018/019: org_id is null for two different reasons here --
+        // tier='global' agents are genuinely platform-wide (the sentinel is
+        // correct). tier='user' agents are null because they're scoped by
+        // userId instead; that is NOT platform-wide, and this backfill
+        // already runs scoped to one org (ctx.orgId) at a time, so that's
+        // the correct fallback -- using the sentinel there would leak a
+        // personal agent into every other org's capability search.
+        a.orgId ?? (a.tier === "global" ? PLATFORM_SCOPE_ORG_ID : ctx.orgId)
       ).catch((err) => console.error(`Failed to backfill-index worker agent ${a.id}:`, err))
     )
   )
@@ -109,7 +117,7 @@ export async function backfillCapabilityIndex(ctx: { orgId: string; userId: stri
   // re-run per-org since storeEmbedding dedupes on identical content.
   await Promise.all(
     modules.map((m) =>
-      indexCapability("module", m.moduleKey, buildCapabilityContent({ name: m.displayName, domain: m.domain, description: m.description }), null)
+      indexCapability("module", m.moduleKey, buildCapabilityContent({ name: m.displayName, domain: m.domain, description: m.description }), PLATFORM_SCOPE_ORG_ID)
         .catch((err) => console.error(`Failed to backfill-index module ${m.moduleKey}:`, err))
     )
   )

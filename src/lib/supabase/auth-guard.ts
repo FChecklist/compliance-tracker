@@ -5,6 +5,7 @@ import { db, users, organisations, accessReviewCertifications } from "@/lib/db"
 import { eq, and } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
 import { validateApiKey } from "./api-key-auth"
+import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
 import { assignSeat } from "@/lib/org-license-service"
 import { consumeInviteLinkAndProvisionUser } from "@/lib/invite-link-service"
 import { redeemJoinCodeAndProvisionUser } from "@/lib/org-join-code-service"
@@ -263,7 +264,10 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
     // Likely a duplicate-email race with a concurrent request -- re-read
     // whatever the other request created rather than erroring out.
     console.warn("Auto-provision race or failure, re-checking for existing user:", err)
-    return await db.query.users.findFirst({ where: eq(users.email, email) }) ?? null
+    // CRR-027 expand step (see src/lib/db/preauth-lookups.ts): this is the
+    // same preauth-by-email shape as requireAuth()'s primary lookup below,
+    // so it goes through the same narrow SECURITY DEFINER function.
+    return await lookupUserByEmail(email)
   }
 }
 
@@ -273,7 +277,16 @@ export async function requireAuth(): Promise<AuthContext> {
   if (!user) {
     return { user: null, dbUser: null, orgId: null, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
   }
-  let dbUser = await db.query.users.findFirst({ where: eq(users.email, user.email!) }) ?? null
+  // CRR-027 expand step (R-CRR-14, see src/lib/db/preauth-lookups.ts's
+  // header comment): this is THE preauth lookup -- runs before any tenant
+  // context exists, on every authenticated request -- so it now goes
+  // through the narrow SECURITY DEFINER compliance.lookup_user_by_email(text)
+  // function instead of an unrestricted `select *`. The pre-existing
+  // app_runtime_preauth_read_users blanket RLS policy is untouched (still
+  // required by 13 other call sites elsewhere in this codebase, see that
+  // file's header) -- this change alone does not narrow what app_runtime can
+  // read, it only stops relying on the blanket policy at this one call site.
+  let dbUser = await lookupUserByEmail(user.email!)
 
   // Link this Supabase Auth identity to its compliance.users row on first
   // sight, regardless of login method (password/magic-link/OAuth all resolve
@@ -396,6 +409,43 @@ export type CombinedAuthContext = {
 }
 
 export async function requireAuthOrApiKey(request: Request): Promise<CombinedAuthContext> {
+  // R36/P6 (E-122, floor_plans perf bug): requireAuth() used to run
+  // unconditionally FIRST, even for a pure server-to-server Bearer-API-key
+  // request with no session cookie at all (exactly how PROJEXA's server
+  // authenticates) -- that's a real supabase.auth.getUser() network round
+  // trip wasted on every single API-key-authenticated request, and was
+  // measured taking 5.2 minutes end-to-end under load on /api/floor-plans
+  // (R33) and reproduced in prod at 24.49s/19.48s (R35). Skip straight to
+  // the API-key path when the request plainly has no session mechanism in
+  // play (no sb-*-auth-token cookie) and does carry a Bearer key -- this is
+  // the ONLY case being fast-pathed, so a real browser session (which never
+  // sends this cookie-less + Bearer-vk_ combination) is completely
+  // unaffected and still goes through requireAuth() exactly as before. If a
+  // request somehow carries BOTH a session cookie and a Bearer key, we fall
+  // through to the original session-first order below so "session wins"
+  // (this function's own contract, see the type's doc comment) is
+  // unchanged for that edge case.
+  const cookieHeader = request.headers.get("cookie") ?? ""
+  const authHeader = request.headers.get("authorization") ?? ""
+  const hasSessionCookie = cookieHeader.includes("-auth-token=")
+  const hasBearerApiKey = authHeader.startsWith("Bearer ")
+  if (!hasSessionCookie && hasBearerApiKey) {
+    const fastApiKeyResult = await validateApiKey(request)
+    if (fastApiKeyResult.status === "ok") {
+      const { context } = fastApiKeyResult
+      return {
+        orgId: context.orgId,
+        dbUser: null,
+        apiKey: { id: context.keyId, name: context.keyName, scopes: context.scopes },
+        response: null,
+      }
+    }
+    // Falls through to the normal path below (requireAuth() then, if that
+    // also fails, the rate-limited/invalid handling on apiKeyResult further
+    // down) -- an invalid/expired key with no cookie still gets exactly the
+    // same error responses as before, just via the original code path.
+  }
+
   const sessionCtx = await requireAuth()
   if (!sessionCtx.response) {
     return { orgId: sessionCtx.orgId, dbUser: sessionCtx.dbUser, apiKey: null, response: null }
@@ -429,6 +479,75 @@ export async function requireAuthOrApiKey(request: Request): Promise<CombinedAut
     apiKey: null,
     response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
   }
+}
+
+// R39/R-C12 fix-2 (live-oracle finding): PROJEXA never forwards a per-user
+// VERIDIAN identity on server-to-server calls -- every request authenticates
+// with a single shared per-org API key (see PROJEXA's own auth-guard.ts
+// OrgRole comment: "PROJEXA's server routes call VERIDIAN with a single
+// shared per-org API key... not a per-user VERIDIAN identity"). Confirmed
+// live: calling the new v1/projexa/timesheets/[id]/{submit,approve,reject}
+// routes through the real deployed PROJEXA proxy always 400'd with "This
+// action requires a real user session, not an API key" -- ctx.dbUser is
+// always null for an API-key caller, so those routes were dead-on-arrival
+// end-to-end despite passing typecheck/unit tests.
+//
+// Actions that MUST know a specific real acting user (timesheet self-
+// approval-block, approvedById) cannot use ctx.dbUser for an API-key caller,
+// and must NOT fall back to ctx.apiKey.id either -- that's the E-class
+// FK-mismatch bug (api_keys.id stored where a real compliance.users.id FK is
+// expected) fixed independently 3 times elsewhere this run. Instead, a
+// trusted API-key caller may pass `actorEmail` in the request body; this
+// resolves it to a real, org-scoped, active compliance.users row -- an
+// actual person, verifiable and auditable, never a fabricated identity. A
+// session caller's ctx.dbUser is always preferred and actorEmail is ignored
+// for them, so this changes nothing for a direct/session-authenticated call.
+export async function resolveActingUser(
+  ctx: CombinedAuthContext,
+  actorEmail?: string | null
+): Promise<{ user: typeof users.$inferSelect | null; error: NextResponse | null }> {
+  if (ctx.dbUser) return { user: ctx.dbUser, error: null }
+  if (!ctx.apiKey) return { user: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
+  if (!actorEmail) {
+    return {
+      user: null,
+      error: NextResponse.json({ error: "actorEmail is required in the request body when this action is called with an API key" }, { status: 400 }),
+    }
+  }
+  const actingUser = ctx.orgId
+    ? (await db.query.users.findFirst({ where: and(eq(users.email, actorEmail), eq(users.orgId, ctx.orgId)) })) ?? null
+    : null
+  if (!actingUser) {
+    return { user: null, error: NextResponse.json({ error: `No user found for actorEmail "${actorEmail}" in this organisation` }, { status: 400 }) }
+  }
+  if (!actingUser.isActive) {
+    return { user: null, error: NextResponse.json({ error: `actorEmail "${actorEmail}" resolves to a deactivated user` }, { status: 400 }) }
+  }
+  return { user: actingUser, error: null }
+}
+
+// E-52 (R60/R62 sweep, platform.r43_faults fault_id LIKE 'E52_%'): the
+// house pattern this repo's v1 GET handlers kept repeating --
+// `if (!ctx.orgId) return NextResponse.json({ <empty shape> })` -- returns
+// a fake-success 200 with empty/default data on a broken auth/org context,
+// indistinguishable from a real, legitimately-empty tenant. The sibling
+// POST/PUT/DELETE in the SAME file almost always already returned a real
+// 400 for the identical condition (see e544eebe/#1418, the first 4-route
+// fix in this series) -- this is that same fix applied as one shared guard
+// instead of 76 hand-copied one-off edits, so the next new route gets it
+// for free and a future GET can't silently reintroduce the old shape.
+// Structurally typed on `{ orgId }` alone (not AuthContext/
+// CombinedAuthContext specifically) so it works at any call site that has
+// already resolved a ctx with an orgId field, session or API-key alike.
+// See src/lib/supabase/org-guard-sweep.test.ts for the filesystem-walking
+// regression test that fails CI if a new silent-empty-200 orgId guard is
+// ever added outside this function.
+export function requireOrg(
+  ctx: { orgId: string | null },
+  message: string = "No organisation on this account"
+): NextResponse | null {
+  if (ctx.orgId) return null
+  return NextResponse.json({ error: message }, { status: 400 })
 }
 
 // A real logged-in session always has full access -- scopes are an API-key-

@@ -22,11 +22,41 @@
 // same single source of truth going forward instead of two independently
 // maintained string literals.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { requirePermission } from "@/lib/services/permission-service"
-import { updateSalesOrderStatus, ServiceError } from "@/lib/services/erp-selling-service"
+import { getSalesOrder, updateSalesOrderStatus, ServiceError } from "@/lib/services/erp-selling-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
+
+// Real-screen conversion (2026-08-30): single-sales-order GET for the
+// Sales Order Object Page -- same shape as sales-orders/route.ts's own
+// toSalesOrderShape, so the list and Object Page always agree on field
+// names.
+function toSalesOrderShape(so: Awaited<ReturnType<typeof getSalesOrder>>) {
+  return {
+    id: so.id, soNumber: so.soNumber, customerId: so.customerId, customerName: so.customer?.customerName ?? null,
+    opportunityId: so.opportunityId, quotationId: so.quotationId, projectId: so.projectId, companyId: so.companyId,
+    orderDate: so.orderDate, deliveryDate: so.deliveryDate, status: so.status,
+    currencyId: so.currencyId, exchangeRate: so.exchangeRate, grandTotal: so.grandTotal,
+    items: so.items?.map((i) => ({ id: i.id, description: i.description, quantity: i.quantity, rate: i.rate, amount: i.amount, deliveredQuantity: i.deliveredQuantity })) ?? [],
+  }
+}
+
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const ctx = await requireAuthOrApiKey(request)
+  if (ctx.response) return ctx.response
+  if (!ctx.orgId) return requireOrg(ctx)!
+
+  try {
+    const { id } = await params
+    const salesOrder = await getSalesOrder({ orgId: ctx.orgId }, id)
+    return NextResponse.json(toSalesOrderShape(salesOrder))
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("v1 projexa sales-order get error:", error)
+    return NextResponse.json({ error: "Failed to fetch sales order" }, { status: 500 })
+  }
+}
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)

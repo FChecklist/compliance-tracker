@@ -75,6 +75,46 @@ export async function findPriorExecutionPath(
   const trimmed = instructionText.trim()
   if (!trimmed) return null
 
+  // TIER 1 (point 140): an exact-hash lookup, tried BEFORE the embedding
+  // tier below. An exact hash can only be wrong if the world changed; a
+  // similarity match can be wrong because two things merely sound alike --
+  // different failure modes (AR-16), so this precedes rather than replaces
+  // the embedding path. Same content_hash expression recordExecutionPath()
+  // already uses at write time. Any error here is swallowed and falls
+  // through to the embedding tier -- a cache failure must never break the
+  // caller.
+  try {
+    const contentHash = createHash("sha256").update(trimmed).digest("hex")
+    const hashRows = (await db.execute(sql`
+      SELECT id, resolved_capability_type, resolved_capability_id, resolved_label, resolved_params_shape
+      FROM platform.instruction_execution_cache
+      WHERE (org_id = ${orgId} OR org_id IS NULL) AND content_hash = ${contentHash} AND resolved_capability_id IS NOT NULL
+      LIMIT 1
+    `)) as Omit<RawMatchRow, "score">[]
+
+    if (hashRows.length > 0) {
+      const row = hashRows[0]
+
+      // Fire-and-forget usage bump -- same convention as the embedding tier
+      // below and embeddings.ts's getCachedEmbedding().
+      db.execute(sql`
+        UPDATE platform.instruction_execution_cache
+        SET success_count = success_count + 1, last_used_at = NOW()
+        WHERE id = ${row.id}
+      `).catch(() => {})
+
+      return {
+        resolvedCapabilityType: row.resolved_capability_type as CapabilityEntityType,
+        resolvedCapabilityId: row.resolved_capability_id,
+        resolvedLabel: row.resolved_label,
+        resolvedParamsShape: row.resolved_params_shape,
+        score: 1.0,
+      }
+    }
+  } catch {
+    // Swallow -- fall through to the embedding tier exactly as on a miss.
+  }
+
   const queryVector = await generateEmbedding(trimmed)
   const vectorStr = `[${queryVector.join(",")}]`
 

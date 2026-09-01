@@ -108,8 +108,12 @@ try {
   }
 }
 
-// Among the changed files, check for number collisions
-const sqlFiles = changedFiles.filter(f => f.endsWith(".sql"))
+// Among the changed files, check for number collisions. `drizzle/down/*.down.sql`
+// files (rollback scripts, see docs/ROLLBACK_RUNBOOK.md) are excluded: they are
+// deliberately named after the forward migration they reverse (e.g.
+// drizzle/down/0217_x.down.sql pairs with drizzle/0217_x.sql), so sharing that
+// number is correct by convention, not a collision.
+const sqlFiles = changedFiles.filter(f => f.endsWith(".sql") && !f.endsWith(".down.sql"))
 if (sqlFiles.length === 0) process.exit(0)
 
 const numberMap = new Map()

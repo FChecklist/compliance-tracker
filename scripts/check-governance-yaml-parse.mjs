@@ -11,14 +11,25 @@
 // to PARSE as YAML at all. It says nothing about whether the parsed
 // content is semantically correct (a well-formed but wrong claim entry
 // would pass this check) -- that is out of scope for a mechanical syntax
-// guardrail. Loaded with `json: true` (js-yaml's permissive/JSON-superset
-// mode, matching PyYAML's default tolerant behavior): this deliberately
-// does NOT fail on duplicate mapping keys, a real, separate, pre-existing
-// condition found elsewhere in ai-os/boss/ACTIVE-CLAIMS.yaml while building
-// this check -- out of scope for this specific guardrail (which targets
-// the structural ParserError class fixed in PR #818, not key-uniqueness
-// style issues) and not fixed here per explicit PM instruction not to
-// expand scope beyond this guardrail addition.
+// guardrail.
+//
+// UPDATE (2026-08-31, PR #821 finding incorporated): previously loaded with
+// `json: true` (js-yaml's permissive/JSON-superset mode, matching PyYAML's
+// default tolerant behavior), which deliberately did NOT fail on duplicate
+// mapping keys. That tolerance was a real, separate gap: it silently let a
+// genuine duplicate-mapping-key structural defect stand, undetected, in
+// ai-os/boss/ACTIVE-CLAIMS.yaml on `main` (three separate merge points where
+// an earlier automated squash-merge had dropped a `- session_label:`
+// list-item boundary, leaving one entry's `claimed_at`/`claim` keys
+// silently overwriting a sibling entry's same-named keys instead of
+// throwing -- found and fixed directly in that file as part of this same
+// change). `json`'s only documented effect is that duplicate-key tolerance
+// (js-yaml README: "If true, then duplicate keys in a mapping will override
+// values rather than throwing an error") -- confirmed by testing all 5
+// files below both with and without it before removing it, so dropping it
+// changes nothing else about how these 5 files parse. The option is now
+// OFF (plain `yaml.load(raw)`), so a duplicate mapping key is treated the
+// same as any other structural YAML defect: this check fails on it.
 //
 // Covers the real governance YAML files this session's own protocol names
 // as load-bearing (CLAUDE.md's "Read Before Starting Work" list, items 1-3
@@ -54,7 +65,9 @@ async function main() {
     }
 
     try {
-      yaml.load(raw, { json: true })
+      // No `json: true` here (see header comment): duplicate mapping keys
+      // must throw, not silently last-value-win.
+      yaml.load(raw)
     } catch (err) {
       failures.push({ file, error: err.message })
     }
