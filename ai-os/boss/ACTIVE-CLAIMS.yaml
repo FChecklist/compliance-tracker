@@ -855,3 +855,17 @@ active:
       this convention is intentionally sufficient for this PR too, no fresh
       manual security re-review required. Explicit owner instruction:
       "merge as-is" -- no further review needed.
+  - session_label: "claude-code (task-20260718-083002-crm---sales-modules--veri-reward--gamifi) -- VERIDIAN Review Framework gap-closure: VERI Reward (Gamification & Referral), 11 findings [rebase-sweep2b-1015: real rebase-merge of PR #1015 onto current main, replacement PR #1535 OPEN -- PR #1015 itself closed as superseded]"
+    claimed_at: "2026-09-01T00:xxZ (this session)"
+    claim: |
+      Scope: src/lib/services/veri-reward-service.ts, src/app/api/veri-reward/**,
+      src/app/(app)/rewards/page.tsx -- closing the 11 findings from the review framework
+      evaluation (see prompt.txt in this task's own dir): CRUD/live-verification, achievement
+      business-rule unit tests, admin engagement report, points-history/leaderboard
+      pagination+date-range filtering, unlock toast notification, "how it works" help panel,
+      CSV export of points history, i18n investigation. Not touching
+      src/lib/services/permission-service.ts's shared ERP_ACTION_ROLES table structure except
+      additively (new keys only), per this task's own explicit instruction.
+      Round 2 of an ongoing merge sweep -- main kept advancing (PR #1530 delegation-audit, PR
+      #1036 cloud-deployment gap-closure) between round 1 (PR #1535 opened) and round 2 (this
+      re-append). Re-appended here again since neither round's main tip carries this entry.

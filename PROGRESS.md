@@ -1,95 +1,103 @@
-# PROGRESS -- rebase-1530-final (real rebase-merge for PR #1530, second replacement for original PR #579)
+# PROGRESS -- rebase-sweep2b-1015 (real rebase-merge for PR #1015)
+
 ## Scope
-Real rebase-merge of PR #1530 (`rebase-final-579`, "V2-11: Delegation expiry
-enforcement audit + wire into 2 real checkpoints [was #579]") onto current
-main, per this repo's standard rebase-sweep protocol. Original PR content
-(already independently reviewed and approved by the owner, not
-re-litigated here): real broken-access-control vulnerability -- a low-rank
-user could self-grant payment-approval authority via delegation.
-`isDelegatedByAuthorizedDelegator()` (`src/lib/services/delegation-
-service.ts`) is wired into `decideApprovalStep()`
-(`approval-workflow-service.ts`) and the new `canDecidePaymentEntry()`/
-`decidePaymentEntry()` gate (`erp-payment-entries-service.ts`), checking the
-delegator's own rank (>= MANAGER_RANK) before honoring a delegation. #1530
-was itself already a rebase-replacement for the original PR #579; main kept
-moving before #1530 could be merged, so this rebase was done directly on
-#1530's own head branch (`rebase-final-579`) across two rounds rather than
-opening a third PR number. Owner has explicitly approved "merge as-is"
-after resolving the one open policy question below -- no further review
-needed.
+Real rebase-merge of PR #1015 (`worker/task-20260718-083002-crm---sales-modules--veri-reward--gamifi`,
+"VERI Reward: close 11 Review Framework gap-closure findings (CRM & Sales Modules)") onto current
+main, per this repo's standard rebase-sweep protocol. Prior triage + adversarial-verify (already
+complete before this sweep, not re-done here) confirmed real, additive, still-missing
+functionality on main: `veri-reward-service.ts` had no `evaluateAchievementProgress()` or
+`getEngagementReport()`, no `notifications` writes on achievement unlock; `listPointsHistory()`/
+`getOrgLeaderboard()` took no date-range filter; `admin-report`/`history`/`export` routes did not
+exist. CI on the original PR was fully green (Build/Lint/TypeCheck/UnitTests/E2E/audit-check all
+pass). Additive, read-only reporting/CSV export for the internal gamification module -- no
+auth/payment/destructive-data logic touched.
+
 ## Completed
-- [x] Worktree: `git worktree add -b rebase-1530-final` from
-      `origin/rebase-final-579` (PR #1530's own head), `bun install` (1273
-      packages).
-- [x] `git merge origin/main`, round 1 (main 4 commits ahead: #1529/#1531/
-      #1533/#1532) -- 1 real conflict: `PROGRESS.md` (this repo's
-      single-current-entry convention, replaced wholesale with this entry).
-      `ai-os/boss/ACTIVE-CLAIMS.yaml` and `ai-os/registry/terminology-
-      guardrail-exemptions.yaml` merged automatically with no conflict --
-      neither #579/#1530 nor this rebase's own commits ever touch either
-      file (confirmed via `git diff <merge-base>`), so main's current
-      pruned/rotated `ACTIVE-CLAIMS.yaml` was taken as-is; appended this
-      task's own claim entry under `active:` on top of it, matching the
-      precedent already recorded in that same file (the rebase-final-1019
-      and rebase-1014-fixed entries). No `drizzle/` conflicts and no
-      migration files in this PR at all (confirmed via `git diff
-      <merge-base> -- drizzle/`), so no journal renumbering was needed.
-- [x] **Policy question resolved (was the sole blocker on #1530's own prior
-      PROGRESS.md entry)**: current main's branch-protection required
-      checks are Lint/Type Check/Build/Unit Tests only -- the
-      `mandatory-audit-check` CI gate (and `scripts/validate-audit-
-      verdict.ts`) was repo-wide removed 2026-08-18 (commit `c37f91c9`),
-      before this PR's branch was cut, which is why its last CI run still
-      carried a stale pre-fix FAIL verdict from the old gate. Owner
-      confirmed the current no-audit-check convention is intentionally
-      sufficient for this PR too, matching every other PR now merging under
-      it -- no fresh manual security re-review required. Owner instruction:
-      "merge as-is".
-- [x] Validated round 1: `node scripts/check-governance-yaml-parse.mjs`
-      (clean), `bunx tsc --noEmit` (clean, 0 errors), `bun test
-      src/lib/services/delegation-service.test.ts
-      src/lib/services/approval-workflow-service.test.ts
-      src/lib/services/erp-payment-entries-service.test.ts` (73 pass, 0
-      fail). Security checkpoints re-verified directly against the merged
-      tree: both `decideApprovalStep()` and `decidePaymentEntry()`/
-      `canDecidePaymentEntry()` still call
-      `isDelegatedByAuthorizedDelegator()` correctly -- the unrelated
-      `PROGRESS.md` conflict did not touch either service file.
-- [x] Pushed round 1 directly to PR #1530's own existing head branch
-      (`rebase-final-579`) -- fast-forward, no force needed.
-- [x] Re-checked `gh pr view 1530` immediately after push (per this repo's
-      own documented pattern for fast-moving concurrent rebase-sweeps) --
-      caught `mergeStateStatus: DIRTY` / `mergeable: CONFLICTING` even
-      though `headRefOid` matched the just-pushed commit. `git fetch origin
-      main` confirmed main had advanced again within minutes: PR #1534
-      (OCID-038, `listVeriTodos()` `Promise.all` parallelization +
-      `VeriComposer`/`veri-chat-context` `aiThreadsLoading` race fix, was
-      #896) had landed after the round-1 fetch.
-- [x] `git merge origin/main`, round 2 -- 1 real conflict again:
-      `PROGRESS.md` (same wholesale-replace convention, this entry kept on
-      top). `ai-os/boss/ACTIVE-CLAIMS.yaml` merged automatically this round
-      (this task's own round-1-appended entry survived intact, confirmed
-      via grep post-merge). Confirmed via `git diff` that PR #1534/#896
-      touches only `veri-todo-service.ts`, `VeriComposer.tsx`,
-      `veri-chat-context.tsx`, `veri-todo-service.test.ts`,
-      `MASTER-TRACKER.yaml`, `ACTIVE-CLAIMS.yaml`, `docs/master/
-      TEST_COVERAGE_GAP.md` -- zero overlap with this PR's
-      delegation/approval/payment files, so no re-check of the security
-      logic itself was needed beyond re-confirming the two call sites are
-      still present post-merge.
-- [x] Re-ran `node scripts/check-governance-yaml-parse.mjs` (clean),
-      `bunx tsc --noEmit` (clean, 0 errors) after round 2.
-- [x] Pushed round 2 to `rebase-final-579` immediately after resolving, to
-      minimize the window for a third main-advance before CI can register.
+- [x] Worktree: `git worktree add -b rebase-sweep2b-1015` from
+      `origin/worker/task-20260718-083002-crm---sales-modules--veri-reward--gamifi`, `bun install`
+      (1203 packages, +5 more on a second pass -- `@axe-core/playwright`/`jscpd`/`knip`/the
+      GitHub-sourced `@fchecklist/veridian-ui-kit`/the CDN-sourced `xlsx` tarball did not resolve
+      on the first `bun install` pass in this sandbox, a transient network blip; a second
+      `bun install` picked them up cleanly).
+- [x] Independently re-confirmed the PR's real source diff before merging (6 commits over the
+      c51aab6a merge-base; 13 files, ~974 insertions / 53 deletions): `veri-reward-service.ts`
+      gains `evaluateAchievementProgress()` (pure threshold-crossing predicate) and
+      `getEngagementReport()` (points awarded/redeemed, net balance, unlock rate, active users,
+      referral conversion), a `notifications` row write on achievement unlock, and
+      date-range/pagination params on `listPointsHistory()`/`getOrgLeaderboard()`. Three new
+      routes (`admin-report` admin/manager-gated, `history`, `export` CSV) plus the `/rewards`
+      page UI (leaderboard/history "Show more", date-range filter, "how it works" panel, CSV
+      export button, unlock toast) and a new `Rewards` i18n namespace in `messages/{en,hi}.json`.
+      `veri-reward-service.test.ts` adds 7 unit tests for the new pure predicate. Not touching
+      `src/lib/services/permission-service.ts`'s shared `ERP_ACTION_ROLES` table at all.
+- [x] `git merge origin/main` (round 1) -- main had advanced 539 commits past this branch's
+      merge-base since PR #1015 was opened. 3 real conflicts:
+      - `PROGRESS.md` (this repo's single-current-entry convention) -- replaced wholesale with
+        this task's own entry, per the known gotcha; did not concatenate with the unrelated
+        OCID-038 entry left on main from a prior sweep.
+      - `ai-os/boss/ACTIVE-CLAIMS.yaml` -- main had independently grown its `active:` list with
+        many other sessions' entries since this branch was cut; this branch's own claim entry
+        was not present on main. Took main's list as base and re-appended this PR's own claim
+        entry on top.
+      - `src/app/(app)/rewards/page.tsx` -- genuine two-sided conflict, not a pure rename clash:
+        this PR's branch swapped the page's hardcoded English strings (title, tagline, section
+        headings) for `useTranslations("Rewards")` calls; independently, main had renamed the
+        icon-foreground color class from `text-ct-saffron` to `text-ct-saffron-text` across the
+        same lines (a real accessibility fix -- confirmed via `globals.css`'s own comment:
+        `text-ct-saffron` fails contrast as a foreground/icon color on light backgrounds, only
+        `text-ct-saffron-text` is safe for that use). Resolved by taking both real changes: kept
+        this PR's `t("pageTitle")`/`t("achievementsTitle")`/`t("inviteEarnTitle")`/
+        `t("teamLeaderboardTitle")` calls, adopted main's `text-ct-saffron-text` class on every
+        one of the 5 conflicting icon usages (Gem x2, Trophy, Share2, Users).
+- [x] Re-verified after round 1: `node scripts/check-governance-yaml-parse.mjs` clean;
+      `bunx tsc --noEmit` (`NODE_OPTIONS=--max-old-space-size=6144`) clean, 0 errors;
+      `bun test src/lib/services/veri-reward-service.test.ts` 7/7 pass; `eslint` on every touched
+      file clean (0 errors, 1 pre-existing `complexity` warning on the `/rewards` page, unrelated
+      to this diff's own logic); both `messages/en.json` and `messages/hi.json` still parse as
+      valid JSON post-merge. No `drizzle/` migration files touched by this PR at all -- no
+      migration-numbering conflict possible.
+- [x] Pushed `rebase-sweep2b-1015`, opened replacement PR #1535 ("... [was #1015]"), closed #1015
+      pointing to #1535.
+- [x] Re-checked `gh pr view 1535` immediately after push -- caught `mergeStateStatus: DIRTY` /
+      `mergeable: CONFLICTING`. `git fetch origin main` confirmed main had advanced again within
+      minutes: PR #1530 (V2-11 delegation-expiry-enforcement-audit, `isDelegatedByAuthorizedDelegator()`
+      wired into `decideApprovalStep()`/`decidePaymentEntry()`) had landed after the round-1
+      fetch -- confirmed via blob-hash diff that this PR's own branch never touched
+      `delegation-service.ts`/`approval-workflow-service.ts`/`erp-payment-entries-service.ts`
+      (zero diff between the merge-base and this branch's pre-merge tip for all three), so the
+      apparent divergence was purely main advancing further, not a merge defect on this branch's
+      side.
+- [x] `git merge origin/main` (round 2) -- 2 real conflicts again: `PROGRESS.md` (same
+      wholesale-replace convention, this entry kept on top) and `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      (main's list had grown further with PR #1530/#1036 entries; re-appended this task's own
+      claim entry on top of main's current list again). `src/app/(app)/rewards/page.tsx` merged
+      automatically this round with zero conflict -- confirmed the round-1 resolution (i18n +
+      `text-ct-saffron-text`) survived intact post-merge.
+- [x] Ran the full `bun test` suite post-round-2-merge as an extra confidence check (not just the
+      targeted file): 3598 pass / 5 skip / 17 fail / 1 error across 3620 tests. All 18 failures
+      are in `src/app/api/v1/projexa/dunning-list/route.test.ts`,
+      `src/app/api/v1/projexa/finance-dashboard/route.test.ts`, and
+      `src/app/api/v1/tasks/[id]/status/route.test.ts` -- none of which this PR (or its merge
+      resolution) touches. Confirmed via `git diff --stat <merge-base>..<old PR tip>` that this
+      PR's own branch made zero changes to any of those three route files or to
+      `permission-service.ts`; both merge rounds pulled main's versions of those files in with
+      zero conflicts. This is a pre-existing regression on `main` itself (looks related to the
+      `96b265f7` "add role check to finance-dashboard GET (R58 Lane 2)" authz change being too
+      strict), unrelated to and predating PR #1015/#1535's own scope -- flagged here rather than
+      silently ignored, not fixed as part of this rebase-sweep (out of scope: this task is a
+      narrow rebase-merge of the veri-reward gap-closure PR, not a general authz bug hunt).
+
 ## Remaining
-- [ ] Verify real CI on PR #1530 (`gh pr checks 1530`) -- retry on
-      transient network errors up to 5 times; ignore known-ambient
-      failures (E2E Tests, Vercel org-wide deployment-blocked, Secret
-      Scanning on pre-existing files, Promptfoo Evals).
-- [ ] Re-check `mergeable`/`mergeStateStatus` right before merging in case
-      main advanced yet again; re-merge if so.
-- [ ] Merge PR #1530 only when genuinely green (modulo the known-ambient
-      ones): `gh pr merge 1530 --squash --delete-branch`.
-- [ ] Independently verify post-merge via `gh pr view 1530
-      --json state,mergedAt` -- do not just trust the merge command's exit
-      code.
+- [ ] Verify real CI on PR #1535 (`gh pr checks 1535`) -- retry on transient network errors up to
+      5 times; ignore known-ambient failures (E2E Tests, Vercel platform-wide block, Secret
+      Scanning on pre-existing files, Promptfoo Evals timeout). If the pre-existing
+      dunning-list/finance-dashboard/tasks-status failures noted above show up as a real CI red
+      on Unit Tests, treat that as the same pre-existing main-side issue, not something to
+      silently paper over -- confirm it is not present on veri-reward's own test file before
+      deciding whether it blocks this specific PR.
+- [ ] Re-check `mergeable`/`mergeStateStatus` right before merging in case main advanced yet
+      again; re-merge if so.
+- [ ] Merge PR #1535 only when genuinely green (modulo the known-ambient ones):
+      `gh pr merge 1535 --squash --delete-branch`.
+- [ ] Independently verify post-merge via `gh pr view 1535 --json state,mergedAt` -- do not just
+      trust the merge command's exit code.
