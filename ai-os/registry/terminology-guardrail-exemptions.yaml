@@ -3655,3 +3655,15 @@ exemptions:
     reason: "Rebase-sweep2-618 real-count correction (2026-09-01, PR #618's rebase-merge onto current main): node scripts/check-terminology-guardrail.mjs --full-repo run for real post-merge found this file's true current hardcoded_iso_date count exceeds the baseline carried over from the pre-merge branches -- some of these files were touched by commits that landed on main after the prior full-repo baseline snapshot, unrelated to PR #618 itself. Confirmed on direct read: every flagged instance is the same benign class this manifest already exempts throughout -- dated changelog/gap-closure/task-ID comments and governance-registry log entries, not hardcoded secrets, PII, or human example data. Raised to the real current count."
     findings_by_category:
       hardcoded_iso_date: 5
+  - file: src/lib/services/deployment-slo-service.ts
+    reason: "Cloud Deployment / Deployment Automation gap-closure (task-20260718-164005, 2026-08-07): new file, 1 genuine dated design-rationale comment (line 2, this task's own dispatch/build date documenting why the SLO service exists) -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/api/deployment-slo/route.ts
+    reason: "Cloud Deployment / Deployment Automation gap-closure (task-20260718-164005, 2026-08-07): new file, 1 genuine dated design-rationale comment (line 6, this task's own dispatch/build date) -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: scripts/rollback-drill.test.ts
+    reason: "Cloud Deployment / Deployment Automation gap-closure (task-20260718-164005, 2026-08-07): new file, 1 genuine dated comment (line 6) documenting the real, live Vercel project verification date this drill's fixtures are modeled on -- not example/placeholder data."
+    findings_by_category:
+      hardcoded_iso_date: 1

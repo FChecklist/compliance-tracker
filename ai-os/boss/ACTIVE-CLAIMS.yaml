@@ -869,6 +869,156 @@ active:
       Round 2 of an ongoing merge sweep -- main kept advancing (PR #1530 delegation-audit, PR
       #1036 cloud-deployment gap-closure) between round 1 (PR #1535 opened) and round 2 (this
       re-append). Re-appended here again since neither round's main tip carries this entry.
+  - session_label: "claude-code (autonomous worker, task-20260718-164005-cloud-deployment--deployment-automation) -- VERIDIAN Review Framework Cloud Deployment / Deployment Automation gap-closure"
+    claimed_at: "2026-08-07T (this session)"
+    claim: |
+      Closing 3 findings dispatched together (same task prompt, coherent
+      single PR per that prompt's own instruction): "Effective Vercel
+      Integration" (no staging/preview environment strategy documented),
+      "Production Deployment Reliability" (no measured production
+      reliability SLO), "Rollback Capability" (theoretical, never
+      rehearsed). Re-verified live before writing anything (prompt's own
+      instruction: don't trust the finding text without re-checking the
+      code) -- src/app/api/webhooks/vercel-deployment/route.ts +
+      deploymentEvents (schema.ts) already exist and already record real
+      Vercel webhook deliveries (the "webhook already exists" the prompt's
+      row 50 pointer meant); no staging environment or rollback runbook
+      existed anywhere. Also live-verified against the real Vercel account
+      (VERCEL_ACCESS_TOKEN present in this environment): project is
+      `veridian-compliance-ai` / `prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII`, Hobby
+      plan -- confirms Custom Environments (Pro-only) isn't available,
+      informing the staging design below.
+      Delivered: (1) `docs/infra/DEPLOYMENT_ENVIRONMENTS.md` +
+      `.github/workflows/sync-vercel-env-staging.yml` (git-branch-scoped
+      Preview env vars as a Hobby-plan-compatible staging equivalent,
+      workflow_dispatch only, mirrors sync-vercel-env.yml's existing
+      pattern -- does not create the `staging` branch itself, documents how
+      to). (2) `src/lib/services/deployment-slo-service.ts` (+ .test.ts) +
+      `GET /api/deployment-slo` (veridian_admin-gated, same posture as
+      /api/ai/team/governance-health) -- computes a real success-rate SLO
+      from deploymentEvents, with a best-effort Sentry overlay that
+      honestly reports "not configured" (SENTRY_AUTH_TOKEN/ORG/PROJECT
+      genuinely absent everywhere in this repo, confirmed via grep) rather
+      than fabricating Sentry data. (3) `docs/runbooks/rollback.md` +
+      `scripts/rollback-drill.mjs` (+ .test.ts) -- the CLI-based drill the
+      prompt asked for, actually run live (read-only) against the real
+      Vercel project while writing the doc: identified the real current
+      production deployment and rollback candidate via Vercel's actual API,
+      captured real output in the runbook. Did NOT execute a real `vercel
+      rollback` against production -- that's a live traffic change,
+      Rule 7(e) requires the owner's explicit confirmation even though it's
+      not this task's call to make unattended.
+      Did not touch permission-service.ts (no RBAC change needed for any of
+      these 3). File scope: docs/infra/DEPLOYMENT_ENVIRONMENTS.md (new),
+      docs/runbooks/rollback.md (new), docs/SEV1_INCIDENT_RUNBOOK.md
+      (one cross-link line added), .github/workflows/sync-vercel-env-
+      staging.yml (new), scripts/rollback-drill.mjs (+.test.ts, new),
+      src/lib/services/deployment-slo-service.ts (+.test.ts, new),
+      src/app/api/deployment-slo/route.ts (new). Checked live before
+      claiming -- no other active entry touches any of these paths.
+
+      2026-08-07 push-time correction: this session's `gh`/git token lacks
+      the `workflow` OAuth scope, so GitHub rejects any push whose commit
+      range touches `.github/workflows/*.yml` (confirmed via a real
+      `remote rejected` push attempt), matching this repo's known
+      constraint. Split the PR: `.github/workflows/sync-vercel-env-
+      staging.yml` is written and committed locally (content unchanged,
+      real and correct) but held back from this push -- everything else
+      (docs, service, route, drill script, tests) is unaffected and pushes
+      cleanly. The workflow file itself needs either (a) a token with
+      `workflow` scope to push it in a tiny follow-up PR, or (b) the Owner
+      adding it directly. `docs/infra/DEPLOYMENT_ENVIRONMENTS.md` (which
+      does push in this PR) documents its name, trigger, and behavior in
+      prose so the design is not lost even if the unpushed file itself is;
+      the file's own real YAML content stays in this task's local
+      workspace pending the follow-up push.
+
+      2026-08-07 final status: PR #1021 opened
+      (https://github.com/FChecklist/compliance-tracker/pull/1021). One real
+      CI fix cycle needed -- `Terminology Guardrail Check` failed on 3 new
+      dated design-rationale comments (deployment-slo-service.ts,
+      deployment-slo/route.ts, rollback-drill.test.ts); registered all 3 in
+      `ai-os/registry/terminology-guardrail-exemptions.yaml` with real,
+      specific reasons and re-verified the checker passes locally before
+      pushing. Posted a genuine, independently-re-verified 8-field
+      `AUDIT: PASS` (re-ran both test suites live, cross-checked the Drizzle
+      query against the real schema field-by-field, read rollback-drill.mjs
+      in full to confirm it never calls `vercel rollback` itself). All
+      required CI checks went green (Lint, Type Check, Build, Unit Tests,
+      E2E Tests, audit-check, Guardrail Presence Check, Asset Registry
+      Coverage Check, Metadata Index Coverage Check, Terminology Guardrail
+      Check, Migration Number Collision Check, doc checks, Secret Scanning,
+      Security Pattern Check, Analyze). Checked `mergeStateStatus`/
+      `reviewDecision` before attempting merge (per
+      `[[veridian-branch-protection-self-approval-deadlock-active]]`):
+      `BLOCKED`/`REVIEW_REQUIRED` -- the same structural self-approval
+      deadlock confirmed 8 times already on this repo (only one real GitHub
+      identity exists anywhere in this environment). Did **not** attempt
+      `gh pr merge` (would be the 9th identical failure, no new signal).
+      This PR is CI-green, audited, and ready -- it needs the Owner (or a
+      provisioned second reviewer identity) to actually merge it.
+
+      2026-08-14 (invocation 18) real state change, not a re-confirmation:
+      `origin/main` had moved ~100+ commits since this PR's merge-base;
+      `gh pr view 1021` now showed `mergeStateStatus: DIRTY` /
+      `mergeable: CONFLICTING`. Found the real conflicts via `git
+      merge-tree` -- exactly 2 files, both classic "two sessions appended
+      near the same anchor in a shared file" collisions: root `PROGRESS.md`
+      (this task's entry vs. an unrelated concurrent
+      `task-20260718-081006-crm---sales-modules` entry) and
+      `ai-os/registry/terminology-guardrail-exemptions.yaml` (this task's 3
+      exemption rows vs. a concurrent GST-reconciliation task's 1 row).
+      Merged `origin/main` in, resolved both by union (kept both sides --
+      neither was wrong), re-ran `scripts/check-terminology-guardrail.mjs
+      --diff-only` locally (passed) before committing, pushed merge commit
+      `185f72fa0`. Re-checked: `mergeable` is back to `MERGEABLE`;
+      `mergeStateStatus` is `BLOCKED` -- confirms the only remaining blocker
+      is the known review-requirement self-approval deadlock (unchanged),
+      not the conflict. CI re-running on the new merge commit. Did not
+      re-attempt `gh pr merge` (still the same known deadlock, no new
+      signal there). `.github/workflows/sync-vercel-env-staging.yml`
+      remains unpushed (workflow OAuth scope still absent) -- unchanged.
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-sweep2b-1021, replacement for PR
+      #1021): merged onto current main, which had independently pruned this
+      file's `active:` list to its current set (a legitimate rolling
+      cleanup per this file's own protocol #3, same precedent as the
+      rebase-sweep2b-664/668, rebase-final-1019, rebase-1530-final, and
+      rebase-sweep2b-1015 entries above) and added many of its own new
+      entries since this claim was first written. This entry (this task's
+      own claim, describing PR #1021's real work) is re-appended here
+      rather than dropped, since the PR itself was still open/unmerged at
+      rebase time. 3 real conflicts resolved during this merge: `PROGRESS.md`
+      (this repo's single-current-entry convention, replaced wholesale),
+      this same `ai-os/boss/ACTIVE-CLAIMS.yaml` (resolved as described
+      here), and `ai-os/registry/terminology-guardrail-exemptions.yaml`
+      (purely additive on both sides -- kept all entries from both). No
+      `drizzle/` conflicts and no migration files in this PR at all, so no
+      renumbering was needed. Independently re-confirmed before merging
+      that main still lacks all 4 of this PR's real deliverables
+      (`docs/infra/DEPLOYMENT_ENVIRONMENTS.md`,
+      `src/lib/services/deployment-slo-service.ts`,
+      `docs/runbooks/rollback.md`, `scripts/rollback-drill.mjs`) --
+      confirmed via `git ls-tree -r origin/main`, zero hits. The
+      `.github/workflows/sync-vercel-env-staging.yml` file this PR's own
+      history describes as written-but-unpushed (missing `workflow` OAuth
+      scope on the original session's token) is NOT present anywhere in
+      this branch's actual git history (confirmed via `git ls-tree -r
+      HEAD` -- empty) -- it only ever existed in that other session's local
+      task workspace on a different machine, which this rebase has no
+      access to reconstruct. Left out of scope here (this is a rebase of
+      what the PR's branch actually contains, not a rebuild of an
+      undelivered file from a description) -- noting honestly rather than
+      fabricating its content. The previously-recorded
+      `[[veridian-branch-protection-self-approval-deadlock-active]]` blocker
+      (`BLOCKED`/`REVIEW_REQUIRED`, confirmed 8 times against the original
+      PR #1021) is being re-tested against this fresh replacement PR before
+      any merge is attempted -- see this PR's own CI/merge check for the
+      current real result, not assumed resolved just because prior sweep
+      PRs (e.g. #1535, #1530-final) merged cleanly.
+      Round 2 of this same rebase-sweep -- main advanced again (1 commit, `30b2b7b5`, the
+      concurrent `rebase-cleanup-1199` sweep's own PR merging) between PR #1539 being opened
+      and this re-check. Re-merged and re-appended this entry unchanged in substance.
   - session_label: "claude-code (task-20260815-033541-owner-delegated-decision--provision-a-re) -- Owner-delegated: provision Meridian Test Industries dummy tenant + 4 role-based test accounts, run real GTM cat 15 (multi-tenant isolation) + cat 16 (role permission) tests [DONE]"
     claimed_at: "2026-08-15 (this session, closed same session)"
     claim: |
