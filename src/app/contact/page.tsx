@@ -1,8 +1,21 @@
 import Link from "next/link";
 import Image from "next/image";
+import { headers } from "next/headers";
+import type { Metadata } from "next";
 import { ContactUsForm } from "@/components/ContactUsForm";
+import { resolvePreAuthBrandByHost } from "@/lib/services/org-branding-service";
 
-export const metadata = { title: "Contact Us — VERIDIAN AI" };
+// GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN (OCID-020 addendum,
+// 2026-08-05): same root-cause class as GAP-OCID038-PROJEXA-DOMAIN-BRAND-
+// MISMATCH already fixed on /login. This page already reads headers() in
+// its own body below (the real brand-resolution requirement), so it is
+// already real, per-request dynamic regardless -- adding its own title
+// resolution here costs nothing extra.
+export async function generateMetadata(): Promise<Metadata> {
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
+  return { title: `Contact Us — ${brand?.brandName ?? "VERIDIAN AI"}` };
+}
 
 export default async function ContactPage({
   searchParams,
@@ -10,16 +23,28 @@ export default async function ContactPage({
   searchParams: Promise<{ confirmed?: string }>;
 }) {
   const { confirmed } = await searchParams;
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
+  // Matches /login's own LoginForm fallback contract exactly: a resolved
+  // brand renders as its plain name (no "COGNITIVE AI OS" subtitle -- that
+  // suffix is real VERIDIAN-specific editorial copy, not a generic
+  // descriptor every brand should inherit); the platform default (no host
+  // match) renders byte-identical to this page's pre-existing wordmark.
+  const wordmark = brand ? (
+    <span>{brand.brandName}</span>
+  ) : (
+    <span>
+      VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span>
+    </span>
+  );
 
   return (
     <main className="min-h-screen bg-[#F4F1E8] text-[#1a1a17] antialiased">
       <nav className="border-b border-[#1a1a17]/10">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5 font-heading text-lg tracking-tight">
-            <Image src="/logo-mark.svg" alt="VERIDIAN" width={28} height={28} priority />
-            <span>
-              VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span>
-            </span>
+            <Image src="/logo-mark.svg" alt={brand?.brandName ?? "VERIDIAN"} width={28} height={28} priority />
+            {wordmark}
           </Link>
           <div className="hidden items-center gap-8 text-sm text-[#1a1a17]/70 md:flex">
             <Link href="/#research" className="hover:text-[#1a1a17]">Research</Link>
@@ -65,10 +90,10 @@ export default async function ContactPage({
       <footer className="border-t border-[#1a1a17]/10">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2 font-heading">
-            <Image src="/logo-mark.svg" alt="VERIDIAN" width={22} height={22} />
-            <span>VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span></span>
+            <Image src="/logo-mark.svg" alt={brand?.brandName ?? "VERIDIAN"} width={22} height={22} />
+            {wordmark}
           </div>
-          <div className="text-sm text-[#1a1a17]/50">© {new Date().getFullYear()} VERIDIAN AI</div>
+          <div className="text-sm text-[#1a1a17]/50">© {new Date().getFullYear()} {brand?.brandName ?? "VERIDIAN AI"}</div>
         </div>
       </footer>
     </main>

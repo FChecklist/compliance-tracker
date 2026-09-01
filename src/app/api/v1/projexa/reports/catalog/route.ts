@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { getFullReportCatalog, ServiceError } from "@/lib/services/report-engine-service"
 
 // PROJEXA Reports & Analysis catalog UI (CONTROLLER.yaml PRIORITY-17
@@ -14,7 +14,7 @@ import { getFullReportCatalog, ServiceError } from "@/lib/services/report-engine
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ catalog: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const catalog = await getFullReportCatalog({ orgId: ctx.orgId })

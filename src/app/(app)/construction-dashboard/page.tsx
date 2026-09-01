@@ -35,14 +35,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 
 type OrgDashboard = {
-  totalProjects: number; totalBudget: number; totalRevenue: number; totalExpenses: number;
-  projects: { id: string; name: string; revenue: number; expenses: number; taskCount: number; delayedTaskCount: number }[];
+  totalProjects: number; totalBudget: number | null; totalRevenue: number | null; totalExpenses: number | null;
+  projects: { id: string; name: string; revenue: number | null; expenses: number | null; taskCount: number; delayedTaskCount: number }[];
 };
 type Department = { id: string; name: string };
 
 export default function ConstructionDashboardPage() {
   const currencies = useCurrencies();
-  const money = (n: number) => `${currencyLabel(undefined, currencies)}${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  // R48 gap-closure (2026-08-30, F059): the API now redacts financial
+  // fields to null server-side for roles below "manager" (a real security
+  // fix, not a display choice -- see the API route's own comment). money()
+  // must handle that null without crashing (n.toLocaleString() on null
+  // throws) -- render a plain "restricted" placeholder instead of a figure.
+  const money = (n: number | null) => n === null ? "Restricted" : `${currencyLabel(undefined, currencies)}${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
   const [data, setData] = useState<OrgDashboard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,13 +111,13 @@ export default function ConstructionDashboardPage() {
             <Card className="rounded-xl shadow-card bg-white">
               <CardContent className="pt-4 flex items-center justify-between">
                 <div><p className="text-xs text-ct-muted">Active Projects</p><p className="text-2xl font-heading text-ct-navy">{data.totalProjects}</p></div>
-                <Building2 className="size-6 text-ct-saffron" />
+                <Building2 className="size-6 text-ct-saffron-text" />
               </CardContent>
             </Card>
             <Card className="rounded-xl shadow-card bg-white">
               <CardContent className="pt-4 flex items-center justify-between">
                 <div><p className="text-xs text-ct-muted">Total Budget</p><p className="text-2xl font-heading text-ct-navy">{money(data.totalBudget)}</p></div>
-                <Wallet className="size-6 text-ct-saffron" />
+                <Wallet className="size-6 text-ct-saffron-text" />
               </CardContent>
             </Card>
             <Card className="rounded-xl shadow-card bg-white">
@@ -124,7 +129,7 @@ export default function ConstructionDashboardPage() {
             <Card className="rounded-xl shadow-card bg-white">
               <CardContent className="pt-4 flex items-center justify-between">
                 <div><p className="text-xs text-ct-muted">Total Expenses</p><p className="text-2xl font-heading text-ct-navy">{money(data.totalExpenses)}</p></div>
-                <Receipt className="size-6 text-ct-saffron" />
+                <Receipt className="size-6 text-ct-saffron-text" />
               </CardContent>
             </Card>
           </div>

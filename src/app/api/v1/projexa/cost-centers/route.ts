@@ -7,7 +7,7 @@
 // filter client-side on that field; the service itself stays org-scoped
 // only, matching listFiscalYears/listSuppliers etc.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listCostCenters, ServiceError } from "@/lib/services/erp-accounting-service"
 
 function toCostCenterShape(cc: Awaited<ReturnType<typeof listCostCenters>>[number]) {
@@ -17,7 +17,19 @@ function toCostCenterShape(cc: Awaited<ReturnType<typeof listCostCenters>>[numbe
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ costCenters: [] })
+  // API_READ_WITHOUT_ROLE_CHECK (R58 Lane 2, 2026-08-27): this read had no
+  // floor at all -- rank-1 roles (viewer/client_viewer/external_auditor/
+  // stage_0, see ROLE_RANK in auth-guard.ts) could call this route with zero
+  // role check. "member" is the right floor, not a higher one: the response
+  // shape (toCostCenterShape below) is pure structural/reference data -- id,
+  // name, parentCostCenterId, isGroup, departmentId, projectId -- no money
+  // figures, no commercial terms, no named individual's PII. Matches the
+  // exact requireRoleOrScope(ctx, "member", "read") pattern already used
+  // identically by 10+ sibling /api/v1/projexa/** GET routes (see
+  // employees/route.ts, vendors/route.ts, dashboard/route.ts -- #1399).
+  const roleErr = requireRoleOrScope(ctx, "member", "read")
+  if (roleErr) return roleErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const costCenters = await listCostCenters({ orgId: ctx.orgId })

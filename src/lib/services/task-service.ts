@@ -1,6 +1,6 @@
 // Wave 11 service layer -- extracted from src/app/api/tasks/{route,
 // [id]/route}.ts verbatim (behavior-identical refactor).
-import { tasks, aiAssistants, workerAgents, dynamicChains, users, db, notifications } from "@/lib/db"
+import { tasks, aiAssistants, workerAgents, dynamicChains, users, db, notifications, taskAssignees } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { desc, eq, asc, and, ne, inArray, lt, notInArray, sql } from "drizzle-orm"
 import { executeTask } from "@/lib/task-execution-engine"
@@ -13,6 +13,7 @@ import { logHighImpactClassification } from "@/lib/high-impact-classification-lo
 import { checkApprovalPreference, saveApprovalPreference } from "@/lib/approval-preference-service"
 import { didFeatureComplete, recordAuditTrigger } from "@/lib/audit-event-triggers"
 import { runTaskCompletionMonitor } from "@/lib/monitors/task-completion-monitor"
+import { logActivity } from "@/lib/audit"
 // Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): dynamic_chain is now a 5th
 // CapabilityEntityType -- indexed at the one real creation point
 // (resolveDynamicChainId below), same "index at creation" pattern
@@ -323,15 +324,22 @@ export async function getTask(ctx: ReadContext & { userId?: string }, id: string
       // resolved here, additive to the response shape.
       task.userId ? db.query.users.findFirst({ where: eq(users.id, task.userId), columns: { id: true, name: true } }) : Promise.resolve(null),
     ])
-    return { task, plan, chat, owner }
+    // R65 Part B ("Task Responsibility - Multiple peoples"): co-assignees,
+    // in addition to the single primary owner resolved above.
+    const coAssigneeRows = await db.query.taskAssignees.findMany({ where: eq(taskAssignees.taskId, id) })
+    const coAssignees = coAssigneeRows.length > 0
+      ? await db.query.users.findMany({ where: inArray(users.id, coAssigneeRows.map((r) => r.userId)), columns: { id: true, name: true } })
+      : []
+    return { task, plan, chat, owner, coAssignees }
   })
 
   if (!result) throw new ServiceError("Task not found", 404)
-  const { task, plan, chat, owner } = result
+  const { task, plan, chat, owner, coAssignees } = result
 
   return {
     id: task.id, title: task.title, description: task.description, status: task.status, priority: task.priority, assistantId: task.assistantId,
     owner: owner ? { id: owner.id, name: owner.name } : null,
+    coAssignees: coAssignees.map((u) => ({ id: u.id, name: u.name })),
     createdAt: task.createdAt.toISOString(), updatedAt: task.updatedAt.toISOString(),
     executionPlan: plan.map((p) => ({ id: p.id, stepNumber: p.stepNumber, workerAgentId: p.workerAgentId, description: p.description, status: p.status })),
     chat: chat.map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt.toISOString() })),
@@ -405,6 +413,70 @@ export async function updateTask(ctx: ServiceContext, id: string, input: { statu
   }
 
   return { id: updated.id, title: updated.title, description: updated.description, status: updated.status, priority: updated.priority, updatedAt: updated.updatedAt.toISOString() }
+}
+
+// R65 Part B ("Task Responsibility - Multiple peoples"): tasks.userId
+// remains the single primary owner (unchanged everywhere else in this
+// file); these 3 functions are the real many-to-many CO-assignee surface,
+// the same real relationship pmsIssueAssignees already establishes for PMS
+// Issues. No stricter permission gate than updateTask() above enforces
+// today (any authenticated org member) -- matches this file's own existing
+// posture rather than inventing a new, inconsistent ACL for just this
+// feature.
+export async function listTaskAssignees(ctx: ReadContext, taskId: string) {
+  const { orgId } = ctx
+  return withTenantContext({ orgId }, async (db) => {
+    const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) })
+    if (!task) throw new ServiceError("Task not found", 404)
+    const rows = await db.query.taskAssignees.findMany({ where: eq(taskAssignees.taskId, taskId) })
+    if (rows.length === 0) return []
+    const people = await db.query.users.findMany({ where: inArray(users.id, rows.map((r) => r.userId)), columns: { id: true, name: true } })
+    return rows.map((r) => {
+      const person = people.find((p) => p.id === r.userId)
+      return { id: r.id, userId: r.userId, name: person?.name ?? null, addedById: r.addedById, createdAt: r.createdAt.toISOString() }
+    })
+  })
+}
+
+export async function addTaskAssignee(ctx: ServiceContext, taskId: string, userId: string) {
+  const { orgId, actor } = ctx
+  const addedById = actor.dbUser?.id ?? null
+  return withTenantContext({ orgId, userId: addedById ?? undefined }, async (db) => {
+    const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) })
+    if (!task) throw new ServiceError("Task not found", 404)
+    if (task.userId === userId) throw new ServiceError("This user is already the primary assignee -- no need to add them as a co-assignee", 400)
+    const existing = await db.query.taskAssignees.findFirst({ where: and(eq(taskAssignees.taskId, taskId), eq(taskAssignees.userId, userId)) })
+    if (existing) return existing // idempotent -- re-adding an existing co-assignee is a no-op, not an error
+    const [row] = await db.insert(taskAssignees).values({ taskId, userId, addedById }).returning()
+    if (actor.dbUser) {
+      await logActivityForTaskAssignee(db, orgId, actor.dbUser, task.id, task.title, "add", userId)
+    }
+    return row
+  })
+}
+
+export async function removeTaskAssignee(ctx: ServiceContext, taskId: string, userId: string) {
+  const { orgId, actor } = ctx
+  return withTenantContext({ orgId, userId: actor.dbUser?.id }, async (db) => {
+    const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) })
+    if (!task) throw new ServiceError("Task not found", 404)
+    const existing = await db.query.taskAssignees.findFirst({ where: and(eq(taskAssignees.taskId, taskId), eq(taskAssignees.userId, userId)) })
+    if (!existing) throw new ServiceError("This user is not a co-assignee of this task", 404)
+    await db.delete(taskAssignees).where(eq(taskAssignees.id, existing.id))
+    if (actor.dbUser) {
+      await logActivityForTaskAssignee(db, orgId, actor.dbUser, task.id, task.title, "remove", userId)
+    }
+    return { removed: true }
+  })
+}
+
+async function logActivityForTaskAssignee(dbTx: TenantDb, orgId: string, dbUser: NonNullable<ServiceContext["actor"]["dbUser"]>, taskId: string, taskTitle: string, action: "add" | "remove", targetUserId: string) {
+  await logActivity({
+    tx: dbTx, orgId, dbUser,
+    action: action === "add" ? "assign" : "reassign",
+    entityType: "Task", entityId: taskId,
+    details: action === "add" ? `Added a co-assignee to task: ${taskTitle}` : `Removed a co-assignee from task: ${taskTitle}`,
+  }).catch((err) => console.error(`[task-service] failed to log ${action} co-assignee activity for task ${taskId}:`, err))
 }
 
 // Wave 11: a lightweight status-only read, for the new MCP get_task_status

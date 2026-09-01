@@ -57,6 +57,19 @@
 // exists in OpenRouter's current catalog under this exact id, including
 // the 2026-07-07 additions (z-ai/glm-5v-turbo, z-ai/glm-5-turbo,
 // anthropic/claude-sonnet-5).
+//
+// Model Lifecycle & Benchmarking (VERIDIAN Review Framework gap-closure,
+// task-20260718-071005 / PR #417 + #1221): the static `model` field below
+// is the DEFAULT a role runs on, not necessarily the effective one --
+// roster-overrides.ts resolves the real effective model per-dispatch,
+// checking an admin-set DB override first (including an optional
+// rollout-percentage A/B/shadow-test against a `candidateModel`, backed by
+// drizzle/0313_ai_team_role_overrides_rollout.sql) before falling back to
+// this file's static default. Any diff touching this file's model slugs
+// is evaluated by .github/workflows/ai-prompt-evals.yml (promptfoo
+// regression suite) before merge -- see that workflow's own header for
+// what it does and doesn't gate. See roster-overrides.ts and
+// team-service.ts's runRole() for the full resolution chain.
 
 export type TeamName =
   | "VERIDIAN_AI_OS"

@@ -8,13 +8,13 @@
 // data through as the new PO's input, same shape convertQuotationToSalesOrder
 // uses on the sales side.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listPurchaseOrders, createPurchaseOrder, ServiceError } from "@/lib/services/erp-buying-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ purchaseOrders: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const purchaseOrders = await listPurchaseOrders({ orgId: ctx.orgId })
