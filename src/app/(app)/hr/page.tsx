@@ -30,8 +30,17 @@ type LeaveRequest = {
   id: string; userId: string; leaveType: string; startDate: string; endDate: string; numDays: string; status: string; reason: string | null;
 };
 
+// V2-17: mirrors HrDashboardKpis (hr-dashboard-service.ts) -- kept as a
+// separate client-side type rather than importing the server type, matching
+// this file's existing Employee/LeaveRequest convention of re-declaring the
+// API response shape locally.
+type HrDashboardKpis = {
+  headcount: number; pendingLeaveRequests: number; openJobOpenings: number; candidatesInPipeline: number;
+  attendanceMarkedToday: number; attendanceRateToday: number | null; pendingPerformanceReviews: number;
+};
+
 const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-ct-saffron/20 text-ct-saffron",
+  pending: "bg-ct-saffron/20 text-ct-saffron-text",
   approved: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-700",
   cancelled: "bg-ct-cloud text-ct-muted",
@@ -40,6 +49,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function HrPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
+  const [kpis, setKpis] = useState<HrDashboardKpis | null>(null);
   const [myRole, setMyRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -51,13 +61,14 @@ export default function HrPage() {
   const [reason, setReason] = useState("");
 
   const load = useCallback(async () => {
-    const [empRes, reqRes, meRes] = await Promise.all([
-      fetch("/api/hr/employees"), fetch("/api/hr/leave-requests"), fetch("/api/me"),
+    const [empRes, reqRes, meRes, kpiRes] = await Promise.all([
+      fetch("/api/hr/employees"), fetch("/api/hr/leave-requests"), fetch("/api/me"), fetch("/api/hr/dashboard"),
     ]);
-    const [empData, reqData, meData] = await Promise.all([empRes.json(), reqRes.json(), meRes.json()]);
+    const [empData, reqData, meData, kpiData] = await Promise.all([empRes.json(), reqRes.json(), meRes.json(), kpiRes.json()]);
     setEmployees(empData.employees ?? []);
     setRequests(reqData.requests ?? []);
     setMyRole(meData.role ?? null);
+    setKpis(kpiData.kpis ?? null);
     setLoading(false);
   }, []);
 
@@ -112,6 +123,26 @@ export default function HrPage() {
         <h1 className="text-2xl font-heading text-ct-navy">HR</h1>
         <p className="text-sm text-ct-muted mt-1">Employee directory, org chart, and leave requests -- distinct from the statutory HR compliance tracking under People &amp; HR.</p>
       </div>
+
+      {kpis && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            { label: "Headcount", value: kpis.headcount },
+            { label: "Pending Leave", value: kpis.pendingLeaveRequests },
+            { label: "Open Roles", value: kpis.openJobOpenings },
+            { label: "Candidates in Pipeline", value: kpis.candidatesInPipeline },
+            { label: "Attendance Today", value: kpis.attendanceRateToday === null ? "--" : `${kpis.attendanceRateToday}%` },
+            { label: "Pending Reviews", value: kpis.pendingPerformanceReviews },
+          ].map((kpi) => (
+            <Card key={kpi.label} className="rounded-xl shadow-card bg-white">
+              <CardContent className="pt-4 pb-3">
+                <p className="text-xs text-ct-muted uppercase tracking-wide">{kpi.label}</p>
+                <p className="text-xl font-heading text-ct-navy mt-1">{kpi.value}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <Tabs defaultValue="directory">
         <TabsList>
@@ -207,8 +238,8 @@ export default function HrPage() {
                   <Badge className={`text-xs border-0 ${STATUS_COLORS[req.status] ?? "bg-ct-cloud text-ct-muted"}`}>{req.status}</Badge>
                   {isManager && req.status === "pending" && (
                     <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => decide(req.id, "approved")}><Check className="size-4 text-ct-teal" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => decide(req.id, "rejected")}><X className="size-4 text-ct-error" /></Button>
+                      <Button size="icon" variant="ghost" aria-label="Approve request" onClick={() => decide(req.id, "approved")}><Check className="size-4 text-ct-teal" /></Button>
+                      <Button size="icon" variant="ghost" aria-label="Reject request" onClick={() => decide(req.id, "rejected")}><X className="size-4 text-ct-error" /></Button>
                     </div>
                   )}
                 </div>

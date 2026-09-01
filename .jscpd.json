@@ -1,0 +1,18 @@
+{
+  "path": ["src"],
+  "format": ["typescript", "tsx"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "src/lib/db/schema.ts",
+    "src/components/ui/**"
+  ],
+  "minLines": 10,
+  "minTokens": 50,
+  "threshold": 6,
+  "reporters": ["console"],
+  "gitignore": true,
+  "absolute": false
+}

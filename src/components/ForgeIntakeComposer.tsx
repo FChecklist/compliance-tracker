@@ -214,7 +214,7 @@ export function ForgeIntakeComposer() {
   if (submitted) {
     return (
       <div className="rounded-2xl border border-ct-border bg-white shadow-card px-8 py-12 text-center">
-        <Sparkles className="mx-auto size-8 text-ct-saffron" />
+        <Sparkles className="mx-auto size-8 text-ct-saffron-text" />
         <h3 className="mt-4 font-heading text-2xl text-ct-navy">Congratulations on this great journey!</h3>
         <p className="mx-auto mt-3 max-w-md leading-relaxed text-ct-slate">
           We&apos;re with you. Check your email — it&apos;ll come from{" "}
@@ -238,7 +238,7 @@ export function ForgeIntakeComposer() {
 
       <div className="p-5 sm:p-7 bg-gradient-to-b from-white to-ct-cream">
         <div className="flex items-start gap-3">
-          <span className="grid size-9 place-items-center rounded-full bg-ct-saffron/15 text-ct-saffron shrink-0">
+          <span className="grid size-9 place-items-center rounded-full bg-ct-saffron/15 text-ct-saffron-text shrink-0">
             <Sparkles className="size-4" />
           </span>
           <div>

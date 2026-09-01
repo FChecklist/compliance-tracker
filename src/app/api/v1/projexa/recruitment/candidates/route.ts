@@ -1,12 +1,12 @@
 // Priority 15 (PROJEXA HR & Payroll, Wave 1): candidate pool.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listCandidates, createCandidate, ServiceError } from "@/lib/services/recruitment-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ candidates: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const candidates = await listCandidates({ orgId: ctx.orgId })

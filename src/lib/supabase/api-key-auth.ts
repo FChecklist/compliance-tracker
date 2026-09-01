@@ -1,6 +1,7 @@
 import { db, apiKeys, apiKeyRequestLog } from "@/lib/db"
 import { eq, and, gte, sql } from "drizzle-orm"
 import { hashSHA256 } from "@/lib/api-keys"
+import { lookupApiKeyByHash } from "@/lib/db/preauth-lookups"
 
 export type ApiKeyContext = {
   orgId: string
@@ -59,17 +60,46 @@ function demoKeyAllowlist(): Set<string> {
   )
 }
 
+// VERIDIAN Review Framework gap-closure (2026-08-15, "API Developer
+// Experience" -- Sandbox/test environment for API integrators): the
+// recommended fix was to reuse the existing demo org as an interim sandbox
+// rather than build a dedicated sandbox-flag system. `projexa_demo_key`
+// (org `projexa_demo_org`) is that reuse candidate -- but its DB row has
+// `scopes: "read,write"` (unrestricted) and `rateLimitPerMinute: null`
+// (unlimited), which is fine for its original purpose (a legit internal
+// PROJEXA service key) but unsafe the moment it's handed to external
+// integrators as "the sandbox." Rather than mutate the DB row (which could
+// break whatever legitimate internal use still depends on its exact
+// scopes/limit), enforce a hard ceiling here, in code, for any key in
+// KNOWN_DEMO_KEY_IDS specifically -- independent of, and always at least as
+// strict as, the DB's own configured limit. Today this is a no-op in every
+// real environment: the key is still rejected outright unless
+// DEMO_API_KEY_IDS explicitly allowlists it (see above). The moment an
+// operator does opt a demo key into sandbox use, it's automatically
+// rate-limited rather than unlimited -- no separate step required. Doesn't
+// touch scopes (read,write is fine for a sandbox -- integrators need to
+// exercise writes too) or any non-demo key's behavior at all.
+const DEMO_KEY_RATE_LIMIT_PER_MINUTE = 30
+
+function effectiveRateLimitFor(row: { id: string; rateLimitPerMinute: number | null }): number | null {
+  if (!KNOWN_DEMO_KEY_IDS.has(row.id)) return row.rateLimitPerMinute
+  return row.rateLimitPerMinute === null
+    ? DEMO_KEY_RATE_LIMIT_PER_MINUTE
+    : Math.min(row.rateLimitPerMinute, DEMO_KEY_RATE_LIMIT_PER_MINUTE)
+}
+
 /**
  * Resolves an `Authorization: Bearer vk_...` header to the org/scopes it
  * grants. Uses the raw (RLS-bypassing) db client deliberately -- this IS
  * the authentication step itself, so it necessarily runs before any tenant
  * context exists to scope a query by (same reasoning as `autoProvisionUser`
- * in auth-guard.ts). Also enforces the key's own rate_limit_per_minute (null
- * = unlimited, every pre-existing key's exact prior behavior), rejects a
- * known demo/seed key unless explicitly allowlisted via DEMO_API_KEY_IDS
- * (see KNOWN_DEMO_KEY_IDS above), and logs the request into
- * api_key_request_log for both the rate-limit count and the usage-analytics
- * dashboard.
+ * in auth-guard.ts). Also enforces the key's effective rate limit (its own
+ * rate_limit_per_minute -- null = unlimited -- capped at
+ * DEMO_KEY_RATE_LIMIT_PER_MINUTE for known demo/sandbox keys, see
+ * effectiveRateLimitFor() above), rejects a known demo/seed key unless
+ * explicitly allowlisted via DEMO_API_KEY_IDS (see KNOWN_DEMO_KEY_IDS
+ * above), and logs the request into api_key_request_log for both the
+ * rate-limit count and the usage-analytics dashboard.
  */
 export async function validateApiKey(request: Request): Promise<ValidateApiKeyResult> {
   const authHeader = request.headers.get("authorization")
@@ -78,20 +108,29 @@ export async function validateApiKey(request: Request): Promise<ValidateApiKeyRe
   if (!token || !token.startsWith("vk_")) return { status: "invalid" }
 
   const keyHash = await hashSHA256(token)
-  const row = await db.query.apiKeys.findFirst({ where: eq(apiKeys.keyHash, keyHash) })
+  // CRR-028 expand step (R-CRR-14, see src/lib/db/preauth-lookups.ts's header
+  // comment): this IS the preauth step -- runs before any tenant context
+  // exists, exactly the same reasoning as this function's own doc comment
+  // above -- so it now goes through the narrow SECURITY DEFINER
+  // compliance.lookup_api_key_by_hash(text) function instead of an
+  // unrestricted `select *`. The pre-existing app_runtime_preauth_read_api_keys
+  // blanket RLS policy is untouched (other call sites still depend on it) --
+  // this alone does not narrow what app_runtime can read.
+  const row = await lookupApiKeyByHash(keyHash)
   if (!row || !row.isActive) return { status: "invalid" }
 
   if (KNOWN_DEMO_KEY_IDS.has(row.id) && !demoKeyAllowlist().has(row.id)) return { status: "invalid" }
 
   const route = new URL(request.url).pathname
+  const rateLimit = effectiveRateLimitFor(row)
 
-  if (row.rateLimitPerMinute !== null) {
+  if (rateLimit !== null) {
     const cutoff = new Date(Date.now() - RATE_LIMIT_WINDOW_SECONDS * 1000)
     const [{ count }] = await db.select({ count: sql<number>`count(*)` })
       .from(apiKeyRequestLog)
       .where(and(eq(apiKeyRequestLog.apiKeyId, row.id), gte(apiKeyRequestLog.createdAt, cutoff)))
 
-    if (Number(count) >= row.rateLimitPerMinute) {
+    if (Number(count) >= rateLimit) {
       db.insert(apiKeyRequestLog).values({
         apiKeyId: row.id, orgId: row.orgId, route, method: request.method, wasRateLimited: true,
       }).then(() => {})

@@ -43,6 +43,7 @@ import { findControlAccount } from "./erp-invoicing-service"
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
 import { isSelfApproval } from "./approval-workflow-service"
 import { isDelegatedByAuthorizedDelegator } from "./delegation-service"
+import { ErpContext } from "./actor-context"
 import { createFraudCaseTx } from "./fraud-case-service"
 import { recordAndEscalateAnomaly } from "./risk-escalation-service"
 import {
@@ -61,7 +62,6 @@ import {
 // risks' own severity_matrix, the same pattern already established.
 const DEFAULT_PAYMENT_APPROVAL_THRESHOLD = 100_000
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 export type PaymentEntryStatus = (typeof erpPaymentEntries.$inferSelect)["status"]
 

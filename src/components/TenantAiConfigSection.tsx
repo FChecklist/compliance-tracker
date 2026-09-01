@@ -144,7 +144,7 @@ export default function TenantAiConfigSection() {
         <div className="rounded-lg border border-ct-border p-3 space-y-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Cpu className="size-3.5 text-ct-saffron" />
+              <Cpu className="size-3.5 text-ct-saffron-text" />
               <span className="text-sm font-medium text-ct-navy">Your org&apos;s model</span>
             </div>
             {config ? (
