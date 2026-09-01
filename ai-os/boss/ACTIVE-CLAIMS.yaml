@@ -1016,3 +1016,72 @@ active:
       any merge is attempted -- see this PR's own CI/merge check for the
       current real result, not assumed resolved just because prior sweep
       PRs (e.g. #1535, #1530-final) merged cleanly.
+      Round 2 of this same rebase-sweep -- main advanced again (1 commit, `30b2b7b5`, the
+      concurrent `rebase-cleanup-1199` sweep's own PR merging) between PR #1539 being opened
+      and this re-check. Re-merged and re-appended this entry unchanged in substance.
+  - session_label: "claude-code (task-20260815-033541-owner-delegated-decision--provision-a-re) -- Owner-delegated: provision Meridian Test Industries dummy tenant + 4 role-based test accounts, run real GTM cat 15 (multi-tenant isolation) + cat 16 (role permission) tests [DONE]"
+    claimed_at: "2026-08-15 (this session, closed same session)"
+    claim: |
+      SPEC (Owner-delegated real decision to the PM): provision one real, clearly-fictional
+      dummy test tenant, 4 real role accounts (owner/admin, manager, member, viewer -- standard
+      B2B SaaS RBAC per descope.com + WorkOS guides), run real GTM cat 15/16 tests, record
+      real evidence into gtm_certification_categories via the canonical writer only.
+
+      COLLISION CHECK found this was a RE-DISPATCH of a stranded task
+      (task-20260806-215747-owner-delegated-decision--provision-a-re, PR #1002, 9 days stale/
+      CONFLICTING, never merged). Independently verified (not trusted from PR #1002's own body
+      text) that the real `gtm_certification_categories` DB still showed category 15/16
+      `blocked` as of `2026-08-06T17:07Z`, and `pm_decisions_pending` id=69/70 were still open,
+      despite PR #1002's own narration claiming a corroborated pass.
+
+      DONE this session: cherry-picked the stranded provisioning script
+      (`scripts/gtm-provision-cat15-16-test-tenant.ts`, commit `6077f3d24`) into this task's own
+      branch/diff. Re-ran it for real (idempotent) against the live app's Postgres/Supabase --
+      org `Meridian Test Industries (GTM Cat 15/16 Test Fixture -- Non-Production)`
+      (`org_id=dstmb99kn1hc4toxb6iqs1td`, `slug=meridian-test-industries-gtm-fixture-nonprod`,
+      `internal_use_exempt=true`) with 4 real accounts (admin/manager/member/viewer), real
+      Supabase Auth credentials freshly generated and written only to gitignored `.env.local`
+      -- never committed. Ran `gtm_check_multi_tenant_testing.py` and
+      `gtm_check_role_permission_testing.py` for real against `https://projexa-ai.com`: category
+      15 PASS (4/4 accounts confined to the Meridian org, 0 cross-tenant leaks, foreign resource
+      fetch denied for every role), category 16 PASS (17/17 real 4-role x 5-endpoint ROLE_RANK
+      checks matched exactly, 0 mismatches). Both recorded `passed=1` in
+      `gtm_certification_categories` via the canonical `gtm_write_category_result.py` (never raw
+      SQL) at `2026-08-15T03:46:31Z` / `2026-08-15T03:47:43Z` -- independently re-verified
+      directly against the live DB after the writer ran, not just trusted from script stdout.
+      Resolved `pm_decisions_pending` id=69 and id=70 via `superboss-register.py
+      resolve-pm-decision-pending`, citing this real evidence. Closed the stranded PR #1002 as
+      superseded (comment posted citing this task).
+
+      File scope: `scripts/gtm-provision-cat15-16-test-tenant.ts` (new, this task's own diff),
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`, `progress/task-20260815-033541-owner-delegated-decision--provision-a-re.md`.
+      No changes to `gtm_check_multi_tenant_testing.py` / `gtm_check_role_permission_testing.py`
+      / `gtm_write_category_result.py` (already-correct, pre-existing in the separate
+      veridian-scripts repo) or any raw SQL write to `gtm_certification_categories`.
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-cleanup-1199, replacement for PR
+      #1199; a prior attempt at this same cleanup failed partway through
+      with a transient network error, not a real decision, and was redone
+      fresh). Merged onto current main across 2 rounds (main advanced again
+      mid-flight with PR #1535 between round 1 and round 2; this entry is
+      unchanged in substance across both rounds). This entry's own
+      `claim:` text above is reproduced verbatim from PR #1199's original
+      diff (the real work it describes -- including the credential resets
+      for the 4 real test accounts -- was already executed live in a prior
+      session, outside code review, and is NOT re-run or re-triggered by
+      this rebase-merge; this merge only lands the already-vetted script
+      text into the repo for future reuse). One unrelated file also
+      removed before merging: `.scratch_final_check.py`, a 5-line ad hoc
+      CI-status-polling script accidentally committed to the PR branch,
+      not part of the real feature. Two real conflicts on merge (each
+      round): `PROGRESS.md` (this repo's single-current-entry convention,
+      replaced wholesale) and this file. On this file: main's copy had
+      since been pruned down to only the `active:` section (the
+      `recently_completed:` section this PR's own diff had added its
+      entry under no longer exists on main at all); per the same-day
+      precedent already recorded above (the `rebase-1530-final` entry),
+      took main's current file as-is each round and appended this entry
+      at the end of `active:` rather than resurrecting the deleted
+      `recently_completed:` section. No `drizzle/` conflicts and no
+      migration files anywhere in this PR's diff, so no journal
+      renumbering was needed.

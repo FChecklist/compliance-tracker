@@ -78,3 +78,14 @@ real Vercel API -- no destructive action, no auth-logic change.
       (`#1535`, `rebase-1530-final`) reportedly merged cleanly; check this PR's own real state.
 - [ ] Merge only when genuinely green (modulo the known-ambient ones); independently re-verify via
       `gh pr view --json state,mergedAt` rather than trusting the merge command's exit code.
+
+## Round 2 merge (2026-09-01, later same session)
+- [x] `gh pr view 1539` immediately after opening showed `mergeStateStatus: DIRTY` /
+      `mergeable: CONFLICTING` -- main had advanced again (1 commit: `30b2b7b5`, "GTM cat15/16
+      dummy-tenant provisioning ... [was #1199]", a concurrent sweep session's own PR merging).
+      `git fetch origin main` confirmed. 2 conflicts this round: `PROGRESS.md` (replaced
+      wholesale again, this entry kept on top) and `ai-os/boss/ACTIVE-CLAIMS.yaml` (main's
+      active list had grown by that PR's own claim entry; re-appended this task's claim on top
+      of main's current list again, same as round 1).
+      `ai-os/registry/terminology-guardrail-exemptions.yaml` merged with zero conflict this
+      round -- neither this branch nor `30b2b7b5` touched overlapping lines.
