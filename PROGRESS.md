@@ -1,102 +1,63 @@
-# PROGRESS -- task-20260718-083002-crm---sales-modules--veri-reward--gamifi
+# PROGRESS -- rebase-sweep2b-1015 (real rebase-merge for PR #1015)
 
-VERIDIAN Review Framework gap-closure: CRM & Sales Modules / VERI Reward (Gamification &
-Referral) -- 11 findings (see prompt.txt in the task dir for full text). Resume, invocation
-14/20. On resume, found this branch had drifted 788 commits behind `origin/main` with zero
-task-specific commits of its own (a stale worktree state, not real prior work on this task) --
-reset the branch onto fresh `origin/main` before starting real work, per
-[[veridian-resume-uncommitted-work-wrong-branch]].
+## Scope
+Real rebase-merge of PR #1015 (`worker/task-20260718-083002-crm---sales-modules--veri-reward--gamifi`,
+"VERI Reward: close 11 Review Framework gap-closure findings (CRM & Sales Modules)") onto current
+main, per this repo's standard rebase-sweep protocol. Prior triage + adversarial-verify (already
+complete before this sweep, not re-done here) confirmed real, additive, still-missing
+functionality on main: `veri-reward-service.ts` had no `evaluateAchievementProgress()` or
+`getEngagementReport()`, no `notifications` writes on achievement unlock; `listPointsHistory()`/
+`getOrgLeaderboard()` took no date-range filter; `admin-report`/`history`/`export` routes did not
+exist. CI on the original PR was fully green (Build/Lint/TypeCheck/UnitTests/E2E/audit-check all
+pass). Additive, read-only reporting/CSV export for the internal gamification module -- no
+auth/payment/destructive-data logic touched.
 
-## Findings closure (11 findings)
-- [x] CRUD & Approval Workflow Correctness (Low) -- **honest, disclosed limitation**: this
-      sandbox has no live Supabase/Postgres connection (`bun test`'s own 224-file suite mocks
-      every DB call; no `DATABASE_URL` reachable here), so a real live-data smoke test
-      (upload a document, confirm a `veri_reward_points_ledger` row) genuinely cannot be run
-      from this environment -- not fabricated. Verified the wiring is real by direct code read
-      instead: `checkAndUnlockAchievements`/`awardPoints` (veri-reward-service.ts) are called
-      from `compliance-service.ts:10,395` (first-compliance-item achievement),
-      `recordStreakCheckIn` (daily_login streak, called from the /rewards page's own mount
-      effect), and the referral signup path (`recordReferralSignupCompleted`, called from
-      `auth-guard.ts`'s `autoProvisionUser()`). All 4 wired call sites the finding names are
-      real, present, and exercised by the new unit tests below at the pure-logic level -- the
-      live-data gap itself (0 rows in production as of the evaluation) is a real-world usage
-      fact this task cannot manufacture from a sandbox, not a code defect.
-- [x] Business Rule & Validation Accuracy (Medium) -- extracted the achievement-unlock
-      threshold comparison into a new pure function, `evaluateAchievementProgress()`
-      (veri-reward-service.ts), and added 7 unit tests covering exact-threshold-crossing,
-      overshoot, already-unlocked (never re-unlocks), incrementBy=0, targetValue=1, and
-      below-target cases (`veri-reward-service.test.ts`) -- matches this repo's own established
-      convention of testing pure predicates rather than DB-backed functions directly
-      (crm-service.test.ts's own header note).
-- [x] Multi-Tenant / Multi-Project Isolation (Low) -- already satisfied per the finding's own
-      text (RLS forced, verified live); no code change needed.
-- [x] Reporting & Export Accuracy (Medium) -- added `getEngagementReport()`
-      (veri-reward-service.ts) + `GET /api/veri-reward/admin-report` (admin/manager-gated,
-      same inline role check as `GET /api/settings/adoption-metrics`): points
-      awarded/redeemed, net balance, achievement unlock rate, active user count, referral
-      conversion rate. Rendered as a new card on the /rewards page (hidden entirely for
-      non-admins via the route's own 403, no separate client-side role check needed).
-- [x] AI Copilot Integration Depth (Medium) -- **deferred, documented, not implemented**: per
-      the finding's own text this is appropriate as-is (deterministic gamification logic
-      correctly doesn't need an LLM); the suggested nudge is explicitly labeled "nice-to-have"
-      in the finding itself. No code change.
-- [x] Audit Trail & Change History (Low) -- N/A per the finding's own text; no code change.
-- [x] Search, Filter & Bulk Operations (Medium) -- `listPointsHistory()`/`getOrgLeaderboard()`
-      now take `limit`/`offset` (+ `startDate`/`endDate` for history); new
-      `GET /api/veri-reward/history` (paginated + date-range filterable) and
-      `GET /api/veri-reward/leaderboard?limit=&offset=`. /rewards page: leaderboard "Show
-      more", points-history "Show more" + a real date-range filter UI.
-- [x] Notification & Alert Trigger Correctness (Medium) -- `checkAndUnlockAchievements()` now
-      writes a real row to the existing `notifications` table (same insert-directly convention
-      every other module uses, e.g. `compliance-service.ts`'s status_change/assignment
-      inserts) the instant an achievement unlocks -- surfaced by the existing topbar bell
-      regardless of which of the 4 wired call sites triggered it, not just when the user
-      happens to be on /rewards. Also added a page-level complement: a one-time toast on
-      /rewards load for any achievement newly unlocked since this browser last saw it
-      (localStorage-tracked).
-- [x] Documentation & In-App Help Coverage (Medium) -- added a "How it works" collapsible panel
-      to /rewards explaining points/achievements/streaks/referrals in plain language.
-- [x] Data Import/Export Template Fidelity (High) -- new `GET /api/veri-reward/export` (CSV,
-      same buffered `rowsToCSV()` pattern as `/api/v1/reports/definitions/[id]/run`), wired to
-      an "Export CSV" button on /rewards respecting the same date-range filter as the history
-      list.
-- [x] Localization Readiness (Medium) -- confirmed `next-intl` IS wired platform-wide
-      (`src/i18n/`, `messages/{en,hi}.json`, root `NextIntlClientProvider`) but coverage was
-      previously thin (only layout/login/signup/AppSidebar actually called
-      `useTranslations()`). Added a new `Rewards` namespace to both locale files and wired
-      every static string on the /rewards page (titles, labels, buttons, the new "how it
-      works" copy) through `useTranslations("Rewards")`, matching the login-form.tsx
-      convention including `t.rich()` for the bolded how-it-works copy. **Honest, disclosed
-      limitation, not silently declared complete**: achievement/streak *display* copy
-      (`achievement_definitions.displayName`/`description`, DB-seeded platform-default rows)
-      remains English-only -- genuinely localizing DB-driven content needs a schema change
-      (per-locale columns or an i18n-key indirection keyed by `achievementKey`), out of scope
-      for this pass. Real follow-up, not swept under the rug.
-
-## Verification
-- [x] `bun test src/lib/services/veri-reward-service.test.ts` -- 7/7 pass.
-- [x] `bun test` (full suite) -- 2519/2519 pass, 0 fail (pre-existing unrelated console output
-      from fail-closed/error-path tests, not real failures).
-- [x] `bunx tsc --noEmit` (full project, `NODE_OPTIONS=--max-old-space-size=6144` -- default
-      heap OOMs on this project's size in this sandbox) -- clean, 0 errors.
-- [x] `bunx eslint` on every touched file -- clean, 0 errors/warnings.
-- [x] `python3 -c "import json; json.load(...)"` on both `messages/en.json` and
-      `messages/hi.json` -- both parse clean.
-- [x] Did not touch `src/lib/services/permission-service.ts`'s `ERP_ACTION_ROLES` table at
-      all (the new admin-report gate uses the plain `dbUser.role` inline-check convention that
-      table's own non-ERP siblings already use, per this task's own explicit instruction).
-
-- [x] Committed, pushed, opened PR #1015: https://github.com/FChecklist/compliance-tracker/pull/1015
+## Completed
+- [x] Worktree: `git worktree add -b rebase-sweep2b-1015` from
+      `origin/worker/task-20260718-083002-crm---sales-modules--veri-reward--gamifi`, `bun install`
+      (1203 packages).
+- [x] Independently re-confirmed the PR's real source diff before merging (6 commits over the
+      c51aab6a merge-base; 13 files, ~974 insertions / 53 deletions): `veri-reward-service.ts`
+      gains `evaluateAchievementProgress()` (pure threshold-crossing predicate) and
+      `getEngagementReport()` (points awarded/redeemed, net balance, unlock rate, active users,
+      referral conversion), a `notifications` row write on achievement unlock, and
+      date-range/pagination params on `listPointsHistory()`/`getOrgLeaderboard()`. Three new
+      routes (`admin-report` admin/manager-gated, `history`, `export` CSV) plus the `/rewards`
+      page UI (leaderboard/history "Show more", date-range filter, "how it works" panel, CSV
+      export button, unlock toast) and a new `Rewards` i18n namespace in `messages/{en,hi}.json`.
+      `veri-reward-service.test.ts` adds 7 unit tests for the new pure predicate.
+- [x] `git merge origin/main` -- main had advanced 539 commits past this branch's merge-base
+      since PR #1015 was opened. 3 real conflicts:
+      - `PROGRESS.md` (this repo's single-current-entry convention) -- replaced wholesale with
+        this entry, per the known gotcha; did not concatenate with the unrelated OCID-038 entry
+        left on main from a prior sweep.
+      - `ai-os/boss/ACTIVE-CLAIMS.yaml` -- main had independently grown its `active:` list with
+        many other sessions' entries since this branch was cut (no pruning had happened either
+        side); this branch's own claim entry for `task-20260718-083002-crm---sales-modules--veri-
+        reward--gamifi` was not present on main. Took main's list as base and re-appended this
+        PR's own claim entry on top, updating its status bracket to reflect the in-progress
+        rebase-sweep.
+      - `src/app/(app)/rewards/page.tsx` -- genuine two-sided conflict, not a pure rename clash:
+        this PR's branch swapped the page's hardcoded English strings (title, tagline, section
+        headings) for `useTranslations("Rewards")` calls; independently, main had renamed the
+        icon-foreground color class from `text-ct-saffron` to `text-ct-saffron-text` across the
+        same lines (a real accessibility fix -- confirmed via `globals.css`'s own comment:
+        `text-ct-saffron` fails contrast as a foreground/icon color on light backgrounds, only
+        `text-ct-saffron-text` is safe for that use). Resolved by taking both real changes: kept
+        this PR's `t("pageTitle")`/`t("achievementsTitle")`/`t("inviteEarnTitle")`/
+        `t("teamLeaderboardTitle")` calls, adopted main's `text-ct-saffron-text` class on every
+        one of the 5 conflicting icon usages (Gem x2, Trophy, Share2, Users).
+- [x] Re-verified after merge: `node scripts/check-governance-yaml-parse.mjs` clean;
+      `bunx tsc --noEmit` (`NODE_OPTIONS=--max-old-space-size=6144`) clean, 0 errors;
+      `bun test src/lib/services/veri-reward-service.test.ts` 7/7 pass; both `messages/en.json`
+      and `messages/hi.json` still parse as valid JSON post-merge.
+- [x] No `drizzle/` migration files touched by this PR (pure application-layer + i18n change) --
+      no migration-numbering conflict possible.
+- [x] Pushed `rebase-sweep2b-1015`, opened replacement PR (see PR link in this branch's own
+      history/CI once opened), closed #1015 pointing to it.
 
 ## Remaining
-- [ ] Rebased onto current `origin/main` (was 224 commits behind, PR #1015 had gone
-      `CONFLICTING`/`DIRTY`); resolved this file + `ai-os/boss/ACTIVE-CLAIMS.yaml` conflicts,
-      re-ran verification, re-pushed. Confirm CI green again, hand off for independent audit
-      per Rule 10/AGENTS.md, merge.
-
-Note: the stale `task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0` and
-`task-20260815-044325-pm-approval-of-proposal-62-build-lock-co` sections that previously
-occupied this spot were unrelated snapshots left over from this file's non-accumulating,
-per-branch-scratch convention (confirmed via `git show origin/main:PROGRESS.md`, which is
-itself just a fresh 4-line stub for a different, unrelated task) -- dropped rather than kept,
-since neither is this branch's own real history and neither survives on `main` anyway.
+- [ ] Verify real CI on the replacement PR -- retry on transient network errors up to 5 times;
+      ignore known-ambient failures (E2E Tests, Vercel platform-wide block, Secret Scanning on
+      pre-existing files, Promptfoo Evals timeout). Any other red is real and must be fixed.
+- [ ] Merge the replacement PR only when genuinely green (modulo the known-ambient ones).

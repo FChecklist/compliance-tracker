@@ -299,7 +299,7 @@ export default function RewardsPage() {
       <div className="space-y-6">
         <div>
           <h1 className="font-heading text-2xl md:text-3xl text-ct-navy flex items-center gap-2">
-            <Gem className="size-6 text-ct-saffron" /> {t("pageTitle")}
+            <Gem className="size-6 text-ct-saffron-text" /> {t("pageTitle")}
           </h1>
         </div>
         <Card className="rounded-xl shadow-card bg-white">
@@ -319,7 +319,7 @@ export default function RewardsPage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl md:text-3xl text-ct-navy flex items-center gap-2">
-            <Gem className="size-6 text-ct-saffron" /> {t("pageTitle")}
+            <Gem className="size-6 text-ct-saffron-text" /> {t("pageTitle")}
           </h1>
           <p className="text-sm text-ct-muted mt-1">{t("tagline")}</p>
         </div>
@@ -371,7 +371,7 @@ export default function RewardsPage() {
       <Card className="rounded-xl shadow-card bg-white">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-            <Trophy className="size-4 text-ct-saffron" /> {t("achievementsTitle")}
+            <Trophy className="size-4 text-ct-saffron-text" /> {t("achievementsTitle")}
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
@@ -407,7 +407,7 @@ export default function RewardsPage() {
         <Card className="rounded-xl shadow-card bg-white">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-              <Share2 className="size-4 text-ct-saffron" /> {t("inviteEarnTitle")}
+              <Share2 className="size-4 text-ct-saffron-text" /> {t("inviteEarnTitle")}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0 space-y-3">
@@ -441,7 +441,7 @@ export default function RewardsPage() {
         <Card className="rounded-xl shadow-card bg-white">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-              <Users className="size-4 text-ct-saffron" /> {t("teamLeaderboardTitle")}
+              <Users className="size-4 text-ct-saffron-text" /> {t("teamLeaderboardTitle")}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
@@ -456,7 +456,7 @@ export default function RewardsPage() {
                       <AvatarFallback className="bg-ct-navy text-white text-[10px] font-bold">{getInitials(row.name)}</AvatarFallback>
                     </Avatar>
                     <span className="flex-1 text-sm text-ct-navy truncate">{row.name}</span>
-                    <span className="text-sm font-medium text-ct-saffron">{row.balance}</span>
+                    <span className="text-sm font-medium text-ct-saffron-text">{row.balance}</span>
                   </div>
                 ))}
                 {leaderboardHasMore && (

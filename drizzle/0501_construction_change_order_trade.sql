@@ -1,0 +1,23 @@
+-- R65 gap-closure: report_definitions row 'Variation Order Analysis'
+-- (a973e9a4-0e75-4c44-a6e2-05351f8779d3, classifications
+-- ["interior_design","project","financial"], formulaKey
+-- interior_variation_order_analysis) was status='data_gap' because
+-- nothing distinguished an interior-design-caused change order from a
+-- civil/MEP/other-trade one -- verified live 2026-08-31: that gap-note
+-- claim is real and current (construction_change_orders has cost_impact/
+-- schedule_impact_days/status at the project level, per the note, but no
+-- trade/category column at all). The org-wide, untagged version of this
+-- report already exists (computeDesignChangeImpactAnalysis, formulaKey
+-- design_change_impact_analysis) -- this column is what's missing for a
+-- genuinely interior-scoped variant, not a duplicate.
+--
+-- Additive, nullable, expand-only (compliance.* is live tenant data --
+-- 35 real construction_change_orders rows across 3 orgs/10 projects as of
+-- 2026-08-31 are unaffected, all read back as trade=NULL). Free text, not
+-- an enum -- matches the established, already-live convention of
+-- construction_punch_list_items.trade / construction_labour_roster.trade /
+-- erp_suppliers.trade (real values there: "Carpentry"/"Civil"/
+-- "Electrical"/"Plumbing"/etc, user-entered, no fixed vocabulary this
+-- codebase has ever converged on for "trade").
+ALTER TABLE "compliance"."construction_change_orders"
+  ADD COLUMN "trade" text;

@@ -27,7 +27,7 @@ type TicketRow = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  open: "bg-ct-saffron/20 text-ct-saffron",
+  open: "bg-ct-saffron/20 text-ct-saffron-text",
   in_progress: "bg-ct-teal/20 text-ct-teal",
   resolved: "bg-green-100 text-green-700",
   closed: "bg-ct-cloud text-ct-muted",

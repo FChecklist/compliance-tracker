@@ -50,12 +50,17 @@
           "punchList": "Punch List",
           "scope": "Scope (BOQ)",
           "labour": "Labour",
-          "expenses": "Expenses"
+          "expenses": "Expenses",
+          "permits": "Permits",
+          "materials": "Materials",
+          "schedule": "Schedule",
+          "drawings": "Drawings & 3D"
         }
       },
       "constructionDesign": {
         "title": "Construction (Design & Progress)",
         "items": {
+          "designStudio": "Design Studio",
           "floorPlans": "Floor Plans",
           "moodBoards": "Mood Boards",
           "ffe": "FF&E",
@@ -210,7 +215,8 @@
           "departments": "Departments",
           "accessReview": "Access Review",
           "settings": "Settings",
-          "auditLog": "Audit Log"
+          "auditLog": "Audit Log",
+          "finops": "AI FinOps"
         }
       },
       "tools": {
@@ -218,6 +224,7 @@
         "items": {
           "veriOperationsAi": "VERI Operations AI",
           "promptEvalLab": "Prompt Eval Lab",
+          "promptMarketplace": "Prompt Marketplace",
           "salesHq": "Sales HQ",
           "capabilityImprovements": "Capability Improvements",
           "checklists": "Checklists",
