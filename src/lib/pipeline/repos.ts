@@ -7,11 +7,12 @@
 //
 // Everything here is org-scoped through withTenantContext, so RLS is doing
 // the isolation and this file is not trusted to remember to filter.
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { gapLog, phraseMap, pillUsage, projects, screenDefinitions } from "@/lib/db/schema";
+import { gapLog, phraseMap, pillUsage, projects, reuseCache, screenDefinitions } from "@/lib/db/schema";
 import type { L0Repo } from "./level0";
 import type { ChainRepo } from "./derive-chain";
+import type { ReuseCacheRepo } from "./reuse-cache";
 import { functionWrites } from "./executor";
 
 export function makeL0Repo(orgId: string, userId: string): L0Repo {
@@ -93,6 +94,40 @@ export async function resolveRootLabel(orgId: string, projectId: string | null):
     const row = await db.query.projects.findFirst({ where: eq(projects.id, projectId) });
     return row?.name ?? null;
   });
+}
+
+/**
+ * R65 Part D -- compliance.reuse_cache, real since R46 P9 seq32
+ * (drizzle/0324_r43_reuse_store.sql) but never read or written by any code
+ * until this. See src/lib/pipeline/reuse-cache.ts's own header for the full
+ * argument and scope. scope is hardcoded to 'user' -- this phase only wires
+ * the per-user tier the table's own default already models; 'organization'/
+ * 'global' scope is a real, disclosed extension point for a later phase, not
+ * built here (no requirement in this task calls for it).
+ */
+export function makeReuseCacheRepo(orgId: string, userId: string): ReuseCacheRepo {
+  return {
+    async findReuseHit(inputHash) {
+      return withTenantContext({ orgId }, async (db) => {
+        const row = await db.query.reuseCache.findFirst({
+          where: and(eq(reuseCache.orgId, orgId), eq(reuseCache.userId, userId), eq(reuseCache.scope, "user"), eq(reuseCache.inputHash, inputHash)),
+        });
+        if (!row || !row.functionId) return null;
+        return { functionId: row.functionId, params: (row.params as Record<string, unknown> | null) ?? {} };
+      });
+    },
+    async recordReuseHit(inputHash, functionId, params) {
+      await withTenantContext({ orgId, userId }, (db) =>
+        db
+          .insert(reuseCache)
+          .values({ orgId, userId, scope: "user", inputHash, functionId, params: params as unknown as object })
+          .onConflictDoUpdate({
+            target: [reuseCache.orgId, reuseCache.userId, reuseCache.scope, reuseCache.inputHash],
+            set: { functionId, params: params as unknown as object, reuseCount: sql`${reuseCache.reuseCount} + 1`, updatedAt: new Date() },
+          })
+      );
+    },
+  };
 }
 
 /**

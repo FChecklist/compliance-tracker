@@ -69,6 +69,35 @@ active:
       formula-engine.ts (already well-covered), billing_discounts/credits/events/invoices (still
       deferred per Phase 0's own gate), platform_billing_invoices/platform-billing-service.ts, or
       ai_cost_reconciliations/cost-reconciliation-service.ts (PR #1546's area).
+  - session_label: "claude-code (interactive, r65-partc-supersede-noop-fix) -- R65 Part C: fix supersedeMemoryRecord() byte-identical-content bug [PR #1571 OPEN, not yet merged]"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      Owner directive: pick the next unblocked increment of R65 Part C
+      (persistent memory/RAG). Re-verified live before starting: origin/main
+      HEAD (053fbf53, PR #1569, "R65 Part C Phase 13 (subset)") already has
+      memory-service.ts's promoteMemoryRecord()/archiveMemoryRecord() (PR
+      #1565) and the Phase 13 subset test file
+      (r65-partc-phase13-memory-lifecycle-scope-retrieval-scenarios.test.ts)
+      -- neither is what this claim touches. Genuinely open, confirmed by
+      reading the current supersedeMemoryRecord() source directly: it always
+      inserts a new compliance.memory_versions row, a new memory_records
+      row, and calls embedAndMirror() (a real embedding-provider call) even
+      when the caller passes byte-identical content to what the row already
+      has -- tension with directive §16 ("Unchanged content -> do NOT
+      re-embed... reduces embedding cost/unnecessary processing"),
+      previously disclosed as a known gap by the Phase 13 session but not
+      fixed. Fix: short-circuit to a true no-op (return { previous, next:
+      previous }, zero additional DB writes, zero embedding call) when
+      sha256(trimmedContent) === previous.contentHash, after the existing
+      not-found/already-superseded/GLOBAL guards (those still throw
+      regardless of content). File scope: ONLY
+      src/lib/services/memory-service.ts (supersedeMemoryRecord() body +
+      its docstring) and src/lib/services/memory-service.test.ts (new
+      no-op-path tests). Not touching promoteMemoryRecord()/
+      archiveMemoryRecord(), any pipeline/chat call site (none exist yet --
+      confirmed via grep, only test files reference supersedeMemoryRecord()),
+      drizzle/**, or any other file. No other active entry in this file
+      touches memory-service.ts as of this claim.
   - session_label: "claude-code (subagent, R65 Part C) -- memory-service.ts lifecycle/scope-isolation/retrieval-ranking test-scenario batch (directive Phase 13 subset, service-layer only)"
     claimed_at: "2026-09-02T00:00Z"
     claim: |
@@ -1672,8 +1701,103 @@ active:
       the submissions.classification column, any AI-router/escalation-
       tier/model-selection file, or the token_usage_ledger columns from
       Phase 2.
+  - session_label: "claude-code (subagent, R65 Part D) -- wire the already-existing, fully-unused compliance.reuse_cache table into the L0-miss -> Level-1(AI) boundary in run-submission.ts's resolveAll()"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      Continuing R65 Part D per the Phase 0 report's own remaining-phases list
+      (directive §4/§10/rule #6/#7: "search DB for identical/completed task
+      before AI", "don't repeat completed work", "don't call AI when software
+      can determine the action"). Phase 4 (submission classification) and
+      Phase 3 (in_progress wiring) are already merged (see the two claim
+      entries immediately above). Explicitly NOT picking: the enum-extension
+      contradiction (owner decision, not code), or any live AI-escalation-
+      tier/model-selection dispatch wiring (Phase 6 in the report's own
+      numbering, out of scope per this task's own dispatch instructions).
+
+      REAL FINDING, not in the Phase 0 report: `compliance.reuse_cache`
+      (schema.ts, drizzle/0324_r43_reuse_store.sql, R46 P9 seq32) is a
+      real, RLS-enabled, already-migrated table -- UNIQUE(org_id, user_id,
+      scope, input_hash) -- whose own migration comment states its entire
+      purpose: "second identical request -> reuse hit, reuse_count
+      increments, zero model calls." Confirmed via repo-wide grep (before
+      starting) that ZERO code anywhere reads or writes it -- the Phase 0
+      report's four inspection passes missed this table entirely and
+      instead recommended (§4.5/Phase 5) wiring `pipelineTasks` for this
+      same purpose; that table has no per-segment text column at all
+      (confirmed fresh), so an exact-repeat-avoidance query against it
+      isn't cleanly buildable the way the report assumed. Using the
+      purpose-built, already-unwired `reuse_cache` table instead is a
+      better-scoped implementation of the same directive requirement.
+
+      Design: before run-submission.ts's resolveAll() calls runLevel1()
+      for an L0-miss segment, check reuse_cache (scope='user', input_hash
+      = sha256 of normalised text + project id, since reuse_cache has no
+      project_id column of its own and a Level-1 resolution's params can
+      be validated only against the CURRENT active project's BOQ -- folding
+      project id into the hash prevents a cross-project false-positive
+      reuse). A hit skips the model call entirely (source="reuse_cache",
+      level=0 -- a real $0 software hit by directive's own L0 definition,
+      §10). A genuine Level 1 success gets written back via upsert
+      (reuse_count increments). Exactly as safe as any other resolution
+      source: validate() (validate.ts) re-checks function_id/params/
+      user-permission/project-reachability on EVERY resolution regardless
+      of source before a task is minted -- this is not a new trust
+      boundary. Precedent for automatic (non-human-gated) per-user reuse
+      already exists in this exact file (level0.ts's last_action/pillUsage
+      tier) -- this is the same risk class, not a new one; NOT the same
+      mechanism as phrase_map promotion (org-wide, human-approved, M26 P6
+      nightly clustering via src/lib/ai/batch/analyse.ts) and does not
+      touch that path.
+
+      Deliberately NOT touching classify-only.ts (the /classify preview
+      route): its own header states an explicit "nothing else is written"
+      contract beyond gap_log, and the Phase 4 claim above already flagged
+      this route's response shape as contract-frozen pending an
+      r53-handshake process. Reads would be safe to add there but writes
+      would not be, and splitting read-only-there/read-write-here for one
+      phase adds risk for a preview-accuracy improvement that isn't this
+      phase's job -- disclosed as an honest, known gap (the preview
+      endpoint's l0HitRate/modelCalls estimate will undercount free hits
+      for a segment that would actually reuse-cache-hit at real submission
+      time), not silently left implicit.
+
+      No new migration -- table, unique index, and RLS policies all
+      already exist and are unchanged by this claim.
+    scope_note: >-
+      File scope: new src/lib/pipeline/reuse-cache.ts (+ .test.ts) --
+      computeReuseCacheKey() [pure] + resolveMissesWithReuseCache()
+      [injectable AI-resolver + repo, testable with fakes, same pattern as
+      level0.ts's L0Repo], src/lib/pipeline/classify.ts (ResolutionSource
+      union gets one new additive member, "reuse_cache" -- no exhaustive
+      switch anywhere in the repo depends on this union being closed,
+      verified by grep before adding it), src/lib/pipeline/repos.ts (new
+      makeReuseCacheRepo() factory, same withTenantContext/onConflictDoUpdate
+      pattern as the existing pillUsage upsert in run-submission.ts),
+      src/lib/pipeline/run-submission.ts (resolveAll()'s two existing
+      runLevel1() call sites replaced with resolveMissesWithReuseCache();
+      no other function touched). No schema.ts changes, no migration, no
+      changes to classify-only.ts, the /classify route, pipeline_tasks/
+      pipeline_task_status/pipeline_task_executor, submissions.
+      classification, phrase_map/analyse.ts's promotion loop, or any
+      AI-router/escalation-tier/model-selection file.
+    claim_registration_note: >-
+      AGENTS.md Rule 6 (branch protection, no direct push to main for any
+      agent, no exceptions) supersedes this file's own preamble
+      instruction to "commit and push this addition on its own, fast,
+      directly" -- confirmed via a live `gh api .../branches/main/
+      protection` check at claim time returning 404 "Branch not
+      protected" for the classic API (rechecked after a transient network
+      failure, not treated as a false negative), which is the OPPOSITE of
+      what Rule 6 states; Rule 6's own cited incident and CI-gate
+      description is treated as authoritative over an ambiguous/possibly
+      stale API read, so no direct push to main was attempted. This entry
+      is instead the FIRST commit on this task's own worktree branch
+      (r65-partd-reuse-cache-wiring), pushed immediately, before any real
+      code change -- the closest safe approximation of "fast, before the
+      real work" available under Rule 6, and disclosed as such rather than
+      silently deviating from this file's own stated protocol.
 recently_completed:
-  - session_label: "claude-code (interactive, r65-parte-billing-contracts) -- R65 Part E Billing Engine, Phase 2: billing_contracts schema + wiring into resolveActiveBillingRate's Sec14 priority resolution [DONE, merged as PR #1568 -- relocated here from active: by the Phase 3 session (r65-parte-phase3-formula-edge-cases), which found this entry never moved after its own real merge; per this file's own documented convention of appending just the one relevant entry under a fresh recently_completed: section when main has been pruned back to just its active: list, same precedent as the Task #47 rebase note above in this file's own history]"
+  - session_label: "claude-code (interactive, r65-parte-billing-contracts) -- R65 Part E Billing Engine, Phase 2: billing_contracts schema + wiring into resolveActiveBillingRate's Sec14 priority resolution [DONE, merged as PR #1568 -- relocated here from active: by the Phase 3 session (r65-parte-phase3-formula-edge-cases), which found this entry never moved after its own real merge; per this file's own documented convention of appending just the one relevant entry under a fresh recently_completed: section when main has been pruned back to just its active: list, same precedent as the Task #47 rebase note elsewhere in this file's own history]"
     claimed_at: "2026-09-02T00:00Z"
     merged_as: "FChecklist/compliance-tracker PR #1568 (commit bca8433e), drizzle/0527_r65_parte_billing_contracts.sql."
     claim: |
