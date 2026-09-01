@@ -128,7 +128,7 @@ function resolveLeaf(tree: CapabilityNode[], path: PathSegment[]): CapabilityNod
 }
 
 export default function VeriComposer({ connectedConnectorsCount = 0 }: { connectedConnectorsCount?: number }) {
-  const { tree, treeLoading, composerMode, setComposerMode, activeTaskId, activeConversationId, closeThread, aiThreadId, activeAiThreadId, bumpRefresh, selectedPath, setSelectedPath } = useVeriChat();
+  const { tree, treeLoading, composerMode, setComposerMode, activeTaskId, activeConversationId, closeThread, aiThreadId, activeAiThreadId, aiThreadsLoading, bumpRefresh, selectedPath, setSelectedPath } = useVeriChat();
   const router = useRouter();
 
   const [value, setValue] = useState("");
@@ -520,13 +520,19 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     requestAnimationFrame(() => textareaRef.current?.focus());
   }
 
-  const disabled = !fdeFallback && !isThreadOpen && composerMode !== "discuss" && composerMode !== "chats" && !(isChainMode && chainComplete) && !needsEngineInputs;
+  // GAP-VERI-TODO-STUCK-LOADING-NOT-READY root cause: a "discuss" submit
+  // before the AI-thread fetch resolves used to race a null aiThreadId and
+  // report "not ready" even though it would have succeeded moments later.
+  // Disabling submission for that specific, brief window closes the race
+  // instead of letting the user hit it.
+  const discussNotReady = composerMode === "discuss" && !isThreadOpen && aiThreadsLoading && !(activeAiThreadId ?? aiThreadId);
+  const disabled = discussNotReady || (!fdeFallback && !isThreadOpen && composerMode !== "discuss" && composerMode !== "chats" && !(isChainMode && chainComplete) && !needsEngineInputs);
   const placeholder = fdeFallback
     ? "Describe what you need — VERI will look for a match or propose it for approval…"
     : isThreadOpen
     ? "Message…"
     : composerMode === "discuss"
-      ? "Ask me anything — no task selection needed…"
+      ? discussNotReady ? "Loading VERI AI…" : "Ask me anything — no task selection needed…"
       : composerMode === "chats"
         ? "Pick a conversation in VERI Chat to start typing"
         : needsEngineInputs
