@@ -1,45 +1,60 @@
-# PROGRESS -- rebase-sweep2b-668 (real rebase-merge for PR #668)
+# PROGRESS -- rebase-sweep2b-889 (real rebase-merge for PR #889)
 
 ## Scope
-Real rebase-merge of PR #668 (`worker/task-20260731-043735-crm--campaigns-entity`,
-"Task #46: CRM Campaigns entity") onto current main, per this repo's standard
-rebase-sweep protocol. Prior triage + adversarial-verify (already complete
-before this sweep, not re-done here) confirmed the PR's claimed gap is real
-and still unaddressed on main: `crmCampaigns` has no `objective` column,
-`CreateCampaignInput` has no `objective` field, and the PR's own added test
-file returns 404 against main. The base campaign entity itself (table,
-service CRUD, API routes, UI page, migration) was already built and merged
-to main in Wave 1/2 well before this task was dispatched -- this PR only
-adds the missing `objective` column + wiring + a new
-`marketing-engine.test.ts` covering all 6 exported pure functions
-(previously zero test coverage on that engine).
+Real rebase-merge of PR #889 (`fix/ocid038-offline-service-worker`, "OCID-038 real gap closure:
+minimal app-shell service worker") onto current main, per this repo's standard rebase-sweep
+protocol. Prior triage + adversarial-verify (already complete before this sweep, not re-done
+here) confirmed real, additive, still-missing functionality: `public/sw.js` and
+`public/offline.html` both 404 on main, `AppShell.tsx` has zero occurrences of `serviceWorker`
+or `sw.js` -- no service-worker registration exists on main today.
 
 ## Completed
-- [x] Worktree: `git worktree add -b rebase-sweep2b-668` from
-      `origin/worker/task-20260731-043735-crm--campaigns-entity`, `bun install`
-      (1203 packages).
-- [x] `git merge origin/main` -- 3 conflicts: `PROGRESS.md` (single-current-
-      entry convention, replaced wholesale here), `ai-os/boss/ACTIVE-CLAIMS.yaml`
-      (main had independently pruned/rotated its `active:` list since this PR
-      branched, most recently via the rebase-sweep2b-664 entry -- re-appended
-      this task's own claim entry on top rather than dropping it, per the
-      precedent set by that same 664 entry), `drizzle/meta/_journal.json`
-      (this PR's idx-279 entry collided with main's own real idx-279 entry --
-      dropped this PR's colliding entry and appended a fresh one at the real
-      tail instead, see migration renumbering below). `src/lib/db/schema.ts`
-      and `src/lib/services/crm-campaigns-service.ts` auto-merged cleanly
-      (both purely additive, no real conflict).
-- [x] Real migration-number collision found: this PR's
-      `0302_crm_campaigns_objective.sql` collided with main's own real
-      `0302_sales_pipeline_dashboard_targets.sql` (journal fully current on
-      main at idx 335/tag `0513_pms_project_status_access_rollup` as of this
-      rebase -- confirmed via `git ls-tree -r origin/main -- drizzle/`, true
-      highest on disk is 0513, NOT stale). Renamed to
-      `drizzle/0514_crm_campaigns_objective.sql` (above main's true highest)
-      with a matching new `_journal.json` entry (idx 336), and updated the
-      migration file's own header comment to document the rename.
-- [x] `node scripts/check-governance-yaml-parse.mjs` -- clean.
-- [x] `bunx tsc --noEmit` -- clean, no errors.
-- [x] `bun test src/lib/engines/marketing-engine.test.ts` -- 17 pass, 0 fail.
-- [x] Pushed `rebase-sweep2b-668`, opened replacement PR citing #668, closed
-      #668 as superseded.
+- [x] Worktree: `git worktree add -b rebase-sweep2b-889` from
+      `origin/fix/ocid038-offline-service-worker`, `bun install` (1203 packages).
+- [x] `git merge origin/main` (round 1) -- 3 conflicts: `PROGRESS.md` (single-current-entry
+      convention, replaced wholesale), `ai-os/boss/ACTIVE-CLAIMS.yaml` (main had independently
+      pruned its `active:` list since this branch was cut -- re-appended this PR's own claim
+      entry on top of main's current pruned list rather than dropping it or reverting main's
+      pruning), `ai-os/registry/terminology-guardrail-exemptions.yaml` (pure add/add -- this
+      PR's own new `src/components/AppShell.tsx` exemption entry and main's independently-added
+      batch of `Rebase-sweep2-618 real-count correction` entries touch disjoint files, kept
+      both). `src/components/AppShell.tsx` and `ai-os/MASTER-TRACKER.yaml` merged clean
+      automatically.
+- [x] Re-ran `bun install` after round-1 merge -- package.json/bun.lock changed by the
+      main-merge; caused a transient false-positive `@axe-core/playwright` type-check failure
+      until reinstalled (matches this repo's own documented gotcha).
+- [x] Validated (round 1): `node scripts/check-governance-yaml-parse.mjs` (pass, 5/5),
+      `NODE_OPTIONS=--max-old-space-size=8192 bunx tsc --noEmit` (clean, 0 errors),
+      `bunx eslint public/sw.js src/components/AppShell.tsx` (0 errors, 1 pre-existing
+      complexity warning on AppShell.tsx, matches PR's own documented baseline), `node --check
+      public/sw.js` (valid syntax), `bun test src/components/AppShell.test.ts` (4 pass / 0
+      fail).
+- [x] Pushed `rebase-sweep2b-889`, opened PR #1531 ("... [was #889]"), closed #889 with a
+      comment pointing to #1531.
+- [x] Real CI on PR #1531 (round 1 push): all required checks green -- Build, Type Check, Lint,
+      Unit Tests, Migration Integrity/Collision/Schema-Drift Checks, Governance YAML Parse
+      Check, Secret Scanning, Security Pattern Check, Route Error Handling Check, Documentation
+      Sentinel Check, New Test Coverage Check, Test Coverage Gap Report Check. Known-ambient,
+      non-blocking per this repo's own protocol: Vercel (`Deployment was blocked`, platform-wide)
+      and E2E Tests (failed, documented non-blocking category).
+- [x] `git merge origin/main` (round 2) -- main advanced again (PR #668's rebase-sweep, "CRM
+      Campaigns `objective` column", merged as #1529) before merge could land, flipping #1531's
+      mergeable to CONFLICTING. 2 conflicts this round: `PROGRESS.md` (same wholesale-replace
+      convention -- PR #668's own rebase-sweep left its own current-entry here), `ai-os/boss/
+      ACTIVE-CLAIMS.yaml` (main's `active:` list had moved again since round 1's base -- same
+      resolution pattern: took main's current list as base, re-appended this PR's own claim
+      entry on top).
+
+## Remaining
+- [ ] Re-validate after round-2 merge: tsc --noEmit, governance YAML parse, targeted `bun test`.
+- [ ] Push round-2 merge immediately, re-check CI/mergeable state right away before main can
+      advance again.
+- [ ] Verify real CI on PR #1531 post round-2 -- retry on transient network errors up to 5
+      times; ignore known-ambient failures (E2E Tests, Vercel, Secret Scanning on pre-existing
+      files, Promptfoo Evals).
+- [ ] Merge PR #1531 only when genuinely green (modulo the known-ambient ones).
+- [ ] Real post-merge step (cannot be done before deployment, inherited from the original PR
+      #889 scope): re-run the same real offline test (`browserContext.setOffline(true)` +
+      reload against an authenticated live session) to confirm a graceful offline fallback
+      instead of a blank page, then flip `GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE`'s `status`
+      to `resolved` in `MASTER-TRACKER.yaml` with that real evidence.

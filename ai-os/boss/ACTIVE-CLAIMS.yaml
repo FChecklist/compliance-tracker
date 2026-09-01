@@ -40,6 +40,30 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, fix/ocid038-offline-service-worker) -- OCID-038 real gap closure: GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE, real minimal app-shell service worker [rebase-merging via rebase-sweep2b-889, was PR #889, per this repo's standard rebase-sweep protocol]"
+    claimed_at: "2026-08-04T11:05Z (original session); rebased 2026-09-01 (round 2, main advanced again mid-flight)"
+    claim: |
+      SPEC (PM directive UMR-20260804-105822-a267, parent OCID-038 UMR-20260803-042801-ec4b /
+      OCID-021 UMR-20260802-173631-ca85): real implementation authorized on
+      GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE. Add a real minimal app-shell service worker and
+      registration, then re-run the same real offline test against a real live session to
+      confirm a graceful fallback instead of a blank page.
+
+      Real implementation: `public/sw.js` (network-first for navigations only, falls back to a
+      new static `public/offline.html` on a genuine network failure; every other request type
+      passes straight through untouched -- deliberately NOT a full offline-first cache, since
+      this app is almost entirely dynamic/authenticated). Registered inside `AppShell.tsx`, the
+      exact real mount point the original gap was observed inside. Real local verification:
+      `tsc`/`eslint` clean, `node --check public/sw.js` confirms valid syntax, real unconstrained
+      build clean. The PM's own required final step -- re-running the real offline test against a
+      real live session -- is honestly deferred as a real post-merge step (Vercel auto-deploys on
+      merge; a service worker's real offline behavior cannot be honestly claimed working before
+      it is actually deployed).
+    scope_note: >-
+      File scope: `public/sw.js` (new), `public/offline.html` (new), `src/components/AppShell.tsx`
+      (registration only), `ai-os/MASTER-TRACKER.yaml`, this ACTIVE-CLAIMS entry, `PROGRESS.md`.
+      No changes to any other route, API, or data-fetching path -- this service worker never
+      intercepts or caches app data.
   - session_label: "claude-code (task-20260806-151843-f1d2) -- PM-approved proposals 92+93: CSP + X-Frame-Options on projexa-ai.com, ONE combined change [MERGED via rebase-final-994, was PR #994, superseding stale #994 after 755-commit main drift + real ACTIVE-CLAIMS.yaml conflict resolution]"
     claimed_at: "2026-08-06T15:30Z (original session); rebased+merged 2026-09-01"
     claim: |
