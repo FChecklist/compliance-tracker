@@ -288,7 +288,7 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
                     </Label>
                     <button
                       type="button"
-                      className="text-xs text-ct-saffron hover:underline"
+                      className="text-xs text-ct-saffron-text hover:underline"
                       onClick={handleMagicLink}
                     >
                       {t("sendMagicLink")}
@@ -394,7 +394,7 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
                 {t("noAccount")}{" "}
                 <Link
                   href="/signup"
-                  className="text-ct-saffron font-medium hover:underline"
+                  className="text-ct-saffron-text font-medium hover:underline"
                 >
                   {t("createOne")}
                 </Link>

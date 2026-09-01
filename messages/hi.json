@@ -50,12 +50,17 @@
           "punchList": "पंच लिस्ट",
           "scope": "स्कोप (BOQ)",
           "labour": "श्रम",
-          "expenses": "व्यय"
+          "expenses": "व्यय",
+          "permits": "परमिट",
+          "materials": "सामग्री",
+          "schedule": "शेड्यूल",
+          "drawings": "ड्रॉइंग और 3D"
         }
       },
       "constructionDesign": {
         "title": "निर्माण (डिज़ाइन और प्रगति)",
         "items": {
+          "designStudio": "डिज़ाइन स्टूडियो",
           "floorPlans": "फ़्लोर प्लान",
           "moodBoards": "मूड बोर्ड",
           "ffe": "FF&E",
@@ -210,7 +215,8 @@
           "departments": "विभाग",
           "accessReview": "पहुंच समीक्षा",
           "settings": "सेटिंग्स",
-          "auditLog": "ऑडिट लॉग"
+          "auditLog": "ऑडिट लॉग",
+          "finops": "एआई फिनऑप्स"
         }
       },
       "tools": {
@@ -218,6 +224,7 @@
         "items": {
           "veriOperationsAi": "VERI ऑपरेशंस AI",
           "promptEvalLab": "प्रॉम्प्ट इवैल लैब",
+          "promptMarketplace": "प्रॉम्प्ट मार्केटप्लेस",
           "salesHq": "सेल्स HQ",
           "capabilityImprovements": "क्षमता सुधार",
           "checklists": "चेकलिस्ट",
@@ -301,5 +308,47 @@
     "alreadyHaveAccount": "पहले से ही खाता है?",
     "signIn": "साइन इन करें",
     "passwordTooShort": "पासवर्ड कम से कम 6 अक्षर का होना चाहिए"
+  },
+  "Rewards": {
+    "pageTitle": "VERI TREASURE",
+    "tagline": "हर जीत मायने रखती है — पॉइंट्स, उपलब्धियां, स्ट्रीक्स, और रेफ़र-एंड-अर्न।",
+    "howItWorks": "यह कैसे काम करता है",
+    "howItWorksPoints": "<b>पॉइंट्स</b> VERIDIAN AI के उपयोग के साथ अपने आप अर्जित होते हैं -- दस्तावेज़ अपलोड करना, अनुपालन आइटम पूरे करना, ऑनबोर्डिंग चरण पूरे करना, और प्लेटफ़ॉर्म पर अन्य वास्तविक गतिविधियां हर बार कुछ पॉइंट्स देती हैं। हर पॉइंट अर्जित या भुनाए जाने का रिकॉर्ड नीचे \"हाल की गतिविधि\" में दर्ज होता है।",
+    "howItWorksAchievements": "<b>उपलब्धियां (Achievements)</b> तब अनलॉक होती हैं जब किसी क्रिया पर आपकी प्रगति पहली बार अपने लक्ष्य तक पहुंचती है (जैसे 3-दिन की लॉगिन स्ट्रीक)। किसी उपलब्धि को अनलॉक करना खुद अतिरिक्त पॉइंट्स देता है, और यह होते ही आपको एक सूचना (बेल आइकन देखें) मिलेगी, चाहे आप ऐप में कहीं भी हों।",
+    "howItWorksStreaks": "<b>स्ट्रीक्स</b> एक दिन की छूट (ग्रेस विंडो) के साथ रोज़ाना चेक-इन को ट्रैक करती हैं -- एक दिन छूट जाने पर स्ट्रीक तुरंत रीसेट नहीं होती; लगातार दूसरी बार छूटने पर ही यह रीसेट होती है।",
+    "howItWorksReferrals": "<b>आमंत्रित करें और कमाएं</b> तब पॉइंट्स देता है जब कोई आपके व्यक्तिगत रेफ़रल लिंक से साइन अप करता है और उसका संगठन प्रोविज़न हो जाता है।",
+    "notEnabled": "इस संगठन के लिए VERI TREASURE सक्षम नहीं है।",
+    "pointsBalance": "पॉइंट्स शेष",
+    "dailyStreak": "दैनिक स्ट्रीक",
+    "longestDays": "सबसे लंबी: {count} दिन",
+    "achievementsUnlockedStat": "अनलॉक की गई उपलब्धियां",
+    "achievementsTitle": "उपलब्धियां",
+    "noAchievements": "अभी तक कोई उपलब्धि कॉन्फ़िगर नहीं की गई है।",
+    "inviteEarnTitle": "आमंत्रित करें और कमाएं",
+    "inviteEarnSubtitle": "अपना लिंक साझा करें — जब कोई इसके ज़रिए साइन अप करता है, तो आप पॉइंट्स कमाते हैं।",
+    "getReferralLink": "मेरा रेफ़रल लिंक प्राप्त करें",
+    "generatingLink": "बनाया जा रहा है…",
+    "teamLeaderboardTitle": "टीम लीडरबोर्ड",
+    "noPointsYet": "अभी तक कोई पॉइंट्स अर्जित नहीं हुए — सबसे पहले बनें!",
+    "showMore": "और दिखाएं",
+    "loading": "लोड हो रहा है…",
+    "engagementReportTitle": "सहभागिता रिपोर्ट (एडमिन)",
+    "pointsAwarded": "दिए गए पॉइंट्स",
+    "pointsRedeemed": "भुनाए गए पॉइंट्स",
+    "achievementUnlockRate": "उपलब्धि अनलॉक दर",
+    "unlocksActiveUsers": "{unlocks} अनलॉक · {users} सक्रिय उपयोगकर्ता",
+    "referralConversionRate": "रेफ़रल रूपांतरण दर",
+    "referralsConvertedCount": "{converted} / {created} रेफ़रल",
+    "recentActivityTitle": "हाल की गतिविधि",
+    "filter": "फ़िल्टर करें",
+    "exportCsv": "CSV निर्यात करें",
+    "exporting": "निर्यात हो रहा है…",
+    "noActivity": "अभी तक कोई गतिविधि नहीं।",
+    "showMoreLeft": "और दिखाएं ({count} शेष)",
+    "statusClicked": "लिंक साझा किया गया",
+    "statusSignupCompleted": "साइन अप हो गया",
+    "statusOrgProvisioned": "VERIDIAN में शामिल हुए",
+    "statusPaid": "रूपांतरित",
+    "statusLost": "रूपांतरित नहीं हुआ"
   }
 }

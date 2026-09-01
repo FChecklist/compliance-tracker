@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -29,7 +30,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ProjectPicker, NoProjectsCard, type PickerProject } from "@/components/ProjectPicker";
 import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 
-type Expense = { id: string; expenseHead: string; description: string | null; amount: string; expenseDate: string };
+type Expense = { id: string; expenseHead: string; description: string | null; amount: string; expenseDate: string; isRework: boolean };
 
 const HEADS = ["material", "labour", "transport", "subcontractor", "equipment", "misc"];
 
@@ -51,6 +52,7 @@ export default function ExpensesPage() {
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [expenseDate, setExpenseDate] = useState(todayIso);
+  const [isRework, setIsRework] = useState(false);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -90,13 +92,13 @@ export default function ExpensesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId, expenseHead, description: description || undefined,
-          amount: Number(amount), expenseDate,
+          amount: Number(amount), expenseDate, isRework,
         }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Failed");
       toast.success("Expense logged");
       setOpen(false);
-      setDescription(""); setAmount("");
+      setDescription(""); setAmount(""); setIsRework(false);
       load();
     } catch (err) {
       toast.error(err instanceof Error && err.message ? err.message : "Failed to log expense");
@@ -106,6 +108,7 @@ export default function ExpensesPage() {
   };
 
   const total = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const reworkTotal = expenses.filter((e) => e.isRework).reduce((sum, e) => sum + Number(e.amount), 0);
 
   return (
     <div className="space-y-4">
@@ -144,6 +147,10 @@ export default function ExpensesPage() {
                 <Label className="text-xs font-semibold text-ct-muted uppercase">Description (optional)</Label>
                 <Input value={description} onChange={(e) => setDescription(e.target.value)} />
               </div>
+              <div className="flex items-center gap-2">
+                <Checkbox id="isRework" checked={isRework} onCheckedChange={(v) => setIsRework(v === true)} />
+                <Label htmlFor="isRework" className="text-sm font-normal cursor-pointer">This is rework -- redoing work already done once</Label>
+              </div>
             </div>
             <DialogFooter>
               <Button onClick={createExpense} disabled={creating || !amount || !expenseDate} className="bg-ct-saffron hover:bg-ct-saffron-hover text-white">
@@ -163,7 +170,10 @@ export default function ExpensesPage() {
         <>
           <div className="flex items-center justify-between">
             <ProjectPicker projects={projects} value={projectId} onChange={setProjectId} />
-            <p className="text-sm text-ct-muted">Total logged: <span className="font-semibold text-ct-navy">{currencyLabel(undefined, currencies)}{total.toLocaleString()}</span></p>
+            <p className="text-sm text-ct-muted">
+              Total logged: <span className="font-semibold text-ct-navy">{currencyLabel(undefined, currencies)}{total.toLocaleString()}</span>
+              {reworkTotal > 0 ? <> &middot; Rework: <span className="font-semibold text-destructive">{currencyLabel(undefined, currencies)}{reworkTotal.toLocaleString()}</span></> : null}
+            </p>
           </div>
 
           {loading ? (
@@ -181,7 +191,10 @@ export default function ExpensesPage() {
                     {expenses.map((e) => (
                       <TableRow key={e.id}>
                         <TableCell className="text-ct-muted whitespace-nowrap">{new Date(e.expenseDate).toLocaleDateString()}</TableCell>
-                        <TableCell><Badge variant="outline" className="text-xs capitalize">{e.expenseHead}</Badge></TableCell>
+                        <TableCell className="space-x-1">
+                          <Badge variant="outline" className="text-xs capitalize">{e.expenseHead}</Badge>
+                          {e.isRework ? <Badge variant="destructive" className="text-xs">Rework</Badge> : null}
+                        </TableCell>
                         <TableCell className="text-ct-muted">{e.description ?? "--"}</TableCell>
                         <TableCell className="text-right font-medium text-ct-navy">{currencyLabel(undefined, currencies)}{Number(e.amount).toLocaleString()}</TableCell>
                       </TableRow>

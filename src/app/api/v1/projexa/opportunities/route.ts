@@ -4,7 +4,7 @@
 // listOpportunitiesPaged is an additive paginated/filtered variant (native
 // VERIDIAN CRM UI keeps using the original flat-array listOpportunities).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listOpportunitiesPaged, createOpportunity, ServiceError } from "@/lib/services/crm-service"
 
 function toOpportunityShape(o: {
@@ -23,7 +23,7 @@ function toOpportunityShape(o: {
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ opportunities: [], total: 0, page: 1, pageSize: 25 })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const params = request.nextUrl.searchParams
   try {

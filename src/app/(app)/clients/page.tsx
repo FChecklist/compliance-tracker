@@ -95,14 +95,14 @@ export default function ClientsPage() {
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-3">
                   <div className="size-10 rounded-xl bg-ct-accent flex items-center justify-center">
-                    <Building2 className="size-5 text-ct-saffron" />
+                    <Building2 className="size-5 text-ct-saffron-text" />
                   </div>
                   <div>
                     <CardTitle className="text-base font-heading text-ct-navy">
                       {client.name}
                     </CardTitle>
                     {client.isSelf && (
-                      <Badge className="mt-0.5 bg-ct-accent text-ct-saffron border-0 text-[10px]">Self</Badge>
+                      <Badge className="mt-0.5 bg-ct-accent text-ct-saffron-text border-0 text-[10px]">Self</Badge>
                     )}
                   </div>
                 </div>

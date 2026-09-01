@@ -8,7 +8,7 @@
 // Bearer-key (apiKey) actor, not just a session dbUser -- see that
 // function's own comment in erp-accounting-service.ts.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { requirePermission } from "@/lib/services/permission-service"
 import { listJournalEntriesPaged, createJournalEntry, ServiceError, type JournalEntryInput } from "@/lib/services/erp-accounting-service"
 
@@ -26,7 +26,7 @@ function toEntryShape(e: { id: string; entryNumber: number; postingDate: string;
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ entries: [], total: 0, page: 1, limit: 25, totalPages: 0 })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const sp = request.nextUrl.searchParams
