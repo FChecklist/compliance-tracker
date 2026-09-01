@@ -39,7 +39,7 @@ of the real feature, not merged in).
       PR branch (order/precedence gotcha); corrected by hard-resetting the
       worktree branch to the real `origin/<PR-branch>` remote-tracking ref
       before doing anything else. `bun install` (1203 packages).
-- [x] `git merge origin/main` -- 2 real conflicts:
+- [x] `git merge origin/main`, round 1 -- 2 real conflicts:
       - `PROGRESS.md` (this repo's single-current-entry convention,
         replaced wholesale with this entry).
       - `ai-os/boss/ACTIVE-CLAIMS.yaml`: main's copy has since been pruned
@@ -62,10 +62,31 @@ of the real feature, not merged in).
       empty), so no journal renumbering was needed.
       Deleted `.scratch_final_check.py` (`git rm`) after the merge --
       leftover ad hoc debug script, not part of the real feature.
-- [x] Validated: `node scripts/check-governance-yaml-parse.mjs`,
-      `bunx tsc --noEmit`, `bun test` on the touched files. Results
-      recorded at merge-commit time (see commit body / PR description for
-      exact output).
+- [x] Validated round 1: initial `bunx tsc --noEmit` OOM'd (laptop's
+      standing low-RAM gotcha); re-ran with
+      `NODE_OPTIONS=--max-old-space-size=6144`, which then surfaced one
+      real-looking error (`@axe-core/playwright` module not found) --
+      root-caused to `bun install` having been run BEFORE the
+      `git merge origin/main` step, so `node_modules` was still on the
+      pre-merge lockfile; re-ran `bun install` post-merge (83 more
+      packages installed) and `tsc --noEmit` came back clean, 0 errors.
+      `node scripts/check-governance-yaml-parse.mjs` clean (validates the
+      merged `ACTIVE-CLAIMS.yaml` parses). No dedicated test file exists
+      for `scripts/gtm-provision-cat15-16-test-tenant.ts` (none in the
+      original PR either); ran the full existing `scripts/*.test.ts` suite
+      instead as the closest real coverage: 186 pass, 0 fail across 12
+      files.
+- [x] `git merge origin/main`, round 2 -- main advanced again mid-flight
+      (new commit landed: PR #1535, "VERI Reward: close 11 Review
+      Framework gap-closure findings [was #1015]") caught by re-fetching
+      right before push. Same 2 real conflicts again: `PROGRESS.md` (this
+      entry kept on top) and `ai-os/boss/ACTIVE-CLAIMS.yaml` (took main's
+      now-current file, which itself carries PR #1535's own
+      newly-appended entry under `active:`, and re-appended this task's
+      entry after it, unchanged in substance). Re-ran
+      `node scripts/check-governance-yaml-parse.mjs` and
+      `bunx tsc --noEmit` (with the same increased heap) after round 2 to
+      re-confirm both still clean.
 - [x] Pushed to `rebase-cleanup-1199`, opened a replacement PR ("... [was
       #1199]"), closed original PR #1199 pointing to the replacement.
 ## Remaining
