@@ -363,6 +363,17 @@ export type SearchMemoriesOptions = {
   // superseded_by_id chains, not searchMemories()).
   includeArchivedAndSuperseded?: boolean
   limit?: number
+  // R65 Part C Phase 3 addition (pipeline-wiring): when supplied, excludes
+  // every OTHER user's own USER-scope memory from the result set --
+  // ORGANIZATION/PROJECT/TASK/CONVERSATION/DOCUMENT/GLOBAL/INDUSTRY rows are
+  // unaffected, this only narrows the USER scope_type case. Phase 1's RLS
+  // enforces "own org or global" at the database level, which is the real,
+  // non-negotiable multi-tenant boundary (directive §9) -- but two different
+  // users in the SAME org both pass that check equally, so RLS alone cannot
+  // stop teammate A's chat from surfacing teammate B's personal USER-scope
+  // preference (e.g. "always address me as ma'am"). Omitting this option
+  // (every pre-Phase-3 caller) keeps the exact prior behaviour.
+  requestingUserId?: string | null
 }
 
 export type MemorySearchMatch = MemoryRecord & { score: number }
@@ -399,6 +410,12 @@ export async function searchMemories(
   const lifecycleFilter = options.includeArchivedAndSuperseded
     ? sql``
     : sql`AND lifecycle_state NOT IN ('ARCHIVED', 'SUPERSEDED')`
+  // See SearchMemoriesOptions.requestingUserId's own comment: excludes a
+  // DIFFERENT user's USER-scope rows, never this user's own, and never any
+  // non-USER scope_type.
+  const userScopeFilter = options.requestingUserId
+    ? sql`AND (scope_type <> 'USER' OR user_id = ${options.requestingUserId})`
+    : sql``
 
   const rows = (await tx.execute(sql`
     SELECT id, scope_type, scope_id, org_id, user_id, industry_id, project_id, task_id,
@@ -411,6 +428,7 @@ export async function searchMemories(
       ${scopeTypeFilter}
       ${memoryTypeFilter}
       ${lifecycleFilter}
+      ${userScopeFilter}
     ORDER BY embedding <=> ${vectorStr}::vector
     LIMIT ${limit}
   `)) as (RawMemoryRecordRow & { score: number })[]

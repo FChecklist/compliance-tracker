@@ -26,6 +26,7 @@ import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
 import { runLevel1 } from "./level1";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
+import { createMemoryRecord } from "@/lib/services/memory-service";
 
 // M26: "Pass the module's 5-15 functions ... NEVER 400 unbound functions --
 // that is where it hallucinates." The candidate set is exactly what
@@ -72,6 +73,72 @@ export type RunSubmissionResult = {
 
 function normalisePhrase(text: string): string {
   return normaliseForMatch(text);
+}
+
+// ─── R65 Part C Phase 3: task memory (directive §23/Phase 5) ──────────────
+// After a WRITE task genuinely completes, record what happened as a
+// TASK_RESULT memory -- directive §23's worked example (First ABC Ltd
+// quotation discovers/records payment terms; next request already knows
+// them) needs SOMETHING durable written down after a task succeeds, or
+// there is nothing for a later searchMemories() call to ever find.
+//
+// Deliberately narrow: only WRITE tasks (functionWrites()) get a memory --
+// a read (e.g. "show me the budget") produced nothing new to remember, and
+// writing one for every read would be exactly the "don't blindly embed
+// every raw message" mistake directive §12/§39 warns against. Both real
+// call sites below already gate on functionWrites(...) before calling this.
+
+/**
+ * The canonical content string for a completed WRITE task's memory. Pure
+ * and exported so this shape is unit-testable without a DB -- same
+ * "formatter kept separate from DB wiring" split chat-service.ts's own
+ * formatGlossaryBlock/formatContextEntityBlock already established.
+ *
+ * HONEST, DISCLOSED GAP vs. directive §12: this is the segment text plus a
+ * plain key=value param dump, not an LLM-canonicalized sentence (the
+ * directive's own worked example: "Organization/User preference: ABC Ltd
+ * quotations normally use 30-day payment terms"). See this PR's
+ * description -- the same gap chat-service.ts's detectMemorableStatement()
+ * discloses on the chat side.
+ */
+export function buildTaskResultMemoryContent(functionId: string, segmentText: string, params: Record<string, unknown>): string {
+  const paramSummary = Object.entries(params)
+    .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+    .join(", ");
+  return `Task completed: "${segmentText}" -> ${functionId}${paramSummary ? ` (${paramSummary})` : ""}`;
+}
+
+/**
+ * Best-effort, same "never blocks or fails the thing that already
+ * succeeded" posture as chat-service.ts's own fetchRelevantMemories/memory-
+ * capture wiring. createMemoryRecord()/storeEmbedding() throw loudly by
+ * design when no real embedding provider is configured (see memory-
+ * service.ts's own header) -- caught here so that throw can never turn an
+ * already-`done` task (updateTask() has already run by both call sites
+ * below) into a failed request.
+ */
+async function captureTaskResultMemory(
+  input: RunSubmissionInput,
+  functionId: string,
+  segmentText: string,
+  params: Record<string, unknown>
+): Promise<void> {
+  try {
+    await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+      createMemoryRecord(db, input.orgId, {
+        scopeType: input.projectId ? "PROJECT" : "ORGANIZATION",
+        projectId: input.projectId ?? null,
+        userId: input.userId,
+        memoryType: "TASK_RESULT",
+        content: buildTaskResultMemoryContent(functionId, segmentText, params),
+        provenanceType: "DATABASE_CONFIRMED",
+        lifecycleState: "ACTIVE",
+        sourceType: "task",
+      })
+    );
+  } catch (err) {
+    console.error("[pipeline] task-result memory capture failed (non-blocking):", err);
+  }
 }
 
 /**
@@ -264,6 +331,12 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     if (outcome.success) {
       await updateTask(input.orgId, taskId, "done", outcome.result, undefined);
       tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "done", segmentText: seg.text, result: outcome.result });
+      // R65 Part C Phase 3: task memory, WRITE tasks only -- see this
+      // file's own captureTaskResultMemory()/buildTaskResultMemoryContent()
+      // header for why.
+      if (functionWrites(c.functionId)) {
+        await captureTaskResultMemory(input, c.functionId, seg.text, c.params);
+      }
     } else {
       await updateTask(input.orgId, taskId, "blocked", undefined, outcome.error);
       tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, error: outcome.error });
@@ -416,6 +489,11 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
   const verdict = functionWrites(input.functionId) ? ("task" as const) : ("chat" as const);
   if (outcome.success) {
     await updateTask(input.orgId, taskId, "done", outcome.result, undefined);
+    // R65 Part C Phase 3: task memory, same as runSubmission()'s own
+    // execution loop above -- WRITE tasks only.
+    if (functionWrites(input.functionId)) {
+      await captureTaskResultMemory(base, input.functionId, base.rawInput, params);
+    }
   } else {
     await updateTask(input.orgId, taskId, "blocked", undefined, outcome.error);
   }
