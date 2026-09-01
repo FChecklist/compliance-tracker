@@ -1040,7 +1040,18 @@ domains:
     amount.'
   - 'compliance_type enum: GST, TDS, MCA, PF, ESIC, INCOME_TAX, ROC, LABOUR, ENVIRONMENTAL, OTHER.'
   - 'compliance_status enum: pending, in_progress, completed, overdue, not_applicable, draft.'
-  guardrails: []
+  guardrails:
+  - Org/client isolation is real Postgres RLS, not app-level filtering only -- withTenantContext()
+    (src/lib/db/tenant-scoped.ts:44-79) runs every query as the app_runtime role (no RLS bypass) inside a
+    transaction that sets app.current_org_id/current_client_ids/current_user_id, read by RLS policies via
+    compliance.current_org_id() etc. Every compliance-service.ts operation goes through it.
+  - Create/update require role >= member, delete requires role >= manager, via requireRoleOrScope/ROLE_RANK
+    (src/app/api/compliance/route.ts, [id]/route.ts; src/lib/supabase/auth-guard.ts).
+  - 'Round 3 finding (2026-08-01): NOT a guardrail, a real gap -- marking a compliance_items row "completed"
+    has no extra sign-off beyond the ordinary member-role update check (compliance-service.ts), and
+    audit_points status changes (src/app/api/audit-points/[id]/route.ts) require only requireAuth(), no
+    requireRole() at all -- any org member can resolve an audit point. No maker-checker gate exists on
+    either table.'
   workflow:
   - See API-01's workflow -- this is the table it operates on.
   source: 12-compliance-tracker-database
@@ -1113,7 +1124,19 @@ domains:
   rules:
   - ingestion_batch_status / ingestion_item_status enums drive the shared staged-import pattern reused
     by both compliance/import (API-01) and gst-reconciliation/import (API-11) and documents/ingest (API-12).
-  guardrails: []
+  guardrails:
+  - Certifying an access review requires admin role -- PATCH .../certifications/[certId]/route.ts calls
+    requireRole(dbUser, "admin") before recording confirmed/revoked.
+  - A revoked decision is a real enforcement mechanism, not just a status field -- requireAuth()
+    (src/lib/supabase/auth-guard.ts) queries accessReviewCertifications for decision='revoked' and, if
+    found, hard-blocks login with 401 "account has been deactivated."
+  - The staged-import gate is real, not cosmetic -- POST /api/ingest/[batchId]/confirm/route.ts refuses
+    already-confirmed/cancelled batches, filters out rejected items and (unless force_duplicates) duplicates,
+    only promotes reviewStatus=approved/edited rows; PATCH .../items/[itemId]/route.ts blocks edits once
+    a batch is confirmed/cancelled.
+  - 'Round 3 finding (2026-08-01): NOT a guardrail, a real gap -- neither ingest route calls requireRole,
+    only requireAuth, so any authenticated org member (not just admin/manager) can approve/reject/confirm
+    an import batch.'
   workflow:
   - File uploaded -> staged as ingestion_items -> reviewed row-by-row -> confirmed/rejected -> confirmed
     rows promoted into their real target table.
@@ -1164,12 +1187,24 @@ domains:
   input: A legal matter, litigation case, or IP asset.
   output: Rows behind API-13's litigation/legal-matters/legal-opinions/legal-vendors/ip-portfolio routes.
   rules:
-  - litigation_stage enum tracks case progression; legal_opinions/[id]/generate (API-13) drafts against
-    this table using AI, human-reviewed before finalization.
-  guardrails: []
+  - 'litigation_stage enum tracks case progression.'
+  - 'CORRECTED 2026-08-01 (Round 3, was previously inaccurate): legal_opinions/[id]/generate does NOT
+    use AI. src/lib/services/legal-opinion-service.ts''s own header states it is "deliberately NOT
+    generative/AI authoring" -- it is a CLM-template token-substitution engine (plain {{token}}
+    substitution over clause text a human wrote), not an LLM drafting legal content. There is also no
+    status/finalization field or route on legal_opinions -- generateOpinionDraft simply overwrites
+    bodyText each time it is called; no "finalize" step exists in code to human-review.'
+  guardrails:
+  - Access is org-scoped via withTenantContext/orgId filtering in every route (src/app/api/litigation/route.ts,
+    src/app/api/legal-opinions/route.ts); writes (create litigation matter, generate legal opinion) require
+    manager role via requireRole(dbUser, "manager").
+  - 'Round 3 finding (2026-08-01): NOT a guardrail, a real gap -- GET/read routes have no role restriction
+    beyond org membership (no dedicated "legal" role exists in this codebase''s role model, no legal.*
+    entries in permission-service.ts''s ERP_ACTION_ROLES), and there is no human-review/approval gate on
+    legal_opinions because there is no finalization step at all -- see the corrected rules entry above.'
   workflow:
-  - Matter opened -> tracked through litigation_stage -> spend logged -> opinion drafted (AI-assisted)
-    and finalized.
+  - Matter opened -> tracked through litigation_stage -> spend logged -> opinion template populated via
+    token substitution (role-gated to manager, no further review/finalize step in code).
   source: 12-compliance-tracker-database
   repo: compliance-tracker
 - id: DB-08
@@ -1362,7 +1397,18 @@ domains:
   rules:
   - This is the DB side of the token-resolved public routes in API-08's guardrails list -- the tokens
     themselves live in these tables, resolved server-side.
-  guardrails: []
+  guardrails:
+  - E-signature is a genuine first-party signing flow, not a status flag -- submitSignature()
+    (src/lib/services/esignature-service.ts) captures signature image data, method, IP, user-agent, and
+    timestamp, and computes a SHA-256 hash of the linked document/contract/change-order both at
+    request-creation (documentHash) and at signing time (documentHashAtSigning) for tamper detection.
+  - Signing order is enforced server-side, not just advisory -- if signOrder is set, submitSignature
+    checks for any earlier-ordered pending signer and throws 409 "An earlier signer in the sequence has
+    not signed yet"; getSigningSession's isMyTurn mirrors this for the UI.
+  - Guest/share tokens (conversationShareLinks, conversationGuestAccess, esignatureSigners.accessToken)
+    are opaque per-token, time-bound (e.g. 30-day e-sig token validity, 72h default chat share-link
+    expiry) and revocable; expired/revoked/voided tokens return a generic 404/409 rather than
+    distinguishing "expired" from "never existed" (getSharedConversation), preventing enumeration.
   workflow:
   - Owner creates a share link/guest access grant -> external party uses the token -> scoped access granted
     without a full account.
@@ -1409,7 +1455,24 @@ domains:
   - ~40 ERP-specific enums exist (erp_account_root_type, erp_journal_entry_status, erp_invoice_status,
     erp_payment_type, erp_party_type, erp_asset_status, erp_depreciation_method, erp_period_status, approval_workflow_instance_status/step_status/condition_operator,
     and ~28 more listed in full in the enum inventory).
-  guardrails: []
+  guardrails:
+  - approvalWorkflowDefinitions/Instances/StepInstances/StepApprovals are a real, entity-agnostic
+    multi-step approval engine (src/lib/services/approval-workflow-service.ts) with quorum-per-step
+    (requiredApprovals), role-rank gating (decideApprovalStep), and a hard-enforced four-eyes floor of 2
+    approvers for any step matching the platform's "critical action" taxonomy, even if an admin configures
+    it lower (enforceFourEyesFloor). Self-approval is explicitly blocked (isSelfApproval(), checked in
+    decideApprovalStep) -- a user cannot approve/reject their own submitted request.
+  - Journal-entry posting refuses closed periods -- submitJournalEntry() calls isPeriodOpenForDate() and
+    throws 409 if the period covering the posting date is closed (erp-accounting-service.ts,
+    erp-financial-report-service.ts). If an approval_workflow_definition is active for erp_journal_entry,
+    the entry stays pending until approved; otherwise it auto-posts (documented "no workflow = auto-approved"
+    fallback, matching every other module's default).
+  - 'Closing a period is gated -- closePeriod() requires the closing checklist complete AND a prior sign-off
+    (erp-financial-report-service.ts); reopening requires admin rank (stricter than the manager bar most
+    "hard to undo" actions get) and clears sign-off, forcing re-review. Route-level role gates use the
+    centralized permission-service.ts ERP_ACTION_ROLES table (e.g. erp.journal_entries.submit=manager,
+    erp.fiscal_periods.close=manager, erp.fiscal_periods.reopen=admin), enforced via requirePermissionForUser
+    in the API routes.'
   workflow:
   - See API-03's workflow -- this is a genuine double-entry general ledger with real debit/credit line
     items, not a simplified 'amount' model.
@@ -1544,7 +1607,15 @@ domains:
   rules:
   - /penalties is a real calculator UI over GOV-07's tax engines (income-tax-engine.ts, tds-engine.ts,
     gst-engine.ts), not a separate calculation implementation.
-  guardrails: []
+  guardrails:
+  - /ingest's row-by-row approve/reject is real and wired to DB-05's ingest API (ingest/page.tsx's
+    setReviewStatus/approveAll/confirmImport).
+  - /audit's trail viewer is genuinely read-only -- src/app/api/audit/route.ts exports only GET, no
+    PATCH/PUT/DELETE handler exists anywhere for audit_logs.
+  - 'Round 3 finding (2026-08-01): NOT a guardrail, a real gap -- /audit-engagements'' "CAPA-owned
+    findings" ownership is a label, not an enforced gate. ownerId is set at creation
+    (risk-register-service.ts) but advanceAuditFindingCapaStatus never checks it; any role >= manager can
+    advance/close ANY finding, and closing auto-sets retestResult="passed" with no real retest step.'
   workflow:
   - Item created/imported -> tracked through /compliance/[id]'s tabs -> reported on via /reports -> penalties
     calculated when overdue -> everything auditable via /audit.
@@ -1635,7 +1706,25 @@ domains:
   - /settings is the single largest settings surface, backed by ~10 dedicated sub-panel components (AiConfigSection,
     AiAssistantsSection, PersonalAiConfigSection, OrchestraModelConfigSection, ApiKeySection, WebhookSection,
     MfaSection, SsoSection, PmsEnablementSection) -- see UI-13.
-  guardrails: []
+  guardrails:
+  - 'settings/page.tsx self-hides some admin-only fields via a fetched isAdmin flag (org-details,
+    org-limits, branding, adoption-metrics), and SSO is also backed server-side (POST /api/settings/sso/route.ts
+    requires requireRole(dbUser,"admin")).'
+  - MFA, once enrolled, is a real session-wide edge gate, not a settings toggle -- src/proxy.ts checks
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel() on every protected route and redirects to
+    /mfa-challenge until AAL2 is satisfied.
+  - 'Round 3 finding (2026-08-01), same class as Round 2''s UI-10 finding -- flagged, not fixed, out of
+    scope for this documentation pass: "Admin pages" is a UI-section label here, not a uniformly
+    admin-only surface. The sidebar''s entire Admin section (Users, Departments, Access Review, Settings,
+    Audit Log) is shown to every role unconditionally (AppSidebar.tsx has no role conditional); GET
+    /api/users and GET /api/departments are open to any org member (no requireRole -- only the POST/write
+    paths require manager/admin). Most notably: ApiKeySection and WebhookSection render unconditionally in
+    /settings (not wrapped in isAdmin unlike the sections above them), and their backing routes
+    (api/settings/api-keys/route.ts, api/settings/webhooks/route.ts) call only requireAuth() -- never
+    requireRole -- so any authenticated org member, including the lowest viewer rank, can mint a
+    write-scoped API key or register a webhook (with its secret) with zero audit-log entry (no
+    logActivity call in either file). Surfaced here for the Owner/next session, not remediated by this
+    task (documentation-lifecycle scope, not a security-fix task).'
   workflow:
   - Admin opens /users, /departments, or a /settings tab -> submits a configuration change -> persisted via the corresponding admin API route -> reflected immediately in the same view.
   source: 13-compliance-tracker-ui
@@ -1659,7 +1748,15 @@ domains:
   rules:
   - Every tabbed page here maps 1:1 onto a DB-15 sub-domain -- the UI tab structure mirrors the schema's
     own domain grouping almost exactly.
-  guardrails: []
+  guardrails:
+  - The periods page (erp/periods/page.tsx) shows Sign Off/Close buttons only when a period's status is
+    "open" and swaps to a Reopen button otherwise -- the primary client-side gate is status-conditional
+    rendering, not a disabled attribute.
+  - 'Round 3 finding (2026-08-01): NOT a guardrail, a minor real gap, same pattern as Round 2''s UI-10
+    finding -- the Close button is not disabled when the month-end checklist is incomplete (only shows a
+    green hint line); the real gate is 100% server-side (DB-15''s assertChecklistComplete/sign-off check
+    in erp-financial-report-service.ts). A user can click Close early and gets a 409 toast, but the UI
+    does not pre-block it.'
   workflow:
   - See API-03/DB-15's workflow.
   source: 13-compliance-tracker-ui
