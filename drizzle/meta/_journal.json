@@ -2437,6 +2437,13 @@
       "when": 1788288200000,
       "tag": "0525_r65_partd_submission_classification",
       "breakpoints": true
+    },
+    {
+      "idx": 348,
+      "version": "7",
+      "when": 1788288300000,
+      "tag": "0526_r65_parte_billing_rate_card",
+      "breakpoints": true
     }
   ]
 }

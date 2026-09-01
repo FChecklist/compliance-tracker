@@ -10223,6 +10223,67 @@ export const platformBillingInvoicesRelations = relations(platformBillingInvoice
   plan: one(platformBillingPlans, { fields: [platformBillingInvoices.planId], references: [platformBillingPlans.id] }),
 }))
 
+// ─── R65 Part E -- Billing Engine, Formula 1 + Formula 2 rate card ───────
+// Phase 1 of the Formula 1/Formula 2 + commercial-customization-layer
+// directive (memory: veridian_r65_part_e_billing_engine_directive_
+// 2026-09-01). See drizzle/0525's own header for the full reuse-vs-build
+// decision, the RLS rationale (billing_rates is intentionally SELECT-only
+// to app_runtime -- directive rules 9-11, AI/org-admins must never write
+// commercial terms), and why only these two tables (not
+// billing_configurations/contracts/discounts/credits/events/invoices) are
+// built in this phase.
+export const billingProducts = complianceSchemaDB.table('billing_products', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  productKey: text('product_key').notNull().unique(),
+  name: text('name').notNull(),
+  description: text('description'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Versioned rate card (directive §16-17). org_id nullable: NULL = standard
+// rate for the product, set = an owner-approved customer-specific
+// negotiated rate. Collapses directive §14's 4-level priority order to 2
+// real levels (org-specific > standard) -- the middle 2 levels need
+// billing_contracts (not built yet, Phase 5). Not every field applies to
+// every formula (directive §16's own warning) -- base_rate/included_users/
+// additional_user_rate are Formula 1 only, base_user_rate/
+// input_token_rate/output_token_rate/software_token_rate are Formula 2
+// only; enforced at the application layer (billing-cost-rollup-
+// service.ts/formula-engine.ts), not a DB CHECK, matching
+// billing_configurations' own not-yet-built validation posture per the
+// Phase 0 report.
+export const billingRates = complianceSchemaDB.table('billing_rates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  productId: text('product_id').notNull().references(() => billingProducts.id),
+  orgId: text('org_id').references(() => organisations.id), // null = standard/platform rate
+  formula: text('formula').notNull(), // 'formula_1' | 'formula_2'
+  rateVersion: integer('rate_version').notNull(),
+  // Formula 1 (directive §4-5)
+  baseRate: numeric('base_rate'),
+  includedUsers: integer('included_users'),
+  additionalUserRate: numeric('additional_user_rate'),
+  // Formula 2 (directive §6-10)
+  baseUserRate: numeric('base_user_rate'),
+  inputTokenRate: numeric('input_token_rate'), // per 1,000 billable input tokens
+  outputTokenRate: numeric('output_token_rate'), // per 1,000 billable output tokens
+  softwareTokenRate: numeric('software_token_rate'), // per 1,000 billable software tokens (directive §9) -- no ledger data source for raw software-token counts exists yet, see formula-engine.ts
+  tokenMultiplier: numeric('token_multiplier').notNull().default('1.2'), // directive §10's real initial value, not a placeholder
+  effectiveFrom: timestamp('effective_from').notNull().defaultNow(),
+  effectiveTo: timestamp('effective_to'), // null = open-ended
+  status: text('status').notNull().default('draft'), // 'draft' | 'approved' | 'active' | 'expired' | 'revoked'
+  approvedBy: text('approved_by').references(() => users.id),
+  approvedAt: timestamp('approved_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const billingRatesRelations = relations(billingRates, ({ one }) => ({
+  product: one(billingProducts, { fields: [billingRates.productId], references: [billingProducts.id] }),
+  org: one(organisations, { fields: [billingRates.orgId], references: [organisations.id] }),
+  approver: one(users, { fields: [billingRates.approvedBy], references: [users.id] }),
+}))
+
 // ─── VERIDIAN Computational Engine Library (VCEL) ────────────────────────
 // Built 2026-07-08 per the founder's "VERIDIAN Computational Engineering"
 // principle: every deterministic business computation should be executed
