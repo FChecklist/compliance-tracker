@@ -724,6 +724,53 @@ active:
       no `objective` column on `crm_campaigns`, no `objective` field on
       `CreateCampaignInput`, and this PR's own test file 404s against main
       before this merge.
+  - session_label: "claude-code (task-20260804-125242-ocid-038-independently-verify-self-discl) -- OCID-038: independent DB-forensic verification of a self-disclosed unintended email_confirm write, real fix for GAP-VERI-TODO-STUCK-LOADING-NOT-READY (composer race + parallelized DB round-trips), 30min cooldown on GAP-MOBILE-VIEWPORT-BLANK-CONTENT [rebase-sweep2b-896: real rebase-merge of PR #896 onto current main, replacement PR pending -- PR #896 itself to be closed as superseded]"
+    claimed_at: "2026-08-04T13:20Z (this session, real rebase-merge performed 2026-09-01)"
+    claim: |
+      Real PM decision (`UMR-20260803-042801-ec4b`, OCID-038): independently
+      verify a self-disclosed incident (a wrong Admin-API filter assumption
+      during the mobile-viewport gap re-investigation caused an unintended
+      `email_confirm: true` write on an unrelated pre-existing test/enablement
+      account) rather than accepting the "reported fixed" narration at face
+      value. No git/PR record of the disclosure or the specific account
+      exists anywhere in this repo (confirmed via exhaustive search) -- the
+      sub-agent that made the write reported only informally to its
+      dispatching session's checkpoint note, same pattern already documented
+      for its VERI-todo sibling in `task-20260804-115640`'s PR #894. Performed
+      real independent DB forensics instead: fetched all 281 real Supabase
+      Auth users via the live Admin API (reusing ambient creds at
+      `/tmp/ocid020-verify/creds.env`, left on this shared server by the
+      concurrent OCID-020 task), computed `email_confirmed_at - created_at`
+      deltas across every account, and found one massive statistical outlier
+      matching the disclosure's own description exactly: `e2e-enablement-
+      1785814031425@example.com` (id `92b0c96c-3e28-44db-ab54-1b787b55e399`)
+      -- a non-deliverable `@example.com` test/enablement account created at
+      `03:27:12Z`, confirmed 7h45m later at `11:12:55Z` (7 seconds before the
+      sibling task `task-20260804-111301` that dispatched this same mobile-
+      viewport sub-agent was even created) -- vs. its own sibling test
+      account's baseline pattern of same-second confirm-at-creation. Real,
+      live-verified as of `13:19Z`: the account's `email_confirmed_at`/
+      `confirmed_at` are STILL populated with that same write's timestamp --
+      not reverted to null/unconfirmed. Documented honestly in
+      `ai-os/MASTER-TRACKER.yaml` rather than accepting "fixed" at face value.
+      Separately: paused `GAP-MOBILE-VIEWPORT-BLANK-CONTENT` for a real 30min
+      cooldown (Supabase rate-limited across 9 real attempts/~42min per the
+      PM's own disclosure) -- do not retry before the timestamp recorded on
+      that gap's own entry. Used freed capacity on the already-root-caused
+      (PR #894, not yet merged) `GAP-VERI-TODO-STUCK-LOADING-NOT-READY`: real
+      fix for both halves (composer send-gate race in
+      `veri-chat-context.tsx`/`VeriComposer.tsx`; `Promise.all`-parallelized
+      independent DB round-trips in `veri-todo-service.ts`'s
+      `listVeriTodos()`).
+    scope_note: >-
+      File scope: `ai-os/MASTER-TRACKER.yaml`, this ACTIVE-CLAIMS entry,
+      `PROGRESS.md` (append-only, restored real 408-line history from
+      `origin/main` before appending -- local working tree had the known
+      fresh-stub bug), `src/components/veri-chat/veri-chat-context.tsx`,
+      `src/components/veri-chat/VeriComposer.tsx`,
+      `src/lib/services/veri-todo-service.ts`. Read-only forensic queries
+      against the live Supabase Admin API (GET only, zero writes made by this
+      session). No new DB migration, no schema change.
   - session_label: "claude-code (worker task-20260718-083004-cache---synchronization--cache-integrity) -- VERIDIAN Review Framework: Cache & Synchronization / Cache Integrity & Security (3 findings) [rebase-merged via rebase-final-1019, was PR #1019, superseding stale #1019 after 530-commit main drift + real ACTIVE-CLAIMS.yaml/PROGRESS.md/terminology-guardrail-exemptions.yaml conflict resolution]"
     claimed_at: "2026-08-07T (original session); rebased+merged 2026-09-01"
     claim: |

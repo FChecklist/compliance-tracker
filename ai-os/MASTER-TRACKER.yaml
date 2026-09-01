@@ -3394,8 +3394,46 @@ open_items:
         unlike this finding's own void 15s check), capture the real network
         request/response for whatever endpoint backs the task list and the
         composer submit action, and root-cause from there.
-      status: open
+      status: needs_verification
       first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072925-cacf)"
+      root_cause_found: |
+        2026-08-04, `UMR-20260803-042801-ec4b`/OCID-038, real PM decision
+        `task-20260804-115640-ocid-038-investigate-stalled-sub-agent-v`
+        (PR #894, not yet merged): independently root-caused both halves via
+        direct source read. (1) Composer toast: `aiThreadId`/
+        `activeAiThreadId` (`veri-chat-context.tsx`) start `null` and only
+        populate via an un-gated async `fetch("/api/conversations")`; no
+        loading gate disabled the composer while that was in flight -- a real
+        client-side race, not a backend error. (2) `/veri-todo` slow load:
+        `veri-todo-service.ts`'s `listVeriTodos()` ran 6 sequential
+        (non-`Promise.all`) DB round-trips.
+      real_fix_applied: |
+        2026-08-04, `UMR-20260803-042801-ec4b`/OCID-038, real PM decision
+        `task-20260804-125242-ocid-038-independently-verify-self-discl`
+        (implementation authorized under `task-20260804-111301`'s real PM
+        decision on these 3 end-user-testing gaps): real fix for both halves,
+        using the root cause above rather than guessing.
+        (1) `veri-chat-context.tsx`: added a real `aiThreadsLoading` boolean
+        (true until the `/api/conversations` fetch settles, success or
+        failure, via `.finally()`), exposed through `useVeriChat()`/
+        `useVeriChatOptional()`. `VeriComposer.tsx`: composer textarea/send
+        button now disable (with a "Loading VERI AI..." placeholder) for the
+        real window `composerMode === "discuss"` is racing that fetch,
+        closing the race instead of letting a submit hit the null branch. The
+        existing "VERI AI isn't ready yet" toast is kept as defense-in-depth
+        for a genuine fetch failure (aiThreadsLoading settles false with no
+        thread) -- that is a real error state, not a race, and should still
+        surface.
+        (2) `veri-todo-service.ts`'s `listVeriTodos()`: the 3 independent
+        queries (`taskRows`, `commitmentRows`, `assigneeRows`) now run via
+        `Promise.all` instead of 3 sequential `await`s. The remaining chain
+        (`issueRows` -> `statusRows` -> `projectRows`) has a real data
+        dependency at each step and stays sequential -- not parallelized
+        blind.
+        Not yet independently re-verified live against `projexa-ai.com` (that
+        needs a fresh authenticated session post-merge) -- `status` held at
+        `needs_verification`, not flipped to a closed state, per this
+        tracker's own no-false-completion standard.
       reverification_2026_08_04: |
         Real re-verification, `UMR-20260802-165606-4413` OCID-020 (parent chain
         also citing `UMR-20260803-042801-ec4b` OCID-038, the original finding's
@@ -3506,6 +3544,71 @@ open_items:
         checked against it), or specific to this single observation.
       status: open
       first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072955-3132)"
+      second_investigation_disclosure: |
+        2026-08-04, real PM decision `UMR-20260803-042801-ec4b`/OCID-038
+        (`task-20260804-111301`'s authorization, executed by that task's own
+        interactive executor session): a second, independent mobile-viewport
+        re-test was dispatched. Self-disclosed outcome (informal, in that
+        session's own checkpoint note -- same "never persisted to git" gap
+        as its VERI-todo sibling, see PR #894): genuinely blocked by real
+        Supabase rate limiting across 9 real attempts over ~42 minutes, zero
+        real reproduction achieved either way (not confirmed reproducible,
+        not confirmed fixed). Separately self-disclosed: a wrong Admin-API
+        filter assumption during that investigation caused one unintended
+        `email_confirm: true` write on an unrelated pre-existing test/
+        enablement account (not a real customer), reported fixed immediately.
+      cooldown: |
+        Real PM decision (this task, `task-20260804-125242-ocid-038-
+        independently-verify-self-discl`, `UMR-20260803-042801-ec4b`): do not
+        burn further attempts against the same real rate limiter right now.
+        Paused as of 2026-08-04T13:30:54Z; do not retry before
+        2026-08-04T14:00:54Z (30 real minutes). Freed capacity redirected to
+        the already-root-caused GAP-VERI-TODO-STUCK-LOADING-NOT-READY (real
+        fix applied this same session, see that entry's `real_fix_applied`)
+        rather than to OCID-020 next steps, since `task-20260804-125247`
+        (OCID-020's own sibling task, same PM directive) was independently
+        confirmed already covering the OCID-020 live re-verification angle
+        (PR #895) -- redirecting there too would have been duplicate work
+        under this file's own ACTIVE-CLAIMS protocol.
+      self_disclosure_independent_verification: |
+        2026-08-04T13:19Z, this task
+        (`task-20260804-125242-ocid-038-independently-verify-self-discl`):
+        per standing no-false-completion discipline, did NOT accept the
+        "reported fixed immediately" narration above at face value. No
+        git/PR record of the disclosure or the specific affected account
+        exists anywhere in this repo (exhaustively searched) -- verification
+        had to be done via direct DB forensics instead of reading a written
+        admission. Fetched all 281 real Supabase Auth users via the live
+        Admin API and computed `email_confirmed_at - created_at` for every
+        account; one account is a massive statistical outlier matching the
+        disclosure's own description exactly: `e2e-enablement-
+        1785814031425@example.com` (id `92b0c96c-3e28-44db-ab54-
+        1b787b55e399`) -- a non-deliverable `@example.com` test/enablement
+        account, created `2026-08-04T03:27:12.042948Z`, confirmed 7h45m
+        later at `2026-08-04T11:12:55.603993Z` (7 seconds before
+        `task-20260804-111301`, the task that dispatched this same mobile-
+        viewport sub-agent, was even created) -- vs. its own sibling test
+        account's baseline pattern of same-second confirm-at-creation, and
+        vs. the structural fact that an `@example.com` address can never
+        receive a real confirmation email, so the only real mechanism that
+        could have set this field is a direct Admin-API write. High
+        confidence this is the disclosed account, via timing/pattern
+        correlation, not a written admission (none exists to cite).
+        **Real, live-verified current state as of 2026-08-04T13:19Z: the
+        account's `email_confirmed_at`/`confirmed_at` are STILL populated
+        with that exact write's timestamp -- NOT reverted to null/
+        unconfirmed.** The "reported fixed immediately" claim does not hold
+        under independent verification: whatever "fixed" meant, it did not
+        restore this account to its real pre-write state (and Supabase's
+        Admin API has no documented mechanism to null an already-set
+        `email_confirmed_at` back out, so an exact restoration may not even
+        be achievable via that API -- flagging honestly per this task's own
+        instruction to document real current state when prior state can't be
+        restored, rather than fabricating a "resolved" outcome). No further
+        action taken on the account itself (read-only verification, zero
+        writes made by this session) -- a real decision on whether/how to
+        correct a non-customer test account's stray confirmed flag is an
+        Owner call, not something to unilaterally act on here.
       reverification_2026_08_04: |
         Real re-verification, `UMR-20260802-165606-4413` OCID-020 (parent chain
         also citing `UMR-20260803-042801-ec4b` OCID-038, the original finding's
