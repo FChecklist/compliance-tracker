@@ -1448,3 +1448,57 @@ active:
       reported in `src/app/signup/*` or `src/app/mfa-challenge/*` this
       round. No `drizzle/` migration files in this PR's diff either round,
       so no journal renumbering was needed.
+  - session_label: "claude-code (task-20260731-044029-pm--social-collaboration-feed) -- Task #47 PM feature-parity: social/collaboration feed (broadcast posts + reactions + comment-replies) -- rebased onto current main and merged as replacement PR (was #665) on 2026-09-01"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      PM gap analysis Task #47: reply-threads (comments table, polymorphic
+      entityType/entityId) and private messaging (conversations/
+      conversationParticipants/messages) already exist and are real -- this
+      task adds the missing third piece, a genuine broadcast/react feed.
+      New tables: posts (org-scoped, author, body, optional projectId/
+      taskId link, audienceType 'org'|'restricted'), postAudienceMembers
+      (explicit join table for 'restricted' audience membership, same
+      shape as conversationParticipants), postReactions (real fixed
+      Postgres enum reaction_type, not free text), postComments (reuses
+      the comments table's reply-thread shape, scoped to postId instead of
+      the polymorphic entityType/entityId since posts are a new, single
+      entity type). New service file src/lib/services/social-feed-service.ts,
+      new API routes under src/app/api/social/posts/**, real tests
+      including audience-scoping (a 'restricted' post's author + explicit
+      audience members can see/react/comment; everyone else in the org
+      gets 404, not a filtered-but-visible row).
+
+      PR #665 opened 2026-07-31. `bun test social-feed-service.test.ts`
+      13/13 pass; eslint clean on all 5 new/changed files. Full-project
+      `tsc --noEmit` could not be run to completion locally at the time
+      (OOM'd/timed out 4x -- shared-machine RAM+swap contention, not a
+      defect); deferred to CI's isolated Type Check job.
+    scope_note: >-
+      File scope: src/lib/db/schema.ts (additive only -- new enums/tables/
+      relations, no existing table touched), new
+      src/lib/services/social-feed-service.ts (+ .test.ts), new
+      src/app/api/social/posts/** routes, new drizzle/*.sql migration +
+      drizzle/meta/_journal.json entry. Explicitly out of scope per this
+      task's own spec: pms_issues columns, Automation Rules, Project
+      columns, user types, PM Teams/Groups/Templates. No overlap with the
+      sibling Task #47 entry in this file (task-20260731-044019,
+      project-status-access-rollup) -- disjoint file scope, confirmed at
+      original claim time.
+    rebase_note: >-
+      2026-09-01 real rebase-merge (pr665-rebase-merge-20260901) of PR #665
+      onto main at f30358b2, per this repo's standard rebase-sweep
+      protocol. This branch's own diff from merge-base carried the old,
+      pre-prune, ~6,700-line bloated state of this file (its own claim
+      entry above, unchanged since 2026-07-31). Origin/main had
+      independently pruned this file down to its current, much smaller
+      `active:` list. Did NOT reintroduce the stale bloated version: took
+      main's current pruned content as-is and appended this one real claim
+      entry at the end of `active:`, same pattern used by sibling same-day
+      rebase entries elsewhere in this file. 2 other real conflicts in the
+      same merge: `PROGRESS.md` (wholesale-replaced per convention, not
+      concatenated) and `drizzle/meta/_journal.json` (this branch's
+      migration renumbered above main's true current highest, found via a
+      fresh `git ls-tree -r origin/main -- drizzle/`, not the journal's own
+      stale idx sequence). `src/lib/db/schema.ts` was a clean additive
+      conflict -- both sides added new, disjoint tables at/near the same
+      insertion point; kept both blocks.
