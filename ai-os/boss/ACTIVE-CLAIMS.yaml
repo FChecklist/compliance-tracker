@@ -40,6 +40,52 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (subagent, r65-partc-phase13-scenarios-part2) -- R65 Part C directive Phase 13 test-corpus expansion (memory-service.ts / chat-service.ts memory wiring)"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC (R65 Part C directive, memory: veridian_r65_part_c_memory_rag_gsheets_directive_2026-09-01,
+      dispatched as a continuation task after Phases 1-7 already shipped -- PRs #1549/#1557/#1560/
+      #1562/#1565/#1569/#1571, all MERGED, re-verified live via `gh pr list` before starting).
+
+      Step 1 of this task: re-verified the COMPOSIO_API_KEY gate (directive Phases 8-11,
+      Google Sheets/Drive) is still real and blocking, not stale -- read
+      `src/lib/composio-connectors.ts` in full via `git cat-file -p` (NOT `git show`, which
+      silently truncates blob output at ~31 lines, a known repo gotcha) at origin/main: real,
+      live-shaped OAuth/execute-action code exists (initiateConnection/executeAction/
+      getConnectionStatus/getAuthConfigScopes), not a stub, but every path throws without
+      `process.env.COMPOSIO_API_KEY`, which is absent from `.env.example` and from every
+      `.env*` file in this repo/worktree. The file's own header confirms CRR-007 (provisioning
+      the key) is a standing DECLINED purchase decision, and composio-connectors.test.ts only
+      ever mocks a fake key, never a real one. Gate is genuinely still blocking -- Phases 8-11
+      are correctly deferred, not attempted here.
+
+      Picked increment (b)/(a) from this task's own instructions: re-read
+      memory-service.ts/memory-service.test.ts/chat-service.ts/chat-service.test.ts and the
+      Phase 13 subset (r65-partc-phase13-memory-lifecycle-scope-retrieval-scenarios.test.ts,
+      PR #1569) in full before picking new ground, per that PR's own description of what it
+      already covers (lifecycleHistory accumulation, searchMemories scope-isolation/filter
+      combinations). Building a directive-mandated but underspecified NEW mechanism (e.g. an
+      authority/recency re-ranking layer per directive Sec 11/26-27/33) was deliberately NOT
+      attempted this pass -- it requires inventing relative weights/an interpretation of Sec 7's
+      priority-order semantics the directive itself does not pin down, the same class of
+      "don't invent a threshold the owner hasn't set" caution already applied to Phase 5's
+      promoteMemoryRecord() auto-wiring. Instead: real test-corpus expansion into scenarios
+      neither memory-service.test.ts nor the Phase 13 subset exercises yet -- multi-generation
+      (3+ hop) supersede chains, `searchMemories()` with no scope_type filter at all (the real
+      mixed-scope default retrieval path), `scopeId`/cross-field round-tripping on
+      createMemoryRecord(), and `detectMemorableStatement()`'s heuristic edge cases in
+      chat-service.ts (substring-collision false positives, the exact 500-char boundary,
+      first-match-wins phrase ordering) -- documenting real, already-shipped behavior
+      (including a disclosed heuristic limitation), not new production logic requiring an
+      owner call.
+    scope_note: >-
+      File scope: new test file(s) alongside `src/lib/services/memory-service.ts` and
+      `src/lib/services/chat-service.ts` (test-only, no production logic changes), plus
+      `docs/master/TEST_COVERAGE_GAP.md` regeneration (touches `src/lib/services/`) and this
+      ACTIVE-CLAIMS.yaml entry. No schema/migration changes. Checked live before claiming: no
+      other active entry or open PR touches `memory-service.ts`/`chat-service.ts` test files
+      specifically (the two leftover `.claude/worktrees/r65-partc-*` dirs on disk correspond to
+      already-MERGED PRs #1565/#1571, confirmed via `gh pr list`, not in-flight work).
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |
