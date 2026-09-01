@@ -5507,6 +5507,12 @@ export const crmCampaigns = complianceSchemaDB.table('crm_campaigns', {
   orgId: text('org_id').notNull(),
   name: text('name').notNull(),
   campaignType: text('campaign_type'),
+  // Task #46 gap-closure (2026-07-31): the campaign's goal (e.g. "Brand
+  // Awareness", "Lead Generation", "Product Launch") -- distinct from
+  // campaignType (the channel/format, e.g. "Webinar", "Email") and from
+  // description (freeform notes). Additive, nullable, bare text, same
+  // convention as campaignType.
+  objective: text('objective'),
   status: text('status').notNull().default('planning'), // 'planning' | 'active' | 'completed' | 'cancelled'
   startDate: date('start_date', { mode: 'string' }),
   endDate: date('end_date', { mode: 'string' }),

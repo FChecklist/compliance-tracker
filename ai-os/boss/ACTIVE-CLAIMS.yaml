@@ -41,7 +41,7 @@
 # =====================================================================
 active:
   - session_label: "claude-code (interactive, fix/ocid038-offline-service-worker) -- OCID-038 real gap closure: GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE, real minimal app-shell service worker [rebase-merging via rebase-sweep2b-889, was PR #889, per this repo's standard rebase-sweep protocol]"
-    claimed_at: "2026-08-04T11:05Z (original session); rebased 2026-09-01"
+    claimed_at: "2026-08-04T11:05Z (original session); rebased 2026-09-01 (round 2, main advanced again mid-flight)"
     claim: |
       SPEC (PM directive UMR-20260804-105822-a267, parent OCID-038 UMR-20260803-042801-ec4b /
       OCID-021 UMR-20260802-173631-ca85): real implementation authorized on
@@ -654,3 +654,73 @@ active:
       `0512_pms_project_status_access_rollup.sql` (above main's true
       highest, 0511) with a matching new _journal.json entry (idx 334), per
       this repo's own migration-collision protocol.
+
+# ── claim registered 2026-07-31 (task-20260731-043735-crm--campaigns-entity) ──
+  - session_label: "claude-code (task-20260731-043735-crm--campaigns-entity) -- Task #46: CRM Campaigns entity"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      Dispatched to build a `crmCampaigns` table + service CRUD + campaign
+      scoring wired to marketing-engine.ts, on the premise (per this task's
+      own spec) that "this is genuinely new -- no existing analog anywhere
+      in the 600+ table schema." That premise is now STALE: `crmCampaigns`
+      (schema.ts:5078), `src/lib/services/crm-campaigns-service.ts` (full
+      CRUD), API routes (`src/app/api/crm/campaigns/`), a UI page
+      (`src/app/(app)/crm/campaigns/page.tsx`), and the migration
+      (drizzle/0251_crm_wave1_activities_campaigns_lost_reasons.sql) were
+      already built and merged to main in "Wave 1"/"Wave 2" (commits
+      40423b71, b4b1ded1), well before this task was dispatched.
+      `calculateCampaignScore` already exists in marketing-engine.ts and is
+      already wired via task-execution-engine.ts -- confirmed reading both
+      files, not rebuilding.
+      Real remaining gap found on inspection: the table has name/type
+      (campaignType)/status/date-range/budget(budgeted_cost, actual_cost,
+      expected_revenue)/description/owner, but no `objective` column, which
+      this task's own SCOPE line names explicitly
+      ("name/type/objective/date-range/budget"). Adding that as a small
+      additive nullable-column migration (next real free number per
+      drizzle/meta/_journal.json, fetched fresh from origin/main: 0302,
+      journal frozen at idx 278/tag 0300 as of this claim) + service-layer
+      wiring. Also: marketing-engine.ts has zero test coverage today (no
+      `marketing-engine.test.ts` exists) -- adding one, matching this
+      repo's per-engine `.test.ts` convention (e.g. analytics-engine.test.ts),
+      covering all 6 exported pure functions including calculateCampaignScore.
+      Not touching: Lead/Deal attribution, Project-team junction,
+      Announcements, Import/Export, Items Master (all explicitly
+      out-of-scope per spec) or the already-complete CRUD/API/UI/migration
+      for the base campaign entity.
+    scope_note: >-
+      File scope: compliance-tracker only -- src/lib/db/schema.ts (add
+      `objective` column to crmCampaigns), one new hand-written migration
+      drizzle/0302_*.sql + matching drizzle/meta/_journal.json entry,
+      src/lib/services/crm-campaigns-service.ts (thread `objective` through
+      create/update), new src/lib/engines/marketing-engine.test.ts, and
+      this ACTIVE-CLAIMS.yaml entry. Note for the record: this task's spec
+      says to append a line to `KERNEL_CONSOLIDATION_STATUS.md`'s Task #46
+      section -- that file does not exist anywhere in this repo (confirmed:
+      `find . -iname "KERNEL_CONSOLIDATION_STATUS.md"` and a repo-wide grep
+      for "Task #46" across all .md files both came up empty). Not inventing
+      that file from scratch since nothing else in the repo references it;
+      flagging as a stale/wrong instruction in the spec rather than silently
+      working around it.
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-sweep2b-668, replacement for PR
+      #668): merged onto current main, which had independently pruned this
+      file's `active:` list to its current set (a legitimate rolling
+      cleanup per this file's own protocol #3, most recently by the
+      rebase-sweep2b-664 entry immediately above) and added many of its own
+      new entries since this claim was first written. This entry (this
+      task's own claim, describing PR #668's real work) is re-appended here
+      rather than dropped, since the PR itself was still open/unmerged at
+      rebase time. Also: this claim's own migration number (0302) collided
+      with main's own real `0302_sales_pipeline_dashboard_targets.sql`
+      (journal fully current on main at idx 335/tag
+      0513_pms_project_status_access_rollup as of this rebase, confirmed
+      via `git ls-tree -r origin/main -- drizzle/`) -- renamed to
+      `0514_crm_campaigns_objective.sql` (above main's true highest, 0513)
+      with a matching new _journal.json entry (idx 336), per this repo's
+      own migration-collision protocol. Prior triage + adversarial-verify
+      (already complete before this sweep, not re-done here) independently
+      re-confirmed the gap is still real and unaddressed on current main:
+      no `objective` column on `crm_campaigns`, no `objective` field on
+      `CreateCampaignInput`, and this PR's own test file 404s against main
+      before this merge.
