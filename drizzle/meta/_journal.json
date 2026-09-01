@@ -2444,6 +2444,13 @@
       "when": 1788288300000,
       "tag": "0526_r65_parte_billing_rate_card",
       "breakpoints": true
+    },
+    {
+      "idx": 349,
+      "version": "7",
+      "when": 1788288400000,
+      "tag": "0527_r65_parte_billing_contracts",
+      "breakpoints": true
     }
   ]
 }

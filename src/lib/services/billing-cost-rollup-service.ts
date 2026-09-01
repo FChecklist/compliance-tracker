@@ -6,6 +6,14 @@
 // See memory: veridian_r65_part_e_billing_engine_directive_2026-09-01 and
 // veridian_r65_part_e_phase0_architecture_report_2026-09-01.
 //
+// PHASE 2 ADDITION (drizzle/0527): `resolveActiveContract`/
+// `pickActiveContract` resolve directive §14's level-1 commercial-terms
+// priority (an owner-approved organization-specific CONTRACT) and wire it
+// into `resolveActiveBillingRate`/`pickBestRate`, taking §14 from 2 real
+// priority levels to 3 -- see `pickBestRate`'s own updated doc comment and
+// `billingContracts`' schema.ts header for the full reasoning, including
+// the still-collapsed §14 levels 2-3 this phase does not resolve.
+//
 // TWO DELIBERATELY DIFFERENT COLUMNS, NOT ONE CONCEPT TWICE:
 //   - allocated_cost: VERIDIAN's own real internal spend (input_cost +
 //     output_cost + cache_cost, all already real/populated by Part D where
@@ -37,29 +45,62 @@
 //     allocated_cost/billable_cost, and only when they are currently NULL
 //     (see backfillLedgerCosts's own doc comment for the idempotency
 //     contract this enforces).
-import { db, tokenUsageLedger, billingRates, billingProducts } from "@/lib/db"
+import { db, tokenUsageLedger, billingRates, billingProducts, billingContracts } from "@/lib/db"
 import { and, eq, gt, gte, isNull, lt, lte, or, sql } from "drizzle-orm"
 import { computeFormula2Gross } from "@/lib/billing/formula-engine"
 
 export type BillingRateRow = typeof billingRates.$inferSelect
+export type BillingContractRow = typeof billingContracts.$inferSelect
 
 // ─── Pure helpers (no DB) ──────────────────────────────────────────────
 
 /**
- * Directive §14's priority order, collapsed to the 2 real levels this
- * schema supports today (org-specific row > standard row -- see
- * drizzle/0526's own header for why the middle 2 levels need
- * billing_contracts, not built yet). Ties within a level are broken by the
+ * Directive §14's priority order. R65 Part E Phase 2 (drizzle/0527) takes
+ * this from 2 real levels to 3: a contract-backed org-specific rate (§14
+ * level 1, "owner-approved organization-specific contract") beats a bare
+ * org-specific rate with no contract behind it (§14 level 2, "product/
+ * customer pricing"), which beats the standard rate (§14 levels 3-4,
+ * still collapsed together -- see billingContracts' own schema.ts header
+ * for why). `activeContractId` is the id of the org's currently-effective
+ * contract for this (product, formula), if any -- resolved separately by
+ * `resolveActiveContract` and passed in here so this function stays pure/
+ * DB-free and unit-testable, matching this file's own established
+ * pure-vs-DB-touching split. Ties within any level are broken by the
  * highest rate_version (directive rule 21: rates are versioned, never
  * overwritten -- the highest version among currently-effective rows is the
  * live one).
  */
-export function pickBestRate(candidates: BillingRateRow[], orgId: string | null): BillingRateRow | null {
+export function pickBestRate(candidates: BillingRateRow[], orgId: string | null, activeContractId: string | null = null): BillingRateRow | null {
   if (candidates.length === 0) return null
   const orgSpecific = orgId ? candidates.filter((r) => r.orgId === orgId) : []
   const pool = orgSpecific.length > 0 ? orgSpecific : candidates.filter((r) => r.orgId === null)
   if (pool.length === 0) return null
+  if (activeContractId) {
+    const contractLinked = pool.filter((r) => r.contractId === activeContractId)
+    if (contractLinked.length > 0) {
+      return contractLinked.reduce((best, r) => (r.rateVersion > best.rateVersion ? r : best))
+    }
+  }
   return pool.reduce((best, r) => (r.rateVersion > best.rateVersion ? r : best))
+}
+
+/**
+ * Directive §14 level-1 tie-break: when more than one billing_contracts
+ * row is simultaneously effective for the same (org, product, formula) --
+ * not prevented by a DB constraint, same posture as billing_rates' own
+ * un-enforced "one active version" convention -- the most recently
+ * approved contract wins, falling back to the latest effective_from when
+ * approvedAt is also null/tied. Pure/DB-free: assumes the caller
+ * (`resolveActiveContract`) already filtered candidates down to rows that
+ * are approved/active and currently within their effective window.
+ */
+export function pickActiveContract(candidates: BillingContractRow[]): BillingContractRow | null {
+  if (candidates.length === 0) return null
+  return candidates.reduce((best, r) => {
+    const bestKey = best.approvedAt ?? best.effectiveFrom
+    const rKey = r.approvedAt ?? r.effectiveFrom
+    return rKey > bestKey ? r : best
+  })
 }
 
 /**
@@ -104,11 +145,42 @@ export function computeCallBillableCost(
 // ─── DB-touching functions ─────────────────────────────────────────────
 
 /**
+ * Resolves the currently-effective owner-approved contract for
+ * (orgId, productId, formula) as of `asOf`, if any -- directive §14 level 1.
+ * Returns null when no contract exists, none is approved/active, or none
+ * is currently within its effective window -- callers must fall back to
+ * bare org-specific/standard billing_rates rows in that case (see
+ * pickBestRate), never invent or assume a contract.
+ */
+export async function resolveActiveContract(params: {
+  orgId: string
+  productId: string
+  formula: "formula_1" | "formula_2"
+  asOf: Date
+}): Promise<BillingContractRow | null> {
+  const rows = await db
+    .select()
+    .from(billingContracts)
+    .where(
+      and(
+        eq(billingContracts.orgId, params.orgId),
+        eq(billingContracts.productId, params.productId),
+        eq(billingContracts.formula, params.formula),
+        or(eq(billingContracts.status, "approved"), eq(billingContracts.status, "active")),
+        lte(billingContracts.effectiveFrom, params.asOf),
+        or(isNull(billingContracts.effectiveTo), gt(billingContracts.effectiveTo, params.asOf))
+      )
+    )
+
+  return pickActiveContract(rows)
+}
+
+/**
  * Resolves the currently-effective billing_rates row for (productKey,
- * orgId, formula) as of `asOf`, per directive §14's (collapsed, see
- * pickBestRate) priority order. Returns null when no owner-approved rate
- * exists -- callers must treat that as "cannot bill this," never fall back
- * to an invented number.
+ * orgId, formula) as of `asOf`, per directive §14's priority order (3 real
+ * levels as of Phase 2 -- see pickBestRate's own doc comment). Returns
+ * null when no owner-approved rate exists -- callers must treat that as
+ * "cannot bill this," never fall back to an invented number.
  */
 export async function resolveActiveBillingRate(params: {
   productKey: string
@@ -133,7 +205,13 @@ export async function resolveActiveBillingRate(params: {
       )
     )
 
-  return pickBestRate(rows, params.orgId)
+  // Contract lookup only makes sense for a real org -- a platform-internal
+  // (orgId=null) resolution has no organization to hold a contract at all.
+  const activeContract = params.orgId
+    ? await resolveActiveContract({ orgId: params.orgId, productId: product.id, formula: params.formula, asOf: params.asOf })
+    : null
+
+  return pickBestRate(rows, params.orgId, activeContract?.id ?? null)
 }
 
 export type BackfillSummary = {

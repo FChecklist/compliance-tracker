@@ -10258,6 +10258,16 @@ export const billingRates = complianceSchemaDB.table('billing_rates', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   productId: text('product_id').notNull().references(() => billingProducts.id),
   orgId: text('org_id').references(() => organisations.id), // null = standard/platform rate
+  // R65 Part E Phase 2 (drizzle/0527): optional link to the owner-approved
+  // contract that authorizes this specific rate row -- directive §14 level
+  // 1 ("owner-approved organization-specific contract"). Null for the vast
+  // majority of rows (a bare org-specific or standard rate with no formal
+  // contract behind it) -- see billingContracts' own header below for the
+  // full priority-order reasoning. Forward reference: billingContracts is
+  // defined later in this file; drizzle's `references(() => ...)` thunk is
+  // evaluated lazily, so this is safe (same pattern this repo already
+  // relies on for any two tables with a circular/order-dependent FK).
+  contractId: text('contract_id').references(() => billingContracts.id),
   formula: text('formula').notNull(), // 'formula_1' | 'formula_2'
   rateVersion: integer('rate_version').notNull(),
   // Formula 1 (directive §4-5)
@@ -10282,6 +10292,75 @@ export const billingRatesRelations = relations(billingRates, ({ one }) => ({
   product: one(billingProducts, { fields: [billingRates.productId], references: [billingProducts.id] }),
   org: one(organisations, { fields: [billingRates.orgId], references: [organisations.id] }),
   approver: one(users, { fields: [billingRates.approvedBy], references: [users.id] }),
+  contract: one(billingContracts, { fields: [billingRates.contractId], references: [billingContracts.id] }),
+}))
+
+// ─── R65 Part E -- Billing Engine, billing_contracts (Phase 2, drizzle/0527) ──
+// Completes more of directive §14's 4-level commercial-terms priority order
+// (memory: veridian_r65_part_e_billing_engine_directive_2026-09-01 §14, and
+// its own Phase 0 report's gap-table entry for billing_contracts). Phase 1
+// (drizzle/0526) collapsed §14's 4 levels to 2 real ones (org-specific
+// billing_rates row > standard billing_rates row) because nothing
+// distinguished an owner-approved organization-specific CONTRACT (§14
+// level 1) from an ad-hoc org-specific rate row (closer to §14 level 2,
+// "product/customer pricing"). This table is that missing authorization
+// header: a billing_contracts row is the formal, owner-approved commercial
+// agreement for one org+product+formula, with its own effective window and
+// approval trail, independent of any particular billing_rates row's
+// rate_version -- a contract can be approved/expired on its own timeline
+// while the rate VERSIONS underneath it still change per directive rule 21
+// (historical rates immutable). billing_rates.contract_id (added above) is
+// how a specific rate row is optionally tied to the contract that
+// authorizes it.
+//
+// STILL A DISCLOSED, PARTIAL COLLAPSE: §14 levels 2 ("owner-approved
+// product/customer pricing") and 3 ("owner-approved product pricing") are
+// NOT separately represented here. A billing_rates row with org_id set but
+// no contract_id is treated as level 2 (a bespoke customer rate, not under
+// a formal contract) by billing-cost-rollup-service.ts's resolution logic;
+// nothing in this schema yet distinguishes a temporary/promotional
+// product-WIDE override (level 3) from the standing standard rate (level
+// 4) -- both are just "the highest-rate_version billing_rates row with
+// org_id NULL". Making that distinction real needs a promotional/
+// temporary-pricing flag, which is directive §11's commercial-
+// customization pipeline (Phase 5 in the Phase 0 report's own numbering),
+// not this table's job. So this migration takes §14 from 2 real levels to
+// 3: contract-backed org rate > bare org-specific rate > standard rate.
+//
+// NAMING: `org_id`, not the Phase 0 report's own suggested
+// `organization_id` -- this schema's established convention (369 existing
+// org_id columns vs zero organization_id columns, confirmed by grep before
+// writing this) wins over the report's literal suggestion, the same kind
+// of deliberate rename precedent drizzle/0524's own header documents
+// (product_id -> veridian_product_id).
+//
+// No CHECK/unique constraint prevents multiple simultaneously-effective
+// contracts for the same (org, product, formula) -- same posture as
+// billing_rates' own un-enforced "one active version" convention.
+// Resolution logic (pickActiveContract, billing-cost-rollup-service.ts)
+// breaks ties deterministically (most recently approved wins), documented
+// there rather than enforced here.
+export const billingContracts = complianceSchemaDB.table('billing_contracts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull().references(() => organisations.id),
+  productId: text('product_id').notNull().references(() => billingProducts.id),
+  formula: text('formula').notNull(), // 'formula_1' | 'formula_2' -- which formula this contract governs
+  contractName: text('contract_name'), // free text, e.g. "ABC Ltd -- FY26 Enterprise Agreement" (directive §13's own worked example is exactly this shape)
+  status: text('status').notNull().default('draft'), // 'draft' | 'approved' | 'active' | 'expired' | 'terminated'
+  effectiveFrom: timestamp('effective_from').notNull(),
+  effectiveTo: timestamp('effective_to'), // null = open-ended
+  approvedBy: text('approved_by').references(() => users.id), // directive rules 9-10: Owner-only in practice, enforced at the GRANT level below, not just documented here
+  approvedAt: timestamp('approved_at'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const billingContractsRelations = relations(billingContracts, ({ one, many }) => ({
+  org: one(organisations, { fields: [billingContracts.orgId], references: [organisations.id] }),
+  product: one(billingProducts, { fields: [billingContracts.productId], references: [billingProducts.id] }),
+  approver: one(users, { fields: [billingContracts.approvedBy], references: [users.id] }),
+  rates: many(billingRates),
 }))
 
 // ─── VERIDIAN Computational Engine Library (VCEL) ────────────────────────
