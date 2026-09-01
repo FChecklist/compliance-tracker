@@ -1,0 +1,74 @@
+-- R65 Part C Phase 2: vector embedding layer for compliance.memory_records
+-- (Phase 1: drizzle/0520_r65_partc_phase1_memory_schema.sql, schema-only,
+-- no embedding column -- see that migration's own header for the full
+-- reuse-decision rationale this phase continues).
+--
+-- Adds ONE new column (`embedding vector(1536)`) plus an HNSW ANN index to
+-- the existing compliance.memory_records table. No new tables. `embedding
+-- vector(1536)` is intentionally NOT added to memoryRecords in schema.ts --
+-- Drizzle has no first-class pgvector column type, so it is managed via raw
+-- SQL only here, the same convention already used by compliance.embeddings,
+-- compliance.embedding_cache, compliance.assistant_memories,
+-- compliance.document_chunk and platform.instruction_execution_cache (see
+-- each of those tables' own schema.ts comment making the identical call).
+-- Added via ALTER TABLE ... ADD COLUMN IF NOT EXISTS, same two-statement
+-- shape 0083_wave99_vector_search_optimization.sql used for
+-- embedding_cache, rather than inline in the (already-shipped) CREATE
+-- TABLE -- a pgvector column can't be diffed by drizzle-kit's own
+-- migration generator alongside a plain CREATE TABLE it already owns.
+--
+-- Dimension: 1536, matching compliance.embeddings/compliance.embedding_cache
+-- verified live (drizzle/0037_wave45_fix_missing_embeddings_vector_column.sql:
+-- "ALTER TABLE compliance.embeddings ADD COLUMN IF NOT EXISTS embedding
+-- vector(1536)") -- not a guess, and not independently chosen, because this
+-- column's values are meant to be byte-for-byte the same vectors
+-- src/lib/embeddings.ts's generateEmbedding()/generateEmbeddingUncached()
+-- already produce (OpenRouter's openai/text-embedding-3-small is
+-- genuinely 1536-dim; the hash-based pseudo-vector fallback is
+-- hard-coded to the same 1536 for exactly this reason, see embeddings.ts's
+-- hashToVector call site).
+--
+-- Index: HNSW / vector_cosine_ops / m=16, ef_construction=64 -- copied
+-- verbatim from this repo's own existing HNSW precedent
+-- (drizzle/0083_wave99_vector_search_optimization.sql's
+-- idx_embeddings_vector_hnsw, also drizzle/0242_umr03_instruction_execution
+-- _cache.sql), not ivfflat (Wave 99 already migrated the one ivfflat index
+-- this codebase ever had specifically because HNSW needs no periodic
+-- list-count retraining as the table grows -- no reason to reintroduce that
+-- retraining burden here).
+--
+-- Why an in-table column at all, given compliance.embeddings already
+-- exists and Phase 1's own header said a later phase would "call into
+-- storeEmbedding()/findSimilar() rather than reimplementing vector
+-- search": findSimilar() has no entity_type filter (it is a flat scan over
+-- every embedded entity in the whole platform: platform_assets, worker
+-- agents, capabilities, ... and now memory records, all mixed together)
+-- and no concept of memory_records' own scope_type (GLOBAL/INDUSTRY vs
+-- ORGANIZATION/USER/PROJECT/TASK/CONVERSATION/DOCUMENT) -- it only knows a
+-- flat org_id/is_platform_scope boolean. It also runs on embeddings.ts's
+-- own dedicated bypass-RLS connection (getRawClient(), the `postgres` role
+-- -- see compliance.embeddings' own RLS in
+-- drizzle/0003_enable_rls_exposed_compliance_tables.sql, which grants
+-- app_runtime no policy on that table at all), not the app_runtime
+-- connection Phase 1's real RLS policies below were written to govern.
+-- Neither limitation is fixable by only calling findSimilar() -- so
+-- src/lib/services/memory-service.ts (this phase) does BOTH: it still
+-- calls storeEmbedding() (as directed) to generate the one real vector and
+-- register it in the shared compliance.embeddings table for any other
+-- cross-entity consumer, and it separately mirrors that exact same vector
+-- (a same-transaction copy, not a second embedding-provider call) onto
+-- this new memory_records.embedding column so compliance.memory_records'
+-- OWN app_runtime-scoped, Phase-1-RLS-governed rows can be searched
+-- directly and correctly by scope_type/org_id, the same direct-column
+-- pattern src/lib/services/assistant-memory-service.ts already established
+-- for compliance.assistant_memories.
+--
+-- Left for the supervising session, NOT applied live by this branch (same
+-- convention drizzle/0505's and 0507's own header comments describe): no
+-- Supabase MCP apply_migration/execute_sql call was made against any
+-- project from this worktree.
+
+ALTER TABLE compliance.memory_records ADD COLUMN IF NOT EXISTS embedding vector(1536);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS idx_memory_records_embedding_hnsw ON compliance.memory_records
+  USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);

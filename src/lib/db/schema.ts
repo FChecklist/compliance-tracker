@@ -13455,6 +13455,14 @@ export const postCommentsRelations = relations(postComments, ({ one }) => ({
 // no embedding-generation code (a later phase calls src/lib/embeddings.ts's
 // existing storeEmbedding()/findSimilar() instead of reimplementing it).
 //
+// Phase 2 (drizzle/0523_r65_partc_phase2_memory_embedding.sql) added that
+// embedding column -- `embedding vector(1536)` is deliberately still NOT
+// modeled below, same raw-SQL-managed convention as embeddings/
+// embedding_cache/assistant_memories/document_chunk above (see 0523's own
+// header for the full reasoning, including why this table also has its
+// own in-table HNSW index rather than relying on findSimilar() alone).
+// Real read/write code lives in src/lib/services/memory-service.ts.
+//
 // scopeType can be GLOBAL/INDUSTRY (orgId NULL, platform-wide) or
 // ORGANIZATION/USER/PROJECT/TASK/CONVERSATION/DOCUMENT (orgId NOT NULL) --
 // enforced by memory_records_org_id_scope_consistency_check in the

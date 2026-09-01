@@ -2416,6 +2416,13 @@
       "when": 1788287900000,
       "tag": "0522_chunk_policy_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 345,
+      "version": "7",
+      "when": 1788288000000,
+      "tag": "0523_r65_partc_phase2_memory_embedding",
+      "breakpoints": true
     }
   ]
 }
