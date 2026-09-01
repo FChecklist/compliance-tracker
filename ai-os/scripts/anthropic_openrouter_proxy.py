@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+DEPRECATED (v1): superseded by anthropic_openrouter_proxy_v2.py, which is the
+version actually deployed (see ai-os/COST-CONTROL.md) -- v2 adds a response
+cache and a hard budget ceiling that this v1 file does not have. Do not run
+this file in production; kept here for reference only.
+
 Minimal local proxy: translates Anthropic Messages API requests (what Claude
 Code CLI sends via ANTHROPIC_BASE_URL) into OpenRouter's OpenAI-compatible
 chat-completions calls, and translates the response back to Anthropic's
