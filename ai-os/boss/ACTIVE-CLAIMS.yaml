@@ -1204,3 +1204,52 @@ active:
       needed. Validated post-merge: `check-governance-yaml-parse.mjs`
       clean, `tsc --noEmit` clean (0 errors) -- both expected trivially
       given zero source files are touched by this PR.
+  - session_label: "claude-code (worker task-20260718-064004-ai-documentation--documentation-lifecycl) -- AI Documentation / Documentation Lifecycle gap-closure, real merge (not just re-dispatch) [rebase-merged via rebase-sweep2b-1211, was PR #1211, per this repo's standard rebase-sweep protocol]"
+    claimed_at: "2026-08-15T (original session); rebased+merged 2026-09-01"
+    claim: |
+      This exact 5-finding gap (auto-doc-gen, versioning, accuracy, completeness, sync-with-code)
+      was already fully built by PR #685 (scripts/check-doc-drift.mjs + SYSTEM-AUDIT-ROUND-3.md +
+      doc-counts-baseline.yaml, AUDIT: PASS 2026-08-02) and PR #1039 (4 new MASTER-TRACKER.yaml
+      GAP entries the audit found), but both PRs sat OPEN and unmerged for weeks and are now
+      confirmed CLOSED without merging. This session (PR #1211) re-applied PR #685's system-tree
+      diffs and new files, plus PR #1039's 4 MASTER-TRACKER.yaml GAP entries, onto its own branch.
+    rebase_note: >-
+      2026-09-01 real rebase-merge (rebase-sweep2b-1211, replacement for PR #1211), per this
+      repo's standard rebase-sweep protocol. Prior triage found mergeStateStatus=CLEAN/mergeable=
+      MERGEABLE with zero conflicts and all 13 checks (incl. a real Vercel deploy) passing -- but
+      GitHub's mergeability had since flipped to DIRTY/CONFLICTING by the time this session ran a
+      real `git merge origin/main`, which produced 32 conflicting files. Investigation showed only
+      4 of those were real -- the other 28 (CI workflow, schema.ts, permission-service.ts,
+      auth-guard.ts, a dozen API routes, etc.) were pure merge-history artifacts from this old
+      worker branch's own tangled history of repeated "merge main into branch" commits, not
+      content this PR's own commits ever touched. Confirmed by isolating the PR's 2 real unique
+      commits (8e8cf9e1, e8535f2f) via `git log --first-parent origin/main..HEAD` and cherry-
+      picking those directly onto current main instead of merging the whole branch -- this reduced
+      the conflict set to exactly 4 files (ai-os/MASTER-TRACKER.yaml, ai-os/boss/ACTIVE-CLAIMS.yaml,
+      ai-os/system-tree/00-INDEX.md, ai-os/system-tree/50-merged-tree.yaml), each a genuine
+      additive/independent-edit conflict, resolved as follows: MASTER-TRACKER.yaml -- combined
+      HEAD's own newly-added GAP-CONSTRUCTION-AI-RISKLEVEL entry with this PR's 4 new GAP entries
+      (GAP-UI07/DB02/DB05/UI02), all confirmed non-duplicate against the rest of the file.
+      00-INDEX.md -- took HEAD's block as-is (dated 2026-08-07, already citing live 995-route/
+      468-table counts and an already-wired check-architecture-doc-drift.mjs re-sync mechanism);
+      this PR's own bullet text was dated 2026-08-01 and fully superseded by HEAD's newer content.
+      50-merged-tree.yaml -- combined both sides' complementary edits to the same UI-07 domain
+      entry (HEAD had filled in `workflow:`, this PR fills in `guardrails:`; kept both). This
+      file's own header comment plus 3 same-day precedent entries above (rebase-1530-final /
+      rebase-sweep2b-1015 / rebase-cleanup-1199 / rebase-sweep2b-1037 / rebase-cleanup-1197)
+      confirm the established handling for this file specifically: current main had independently
+      pruned `active:` from ~10,850 lines (this PR's own branch-point copy) down to ~1,150 lines,
+      so main's pruned file was taken as-is and this entry appended at the end rather than
+      reintroducing the stale bloated history. Re-verified the "3 core new files return 404
+      against main" evidence directly via `git cat-file -e` before merging: `scripts/check-doc-
+      drift.mjs`, `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md`, and `ai-os/system-tree/doc-counts-
+      baseline.yaml` were all genuinely absent from main (confirmed), while `11/12/13-compliance-
+      tracker-*.yaml` and a newer `check-architecture-doc-drift.mjs`/`DRIFT-BASELINE.yaml` pairing
+      already existed on main independently -- the newly-landed `check-doc-drift.mjs`/`doc-counts-
+      baseline.yaml` are now a redundant second doc-drift mechanism alongside that newer one; not
+      removed here (out of scope for a rebase-merge, a product/cleanup decision for a separate
+      task), but flagged here so a future session doesn't rediscover it as a surprise. `bun install`
+      (1204 packages), `node scripts/check-governance-yaml-parse.mjs`, and `bunx tsc --noEmit`
+      all run clean post-merge; no drizzle/ migrations in this PR's diff, so no journal
+      renumbering was needed; no touched files under src/lib/services, so no TEST_COVERAGE_GAP.md
+      regen was needed either.
