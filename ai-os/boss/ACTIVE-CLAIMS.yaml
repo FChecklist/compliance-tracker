@@ -58,6 +58,28 @@ active:
       docs/master/TEST_COVERAGE_GAP.md (regenerated). Not touching platform_billing_invoices/
       platform-billing-service.ts (a separate, live invoice path, out of scope for this claim)
       or ai_cost_reconciliations/cost-reconciliation-service.ts (PR #1546's area).
+  - session_label: "claude-code (subagent, R65 Part C) -- memory-service.ts lifecycle/scope-isolation/retrieval-ranking test-scenario batch (directive Phase 13 subset, service-layer only)"
+    claimed_at: "2026-09-02T00:00Z"
+    claim: |
+      SPEC (R65 Part C directive §29/§34-35/§36 Phase 13): PR #1565 shipped
+      promoteMemoryRecord()/archiveMemoryRecord() with 33 unit tests but left two real gaps
+      this claim closes: (1) no test exercises appendLifecycleHistory() accumulating onto an
+      ALREADY-non-empty metadata.lifecycleHistory array (every existing test's fixture metadata
+      has no pre-existing lifecycleHistory key, so the `Array.isArray(metadata.lifecycleHistory)
+      ? metadata.lifecycleHistory : []` branch that matters on a record's 2nd+ lifecycle change
+      was never actually exercised); (2) no scenario-level tests combine searchMemories()'s
+      requestingUserId scope-isolation guard with its other filters (scopeType/memoryType/
+      includeArchivedAndSuperseded/limit) the way real callers (chat-service.ts's
+      fetchRelevantMemories()) actually invoke it. NOT re-attempting the promotion-wiring
+      candidate from this task's own dispatch prompt: directive §29's only promotion rule
+      ("repeated successful use" -> ACTIVE) has no concrete numeric threshold anywhere in the
+      40-section directive, and inventing one was explicitly out of bounds -- this is the
+      dispatch prompt's own named fallback candidate instead.
+      File scope: new `src/lib/services/r65-partc-phase13-memory-lifecycle-scope-retrieval-scenarios.test.ts`
+      (~30+ new test cases, no production code changes), `docs/master/TEST_COVERAGE_GAP.md`
+      (regenerated per repo convention, expected no drift since memory-service.ts already had a
+      sibling test file), this ACTIVE-CLAIMS entry. Not touching memory-service.ts itself, not
+      wiring promote/archive into any caller, not touching chat-service.ts/run-submission.ts.
   - session_label: "claude-code (task-20260807-063723-retry-ai-documentation-ai-readable-techn) -- VERIDIAN Review Framework gap-closure: AI Documentation / AI-Readable Technical Documentation (10 findings, UMR-20260801-173423-9aa1) [rebase-merging via rebase-sweep2b-1038, was PR #1038, per this repo's standard rebase-sweep protocol]"
     claimed_at: "2026-08-07T07:00Z (original session); rebased 2026-09-01"
     claim: |
