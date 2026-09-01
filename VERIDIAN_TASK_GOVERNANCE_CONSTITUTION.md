@@ -23,6 +23,20 @@ Boss asked for explicit confirmation of 8 specific claims about this framework's
 
 ## Relationship to the other two constitutional documents
 
+> **Disambiguation (added 2026-09-01, R66 code-quality inspection):** this
+> section classifies documents by **subject-matter axis** (what topic each
+> one governs) -- a different grouping from the **supersession pact**
+> named in "Constitutional authority" above (this document +
+> `VERIDIAN_AUDIT_ORGANIZATION.md` + `VERIDIAN_DMP_DCF_CONSTITUTION.md` +
+> `VERI_CHAT_GOVERNANCE.md`, each reciprocally naming the other three as
+> "sibling constitutional documents"). The two lists are not meant to
+> match: `VERIDIAN_AI_CONSTITUTION.md` and `MASTER_AI_OS_ARCHITECTURE.md`
+> below predate the supersession-pact convention (added 2026-07-12) and
+> are not part of it, while `VERI_CHAT_GOVERNANCE.md` is part of the
+> supersession pact but doesn't appear in this axis table below. See
+> `VERIDIAN_DMP_DCF_CONSTITUTION.md`'s own version of this table for the
+> fullest current axis list.
+
 VERIDIAN AI OS now has three constitutional documents, each governing a different axis, none duplicating the others:
 
 | Document | Governs |

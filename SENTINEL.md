@@ -2,7 +2,7 @@
 
 > **AUTHORITY NOTE (2026-07-14):** `ai-os/CONSTITUTION.yaml` is now the single, machine-readable constitution for VERIDIAN AI OS and is authoritative over this document on any conflict (its `security_and_guardrails.sentinel_rules` section holds the current SE-*/AR-*/AC-* rule text verbatim). This document remains as a short historical pointer to `ai-os/sentinel/SENTINEL.yaml`'s fuller rule set.
 
-SENTINEL is the supreme guardian of this repository. All changes pass through Sentinel.
+SENTINEL is this repository's automated guardrail layer, enforcing the rules below on every change. (Softened 2026-09-01, R66 code-quality inspection: previously read "the supreme guardian... all changes pass through Sentinel," which overstated its authority relative to the AUTHORITY NOTE two lines above naming `ai-os/CONSTITUTION.yaml` as authoritative on conflict.)
 
 ## Rules
 - No secrets in source code (SE-001)

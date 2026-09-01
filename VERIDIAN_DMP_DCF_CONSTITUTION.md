@@ -32,6 +32,16 @@ Doc A's examples (Sales, CRM, Finance, HR, Compliance, Projects, Procurement, Su
 
 ## Relationship to the other constitutional documents
 
+> **Disambiguation (added 2026-09-01, R66 code-quality inspection):** this
+> table classifies documents by **subject-matter axis**, a different
+> grouping from the **supersession pact** named in "Constitutional
+> authority" above (this document + `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md`
+> + `VERIDIAN_AUDIT_ORGANIZATION.md` + `VERI_CHAT_GOVERNANCE.md`). This is
+> the most recently updated copy of this axis table across the four
+> supersession-pact documents, so `VERI_CHAT_GOVERNANCE.md` (part of the
+> pact, but without its own axis row anywhere else) is added below rather
+> than left silently missing.
+
 | Document | Governs |
 |---|---|
 | `VERIDIAN_AI_CONSTITUTION.md` | What the AI may *do* |
@@ -39,6 +49,7 @@ Doc A's examples (Sales, CRM, Finance, HR, Compliance, Projects, Procurement, Su
 | `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md` | Task lifecycle, AI-dispatch guardrails |
 | `VERIDIAN_AUDIT_ORGANIZATION.md` | Independent assurance |
 | `VERIDIAN_DMP_DCF_CONSTITUTION.md` (this document) | Business classification, navigation, and orchestration -- how *every activity* declares what business context it belongs to |
+| `VERI_CHAT_GOVERNANCE.md` | VERI's identity, its relationship to VERI Chat, and the VERI-Assisted Communication Protocol |
 
 ---
 
