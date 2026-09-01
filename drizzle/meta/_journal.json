@@ -2430,6 +2430,13 @@
       "when": 1788288100000,
       "tag": "0524_r65_partd_ai_usage_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 347,
+      "version": "7",
+      "when": 1788288200000,
+      "tag": "0525_r65_partd_submission_classification",
+      "breakpoints": true
     }
   ]
 }

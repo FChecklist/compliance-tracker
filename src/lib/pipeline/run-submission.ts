@@ -21,7 +21,7 @@ import { submissions, pipelineTasks, pillUsage, chainHistory } from "@/lib/db/sc
 import { segment, rejoinCandidate, type Segment } from "./segment";
 import { classifyL0, type L0Repo, type ClassificationResult as L0Result } from "./level0";
 import { makeL0Repo, makeChainRepo, resolveRootLabel, logGapRow } from "./repos";
-import { classifySegment, normaliseForMatch, type Classification, type ResolvedFunction } from "./classify";
+import { classifySegment, classifySubmission, normaliseForMatch, type Classification, type ResolvedFunction, type SubmissionClassification } from "./classify";
 import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
 import { runLevel1 } from "./level1";
@@ -60,6 +60,16 @@ export type TaskOutcome = {
 export type RunSubmissionResult = {
   submissionId: string | null; // null when the input produced zero segments
   status: "chat" | "in_progress" | "done" | "partial" | "failed";
+  /**
+   * R65 Part D Phase 4 -- directive §3's submission-level discriminant.
+   * DISTINCT from `status` above: this is intent-shape (how much executable
+   * work was requested), `status` is execution-outcome (what happened when
+   * it ran). See classifySubmission() (classify.ts) for the derivation.
+   * Persisted on `submissions.classification` (drizzle/0525) whenever a real
+   * submission row exists; still returned (not persisted) on the
+   * zero-segment early-return path below, where no row is ever inserted.
+   */
+  classification: SubmissionClassification;
   chatMessages: string[];
   tasks: TaskOutcome[];
   /** segments that resolved to nothing -- one gap_log row each. */
@@ -170,7 +180,11 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   modelCallCount = 0;
   const { segments: segs, flagged } = segment(input.rawInput);
   if (segs.length === 0) {
-    return { submissionId: null, status: "chat", chatMessages: [], tasks: [], gaps: [], flagged: false, l0HitRate: 1, modelCalls: 0 };
+    // No submission row is ever inserted on this path, so there is nothing
+    // to persist classification onto -- returned for shape-consistency only.
+    // Zero segments means zero task-verdicts, i.e. CHAT_ONLY by the same
+    // rule classifySubmission() applies everywhere else.
+    return { submissionId: null, status: "chat", classification: "CHAT_ONLY", chatMessages: [], tasks: [], gaps: [], flagged: false, l0HitRate: 1, modelCalls: 0 };
   }
 
   const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
@@ -355,6 +369,14 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   }
 
   const status = deriveSubmissionStatus(tasks, gaps.length);
+  // R65 Part D Phase 4 -- computed from the SAME resolved-segment verdicts
+  // the execution pass above already walked (excluding merged segments,
+  // same exclusion the execution pass itself applies), not from `tasks[]`:
+  // a CHAT-verdict segment with a write-capable function can still appear
+  // in `tasks[]` as a blocked audit row (see the loop above), and that must
+  // not be counted as requested work. See classify.ts's classifySubmission()
+  // for the exact rule.
+  const classification = classifySubmission(resolved.filter((r) => !r.merged).map((r) => r.classification.verdict));
   // selected_chain is NULL on every one of the 16 rows that existed before
   // R53. When the caller supplied a chain we keep THEIRS -- it is the user's
   // own pill selection and this column is where it belongs. When they did
@@ -362,7 +384,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   // being universally null and Task Master has something to render.
   const selectedChain = (input.selectedChain as object | undefined) ?? (firstDerivedChain as object | null);
   await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-    db.update(submissions).set({ status, selectedChain }).where(eq(submissions.id, submissionId))
+    db.update(submissions).set({ status, classification, selectedChain }).where(eq(submissions.id, submissionId))
   );
 
   const l0HitRate = resolvedCount === 0 ? 0 : l0Hits / resolvedCount;
@@ -371,12 +393,13 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   // hit reads model_calls=0; anything that reached the model cannot hide it.
   console.info(
     `[pipeline] submission=${submissionId} segments=${segs.length} resolved=${resolvedCount} l0_hits=${l0Hits} ` +
-      `l0_hit_rate=${l0HitRate.toFixed(2)} model_calls=${modelCallCount} tasks=${tasks.length} gaps=${gaps.length} status=${status}`
+      `l0_hit_rate=${l0HitRate.toFixed(2)} model_calls=${modelCallCount} tasks=${tasks.length} gaps=${gaps.length} status=${status} classification=${classification}`
   );
 
   return {
     submissionId,
     status,
+    classification,
     chatMessages,
     tasks,
     gaps,
@@ -438,6 +461,18 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     return row.id;
   });
 
+  // R65 Part D Phase 4 -- computed up front (functionWrites() doesn't depend
+  // on validation success) so both the validation-failure return below and
+  // the success/failure return at the end of this function use the SAME
+  // verdict, via classifySubmission([verdict]) -- a pill is always exactly
+  // one segment, so this is never MULTIPLE_TASKS. A validation failure is
+  // still classified as whatever was actually requested (TASK if the
+  // function writes, CHAT_ONLY otherwise) -- one action WAS requested here,
+  // it just failed validation; that's a `status` fact, not a `classification`
+  // fact (see the type's own comment on RunSubmissionResult).
+  const verdict = functionWrites(input.functionId) ? ("task" as const) : ("chat" as const);
+  const classification = classifySubmission([verdict]);
+
   const validationCtx: ValidationContext = {
     candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
     boqLineItemIds: new Set(),
@@ -448,11 +483,12 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
   if (!v.valid) {
     await logGap(base, submissionId, base.rawInput, input.functionId, v.reason);
     await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-      db.update(submissions).set({ status: "failed" }).where(eq(submissions.id, submissionId))
+      db.update(submissions).set({ status: "failed", classification }).where(eq(submissions.id, submissionId))
     );
     return {
       submissionId,
       status: "failed",
+      classification,
       chatMessages: [`I can't do that yet: ${v.reason}`],
       tasks: [],
       gaps: [{ text: base.rawInput, reason: v.reason }],
@@ -486,7 +522,6 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     });
   }
 
-  const verdict = functionWrites(input.functionId) ? ("task" as const) : ("chat" as const);
   if (outcome.success) {
     await updateTask(input.orgId, taskId, "done", outcome.result, undefined);
     // R65 Part C Phase 3: task memory, same as runSubmission()'s own
@@ -503,16 +538,17 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
 
   const status = outcome.success ? "done" : "failed";
   await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-    db.update(submissions).set({ status, selectedChain: derived as unknown as object }).where(eq(submissions.id, submissionId))
+    db.update(submissions).set({ status, classification, selectedChain: derived as unknown as object }).where(eq(submissions.id, submissionId))
   );
 
   console.info(
-    `[pipeline] submission=${submissionId} source=pill function=${input.functionId} model_calls=0 status=${status}`
+    `[pipeline] submission=${submissionId} source=pill function=${input.functionId} model_calls=0 status=${status} classification=${classification}`
   );
 
   return {
     submissionId,
     status,
+    classification,
     chatMessages: outcome.success ? [] : [outcome.error ?? "That did not run."],
     tasks: [
       {

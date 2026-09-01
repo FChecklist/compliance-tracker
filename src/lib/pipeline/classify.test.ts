@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
-import { classifySegment, isQuestion, isImperative, isAcknowledgement, type ClassifyInput } from "./classify";
+import { classifySegment, classifySubmission, isQuestion, isImperative, isAcknowledgement, type ClassifyInput } from "./classify";
 
 // R53 Phase 4. The verdict table, exhaustively.
 //
@@ -194,6 +194,44 @@ describe("isImperative()", () => {
   test("does not fire on a statement", () => {
     expect(isImperative("PP1 is 50% done")).toBe(false);
     expect(isImperative("material nahi aaya")).toBe(false);
+  });
+});
+
+describe("classifySubmission() -- R65 Part D Phase 4's submission-level discriminant", () => {
+  test("zero segments -> CHAT_ONLY", () => {
+    expect(classifySubmission([])).toBe("CHAT_ONLY");
+  });
+
+  test("all 'chat' verdicts (pure question/acknowledgement submission) -> CHAT_ONLY", () => {
+    expect(classifySubmission(["chat"])).toBe("CHAT_ONLY");
+    expect(classifySubmission(["chat", "chat"])).toBe("CHAT_ONLY");
+  });
+
+  test("all 'gap' verdicts (nothing the software could resolve) -> CHAT_ONLY, not a distinct value", () => {
+    expect(classifySubmission(["gap"])).toBe("CHAT_ONLY");
+    expect(classifySubmission(["gap", "gap"])).toBe("CHAT_ONLY");
+  });
+
+  test("a mix of 'chat' and 'gap', with zero 'task' verdicts -> CHAT_ONLY", () => {
+    expect(classifySubmission(["chat", "gap"])).toBe("CHAT_ONLY");
+  });
+
+  test("exactly one 'task' verdict -> TASK", () => {
+    expect(classifySubmission(["task"])).toBe("TASK");
+  });
+
+  test("one 'task' verdict alongside 'chat'/'gap' verdicts is still TASK, not MULTIPLE_TASKS", () => {
+    // classify.ts's own canonical example: "PP1 is 50% done and show me the
+    // budget" -> one TASK (the write) + one CHAT (the read). Only one
+    // executable action was requested.
+    expect(classifySubmission(["task", "chat"])).toBe("TASK");
+    expect(classifySubmission(["task", "gap"])).toBe("TASK");
+    expect(classifySubmission(["chat", "task", "gap"])).toBe("TASK");
+  });
+
+  test("more than one 'task' verdict -> MULTIPLE_TASKS", () => {
+    expect(classifySubmission(["task", "task"])).toBe("MULTIPLE_TASKS");
+    expect(classifySubmission(["task", "chat", "task"])).toBe("MULTIPLE_TASKS");
   });
 });
 

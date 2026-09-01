@@ -210,3 +210,42 @@ export function classifySegment(input: ClassifyInput): Classification {
     message: missingParams.length > 0 ? `I need ${missingParams.join(", ")} before I can look that up.` : null,
   };
 }
+
+// R65 Part D Phase 4 -- THE SUBMISSION-LEVEL DISCRIMINANT. CHAT_ONLY, TASK
+// or MULTIPLE_TASKS.
+//
+// Distinct from BOTH existing submission-level facts:
+//   - submissionStatusEnum (schema.ts) is an EXECUTION-OUTCOME ('done'/
+//     'partial'/'failed'/...) -- it answers "what happened when this ran".
+//   - This answers "how much executable work was requested", independent of
+//     whether it succeeded. A submission whose one task FAILS is still
+//     classification=TASK (one thing was asked for) with status=FAILED
+//     (it didn't work) -- two different axes, never conflated.
+//
+// PURE. Takes the same per-segment verdict array classifySegment() already
+// produces for every submission (R53 Phase 4) -- no new DB read, no new
+// model call, no new I/O.
+//
+// SEMANTICS (R65 Part D directive §3, "gap" resolved per the Phase 0 report
+// §4.3): count only 'task' verdicts -- a function that WRITES or produces
+// an artifact (see classifySegment() above, the "writes or produces an
+// artifact -> TASK" branch). 'chat' and 'gap' verdicts do not count, so:
+//   - a pure question/acknowledgement submission (all 'chat')      -> CHAT_ONLY
+//   - a submission the software could not resolve at all (all 'gap') -> CHAT_ONLY
+//     (no work the software could determine how to do; the gap itself
+//     stays separately visible via gap_log, never silently hidden by this
+//     column -- see 0525's migration header)
+//   - exactly one 'task' verdict                                    -> TASK
+//   - more than one 'task' verdict                                  -> MULTIPLE_TASKS
+// A 'chat' verdict alongside a 'task' verdict (classify.ts's own canonical
+// example, "PP1 is 50% done and show me the budget") does NOT push this to
+// MULTIPLE_TASKS -- only one executable action was requested; the budget
+// read is informational, not a second unit of work.
+export type SubmissionClassification = "CHAT_ONLY" | "TASK" | "MULTIPLE_TASKS";
+
+export function classifySubmission(verdicts: SegmentVerdict[]): SubmissionClassification {
+  const taskCount = verdicts.filter((v) => v === "task").length;
+  if (taskCount === 0) return "CHAT_ONLY";
+  if (taskCount === 1) return "TASK";
+  return "MULTIPLE_TASKS";
+}

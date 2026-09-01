@@ -12914,6 +12914,16 @@ export const pipelineTaskProjectSourceEnum = complianceSchemaDB.enum('pipeline_t
 // request input -- see submissions.status's own column comment below.
 export const submissionStatusEnum = complianceSchemaDB.enum('submission_status', ['chat', 'in_progress', 'done', 'partial', 'failed'])
 
+// R65 Part D Phase 4 (drizzle/0525) -- directive §1-3's chat-ingestion
+// discriminant: "CLASSIFY AS: CHAT_ONLY | TASK | MULTIPLE_TASKS". Distinct
+// axis from submissionStatusEnum above, which answers "what happened when
+// this ran" (execution outcome); this answers "how much executable work was
+// requested" (intent shape), independent of whether it succeeded. See
+// classifySubmission() in src/lib/pipeline/classify.ts for the pure
+// derivation and 0525's own migration header for why 'gap' has no separate
+// value here.
+export const submissionClassificationEnum = complianceSchemaDB.enum('submission_classification', ['CHAT_ONLY', 'TASK', 'MULTIPLE_TASKS'])
+
 export const submissions = complianceSchemaDB.table('submissions', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
@@ -12932,6 +12942,13 @@ export const submissions = complianceSchemaDB.table('submissions', {
   // submissions cheaply; the only writer of this column after INSERT must be
   // the same service function that recomputes it from child task statuses.
   status: submissionStatusEnum('status').notNull().default('in_progress'),
+  // R65 Part D Phase 4 (drizzle/0525) -- DERIVED, same posture as `status`
+  // above: computed once by runSubmission()/runDirectTask() from the
+  // resolved segments' per-segment verdicts (classify.ts's
+  // classifySegment() output, via the new classifySubmission()), never set
+  // independently by request input. NULL on every submission that existed
+  // before this migration -- not backfilled, see 0525's own header.
+  classification: submissionClassificationEnum('classification'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
