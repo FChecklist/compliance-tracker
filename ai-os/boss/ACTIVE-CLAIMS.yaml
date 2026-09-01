@@ -69,6 +69,8 @@ active:
       confirmed via grep, only test files reference supersedeMemoryRecord()),
       drizzle/**, or any other file. No other active entry in this file
       touches memory-service.ts as of this claim.
+  - session_label: "claude-code (interactive, r65-parte-billing-contracts) -- R65 Part E Billing Engine, Phase 2: billing_contracts schema + wiring into resolveActiveBillingRate's §14 priority resolution"
+    claimed_at: "2026-09-02T00:00Z"
     claim: |
       SPEC (memory: veridian_r65_part_e_billing_engine_directive_2026-09-01, directive §14
       commercial-terms priority order; Phase 0 report veridian_r65_part_e_phase0_architecture_
