@@ -16,6 +16,12 @@ export type RecordPromptCacheMetricInput = {
   provider: string;
   model: string;
   usage: LLMUsage;
+  // R65 Part D -- AI Usage Ledger (drizzle/0524, 2026-09-02): optional,
+  // additive -- both current call sites (chat-service.ts, api/help/ask)
+  // already compute this exact value (Date.now() - startedAt) one line
+  // above their own recordOrchestraExecution() call, so passing it through
+  // here is free. Undefined at any future call site that doesn't have it.
+  durationMs?: number;
 };
 
 export function recordPromptCacheMetric(params: RecordPromptCacheMetricInput): void {
@@ -56,6 +62,13 @@ export function recordPromptCacheMetric(params: RecordPromptCacheMetricInput): v
     layerKey: params.layerKey,
     provider: params.provider,
     model: params.model,
+    // R65 Part D -- AI Usage Ledger (drizzle/0524): logTokenUsage() already
+    // reads cacheReadTokens/cacheCreationTokens off `usage` itself (see its
+    // own body) -- params.usage (an LLMUsage) already carries both, so no
+    // separate top-level fields are needed here. An earlier version of this
+    // change passed them redundantly as top-level LogTokenUsageInput
+    // properties, which don't exist on that type (TS2353) -- removed.
     usage: params.usage,
+    durationMs: params.durationMs ?? null,
   });
 }

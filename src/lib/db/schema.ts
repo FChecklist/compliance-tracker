@@ -10076,6 +10076,43 @@ export const tokenUsageLedger = complianceSchemaDB.table('token_usage_ledger', {
   // llm-client.ts's estimateCacheSavingsUsd for the computation.
   cacheSavingsUsd: numeric('cache_savings_usd'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // ── R65 Part D -- AI Usage Ledger extension (drizzle/0524, 2026-09-02) ──
+  // See 0524's own migration header for the full reuse-vs-build decision
+  // and per-column rationale. All additive/nullable except
+  // provider_cost_type/success (both real, populated defaults -- see
+  // below). Nothing here is wired into any dispatch/model-selection path;
+  // this is the persistence layer only.
+  veridianId: text('veridian_id'), // top of directive §27's attribution chain; no writer today, no source of truth exists yet for "which VERIDIAN brand"
+  veridianProductId: text('veridian_product_id'), // NOT the same concept as projects.productId (a client engagement product line) -- see 0524 header
+  chatId: text('chat_id'), // logical ref (conversations/messages id), not a hard FK -- shape varies by scope
+  taskId: text('task_id'), // logical ref (pipeline_tasks id, or a caller-generated run id for ai_team_internal rows), not a hard FK
+  routeId: text('route_id'), // logical ref: platform.mother_router_memory.dispatch_id, when routed through Mother Router (most calls aren't, today)
+  sessionId: text('session_id'), // directive rule #21 ("every AI call has a session_id") -- closes an already-violated rule; no writer yet
+  level: text('level'), // src/lib/ai-router/escalation-tier-catalog.ts's AiEscalationTier ('PERCEPTION'|'REASONING'|'AUTHORITY'), free text like sibling `scope` column -- Phase 6 wiring, not this PR
+  aiRole: text('ai_role'), // directive §19's 9-value WHAT-kind-of-step taxonomy, distinct from roleKey's WHO/job-title taxonomy above -- no writer yet
+  cacheReadTokens: integer('cache_read_tokens'), // named to match prompt_cache_metrics/LLMUsage, not directive's "cache_write_tokens" synonym -- see 0524 header
+  cacheCreationTokens: integer('cache_creation_tokens'),
+  inputCost: numeric('input_cost'), // REAL: llm-client.ts's estimateCostBreakdownUsd(), same MODEL_PRICING table as estimatedCostUsd, split not summed
+  outputCost: numeric('output_cost'),
+  cacheCost: numeric('cache_cost'), // Phase 8 (Cost Engine, R65 Part E) work -- not populated by this PR
+  providerCost: numeric('provider_cost'), // structurally can't be a true per-call actual (provider invoices are monthly aggregates) -- see 0524 header
+  allocatedCost: numeric('allocated_cost'), // Phase 8 rollup output -- not populated by this PR
+  billableCost: numeric('billable_cost'), // Phase 8/Part E billing-engine output -- not populated by this PR
+  // REAL default: every current write call site routes through OpenRouter/
+  // Groq/Cerebras/a direct Anthropic API key, never the local claude-cli
+  // subscription path (confirmed: providers/claude-cli.ts never calls
+  // logTokenUsage()) -- 'METERED_API' is accurate for every row this PR's
+  // code writes, not a placeholder.
+  providerCostType: text('provider_cost_type').notNull().default('METERED_API'), // CHECK-constrained in 0524 to 'SUBSCRIPTION_ALLOCATED' | 'METERED_API'
+  subscriptionCost: numeric('subscription_cost'), // only relevant for provider_cost_type='SUBSCRIPTION_ALLOCATED' rows, which don't exist yet
+  allocationMethod: text('allocation_method'),
+  durationMs: integer('duration_ms'), // REAL at several call sites: llm-client.ts's callLLM() already centrally measures this into LLMResult.durationMs; this PR threads it through
+  // REAL default: every one of this table's 4 real write call sites only
+  // calls logTokenUsage() after a successful LLM completion (a caught
+  // failure never reaches this insert) -- `true` is accurate for every row
+  // this PR's code writes.
+  success: boolean('success').notNull().default(true),
+  failureReason: text('failure_reason'), // no current call site logs a failure path yet -- disclosed gap
 })
 
 // ─── AI Cost Reconciliation (Finance) ─────────────────────────────────────

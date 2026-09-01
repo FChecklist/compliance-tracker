@@ -3,7 +3,7 @@
 // math, no network/DB, cheap to get exactly right and easy to silently
 // break (e.g. a units mix-up between per-1k and per-token pricing).
 import { describe, expect, test, afterEach } from "bun:test"
-import { estimateCostUsd, estimateCacheSavingsUsd, callLLM } from "./llm-client"
+import { estimateCostUsd, estimateCostBreakdownUsd, estimateCacheSavingsUsd, callLLM } from "./llm-client"
 
 describe("estimateCostUsd", () => {
   test("computes prompt+completion cost for a known model", () => {
@@ -39,6 +39,42 @@ describe("estimateCostUsd", () => {
   // as null.
   test("has pricing registered for the newly-registered Groq vision model (meta-llama/llama-4-scout-17b-16e-instruct)", () => {
     expect(estimateCostUsd("meta-llama/llama-4-scout-17b-16e-instruct", { promptTokens: 1000, completionTokens: 1000 })).not.toBeNull()
+  })
+})
+
+// R65 Part D -- AI Usage Ledger (drizzle/0524, 2026-09-02): regression
+// tests for the input/output cost split that feeds token_usage_ledger's
+// new input_cost/output_cost columns via token-usage-service.ts.
+describe("estimateCostBreakdownUsd", () => {
+  test("splits prompt and completion cost for a known model", () => {
+    // gpt-4o-mini: promptPer1k 0.00015, completionPer1k 0.0006
+    const breakdown = estimateCostBreakdownUsd("gpt-4o-mini", { promptTokens: 1000, completionTokens: 1000 })
+    expect(breakdown).not.toBeNull()
+    expect(breakdown!.inputCost).toBeCloseTo(0.00015, 10)
+    expect(breakdown!.outputCost).toBeCloseTo(0.0006, 10)
+  })
+
+  test("inputCost + outputCost equals estimateCostUsd's single blended figure exactly, for the same call", () => {
+    const usage = { promptTokens: 12345, completionTokens: 6789 }
+    const breakdown = estimateCostBreakdownUsd("claude-sonnet-5", usage)!
+    const blended = estimateCostUsd("claude-sonnet-5", usage)!
+    expect(breakdown.inputCost + breakdown.outputCost).toBeCloseTo(blended, 10)
+  })
+
+  test("returns null for an unrecognized model rather than guessing", () => {
+    expect(estimateCostBreakdownUsd("some-model-nobody-registered", { promptTokens: 100, completionTokens: 100 })).toBeNull()
+  })
+
+  test("returns {0, 0} (not null) for zero-token usage on a known model", () => {
+    const breakdown = estimateCostBreakdownUsd("gpt-4o-mini", { promptTokens: 0, completionTokens: 0 })
+    expect(breakdown).toEqual({ inputCost: 0, outputCost: 0 })
+  })
+
+  test("returns {0, 0} for the free OpenRouter model variant", () => {
+    expect(estimateCostBreakdownUsd("meta-llama/llama-3.3-70b-instruct:free", { promptTokens: 100000, completionTokens: 100000 })).toEqual({
+      inputCost: 0,
+      outputCost: 0,
+    })
   })
 })
 

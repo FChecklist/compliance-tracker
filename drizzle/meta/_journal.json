@@ -2423,6 +2423,13 @@
       "when": 1788288000000,
       "tag": "0523_r65_partc_phase2_memory_embedding",
       "breakpoints": true
+    },
+    {
+      "idx": 346,
+      "version": "7",
+      "when": 1788288100000,
+      "tag": "0524_r65_partd_ai_usage_ledger",
+      "breakpoints": true
     }
   ]
 }

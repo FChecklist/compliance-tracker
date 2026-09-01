@@ -151,6 +151,8 @@ export async function POST(request: NextRequest) {
       // (no real callLLM() happened), and the `defenseResult.blocked` check
       // above already returned in that case.
       provider: modelConfig.provider, model: modelConfig.model, usage: usage!,
+      // R65 Part D -- AI Usage Ledger (drizzle/0524): same startedAt already used for recordOrchestraExecution's durationMs above.
+      durationMs: Date.now() - startedAt,
     });
 
     if (!gateResult.passed) {

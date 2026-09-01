@@ -142,6 +142,12 @@ export async function runRoleQualityCheck(
         provider: "openrouter",
         model: role.model,
         usage: result.usage,
+        // R65 Part D -- AI Usage Ledger (drizzle/0524): runId is a real,
+        // already-generated per-run identifier -- the closest real analog
+        // this call site has to a "task" in the ledger's attribution
+        // sense. result.durationMs is centrally measured by callLLM().
+        taskId: runId,
+        durationMs: result.durationMs,
       })
     } catch (error) {
       errors.push(`${evalCase.name}: ${error instanceof Error ? error.message : String(error)}`)
