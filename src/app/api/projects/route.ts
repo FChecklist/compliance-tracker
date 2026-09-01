@@ -8,6 +8,8 @@ export async function GET() {
   if (!orgId) return NextResponse.json({ projects: [] })
 
   try {
+    // R48 gap-closure (2026-08-30, F002) + Task #47 Private/Public gate --
+    // see listAllProjectsForOrg's own comment for the full reasoning on both.
     const result = await listAllProjectsForOrg({ orgId }, dbUser)
     return NextResponse.json({
       projects: result.map((p) => ({

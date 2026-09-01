@@ -61,6 +61,12 @@ async function setupMocks(runRoleResponses?: string[]) {
         content,
         usage: { promptTokens: 300, completionTokens: 200 },
         role: { roleKey, team: "ENGINEERING", title: "Full Stack Developer", model: "z-ai/glm-5.2", promptKey: "ai_team.fullstack_developer" },
+        // VERIDIAN Review Framework gap-closure (2026-08-15, A/B / shadow-
+        // testing capability): runRole()'s real return shape now always
+        // includes modelVariant -- "primary" here since none of these
+        // tests configure an active rollout (resolveDispatchModel below is
+        // stubbed to always resolve "primary" too, matching).
+        modelVariant: "primary" as const,
       }
     }),
     runGuardrailLevel: mock(async () => []),
@@ -68,6 +74,12 @@ async function setupMocks(runRoleResponses?: string[]) {
 
   mock.module("@/lib/ai-team/roster-overrides", () => ({
     resolveEffectiveModel: mock(async () => "z-ai/glm-5.2"),
+    // A/B / shadow-testing gap-closure: the route now calls
+    // resolveDispatchModel() (not resolveEffectiveModel()) for its tier
+    // pre-flight check. None of these tests configure a rollout, so this
+    // always resolves the same "primary" model the runRole() stub above
+    // already returns.
+    resolveDispatchModel: mock(async () => ({ model: "z-ai/glm-5.2", variant: "primary" as const })),
   }))
 
   mock.module("@/lib/ai-router/mother-router", () => ({
@@ -79,6 +91,17 @@ async function setupMocks(runRoleResponses?: string[]) {
     // dispatch on the platform key exactly as before -- the only thing this
     // stub changes is the route's branch (no-tenant-override path).
     resolveTenantAiConfig: mock(async () => null),
+    // Ground-up persistent memory (ai-os gap mother-router-roster-memory,
+    // 2026-07-26): the route now also imports recordMotherRouterOutcome --
+    // `mock.module` replaces the WHOLE module, so any real export the route
+    // imports that isn't listed here fails with a real
+    // "Export named ... not found" SyntaxError at import time, before any
+    // test body even runs (caught for real by CI's Unit Tests job on this
+    // rebase-sweep, not part of the original PR's own diff). No-op stub --
+    // this call is fire-and-forget (`void recordMotherRouterOutcome(...).catch(...)`
+    // at the call site) and no test here asserts on mother_router_memory
+    // rows.
+    recordMotherRouterOutcome: mock(async () => {}),
   }))
 
   mock.module("@/lib/activity-log-service", () => ({
@@ -112,8 +135,20 @@ async function setupMocks(runRoleResponses?: string[]) {
           }),
         },
       },
-      insert: mock(() => ({
+      insert: mock((table: unknown) => ({
         values: mock((v: Record<string, unknown>) => {
+          // Ground-up persistent memory (ai-os gap
+          // mother-router-roster-memory, 2026-07-26): the route now also
+          // fire-and-forget inserts into platform.ai_agent_memory (a
+          // *different* real table object than taskRegister, both spread
+          // in from the real module above -- see the `real` import). That
+          // insert's own value shape (roleId/taskId/outcome/...) doesn't
+          // match TaskRegisterRow, and without this guard it would
+          // silently clobber the taskRegister-keyed `rows` map this mock
+          // shares with the real (unmocked) task-register-service.ts,
+          // corrupting the multi-step L2 workflow test below. Only the
+          // real `taskRegister` table writes into `rows` here.
+          if (table !== real.taskRegister) return Promise.resolve()
           rows.set(v.taskId as string, { taskId: v.taskId as string, status: v.status as string, executionReport: null, instructionContract: v.instructionContract })
           return Promise.resolve()
         }),

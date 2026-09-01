@@ -1,3 +1,8 @@
+// Shared ServiceContext/ServiceActor/ReadContext types every
+// src/lib/services/*.ts function takes as its first argument -- the one
+// file in this directory every other service file transitively depends on,
+// so a change here ripples everywhere. See each type's own comment below
+// for why it's shaped the way it is.
 import type { users } from "@/lib/db"
 
 // Shared context every service function takes -- deliberately mirrors

@@ -64,3 +64,39 @@ export function lookupErrorCode(code: string | undefined | null): ErrorCodeEntry
   if (!code) return undefined
   return ERROR_CODES[code]
 }
+
+// R48 gap-closure (2026-08-30, F056: "Cold start does not show a bare
+// 'Failed to fetch'"). The common client-side pattern across this app's
+// (app)/ pages is:
+//   try {
+//     const res = await fetch(...)
+//     if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Failed")
+//     ...
+//   } catch (err) {
+//     toast.error(err instanceof Error && err.message ? err.message : "<generic fallback>")
+//   }
+// That correctly surfaces a REAL backend error (F055) when the server
+// responded at all. But when the browser's own fetch() call itself throws
+// -- no connection, DNS failure, a genuine cold start before the dev/prod
+// server is warm -- the thrown error is a raw `TypeError` whose .message is
+// the literal, unhelpful string "Failed to fetch" (Chromium/Firefox) or
+// "Load failed" (Safari). Because that IS an Error with a non-empty
+// .message, the existing ternary picks it and shows the raw browser string
+// verbatim -- exactly the bug this requirement targets. This function is a
+// drop-in replacement for the `err instanceof Error && err.message ? ... `
+// ternary: same signature (error, fallback), but substitutes a friendly
+// message for the known raw-network-failure strings instead of passing them
+// through. Not yet threaded through every catch block in the app (that is
+// a wider, separate sweep) -- applied first to the BOQ create flow
+// (scope/page.tsx) that this requirement's page_path names.
+const RAW_NETWORK_FAILURE_MESSAGES = new Set(["Failed to fetch", "Load failed", "NetworkError when attempting to fetch resource."])
+
+export function friendlyErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message) {
+    if (RAW_NETWORK_FAILURE_MESSAGES.has(err.message)) {
+      return "Couldn't reach the server -- check your connection and try again."
+    }
+    return err.message
+  }
+  return fallback
+}

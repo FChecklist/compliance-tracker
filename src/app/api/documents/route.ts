@@ -10,10 +10,26 @@ import { listDocuments, markSupersededVersion, ServiceError } from "@/lib/servic
 import { classifyBusinessObjectType } from "@/lib/business-object-classifier"
 import { applyClassificationWithDb } from "@/lib/services/document-classification-service"
 import { checkAndUnlockAchievements } from "@/lib/services/veri-reward-service"
+import { createSourceObject } from "@/lib/crr/capture"
 import { and, eq, sql } from "drizzle-orm"
 
 const BUCKET = "compliance-documents"
 const MAX_SIZE_BYTES = 25 * 1024 * 1024 // matches the bucket's file_size_limit
+
+// CRR-089 (P3-BRIDGE): this route's fire-and-forget extraction (after(),
+// kept per CRR-085) now runs the full chunk+embed bridge (CRR-079/081/082)
+// for every text-extractable upload, not just the compliance-field LLM
+// call -- a real budget is needed instead of the platform's small implicit
+// default. Team plan confirmed "pro" via the Vercel MCP (list_teams). Could
+// NOT confirm via any available tool whether this specific project has
+// Fluid Compute toggled on (that's a project-level dashboard setting, not
+// surfaced by get_project, and neither vercel.json nor next.config.ts
+// declares `fluid: true`) -- so this deliberately uses 300s, the ceiling
+// that is valid for a Pro-plan function EITHER way, rather than assuming
+// the 800s ceiling Fluid Compute would allow without verifying it. If a
+// human confirms Fluid Compute is on for this project, this can safely be
+// raised toward 800.
+export const maxDuration = 300
 
 // service-role client, used ONLY server-side after requireAuth() has already
 // verified the caller -- the bucket itself has no anon/authenticated storage
@@ -78,6 +94,47 @@ export async function POST(request: NextRequest) {
     const objectPath = `${orgId}/${createId()}-${sanitizeFileName(file.name)}`
     const bytes = new Uint8Array(await file.arrayBuffer())
 
+    // CRR-086: the one authorized classification call for this upload --
+    // computed once, reused for both source_object.business_object_type
+    // below and the response's own businessObjectType field (previously
+    // re-derived a second time from result.fileType/result.name after the
+    // insert). Minor, disclosed behavior refinement: the fileName fallback
+    // signal is now the real uploaded file's own name (file.name) rather
+    // than the human-editable `label` (result.name, from the optional
+    // "name" form field) -- mimeType is checked first either way
+    // (classifyBusinessObjectType's own fallback-only comment on fileName),
+    // so this only changes anything when mimeType is missing/generic AND a
+    // caller renamed the file via the "name" field to something whose
+    // extension no longer matches the real upload -- the real file's own
+    // name is the more honest signal for what the bytes actually are.
+    const businessObjectType = classifyBusinessObjectType({ mimeType: file.type, fileName: file.name })
+
+    // CRR-084: createSourceObject FIRST -- captures these exact bytes into
+    // compliance.source_object (its own sha256-hash + upload + insert,
+    // extract_status=PENDING) before this route does anything else with
+    // them. Deliberately a SEPARATE upload from the admin.storage.upload
+    // just below (disclosed, not accidental): source_object's own storage
+    // path/bucket-object is independent of documents.fileUrl's -- capture.ts
+    // (CRR-078) intentionally has no return value beyond the row id, so
+    // there is no path here to hand to documents.fileUrl even if this route
+    // wanted to reuse the same object. Consolidating the two into a single
+    // upload is out of this point's own what_to_do (it only asks to call
+    // createSourceObject, persist the id, and pass it to extraction) and is
+    // left for whichever later CRR point actually retires documents.fileUrl
+    // in favor of source_object.storage_path as the one real file location.
+    const sourceObjectId = await createSourceObject({
+      orgId,
+      clientId,
+      origin: "upload",
+      mimeType: file.type || null,
+      bytes,
+      title: label,
+      linkedEntityType,
+      linkedEntityId,
+      businessObjectType,
+      createdById: dbUser.id,
+    })
+
     const admin = getStorageAdminClient()
     const { error: uploadError } = await admin.storage.from(BUCKET).upload(objectPath, bytes, {
       contentType: file.type || "application/octet-stream",
@@ -123,6 +180,12 @@ export async function POST(request: NextRequest) {
         versionNumber,
         isLatestVersion: true,
         metadata: metadata ?? undefined,
+        // CRR-084: the durable link from this documents row to its
+        // compliance.source_object capture, so a later reader (the CRR-090
+        // catch-up worker, retrieval-citation lookups) can go from "the
+        // document a user sees" to "the chunks/embeddings behind it"
+        // without re-deriving anything.
+        sourceObjectId,
       }).returning()
 
       await logActivity({
@@ -181,7 +244,15 @@ export async function POST(request: NextRequest) {
     // Meeting Intelligence (see veri-meeting-service.ts).
     if (isDocumentExtractable(file.type)) {
       const fileBase64 = Buffer.from(bytes).toString("base64")
-      after(() => extractDocumentContent({ orgId, userId: dbUser.id, documentId: result.id, fileBase64, mimeType: file.type }).catch((err) =>
+      // CRR-084: sourceObjectId/businessObjectType now passed straight
+      // through -- chunkAndEmbedSourceObject (document-extraction-
+      // service.ts) uses ctx.sourceObjectId instead of creating its own
+      // stand-in source_object row (its own header comment on this was the
+      // "not yet done as of this point's own closure" -- now done).
+      after(() => extractDocumentContent({
+        orgId, userId: dbUser.id, documentId: result.id, fileBase64, mimeType: file.type,
+        sourceObjectId, businessObjectType,
+      }).catch((err) =>
         console.error("Fire-and-forget document extraction failed to even start:", err)
       ))
     }
@@ -190,9 +261,7 @@ export async function POST(request: NextRequest) {
       id: result.id,
       name: result.name,
       fileType: result.fileType,
-      // U-D26.B3.S1: derived, never persisted -- the one authorized place
-      // this response looks at fileType/name, so nothing downstream needs to.
-      businessObjectType: classifyBusinessObjectType({ mimeType: result.fileType, fileName: result.name }),
+      businessObjectType,
       fileSize: result.fileSize,
       createdAt: result.createdAt.toISOString(),
     }, { status: 201 })

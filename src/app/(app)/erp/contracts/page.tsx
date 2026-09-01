@@ -287,7 +287,7 @@ export default function ErpContractsPage() {
                           {detail.obligations.map((o) => (
                             <li key={o.id} className="flex items-center justify-between">
                               <span className={o.status === "completed" ? "line-through text-ct-muted" : ""}>{o.description} (due {o.dueDate})</span>
-                              {o.status !== "completed" && <Button size="icon" variant="ghost" onClick={() => completeObligation(o.id)}><CheckCircle2 className="w-4 h-4 text-ct-teal" /></Button>}
+                              {o.status !== "completed" && <Button size="icon" variant="ghost" aria-label="Mark obligation complete" onClick={() => completeObligation(o.id)}><CheckCircle2 className="w-4 h-4 text-ct-teal" /></Button>}
                             </li>
                           ))}
                         </ul>

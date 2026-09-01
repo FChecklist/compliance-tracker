@@ -1,0 +1,32 @@
+-- E-128: nothing previously stopped createBoqRevision() from being called
+-- twice for the same parent -- a double-submit / retried request would each
+-- read the same parent.version and both insert version = parent.version + 1,
+-- giving one parent TWO sibling children that collide on version (verified
+-- live 2026-08-25: parent construction_boqs.id='n1aowsmdxp0xim4zb394zxb2'
+-- had exactly this -- two "version 2" children 13 seconds apart, both empty
+-- drafts, zero downstream construction_work_progress_entries references).
+--
+-- Deliberately NOT a UNIQUE(project_id, version) constraint -- (project_id,
+-- version) is NOT globally unique by design: a project can legitimately
+-- hold two or more INDEPENDENT (non-revision-chain, parent_boq_id IS NULL)
+-- BOQs that each start at version 1 (E-116/a13cf547 -- e.g. "Villa 21 -
+-- Original BOQ" and "Sumeet Sample Scope", both real, both version 1;
+-- Oakwood Residence carries dozens more via its own e2e suite). Every
+-- "latest BOQ" reader already resolves that tie deterministically (version
+-- DESC, createdAt DESC -- listBoqs()/scopeReport()/etc.), so that pattern is
+-- untouched by this migration (a plain UNIQUE index never conflicts on
+-- multiple NULLs).
+--
+-- The real invariant a revision CHAIN depends on is that each parent
+-- supersedes into AT MOST ONE child -- so parent_boq_id itself is the
+-- correct column to make UNIQUE.
+--
+-- One pre-existing violation was cleaned up first (not via a raw UPDATE to
+-- fake this constraint passing -- a DELETE of genuinely inert duplicate
+-- debris: the later of the two version-2 siblings above, id
+-- 'c5n3uawxb0s6z43t3jder2e3', status draft, 2 line items, zero rows in
+-- construction_work_progress_entries referencing it or its line items,
+-- i.e. removing it discards nothing any real user or downstream record
+-- depends on).
+ALTER TABLE "compliance"."construction_boqs"
+  ADD CONSTRAINT "construction_boqs_parent_boq_id_unique" UNIQUE ("parent_boq_id");

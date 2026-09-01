@@ -67,10 +67,35 @@ export function canReadProject(
   return project.leadUserId === dbUser.id
 }
 
-/** Org-wide, not scoped to a single product -- the VERIDIAN AI PMS project picker (Wave 27) needs every project regardless of which product it sits under. Filters out 'private' projects the requesting user isn't authorized to read (see canReadProject()). */
+/**
+ * Org-wide, not scoped to a single product -- the VERIDIAN AI PMS project picker (Wave 27) needs every project regardless of which product it sits under.
+ *
+ * R48 gap-closure (2026-08-30, F002: "A project manager sees only projects
+ * she is assigned to"). This previously returned every active project in
+ * the org unconditionally, for every caller -- a real, confirmed gap: a
+ * "manager"-ranked user (this schema's only per-project assignment is
+ * `projects.leadUserId` -- there is no separate project-membership table)
+ * saw every other manager's projects too. Narrows to projects that user
+ * leads for the exact "manager"/"senior_professional" ranks this
+ * business_rule names; branch_manager/admin/veridian_admin (rank >=4, the
+ * real oversight tier) deliberately keep full org-wide visibility, and
+ * member/viewer are left unfiltered too since this schema has no
+ * project-membership concept for them beyond leadUserId (a real, documented
+ * limitation -- see R48_PROGRESS.md's F002 entry).
+ *
+ * Task #47 (PM feature-parity gap analysis): also filters out 'private'
+ * projects the requesting user isn't authorized to read (see
+ * canReadProject()) -- applied on top of the above DB-level narrowing.
+ */
 export async function listAllProjectsForOrg(ctx: { orgId: string }, dbUser: typeof users.$inferSelect | null) {
+  const scopeToLead = dbUser && (dbUser.role === "manager" || dbUser.role === "senior_professional") ? dbUser.id : undefined
   const rows = await withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.projects.findMany({ where: eq(projects.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.name) })
+    db.query.projects.findMany({
+      where: scopeToLead
+        ? and(eq(projects.orgId, ctx.orgId), eq(projects.leadUserId, scopeToLead))
+        : eq(projects.orgId, ctx.orgId),
+      orderBy: (t, { asc }) => asc(t.name),
+    })
   )
   return rows.filter((p) => canReadProject(p, dbUser))
 }

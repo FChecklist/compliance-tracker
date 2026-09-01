@@ -1,0 +1,95 @@
+# VERIDIAN Review Framework gap-closure (task-20260718-115004-retry-1--
+# ai-engineering-quality--logic), [Low] Deterministic Logic Coverage: "no
+# universal enforcement that a deterministic alternative was considered
+# before adding a new LLM call site." Recommended approach (the finding's
+# own words): "Periodically audit new LLM-call sites to check whether a
+# deterministic alternative was considered first."
+#
+# This is the coverage manifest for scripts/check-deterministic-first-
+# audit.mjs. Every source file that calls callLLM()/callLLMJson()/
+# callLLMVision() (src/lib/llm-client.ts) must appear in exactly one of the
+# two lists below -- `sites` (a real audit note: what deterministic
+# alternative was considered and why AI was still the right call, or why
+# none exists) or `exempted` (a real, specific reason auditing doesn't
+# apply -- e.g. the file IS llm-client.ts itself, the provider-agnostic
+# wrapper, not a call site making a business decision to reach for AI). A
+# new LLM-call-site file that appears in neither list fails the check --
+# same enforcement class as check-asset-registry-coverage.mjs and
+# check-guardrail-presence.mjs (a reviewable-diff guarantee via PR/CI, not
+# a runtime-unbypassable lock).
+#
+# The check only evaluates NEW or MODIFIED files relative to the base
+# branch (same "don't retroactively fail CI on pre-existing debt" posture
+# as check-route-error-handling.mjs / check-migration-collision.mjs). Every
+# LLM-call-site file that existed before this manifest was introduced is
+# grandfathered in below with a real, specific note about what it does --
+# this is a one-time census pass (2026-08-15), not a generic placeholder;
+# each entry was read, not guessed. A future session/task revisiting a
+# grandfathered file for unrelated reasons is not required to re-justify it
+# here, but is encouraged to replace the grandfather note with a fuller one
+# if they already did the reading.
+#
+# Detection is intentionally text-level (does the file call one of the 3
+# LLM entrypoints), same honest-limitation framing as this repo's other
+# check-*.mjs scripts: it does not, and cannot, mechanically verify that a
+# deterministic alternative was *actually considered* -- only that someone
+# wrote down, in a reviewable PR diff, a real answer for this file rather
+# than staying silent. See VERIDIAN_DMP_DCF_CONSTITUTION.md's SF-01
+# ("dispatch order: deterministic software path first, AI fallback only if
+# no deterministic path exists" -- ai-os/CONSTITUTION.yaml software_first)
+# and ai-os/AI_ENGINEERING_POLICY.yaml's engineering_priority_order for the
+# standing policy this operationalizes.
+
+sites:
+  - file: "src/app/api/help/ask/route.ts"
+    note: "Its `callLLM(` matches are comments (the route was refactored, per its own 2026-07-26 header note, to go through runDefenseInDepth() in prompt-security/defense-in-depth.ts instead of calling callLLM() directly) -- kept in `sites` since text-detection still flags it. The underlying task (free-text help-desk Q&A over the product's own docs) is inherently natural-language with no deterministic alternative for the answer-synthesis step; retrieval (which docs to surface) is deterministic embeddings/keyword search, only the final synthesis reaches the LLM (via the defense-in-depth wrapper)."
+  - file: "src/lib/ai-reply-gate.ts"
+    note: "Gate itself is deterministic (regex/keyword checks against a reply's text to block false completion claims -- VERIDIAN_AI_CONSTITUTION.md HAB-03); the callLLM() reference here is in a comment describing what it gates, not a live call this file makes. Kept in `sites` rather than `exempted` since a future edit could add a real call without anyone re-checking this file's classification."
+  - file: "src/lib/ai-team/team-service.ts"
+    note: "Dispatches AI Team role work (src/lib/ai-team/roster.ts) -- by definition the task IS 'have an AI agent do this', so there is no deterministic alternative at this call site; the deterministic-first decision already happened one layer up (model-tier-eligibility.ts's tier check on the dispatch itself, task-tightening.ts's brief validation before this is ever reached)."
+  - file: "src/lib/ingest/extractor.ts"
+    note: "Document text/structure extraction from uploaded files where deterministic parsing (pdf-parse/mammoth/etc.) is tried first and the LLM is the fallback for unstructured/free-form content deterministic parsing can't handle -- matches SF-01's own dispatch-order rule directly."
+  - file: "src/lib/llm-response-cache.ts"
+    note: "Caches LLM responses (keyed on prompt hash) to avoid re-calling the model for a repeat request -- itself a deterministic-first optimization (a cache hit is a deterministic software path replacing what would otherwise be a repeat AI call), not a new AI call site in the sense this audit is about."
+  - file: "src/lib/monitors/dispatch-completion-monitor.ts"
+    note: "Monitoring order documented at ai-os/CONSTITUTION.yaml's monitoring rule: deterministic software monitor first, then a narrow low-tier AI monitor, escalation only after. The LLM call here is that already-deliberate second stage, not a place a deterministic check was skipped."
+  - file: "src/lib/orchestra-model-resolver.ts"
+    note: "The model-routing resolver itself (which provider/tier to call once the decision to call AI at all has already been made elsewhere) -- infra layer, not a business call site choosing AI over software."
+  - file: "src/lib/prompt-compiler/prompt-portability.ts"
+    note: "The callLLM() reference here is a comment noting the real call site stays in llm-client.ts, not a live call this file makes -- text-detection still flags it, kept in `sites` rather than `exempted` for the same reason as ai-reply-gate.ts (a future edit could add a real call without anyone re-checking this file's classification)."
+  - file: "src/lib/prompt-security/defense-in-depth.ts"
+    note: "Layer 4 of the prompt-injection defense stack (src/lib/prompt-security/) -- an LLM-based classifier judging whether input looks like an injection attempt, deliberately AI because the thing being detected (adversarial natural-language phrasing) has no reliable deterministic signature; layers 1-3 in the same directory are the deterministic-first stages (regex/heuristic sanitization) that run before this one."
+  - file: "src/lib/prompt-security/layer1-input-sanitization.ts"
+    note: "Despite the name suggesting pure regex, this layer's own header documents an LLM-assisted fallback for ambiguous cases the deterministic sanitizer patterns don't confidently classify -- deterministic path runs first, matches SF-01."
+  - file: "src/lib/prompt-security/layer3-runtime-guardrails.ts"
+    note: "Runtime output-guardrail layer -- deterministic pattern checks run first (per this directory's own layer numbering), LLM call is the narrow fallback for output that doesn't match a known-bad deterministic signature."
+  - file: "src/lib/services/ai-report-builder-service.ts"
+    note: "Natural-language 'build me a report describing X' request -- the report DEFINITION step (what fields/filters) is inherently free-text intent parsing with no deterministic alternative; the actual report EXECUTION once defined runs through the deterministic report-catalog/query engine, not this file."
+  - file: "src/lib/services/capability-audit-service.ts"
+    note: "The callLLMJson() reference here is a comment describing a pattern used elsewhere (instruction-mismatch-audit.ts), not a live call this file makes today. Kept in `sites` for the same reason as ai-reply-gate.ts/prompt-portability.ts above (text-detection still flags it); if a real call is added later, the underlying task is judgment-shaped (Auditor -> Higher-AI escalation, ai-os/CONSTITUTION.yaml SF-02, 'does a capability exist for this need') with no deterministic alternative by that rule's own design."
+  - file: "src/lib/services/chat-service.ts"
+    note: "VERI Chat's free-text conversational reply generation -- the core product surface that IS natural-language dialogue; deterministic pre-call signals (response-vocabulary-gate.ts, ai-reply-gate.ts) run around this call, not instead of it, since the underlying task (respond to an arbitrary user message) has no deterministic substitute."
+  - file: "src/lib/services/communication-drafting-service.ts"
+    note: "Drafts free-text outbound communications (task updates/reminders per VERI_CHAT_GOVERNANCE.md's Communication engine) for human approval before send -- drafting natural-language text has no deterministic alternative; the approval gate (not this file) is the deterministic safety control."
+  - file: "src/lib/services/construction-ai-service.ts"
+    note: "Vertical-specific AI assistance (construction domain free-text queries/summaries) -- same shape as chat-service.ts, natural-language task with no deterministic substitute for the language-generation step itself."
+  - file: "src/lib/services/dialogue-script-executor.ts"
+    note: "Executes VERI's structured dialogue scripts; LLM call is for the free-text branches a script's deterministic state machine can't fully resolve on its own (matches VERI's Conversation Object pattern -- deterministic category/template resolution first, LLM fill-in only where the script leaves a genuinely open natural-language slot)."
+  - file: "src/lib/services/document-extraction-service.ts"
+    note: "Vision-model document extraction (callLLMVision(), per PLATFORM_STRATEGY.md's Wave note on this file) -- deliberately scoped to content deterministic OCR/parsing can't reliably handle (image uploads); text-based documents route through src/lib/ingest/extractor.ts's deterministic-first path instead."
+  - file: "src/lib/services/fm-register-digitization-service.ts"
+    note: "Digitizes scanned/free-form facilities-management register content into structured rows -- same class as document-extraction-service.ts, a vision/OCR task with no deterministic alternative for genuinely unstructured source material."
+  - file: "src/lib/services/prompt-eval-service.ts"
+    note: "Runs prompt/model evaluation (AI011 in COMPARISON_CSV_3_GAP_ANALYSIS.md's benchmarking-harness gap) -- the LLM call here IS the thing under test/being scored, not a product decision that could instead be deterministic logic."
+
+exempted:
+  - file: "src/lib/llm-client.ts"
+    reason: "The provider-agnostic LLM wrapper itself (callLLM/callLLMJson/callLLMVision are DEFINED here) -- not a call site choosing AI over a deterministic alternative, it's the shared infrastructure every real call site in `sites` above routes through."
+  - file: "src/lib/db/schema.ts"
+    reason: "One comment (near the software_team_agent_reports-adjacent table definitions) describing resolveModelConfig() -> callLLM() as background for why a column exists -- schema.ts defines DB tables, it makes no LLM call itself."
+  - file: "src/lib/prompt-normalizer.ts"
+    reason: "One comment noting this module's token-reduction work lowers the cost of a downstream callLLM() call -- this file itself only does deterministic text normalization, no LLM call."
+  - file: "src/lib/prompt-security/types.ts"
+    reason: "Pure TypeScript type/interface definitions for the prompt-security module (shared by layer1/layer3/defense-in-depth.ts, which ARE real call sites, listed above) -- one comment references a 'real callLLM() result' shape, no call in this file itself."
+  - file: "src/lib/response-vocabulary-gate.ts"
+    reason: "Deterministic keyword/vocabulary gate on AI-generated reply text (same family as ai-reply-gate.ts) -- one comment references what callLLM() in ai-team/team-service.ts produces as the input this gate checks, no call in this file itself."

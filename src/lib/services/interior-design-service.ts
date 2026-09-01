@@ -41,6 +41,33 @@ export async function listMoodBoards(ctx: { orgId: string }, projectId: string) 
   })
 }
 
+// Real-screen conversion (2026-08-30): single-board lookup + real update
+// for the Mood Board Object Page -- neither existed before (only the list,
+// status-change, and item add/remove functions did).
+export async function getMoodBoard(ctx: { orgId: string }, moodBoardId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const board = await db.query.interiorMoodBoards.findFirst({ where: and(eq(interiorMoodBoards.id, moodBoardId), eq(interiorMoodBoards.orgId, ctx.orgId)) })
+    if (!board) throw new ServiceError("Mood board not found", 404)
+    const items = await db.query.interiorMoodBoardItems.findMany({ where: eq(interiorMoodBoardItems.moodBoardId, moodBoardId), orderBy: (t, { asc }) => asc(t.sortOrder) })
+    return { ...board, items }
+  })
+}
+
+export async function updateMoodBoard(
+  ctx: { orgId: string },
+  moodBoardId: string,
+  patch: Partial<{ title: string; roomOrArea: string | null; description: string | null }>
+) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.interiorMoodBoards.findFirst({ where: and(eq(interiorMoodBoards.id, moodBoardId), eq(interiorMoodBoards.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Mood board not found", 404)
+    if (patch.title !== undefined && !patch.title.trim()) throw new ServiceError("title cannot be empty", 400)
+
+    const [row] = await db.update(interiorMoodBoards).set(patch).where(eq(interiorMoodBoards.id, moodBoardId)).returning()
+    return row
+  })
+}
+
 export async function addMoodBoardItem(ctx: { orgId: string }, moodBoardId: string, input: { documentId?: string; label?: string; notes?: string }) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const board = await db.query.interiorMoodBoards.findFirst({ where: and(eq(interiorMoodBoards.id, moodBoardId), eq(interiorMoodBoards.orgId, ctx.orgId)) })
@@ -110,6 +137,18 @@ export async function updateFfeItemDimensions(ctx: { orgId: string }, itemId: st
       depthCm: dims.depthCm != null ? String(dims.depthCm) : undefined,
       heightCm: dims.heightCm != null ? String(dims.heightCm) : undefined,
     }).where(and(eq(interiorFfeItems.id, itemId), eq(interiorFfeItems.orgId, ctx.orgId))).returning()
+    if (!row) throw new ServiceError("FF&E item not found", 404)
+    return row
+  })
+}
+
+// Real-screen conversion (2026-08-30, PROJEXA FF&E Object Page): no
+// getFfeItem() existed -- only list-by-project. A direct single-row lookup
+// (not listFfeItems()+filter, which needs a projectId the caller may not
+// have yet) so a detail route can resolve an item from its id alone.
+export async function getFfeItem(ctx: { orgId: string }, itemId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const row = await db.query.interiorFfeItems.findFirst({ where: and(eq(interiorFfeItems.id, itemId), eq(interiorFfeItems.orgId, ctx.orgId)) })
     if (!row) throw new ServiceError("FF&E item not found", 404)
     return row
   })

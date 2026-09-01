@@ -7,7 +7,7 @@
 // exists in this environment).
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { predecessorIdsOf, calculateProjectRollupPercentage } from "./pms-issue-service"
+import { predecessorIdsOf, calculateProjectRollupPercentage, computeParentCompletionPercentage } from "./pms-issue-service"
 
 type Relation = { issueId: string; relatedIssueId: string; relationType: "blocks" | "blocked_by" | "duplicates" | "relates_to" }
 
@@ -102,5 +102,34 @@ describe("calculateProjectRollupPercentage", () => {
 
   test("a single fully-complete issue rolls up to 100", () => {
     expect(calculateProjectRollupPercentage([{ completionPercentage: 100, isArchived: false }])).toBe(100)
+  })
+})
+
+// Task #47 gap fix: pms_issues.parentIssueId already supported real subtask
+// nesting and completionPercentage already existed as a column, but nothing
+// ever read parentIssueId back to roll a parent's completion up from its
+// children -- see the fuller design-decision comment on
+// computeParentCompletionPercentage() itself in pms-issue-service.ts.
+describe("computeParentCompletionPercentage", () => {
+  test("a leaf issue (0 children) keeps its own manually-set percentage untouched", () => {
+    expect(computeParentCompletionPercentage(42, [])).toBe(42)
+  })
+
+  test("a parent with several children at varying completion is the correct average, rounded", () => {
+    // (10 + 50 + 90) / 3 = 50 exactly
+    expect(computeParentCompletionPercentage(0, [10, 50, 90])).toBe(50)
+    // (0 + 100) / 2 = 50 exactly -- own (manually-set) value is ignored once children exist
+    expect(computeParentCompletionPercentage(75, [0, 100])).toBe(50)
+    // (33 + 67) / 2 = 50 exactly, but (10 + 20 + 25) / 3 = 18.33... rounds to 18
+    expect(computeParentCompletionPercentage(0, [10, 20, 25])).toBe(18)
+  })
+
+  test("a single child's own percentage becomes the parent's percentage exactly", () => {
+    expect(computeParentCompletionPercentage(0, [37])).toBe(37)
+  })
+
+  test("all children at 0% or all at 100% average to the same extreme, not the parent's own stale value", () => {
+    expect(computeParentCompletionPercentage(100, [0, 0, 0])).toBe(0)
+    expect(computeParentCompletionPercentage(0, [100, 100])).toBe(100)
   })
 })

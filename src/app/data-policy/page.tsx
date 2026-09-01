@@ -1,14 +1,28 @@
+import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { LegalShell, COMPANY } from "@/components/LegalShell";
+import { resolvePreAuthBrandByHost } from "@/lib/services/org-branding-service";
 
-export const metadata: Metadata = {
-  title: "Data Policy — VERIDIAN AI OS",
-  description: "How VERIDIAN AI OS handles, isolates, and learns from data — including model training.",
-};
+// GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN (OCID-020 addendum,
+// 2026-08-05): not itself named in this gap's scope, but shares LegalShell
+// with /terms and /privacy -- wired through for consistency (one click away
+// from those two) now that LegalShell's `brand` prop is otherwise unused
+// zero-cost effort. Same posture as those two: only the title's brand
+// mention resolves per-host, description stays as-is.
+export async function generateMetadata(): Promise<Metadata> {
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
+  return {
+    title: `Data Policy — ${brand?.brandName ?? "VERIDIAN AI OS"}`,
+    description: "How VERIDIAN AI OS handles, isolates, and learns from data — including model training.",
+  };
+}
 
-export default function DataPolicyPage() {
+export default async function DataPolicyPage() {
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
   return (
-    <LegalShell title="Data Policy" updated="7 July 2026">
+    <LegalShell title="Data Policy" updated="7 July 2026" brand={brand}>
       <section>
         <h2>1. Ownership</h2>
         <p>
