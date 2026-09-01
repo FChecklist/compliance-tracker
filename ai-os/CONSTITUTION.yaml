@@ -134,6 +134,7 @@ meta:
   amendment_log:
     - { date: "2026-07-14", change: "v2.0 -- full rewrite as sole authority, absorbing all 9 prose docs' rules, fixing DEBT-01 through DEBT-07 above.", by: "Super Boss (Claude Desktop)" }
     - { date: "2026-07-14", change: "Added prompt_cache_framework section (CACHE-01 through CACHE-04), Phase 1 of the Prompt & Cache Management Framework (control/CONTROLLER.yaml CACHE-01) -- wired into chat-service.ts's generateAiReply only.", by: "Super Boss (Claude Desktop)" }
+    - { date: "2026-08-07", change: "Added CACHE-05/CACHE-06, Phase 2 of the Prompt & Cache Management Framework: prompt_cache_metrics had zero readers since Phase 1 shipped (write-only sink) -- built the utilization report and a short-horizon trend prediction over it.", by: "Claude Code (task-20260718-083006-cache---synchronization--cache-utilizati)" }
     - { date: "2026-07-18", change: "Review Framework gap-closure (AI Architecture / Domain Accuracy & Quality): added DMP-02A (embeddings.ts/whisper-client.ts as approved capability-tree/policy-gate exceptions, additive documentation only -- narrows nothing); updated GP-08's mechanism/gap to reflect policy-enforcement-engine.ts::hasGroundingData(), a new deterministic pre-call grounding-presence gate wired into report-engine-service.ts's ai_recipe executor and (via enforcePolicy()) ai-report-builder-service.ts's upload-to-report flow -- the two remaining free-text LLM call sites in the codebase that had zero policy gate (every other call site already had one).", by: "claude-code (background sub-agent)" }
     - { date: "2026-07-18", change: "Checks & Balances / Exception Handling & Recovery gap closure: updated HAB-02 (checkHighImpactConfirmation() extracted as the one reusable confirm-gate function), AUDIT-03's L3 cadence entry (Rolling Health Audit now PARTIALLY_ENFORCED via controls-health-audit.ts, on-demand not scheduled), and GP-29 (named Exception Handling Framework taxonomy on ServiceError + real compensating-rollback/automatic-recovery in the fixed-assets JE-posting flows and the approval-decide route).", by: "claude-code (interactive session, task-20260718-091002)" }
     - { date: "2026-07-19", change: "AIROUTER-01 Phase 2: added ai_orchestra_tiers.software_team_l0_l5_implementation -- AI_ORCHESTRA_HIERARCHY.md's Table 1 (Software Development) is now a real, built implementation (L0-L5 dispatch wiring, Instruction Contract/Execution Report task register, capability-based routing matrix seeded into ai_routing_policies), not just a documented mapping. 3 rounds of independent GLM-5.2 audit completed -- see ai-os/AIROUTER_SOFTWARE_TEAM_AUDIT_LOG.md.", by: "claude-code (worker task-20260719-122711-airouter-01-phase-2--software-team-l0-l5)" }
@@ -827,6 +828,18 @@ prompt_cache_framework:
       rule: "This table is metrics only -- it is not a cache store. The actual cached content lives on the provider's own infrastructure (Anthropic's 5-minute-TTL server-side cache); VERIDIAN's own code never stores or serves cached prompt content itself."
       status: ENFORCED
       note: "A prior draft of this framework proposed a 'cache_registry' as if it were a data store -- corrected before implementation: there is nothing for VERIDIAN to store, since the provider already stores it. Recorded here so a future session doesn't rebuild a redundant local cache."
+    - id: CACHE-05
+      rule: "prompt_cache_metrics is queryable, not just writable: a real report exists showing hit rate, tokens read/created, and estimated USD saved, grouped by layer and by day."
+      status: ENFORCED
+      mechanism: "src/lib/prompt-cache/utilization.ts::getCacheUtilizationSummary(), GET /api/ai/team/cache-utilization (veridian_admin-gated, same posture as the sibling /api/ai/team/token-usage report)"
+      gap: "Phase 1 (2026-07-14) inserted rows via chat-service.ts's generateAiReply() but built zero readers -- confirmed via `git grep promptCacheMetrics` returning only schema.ts, metrics.ts, and that one insert call site. This closes the read side for the one layer Phase 1 wired (user_assistant_oa); it does not add new write sites -- CACHE-03's own phased-rollout gap is unchanged."
+      source: "Cache & Synchronization: Cache Utilization & Prediction task, 2026-08-07"
+    - id: CACHE-06
+      rule: "A short-horizon (1-day-ahead) forecast of expected cache-read tokens and USD saved is derived from real historical daily buckets, not fabricated."
+      status: ENFORCED
+      mechanism: "src/lib/prompt-cache/utilization.ts::predictNextDayCacheSavings() -- a trailing (<=7-day) moving average over buildDailyBuckets()'s real per-day aggregates, surfaced as the `prediction` field of getCacheUtilizationSummary()."
+      gap: "Deliberately NOT a trained model or external forecasting library -- a documented moving average. `confidence` (low/medium/high) is a data-volume signal (how many real days of history exist), not a statistical error bound; treat this as a directional estimate, not a committed capacity-planning number."
+      source: "Cache & Synchronization: Cache Utilization & Prediction task, 2026-08-07"
 
 # ============================================================================
 # HOW TO KEEP THIS FILE HONEST

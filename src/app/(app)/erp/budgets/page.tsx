@@ -202,7 +202,7 @@ export default function ErpBudgetsPage() {
                         <SelectContent>{accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.accountNumber ? `${a.accountNumber} — ` : ""}{a.accountName}</SelectItem>)}</SelectContent>
                       </Select>
                       <Input type="number" placeholder="Annual amount" className="w-40" value={li.annualAmount} onChange={(e) => updateLineItem(i, { annualAmount: e.target.value })} />
-                      {lineItems.length > 1 && <Button type="button" variant="ghost" size="icon" onClick={() => removeLineItem(i)}><Trash2 className="w-4 h-4 text-red-500" /></Button>}
+                      {lineItems.length > 1 && <Button type="button" variant="ghost" size="icon" aria-label="Remove line item" onClick={() => removeLineItem(i)}><Trash2 className="w-4 h-4 text-red-500" /></Button>}
                     </div>
                   ))}
                 </div>
@@ -230,8 +230,8 @@ export default function ErpBudgetsPage() {
                         <td className="p-3">{b.costCenterId ? (ccNameById.get(b.costCenterId) ?? "—") : "Org-wide"}</td>
                         <td className="p-3"><Badge variant={STATUS_VARIANT[b.status] ?? "outline"}>{b.status}</Badge></td>
                         <td className="p-3 text-right">
-                          {b.status === "draft" && <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); submitBudget(b.id); }}><Send className="w-4 h-4" /></Button>}
-                          {b.status !== "cancelled" && <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); cancelBudget(b.id); }}><Ban className="w-4 h-4 text-red-500" /></Button>}
+                          {b.status === "draft" && <Button variant="ghost" size="icon" aria-label="Submit budget" onClick={(e) => { e.stopPropagation(); submitBudget(b.id); }}><Send className="w-4 h-4" /></Button>}
+                          {b.status !== "cancelled" && <Button variant="ghost" size="icon" aria-label="Cancel budget" onClick={(e) => { e.stopPropagation(); cancelBudget(b.id); }}><Ban className="w-4 h-4 text-red-500" /></Button>}
                         </td>
                       </tr>
                     ))}

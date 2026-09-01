@@ -21,6 +21,16 @@ export async function listJobOpenings(ctx: { orgId: string }) {
   )
 }
 
+// Real-screen conversion (2026-08-30): single-job-opening lookup for the
+// Job Opening Object Page -- only listJobOpenings (all) existed before.
+export async function getJobOpening(ctx: { orgId: string }, openingId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const opening = await db.query.jobOpenings.findFirst({ where: and(eq(jobOpenings.id, openingId), eq(jobOpenings.orgId, ctx.orgId)) })
+    if (!opening) throw new ServiceError("Job opening not found", 404)
+    return opening
+  })
+}
+
 export async function createJobOpening(
   ctx: RecruitmentContext,
   input: { title: string; departmentId?: string; jobDescription?: string; employmentType?: string; numPositions?: number }
@@ -70,6 +80,17 @@ export async function listApplications(ctx: { orgId: string }, filters?: { jobOp
     if (filters?.jobOpeningId) conditions.push(eq(jobApplications.jobOpeningId, filters.jobOpeningId))
     if (filters?.candidateId) conditions.push(eq(jobApplications.candidateId, filters.candidateId))
     return db.query.jobApplications.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.createdAt) })
+  })
+}
+
+// Real-screen conversion (2026-08-30): single-application lookup for the
+// Application Object Page -- only listApplications (all, optionally
+// filtered) existed before.
+export async function getApplication(ctx: { orgId: string }, applicationId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const application = await db.query.jobApplications.findFirst({ where: and(eq(jobApplications.id, applicationId), eq(jobApplications.orgId, ctx.orgId)) })
+    if (!application) throw new ServiceError("Application not found", 404)
+    return application
   })
 }
 

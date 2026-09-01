@@ -87,6 +87,18 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
       setLoggingOut(false);
       return;
     }
+    // Gap closure, 2026-08-07 ("Offline Cache Support"): the offline shell
+    // (OfflineShell.tsx / public/sw.js) caches org-scoped read-only data
+    // (FM register digitization rows, site diary lists) in the browser's
+    // Cache Storage. That storage is per-origin, not per-signed-in-user --
+    // on a shared/kiosk browser, the next person to sign in could otherwise
+    // still see the previous org's cached data until it happened to be
+    // overwritten. Best-effort and non-blocking, same as everything else in
+    // this handler being fire-and-forget-safe: an unsupported browser or a
+    // failed cache.delete must never block sign-out.
+    if (typeof caches !== "undefined") {
+      caches.keys().then((keys) => keys.forEach((key) => caches.delete(key))).catch(() => {});
+    }
     router.push("/login");
     router.refresh();
   };
@@ -108,13 +120,31 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
     }
   }
 
+  // R-1224-REBASE (accessibility PR #1224 rebase, 2026-08-31): the sidebar-
+  // collapse toggle button PR #1224 originally added an `aria-label` to
+  // here directly (this file used to render its own dark `<header>` with a
+  // literal `<Button onClick={onToggleSidebar}>` inline) has since moved
+  // into the external `@fchecklist/veridian-ui-kit` shared `<AppHeader>`
+  // component (see node_modules/@fchecklist/veridian-ui-kit/src/shell/
+  // AppHeader.tsx) as part of the same veridian-ui-kit migration that
+  // rewrote this whole file. That shared button still only has a `title`,
+  // no `aria-label` -- a real, same-class WCAG 4.1.2 gap, but fixing it
+  // requires a change to that separate repo, out of this PR's scope.
+  // Flagged, not silently dropped. The notification bell, unread-dot,
+  // user-menu trigger, avatar and chevron below are all still this repo's
+  // own markup, so those accessibility fixes ARE applied here.
   const notificationSlot = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" className="relative veri-icon-btn" title="Notifications">
+        <button
+          type="button"
+          className="relative veri-icon-btn"
+          title="Notifications"
+          aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+        >
           <Bell className="size-4" />
           {unreadCount > 0 && (
-            <span className="absolute top-1 right-1 size-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+            <span aria-hidden="true" className="absolute top-1 right-1 size-2.5 rounded-full bg-red-500 ring-2 ring-white" />
           )}
         </button>
       </DropdownMenuTrigger>
@@ -143,8 +173,12 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
   const userMenuSlot = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="gap-2 px-2 text-ct-navy hover:bg-ct-cloud">
-          <Avatar className="h-8 w-8">
+        <Button
+          variant="ghost"
+          className="gap-2 px-2 text-ct-navy hover:bg-ct-cloud"
+          aria-label={`Account menu for ${userName || "User"}`}
+        >
+          <Avatar className="h-8 w-8" aria-hidden="true">
             <AvatarFallback className="bg-ct-saffron text-white text-xs font-bold">
               {initials}
             </AvatarFallback>
@@ -152,7 +186,7 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
           <span className="hidden md:inline text-sm font-medium">
             {userName || "User"}
           </span>
-          <ChevronDown className="size-3 text-ct-muted" />
+          <ChevronDown className="size-3 text-ct-muted" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">

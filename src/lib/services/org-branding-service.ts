@@ -245,6 +245,15 @@ export async function getBrandingAssetPath(orgId: string, kind: "logo" | "favico
 export interface PreAuthBrand {
   productBranchId: string
   brandName: string
+  // GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN (OCID-020 addendum,
+  // 2026-08-05): the one other real, already-existing product_branches
+  // column a per-host marketing page can honestly use -- "marketing
+  // one-liner, e.g. 'Run every marketplace from one place'" per this same
+  // table's own column comment above. Nullable: most branches (including
+  // the real PROJEXA row as of this writing) have never had one set;
+  // callers must fall back to their own existing default copy, exactly
+  // like `brandName`'s own null-means-platform-default contract.
+  tagline: string | null
 }
 
 // Deliberately permissive host normalization (strip a trailing :port, lowercase)
@@ -275,13 +284,31 @@ function normalizeHost(host: string | null | undefined): string | null {
 // use case). Real fix: compare `lower(host_domain) = normalized` via a raw
 // SQL `lower()` expression -- an exact match, immune to LIKE metacharacters
 // since no LIKE operator is used at all.
+// Real bug fixed 2026-08-15 (Accessibility/WCAG gap-closure e2e job,
+// PR #1232 E2E Tests failure): this function's own comment above has always
+// claimed "never throws", but the `await db.query...findFirst(...)` call
+// below was NOT wrapped in a try/catch, so any DB unavailability (down,
+// unreachable, connection refused) propagated as an unhandled render error
+// on "/" and "/login" -- both call this on every single request,
+// unauthenticated, before any session exists. Confirmed directly: with a
+// placeholder DATABASE_URL pointing at nothing real (the same CI-only
+// pattern the `build`/`unit-tests` jobs already use), "/" 500'd with
+// `ECONNREFUSED` instead of rendering. Caught and degrades to null (the
+// platform-default brand, matching every other "unmatched host" outcome
+// this function already returns) so a DB outage never takes down the
+// public marketing/login pages -- same "never a broken UI" posture
+// resolveBranding() above documents for the authenticated path.
 export const resolvePreAuthBrandByHost = cache(async (host: string | null | undefined): Promise<PreAuthBrand | null> => {
   const normalized = normalizeHost(host)
   if (!normalized) return null
-  const branch = await db.query.productBranches.findFirst({
-    where: eq(sql`lower(${productBranches.hostDomain})`, normalized),
-    columns: { id: true, displayName: true },
-  })
-  if (!branch) return null
-  return { productBranchId: branch.id, brandName: branch.displayName }
+  try {
+    const branch = await db.query.productBranches.findFirst({
+      where: eq(sql`lower(${productBranches.hostDomain})`, normalized),
+      columns: { id: true, displayName: true, tagline: true },
+    })
+    if (!branch) return null
+    return { productBranchId: branch.id, brandName: branch.displayName, tagline: branch.tagline ?? null }
+  } catch {
+    return null
+  }
 })

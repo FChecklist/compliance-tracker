@@ -9,9 +9,10 @@ import {
   veriRewardStreaks,
   veriRewardReferrals,
   users,
+  notifications,
 } from "@/lib/db"
 import type { TenantDb } from "@/lib/db/tenant-scoped"
-import { eq, and, isNull, inArray, desc, sql } from "drizzle-orm"
+import { eq, and, isNull, inArray, desc, gte, lte, sql } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
 
 export type AwardPointsParams = {
@@ -76,6 +77,40 @@ export type UnlockResult = {
   pointsAwarded: number
 }
 
+export type AchievementProgressInput = {
+  currentProgress: number
+  alreadyUnlocked: boolean
+  incrementBy: number
+  targetValue: number
+}
+
+export type AchievementProgressResult = {
+  newProgress: number
+  justUnlocked: boolean
+}
+
+/**
+ * Pure business-rule core of checkAndUnlockAchievements(): given a user's
+ * current progress on an achievement and how much this event increments it,
+ * decide the new progress value and whether this specific call is the one
+ * that crosses the unlock threshold. Extracted as a pure function (no DB,
+ * no Date) so the threshold comparison itself is independently unit-testable
+ * against real progress data -- see veri-reward-service.test.ts -- matching
+ * this repo's own established convention of testing pure predicates rather
+ * than DB-backed functions directly (crm-service.test.ts's own header note).
+ *
+ * `justUnlocked` is true only on the exact call that crosses the threshold
+ * for the first time: once `alreadyUnlocked` is true, progress keeps
+ * incrementing (for display) but `justUnlocked` is always false -- points
+ * must never be re-awarded and unlockedAt must never be overwritten.
+ */
+export function evaluateAchievementProgress(input: AchievementProgressInput): AchievementProgressResult {
+  const { currentProgress, alreadyUnlocked, incrementBy, targetValue } = input
+  const newProgress = currentProgress + incrementBy
+  if (alreadyUnlocked) return { newProgress, justUnlocked: false }
+  return { newProgress, justUnlocked: newProgress >= targetValue }
+}
+
 /**
  * Looks up the achievement definition for `achievementKey` using the
  * codebase's standard most-specific-scope-wins pattern: an org-specific
@@ -137,8 +172,12 @@ export async function checkAndUnlockAchievements(
     )
     .limit(1)
 
-  const currentProgress = existing?.progressValue ?? 0
-  const newProgress = currentProgress + incrementBy
+  const { newProgress, justUnlocked: reachesTarget } = evaluateAchievementProgress({
+    currentProgress: existing?.progressValue ?? 0,
+    alreadyUnlocked: existing?.unlockedAt != null,
+    incrementBy,
+    targetValue,
+  })
 
   // Already unlocked -- keep incrementing progress (e.g. for display) but
   // never re-award points or overwrite unlockedAt.
@@ -149,8 +188,6 @@ export async function checkAndUnlockAchievements(
       .where(eq(veriRewardAchievementUnlocks.id, existing.id))
     return { unlocked: false, achievementDefinitionId: def.id, pointsAwarded: 0 }
   }
-
-  const reachesTarget = newProgress >= targetValue
 
   if (!existing) {
     await db.insert(veriRewardAchievementUnlocks).values({
@@ -180,6 +217,27 @@ export async function checkAndUnlockAchievements(
       sourceId: def.id,
       reason: `Achievement unlocked: ${def.displayName}`,
     })
+    // Real-time trigger at the moment of unlock, not just a passive /rewards
+    // page state -- an achievement can unlock from any of the module's wired
+    // call sites (documents, compliance, onboarding, auth), most of which
+    // have no UI of their own to show a toast in. Writing a real
+    // notifications row (same insert-directly convention every other module
+    // uses -- see compliance-service.ts's status_change/assignment inserts)
+    // means the existing topbar bell surfaces it regardless of which screen
+    // the user is actually on when the threshold is crossed. Wrapped so a
+    // notification-write failure can never break the actual unlock/award --
+    // same discipline as recordStreakCheckIn's own achievement-check guard.
+    try {
+      await db.insert(notifications).values({
+        userId,
+        title: `Achievement unlocked: ${def.displayName}`,
+        message: `You earned +${pointsReward} points for "${def.displayName}".`,
+        type: "system",
+        metadata: { achievementDefinitionId: def.id, achievementKey: def.achievementKey, pointsAwarded: pointsReward },
+      })
+    } catch (err) {
+      console.error("[veri-reward] failed to write achievement-unlock notification", err)
+    }
     return { unlocked: true, achievementDefinitionId: def.id, pointsAwarded: pointsReward }
   }
 
@@ -235,18 +293,50 @@ export async function listAchievementsWithProgress(db: TenantDb, orgId: string, 
   })
 }
 
-/** Most recent ledger movements for a user's activity feed. */
-export async function listPointsHistory(db: TenantDb, orgId: string, userId: string, limit = 20) {
+export type PointsHistoryFilter = {
+  limit?: number
+  offset?: number
+  startDate?: Date
+  endDate?: Date
+}
+
+/**
+ * Ledger movements for a user's activity feed / CSV export, newest first.
+ * `offset` supports simple page-through pagination; `startDate`/`endDate`
+ * (inclusive, on createdAt) support the date-range filtering the /rewards
+ * page's history list previously had none of.
+ */
+export async function listPointsHistory(db: TenantDb, orgId: string, userId: string, filter: PointsHistoryFilter = {}) {
+  const { limit = 20, offset = 0, startDate, endDate } = filter
+  const conditions = [eq(veriRewardPointsLedger.orgId, orgId), eq(veriRewardPointsLedger.userId, userId)]
+  if (startDate) conditions.push(gte(veriRewardPointsLedger.createdAt, startDate))
+  if (endDate) conditions.push(lte(veriRewardPointsLedger.createdAt, endDate))
+
   return db
     .select()
     .from(veriRewardPointsLedger)
-    .where(and(eq(veriRewardPointsLedger.orgId, orgId), eq(veriRewardPointsLedger.userId, userId)))
+    .where(and(...conditions))
     .orderBy(desc(veriRewardPointsLedger.createdAt))
     .limit(limit)
+    .offset(offset)
 }
 
-/** Org-wide points ranking for the HR/team leaderboard surface. */
-export async function getOrgLeaderboard(db: TenantDb, orgId: string, limit = 10) {
+/** Total ledger row count for a user, matching the same filter listPointsHistory() uses -- lets a caller compute "page N of M" / "has more". */
+export async function countPointsHistory(db: TenantDb, orgId: string, userId: string, filter: Pick<PointsHistoryFilter, "startDate" | "endDate"> = {}) {
+  const { startDate, endDate } = filter
+  const conditions = [eq(veriRewardPointsLedger.orgId, orgId), eq(veriRewardPointsLedger.userId, userId)]
+  if (startDate) conditions.push(gte(veriRewardPointsLedger.createdAt, startDate))
+  if (endDate) conditions.push(lte(veriRewardPointsLedger.createdAt, endDate))
+
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(veriRewardPointsLedger)
+    .where(and(...conditions))
+  return row?.count ?? 0
+}
+
+/** Org-wide points ranking for the HR/team leaderboard surface. `offset` supports pagination past the top page. */
+export async function getOrgLeaderboard(db: TenantDb, orgId: string, limit = 10, offset = 0) {
   const balanceExpr = sql<number>`coalesce(sum(${veriRewardPointsLedger.delta}), 0)::int`
   const rows = await db
     .select({ userId: veriRewardPointsLedger.userId, balance: balanceExpr })
@@ -255,6 +345,7 @@ export async function getOrgLeaderboard(db: TenantDb, orgId: string, limit = 10)
     .groupBy(veriRewardPointsLedger.userId)
     .orderBy(desc(balanceExpr))
     .limit(limit)
+    .offset(offset)
 
   if (rows.length === 0) return []
 
@@ -458,4 +549,85 @@ export async function recordReferralSignupCompleted(input: {
   }).where(eq(veriRewardReferrals.id, referral.id)).returning()
 
   return updated
+}
+
+// ─── Admin engagement report ─────────────────────────────────────────────
+// VERIDIAN Review Framework gap-closure (task-20260718-083002): "Reporting &
+// Export Accuracy" -- listPointsHistory()/getOrgLeaderboard() only ever
+// powered per-user UI cards; there was no admin-facing rollup of how the
+// module is doing across the whole org. Read-only aggregate, org-scoped
+// (RLS-protected, same tenant boundary as every other query in this file) --
+// see requireVeriRewardAdminReportAccess() at the API route layer for the
+// admin/manager role gate (this function itself does no role check, matching
+// every other function in this file -- authorization is the route's job).
+export type VeriRewardEngagementReport = {
+  totalPointsAwarded: number // sum of positive ledger deltas
+  totalPointsRedeemed: number // sum of |negative ledger deltas|
+  netPointsBalance: number
+  achievementDefinitionsCount: number // distinct achievements visible to this org
+  achievementUnlocksCount: number // unlock rows with unlockedAt set
+  achievementUnlockRate: number // unlocksCount / (activeUserCount * definitionsCount), 0 if either is 0
+  activeUserCount: number // distinct users with at least one ledger row
+  referralsCreatedCount: number
+  referralsConvertedCount: number // status = 'org_provisioned' or 'paid'
+  referralConversionRate: number // convertedCount / createdCount, 0 if createdCount is 0
+}
+
+export async function getEngagementReport(db: TenantDb, orgId: string): Promise<VeriRewardEngagementReport> {
+  const [pointsRow] = await db
+    .select({
+      awarded: sql<number>`coalesce(sum(case when ${veriRewardPointsLedger.delta} > 0 then ${veriRewardPointsLedger.delta} else 0 end), 0)::int`,
+      redeemed: sql<number>`coalesce(sum(case when ${veriRewardPointsLedger.delta} < 0 then -${veriRewardPointsLedger.delta} else 0 end), 0)::int`,
+      activeUsers: sql<number>`count(distinct ${veriRewardPointsLedger.userId})::int`,
+    })
+    .from(veriRewardPointsLedger)
+    .where(eq(veriRewardPointsLedger.orgId, orgId))
+
+  const [defCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(veriRewardAchievementDefinitions)
+    .where(
+      and(
+        sql`(${veriRewardAchievementDefinitions.orgId} = ${orgId} OR ${veriRewardAchievementDefinitions.orgId} IS NULL)`,
+        eq(veriRewardAchievementDefinitions.isActive, true)
+      )
+    )
+
+  const [unlockCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(veriRewardAchievementUnlocks)
+    .where(and(eq(veriRewardAchievementUnlocks.orgId, orgId), sql`${veriRewardAchievementUnlocks.unlockedAt} IS NOT NULL`))
+
+  const [referralRow] = await db
+    .select({
+      created: sql<number>`count(*)::int`,
+      converted: sql<number>`count(*) filter (where ${veriRewardReferrals.status} in ('org_provisioned', 'paid'))::int`,
+    })
+    .from(veriRewardReferrals)
+    .where(eq(veriRewardReferrals.orgId, orgId))
+
+  const totalPointsAwarded = pointsRow?.awarded ?? 0
+  const totalPointsRedeemed = pointsRow?.redeemed ?? 0
+  const activeUserCount = pointsRow?.activeUsers ?? 0
+  const achievementDefinitionsCount = defCountRow?.count ?? 0
+  const achievementUnlocksCount = unlockCountRow?.count ?? 0
+  const referralsCreatedCount = referralRow?.created ?? 0
+  const referralsConvertedCount = referralRow?.converted ?? 0
+
+  const unlockDenominator = activeUserCount * achievementDefinitionsCount
+  const achievementUnlockRate = unlockDenominator > 0 ? achievementUnlocksCount / unlockDenominator : 0
+  const referralConversionRate = referralsCreatedCount > 0 ? referralsConvertedCount / referralsCreatedCount : 0
+
+  return {
+    totalPointsAwarded,
+    totalPointsRedeemed,
+    netPointsBalance: totalPointsAwarded - totalPointsRedeemed,
+    achievementDefinitionsCount,
+    achievementUnlocksCount,
+    achievementUnlockRate,
+    activeUserCount,
+    referralsCreatedCount,
+    referralsConvertedCount,
+    referralConversionRate,
+  }
 }

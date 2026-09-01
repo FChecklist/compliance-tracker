@@ -20,6 +20,7 @@
 import type { ReportDomain } from "./report-catalog-service"
 import { requireErpEnabled, isErpEnabledForOrg } from "./erp-enablement-service"
 import { requireConstructionEnabled, isConstructionEnabledForOrg } from "./construction-enablement-service"
+import { requireSalesEnabled, isSalesEnabledForOrg } from "./crm-enablement-service"
 
 // Pure branch-mapping table, isolated from the async DB calls so it's
 // independently unit-testable (this repo's own established pattern -- see
@@ -32,9 +33,13 @@ import { requireConstructionEnabled, isConstructionEnabledForOrg } from "./const
 // per-user saved queries -- neither is a purchasable module, so neither maps
 // to a branch. Only 'ERP' and 'construction' correspond to real
 // product_branches rows ('erp', 'construction').
+// "CRM" added 2026-08-07 (Sales Pipeline gap-closure): maps to the 'sales'
+// product_branches row (crm-enablement-service.ts's requireSalesEnabled),
+// not 'erp' -- CRM/Sales is its own purchasable branch, independent of ERP.
 const REPORT_DOMAIN_BRANCH_GATE: Partial<Record<ReportDomain, { branchKey: string; moduleName: string }>> = {
   ERP: { branchKey: "erp", moduleName: "ERP" },
   construction: { branchKey: "construction", moduleName: "Construction" },
+  CRM: { branchKey: "sales", moduleName: "Sales & CRM" },
 }
 
 /** Pure lookup -- which branch (if any) gates a given report domain. Exported for unit testing. */
@@ -53,6 +58,7 @@ export async function requireReportDomainEnabled(orgId: string, domain: ReportDo
   if (!gate) return
   if (gate.branchKey === "erp") return requireErpEnabled(orgId)
   if (gate.branchKey === "construction") return requireConstructionEnabled(orgId)
+  if (gate.branchKey === "sales") return requireSalesEnabled(orgId)
 }
 
 /** Non-throwing check for catalog filtering (hide what an org can't run, rather than show-then-403 on click). */
@@ -61,5 +67,6 @@ export async function isReportDomainEnabledForOrg(orgId: string, domain: ReportD
   if (!gate) return true
   if (gate.branchKey === "erp") return isErpEnabledForOrg(orgId)
   if (gate.branchKey === "construction") return isConstructionEnabledForOrg(orgId)
+  if (gate.branchKey === "sales") return isSalesEnabledForOrg(orgId)
   return true
 }

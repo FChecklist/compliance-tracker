@@ -29,7 +29,15 @@
 // below for all 26 pre-existing entries with real values, not left blank.
 import type { ReportCategory } from "./report-taxonomy"
 
-export type ReportDomain = "compliance" | "ERP" | "construction" | "AI-ops" | "custom"
+// "CRM" added 2026-08-07 (Sales Pipeline gap-closure, "Reporting & Export
+// Accuracy" finding): getSalesPipelineOverview() (crm-service.ts) was
+// computed but had no catalog entry at all -- classifications already had
+// a "sales" value (report-taxonomy.ts) with zero real entries using it.
+// Gated to the 'sales' product branch, not 'ERP' -- see
+// report-domain-enablement-service.ts's REPORT_DOMAIN_BRANCH_GATE; CRM/
+// Sales is its own purchasable branch (crm-enablement-service.ts), not part
+// of ERP, so mislabeling this "ERP" would gate it against the wrong module.
+export type ReportDomain = "compliance" | "ERP" | "construction" | "AI-ops" | "custom" | "CRM"
 
 export type ReportCatalogEntry = {
   id: string
@@ -271,6 +279,28 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     periodicity: "daily",
   },
 
+  // ── Sales / CRM reports (crm-service.ts) ──────────────────────────────
+  // Sales Pipeline gap-closure (2026-08-07): getSalesPipelineOverview() was
+  // already fully implemented (leadsByStatus, opportunitiesByStage,
+  // winRate, openPipelineValue) with a real in-app consumer as of this
+  // wave -- the Pipeline tab on /crm. Previously only reachable via the
+  // /api/v1/projexa/sales-pipeline external-API alias, with zero catalog
+  // entry and zero UI page.
+  {
+    id: "sales-pipeline-overview",
+    name: "Sales Pipeline Overview",
+    description: "Lead funnel by status, opportunity funnel by stage (count + base-currency value), win rate, open pipeline value, and overdue follow-up counts.",
+    domain: "CRM",
+    sourceService: "src/lib/services/crm-service.ts#getSalesPipelineOverview",
+    outputFormats: ["on-screen Kanban + summary cards (JSON API: GET /api/v1/projexa/sales-pipeline)", "CSV (GET /api/crm/pipeline/export)"],
+    route: "/crm",
+    routeNote: "Real live page -- 'Pipeline' tab. No required query params.",
+    directlyNavigable: true,
+    category: "software_report",
+    classifications: ["sales", "org_specific"],
+    periodicity: "on_demand",
+  },
+
   // ── Custom / user-authored reports (custom-report-service.ts) ────────
   {
     id: "custom-report",
@@ -369,6 +399,117 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     classifications: ["financial", "procurement", "construction"],
     periodicity: "on_demand",
   },
+
+  // CO-001/CO-003/FI-GL-002/FI-GL-007/FI-GL-008 (SAP gap-analysis
+  // calculation-track engines, sap_mapping.sqlite/sap_reports): 4
+  // EXTEND_EXISTING GL/cost-center reports + 1 BUILD_NEW reconciliation
+  // report. No dedicated UI page yet for any of the 5 -- API-only, same
+  // honest "no dashboard surface" caveat this wave's other recent entries
+  // already disclose. Appended at the end of this array (not inserted near
+  // other FI-*/CO-* entries above) to avoid a real merge-conflict collision
+  // with those still-open sibling PRs editing the same region.
+  {
+    id: "erp-cost-center-line-items",
+    name: "Cost Center Line Item Display",
+    description: "Every posted journal-entry line that carries a cost center, showing both the GL account and the cost center on one row -- SAP KSB1 equivalent.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-accounting-service.ts#listJournalEntryLinesByCostCenter",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/cost-center-line-items)"],
+    route: "/api/v1/projexa/cost-center-line-items",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
+  {
+    id: "erp-cost-center-hierarchy",
+    name: "Cost Center Hierarchy Report",
+    description: "Overhead spending (expense-account postings tagged with a cost center) rolled up through the real cost-center parent/child tree.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-accounting-service.ts#costCenterHierarchyReport",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/cost-center-hierarchy)"],
+    route: "/api/v1/projexa/cost-center-hierarchy",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
+  {
+    id: "erp-gl-account-balance-display",
+    name: "G/L Account Balances Display",
+    description: "Per selected GL account: opening balance, period debit/credit movement, and closing balance over a date range -- SAP FS10N equivalent, a direct filter of Trial Balance's existing output.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-financial-report-service.ts#glAccountBalanceDisplay",
+    outputFormats: ["on-screen table (JSON API: GET /api/erp/reports/gl-account-balance-display)"],
+    route: "/api/erp/reports/gl-account-balance-display",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. Requires at least one accountId query param. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
+  {
+    id: "erp-gl-account-group-balances",
+    name: "G/L Account Group Balances Summary",
+    description: "Trial Balance's per-account closing balances rolled up through the real chart-of-accounts group hierarchy, as of a date.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-financial-report-service.ts#glAccountGroupBalancesSummary",
+    outputFormats: ["on-screen table (JSON API: GET /api/erp/reports/gl-account-group-balances)"],
+    route: "/api/erp/reports/gl-account-group-balances",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
+  {
+    id: "erp-subledger-gl-reconciliation",
+    name: "Subledger-to-GL Reconciliation",
+    description: "Month-end close control comparing each real subledger's own total outstanding balance (AR/AP) against its corresponding GL control-account balance from the Trial Balance -- a non-zero variance flags a real problem before the books are considered reliable. Fixed-asset reconciliation is a separate report (Asset-to-GL Reconciliation); inventory/stock is not included because stock movements do not yet post to the GL in this codebase.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-financial-report-service.ts#subledgerToGlReconciliation",
+    outputFormats: ["on-screen table (JSON API: GET /api/erp/reports/subledger-gl-reconciliation)"],
+    route: "/api/erp/reports/subledger-gl-reconciliation",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
+  },
+
+  // CO-006 (SAP gap-analysis "Statistical Key Figure Report", LOW
+  // priority): plan/actual, per-cost-center values for a non-financial
+  // allocation-basis metric (headcount, square meters, machine hours,
+  // etc.), summed from postings within the requested accounting
+  // period(s). Genuinely new schema (erp_statistical_key_figure_types /
+  // erp_statistical_key_figure_postings) -- zero SKF concept existed in
+  // this codebase before this PR. Honest caveat: the sap_mapping.sqlite
+  // row's own implementation_notes field argues against building this as
+  // a standalone report at all (prefers letting a future overhead-
+  // allocation feature pick a driver from existing data instead of
+  // requiring separate SKF master data/postings) -- this report is kept
+  // deliberately optional and standalone, nothing else in this codebase
+  // depends on it being populated. No dedicated UI page yet -- API-only,
+  // same honest "no dashboard surface" caveat this file's other recent
+  // entries already disclose. Appended at the end of this array (not
+  // inserted near other ERP entries above) to avoid a real merge-conflict
+  // collision with other still-open sibling PRs editing the same region.
+  {
+    id: "erp-statistical-key-figure-report",
+    name: "Statistical Key Figure Report",
+    description: "Plan vs actual values (with variance) of statistical key figures -- non-financial per-cost-center metrics such as headcount, square meters, or machine hours -- used as allocation-basis drivers. A verification tool for confirming allocation-basis data before running an overhead allocation cycle.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-costing-service.ts#statisticalKeyFigureReport",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/statistical-key-figure-report)"],
+    route: "/api/v1/projexa/statistical-key-figure-report",
+    routeNote: "Real, auth-required API endpoint (requires accountingPeriodIds query param) -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial"],
+    periodicity: "on_demand",
+  },
 ]
 
 export function getReportCatalogEntry(id: string): ReportCatalogEntry | undefined {
@@ -376,7 +517,7 @@ export function getReportCatalogEntry(id: string): ReportCatalogEntry | undefine
 }
 
 export function listReportCatalogByDomain(): Record<ReportDomain, ReportCatalogEntry[]> {
-  const byDomain: Record<ReportDomain, ReportCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [] }
+  const byDomain: Record<ReportDomain, ReportCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [], CRM: [] }
   for (const entry of REPORT_CATALOG) byDomain[entry.domain].push(entry)
   return byDomain
 }
