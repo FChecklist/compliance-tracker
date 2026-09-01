@@ -185,7 +185,7 @@ function Nav() {
       <div className="mx-auto max-w-6xl px-5 flex items-center justify-between h-16">
         <Link href="/forge" className="flex items-center gap-2">
           <span className="grid size-7 place-items-center rounded-lg bg-ct-navy text-white">
-            <Hammer className="size-4 text-ct-saffron" />
+            <Hammer className="size-4 text-ct-saffron-text" />
           </span>
           <span className="font-heading text-lg text-ct-navy tracking-tight">FORGE</span>
         </Link>
@@ -275,7 +275,7 @@ function Hero() {
         <h1 className="mt-6 font-heading text-4xl leading-[1.08] text-ct-navy sm:text-5xl xl:text-6xl">
           Custom software shouldn&apos;t
           <br />
-          <span className="text-ct-saffron">cost lakhs. Or months.</span>
+          <span className="text-ct-saffron-text">cost lakhs. Or months.</span>
         </h1>
 
         <p className="mx-auto mt-5 max-w-xl text-lg text-ct-slate">
@@ -344,7 +344,7 @@ function BuildLog() {
         </div>
 
         <div className="p-5 min-h-[300px] font-mono text-sm">
-          <div className="flex items-center gap-2 text-ct-saffron">
+          <div className="flex items-center gap-2 text-ct-saffron-text">
             <Cpu className="size-4" />
             <span>{step.label}{complete ? " — done" : "..."}</span>
           </div>
@@ -367,7 +367,7 @@ function BuildLog() {
           </div>
 
           {complete && s === BUILD_STEPS.length - 1 && (
-            <div className="mt-5 flex items-center gap-2 rounded-lg bg-white/5 px-3.5 py-2.5 text-ct-saffron">
+            <div className="mt-5 flex items-center gap-2 rounded-lg bg-white/5 px-3.5 py-2.5 text-ct-saffron-text">
               <Rocket className="size-4 shrink-0" />
               <span className="text-[13px] font-semibold">Shipped — flat fee, one-time, $0/month, your AI key</span>
             </div>
@@ -437,7 +437,7 @@ function Pain() {
             </ul>
             <div className="mt-5 rounded-xl bg-ct-saffron/5 border border-ct-saffron/30 p-3.5">
               <div className="flex items-start gap-2 text-sm text-ct-navy">
-                <Sparkles className="mt-0.5 size-4 shrink-0 text-ct-saffron" />
+                <Sparkles className="mt-0.5 size-4 shrink-0 text-ct-saffron-text" />
                 <span>{p.flip}</span>
               </div>
             </div>
@@ -454,7 +454,7 @@ function Features() {
       <div className="mx-auto max-w-6xl px-5 py-20">
         <div className="text-center">
           <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">
-            Everything a custom build needs. <span className="text-ct-saffron">None of the agency overhead.</span>
+            Everything a custom build needs. <span className="text-ct-saffron-text">None of the agency overhead.</span>
           </h2>
           <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
             However complicated your real-world processes are, the engineering approach — and the price — stays
@@ -466,7 +466,7 @@ function Features() {
           {FEATURES.map((f) => (
             <div key={f.title} className="rounded-2xl border border-ct-border bg-ct-cream p-6">
               <span className="grid size-11 place-items-center rounded-xl bg-ct-navy">
-                <f.icon className="size-5 text-ct-saffron" />
+                <f.icon className="size-5 text-ct-saffron-text" />
               </span>
               <h3 className="mt-4 text-lg font-semibold text-ct-navy">{f.title}</h3>
               <p className="mt-2 text-sm text-ct-slate">{f.line}</p>
@@ -511,7 +511,7 @@ function PoweredBy() {
     <section className="bg-ct-navy text-white">
       <div className="mx-auto max-w-6xl px-5 py-16 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/70">
-          <Sparkles className="size-3.5 text-ct-saffron" /> The same architecture running our own products
+          <Sparkles className="size-3.5 text-ct-saffron-text" /> The same architecture running our own products
         </div>
         <h2 className="mt-5 font-heading text-3xl md:text-4xl">Built on VERIDIAN AI OS</h2>
         <p className="mx-auto mt-3 max-w-2xl text-white/70">
@@ -529,7 +529,7 @@ function Stories() {
     <section id="stories" className="bg-white border-y border-ct-border/60">
       <div className="mx-auto max-w-6xl px-5 py-20">
         <div className="text-center">
-          <div className="flex items-center justify-center gap-1 text-ct-saffron">
+          <div className="flex items-center justify-center gap-1 text-ct-saffron-text">
             {[0, 1, 2, 3, 4].map((i) => (
               <Star key={i} className="size-5 fill-current" />
             ))}
@@ -539,7 +539,7 @@ function Stories() {
         <div className="mt-12 grid md:grid-cols-3 gap-5">
           {STORIES.map((s) => (
             <div key={s.org} className="rounded-2xl border border-ct-border bg-ct-cream p-7">
-              <Quote className="size-6 text-ct-saffron" />
+              <Quote className="size-6 text-ct-saffron-text" />
               <p className="mt-3 text-ct-navy">{s.quote}</p>
               <div className="mt-5 border-t border-ct-border pt-4">
                 <div className="font-semibold text-ct-navy">{s.who}</div>
@@ -562,7 +562,7 @@ function Pricing() {
           No hourly billing, no change-request invoices, no recurring platform fee. Bring your own AI provider key
           and the system is entirely yours. Tell us about the build and we&apos;ll give you a number.
         </p>
-        <p className="mx-auto mt-3 max-w-2xl text-sm font-medium text-ct-saffron">
+        <p className="mx-auto mt-3 max-w-2xl text-sm font-medium text-ct-saffron-text">
           Your dreams are more precious. Our cost is far lesser.
         </p>
       </div>
@@ -591,7 +591,7 @@ function Pricing() {
           <div className="grid grid-cols-3 bg-ct-cloud px-6 py-3 text-xs font-semibold text-ct-muted">
             <span></span>
             <span>Traditional agency</span>
-            <span className="text-ct-saffron">FORGE</span>
+            <span className="text-ct-saffron-text">FORGE</span>
           </div>
           {COMPARISON_ROWS.map((r, idx) => (
             <div key={r.label} className={`grid grid-cols-3 px-6 py-3.5 text-sm ${idx % 2 === 0 ? "bg-white" : "bg-ct-cream/50"}`}>
@@ -610,7 +610,7 @@ function FinalCta() {
   return (
     <section className="mx-auto max-w-6xl px-5 pb-24">
       <div className="rounded-3xl bg-ct-navy px-8 py-16 text-center text-white">
-        <ShieldCheck className="mx-auto size-8 text-ct-saffron" />
+        <ShieldCheck className="mx-auto size-8 text-ct-saffron-text" />
         <h2 className="mt-4 font-heading text-3xl md:text-5xl">Stop paying agency prices for agency timelines.</h2>
         <p className="mx-auto mt-4 max-w-xl text-white/70">
           One flat fee. Bring your own AI. Zero recurring charges. However complicated your project actually is.
@@ -638,7 +638,7 @@ function Footer() {
       <div className="mx-auto max-w-6xl px-5 py-10 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <span className="grid size-6 place-items-center rounded-md bg-ct-navy text-white">
-            <Hammer className="size-3.5 text-ct-saffron" />
+            <Hammer className="size-3.5 text-ct-saffron-text" />
           </span>
           <span className="font-heading text-ct-navy">FORGE — AI ENGINEERING</span>
           <span className="text-sm text-ct-muted">— part of VERIDIAN AI OS</span>

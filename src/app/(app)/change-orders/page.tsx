@@ -43,11 +43,12 @@ import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 type ChangeOrder = {
   id: string; number: number; title: string; reason: string | null;
   costImpact: string; scheduleImpactDays: number; status: string;
+  trade: string | null;
 };
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-ct-cloud text-ct-muted",
-  pending_approval: "bg-ct-saffron/20 text-ct-saffron",
+  pending_approval: "bg-ct-saffron/20 text-ct-saffron-text",
   approved: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-700",
 };
@@ -68,6 +69,7 @@ export default function ChangeOrdersPage() {
   const [reason, setReason] = useState("");
   const [costImpact, setCostImpact] = useState("");
   const [scheduleImpactDays, setScheduleImpactDays] = useState("");
+  const [trade, setTrade] = useState("");
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -109,12 +111,13 @@ export default function ChangeOrdersPage() {
           projectId, title, reason: reason || undefined,
           costImpact: costImpact ? Number(costImpact) : 0,
           scheduleImpactDays: scheduleImpactDays ? Number(scheduleImpactDays) : 0,
+          trade: trade || undefined,
         }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Failed");
       toast.success("Change order created");
       setOpen(false);
-      setTitle(""); setReason(""); setCostImpact(""); setScheduleImpactDays("");
+      setTitle(""); setReason(""); setCostImpact(""); setScheduleImpactDays(""); setTrade("");
       load();
     } catch (err) {
       toast.error(err instanceof Error && err.message ? err.message : "Failed to create change order");
@@ -157,6 +160,10 @@ export default function ChangeOrdersPage() {
                   <Input type="number" value={scheduleImpactDays} onChange={(e) => setScheduleImpactDays(e.target.value)} placeholder="+/- days" />
                 </div>
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-ct-muted uppercase">Trade (optional)</Label>
+                <Input value={trade} onChange={(e) => setTrade(e.target.value)} placeholder="e.g. Interior Design, Civil, Electrical" />
+              </div>
             </div>
             <DialogFooter>
               <Button onClick={createChangeOrder} disabled={creating || !title.trim()} className="bg-ct-saffron hover:bg-ct-saffron-hover text-white">
@@ -186,7 +193,7 @@ export default function ChangeOrdersPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>#</TableHead><TableHead>Title</TableHead><TableHead>Cost Impact</TableHead>
+                      <TableHead>#</TableHead><TableHead>Title</TableHead><TableHead>Trade</TableHead><TableHead>Cost Impact</TableHead>
                       <TableHead>Schedule Impact</TableHead><TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -199,6 +206,7 @@ export default function ChangeOrdersPage() {
                         <TableCell className="font-medium text-ct-navy">
                           <Link href={`/change-orders/${c.id}`} className="block">{c.title}</Link>
                         </TableCell>
+                        <TableCell className="text-ct-muted">{c.trade || "--"}</TableCell>
                         <TableCell className={Number(c.costImpact) >= 0 ? "text-red-600" : "text-green-700"}>{money(Number(c.costImpact))}</TableCell>
                         <TableCell className="text-ct-muted">{c.scheduleImpactDays > 0 ? `+${c.scheduleImpactDays}d` : c.scheduleImpactDays === 0 ? "--" : `${c.scheduleImpactDays}d`}</TableCell>
                         <TableCell><Badge className={`text-xs border-0 ${STATUS_COLORS[c.status] ?? "bg-ct-cloud text-ct-muted"}`}>{c.status.replace(/_/g, " ")}</Badge></TableCell>

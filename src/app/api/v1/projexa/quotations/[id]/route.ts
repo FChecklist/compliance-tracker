@@ -41,9 +41,50 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
 import { requirePermission, requirePermissionForUser } from "@/lib/services/permission-service"
-import { updateQuotationStatus, ServiceError } from "@/lib/services/erp-selling-service"
+import { getQuotation, updateQuotationStatus, ServiceError } from "@/lib/services/erp-selling-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
+
+// Real-screen conversion (2026-08-30): single-quotation GET for the
+// Quotation Object Page -- same shape as quotations/route.ts's own
+// toQuotationShape, so the list and Object Page always agree on field
+// names.
+function toQuotationShape(q: Awaited<ReturnType<typeof getQuotation>>) {
+  return {
+    id: q.id,
+    quotationNumber: q.quotationNumber,
+    customerId: q.customerId,
+    customerName: q.customer?.customerName ?? null,
+    leadId: q.leadId,
+    projectId: q.projectId,
+    quotationDate: q.quotationDate,
+    validTill: q.validTill,
+    status: q.status,
+    version: q.version,
+    revisionOf: q.revisionOf,
+    companyId: q.companyId,
+    currencyId: q.currencyId,
+    exchangeRate: q.exchangeRate,
+    grandTotal: q.grandTotal,
+    items: q.items?.map((i) => ({ id: i.id, description: i.description, quantity: i.quantity, rate: i.rate, amount: i.amount })) ?? [],
+  }
+}
+
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const ctx = await requireAuthOrApiKey(request)
+  if (ctx.response) return ctx.response
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  try {
+    const { id } = await params
+    const quotation = await getQuotation({ orgId: ctx.orgId }, id)
+    return NextResponse.json(toQuotationShape(quotation))
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("v1 projexa quotation get error:", error)
+    return NextResponse.json({ error: "Failed to fetch quotation" }, { status: 500 })
+  }
+}
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)

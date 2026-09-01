@@ -29,6 +29,19 @@ export async function listWikiPages(ctx: { orgId: string }, projectId: string) {
   })
 }
 
+// Real-screen conversion (2026-08-30): single-page lookup by id for the
+// Wiki Object Page -- the old UI only ever loaded the whole project's page
+// list and kept "selected page" as client-side state with no real URL.
+// getWikiPageBySlug() existed for a different purpose (by-slug lookup);
+// this is the by-id twin list/create already implicitly needed.
+export async function getWikiPage(ctx: { orgId: string }, pageId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const page = await db.query.pmsWikiPages.findFirst({ where: and(eq(pmsWikiPages.id, pageId), eq(pmsWikiPages.orgId, ctx.orgId)) })
+    if (!page) throw new ServiceError("Wiki page not found", 404)
+    return page
+  })
+}
+
 export async function getWikiPageBySlug(ctx: { orgId: string }, projectId: string, slug: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const page = await db.query.pmsWikiPages.findFirst({

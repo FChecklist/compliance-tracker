@@ -35,7 +35,7 @@ export default function ProjectNav({ projectId, projectName }: { projectId: stri
               href={href}
               className={cn(
                 "px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                isActive ? "border-ct-saffron text-ct-saffron" : "border-transparent text-ct-slate hover:text-ct-navy"
+                isActive ? "border-ct-saffron text-ct-saffron-text" : "border-transparent text-ct-slate hover:text-ct-navy"
               )}
             >
               {tab.label}

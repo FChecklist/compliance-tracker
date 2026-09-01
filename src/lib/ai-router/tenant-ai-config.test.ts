@@ -21,6 +21,20 @@
 // the round-trip CONTRACT (ciphertext in -> plaintext out, key never
 // returned to a client) is what's asserted, not the pgcrypto internals.
 import { describe, test, expect, mock } from "bun:test"
+// Real "@/lib/db" module, imported BEFORE any mock.module() call (module
+// scope, not re-imported inside the mock.module factory below -- doing that
+// self-referentially hangs bun's module resolver). db/index.ts's `db` export
+// is a Proxy that only opens a real Postgres connection on first property
+// access (see its own header comment), so importing it here is side-effect
+// free; its schema re-export is just plain Drizzle table definitions. Spread
+// into the mock below so every named export mother-router.ts's OWN import
+// chain needs (directly, and transitively via orchestra-model-resolver.ts,
+// which mother-router.ts imports resolveModelConfig/platformApiKeyFor from --
+// e.g. orchestraLayers, customerModelConfig, clientModelConfig,
+// sharedPoolAllocations, aiModelRegistry) is present, instead of hand-listing
+// only the subset one file happens to need today and silently breaking the
+// next time an upstream module's own "@/lib/db" import list changes.
+import * as actualDb from "@/lib/db"
 
 // Minimal chainable mock for db.update(...).set(...).where(...).then(...)
 // -- resolveTenantAiConfig's fire-and-forget lastUsedAt touch, the same
@@ -34,26 +48,19 @@ function mockDbUpdateChain() {
   return mock(() => chain)
 }
 
-// The named schema tables mother-router.ts imports directly from "@/lib/db"
-// (line 54). The mock must provide these as real table-shaped objects so the
-// module's top-level `import { ..., tenantAiConfig, ... }` binding succeeds;
-// only `db.query.tenantAiConfig.findFirst` and `db.update` are actually
-// exercised by resolveTenantAiConfig(), the rest are inert placeholders
-// (same posture as task-register-service.test.ts's minimal db mock).
-const inertTable = new Proxy({}, { get: () => () => {} })
+// Only `db.query.tenantAiConfig.findFirst` and `db.update` are actually
+// exercised by resolveTenantAiConfig() -- everything else below is the real
+// (unmocked) schema-table object, spread in from actualDb so every named
+// export the mother-router.ts -> orchestra-model-resolver.ts import chain
+// needs at module-load time is present (see the actualDb import's own header
+// comment above for why this must be a spread, not a hand-picked subset).
 async function loadResolverWith(dbQuery: { findFirst: ReturnType<typeof mock> }, decrypt: (c: string) => Promise<string>) {
   mock.module("@/lib/db", () => ({
+    ...actualDb,
     db: {
       query: { tenantAiConfig: { findFirst: dbQuery.findFirst } },
       update: mockDbUpdateChain(),
     },
-    // mother-router.ts's direct named imports -- placeholder table shapes.
-    aiRoutingPolicies: inertTable,
-    aiRoutingAuditLog: inertTable,
-    organisations: inertTable,
-    subscriptionPlans: inertTable,
-    users: inertTable,
-    tenantAiConfig: inertTable,
   }))
   mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(decrypt) }))
   // cost-guard.ts imports tokenUsageLedger from "@/lib/db" at module load;

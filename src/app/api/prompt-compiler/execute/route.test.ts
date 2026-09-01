@@ -22,14 +22,31 @@ function makeRequest(body: unknown): Request {
   })
 }
 
-function mockAuthAndDb(org: { name: string; country: string | null } | null = { name: "Acme", country: "IN" }) {
+// @/lib/db re-exports the real `db` client (a lazy Proxy -- see
+// db/index.ts -- so importing it here does not open a live connection)
+// alongside every schema table symbol. The route's own import chain
+// (capability-learning-service.ts -> compliance-service.ts) has a
+// top-level `import { auditLogs } from "@/lib/db"`, so a mock.module()
+// factory that replaces @/lib/db's full export surface without spreading
+// the actual module first drops that (and every other) table export --
+// SyntaxError: Export named 'auditLogs' not found -- even though only
+// `db`'s query behavior needs stubbing here. Import the actual module in
+// an async helper (never inside the factory itself -- that self-
+// referentially hangs bun's module resolver) and spread it before
+// overriding `db`.
+async function mockDb(org: { name: string; country: string | null } | null) {
+  const actual = await import("@/lib/db")
+  mock.module("@/lib/db", () => ({
+    ...actual,
+    db: { query: { organisations: { findFirst: mock(async () => org) } } },
+  }))
+}
+
+async function mockAuthAndDb(org: { name: string; country: string | null } | null = { name: "Acme", country: "IN" }) {
   mock.module("@/lib/supabase/auth-guard", () => ({
     requireAuth: mock(async () => ({ response: null, dbUser: dbUser(), orgId: "org-1" })),
   }))
-  mock.module("@/lib/db", () => ({
-    db: { query: { organisations: { findFirst: mock(async () => org) } } },
-    organisations: { id: "id" },
-  }))
+  await mockDb(org)
 }
 
 describe("POST /api/prompt-compiler/execute", () => {
@@ -37,21 +54,21 @@ describe("POST /api/prompt-compiler/execute", () => {
     mock.module("@/lib/supabase/auth-guard", () => ({
       requireAuth: mock(async () => ({ response: new Response(null, { status: 401 }), dbUser: null, orgId: null })),
     }))
-    mock.module("@/lib/db", () => ({ db: { query: { organisations: { findFirst: mock(async () => null) } } }, organisations: { id: "id" } }))
+    await mockDb(null)
     const { POST } = await import("./route")
     const res = await POST(makeRequest({ rawText: "hi" }) as any)
     expect(res.status).toBe(401)
   })
 
   test("missing rawText -> 400, pipeline never runs", async () => {
-    mockAuthAndDb()
+    await mockAuthAndDb()
     const { POST } = await import("./route")
     const res = await POST(makeRequest({}) as any)
     expect(res.status).toBe(400)
   })
 
   test("real end-to-end: compiles a real machine prompt via runPipeline and reports no escalation when verification passes and a real browser tier ran", async () => {
-    mockAuthAndDb()
+    await mockAuthAndDb()
     const { POST } = await import("./route")
     const res = await POST(
       makeRequest({
@@ -68,7 +85,7 @@ describe("POST /api/prompt-compiler/execute", () => {
   })
 
   test("browser reported 'server' tier (no local capability at all) -> needsServerEscalation is forced true", async () => {
-    mockAuthAndDb()
+    await mockAuthAndDb()
     const { POST } = await import("./route")
     const res = await POST(
       makeRequest({ rawText: "What is the GST filing deadline?", browserCompiled: { tier: "server", fallbackChain: [], compileMs: 0 } }) as any
@@ -81,7 +98,7 @@ describe("POST /api/prompt-compiler/execute", () => {
     mock.module("@/lib/supabase/auth-guard", () => ({
       requireAuth: mock(async () => ({ response: null, dbUser: dbUser(), orgId: null })),
     }))
-    mock.module("@/lib/db", () => ({ db: { query: { organisations: { findFirst: mock(async () => null) } } }, organisations: { id: "id" } }))
+    await mockDb(null)
     const { POST } = await import("./route")
     const res = await POST(makeRequest({ rawText: "hi" }) as any)
     expect(res.status).toBe(400)

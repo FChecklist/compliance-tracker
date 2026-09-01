@@ -21,9 +21,11 @@ import {
   TrendingUp,
   KeyRound,
   Paintbrush,
+  CreditCard,
 } from "lucide-react";
 import OrgLimitsSection from "@/components/OrgLimitsSection";
 import SubscriptionPlanSection from "@/components/SubscriptionPlanSection";
+import BillingSection from "@/components/BillingSection";
 import BrandingSection from "@/components/BrandingSection";
 import AdoptionMetricsSection from "@/components/AdoptionMetricsSection";
 import AiConfigSection from "@/components/AiConfigSection";
@@ -44,6 +46,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -72,6 +75,7 @@ const SETTINGS_NAV = [
   { id: "webhooks", label: "Webhooks", icon: Webhook },
   { id: "org-limits", label: "Seats & AI Spend", icon: Users2 },
   { id: "subscription-plan", label: "Subscription Plan", icon: Bot },
+  { id: "billing", label: "Billing", icon: CreditCard },
   { id: "branding", label: "Branding", icon: Paintbrush },
   { id: "adoption", label: "Adoption Dashboard", icon: TrendingUp },
   { id: "sso", label: "SSO (SAML)", icon: ShieldAlert },
@@ -124,6 +128,18 @@ export default function SettingsPage() {
   const [orgRegulatoryEntityType, setOrgRegulatoryEntityType] = useState('general');
   const [orgSaving, setOrgSaving] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  // Gap closure, real live-found bug (GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-
+  // RENDERING, OCID-050 independent re-verification, UMR-20260802-165606-4413):
+  // `isAdmin` defaults to false until this fetch resolves, and GET /api/me
+  // was live-measured taking ~5s (root cause fixed separately, in
+  // src/app/api/me/route.ts). Before this fix, a real admin who opened an
+  // admin-gated tab (Subscription Plan, Organisation, Seats & AI Spend,
+  // Branding, Adoption Dashboard) inside that window saw the real
+  // false-negative "Only admins can view..." message, indistinguishable
+  // from an actual permissions problem. `profileLoaded` lets those sections
+  // show a real loading skeleton instead of asserting "not admin" before
+  // this fetch has actually had a chance to say so.
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,7 +152,7 @@ export default function SettingsPage() {
       setOrgAccountType(d.orgAccountType ?? 'company');
       setOrgRegulatoryEntityType(d.orgRegulatoryEntityType ?? 'general');
       setIsAdmin(d.role === 'admin');
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => { if (!cancelled) setProfileLoaded(true); });
     return () => { cancelled = true; };
   }, []);
 
@@ -197,7 +213,7 @@ export default function SettingsPage() {
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full text-left",
                       isActive
-                        ? "bg-ct-accent text-ct-saffron font-bold"
+                        ? "bg-ct-accent text-ct-saffron-text font-bold"
                         : "text-ct-slate hover:bg-ct-cloud"
                     )}
                   >
@@ -230,7 +246,7 @@ export default function SettingsPage() {
                   <div>
                     <p className="font-semibold text-ct-navy">{profileName || '—'}</p>
                     <p className="text-sm text-ct-muted">{profileEmail || '—'}</p>
-                    <Badge variant="secondary" className="bg-ct-accent text-ct-saffron text-[10px] mt-1 font-medium capitalize">
+                    <Badge variant="secondary" className="bg-ct-accent text-ct-saffron-text text-[10px] mt-1 font-medium capitalize">
                       {profileRole || 'member'}
                     </Badge>
                   </div>
@@ -549,7 +565,9 @@ export default function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isAdmin ? (
+                {!profileLoaded ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : isAdmin ? (
                   <OrgLimitsSection />
                 ) : (
                   <p className="text-sm text-muted-foreground">Only admins can view and change seat and spend limits.</p>
@@ -567,11 +585,27 @@ export default function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isAdmin ? (
+                {!profileLoaded ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : isAdmin ? (
                   <SubscriptionPlanSection />
                 ) : (
                   <p className="text-sm text-muted-foreground">Only admins can view and change the organisation&apos;s subscription plan.</p>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "billing" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <CreditCard className="size-4" />
+                  Billing
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <BillingSection isAdmin={isAdmin} />
               </CardContent>
             </Card>
           )}
@@ -585,7 +619,9 @@ export default function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isAdmin ? (
+                {!profileLoaded ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : isAdmin ? (
                   <BrandingSection />
                 ) : (
                   <p className="text-sm text-muted-foreground">Only admins can view and change organisation branding.</p>
@@ -603,7 +639,9 @@ export default function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isAdmin ? (
+                {!profileLoaded ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : isAdmin ? (
                   <AdoptionMetricsSection />
                 ) : (
                   <p className="text-sm text-muted-foreground">Only admins can view the org adoption dashboard.</p>

@@ -8,9 +8,15 @@ export async function GET(request: NextRequest) {
   if (!orgId) return NextResponse.json({ entries: [] })
 
   try {
+    // R48 gap-closure (F086): boqLineItemId/dateFrom/dateTo are new, purely
+    // additive optional filters -- omitting all 3 (every existing caller)
+    // returns exactly the same result as before.
     const entries = await listProgressEntries({ orgId }, {
       projectId: request.nextUrl.searchParams.get("projectId") ?? undefined,
       activityId: request.nextUrl.searchParams.get("activityId") ?? undefined,
+      boqLineItemId: request.nextUrl.searchParams.get("boqLineItemId") ?? undefined,
+      dateFrom: request.nextUrl.searchParams.get("dateFrom") ?? undefined,
+      dateTo: request.nextUrl.searchParams.get("dateTo") ?? undefined,
     })
     return NextResponse.json({ entries })
   } catch (error) {

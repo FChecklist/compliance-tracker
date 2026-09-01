@@ -5,13 +5,13 @@
 // audit trail), same "requires a real user session, not an API key" posture
 // already established at /api/v1/erp/inventory/receipts.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listPayrollRuns, createPayrollRun, ServiceError } from "@/lib/services/erp-payroll-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ runs: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const runs = await listPayrollRuns({ orgId: ctx.orgId })
