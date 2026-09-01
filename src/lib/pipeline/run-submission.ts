@@ -20,11 +20,11 @@ import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { submissions, pipelineTasks, pillUsage, chainHistory } from "@/lib/db/schema";
 import { segment, rejoinCandidate, type Segment } from "./segment";
 import { classifyL0, type L0Repo, type ClassificationResult as L0Result } from "./level0";
-import { makeL0Repo, makeChainRepo, resolveRootLabel, logGapRow } from "./repos";
+import { makeL0Repo, makeChainRepo, makeReuseCacheRepo, resolveRootLabel, logGapRow } from "./repos";
 import { classifySegment, classifySubmission, normaliseForMatch, type Classification, type ResolvedFunction, type SubmissionClassification } from "./classify";
 import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
-import { runLevel1 } from "./level1";
+import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
 import { createMemoryRecord } from "@/lib/services/memory-service";
 
@@ -203,13 +203,14 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   });
 
   const repo = makeL0Repo(input.orgId, input.userId);
+  const reuseRepo = makeReuseCacheRepo(input.orgId, input.userId);
   const chainRepo = makeChainRepo(input.orgId);
   const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
   let l0Hits = 0;
   let resolvedCount = 0;
 
   // ---- RESOLUTION PASS -------------------------------------------------
-  const resolved = await resolveAll(segs, input, repo);
+  const resolved = await resolveAll(segs, input, repo, reuseRepo);
   for (const r of resolved) {
     if (r.classification.verdict !== "gap") {
       resolvedCount++;
@@ -643,11 +644,14 @@ async function recordChainHistory(
  * each, then R53's re-join-once retry for whatever still resolved to
  * nothing.
  */
-async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Repo): Promise<ResolvedSegment[]> {
+async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Repo, reuseRepo: ReuseCacheRepo): Promise<ResolvedSegment[]> {
   const l0 = await Promise.all(segs.map((s) => classifyL0(s.text, { orgId: input.orgId, userId: input.userId }, repo)));
 
+  // R65 Part D: reuse_cache is checked BEFORE Level 1 for every miss -- see
+  // reuse-cache.ts's own header. A hit is served with zero model calls
+  // (level: 0), so modelCallCount below only ever counts genuine AI calls.
   const missIndices = l0.map((r, i) => (r.kind === "miss" ? i : -1)).filter((i) => i >= 0);
-  const level1 = await runLevel1(missIndices.map((i) => segs[i].text), level1Context(input));
+  const level1 = await resolveMissesWithReuseCache(missIndices.map((i) => segs[i].text), level1Context(input), reuseRepo);
   modelCallCount += level1.modelCalls;
   const aiByIndex = level1.resolutions;
 
@@ -708,7 +712,7 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
     retryTexts.map((r) => classifyL0(r.text, { orgId: input.orgId, userId: input.userId }, repo))
   );
   const retryMissIdx = retryL0.map((r, i) => (r.kind === "miss" ? i : -1)).filter((i) => i >= 0);
-  const retryLevel1 = await runLevel1(retryMissIdx.map((i) => retryTexts[i].text), level1Context(input));
+  const retryLevel1 = await resolveMissesWithReuseCache(retryMissIdx.map((i) => retryTexts[i].text), level1Context(input), reuseRepo);
   modelCallCount += retryLevel1.modelCalls;
   const retryAi = retryLevel1.resolutions;
 

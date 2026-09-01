@@ -17,6 +17,16 @@
 // unit test (unlike buildTaskResultMemoryContent()'s real string
 // formatting), so it is exercised by this repo's real-DB-backed
 // integration/E2E surface, not a mocked-DB unit test here.
+//
+// R65 Part D (2026-09, reuse_cache wiring) wires resolveAll()'s two
+// runLevel1() call sites through resolveMissesWithReuseCache() and
+// constructs a real makeReuseCacheRepo() -- both DB-backed, same disclosed
+// gap as above, not unit tested from this file. The actual NEW logic (cache
+// hit skips the model, cache miss falls through and records the result) is
+// NOT part of that gap: it lives in resolveMissesWithReuseCache() itself,
+// which takes an injectable fake repo AND an injectable fake runLevel1Fn
+// (same seam pattern level0.ts's L0Repo already established) and has real,
+// dedicated coverage in reuse-cache.test.ts.
 import { describe, expect, test } from "bun:test"
 import { buildTaskResultMemoryContent } from "./run-submission"
 
