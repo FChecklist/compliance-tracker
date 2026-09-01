@@ -1567,3 +1567,40 @@ active:
       src/lib/pipeline/classify.test.ts additions covering the new
       function. No changes to classify-only.ts, the /classify route, or
       any pipeline_tasks column/enum.
+  - session_label: "claude-code (subagent, R65 Part D Phase 3) -- wire pipeline_task_status/pipeline_task_executor enum values already declared but unused, per the R65 Part D Phase 0 architecture report's own §3.12/§4.2/Phase 3 recommendation"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      R65 Part D Phase 0 report (§3.12) found `pipelineTaskStatusEnum`'s
+      'in_progress'/'waiting' values and `pipelineTaskExecutorEnum`'s
+      'ai'/'person' values declared in the DB enum but never assigned by
+      any code path (confirmed again fresh in this session before starting
+      -- run-submission.ts/repos.ts still only ever write
+      'to_do'->'done'/'blocked' and executor:'software' hardcoded). Report
+      explicitly sequenced this as its own Phase 3, and the just-merged
+      Phase 4 claim above explicitly deferred it as "separately scoped" --
+      confirmed no PR has touched it since. This claim covers BOTH halves
+      of the Phase 0 report's own Phase 3 definition: (a) wire the already-
+      declared 'in_progress'/'waiting'/'ai'/'person' values into real code
+      paths where semantically correct, and (b) extend
+      pipelineTaskStatusEnum with the two directive-required values that
+      have no existing analog at all (WAITING_FOR_APPROVAL, ESCALATED),
+      per §4.2's explicit recommendation to wire existing values before
+      adding new ones. Does NOT touch AI escalation-tier dispatch/model-
+      selection wiring (Phase 6 in the report's own numbering) -- no
+      dispatch-wiring or model-selection code is touched by this claim,
+      per explicit instruction to leave that phase alone pending owner
+      sign-off. Migration numbered 0527 (0526 is main's true current
+      highest as of a fresh `git ls-tree -r origin/main -- drizzle/`
+      immediately before this claim).
+    scope_note: >-
+      File scope: src/lib/db/schema.ts (additive enum-value changes only:
+      new pipelineTaskStatusEnum values), new
+      drizzle/0527_r65_partd_phase3_task_status_executor.sql +
+      drizzle/meta/_journal.json entry, src/lib/pipeline/run-submission.ts
+      (assign 'waiting'/'ai'/'person' at real decision points; status enum
+      extension consumed here), src/lib/pipeline/repos.ts if mintTask/
+      status-write helpers live there, new/updated
+      src/lib/pipeline/*.test.ts covering the new transitions. No changes
+      to classify.ts's classifySubmission()/classifySegment(), the
+      submissions.classification column, any AI-router/escalation-tier/
+      model-selection file, or the token_usage_ledger columns from Phase 2.
