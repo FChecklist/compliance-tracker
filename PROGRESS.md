@@ -1,64 +1,95 @@
-# PROGRESS -- rebase-sweep2b-896 (real rebase-merge for PR #896)
-
+# PROGRESS -- rebase-1530-final (real rebase-merge for PR #1530, second replacement for original PR #579)
 ## Scope
-Real rebase-merge of PR #896 (`worker/task-20260804-125242-ocid-038-independently-verify-self-discl`,
-"OCID-038: independent DB-forensic verification of a self-disclosed unintended write + real fix
-for GAP-VERI-TODO-STUCK-LOADING-NOT-READY + mobile-viewport cooldown") onto current main, per this
-repo's standard rebase-sweep protocol. Prior triage + adversarial-verify (already complete before
-this sweep, not re-done here) confirmed real, additive, still-missing functionality on main:
-`listVeriTodos()` in `veri-todo-service.ts` ran 5 sequential independent awaits instead of
-`Promise.all`, and `veri-chat-context.tsx`/`VeriComposer.tsx` had zero occurrences of
-`aiThreadsLoading` -- both real fixes genuinely absent from main.
-
+Real rebase-merge of PR #1530 (`rebase-final-579`, "V2-11: Delegation expiry
+enforcement audit + wire into 2 real checkpoints [was #579]") onto current
+main, per this repo's standard rebase-sweep protocol. Original PR content
+(already independently reviewed and approved by the owner, not
+re-litigated here): real broken-access-control vulnerability -- a low-rank
+user could self-grant payment-approval authority via delegation.
+`isDelegatedByAuthorizedDelegator()` (`src/lib/services/delegation-
+service.ts`) is wired into `decideApprovalStep()`
+(`approval-workflow-service.ts`) and the new `canDecidePaymentEntry()`/
+`decidePaymentEntry()` gate (`erp-payment-entries-service.ts`), checking the
+delegator's own rank (>= MANAGER_RANK) before honoring a delegation. #1530
+was itself already a rebase-replacement for the original PR #579; main kept
+moving before #1530 could be merged, so this rebase was done directly on
+#1530's own head branch (`rebase-final-579`) across two rounds rather than
+opening a third PR number. Owner has explicitly approved "merge as-is"
+after resolving the one open policy question below -- no further review
+needed.
 ## Completed
-- [x] Worktree: `git worktree add -b rebase-sweep2b-896` from
-      `origin/worker/task-20260804-125242-ocid-038-independently-verify-self-discl`, `bun install`
-      (1203 packages).
-- [x] Independently re-confirmed the PR's real, narrow source diff before merging (3 files, 33
-      insertions / 15 deletions): `veri-todo-service.ts` parallelizes exactly the 3 genuinely
-      independent queries (`taskRows`/`commitmentRows`/`assigneeRows`) via `Promise.all` while
-      correctly leaving the real data-dependent chain (`issueRows` needs `assigneeRows`,
-      `statusRows` needs `issueRows`, `projectRows` needs `openIssues`) sequential -- not a
-      cosmetic no-op fix. `veri-chat-context.tsx` adds a real `aiThreadsLoading` boolean (starts
-      `true`, flipped `false` in the `/api/conversations` fetch's `.finally()`), threaded into
-      context value/memo deps; `VeriComposer.tsx` consumes it to compute `discussNotReady` and
-      gate the composer's disabled/placeholder state on it, closing the real race where a
-      "discuss" submit before the AI-thread fetch resolved raced a null `aiThreadId`.
-- [x] `git merge origin/main` (round 1) -- 2 real conflicts: `PROGRESS.md` (this repo's
-      single-current-entry convention -- replaced wholesale with this entry, per the known
-      gotcha) and `ai-os/boss/ACTIVE-CLAIMS.yaml` (main had independently pruned its `active:`
-      list since this branch was cut -- took main's pruned list as base, re-appended this PR's
-      own claim entry on top). All 3 real source fixes confirmed intact post-merge.
-- [x] Found `veri-todo-service.ts` had zero sibling test coverage before this PR, tripping the
-      real `New Test Coverage Check` CI gate. Added
-      `src/lib/services/veri-todo-service.test.ts` (mocked `@/lib/db/tenant-scoped`, same
-      convention as `crm-service.test.ts`'s `getSalesRepPerformanceDashboard` tests): a real
-      regression guard proving the 3 independent queries are dispatched concurrently before any
-      resolves, plus merge/sort/filter behavior and the empty-state short-circuit. Regenerated
-      `docs/master/TEST_COVERAGE_GAP.md` (112/236 -> 113/236) via the documented workaround for
-      `report-test-coverage-gap.mjs`'s isMain self-invocation bug in this shell.
-- [x] Pushed `rebase-sweep2b-896`, opened replacement PR #1534 ("... [was #896]"), closed #896
-      pointing to #1534.
-- [x] `git merge origin/main` (round 2) -- main advanced again (PR #929's rebase-sweep, "OCID-050
-      GET /api/me perf + settings isAdmin loading gate", merged as #1533). 1 conflict:
-      `PROGRESS.md` (same wholesale-replace convention). Re-verified all 3 real source fixes and
-      the new test file intact; pushed immediately.
-- [x] `git merge origin/main` (round 3) -- main advanced a third time within minutes (PR #1019's
-      rebase-sweep, "Close Cache & Synchronization / Cache Integrity & Security gaps", merged as
-      `rebase-final-1019`/#1532) -- this repo is under unusually heavy concurrent rebase-sweep
-      traffic right now (multiple sibling PRs landing every few minutes), matching the pattern
-      already documented in this repo's own history for busy periods. 2 conflicts this round:
-      `PROGRESS.md` (same wholesale-replace convention) and `ai-os/boss/ACTIVE-CLAIMS.yaml` (pure
-      additive this time -- main's new entry for PR #1019 landed alongside, not instead of, this
-      branch's own re-appended entry from round 1; kept both). Re-verified all 3 real source
-      fixes and the new test file intact post-merge.
-
+- [x] Worktree: `git worktree add -b rebase-1530-final` from
+      `origin/rebase-final-579` (PR #1530's own head), `bun install` (1273
+      packages).
+- [x] `git merge origin/main`, round 1 (main 4 commits ahead: #1529/#1531/
+      #1533/#1532) -- 1 real conflict: `PROGRESS.md` (this repo's
+      single-current-entry convention, replaced wholesale with this entry).
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` and `ai-os/registry/terminology-
+      guardrail-exemptions.yaml` merged automatically with no conflict --
+      neither #579/#1530 nor this rebase's own commits ever touch either
+      file (confirmed via `git diff <merge-base>`), so main's current
+      pruned/rotated `ACTIVE-CLAIMS.yaml` was taken as-is; appended this
+      task's own claim entry under `active:` on top of it, matching the
+      precedent already recorded in that same file (the rebase-final-1019
+      and rebase-1014-fixed entries). No `drizzle/` conflicts and no
+      migration files in this PR at all (confirmed via `git diff
+      <merge-base> -- drizzle/`), so no journal renumbering was needed.
+- [x] **Policy question resolved (was the sole blocker on #1530's own prior
+      PROGRESS.md entry)**: current main's branch-protection required
+      checks are Lint/Type Check/Build/Unit Tests only -- the
+      `mandatory-audit-check` CI gate (and `scripts/validate-audit-
+      verdict.ts`) was repo-wide removed 2026-08-18 (commit `c37f91c9`),
+      before this PR's branch was cut, which is why its last CI run still
+      carried a stale pre-fix FAIL verdict from the old gate. Owner
+      confirmed the current no-audit-check convention is intentionally
+      sufficient for this PR too, matching every other PR now merging under
+      it -- no fresh manual security re-review required. Owner instruction:
+      "merge as-is".
+- [x] Validated round 1: `node scripts/check-governance-yaml-parse.mjs`
+      (clean), `bunx tsc --noEmit` (clean, 0 errors), `bun test
+      src/lib/services/delegation-service.test.ts
+      src/lib/services/approval-workflow-service.test.ts
+      src/lib/services/erp-payment-entries-service.test.ts` (73 pass, 0
+      fail). Security checkpoints re-verified directly against the merged
+      tree: both `decideApprovalStep()` and `decidePaymentEntry()`/
+      `canDecidePaymentEntry()` still call
+      `isDelegatedByAuthorizedDelegator()` correctly -- the unrelated
+      `PROGRESS.md` conflict did not touch either service file.
+- [x] Pushed round 1 directly to PR #1530's own existing head branch
+      (`rebase-final-579`) -- fast-forward, no force needed.
+- [x] Re-checked `gh pr view 1530` immediately after push (per this repo's
+      own documented pattern for fast-moving concurrent rebase-sweeps) --
+      caught `mergeStateStatus: DIRTY` / `mergeable: CONFLICTING` even
+      though `headRefOid` matched the just-pushed commit. `git fetch origin
+      main` confirmed main had advanced again within minutes: PR #1534
+      (OCID-038, `listVeriTodos()` `Promise.all` parallelization +
+      `VeriComposer`/`veri-chat-context` `aiThreadsLoading` race fix, was
+      #896) had landed after the round-1 fetch.
+- [x] `git merge origin/main`, round 2 -- 1 real conflict again:
+      `PROGRESS.md` (same wholesale-replace convention, this entry kept on
+      top). `ai-os/boss/ACTIVE-CLAIMS.yaml` merged automatically this round
+      (this task's own round-1-appended entry survived intact, confirmed
+      via grep post-merge). Confirmed via `git diff` that PR #1534/#896
+      touches only `veri-todo-service.ts`, `VeriComposer.tsx`,
+      `veri-chat-context.tsx`, `veri-todo-service.test.ts`,
+      `MASTER-TRACKER.yaml`, `ACTIVE-CLAIMS.yaml`, `docs/master/
+      TEST_COVERAGE_GAP.md` -- zero overlap with this PR's
+      delegation/approval/payment files, so no re-check of the security
+      logic itself was needed beyond re-confirming the two call sites are
+      still present post-merge.
+- [x] Re-ran `node scripts/check-governance-yaml-parse.mjs` (clean),
+      `bunx tsc --noEmit` (clean, 0 errors) after round 2.
+- [x] Pushed round 2 to `rebase-final-579` immediately after resolving, to
+      minimize the window for a third main-advance before CI can register.
 ## Remaining
-- [ ] Re-validate after round-3 merge: `bunx tsc --noEmit`, governance YAML parse,
-      `node scripts/check-new-test-coverage.mjs`, targeted `bun test`.
-- [ ] Push round-3 merge, re-check CI/mergeable state on PR #1534 immediately.
-- [ ] Verify real CI on PR #1534 -- retry on transient network errors up to 5 times; ignore
-      known-ambient failures (E2E Tests, Vercel platform-wide block, Secret Scanning on
-      pre-existing files, Promptfoo Evals timeout). If main keeps advancing faster than CI can
-      complete, may need another merge round before a clean CI run is achievable.
-- [ ] Merge PR #1534 only when genuinely green (modulo the known-ambient ones).
+- [ ] Verify real CI on PR #1530 (`gh pr checks 1530`) -- retry on
+      transient network errors up to 5 times; ignore known-ambient
+      failures (E2E Tests, Vercel org-wide deployment-blocked, Secret
+      Scanning on pre-existing files, Promptfoo Evals).
+- [ ] Re-check `mergeable`/`mergeStateStatus` right before merging in case
+      main advanced yet again; re-merge if so.
+- [ ] Merge PR #1530 only when genuinely green (modulo the known-ambient
+      ones): `gh pr merge 1530 --squash --delete-branch`.
+- [ ] Independently verify post-merge via `gh pr view 1530
+      --json state,mergedAt` -- do not just trust the merge command's exit
+      code.

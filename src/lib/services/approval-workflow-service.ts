@@ -30,6 +30,7 @@ import { evaluateAttributeConditions, type AttributeCondition } from "@/lib/abac
 import { checkAbacDenyPoliciesWithDb } from "./abac-policy-service"
 import { detectHighImpactAction, type HighImpactCategory } from "@/lib/high-impact-action-detector"
 import { runWorkflowCompletionMonitor } from "@/lib/monitors/workflow-completion-monitor"
+import { isDelegatedByAuthorizedDelegator } from "./delegation-service"
 
 export type WorkflowContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -337,7 +338,34 @@ export async function decideApprovalStep(
 
     const userRank = ROLE_RANK[ctx.dbUser.role as UserRole] ?? 0
     const requiredRank = ROLE_RANK[step.approverRole as UserRole] ?? 999
-    if (userRank < requiredRank) throw new ServiceError(`This step requires ${step.approverRole} role or higher`, 403)
+    if (userRank < requiredRank) {
+      // V2-11 delegation-expiry-enforcement-audit: the one real (rank-
+      // insufficient) authorization checkpoint DELEGATION_SCOPE_TYPES'
+      // 'approval_type' scope exists for -- "while I'm on leave, my
+      // manager approves anything scoped to Project X on my behalf" (see
+      // scopedDelegations' own schema comment) becomes concrete here as
+      // "this specific person/role may decide approval-type steps for
+      // this entityType even without the role rank the step itself
+      // requires." isDelegated() is expiry- and revocation-aware (see
+      // delegation-service.ts's isDelegationActive) -- an expired or
+      // revoked delegation falls through to the same 403 as having none
+      // at all. Purely additive: a user who already meets requiredRank
+      // never reaches this branch, so behavior for every non-delegated
+      // approval is unchanged.
+      //
+      // V2-11 audit fix (AUDIT: FAIL, 2026-07-26 comment on PR #579): a
+      // delegation only counts here if its OWN delegatorUserId currently
+      // holds this step's requiredRank independently -- otherwise a
+      // rank-insufficient user could self-grant (delegateRoleKey equal to
+      // their own role) or accomplice-grant (delegateUserId) this step's
+      // approval authority nobody with real requiredRank authority ever
+      // delegated.
+      const delegated = await isDelegatedByAuthorizedDelegator(db, ctx.orgId, "approval_type", step.instance.entityType, ctx.userId, [ctx.dbUser.role], async (delegatorUserId) => {
+        const delegator = await db.query.users.findFirst({ where: eq(users.id, delegatorUserId) })
+        return delegator != null && (ROLE_RANK[delegator.role as UserRole] ?? 0) >= requiredRank
+      })
+      if (!delegated) throw new ServiceError(`This step requires ${step.approverRole} role or higher`, 403)
+    }
 
     // ABAC gap-closure (2026-07-18): a supplementary, org-configurable
     // deny-only check evaluated AFTER the RBAC rank check above already
