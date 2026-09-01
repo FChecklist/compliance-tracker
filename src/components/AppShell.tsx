@@ -70,6 +70,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (me?.accountStage === "stage_0") router.replace("/stage0-chat");
   }, [me?.accountStage, router]);
+
+  // OCID-038 GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE, real fix
+  // (UMR-20260803-072940-6a88, real implementation authorized
+  // UMR-20260804-105822-a267): registered here, at the authenticated app
+  // shell -- the real gap was directly observed inside an already-
+  // authenticated session going offline, and this is the one mount point
+  // that wraps every authenticated route. See public/sw.js's own header for
+  // the real, deliberately minimal (app-shell-only, not full offline-first)
+  // scope. Fails silently if unsupported (older browsers/some in-app
+  // webviews) -- this is a real, additive resilience improvement, never a
+  // requirement for the app to function.
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {})
+    }
+  }, []);
   const overdueCount = stats?.overdue ?? 0;
   const noticeCount = stats?.noticeCount ?? 0;
   const accountType = me?.orgAccountType ?? "company";
@@ -140,14 +156,37 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // composer/panel/homeRoute merge mechanics generically. Every other org
   // renders exactly as before via its own hand-rolled layout below: this
   // whole branch is additive, not a rewrite of the legacy flow.
-  const sidebarNode = sidebarCollapsed ? null : (
-    <div className="print:hidden">
+  // R48_SIDEBAR_COLLAPSE_REMOVES_ALL_NAV_01 (compliance-tracker instance):
+  // this used to be `sidebarCollapsed ? null : (...)`, which fully unmounted
+  // <AppSidebar> -- every nav link vanished from the DOM, not just the
+  // screen, on every veriChatV2Enabled org. The shared kit's own AppSidebar
+  // has no icon-rail/collapsed rendering mode to delegate to (its own
+  // `collapsed` prop is `if (collapsed) return null` too), and giving it
+  // one is a veridian-ui-kit change, out of this fix's scope. So instead of
+  // unmounting, the sidebar now always stays mounted and is hidden via
+  // `hidden` (display:none) when collapsed -- component state, DOM nodes
+  // and every <a href> stay present (recoverable, inspectable, and correct
+  // for the exact `document.querySelectorAll("a[href]")` check this fault
+  // was originally found with), the layout column is still reclaimed
+  // (display:none removes it from flow same as unmounting did visually),
+  // and the print stylesheet's `print:hidden` still applies either way.
+  const sidebarNode = (
+    <div className={sidebarCollapsed ? "hidden print:hidden" : "print:hidden"}>
       <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} orgLogoUrl={orgLogoUrl} brandName={brandName} />
     </div>
   );
 
   const body = veriChatV2Enabled ? (
     <VeriChatProvider>
+      {/* WCAG 2.4.1 (Bypass Blocks) skip-link target -- see the shared
+          `#main-content` anchor rendered once, outside this branch, in the
+          final `return` below (covers both the veriChatV2Enabled and legacy
+          branches). AppShellFrame's own `<main>` tag (in the external
+          @fchecklist/veridian-ui-kit package) is actually the assistant/chat
+          column, not this page's routed content -- out of this PR's scope
+          to relabel (separate repo) -- so the id/tabIndex lands on this
+          div, the closest thing this repo's own AppShell.tsx owns to a
+          "main content" wrapper for this branch. */}
       <AppShellFrame
         homeRoute={HOME_ROUTE}
         header={
@@ -170,7 +209,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         }
         homeThreadSlot={<HomeThreadSlot />}
       >
-        <div className="p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white">
+        <div id="main-content" tabIndex={-1} className="p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white">
           {/* /home leads with the assistant (first-minute experience) -- the
               Get Started checklist would sit above it speaking old
               compliance language, so it stays on every page except Home. */}
@@ -207,7 +246,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
       <div className="flex flex-1 overflow-hidden print:block print:overflow-visible">
         {sidebarNode}
-        <main className={cn("flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white", !dockHidden && "pb-28 md:pb-32")}>
+        {/* WCAG 2.4.1 (Bypass Blocks) skip-link target -- see the
+            `#main-content` anchor near the top of this component's final
+            `return`. PR #1224 (rebased 2026-08-31) originally added this
+            id/tabIndex to two `<main>` branches under a since-removed
+            `ResizablePanelGroup`/`veriChatV2Enabled` conditional that lived
+            HERE; that whole conditional has since moved into the
+            AppShellFrame-based branch above (see the `body` ternary's first
+            arm), leaving this as the one real `<main>` left in this legacy
+            (non-veriChatV2Enabled) branch. */}
+        <main id="main-content" tabIndex={-1} className={cn("flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white", !dockHidden && "pb-28 md:pb-32")}>
           <div className="print:hidden">
             {pathname !== HOME_ROUTE && <OnboardingChecklist />}
             <TrialBanner />
@@ -232,6 +280,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         "--org-brand-accent": orgBrandAccentColor,
       } as React.CSSProperties}
     >
+      {/* WCAG 2.4.1 (Bypass Blocks): every authenticated page renders this
+          same persistent chrome (topbar, health ribbon, sidebar) before the
+          real routed content, so a keyboard/screen-reader user otherwise has
+          to tab through the whole nav on every single page load. sr-only
+          until focused (first Tab press) -- jumps focus straight to the
+          `#main-content` landmark, which is the one thing that actually
+          changes per page. Rendered once here (outside the veriChatV2Enabled
+          ternary below) so it covers both branches, rather than duplicated
+          inside each one. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-ct-navy focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg"
+      >
+        Skip to main content
+      </a>
       {body}
     </div>
   );

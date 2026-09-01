@@ -8,9 +8,23 @@
 // "IGST" case-insensitively) -- the same approach column-mapper.ts uses for
 // spreadsheet headers, applied to Tally's LEDGERNAME instead.
 import { XMLParser } from "fast-xml-parser"
-import { parseAmount, parseDateToIso } from "@/lib/gst/column-mapper"
+import { parseAmount, parseDateToIso, isMalformedNumericCell } from "@/lib/gst/column-mapper"
 import type { CanonicalInvoiceDraft, StagedRow } from "@/lib/gst/canonical-types"
 import { stateCodeFromGstin } from "@/lib/engines/in/gst-engine"
+
+// E-43: same silent-zero problem as the spreadsheet adapter (see
+// column-mapper.ts's isMalformedNumericCell), applied to Tally's own
+// AMOUNT/ACTUALQTY/RATE fields. A hand-edited or corrupted Tally XML export
+// can carry a non-numeric AMOUNT/RATE/QTY just as easily as a spreadsheet
+// cell can -- Tally's schema fixes the TAG names, not what a buggy exporter
+// puts inside them.
+function readAmount(rawValue: string | number | undefined, label: string, warnings: string[]): number {
+  if (typeof rawValue === "string") {
+    const trimmed = rawValue.trim()
+    if (isMalformedNumericCell(trimmed)) warnings.push(`${label} "${trimmed}" is not a number -- imported as 0`)
+  }
+  return parseAmount(rawValue)
+}
 
 type TallyLedgerEntry = { LEDGERNAME?: string; AMOUNT?: string | number; ISPARTYLEDGER?: string }
 type TallyInventoryEntry = { STOCKITEMNAME?: string; HSNCODE?: string; ACTUALQTY?: string; RATE?: string; AMOUNT?: string | number }
@@ -49,18 +63,32 @@ export function adaptTallyXml(xmlText: string): { rows: StagedRow[] } {
     const ledgerEntries = [...toArray(v["ALLLEDGERENTRIES.LIST"]), ...toArray(v["LEDGERENTRIES.LIST"])]
     const inventoryEntries = toArray(v["INVENTORYENTRIES.LIST"])
 
+    const warnings: string[] = []
     let taxableValue = 0, cgstAmount = 0, sgstAmount = 0, igstAmount = 0
     for (const entry of ledgerEntries) {
-      const amount = Math.abs(parseAmount(entry.AMOUNT))
+      const amount = Math.abs(readAmount(entry.AMOUNT, `Ledger "${entry.LEDGERNAME ?? "unnamed"}" amount`, warnings))
       const kind = classifyLedger(entry.LEDGERNAME ?? "")
       if (kind === "cgst") cgstAmount += amount
       else if (kind === "sgst") sgstAmount += amount
       else if (kind === "igst") igstAmount += amount
       else if (entry.ISPARTYLEDGER !== "Yes") taxableValue += amount // non-party, non-tax ledger -- treat as the sale/purchase value line
     }
+
+    // Read each inventory entry's amount/qty/rate exactly once (not
+    // re-parsed for the fallback below) so a malformed cell is warned about
+    // once, not once per place its parsed value gets reused.
+    const items = inventoryEntries.map(e => ({
+      hsnSacCode: e.HSNCODE ? String(e.HSNCODE).trim() : null,
+      description: e.STOCKITEMNAME ? String(e.STOCKITEMNAME).trim() : null,
+      quantity: readAmount(e.ACTUALQTY, `Inventory "${e.STOCKITEMNAME ?? "unnamed"}" quantity`, warnings) || 1,
+      rate: readAmount(e.RATE, `Inventory "${e.STOCKITEMNAME ?? "unnamed"}" rate`, warnings),
+      taxableValue: Math.abs(readAmount(e.AMOUNT, `Inventory "${e.STOCKITEMNAME ?? "unnamed"}" amount`, warnings)),
+      gstRatePercent: 0,
+      cgstAmount: 0, sgstAmount: 0, igstAmount: 0,
+    }))
     // Fallback: if no non-tax ledger line was found, derive taxable value from inventory entries
-    if (taxableValue === 0 && inventoryEntries.length > 0) {
-      taxableValue = inventoryEntries.reduce((sum, e) => sum + Math.abs(parseAmount(e.AMOUNT)), 0)
+    if (taxableValue === 0 && items.length > 0) {
+      taxableValue = items.reduce((sum, item) => sum + item.taxableValue, 0)
     }
 
     const totalValue = taxableValue + cgstAmount + sgstAmount + igstAmount
@@ -74,20 +102,12 @@ export function adaptTallyXml(xmlText: string): { rows: StagedRow[] } {
       placeOfSupply: v.PLACEOFSUPPLY ? String(v.PLACEOFSUPPLY).trim() : (gstin ? stateCodeFromGstin(gstin) : null),
       invoiceType: "b2b",
       taxableValue, cgstAmount, sgstAmount, igstAmount, cessAmount: 0, totalValue,
-      items: inventoryEntries.length > 0
-        ? inventoryEntries.map(e => ({
-            hsnSacCode: e.HSNCODE ? String(e.HSNCODE).trim() : null,
-            description: e.STOCKITEMNAME ? String(e.STOCKITEMNAME).trim() : null,
-            quantity: parseAmount(e.ACTUALQTY) || 1,
-            rate: parseAmount(e.RATE),
-            taxableValue: Math.abs(parseAmount(e.AMOUNT)),
-            gstRatePercent: 0,
-            cgstAmount: 0, sgstAmount: 0, igstAmount: 0,
-          }))
+      items: items.length > 0
+        ? items
         : [{ hsnSacCode: null, description: null, quantity: 1, rate: taxableValue, taxableValue, gstRatePercent: 0, cgstAmount, sgstAmount, igstAmount }],
     }
 
-    return { sourceRow: idx + 1, rawData: v as Record<string, unknown>, mappedData: draft, mappingConfidence: 1 }
+    return { sourceRow: idx + 1, rawData: v as Record<string, unknown>, mappedData: draft, mappingConfidence: 1, warnings }
   })
 
   return { rows }

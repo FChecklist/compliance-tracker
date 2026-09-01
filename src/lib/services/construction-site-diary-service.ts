@@ -30,6 +30,16 @@ export async function listSiteDiaries(ctx: { orgId: string }, projectId: string)
   )
 }
 
+// Real-screen conversion (2026-08-30): single-entry lookup for the Site
+// Diary Object Page -- only listSiteDiaries (all) existed before.
+export async function getSiteDiary(ctx: { orgId: string }, diaryId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const diary = await db.query.constructionSiteDiaries.findFirst({ where: and(eq(constructionSiteDiaries.id, diaryId), eq(constructionSiteDiaries.orgId, ctx.orgId)) })
+    if (!diary) throw new ServiceError("Site diary entry not found", 404)
+    return diary
+  })
+}
+
 export async function createSiteDiary(ctx: { orgId: string; userId: string }, input: SiteDiaryInput) {
   if (!input.projectId) throw new ServiceError("projectId is required", 400)
   if (!input.diaryDate) throw new ServiceError("diaryDate is required", 400)

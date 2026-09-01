@@ -1077,7 +1077,7 @@ content has no hard read-dependency on those siblings' text.
 
 ---
 
-## Amendment (2026-08-03): VERIDIAN End User Experience Foundation v1.0 (`UMR-20260803-041653-9de5`, OCID-20260803-022)
+## Amendment (2026-08-03): VERIDIAN End User Experience Foundation v1.0 (`UMR-20260803-040844-4a33`, OCID-022, real dispatch UMR — corrected 2026-08-05 per `UMR-20260805-083603-9efa`, see `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`)
 
 Real Owner directive, tier 1, parented to `UMR-20260802-173631-ca85` (this same ERP Functional
 Completeness Master Program). Extends the existing master program — no new program, no new
@@ -1696,6 +1696,128 @@ speculatively authored ahead of their own real dependency chain.
 
 ---
 
+## Amendment (2026-08-03, later same day): OCID-041 real discovery/requirement-mapping artifact produced
+
+The dispatched-worker-scale discovery work the amendment above explicitly flagged as undone for OCID-041
+("No worker has yet been dispatched for OCID-041 as of this amendment") has now been produced under
+OCID-041's own already-real UMR (`UMR-20260803-084109-6875`) — no new UMR minted, this is the same
+registration's own deliverable. Canonical artifact:
+`ai-os/VERIDIAN_UNIVERSAL_EXTERNAL_EXECUTION_FOUNDATION_2026-08-03.md` (registered in `ai-os/OS.yaml`).
+
+Real, honest scope of what this artifact does and does not do: a full decomposition of the Owner
+directive's OCID-041 mission into 28 discrete requirements (R1-R28), a requirement-by-requirement mapping
+against existing, already-built VERIDIAN components (file:line cited, independently verified this same
+cycle via a dedicated read-only discovery pass — not narrated from a prior document's summary), and 5
+named, honest gaps (GAP-041-1 through GAP-041-5). The central finding: the real, used worker-dispatch path
+(`task-gateway.py`/`worker-entrypoint.sh`) has zero provider abstraction today (hardcoded to Claude Code
+CLI); the only place multi-provider routing already exists in this codebase (`roster.ts`, `llm-client.ts`,
+including live model strings for `z-ai/glm-5.2`, `google/gemini-2.5-pro`, `deepseek/deepseek-v4-pro`) sits
+on the AI-Team advisory surface, which has no live callers in production. VERIDIAN's existing
+task/workflow/security/audit/review/governance-authority mechanisms already treat the executor as
+non-authoritative, so R3-R10 (sole-authority requirements) are a genuine reuse opportunity, not a gap.
+
+Still locked, still discovery-only: this artifact does not implement anything, does not wire any external
+provider execution path, does not modify `CONSTITUTION.yaml` or worker/server runtime, and does not mark
+OCID-041 complete. Same `SEC-07` gate as before (OCID-020, `UMR-20260802-165606-4413`, independently
+reconfirmed still open this same cycle via `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`)
+applies unchanged, requiring the same fresh, explicit Owner override in chat before any of R1/R2/R11-19's
+real gaps may be closed.
+
+---
+
+## Amendment (2026-08-03): OCID-042 substantive discovery performed — VERIDIAN Universal Context Packaging Runtime v0.1
+
+Real dispatched worker task (`veridian-worker@task-20260803-085550-register-ocid-042-universal-context-
+pack.service`, real UMR `UMR-20260803-084332-5b52`, confirmed by direct query against `umr_tasks`, tier
+2), distinct from the governance-registration-only amendment immediately above (that entry explicitly
+stated OCID-041 through OCID-046's substantive discovery work "remain[ed] genuinely undone" and that "no
+worker has yet been dispatched"). This amendment records that OCID-042's own substantive discovery has
+now genuinely happened, producing a new canonical artifact:
+`ai-os/VERIDIAN_UNIVERSAL_CONTEXT_PACKAGING_RUNTIME_2026-08-03.md`.
+
+**What was actually done**: a real, file:line-grounded inventory (not narrated from the dispatch prompt)
+of the existing VERIDIAN components a future universal context-packaging runtime would need to reuse —
+`AssembledContext`/`context-assembly.ts` (the one existing typed, serializable context bundle, confirmed
+not wired to any external-provider call site today), `MotherRouterContext`/`resolveModel()` (provider
+resolution only, builds no payload), chat-service.ts history bounding, mode-pill/chain selection data,
+task/report/document content sources, and — the central finding — one canonical low-level dispatcher
+(`llm-client.ts`) fed by roughly two dozen independent ad hoc prompt-construction call sites, plus two
+further fully independent construction paths outside it entirely (`webllm-engine.ts`'s in-browser WebLLM
+path, and `worker-entrypoint.sh`'s raw `task.yaml`/`prompt.txt`-text path to the `claude` CLI). Confirmed
+via repo-wide grep that no `ContextPackage`/`RequestPackage`/`PromptPackage`/`UniversalContext`
+abstraction already exists anywhere in `src/` — zero duplication risk for a future implementation.
+Cross-referenced, not duplicated: OCID-034's existing document (`VERIDIAN_UNIVERSAL_CONTEXT_AND_
+PREDICTIVE_RUNTIME_2026-08-03.md`), which covers predictive *end-user* context, a related but distinct
+subject from this document's outbound-*provider-payload* scope.
+
+**Why this stays discovery-only, not implementation, despite the dispatch prompt requesting EXECUTION**:
+(1) OCID-042's own cited parent, OCID-041, was itself only registered this same cycle as a governance
+record with zero substantive design work performed yet — building a real runtime against a foundation
+that does not yet exist would mean inventing that foundation here, which was explicitly out of scope;
+(2) `SEC-07` (`ai-os/CONSTITUTION.yaml`) locks real implementation under the ERP Functional Completeness
+Master Program, and specifically OCID-038/039/040, until `UMR-20260802-165606-4413` (OCID-020)
+independently clears — unmet as of this writing. No code was written, no existing call site among the
+~24-26 identified was rewired, no schema or `CONSTITUTION.yaml` change was made, and OCID-042 is not
+marked complete anywhere.
+
+Canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_PACKAGING_RUNTIME_2026-08-03.md` (new file), this
+amendment, `ai-os/OS.yaml` (index entry) — not a rewrite or duplicate of the governance-registration
+amendment above, which stays accurate for OCID-041/043/044/045/046 (still genuinely undispatched as of
+this writing).
+
+---
+
+## Amendment (2026-08-03): OCID-045 re-verified, decline stands — no new certification, no drift found
+
+Real gatekeeper check (per the standing rule above) performed before any new writing: this task's own
+SPEC asked to register OCID-045 (`UMR-20260803-084637-ada4`, parented to OCID-044
+`UMR-20260803-084547-22fd`) as discovery-only with certification explicitly declined. That exact
+registration and decline **already exists**, word-for-word, in the amendment immediately above this
+one (committed `8cdbe5ea`, ~11 minutes before this task's own dispatch) — this task's substantive
+content is not undone work, it is already-done work. Per the gatekeeper rule ("if found: extend/update
+it, never rebuild or duplicate"), this entry does not re-author a second decline; it independently
+re-checks the real state cited by that decline for drift, since ~15-20 minutes had passed and this
+same cycle has shown numbering/status drift before.
+
+**Real re-verification performed this task, current as of this commit, not re-derived from the prior
+entry's own text:**
+- `gh pr list` against `FChecklist/compliance-tracker` (open, 40-item window): zero PRs reference
+  OCID-041, OCID-042, OCID-043, OCID-044, or OCID-045 in title or branch name. No canonical artifact
+  has been opened as a PR for any of the four upstream stages yet — the "zero PR opened" claim in the
+  prior entry still holds.
+- `ai-os/boss/ACTIVE-CLAIMS.yaml`: two new claims appeared *after* the prior decline entry was written
+  (`5af793dc` OCID-041 discovery, `a38d9ebb` OCID-043 discovery, both timestamped ~08:57-08:58, ~10
+  minutes after `8cdbe5ea`'s 08:48 write time) — both live only on their own separate, unmerged sibling
+  worker branches (`worker/task-20260803-085546-register-ocid-041-...`,
+  `worker/task-20260803-085553-register-ocid-043-...`; neither is an ancestor of this branch's `HEAD`,
+  confirmed via `git merge-base --is-ancestor`). Real, honest update: discovery work for OCID-041 and
+  OCID-043 is now actively being dispatched by sibling sessions — still discovery, still no merged PR,
+  still no canonical artifact on `main`. Does not change the decline; if anything, confirms the chain
+  is still mid-discovery, not implementation.
+- OCID-020 (`UMR-20260802-165606-4413`): has **not** independently cleared. The most recent real sweep
+  (`1bc85b36`, merged via PR #794) completed the 115/115 nav-surface coverage but found **3 new real
+  gaps** (`GAP-ERP-REPORTS-CLIENT-CRASH-ON-403`, `GAP-403-VS-500-CLM-HR-PERFORMANCE`,
+  `GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ`) — completing a sweep and finding new gaps is the
+  opposite of an independent clean clearance. This is the same real gate cited by SEC-07.
+- `ai-os/CONSTITUTION.yaml` SEC-07 (read directly, current `HEAD`): unchanged since the prior entry,
+  `status: ENFORCED`, still names the same real unlock sequence (OCID-020 clears → OCID-038 → OCID-039
+  → OCID-040) and still holds real implementation, gap closure, certification, and platform freeze
+  locked under it. SEC-07's own text now explicitly directs future entries to cite "SEC-07 or the real
+  UMR" rather than the fictitious "OCID-021 implementation lock" label — this entry does so.
+- OCID-038/039/040: a sibling, unmerged worker branch (`8a7bb2f1`, `worker/task-20260803-071...`)
+  registers real discovery + real end-user verification for all three, explicitly titled
+  "implementation LOCKED" — consistent with, not contradicting, SEC-07's current lock state.
+
+**Conclusion: no drift found that would change the decline.** OCID-045's certification remains
+correctly, honestly refused. `CONSTITUTION.yaml` is not updated to declare the foundation complete.
+OCID-045 is not marked complete. No "zero omissions"/"zero duplication" claim is made. This entry adds
+only a re-verification record — it creates no new canonical artifact and does not duplicate the prior
+decline's own reasoning.
+
+Canonical artifact: this file (this amendment) only.
+
+---
+
 ## Amendment (2026-08-03): OCID-048 registered — Multi Organization/Tenant/Brand Isolation
 ## Certification task breakdown, planning only, direct child of OCID-020
 
@@ -1719,7 +1841,7 @@ BREAKDOWN_2026-08-03.md` (new file), this amendment, `ai-os/OS.yaml` (registrati
 
 ---
 
-## Amendment (2026-08-03): VERIDIAN Universal End User Work Model v1.0 (`UMR-20260803-042019-844f`, dispatch `UMR-20260803-040929-9713`, OCID-20260803-023)
+## Amendment (2026-08-03): VERIDIAN Universal End User Work Model v1.0 (`UMR-20260803-040929-9713`, OCID-023, real dispatch UMR — corrected 2026-08-05 per `UMR-20260805-083603-9efa`, see `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`; this document originally also self-minted a fabricated "artifact UMR", `UMR-20260803-042019-844f`, never really registered anywhere)
 
 Real Owner directive, tier 1, documentation only. Parented to `UMR-20260803-040844-4a33` (the real
 `owner_dispatch_gateway` UMR that created sibling task `task-20260803-040852-ocid-022`, independently
@@ -1765,7 +1887,7 @@ partial exception being `pmsIssues.isArchived`, a bare flag with no retention/di
 
 | OCID | UMR | Section (this file) | Status |
 |---|---|---|---|
-| OCID-20260803-023 | `UMR-20260803-042019-844f` (artifact) / `UMR-20260803-040929-9713` (dispatch) | VERIDIAN Universal End User Work Model v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as OCID-20260803-021/022's own entries above** |
+| OCID-20260803-023 | `UMR-20260803-040929-9713` (real dispatch UMR — corrected 2026-08-05 per `UMR-20260805-083603-9efa`; the "artifact" UMR `UMR-20260803-042019-844f` previously listed here was fabricated, never really registered) | VERIDIAN Universal End User Work Model v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as OCID-20260803-021/022's own entries above** |
 
 Canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md` (new, not a
 duplicate — confirmed via `git log --all --name-only` finding `UNIVERSAL_TASK_WRAPPER_DESIGN.md` as
@@ -1777,3 +1899,114 @@ entry, to be moved to `recently_completed` on merge) — not rewritten, not dupl
 Canonical artifact created: `ai-os/VERIDIAN_UNIVERSAL_KNOWLEDGE_AND_SERVICE_CATALOG_2026-08-03.md` (new).
 Canonical artifact updated: this file, `ai-os/OS.yaml` (index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml`
 (claim entry, to be moved to `recently_completed` on merge) — not rewritten, not duplicated.
+
+---
+
+## PROGRAM REGISTRATION (2026-08-02): VERIDIAN ERP Functional Completeness Program
+
+Per Owner directive OCID-20260802-021 (`PROGRAM_PRIORITY=HIGHEST`), registering the standing chain
+of amendments already made to this file tonight as a real, named **Master Program** — not a new
+initiative, a formal name for what this file's own amendment trail already is. No new database,
+repository, or parallel tracking file created; this section is the registration record, this file
+stays the one canonical artifact.
+
+**Parent chain**: `UMR-20260802-054239-4251` (Kernel SSOT) + `UMR-20260802-104058-25ba` (this
+matrix's own originating UMR) — both already this file's parents throughout every amendment above.
+
+**Sibling UMRs (verified live against `resource_governor.py --query-umr`, not trusted from the
+dispatching prompt text — real status as of this check, not narrated):**
+
+| UMR | Real status | Subject | Already amended into this file? |
+|---|---|---|---|
+| `UMR-20260802-164801-2ab9` | running | Master execution framework (design only) | Yes — see "Master Execution Framework" section above |
+| `UMR-20260802-164659-9a31` | **failed** (real DB status) | Server-wide artifact traceability audit | Partially — this file's own "first tranche" section documents real output produced despite the row's terminal `failed` status; per this session's own established rule ("`umr_tasks.status` ... not used as evidence of anything"), the real artifact content is trusted over the status label, but the label itself is disclosed here, not hidden |
+| `UMR-20260802-165034-5747` | running | Standing gatekeeper rule | Yes — applied to produce this very section (see below) |
+| `UMR-20260802-165434-cd91` | running | Unified project memory model | Yes |
+| `UMR-20260802-165541-c27d` | running | Recovery matrix | Yes |
+| `UMR-20260802-165606-4413` | **running, not completed** | PROJEXA-AI.COM end-user certification | **This is the gate.** Real current status confirms the lock below is genuinely still closed, not just asserted. |
+
+**Hard gate, applied exactly as directed, verified not just asserted**: real implementation work
+under this Program is locked until `UMR-20260802-165606-4413` reaches a real, independently-verified
+`completed` status. As of this registration it is `running` — **the gate stays shut.** Everything in
+this section and its discovery findings below is discovery/matrix-building only; nothing was
+implemented, dispatched, or queued for dispatch.
+
+**Program objective** (verbatim scope, not reworded): make real VERIDIAN a complete, real-world ERP,
+and real PROJEXA-AI.COM a complete end-user product — functional completeness, zero duplication,
+real implementation not narration.
+
+### Gatekeeper check applied before writing this section (per `165034-5747`'s own standing rule)
+
+Checked for an existing Program-level registration before creating one: grepped this file and
+`ai-os/MASTER_INDEX.yaml`/`OS.yaml` for "Master Program"/"program registration" — none found (only
+the per-directive amendment sections that already exist, which this section names collectively for
+the first time). No duplicate registration exists. **Decision: proceed, this is genuinely new.**
+
+### Matrix crosswalk — the 7 requested matrix types, mapped onto real existing artifacts, not rebuilt
+
+Rebuilding 7 new standalone matrix files would itself violate this Program's own zero-duplication
+objective — nearly all of the requested scope already exists, real and live, spread across this
+file and 2 real databases. Crosswalk, verified by direct query/read this session, not asserted:
+
+| Requested matrix | Real existing artifact | Coverage |
+|---|---|---|
+| Functional completeness matrix | This file's own summary table (items 1-14) | Full — 14 real deliverables scored |
+| Module matrix | Item 1 (ERP: 51 `erp_*`/9 `crm_*`/19 `construction_*` tables, 25+5+16 service files) + item 13 (module/wiring collation, 7,961 `wiring_registry` rows) | Full |
+| Report matrix | Item 3 + `/opt/veridian/ai-os/memory/sap_mapping.sqlite` — **verified this session by direct query**: 80/80 `sap_reports` rows fully classified (37 REUSE_EXISTING with a named real VERIDIAN function each, 29 EXTEND_EXISTING likewise named, 14 BUILD_NEW), 0 rows missing `veridian_gap_notes`, spanning 11 real SAP modules (`sap_modules` table: FI-AR/FI-GL/CO/PS/SD/MM/FI-AP/FI-AA/HCM/Treasury/CRM) | Full — already complete, not partial |
+| Business rule matrix | `sap_reports.business_purpose`/`calculation_logic` columns (SAP-domain rules, 80 real rows) + `ai-os/PROCUREMENT_ERP_GAP_ANALYSIS_2026-07-31.md` (10-phase PHP/ERPNext-style reference, PRESENT/PARTIAL/MISSING verdict per real business rule, feeding directly into this matrix's own Stream N) | **Partial** — real and substantial for Finance/Controlling/Sales/Materials/Assets/HR/Treasury/CRM (via SAP) and Procurement (via the phase docs), but no equivalent phase-by-phase reverse-engineering exists yet for Construction-specific, multi-brand, or multi-tenant business rules as a named reference comparison — genuine remaining scope, named below |
+| Workflow matrix | This file's own "Execution stream list" (Streams A-N) + the 5-table `approval_workflow_*` engine (real, confirmed wired to `entityType` incl. `erp_purchase_order`, per the procurement gap analysis) | Full for AI-executable work streams; the underlying business-process approval-workflow engine itself is real and live |
+| Screen matrix | Item 2 (UI/UX, 6 named unbuilt composer items) + real component inventory: `VeriComposer.tsx`, `ChainSelector.tsx`, `IntentCommandPalette.tsx`, `veri-chat-context.tsx` (mode-pill/option-selection UI, confirmed present via grep) | Partial — composer-level detail exists; no full screen-by-screen inventory across all 90 `src/app/(app)/` route segments has been cross-referenced against projexa-ai.com reachability (see end-user matrix below) |
+| End user matrix | **Genuinely new, not previously covered by this file or any doc found this session.** | **Missing — real gap, named below** |
+
+### Real new discovery findings this session (discovery-only, nothing implemented)
+
+1. **3 real reference-product reverse-engineering repos exist on the server, registered in
+   `MASTER_INDEX.yaml`'s repo census, but never cross-referenced against VERIDIAN's own functional
+   completeness the way SAP (`sap_mapping.sqlite`) and the PHP procurement reference
+   (`PROCUREMENT_ERP_GAP_ANALYSIS_2026-07-31.md`) already have been**: `odoo-reverse-engineering`
+   (40+ app ERP suite, scoping still blocked on a live Cloudflare Turnstile bot-detection wall per
+   its own `PROGRESS.md` — real, unresolved, not narrated as done), `infisuite-reverse-engineering`
+   (CRM/Billstack, Cityline tenant complete, others `not started`, per its own README status table),
+   `zoho-reverse-engineering` (CRM + Projects, scraped, cross-reference status not checked this
+   pass). `MASTER_INDEX.yaml`'s `other_repos_classified` entry only classifies these as "not this
+   system's code" for the *code-catalog* exercise — it does not address whether their *business-rule
+   content* has been mapped onto VERIDIAN, which is a separate question this Program is the first to
+   name explicitly.
+2. **No dedicated business-rule reference documentation exists yet for Construction-specific,
+   multi-brand, or multi-tenant domains** — the real existing reverse-engineering coverage (SAP +
+   the PHP procurement system) does not name a reference product for these three areas. Flagged as a
+   real scoping gap, not assumed to need one (a from-scratch domain may not need an external
+   reference product at all — Owner/PM judgment call, not resolved here).
+3. **No end-user/screen-reachability matrix exists connecting the 90 real route segments under
+   `src/app/(app)/` to what is actually live-reachable at `projexa-ai.com`.** The existing evidence
+   base states projexa is architected as a thin client bridging to compliance-tracker's API
+   (`callVeridian()`, confirmed live-grepped in `src/app/api/v1/projexa/*` route comments this
+   session) but no session has enumerated, screen-by-screen, which of the 90 segments are actually
+   surfaced to a projexa-ai.com end user versus internal-only to the compliance-tracker app itself.
+   This is the one requested matrix type with no real existing partial coverage found.
+
+### Child governance items registered (discovery-tracked, explicitly NOT dispatched — gate is shut)
+
+Per the hard gate above, these are registered as real, named, traceable governance records — not
+submitted to `resource_governor.py`'s live dispatch queue. Submitting each as a real `--submit`
+task would spawn an actual systemd worker per item; doing that for open-ended discovery items before
+the certification gate clears would be a real, unauthorized escalation of live server resource
+commitment beyond what "discovery only" implies, and duplicates exactly the load-management problem
+`resource_governor.py` itself exists to prevent. Each item below is real, parent-linked, and ready
+to be submitted as a live UMR the moment the gate opens or a PM explicitly directs otherwise.
+
+| Child ID | Scope | Canonical artifact (once worked) | Audit requirement | Evidence required | Parent |
+|---|---|---|---|---|---|
+| `PROG-CHILD-01` | Cross-reference `odoo-reverse-engineering`'s completed docs (Cityline CRM/Billstack) against VERIDIAN, same PRESENT/PARTIAL/MISSING methodology as `PROCUREMENT_ERP_GAP_ANALYSIS_2026-07-31.md` | New `ai-os/INFISUITE_ODOO_ZOHO_GAP_ANALYSIS_<date>.md` (does not exist yet — real new file, not a duplicate) | Independent second-agent re-check of a sample of PRESENT/MISSING verdicts, same bar as this file's own item 13 spot-verification | Direct `grep`/schema citations per claim, no narration-only verdicts | This Program |
+| `PROG-CHILD-02` | Same for `infisuite-reverse-engineering` (Cityline complete; Bharatnet/Indyanet real scope still `not started` per its own README — flag partial source coverage honestly, do not treat as complete) | Same file as `PROG-CHILD-01` (one artifact, not per-repo duplicates) | Same | Same | This Program |
+| `PROG-CHILD-03` | Same for `zoho-reverse-engineering` (CRM + Projects) | Same file | Same | Same | This Program |
+| `PROG-CHILD-04` | Build the real end-user/screen-reachability matrix: enumerate all `src/app/(app)/*` route segments, verify live at `projexa-ai.com` vs. compliance-tracker-only, cite the real bridging mechanism per segment | New `ai-os/END_USER_REACHABILITY_MATRIX_<date>.md` | Independent live-click-through re-verification (same method as this file's item 2, 30 real screenshots) | Screenshot + route citation per segment, not a grep-only claim | This Program |
+| `PROG-CHILD-05` | Scope (not yet build) whether Construction/multi-brand/multi-tenant business rules need a named external reference product, or are correctly VERIDIAN-native with no reference-mapping requirement | A scoping note, PM/Owner decision required before this can become a close-ended build item | N/A until scoped | The scoping note itself, citing why a reference product is/isn't needed | This Program |
+
+**Not acted on beyond registration.** No child item above has been dispatched, implemented, or
+queued for real execution. All 5 remain discovery/scoping-stage, explicitly held behind the
+`UMR-20260802-165606-4413` gate per this Program's own hard rule.
+
+**Canonical artifact confirmed**: this file, amended in place — the Program has no separate
+tracking file. Cross-referenced in `ai-os/boss/ACTIVE-CLAIMS.yaml` (this session's own claim entry)
+and citable via `UMR-20260802-054239-4251`/`UMR-20260802-104058-25ba` as before.

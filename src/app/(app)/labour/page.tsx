@@ -36,7 +36,7 @@ type AttendanceEntry = { id: string; rosterId: string; attendanceDate: string; s
 
 const ATTENDANCE_COLORS: Record<string, string> = {
   present: "bg-green-100 text-green-700",
-  half_day: "bg-ct-saffron/20 text-ct-saffron",
+  half_day: "bg-ct-saffron/20 text-ct-saffron-text",
   absent: "bg-red-100 text-red-700",
 };
 

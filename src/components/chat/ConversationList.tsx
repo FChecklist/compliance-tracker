@@ -46,7 +46,7 @@ export function ConversationList({
           >
             <Avatar className="size-9 shrink-0">
               {c.isAiThread ? (
-                <AvatarFallback className="bg-ct-saffron/20 text-ct-saffron">
+                <AvatarFallback className="bg-ct-saffron/20 text-ct-saffron-text">
                   <Bot className="size-4" />
                 </AvatarFallback>
               ) : (

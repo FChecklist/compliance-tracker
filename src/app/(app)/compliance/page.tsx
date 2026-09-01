@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { format } from "date-fns";
 import {
   Plus,
@@ -75,11 +75,44 @@ const PRIORITY_BADGE: Record<string, string> = {
   low: "bg-emerald-100 text-emerald-700",
 };
 
-export default function CompliancePage() {
+// Pure, unit-testable derivation functions for the URL-driven pagination
+// fix (GAP-COMPLIANCE-PAGINATION-REVERT) -- see route.test.ts for coverage.
+export function parsePageParam(searchParams: URLSearchParams): number {
+  return Math.max(1, Number(searchParams.get("page")) || 1);
+}
+
+export function buildPageUrl(pathname: string, searchParams: URLSearchParams, nextPage: number): string {
+  const params = new URLSearchParams(searchParams.toString());
+  if (nextPage <= 1) params.delete("page"); else params.set("page", String(nextPage));
+  const qs = params.toString();
+  return qs ? `${pathname}?${qs}` : pathname;
+}
+
+function ComplianceRegisterView() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<ComplianceItem[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  // GAP-COMPLIANCE-PAGINATION-REVERT (OCID-050 live re-verification,
+  // UMR-20260805-002929-5560, UMR-20260804-234032-146e,
+  // UMR-20260802-165606-4413): `page` used to be a plain useState(1) --
+  // live-confirmed (real Playwright clicks, 3 independent trials) that
+  // clicking to page 2+ correctly fetched the new page's data, then within
+  // ~2-3.5s an unprompted request for page=1 fired and the UI silently
+  // reverted, so a real user could never actually browse a large compliance
+  // register past page 1. The `?page=N` URL param was also previously
+  // inert -- pagination was pure client state, invisible to any URL-based
+  // sweep. Deriving `page` from the URL via useSearchParams (this repo's
+  // own established pattern, see reports/page.tsx's CustomReportsSection)
+  // fixes both real issues at once: the URL becomes the source of truth, so
+  // a transient re-render/remount re-derives page 2 from the URL instead of
+  // silently falling back to a hardcoded initial value of 1, and the page
+  // number is now a real, shareable/bookmarkable/back-button-safe URL param.
+  const page = parsePageParam(searchParams);
+  const setPage = useCallback((next: number) => {
+    router.replace(buildPageUrl(pathname, searchParams, next), { scroll: false });
+  }, [router, pathname, searchParams]);
   const [loading, setLoading] = useState(true);
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
 
@@ -400,7 +433,8 @@ export default function CompliancePage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="size-7 text-ct-muted hover:text-ct-saffron"
+                        className="size-7 text-ct-muted hover:text-ct-saffron-text"
+                        aria-label="View compliance item"
                         onClick={(e) => {
                           e.stopPropagation();
                           router.push(`/compliance/${item.id}`);
@@ -427,6 +461,7 @@ export default function CompliancePage() {
                 variant="outline"
                 size="icon"
                 className="size-8"
+                aria-label="Previous page"
                 disabled={page <= 1}
                 onClick={() => setPage(page - 1)}
               >
@@ -449,6 +484,8 @@ export default function CompliancePage() {
                     variant={page === pageNum ? "default" : "outline"}
                     size="icon"
                     className="size-8"
+                    aria-label={`Go to page ${pageNum}`}
+                    aria-current={page === pageNum ? "page" : undefined}
                     onClick={() => setPage(pageNum)}
                   >
                     {pageNum}
@@ -459,6 +496,7 @@ export default function CompliancePage() {
                 variant="outline"
                 size="icon"
                 className="size-8"
+                aria-label="Next page"
                 disabled={page >= totalPages}
                 onClick={() => setPage(page + 1)}
               >
@@ -476,5 +514,15 @@ export default function CompliancePage() {
         </button>
       </Link>
     </div>
+  );
+}
+
+// useSearchParams() requires a Suspense boundary in this repo's own
+// established convention (see reports/page.tsx's CustomReportsSection).
+export default function CompliancePage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-ct-muted">Loading compliance register...</div>}>
+      <ComplianceRegisterView />
+    </Suspense>
   );
 }

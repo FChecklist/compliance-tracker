@@ -1,6 +1,11 @@
 # VERIDIAN End User Experience Foundation — v1.0
 
-**UMR:** `UMR-20260803-041653-9de5` (OCID-20260803-022). Parent: `UMR-20260802-173631-ca85`
+**UMR:** `UMR-20260803-040844-4a33` (OCID-20260803-022, real dispatch UMR — corrected
+2026-08-05 per `UMR-20260805-083603-9efa`; this document originally self-minted a separate,
+fabricated "artifact UMR" (`UMR-20260803-041653-9de5`) that was never really registered
+anywhere, believing it followed established convention; see
+`ai-os/MASTER-TRACKER.yaml`'s `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION` entry for the full
+verification method and precedent). Parent: `UMR-20260802-173631-ca85`
 (ERP Functional Completeness Master Program). Extends, not replaces, the existing master
 program — no new program, no new audit. Cites and does not amend the substance of:
 `UMR-20260802-165606-4413` (OCID-020, PROJEXA end-user certification directive),

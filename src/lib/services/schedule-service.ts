@@ -4,13 +4,23 @@
 // 116) -- critical path is never stored, only computed on request from
 // startDate/dueDate + typed relations/lagDays that already exist.
 import {
-  pmsIssues, pmsIssueRelations, pmsMilestones,
+  pmsIssues, pmsIssueRelations,
   pmsScheduleBaselines, pmsBaselineIssueSnapshots, pmsResourceAllocations,
 } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
+// Task #47 gap fix: reuse the same direct-children completion rollup
+// pms-issue-service.ts already exposes (getIssue()/listIssues()) instead of
+// duplicating the aggregation query/math here -- the Gantt chart's
+// completionPercentage per task should reflect the same rolled-up value a
+// project's issue list/detail view shows, not a second, divergent
+// computation. listMilestones() is reused for the same reason (it now
+// carries a computed completionPercentage per milestone, see
+// pms-taxonomy-service.ts) instead of this file querying pmsMilestones raw.
+import { fetchChildCompletionByParent, computeParentCompletionPercentage } from "./pms-issue-service"
+import { listMilestones } from "./pms-taxonomy-service"
 
 export type GanttTask = {
   id: string
@@ -67,6 +77,8 @@ export async function calculateCriticalPath(ctx: { orgId: string }, projectId: s
     })
     const issueIds = issues.map((i) => i.id)
     if (issueIds.length === 0) return []
+
+    const childCompletionMap = await fetchChildCompletionByParent(db, issueIds)
 
     const relations = await db.query.pmsIssueRelations.findMany({
       where: and(eq(pmsIssueRelations.orgId, ctx.orgId), inArray(pmsIssueRelations.issueId, issueIds)),
@@ -140,7 +152,7 @@ export async function calculateCriticalPath(ctx: { orgId: string }, projectId: s
         title: issue.title,
         startDate: issue.startDate,
         dueDate: issue.dueDate,
-        completionPercentage: issue.completionPercentage,
+        completionPercentage: computeParentCompletionPercentage(issue.completionPercentage, childCompletionMap.get(issue.id) ?? []),
         milestoneId: issue.milestoneId,
         parentIssueId: issue.parentIssueId,
         isCritical: floatDays !== null && floatDays <= 0,
@@ -157,9 +169,7 @@ export async function getGanttData(ctx: { orgId: string }, projectId: string) {
       db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)), columns: { id: true } })
         .then((issues) => db.query.pmsIssueRelations.findMany({ where: and(eq(pmsIssueRelations.orgId, ctx.orgId), inArray(pmsIssueRelations.issueId, issues.map((i) => i.id))) }))
     ),
-    withTenantContext({ orgId: ctx.orgId }, (db) =>
-      db.query.pmsMilestones.findMany({ where: and(eq(pmsMilestones.orgId, ctx.orgId), eq(pmsMilestones.projectId, projectId)) })
-    ),
+    listMilestones({ orgId: ctx.orgId }, projectId),
   ])
   const taskIds = new Set(tasks.map((t) => t.id))
   const dependencies = normalizeEdges(relationsRaw).filter((e) => taskIds.has(e.predecessorId) && taskIds.has(e.successorId))

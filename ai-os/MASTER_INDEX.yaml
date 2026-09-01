@@ -1658,8 +1658,10 @@ registries:
 - id: veridian_universal_end_user_work_model_v1_0
   type: point_in_time_synthesis_doc
   path: ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md
-  scope: 'OCID-20260803-023 (UMR-20260803-042019-844f, dispatch UMR-20260803-040929-9713, parent
-    UMR-20260803-040844-4a33, master program UMR-20260802-173631-ca85): documentation-only v1.0
+  scope: 'OCID-20260803-023 (UMR-20260803-040929-9713, real dispatch UMR -- corrected 2026-08-05
+    per UMR-20260805-083603-9efa, see GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION; the fabricated
+    "artifact UMR" UMR-20260803-042019-844f previously cited here was never really registered;
+    parent UMR-20260803-040844-4a33, master program UMR-20260802-173631-ca85): documentation-only v1.0
     of the first canonical VERIDIAN Universal End User Work Model. Defines, each grounded in real,
     live tables/services (not invented): what is work, what is a task, task uniqueness/identifier,
     state model, ownership, assignment, delegation, transfer, approval, escalation, completion,
@@ -1681,7 +1683,10 @@ registries:
 - id: veridian_end_user_experience_foundation_v1
   type: point_in_time_audit_doc
   path: ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md
-  scope: 'OCID-20260803-022 (UMR-20260803-041653-9de5), parented to UMR-20260802-173631-ca85
+  scope: 'OCID-20260803-022 (UMR-20260803-040844-4a33, real dispatch UMR -- corrected 2026-08-05
+    per UMR-20260805-083603-9efa, see GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION; the fabricated
+    "artifact UMR" UMR-20260803-041653-9de5 previously cited here was never really registered),
+    parented to UMR-20260802-173631-ca85
     (ERP Functional Completeness Master Program). The first canonical end-user-experience
     foundation document: a real, evidence-based inventory of what an end user actually sees
     today across the nav shell (AppSidebar.tsx/AppTopbar.tsx), Dynamic Mode Pills + Chain
