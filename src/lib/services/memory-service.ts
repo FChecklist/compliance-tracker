@@ -469,6 +469,21 @@ export type SupersedeMemoryRecordResult = {
  * Throws if `oldId` cannot be found under RLS (unknown id, wrong org, or a
  * GLOBAL/INDUSTRY row -- see this file's own header on why that last case
  * is out of scope here), or if it has already been superseded.
+ *
+ * Byte-identical no-op (directive §16, "Unchanged content -> do NOT
+ * re-embed... reduces embedding cost/unnecessary processing"): if
+ * `newContent` (after trimming) hashes to the SAME content_hash the row
+ * already has, this function performs ZERO writes -- no memory_versions
+ * snapshot, no new memory_records row, no lifecycle_state change on the old
+ * row, no embedAndMirror() call (i.e. no real embedding-provider call) --
+ * and simply returns `{ previous, next: previous }`. A version bump and a
+ * fresh embedding call both exist to represent a real content change; when
+ * there isn't one, manufacturing either is exactly the "unnecessary
+ * processing" §16 says to avoid, not a genuine supersession. This check
+ * runs AFTER the not-found/already-superseded/GLOBAL guards above, which
+ * still throw regardless of content -- a caller trying to "supersede" a row
+ * that doesn't exist or is already terminal should not silently succeed
+ * just because the content also happens to match.
  */
 export async function supersedeMemoryRecord(
   tx: TenantDb,
@@ -507,6 +522,14 @@ export async function supersedeMemoryRecord(
     )
   }
 
+  const newContentHash = createHash("sha256").update(trimmedContent).digest("hex")
+  if (newContentHash === previous.contentHash) {
+    // See this function's own docstring: a true no-op, not a degenerate
+    // "supersede with unchanged content" case -- zero DB writes, zero
+    // embedding-provider calls.
+    return { previous, next: previous }
+  }
+
   await tx.execute(sql`
     INSERT INTO compliance.memory_versions
       (id, memory_record_id, version_number, content_snapshot, content_hash, changed_by_type, changed_by_id, change_reason)
@@ -516,7 +539,6 @@ export async function supersedeMemoryRecord(
   `)
 
   const newId = createId()
-  const newContentHash = createHash("sha256").update(trimmedContent).digest("hex")
   const metadataJson = JSON.stringify(previous.metadata ?? {})
 
   const insertedNewRows = (await tx.execute(sql`
