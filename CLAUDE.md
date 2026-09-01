@@ -29,6 +29,39 @@ Before doing anything nontrivial in this repo, read these in order — they are 
 - `ai-os/` — AI-OS governance: `CONSTITUTION.yaml` (the constitution), `MASTER-TRACKER.yaml` (open work), `boss/` (ACTIVE-CLAIMS/COMPLETED/BOARD-stale), `sentinel/`, `registry/`, `audit-tree/`, `system-tree/`, `tree4-unified/`, `engines/` -- see `ai-os/OS.yaml` for what each covers, do not assume this is a small directory
 - `drizzle/` — Migration files
 
+## PROJEXA is a SEPARATE repository — do not confuse it with this one
+
+**Added 2026-09-01, after a real multi-hour session confused these two apps and wasted a
+full debugging cycle chasing the wrong codebase's UI.** If a task mentions PROJEXA,
+PROJEXA-AI.COM, or "Sumeet's requirement", stop and check which repo you actually need
+before touching anything here:
+
+- **PROJEXA is its own independent Next.js application, `FChecklist/projexa`** — a
+  separate git repo, separate Vercel project (`projexa`, not `veridian-compliance-ai`),
+  separate local dev port (**3100**, `bun run dev` in that repo — this repo's dev server
+  is 3000 and will NOT show you PROJEXA's UI no matter how it's configured).
+- PROJEXA is **not a thin re-skin of this app's pages**. It has its own screens, its own
+  component usage, and its own independent UI work-stream (construction/interior-design
+  PM screens, "real-screen conversion" waves, etc.) built on top of the shared
+  `@fchecklist/veridian-ui-kit` package. Bumping that shared kit's version in THIS repo
+  only changes the shared shell components (`AppSidebar`/`AppHeader`) — it does **not**
+  retrofit PROJEXA's product-specific screens, and it does not make this repo "become"
+  PROJEXA. To see PROJEXA's real, current UI you must clone and run
+  `FChecklist/projexa` itself.
+- PROJEXA carries no construction/interior-design domain data of its own — that data is
+  proxied through this repo's `/api/v1/projexa/*` surface (see PROJEXA's own
+  `src/lib/veridian-client.ts`). That data-proxy relationship is real, but it does **not**
+  mean the two apps share a frontend or a Supabase project.
+- **Two different Supabase projects, easy to mix up:** this repo's `DATABASE_URL` points
+  to project `pcrjmlpuqsbocqfwoxod` (named "verdian-ai" in Supabase). PROJEXA's own
+  `NEXT_PUBLIC_SUPABASE_URL`/tenant-auth data lives in a **different** project,
+  `evpckeuxgvahguwsaeul` (literally named "projexa" in Supabase, `ACTIVE_HEALTHY`) — do
+  not assume one project's schema/data tells you anything about the other, and do not
+  assume a migration applied to one project reached the other.
+- If you're asked to screenshot, demo, or verify "the real UI/UX" for PROJEXA
+  specifically: go run `FChecklist/projexa` locally (port 3100), not this repo — verify
+  which repo you're actually looking at before reporting anything back.
+
 ## Design Tokens
 - Navy: #1C2B3A | Saffron: #F5820A | Teal: #0E7C6E | Cream: #FFFDF9
 - Fonts: DM Serif Display (headings) + Inter (body)
