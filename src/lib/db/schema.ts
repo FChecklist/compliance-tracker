@@ -12929,6 +12929,20 @@ export const pipelineTasksRelations = relations(pipelineTasks, ({ one }) => ({
   submission: one(submissions, { fields: [pipelineTasks.submissionId], references: [submissions.id] }),
 }))
 
+// Naming convention note (R66 code-quality fix, 2026-09-01): most of this
+// schema's 508 tables use plural names (organisations, documents,
+// erpAccounts) -- phraseMap and the log/cache/registry-style tables below
+// it (gapLog, reuseCache, incidentLog, memoryStore, pillUsage,
+// chainHistory, sourceObject, documentChunk, extractionProfile,
+// precedent, retrievalCitation, chunkPolicy, crrErasureLog,
+// crrIngestError, taskRegister) are a deliberate exception, not drift --
+// singular/collective naming for tables that hold one conceptual
+// log/cache/registry rather than a collection of like entities. Not worth
+// a breaking rename at this scale; keep new additions consistent with
+// whichever pattern actually fits (collection of entities -> plural,
+// single log/cache/registry -> singular) rather than defaulting to plural
+// out of habit.
+//
 // L0's exact-match table (M26): PHRASE -> function_id, keyed by function per
 // M25's correction to the original chain-keyed reading. UNIQUE(org_id,
 // normalised_phrase) enforced in the migration (a DB constraint, not just
