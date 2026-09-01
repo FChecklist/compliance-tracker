@@ -3420,6 +3420,24 @@ open_items:
         confirm a graceful fallback instead of a blank page.
       status: open
       first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072940-6a88)"
+      implementation_note: |
+        2026-08-04, real implementation authorized (UMR-20260804-105822-a267): a real minimal
+        app-shell service worker (`public/sw.js`) + a real, plain static offline fallback page
+        (`public/offline.html`) added -- network-first for navigation requests only, falls back to
+        the cached offline page on a genuine network failure; every other request (API calls,
+        data fetches, static assets) passes straight through, untouched, since this app is
+        almost entirely dynamic/authenticated and caching API responses would risk stale/wrong
+        data. Deliberately NOT a full offline-first cache -- matches the real, narrow scope this
+        gap's own recommendation asked for. Registered inside `AppShell.tsx` (the authenticated
+        app shell, the exact real mount point the original gap was observed inside). Real, local
+        verification done: `bunx tsc --noEmit` clean, `bunx eslint` clean, `node --check
+        public/sw.js` confirms valid JS syntax, real unconstrained `bun run build` clean.
+        `status` deliberately left `open`, not flipped to `resolved`: this gap's own
+        recommendation explicitly requires "re-run this same real offline test to confirm a
+        graceful fallback instead of a blank page" against a real live session -- that live
+        re-test requires this fix to actually be deployed first (Vercel auto-deploys on merge to
+        `main`), so it is a genuine post-merge step, not something that can be honestly claimed
+        before the PR merges. Real PR opened, independent review pending, no self-certification.
 
     - id: GAP-MOBILE-VIEWPORT-BLANK-CONTENT
       name: "At a real 390x844 mobile viewport, the main content area rendered blank in an already-authenticated session (severity: unconfirmed -- single real observation, sidebar itself responded correctly)"

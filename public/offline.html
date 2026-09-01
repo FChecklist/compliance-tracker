@@ -10,7 +10,8 @@
   comment for why this is never populated with real cached page data
   (personalized SSR + Set-Cookie risk). Deliberately zero JS/CSS
   dependencies (inline styles only) so it renders even when every other
-  asset request also fails.
+  asset request also fails. Pre-cached on service-worker `install` (see
+  sw.js) so this is available even on a tab's very first load.
 -->
 <style>
   html, body { height: 100%; margin: 0; }
