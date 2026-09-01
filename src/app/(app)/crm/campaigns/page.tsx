@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ModuleNotEnabledCard } from "@/components/ModuleNotEnabledCard";
 
 type Campaign = { id: string; name: string; campaignType: string | null; status: string; startDate: string | null; endDate: string | null; expectedRevenue: string | null };
 
@@ -33,6 +34,7 @@ export default function CrmCampaignsPage() {
   const [campaignType, setCampaignType] = useState("");
   const [status, setStatus] = useState<"planning" | "active" | "completed" | "cancelled">("planning");
   const [creating, setCreating] = useState(false);
+  const [salesEnabled, setSalesEnabled] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -42,6 +44,9 @@ export default function CrmCampaignsPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setSalesEnabled(d.salesEnabled ?? false)).catch(() => setSalesEnabled(false));
+  }, []);
 
   const createCampaign = async () => {
     if (!name.trim()) return;
@@ -59,6 +64,10 @@ export default function CrmCampaignsPage() {
     } catch (err) { toast.error(err instanceof Error ? err.message : "Failed to create campaign"); }
     finally { setCreating(false); }
   };
+
+  if (salesEnabled === false) {
+    return <ModuleNotEnabledCard moduleName="CRM" settingsSection="Sales & CRM" />;
+  }
 
   return (
     <div className="space-y-4">
@@ -109,7 +118,7 @@ export default function CrmCampaignsPage() {
         <div className="rounded-xl border border-ct-border bg-white divide-y divide-ct-border">
           {campaigns.map((c) => (
             <div key={c.id} className="px-4 py-3 flex items-center gap-3">
-              <Megaphone className="size-4 text-ct-saffron shrink-0" />
+              <Megaphone className="size-4 text-ct-saffron-text shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-ct-navy">{c.name}</p>
                 <p className="text-xs text-ct-muted">

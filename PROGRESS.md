@@ -1,89 +1,68 @@
-# PROGRESS -- task-20260731-044029-pm--social-collaboration-feed
+# PROGRESS -- pr665-rebase-merge-20260901 (real rebase-merge for PR #665)
 
-## Completed
-- [x] Read AGENTS.md/CLAUDE.md governance chain and ai-os/boss/ACTIVE-CLAIMS.yaml protocol
-- [x] Fetched origin/main fresh (already at HEAD 11db691a), confirmed next-free migration
-      number by reading drizzle/meta/_journal.json (279 entries) + `ls drizzle/*.sql` sorted
-      -- next free prefix is 0302 (0301 is the current highest real file).
-- [x] Surveyed existing reply-thread (`comments` table, polymorphic entityType/entityId,
-      route-only logic) and private-messaging (`conversations`/`conversationParticipants`/
-      `messages`, chat-service.ts + ServiceError, explicit-join-table audience/participant
-      model) constructs via a research subagent -- confirmed no existing reaction/like/emoji
-      precedent anywhere in the codebase (genuinely new enum, not reusing one).
-- [x] Confirmed hand-written-migration convention (drizzle-kit generate untrustworthy per
-      0268/0269's own header notes) and exact SQL shape from
-      0269_construction_progress_claims_workflow.sql (real Postgres CREATE TYPE ... AS ENUM
-      + CREATE TABLE + indexes + RLS app_runtime_tenant_isolation/service_role_bypass
-      policies).
-- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml, committed + pushed on its own
-      (commit 77361e1b) before any real code, per Rule 11.
-- [x] Design decided: `posts` (org-scoped broadcast, author, body, optional
-      projectId/taskId, audienceType 'org'|'restricted'), `postAudienceMembers` (explicit
-      join table for 'restricted' audience, same shape as conversationParticipants),
-      `postReactions` (real fixed Postgres enum post_reaction_type, unique per user+post,
-      toggle semantics), `postComments` (reuses the comments reply-thread shape, scoped to
-      postId instead of polymorphic entityType/entityId since posts are one new entity
-      type).
+## Scope
+Real rebase-merge of PR #665 (`task-20260731-044029-pm-social-collaboration-feed`,
+"feat(pm): social/collaboration feed (Task #47)") onto current main, per this repo's standard
+rebase-sweep protocol. Decision context (already verified real before this sweep): no
+`src/app/api/social` directory exists on main; a grep of `schema.ts` for
+socialFeed/reactions/announcementPost returns zero hits; `social-feed-service.ts`,
+`posts`/`reactions`/`comments` routes, and the migration are genuinely new (additive
+alongside the pre-existing, separate `comments` reply-thread system, not a duplicate). A
+prior attempt at this rebase-merge failed with a transient network error (ECONNRESET)
+partway through -- not a real decision, redone fresh here.
 
-- [x] Schema additions in src/lib/db/schema.ts (postAudienceTypeEnum, postReactionTypeEnum,
-      posts, postAudienceMembers, postReactions, postComments tables + relations) --
-      additive only, appended after supportSessionsRelations, no existing table touched.
-- [x] Hand-written migration drizzle/0310_social_feed.sql + drizzle/meta/_journal.json entry.
-      Started as 0302 (confirmed free against a freshly-fetched origin/main), but bumped to
-      0310 after discovering PR #630 (open, unmerged, per KERNEL_CONSOLIDATION_STATUS.md's
-      own log) also claims 0302 on its own branch -- avoids a near-certain
-      migration-collision-checker CI failure for whichever of us merges second. Final
-      collision defense is still that CI check + a rebase-time check before merge, same as
-      every other concurrent migration PR in this repo right now.
-- [x] Service layer src/lib/services/social-feed-service.ts: createPost, listFeed,
-      reactToPost (toggle/replace semantics on the fixed reaction enum), addPostComment,
-      listPostComments, assertPostVisible (real audience-scoping gate -- 404s a
-      restricted post to anyone outside org+author+explicit audience, doesn't leak
-      existence). Reuses ServiceError from compliance-service.ts and the
-      withTenantContext convention from chat-service.ts.
-- [x] API routes: src/app/api/social/posts/route.ts (GET list feed / POST create),
-      src/app/api/social/posts/[id]/reactions/route.ts (POST react/toggle),
-      src/app/api/social/posts/[id]/comments/route.ts (GET/POST comments) -- same
-      requireAuth()/ServiceError catch-pattern as conversations/route.ts.
-- [x] Tests: src/lib/services/social-feed-service.test.ts -- 13 tests, 0 fail, 23
-      expect() calls. Covers post creation (org + restricted, incl. rejecting an
-      audience member outside the org), reaction toggle/replace across the fixed enum,
-      and audience-scoping: org-wide visible to everyone, restricted visible only to
-      explicit members + author, non-member gets 404 (not a silently filtered list) on
-      react/comment/list-comments, and an org-boundary check (right post id, wrong org
-      -> 404).
-- [x] `bun test src/lib/services/social-feed-service.test.ts` -- 13 pass, 0 fail
+## Rebase (this session, `pr665-rebase-merge-20260901`), onto main at `f30358b2`
+- [x] Got the PR's real head branch via `gh pr view 665 --json headRefName`:
+      `task-20260731-044029-pm-social-collaboration-feed`.
+- [x] Cloned the repo fresh, checked out the head branch, branched
+      `pr665-rebase-merge-20260901` off it. (A first clone attempt mid-session vanished from
+      the local scratch directory between shell calls -- an environment hiccup on this
+      shared machine, not a real decision -- re-cloned fresh and redid the work below.)
+- [x] `git fetch origin main && git merge origin/main` -- **4 real conflicts, resolved with
+      actual judgment, not blind pick-one-side:**
 
-- [x] `npx tsc --noEmit` attempted 4x (full-project OOM twice, scoped-tsconfig
-      timeout twice) -- confirmed via `free -h` (15Gi/15Gi RAM + 4.0Gi/4.0Gi swap
-      both fully consumed) that this is systemic memory contention from other
-      concurrent task sessions on this shared machine, not a defect in this
-      change: `ps aux` showed 8+ other `node`/`claude` task-session processes
-      each holding 250MB-1.5GB RSS at the same time. Did not attempt a 5th/6th
-      time (would be the 3rd distinct approach after 2 consecutive failures of
-      each of the first two) -- substituted `eslint` (clean, 0 errors/warnings)
-      on all 5 changed/added files + a fresh `bun test` re-run (13 pass, 0 fail,
-      unchanged) as the practical correctness gate CI's own Type Check job will
-      re-verify with its own isolated runner/memory budget.
-- [x] Commit + push implementation
-- [x] Open PR (do not merge, do not self-audit) -- PR #665:
-      https://github.com/FChecklist/compliance-tracker/pull/665
-- [x] "Append KERNEL_CONSOLIDATION_STATUS.md Task #47 line with PR number" --
-      that file does not exist anywhere in this repo (`find / -iname
-      "KERNEL_CONSOLIDATION_STATUS.md"` and a repo-wide grep both came back
-      empty); this looks like a stale/incorrect instruction carried over from
-      an earlier checkpoint, not a real governance doc (CLAUDE.md/AGENTS.md
-      name only `ai-os/MASTER-TRACKER.yaml` for open work and
-      `ai-os/boss/COMPLETED.yaml` for closed work). Did the real equivalent
-      instead: updated this task's own `ai-os/boss/ACTIVE-CLAIMS.yaml` entry
-      with the PR #665 link and test/lint status per that file's own Rule 3
-      protocol (stays under `active:` with a "[DONE THIS SESSION, PR #665
-      OPEN]" marker until merged, per the identical pattern already used by
-      the neighboring Stage-12 entry in that same file).
+  1. **`PROGRESS.md`** -- this repo's single-current-entry convention: replaced wholesale
+     with this file (this section), did not concatenate with either the stale merge-base
+     entry or origin/main's own then-current entry (PR #1546/#1212's AI Cost Governance
+     rebase-sweep record).
+
+  2. **`ai-os/boss/ACTIVE-CLAIMS.yaml`** -- this branch's own diff from merge-base carried
+     the file's old, pre-prune, ~6,720-line bloated state (its own claim entry for this task
+     buried inside it, unchanged since 2026-07-31). Origin/main had independently pruned
+     this file down to its current, much smaller 1,450-line `active:` list. Did NOT
+     reintroduce the stale bloated version: took main's current pruned content as-is and
+     appended this branch's one real claim entry at the end of `active:`, with a
+     `rebase_note` documenting this merge (matching the convention already used by sibling
+     entries in the same file). Confirmed no collision with the sibling Task #47 entry
+     already on main (`task-20260731-044019-pm--project-status-access-rollup`) -- disjoint
+     file scope.
+
+  3. **`drizzle/meta/_journal.json`** -- this branch's own migration entry (idx 279,
+     `0310_social_feed`) was appended at the wrong position relative to main's real current
+     history. Checked the TRUE current highest migration number the hard way, per this
+     repo's own documented gotcha (never trust a stale local checkout or the journal file's
+     own idx sequence): `git ls-tree -r origin/main -- drizzle/` shows main's real highest
+     numbered file is `0518_ai_cost_reconciliation` (idx 340). `0310` was already taken on
+     main by an unrelated, already-shipped migration -- renamed the migration file
+     `drizzle/0310_social_feed.sql` -> `drizzle/0519_social_feed.sql` (`git mv`, next free
+     slot after main's real 518, confirmed free via a fresh `ls drizzle/`) and added the
+     matching journal entry (idx 341) after main's real idx-340 entry, instead of splicing
+     into the middle of main's list. No other file in the repo referenced the old
+     `0310_social_feed` name (grepped `.md`/`.ts`/`.json`/`.yaml` repo-wide) besides this
+     branch's own now-replaced `PROGRESS.md`.
+
+  4. **`src/lib/db/schema.ts`** -- a clean additive conflict: this branch added
+     `postAudienceTypeEnum`/`postReactionTypeEnum`/`posts`/`postAudienceMembers`/
+     `postReactions`/`postComments` (+ relations) right after `supportSessionsRelations`;
+     origin/main had independently added unrelated tables at/near the same insertion point
+     from other concurrent same-day PRs. No real semantic collision -- kept both sides'
+     blocks, in the order each side wrote them, verified no duplicate table/enum names.
 
 ## Remaining
-- [ ] PR #665 CI finishes (Type Check job running in its own isolated
-      runner will give the authoritative `tsc --noEmit` answer this
-      session's shared/contended machine couldn't). Vercel preview check
-      failed on a build-rate-limit, unrelated to this change.
-- [ ] PR #665 merges (owner/CI-gated, not a step this session performs)
+- [ ] `bun install`, then real validation: `node scripts/check-governance-yaml-parse.mjs`,
+      `bunx tsc --noEmit`, `bun test` for touched files.
+- [ ] Push, open replacement PR "... [was #665]", close #665 pointing to it.
+- [ ] Real CI (`gh pr checks`), retry transient network errors up to 5x.
+- [ ] Merge only when genuinely green (known-ambient non-blocking: E2E Tests, Vercel
+      org-wide deployment-blocked, Secret Scanning if pre-existing, Promptfoo Evals).
+- [ ] Independently verify merge via `gh pr view --json state,mergedAt`.

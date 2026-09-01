@@ -16,9 +16,22 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const appDir = join(__dirname, "..", "src", "app", "(app)")
 const outFile = join(__dirname, "..", "src", "lib", "protected-routes.generated.ts")
 
+// OCID-020 category 23 real fix (2026-08-14, UX audit heuristic 10 "Help
+// and documentation", severity 3): /help is the ONE deliberate, documented
+// exception to "every (app) directory is protected" -- src/app/(app)/help/
+// page.tsx itself now handles both audiences (it renders real pre-auth FAQ
+// content for an anonymous visitor and the full in-app help center for a
+// signed-in user), so it must NOT be proxy-redirected to /login before it
+// ever gets a chance to render. This is a real, narrow allowlist (one
+// entry, with this comment as the reason), not a return to the old
+// hand-maintained array this script replaced -- every other (app) route
+// stays protected by construction exactly as before.
+const PUBLIC_APP_ROUTE_EXCEPTIONS = ["/help"]
+
 const prefixes = readdirSync(appDir, { withFileTypes: true })
   .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_") && !entry.name.startsWith("."))
   .map((entry) => `/${entry.name}`)
+  .filter((prefix) => !PUBLIC_APP_ROUTE_EXCEPTIONS.includes(prefix))
   .sort()
 
 if (prefixes.length === 0) {

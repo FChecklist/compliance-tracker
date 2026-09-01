@@ -221,12 +221,13 @@ export function platformApiKeyFor(provider: LLMProvider): string | undefined {
  * failover.
  */
 export async function escalatedPlatformConfig(): Promise<ResolvedModelConfig | null> {
-  const escalatedDefault = await getEscalatedDefault()
-  const apiKey = platformApiKeyFor(escalatedDefault.provider)
+  const emergencyRevert = getEmergencyModelRevert()
+  const target = emergencyRevert ?? await getEscalatedDefault()
+  const apiKey = platformApiKeyFor(target.provider)
   if (!apiKey) return null
   return {
-    provider: escalatedDefault.provider, model: escalatedDefault.model, apiKey, isCustomerConfigured: false,
-    fallback: await platformFallbackFor({ provider: escalatedDefault.provider, model: escalatedDefault.model }),
+    provider: target.provider, model: target.model, apiKey, isCustomerConfigured: false,
+    fallback: await platformFallbackFor({ provider: target.provider, model: target.model }),
   }
 }
 
@@ -343,6 +344,68 @@ export function applySourceTypeOverride(config: ResolvedModelConfig, sourceType?
   }
 
   return null
+}
+
+// ─── Emergency model revert (VERIDIAN Review Framework remediation, "AI
+// Model Lifecycle & Benchmarking" -- Model deprecation/rollback process) ──
+// The AI Router registry-backed model resolution wave above (getRoleModel()/
+// platform.ai_model_registry) and src/lib/ai-router/mother-router.ts's own
+// versioned ai_routing_policies + rollbackPolicy() already replaced "edit a
+// hardcoded constant and redeploy" with a DB write for their own scopes --
+// genuinely real prior progress on this same finding, not something this
+// change duplicates. What neither of those provides is a single,
+// zero-DB-knowledge, flip-one-thing-and-you're-done emergency brake: using
+// them under pressure means knowing a role name and writing a correct
+// ai_model_registry row, or knowing a scope and an exact prior policy
+// version number to pass to rollbackPolicy() -- real operations, not a
+// literal flag. AI_MODEL_EMERGENCY_REVERT is that flag: set it to
+// "<provider>:<model>" (e.g. "groq:openai/gpt-oss-120b", a known-good pin)
+// and every platform-default/escalation resolution this file performs is
+// forced to that exact pin immediately -- no deploy, no DB write, checked
+// BEFORE the registry lookup even runs (so it still works if the registry
+// itself is what's broken). Unset it to resume normal (registry-then-
+// hardcoded-fallback) resolution.
+//
+// Deliberately does NOT touch a customer org's own BYO customerModelConfig/
+// clientModelConfig row, same posture as platformFallbackFor()/
+// resolvePlatformModelConfig()'s existing comments: this is a platform-
+// operator emergency brake for the platform's OWN default/escalation
+// models, never a silent override of an org's explicit configuration.
+const EMERGENCY_REVERT_ENV_VAR = "AI_MODEL_EMERGENCY_REVERT";
+const VALID_PROVIDERS: readonly LLMProvider[] = ["groq", "openrouter", "openai", "anthropic", "google", "cerebras"];
+
+export type EmergencyModelRevert = { provider: LLMProvider; model: string };
+
+let lastLoggedRawValue: string | undefined;
+
+/**
+ * Reads and validates AI_MODEL_EMERGENCY_REVERT. Returns null when unset,
+ * blank, or malformed (logs the malformed case once per distinct bad value
+ * rather than staying silent -- an operator flipping this flag under
+ * pressure needs to know immediately if they mistyped it, not discover it
+ * later as "why didn't the revert take effect").
+ */
+export function getEmergencyModelRevert(): EmergencyModelRevert | null {
+  const raw = process.env[EMERGENCY_REVERT_ENV_VAR]?.trim();
+  if (!raw) return null;
+
+  const separatorIndex = raw.indexOf(":");
+  const provider = separatorIndex > 0 ? raw.slice(0, separatorIndex) : "";
+  const model = separatorIndex > 0 ? raw.slice(separatorIndex + 1).trim() : "";
+
+  if (!VALID_PROVIDERS.includes(provider as LLMProvider) || !model) {
+    if (lastLoggedRawValue !== raw) {
+      console.error(`[emergency-revert] ${EMERGENCY_REVERT_ENV_VAR} is set but malformed (expected "provider:model" with provider one of ${VALID_PROVIDERS.join(", ")}): "${raw}" -- ignoring, normal resolution continues`);
+      lastLoggedRawValue = raw;
+    }
+    return null;
+  }
+
+  if (lastLoggedRawValue !== raw) {
+    console.warn(`[emergency-revert] ${EMERGENCY_REVERT_ENV_VAR} is ACTIVE -- every platform-default/escalation resolution is pinned to ${provider}:${model} until this env var is cleared`);
+    lastLoggedRawValue = raw;
+  }
+  return { provider: provider as LLMProvider, model };
 }
 
 export type ConnectionTestResult = { ok: true } | { ok: false; error: string };
@@ -468,8 +531,9 @@ export async function resolveModelConfig(orgId: string, layerKey: string, source
   }
 
   const defaultConfig = layer.defaultModelConfig as { provider?: string; model?: string };
-  let provider = defaultConfig.provider as LLMProvider | undefined;
-  let model = defaultConfig.model;
+  const emergencyRevert = getEmergencyModelRevert();
+  let provider = emergencyRevert?.provider ?? (defaultConfig.provider as LLMProvider | undefined);
+  let model = emergencyRevert?.model ?? defaultConfig.model;
   if (!provider || !model) {
     const platformDefault = await getPlatformDefault();
     provider = provider ?? platformDefault.provider;
@@ -549,8 +613,9 @@ export async function resolvePlatformModelConfig(layerKey: string, sourceType?: 
   if (!layer) return null;
 
   const defaultConfig = layer.defaultModelConfig as { provider?: string; model?: string };
-  let provider = defaultConfig.provider as LLMProvider | undefined;
-  let model = defaultConfig.model;
+  const emergencyRevert = getEmergencyModelRevert();
+  let provider = emergencyRevert?.provider ?? (defaultConfig.provider as LLMProvider | undefined);
+  let model = emergencyRevert?.model ?? defaultConfig.model;
   if (!provider || !model) {
     const platformDefault = await getPlatformDefault();
     provider = provider ?? platformDefault.provider;

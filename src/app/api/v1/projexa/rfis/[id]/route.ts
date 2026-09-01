@@ -1,8 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { answerRfi, closeRfi, ServiceError } from "@/lib/services/construction-field-workflow-service"
+import { getRfi, answerRfi, closeRfi, ServiceError } from "@/lib/services/construction-field-workflow-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
+
+// Real-screen conversion (2026-08-30): single-RFI GET for the RFI Object
+// Page.
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const ctx = await requireAuthOrApiKey(request)
+  if (ctx.response) return ctx.response
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  try {
+    const { id } = await params
+    const rfi = await getRfi({ orgId: ctx.orgId }, id)
+    return NextResponse.json(rfi)
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("v1 projexa rfi get error:", error)
+    return NextResponse.json({ error: "Failed to fetch RFI" }, { status: 500 })
+  }
+}
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)
