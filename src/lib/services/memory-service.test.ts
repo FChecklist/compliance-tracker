@@ -18,6 +18,15 @@
 // propagation) against fake DB responses, not a live schema.
 import { describe, expect, test, mock, beforeEach } from "bun:test"
 import type { TenantDb } from "@/lib/db/tenant-scoped"
+import { createHash } from "crypto"
+
+// Real sha256 of the trimmed content -- matches memory-service.ts's own
+// `createHash("sha256").update(trimmedContent).digest("hex")` exactly, so
+// the byte-identical-content no-op tests below exercise the real
+// comparison rather than a hand-typed hash that happens to look right.
+function sha256(content: string) {
+  return createHash("sha256").update(content).digest("hex")
+}
 
 const NOW = new Date("2026-09-01T00:00:00.000Z")
 
@@ -384,6 +393,65 @@ describe("supersedeMemoryRecord", () => {
     // SELECT old row, INSERT memory_versions, INSERT new memory_records,
     // UPDATE old row -> SUPERSEDED, UPDATE new row's embedding mirror.
     expect(calls.length).toBe(5)
+  })
+
+  test("byte-identical content is a true no-op: zero writes beyond the initial SELECT, zero embedding-provider call, next === previous", async () => {
+    const storeEmbedding = mock(async () => {})
+    mockEmbeddingsModule({ storeEmbedding })
+    const dbExecute = mock(async () => [{ embedding: "[0.1,0.2,0.3]" }])
+    mockDbModule(dbExecute)
+    const { supersedeMemoryRecord } = await import("./memory-service")
+
+    const oldRow = rawRow({ content: "the sky is blue", content_hash: sha256("the sky is blue"), version: 3 })
+    // Only response queued is the initial SELECT -- if the fix regresses
+    // and the function tries to INSERT/UPDATE anyway, makeQueueTx's `[]`
+    // fallback for exhausted responses would silently return an empty
+    // RawMemoryRecordRow[], and `mapMemoryRecordRow(insertedNewRows[0])`
+    // would throw on `undefined` -- so a regression here fails loudly.
+    const { tx, calls } = makeQueueTx([[oldRow]])
+
+    const result = await supersedeMemoryRecord(tx, "mem-1", "the sky is blue", { type: "USER" })
+
+    expect(result.next).toEqual(result.previous)
+    expect(result.previous.content).toBe("the sky is blue")
+    expect(result.previous.lifecycleState).toBe("CANDIDATE") // unchanged -- never touched
+    expect(calls.length).toBe(1) // only the initial SELECT
+    expect(storeEmbedding).not.toHaveBeenCalled()
+    expect(dbExecute).not.toHaveBeenCalled() // embedAndMirror() never runs
+  })
+
+  test("content that only differs by surrounding whitespace is still a no-op after trimming", async () => {
+    const storeEmbedding = mock(async () => {})
+    mockEmbeddingsModule({ storeEmbedding })
+    mockDbModule()
+    const { supersedeMemoryRecord } = await import("./memory-service")
+
+    const oldRow = rawRow({ content: "the sky is blue", content_hash: sha256("the sky is blue") })
+    const { tx, calls } = makeQueueTx([[oldRow]])
+
+    const result = await supersedeMemoryRecord(tx, "mem-1", "  the sky is blue  \n", { type: "USER" })
+
+    expect(result.next).toEqual(result.previous)
+    expect(calls.length).toBe(1)
+    expect(storeEmbedding).not.toHaveBeenCalled()
+  })
+
+  test("an already-superseded row still throws even when the new content is byte-identical to its old content (guards run before the no-op check)", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { supersedeMemoryRecord } = await import("./memory-service")
+
+    const oldRow = rawRow({
+      content: "the sky is blue",
+      content_hash: sha256("the sky is blue"),
+      lifecycle_state: "SUPERSEDED",
+      superseded_by_id: "mem-2",
+    })
+    const { tx } = makeQueueTx([[oldRow]])
+
+    await expect(
+      supersedeMemoryRecord(tx, "mem-1", "the sky is blue", { type: "USER" })
+    ).rejects.toThrow(/already been superseded/)
   })
 })
 
