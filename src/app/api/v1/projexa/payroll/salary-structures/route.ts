@@ -2,13 +2,13 @@
 // breakdown (which components + amounts/percentages make up an employee's
 // pay) -- what processPayrollRun reads to generate each month's payslip.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listSalaryStructures, createSalaryStructure, ServiceError } from "@/lib/services/erp-payroll-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ structures: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const structures = await listSalaryStructures({ orgId: ctx.orgId })

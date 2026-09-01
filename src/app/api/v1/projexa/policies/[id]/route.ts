@@ -3,8 +3,27 @@
 // appends history; 'request_publish' opens a maker-checker approval request
 // (VERIDIAN's own /api/approvals/[id]/decide is what actually publishes it).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { updatePolicy, ServiceError } from "@/lib/services/risk-register-service"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { getPolicy, updatePolicy, ServiceError } from "@/lib/services/risk-register-service"
+
+// Real-screen conversion (2026-08-30): the Policy Library never had a
+// detail route -- proxies to the new getPolicy(), also returning `history`
+// (the real edit/publish audit trail, never surfaced anywhere before this).
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const ctx = await requireAuthOrApiKey(request)
+  if (ctx.response) return ctx.response
+  if (!ctx.orgId) return requireOrg(ctx)!
+
+  try {
+    const { id } = await params
+    const policy = await getPolicy({ orgId: ctx.orgId }, id)
+    return NextResponse.json(policy)
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("v1 projexa policy get error:", error)
+    return NextResponse.json({ error: "Failed to fetch policy" }, { status: 500 })
+  }
+}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuthOrApiKey(request)

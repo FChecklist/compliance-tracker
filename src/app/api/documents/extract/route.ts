@@ -3,51 +3,16 @@ import { documents } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 import { eq } from "drizzle-orm";
-import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
-import { callLLMJson } from "@/lib/llm-client";
 import { storeEmbedding } from "@/lib/embeddings";
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine";
 import { registerAllGuardrails, AI_DOCUMENT_EXTRACTION_LEAF } from "@/lib/guardrail-registrations";
+import {
+  isTextExtractable,
+  extractRawTextForMimeType,
+  extractComplianceFields,
+} from "@/lib/services/document-extraction-service";
 
 registerAllGuardrails();
-
-const EXTRACTION_PROMPT = `You are a compliance document extraction AI for Indian regulatory filings. Extract structured information from the document text provided.
-
-Analyze the text and return a JSON object with the following fields (use null for fields you cannot determine):
-
-{
-  "noticeNumber": "The notice/challan/reference number if found",
-  "authority": "The issuing authority (e.g., CGST, ITD, EPFO, MCA, State GST, etc.)",
-  "demandAmount": "The demand/tax/penalty amount as a number, or null",
-  "pan": "PAN number if found (10-char alphanumeric)",
-  "gstin": "GSTIN if found (15-char alphanumeric starting with digits)",
-  "arn": "Acknowledgement Reference Number if found",
-  "period": "The tax period (e.g., 'March 2025', 'Q4 FY2024-25', 'FY 2024-25')",
-  "dueDate": "Due date in ISO 8601 format (YYYY-MM-DD) if found, or null",
-  "complianceType": "One of: GST, TDS, PF, ESIC, INCOME_TAX, MCA, ROC, LABOUR, ENVIRONMENTAL, OTHER",
-  "description": "A brief 1-2 sentence summary of the document content",
-  "title": "A short title for this document/compliance item"
-}
-
-Rules:
-- Be precise with numbers and dates
-- Default complianceType to "OTHER" if you cannot determine it
-- For demandAmount, extract only the numeric value without currency symbols
-- Return ONLY the JSON object, no additional text`;
-
-interface ExtractedFields {
-  noticeNumber: string | null;
-  authority: string | null;
-  demandAmount: number | null;
-  pan: string | null;
-  gstin: string | null;
-  arn: string | null;
-  period: string | null;
-  dueDate: string | null;
-  complianceType: string | null;
-  description: string | null;
-  title: string | null;
-}
 
 export async function POST(request: NextRequest) {
   const { response, orgId } = await requireAuth();
@@ -79,16 +44,27 @@ export async function POST(request: NextRequest) {
       // For text-based files, read content directly
       if (file.type === "text/plain" || file.name.endsWith(".txt")) {
         textContent = await file.text();
-      } else if (file.type === "application/pdf") {
-        // Wave 103 (end-to-end testing pass): the old code here base64'd the
-        // PDF and sent it as an image_url to Groq's decommissioned
-        // llama-3.2-90b-vision-preview -- doubly broken (GROQ_API_KEY was
-        // never configured in production, and vision chat endpoints accept
-        // images, not PDFs), so this branch never once produced text. The
-        // honest behavior is the fallback message the old catch already had;
-        // image-based extraction lives in document-extraction-service.ts
-        // (Wave 76), and tabular PDF import lives in /api/ingest.
-        textContent = `[PDF file: ${file.name}] — Text extraction unavailable. Please provide document text directly.`;
+      } else if (isTextExtractable(file.type)) {
+        // CRR-034: this used to be a PDF-only branch that never called any
+        // real extraction code -- it just wrote a placeholder sentence
+        // saying extraction was unavailable, and let that get embedded as if
+        // it were the document. isTextExtractable/extractRawTextForMimeType
+        // (document-extraction-service.ts) is the same real PDF/Word/
+        // PowerPoint/email extraction the upload-time background path
+        // already uses (Wave 35/103) -- covers exactly the four mime types
+        // CRR-013 widened this org's storage bucket allowlist to accept.
+        const buffer = Buffer.from(await file.arrayBuffer());
+        try {
+          textContent = await extractRawTextForMimeType(file.type, buffer);
+        } catch (err) {
+          // A real, specific failure (e.g. a scanned PDF with no text
+          // layer) -- surface it, don't fall back to a placeholder that
+          // would silently get embedded as if it were real content.
+          return NextResponse.json(
+            { error: err instanceof Error ? err.message : "Text extraction failed" },
+            { status: 422 }
+          );
+        }
       } else {
         // For other file types, use the file name as context
         textContent = `[File: ${file.name}, Type: ${file.type}] — Please provide the document text for extraction.`;
@@ -131,27 +107,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Wave 103: previously called callGroqLLMJson (hardcoded GROQ_API_KEY,
-    // never configured in production -- this whole route was dead on
-    // arrival). Routed through the same org-aware resolver every other AI
-    // call site uses: org BYOK config wins, else the platform's OpenRouter
-    // default, with callLLM's built-in retry + fallback (Wave 72).
-    const modelConfig = await resolveModelConfig(orgId, "customer_account_oa");
-    if (!modelConfig) {
+    // CRR-035: extraction logic (prompt + LLM call) lives in
+    // document-extraction-service.ts now, not in this route -- see that
+    // file's own extractComplianceFields comment. Behavior/schema unchanged
+    // from before this move.
+    let extractedData;
+    try {
+      extractedData = await extractComplianceFields(orgId, textContent);
+    } catch (err) {
       return NextResponse.json(
-        { error: "No AI model configured for document extraction. Configure one in Settings -> AI Configuration." },
+        { error: err instanceof Error ? err.message : "Extraction failed" },
         { status: 503 }
       );
     }
-    const { data: extractedData } = await callLLMJson<ExtractedFields>(
-      modelConfig.provider,
-      modelConfig.model,
-      modelConfig.apiKey,
-      EXTRACTION_PROMPT,
-      textContent.slice(0, 12000), // Truncate to avoid token limits
-      { temperature: 0.1, maxTokens: 2048 },
-      modelConfig.fallback
-    );
 
     // AI Output Validation by Business Rules (VERIDIAN Review Framework):
     // check the AI-generated fields against real deterministic validators

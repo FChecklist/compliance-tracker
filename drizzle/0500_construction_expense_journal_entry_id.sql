@@ -1,0 +1,29 @@
+-- F_020 (R43 fault, Medium/Output/required=YES): project-financials -> GL
+-- posting pipeline. Root cause (confirmed live, several prior sessions):
+-- erp-invoicing-service.ts::getFinanceDashboard and
+-- erp-financial-report-service.ts's trialBalance/profitAndLoss/balanceSheet
+-- all compute purely from compliance.erp_journal_entries (status =
+-- 'submitted'), and nothing in the codebase ever wrote a journal entry when
+-- a construction project's expenses changed -- compliance.
+-- construction_expense_entries (Wave 120) is a real, populated ledger with
+-- zero GL link. Verified live 2026-08-28: org ve45lczmkodbiq1m20fy48r5
+-- ("Demo Organization") has 3 real construction_expense_entries rows
+-- (Cedar Heights Villa $185,000 material, Riverside Business Park
+-- $1,250,000 material, Harbor View HQ $420,000 labour) and ZERO rows in
+-- erp_journal_entries -- exactly the all-zero Accounting module the fault
+-- describes.
+--
+-- Additive, nullable, expand-only (compliance.* is live tenant data --
+-- never dropping/renaming an existing column). Mirrors the exact
+-- journal_entry_id-nullable-pointer convention already used by
+-- erp_sales_invoices / erp_purchase_invoices / erp_payment_entries /
+-- erp_fixed_asset_disposals etc.: set once
+-- postConstructionExpenseEntryToGL() (construction-expense-service.ts)
+-- successfully posts a balanced journal entry for this expense; stays NULL
+-- when posting was skipped (ERP module not enabled for the org, no chart of
+-- accounts configured yet, or the accounting period covering expenseDate is
+-- already closed) -- never a second source of truth, the real debit/credit
+-- amounts always live on erp_journal_entry_lines. Also doubles as the
+-- idempotency guard against double-posting the same expense entry.
+ALTER TABLE "compliance"."construction_expense_entries"
+  ADD COLUMN "journal_entry_id" text;

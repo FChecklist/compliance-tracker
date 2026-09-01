@@ -55,6 +55,7 @@ describe("resolveBranding (never a broken/blank UI for an unconfigured org)", ()
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow()) } } },
       organisations: {},
+      productBranches: {},
     }))
     const { resolveBranding, DEFAULT_BRAND_PRIMARY_COLOR, DEFAULT_BRAND_ACCENT_COLOR } = await import("./org-branding-service")
     const result = await resolveBranding("org-1")
@@ -71,6 +72,7 @@ describe("resolveBranding (never a broken/blank UI for an unconfigured org)", ()
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow({ logo: "org-1/logo-abc.png" })) } } },
       organisations: {},
+      productBranches: {},
     }))
     const { resolveBranding } = await import("./org-branding-service")
     const result = await resolveBranding("org-1")
@@ -83,6 +85,7 @@ describe("resolveBranding (never a broken/blank UI for an unconfigured org)", ()
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow({ brandAccentColor: "#00FF00" })) } } },
       organisations: {},
+      productBranches: {},
     }))
     const { resolveBranding } = await import("./org-branding-service")
     const result = await resolveBranding("org-1")
@@ -96,6 +99,7 @@ describe("updateBranding validation", () => {
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow()) } }, update: mockDbUpdateChain() },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding, OrgBrandingValidationError } = await import("./org-branding-service")
     await expect(updateBranding("org-1", { primaryColor: "not-a-color" })).rejects.toBeInstanceOf(OrgBrandingValidationError)
@@ -105,6 +109,7 @@ describe("updateBranding validation", () => {
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow()) } }, update: mockDbUpdateChain() },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding, OrgBrandingValidationError } = await import("./org-branding-service")
     await expect(updateBranding("org-1", { accentColor: "#FFF" })).rejects.toBeInstanceOf(OrgBrandingValidationError)
@@ -114,6 +119,7 @@ describe("updateBranding validation", () => {
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow()) } }, update: mockDbUpdateChain() },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding, OrgBrandingValidationError } = await import("./org-branding-service")
     await expect(updateBranding("org-1", { customDomain: "https://reports.acme.com" })).rejects.toBeInstanceOf(OrgBrandingValidationError)
@@ -132,6 +138,7 @@ describe("updateBranding validation", () => {
         update: mockDbUpdateChain(),
       },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding, OrgBrandingValidationError } = await import("./org-branding-service")
     await expect(updateBranding("org-1", { customDomain: "reports.acme.com" })).rejects.toBeInstanceOf(OrgBrandingValidationError)
@@ -155,6 +162,7 @@ describe("updateBranding validation", () => {
         update: updateMock,
       },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding } = await import("./org-branding-service")
     const result = await updateBranding("org-1", {
@@ -178,6 +186,7 @@ describe("updateBranding validation", () => {
         update: updateMock,
       },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding, DEFAULT_BRAND_PRIMARY_COLOR } = await import("./org-branding-service")
     const result = await updateBranding("org-1", { primaryColor: "" })
@@ -188,6 +197,7 @@ describe("updateBranding validation", () => {
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow()) } }, update: mockDbUpdateChain() },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding, OrgBrandingValidationError } = await import("./org-branding-service")
     await expect(updateBranding("org-1", { emailSenderName: "x".repeat(101) })).rejects.toBeInstanceOf(OrgBrandingValidationError)
@@ -204,6 +214,7 @@ describe("updateBrandingAsset / getBrandingAssetPath", () => {
         update: updateMock,
       },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBrandingAsset } = await import("./org-branding-service")
     const result = await updateBrandingAsset("org-1", "logo", "org-1/logo-new.png")
@@ -219,6 +230,7 @@ describe("updateBrandingAsset / getBrandingAssetPath", () => {
         update: updateMock,
       },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBrandingAsset } = await import("./org-branding-service")
     const result = await updateBrandingAsset("org-1", "favicon", null)
@@ -229,9 +241,141 @@ describe("updateBrandingAsset / getBrandingAssetPath", () => {
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow({ logo: "org-1/logo-old.png" })) } } },
       organisations: {},
+      productBranches: {},
     }))
     const { getBrandingAssetPath } = await import("./org-branding-service")
     const path = await getBrandingAssetPath("org-1", "logo")
     expect(path).toBe("org-1/logo-old.png")
+  })
+})
+
+// OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, Stage 1 real
+// implementation (UMR-20260804-090421-c647). Mocks @/lib/db the same way
+// every other describe block in this file already does -- never a live DB
+// call from a .test.ts file, matching this file's own established
+// convention (see this file's own header comment).
+describe("resolvePreAuthBrandByHost (Stage 1: pre-authentication, domain-based resolution)", () => {
+  function productBranchRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "branch-projexa",
+      displayName: "PROJEXA",
+      hostDomain: "projexa-ai.com",
+      tagline: null,
+      ...overrides,
+    }
+  }
+
+  test("a request to the real projexa-ai.com host resolves the real PROJEXA brand configuration", async () => {
+    const findFirst = mock(async () => productBranchRow())
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    const result = await resolvePreAuthBrandByHost("projexa-ai.com")
+    expect(result).not.toBeNull()
+    expect(result?.brandName).toBe("PROJEXA")
+    expect(result?.productBranchId).toBe("branch-projexa")
+    expect(findFirst).toHaveBeenCalled()
+  })
+
+  // GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN (OCID-020 addendum,
+  // 2026-08-05): real, scoped extension of PreAuthBrand -- a marketing page
+  // (e.g. /pricing) can use the branch's own tagline in place of hardcoded
+  // copy when one is configured, and must fall back to null (its own
+  // default copy) when it isn't -- exactly like the real PROJEXA row today.
+  test("a branch with a configured tagline passes it through on PreAuthBrand", async () => {
+    const findFirst = mock(async () => productBranchRow({ tagline: "Run every marketplace from one place" }))
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    const result = await resolvePreAuthBrandByHost("projexa-ai.com")
+    expect(result?.tagline).toBe("Run every marketplace from one place")
+  })
+
+  test("a branch with no tagline configured (the real PROJEXA row today) resolves tagline: null, not undefined", async () => {
+    const findFirst = mock(async () => productBranchRow())
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    const result = await resolvePreAuthBrandByHost("projexa-ai.com")
+    expect(result?.tagline).toBeNull()
+  })
+
+  test("a request to the base VERIDIAN platform domain does NOT resolve PROJEXA branding (no matching row)", async () => {
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst: mock(async () => undefined) } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    const result = await resolvePreAuthBrandByHost("veridian-ai-os.vercel.app")
+    expect(result).toBeNull()
+  })
+
+  test("a host with a port (local dev, e.g. localhost:3000) is normalized before lookup", async () => {
+    const findFirst = mock(async (opts: unknown) => {
+      // Real assertion this test cares about: the port must be stripped
+      // before this reaches the DB query -- a raw "projexa-ai.com:3000"
+      // lookup against a real "projexa-ai.com" row would silently never
+      // match in a real reverse-proxied/local environment.
+      return productBranchRow()
+    })
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    const result = await resolvePreAuthBrandByHost("projexa-ai.com:3000")
+    expect(result?.brandName).toBe("PROJEXA")
+  })
+
+  test("a null/missing host resolves to null without ever querying the database", async () => {
+    const findFirst = mock(async () => productBranchRow())
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    const result = await resolvePreAuthBrandByHost(null)
+    expect(result).toBeNull()
+    expect(findFirst).not.toHaveBeenCalled()
+  })
+
+  test("host matching is case-insensitive", async () => {
+    const findFirst = mock(async () => productBranchRow())
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    const result = await resolvePreAuthBrandByHost("PROJEXA-AI.COM")
+    expect(result?.brandName).toBe("PROJEXA")
+  })
+
+  // Accessibility (WCAG Compliance) gap-closure, PR #1232's own real E2E
+  // Tests failure: this function's own header comment has
+  // always claimed "never throws", but until this fix the `db.query...
+  // findFirst(...)` call below was NOT wrapped in a try/catch -- a DB
+  // outage (down, unreachable, connection refused) propagated as an
+  // unhandled render error on every unauthenticated request to "/"/"/login"
+  // (both call this pre-auth, before any session exists). Regression test
+  // for the fix: a rejecting findFirst() must degrade to null (the
+  // platform-default brand, matching every other "unmatched host" outcome
+  // this function already returns), not reject/throw past this function's
+  // own boundary.
+  test("a DB error (findFirst rejects) degrades to null instead of throwing, matching the 'never a broken UI' contract", async () => {
+    const findFirst = mock(async () => {
+      throw new Error("ECONNREFUSED")
+    })
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    await expect(resolvePreAuthBrandByHost("projexa-ai.com")).resolves.toBeNull()
   })
 })
