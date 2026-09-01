@@ -10,7 +10,7 @@
 
 Veridian AI runs two MCP servers. They serve completely different layers of the AI-OS architecture and must never be confused.
 
-| | MCP Server 1 | MCP Server 2 |
+| | MCP Server 1 | MCP Server 2 **[NOT BUILT — see CORRECTION above]** |
 |---|---|---|
 | **Name** | Compliance Data MCP | Dev Dispatch MCP |
 | **Host** | Vercel Edge (Next.js) | Supabase Edge Function |
@@ -53,8 +53,9 @@ Veridian AI runs two MCP servers. They serve completely different layers of the 
 └──────────┬────────────────────────────┬────────────────────────┘
            │ Bearer <access_token>      │ X-Internal-Secret
            ▼                            ▼
-   MCP Server 1                  MCP Server 2
-   (reads compliance data)       (fires dev tasks)
+   MCP Server 1                  MCP Server 2 [NOT BUILT]
+   (reads compliance data)       (fires dev tasks — design spec only,
+                                  no matching code anywhere in this repo)
                                         │
                                         │ GitHub repository_dispatch
                                         ▼

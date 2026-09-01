@@ -2,6 +2,16 @@
 
 **First certification pass: 2026-07-04. Grounded in direct codebase + live-database evidence, not aspiration.**
 
+> **Staleness note (added 2026-09-01, R66 code-quality inspection):**
+> `AI_OS_MASTER_PROMPT_GAP_ANALYSIS.md` (Wave 110) explicitly says its own
+> evaluation is "grounded in direct code reads (not the 2-day-old
+> `AI_OS_CERTIFICATION.md` snapshot, which predates ~15 waves of
+> subsequent work)." That gap analysis is the more current evaluation —
+> read it alongside or instead of this snapshot, not as a full
+> replacement (they cover different scopes), but don't treat this
+> document's certifications as reflecting current state without
+> cross-checking it.
+
 ## Why this document exists
 
 The user asked VERIDIAN to be evaluated not as "does the software work" but as an **AI Operating System** -- AI-native, multi-agent, multi-tenant, a Worker Agent / Knowledge / Memory / Workflow platform -- and proposed a 51-category certification taxonomy spanning functional testing through AI-security, chaos engineering, and a final "AI OS Certification" meta-gate covering Levels 1-4, Worker Agents, and AI-Native Capabilities.

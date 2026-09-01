@@ -1,5 +1,12 @@
 # VERIDIAN AI OS — End-to-End Test Log (Wave 100+)
 
+> **Coverage note (added 2026-09-01, R66 code-quality inspection):** this
+> log's visible content covers Waves 100-101+, dated around 2026-07-06.
+> Nothing marks it closed or actively maintained past that point — for
+> later testing evidence, check `CHANGELOG.md`'s entries (seeded from
+> R46 P9 forward, 2026-08-24/25) or the wave/R-numbered report docs at
+> repo root, rather than assuming this file was kept current.
+
 Exhaustive testing pass across the full product, per user mandate (2026-07-06): "you are the boss... complete it, test it, and make it work end to end." This log records every test executed: input, output, result, and — where a bug was found — what was rectified and the retest outcome.
 
 **Honesty note on scope**: some categories the user listed cannot be genuinely executed from this seat and are marked **N/A** below rather than faked:

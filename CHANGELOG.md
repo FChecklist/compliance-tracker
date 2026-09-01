@@ -6,6 +6,13 @@ written CHANGELOG at all. It is not a reconstruction of every PR in this
 repo's history — that would be a large, separate retrofit job (see the
 standards doc's own scope note). Newest entry first, grouped by queue seq.
 
+> **Pre-2026-08-24 history** (added 2026-09-01, R66 code-quality
+> inspection): for real work before this changelog existed (this repo's
+> commit history goes back to at least 2026-06-28), see `TEST_LOG.md`'s
+> Wave-numbered entries, the many wave/R-numbered report docs at repo
+> root, or `git log` directly — there is no single index for that earlier
+> period.
+
 ## R46 P9 seq36 -- documentation standards + this CHANGELOG (this PR, 2026-08-25)
 `docs/DOCUMENTATION_STANDARDS.md` (new) + this file (new). Docs-only.
 
