@@ -1,68 +1,51 @@
-# PROGRESS -- rebase-sweep2b-659 (real rebase-merge for PR #659)
+# PROGRESS -- rebase-sweep2b-661 (real rebase-merge for PR #661)
 
 ## Scope
-Real rebase-merge of PR #659 (`feat/pms-rollup-completion-task47`, Task #47: PMS
-subtask + milestone completion rollup) onto current main, per this repo's standard
-rebase-sweep protocol. Prior triage + adversarial-verify (already complete before this
-sweep) confirmed a real, additive gap: current main's `src/lib/services/pms-issue-
-service.ts` (301 lines) has `completionPercentage` only as a leaf-level field with a
-0-100 validation check (lines 169-174) -- no parent/rollup aggregation function exists.
-Main's `src/lib/services/schedule-service.ts` (317 lines) has no milestone-completion
-rollup logic either. The PR adds query-time (non-recursive, direct-child) rollup math
-wired into GET /api/pms/issues/[id], GET /api/pms/milestones, and GET
-/api/pms/schedule/gantt, with zero schema/migration changes -- genuinely additive.
+Real rebase-merge of PR #661 (`feat/geography-cascading-address`, "Country->State
+cascading address select") onto current main, per this repo's standard rebase-sweep
+protocol. Prior triage + adversarial-verify (already complete before this sweep, not
+re-done here) confirmed a real, additive, still-missing gap: Country/State fields render
+as plain free-text `Input`s in `src/app/(app)/crm/accounts/[id]/page.tsx` and
+`src/components/erp/PartyAddressesAndContacts.tsx`, no select anywhere; a repo-wide grep
+for `COUNTRIES`, `STATES_BY_COUNTRY`, `CountrySelect`, `StateSelect` returned zero hits in
+`src/`. PR #661's new files (`src/lib/data/geography.ts`,
+`src/components/ui/country-state-select.tsx`) are real, still-missing functionality.
 
 ## Completed
-- [x] Worktree: `git worktree add -b rebase-sweep2b-659` from
-      `origin/feat/pms-rollup-completion-task47`, `bun install` (1203 packages).
-- [x] `git merge origin/main` (1229 commits behind) -- merged clean with **zero
-      conflicts** (git auto-merged; `git status` showed no UU/AA/DD entries after the
-      merge commit). No PROGRESS.md, drizzle/meta/_journal.json, or terminology-
-      guardrail-exemptions.yaml conflicts to resolve by hand this time -- confirmed via
-      `git diff --stat origin/main...HEAD` still showing only this PR's own 5 files
-      (pms-issue-service.ts/.test.ts, pms-taxonomy-service.ts/.test.ts,
-      schedule-service.ts) after the merge.
-- [x] Re-ran `bun install` post-merge -- picked up 83 packages the branch's pre-merge
-      node_modules lacked (`@axe-core/playwright@4.13.0`, `jscpd`, `knip`,
-      `@fchecklist/veridian-ui-kit`, newer `next`/`xlsx`).
-- [x] Validated for real:
-      - `node scripts/check-governance-yaml-parse.mjs` -- pass, 5/5 governance YAML
-        files parse cleanly.
-      - `bunx tsc --noEmit` -- OOMed at default/1536MB heap under concurrent
-        bun/tsc load from other sessions sharing this laptop (documented repo gotcha);
-        retried at `NODE_OPTIONS=--max-old-space-size=2200` once free RAM recovered to
-        ~2.5GB -- clean, 0 errors (the one `@axe-core/playwright` module-not-found hit
-        on the first clean run was the pre-merge-install gap above, not a real type
-        error -- resolved by the second `bun install`).
-      - `bun test` on both touched test files -- 15/15 pass (pms-issue-service.test.ts +
-        pms-taxonomy-service.test.ts), plus schedule-service.test.ts (pre-existing,
-        touched indirectly) -- 6/6 pass.
-      - `node_modules/.bin/eslint.exe` on all 5 touched files -- 0 errors (1 pre-existing
-        complexity warning on schedule-service.ts, non-blocking).
-      - `docs/master/TEST_COVERAGE_GAP.md` -- regenerated manually per this repo's known
-        `scripts/report-test-coverage-gap.mjs` isMain self-invocation bug (imported
-        `buildStats`/`renderReport` directly via a `file://` URL instead of running the
-        script). Updated 110/236 (46.6%) -> 111/236 (47.0%) reflecting the new
-        pms-taxonomy-service.test.ts; verified byte-for-byte match against what the
-        script's own pure functions produce.
-      - `node scripts/check-terminology-guardrail.mjs --full-repo` -- pass, 2773 files
-        scanned, 0 new findings.
-      - `node scripts/check-migration-integrity.mjs` -- pass (333 journal entries; no
-        live DB comparison, DATABASE_URL not set locally, expected).
-      - `node scripts/check-migration-collision.mjs` -- not applicable: this PR touches
-        zero files under `drizzle/` (confirmed via
-        `git diff --stat origin/main...HEAD -- drizzle/`, empty). The script itself hit
-        a pre-existing Windows-only bug (`new URL("../drizzle", import.meta.url)
-        .pathname` yields a malformed `/C:/...` path that `readdirSync` rejects) --
-        reproduced identically running the same script against `origin/main` directly
-        in the reference checkout, confirming it predates this PR and is a Windows-
-        local-dev artifact (CI runs on Linux, where this path form is valid), not a
-        real regression.
-- [x] Committed and pushed `rebase-sweep2b-659` to origin.
+- [x] Worktree: `git worktree add -b rebase-sweep2b-661` from
+      `origin/feat/geography-cascading-address`, `bun install` (1203 packages).
+- [x] `git merge origin/main` (round 1) -- 1 real conflict: `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      (took origin/main's version wholesale -- this task's own claim entry there is moot
+      since the task completes via this merge). No other conflicts.
+- [x] Re-ran `bun install` after the merge -- package.json/lockfile changed by the
+      main-merge; an install run only pre-merge left node_modules stale by 83 packages
+      (`@axe-core/playwright`, `jscpd`, `knip`, etc.), which is exactly what caused a
+      transient false-positive `@axe-core/playwright` type-check failure -- confirmed
+      unrelated to the PR's own code by A/B testing an install on a clean main worktree.
+- [x] Validated (round 1): `node scripts/check-governance-yaml-parse.mjs` (pass, 5/5),
+      `NODE_OPTIONS=--max-old-space-size=3072 bunx tsc --noEmit` (clean, 0 errors after the
+      reinstall -- default heap OOMs on this repo's size, matches this repo's own
+      documented gotcha), `bun test src/lib/data/geography.test.ts` (34 pass / 0 fail).
+- [x] No drizzle migrations involved (static reference-data module, no schema change) --
+      confirmed via diff against merge-base.
+- [x] Pushed `rebase-sweep2b-661`, opened PR #1524 ("... [was #661]"), closed #661 with a
+      comment pointing to #1524.
+- [x] `git merge origin/main` rounds 2 and 3 -- this is a fast-moving repo with many
+      parallel rebase-sweep sessions landing PRs continuously (PR #1522 then PR #1523
+      each landed on main within minutes of each push here, flipping this PR's
+      mergeable state to CONFLICTING before CI could even register a run). Both rounds'
+      only conflict was `PROGRESS.md` (single-current-entry convention, not
+      concatenation -- replaced wholesale each time, as here). No other file conflicted
+      in either round. Re-validated governance-yaml-parse + `tsc --noEmit` clean after
+      each round; no dependency-manifest changes in either round so no reinstall needed.
 
-## Next
-- [ ] Open replacement PR titled with `[was #659]`, citing the original.
-- [ ] Close original PR #659 with a comment pointing to the replacement.
-- [ ] Check real CI on the new PR; merge only once genuinely green modulo documented
-      ambient failures (E2E Tests, Vercel, Secret Scanning on pre-existing files,
-      Promptfoo Evals timeout).
+## Next (this session, in order)
+- [ ] Push this round-3 merge immediately, then check CI/mergeable state right away
+      before main can advance again.
+- [ ] If PROGRESS.md-only conflicts keep recurring, repeat the same wholesale-replace +
+      immediate-push pattern rather than waiting between checks (each wait window is what
+      let main advance underneath this PR the last two times).
+- [ ] Verify real CI on PR #1524 (`gh pr checks 1524`) -- retry on transient network
+      errors up to 5 times; ignore known-ambient failures (E2E Tests, Vercel, Secret
+      Scanning on pre-existing files, Promptfoo Evals).
+- [ ] Merge PR #1524 only when genuinely green (modulo the known-ambient ones).

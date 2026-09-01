@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-// VERIDIAN Review Framework Wave B (2026-07-17): account detail page --
+// VERIDIAN Review Framework Wave B: account detail page --
 // profile edit, billing/shipping address, contacts roster (primary-contact
 // aware), linked leads/opportunities, and child accounts (subsidiaries).
 // Mirrors /erp/customers/[id]'s list+detail shape, extended with the
@@ -26,6 +26,8 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { CountrySelect, StateSelect } from "@/components/ui/country-state-select";
+import { resolveCountryChange, resolveStateChange } from "@/lib/data/geography";
 
 type Account = {
   id: string; name: string; industry: string | null; website: string | null;
@@ -240,9 +242,20 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
             <Input placeholder="Line 2" defaultValue={account.billingLine2 ?? ""} onBlur={(e) => e.target.value !== (account.billingLine2 ?? "") && patchAccount({ billingLine2: e.target.value || null })} />
             <div className="grid grid-cols-2 gap-2">
               <Input placeholder="City" defaultValue={account.billingCity ?? ""} onBlur={(e) => e.target.value !== (account.billingCity ?? "") && patchAccount({ billingCity: e.target.value || null })} />
-              <Input placeholder="State" defaultValue={account.billingState ?? ""} onBlur={(e) => e.target.value !== (account.billingState ?? "") && patchAccount({ billingState: e.target.value || null })} />
+              {/* Cascading select: filtered by billingCountry. Uses the same
+                  resolveStateChange()/resolveCountryChange() cascade logic
+                  (src/lib/data/geography.ts) as the shipping block below and
+                  PartyAddressesAndContacts.tsx -- one real, tested rule, not
+                  three copies of it. */}
+              <StateSelect country={account.billingCountry} value={account.billingState} onValueChange={(v) => {
+                const next = resolveStateChange({ country: account.billingCountry, state: account.billingState, city: account.billingCity }, v);
+                patchAccount({ billingState: next.state, billingCity: next.city });
+              }} />
               <Input placeholder="Postal Code" defaultValue={account.billingPostalCode ?? ""} onBlur={(e) => e.target.value !== (account.billingPostalCode ?? "") && patchAccount({ billingPostalCode: e.target.value || null })} />
-              <Input placeholder="Country" defaultValue={account.billingCountry ?? ""} onBlur={(e) => e.target.value !== (account.billingCountry ?? "") && patchAccount({ billingCountry: e.target.value || null })} />
+              <CountrySelect value={account.billingCountry} onValueChange={(v) => {
+                const next = resolveCountryChange({ country: account.billingCountry, state: account.billingState, city: account.billingCity }, v);
+                patchAccount({ billingCountry: next.country, billingState: next.state, billingCity: next.city });
+              }} />
             </div>
             <div className="flex items-center gap-2 pt-2">
               <Checkbox checked={account.shippingSameAsBilling} onCheckedChange={(v) => patchAccount({ shippingSameAsBilling: !!v })} id="same-as-billing" />
@@ -254,9 +267,15 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                 <Input placeholder="Line 1" defaultValue={account.shippingLine1 ?? ""} onBlur={(e) => e.target.value !== (account.shippingLine1 ?? "") && patchAccount({ shippingLine1: e.target.value || null })} />
                 <div className="grid grid-cols-2 gap-2">
                   <Input placeholder="City" defaultValue={account.shippingCity ?? ""} onBlur={(e) => e.target.value !== (account.shippingCity ?? "") && patchAccount({ shippingCity: e.target.value || null })} />
-                  <Input placeholder="State" defaultValue={account.shippingState ?? ""} onBlur={(e) => e.target.value !== (account.shippingState ?? "") && patchAccount({ shippingState: e.target.value || null })} />
+                  <StateSelect country={account.shippingCountry} value={account.shippingState} onValueChange={(v) => {
+                    const next = resolveStateChange({ country: account.shippingCountry, state: account.shippingState, city: account.shippingCity }, v);
+                    patchAccount({ shippingState: next.state, shippingCity: next.city });
+                  }} />
                   <Input placeholder="Postal Code" defaultValue={account.shippingPostalCode ?? ""} onBlur={(e) => e.target.value !== (account.shippingPostalCode ?? "") && patchAccount({ shippingPostalCode: e.target.value || null })} />
-                  <Input placeholder="Country" defaultValue={account.shippingCountry ?? ""} onBlur={(e) => e.target.value !== (account.shippingCountry ?? "") && patchAccount({ shippingCountry: e.target.value || null })} />
+                  <CountrySelect value={account.shippingCountry} onValueChange={(v) => {
+                    const next = resolveCountryChange({ country: account.shippingCountry, state: account.shippingState, city: account.shippingCity }, v);
+                    patchAccount({ shippingCountry: next.country, shippingState: next.state, shippingCity: next.city });
+                  }} />
                 </div>
               </div>
             )}
