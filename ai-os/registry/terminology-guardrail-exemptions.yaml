@@ -2117,10 +2117,6 @@ exemptions:
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
       hardcoded_iso_date: 1
-  - file: src/app/contact/page.tsx
-    reason: "task-20260805-185202-ocid-020-gtm-cert-addendum (rebased and merged as replacement PR for #968, superseding sibling PR #966, 2026-08-31): 1 genuine dated code comment (line 9) citing the real UMR instruction this per-host-brand-resolution fix implements -- same class as this codebase's other exempted dated gap-closure comments, not example/sample data."
-    findings_by_category:
-      hardcoded_iso_date: 1
   - file: src/app/data-policy/page.tsx
     reason: "task-20260805-185202-ocid-020-gtm-cert-addendum (rebased and merged as replacement PR for #968, superseding sibling PR #966, 2026-08-31): 1 genuine dated code comment (line 7) citing the real UMR instruction this per-host-brand-resolution fix implements -- same class as this codebase's other exempted dated gap-closure comments, not example/sample data."
     findings_by_category:
@@ -3620,9 +3616,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/app/contact/page.tsx
-    reason: "OCID-020 GTM category 23 real UX-audit fix (task-20260814-095559-fix-the-two-failing-go-to-market-certifi, 2026-08-14), rebase-sweep2b-1145 real-merge onto current main (2026-09-01): the per-host brand-name/wordmark fix was already merged into main separately (this rebase kept main's own resolution as-is); this file's own remaining genuine dated gap-closure comments document the real 'Pricing' nav-link-parity and footer-links (Home/Pricing/Log in) fixes this PR's real UX-audit finding still contributed on top of main's existing brand-resolution work -- not example/placeholder data, same class as this codebase's other exempted dated gap-closure comments."
+    reason: "Consolidates the prior task-20260805-185202-ocid-020-gtm-cert-addendum entry's 1 exemption (line 9, the per-host brand-name/wordmark fix, already merged into main separately -- this rebase kept main's own resolution as-is) with 2 more from OCID-020 GTM category 23's real UX-audit fix (task-20260814-095559-fix-the-two-failing-go-to-market-certifi, 2026-08-14), rebase-sweep2b-1145 real-merge onto current main (2026-09-01): the real 'Pricing' nav-link-parity and footer-links (Home/Pricing/Log in) fixes this PR's real UX-audit finding still contributed on top of main's existing brand-resolution work -- not example/placeholder data, same class as this codebase's other exempted dated gap-closure comments."
     findings_by_category:
-      hardcoded_iso_date: 2
+      hardcoded_iso_date: 3
   - file: src/app/signup/page.tsx
     reason: "OCID-020 GTM category 23 real UX-audit fix (task-20260814-095559-fix-the-two-failing-go-to-market-certifi, 2026-08-14), rebase-sweep2b-1145 real-merge onto current main (2026-09-01): 1 genuine dated gap-closure comment documenting the real per-host brand-name fix for the H2/H4 consistency finding -- main had not yet fixed this page's hardcoded 'VERIDIAN AI' title/wordmark, so this PR's real fix was kept and merged forward -- not example/placeholder data, same class as this codebase's other exempted dated gap-closure comments."
     findings_by_category:
