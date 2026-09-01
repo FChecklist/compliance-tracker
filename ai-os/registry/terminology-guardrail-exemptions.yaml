@@ -1362,9 +1362,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 2
   - file: src/app/(app)/crm/sales-pipeline/page.tsx
-    reason: "Sales Pipeline Interactive Dashboard task (2026-07-27): real dated comment documenting when this feature was built, same class as every other changelog/gap-closure-date comment in this file."
+    reason: "Sales Pipeline Interactive Dashboard task (2026-07-27): real dated comment documenting when this feature was built, same class as every other changelog/gap-closure-date comment in this file. Raised 1 -> 4, Sales Dashboard gap-closure (2026-08-07, rebase-merged 2026-09-01): +3 real dated gap-closure comments (role scoping, CSV export, currency fix) -- same changelog/gap-closure-date-comment class, not human example/sample data."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 4
   - file: src/app/(app)/dashboard/page.tsx
     reason: "Rebase-regenerated full-repo baseline (2026-09-01, real rescan against current main during PR #554's rebase-merge): bare-ISO-date-shape regex false positive. This repo names files, task IDs, and instruction IDs with an embedded date as standard practice (changelog/gap-closure/task-ID/commit-date references), which is what every non-comment/non-code instance in this category resolves to on direct read -- not human example/sample data. 1 finding(s) in this file."
     findings_by_category:
@@ -1559,6 +1559,22 @@ exemptions:
       hardcoded_iso_date: 1
   - file: src/app/api/crm/pipeline/export/route.ts
     reason: "Sales Pipeline gap-closure (task-20260718-082004, 2026-08-07): new file, 1 genuine dated header comment documenting the gap-closure finding this route addresses -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/api/crm/sales-pipeline/route.test.ts
+    reason: "Sales Dashboard gap-closure (2026-08-07), new file: 1 real dated comment documenting when resolveViewerScope()'s role-scoping tests were added -- *.test.ts fixture-directory carve-out, same Phase 2 'explicitly out of scope' classification as this file's sibling test-file exemptions."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/api/crm/sales-pipeline/route.ts
+    reason: "Sales Dashboard gap-closure (2026-08-07): 1 real dated comment on resolveViewerScope() documenting when the Access Control / Role-Based Permissions fix (role-scoped pipeline visibility) was added -- same changelog/gap-closure-date-comment class as this file's sibling sales-pipeline-dashboard-service.ts exemption above."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/api/crm/sales-pipeline/summary/route.ts
+    reason: "Sales Dashboard gap-closure (2026-08-07), new file: 1 real dated comment documenting when the on-demand AI weekly narrative summary route (AI Copilot / Worker Agent Integration Depth finding) was added -- same changelog/gap-closure-date-comment class as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/api/crm/sales-pipeline/trend/route.ts
+    reason: "Sales Dashboard gap-closure (2026-08-07), new file: 1 real dated comment documenting when the week-over-week Awarded-value trend route (Notification & Alert Trigger Correctness finding) was added -- same changelog/gap-closure-date-comment class as this codebase's other dated gap-closure comments."
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/app/api/documents/route.ts
@@ -3013,9 +3029,9 @@ exemptions:
       hardcoded_iso_date: 11
       placeholder_company_name: 5
   - file: src/lib/services/crm-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 3 pre-existing finding(s) reviewed and closed, not migrated. Bumped 4 -> 10 (Sales Pipeline gap-closure, task-20260718-082004, 2026-08-07): 6 new real dated comments documenting this task's own gap-closure decisions (pipeline stage CRUD, stage-transition validation, currency-aware overview aggregation, AI pipeline insight, stuck-deal digest wiring) -- verified by direct diff read, not example/sample data. Bumped 10 -> 12 (CRM Leads gap-closure, PR #1014, 2026-08-07, merged forward on rebase-1014-fixed 2026-08-31): 2 more changelog-comment dates added -- same false-positive class, verified on direct read. Both bumps are additive against the same 4-finding Phase 4 baseline and were merged forward together on the #1014 rebase; count re-verified against direct read at merge time. Bumped 12 -> 14 (rebase-merge of PR #655, CRM-007 Sales Representative Performance Dashboard, 2026-09-01): +2 genuine dated header comments on the new aggregateSalesRepPerformance()/getSalesRepPerformanceDashboard() section (the sap_mapping.sqlite gap-analysis date and the date this gap was re-verified directly against the schema) -- not real business hardcoding, same class as this file's other exempted dates; count re-verified via direct script-pattern scan of the merged file, not arithmetic."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 3 pre-existing finding(s) reviewed and closed, not migrated. Bumped 4 -> 10 (Sales Pipeline gap-closure, task-20260718-082004, 2026-08-07): 6 new real dated comments documenting this task's own gap-closure decisions (pipeline stage CRUD, stage-transition validation, currency-aware overview aggregation, AI pipeline insight, stuck-deal digest wiring) -- verified by direct diff read, not example/sample data. Bumped 10 -> 12 (CRM Leads gap-closure, PR #1014, 2026-08-07, merged forward on rebase-1014-fixed 2026-08-31): 2 more changelog-comment dates added -- same false-positive class, verified on direct read. Both bumps are additive against the same 4-finding Phase 4 baseline and were merged forward together on the #1014 rebase; count re-verified against direct read at merge time. Bumped 12 -> 14 (rebase-merge of PR #655, CRM-007 Sales Representative Performance Dashboard, 2026-09-01): +2 genuine dated header comments on the new aggregateSalesRepPerformance()/getSalesRepPerformanceDashboard() section (the sap_mapping.sqlite gap-analysis date and the date this gap was re-verified directly against the schema) -- not real business hardcoding, same class as this file's other exempted dates; count re-verified via direct script-pattern scan of the merged file, not arithmetic. Bumped 14 -> 17 (rebase-merge of PR #1013, Sales Dashboard RBAC/currency gap-closure, task-20260718-082002, 2026-09-01): +3 more real dated gap-closure comments on getSalesPipelineDashboardData()'s role-scoping fix, getSalesPipelineTrend()'s week-over-week alert data, and generateSalesPipelineSummary()'s AI narrative -- same changelog/gap-closure-date-comment class, not human example/sample data; distinct task ID from the 082004 task already counted above, so additive rather than a duplicate of it. Count to be re-verified via a real post-merge script scan, not left as arithmetic alone."
     findings_by_category:
-      hardcoded_iso_date: 14
+      hardcoded_iso_date: 17
   - file: src/app/api/v1/projexa/sales-rep-performance/route.ts
     reason: "CRM-007 Sales Representative Performance Dashboard (2026-07-30): 1 genuine dated header comment documenting this PR's own new report route -- not real business hardcoding, same pattern as this codebase's other dated gap-closure comments."
     findings_by_category:
