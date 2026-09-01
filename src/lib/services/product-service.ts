@@ -3,7 +3,7 @@
 // PLATFORM_STRATEGY.md §11's honesty section for exactly what this does
 // and doesn't establish (no autonomous Product Intelligence is created by
 // this file).
-import { products, projects } from "@/lib/db"
+import { products, projects, projectTeamMembers } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { hasRole } from "@/lib/supabase/auth-guard"
@@ -124,5 +124,93 @@ export async function createProject(
       name, description: input.description?.trim() || null,
     }).returning()
     return { id: project.id, productId: project.productId, name: project.name, description: project.description, createdAt: project.createdAt.toISOString() }
+  })
+}
+
+// Task #46 (CRM feature-parity gap analysis): projects.leadUserId
+// only ever carried a single owner -- no way to represent a multi-person
+// project team. Adds the project_team_members junction table (drizzle/0302),
+// same shape as pmsMeetingParticipants/conversationParticipants/
+// userClientAccess (id/parentId/userId + one discriminator column). Placed
+// here rather than crm-service.ts (which has zero project-related code --
+// every project function already lives in this file) so the projects
+// table's lifecycle stays in one place; follows crm-service.ts's own
+// withTenantContext/ServiceError conventions throughout.
+//
+// leadUserId stays the single source of truth for "who owns this project"
+// everywhere that already reads it (unchanged, zero call-site migration
+// needed) -- resolveLeadUserIdOnAdd/resolveLeadUserIdOnRemove below are the
+// pure rules that keep it consistent with the junction table whenever a
+// member is added/removed, extracted standalone (same pattern as
+// crm-accounts-service.ts's wouldCreateCycle) so this logic is unit-testable
+// without a live DB.
+
+/** Adding someone as role='lead' makes them the project's lead. Any other role leaves the existing leadUserId untouched. */
+export function resolveLeadUserIdOnAdd(currentLeadUserId: string | null, memberUserId: string, role: string): string | null {
+  return role === "lead" ? memberUserId : currentLeadUserId
+}
+
+/** Removing the current lead can't leave leadUserId pointing at someone no longer on the team -- falls back to another remaining 'lead'-role member, else null. Removing anyone else leaves leadUserId untouched. */
+export function resolveLeadUserIdOnRemove(
+  currentLeadUserId: string | null,
+  removedUserId: string,
+  remainingMembers: { userId: string; role: string }[]
+): string | null {
+  if (currentLeadUserId !== removedUserId) return currentLeadUserId
+  return remainingMembers.find((m) => m.role === "lead")?.userId ?? null
+}
+
+export async function listProjectTeamMembers(ctx: { orgId: string }, projectId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
+    if (!project) throw new ServiceError("Project not found", 404)
+    return db.query.projectTeamMembers.findMany({
+      where: eq(projectTeamMembers.projectId, projectId),
+      orderBy: (t, { asc }) => asc(t.createdAt),
+    })
+  })
+}
+
+export async function addProjectTeamMember(ctx: ProductContext, projectId: string, userId: string, role: string = "member") {
+  if (!hasRole(ctx.dbUser, "admin")) throw new ServiceError("Adding a project team member requires admin role or higher", 403)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
+    if (!project) throw new ServiceError("Project not found", 404)
+
+    const existing = await db.query.projectTeamMembers.findFirst({
+      where: and(eq(projectTeamMembers.projectId, projectId), eq(projectTeamMembers.userId, userId)),
+    })
+    const [member] = existing
+      ? await db.update(projectTeamMembers).set({ role, updatedAt: new Date() }).where(eq(projectTeamMembers.id, existing.id)).returning()
+      : await db.insert(projectTeamMembers).values({ orgId: ctx.orgId, projectId, userId, role }).returning()
+
+    const newLeadUserId = resolveLeadUserIdOnAdd(project.leadUserId, userId, role)
+    if (newLeadUserId !== project.leadUserId) {
+      await db.update(projects).set({ leadUserId: newLeadUserId, updatedAt: new Date() }).where(eq(projects.id, projectId))
+    }
+    return member
+  })
+}
+
+export async function removeProjectTeamMember(ctx: ProductContext, projectId: string, userId: string) {
+  if (!hasRole(ctx.dbUser, "admin")) throw new ServiceError("Removing a project team member requires admin role or higher", 403)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
+    if (!project) throw new ServiceError("Project not found", 404)
+
+    const existing = await db.query.projectTeamMembers.findFirst({
+      where: and(eq(projectTeamMembers.projectId, projectId), eq(projectTeamMembers.userId, userId)),
+    })
+    if (!existing) throw new ServiceError("Team member not found on this project", 404)
+    await db.delete(projectTeamMembers).where(eq(projectTeamMembers.id, existing.id))
+
+    const remaining = await db.query.projectTeamMembers.findMany({ where: eq(projectTeamMembers.projectId, projectId) })
+    const newLeadUserId = resolveLeadUserIdOnRemove(project.leadUserId, userId, remaining)
+    if (newLeadUserId !== project.leadUserId) {
+      await db.update(projects).set({ leadUserId: newLeadUserId, updatedAt: new Date() }).where(eq(projects.id, projectId))
+    }
+    return { removed: true }
   })
 }

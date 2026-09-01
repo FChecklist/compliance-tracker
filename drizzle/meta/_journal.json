@@ -2339,6 +2339,13 @@
       "when": 1788286800000,
       "tag": "0511_sales_pipeline_summary_prompt",
       "breakpoints": true
+    },
+    {
+      "idx": 334,
+      "version": "7",
+      "when": 1788286900000,
+      "tag": "0512_project_team_members",
+      "breakpoints": true
     }
   ]
 }

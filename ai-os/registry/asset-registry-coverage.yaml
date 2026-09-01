@@ -840,6 +840,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: problem_tickets
     reason: "Priority 14/GAP-UMR-TABLE-COVERAGE 5th batch review (2026-07-14): a pure join/link table (problem_id, ticket_id), no display-name column -- the problem_records and tickets it links are already registered independently."
+  - table: project_team_members
+    reason: "Task #46 (CRM feature-parity gap analysis, 2026-07-31): pure join table (project_id x user_id, role discriminator only) -- same class as pms_meeting_participants/conversation_participants/user_client_access, none of which are registered either. No genuine display-name column of its own; projects (already covered above) is the registered/named entity."
   - table: product_branch_modules
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: prompt_eval_cases
