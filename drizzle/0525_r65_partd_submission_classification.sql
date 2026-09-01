@@ -1,0 +1,94 @@
+-- R65 Part D Phase 4 -- Submission-level classification (2026-09-02).
+-- Directive §1-3 requires every user chat/submission to classify as
+-- CHAT_ONLY | TASK | MULTIPLE_TASKS at the SUBMISSION level. The R65 Part D
+-- Phase 0 architecture report's own finding (§3.1/§4.3) is what this
+-- migration closes: "no submission-level classification value exists that a
+-- caller can switch on" -- the real per-segment verdict (classify.ts's
+-- SegmentVerdict = 'task'|'chat'|'gap', R53 Phase 4) and the real
+-- submission-level EXECUTION-OUTCOME status (submissionStatusEnum =
+-- 'chat'|'in_progress'|'done'|'partial'|'failed', run-submission.ts's
+-- deriveSubmissionStatus()) both already exist, but nothing computes the
+-- INTENT-SHAPE discriminant the directive's own chat-ingestion flow (§1:
+-- "CLASSIFY AS: CHAT_ONLY | TASK | MULTIPLE_TASKS") requires, and every
+-- caller of runSubmission() (assistant/submissions/tasks routes) returns the
+-- raw per-segment result verbatim today.
+--
+-- HAND-WRITTEN, not `bun run db:generate` output -- disclosed, not silent.
+-- `db:generate`'s local meta/_journal.json snapshot has drifted from this
+-- repo's real, committed migration history (confirmed live: running it for
+-- this change produced a ~0346-numbered file trying to re-CREATE TYPE dozens
+-- of enums that already exist in every real environment, i.e. the snapshot
+-- chain is stale relative to main's actual applied migrations -- a
+-- pre-existing condition, not caused by this change). Same posture as
+-- drizzle/0245's own precedent ("Hand-authored SQL, applied out-of-band")
+-- and drizzle/0524's own extensive hand-written header in this same
+-- directive's Phase 2. This migration's DDL was verified by hand against
+-- the real current `compliance.submissions` table shape in schema.ts
+-- instead.
+--
+-- REUSE-VS-BUILD: no new table. Per the Phase 0 report's own Phase 4
+-- recommendation (§4.3): one nullable column on the existing `submissions`
+-- table, computed by a new PURE function (classifySubmission(),
+-- src/lib/pipeline/classify.ts) from the SAME per-segment verdict array
+-- run-submission.ts's resolution pass already produces. No new I/O, no new
+-- DB read, no AI call, no new table.
+--
+-- SEMANTICS (report §4.3's own resolution of the `gap` verdict's missing
+-- slot in the directive's 3-way taxonomy, applied here): count of resolved,
+-- non-merged segments whose verdict is 'task' (classify.ts: a function that
+-- WRITES or produces an artifact -- see classify.ts:195-204).
+--   0 task-verdict segments  -> CHAT_ONLY (covers a pure question/
+--     acknowledgement submission AND a gap-only submission -- an unresolved
+--     capability is still "no work the software could complete", and it
+--     stays separately visible via the existing gap_log table, never
+--     silently folded into or hidden by this column).
+--   1 task-verdict segment   -> TASK
+--   >1 task-verdict segments -> MULTIPLE_TASKS
+-- A submission can still carry CHAT-verdict segments alongside a TASK verdict
+-- (e.g. "PP1 is 50% done and show me the budget" -- classify.ts's own
+-- canonical example); those are NOT part of this count. This column answers
+-- "how much executable work was requested" (directive §3's exact question),
+-- not "how many pipeline_tasks rows exist" -- a CHAT-verdict segment whose
+-- function writes can still mint a *blocked* pipeline_tasks row today
+-- (run-submission.ts:229-236, the safety rule "a chat verdict never runs a
+-- write"), which is an audit artifact, not a unit of requested work.
+--
+-- WHAT THIS MIGRATION DOES NOT DO (disclosed, not silently skipped):
+--   - Does NOT backfill existing rows. NULL means "predates this column",
+--     the same convention as every other additive migration in this schema
+--     (e.g. drizzle/0524's own header) -- there is no reliable way to
+--     recompute a submission's per-segment verdicts retroactively without
+--     re-running classification against inputs that may have since changed
+--     (phrase_map promotions since then, pill_usage state, etc.), and doing
+--     so would also re-trigger gap_log writes for historical input.
+--   - Does NOT change classify-only.ts / POST /api/v1/projexa/classify.
+--     That endpoint's response shape is explicitly contract-frozen
+--     (platform.claude_log id 28, status='r53-handshake' -- "a new
+--     r53-handshake row goes in BEFORE the change, never after", the
+--     route's own header comment). Adding this field there is future work
+--     gated on that explicit process, not silently skipped here.
+--   - Does NOT touch pipeline_tasks, pipeline_task_status, or
+--     pipeline_task_executor. Wiring those enums' already-declared-but-
+--     unused values ('in_progress'/'waiting'/'ai'/'person') is R65 Part D
+--     Phase 3's own, separately-scoped work per the Phase 0 report's phase
+--     plan (§5) -- deliberately not combined with this phase.
+--   - Does NOT wire R65 Part D Phase 6's AI-escalation-tier decision logic.
+--     This is a chat/submission-classification column only; no model
+--     selection, no AI call, no dispatch-path change.
+--
+-- MIGRATION NUMBERING (disclosed, per this directive's own Phase 0 report
+-- Risk #5): main's true highest migration at the time this was branched was
+-- 0523 (verified via `git ls-tree -r origin/main -- drizzle/` immediately
+-- before writing this file, not the stale local journal). R65 Part D
+-- Phase 2 (PR #1563, open/unmerged at time of writing) already claims 0524
+-- (`drizzle/0524_r65_partd_ai_usage_ledger.sql`) -- this migration is
+-- numbered 0525 to avoid that collision, per explicit instruction not to
+-- depend on PR #1563's unmerged content. This branch's own
+-- drizzle/meta/_journal.json entry (idx 346, matching PR #1563's own idx for
+-- its 0524 entry, since both branched from the same idx-345/0523 base) WILL
+-- collide with PR #1563's journal entry at merge time -- whichever of the
+-- two PRs merges second needs a trivial manual append (or a regenerated
+-- journal) to restore a monotonic idx sequence. This is expected,
+-- disclosed merge-order friction, not a bug in either PR.
+CREATE TYPE "compliance"."submission_classification" AS ENUM('CHAT_ONLY', 'TASK', 'MULTIPLE_TASKS');--> statement-breakpoint
+ALTER TABLE "compliance"."submissions" ADD COLUMN IF NOT EXISTS "classification" "compliance"."submission_classification";
