@@ -28,6 +28,50 @@ import { resolvePmsBillableRatePure } from "./pms-time-service"
 import { requireConstructionEnabled } from "./construction-enablement-service"
 export { ServiceError }
 
+// R67 F-10 (R-134). requireConstructionEnabled() is not a cheap boolean: it
+// goes through isBranchEnabledForOrg(), which opens its OWN withTenantContext
+// transaction and takes one of the five app_runtime connections. Every one of
+// the ~20 report functions below calls it as its first statement, and the
+// composite reports call several of those, so a single /reports run could
+// spend three or four pooled connections re-answering "does this org have the
+// construction module?" -- a question whose answer is a purchased package and
+// cannot change between two clicks.
+//
+// So the answer is memoised per org for 60 s. Deliberately small: an org that
+// buys the module mid-session waits at most a minute, and nothing here is a
+// security boundary being cached for longer than the request that needs it.
+//
+// TWO RULES, both of which a naive memo gets wrong:
+//
+//  1. A REFUSAL IS NEVER CACHED. Only the success is remembered. Caching the
+//     403 would keep telling an org that has JUST enabled construction that it
+//     has not, for up to a minute -- and a cached denial is exactly the kind of
+//     stale authorisation answer that should always be re-derived.
+//  2. CONCURRENT CALLERS SHARE ONE CHECK. The in-flight promise is stored, not
+//     just the settled result, so budgetVsActual's Promise.all cannot fire two
+//     enablement transactions at once.
+const ENABLEMENT_MEMO_TTL_MS = 60_000
+const enablementMemo = new Map<string, { at: number; promise: Promise<void> }>()
+
+/** Test seam: `bun test` runs every file in one process, so the memo above would leak between files. */
+export function __resetConstructionEnablementMemo(): void {
+  enablementMemo.clear()
+}
+
+async function ensureConstructionEnabled(orgId: string): Promise<void> {
+  const hit = enablementMemo.get(orgId)
+  if (hit && Date.now() - hit.at < ENABLEMENT_MEMO_TTL_MS) return hit.promise
+
+  const promise = requireConstructionEnabled(orgId)
+  enablementMemo.set(orgId, { at: Date.now(), promise })
+  try {
+    await promise
+  } catch (err) {
+    enablementMemo.delete(orgId)
+    throw err
+  }
+}
+
 async function activityIdsForProject(db: TenantDb, orgId: string, projectId: string) {
   const rows = await db.query.constructionActivities.findMany({ where: and(eq(constructionActivities.orgId, orgId), eq(constructionActivities.projectId, projectId)), columns: { id: true, categoryId: true, name: true } })
   return rows
@@ -35,7 +79,7 @@ async function activityIdsForProject(db: TenantDb, orgId: string, projectId: str
 
 // 1. Work Progress Report -- latest logged % complete + total quantity done per activity.
 export async function workProgressReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const activities = await activityIdsForProject(db, ctx.orgId, projectId)
     if (activities.length === 0) return { activities: [] }
@@ -62,7 +106,7 @@ export async function workProgressReport(ctx: { orgId: string }, projectId: stri
 // duplication for the new monthly variant (report-engine-service.ts's
 // computeMonthlyProjectReport formula).
 export async function projectPeriodReport(ctx: { orgId: string }, projectId: string, periodStart: string, periodEnd: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const [progressCount] = await db.select({ count: sql<number>`count(*)` }).from(constructionWorkProgressEntries)
       .where(and(eq(constructionWorkProgressEntries.orgId, ctx.orgId), eq(constructionWorkProgressEntries.projectId, projectId), sql`${constructionWorkProgressEntries.entryDate} >= ${periodStart} and ${constructionWorkProgressEntries.entryDate} < ${periodEnd}`))
@@ -90,13 +134,13 @@ export async function weeklyProjectReport(ctx: { orgId: string }, projectId: str
 
 // 3. Project Status Report -- reuses the project dashboard verbatim.
 export async function projectStatusReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return getProjectDashboard(ctx, projectId)
 }
 
 // 4. Attendance Report -- present/absent/half_day counts + cost, by trade.
 export async function attendanceReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const rows = await db.select({
       trade: constructionLabourRoster.trade,
@@ -113,7 +157,7 @@ export async function attendanceReport(ctx: { orgId: string }, projectId: string
 
 // 5. Site Picture Report -- documents(category='site_photo') grouped by date.
 export async function sitePictureReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const photos = await db.query.documents.findMany({
       where: and(eq(documents.orgId, ctx.orgId), eq(documents.category, "site_photo"), eq(documents.linkedEntityType, "project"), eq(documents.linkedEntityId, projectId)),
@@ -273,7 +317,7 @@ export function computeEarnedValue(
 }
 
 export async function earnedValueReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
     const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
@@ -316,7 +360,7 @@ export async function earnedValueReport(ctx: { orgId: string }, projectId: strin
 // budget; null (not 0) when no vendor amount has been entered yet for a
 // line, a real "not yet quoted" state, not a fabricated zero variance.
 export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
     const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
@@ -374,7 +418,7 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
 
 // 6. Scope Report -- BOQ total value + line-item count for the latest (non-superseded) revision.
 export async function scopeReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     // R38 (TC-11/TC-43 fix, same root cause class as point 177/PR #1325): version
     // DESC alone has no tiebreaker when 2+ INDEPENDENT (non-revision-chain) BOQs
@@ -397,7 +441,7 @@ export async function scopeReport(ctx: { orgId: string }, projectId: string) {
 
 // 7. Budget Summary -- total budget (via cost-center-per-project) + line items by account.
 export async function budgetSummary(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const lineItems = await db.select({
       accountId: erpBudgetLineItems.accountId,
@@ -413,7 +457,7 @@ export async function budgetSummary(ctx: { orgId: string }, projectId: string) {
 
 // 8. Budget vs Actual -- budget total (via cost center) vs actual expenses (construction_expense_entries).
 export async function budgetVsActual(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   const [dashboard, expenseByHead] = await Promise.all([
     getProjectDashboard(ctx, projectId),
     getExpenseSummaryByHead(ctx, projectId),
@@ -424,7 +468,7 @@ export async function budgetVsActual(ctx: { orgId: string }, projectId: string) 
 
 // 9. Material Consumption Report -- net stock movement per item for this project (negative = consumed).
 export async function materialConsumptionReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const rows = await db.select({
       itemId: erpStockLedgerEntries.itemId,
@@ -445,7 +489,7 @@ export async function materialConsumptionReport(ctx: { orgId: string }, projectI
 // no project_id column (only erp_sales_invoices and erp_stock_ledger_entries
 // got one in Wave 120's plan) -- a known, documented gap, not silently faked.
 export async function vendorCostReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const rows = await db.select({
       vendorId: constructionLabourRoster.vendorId,
@@ -467,7 +511,7 @@ export async function vendorCostReport(ctx: { orgId: string }, projectId: string
 // day's real labour cost -- the row's own oracle ("trade-wise summary
 // returns correct headcount and cost for that date").
 export async function manpowerCostReport(ctx: { orgId: string }, projectId: string, date?: string, trade?: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const conditions = [eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId)]
     if (date) conditions.push(eq(constructionAttendance.attendanceDate, date))
@@ -630,7 +674,7 @@ export type DesignerTimesheetReport = {
 }
 
 export async function designerTimesheetReport(ctx: { orgId: string }, projectId: string): Promise<DesignerTimesheetReport> {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const issueIds = (await db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)), columns: { id: true } })).map((i) => i.id)
     if (issueIds.length === 0) {
@@ -767,7 +811,7 @@ export function aggregateDesignerApprovalStatus(entries: TimesheetStatusEntry[])
 }
 
 export async function designerApprovalStatusReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const issueIds = (await db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)), columns: { id: true } })).map((i) => i.id)
     if (issueIds.length === 0) return { byDesigner: [] }
@@ -826,7 +870,7 @@ export function aggregateWorkAnalysis(entries: WorkAnalysisEntry[]) {
 }
 
 export async function workAnalysisReport(ctx: { orgId: string }, projectId: string, dateFrom?: string, dateTo?: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const issues = await db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)), columns: { id: true, title: true } })
     const issueIds = issues.map((i) => i.id)
@@ -859,7 +903,7 @@ export async function workAnalysisReport(ctx: { orgId: string }, projectId: stri
 
 // 13. KPI Report -- approved KPI entries for this project's definitions (or org-wide when projectId is null on the definition).
 export async function kpiReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const definitions = await db.query.constructionKpiDefinitions.findMany({ where: and(eq(constructionKpiDefinitions.orgId, ctx.orgId), eq(constructionKpiDefinitions.projectId, projectId)) })
     const defIds = definitions.map((d) => d.id)
@@ -870,7 +914,7 @@ export async function kpiReport(ctx: { orgId: string }, projectId: string) {
 
 // 14. Revenue Report -- erp_sales_invoices for this project.
 export async function revenueReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const invoices = await db.query.erpSalesInvoices.findMany({
       where: and(eq(erpSalesInvoices.orgId, ctx.orgId), eq(erpSalesInvoices.projectId, projectId), sql`${erpSalesInvoices.status} != 'cancelled'`),
@@ -882,14 +926,14 @@ export async function revenueReport(ctx: { orgId: string }, projectId: string) {
 
 // 15. Expense Report -- reuses the expense-head summary + full entry list.
 export async function expenseReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   const byHead = await getExpenseSummaryByHead(ctx, projectId)
   return { byHead, total: byHead.reduce((s, r) => s + Number(r.total), 0) }
 }
 
 // 16. Category Progress Report -- latest % complete averaged per category (via its activities).
 export async function categoryProgressReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const categories = await db.query.constructionCategories.findMany({ where: and(eq(constructionCategories.orgId, ctx.orgId), eq(constructionCategories.projectId, projectId)) })
     const activities = await activityIdsForProject(db, ctx.orgId, projectId)
@@ -921,7 +965,7 @@ export async function categoryProgressReport(ctx: { orgId: string }, projectId: 
 
 // 17. Project Completion Report -- overall completion % (reuses the dashboard figure) + category breakdown.
 export async function projectCompletionReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   const [dashboard, categoryBreakdown] = await Promise.all([getProjectDashboard(ctx, projectId), categoryProgressReport(ctx, projectId)])
   return { overallPercentComplete: dashboard.progressPercent, byCategory: categoryBreakdown.categories }
 }
@@ -937,7 +981,7 @@ export async function projectCompletionReport(ctx: { orgId: string }, projectId:
 // sum(byCategory.totalAmount) + uncategorizedAmount always equals the BOQ's
 // real total, matching scopeReport's totalValue for the same project.
 export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     // R38 (TC-42/TC-43 fix): same missing-tiebreaker bug as scopeReport() above --
     // see its comment for the full explanation.
@@ -1113,7 +1157,7 @@ export function computeCertifiedPayroll(
 }
 
 export async function certifiedPayrollReport(ctx: { orgId: string }, projectId: string, weekStart: string) {
-  await requireConstructionEnabled(ctx.orgId)
+  await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 86400000).toISOString().slice(0, 10)
 
