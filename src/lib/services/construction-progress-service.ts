@@ -11,6 +11,8 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, gte, lte, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { listDocuments } from "./document-service"
+import { logActivity } from "@/lib/audit"
+import { users as usersTable } from "@/lib/db"
 export { ServiceError }
 
 // R48 gap-closure (2026-08-29, F039: "Daily progress report with photos" --
@@ -378,5 +380,194 @@ export async function createProgressEntry(
       )
     }
     return row
+  })
+}
+
+// ─── R67 lane D22 (item D-49, rec R-125): the activity's side of the link ──
+// The schedule activity's object page has to answer three questions that only
+// the construction side can answer: which BOQ lines does this activity
+// deliver, where did its percentage come from, and is any of that scope still
+// in the current BOQ.
+
+export type LinkedBoqLineView = {
+  boqLineItemId: string
+  code: string | null
+  description: string
+  unit: string
+  quantity: number
+  weight: number
+  /** The BOQ revision the LINK points at. */
+  linkedBoqVersion: number | null
+  /** The revision that line's code lives on today, when a later revision superseded it. */
+  currentBoqVersion: number | null
+  /** True when the linked revision has been superseded but the code still exists on the current one. */
+  supersededButMatched: boolean
+  /** True when a later revision (a negative variation) removed this code from the scope entirely. */
+  scopeRemoved: boolean
+}
+
+export type ActivityCompletionProvenance = {
+  issueId: string
+  completionPercentage: number
+  completionSource: string
+  lastProgressAt: string | null
+  links: LinkedBoqLineView[]
+}
+
+/**
+ * What the activity object page's "Linked BOQ items" facet and provenance line
+ * are built from.
+ *
+ * A BOQ revision does not rewrite existing links -- pms_issue_boq_links points
+ * at a line item id, and a revision creates NEW line rows. So a link whose BOQ
+ * has been superseded is re-matched BY CODE against the project's current
+ * revision, which is the only identity a QS would recognise across revisions
+ * (R60SK-A is R60SK-A whatever revision it is on). Two honest outcomes:
+ *   - the code exists on the current revision -> supersededButMatched, shown as
+ *     "Linked to R60SK-A (Rev 2)";
+ *   - it does not -> scopeRemoved, because a negative variation deleted that
+ *     scope. That is surfaced in clay rather than silently zeroing the
+ *     activity: work that was descoped is a decision someone made, not a
+ *     measurement of zero progress.
+ */
+export async function getActivityCompletionProvenance(
+  ctx: { orgId: string },
+  issueId: string
+): Promise<ActivityCompletionProvenance> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const issue = await db.query.pmsIssues.findFirst({
+      where: and(eq(pmsIssues.id, issueId), eq(pmsIssues.orgId, ctx.orgId)),
+    })
+    if (!issue) throw new ServiceError("Activity not found", 404)
+
+    const links = await db.query.pmsIssueBoqLinks.findMany({
+      where: and(eq(pmsIssueBoqLinks.orgId, ctx.orgId), eq(pmsIssueBoqLinks.issueId, issueId)),
+    })
+
+    let lastProgressAt: string | null = null
+    if (issue.completedFromEntryId) {
+      const entry = await db.query.constructionWorkProgressEntries.findFirst({
+        where: and(eq(constructionWorkProgressEntries.id, issue.completedFromEntryId), eq(constructionWorkProgressEntries.orgId, ctx.orgId)),
+        columns: { entryDate: true },
+      })
+      lastProgressAt = entry?.entryDate ?? null
+    }
+
+    if (links.length === 0) {
+      return { issueId, completionPercentage: issue.completionPercentage, completionSource: issue.completionSource, lastProgressAt, links: [] }
+    }
+
+    const lineItems = await db.query.constructionBoqLineItems.findMany({
+      where: and(eq(constructionBoqLineItems.orgId, ctx.orgId), inArray(constructionBoqLineItems.id, links.map((l) => l.boqLineItemId))),
+    })
+    const lineById = new Map(lineItems.map((i) => [i.id, i]))
+
+    // The project's BOQ revisions, ordered the same way listBoqs() orders them
+    // so "current" is deterministic when two independent BOQs share a version.
+    const boqs = await db.query.constructionBoqs.findMany({
+      where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, issue.projectId)),
+      orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)],
+    })
+    const boqById = new Map(boqs.map((b) => [b.id, b]))
+    const currentBoq = boqs.find((b) => b.status !== "superseded") ?? boqs[0] ?? null
+    const currentCodeRows = currentBoq
+      ? await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, currentBoq.id), columns: { itemCode: true } })
+      : []
+    const currentCodes = new Set(
+      currentCodeRows.map((i) => i.itemCode?.trim().toLowerCase()).filter((c): c is string => !!c)
+    )
+
+    const views: LinkedBoqLineView[] = links.map((link) => {
+      const line = lineById.get(link.boqLineItemId)
+      const linkedBoq = line ? boqById.get(line.boqId) ?? null : null
+      const isSuperseded = !!linkedBoq && !!currentBoq && linkedBoq.id !== currentBoq.id
+      const code = line?.itemCode ?? null
+      const stillInScope = !code || currentCodes.has(code.trim().toLowerCase())
+      return {
+        boqLineItemId: link.boqLineItemId,
+        code,
+        // A link whose line item row is gone is a real state (the row was
+        // hard-deleted): say so rather than rendering an empty cell.
+        description: line?.description ?? "This BOQ line no longer exists",
+        unit: line?.unit ?? "",
+        quantity: line ? Number(line.quantity) : 0,
+        weight: Number(link.weight ?? 1),
+        linkedBoqVersion: linkedBoq?.version ?? null,
+        currentBoqVersion: currentBoq?.version ?? null,
+        supersededButMatched: isSuperseded && stillInScope,
+        scopeRemoved: !!line && !stillInScope,
+      }
+    })
+
+    return { issueId, completionPercentage: issue.completionPercentage, completionSource: issue.completionSource, lastProgressAt, links: views }
+  })
+}
+
+/**
+ * The explicit manual override: a PM overrules what the site records say.
+ *
+ * The note is REQUIRED, and that is the whole point of this function existing
+ * separately from updateIssue()'s ordinary completionPercentage patch. Once an
+ * activity's percentage can be derived from real quantities, typing over it is
+ * a decision that needs a reason attached -- otherwise the two numbers diverge
+ * with no record of who chose which. Stored in compliance.audit_logs, the
+ * repo's existing append-only event log, rather than a new column: the note is
+ * evidence about a decision, not an attribute of the activity, and audit_logs
+ * already carries the actor snapshot ("who, at the time") that makes it worth
+ * anything.
+ */
+export async function setActivityCompletionManually(
+  ctx: { orgId: string; userId: string },
+  issueId: string,
+  input: { completionPercentage: number; note: string },
+  audit?: { dbUser?: typeof usersTable.$inferSelect; apiKey?: { id: string; name: string } }
+) {
+  const note = input.note?.trim()
+  if (!note) throw new ServiceError("A note is required when you set the percentage manually", 400)
+  if (!Number.isFinite(input.completionPercentage) || input.completionPercentage < 0 || input.completionPercentage > 100) {
+    throw new ServiceError("completionPercentage must be between 0 and 100", 400)
+  }
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const issue = await db.query.pmsIssues.findFirst({
+      where: and(eq(pmsIssues.id, issueId), eq(pmsIssues.orgId, ctx.orgId)),
+    })
+    if (!issue) throw new ServiceError("Activity not found", 404)
+
+    const [updated] = await db.update(pmsIssues).set({
+      completionPercentage: Math.round(input.completionPercentage),
+      completionSource: "manual",
+      // Cleared deliberately: the figure is no longer derived from that entry,
+      // and leaving the reference would make the object page print a
+      // "last entry" date for a number nobody derived from it.
+      completedFromEntryId: null,
+      updatedAt: new Date(),
+    }).where(and(eq(pmsIssues.id, issueId), eq(pmsIssues.orgId, ctx.orgId))).returning()
+
+    // Same transaction as the write it explains -- an override whose reason
+    // failed to record is exactly the state this function exists to prevent.
+    if (audit?.dbUser) {
+      await logActivity({
+        tx: db,
+        action: "pms_issue.completion_manual_override",
+        entityType: "pms_issue",
+        entityId: issueId,
+        details: `Set to ${Math.round(input.completionPercentage)}% manually (was ${issue.completionPercentage}%, source ${issue.completionSource}). Reason: ${note}`,
+        orgId: ctx.orgId,
+        dbUser: audit.dbUser,
+      })
+    } else if (audit?.apiKey) {
+      await logActivity({
+        tx: db,
+        action: "pms_issue.completion_manual_override",
+        entityType: "pms_issue",
+        entityId: issueId,
+        details: `Set to ${Math.round(input.completionPercentage)}% manually (was ${issue.completionPercentage}%, source ${issue.completionSource}). Reason: ${note}`,
+        orgId: ctx.orgId,
+        apiKey: audit.apiKey,
+      })
+    }
+
+    return updated
   })
 }

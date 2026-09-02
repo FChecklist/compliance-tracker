@@ -353,3 +353,158 @@ describe("createProgressEntry rolls the site records up onto the linked schedule
     expect(row).toBeDefined()
   })
 })
+
+// ─── R67 lane D22 (item D-49): the activity's side of the link ────────────
+// Provenance ("where did this 62% come from") and the explicit manual
+// override. Own fake db again, for the same reason as the block above: these
+// read paths use inArray() and column projections the module-level eq()-only
+// matcher cannot represent.
+describe("getActivityCompletionProvenance", () => {
+  const ORG_ID = "org-prov"
+
+  async function runProvenance(over: {
+    issue?: Record<string, unknown>
+    links?: Record<string, unknown>[]
+    lineItems?: Record<string, unknown>[]
+    boqs?: Record<string, unknown>[]
+    currentCodes?: { itemCode: string | null }[]
+    entry?: { entryDate: string } | undefined
+  } = {}) {
+    const issue = { id: "issue-1", orgId: ORG_ID, projectId: "proj-1", completionPercentage: 62, completionSource: "site_records", completedFromEntryId: "entry-7", ...over.issue }
+    const links = over.links ?? [{ id: "lnk-1", orgId: ORG_ID, issueId: "issue-1", boqLineItemId: "LINE-1", weight: "1" }]
+    const lineItems = over.lineItems ?? [{ id: "LINE-1", boqId: "BOQ-1", itemCode: "R60SK-A", description: "R60 skiphop sub", unit: "m2", quantity: "10" }]
+    const boqs = over.boqs ?? [{ id: "BOQ-1", version: 1, status: "approved", createdAt: new Date("2026-08-01") }]
+    const currentCodes = over.currentCodes ?? [{ itemCode: "R60SK-A" }]
+
+    const fakeDb = {
+      query: {
+        pmsIssues: { findFirst: async () => issue },
+        pmsIssueBoqLinks: { findMany: async () => links },
+        constructionWorkProgressEntries: { findFirst: async () => ("entry" in over ? over.entry : { entryDate: "2026-09-01" }) },
+        constructionBoqLineItems: {
+          // Two different reads: the linked lines (no `columns`) and the
+          // current revision's code list (projected to itemCode only).
+          findMany: async (args: { columns?: Record<string, boolean> }) => (args?.columns ? currentCodes : lineItems),
+        },
+        constructionBoqs: { findMany: async () => boqs },
+      },
+    }
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    const { getActivityCompletionProvenance } = await import("./construction-progress-service")
+    return getActivityCompletionProvenance({ orgId: ORG_ID }, "issue-1")
+  }
+
+  test("a site-derived completion carries its source and the date of the entry it came from", async () => {
+    const result = await runProvenance()
+    expect(result).toMatchObject({ completionPercentage: 62, completionSource: "site_records", lastProgressAt: "2026-09-01" })
+    expect(result.links[0]).toMatchObject({ code: "R60SK-A", description: "R60 skiphop sub", unit: "m2", quantity: 10, weight: 1 })
+  })
+
+  test("a manual completion has no last-entry date to print", async () => {
+    const result = await runProvenance({ issue: { completionSource: "manual", completedFromEntryId: null }, entry: undefined })
+    expect(result.lastProgressAt).toBeNull()
+  })
+
+  test("a link into a SUPERSEDED revision whose code still exists is re-matched, not broken", async () => {
+    const result = await runProvenance({
+      boqs: [
+        { id: "BOQ-2", version: 2, status: "approved", createdAt: new Date("2026-09-01") },
+        { id: "BOQ-1", version: 1, status: "superseded", createdAt: new Date("2026-08-01") },
+      ],
+      currentCodes: [{ itemCode: "R60SK-A" }],
+    })
+    expect(result.links[0]).toMatchObject({ supersededButMatched: true, scopeRemoved: false, linkedBoqVersion: 1, currentBoqVersion: 2 })
+  })
+
+  test("a negative variation that removed the code marks the activity's scope removed, never a silent zero", async () => {
+    const result = await runProvenance({
+      boqs: [
+        { id: "BOQ-2", version: 2, status: "approved", createdAt: new Date("2026-09-01") },
+        { id: "BOQ-1", version: 1, status: "superseded", createdAt: new Date("2026-08-01") },
+      ],
+      currentCodes: [{ itemCode: "SOMETHING-ELSE" }],
+    })
+    expect(result.links[0]).toMatchObject({ scopeRemoved: true, supersededButMatched: false })
+    expect(result.completionPercentage).toBe(62) // untouched
+  })
+
+  test("an activity with no BOQ links returns an empty list, not an error", async () => {
+    const result = await runProvenance({ links: [] })
+    expect(result.links).toEqual([])
+    expect(result.completionSource).toBe("site_records")
+  })
+
+  test("a link whose line item row is gone says so rather than rendering an empty cell", async () => {
+    const result = await runProvenance({ lineItems: [] })
+    expect(result.links[0]).toMatchObject({ code: null, description: "This BOQ line no longer exists" })
+  })
+})
+
+const realAudit = await import("@/lib/audit")
+
+describe("setActivityCompletionManually", () => {
+  const ORG_ID = "org-manual"
+
+  afterEach(async () => {
+    await mock.module("@/lib/audit", () => realAudit)
+  })
+
+  async function runOverride(input: { completionPercentage: number; note: string }, audit?: Parameters<typeof import("./construction-progress-service").setActivityCompletionManually>[3]) {
+    const updates: Record<string, unknown>[] = []
+    const audited: Record<string, unknown>[] = []
+    const fakeDb = {
+      query: { pmsIssues: { findFirst: async () => ({ id: "issue-1", orgId: ORG_ID, completionPercentage: 62, completionSource: "site_records" }) } },
+      update: () => ({
+        set: (set: Record<string, unknown>) => ({
+          where: () => ({ returning: async () => { updates.push(set); return [{ id: "issue-1", ...set }] } }),
+        }),
+      }),
+    }
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    await mock.module("@/lib/audit", () => ({
+      ...realAudit,
+      logActivity: mock(async (params: Record<string, unknown>) => { audited.push(params) }),
+    }))
+    const { setActivityCompletionManually } = await import("./construction-progress-service")
+    const row = await setActivityCompletionManually({ orgId: ORG_ID, userId: "user-1" }, "issue-1", input, audit)
+    return { row, updates, audited }
+  }
+
+  test("an override records completion_source 'manual' and drops the derived entry reference", async () => {
+    const { updates } = await runOverride({ completionPercentage: 80, note: "Client walkdown agreed 80%" })
+    expect(updates[0]).toMatchObject({ completionPercentage: 80, completionSource: "manual", completedFromEntryId: null })
+  })
+
+  test("the note is REQUIRED -- an override without a reason is refused, not stored", async () => {
+    await expect(runOverride({ completionPercentage: 80, note: "   " })).rejects.toThrow("A note is required when you set the percentage manually")
+  })
+
+  test("a percentage outside 0-100 is refused", async () => {
+    await expect(runOverride({ completionPercentage: 140, note: "why" })).rejects.toThrow("completionPercentage must be between 0 and 100")
+  })
+
+  test("the reason is written to the audit trail with what it replaced, so the decision is reconstructable", async () => {
+    const { audited } = await runOverride(
+      { completionPercentage: 80, note: "Client walkdown agreed 80%" },
+      { dbUser: { id: "user-1", name: "Arjun Mehta", role: "admin" } as never }
+    )
+    expect(audited).toHaveLength(1)
+    expect(audited[0]).toMatchObject({ action: "pms_issue.completion_manual_override", entityType: "pms_issue", entityId: "issue-1" })
+    expect(String(audited[0].details)).toBe("Set to 80% manually (was 62%, source site_records). Reason: Client walkdown agreed 80%")
+  })
+
+  test("an API-key caller is recorded too -- an override always says who made it", async () => {
+    const { audited } = await runOverride(
+      { completionPercentage: 80, note: "why" },
+      { apiKey: { id: "key-1", name: "PROJEXA" } }
+    )
+    expect(audited).toHaveLength(1)
+    expect(audited[0].apiKey).toEqual({ id: "key-1", name: "PROJEXA" })
+  })
+})
