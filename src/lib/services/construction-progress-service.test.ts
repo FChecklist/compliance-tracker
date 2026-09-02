@@ -99,12 +99,58 @@ const activityRows = [
 ]
 const boqRows = [
   { id: "BOQ-B", orgId: ORG, projectId: PROJECT_B },
+  { id: "BOQ-A", orgId: ORG, projectId: PROJECT_A },
 ]
+// R67 D-28: LINE-PARENT is a real line of PROJECT_A's own BOQ (BOQ-A) that HAS
+// a child (LINE-CHILD points at it), so it clears every ownership check and is
+// refused ONLY by the parent-line rule -- for the new PATCH path as well as the
+// original POST path.
 const lineItemRows = [
   { id: "LINE-B", orgId: ORG, boqId: "BOQ-B", parentLineItemId: null },
+  { id: "LINE-PARENT", orgId: ORG, boqId: "BOQ-A", parentLineItemId: null },
+  { id: "LINE-CHILD", orgId: ORG, boqId: "BOQ-A", parentLineItemId: "LINE-PARENT" },
 ]
 
 let insertedRows: Record<string, unknown>[] = []
+// R67 D-28: every `set()` the service issues on an update, so a test can prove
+// BOTH that a rejected edit wrote nothing and that an accepted edit wrote only
+// the fields the caller actually sent.
+let updatedSets: Record<string, unknown>[] = []
+
+const progressEntryRows: Record<string, unknown>[] = [
+  {
+    id: "entry-existing", orgId: ORG, projectId: PROJECT_A, activityId: "ACT-A", boqLineItemId: null,
+    entryDate: "2026-08-28", quantityDone: "5", percentComplete: "50", entryBasis: "DELTA",
+    remarks: null, recordedById: "user-1", createdAt: new Date("2026-08-28T00:00:00Z"),
+  },
+]
+
+// The enriched (LEFT-JOINed) shape selectEnrichedEntries() returns. Keyed by
+// the same entry ids as progressEntryRows so a read-back after an update
+// resolves to a real row.
+const enrichedRows: Record<string, unknown>[] = [
+  {
+    ...progressEntryRows[0],
+    activityName: "Blockwork", activityUnit: "m2",
+    boqItemCode: null, boqLineDescription: null, boqLineUnit: null,
+    boqLineQuantity: null, boqLineRate: null, boqLineAmount: null,
+  },
+]
+
+/** Awaitable AND chainable, because selectEnrichedEntries() awaits `.where(...)` directly for a single row and calls `.orderBy(...)` on it for a list. */
+type SelectResult = {
+  then: (resolve: (value: Record<string, unknown>[]) => unknown, reject?: (reason: unknown) => unknown) => Promise<unknown>
+  orderBy: () => Promise<Record<string, unknown>[]>
+}
+function selectResult(rows: Record<string, unknown>[]): SelectResult {
+  return {
+    then: (resolve, reject) => Promise.resolve(rows).then(resolve, reject),
+    orderBy: async () => rows,
+  }
+}
+
+type JoinChain = { leftJoin: () => JoinChain; where: () => SelectResult }
+const joinChain: JoinChain = { leftJoin: () => joinChain, where: () => selectResult(enrichedRows) }
 
 const fakeDb = {
   query: {
@@ -120,6 +166,9 @@ const fakeDb = {
     constructionBoqs: {
       findFirst: async ({ where }: { where: SQL }) => boqRows.find((r) => matches(r, where)),
     },
+    constructionWorkProgressEntries: {
+      findFirst: async ({ where }: { where: SQL }) => progressEntryRows.find((r) => matches(r, where)),
+    },
   },
   insert: () => ({
     values: (v: Record<string, unknown>) => ({
@@ -127,6 +176,15 @@ const fakeDb = {
         const row = { ...v, id: "entry-1", percentComplete: String(v.percentComplete ?? "0") }
         insertedRows.push(row)
         return [row]
+      },
+    }),
+  }),
+  select: () => ({ from: () => joinChain }),
+  update: () => ({
+    set: (v: Record<string, unknown>) => ({
+      where: async () => {
+        updatedSets.push(v)
+        return []
       },
     }),
   }),
@@ -140,6 +198,7 @@ async function restoreRealModules(): Promise<void> {
 beforeEach(() => {
   capturedOrgIds = []
   insertedRows = []
+  updatedSets = []
   mockWithTenantContext.mockClear()
 })
 
@@ -199,5 +258,108 @@ describe("createProgressEntry -- R48_PROGRESS_ENTRY_NO_PROJECT_MEMBERSHIP_CHECK_
     ).rejects.toThrow(ServiceError)
 
     expect(insertedRows).toHaveLength(0)
+  })
+})
+
+// R67 D-28 (R-069/R-071). Work Progress was create-only: no read of one entry,
+// no correction, no delete route. The two rules that matter when an edit
+// becomes possible are that it must run the SAME validation the create path
+// runs -- the item's own words -- and that a rejected edit must write nothing.
+// Both are asserted here against the real service with only withTenantContext
+// mocked, the same harness the tests above use.
+describe("R67 D-28 -- pure rules shared by create and update", () => {
+  test("normaliseEntryBasis defaults to DELTA, accepts SNAPSHOT, and refuses anything else", async () => {
+    const { normaliseEntryBasis, ServiceError } = await import("./construction-progress-service")
+    expect(normaliseEntryBasis(undefined)).toBe("DELTA")
+    expect(normaliseEntryBasis(null)).toBe("DELTA")
+    expect(normaliseEntryBasis("SNAPSHOT")).toBe("SNAPSHOT")
+    expect(() => normaliseEntryBasis("CUMULATIVE")).toThrow(ServiceError)
+  })
+
+  test("assertPercentComplete accepts 0 and 100 and refuses outside, NaN included", async () => {
+    const { assertPercentComplete, PERCENT_COMPLETE_RANGE_MESSAGE } = await import("./construction-progress-service")
+    expect(() => assertPercentComplete(0)).not.toThrow()
+    expect(() => assertPercentComplete(100)).not.toThrow()
+    expect(() => assertPercentComplete(100.01)).toThrow(PERCENT_COMPLETE_RANGE_MESSAGE)
+    expect(() => assertPercentComplete(-1)).toThrow(PERCENT_COMPLETE_RANGE_MESSAGE)
+    expect(() => assertPercentComplete(Number.NaN)).toThrow(PERCENT_COMPLETE_RANGE_MESSAGE)
+  })
+
+  test("resolveProgressUnit prefers the BOQ line's unit and falls back to the activity's", async () => {
+    const { resolveProgressUnit } = await import("./construction-progress-service")
+    expect(resolveProgressUnit({ boqLineUnit: "m2", activityUnit: "nos" })).toBe("m2")
+    expect(resolveProgressUnit({ boqLineUnit: null, activityUnit: "nos" })).toBe("nos")
+    expect(resolveProgressUnit({ boqLineUnit: null, activityUnit: null })).toBeNull()
+  })
+})
+
+describe("updateProgressEntry -- R67 D-28", () => {
+  test("a percent outside 0-100 is refused with the same message create uses, and NOTHING is written", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { updateProgressEntry, PERCENT_COMPLETE_RANGE_MESSAGE } = await import("./construction-progress-service")
+
+    await expect(
+      updateProgressEntry({ orgId: ORG }, "entry-existing", { percentComplete: 140 })
+    ).rejects.toThrow(PERCENT_COMPLETE_RANGE_MESSAGE)
+
+    expect(updatedSets).toHaveLength(0)
+  })
+
+  test("re-pointing an entry at a PARENT BOQ line is refused with the create path's verbatim message", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { updateProgressEntry, PARENT_LINE_PROGRESS_MESSAGE } = await import("./construction-progress-service")
+
+    // LINE-PARENT belongs to BOQ-A, which belongs to PROJECT_A -- the entry's
+    // own project -- so it passes every ownership check and is refused ONLY by
+    // the parent-line rule, which is the rule under test.
+    await expect(
+      updateProgressEntry({ orgId: ORG }, "entry-existing", { boqLineItemId: "LINE-PARENT" })
+    ).rejects.toThrow(PARENT_LINE_PROGRESS_MESSAGE)
+
+    expect(updatedSets).toHaveLength(0)
+  })
+
+  test("a BOQ line from ANOTHER project is refused 404, even though it exists in this org", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { updateProgressEntry } = await import("./construction-progress-service")
+
+    // LINE-B is real and in this org, but its BOQ belongs to PROJECT_B while
+    // the entry belongs to PROJECT_A. An edit must never move an entry across
+    // that boundary.
+    await expect(
+      updateProgressEntry({ orgId: ORG }, "entry-existing", { boqLineItemId: "LINE-B" })
+    ).rejects.toThrow("BOQ line item not found")
+
+    expect(updatedSets).toHaveLength(0)
+  })
+
+  test("an accepted edit writes only the fields the caller sent, and reads back the enriched row", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { updateProgressEntry } = await import("./construction-progress-service")
+
+    const row = await updateProgressEntry({ orgId: ORG }, "entry-existing", { quantityDone: 5 })
+
+    expect(updatedSets).toHaveLength(1)
+    expect(updatedSets[0].quantityDone).toBe("5")
+    // Everything the caller did not send is `undefined`, which drizzle omits
+    // from the UPDATE -- an absent field must never be read as "clear it".
+    expect(updatedSets[0].percentComplete).toBeUndefined()
+    expect(updatedSets[0].activityId).toBeUndefined()
+    expect(updatedSets[0].boqLineItemId).toBeUndefined()
+    expect(updatedSets[0].remarks).toBeUndefined()
+    // The read-back is the SAME enriched shape the list returns -- names
+    // resolved, unit derived -- so the object page never re-resolves them.
+    expect(row.activityName).toBe("Blockwork")
+    expect(row.unit).toBe("m2")
+  })
+
+  test("an unknown entry id is a 404, not a silent no-op", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { updateProgressEntry } = await import("./construction-progress-service")
+
+    await expect(
+      updateProgressEntry({ orgId: ORG }, "entry-does-not-exist", { quantityDone: 1 })
+    ).rejects.toThrow("Progress entry not found")
+    expect(updatedSets).toHaveLength(0)
   })
 })
