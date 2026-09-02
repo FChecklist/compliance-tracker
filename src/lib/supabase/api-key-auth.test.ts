@@ -197,6 +197,115 @@ describe("validateApiKey: demo-key sandbox rate-limit ceiling", () => {
 // `x-org-id` header override patched into validateApiKey() locally, and
 // passing again once that patch was reverted -- see PR description for the
 // stash/restore output.
+// R67 F-17 (R-234): the two audit writes -- the api_key_request_log INSERT and
+// the api_keys.last_used_at UPDATE -- used to be issued per request on the
+// shared max:5 `db` pool (see src/lib/db/index.ts's own R43_EXEC_02 comment,
+// which names them as part of what serialised that pool into 504s). They now go
+// through the batching queue in src/lib/auth/api-key-audit.ts. These two tests
+// cover the CALL SITE: that validateApiKey stopped issuing them per request,
+// and that batching them did not quietly widen the rate-limit window.
+describe("validateApiKey: the audit writes are batched, and the rate limit still counts them (R67 F-17)", () => {
+  const originalEnv = process.env.DEMO_API_KEY_IDS
+
+  afterEach(() => {
+    if (originalEnv === undefined) delete process.env.DEMO_API_KEY_IDS
+    else process.env.DEMO_API_KEY_IDS = originalEnv
+  })
+
+  /**
+   * A db stub whose rate-limit count reflects the rows it has actually been
+   * given -- i.e. it models the database honestly rather than returning a fixed
+   * number. That makes the assertions below independent of exactly when the
+   * queue chooses to flush: a request is counted once, whether it is still in
+   * the queue or already written.
+   */
+  function mockDbCountingItsOwnWrites(row: Record<string, unknown>, baseCount: number) {
+    const state = { batches: 0, rowsWritten: 0, lastUsedUpdates: 0 }
+    mock.module("@/lib/db", () => ({
+      db: {
+        update: () => ({ set: () => ({ where: () => { state.lastUsedUpdates += 1; return Promise.resolve() } }) }),
+        insert: () => ({
+          values: (rows: unknown) => {
+            const list = Array.isArray(rows) ? rows : [rows]
+            state.batches += 1
+            state.rowsWritten += list.length
+            return Promise.resolve()
+          },
+        }),
+        select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: baseCount + state.rowsWritten }]) }) }),
+      },
+      apiKeys: { id: "id" }, apiKeyRequestLog: {},
+    }))
+    mock.module("@/lib/db/preauth-lookups", () => ({ lookupApiKeyByHash: mock(async () => row) }))
+    mock.module("@/lib/api-keys", () => ({ hashSHA256: mock(async () => "hash-doesnt-matter") }))
+    return state
+  }
+
+  /** Drains anything earlier tests in this file queued, so deltas are ours. */
+  async function drainAuditQueue() {
+    const { flushApiKeyAuditNow } = await import("@/lib/auth/api-key-audit")
+    await flushApiKeyAuditNow()
+    // Let any previously scheduled deferral (after()/setImmediate) run to
+    // completion before measuring.
+    await new Promise<void>((resolve) => { setImmediate(resolve) })
+    await flushApiKeyAuditNow()
+  }
+
+  test("ten requests issue ZERO writes while they run, then one INSERT and one last_used_at UPDATE", async () => {
+    const state = mockDbCountingItsOwnWrites({
+      id: "f17-real-key", orgId: "org-f17", name: "Real customer key",
+      scopes: "read", rateLimitPerMinute: null, isActive: true,
+    }, 0)
+
+    const { validateApiKey } = await import("./api-key-auth")
+    const { flushApiKeyAuditNow } = await import("@/lib/auth/api-key-audit")
+    await drainAuditQueue()
+
+    const before = { batches: state.batches, rows: state.rowsWritten, updates: state.lastUsedUpdates }
+
+    for (let i = 0; i < 10; i += 1) {
+      const result = await validateApiKey(request())
+      expect(result.status).toBe("ok")
+    }
+
+    // The point of the item: a PROJEXA page's worth of API-key calls no longer
+    // puts two statements each on a five-connection pool.
+    expect(state.batches - before.batches).toBe(0)
+    expect(state.lastUsedUpdates - before.updates).toBe(0)
+
+    await flushApiKeyAuditNow()
+
+    expect(state.batches - before.batches).toBe(1)
+    expect(state.rowsWritten - before.rows).toBe(10)
+    // Ten requests, one "last used" date. The column's only readers are the
+    // settings screen's "Last used <date>" line and the stale-key audit loop.
+    expect(state.lastUsedUpdates - before.updates).toBe(1)
+  })
+
+  test("a key at its limit is still rate-limited on requests that are only in the queue, not yet in the database", async () => {
+    process.env.DEMO_API_KEY_IDS = "projexa_demo_key"
+    // Limit 2/minute, and the database starts empty -- so anything that stops
+    // the third request can only have come from the queue's pending count.
+    const state = mockDbCountingItsOwnWrites(demoKeyRow({ rateLimitPerMinute: 2 }), 0)
+
+    const { validateApiKey } = await import("./api-key-auth")
+    await drainAuditQueue()
+    const rowsBefore = state.rowsWritten
+
+    expect((await validateApiKey(request())).status).toBe("ok")
+    expect((await validateApiKey(request())).status).toBe("ok")
+
+    // Nothing has reached the database yet...
+    expect(state.rowsWritten - rowsBefore).toBe(0)
+    // ...and the limit holds anyway.
+    const third = await validateApiKey(request())
+    expect(third.status).toBe("rate_limited")
+    if (third.status === "rate_limited") {
+      expect(third.retryAfterSeconds).toBe(60)
+    }
+  })
+})
+
 describe("validateApiKey: orgId comes only from the key-hash match (R43_EXEC_01 regression guard)", () => {
   test("an x-org-id header claiming a different tenant is ignored -- orgId still comes from the key's own row", async () => {
     mockDbFor({

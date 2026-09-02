@@ -1,7 +1,8 @@
-import { db, apiKeys, apiKeyRequestLog } from "@/lib/db"
+import { db, apiKeyRequestLog } from "@/lib/db"
 import { eq, and, gte, sql } from "drizzle-orm"
 import { hashSHA256 } from "@/lib/api-keys"
 import { lookupApiKeyByHash } from "@/lib/db/preauth-lookups"
+import { pendingApiKeyRequestCount, recordApiKeyUse } from "@/lib/auth/api-key-audit"
 
 export type ApiKeyContext = {
   orgId: string
@@ -99,7 +100,11 @@ function effectiveRateLimitFor(row: { id: string; rateLimitPerMinute: number | n
  * effectiveRateLimitFor() above), rejects a known demo/seed key unless
  * explicitly allowlisted via DEMO_API_KEY_IDS (see KNOWN_DEMO_KEY_IDS
  * above), and logs the request into api_key_request_log for both the
- * rate-limit count and the usage-analytics dashboard.
+ * rate-limit count and the usage-analytics dashboard. Since R67 F-17 that
+ * log write (and the api_keys.last_used_at touch that used to accompany it)
+ * goes through the batching queue in src/lib/auth/api-key-audit.ts instead
+ * of issuing two more statements on the shared pool per request; the
+ * rate-limit count reads that queue's pending rows alongside the DB's.
  */
 export async function validateApiKey(request: Request): Promise<ValidateApiKeyResult> {
   const authHeader = request.headers.get("authorization")
@@ -123,27 +128,38 @@ export async function validateApiKey(request: Request): Promise<ValidateApiKeyRe
 
   const route = new URL(request.url).pathname
   const rateLimit = effectiveRateLimitFor(row)
+  const at = new Date()
 
   if (rateLimit !== null) {
-    const cutoff = new Date(Date.now() - RATE_LIMIT_WINDOW_SECONDS * 1000)
+    const cutoff = new Date(at.getTime() - RATE_LIMIT_WINDOW_SECONDS * 1000)
     const [{ count }] = await db.select({ count: sql<number>`count(*)` })
       .from(apiKeyRequestLog)
       .where(and(eq(apiKeyRequestLog.apiKeyId, row.id), gte(apiKeyRequestLog.createdAt, cutoff)))
 
-    if (Number(count) >= rateLimit) {
-      db.insert(apiKeyRequestLog).values({
-        apiKeyId: row.id, orgId: row.orgId, route, method: request.method, wasRateLimited: true,
-      }).then(() => {})
+    // R67 F-17: the request log is now written in batches (see
+    // src/lib/auth/api-key-audit.ts), so the DB count alone is up to one flush
+    // interval out of date -- which would hand every key a free window at the
+    // start of each batch. The queue's own unwritten rows close it.
+    const queued = pendingApiKeyRequestCount(row.id, cutoff)
+
+    if (Number(count) + queued >= rateLimit) {
+      void recordApiKeyUse({
+        apiKeyId: row.id, orgId: row.orgId, route, method: request.method, wasRateLimited: true, at,
+      })
       return { status: "rate_limited", retryAfterSeconds: RATE_LIMIT_WINDOW_SECONDS }
     }
   }
 
-  // Fire-and-forget, matches the existing mcp_access_codes last_used_at
-  // pattern in api/mcp/route.ts -- don't block the caller's response on it.
-  db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, row.id)).then(() => {})
-  db.insert(apiKeyRequestLog).values({
-    apiKeyId: row.id, orgId: row.orgId, route, method: request.method, wasRateLimited: false,
-  }).then(() => {})
+  // R67 F-17: was two separate un-awaited statements on the shared max:5 `db`
+  // pool per request -- an INSERT here and an UPDATE of apiKeys.lastUsedAt --
+  // which src/lib/db/index.ts's own R43_EXEC_02 comment names as part of what
+  // serialised that pool into 504s. Both now go through the audit queue: one
+  // multi-row INSERT per batch, and last_used_at at most once per key per
+  // minute. Kept here, in the helper that resolves the Bearer key, so no route
+  // has to opt in.
+  void recordApiKeyUse({
+    apiKeyId: row.id, orgId: row.orgId, route, method: request.method, wasRateLimited: false, at,
+  })
 
   return {
     status: "ok",
