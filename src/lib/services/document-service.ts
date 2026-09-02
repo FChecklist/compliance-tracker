@@ -360,21 +360,95 @@ export async function listExpiringDocuments(ctx: { orgId: string }, withinDays: 
   })
 }
 
-// Walks the parentDocumentId chain back to the original upload, newest first.
+/**
+ * Walks the parentDocumentId chain back to the original upload, newest first.
+ *
+ * R67 D-15: extracted so a caller that ALREADY holds a tenant transaction can
+ * read the chain inside it. The document object page needs the row and its
+ * versions in one answer, and opening a second withTenantContext inside the
+ * first is exactly what D-06's nesting guard throws on.
+ */
+export async function readVersionChain(db: TenantDb, orgId: string, documentId: string) {
+  const chain: (typeof documents.$inferSelect)[] = []
+  let currentId: string | null = documentId
+  // Bounded walk (documents are only ever created here, so a cycle would
+  // mean a bug elsewhere, not real data) -- 50 versions is far beyond any
+  // realistic document's revision count.
+  for (let i = 0; i < 50 && currentId; i++) {
+    const doc: typeof documents.$inferSelect | undefined = await db.query.documents.findFirst({
+      where: and(eq(documents.id, currentId), eq(documents.orgId, orgId)),
+    })
+    if (!doc) break
+    chain.push(doc)
+    currentId = doc.parentDocumentId
+  }
+  return chain
+}
+
 export async function getDocumentVersionHistory(ctx: { orgId: string }, documentId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const chain: (typeof documents.$inferSelect)[] = []
-    let currentId: string | null = documentId
-    // Bounded walk (documents are only ever created here, so a cycle would
-    // mean a bug elsewhere, not real data) -- 50 versions is far beyond any
-    // realistic document's revision count.
-    for (let i = 0; i < 50 && currentId; i++) {
-      const doc = await db.query.documents.findFirst({ where: and(eq(documents.id, currentId), eq(documents.orgId, ctx.orgId)) })
-      if (!doc) break
-      chain.push(doc)
-      currentId = doc.parentDocumentId
-    }
-    return chain
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => readVersionChain(db, ctx.orgId, documentId))
+}
+
+/**
+ * R67 D-15 (audit R-040). "Replace file": a new VERSION of an existing
+ * document, not a second document.
+ *
+ * The object page had no way to correct a file uploaded by mistake -- the only
+ * lifecycle action on it was Dispose, which is retention-gated and therefore
+ * refused for exactly the fresh upload someone wants to fix. The versioning
+ * columns this needs already exist and are already maintained (parentDocumentId,
+ * versionNumber, isLatestVersion, markSupersededVersion) -- the internal
+ * cookie-session route has used them since Wave 61 through its `versionOfId`
+ * form field. Nothing on the Bearer-key surface PROJEXA calls ever exposed them,
+ * which is the whole gap.
+ *
+ * The new row INHERITS the previous version's name, category, expiry, links and
+ * metadata: "version 2" means the same logical document, still filed the same
+ * way, with different bytes. Both writes are in ONE transaction, so there is
+ * never a moment with two latest versions or none.
+ */
+export async function createDocumentVersion(
+  ctx: { orgId: string; userId: string | null },
+  documentId: string,
+  input: { file: File }
+) {
+  if (!(input.file instanceof File)) throw new ServiceError("A file is required", 400)
+
+  // Bytes first, outside any transaction -- a 25 MB upload must not hold one of
+  // the pool's five connections (same rule as prepareDocumentStorage's own).
+  const { objectPath, fileType, fileSize } = await prepareDocumentStorage(ctx.orgId, {
+    name: input.file.name,
+    file: input.file,
+  })
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
+    const previous = await markSupersededVersion(db, ctx.orgId, documentId)
+    // These two refusals come after the flip rather than before it because both
+    // are inside the same transaction: a throw here rolls the flip back, and
+    // markSupersededVersion is also the 404/409 gate ("not found", "already
+    // superseded by a newer version") that has to run first anyway.
+    if (previous.isDisposed) throw new ServiceError("A disposed document cannot be replaced", 409)
+    if (previous.legalHold) throw new ServiceError("Document is under legal hold and cannot be replaced", 409)
+
+    const [doc] = await db.insert(documents).values({
+      name: previous.name,
+      fileUrl: objectPath,
+      fileType,
+      fileSize,
+      uploadedById: ctx.userId,
+      orgId: ctx.orgId,
+      clientId: previous.clientId,
+      category: previous.category,
+      expiryDate: previous.expiryDate,
+      linkedEntityType: previous.linkedEntityType,
+      linkedEntityId: previous.linkedEntityId,
+      parentDocumentId: previous.id,
+      versionNumber: previous.versionNumber + 1,
+      isLatestVersion: true,
+      metadata: previous.metadata ?? undefined,
+    }).returning()
+
+    return doc
   })
 }
 

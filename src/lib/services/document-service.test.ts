@@ -25,6 +25,12 @@ const ORG = "org-r67-d11"
 type Row = Record<string, unknown>
 
 let existingDoc: Row | undefined
+/**
+ * R67 D-15: some paths read MORE than one row (markSupersededVersion then the
+ * version chain). When this queue is non-empty each findFirst takes the next
+ * entry; otherwise every findFirst answers `existingDoc`, as before.
+ */
+let findFirstQueue: (Row | undefined)[] = []
 let capturedWhere: SQL | undefined
 let capturedSet: Row | undefined
 let updates: Row[] = []
@@ -36,7 +42,7 @@ const fakeDb = {
     documents: {
       findFirst: async ({ where }: { where: SQL }) => {
         capturedWhere = where
-        return existingDoc
+        return findFirstQueue.length > 0 ? findFirstQueue.shift() : existingDoc
       },
     },
   },
@@ -68,8 +74,29 @@ const mockWithTenantContext = mock(async (ctx: { orgId: string; userId?: string 
 
 const realTenantScoped = await import("@/lib/db/tenant-scoped")
 
+/**
+ * R67 D-15: createDocumentVersion is the first path in this file's tests that
+ * takes a real File, and the bytes half of it uploads to Supabase Storage. A
+ * unit test has no business reaching a bucket, so the admin client is a fake
+ * that records what it was asked to upload.
+ */
+let uploads: { bucket: string; objectPath: string }[] = []
+let uploadError: { message: string } | null = null
+
+const fakeStorage = {
+  storage: {
+    from: (bucket: string) => ({
+      upload: async (objectPath: string) => {
+        uploads.push({ bucket, objectPath })
+        return { error: uploadError }
+      },
+    }),
+  },
+}
+
 async function loadService() {
   await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mockWithTenantContext }))
+  await mock.module("@supabase/supabase-js", () => ({ createClient: () => fakeStorage }))
   return import("./document-service")
 }
 
@@ -83,6 +110,9 @@ beforeEach(() => {
     linkedEntityType: "project",
     linkedEntityId: "proj-1",
   }
+  findFirstQueue = []
+  uploads = []
+  uploadError = null
   capturedWhere = undefined
   capturedSet = undefined
   updates = []
@@ -459,6 +489,122 @@ describe("buildDocumentFilterConditions -- R67 D-14 projectScopeId", () => {
     for (const condition of conditions) {
       expect(dialect.sqlToQuery(condition as SQL).sql).not.toContain("'projectId'")
     }
+  })
+})
+
+// ─── R67 D-15 (audit R-040): Replace file, and the version chain ─────────────
+// The object page could not correct a file uploaded by mistake: its only
+// lifecycle action was Dispose, which is retention-gated and therefore refused
+// for exactly the fresh upload someone wants to fix. The columns were always
+// there; nothing on the Bearer-key surface exposed them.
+describe("createDocumentVersion -- R67 D-15", () => {
+  const V1: Row = {
+    id: "doc-1",
+    orgId: ORG,
+    name: "DEWA permit 2026",
+    category: "permit",
+    clientId: null,
+    expiryDate: null,
+    linkedEntityType: "permit",
+    linkedEntityId: "permit-9",
+    metadata: { projectId: "proj-1" },
+    versionNumber: 1,
+    isLatestVersion: true,
+    isDisposed: false,
+    legalHold: false,
+  }
+
+  test("version 2 inherits everything but the bytes, and both writes happen in ONE transaction", async () => {
+    const { createDocumentVersion } = await loadService()
+    existingDoc = V1
+
+    const doc = await createDocumentVersion({ orgId: ORG, userId: "user-1" }, "doc-1", {
+      file: new File(["%PDF-1.7"], "corrected.pdf", { type: "application/pdf" }),
+    })
+
+    // The previous version stops being the latest...
+    expect(updates).toHaveLength(1)
+    expect(updates[0].isLatestVersion).toBe(false)
+    // ...and the new row is the same logical document, still filed the same way.
+    expect(inserts).toHaveLength(1)
+    expect(inserts[0].name).toBe("DEWA permit 2026")
+    expect(inserts[0].category).toBe("permit")
+    expect(inserts[0].linkedEntityType).toBe("permit")
+    expect(inserts[0].linkedEntityId).toBe("permit-9")
+    expect(inserts[0].metadata).toEqual({ projectId: "proj-1" })
+    expect(inserts[0].parentDocumentId).toBe("doc-1")
+    expect(inserts[0].versionNumber).toBe(2)
+    expect(inserts[0].isLatestVersion).toBe(true)
+    expect(inserts[0].fileType).toBe("application/pdf")
+    expect((doc as Row).versionNumber).toBe(2)
+    // One transaction: two would leave a window with two latest versions, or none.
+    expect(mockWithTenantContext).toHaveBeenCalledTimes(1)
+  })
+
+  test("the bytes are uploaded BEFORE the transaction opens, under the org's own prefix", async () => {
+    const { createDocumentVersion } = await loadService()
+    existingDoc = V1
+
+    await createDocumentVersion({ orgId: ORG, userId: "user-1" }, "doc-1", {
+      file: new File(["%PDF"], "corrected.pdf", { type: "application/pdf" }),
+    })
+
+    expect(uploads).toHaveLength(1)
+    expect(uploads[0].bucket).toBe("compliance-documents")
+    expect(uploads[0].objectPath.startsWith(`${ORG}/`)).toBe(true)
+    expect(uploads[0].objectPath.endsWith("corrected.pdf")).toBe(true)
+  })
+
+  test("a disposed or held document is refused, and the flip is rolled back with the transaction", async () => {
+    const { createDocumentVersion, ServiceError } = await loadService()
+    existingDoc = { ...V1, isDisposed: true }
+
+    await expect(
+      createDocumentVersion({ orgId: ORG, userId: "user-1" }, "doc-1", { file: new File(["x"], "a.pdf") })
+    ).rejects.toThrow(ServiceError)
+    expect(inserts).toHaveLength(0)
+  })
+
+  test("replacing a version that has already been superseded is refused, not silently branched", async () => {
+    const { createDocumentVersion } = await loadService()
+    existingDoc = { ...V1, isLatestVersion: false }
+
+    await expect(
+      createDocumentVersion({ orgId: ORG, userId: "user-1" }, "doc-1", { file: new File(["x"], "a.pdf") })
+    ).rejects.toThrow(/already been superseded/)
+    expect(inserts).toHaveLength(0)
+  })
+
+  test("a missing file is refused before anything is uploaded", async () => {
+    const { createDocumentVersion, ServiceError } = await loadService()
+
+    await expect(
+      createDocumentVersion({ orgId: ORG, userId: "user-1" }, "doc-1", { file: null as unknown as File })
+    ).rejects.toThrow(ServiceError)
+    expect(uploads).toHaveLength(0)
+    expect(mockWithTenantContext).not.toHaveBeenCalled()
+  })
+})
+
+describe("readVersionChain -- R67 D-15", () => {
+  test("walks back to the original upload, newest first, and stops at the root", async () => {
+    const { readVersionChain } = await loadService()
+    findFirstQueue = [
+      { id: "v3", versionNumber: 3, parentDocumentId: "v2" },
+      { id: "v2", versionNumber: 2, parentDocumentId: "v1" },
+      { id: "v1", versionNumber: 1, parentDocumentId: null },
+    ]
+
+    const chain = await readVersionChain(fakeDb as never, ORG, "v3")
+    expect(chain.map((v) => (v as unknown as Row).id)).toEqual(["v3", "v2", "v1"])
+  })
+
+  test("a chain whose parent is missing (or in another org) ends there rather than looping", async () => {
+    const { readVersionChain } = await loadService()
+    findFirstQueue = [{ id: "v2", versionNumber: 2, parentDocumentId: "gone" }, undefined]
+
+    const chain = await readVersionChain(fakeDb as never, ORG, "v2")
+    expect(chain).toHaveLength(1)
   })
 })
 

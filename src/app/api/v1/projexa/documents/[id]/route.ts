@@ -12,7 +12,7 @@ import { eq } from "drizzle-orm"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
 import { createClient } from "@supabase/supabase-js"
-import { updateDocumentMetadata, ServiceError } from "@/lib/services/document-service"
+import { readVersionChain, updateDocumentMetadata, ServiceError } from "@/lib/services/document-service"
 
 const BUCKET = "compliance-documents"
 const SIGNED_URL_TTL_SECONDS = 300 // matches the internal route + permits/route.ts
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   try {
     const { id } = await context.params
-    const result = await withTenantContext({ orgId: ctx.orgId, userId: ctx.dbUser?.id ?? ctx.apiKey!.id }, async (db) => {
+    const found = await withTenantContext({ orgId: ctx.orgId, userId: ctx.dbUser?.id ?? ctx.apiKey!.id }, async (db) => {
       const doc = await db.query.documents.findFirst({ where: eq(documents.id, id) })
       if (!doc) return null
       await logActivity({
@@ -39,9 +39,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
         ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }),
         request,
       })
-      return doc
+      // R67 D-15: the row AND its version history in one answer, inside the ONE
+      // transaction this route already opens -- a second withTenantContext here
+      // is what D-06's nesting guard throws on, and the object page needs both
+      // to render "Version 2" with the earlier versions under it.
+      const versions = await readVersionChain(db, ctx.orgId!, doc.id)
+      return { doc, versions }
     })
-    if (!result) return NextResponse.json({ error: "Document not found" }, { status: 404 })
+    if (!found) return NextResponse.json({ error: "Document not found" }, { status: 404 })
+    const { doc: result, versions } = found
 
     // Drawings & 3D module (2026-08-30 real-screen conversion) reuses this
     // same route -- a 3D walkthrough can be an externally-linked URL
@@ -69,7 +75,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
       id: result.id, name: result.name, category: result.category, fileType: result.fileType, fileSize: result.fileSize,
       expiryDate: result.expiryDate, versionNumber: result.versionNumber, createdAt: result.createdAt,
       isDisposed: result.isDisposed, legalHold: result.legalHold, disposalDate: result.disposalDate,
+      linkedEntityType: result.linkedEntityType, linkedEntityId: result.linkedEntityId,
       metadata, isExternalLink: !!metadata.isExternalLink,
+      // R67 D-15: newest first, this row included -- the object page renders the
+      // EARLIER ones under a "Versions" facet and shows none of them as
+      // separate list rows (they are not isLatestVersion).
+      versions: versions.map((v) => ({
+        id: v.id, name: v.name, versionNumber: v.versionNumber, createdAt: v.createdAt, fileType: v.fileType,
+      })),
       signedUrl, expiresInSeconds: SIGNED_URL_TTL_SECONDS,
     })
   } catch (error) {
@@ -90,6 +103,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { id } = await context.params
     const body = await request.json()
     const updated = await updateDocumentMetadata({ orgId: ctx.orgId, userId: ctx.dbUser?.id ?? ctx.apiKey!.id }, id, {
+      // R67 D-15: `name` was the one field the object page could not fix. A
+      // document named after the file it arrived as ("scan_0012.pdf") is
+      // unfindable, and the typo was made at upload time by the same person now
+      // looking at it. The service already validated a non-empty name; it was
+      // simply never passed through from here.
+      ...(body.name !== undefined ? { name: body.name } : {}),
       category: body.category, expiryDate: body.expiryDate,
       linkedEntityType: body.linkedEntityType, linkedEntityId: body.linkedEntityId,
     })
