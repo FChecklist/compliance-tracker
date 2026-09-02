@@ -20,6 +20,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       budgetPercentage: body.budgetPercentage,
       vendorId: body.vendorId,
       vendorAmount: body.vendorAmount,
+      // R67 D-26 (drizzle/0529): the other two thirds of the budget model.
+      materialAmount: body.materialAmount,
+      manpowerAmount: body.manpowerAmount,
     })
     return NextResponse.json(updated)
   } catch (error) {

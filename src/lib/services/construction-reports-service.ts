@@ -307,20 +307,62 @@ export async function earnedValueReport(ctx: { orgId: string }, projectId: strin
   })
 }
 
-// R39/R-C09 (Point 154 follow-on): per-line budget vs actual-vendor-cost
-// variance, over the latest (non-superseded) BOQ's line items -- reuses the
-// SAME budgetPercentage/vendorId/vendorAmount columns Point 154 already
-// shipped and computedBudget()'s exact formula (imported indirectly via the
-// same amount*pct/100 arithmetic, kept in one place per D-3 -- see that
-// function's own comment for why it's not stored). variance = vendorAmount -
-// budget; null (not 0) when no vendor amount has been entered yet for a
-// line, a real "not yet quoted" state, not a fabricated zero variance.
+/**
+ * R67 D-26 (R-066) -- the pure heart of boqBudgetVarianceReport, extracted so
+ * the rule can be tested without a live DB (this file's own convention; see
+ * computeEarnedValue / aggregateDesignerTimesheetCosts).
+ *
+ * TWO REAL CHANGES from the R39/R-C09 version this replaces:
+ *
+ *  1. COMMITTED COST IS ALL THREE. Sumeet's budget model against a scope line
+ *     is vendor, MATERIAL and MANPOWER; only vendor existed, so "committed"
+ *     could never be more than the subcontract.
+ *  2. THE SIGN IS NOW "HOW MUCH BUDGET IS LEFT". variance = budget - vendor -
+ *     material - manpower, so a POSITIVE variance means under budget and a
+ *     NEGATIVE one means over. (The previous formula was vendorAmount - budget,
+ *     the opposite reading. Every caller of this report is updated in the same
+ *     change; there is exactly one, PROJEXA's Cost Variance tab.)
+ *
+ * `null` remains load-bearing and is the reason this is not just arithmetic: a
+ * line with NO vendor, material or manpower has no variance at all, and must
+ * not be reported as 0 -- a fabricated zero reads as "on budget" when the truth
+ * is "nothing has been costed yet".
+ */
+export type BudgetVarianceInput = {
+  amount: number
+  budgetPercentage: number
+  vendorAmount: number | null
+  materialAmount: number | null
+  manpowerAmount: number | null
+}
+
+export function computeBudgetVarianceLine(input: BudgetVarianceInput): { budget: number; committed: number | null; variance: number | null } {
+  const budget = input.amount * (input.budgetPercentage / 100)
+  const nothingCosted = input.vendorAmount === null && input.materialAmount === null && input.manpowerAmount === null
+  if (nothingCosted) return { budget, committed: null, variance: null }
+  const committed = (input.vendorAmount ?? 0) + (input.materialAmount ?? 0) + (input.manpowerAmount ?? 0)
+  return { budget, committed, variance: budget - committed }
+}
+
+/** A line is over budget when its committed cost exceeds its budget -- i.e. a NEGATIVE variance. A line with no committed cost is neither over nor under. */
+export function isLineOverBudget(variance: number | null): boolean {
+  return variance !== null && variance < 0
+}
+
+// R39/R-C09 (Point 154 follow-on), rewritten by R67 D-26: per-line budget vs
+// committed cost, over the latest (non-superseded) BOQ's line items -- reuses
+// the SAME budgetPercentage/vendorId/vendorAmount columns Point 154 shipped,
+// plus material_amount/manpower_amount (drizzle/0529), and computedBudget()'s
+// exact amount*pct/100 formula (kept in one place per D-3 -- see that
+// function's own comment for why it's not stored).
 export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
     const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
-    if (!latest) return { lines: [], totalBudget: 0, totalVendorAmount: 0, totalVariance: 0 }
+    if (!latest) {
+      return { boqId: null, lines: [], totalBudget: 0, totalVendorAmount: 0, totalCommitted: null, totalVariance: null, linesOverBudget: 0, lineCount: 0 }
+    }
 
     const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id) })
     const vendorIds = [...new Set(lineItems.map((i) => i.vendorId).filter((id): id is string => !!id))]
@@ -339,35 +381,60 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     // budget/variance alongside the rounded display value, and total from
     // the RAW figures, rounding only once at the very end -- the totals now
     // reconcile exactly to a raw SQL sum over the same rows.
-    const lines = lineItems.map((item) => {
-      const rawBudget = Number(item.amount) * (Number(item.budgetPercentage) / 100)
+    const lines = lineItems.map((item, index) => {
       const vendorAmount = item.vendorAmount !== null ? Number(item.vendorAmount) : null
-      const rawVariance = vendorAmount !== null ? vendorAmount - rawBudget : null
+      const materialAmount = item.materialAmount !== null ? Number(item.materialAmount) : null
+      const manpowerAmount = item.manpowerAmount !== null ? Number(item.manpowerAmount) : null
+      const { budget: rawBudget, committed: rawCommitted, variance: rawVariance } = computeBudgetVarianceLine({
+        amount: Number(item.amount),
+        budgetPercentage: Number(item.budgetPercentage),
+        vendorAmount, materialAmount, manpowerAmount,
+      })
       return {
+        // R67 D-26: S.No, Category, Qty and Rate join the row so the Cost
+        // Variance table can match Sumeet's own Budget Report shape.
+        serialNumber: index + 1,
         lineItemId: item.id,
         code: item.itemCode,
+        category: item.category,
         description: item.description,
+        unit: item.unit,
+        quantity: Number(item.quantity),
+        rate: Number(item.rate),
         amount: Number(item.amount),
         budgetPercentage: Number(item.budgetPercentage),
         budget: Math.round(rawBudget * 100) / 100,
         vendorId: item.vendorId,
         vendorName: item.vendorId ? (supplierNameById.get(item.vendorId) ?? null) : null,
         vendorAmount,
+        materialAmount,
+        manpowerAmount,
+        committed: rawCommitted !== null ? Math.round(rawCommitted * 100) / 100 : null,
         variance: rawVariance !== null ? Math.round(rawVariance * 100) / 100 : null,
         _rawBudget: rawBudget,
+        _rawCommitted: rawCommitted,
         _rawVariance: rawVariance,
       }
     })
 
     const totalBudget = Math.round(lines.reduce((s, l) => s + l._rawBudget, 0) * 100) / 100
     const totalVendorAmount = Math.round(lines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100
-    const totalVariance = Math.round(lines.reduce((s, l) => s + (l._rawVariance ?? 0), 0) * 100) / 100
+    // R67 D-26: null, not 0, when NO line carries any committed cost -- the
+    // tiles then read "Committed AED –" rather than a zero that looks like a
+    // measured figure. One costed line is enough to make the total real.
+    const costedLines = lines.filter((l) => l._rawCommitted !== null)
+    const totalCommitted = costedLines.length === 0 ? null : Math.round(costedLines.reduce((s, l) => s + (l._rawCommitted ?? 0), 0) * 100) / 100
+    const totalVariance = costedLines.length === 0 ? null : Math.round(costedLines.reduce((s, l) => s + (l._rawVariance ?? 0), 0) * 100) / 100
 
     return {
-      lines: lines.map(({ _rawBudget, _rawVariance, ...line }) => line),
+      boqId: latest.id,
+      lines: lines.map(({ _rawBudget, _rawCommitted, _rawVariance, ...line }) => line),
       totalBudget,
       totalVendorAmount,
+      totalCommitted,
       totalVariance,
+      linesOverBudget: lines.filter((l) => isLineOverBudget(l.variance)).length,
+      lineCount: lines.length,
     }
   })
 }

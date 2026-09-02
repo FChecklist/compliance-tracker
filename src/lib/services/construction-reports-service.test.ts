@@ -21,6 +21,8 @@ import {
   aggregateWorkAnalysis,
   computeCertifiedPayroll,
   computeEarnedValue,
+  computeBudgetVarianceLine,
+  isLineOverBudget,
   WH347_DAY_LABELS,
   type DesignerTimesheetBudgetLine,
   type DesignerTimesheetEntry,
@@ -527,5 +529,64 @@ describe("computeEarnedValue -- R46/R-51 percent-complete fallback + root-with-c
 
   test("empty line-item list -- all zero, not an error", () => {
     expect(computeEarnedValue([], new Map(), new Map())).toEqual({ earnedValue: 0, contractValue: 0, percentByValue: 0 })
+  })
+})
+
+// R67 D-26 (R-066) -- the Cost Variance tab's real arithmetic. Sumeet's budget
+// model against a scope line is vendor, MATERIAL and MANPOWER; only vendor
+// existed, so "committed" could never be more than the subcontract. The sign
+// also changed: variance now reads as HOW MUCH BUDGET IS LEFT
+// (budget - vendor - material - manpower), so positive is under budget.
+describe("computeBudgetVarianceLine (D-26)", () => {
+  const line = (over: Partial<Parameters<typeof computeBudgetVarianceLine>[0]> = {}) => ({
+    amount: 100, budgetPercentage: 100, vendorAmount: null, materialAmount: null, manpowerAmount: null, ...over,
+  })
+
+  // The item's own acceptance, both halves.
+  test("budget 100 with null vendor, material AND manpower returns variance null -- never a fabricated 0", () => {
+    const result = computeBudgetVarianceLine(line())
+    expect(result.budget).toBe(100)
+    expect(result.committed).toBeNull()
+    expect(result.variance).toBeNull()
+  })
+
+  test("the same line with material 30 and manpower 20 returns variance 50", () => {
+    const result = computeBudgetVarianceLine(line({ materialAmount: 30, manpowerAmount: 20 }))
+    expect(result.committed).toBe(50)
+    expect(result.variance).toBe(50)
+  })
+
+  test("all three components are counted, not just the vendor", () => {
+    const result = computeBudgetVarianceLine(line({ vendorAmount: 40, materialAmount: 30, manpowerAmount: 20 }))
+    expect(result.committed).toBe(90)
+    expect(result.variance).toBe(10)
+  })
+
+  test("a REAL zero on one component is not the same as no data -- variance becomes a real number", () => {
+    const result = computeBudgetVarianceLine(line({ materialAmount: 0 }))
+    expect(result.committed).toBe(0)
+    expect(result.variance).toBe(100)
+  })
+
+  test("committed cost above budget gives a NEGATIVE variance -- that is what 'over budget' now means", () => {
+    expect(computeBudgetVarianceLine(line({ vendorAmount: 130 })).variance).toBe(-30)
+  })
+
+  test("budget is still amount x budgetPercentage / 100, unchanged from Point 154", () => {
+    expect(computeBudgetVarianceLine(line({ amount: 400, budgetPercentage: 25 })).budget).toBe(100)
+  })
+})
+
+describe("isLineOverBudget (D-26)", () => {
+  test("a negative variance is over budget", () => {
+    expect(isLineOverBudget(-0.01)).toBe(true)
+  })
+
+  test("exactly on budget is NOT over budget", () => {
+    expect(isLineOverBudget(0)).toBe(false)
+  })
+
+  test("a line with no committed cost is neither over nor under -- it is uncosted", () => {
+    expect(isLineOverBudget(null)).toBe(false)
   })
 })

@@ -500,10 +500,25 @@ export async function getBoq(ctx: { orgId: string }, boqId: string) {
 export async function updateLineItemBudget(
   ctx: { orgId: string },
   lineItemId: string,
-  input: { budgetPercentage?: number; vendorId?: string | null; vendorAmount?: number | null }
+  input: {
+    budgetPercentage?: number
+    vendorId?: string | null
+    vendorAmount?: number | null
+    // R67 D-26 (drizzle/0529): the other two thirds of Sumeet's budget model.
+    // Same convention as vendorAmount -- an explicit null CLEARS the cell back
+    // to "not costed", which is a different answer from 0.
+    materialAmount?: number | null
+    manpowerAmount?: number | null
+  }
 ) {
   if (input.budgetPercentage !== undefined && (input.budgetPercentage < 0 || input.budgetPercentage > 100)) {
     throw new ServiceError("budgetPercentage must be between 0 and 100", 400)
+  }
+  for (const field of ["vendorAmount", "materialAmount", "manpowerAmount"] as const) {
+    const value = input[field]
+    if (value !== undefined && value !== null && (!Number.isFinite(value) || value < 0)) {
+      throw new ServiceError(`${field} must be a non-negative number`, 400)
+    }
   }
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const existing = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, lineItemId) })
@@ -515,6 +530,8 @@ export async function updateLineItemBudget(
       ...(input.budgetPercentage !== undefined ? { budgetPercentage: String(input.budgetPercentage) } : {}),
       ...(input.vendorId !== undefined ? { vendorId: input.vendorId } : {}),
       ...(input.vendorAmount !== undefined ? { vendorAmount: input.vendorAmount === null ? null : String(input.vendorAmount) } : {}),
+      ...(input.materialAmount !== undefined ? { materialAmount: input.materialAmount === null ? null : String(input.materialAmount) } : {}),
+      ...(input.manpowerAmount !== undefined ? { manpowerAmount: input.manpowerAmount === null ? null : String(input.manpowerAmount) } : {}),
     }).where(eq(constructionBoqLineItems.id, lineItemId)).returning()
     return withComputedRate(updated)
   })

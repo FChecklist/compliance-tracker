@@ -8,7 +8,7 @@
 import { describe, expect, test } from "bun:test"
 import {
   computeHierarchicalAmount, deriveLineItemQuantityAndRate, diffLineItems, computeTotalVariation, findScopeReductionViolations,
-  resolveProgressByLineItem, toLineItemInput,
+  resolveProgressByLineItem, toLineItemInput, updateLineItemBudget,
   BOQ_CATEGORY_SEED, mergeBoqCategories, normalizeCategory,
   ServiceError, type BoqLineItemInput, type BoqLineItemRow, type ChangedLineItem,
 } from "./construction-boq-service"
@@ -461,5 +461,34 @@ describe("toLineItemInput -- category carries forward into a revision", () => {
   test("an uncategorised line stays undefined (not null) -- BoqLineItemInput's fields are optional, never nullable", () => {
     const persisted = row({ id: "p2", description: "Plain item", unit: "nos", quantity: "1", rate: "1" })
     expect(toLineItemInput(persisted, new Map()).category).toBeUndefined()
+  })
+})
+
+// R67 D-26 (drizzle/0529) -- material/manpower join vendor on the budget
+// overlay. updateLineItemBudget is a withTenantContext write, so only its
+// pure input guard is unit-testable here (same convention as the rest of this
+// file); the arithmetic those columns feed is pinned in
+// construction-reports-service.test.ts's computeBudgetVarianceLine block.
+describe("updateLineItemBudget input validation (D-26)", () => {
+  const ctx = { orgId: "org-1" }
+
+  test("rejects a negative material amount before opening a transaction", async () => {
+    await expect(updateLineItemBudget(ctx, "li-1", { materialAmount: -1 })).rejects.toThrow(ServiceError)
+  })
+
+  test("rejects a negative manpower amount", async () => {
+    await expect(updateLineItemBudget(ctx, "li-1", { manpowerAmount: -0.01 })).rejects.toThrow(ServiceError)
+  })
+
+  test("rejects a non-finite vendor amount", async () => {
+    await expect(updateLineItemBudget(ctx, "li-1", { vendorAmount: Number.NaN })).rejects.toThrow(ServiceError)
+  })
+
+  test("the message names the offending field, never a generic 'invalid input'", async () => {
+    await expect(updateLineItemBudget(ctx, "li-1", { materialAmount: -1 })).rejects.toThrow(/materialAmount/)
+  })
+
+  test("budgetPercentage's own 0-100 guard is unchanged", async () => {
+    await expect(updateLineItemBudget(ctx, "li-1", { budgetPercentage: 101 })).rejects.toThrow(/budgetPercentage/)
   })
 })

@@ -10804,6 +10804,16 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   budgetPercentage: numeric('budget_percentage').notNull().default('25'),
   vendorId: text('vendor_id'),
   vendorAmount: numeric('vendor_amount'),
+  // R67 D-26 (drizzle/0529): Sumeet's budget model against a scope line is
+  // vendor name, vendor amount, MATERIAL and MANPOWER -- and only the first two
+  // existed, so "Committed" could never be more than the subcontract and the
+  // Cost Variance tab was answering a different question from the one asked.
+  // Nullable, and null is load-bearing: a line with no committed cost at all
+  // returns variance null, NOT 0. A fabricated zero variance reads as "on
+  // budget" when the truth is "nothing has been costed yet" (the same
+  // no-data-vs-real-zero distinction vendorAmount above already draws).
+  materialAmount: numeric('material_amount'),
+  manpowerAmount: numeric('manpower_amount'),
   // R67 D-24 (drizzle/0528): the per-line trade/work category Sumeet's own BOQ
   // and Budget Report are organised by (Joinery, Gypsum, Paint, Civil, ...).
   // The importer has ALWAYS read a "Category" column off the spreadsheet

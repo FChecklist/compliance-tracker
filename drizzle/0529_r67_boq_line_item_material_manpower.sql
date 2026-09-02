@@ -1,0 +1,25 @@
+-- R67 D-26 (R-066) -- per-line MATERIAL and MANPOWER budget amounts on a BOQ
+-- line item.
+--
+-- WHY: Sumeet's budget model against a scope line is vendor name, vendor
+-- amount, material and manpower. Only the first two existed
+-- (vendor_id/vendor_amount, Point 154), so "committed cost" could never be more
+-- than the subcontract, and the Cost Variance tab was answering a narrower
+-- question than the one that was asked.
+--
+-- NULL IS LOAD-BEARING. Both columns are nullable and stay NULL for every
+-- existing row. A line with no vendor, no material and no manpower returns
+-- variance NULL, not 0 -- a fabricated zero reads as "on budget" when the truth
+-- is "nothing has been costed yet". That is the same no-data-vs-real-zero
+-- distinction vendor_amount already draws, and it is why the tiles above the
+-- table can honestly say "Committed AED -" instead of "Total vendor amount 0"
+-- over rows that say nothing is linked.
+--
+-- HAND-WRITTEN, not `bun run db:generate`: this repo's drizzle meta snapshots
+-- have drifted far from schema.ts, so drizzle-kit emits a whole-schema
+-- recreation rather than this one ALTER. Numbered after 0528 (R67 D-24) and
+-- registered in drizzle/meta/_journal.json with the next idx. IF NOT EXISTS
+-- keeps it idempotent and matches the shape check-migration-schema-drift.mjs
+-- parses.
+ALTER TABLE "compliance"."construction_boq_line_items" ADD COLUMN IF NOT EXISTS "material_amount" numeric;--> statement-breakpoint
+ALTER TABLE "compliance"."construction_boq_line_items" ADD COLUMN IF NOT EXISTS "manpower_amount" numeric;

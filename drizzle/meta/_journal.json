@@ -2458,6 +2458,13 @@
       "when": 1788288500000,
       "tag": "0528_r67_boq_line_item_category",
       "breakpoints": true
+    },
+    {
+      "idx": 351,
+      "version": "7",
+      "when": 1788288600000,
+      "tag": "0529_r67_boq_line_item_material_manpower",
+      "breakpoints": true
     }
   ]
 }
