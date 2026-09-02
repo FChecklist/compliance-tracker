@@ -9,11 +9,16 @@ import {
   type ScreenDefinitionLabelRow,
 } from "./screen-definitions-labels"
 
-// The two real leaked rows this guard exists because of (R66 audit): the
-// schedule.timeline first column, and the GLOBAL (org_id null) dashboard KPI
-// row a018f269-8375-44a5-a9ed-1060bf4d3efc.
-const SCHEDULE_ROW_ID = "9f2c1b40-4d6a-4f0e-9d7a-2c9f5b1e7a10"
-const DASHBOARD_ROW_ID = "a018f269-8375-44a5-a9ed-1060bf4d3efc"
+// The two real leaked rows this guard exists because of (R66 audit). BOTH are
+// GLOBAL (org_id null), and both ids below are the live ones, confirmed
+// against pcrjmlpuqsbocqfwoxod by read-only SELECT:
+//   a018f269-... = function_id 'schedule.timeline'   "Activity (HARD-STOP TEST)"
+//   4b1ff3d4-... = function_id 'dashboard.dashboard' "Active Projects (HARD-STOP TEST)"
+// a018f269 is the SCHEDULE row, not the dashboard one -- an earlier draft of
+// this lane had them the other way round and nearly renamed the global
+// timeline's first column header for every tenant.
+const SCHEDULE_ROW_ID = "a018f269-8375-44a5-a9ed-1060bf4d3efc"
+const DASHBOARD_ROW_ID = "4b1ff3d4-6877-4a10-89cc-ceb4d6f90ca1"
 
 function scheduleRow(firstLabel: string): ScreenDefinitionLabelRow {
   return {

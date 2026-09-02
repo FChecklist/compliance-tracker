@@ -31,26 +31,33 @@
 --   -- expect zero rows
 
 -- ---------------------------------------------------------------------------
--- (a) The leaked debug labels.
+-- (a) The leaked debug label on the schedule timeline.
 --
--- Two rows shipped with a debugging label baked into their `columns` jsonb.
--- The dashboard KPI row a018f269-8375-44a5-a9ed-1060bf4d3efc has org_id NULL,
--- i.e. it is the GLOBAL row M28's resolver falls back to for every tenant with
--- no override, so its debug text was served to every customer.
+-- Two rows in the registry shipped with a debugging label baked into their
+-- `columns` jsonb, and BOTH are global (org_id NULL) -- i.e. they are the rows
+-- M28's resolver falls back to for every tenant with no override, so the debug
+-- text was served to every customer:
 --
--- Both statements are idempotent: the WHERE matches only the un-migrated
--- value, so re-applying changes nothing and does not bump version a second
--- time. Neither statement can touch a row whose label is already correct.
+--   a018f269-8375-44a5-a9ed-1060bf4d3efc  function_id 'schedule.timeline'
+--                                         columns[0].label 'Activity (HARD-STOP TEST)'
+--                                         -> corrected HERE, by the statement below
+--   4b1ff3d4-6877-4a10-89cc-ceb4d6f90ca1  function_id 'dashboard.dashboard'
+--                                         columns[0].label 'Active Projects (HARD-STOP TEST)'
+--                                         -> corrected by drizzle/0528 (item I-01)
+--
+-- Both ids verified against pcrjmlpuqsbocqfwoxod by read-only SELECT before
+-- this file was written. ONE statement here, deliberately: a018f269 IS the
+-- schedule.timeline row, so the function_id predicate below already covers it
+-- and a second id-keyed statement setting it to 'Active Projects' would rename
+-- the GLOBAL schedule timeline's first column header for every tenant.
+--
+-- Idempotent: the WHERE matches only the un-migrated value, so re-applying
+-- changes nothing and does not bump version a second time. It cannot touch a
+-- row whose label is already correct.
 UPDATE compliance.screen_definitions
    SET columns = jsonb_set(columns, '{0,label}', '"Activity"'::jsonb),
        version = version + 1
  WHERE function_id = 'schedule.timeline'
-   AND columns->0->>'label' LIKE '%TEST%';
-
-UPDATE compliance.screen_definitions
-   SET columns = jsonb_set(columns, '{0,label}', '"Active Projects"'::jsonb),
-       version = version + 1
- WHERE id = 'a018f269-8375-44a5-a9ed-1060bf4d3efc'
    AND columns->0->>'label' LIKE '%TEST%';
 
 -- ---------------------------------------------------------------------------

@@ -69,17 +69,20 @@ active:
         src/lib/services/construction-boq-import-service.ts (+ .test.ts)
         src/lib/services/construction-reports-service.ts (+ .test.ts)
         src/lib/services/construction-boq-category-service.ts (+ .test.ts)
-        src/lib/services/org-provisioning-fiscal-year.ts (+ .test.ts)
+        src/lib/services/org-fiscal-year-provisioning.ts (+ .test.ts)
+        src/lib/services/org-provisioning-service.ts (calls the fiscal-year provisioner)
         src/app/api/v1/construction/boq/line-items/[id]/route.ts
         src/app/api/v1/construction/boq/categories/route.ts (+ [id]/route.ts)
         src/app/api/v1/projexa/scope/categories/route.ts (+ [id]/route.ts)
+        src/app/api/v1/projexa/reports/[reportName]/route.ts (repeatable ?category= params)
         scripts/check-screen-definition-labels.mjs (+ .test.ts), .github/workflows/ci.yml (one new job)
         docs/master/TEST_COVERAGE_GAP.md (regenerated)
 
       File scope in projexa: src/lib/boq-helpers.ts (+ .test.ts),
         src/lib/work-progress-report.ts (+ .test.ts), src/components/ScopeCreateClient.tsx,
-        ScopeReviseClient.tsx, ScopeObjectClient.tsx, WorkProgressReportClient.tsx,
-        BoqCategoriesCard.tsx (new), SettingsClient.tsx,
+        ScopeReviseClient.tsx, ScopeObjectClient.tsx, WorkProgressReportClient.tsx (+ .test.tsx),
+        BoqCategorySelect.tsx (new, + .test.tsx), BoqCategoriesCard.tsx (new, + .test.tsx),
+        SettingsClient.tsx, src/lib/authz/api-write-policy.ts (two /scope/categories entries),
         src/app/api/work-progress/report/route.ts, src/app/api/scope/categories/**.
 
       NOT touching: any other lane's files, the pipeline (src/lib/pipeline/**), the

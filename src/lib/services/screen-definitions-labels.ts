@@ -4,10 +4,17 @@
 // THE REAL INCIDENT THIS CLOSES: compliance.screen_definitions is the M28
 // screen registry ("a function is a row, not a folder"), and PROJEXA renders
 // list/dashboard column headers straight from the `columns` jsonb of the row
-// it resolves. Two rows shipped with a debug label baked into that jsonb --
-// the dashboard KPI row a018f269-8375-44a5-a9ed-1060bf4d3efc, whose org_id
-// is NULL (so it is the GLOBAL row and leaked into every tenant), and the
-// schedule.timeline row whose first column read "Activity (HARD-STOP TEST)".
+// it resolves. Two rows shipped with a debug label baked into that jsonb, and
+// BOTH have org_id NULL -- they are the GLOBAL rows, so both leaked into every
+// tenant:
+//
+//   a018f269-8375-44a5-a9ed-1060bf4d3efc  function_id 'schedule.timeline',
+//     columns[0].label "Activity (HARD-STOP TEST)"       -- fixed by drizzle/0531
+//   4b1ff3d4-6877-4a10-89cc-ceb4d6f90ca1  function_id 'dashboard.dashboard',
+//     columns[0].label "Active Projects (HARD-STOP TEST)" -- fixed by drizzle/0528
+//
+// (Both ids and function_ids verified against pcrjmlpuqsbocqfwoxod by
+// read-only SELECT -- a018f269 is the SCHEDULE row, not the dashboard one.)
 // Nothing anywhere checked for this, so a label typed during a debugging
 // session was served to real customers until a human happened to read it on
 // a screenshot.

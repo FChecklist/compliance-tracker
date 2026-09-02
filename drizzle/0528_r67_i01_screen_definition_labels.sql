@@ -34,13 +34,23 @@
 --
 --   SELECT function_id, columns->0->>'label'
 --     FROM compliance.screen_definitions WHERE columns::text ILIKE '%TEST%';
---   -- expect zero rows (also enforced from now on by the new CI job,
---   -- scripts/check-screen-definition-labels.mjs)
+--   -- expect ONE remaining row after this file: function_id
+--   -- 'schedule.timeline' (row a018f269-8375-44a5-a9ed-1060bf4d3efc), the
+--   -- SECOND leaked label. It is cleared by drizzle/0531 (item I-04), whose
+--   -- own header carries the unconditional zero-rows assertion -- run that one
+--   -- after 0531. Do NOT read a non-empty result here as a failed migration.
+--   -- Both are enforced from then on by the new CI job,
+--   -- scripts/check-screen-definition-labels.mjs.
 
--- (1) The dashboard KPI column that shipped with a debugging label. This row's
--- org_id is NULL, i.e. it is the GLOBAL row M28's resolver falls back to for
--- every tenant that has no override, so the debug text was served to every
--- customer. Needed by C01-02.
+-- (1) The dashboard KPI column that shipped with a debugging label:
+-- 4b1ff3d4-6877-4a10-89cc-ceb4d6f90ca1, function_id 'dashboard.dashboard',
+-- columns[0].label 'Active Projects (HARD-STOP TEST)'. Its org_id is NULL,
+-- i.e. it is the GLOBAL row M28's resolver falls back to for every tenant that
+-- has no override, so the debug text was served to every customer. Verified by
+-- read-only SELECT against pcrjmlpuqsbocqfwoxod. (The OTHER leaked row,
+-- a018f269-8375-44a5-a9ed-1060bf4d3efc, is 'schedule.timeline', NOT a
+-- dashboard row -- it is fixed in drizzle/0531 and must not be touched here.)
+-- Needed by C01-02.
 UPDATE compliance.screen_definitions
    SET columns = jsonb_set(columns, '{0,label}', '"Active Projects"'::jsonb),
        version = version + 1
