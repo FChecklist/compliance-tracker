@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks"
 import { drizzle } from "drizzle-orm/postgres-js"
 import { sql } from "drizzle-orm"
 import postgres from "postgres"
@@ -54,6 +55,94 @@ export type TenantContext = {
   userId?: string
 }
 
+// R67 F-12/F-15 (R-192/R-216/R-232/R-251), programme decision D-06 -- THE
+// NESTED-TRANSACTION GUARD.
+//
+// THE FAULT IT CATCHES. `max: 5` above is the whole application's pool. A
+// function that opens a tenant transaction and then, from inside it, calls
+// another function that opens its own, holds TWO of those five connections for
+// as long as the inner one runs -- and the second one is only obtainable if the
+// pool has a free slot. Reproduced live on 2026-09-02: getProjectDashboard()
+// (one connection) called earnedValueReport(), which called
+// requireConstructionEnabled() -> isBranchEnabledForOrg() (a second and third),
+// and pg_stat_activity showed all five app_runtime sessions "idle in
+// transaction" for 25 minutes. Nothing in the code said this was illegal; every
+// individual function was correct in isolation, which is exactly why it kept
+// coming back (R43_MGR_01 removed one instance in August, another was still
+// live in September). This makes the rule mechanical.
+//
+// WHY AsyncLocalStorage AND NOT A MODULE-LEVEL BOOLEAN. Requests interleave on
+// one Node process: a plain flag set by request A would report "nested" for
+// request B's perfectly flat call. AsyncLocalStorage is per async execution
+// context, so the flag follows one call chain and only that one. This is the
+// first use of it in this repo.
+//
+// WHAT IS ALREADY KNOWN TO NEST (audited 2026-09-02 while adding this, by
+// matching every withTenantContext callback body against the exported functions
+// that open one). The construction/dashboard/reports chain this programme owns
+// is FLAT (R67 F-10/F-15 finished that), and these remain, in code this item
+// does not own -- they are why the guard exists, and each needs the same
+// treatment (pass the open handle down, or hoist the call above the
+// transaction):
+//   - erp-goods-receipt-service.ts submitPurchaseReceipt() -> recordStockReceipt()
+//     (also a correctness problem: the stock ledger commits in a different
+//     transaction from the receipt status it is posting for)
+//   - erp-returns-service.ts and erp-inventory-planning-service.ts -> the same
+//     recordStockReceipt() / recordStockIssue() / getItemValuation()
+//   - erp-invoicing-service.ts / erp-payment-entries-service.ts -> isPeriodOpenForDate()
+//   - construction-valuation-service.ts and erp-contract-service.ts -> createSalesInvoice()
+//   - orchestra-execution-logger.ts recordOrchestraExecution(), called from
+//     inside CRM / FM / meeting transactions. That one is fire-and-forget and
+//     already swallows its own failures, so under this guard it degrades to a
+//     skipped log line, not a failed request.
+// This list is a snapshot, not a maintained registry: the guard itself is the
+// live answer.
+//
+// WHY IT THROWS IN DEV AND TEST, AND ONLY WARNS IN PRODUCTION. Throwing is how
+// a developer finds out, at the moment they write it, in the stack that caused
+// it. In production the same throw would turn a slow page into a broken one --
+// and nesting is a latency/exhaustion bug, not a correctness one: the query
+// results are right, they just cost too much. So production logs both stacks
+// (the outer transaction's and the inner call's) at warn level, with enough to
+// find the pair, and lets the request finish.
+type TenantTransactionFrame = { orgId: string; enteredAt: string; stack: string }
+
+const tenantTransactionStore = new AsyncLocalStorage<TenantTransactionFrame>()
+
+/** True while the caller is running inside a withTenantContext transaction. */
+export function isInsideTenantContext(): boolean {
+  return tenantTransactionStore.getStore() !== undefined
+}
+
+function captureStack(): string {
+  // .stack includes this frame and withTenantContext's; both are noise.
+  const raw = new Error("withTenantContext").stack ?? ""
+  return raw.split("\n").slice(3).join("\n")
+}
+
+/**
+ * Guard entry point. Exported for the sibling test, which needs to exercise the
+ * decision without a database.
+ */
+export function assertNotNested(context: TenantContext): void {
+  const open = tenantTransactionStore.getStore()
+  if (!open) return
+
+  const detail =
+    `nested withTenantContext: a transaction for org ${open.orgId} (opened ${open.enteredAt}) is still open, ` +
+    `and org ${context.orgId} tried to open a second one. Pass the open transaction's db handle down instead ` +
+    `-- one request must never hold two of the five app_runtime connections (src/lib/db/tenant-scoped.ts).`
+
+  // NODE_ENV is read per call, never captured at module load: bun test and next
+  // dev both set it before importing, but a test that flips it must be able to
+  // see the other branch.
+  const env = process.env.NODE_ENV
+  if (env === "development" || env === "test") {
+    throw new Error(detail)
+  }
+  console.warn(`[tenant-scoped] ${detail}\nOuter transaction opened at:\n${open.stack}\nInner call from:\n${captureStack()}`)
+}
+
 export type TenantDb = Parameters<Parameters<ReturnType<typeof getRawDb>["transaction"]>[0]>[0]
 
 /**
@@ -80,17 +169,20 @@ export async function withTenantContext<T>(
   context: TenantContext,
   fn: (tx: TenantDb) => Promise<T>
 ): Promise<T> {
+  assertNotNested(context)
   const db = getRawDb()
-  return db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT set_config('app.current_org_id', ${context.orgId}, true)`)
-    if (context.clientIds && context.clientIds.length > 0) {
-      await tx.execute(sql`SELECT set_config('app.current_client_ids', ${context.clientIds.join(",")}, true)`)
-    }
-    if (context.userId) {
-      await tx.execute(sql`SELECT set_config('app.current_user_id', ${context.userId}, true)`)
-    }
-    return fn(tx)
-  })
+  return tenantTransactionStore.run({ orgId: context.orgId, enteredAt: new Date().toISOString(), stack: captureStack() }, () =>
+    db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.current_org_id', ${context.orgId}, true)`)
+      if (context.clientIds && context.clientIds.length > 0) {
+        await tx.execute(sql`SELECT set_config('app.current_client_ids', ${context.clientIds.join(",")}, true)`)
+      }
+      if (context.userId) {
+        await tx.execute(sql`SELECT set_config('app.current_user_id', ${context.userId}, true)`)
+      }
+      return fn(tx)
+    })
+  )
 }
 
 export * from "./schema"

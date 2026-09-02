@@ -40,15 +40,38 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (subagent, r67/f1-performance-1) -- PROGRAMME R67 lane F1 (WS-F performance), items F-01..F-10: the compliance-tracker half of PROJEXA's latency work"
+  - session_label: "claude-code (subagent, r67/f1-performance-1) -- PROGRAMME R67 lane F1 (WS-F performance), items F-01..F-15: the compliance-tracker half of PROJEXA's latency work"
     claimed_at: "2026-09-02T (this session)"
     claim: |
       SPEC: the owner-approved R66 UX/product-design audit, workstream WS-F
       (performance), lane F1 items F-01, F-02, F-03, F-04, F-05, and (added
-      2026-09-02, same session/branch) F-06, F-07, F-08, F-09, F-10, plus
-      binding decisions D-04 (module pages fetch server-side, streamed with
-      Suspense, 8 s budget) and D-06 (nested-withTenantContext guard -- NOT
-      implemented here; F-12/F-15 own it and this lane must not duplicate it).
+      2026-09-02, same session/branch) F-06, F-07, F-08, F-09, F-10, and then
+      F-11..F-15, plus binding decisions D-04 (module pages fetch server-side,
+      streamed with Suspense, 8 s budget) and D-06 (the nested-
+      withTenantContext guard, which F-12/F-15 own and which IS implemented on
+      this branch -- see the added scope below).
+
+      Items F-12..F-15 add, in this repo:
+        src/lib/db/tenant-scoped.ts (+ new .test.ts)
+          -- D-06: an AsyncLocalStorage flag marking "inside a tenant
+             transaction". Entering withTenantContext while it is set throws
+             in development and test and logs a warning with both stack traces
+             in production. First use of AsyncLocalStorage in this repo. The
+             pool stays max:5 (D-06's own rule: the pool is re-measured only
+             after the leak is gone), and the production ALTER ROLE
+             idle_in_transaction_session_timeout is NOT in this branch -- the
+             owner has already applied it to pcrjmlpuqsbocqfwoxod directly.
+             KNOWN CONSEQUENCE, deliberately surfaced rather than suppressed:
+             a static audit run while adding this found nesting still live in
+             ERP/CRM/FM code this lane does not own (submitPurchaseReceipt ->
+             recordStockReceipt, isPeriodOpenForDate from inside invoicing,
+             recordOrchestraExecution from inside CRM/FM transactions). Those
+             now throw in local dev. Production is unaffected (warn only).
+             The list is in the file's own comment.
+        src/lib/services/construction-dashboard-service.ts (+ .test.ts)
+          -- F-14: categories and recentEntries folded into
+             getProjectDashboard's existing transaction, so /dashboard/project
+             stops making two extra client calls for them.
 
       Items F-06..F-10 add, in this repo:
         src/lib/services/construction-labour-service.ts (+ new .test.ts)
@@ -90,11 +113,12 @@ active:
         src/app/api/v1/projexa/drawings/[id]/document-url/route.ts (new)
         src/lib/storage/signed-document-url.ts (+ .test.ts) (new)
 
-      NOT claimed / deliberately untouched: src/lib/db/tenant-scoped.ts (D-06
-      guard, pool options -- F-12/F-15/F-16), construction-reports-service.ts
-      (F-10/F-14), src/lib/supabase/auth-guard.ts audit writes (F-17), and any
-      production database setting (the ALTER ROLE idle_in_transaction timeout
-      stays owner-gated per D-06). No migration in this lane.
+      NOT claimed / deliberately untouched: the postgres() pool options in
+      tenant-scoped.ts (F-16 owns the idle_in_transaction connection option and
+      the pool-health probe), src/lib/supabase/auth-guard.ts audit writes
+      (F-17), and any production database setting (the ALTER ROLE
+      idle_in_transaction timeout is owner-applied, not repo work). No
+      migration in this lane.
 
       The PROJEXA half of the same items lands in the projexa repo on the
       matching branch r67/f1-performance-1.
