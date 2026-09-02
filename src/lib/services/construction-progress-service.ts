@@ -7,7 +7,7 @@ import {
   constructionCategories, constructionActivities, constructionWorkProgressEntries, constructionBoqLineItems, constructionBoqs, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, gte, lte } from "drizzle-orm"
+import { and, desc, eq, gte, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { listDocuments } from "./document-service"
 export { ServiceError }
@@ -96,10 +96,40 @@ export async function createActivity(ctx: { orgId: string }, input: { projectId:
 // column) and boqLineItemId (the direct-link column added by R12 point 7)
 // as additional, purely optional filters -- every existing caller that
 // passes none of them keeps getting exactly the same result set as before.
+// R67 F-24 (audit recommendation R-240) -- THE NAMES COME WITH THE ROWS.
+//
+// THE MEASURED PROBLEM. /work-progress reached idle at 7.4 s over 15 calls
+// because the browser ran a SERIAL chain to answer one question: what does the
+// BOQ column say? It fetched the entries, then the activities, then
+// /api/scope, then one /api/scope/{id} per revision -- pulling every line item
+// of a whole BOQ across the wire -- and after all that still rendered a raw id
+// like "e5eibnze72n8u2y3aoeok" in the cell, because the resolution frequently
+// missed.
+//
+// A progress entry's activity and BOQ line are a JOIN. Two LEFT JOINs (LEFT,
+// so an entry whose line item was later deleted -- boq_line_item_id is ON
+// DELETE SET NULL, see schema.ts -- still lists, with nulls, rather than
+// vanishing) put activityName, boqItemCode and boqDescription on the row, in
+// the SAME statement, and the client's whole scope fan-out disappears. The
+// payload stays small on purpose: three resolved strings per row, never the
+// BOQ.
+//
+// Column list, not `select()`: an explicit projection is what keeps this from
+// silently widening into "every column of three tables" when any of them
+// gains one.
+export type ProgressEntryRow = typeof constructionWorkProgressEntries.$inferSelect & {
+  /** The activity's name. null only if the activity row is gone. */
+  activityName: string | null
+  /** The linked BOQ line's item code, e.g. "R60SK". null when unlinked. */
+  boqItemCode: string | null
+  /** The linked BOQ line's description. null when unlinked. */
+  boqDescription: string | null
+}
+
 export async function listProgressEntries(
   ctx: { orgId: string },
   filters: { projectId?: string; activityId?: string; boqLineItemId?: string; dateFrom?: string; dateTo?: string }
-) {
+): Promise<ProgressEntryRow[]> {
   if (!filters.projectId && !filters.activityId) throw new ServiceError("projectId or activityId is required", 400)
   return withTenantContext({ orgId: ctx.orgId }, (db) => {
     const conditions = [eq(constructionWorkProgressEntries.orgId, ctx.orgId)]
@@ -108,7 +138,29 @@ export async function listProgressEntries(
     if (filters.boqLineItemId) conditions.push(eq(constructionWorkProgressEntries.boqLineItemId, filters.boqLineItemId))
     if (filters.dateFrom) conditions.push(gte(constructionWorkProgressEntries.entryDate, filters.dateFrom))
     if (filters.dateTo) conditions.push(lte(constructionWorkProgressEntries.entryDate, filters.dateTo))
-    return db.query.constructionWorkProgressEntries.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.entryDate) })
+    return db
+      .select({
+        id: constructionWorkProgressEntries.id,
+        orgId: constructionWorkProgressEntries.orgId,
+        projectId: constructionWorkProgressEntries.projectId,
+        activityId: constructionWorkProgressEntries.activityId,
+        boqLineItemId: constructionWorkProgressEntries.boqLineItemId,
+        entryDate: constructionWorkProgressEntries.entryDate,
+        quantityDone: constructionWorkProgressEntries.quantityDone,
+        percentComplete: constructionWorkProgressEntries.percentComplete,
+        entryBasis: constructionWorkProgressEntries.entryBasis,
+        remarks: constructionWorkProgressEntries.remarks,
+        recordedById: constructionWorkProgressEntries.recordedById,
+        createdAt: constructionWorkProgressEntries.createdAt,
+        activityName: constructionActivities.name,
+        boqItemCode: constructionBoqLineItems.itemCode,
+        boqDescription: constructionBoqLineItems.description,
+      })
+      .from(constructionWorkProgressEntries)
+      .leftJoin(constructionActivities, eq(constructionActivities.id, constructionWorkProgressEntries.activityId))
+      .leftJoin(constructionBoqLineItems, eq(constructionBoqLineItems.id, constructionWorkProgressEntries.boqLineItemId))
+      .where(and(...conditions))
+      .orderBy(desc(constructionWorkProgressEntries.entryDate))
   })
 }
 
