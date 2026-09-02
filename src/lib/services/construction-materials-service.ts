@@ -6,7 +6,7 @@
 // construction-labour-service.ts's dailyCost-computed-at-write-time posture.
 import { constructionMaterials, constructionMaterialReceipts } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, isNull, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -25,6 +25,7 @@ export type MaterialReceiptInput = {
   quantity: number
   unitCost?: number
   vendorId?: string
+  reference?: string
   notes?: string
   createdById: string
 }
@@ -84,13 +85,62 @@ export async function updateMaterial(
   })
 }
 
+// R67 D-36: voided receipts are deliberately still returned. The list renders
+// them struck through with their reason, which is the whole point of a soft
+// void -- a row that vanished would leave a supervisor unable to tell "this
+// delivery was cancelled" from "someone never recorded it". Only the TOTALS
+// exclude them (see getMaterialCostReport below).
 export async function listMaterialReceipts(ctx: { orgId: string }, projectId: string) {
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.constructionMaterialReceipts.findMany({
       where: and(eq(constructionMaterialReceipts.orgId, ctx.orgId), eq(constructionMaterialReceipts.projectId, projectId)),
       with: { material: true },
+      orderBy: (t, { desc }) => desc(t.receivedDate),
     })
   )
+}
+
+// R67 D-36: the receipt object page. Same org-scoped single-row shape as
+// getMaterial() above; carries the material so the page can link to it
+// without a second hop.
+export async function getMaterialReceipt(ctx: { orgId: string }, receiptId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const receipt = await db.query.constructionMaterialReceipts.findFirst({
+      where: and(eq(constructionMaterialReceipts.id, receiptId), eq(constructionMaterialReceipts.orgId, ctx.orgId)),
+      with: { material: true },
+    })
+    if (!receipt) throw new ServiceError("Material receipt not found", 404)
+    return receipt
+  })
+}
+
+// R67 D-36. A mis-keyed quantity used to be permanent -- there was no update
+// and no delete path for a receipt at all. This is the correction path, and
+// it is deliberately a SOFT void: the row survives with who voided it, when,
+// and why, and drops out of every total. A hard delete would silently rewrite
+// history in the one ledger the Cost Report is computed from.
+export async function voidMaterialReceipt(
+  ctx: { orgId: string },
+  receiptId: string,
+  input: { voidReason: string; voidedBy: string }
+) {
+  const reason = input.voidReason?.trim()
+  if (!reason) throw new ServiceError("A reason is required to void a receipt", 400)
+  if (!input.voidedBy) throw new ServiceError("voidedBy is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.constructionMaterialReceipts.findFirst({
+      where: and(eq(constructionMaterialReceipts.id, receiptId), eq(constructionMaterialReceipts.orgId, ctx.orgId)),
+    })
+    if (!existing) throw new ServiceError("Material receipt not found", 404)
+    if (existing.voidedAt) throw new ServiceError("This receipt is already voided", 409)
+
+    const [row] = await db.update(constructionMaterialReceipts)
+      .set({ voidedAt: new Date(), voidReason: reason, voidedBy: input.voidedBy })
+      .where(eq(constructionMaterialReceipts.id, receiptId))
+      .returning()
+    return row
+  })
 }
 
 // Real-screen conversion (2026-08-30): backs the "Cost Report" tab that
@@ -112,7 +162,15 @@ export async function getMaterialCostReport(ctx: { orgId: string }, projectId: s
       totalCost: sql<string>`coalesce(sum(${constructionMaterialReceipts.quantity} * ${constructionMaterialReceipts.unitCost}), 0)`,
     })
       .from(constructionMaterialReceipts)
-      .where(and(eq(constructionMaterialReceipts.orgId, ctx.orgId), eq(constructionMaterialReceipts.projectId, projectId)))
+      // R67 D-36: voided receipts are excluded from every total, in SQL, at
+      // the one place the totals are produced -- so the Cost Report, the
+      // master's "Received to date" and anything else reading this aggregate
+      // can never disagree about whether a voided delivery counts.
+      .where(and(
+        eq(constructionMaterialReceipts.orgId, ctx.orgId),
+        eq(constructionMaterialReceipts.projectId, projectId),
+        isNull(constructionMaterialReceipts.voidedAt)
+      ))
       .groupBy(constructionMaterialReceipts.materialId)
 
     if (totals.length === 0) return []
@@ -156,7 +214,9 @@ export async function createMaterialReceipt(ctx: { orgId: string }, input: Mater
       receivedDate: input.receivedDate,
       quantity: String(input.quantity),
       unitCost: input.unitCost !== undefined ? String(input.unitCost) : material.unitCost,
-      vendorId: input.vendorId || null, notes: input.notes || null,
+      vendorId: input.vendorId || null,
+      reference: input.reference?.trim() || null,
+      notes: input.notes || null,
       createdById: input.createdById,
     }).returning()
     return row

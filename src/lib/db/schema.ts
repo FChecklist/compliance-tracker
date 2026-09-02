@@ -11055,6 +11055,21 @@ export const constructionMaterialReceipts = complianceSchemaDB.table('constructi
   unitCost: numeric('unit_cost'),
   vendorId: text('vendor_id'),
   notes: text('notes'),
+  // R67 D-36. `reference` is the supplier's own delivery-note / PO number --
+  // the only thing that lets a site receipt be matched to the invoice that
+  // later arrives for it; `notes` is free commentary and was already used as
+  // such, so overloading it would have made the match unreliable.
+  reference: text('reference'),
+  // Soft void, never a delete: a mis-keyed quantity has to be reversible, but
+  // a received-goods ledger row that simply disappears is unauditable. A
+  // voided row stays in the list (struck through, reason on hover) and is
+  // excluded from every total -- see voidMaterialReceipt() and
+  // getMaterialCostReport() in construction-materials-service.ts. Same
+  // posture as constructionLabourRoster.isActive being a deactivate rather
+  // than a delete.
+  voidedAt: timestamp('voided_at'),
+  voidReason: text('void_reason'),
+  voidedBy: text('voided_by'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
