@@ -6,6 +6,7 @@
 import {
   pmsIssues, pmsIssueRelations,
   pmsScheduleBaselines, pmsBaselineIssueSnapshots, pmsResourceAllocations,
+  constructionWorkProgressEntries,
 } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray } from "drizzle-orm"
@@ -28,6 +29,16 @@ export type GanttTask = {
   startDate: string | null
   dueDate: string | null
   completionPercentage: number
+  // R67 lane D22 (item D-49, rec R-125): WHERE that percentage came from, and
+  // WHEN. Without it the Gantt shows a number with no provenance, and the two
+  // ways it can arrive -- a site engineer's recorded quantities against the
+  // linked BOQ lines, or a PM typing over them -- are indistinguishable, which
+  // is exactly the ambiguity that makes people retype the figure. 'manual' is
+  // the literal truth for every row written before pms_issue_boq_links
+  // existed (see drizzle/0531's own default), never a retroactive claim.
+  completionSource: string
+  /** entry_date of the work-progress entry this completion was derived from; null for a manual one. */
+  lastProgressAt: string | null
   milestoneId: string | null
   parentIssueId: string | null
   isCritical: boolean
@@ -153,6 +164,11 @@ export async function calculateCriticalPath(ctx: { orgId: string }, projectId: s
         startDate: issue.startDate,
         dueDate: issue.dueDate,
         completionPercentage: computeParentCompletionPercentage(issue.completionPercentage, childCompletionMap.get(issue.id) ?? []),
+        completionSource: issue.completionSource,
+        // Filled in by getGanttData(), which is the one place that may reach
+        // into the construction work-progress domain -- this function stays a
+        // pure pms_issues/pms_issue_relations computation.
+        lastProgressAt: null,
         milestoneId: issue.milestoneId,
         parentIssueId: issue.parentIssueId,
         isCritical: floatDays !== null && floatDays <= 0,
@@ -173,7 +189,39 @@ export async function getGanttData(ctx: { orgId: string }, projectId: string) {
   ])
   const taskIds = new Set(tasks.map((t) => t.id))
   const dependencies = normalizeEdges(relationsRaw).filter((e) => taskIds.has(e.predecessorId) && taskIds.has(e.successorId))
-  return { tasks, dependencies, milestones }
+  const tasksWithProvenance = await attachLastProgressAt(ctx, projectId, tasks)
+  return { tasks: tasksWithProvenance, dependencies, milestones }
+}
+
+/**
+ * R67 lane D22 (item D-49): dates the site-derived completions.
+ *
+ * pms_issues.completed_from_entry_id names the work-progress entry a derived
+ * completion came from (WS-I item I-04), so "last entry 01-09-2026" is a real
+ * lookup of that entry's own date, not the issue's updated_at -- which any
+ * unrelated edit would move. One grouped query for the whole project, never
+ * one per task. A manual completion has no entry and honestly reads null.
+ */
+async function attachLastProgressAt(ctx: { orgId: string }, projectId: string, tasks: GanttTask[]): Promise<GanttTask[]> {
+  if (tasks.length === 0) return tasks
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const issues = await db.query.pmsIssues.findMany({
+      where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)),
+      columns: { id: true, completedFromEntryId: true },
+    })
+    const entryIdByIssue = new Map(issues.filter((i) => i.completedFromEntryId).map((i) => [i.id, i.completedFromEntryId!]))
+    const entryIds = [...new Set(entryIdByIssue.values())]
+    if (entryIds.length === 0) return tasks
+    const entries = await db.query.constructionWorkProgressEntries.findMany({
+      where: and(eq(constructionWorkProgressEntries.orgId, ctx.orgId), inArray(constructionWorkProgressEntries.id, entryIds)),
+      columns: { id: true, entryDate: true },
+    })
+    const dateByEntry = new Map(entries.map((e) => [e.id, e.entryDate]))
+    return tasks.map((t) => {
+      const entryId = entryIdByIssue.get(t.id)
+      return entryId ? { ...t, lastProgressAt: dateByEntry.get(entryId) ?? null } : t
+    })
+  })
 }
 
 export async function captureBaseline(ctx: { orgId: string; userId: string }, projectId: string, name: string) {

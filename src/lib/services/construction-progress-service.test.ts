@@ -201,3 +201,155 @@ describe("createProgressEntry -- R48_PROGRESS_ENTRY_NO_PROJECT_MEMBERSHIP_CHECK_
     expect(insertedRows).toHaveLength(0)
   })
 })
+
+// ─── R67 lane D22 (item D-49, rec R-125) ──────────────────────────────────
+// The double entry this closes: a site engineer records quantities against a
+// BOQ line, and a PM separately retypes a percent on the schedule activity.
+// The pure half is tested directly; the real createProgressEntry() path is
+// then exercised with its own fake db (deliberately NOT the module-level one
+// above, whose where-clause matcher only understands eq() and would silently
+// mis-read the inArray() this roll-up uses).
+import {
+  computeLinkedIssueCompletion, lineProgressFraction, type LinkedBoqLine,
+} from "./construction-progress-service"
+
+function linked(over: Partial<LinkedBoqLine> = {}): LinkedBoqLine {
+  return { boqLineItemId: "li-1", weight: 1, quantity: 10, quantityToDate: 0, latestPercentComplete: null, ...over }
+}
+
+describe("lineProgressFraction", () => {
+  test("a real measured quantity wins", () => {
+    expect(lineProgressFraction(linked({ quantity: 10, quantityToDate: 5 }))).toBe(0.5)
+  })
+
+  test("a reported percent fills in only when nothing has been measured -- the same rule computeEarnedValue uses", () => {
+    expect(lineProgressFraction(linked({ quantityToDate: 0, latestPercentComplete: 50 }))).toBe(0.5)
+    expect(lineProgressFraction(linked({ quantity: 10, quantityToDate: 8, latestPercentComplete: 20 }))).toBe(0.8)
+  })
+
+  test("nothing recorded at all is 0, never a guess", () => {
+    expect(lineProgressFraction(linked())).toBe(0)
+  })
+
+  test("a zero-quantity line does not divide by zero", () => {
+    expect(lineProgressFraction(linked({ quantity: 0, quantityToDate: 5 }))).toBe(0)
+  })
+})
+
+describe("computeLinkedIssueCompletion", () => {
+  test("one activity delivering one whole line reads that line's own percentage", () => {
+    expect(computeLinkedIssueCompletion([linked({ quantityToDate: 5 })])).toBe(50)
+  })
+
+  test("two lines, both fully done, is 100 -- never 200", () => {
+    expect(computeLinkedIssueCompletion([
+      linked({ boqLineItemId: "a", quantityToDate: 10 }),
+      linked({ boqLineItemId: "b", quantityToDate: 10 }),
+    ])).toBe(100)
+  })
+
+  test("one of two lines done is half the activity", () => {
+    expect(computeLinkedIssueCompletion([
+      linked({ boqLineItemId: "a", quantityToDate: 10 }),
+      linked({ boqLineItemId: "b", quantityToDate: 0 }),
+    ])).toBe(50)
+  })
+
+  test("weights split the activity across the lines it delivers", () => {
+    expect(computeLinkedIssueCompletion([
+      linked({ boqLineItemId: "a", weight: 3, quantityToDate: 10 }),
+      linked({ boqLineItemId: "b", weight: 1, quantityToDate: 0 }),
+    ])).toBe(75)
+  })
+
+  test("an over-measured line cannot push the activity past 100", () => {
+    expect(computeLinkedIssueCompletion([linked({ quantity: 10, quantityToDate: 25 })])).toBe(100)
+  })
+
+  test("no links, or no weight, returns null -- it must leave whatever a human set alone, not zero it", () => {
+    expect(computeLinkedIssueCompletion([])).toBeNull()
+    expect(computeLinkedIssueCompletion([linked({ weight: 0 })])).toBeNull()
+  })
+})
+
+describe("createProgressEntry rolls the site records up onto the linked schedule activity", () => {
+  const ORG_ID = "org-d49"
+  const PROJECT_ID = "proj-d49"
+
+  async function record(input: { quantityDone: number; percentComplete: number }, links = [{ id: "lnk-1", orgId: ORG_ID, issueId: "issue-1", boqLineItemId: "LINE-1", weight: "1" }]) {
+    const updates: { set: Record<string, unknown> }[] = []
+    let lineItemFindFirstCalls = 0
+    const withTenantContextCalls: unknown[] = []
+
+    const fakeDb = {
+      query: {
+        projects: { findFirst: async () => ({ id: PROJECT_ID, orgId: ORG_ID }) },
+        constructionActivities: { findFirst: async () => ({ id: "ACT-1", orgId: ORG_ID, projectId: PROJECT_ID }) },
+        constructionBoqs: { findFirst: async () => ({ id: "BOQ-1", orgId: ORG_ID, projectId: PROJECT_ID }) },
+        constructionBoqLineItems: {
+          // Call 1 is the line-item lookup; call 2 is the "does this line have
+          // children?" parent guard, which must find none.
+          findFirst: async () => {
+            lineItemFindFirstCalls += 1
+            return lineItemFindFirstCalls === 1 ? { id: "LINE-1", orgId: ORG_ID, boqId: "BOQ-1", parentLineItemId: null } : undefined
+          },
+          findMany: async () => [{ id: "LINE-1", quantity: "10" }],
+        },
+        pmsIssueBoqLinks: { findMany: async () => links },
+      },
+      insert: () => ({
+        values: (v: Record<string, unknown>) => ({
+          returning: async () => [{ ...v, id: "entry-9", percentComplete: String(v.percentComplete ?? "0") }],
+        }),
+      }),
+      update: () => ({ set: (set: Record<string, unknown>) => ({ where: async () => { updates.push({ set }); } }) }),
+      execute: async (query: { queryChunks?: unknown[] }) => {
+        const text = JSON.stringify(query?.queryChunks ?? "")
+        if (text.includes("percent_complete")) {
+          return input.quantityDone > 0 ? [] : [{ boq_line_item_id: "LINE-1", percent_complete: input.percentComplete }]
+        }
+        return [{ boq_line_item_id: "LINE-1", total_qty: input.quantityDone }]
+      },
+    }
+
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (ctx: unknown, fn: (db: unknown) => Promise<unknown>) => {
+        withTenantContextCalls.push(ctx)
+        return fn(fakeDb)
+      }),
+    }))
+    const { createProgressEntry } = await import("./construction-progress-service")
+    const row = await createProgressEntry(
+      { orgId: ORG_ID, userId: "user-1" },
+      { projectId: PROJECT_ID, activityId: "ACT-1", boqLineItemId: "LINE-1", entryDate: "2026-09-01", ...input }
+    )
+    return { row, updates, withTenantContextCalls }
+  }
+
+  test("recording 50% of a linked BOQ line sets the linked issue's completion_percentage to 50 and its completion_source to 'site_records'", async () => {
+    const { updates } = await record({ quantityDone: 5, percentComplete: 50 })
+    expect(updates).toHaveLength(1)
+    expect(updates[0].set).toMatchObject({
+      completionPercentage: 50,
+      completionSource: "site_records",
+      completedFromEntryId: "entry-9",
+    })
+  })
+
+  test("a percent-only entry (no quantity surveyed yet) is worth the same, not zero", async () => {
+    const { updates } = await record({ quantityDone: 0, percentComplete: 50 })
+    expect(updates[0].set).toMatchObject({ completionPercentage: 50, completionSource: "site_records" })
+  })
+
+  test("the roll-up runs on the CALLER's transaction -- never a nested withTenantContext (programme decision D-06)", async () => {
+    const { withTenantContextCalls } = await record({ quantityDone: 5, percentComplete: 50 })
+    expect(withTenantContextCalls).toHaveLength(1)
+  })
+
+  test("a BOQ line no activity is linked to updates nothing at all, and the entry still saves", async () => {
+    const { row, updates } = await record({ quantityDone: 5, percentComplete: 50 }, [])
+    expect(updates).toEqual([])
+    expect(row).toBeDefined()
+  })
+})

@@ -5,9 +5,10 @@
 // template/copy-down feature can be added later without a breaking migration.
 import {
   constructionCategories, constructionActivities, constructionWorkProgressEntries, constructionBoqLineItems, constructionBoqs, projects,
+  pmsIssues, pmsIssueBoqLinks,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, gte, lte } from "drizzle-orm"
+import { and, eq, gte, lte, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { listDocuments } from "./document-service"
 export { ServiceError }
@@ -137,6 +138,152 @@ export async function deleteProgressEntry(ctx: { orgId: string }, entryId: strin
   })
 }
 
+// ─── R67 lane D22 (item D-49, rec R-125) ──────────────────────────────────
+// THE DOUBLE ENTRY THIS CLOSES: a site engineer records quantities against a
+// BOQ line here, and then a PM separately retypes a percent on the schedule
+// activity's object page. Two humans, two screens, one fact -- and they drift
+// apart by construction. With pms_issue_boq_links in place (WS-I item I-04),
+// an activity that is linked to BOQ lines can have its completion DERIVED from
+// the site records instead.
+//
+// Kept pure and exported so the arithmetic is provable without a database, the
+// same discipline construction-reports-service.ts's computeEarnedValue()
+// already follows for the closely-related earned-value roll-up.
+
+export type LinkedBoqLine = {
+  boqLineItemId: string
+  /** The link's share of that line: 1 = "this activity delivers the whole line" (the schema's own default). */
+  weight: number
+  /** The BOQ line's contracted quantity. */
+  quantity: number
+  /** Sum of DELTA quantity_done recorded against the line. */
+  quantityToDate: number
+  /** Latest percent_complete recorded against the line, 0-100. Used ONLY when nothing has been measured. */
+  latestPercentComplete: number | null
+}
+
+/**
+ * How far along one BOQ line is, 0..1.
+ *
+ * Prefers a real measured quantity, and only falls back to a reported percent
+ * when nothing has been measured -- exactly the rule
+ * construction-reports-service.ts's computeEarnedValue() already established
+ * for the same two columns (R46/R-51), so a crew that reports "50% done"
+ * before a quantity survey is not silently worth zero here while being worth
+ * something there.
+ */
+export function lineProgressFraction(line: LinkedBoqLine): number {
+  if (line.quantity > 0 && line.quantityToDate > 0) return line.quantityToDate / line.quantity
+  if (line.latestPercentComplete !== null) return line.latestPercentComplete / 100
+  return 0
+}
+
+/**
+ * An activity's completion, as a whole-number percent, from the BOQ lines it
+ * delivers: the weight-averaged progress of those lines, capped at 100.
+ *
+ * WHY WEIGHT-AVERAGED rather than a bare sum: `weight` is documented on
+ * pms_issue_boq_links as the link's SHARE of that line, defaulting to 1. A
+ * bare sum of (fraction x weight) over two fully-complete lines would read
+ * 200%, and over one line with the default weight would read 1 instead of 100.
+ * Dividing by the total weight makes the single-link default case -- one
+ * activity delivering one whole line -- come out as exactly that line's own
+ * percentage, which is the only reading a site engineer would accept.
+ *
+ * No links, or no weight at all, returns null: "this activity has nothing to
+ * derive from", which must leave whatever a human set alone rather than
+ * zeroing it.
+ */
+export function computeLinkedIssueCompletion(lines: LinkedBoqLine[]): number | null {
+  if (lines.length === 0) return null
+  const totalWeight = lines.reduce((sum, l) => sum + (Number.isFinite(l.weight) ? l.weight : 0), 0)
+  if (totalWeight <= 0) return null
+  const weighted = lines.reduce((sum, l) => sum + lineProgressFraction(l) * l.weight, 0)
+  return Math.min(100, Math.max(0, Math.round((weighted / totalWeight) * 100)))
+}
+
+/**
+ * Rolls the site records up onto every schedule activity linked to `boqLineItemId`.
+ *
+ * Runs on the CALLER'S transaction (`db` is the TenantDb handed to the
+ * withTenantContext callback), never opening one of its own -- programme
+ * decision D-06 forbids a nested withTenantContext, and the roll-up must
+ * commit or roll back with the entry that caused it, never separately.
+ */
+export async function rollUpLinkedIssueCompletion(
+  db: TenantDb,
+  orgId: string,
+  boqLineItemId: string,
+  fromEntryId: string
+): Promise<{ issueId: string; completionPercentage: number }[]> {
+  const directLinks = await db.query.pmsIssueBoqLinks.findMany({
+    where: and(eq(pmsIssueBoqLinks.orgId, orgId), eq(pmsIssueBoqLinks.boqLineItemId, boqLineItemId)),
+  })
+  if (directLinks.length === 0) return []
+
+  // Every line each affected activity delivers, not just the one that was
+  // recorded against: an activity covering three BOQ lines is 33% done when
+  // one of them finishes, and reading only the touched line would report 100%.
+  const issueIds = [...new Set(directLinks.map((l) => l.issueId))]
+  const allLinks = await db.query.pmsIssueBoqLinks.findMany({
+    where: and(eq(pmsIssueBoqLinks.orgId, orgId), inArray(pmsIssueBoqLinks.issueId, issueIds)),
+  })
+  const lineIds = [...new Set(allLinks.map((l) => l.boqLineItemId))]
+  if (lineIds.length === 0) return []
+
+  const lineItems = await db.query.constructionBoqLineItems.findMany({
+    where: and(eq(constructionBoqLineItems.orgId, orgId), inArray(constructionBoqLineItems.id, lineIds)),
+  })
+  const quantityById = new Map(lineItems.map((i) => [i.id, Number(i.quantity)]))
+
+  // Same two aggregates, and the same DISTINCT ON convention, that
+  // construction-reports-service.ts's earned-value read already uses -- one
+  // grouped query each, never one per line.
+  const idsSql = sql.join(lineIds.map((id) => sql`${id}`), sql`, `)
+  const qtyRows = (await db.execute(sql`
+    SELECT boq_line_item_id, coalesce(sum(quantity_done), 0)::float AS total_qty
+    FROM compliance.construction_work_progress_entries
+    WHERE boq_line_item_id = ANY(ARRAY[${idsSql}]) AND entry_basis = 'DELTA'
+    GROUP BY boq_line_item_id
+  `)) as { boq_line_item_id: string; total_qty: number }[]
+  const qtyByLine = new Map(qtyRows.map((r) => [r.boq_line_item_id, Number(r.total_qty)]))
+
+  const percentRows = (await db.execute(sql`
+    SELECT DISTINCT ON (boq_line_item_id) boq_line_item_id, percent_complete
+    FROM compliance.construction_work_progress_entries
+    WHERE boq_line_item_id = ANY(ARRAY[${idsSql}])
+    ORDER BY boq_line_item_id, entry_date DESC, created_at DESC
+  `)) as { boq_line_item_id: string; percent_complete: number }[]
+  const percentByLine = new Map(percentRows.map((r) => [r.boq_line_item_id, Number(r.percent_complete)]))
+
+  const updated: { issueId: string; completionPercentage: number }[] = []
+  for (const issueId of issueIds) {
+    const lines: LinkedBoqLine[] = allLinks
+      .filter((l) => l.issueId === issueId)
+      .map((l) => ({
+        boqLineItemId: l.boqLineItemId,
+        weight: Number(l.weight ?? 1),
+        quantity: quantityById.get(l.boqLineItemId) ?? 0,
+        quantityToDate: qtyByLine.get(l.boqLineItemId) ?? 0,
+        latestPercentComplete: percentByLine.has(l.boqLineItemId) ? percentByLine.get(l.boqLineItemId)! : null,
+      }))
+    const completionPercentage = computeLinkedIssueCompletion(lines)
+    if (completionPercentage === null) continue
+    await db.update(pmsIssues).set({
+      completionPercentage,
+      // The provenance the activity object page prints ("Progress from site
+      // records: 62 % (last entry 01-09-2026)"). Setting it here is what makes
+      // a later manual override an explicit, visible decision rather than an
+      // invisible one.
+      completionSource: "site_records",
+      completedFromEntryId: fromEntryId,
+      updatedAt: new Date(),
+    }).where(and(eq(pmsIssues.id, issueId), eq(pmsIssues.orgId, orgId)))
+    updated.push({ issueId, completionPercentage })
+  }
+  return updated
+}
+
 export async function createProgressEntry(
   ctx: { orgId: string; userId: string },
   input: { projectId: string; activityId: string; boqLineItemId?: string; entryDate: string; quantityDone: number; percentComplete: number; remarks?: string; entryBasis?: "DELTA" | "SNAPSHOT" }
@@ -211,6 +358,13 @@ export async function createProgressEntry(
       entryDate: input.entryDate, quantityDone: input.quantityDone !== undefined ? String(input.quantityDone) : undefined, percentComplete: String(input.percentComplete),
       entryBasis, remarks: input.remarks || null, recordedById: ctx.userId,
     }).returning()
+
+    // R67 lane D22 (item D-49): the same transaction, never a nested one
+    // (programme decision D-06) and never a fire-and-forget follow-up -- if the
+    // roll-up fails the entry must fail with it, or the schedule and the site
+    // records disagree with nobody knowing which is right.
+    if (boqLineItemId) await rollUpLinkedIssueCompletion(db, ctx.orgId, boqLineItemId, row.id)
+
     return row
   }).then((row) => {
     // Wave 126: fire-and-forget automation trigger, matching
