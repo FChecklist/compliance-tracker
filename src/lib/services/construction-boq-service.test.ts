@@ -8,7 +8,8 @@
 import { describe, expect, test } from "bun:test"
 import {
   computeHierarchicalAmount, deriveLineItemQuantityAndRate, diffLineItems, computeTotalVariation, findScopeReductionViolations,
-  resolveProgressByLineItem, toLineItemInput,
+  resolveProgressByLineItem, resolveProgressDetailByLineItem, toLineItemInput,
+  buildScopeReductionConflicts, type LineItemProgress,
   ServiceError, type BoqLineItemInput, type BoqLineItemRow, type ChangedLineItem,
 } from "./construction-boq-service"
 
@@ -542,5 +543,100 @@ describe("toLineItemInput -- category carries forward into a revision", () => {
   test("an uncategorised line stays undefined (not null) -- BoqLineItemInput's fields are optional, never nullable", () => {
     const persisted = row({ id: "p2", description: "Plain item", unit: "nos", quantity: "1", rate: "1" })
     expect(toLineItemInput(persisted, new Map()).category).toBeUndefined()
+  })
+})
+
+// R67 D-27 (R-068) -- the 409 that blocks a revision reducing already-completed
+// scope used to name the violating lines only inside a prose sentence, which a
+// UI can print but cannot render as a table, count, or act on. These pin the
+// structured form, which shares findScopeReductionViolations' own rule for what
+// counts as a violation so the block and the table can never disagree.
+describe("buildScopeReductionConflicts (D-27)", () => {
+  const progress = (over: Partial<LineItemProgress> = {}): LineItemProgress =>
+    ({ percentComplete: 40, quantityDone: 12, entryDate: "2026-08-28", ...over })
+
+  test("a REMOVED line with recorded progress becomes one row carrying code, quantity, unit and date", () => {
+    const removed = row({ id: "li-1", itemCode: "R60SK-A", description: "R60 skiphop sub", unit: "m2" })
+    const conflicts = buildScopeReductionConflicts(
+      { removed: [removed], changed: [] },
+      new Map([["li-1", progress()]])
+    )
+    expect(conflicts).toEqual([
+      { itemCode: "R60SK-A", description: "R60 skiphop sub", recordedQty: 12, unit: "m2", lastRecordedAt: "2026-08-28" },
+    ])
+  })
+
+  test("a REDUCED line (negative netVariation) with recorded progress is a conflict too", () => {
+    const previous = row({ id: "prev", itemCode: "A1", description: "Blockwork", unit: "sqm", amount: "1000" })
+    const current = row({ id: "curr", itemCode: "A1", description: "Blockwork", unit: "sqm", amount: "600" })
+    const changed: ChangedLineItem[] = [{
+      key: "A1", previous, current, quantityChange: -4, rateChange: 0, breakdownPercentageChange: 0,
+      netVariation: -400, isSubItem: false,
+    }]
+    const conflicts = buildScopeReductionConflicts({ removed: [], changed }, new Map([["curr", progress({ quantityDone: 5 })]]))
+    expect(conflicts).toHaveLength(1)
+    expect(conflicts[0].recordedQty).toBe(5)
+  })
+
+  test("an INCREASED line is never a conflict, however much progress it has", () => {
+    const previous = row({ id: "prev", itemCode: "A1", description: "Blockwork", unit: "sqm", amount: "600" })
+    const current = row({ id: "curr", itemCode: "A1", description: "Blockwork", unit: "sqm", amount: "1000" })
+    const changed: ChangedLineItem[] = [{
+      key: "A1", previous, current, quantityChange: 4, rateChange: 0, breakdownPercentageChange: 0,
+      netVariation: 400, isSubItem: false,
+    }]
+    expect(buildScopeReductionConflicts({ removed: [], changed }, new Map([["curr", progress()]]))).toEqual([])
+  })
+
+  test("a removed line with NO recorded progress is not a conflict -- removing unstarted scope is legitimate", () => {
+    const removed = row({ id: "li-1", itemCode: "A1", description: "Blockwork", unit: "sqm" })
+    expect(buildScopeReductionConflicts({ removed: [removed], changed: [] }, new Map())).toEqual([])
+  })
+
+  test("0% recorded is not progress -- an entry that logged nothing does not block a descope", () => {
+    const removed = row({ id: "li-1", itemCode: "A1", description: "Blockwork", unit: "sqm" })
+    const conflicts = buildScopeReductionConflicts(
+      { removed: [removed], changed: [] },
+      new Map([["li-1", progress({ percentComplete: 0, quantityDone: 0 })]])
+    )
+    expect(conflicts).toEqual([])
+  })
+
+  test("a line with no item code reports null rather than an invented one -- the UI falls back to the description", () => {
+    const removed = row({ id: "li-1", itemCode: null, description: "Unnumbered extra", unit: "nos" })
+    const [conflict] = buildScopeReductionConflicts({ removed: [removed], changed: [] }, new Map([["li-1", progress()]]))
+    expect(conflict.itemCode).toBeNull()
+    expect(conflict.description).toBe("Unnumbered extra")
+  })
+
+  test("it agrees with findScopeReductionViolations about WHICH lines are in conflict", () => {
+    const removedBlocked = row({ id: "a", itemCode: "A", description: "Started", unit: "m2" })
+    const removedClean = row({ id: "b", itemCode: "B", description: "Untouched", unit: "m2" })
+    const detail = new Map([["a", progress()]])
+    const percents = new Map([...detail].map(([id, p]) => [id, p.percentComplete] as const))
+    const diff = { removed: [removedBlocked, removedClean], changed: [] as ChangedLineItem[] }
+
+    expect(findScopeReductionViolations(diff, new Map(percents))).toHaveLength(1)
+    expect(buildScopeReductionConflicts(diff, detail).map((c) => c.itemCode)).toEqual(["A"])
+  })
+})
+
+describe("resolveProgressDetailByLineItem (D-27)", () => {
+  const progress = (pct: number): LineItemProgress => ({ percentComplete: pct, quantityDone: pct / 10, entryDate: "2026-08-28" })
+
+  test("a direct boq_line_item_id link still wins over the activity_id fallback, now carrying the whole entry", () => {
+    const item = row({ id: "li-1", activityId: "act-1" })
+    const resolved = resolveProgressDetailByLineItem([item], new Map([["li-1", progress(70)]]), new Map([["act-1", progress(10)]]))
+    expect(resolved.get("li-1")).toEqual(progress(70))
+  })
+
+  test("a legacy activity-only entry is still found", () => {
+    const item = row({ id: "li-1", activityId: "act-1" })
+    const resolved = resolveProgressDetailByLineItem([item], new Map(), new Map([["act-1", progress(10)]]))
+    expect(resolved.get("li-1")?.percentComplete).toBe(10)
+  })
+
+  test("an item with neither link resolves to nothing at all", () => {
+    expect(resolveProgressDetailByLineItem([row({ id: "li-1" })], new Map(), new Map()).size).toBe(0)
   })
 })
