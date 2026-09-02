@@ -124,3 +124,50 @@ describe("failureLogLine -- engineers only, never a UI string", () => {
     expect(line).not.toContain(" is required");
   });
 });
+
+// ── R67 B-08: the typed columns, and the one timeout that is not a refusal ─
+import { failureFromRow, isStatementTimeoutMessage, RETRYABLE_ERROR_CODES } from "./error-codes";
+
+describe("B-08 -- a statement timeout is its own code", () => {
+  test("Postgres cancelling a slow query is UPSTREAM_TIMEOUT, not BACKEND_UNAVAILABLE", () => {
+    expect(isStatementTimeoutMessage("canceling statement due to statement timeout")).toBe(true);
+    expect(normaliseThrownError(new Error("canceling statement due to statement timeout")).failure.code).toBe(
+      "UPSTREAM_TIMEOUT"
+    );
+  });
+
+  test("a CONNECTION timeout is still exactly BACKEND_UNAVAILABLE -- B-01's acceptance is untouched", () => {
+    expect(isStatementTimeoutMessage("write CONNECT_TIMEOUT 3.109.171.244:6543")).toBe(false);
+    expect(normaliseThrownError(new Error("write CONNECT_TIMEOUT 3.109.171.244:6543")).failure.code).toBe(
+      "BACKEND_UNAVAILABLE"
+    );
+  });
+
+  test("both are retryable; a user-fixable failure is not", () => {
+    expect(RETRYABLE_ERROR_CODES.has("BACKEND_UNAVAILABLE")).toBe(true);
+    expect(RETRYABLE_ERROR_CODES.has("UPSTREAM_TIMEOUT")).toBe(true);
+    expect(RETRYABLE_ERROR_CODES.has("BOQ_LINE_REQUIRED")).toBe(false);
+    expect(RETRYABLE_ERROR_CODES.has("INTERNAL_ERROR")).toBe(false);
+  });
+});
+
+describe("B-08 -- failureFromRow reads the typed columns drizzle/0528 adds", () => {
+  test("a real code and its business params come back as a failure", () => {
+    const f = failureFromRow("BOQ_LINE_NOT_FOUND", { itemCode: "1", project: "Cedar Heights Villa - Phase 1", version: "Rev0" });
+    expect(f).not.toBeNull();
+    expect(f!.code).toBe("BOQ_LINE_NOT_FOUND");
+    expect(f!.picker).toBe("boq-line");
+    expect(f!.context).toEqual({ itemCode: "1", project: "Cedar Heights Villa - Phase 1", version: "Rev0" });
+  });
+
+  test("an empty, unknown or malformed column yields null so the caller falls back", () => {
+    expect(failureFromRow(null, null)).toBeNull();
+    expect(failureFromRow("", null)).toBeNull();
+    expect(failureFromRow("SOMETHING_A_NEWER_SERVER_SENDS", {})).toBeNull();
+  });
+
+  test("a non-object params column is ignored rather than trusted", () => {
+    const f = failureFromRow("BACKEND_UNAVAILABLE", "write CONNECT_TIMEOUT 3.109.171.244:6543");
+    expect(f!.context).toBeUndefined();
+  });
+});

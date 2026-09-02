@@ -230,3 +230,122 @@ describe("B-06 -- statusForFailure keeps a transport failure out of the blocked 
     expect(statusForFailure(pipelineFailure("INTERNAL_ERROR"))).toBe("blocked")
   })
 })
+
+// ── R67 B-07: the submission answers with a VERDICT and mints nothing ─────
+// submitForVerdict() itself is the DB wiring (insert one submissions row,
+// propose, update its status); the DECISION -- what the verdict is, what is
+// missing, and whether anything is confirmable -- is toVerdictResult() over
+// dryRunSubmission()'s output, and both are pure with every dependency
+// injected. That composition is exactly what the route returns, so it is
+// what is proved here, with no database and no model call.
+import { toVerdict, toVerdictResult } from "./verdict"
+
+describe("B-07 -- a task that cannot be completed comes back as a question, not a blocked row", () => {
+  const deps = depsFor({
+    "record 50% progress on excavation": { functionId: "record_work_progress", fixedParams: { percent: 50 } },
+  })
+
+  test("verdict 'task' with missing [{name:'boqLineItemId', code:'BOQ_LINE_REQUIRED'}]", async () => {
+    const proposal = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on excavation" }, deps)
+    const v = toVerdictResult(proposal, "sub_1")
+    expect(v.verdict).toBe("task")
+    expect(v.status).toBe("needs_input")
+    expect(v.missing).toContainEqual(
+      expect.objectContaining({ name: "boqLineItemId", code: "BOQ_LINE_REQUIRED" })
+    )
+    // and it is NOT offered as something to confirm -- there is nothing to run
+    expect(v.confirmable).toBe(false)
+    expect(v.submissionId).toBe("sub_1")
+  })
+
+  test("the missing field is named in the D-03 vocabulary, never as a parameter", async () => {
+    const proposal = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on excavation" }, deps)
+    const v = toVerdictResult(proposal, "sub_1")
+    expect(v.missing[0].field).toBe("boqLine")
+    expect(v.missing[0].label).toBe("BOQ line")
+  })
+
+  test("`understood` names the function in words and carries the rail's project", async () => {
+    const proposal = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on excavation" }, deps)
+    const v = toVerdictResult(proposal, "sub_1")
+    expect(v.understood).toMatchObject({ functionId: "record_work_progress", label: "Record progress", projectId: "p1" })
+    // the chain is always returned, so the client can print "Understood: <chain>"
+    expect(typeof v.chain).toBe("string")
+  })
+
+  test("the chips it offers are the project's real lines, addressed by their record id", async () => {
+    const withIds = depsFor(
+      { "record 50% progress on excavation": { functionId: "record_work_progress", fixedParams: { percent: 50 } } },
+      { boqLineOptions: async () => [{ id: "EX-01", label: "EX-01 Excavation", lineItemId: "line_9" }] }
+    )
+    const proposal = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on excavation" }, withIds)
+    const v = toVerdictResult(proposal, "sub_1")
+    expect(v.missing[0].options).toEqual([{ id: "line_9", label: "EX-01 Excavation" }])
+  })
+
+  test("NOTHING in the verdict path can insert a pipeline_tasks row", () => {
+    // The structural proof, stronger than a spy: neither module can reach the
+    // table or a tenant transaction at all, so there is no code path -- taken
+    // or untaken -- that could mint a row.
+    for (const file of ["./src/lib/pipeline/dry-run.ts", "./src/lib/pipeline/verdict.ts"]) {
+      const source = readFileSync(file, "utf8")
+      expect(source).not.toContain("pipelineTasks")
+      expect(source).not.toContain("withTenantContext")
+    }
+  })
+})
+
+describe("B-07 -- a fully-resolved write is offered for confirmation, never run outright", () => {
+  const deps = depsFor({
+    "record 50% progress on ex-01": { functionId: "record_work_progress", fixedParams: { percent: 50, itemCode: "EX-01" } },
+  })
+
+  test("status 'ready' and confirmable true", async () => {
+    const proposal = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on EX-01" }, deps)
+    const v = toVerdictResult(proposal, "sub_2")
+    expect(v.status).toBe("ready")
+    expect(v.confirmable).toBe(true)
+    expect(v.missing).toEqual([])
+    // the card the client renders comes from the server's own field list
+    expect(v.schema?.primaryLabel).toBe("Save progress")
+  })
+})
+
+describe("B-07 -- a gap answers with a destination and is never confirmable", () => {
+  test("the sentence and the link", async () => {
+    const proposal = await dryRunSubmission(
+      { ...BASE, rawInput: "create a customer called ABC Ltd" },
+      depsFor({}, { reuseRepo: { findReuseHit: async () => null, recordReuseHit: async () => {} } })
+    )
+    const v = toVerdictResult(proposal, "sub_3")
+    expect(v.verdict).toBe("gap")
+    expect(v.confirmable).toBe(false)
+    expect(v.understood).toBeNull()
+    expect(v.links).toEqual([{ label: "Open Customers", route: "/customers" }])
+  })
+})
+
+describe("B-07 -- the per-segment verdict is never collapsed", () => {
+  test("an empty proposal set still returns a well-formed envelope", () => {
+    const v = toVerdictResult({ dryRun: true, proposals: [], status: "chat", verdict: "chat", kind: "ask", functionId: null, label: null, params: {}, missing: [], chain: null }, null)
+    expect(v.verdicts).toEqual([])
+    expect(v.status).toBe("chat")
+    expect(v.confirmable).toBe(false)
+  })
+
+  test("toVerdict maps one proposal on its own", () => {
+    const v = toVerdict({
+      segmentText: "hello",
+      status: "chat",
+      verdict: "chat",
+      kind: "ask",
+      functionId: null,
+      label: null,
+      params: {},
+      missing: [],
+      chain: null,
+    })
+    expect(v.understood).toBeNull()
+    expect(v.missing).toEqual([])
+  })
+})

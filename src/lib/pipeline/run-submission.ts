@@ -15,7 +15,7 @@
 // before deciding which to merge, and merging a segment that had ALREADY
 // EXECUTED would run its write a second time. Resolve everything, then
 // execute everything. ***
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { submissions, pipelineTasks, pillUsage, chainHistory } from "@/lib/db/schema";
 import { segment, rejoinCandidate, type Segment } from "./segment";
@@ -27,7 +27,8 @@ import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
 import { codeForParam, failureLogLine, isRetryableFailure, pipelineFailure, serialiseFailure, type PipelineFailure } from "./error-codes";
-import { dryRunSubmission as dryRun, type DryRunDeps, type DryRunResult } from "./dry-run";
+import { dryRunSubmission as dryRun, missingParamsFor, type DryRunDeps, type DryRunResult } from "./dry-run";
+import { toVerdictResult, type SubmissionVerdictResult } from "./verdict";
 import { makeChainOptionsRepo } from "@/lib/services/chain-options-service";
 import { assertAiProviderAllowed } from "@/lib/ai/adapter";
 import { createMemoryRecord } from "@/lib/services/memory-service";
@@ -502,6 +503,13 @@ export type RunDirectTaskInput = {
   note?: string;
   /** R48 gap-closure (2026-08-30, F089) -- see RunSubmissionInput.role. */
   role?: string | null;
+  /**
+   * R67 B-07: the confirm step runs against the submission the VERDICT was
+   * already recorded on, so one message leaves one row in
+   * compliance.submissions rather than a proposal row and a second execution
+   * row that look like two things the user asked for.
+   */
+  existingSubmissionId?: string;
 };
 
 export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmissionResult> {
@@ -515,19 +523,21 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     role: input.role,
   };
 
-  const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
-    const [row] = await db
-      .insert(submissions)
-      .values({
-        orgId: input.orgId,
-        projectId: input.projectId ?? null,
-        mode: input.mode,
-        rawInput: base.rawInput,
-        userId: input.userId,
-      })
-      .returning({ id: submissions.id });
-    return row.id;
-  });
+  const submissionId =
+    input.existingSubmissionId ??
+    (await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
+      const [row] = await db
+        .insert(submissions)
+        .values({
+          orgId: input.orgId,
+          projectId: input.projectId ?? null,
+          mode: input.mode,
+          rawInput: base.rawInput,
+          userId: input.userId,
+        })
+        .returning({ id: submissions.id });
+      return row.id;
+    }));
 
   // R65 Part D Phase 4 -- computed up front (functionWrites() doesn't depend
   // on validation success) so both the validation-failure return below and
@@ -880,7 +890,19 @@ async function updateTask(orgId: string, taskId: string, status: TaskOutcome["st
   await withTenantContext({ orgId }, (db) =>
     db
       .update(pipelineTasks)
-      .set({ status, result: (result as object | undefined) ?? null, error: failure ? serialiseFailure(failure) : null, updatedAt: new Date() })
+      .set({
+        status,
+        result: (result as object | undefined) ?? null,
+        error: failure ? serialiseFailure(failure) : null,
+        // R67 B-08 (drizzle/0528): the code and its parameters get real
+        // columns, so a failure can be counted and grouped in SQL instead of
+        // by parsing JSON out of a text column. `error_params` carries ONLY
+        // the business values a sentence interpolates -- never `debug`,
+        // which has no field on PipelineFailure at all.
+        errorCode: failure?.code ?? null,
+        errorParams: (failure?.context as object | undefined) ?? null,
+        updatedAt: new Date(),
+      })
       .where(eq(pipelineTasks.id, taskId))
   );
 }
@@ -953,7 +975,14 @@ export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunD
       if (!boq) return [];
       return boq.lines
         .filter((l) => l.childCount === 0)
-        .map((l) => ({ id: l.itemCode ?? l.id, label: l.itemCode ? `${l.itemCode} ${l.description}` : l.description }));
+        .map((l) => ({
+          id: l.itemCode ?? l.id,
+          label: l.itemCode ? `${l.itemCode} ${l.description}` : l.description,
+          // R67 B-07: the same line, addressed by its real id, so the verdict
+          // can offer chips the confirm step posts straight back as
+          // boqLineItemId -- no retyped code, no second lookup.
+          lineItemId: l.id,
+        }));
     },
     runRead: (task) => executeTask(task),
     providerAvailable: () => {
@@ -971,4 +1000,160 @@ export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunD
 export async function proposeSubmission(input: RunSubmissionInput): Promise<DryRunResult> {
   const deps = await makeDryRunDeps(input);
   return dryRun({ ...input, candidateFunctionIds: CANDIDATE_FUNCTION_IDS }, deps);
+}
+
+// ─── R67 B-07: THE VERDICT, AND THE CONFIRM THAT FOLLOWS IT ───────────────
+//
+// POST {rawInput} answers with what the server UNDERSTOOD and what it still
+// needs. It mints NO compliance.pipeline_tasks row -- which is the whole
+// point: the eleven "Needs you" rows the R66 walkthrough found were not
+// tasks, they were unanswered questions that had been recorded as blocked
+// work and counted in the Home badge.
+//
+// It DOES record the submission itself. That row is the audit trail of what
+// a person actually typed, it is what /api/v1/projexa/submissions has always
+// written, and it is what the confirm step reads back so that the server
+// never executes a function id a client simply asserted.
+
+export type SubmitVerdictResult = SubmissionVerdictResult & { submissionId: string };
+
+/**
+ * Which submission status a verdict leaves behind. `in_progress` means the
+ * ball is with the user (a proposal they have not confirmed); `chat` means
+ * the message is closed -- a question already answered, an acknowledgement,
+ * or a capability that is not wired.
+ */
+function submissionStatusForVerdict(v: SubmissionVerdictResult): "chat" | "in_progress" {
+  return v.verdicts.some((x) => x.status === "ready" || x.status === "needs_input") ? "in_progress" : "chat";
+}
+
+export async function submitForVerdict(input: RunSubmissionInput): Promise<SubmitVerdictResult> {
+  const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
+    const [row] = await db
+      .insert(submissions)
+      .values({
+        orgId: input.orgId,
+        projectId: input.projectId ?? null,
+        mode: input.mode,
+        selectedChain: (input.selectedChain as object | undefined) ?? null,
+        rawInput: input.rawInput,
+        userId: input.userId,
+      })
+      .returning({ id: submissions.id });
+    return row.id;
+  });
+
+  const proposal = await proposeSubmission(input);
+  const verdict = toVerdictResult(proposal, submissionId);
+  const classification = classifySubmission(verdict.verdicts.map((v) => v.verdict));
+
+  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+    db
+      .update(submissions)
+      .set({ status: submissionStatusForVerdict(verdict), classification })
+      .where(eq(submissions.id, submissionId))
+  );
+
+  console.info(
+    `[pipeline] submission=${submissionId} verdict=${verdict.verdict} status=${verdict.status} ` +
+      `missing=${verdict.missing.map((m) => m.field).join(",") || "-"} minted=0`
+  );
+
+  return { ...verdict, submissionId };
+}
+
+export type ConfirmSubmissionInput = {
+  orgId: string;
+  userId: string;
+  submissionId: string;
+  /** the function the client was shown. Checked against what the server re-derives. */
+  functionId?: string;
+  /** the answers to whatever the verdict said was missing. */
+  params?: Record<string, unknown>;
+  role?: string | null;
+};
+
+export type ConfirmSubmissionOutcome =
+  | { ok: true; result: RunSubmissionResult }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: "not_proposed"; failure: PipelineFailure }
+  | { ok: false; reason: "needs_input"; verdict: SubmissionVerdictResult };
+
+/**
+ * STEP TWO. The client posts {confirm:true, submissionId} and only now is
+ * anything executed.
+ *
+ * *** THE SERVER NEVER TRUSTS THE CLIENT'S FUNCTION ID. *** It re-derives the
+ * proposal from the submission's own stored rawInput -- the words the user
+ * actually typed -- and refuses if what the client echoes back does not
+ * match. Re-deriving costs nothing on the common path: a Level 0 phrase-map
+ * hit is deterministic and makes no model call, and a Level 1 resolution was
+ * already written to compliance.reuse_cache by the proposal, so the second
+ * pass is a cache hit (see reuse-cache.ts). What it buys is that a caller
+ * cannot smuggle an arbitrary write in behind a submission id that was
+ * proposed for something else.
+ *
+ * The client's `params` are merged OVER the proposal's -- they are the
+ * answers to what was missing -- and then re-checked, so a confirm that is
+ * still incomplete comes back as needs_input instead of failing inside a
+ * service.
+ */
+export async function confirmSubmission(input: ConfirmSubmissionInput): Promise<ConfirmSubmissionOutcome> {
+  const row = await withTenantContext({ orgId: input.orgId }, async (db) => {
+    const [found] = await db
+      .select({
+        id: submissions.id,
+        rawInput: submissions.rawInput,
+        mode: submissions.mode,
+        projectId: submissions.projectId,
+      })
+      .from(submissions)
+      .where(and(eq(submissions.id, input.submissionId), eq(submissions.orgId, input.orgId)))
+      .limit(1);
+    return found ?? null;
+  });
+  if (!row) return { ok: false, reason: "not_found" };
+
+  const base: RunSubmissionInput = {
+    orgId: input.orgId,
+    userId: input.userId,
+    mode: row.mode,
+    projectId: row.projectId,
+    rawInput: row.rawInput,
+    role: input.role,
+  };
+
+  const proposal = await proposeSubmission(base);
+  const first = proposal.proposals.find((p) => p.functionId) ?? null;
+  if (!first || !first.functionId) {
+    return { ok: false, reason: "not_proposed", failure: pipelineFailure("FUNCTION_NOT_AVAILABLE") };
+  }
+  if (input.functionId && input.functionId !== first.functionId) {
+    // The words no longer resolve to what the client was shown. Refuse
+    // rather than run the newer answer silently.
+    return { ok: false, reason: "not_proposed", failure: pipelineFailure("FUNCTION_NOT_AVAILABLE", [], { functionId: input.functionId }) };
+  }
+
+  const params: Record<string, unknown> = { ...first.params, ...(input.params ?? {}) };
+  const stillMissing = missingParamsFor(first.functionId, params, row.projectId);
+  if (stillMissing.length > 0) {
+    return {
+      ok: false,
+      reason: "needs_input",
+      verdict: toVerdictResult({ ...proposal, proposals: proposal.proposals.map((p) => (p === first ? { ...p, status: "needs_input", params, missing: stillMissing } : p)) }, row.id),
+    };
+  }
+
+  const result = await runDirectTask({
+    orgId: input.orgId,
+    userId: input.userId,
+    mode: row.mode,
+    projectId: (typeof params.projectId === "string" ? params.projectId : null) ?? row.projectId,
+    functionId: first.functionId,
+    params,
+    note: row.rawInput,
+    role: input.role,
+    existingSubmissionId: row.id,
+  });
+  return { ok: true, result };
 }

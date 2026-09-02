@@ -31,7 +31,16 @@ import { functionKind, functionLabel, functionSpec, type CardSchema, type Functi
 import { codeForParam, type PipelineErrorCode } from "./error-codes";
 import { NO_COMMENTARY_SENTENCE } from "@/lib/ai/refusal";
 
-export type DryRunOption = { id: string; label: string };
+/**
+ * A real choice, never "please retype it".
+ *
+ * `id` is what THIS surface's `missing[].name` expects (for a BOQ line that is
+ * the human item code, because the classifier's parameter is `itemCode`).
+ * `lineItemId` carries the underlying record's real id alongside it, so
+ * B-07's verdict -- which offers the same lines under the parameter
+ * `boqLineItemId` -- can resolve one from the other without a second query.
+ */
+export type DryRunOption = { id: string; label: string; lineItemId?: string };
 
 /** One parameter the user still has to answer, in words plus real choices. */
 export type DryRunMissing = {

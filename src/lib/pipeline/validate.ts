@@ -159,7 +159,11 @@ export function validate(candidate: ValidationCandidate, ctx: ValidationContext)
     for (const required of spec.requiredParams) {
       if (required.name === "projectId") continue; // handled by the project rule below
       if (isMissing(params[required.name])) {
-        return fail(pipelineFailure(required.code, [required.name]));
+        // R67 B-09/B-10: `missing` names the field in the D-03 vocabulary
+        // ("boqLine"), not the classifier's parameter ("itemCode"). Both
+        // callers of this result -- the projexa dictionary and the Fix chain
+        // -- key off that vocabulary.
+        return fail(pipelineFailure(required.code, [required.field ?? required.name]));
       }
     }
   }

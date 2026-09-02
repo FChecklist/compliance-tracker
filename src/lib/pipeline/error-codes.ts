@@ -51,6 +51,13 @@ export const PIPELINE_ERROR_CODES = [
   "DEPENDENCY_FAILED",
   // --- what went wrong on our side (never the user's fault) --------------
   "BACKEND_UNAVAILABLE",
+  // R67 B-08: distinct from BACKEND_UNAVAILABLE on purpose. The service DID
+  // answer -- it cancelled the query for taking too long (Postgres
+  // statement_timeout, set to 25 s in tenant-scoped.ts). That is a different
+  // fact for whoever is diagnosing it, and a different sentence for the user
+  // ("took too long" rather than "didn't answer"), even though both end in
+  // the same [Retry]. A CONNECTION timeout stays BACKEND_UNAVAILABLE.
+  "UPSTREAM_TIMEOUT",
   "INTERNAL_ERROR",
 ] as const;
 
@@ -88,6 +95,7 @@ const PICKER_BY_CODE: Readonly<Record<PipelineErrorCode, PickerHint>> = {
   READ_AS_QUESTION: "none",
   DEPENDENCY_FAILED: "none",
   BACKEND_UNAVAILABLE: "none",
+  UPSTREAM_TIMEOUT: "none",
   INTERNAL_ERROR: "none",
 };
 
@@ -180,8 +188,28 @@ export function isTransportErrorMessage(message: string): boolean {
  */
 export function normaliseThrownError(error: unknown): { failure: PipelineFailure; debug: string } {
   const debug = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-  const code: PipelineErrorCode = isTransportErrorMessage(debug) ? "BACKEND_UNAVAILABLE" : "INTERNAL_ERROR";
+  const code: PipelineErrorCode = isStatementTimeoutMessage(debug)
+    ? "UPSTREAM_TIMEOUT"
+    : isTransportErrorMessage(debug)
+      ? "BACKEND_UNAVAILABLE"
+      : "INTERNAL_ERROR";
   return { failure: pipelineFailure(code), debug };
+}
+
+/**
+ * R67 B-08 -- the ONE transport shape that is not "the service didn't
+ * answer": Postgres cancelling a query that exceeded statement_timeout
+ * (tenant-scoped.ts sets 25 s). The connection was fine and the server
+ * replied; the query was simply too slow. Checked BEFORE
+ * isTransportErrorMessage() because that predicate matches this text too --
+ * deliberately, so a build that has not adopted UPSTREAM_TIMEOUT still
+ * degrades to BACKEND_UNAVAILABLE rather than to INTERNAL_ERROR.
+ *
+ * A CONNECT_TIMEOUT is NOT this: nothing answered at all, so it stays
+ * BACKEND_UNAVAILABLE -- which is exactly what B-01's acceptance pins.
+ */
+export function isStatementTimeoutMessage(message: string): boolean {
+  return /canceling statement due to|statement timeout|query_canceled|57014/i.test(message);
 }
 
 /**
@@ -236,10 +264,24 @@ export function parseFailure(stored: string | null | undefined): PipelineFailure
  */
 export const RETRYABLE_ERROR_CODES: ReadonlySet<PipelineErrorCode> = new Set<PipelineErrorCode>([
   "BACKEND_UNAVAILABLE",
+  "UPSTREAM_TIMEOUT",
 ]);
 
 export function isRetryableFailure(code: PipelineErrorCode): boolean {
   return RETRYABLE_ERROR_CODES.has(code);
+}
+
+/**
+ * R67 B-08 -- the reverse of what updateTask() writes into the typed columns
+ * compliance.pipeline_tasks.error_code / error_params (drizzle/0528).
+ * Returns null for a row whose code column is empty or carries a value this
+ * build does not know, so GET falls back to parsing the serialised `error`
+ * object and, failing that, hands the client a legacy row to map itself.
+ */
+export function failureFromRow(code: string | null | undefined, params: unknown): PipelineFailure | null {
+  if (typeof code !== "string" || !(PIPELINE_ERROR_CODES as readonly string[]).includes(code)) return null;
+  const context = params && typeof params === "object" && !Array.isArray(params) ? (params as FailureContext) : undefined;
+  return pipelineFailure(code as PipelineErrorCode, [], context);
 }
 
 /**

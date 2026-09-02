@@ -74,7 +74,8 @@ function missingRequiredParam(task: ExecutableTask): PipelineFailure | null {
   for (const required of spec.requiredParams) {
     const value = required.name === "projectId" ? (task.projectId ?? task.params.projectId) : task.params[required.name];
     const empty = value === undefined || value === null || (typeof value === "string" && value.trim().length === 0);
-    if (empty) return pipelineFailure(required.code, [required.name]);
+    // R67 B-09/B-10: the D-03 vocabulary key, same as validate() reports.
+    if (empty) return pipelineFailure(required.code, [required.field ?? required.name]);
   }
   return null;
 }
@@ -90,11 +91,16 @@ function num(value: unknown): number | undefined {
 }
 
 async function executeRecordWorkProgress(task: ExecutableTask): Promise<ExecutionOutcome> {
-  const itemCode = task.params.itemCode;
+  const itemCode = str(task.params.itemCode);
+  // R67 B-07: the verdict offers the project's real BOQ lines as chips, so
+  // what comes back on confirm is a LINE ITEM ID, not a code the user
+  // retyped. Both are accepted; the id wins when both are present, because
+  // it is the one that cannot be ambiguous.
+  const boqLineItemId = str(task.params.boqLineItemId);
   const percent = task.params.percent;
-  const projectId = task.projectId;
-  if (typeof itemCode !== "string" || !itemCode) return { success: false, failure: pipelineFailure("BOQ_LINE_REQUIRED", ["itemCode"]) };
-  if (typeof percent !== "number") return { success: false, failure: pipelineFailure("VALUE_REQUIRED", ["percent"]) };
+  const projectId = task.projectId ?? str(task.params.projectId) ?? null;
+  if (!itemCode && !boqLineItemId) return { success: false, failure: pipelineFailure("BOQ_LINE_REQUIRED", ["boqLine"]) };
+  if (typeof percent !== "number") return { success: false, failure: pipelineFailure("VALUE_REQUIRED", ["value"]) };
   if (!projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
 
   return withTenantContext({ orgId: task.orgId, userId: task.userId }, async (db) => {
@@ -113,14 +119,25 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     // {version} -- pick a line") is true in both cases. `version` is null
     // when there is no BOQ, and the dictionary drops an empty slot.
     if (!boq) {
-      return { success: false, failure: pipelineFailure("BOQ_LINE_NOT_FOUND", ["itemCode"], { itemCode, version: null }) };
+      return { success: false, failure: pipelineFailure("BOQ_LINE_NOT_FOUND", ["itemCode"], { itemCode: itemCode ?? null, version: null }) };
     }
 
+    // Scoped to THIS project's BOQ either way, so a line item id posted from
+    // another project's chips resolves to nothing rather than to a write on
+    // the wrong project.
     const lineItem = await db.query.constructionBoqLineItems.findFirst({
-      where: and(eq(constructionBoqLineItems.boqId, boq.id), eq(constructionBoqLineItems.itemCode, itemCode)),
+      where: boqLineItemId
+        ? and(eq(constructionBoqLineItems.boqId, boq.id), eq(constructionBoqLineItems.id, boqLineItemId))
+        : and(eq(constructionBoqLineItems.boqId, boq.id), eq(constructionBoqLineItems.itemCode, itemCode!)),
     });
     if (!lineItem) {
-      return { success: false, failure: pipelineFailure("BOQ_LINE_NOT_FOUND", ["itemCode"], { itemCode, version: boq.version ?? null }) };
+      return {
+        success: false,
+        failure: pipelineFailure("BOQ_LINE_NOT_FOUND", [boqLineItemId ? "boqLineItemId" : "itemCode"], {
+          itemCode: itemCode ?? null,
+          version: boq.version ?? null,
+        }),
+      };
     }
 
     // T-WPR-15-1's invariant, checked BEFORE the write instead of letting
@@ -131,7 +148,9 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
       where: eq(constructionBoqLineItems.parentLineItemId, lineItem.id),
     });
     if (child) {
-      return { success: false, failure: pipelineFailure("BOQ_LINE_IS_PARENT", ["itemCode"], { itemCode }) };
+      // The line's own code, whichever way the caller addressed it, so the
+      // client's sentence can name it ("EX-00 is a parent line ...").
+      return { success: false, failure: pipelineFailure("BOQ_LINE_IS_PARENT", ["boqLine"], { itemCode: lineItem.itemCode ?? itemCode ?? null }) };
     }
 
     // construction_work_progress_entries.activity_id is NOT NULL, but this

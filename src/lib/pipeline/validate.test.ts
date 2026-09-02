@@ -143,7 +143,11 @@ describe("B-01 -- a missing declared parameter is asked for, in the closed vocab
     expect(r.valid).toBe(false);
     if (!r.valid) {
       expect(r.code).toBe("BOQ_LINE_REQUIRED");
-      expect(r.missing).toEqual(["itemCode"]);
+      // R67 B-09/B-10 narrowed this from the classifier's parameter name
+      // ("itemCode") to the D-03 vocabulary key. A NOT_FOUND still reports
+      // the parameter that carried the bad value -- that is a different
+      // fact, and the test above it asserts exactly that.
+      expect(r.missing).toEqual(["boqLine"]);
     }
   });
 

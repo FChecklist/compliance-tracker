@@ -48,6 +48,16 @@ export type RequiredParam = {
   /** the label the client shows when this one is what's missing */
   label: string;
   code: PipelineErrorCode;
+  /**
+   * R67 B-09/B-10 -- the D-03 VOCABULARY KEY this parameter answers to
+   * (project | boqLine | value | worker | material | task | date |
+   * boqVersion). `missing` reports this, not the parameter name, so the one
+   * rule the whole programme states -- "the client never sees a camelCase
+   * parameter name" -- holds even for a client that renders `missing`
+   * directly instead of going through its dictionary. Absent means the
+   * parameter's own name is already vocabulary enough.
+   */
+  field?: string;
 };
 
 /** B-05: the verb family, which decides what a submission's answer looks like. */
@@ -87,7 +97,7 @@ const SPEC_LIST: readonly FunctionSpec[] = [
     requiresProject: true,
     requiredParams: [
       { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
-      { name: "itemCode", label: "BOQ line", code: "BOQ_LINE_REQUIRED" },
+      { name: "itemCode", label: "BOQ line", code: "BOQ_LINE_REQUIRED", field: "boqLine" },
       { name: "percent", label: "Percent complete", code: "VALUE_REQUIRED" },
     ],
     card: {
