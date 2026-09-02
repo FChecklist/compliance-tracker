@@ -40,6 +40,94 @@ import { createMemoryRecord } from "@/lib/services/memory-service";
 // executor registry can never silently drift apart.
 const CANDIDATE_FUNCTION_IDS = EXECUTABLE_FUNCTION_IDS;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// R67 B-11 -- THE VALIDATION CONTEXT, BUILT IN ONE PLACE.
+//
+// FOUND WHILE WIRING B-11's `done` PAYLOAD TO POST /api/v1/projexa/tasks, and
+// it is a real break, not a tidy-up: GET /api/v1/projexa/chain-options hands
+// the client `params` containing the BOQ line's RECORD ID (that is the whole
+// point of offering chips instead of asking the user to retype a code), and
+// B-07's verdict does the same. Both call sites below then built a
+// ValidationContext with `boqLineItemIds: new Set()`, and validate() refuses
+// ANY boqLineItemId that is not in that set -- so every chain the server
+// itself offered came back BOQ_LINE_NOT_FOUND on submit, for ever. The
+// comment that justified the empty set ("the executor re-checks it anyway")
+// is true of the EXECUTOR, but validate() runs first and never got that far.
+//
+// So the facts are resolved for real, from THE SAME read chain-options uses
+// (chain-options-service's latestBoqLines -- one place that knows what "this
+// project's latest BOQ" means, with the same version DESC / createdAt DESC
+// tiebreaker executor.ts applies inside its own transaction). The executor's
+// re-check is untouched: this makes the user's answer legible BEFORE a task
+// is minted, it does not become the authority.
+export type BoqValidationFacts = {
+  /** boq_line_item ids that exist in THIS project's latest BOQ. */
+  lineItemIds: ReadonlySet<string>;
+  /** item codes ("EX-01") in that same BOQ. */
+  itemCodes: ReadonlySet<string>;
+  /** the version label the client's sentence names ("v2"), null when there is no BOQ. */
+  version: string | null;
+};
+
+/**
+ * Does this candidate name a BOQ line at all? Only then is the read below
+ * worth a round trip -- "show me the dashboard" must not pay for a BOQ query.
+ */
+export function referencesBoqLine(params: Record<string, unknown>): boolean {
+  for (const key of ["boqLineItemId", "itemCode"]) {
+    const value = params[key];
+    if (typeof value === "string" && value.trim().length > 0) return true;
+  }
+  return false;
+}
+
+/**
+ * ONE definition of the context every validate() call in this file gets.
+ * `boq` is null when this submission never named a line, and the two BOQ
+ * checks in validate.ts are then skipped exactly as they were before -- an
+ * absent fact is not a failed check.
+ */
+export function buildValidationContext(args: {
+  projectId: string | null;
+  projectLabel: string | null;
+  boq: BoqValidationFacts | null;
+}): ValidationContext {
+  return {
+    candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
+    boqLineItemIds: args.boq?.lineItemIds ?? new Set<string>(),
+    ...(args.boq ? { boqItemCodes: args.boq.itemCodes, boqVersion: args.boq.version } : {}),
+    userPermittedFunctionIds: new Set(CANDIDATE_FUNCTION_IDS),
+    reachableProjectIds: args.projectId ? new Set([args.projectId]) : new Set<string>(),
+    // R67 B-02: the project the composer's top rail already had.
+    submissionProjectId: args.projectId ?? null,
+    projectLabel: args.projectLabel,
+  };
+}
+
+/**
+ * The read, memoised per run: a submission with three progress segments asks
+ * the database once, not three times (the /scope N+1 lesson).
+ */
+function makeBoqFactsResolver(orgId: string, userId: string, projectId: string | null) {
+  let pending: Promise<BoqValidationFacts> | null = null;
+  return async (params: Record<string, unknown>): Promise<BoqValidationFacts | null> => {
+    if (!projectId || !referencesBoqLine(params)) return null;
+    pending ??= (async () => {
+      const boq = await makeChainOptionsRepo({ orgId, userId }).latestBoqLines(projectId);
+      // A project with NO BOQ still returns facts, with empty sets: "the line
+      // you named is not there" is true either way, and it is the same answer
+      // executeRecordWorkProgress gives when it finds no BOQ.
+      if (!boq) return { lineItemIds: new Set<string>(), itemCodes: new Set<string>(), version: null };
+      return {
+        lineItemIds: new Set(boq.lines.map((l) => l.id)),
+        itemCodes: new Set(boq.lines.map((l) => l.itemCode).filter((c): c is string => typeof c === "string" && c.length > 0)),
+        version: `v${boq.version}`,
+      };
+    })();
+    return pending;
+  };
+}
+
 export type RunSubmissionInput = {
   orgId: string;
   userId: string;
@@ -245,6 +333,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   const reuseRepo = makeReuseCacheRepo(input.orgId, input.userId);
   const chainRepo = makeChainRepo(input.orgId);
   const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
+  const boqFacts = makeBoqFactsResolver(input.orgId, input.userId, input.projectId ?? null);
   let l0Hits = 0;
   let resolvedCount = 0;
 
@@ -311,18 +400,15 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       continue;
     }
 
-    const validationCtx: ValidationContext = {
-      candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
-      // boqLineItemId existence is re-checked for real inside executor.ts's
-      // own DB query regardless, so nothing here trusts an unverified id
-      // through to a write.
-      boqLineItemIds: new Set(),
-      userPermittedFunctionIds: new Set(CANDIDATE_FUNCTION_IDS),
-      reachableProjectIds: input.projectId ? new Set([input.projectId]) : new Set(),
-      // R67 B-02: the project the composer's top rail already had.
-      submissionProjectId: input.projectId ?? null,
+    // R67 B-11: the real BOQ facts, read once per submission and only when a
+    // segment actually names a line. boqLineItemId existence is still
+    // re-checked inside executor.ts's own transaction; this only lets the
+    // user be told before a task is minted.
+    const validationCtx: ValidationContext = buildValidationContext({
+      projectId: input.projectId ?? null,
       projectLabel: rootLabel,
-    };
+      boq: await boqFacts(c.params),
+    });
 
     const v = validate({ functionId: c.functionId, params: c.params }, validationCtx);
     if (!v.valid) {
@@ -553,18 +639,20 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
 
   const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
 
-  const validationCtx: ValidationContext = {
-    candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
-    boqLineItemIds: new Set(),
-    userPermittedFunctionIds: new Set(CANDIDATE_FUNCTION_IDS),
-    reachableProjectIds: input.projectId ? new Set([input.projectId]) : new Set(),
-    // R67 B-02: THE PILL PATH IS WHERE "Review Budget -- blocked -- no
-    // project resolved for this task" was reproduced in every budget
-    // screenshot. The rail's project is in the POST body; this is where it
-    // finally reaches the candidate's params.
-    submissionProjectId: input.projectId ?? null,
+  // R67 B-02: THE PILL PATH IS WHERE "Review Budget -- blocked -- no project
+  // resolved for this task" was reproduced in every budget screenshot. The
+  // rail's project is in the POST body; buildValidationContext is where it
+  // finally reaches the candidate's params.
+  //
+  // R67 B-11: it is ALSO the path a finished chain-options chain posts back
+  // to ({functionId, params} with the BOQ line addressed by its record id),
+  // so the BOQ facts below are what stop the server refusing the very chips
+  // it offered.
+  const validationCtx: ValidationContext = buildValidationContext({
+    projectId: input.projectId ?? null,
     projectLabel: rootLabel,
-  };
+    boq: await makeBoqFactsResolver(input.orgId, input.userId, input.projectId ?? null)(params),
+  });
   const v = validate({ functionId: input.functionId, params }, validationCtx);
   if (!v.valid) {
     const line = failureLogLine(v);

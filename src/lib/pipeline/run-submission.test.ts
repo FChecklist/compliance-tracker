@@ -349,3 +349,90 @@ describe("B-07 -- the per-segment verdict is never collapsed", () => {
     expect(v.missing).toEqual([])
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R67 B-11 -- the chain the server itself offered must be executable.
+//
+// GET /api/v1/projexa/chain-options ends a finished chain with
+// `params: {projectId, boqLineItemId, itemCode, percent}` and calls them
+// "what POST /api/v1/projexa/tasks receives". Both run paths in
+// run-submission.ts used to build their ValidationContext with
+// `boqLineItemIds: new Set()`, and validate() refuses ANY boqLineItemId that
+// is not in that set -- so the record id the user picked from the server's
+// own chips came back BOQ_LINE_NOT_FOUND every single time.
+//
+// buildValidationContext() is the one place both paths now build it, so this
+// exercises the REAL composition (buildValidationContext -> the real
+// validate()) rather than a re-statement of it.
+// ═══════════════════════════════════════════════════════════════════════════
+import { buildValidationContext, referencesBoqLine } from "./run-submission"
+import { validate } from "./validate"
+
+describe("B-11 -- a BOQ line picked from the server's own chips validates", () => {
+  const FACTS = {
+    lineItemIds: new Set(["line_9"]),
+    itemCodes: new Set(["EX-01"]),
+    version: "v2",
+  }
+  const CANDIDATE = {
+    functionId: "record_work_progress",
+    params: { projectId: "p1", boqLineItemId: "line_9", itemCode: "EX-01", percent: 40 },
+  }
+
+  test("the regression: the id the chips offered is accepted, not refused", () => {
+    const ctx = buildValidationContext({ projectId: "p1", projectLabel: "Cedar Heights Villa - Phase 1", boq: FACTS })
+    const r = validate(CANDIDATE, ctx)
+    expect(r.valid).toBe(true)
+  })
+
+  test("an empty fact set -- the old hardcoded value -- is what used to refuse it", () => {
+    const ctx = buildValidationContext({
+      projectId: "p1",
+      projectLabel: null,
+      boq: { lineItemIds: new Set(), itemCodes: new Set(), version: null },
+    })
+    const r = validate(CANDIDATE, ctx)
+    expect(r.valid).toBe(false)
+    if (!r.valid) expect(r.code).toBe("BOQ_LINE_NOT_FOUND")
+  })
+
+  test("a line id from ANOTHER project is still refused, with the version for the sentence", () => {
+    const ctx = buildValidationContext({ projectId: "p1", projectLabel: "Cedar Heights Villa - Phase 1", boq: FACTS })
+    const r = validate({ ...CANDIDATE, params: { ...CANDIDATE.params, boqLineItemId: "line_elsewhere" } }, ctx)
+    expect(r.valid).toBe(false)
+    if (!r.valid) {
+      expect(r.code).toBe("BOQ_LINE_NOT_FOUND")
+      expect(r.context).toMatchObject({ project: "Cedar Heights Villa - Phase 1", version: "v2" })
+    }
+  })
+
+  test("an item code this project's BOQ does not have is refused BEFORE a task is minted", () => {
+    const ctx = buildValidationContext({ projectId: "p1", projectLabel: "Cedar Heights Villa - Phase 1", boq: FACTS })
+    const r = validate(
+      { functionId: "record_work_progress", params: { projectId: "p1", itemCode: "EX-99", percent: 40 } },
+      ctx
+    )
+    expect(r.valid).toBe(false)
+    if (!r.valid) expect(r.code).toBe("BOQ_LINE_NOT_FOUND")
+  })
+
+  test("with no BOQ facts read at all, neither BOQ check runs -- an absent fact is not a failed check", () => {
+    const ctx = buildValidationContext({ projectId: "p1", projectLabel: null, boq: null })
+    expect(ctx.boqItemCodes).toBeUndefined()
+    const r = validate({ functionId: "get_construction_project_dashboard", params: { projectId: "p1" } }, ctx)
+    expect(r.valid).toBe(true)
+  })
+})
+
+describe("B-11 -- the BOQ read is only paid for when a line is actually named", () => {
+  test("a candidate naming a line asks for it", () => {
+    expect(referencesBoqLine({ boqLineItemId: "line_9" })).toBe(true)
+    expect(referencesBoqLine({ itemCode: "EX-01" })).toBe(true)
+  })
+
+  test("a dashboard read never triggers a BOQ query", () => {
+    expect(referencesBoqLine({ projectId: "p1" })).toBe(false)
+    expect(referencesBoqLine({ itemCode: "   " })).toBe(false)
+    expect(referencesBoqLine({})).toBe(false)
+  })
+})
