@@ -80,7 +80,17 @@ active:
         src/app/api/v1/projexa/org-users/route.ts (new), scope/lines/route.ts (new),
           labour/import/route.ts (new), veri-meetings/route.ts and veri-meetings/[id]/pdf/
           route.ts (D-58/D-64/D-68)
-        docs/master/TEST_COVERAGE_GAP.md (regenerated)
+        src/lib/services/org-directory-service.ts -- filterDirectoryRows(), the unit-provable
+          third layer of "only ever this org's own people", plus `ids` resolution so a screen
+          holding an id can print a name (D-75/D-77)
+        src/lib/services/construction-progress-service.ts (+ .test.ts) -- getProgressEntry()
+          and updateProgressEntry(): one entry, readable and correctable, with the linked
+          schedule activities rolled up on the same transaction (D-77)
+        src/app/api/v1/construction/progress/[id]/route.ts (new) and its
+          v1/projexa/work-progress/[id] alias (new) -- the endpoint the work-progress object
+          page needs; nothing single-entry was reachable from PROJEXA before (D-77)
+        docs/master/TEST_COVERAGE_GAP.md (regenerated; verified still current after D-75/D-77,
+          which added no new service file)
 
       File scope in projexa: src/app/(app)/budgets/**, src/app/(app)/accounting/annual-budgets/**,
         src/app/(app)/scope/import/**, src/app/(app)/schedule/import/**,
@@ -91,9 +101,14 @@ active:
         src/components/{SearchSelect,ShareSheet,AttendeesField,OrgUserPicker,ImportScreen}.tsx
         (+ their .test.ts), src/components/screens/{ScreenFrame,ObjectScreen}.tsx (the D-09
         fork -- the ui-kit source is not on this machine and must not be edited in
-        node_modules), src/lib/{mom-draft,boq-line-options}.ts (+ tests),
-        src/app/api/{org/users,scope/lines,labour/import}/route.ts,
-        src/lib/nav-routes.ts, src/components/AppSidebar.tsx, messages/*.json.
+        node_modules), src/lib/{mom-draft,boq-line-options,boq-list,mom-format}.ts (+ tests),
+        src/app/api/{org/users,scope/lines,labour/import,work-progress/[id]}/route.ts,
+        src/app/(app)/work-progress/[id]/page.tsx and
+        src/components/WorkProgressEntryObjectClient.tsx (+ .test.ts) (D-77),
+        src/components/{ScheduleBoardClient,ScheduleSprintsClient,ScheduleTimesheetClient}.tsx
+        (only the ?from= tab a task's Back returns to, D-77),
+        src/lib/authz/api-write-policy.ts (the /work-progress/[id] tier, D-77),
+        src/lib/nav-routes.ts (+ .test.ts), src/components/AppSidebar.tsx, messages/*.json.
 
       NOT touching: drizzle/** (no migration authored by this lane), platform.* tables, the
       ui-kit (D-09: fork into projexa instead), src/lib/pipeline/**, or any guardrail
