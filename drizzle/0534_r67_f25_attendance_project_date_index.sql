@@ -15,5 +15,13 @@
 -- Hand-authored SQL with a journal entry, matching 0312-0315's convention for
 -- index-only migrations (drizzle-kit generate only emits what schema.ts
 -- declares, and this index is not declared there).
+--
+-- APPLY COST -- SCHEDULE THIS, DO NOT DISCOVER IT. Plain CREATE INDEX (not
+-- CONCURRENTLY) takes a SHARE lock on compliance.construction_attendance for
+-- the duration of the build, which blocks writes to it -- i.e. attendance
+-- submissions -- until it finishes. CONCURRENTLY is deliberately NOT used:
+-- drizzle's migrator wraps each file in a transaction and CREATE INDEX
+-- CONCURRENTLY cannot run inside one. Run this migration during a quiet
+-- window; reads are unaffected.
 CREATE INDEX IF NOT EXISTS idx_construction_attendance_project_date
   ON compliance.construction_attendance(project_id, attendance_date DESC);

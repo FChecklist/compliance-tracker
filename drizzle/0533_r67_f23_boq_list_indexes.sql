@@ -20,6 +20,17 @@
 -- Hand-authored SQL with a journal entry, matching 0312-0315's convention for
 -- index-only migrations (drizzle-kit generate only emits what schema.ts
 -- declares, and these indexes are not declared there).
+--
+-- APPLY COST -- SCHEDULE THIS, DO NOT DISCOVER IT. Plain CREATE INDEX (not
+-- CONCURRENTLY) takes a SHARE lock on each table for the duration of the
+-- build, which blocks INSERT/UPDATE/DELETE on
+-- compliance.construction_boq_line_items and compliance.construction_boqs
+-- until it finishes. construction_boq_line_items is the table most likely to
+-- have accumulated rows, precisely because it has had NO index since 0101.
+-- CONCURRENTLY is deliberately NOT used: drizzle's migrator wraps each file in
+-- a transaction and CREATE INDEX CONCURRENTLY cannot run inside one, so using
+-- it would mean taking these two statements out of the migration set
+-- altogether. Run this migration during a quiet window; reads are unaffected.
 CREATE INDEX IF NOT EXISTS idx_construction_boq_line_items_boq_id
   ON compliance.construction_boq_line_items(boq_id);
 
