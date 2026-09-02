@@ -7,6 +7,7 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
 import {
+  buildBoqListRows,
   computeHierarchicalAmount, deriveLineItemQuantityAndRate, diffLineItems, computeTotalVariation, findScopeReductionViolations,
   resolveProgressByLineItem, toLineItemInput,
   ServiceError, type BoqLineItemInput, type BoqLineItemRow, type ChangedLineItem,
@@ -408,5 +409,117 @@ describe("toLineItemInput -- copy-forward round-trip for create-with-reference",
     const mapped = persisted.map((item) => toLineItemInput(item, new Map()))
     expect(mapped).toHaveLength(153)
     expect(mapped.every((i) => i.quantity === 10 && i.rate === 5)).toBe(true)
+  })
+})
+
+
+// R67 F-04 (R-060/R-063). buildBoqListRows is the pure half of listBoqs(): it
+// turns "every BOQ in the project" + "every line item across all of them"
+// into the list rows, WITH the two variation figures the /scope table shows.
+//
+// What it replaces: the route ran Promise.all(boqs.map(getBoq)) -- one
+// withTenantContext TRANSACTION per revision against a five-connection pool --
+// and the browser then fired one GET /api/scope/{id}/compare per revision on
+// top (eight calls at 0.58-1.44 s for an eight-revision project). The figures
+// are computed here with the SAME diffLineItems + computeTotalVariation pair
+// compareBoq() uses, so a list cell and the compare screen cannot disagree.
+function boq(id: string, parentBoqId: string | null = null) {
+  return { id, parentBoqId }
+}
+
+function itemAt(boqId: string, itemCode: string, amount: number, extras: Partial<BoqLineItemRow> = {}): BoqLineItemRow {
+  return row({ id: `${boqId}-${itemCode}`, boqId, itemCode, amount: String(amount), ...extras })
+}
+
+describe("buildBoqListRows -- variation per revision, computed in one pass", () => {
+  test("a baseline BOQ (no parent) reports null for BOTH figures, never 0", () => {
+    const rows = buildBoqListRows([boq("rev0")], [itemAt("rev0", "A", 1000)])
+
+    expect(rows).toHaveLength(1)
+    // "no baseline to differ from" is not "no change" -- a zero here would be
+    // rendered as a real, confirmed figure.
+    expect(rows[0].totalVariation).toBeNull()
+    expect(rows[0].totalVariationVsOriginal).toBeNull()
+  })
+
+  test("each row carries its own line items, grouped from the single flat query", () => {
+    const rows = buildBoqListRows(
+      [boq("rev1", "rev0"), boq("rev0")],
+      [itemAt("rev0", "A", 1000), itemAt("rev1", "A", 1200), itemAt("rev1", "B", 300)]
+    )
+
+    const byId = new Map(rows.map((r) => [r.id, r]))
+    expect(byId.get("rev0")!.lineItems.map((i) => i.itemCode)).toEqual(["A"])
+    expect(byId.get("rev1")!.lineItems.map((i) => i.itemCode)).toEqual(["A", "B"])
+    // withComputedRate is still applied, same as getBoq()'s own shape
+    expect(byId.get("rev1")!.lineItems[0]).toHaveProperty("computedBudget")
+  })
+
+  test("totalVariation is the change against the IMMEDIATE parent", () => {
+    // rev1 raises A by 200 and adds B worth 300 => +500 vs rev0
+    const rows = buildBoqListRows(
+      [boq("rev1", "rev0"), boq("rev0")],
+      [
+        itemAt("rev0", "A", 1000, { quantity: "10", rate: "100" }),
+        itemAt("rev1", "A", 1200, { quantity: "10", rate: "120" }),
+        itemAt("rev1", "B", 300, { quantity: "3", rate: "100" }),
+      ]
+    )
+
+    expect(rows.find((r) => r.id === "rev1")!.totalVariation).toBe(500)
+  })
+
+  test("totalVariationVsOriginal walks the chain back to Rev0, not just one hop", () => {
+    // rev0 A=1000 -> rev1 A=1200 (+200) -> rev2 A=1500 (+300)
+    const rows = buildBoqListRows(
+      [boq("rev2", "rev1"), boq("rev1", "rev0"), boq("rev0")],
+      [
+        itemAt("rev0", "A", 1000, { quantity: "10", rate: "100" }),
+        itemAt("rev1", "A", 1200, { quantity: "10", rate: "120" }),
+        itemAt("rev2", "A", 1500, { quantity: "10", rate: "150" }),
+      ]
+    )
+
+    const rev2 = rows.find((r) => r.id === "rev2")!
+    expect(rev2.totalVariation).toBe(300) // vs rev1
+    expect(rev2.totalVariationVsOriginal).toBe(500) // vs rev0
+  })
+
+  test("the figure equals what compareBoq() would return for the same pair", () => {
+    const previous = [itemAt("rev0", "A", 1000, { quantity: "10", rate: "100" })]
+    const current = [itemAt("rev1", "A", 800, { quantity: "8", rate: "100" })]
+
+    const rows = buildBoqListRows([boq("rev1", "rev0"), boq("rev0")], [...previous, ...current])
+    const viaCompare = computeTotalVariation(diffLineItems(previous, current))
+
+    expect(rows.find((r) => r.id === "rev1")!.totalVariation).toBe(viaCompare)
+    expect(viaCompare).toBe(-200)
+  })
+
+  test("a parent outside this project's list degrades to null instead of guessing", () => {
+    const rows = buildBoqListRows([boq("rev1", "not-in-this-project")], [itemAt("rev1", "A", 1200)])
+
+    expect(rows[0].totalVariation).toBeNull()
+    expect(rows[0].totalVariationVsOriginal).toBeNull()
+  })
+
+  test("a cyclic parent chain terminates instead of hanging the list", () => {
+    // parentBoqId is plain data; a loop must not spin forever.
+    const rows = buildBoqListRows(
+      [boq("a", "b"), boq("b", "a")],
+      [itemAt("a", "A", 100), itemAt("b", "A", 100)]
+    )
+
+    expect(rows).toHaveLength(2)
+    for (const r of rows) expect(typeof r.totalVariation === "number" || r.totalVariation === null).toBe(true)
+  })
+
+  test("a revision with no line items at all still produces a row", () => {
+    const rows = buildBoqListRows([boq("rev1", "rev0"), boq("rev0")], [itemAt("rev0", "A", 1000)])
+
+    const rev1 = rows.find((r) => r.id === "rev1")!
+    expect(rev1.lineItems).toEqual([])
+    // every rev0 line removed => the full baseline amount, negative
+    expect(rev1.totalVariation).toBe(-1000)
   })
 })

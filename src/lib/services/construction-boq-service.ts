@@ -394,9 +394,40 @@ function withComputedRate(item: typeof constructionBoqLineItems.$inferSelect) {
   return { ...item, computedRate: computedRate(item), computedBudget: computedBudget(item) }
 }
 
+/**
+ * R67 F-04 (R-060/R-063). Every BOQ in a project, WITH its line items and its
+ * two variation figures, in ONE transaction and one grouped line-item query.
+ *
+ * What this replaces, on both sides of the wire:
+ *
+ *  - Server: v1/construction/boq/route.ts used to run
+ *    `Promise.all(boqs.map(getBoq))`, and getBoq() opens its OWN
+ *    withTenantContext transaction -- an N+1 of TRANSACTIONS, all concurrent,
+ *    against tenant-scoped.ts's five-connection app_runtime pool. A project
+ *    with eight revisions asked for eight simultaneous connections on top of
+ *    the one this request already held.
+ *  - Client: ScopeClient then fired GET /api/scope/{id}/compare once per
+ *    revision to fill the "Variation vs. prior" column -- eight more calls at
+ *    0.58-1.44 s each, 22 requests and 7.7 s to network idle, for a screen the
+ *    backend itself answers in 652-781 ms.
+ *
+ * The variation arithmetic is NOT reimplemented here: it reuses the exact
+ * `diffLineItems` + `computeTotalVariation` pair compareBoq() uses, run in
+ * memory over line items already loaded, so a row's figure and the compare
+ * screen's figure cannot disagree. /compare stays as-is for the detail screen,
+ * which also needs added/removed/changed and the scope-reduction warnings --
+ * that is a genuinely bigger answer than a list row needs.
+ *
+ * Both figures are null (never 0) when they do not apply: Rev0 has no prior
+ * and no original to differ from, and "no baseline" is not "no change".
+ * totalVariationVsOriginal walks the parentBoqId chain to the root of THIS
+ * project's revision chain, and is cycle-guarded -- parentBoqId is plain
+ * data, and a self-referencing or looped chain must degrade to a null cell,
+ * never hang the list.
+ */
 export async function listBoqs(ctx: { orgId: string }, projectId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.constructionBoqs.findMany({
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boqs = await db.query.constructionBoqs.findMany({
       where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
       // Point 177/E-116 fix: version DESC alone has no stable tiebreaker when a
       // project has two or more INDEPENDENT (non-revision-chain) BOQs at the
@@ -408,7 +439,70 @@ export async function listBoqs(ctx: { orgId: string }, projectId: string) {
       // and matches the intuitive meaning of "latest" when versions tie.
       orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)],
     })
-  )
+    if (boqs.length === 0) return []
+
+    // ONE query for every revision's lines, then grouped in memory -- not one
+    // query (nor one transaction) per revision.
+    const allLineItems = await db.query.constructionBoqLineItems.findMany({
+      where: inArray(constructionBoqLineItems.boqId, boqs.map((b) => b.id)),
+    })
+
+    return buildBoqListRows(boqs, allLineItems)
+  })
+}
+
+/**
+ * The pure, DB-free half of listBoqs() -- grouping + the two variation
+ * figures -- extracted so it is independently unit-testable without a live
+ * database, exactly as diffLineItems/computeHierarchicalAmount/
+ * resolveProgressByLineItem already are in this file.
+ */
+export function buildBoqListRows<B extends { id: string; parentBoqId: string | null }>(
+  boqs: B[],
+  allLineItems: BoqLineItemRow[]
+) {
+  const itemsByBoqId = new Map<string, BoqLineItemRow[]>()
+  for (const item of allLineItems) {
+    const list = itemsByBoqId.get(item.boqId)
+    if (list) list.push(item)
+    else itemsByBoqId.set(item.boqId, [item])
+  }
+
+  const boqById = new Map(boqs.map((b) => [b.id, b]))
+
+  function originalBoqId(startId: string): string {
+    let currentId = startId
+    const seen = new Set<string>([startId])
+    for (;;) {
+      const parentId = boqById.get(currentId)?.parentBoqId
+      // Stops at a null parent, a parent outside this project's list, or a
+      // cycle -- all three mean "this is as far back as we can honestly go".
+      // parentBoqId is plain data: a looped chain must degrade to a null
+      // cell, never hang the list.
+      if (!parentId || !boqById.has(parentId) || seen.has(parentId)) return currentId
+      seen.add(parentId)
+      currentId = parentId
+    }
+  }
+
+  function variationBetween(baselineBoqId: string | undefined, currentItems: BoqLineItemRow[]): number | null {
+    if (!baselineBoqId) return null
+    return computeTotalVariation(diffLineItems(itemsByBoqId.get(baselineBoqId) ?? [], currentItems))
+  }
+
+  return boqs.map((boq) => {
+    const lineItems = itemsByBoqId.get(boq.id) ?? []
+    const rootId = originalBoqId(boq.id)
+    return {
+      ...boq,
+      lineItems: lineItems.map(withComputedRate),
+      totalVariation: variationBetween(
+        boq.parentBoqId && boqById.has(boq.parentBoqId) ? boq.parentBoqId : undefined,
+        lineItems
+      ),
+      totalVariationVsOriginal: rootId === boq.id ? null : variationBetween(rootId, lineItems),
+    }
+  })
 }
 
 export async function getBoq(ctx: { orgId: string }, boqId: string) {
