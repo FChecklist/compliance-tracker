@@ -203,3 +203,55 @@ describe("B-11 -- vocabularyKeyForParam maps a parameter to the key a client ren
     expect(vocabularyKeyForParam("category")).toBe("category");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R67 FIX PASS -- a service's own 4xx, and what is safe to put in a payload
+// ═══════════════════════════════════════════════════════════════════════════
+import { codeForServiceError, isRetryableFailure, revealsInternals } from "./error-codes";
+
+describe("FIX PASS -- codeForServiceError maps a status, never a sentence", () => {
+  test("the three statuses the registered writes actually raise", () => {
+    expect(codeForServiceError(404)).toBe("RECORD_NOT_FOUND");
+    expect(codeForServiceError(409)).toBe("ALREADY_RECORDED");
+    expect(codeForServiceError(403)).toBe("NOT_PERMITTED");
+  });
+
+  test("401 is the same refusal as 403", () => {
+    expect(codeForServiceError(401)).toBe("NOT_PERMITTED");
+  });
+
+  test("any other 4xx is REQUEST_REJECTED, never INTERNAL_ERROR", () => {
+    for (const status of [400, 402, 405, 410, 422, 429]) {
+      expect(codeForServiceError(status)).toBe("REQUEST_REJECTED");
+    }
+  });
+
+  test("every code it can return is in the closed set, and none of them is retryable", () => {
+    for (const status of [400, 401, 403, 404, 409, 422]) {
+      const code = codeForServiceError(status);
+      expect(PIPELINE_ERROR_CODES as readonly string[]).toContain(code);
+      // A 4xx says something about the REQUEST. Recording it as `waiting`
+      // and offering [Retry] would promise the user that sending the same
+      // thing again could work.
+      expect(isRetryableFailure(code)).toBe(false);
+    }
+  });
+});
+
+describe("FIX PASS -- revealsInternals is narrower than isTransportErrorMessage", () => {
+  test("the R66 string is caught: a driver errno and a host:port", () => {
+    expect(revealsInternals("write CONNECT_TIMEOUT 3.109.171.244:6543")).toBe(true);
+    expect(revealsInternals("connect ECONNREFUSED db.example.supabase.co:5432")).toBe(true);
+  });
+
+  test("an ordinary business sentence carrying a three-digit number is NOT internal", () => {
+    // isTransportErrorMessage's \b5\d\d\b clause is right for classifying a
+    // thrown driver error and wrong for deciding what a stored sentence may
+    // show. Both behaviours asserted, so the difference cannot be "fixed"
+    // by accident.
+    expect(isTransportErrorMessage("line 512 not found")).toBe(true);
+    expect(revealsInternals("line 512 not found")).toBe(false);
+    expect(revealsInternals("itemCode is required")).toBe(false);
+    expect(revealsInternals("no project resolved for this task")).toBe(false);
+  });
+});

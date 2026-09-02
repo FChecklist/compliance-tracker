@@ -44,6 +44,19 @@ export const PIPELINE_ERROR_CODES = [
   "BOQ_LINE_IS_PARENT",
   "PROJECT_NOT_REACHABLE",
   "VALUE_OUT_OF_RANGE",
+  // R67 FIX PASS -- what a SERVICE refused, in its own 4xx vocabulary. Every
+  // executor below calls a real service (recordAttendance, createBoqRevision,
+  // createMeeting, ...) and those services throw ServiceError with an honest
+  // status for an expected business condition: 404 "Roster entry not found",
+  // 409 "Attendance already recorded for this worker on this date". Before
+  // these three codes existed, executeTask()'s catch sent every one of them
+  // through normaliseThrownError(), which only recognises TRANSPORT shapes --
+  // so a duplicate the user can never fix by retrying came out as
+  // INTERNAL_ERROR and the client offered [Retry]. A 4xx is a statement about
+  // the request, not about our infrastructure, and it is never retryable.
+  "RECORD_NOT_FOUND",
+  "ALREADY_RECORDED",
+  "REQUEST_REJECTED",
   // --- what this account/workspace may not do ----------------------------
   "FUNCTION_NOT_AVAILABLE",
   "NOT_PERMITTED",
@@ -90,6 +103,12 @@ const PICKER_BY_CODE: Readonly<Record<PipelineErrorCode, PickerHint>> = {
   BOQ_LINE_IS_PARENT: "boq-line",
   PROJECT_NOT_REACHABLE: "project",
   VALUE_OUT_OF_RANGE: "value",
+  // A service's 4xx names no single field the user can re-pick -- the record
+  // it refused was already chosen from a real list -- so there is no picker
+  // to load. The client still offers a destination rather than a [Retry].
+  RECORD_NOT_FOUND: "none",
+  ALREADY_RECORDED: "none",
+  REQUEST_REJECTED: "none",
   FUNCTION_NOT_AVAILABLE: "none",
   NOT_PERMITTED: "none",
   READ_AS_QUESTION: "none",
@@ -231,17 +250,43 @@ export function vocabularyKeyForParam(param: string): string {
  * stable class. The `\b5\d\d\b` clause catches an upstream HTTP 5xx that a
  * fetch-based service surfaced as text.
  */
+const ERRNO_PATTERN = /CONNECT_TIMEOUT|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND|EPIPE|EAI_AGAIN/i;
+/**
+ * host:port -- an IPv4 address or a hostname with a port, e.g.
+ * "3.109.171.244:6543" or "db.example.supabase.co:5432".
+ */
+const HOST_PORT_PATTERN = /(?:\d{1,3}\.){3}\d{1,3}:\d{2,5}|[a-z0-9.-]+\.[a-z]{2,}:\d{2,5}/i;
+
 const TRANSPORT_PATTERNS: readonly RegExp[] = [
-  /CONNECT_TIMEOUT|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND|EPIPE|EAI_AGAIN/i,
+  ERRNO_PATTERN,
   /\b5\d\d\b/,
   /statement timeout|connection terminated|connection closed|timeout exceeded/i,
-  // host:port -- an IPv4 address or a hostname with a port, e.g.
-  // "3.109.171.244:6543" or "db.example.supabase.co:5432".
-  /(?:\d{1,3}\.){3}\d{1,3}:\d{2,5}|[a-z0-9.-]+\.[a-z]{2,}:\d{2,5}/i,
+  HOST_PORT_PATTERN,
 ];
 
 export function isTransportErrorMessage(message: string): boolean {
   return TRANSPORT_PATTERNS.some((re) => re.test(message));
+}
+
+/**
+ * R67 FIX PASS -- "is this stored string safe to put in a JSON payload a
+ * browser receives?", which is a NARROWER question than "is this a transport
+ * error?".
+ *
+ * compliance.pipeline_tasks holds rows written long before B-01, and their
+ * `error` column holds free English -- including the R66 walkthrough's
+ * "write CONNECT_TIMEOUT 3.109.171.244:6543". GET /api/v1/projexa/tasks must
+ * never ship that internal address to a browser, even in a field nothing
+ * renders. It must also not over-reach: isTransportErrorMessage()'s
+ * `\b5\d\d\b` clause is right for classifying a THROWN driver error and
+ * wrong here, because an ordinary stored sentence like "line 512 not found"
+ * would trip it and be mis-told to the user as "the service didn't answer".
+ *
+ * So this asks only about the two shapes that genuinely disclose internals:
+ * a driver errno and a host:port.
+ */
+export function revealsInternals(message: string): boolean {
+  return ERRNO_PATTERN.test(message) || HOST_PORT_PATTERN.test(message);
 }
 
 /**
@@ -257,6 +302,25 @@ export function normaliseThrownError(error: unknown): { failure: PipelineFailure
       ? "BACKEND_UNAVAILABLE"
       : "INTERNAL_ERROR";
   return { failure: pipelineFailure(code), debug };
+}
+
+/**
+ * R67 FIX PASS -- A SERVICE'S OWN 4xx, IN THE CLOSED VOCABULARY.
+ *
+ * Keyed on the STATUS the service chose, never on its message text: parsing
+ * an English sentence back into a code is precisely the drift D-03 exists to
+ * remove, and the status is the field every one of the ~137 `throw new
+ * ServiceError(msg, n)` call sites already fills in deliberately.
+ *
+ * Only ever called for status < 500. A 5xx from a service is a system
+ * failure and belongs to normaliseThrownError() with the rest of the
+ * transport shapes.
+ */
+export function codeForServiceError(status: number): PipelineErrorCode {
+  if (status === 401 || status === 403) return "NOT_PERMITTED";
+  if (status === 404) return "RECORD_NOT_FOUND";
+  if (status === 409) return "ALREADY_RECORDED";
+  return "REQUEST_REJECTED";
 }
 
 /**

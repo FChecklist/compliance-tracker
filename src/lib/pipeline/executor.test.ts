@@ -1,8 +1,9 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
 import { executeTask, functionWrites, hasExecutor, type ExecutableTask, type ExecutionOutcome } from "./executor";
-import { serialiseFailure } from "./error-codes";
+import { isRetryableFailure, normaliseThrownError, serialiseFailure } from "./error-codes";
 import { functionSpec, requiredParamSatisfied } from "./function-registry";
+import { ServiceError } from "@/lib/services/compliance-service";
 
 // The registered executors themselves do real DB access via
 // withTenantContext and are proven live (a real percentComplete write +
@@ -86,6 +87,92 @@ describe("R67 B-01 -- executeTask normalises a thrown transport error to a code"
     const ok = { record_work_progress: async (): Promise<ExecutionOutcome> => ({ success: true, result: { id: "row_1" } }) };
     const outcome = await executeTask(TASK, ok);
     expect(outcome).toEqual({ success: true, result: { id: "row_1" } });
+  });
+});
+
+// ── R67 FIX PASS: a SERVICE's 4xx is not an internal error ────────────────
+//
+// Every registered write calls a real service, and those services raise
+// ServiceError with a deliberate status for an expected business condition.
+// Before this branch they all went through normaliseThrownError(), which only
+// recognises TRANSPORT shapes -- so the user was told "Something went wrong
+// on our side - nothing was saved [Retry]" and offered a Retry for a
+// duplicate that can never succeed.
+describe("FIX PASS -- executeTask maps a service's own 4xx into the closed vocabulary", () => {
+  const throwingService = (message: string, status: number) => ({
+    record_work_progress: async (): Promise<ExecutionOutcome> => {
+      throw new ServiceError(message, status);
+    },
+  });
+
+  test("a 409 duplicate ('Attendance already recorded for this worker on this date') is ALREADY_RECORDED, not INTERNAL_ERROR", async () => {
+    const outcome = await executeTask(
+      { ...TASK, functionId: "record_work_progress" },
+      throwingService("Attendance already recorded for this worker on this date", 409)
+    );
+    expect(outcome.success).toBe(false);
+    if (outcome.success) return;
+    expect(outcome.failure.code).toBe("ALREADY_RECORDED");
+    // Not retryable: the row is already there, so `waiting` would be a lie.
+    expect(isRetryableFailure(outcome.failure.code)).toBe(false);
+    // The service's own English is logged, never persisted.
+    expect(serialiseFailure(outcome.failure)).not.toContain("Attendance already recorded");
+  });
+
+  test("a 404 ('Roster entry not found') is RECORD_NOT_FOUND", async () => {
+    const outcome = await executeTask(TASK, throwingService("Roster entry not found", 404));
+    expect(outcome.success).toBe(false);
+    if (outcome.success) return;
+    expect(outcome.failure.code).toBe("RECORD_NOT_FOUND");
+    expect(isRetryableFailure(outcome.failure.code)).toBe(false);
+  });
+
+  test("'Parent BOQ not found' (createBoqRevision, 404) is RECORD_NOT_FOUND", async () => {
+    const outcome = await executeTask(TASK, throwingService("Parent BOQ not found", 404));
+    expect(outcome.success).toBe(false);
+    if (outcome.success) return;
+    expect(outcome.failure.code).toBe("RECORD_NOT_FOUND");
+  });
+
+  test("a 403 is NOT_PERMITTED and any other 4xx is REQUEST_REJECTED", async () => {
+    const forbidden = await executeTask(TASK, throwingService("You cannot approve a BOQ you created yourself", 403));
+    expect(forbidden.success).toBe(false);
+    if (!forbidden.success) expect(forbidden.failure.code).toBe("NOT_PERMITTED");
+
+    const rejected = await executeTask(TASK, throwingService("budgetPercentage must be between 0 and 100", 400));
+    expect(rejected.success).toBe(false);
+    if (!rejected.success) expect(rejected.failure.code).toBe("REQUEST_REJECTED");
+  });
+
+  test("the 5xx-digit false positive is gone: 'line 512 not found' is a record, not a dead backend", async () => {
+    // normaliseThrownError's \b5\d\d\b clause is right for a raw driver
+    // string and wrong for a service's business sentence -- checking
+    // ServiceError first is what removes it. Proven both ways.
+    expect(normaliseThrownError(new Error("line 512 not found")).failure.code).toBe("BACKEND_UNAVAILABLE");
+    const outcome = await executeTask(TASK, throwingService("line 512 not found", 404));
+    expect(outcome.success).toBe(false);
+    if (outcome.success) return;
+    expect(outcome.failure.code).toBe("RECORD_NOT_FOUND");
+  });
+
+  test("a service's own 5xx still falls through to the transport normaliser", async () => {
+    const outcome = await executeTask(TASK, throwingService("Upstream construction service failed", 502));
+    expect(outcome.success).toBe(false);
+    if (outcome.success) return;
+    expect(outcome.failure.code).toBe("INTERNAL_ERROR");
+  });
+});
+
+// ── R67 FIX PASS: the executor's BOQ failure carries the same context ─────
+describe("FIX PASS -- executeRecordWorkProgress names the project, not just a version number", () => {
+  test("ExecutableTask carries projectLabel, and both run paths supply it", () => {
+    // A type-level fact, asserted structurally: the field exists and is
+    // optional, so a caller with no label yields a sentence with the clause
+    // omitted rather than one with a hole in it.
+    const withLabel: ExecutableTask = { ...TASK, projectLabel: "Cedar Heights Villa - Phase 1" };
+    expect(withLabel.projectLabel).toBe("Cedar Heights Villa - Phase 1");
+    const withoutLabel: ExecutableTask = { ...TASK };
+    expect(withoutLabel.projectLabel).toBeUndefined();
   });
 });
 

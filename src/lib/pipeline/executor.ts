@@ -16,8 +16,9 @@ import { createBoqRevision } from "@/lib/services/construction-boq-service";
 import { createMeeting } from "@/lib/services/pms-meeting-service";
 import { createDocumentRecord } from "@/lib/services/document-service";
 import { dispatchTool } from "@/lib/task-execution-engine";
+import { ServiceError } from "@/lib/services/compliance-service";
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
-import { normaliseThrownError, pipelineFailure, type PipelineFailure } from "./error-codes";
+import { codeForServiceError, normaliseThrownError, pipelineFailure, type PipelineFailure } from "./error-codes";
 import { functionSpec, requiredParamSatisfied, WRITE_FUNCTION_IDS as REGISTERED_WRITES } from "./function-registry";
 
 /**
@@ -54,6 +55,22 @@ export type ExecutableTask = {
    * NOT yet wired -- see R48_PROGRESS.md's F089 entry for the honest status.
    */
   role?: string | null;
+  /**
+   * R67 FIX PASS -- the project's HUMAN NAME, for the failure context only.
+   *
+   * D-03's BOQ_LINE_NOT_FOUND sentence is "There is no line {code} on
+   * {project} {version} - pick a line". validate() fills {project} from
+   * ValidationContext.projectLabel, but the executor's own copy of the same
+   * failure had no project at all, so the identical code rendered as "There
+   * is no line EX-01 on 1 - pick a line" -- with the BOQ's bare version
+   * number standing where the project name belongs. Both run paths in
+   * run-submission.ts already resolve this label (resolveRootLabel, for the
+   * derived chain), so passing it costs no extra read.
+   *
+   * Optional: a caller that has no label yields a sentence with the clause
+   * omitted, never one with a hole in it.
+   */
+  projectLabel?: string | null;
 };
 
 /**
@@ -83,6 +100,16 @@ function missingRequiredParam(task: ExecutableTask): PipelineFailure | null {
 
 function str(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+/**
+ * R67 FIX PASS -- the BOQ version as the client's sentence wants it ("v2"),
+ * matching what validate() puts in the same context key. A bare number here
+ * used to land in the {project} slot of "There is no line {code} on {project}
+ * {version} - pick a line", so the row read "... on 1 - pick a line".
+ */
+function versionLabel(version: number | null | undefined): string | null {
+  return version === null || version === undefined ? null : `v${version}`;
 }
 
 function num(value: unknown): number | undefined {
@@ -130,7 +157,17 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     // {version} -- pick a line") is true in both cases. `version` is null
     // when there is no BOQ, and the dictionary drops an empty slot.
     if (!boq) {
-      return { success: false, failure: pipelineFailure("BOQ_LINE_NOT_FOUND", ["itemCode"], { itemCode: itemCode ?? null, version: null }) };
+      return {
+        success: false,
+        // R67 FIX PASS: the SAME context shape validate() supplies -- the
+        // project's name under `project`, the version as "v3" rather than a
+        // bare 3 -- so one code has one sentence whichever stage produced it.
+        failure: pipelineFailure("BOQ_LINE_NOT_FOUND", ["itemCode"], {
+          itemCode: itemCode ?? null,
+          project: task.projectLabel ?? null,
+          version: null,
+        }),
+      };
     }
 
     // Scoped to THIS project's BOQ either way, so a line item id posted from
@@ -146,7 +183,8 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
         success: false,
         failure: pipelineFailure("BOQ_LINE_NOT_FOUND", [boqLineItemId ? "boqLineItemId" : "itemCode"], {
           itemCode: itemCode ?? null,
-          version: boq.version ?? null,
+          project: task.projectLabel ?? null,
+          version: versionLabel(boq.version),
         }),
       };
     }
@@ -161,7 +199,14 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     if (child) {
       // The line's own code, whichever way the caller addressed it, so the
       // client's sentence can name it ("EX-00 is a parent line ...").
-      return { success: false, failure: pipelineFailure("BOQ_LINE_IS_PARENT", ["boqLine"], { itemCode: lineItem.itemCode ?? itemCode ?? null }) };
+      return {
+        success: false,
+        failure: pipelineFailure("BOQ_LINE_IS_PARENT", ["boqLine"], {
+          itemCode: lineItem.itemCode ?? itemCode ?? null,
+          project: task.projectLabel ?? null,
+          version: versionLabel(boq.version),
+        }),
+      };
     }
 
     // construction_work_progress_entries.activity_id is NOT NULL, but this
@@ -509,6 +554,34 @@ export async function executeTask(
     // still logged here in full, and travels no further than `debug` --
     // which run-submission.ts logs and deliberately does not persist, so
     // GET /api/v1/projexa/tasks cannot select it.
+    // R67 FIX PASS -- A SERVICE'S 4xx IS NOT AN INTERNAL ERROR.
+    //
+    // normaliseThrownError() only recognises TRANSPORT shapes, so before this
+    // branch every expected business condition a service raises collapsed to
+    // INTERNAL_ERROR and the client rendered "Something went wrong on our
+    // side -- nothing was saved [Retry]". That is wrong twice over for four
+    // of the five writes B-04 registered: it blames us for the user's
+    // request, and it offers a Retry for a duplicate ("Attendance already
+    // recorded for this worker on this date", 409) that can never succeed.
+    // ServiceError carries the status the service deliberately chose, so
+    // branch on it FIRST -- which also removes normaliseThrownError's
+    // \b5\d\d\b false positive for an ordinary business message that happens
+    // to contain a three-digit number ("line 512 not found").
+    //
+    // >=500 deliberately falls through: a service that raises a 5xx is
+    // reporting a system failure, which belongs with the transport shapes.
+    if (error instanceof ServiceError && error.status < 500) {
+      console.error(`executeTask: "${task.functionId}" refused with ${error.status}`, error.message);
+      return {
+        success: false,
+        // functionId is carried for the CLIENT'S BRANCHING, never for its
+        // wording: "already recorded" means something different for
+        // attendance than for a BOQ revision, and projexa's dictionary picks
+        // the true sentence from it without ever printing it.
+        failure: pipelineFailure(codeForServiceError(error.status), [], { status: error.status, functionId: task.functionId }),
+        debug: `${error.name}(${error.status}): ${error.message}`,
+      };
+    }
     console.error(`executeTask: unexpected error running "${task.functionId}"`, error);
     const { failure, debug } = normaliseThrownError(error);
     return { success: false, failure, debug };
