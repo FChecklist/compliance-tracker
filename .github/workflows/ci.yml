@@ -222,6 +222,29 @@ jobs:
       - run: node scripts/check-migration-schema-drift.mjs
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  screen-definition-labels-check:
+    # R67 lane I (WS-I item I-01). compliance.screen_definitions is the M28
+    # screen registry PROJEXA renders its column headers from, and two rows
+    # shipped with a debugging label baked into their `columns` jsonb -- one of
+    # them the GLOBAL (org_id NULL) dashboard KPI row, so it leaked into every
+    # tenant. drizzle/0528 and drizzle/0531 correct the data; this job is what
+    # stops it recurring. Placed beside the other DATABASE_URL-reading guard
+    # jobs above and, exactly like them, treats a missing/unreachable database
+    # as a warning rather than a failure (prod downtime must not block every PR
+    # in the repo) -- a REACHABLE database with a live debug label does fail the
+    # build. Read-only: the script only ever SELECTs. See
+    # scripts/check-screen-definition-labels.mjs's own header for why the rule
+    # is the audit's literal /test/i and why a genuine "test"-containing label
+    # is handled by a reviewed allowlist entry, never by loosening the pattern.
+    name: Screen Definition Label Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: node scripts/check-screen-definition-labels.mjs
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
   new-test-coverage:
     name: New Test Coverage Check
     runs-on: ubuntu-latest
