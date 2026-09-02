@@ -2,6 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import { executeTask, functionWrites, hasExecutor, type ExecutableTask, type ExecutionOutcome } from "./executor";
 import { serialiseFailure } from "./error-codes";
+import { functionSpec, requiredParamSatisfied } from "./function-registry";
 
 // The registered executors themselves do real DB access via
 // withTenantContext and are proven live (a real percentComplete write +
@@ -153,4 +154,28 @@ describe("B-04 -- the writes the pipeline can now execute", () => {
   // returns before the service is called, which is the point -- a missing
   // field must never reach recordAttendance() and come back as its own
   // English "attendanceDate is required" through the catch block.
+});
+
+// ── R67 B-11: the value chip "2 nos" must be executable, not a dead end ────
+//
+// Asserted against the REAL registry and the REAL executor, both of which
+// answer before any database access -- there is deliberately no injected
+// executor here, because an injected map would prove nothing about the
+// guard that actually runs in production.
+describe("B-11 -- a quantity answers 'how much is done' as well as a percent", () => {
+  test("a BOQ line with neither a percent nor a quantity is VALUE_REQUIRED, before any read", async () => {
+    const outcome = await executeTask({ ...TASK, params: { itemCode: "EX-01" } });
+    expect(outcome.success).toBe(false);
+    if (outcome.success) return;
+    expect(outcome.failure.code).toBe("VALUE_REQUIRED");
+    expect(outcome.failure.missing).toEqual(["value"]);
+  });
+
+  test("the required-parameter gate every caller shares accepts quantityDone for percent", () => {
+    const spec = functionSpec("record_work_progress")!;
+    const percent = spec.requiredParams.find((p) => p.name === "percent")!;
+    expect(requiredParamSatisfied(percent, { quantityDone: 2 })).toBe(true);
+    expect(requiredParamSatisfied(percent, { percent: 40 })).toBe(true);
+    expect(requiredParamSatisfied(percent, { itemCode: "EX-01" })).toBe(false);
+  });
 });

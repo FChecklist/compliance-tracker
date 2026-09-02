@@ -99,9 +99,19 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
   // it is the one that cannot be ambiguous.
   const boqLineItemId = str(task.params.boqLineItemId);
   const percent = task.params.percent;
+  // R67 B-11: "record 2 nos done today" is how a site engineer says it, and
+  // it is the value chip chain-options offers next to "40 %" -- so a QUANTITY
+  // in the line's own unit is a real answer to "how much is done", not a
+  // second-class one. Both arrive here; the percent wins when both are given,
+  // because it is the column the roll-up actually reads. A quantity is
+  // converted below, once the line (and therefore its total quantity) is
+  // known -- it cannot be converted before the read.
+  const quantityDone = num(task.params.quantityDone);
   const projectId = task.projectId ?? str(task.params.projectId) ?? null;
   if (!itemCode && !boqLineItemId) return { success: false, failure: pipelineFailure("BOQ_LINE_REQUIRED", ["boqLine"]) };
-  if (typeof percent !== "number") return { success: false, failure: pipelineFailure("VALUE_REQUIRED", ["value"]) };
+  if (typeof percent !== "number" && quantityDone === undefined) {
+    return { success: false, failure: pipelineFailure("VALUE_REQUIRED", ["value"]) };
+  }
   if (!projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
 
   return withTenantContext({ orgId: task.orgId, userId: task.userId }, async (db) => {
@@ -170,6 +180,24 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     });
     if (!activity) return { success: false, failure: pipelineFailure("ACTIVITY_REQUIRED", ["activityId"]) };
 
+    // R67 B-11: the quantity -> percent conversion, done HERE because the
+    // line's own total quantity is the only honest denominator and it is not
+    // knowable before this read. A line whose quantity is 0 (or absent) has
+    // no denominator, so a quantity answer cannot be interpreted at all --
+    // that is VALUE_REQUIRED, not a silent 0 %. The stored percent is
+    // clamped to the column's own 0..100 rule that createProgressEntry
+    // enforces one line later, so an over-recorded quantity is capped rather
+    // than rejected after the fact.
+    const lineQuantity = Number(lineItem.quantity ?? 0);
+    let percentComplete: number;
+    if (typeof percent === "number") {
+      percentComplete = percent;
+    } else if (Number.isFinite(lineQuantity) && lineQuantity > 0) {
+      percentComplete = Math.min(100, Math.max(0, Math.round(((quantityDone as number) / lineQuantity) * 100)));
+    } else {
+      return { success: false, failure: pipelineFailure("VALUE_REQUIRED", ["value"]) };
+    }
+
     const row = await createProgressEntry(
       { orgId: task.orgId, userId: task.userId },
       {
@@ -177,8 +205,11 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
         activityId: activity.id,
         boqLineItemId: lineItem.id,
         entryDate: new Date().toISOString().slice(0, 10),
-        quantityDone: 0,
-        percentComplete: percent,
+        // Was hard-coded 0 before B-11, so the quantity column of every
+        // pipeline-written entry was a lie by omission. It now carries what
+        // the user actually said when they said it in units.
+        quantityDone: quantityDone ?? 0,
+        percentComplete,
       }
     );
     return { success: true, result: row };

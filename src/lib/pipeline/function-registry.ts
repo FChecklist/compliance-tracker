@@ -109,7 +109,13 @@ const SPEC_LIST: readonly FunctionSpec[] = [
     requiredParams: [
       { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
       { name: "itemCode", label: "BOQ line", code: "BOQ_LINE_REQUIRED", field: "boqLine", alsoSatisfiedBy: ["boqLineItemId"] },
-      { name: "percent", label: "Percent complete", code: "VALUE_REQUIRED" },
+      // R67 B-11: a QUANTITY in the line's own unit answers "how much is
+      // done" exactly as well as a percent does -- "record 2 nos done today"
+      // is how the work is actually described on site, and it is the value
+      // chip chain-options offers beside "40 %". executeRecordWorkProgress
+      // converts it against the line's own total quantity, so both spellings
+      // reach the same column.
+      { name: "percent", label: "Percent complete", code: "VALUE_REQUIRED", alsoSatisfiedBy: ["quantityDone"] },
     ],
     card: {
       fields: [

@@ -227,3 +227,20 @@ describe("B-07 -- boqLineItemId answers the same question as itemCode", () => {
     }
   });
 })
+
+// ── R67 B-11: "record 2 nos done today" ────────────────────────────────────
+describe("B-11 -- a quantity answers 'how much is done' as well as a percent does", () => {
+  test("quantityDone alone satisfies the value requirement", () => {
+    const r = validate(
+      { functionId: "record_work_progress", params: { itemCode: "EX-01", projectId: "project_1", quantityDone: 2 } },
+      BASE_CTX
+    );
+    expect(r.valid).toBe(true);
+  });
+
+  test("neither a percent nor a quantity is still VALUE_REQUIRED", () => {
+    const r = validate({ functionId: "record_work_progress", params: { itemCode: "EX-01", projectId: "project_1" } }, BASE_CTX);
+    expect(r.valid).toBe(false);
+    if (!r.valid) expect(r.code).toBe("VALUE_REQUIRED");
+  });
+});
