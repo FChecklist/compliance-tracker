@@ -40,6 +40,51 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (subagent, r67/f1-performance-1) -- PROGRAMME R67 lane F1 (WS-F performance), items F-01..F-05: the compliance-tracker half of PROJEXA's latency work"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, workstream WS-F
+      (performance), lane F1 items F-01, F-02, F-03, F-04, F-05, plus binding
+      decisions D-04 (module pages fetch server-side, streamed with Suspense,
+      8 s budget) and D-06 (nested-withTenantContext guard -- NOT implemented
+      here; F-12/F-15 own it and this lane must not duplicate it).
+
+      Verified before starting: origin/main already carries the R66 dashboard
+      pool-deadlock fix (construction-dashboard-service.ts hoists
+      isConstructionEnabledForOrg out of both transactions and computes earned
+      value in-transaction via computeEarnedValue), so that half is NOT redone
+      here. No other active claim in this file touches construction-boq-
+      service.ts, construction-progress-service.ts, construction-dashboard-
+      service.ts or the v1/projexa permits/drawings/projects routes.
+
+      compliance-tracker file scope (this repo):
+        src/lib/services/construction-dashboard-service.ts (+ .test.ts)
+          -- new listProjectsForSelection(); progressPercent per project added
+             to getOrgDashboard's existing transaction via one grouped query
+        src/lib/services/construction-boq-service.ts (+ .test.ts)
+          -- listBoqs() returns line items + totalVariation /
+             totalVariationVsOriginal from ONE transaction (was
+             Promise.all(boqs.map(getBoq)), an N+1 of transactions)
+          -- new exported pure helper buildBoqListRows()
+        src/lib/services/construction-progress-service.ts (+ .test.ts)
+          -- listProgressEntries() returns activityName / boqItemCode /
+             boqLineDescription / unit, batched in the same transaction
+        src/app/api/v1/construction/boq/route.ts (drops the getBoq fan-out)
+        src/app/api/v1/projexa/projects/route.ts (adds GET, 60 s per-org cache)
+        src/app/api/v1/projexa/permits/route.ts (+ new route.test.ts)
+        src/app/api/v1/projexa/drawings/route.ts
+        src/app/api/v1/projexa/drawings/[id]/document-url/route.ts (new)
+        src/lib/storage/signed-document-url.ts (+ .test.ts) (new)
+
+      NOT claimed / deliberately untouched: src/lib/db/tenant-scoped.ts (D-06
+      guard, pool options -- F-12/F-15/F-16), construction-reports-service.ts
+      (F-10/F-14), src/lib/supabase/auth-guard.ts audit writes (F-17), and any
+      production database setting (the ALTER ROLE idle_in_transaction timeout
+      stays owner-gated per D-06). No migration in this lane.
+
+      The PROJEXA half of the same items lands in the projexa repo on the
+      matching branch r67/f1-performance-1.
+
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |
