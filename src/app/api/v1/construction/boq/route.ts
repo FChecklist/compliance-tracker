@@ -3,7 +3,7 @@
 // routes, which can change without notice. Same service calls either way.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { listBoqs, getBoq, createBoq, ServiceError } from "@/lib/services/construction-boq-service"
+import { listBoqs, parseBoqInclude, createBoq, ServiceError } from "@/lib/services/construction-boq-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
@@ -14,16 +14,23 @@ export async function GET(request: NextRequest) {
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })
 
   try {
-    const boqs = await listBoqs({ orgId: ctx.orgId }, projectId)
     // PROJEXA's Work Progress Report needs each line item's rate/amount to
-    // compute the report's Amt/Percentage columns, and this was previously
-    // the only external-facing BOQ endpoint -- it returned headers only
-    // (title/version/status), no line items, with no other v1 route
-    // exposing them. Additive-only: enriches each boq with `lineItems` by
-    // reusing the existing getBoq() service (same data getBoq(id) already
-    // returns internally), no schema or service-layer change.
-    const boqsWithLineItems = await Promise.all(boqs.map((boq) => getBoq({ orgId: ctx.orgId! }, boq.id)))
-    return NextResponse.json({ boqs: boqsWithLineItems })
+    // compute the report's Amt/Percentage columns, so `lineItems` is always
+    // included -- that contract is unchanged.
+    //
+    // R67 F-23 (R-239). It used to be satisfied with
+    // `Promise.all(boqs.map(getBoq))`, and every getBoq() opens its OWN
+    // withTenantContext transaction, so an N-revision project fanned out N
+    // concurrent transactions on a five-connection pool. listBoqs() now does
+    // the whole thing in ONE transaction (see its own header comment), and
+    // `?include=variation` adds the per-revision variation figure PROJEXA's
+    // /scope screen used to fetch with one /compare request PER ROW.
+    const include = request.nextUrl.searchParams.get("include")
+    const { variation } = parseBoqInclude(include)
+    const boqs = await listBoqs({ orgId: ctx.orgId }, projectId, {
+      include: variation ? "lineItems,variation" : "lineItems",
+    })
+    return NextResponse.json({ boqs })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 construction BOQ list error:", error)

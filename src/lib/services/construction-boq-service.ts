@@ -19,7 +19,7 @@ import {
   constructionBoqs, constructionBoqLineItems, constructionWorkProgressEntries, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, or, type SQL } from "drizzle-orm"
+import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { isSelfApproval } from "./approval-workflow-service"
 export { ServiceError }
@@ -394,9 +394,128 @@ function withComputedRate(item: typeof constructionBoqLineItems.$inferSelect) {
   return { ...item, computedRate: computedRate(item), computedBudget: computedBudget(item) }
 }
 
-export async function listBoqs(ctx: { orgId: string }, projectId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.constructionBoqs.findMany({
+// R67 F-23 (audit recommendation R-239) -- THE /scope FAN-OUT, CLOSED.
+//
+// THE MEASURED PROBLEM. /api/v1/construction/boq's GET handler ran
+// `Promise.all(boqs.map(getBoq))`, and every getBoq() opens its OWN
+// withTenantContext transaction (see that function, unchanged below). A
+// five-revision project therefore asked tenant-scoped.ts's FIVE-connection
+// pool for five concurrent transactions at once, on top of listBoqs' own --
+// the same pool-starvation shape R43_MGR_01 removed from getOrgDashboard.
+// PROJEXA then fired one more request per revision (/api/scope/{id}/compare)
+// purely to fill the green "Variation vs. prior" cell, so /scope made 22 API
+// calls and reached idle at 7.6 s.
+//
+// WHAT REPLACES IT. ONE transaction, and inside it at most three statements
+// regardless of how many revisions the project has:
+//   1. the revision headers (as before),
+//   2. `include=lineItems` -- every revision's line items in ONE inArray read
+//      instead of one getBoq() transaction per revision,
+//   3. `include=variation` -- one CTE over construction_boq_line_items grouped
+//      by boq_id, joined to each revision's parent through the existing
+//      parent_boq_id chain, so the per-row variation figure PROJEXA used to
+//      fetch one-request-per-row now arrives with the list.
+//
+// WHY variationVsPrior IS THE SAME NUMBER THE COMPARE SCREEN SHOWS. The CTE
+// computes Σ(quantity × rate) for the child revision minus the same for its
+// parent. computeTotalVariation() (below) computes addedTotal − removedTotal +
+// Σ changed netVariation over diffLineItems()' key-matched diff. Unchanged
+// items contribute 0 to both, added items contribute their full amount to
+// both, removed items subtract their full amount in both, and a changed item
+// contributes curr.amount − prev.amount in both -- so the two are algebraically
+// identical, and `amount` is stored as quantity × rate by insertLineItems().
+// The list figure and the compare screen's total can therefore never disagree.
+// (The one divergence is pathological: two line items in ONE revision sharing a
+// diff key -- same itemCode is already rejected by validateLineItemInputs, same
+// description with no itemCode is not -- where diffLineItems' Map keeps the last
+// and the sum keeps both. The sum is the correct answer in that case.)
+export type BoqListOptions = {
+  /**
+   * Comma-separated, mirroring the route's own `?include=`. Recognised values:
+   * `lineItems` (every revision's line items, batched) and `variation`
+   * (variationVsPrior + lineDelta per revision). Anything else is ignored --
+   * an unknown include must never fail a list a caller can otherwise read.
+   */
+  include?: string | null
+}
+
+export type BoqRevisionVariation = {
+  /** Σ(quantity × rate) here minus Σ(quantity × rate) on the parent revision. null on a baseline (no parent). */
+  variationVsPrior: number | null
+  /** line-item count here minus line-item count on the parent revision. null on a baseline. */
+  lineDelta: number | null
+}
+
+export type BoqListRow = typeof constructionBoqs.$inferSelect &
+  Partial<BoqRevisionVariation> & {
+    lineItems?: ReturnType<typeof withComputedRate>[]
+  }
+
+export function parseBoqInclude(include: string | null | undefined): { lineItems: boolean; variation: boolean } {
+  const parts = new Set(
+    (include ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+  )
+  return { lineItems: parts.has("lineItems"), variation: parts.has("variation") }
+}
+
+/**
+ * The per-revision variation summary, in ONE statement.
+ *
+ * `revision` is this project's whole chain, so a parent is always resolvable
+ * inside the same CTE -- createBoqRevision() always writes the child with its
+ * parent's projectId, so a chain never crosses projects.
+ */
+async function loadRevisionVariations(
+  db: TenantDb,
+  orgId: string,
+  projectId: string
+): Promise<Map<string, BoqRevisionVariation>> {
+  const rows = (await db.execute(sql`
+    WITH revision AS (
+      SELECT id, parent_boq_id
+      FROM compliance.construction_boqs
+      WHERE org_id = ${orgId} AND project_id = ${projectId}
+    ),
+    totals AS (
+      SELECT li.boq_id AS boq_id,
+             coalesce(sum(li.quantity * li.rate), 0)::float AS total,
+             count(*)::int AS line_count
+      FROM compliance.construction_boq_line_items li
+      JOIN revision r ON r.id = li.boq_id
+      GROUP BY li.boq_id
+    )
+    SELECT r.id AS boq_id,
+           CASE WHEN r.parent_boq_id IS NULL THEN NULL
+                ELSE (coalesce(c.total, 0) - coalesce(p.total, 0))::float END AS variation_vs_prior,
+           CASE WHEN r.parent_boq_id IS NULL THEN NULL
+                ELSE (coalesce(c.line_count, 0) - coalesce(p.line_count, 0))::int END AS line_delta
+    FROM revision r
+    LEFT JOIN totals c ON c.boq_id = r.id
+    LEFT JOIN totals p ON p.boq_id = r.parent_boq_id
+  `)) as { boq_id: string; variation_vs_prior: number | null; line_delta: number | null }[]
+
+  return new Map(
+    rows.map((r) => [
+      r.boq_id,
+      {
+        variationVsPrior: r.variation_vs_prior === null ? null : Number(r.variation_vs_prior),
+        lineDelta: r.line_delta === null ? null : Number(r.line_delta),
+      },
+    ])
+  )
+}
+
+export async function listBoqs(
+  ctx: { orgId: string },
+  projectId: string,
+  options: BoqListOptions = {}
+): Promise<BoqListRow[]> {
+  const include = parseBoqInclude(options.include)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boqs = await db.query.constructionBoqs.findMany({
       where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
       // Point 177/E-116 fix: version DESC alone has no stable tiebreaker when a
       // project has two or more INDEPENDENT (non-revision-chain) BOQs at the
@@ -408,7 +527,35 @@ export async function listBoqs(ctx: { orgId: string }, projectId: string) {
       // and matches the intuitive meaning of "latest" when versions tie.
       orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)],
     })
-  )
+    // Every existing caller passes no options and keeps getting exactly the
+    // headers it got before -- one statement, one transaction.
+    if (boqs.length === 0 || (!include.lineItems && !include.variation)) return boqs
+
+    const boqIds = boqs.map((b) => b.id)
+    const lineItemsByBoq = new Map<string, ReturnType<typeof withComputedRate>[]>()
+    if (include.lineItems) {
+      const rows = await db.query.constructionBoqLineItems.findMany({
+        where: inArray(constructionBoqLineItems.boqId, boqIds),
+      })
+      for (const row of rows) {
+        const list = lineItemsByBoq.get(row.boqId) ?? []
+        list.push(withComputedRate(row))
+        lineItemsByBoq.set(row.boqId, list)
+      }
+    }
+
+    const variationByBoq = include.variation
+      ? await loadRevisionVariations(db, ctx.orgId, projectId)
+      : new Map<string, BoqRevisionVariation>()
+
+    return boqs.map((boq) => ({
+      ...boq,
+      ...(include.lineItems ? { lineItems: lineItemsByBoq.get(boq.id) ?? [] } : {}),
+      ...(include.variation
+        ? (variationByBoq.get(boq.id) ?? { variationVsPrior: null, lineDelta: null })
+        : {}),
+    }))
+  })
 }
 
 export async function getBoq(ctx: { orgId: string }, boqId: string) {

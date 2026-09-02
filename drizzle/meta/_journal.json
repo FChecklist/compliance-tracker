@@ -2451,6 +2451,13 @@
       "when": 1788288400000,
       "tag": "0527_r65_parte_billing_contracts",
       "breakpoints": true
+    },
+    {
+      "idx": 350,
+      "version": "7",
+      "when": 1788288500000,
+      "tag": "0528_r67_f23_boq_list_indexes",
+      "breakpoints": true
     }
   ]
 }
