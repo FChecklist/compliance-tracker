@@ -32,10 +32,30 @@ export async function GET() {
     const pool = await readAppRuntimePoolHealth()
 
     // A flat, quotable verdict so an operator does not have to interpret the
-    // counts under pressure. "saturated" is the shape of the real incident:
-    // every slot held, and held by a transaction that is not running a query.
-    const saturated = pool.total >= pool.maxPoolSize && pool.idleInTransaction > 0
-    const status = saturated ? "saturated" : pool.idleInTransaction > 0 ? "idle_in_transaction_present" : "healthy"
+    // counts under pressure.
+    //
+    // "saturated" is the shape of the real incident: enough sessions parked in
+    // a transaction that is running no query to occupy the whole client-side
+    // pool. It is keyed on idleInTransaction, NOT on `total` -- through
+    // Supabase's transaction pooler `total` counts every instance's sessions
+    // and routinely exceeds one instance's max, which would make a `total`-based
+    // verdict cry wolf on a perfectly healthy deployment.
+    //
+    // "net_not_reaching" is worse than saturated and must not be hidden behind
+    // it: a session that has been idle in a transaction for materially longer
+    // than the 30 s timeout means the safety net is not being applied to it at
+    // all (a pooler-side session, or the setting lost), which is the one state
+    // where nothing will recover on its own.
+    const oldest = pool.oldestIdleInTransactionSeconds
+    const timeoutSeconds = pool.idleInTransactionTimeoutMs / 1000
+    const status =
+      oldest !== null && oldest > timeoutSeconds * 2
+        ? "net_not_reaching"
+        : pool.idleInTransaction >= pool.maxPoolSize
+          ? "saturated"
+          : pool.idleInTransaction > 0
+            ? "idle_in_transaction_present"
+            : "healthy"
 
     return NextResponse.json({ status, pool })
   } catch (error) {

@@ -318,6 +318,14 @@ export async function withTenantContext<T>(
 // It also deliberately does NOT go through withTenantContext: it reads a
 // catalog view, not tenant data (no RLS applies), and opening a transaction to
 // measure transactions would consume one of the five slots it is reporting on.
+//
+// READ THE NUMBERS CORRECTLY. `maxPoolSize` is THIS instance's client-side cap;
+// the counts are every app_runtime session the database currently has, which
+// through Supabase's transaction pooler can span several serverless instances.
+// So `total` legitimately exceeds `maxPoolSize`, and that on its own is normal.
+// The number that mattered in the incident is `idleInTransaction`, and above
+// all `oldestIdleInTransactionSeconds`: with the 30 s net in force, anything
+// materially older than 30 s means the net is not reaching that session.
 export type AppRuntimePoolHealth = {
   role: string
   database: string

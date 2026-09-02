@@ -29,6 +29,15 @@ import { db, apiKeys, apiKeyRequestLog } from "@/lib/db"
 // would be reading the FLUSH time as the request time. This is the one detail
 // that makes buffering safe rather than subtly wrong.
 //
+// THE TRADEOFF, STATED. Between flushes the rows live only in this process. If
+// a serverless instance is frozen or recycled with a batch buffered, those rows
+// are lost -- at most one flush interval's worth of audit log, for one
+// instance. That is the cost the item accepts in exchange for not putting two
+// statements per request on a five-connection pool, and it is why the FIRST
+// record after process start does not wait for the timer: the thin-traffic case
+// (one request, then freeze) is the one where losing the row would actually be
+// noticed, in the settings screen's "Last used" line.
+//
 // AND THE RATE LIMIT STILL COUNTS WHAT IS IN THE QUEUE. validateApiKey() counts
 // rows in the trailing 60 s to enforce a key's limit. Buffering rows for five
 // seconds would otherwise hand every key a five-second hole in which nothing it
