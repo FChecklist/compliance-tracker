@@ -6,7 +6,7 @@
 // precedent (compliance-tracker#1331) this row explicitly says to reuse.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
-import { createMeetingShareLink, listMeetingShareLinks, ServiceError } from "@/lib/services/veri-meeting-service"
+import { createMeetingShareLink, listMeetingShareLinks, composeMeetingShareTarget, ServiceError } from "@/lib/services/veri-meeting-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -40,18 +40,28 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   try {
     const { id } = await params
+    // R67 D-21: the caller now says WHOSE product the recipient is opening
+    // ({ brand, shareOrigin, locale }). The old inline composition used
+    // request.nextUrl.origin -- which, for a server-to-server PROJEXA call, is
+    // VERIDIAN's own deployment host, not the domain the recipient must open
+    // -- and named VERIDIAN to a PROJEXA customer. Body is optional: a caller
+    // that sends nothing still gets the pre-D-21 VERIDIAN link and wording.
+    const body = await request.json().catch(() => ({} as Record<string, unknown>))
     const link = await createMeetingShareLink(
       { orgId: ctx.orgId, userId: actorId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }) },
       id
     )
-    const origin = request.nextUrl.origin
-    const shareUrl = `${origin}/shared/meeting/${link.token}`
-    return NextResponse.json({
-      ...link,
-      shareUrl,
-      whatsappHref: `https://wa.me/?text=${encodeURIComponent(`View these VERIDIAN AI meeting minutes: ${shareUrl}`)}`,
-      telegramHref: `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent("View these VERIDIAN AI meeting minutes")}`,
-    }, { status: 201 })
+    const share = composeMeetingShareTarget({
+      token: link.token,
+      title: link.meetingTitle,
+      scheduledAt: link.meetingScheduledAt,
+      projectName: link.projectName,
+      brand: body.brand,
+      shareOrigin: body.shareOrigin,
+      fallbackOrigin: request.nextUrl.origin,
+      locale: typeof body.locale === "string" ? body.locale : undefined,
+    })
+    return NextResponse.json({ ...link, ...share }, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa veri-meeting create share link error:", error)
