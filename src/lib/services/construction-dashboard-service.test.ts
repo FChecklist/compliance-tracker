@@ -214,15 +214,25 @@ describe("getProjectDashboard: category progress and recent entries come from th
   })
 
   async function run() {
-    const withTenantContextSpy = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb()))
+    // The call ORDER is the point of the F-15 assertion below, so both spies
+    // record into one sequence rather than only counting.
+    const order: string[] = []
+    const withTenantContextSpy = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
+      order.push("transaction")
+      return fn(fakeDb())
+    })
+    const enablementSpy = mock(async () => {
+      order.push("enablement")
+      return true
+    })
     await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: withTenantContextSpy }))
     await mock.module("./construction-enablement-service", () => ({
       ...realEnablement,
-      isConstructionEnabledForOrg: mock(async () => true),
+      isConstructionEnabledForOrg: enablementSpy,
     }))
     const { getProjectDashboard } = await import("./construction-dashboard-service")
     const result = await getProjectDashboard({ orgId: "org-1" }, "p1")
-    return { result, withTenantContextSpy }
+    return { result, withTenantContextSpy, enablementSpy, order }
   }
 
   test("exactly ONE transaction is opened for the whole dashboard", async () => {
@@ -256,5 +266,18 @@ describe("getProjectDashboard: category progress and recent entries come from th
     const { result } = await run()
     // 60 and 30 over the two activities that have any entry at all.
     expect(result.progressPercent).toBe(45)
+  })
+
+  // R67 F-15 (R-232/R-251). The static guard at the top of this file pins the
+  // SHAPE of the source; this pins the BEHAVIOUR, which is what actually cost
+  // production 25 minutes of pool: the construction-enablement check --
+  // itself a withTenantContext transaction, via isBranchEnabledForOrg -- must
+  // resolve BEFORE this function takes a connection of its own, so one request
+  // never holds two of the five app_runtime slots.
+  test("the enablement check runs ONCE, and completes before the transaction opens", async () => {
+    const { enablementSpy, order } = await run()
+
+    expect(enablementSpy.mock.calls.length).toBe(1)
+    expect(order).toEqual(["enablement", "transaction"])
   })
 })

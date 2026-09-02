@@ -48,7 +48,27 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
   if (typeof percent !== "number") return { success: false, error: "percent is required" };
   if (!projectId) return { success: false, error: "no project resolved for this task" };
 
-  return withTenantContext({ orgId: task.orgId, userId: task.userId }, async (db) => {
+  // R67 F-15 (R-232/R-251) -- THE PIPELINE'S ONE WRITE PATH WAS NESTING.
+  //
+  // This used to hold a tenant transaction open for its three lookups AND for
+  // createProgressEntry(), which opens its OWN -- two of tenant-scoped.ts's
+  // five app_runtime connections held by one task, on the exact path M24's
+  // Task Master uses to record work progress. The D-06 guard added in F-12 now
+  // makes that an error rather than a slow success.
+  //
+  // Split, not threaded: the lookups resolve in their own transaction, which
+  // CLOSES, and then createProgressEntry opens its own. Nothing is lost by
+  // that, because createProgressEntry re-validates every one of these
+  // references itself, scoped to the same project (see its own comments): the
+  // resolution here is a lookup for the user's shorthand ("item 1.01"), not an
+  // invariant that has to hold across the write. If a row disappears between
+  // the two, the write refuses with its own 404 -- which is the correct answer,
+  // not a lost guarantee.
+  // Explicitly typed so the two arms stay a real discriminated union: without
+  // it the inferred shape carries `error?: string | undefined` on both arms and
+  // the narrowing below is not a narrowing at all.
+  type ResolvedTarget = { error: string } | { activityId: string; boqLineItemId: string };
+  const resolved = await withTenantContext<ResolvedTarget>({ orgId: task.orgId, userId: task.userId }, async (db): Promise<ResolvedTarget> => {
     // Real data-model quirk found while wiring this (not invented): the most
     // recent BOQ for the project is used deterministically -- version DESC
     // then createdAt DESC, the same tiebreaker fix as R-33/PR compliance-
@@ -57,12 +77,12 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
       where: and(eq(constructionBoqs.orgId, task.orgId), eq(constructionBoqs.projectId, projectId)),
       orderBy: [desc(constructionBoqs.version), desc(constructionBoqs.createdAt)],
     });
-    if (!boq) return { success: false, error: `no BOQ found for project "${projectId}"` };
+    if (!boq) return { error: `no BOQ found for project "${projectId}"` };
 
     const lineItem = await db.query.constructionBoqLineItems.findFirst({
       where: and(eq(constructionBoqLineItems.boqId, boq.id), eq(constructionBoqLineItems.itemCode, itemCode)),
     });
-    if (!lineItem) return { success: false, error: `item code "${itemCode}" not found in this project's BOQ` };
+    if (!lineItem) return { error: `item code "${itemCode}" not found in this project's BOQ` };
 
     // construction_work_progress_entries.activity_id is NOT NULL, but this
     // org's real BOQ line items carry no activity_id link of their own
@@ -78,21 +98,25 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     const activity = await db.query.constructionActivities.findFirst({
       where: and(eq(constructionActivities.orgId, task.orgId), eq(constructionActivities.projectId, projectId)),
     });
-    if (!activity) return { success: false, error: `no construction activity exists yet for project "${projectId}" -- create one before recording progress` };
+    if (!activity) return { error: `no construction activity exists yet for project "${projectId}" -- create one before recording progress` };
 
-    const row = await createProgressEntry(
-      { orgId: task.orgId, userId: task.userId },
-      {
-        projectId,
-        activityId: activity.id,
-        boqLineItemId: lineItem.id,
-        entryDate: new Date().toISOString().slice(0, 10),
-        quantityDone: 0,
-        percentComplete: percent,
-      }
-    );
-    return { success: true, result: row };
+    return { activityId: activity.id, boqLineItemId: lineItem.id };
   });
+
+  if ("error" in resolved) return { success: false, error: resolved.error };
+
+  const row = await createProgressEntry(
+    { orgId: task.orgId, userId: task.userId },
+    {
+      projectId,
+      activityId: resolved.activityId,
+      boqLineItemId: resolved.boqLineItemId,
+      entryDate: new Date().toISOString().slice(0, 10),
+      quantityDone: 0,
+      percentComplete: percent,
+    }
+  );
+  return { success: true, result: row };
 }
 
 async function executeGetProjectDashboard(task: ExecutableTask): Promise<ExecutionOutcome> {
