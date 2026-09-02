@@ -356,6 +356,14 @@ export async function updateProgressEntry(
   entryId: string,
   patch: { activityId?: string; boqLineItemId?: string | null; entryDate?: string; quantityDone?: number; percentComplete?: number; remarks?: string | null; entryBasis?: "DELTA" | "SNAPSHOT" }
 ) {
+  // A patch that names no field at all is a caller error, and it must be
+  // answered as one. Without this it reached db.update().set({}) with every
+  // value undefined, where drizzle's own mapUpdateSet filters the undefineds
+  // and then throws a plain Error("No values to set") -- not a ServiceError,
+  // so the route's generic catch logged it and answered 500. This is a
+  // Bearer-key-callable public v1 route (and its /projexa/work-progress/[id]
+  // alias), so "PATCH {}" is a request a real integration will send.
+  if (Object.keys(patch).length === 0) throw new ServiceError("No fields to update", 400)
   if (patch.percentComplete !== undefined) assertPercentComplete(patch.percentComplete)
   const entryBasis = patch.entryBasis !== undefined ? normaliseEntryBasis(patch.entryBasis) : undefined
   if (patch.entryDate !== undefined && !patch.entryDate) throw new ServiceError("entryDate is required", 400)

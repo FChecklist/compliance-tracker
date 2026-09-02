@@ -35,50 +35,56 @@ export function formatEmployeeCode(sequence: number): string {
   return `${EMPLOYEE_CODE_PREFIX}${String(sequence).padStart(EMPLOYEE_CODE_PAD, "0")}`
 }
 
-/**
- * Pure. The next sequence after the highest generated code an org already
- * holds. Deliberately ignores customer-assigned codes that are not in this
- * generated shape ("EMP-001", "12", "Ali's badge"): those are the customer's
- * own labels, and letting one of them set the counter would either crash on a
- * non-numeric suffix or jump the sequence to an arbitrary number.
- */
-export function nextEmployeeCodeSequence(existingCodes: (string | null | undefined)[]): number {
-  let highest = 0
-  for (const code of existingCodes) {
-    const match = code?.trim().match(/^W-(\d+)$/)
-    if (!match) continue
-    const value = Number.parseInt(match[1], 10)
-    if (Number.isFinite(value) && value > highest) highest = value
-  }
-  return highest + 1
-}
+// NOTE: an earlier draft of this file also exported a pure
+// nextEmployeeCodeSequence(existingCodes) helper. It is gone deliberately: its
+// only caller was the max(employee_code)+1 read-then-write that
+// generateEmployeeCode below no longer does, and the rule it encoded ("ignore
+// customer-assigned codes that are not in the W-nnnn shape") now lives where it
+// belongs -- in drizzle/0529_r67_i02's seeding of
+// construction_employee_code_counters, which is the only place that has to
+// decide it. An exported pure helper nothing calls is a second copy of a rule
+// waiting to drift from the one the database applies.
 
 /**
- * The generated-code branch, run INSIDE the caller's transaction so the max and
- * the insert see the same snapshot.
+ * The generated-code branch. THIS IS THE CALLER schema.ts's comment on
+ * compliance.construction_employee_code_counters names as its contract, and it
+ * follows that contract literally: claim the next number with ONE atomic
+ * statement, inside the same transaction as the roster insert, never
+ * read-then-write.
  *
- * Honest limitation: employee_code carries no unique constraint (by design --
- * see schema.ts), so two creates racing in READ COMMITTED could both read the
- * same max and produce the same code. That is a duplicate LABEL, not a
- * duplicate row or a lost worker, and it is strictly better than today's
- * behaviour, which is that neither row gets a code at all. Adding a unique
- * index is NOT safe as a blind migration: real orgs already hold hand-typed
- * codes that may legitimately repeat.
+ * WHY NOT max(employee_code)+1 (which an earlier draft of this function used):
+ * R67 lane I's drizzle/0529_r67_i02 created a PARTIAL UNIQUE INDEX
+ * construction_labour_roster_org_employee_code_unique on
+ * (org_id, employee_code) where the code is non-blank. Under a read-then-write
+ * two concurrent creates read the same max, both format the same "W-0007", and
+ * the second INSERT raises a unique violation -- a 500 for a user who did
+ * nothing wrong. The counter row serialises the claim instead: the second
+ * transaction blocks on the ON CONFLICT DO UPDATE until the first commits, then
+ * reads the incremented value.
+ *
+ * The counter is per org (not a Postgres SEQUENCE) because a sequence is a
+ * single global object and one-per-org would mean runtime DDL, which the
+ * app_runtime role must never do. 0529 seeds each org's counter from the
+ * highest 'W-nnnn' already on its roster, so a generated number can never
+ * collide with a code someone typed by hand.
  */
 async function generateEmployeeCode(db: TenantDb, orgId: string): Promise<string> {
-  const [row] = await db
-    .select({
-      maxSequence: sql<number>`coalesce(max((substring(${constructionLabourRoster.employeeCode} from 3))::int), 0)`,
-    })
-    .from(constructionLabourRoster)
-    .where(and(
-      eq(constructionLabourRoster.orgId, orgId),
-      isNotNull(constructionLabourRoster.employeeCode),
-      // Only the generated shape, for the same reason
-      // nextEmployeeCodeSequence ignores everything else.
-      sql`${constructionLabourRoster.employeeCode} ~ '^W-[0-9]+$'`,
-    ))
-  return formatEmployeeCode(Number(row?.maxSequence ?? 0) + 1)
+  const claimed = await db.execute(sql`
+    INSERT INTO compliance.construction_employee_code_counters (org_id, last_number)
+    VALUES (${orgId}, 1)
+    ON CONFLICT (org_id) DO UPDATE
+      SET last_number = construction_employee_code_counters.last_number + 1,
+          updated_at = now()
+    RETURNING last_number
+  `)
+  // drizzle's execute() returns the driver's own result shape; postgres-js
+  // yields the rows array directly, node-postgres wraps them in `.rows`.
+  const rows = (Array.isArray(claimed) ? claimed : (claimed as { rows?: unknown[] }).rows) ?? []
+  const lastNumber = Number((rows[0] as { last_number?: number | string } | undefined)?.last_number)
+  if (!Number.isFinite(lastNumber) || lastNumber < 1) {
+    throw new ServiceError("Could not allocate a worker ID", 500)
+  }
+  return formatEmployeeCode(lastNumber)
 }
 
 /**
