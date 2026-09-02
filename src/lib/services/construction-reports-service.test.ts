@@ -701,13 +701,35 @@ describe("boqBudgetVarianceReport widened for the project Budget screen (R67 D-4
     },
   ]
 
-  async function runBudgetVariance(boqs: unknown[] = [BOQ], lineItems: unknown[] = LINE_ITEMS) {
+  // R67 lane D22 (item D-54): boqBudgetVarianceReport now runs TWO db.select()
+  // chains -- the supplier-name lookup (.from().where()) and the interim-bill
+  // revenue rollup (.from().innerJoin().where().groupBy()). One thenable
+  // builder answers both shapes, handing back the next queued result set in
+  // call order, so a test can say what each query returns without pretending
+  // to be Drizzle.
+  function selectStub(resultsInCallOrder: unknown[][]) {
+    let call = -1
+    return () => {
+      call += 1
+      const rows = resultsInCallOrder[call] ?? []
+      const builder: Record<string, unknown> = {}
+      const step = () => builder
+      builder.from = step
+      builder.innerJoin = step
+      builder.where = step
+      builder.groupBy = step
+      builder.then = (onOk: (v: unknown) => unknown, onErr?: (e: unknown) => unknown) => Promise.resolve(rows).then(onOk, onErr)
+      return builder
+    }
+  }
+
+  async function runBudgetVariance(boqs: unknown[] = [BOQ], lineItems: unknown[] = LINE_ITEMS, billedRows: unknown[] = []) {
     const fakeDb = {
       query: {
         constructionBoqs: { findMany: mock(async () => boqs) },
         constructionBoqLineItems: { findMany: mock(async () => lineItems) },
       },
-      select: () => ({ from: () => ({ where: () => Promise.resolve([{ id: "sup-1", name: "Skiphop Interiors" }]) }) }),
+      select: selectStub([[{ id: "sup-1", name: "Skiphop Interiors" }], billedRows]),
     }
     await mock.module("@/lib/db/tenant-scoped", () => ({
       ...realTenantScoped,
@@ -752,7 +774,7 @@ describe("boqBudgetVarianceReport widened for the project Budget screen (R67 D-4
   test("a project with no BOQ answers the SAME keys, so the screen renders zeroes rather than NaN", async () => {
     const result = await runBudgetVariance([], [])
     expect(Object.keys(result).sort()).toEqual(
-      ["boqId", "boqTitle", "boqVersion", "lines", "totalBudget", "totalManpowerAmount", "totalMaterialAmount", "totalVariance", "totalVendorAmount"].sort()
+      ["boqId", "boqTitle", "boqVersion", "lines", "totalBudget", "totalManpowerAmount", "totalMaterialAmount", "totalVariance", "totalVendorAmount", "totalActual", "totalRevenue"].sort()
     )
     expect(result.boqId).toBeNull()
     expect(result.lines).toEqual([])
@@ -768,5 +790,43 @@ describe("boqBudgetVarianceReport widened for the project Budget screen (R67 D-4
     const at30 = await runBudgetVariance([BOQ], [{ ...LINE_ITEMS[0], budgetPercentage: "30" }, LINE_ITEMS[1]])
     expect(at30.lines[0].budget).toBe(1950)
     expect(at30.totalBudget - before.totalBudget).toBe(325)
+  })
+
+  // R67 lane D22 (item D-54, rec R-183): the Scope > Budget tab prints
+  // ... | Vendor Amt | Material | Manpower | Actual | Revenue | Variance, and
+  // Actual/Revenue are the two the report could not answer. Actual is the
+  // vendor+material+manpower sum; Revenue is what the interim/RA bills raised
+  // on this BOQ have already billed against the line.
+  test("Actual is vendor + material + manpower, per line and in the total", async () => {
+    const result = await runBudgetVariance()
+    expect(result.lines[0].actual).toBe(1700 + 900 + 600)
+    expect(result.totalActual).toBe(3200)
+  })
+
+  test("a line nobody has costed reads Actual null, never a fabricated 0", async () => {
+    const result = await runBudgetVariance()
+    expect(result.lines[1].actual).toBeNull()
+    // ...and an uncosted line contributes nothing to the total rather than
+    // dragging it toward zero.
+    expect(result.totalActual).toBe(result.lines[0].actual)
+  })
+
+  test("Revenue is what the interim bills have billed against the line, summed across every bill", async () => {
+    const result = await runBudgetVariance([BOQ], LINE_ITEMS, [
+      { boqLineItemId: "li-1", total: "1200.50" },
+    ])
+    expect(result.lines[0].revenue).toBe(1200.5)
+    expect(result.totalRevenue).toBe(1200.5)
+  })
+
+  test("a line that has never been billed reads Revenue null -- 'not yet billed' is not 'billed nothing'", async () => {
+    const result = await runBudgetVariance([BOQ], LINE_ITEMS, [{ boqLineItemId: "li-1", total: "1200" }])
+    expect(result.lines[1].revenue).toBeNull()
+  })
+
+  test("the original vendor-vs-budget `variance` is unchanged, so the project Budget screen (D-41) still reads it", async () => {
+    const result = await runBudgetVariance()
+    expect(result.lines[0].variance).toBe(75) // vendorAmount 1700 - budget 1625
+    expect(result.lines[1].variance).toBeNull()
   })
 })

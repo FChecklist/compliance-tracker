@@ -6,7 +6,8 @@
 // so the dynamic route dispatcher (Wave 122 route) can stay a simple switch.
 import {
   constructionCategories, constructionActivities, constructionWorkProgressEntries, constructionSiteDiaries,
-  constructionBoqs, constructionBoqLineItems, constructionAttendance, constructionLabourRoster, constructionPrevailingWageRates,
+  constructionBoqs, constructionBoqLineItems, constructionInterimBills, constructionInterimBillLineItems,
+  constructionAttendance, constructionLabourRoster, constructionPrevailingWageRates,
   constructionKpiDefinitions, constructionKpiEntries, constructionExpenseEntries, erpStockLedgerEntries, erpItems, erpSalesInvoices,
   documents, pmsIssues, pmsTimeEntries, pmsBillableRates, users, erpBudgetLineItems, erpBudgets, erpCostCenters,
   pmsBudgets, pmsBudgetLineItems, projects, erpSuppliers,
@@ -466,7 +467,10 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     // stays the source of truth) without a second round trip to find the
     // latest BOQ. null on a project with no BOQ at all -- the same
     // "same keys in both shapes" rule I-03 established just above.
-    if (!latest) return { boqId: null, boqTitle: null, boqVersion: null, lines: [], totalBudget: 0, totalVendorAmount: 0, totalVariance: 0, totalMaterialAmount: 0, totalManpowerAmount: 0 }
+    // R67 lane D22 (item D-54): totalActual/totalRevenue join the same
+    // same-keys-in-both-shapes rule -- a screen that reads totalRevenue on a
+    // project with no BOQ must get 0, never undefined.
+    if (!latest) return { boqId: null, boqTitle: null, boqVersion: null, lines: [], totalBudget: 0, totalVendorAmount: 0, totalVariance: 0, totalMaterialAmount: 0, totalManpowerAmount: 0, totalActual: 0, totalRevenue: 0 }
 
     const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id) })
     const vendorIds = [...new Set(lineItems.map((i) => i.vendorId).filter((id): id is string => !!id))]
@@ -474,6 +478,29 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
       ? await db.select({ id: erpSuppliers.id, name: erpSuppliers.supplierName }).from(erpSuppliers).where(inArray(erpSuppliers.id, vendorIds))
       : []
     const supplierNameById = new Map(suppliers.map((s) => [s.id, s.name]))
+
+    // R67 lane D22 (item D-54, rec R-183): the REVENUE column of Sumeet's
+    // budget sheet -- what has actually been billed to the client against each
+    // BOQ line, summed over every interim/RA bill raised on THIS BOQ. Same
+    // aggregate construction-valuation-service.ts's own
+    // previousBilledAmountsByLineItem() computes when it works out what is
+    // still left to bill, so the Budget screen and the next interim bill can
+    // never disagree about how much of a line is already earned.
+    //
+    // Kept as an inline duplicate of that query rather than a cross-module
+    // call for the reason scopeReport() states below: the other service opens
+    // its own withTenantContext, and calling it from inside this one would
+    // nest a second transaction on a 5-connection pool (programme decision
+    // D-06, and the pool deadlock #1575 already fixed once).
+    const billedRows = await db.select({
+      boqLineItemId: constructionInterimBillLineItems.boqLineItemId,
+      total: sql<string>`coalesce(sum(${constructionInterimBillLineItems.currentBillAmount}), 0)`,
+    })
+      .from(constructionInterimBillLineItems)
+      .innerJoin(constructionInterimBills, eq(constructionInterimBills.id, constructionInterimBillLineItems.interimBillId))
+      .where(eq(constructionInterimBills.boqId, latest.id))
+      .groupBy(constructionInterimBillLineItems.boqLineItemId)
+    const revenueByLineItemId = new Map(billedRows.map((r) => [r.boqLineItemId, Number(r.total)]))
 
     // R48 gap-closure (2026-08-30, F088: "Report figures reconcile to the
     // database exactly"). Real, confirmed bug: totals below used to sum the
@@ -489,6 +516,20 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
       const rawBudget = Number(item.amount) * (Number(item.budgetPercentage) / 100)
       const vendorAmount = item.vendorAmount !== null ? Number(item.vendorAmount) : null
       const rawVariance = vendorAmount !== null ? vendorAmount - rawBudget : null
+      // R67 lane D22 (item D-54): ACTUAL is the vendor's quoted amount plus the
+      // material and manpower entered against the line -- Sumeet's own
+      // "Actual" column, and the same three components item D-41 already names
+      // in the project Budget screen's "Total actual" tile. null (not 0) when
+      // none of the three has been entered: "nothing has been costed yet" is a
+      // real state and must stay distinguishable from "costed at zero", the
+      // same rule materialAmount/manpowerAmount themselves follow.
+      const materialAmount = item.materialAmount !== null ? Number(item.materialAmount) : null
+      const manpowerAmount = item.manpowerAmount !== null ? Number(item.manpowerAmount) : null
+      const costParts = [vendorAmount, materialAmount, manpowerAmount]
+      const rawActual = costParts.every((p) => p === null) ? null : costParts.reduce<number>((sum, p) => sum + (p ?? 0), 0)
+      // null when this line has never appeared on an interim bill -- "not yet
+      // billed" is not "billed nothing".
+      const revenue = revenueByLineItemId.get(item.id) ?? null
       return {
         lineItemId: item.id,
         code: item.itemCode,
@@ -520,14 +561,24 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
         // split this line -- "unsplit" and "split as zero" are different facts
         // and a report that conflated them would read as if every line had
         // been costed.
-        materialAmount: item.materialAmount !== null ? Number(item.materialAmount) : null,
-        manpowerAmount: item.manpowerAmount !== null ? Number(item.manpowerAmount) : null,
+        materialAmount,
+        manpowerAmount,
         vendorId: item.vendorId,
         vendorName: item.vendorId ? (supplierNameById.get(item.vendorId) ?? null) : null,
         vendorAmount,
         variance: rawVariance !== null ? Math.round(rawVariance * 100) / 100 : null,
+        // R67 lane D22 (item D-54). NOTE `variance` above is the ORIGINAL
+        // R39/R-C09 figure (vendorAmount - budget) and is deliberately left
+        // alone -- the project Budget screen (D-41) already reads it. The
+        // Scope > Budget tab's own "Variance = Budget - Actual" is derived on
+        // the client from budget and actual, in one tested pure helper
+        // (projexa's src/lib/budget-lines.ts), rather than shipped as a third
+        // subtly-different variance field from here.
+        actual: rawActual !== null ? Math.round(rawActual * 100) / 100 : null,
+        revenue,
         _rawBudget: rawBudget,
         _rawVariance: rawVariance,
+        _rawActual: rawActual,
       }
     })
 
@@ -540,17 +591,24 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     // reconcile exactly to a raw SQL SUM over the same rows.
     const totalMaterialAmount = Math.round(lines.reduce((s, l) => s + (l.materialAmount ?? 0), 0) * 100) / 100
     const totalManpowerAmount = Math.round(lines.reduce((s, l) => s + (l.manpowerAmount ?? 0), 0) * 100) / 100
+    // R67 lane D22 (item D-54): same single-rounding rule again -- totalled
+    // over the RAW per-line actuals, rounded once, so "Actual" in the tile and
+    // the sum of the Actual column reconcile exactly.
+    const totalActual = Math.round(lines.reduce((s, l) => s + (l._rawActual ?? 0), 0) * 100) / 100
+    const totalRevenue = Math.round(lines.reduce((s, l) => s + (l.revenue ?? 0), 0) * 100) / 100
 
     return {
       boqId: latest.id,
       boqTitle: latest.title,
       boqVersion: latest.version,
-      lines: lines.map(({ _rawBudget, _rawVariance, ...line }) => line),
+      lines: lines.map(({ _rawBudget, _rawVariance, _rawActual, ...line }) => line),
       totalBudget,
       totalVendorAmount,
       totalVariance,
       totalMaterialAmount,
       totalManpowerAmount,
+      totalActual,
+      totalRevenue,
     }
   })
 }
