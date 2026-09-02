@@ -503,11 +503,14 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
       .from(erpPurchaseOrders)
       .where(and(eq(erpPurchaseOrders.orgId, ctx.orgId), inArray(erpPurchaseOrders.projectId, ids)))
       .groupBy(erpPurchaseOrders.projectId)
-    const poMap = new Map(
-      poByProject
-        .filter((r): r is { projectId: string; total: number | string } => r.projectId !== null && r.total !== null)
-        .map((r) => [r.projectId, Number(r.total)])
-    )
+    // sum() over a numeric column comes back as a string from postgres-js, and
+    // as null when the group has no rows -- Number(null) would be 0, which is
+    // exactly the fabricated figure resolveProjectMoney() exists to avoid.
+    const poMap = new Map<string, number>()
+    for (const row of poByProject) {
+      if (row.projectId === null || row.total === null || row.total === undefined) continue
+      poMap.set(row.projectId, Number(row.total))
+    }
 
     const revenueMap = new Map(revenueByProject.map((r) => [r.projectId, Number(r.total)]))
     const expenseMap = new Map(expensesByProject.map((r) => [r.projectId, Number(r.total)]))
