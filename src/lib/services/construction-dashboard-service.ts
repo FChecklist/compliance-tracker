@@ -47,6 +47,27 @@ export async function listActiveProducts(ctx: { orgId: string }) {
   )
 }
 
+// R67 F-03: the cheap project-picker read. Every PROJEXA project-scoped page
+// resolved its project by calling GET /dashboard -- getOrgDashboard(), which
+// is the earned-value/BOQ/invoice aggregate measured at 1.4-4.0 s -- purely
+// to learn a project's id and name, before a single byte of HTML was sent.
+// This is the same answer from ONE indexed read of `projects` inside ONE
+// withTenantContext transaction: no BOQ, no progress entries, no invoices.
+// `status` is the real pms_project_status lifecycle column (schema.ts), not
+// isActive -- callers that want to show "active/on_hold/completed" next to
+// the name now can, without a second round trip.
+export type SelectableProject = { id: string; name: string; status: string }
+
+export async function listProjectsForSelection(ctx: { orgId: string }): Promise<SelectableProject[]> {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.projects.findMany({
+      where: and(eq(projects.orgId, ctx.orgId), eq(projects.isActive, true)),
+      columns: { id: true, name: true, status: true },
+      orderBy: (t, { asc }) => asc(t.name),
+    })
+  )
+}
+
 export type ProjectInput = { productId: string; name: string; description?: string; clientId?: string; startDate?: string; targetDate?: string }
 
 // Closes the one real gap found in a 2026-07-18 production-readiness pass:
@@ -282,7 +303,14 @@ export type OrgDashboardSummary = {
   totalBudget: number
   totalRevenue: number
   totalExpenses: number
-  projects: { id: string; name: string; revenue: number; expenses: number; taskCount: number; delayedTaskCount: number; earnedValue: number | null; percentByValue: number | null }[]
+  // R67 F-01: progressPercent is new. PROJEXA's own overview screen used to
+  // fetch this org payload and then call GET /dashboard/{id} once PER PROJECT
+  // just to read getProjectDashboard().progressPercent -- an N+1 of HTTP
+  // requests, each of which opened its own transaction on the five-connection
+  // app_runtime pool. It is the SAME figure, computed here by one grouped
+  // query inside the transaction this function already holds, so the org
+  // dashboard is a single round trip.
+  projects: { id: string; name: string; revenue: number; expenses: number; taskCount: number; delayedTaskCount: number; progressPercent: number; earnedValue: number | null; percentByValue: number | null }[]
 }
 
 /** Company -> [Department] -> Project drill-down. departmentId filters by the project LEAD's department (projects has no direct departmentId column -- see file header). */
@@ -362,6 +390,27 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
     const revenueMap = new Map(revenueByProject.map((r) => [r.projectId, Number(r.total)]))
     const expenseMap = new Map(expensesByProject.map((r) => [r.projectId, Number(r.total)]))
     const taskMap = new Map(tasksByProject.map((r) => [r.projectId, { total: Number(r.total), delayed: Number(r.delayed) }]))
+
+    // R67 F-01: progress per project, ONE grouped query, in this transaction.
+    // Identical semantics to getProjectDashboard's own progressPercent -- the
+    // LATEST logged entry per activity (DISTINCT ON, entry_date DESC), then
+    // averaged across the activities that have any entry at all (a daily-log
+    // table must not weight every historical row equally, and an activity
+    // nobody has logged against yet must not drag the average to zero). Same
+    // ARRAY[...] construction as latestBoqPerProject above -- sql.join, not a
+    // bound JS array; see that query's comment for why.
+    const progressByProject = (await db.execute(sql`
+      SELECT latest.project_id, avg(latest.percent_complete)::float AS progress_percent
+      FROM (
+        SELECT DISTINCT ON (e.activity_id) a.project_id, e.percent_complete
+        FROM compliance.construction_work_progress_entries e
+        JOIN compliance.construction_activities a ON a.id = e.activity_id
+        WHERE a.org_id = ${ctx.orgId} AND a.project_id = ANY(ARRAY[${projectIdsSql}])
+        ORDER BY e.activity_id, e.entry_date DESC
+      ) latest
+      GROUP BY latest.project_id
+    `)) as { project_id: string; progress_percent: number }[]
+    const progressMap = new Map(progressByProject.map((r) => [r.project_id, Number(r.progress_percent)]))
 
     // R39/R-51: null (not 0) when construction isn't enabled for this org, or
     // the project has no BOQ yet -- both real "not applicable yet" states,
@@ -478,6 +527,10 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         expenses: expenseMap.get(p.id) ?? 0,
         taskCount: taskMap.get(p.id)?.total ?? 0,
         delayedTaskCount: taskMap.get(p.id)?.delayed ?? 0,
+        // 0 (not null) when nothing has been logged yet -- "no progress
+        // recorded" IS zero percent complete, unlike earnedValue below where
+        // "no BOQ" is a genuinely different state from "a BOQ worth zero".
+        progressPercent: Math.round(progressMap.get(p.id) ?? 0),
         // null (not 0) when the project has no BOQ at all yet -- a real "no
         // scope defined" state, distinct from a real BOQ worth zero.
         value: activeBoqId ? (valueByBoqMap.get(activeBoqId) ?? 0) : null,

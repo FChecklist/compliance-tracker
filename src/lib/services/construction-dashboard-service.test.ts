@@ -32,6 +32,76 @@ function functionBody(name: string): string {
   return CODE.slice(start, next === -1 ? undefined : next)
 }
 
+// R67 F-03. listProjectsForSelection() exists so PROJEXA's 50 project-scoped
+// pages stop resolving "which project am I on" through getOrgDashboard() --
+// the earned-value/BOQ/invoice aggregate. Its whole value is being cheap, so
+// the guard is that it stays cheap: one transaction, and none of the
+// expensive tables. Same static-source posture as the rest of this file
+// (a unit test cannot open a real pool), with the same honest limits.
+describe("construction-dashboard-service: listProjectsForSelection stays a cheap single read", () => {
+  test("opens exactly one withTenantContext transaction", () => {
+    const body = functionBody("listProjectsForSelection")
+    expect(body.match(/withTenantContext\(/g)?.length).toBe(1)
+  })
+
+  test("reads only `projects` -- no BOQ, progress, invoice or budget tables", () => {
+    const body = functionBody("listProjectsForSelection")
+    for (const forbidden of [
+      "constructionBoqs",
+      "constructionBoqLineItems",
+      "constructionWorkProgressEntries",
+      "erpSalesInvoices",
+      "erpBudgetLineItems",
+      "erpPurchaseOrders",
+      "pmsIssues",
+    ]) {
+      expect(body).not.toContain(forbidden)
+    }
+    expect(body).toContain("db.query.projects.findMany")
+  })
+
+  test("does not call the enablement check or any earned-value helper", () => {
+    const body = functionBody("listProjectsForSelection")
+    expect(body).not.toMatch(/isConstructionEnabledForOrg\(/)
+    expect(body).not.toMatch(/computeEarnedValue\(/)
+  })
+
+  test("selects only the three fields the picker needs", () => {
+    const body = functionBody("listProjectsForSelection")
+    expect(body).toMatch(/columns:\s*\{\s*id:\s*true,\s*name:\s*true,\s*status:\s*true\s*\}/)
+  })
+})
+
+// R67 F-01. PROJEXA's overview screen read progressPercent by calling
+// GET /dashboard/{id} once per project on top of the org payload -- an N+1 of
+// HTTP requests against a five-connection pool. getOrgDashboard() now carries
+// the figure itself, computed by ONE grouped query inside the transaction it
+// already holds.
+describe("construction-dashboard-service: getOrgDashboard carries progressPercent", () => {
+  test("the summary type declares progressPercent per project", () => {
+    const typeStart = CODE.indexOf("export type OrgDashboardSummary")
+    expect(typeStart).toBeGreaterThan(-1)
+    const typeBlock = CODE.slice(typeStart, CODE.indexOf("\nexport ", typeStart + 1))
+    expect(typeBlock).toContain("progressPercent: number")
+  })
+
+  test("it is derived from a grouped query, not a per-project call", () => {
+    const body = functionBody("getOrgDashboard")
+    expect(body).toMatch(/GROUP BY latest\.project_id/)
+    expect(body).toMatch(/DISTINCT ON \(e\.activity_id\)/)
+    expect(body).toContain("progressPercent: Math.round(progressMap.get(p.id) ?? 0)")
+    // the whole point: no getProjectDashboard fan-out reappears here
+    expect(body).not.toMatch(/getProjectDashboard\s*\(/)
+  })
+
+  test("the added query still runs on the already-open transaction handle", () => {
+    // `db.execute` is the outer transaction's handle -- a second
+    // withTenantContext would be the regression the suite above guards.
+    const body = functionBody("getOrgDashboard")
+    expect(body).toMatch(/const progressByProject = \(await db\.execute\(/)
+  })
+})
+
 describe("construction-dashboard-service: no nested withTenantContext transactions", () => {
   test("earnedValueReport() (two nested transactions) is not called anywhere in this file", () => {
     expect(CODE).not.toMatch(/\bearnedValueReport\s*\(/)
