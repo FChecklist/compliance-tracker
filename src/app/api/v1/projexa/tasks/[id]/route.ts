@@ -17,8 +17,17 @@ import { and, eq } from "drizzle-orm"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
+import { withRouteTiming } from "@/lib/route-timing"
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function GET(...args: Parameters<typeof GET_impl>) {
+  return withRouteTiming("GET", () => GET_impl(...args))
+}
+
+async function GET_impl(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })

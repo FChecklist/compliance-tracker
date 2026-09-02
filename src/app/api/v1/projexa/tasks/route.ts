@@ -26,6 +26,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
 import { runSubmission, runDirectTask } from "@/lib/pipeline/run-submission"
 import { NEEDS_YOU_STATUSES, nextTaskCursor, parseTaskCursor } from "@/lib/pipeline/task-cursor"
+import { withRouteTiming } from "@/lib/route-timing"
 
 const TASK_STATUSES = ["to_do", "in_progress", "waiting", "done", "blocked"] as const
 type TaskStatus = (typeof TASK_STATUSES)[number]
@@ -39,7 +40,15 @@ const NEEDS_YOU_RANK = sql`(case when ${pipelineTasks.status} in (${sql.join(
   sql`, `
 )}) then 1 else 0 end)`
 
-export async function POST(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function POST(...args: Parameters<typeof POST_impl>) {
+  return withRouteTiming("POST", () => POST_impl(...args))
+}
+
+async function POST_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
@@ -110,7 +119,15 @@ export async function POST(request: NextRequest) {
  * blocked    -- blocked, with the backend's own error text on each row,
  *               never an empty list and never a generic failure
  */
-export async function GET(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function GET(...args: Parameters<typeof GET_impl>) {
+  return withRouteTiming("GET", () => GET_impl(...args))
+}
+
+async function GET_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
