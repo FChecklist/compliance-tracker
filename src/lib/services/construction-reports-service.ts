@@ -78,6 +78,29 @@ async function activityIdsForProject(db: TenantDb, orgId: string, projectId: str
 }
 
 // 1. Work Progress Report -- latest logged % complete + total quantity done per activity.
+//
+// R67 F-14 (R-215) -- W-01, THE MEASURED NUMBER, RECORDED HERE RATHER THAN
+// FIXED HERE. The R66 audit timed this route at 24.3 s on the demo org
+// (GET /api/v1/projexa/reports/work-progress), against ~400-831 ms for the
+// projexa /api/work-progress list over the same data. The shape below is why:
+//
+//   array_agg(percent_complete ORDER BY entry_date DESC)[1]
+//
+// builds the FULL ordered array of every entry ever logged for each activity,
+// in memory, and then throws all of it away except element 1. Cost grows with
+// the project's whole logging history, not with the number of activities, and
+// it cannot use an index for the ordering because the sort happens inside the
+// aggregate. The equivalent answer via `DISTINCT ON (activity_id) ... ORDER BY
+// activity_id, entry_date DESC` -- which categoryProgressReport() and
+// getProjectDashboard() both already use for exactly this question -- is one
+// indexed pass.
+//
+// It is NOT rewritten here on purpose. Programme decision D-02 makes
+// /work-progress?tab=report (backed by the 2.7 s projexa assembly) the ONE Work
+// Progress Report, and retires this route from the UI instead of keeping two
+// implementations of the same report alive. Rewriting it would be work spent
+// on a route that is being unlinked; the number above is the evidence for that
+// call, and it stays recorded so nobody has to re-measure it to make it.
 export async function workProgressReport(ctx: { orgId: string }, projectId: string) {
   await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -931,6 +954,30 @@ export async function expenseReport(ctx: { orgId: string }, projectId: string) {
   return { byHead, total: byHead.reduce((s, r) => s + Number(r.total), 0) }
 }
 
+// R67 F-14 (R-215): the pure half of categoryProgressReport, extracted so the
+// project dashboard can fold the same breakdown into the transaction it already
+// holds instead of the browser making a second call for it. Exported for the
+// same reason computeEarnedValue is: ONE arithmetic path, so the chart on the
+// dashboard and the "category-progress" named report cannot disagree.
+//
+// An activity nobody has logged against counts as 0 here (not as absent), which
+// is what the report has always done: a category with three activities and one
+// logged at 60% is 20% complete, not 60%.
+export type CategoryProgressRow = { categoryId: string; name: string; percentComplete: number }
+
+export function computeCategoryProgress(
+  categories: { id: string; name: string }[],
+  activities: { id: string; categoryId: string | null }[],
+  percentByActivity: Map<string, number>
+): CategoryProgressRow[] {
+  return categories.map((c) => {
+    const activityIdsInCat = activities.filter((a) => a.categoryId === c.id).map((a) => a.id)
+    const percents = activityIdsInCat.map((id) => percentByActivity.get(id) ?? 0)
+    const avg = percents.length > 0 ? percents.reduce((s, p) => s + p, 0) / percents.length : 0
+    return { categoryId: c.id, name: c.name, percentComplete: Math.round(avg) }
+  })
+}
+
 // 16. Category Progress Report -- latest % complete averaged per category (via its activities).
 export async function categoryProgressReport(ctx: { orgId: string }, projectId: string) {
   await ensureConstructionEnabled(ctx.orgId)
@@ -952,14 +999,7 @@ export async function categoryProgressReport(ctx: { orgId: string }, projectId: 
       ORDER BY activity_id, entry_date DESC
     `)) as { activity_id: string; percent_complete: number }[]
     const percentByActivity = new Map(rows.map((r) => [r.activity_id, Number(r.percent_complete)]))
-    return {
-      categories: categories.map((c) => {
-        const activityIdsInCat = activities.filter((a) => a.categoryId === c.id).map((a) => a.id)
-        const percents = activityIdsInCat.map((id) => percentByActivity.get(id) ?? 0)
-        const avg = percents.length > 0 ? percents.reduce((s, p) => s + p, 0) / percents.length : 0
-        return { categoryId: c.id, name: c.name, percentComplete: Math.round(avg) }
-      }),
-    }
+    return { categories: computeCategoryProgress(categories, activities, percentByActivity) }
   })
 }
 

@@ -11,7 +11,7 @@
 // hierarchy is approximated via the project lead's department
 // (`projects.leadUserId` -> `users.departmentId`), not a direct FK. This is
 // documented here rather than silently treated as exact.
-import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users, erpPurchaseOrders, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
+import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionCategories, constructionWorkProgressEntries, pmsIssues, documents, users, erpPurchaseOrders, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, sql, isNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -28,7 +28,7 @@ import { ServiceError } from "./compliance-service"
 // BOQ/progress reads and calls this directly (see below) instead of calling
 // earnedValueReport() once per project. Same circular-import safety as
 // earnedValueReport above (call-time only, never module-evaluation time).
-import { computeEarnedValue, type EvLineItem } from "./construction-reports-service"
+import { computeEarnedValue, computeCategoryProgress, type EvLineItem, type CategoryProgressRow } from "./construction-reports-service"
 import { isConstructionEnabledForOrg } from "./construction-enablement-service"
 export { ServiceError }
 
@@ -143,6 +143,23 @@ export type ProjectDashboard = {
   earnedValue: number | null
   percentByValue: number | null
   contractValue: number | null
+  // R67 F-14: both of these used to be separate client calls from PROJEXA's
+  // project dashboard (/api/reports/category-progress and /api/work-progress),
+  // each opening its own transaction to re-read what this one already has.
+  categories: CategoryProgressRow[]
+  recentEntries: RecentProgressEntry[]
+}
+
+/** The five newest progress entries, with their activity's name resolved. */
+export type RecentProgressEntry = {
+  id: string
+  activityId: string
+  // null (never the raw id) when the referenced activity is genuinely gone --
+  // the same convention construction-progress-service.ts uses.
+  activityName: string | null
+  entryDate: string
+  quantityDone: string
+  percentComplete: string
 }
 
 export async function getProjectDashboard(ctx: { orgId: string }, projectId: string): Promise<ProjectDashboard> {
@@ -168,12 +185,20 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
       .from(constructionExpenseEntries)
       .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), eq(constructionExpenseEntries.projectId, projectId)))
 
-    const activityIds = (await db.query.constructionActivities.findMany({
+    // R67 F-14 (R-215): categoryId and name come back too. They cost nothing
+    // extra here (same row, same query) and they are what the category
+    // breakdown and the recent-entries list below are built from -- both of
+    // which the browser used to fetch as two separate calls.
+    const activityRows = await db.query.constructionActivities.findMany({
       where: and(eq(constructionActivities.orgId, ctx.orgId), eq(constructionActivities.projectId, projectId)),
-      columns: { id: true },
-    })).map((a) => a.id)
+      columns: { id: true, name: true, categoryId: true },
+    })
+    const activityIds = activityRows.map((a) => a.id)
 
     let progressPercent = 0
+    // Latest logged percent per activity -- the same map the category
+    // breakdown needs, so the two are read once, not twice.
+    const percentByActivity = new Map<string, number>()
     if (activityIds.length > 0) {
       // Latest logged entry per activity, then averaged -- a daily-log table
       // shouldn't have every historical entry weighted equally.
@@ -187,13 +212,54 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
       // bound parameter, so no injection risk) is the correct fix.
       const idsSql = sql.join(activityIds.map((id) => sql`${id}`), sql`, `)
       const rows = (await db.execute(sql`
-        SELECT DISTINCT ON (activity_id) percent_complete
+        SELECT DISTINCT ON (activity_id) activity_id, percent_complete
         FROM compliance.construction_work_progress_entries
         WHERE activity_id = ANY(ARRAY[${idsSql}])
         ORDER BY activity_id, entry_date DESC
-      `)) as { percent_complete: number }[]
+      `)) as { activity_id: string; percent_complete: number }[]
+      for (const r of rows) percentByActivity.set(r.activity_id, Number(r.percent_complete))
       if (rows.length > 0) progressPercent = rows.reduce((sum, r) => sum + Number(r.percent_complete), 0) / rows.length
     }
+
+    // R67 F-14 (R-215). PROJEXA's project dashboard made two more calls of its
+    // own for these -- GET /api/reports/category-progress and
+    // GET /api/work-progress -- each of which opened its own transaction on the
+    // five-connection app_runtime pool to re-read data this transaction has
+    // already read. Both are folded in here, batched on the open handle: one
+    // categories read, one entries read, no nesting (the D-06 guard in
+    // tenant-scoped.ts would throw on a second withTenantContext from in here).
+    //
+    // The category arithmetic is construction-reports-service.ts's own
+    // computeCategoryProgress(), the same pure function the "category-progress"
+    // named report calls, so the dashboard chart and the report cannot disagree.
+    const categoryRows = await db.query.constructionCategories.findMany({
+      where: and(eq(constructionCategories.orgId, ctx.orgId), eq(constructionCategories.projectId, projectId)),
+      columns: { id: true, name: true },
+    })
+    const categories = computeCategoryProgress(categoryRows, activityRows, percentByActivity)
+
+    // The five most recent entries, newest first -- the same ordering
+    // construction-progress-service.ts#listProgressEntries uses, so the
+    // dashboard's "Recent progress entries" panel and the Work Progress list
+    // agree about what "recent" means. The activity NAME is resolved from the
+    // rows already in memory; an entry whose activity is gone reports null
+    // rather than a raw id, matching that service's own convention.
+    const RECENT_ENTRY_LIMIT = 5
+    const activityNameById = new Map(activityRows.map((a) => [a.id, a.name]))
+    const recentRows = await db.query.constructionWorkProgressEntries.findMany({
+      where: and(eq(constructionWorkProgressEntries.orgId, ctx.orgId), eq(constructionWorkProgressEntries.projectId, projectId)),
+      columns: { id: true, activityId: true, entryDate: true, quantityDone: true, percentComplete: true },
+      orderBy: (t, { desc }) => desc(t.entryDate),
+      limit: RECENT_ENTRY_LIMIT,
+    })
+    const recentEntries: RecentProgressEntry[] = recentRows.map((e) => ({
+      id: e.id,
+      activityId: e.activityId,
+      activityName: activityNameById.get(e.activityId) ?? null,
+      entryDate: e.entryDate,
+      quantityDone: e.quantityDone,
+      percentComplete: e.percentComplete,
+    }))
 
     const today = new Date().toISOString().slice(0, 10)
     const [taskStats] = await db.select({
@@ -292,6 +358,8 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
       earnedValue,
       percentByValue,
       contractValue,
+      categories,
+      recentEntries,
     }
   })
 }

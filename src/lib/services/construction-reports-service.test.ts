@@ -19,6 +19,7 @@ import {
   aggregateDesignerTimesheetCosts,
   aggregateDesignerApprovalStatus,
   aggregateWorkAnalysis,
+  computeCategoryProgress,
   computeCertifiedPayroll,
   computeEarnedValue,
   WH347_DAY_LABELS,
@@ -678,5 +679,62 @@ describe("construction-reports-service: enablement memo + no nested transactions
     await service.attendanceReport({ orgId: "org-count" }, "p1")
 
     expect(withTenantContext.mock.calls.length).toBe(1)
+  })
+})
+
+// R67 F-14 (R-215). computeCategoryProgress is the pure half of
+// categoryProgressReport, extracted so getProjectDashboard can fold the same
+// breakdown into the transaction it already holds instead of PROJEXA making a
+// second HTTP call (and a second pooled transaction) for it. Same reason
+// computeEarnedValue was extracted: ONE arithmetic path, so the dashboard chart
+// and the named report cannot disagree.
+describe("computeCategoryProgress (R67 F-14)", () => {
+  const CATEGORIES = [
+    { id: "c1", name: "Substructure" },
+    { id: "c2", name: "Superstructure" },
+  ]
+
+  test("averages the latest percent across a category's activities", () => {
+    const rows = computeCategoryProgress(
+      CATEGORIES,
+      [
+        { id: "a1", categoryId: "c1" },
+        { id: "a2", categoryId: "c1" },
+        { id: "a3", categoryId: "c2" },
+      ],
+      new Map([["a1", 80], ["a2", 20], ["a3", 55]])
+    )
+    expect(rows).toEqual([
+      { categoryId: "c1", name: "Substructure", percentComplete: 50 },
+      { categoryId: "c2", name: "Superstructure", percentComplete: 55 },
+    ])
+  })
+
+  test("an activity nobody has logged against counts as 0, not as absent", () => {
+    // Three activities, one at 60% -> 20%, NOT 60%. Treating the unlogged ones
+    // as absent would report a category as three times more complete than it is.
+    const [row] = computeCategoryProgress(
+      [CATEGORIES[0]],
+      [
+        { id: "a1", categoryId: "c1" },
+        { id: "a2", categoryId: "c1" },
+        { id: "a3", categoryId: "c1" },
+      ],
+      new Map([["a1", 60]])
+    )
+    expect(row.percentComplete).toBe(20)
+  })
+
+  test("a category with no activities is 0, and is still listed", () => {
+    const rows = computeCategoryProgress(CATEGORIES, [{ id: "a1", categoryId: "c1" }], new Map([["a1", 100]]))
+    expect(rows).toEqual([
+      { categoryId: "c1", name: "Substructure", percentComplete: 100 },
+      { categoryId: "c2", name: "Superstructure", percentComplete: 0 },
+    ])
+  })
+
+  test("an activity with no category is not attributed to one", () => {
+    const rows = computeCategoryProgress([CATEGORIES[0]], [{ id: "a1", categoryId: null }], new Map([["a1", 90]]))
+    expect(rows[0].percentComplete).toBe(0)
   })
 })

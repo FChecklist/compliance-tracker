@@ -134,3 +134,127 @@ describe("construction-dashboard-service: no nested withTenantContext transactio
     }
   })
 })
+
+// ---------------------------------------------------------------------------
+// R67 F-14 (R-215) / F-15 (R-232) -- the RUNTIME half.
+//
+// The item's acceptance: "getProjectDashboard's result contains categories and
+// recentEntries, and the withTenantContext spy records exactly one entry for
+// the call."
+//
+// THE FAULT. PROJEXA's project dashboard made two extra calls of its own for
+// exactly this data -- GET /api/reports/category-progress and
+// GET /api/work-progress -- and each of those opened its OWN transaction on the
+// five-connection app_runtime pool to re-read what getProjectDashboard had just
+// read. Folding them into the open transaction removes two round trips AND two
+// pooled connections per dashboard view.
+//
+// Only the DB layer is mocked (the same "capture the real modules, restore in
+// afterEach" pattern construction-reports-service.test.ts uses), so the real
+// function runs: its own queries, its own arithmetic, its own shape.
+import { afterEach, mock } from "bun:test"
+
+const realTenantScoped = await import("@/lib/db/tenant-scoped")
+const realEnablement = await import("./construction-enablement-service")
+
+// Every aggregate select in this function resolves to one harmless zero row --
+// the assertions here are about the two folded-in panels and the transaction
+// count, not about budget arithmetic (covered by the live-data reports).
+const ZERO_ROW = [{ total: 0, count: 0, delayed: 0 }]
+function selectChain() {
+  const chain: Record<string, unknown> = {}
+  for (const method of ["from", "innerJoin", "leftJoin", "where", "groupBy", "orderBy"]) {
+    chain[method] = () => chain
+  }
+  chain.then = (resolve: (rows: unknown) => unknown) => resolve(ZERO_ROW)
+  return chain
+}
+
+const ACTIVITIES = [
+  { id: "a1", name: "Excavation", categoryId: "c1" },
+  { id: "a2", name: "Shuttering", categoryId: "c1" },
+  { id: "a3", name: "Rebar", categoryId: "c2" },
+]
+const CATEGORIES = [
+  { id: "c1", name: "Substructure" },
+  { id: "c2", name: "Superstructure" },
+]
+const RECENT = [
+  { id: "e1", activityId: "a1", entryDate: "2026-09-02", quantityDone: "12", percentComplete: "60" },
+  // a2's activity row exists; a9's does not -- that entry must report a null
+  // name, never the raw id.
+  { id: "e2", activityId: "a9", entryDate: "2026-09-01", quantityDone: "4", percentComplete: "10" },
+]
+
+function fakeDb() {
+  return {
+    query: {
+      projects: { findFirst: async () => ({ id: "p1", name: "Skyline Tower", projectValue: "1000" }) },
+      constructionActivities: { findMany: async () => ACTIVITIES },
+      constructionCategories: { findMany: async () => CATEGORIES },
+      constructionWorkProgressEntries: { findMany: async () => RECENT },
+      constructionBoqs: { findFirst: async () => undefined },
+      constructionBoqLineItems: { findMany: async () => [] },
+    },
+    select: () => selectChain(),
+    // The DISTINCT ON latest-percent-per-activity read: a1 at 60%, a3 at 30%,
+    // a2 never logged.
+    execute: async () => [
+      { activity_id: "a1", percent_complete: 60 },
+      { activity_id: "a3", percent_complete: 30 },
+    ],
+  }
+}
+
+describe("getProjectDashboard: category progress and recent entries come from the ONE transaction", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+    await mock.module("./construction-enablement-service", () => realEnablement)
+  })
+
+  async function run() {
+    const withTenantContextSpy = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb()))
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: withTenantContextSpy }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablement,
+      isConstructionEnabledForOrg: mock(async () => true),
+    }))
+    const { getProjectDashboard } = await import("./construction-dashboard-service")
+    const result = await getProjectDashboard({ orgId: "org-1" }, "p1")
+    return { result, withTenantContextSpy }
+  }
+
+  test("exactly ONE transaction is opened for the whole dashboard", async () => {
+    const { withTenantContextSpy } = await run()
+    expect(withTenantContextSpy.mock.calls.length).toBe(1)
+  })
+
+  test("the payload carries categories, averaged per category exactly as the named report does", async () => {
+    const { result } = await run()
+    // c1: a1 at 60, a2 never logged (counts as 0) -> 30. c2: a3 at 30 -> 30.
+    expect(result.categories).toEqual([
+      { categoryId: "c1", name: "Substructure", percentComplete: 30 },
+      { categoryId: "c2", name: "Superstructure", percentComplete: 30 },
+    ])
+  })
+
+  test("the payload carries the recent entries, newest first, with their activity's name", async () => {
+    const { result } = await run()
+    expect(result.recentEntries.map((e) => e.id)).toEqual(["e1", "e2"])
+    expect(result.recentEntries[0].activityName).toBe("Excavation")
+  })
+
+  test("an entry whose activity is gone reports a null name, never the raw id", async () => {
+    const { result } = await run()
+    const orphan = result.recentEntries.find((e) => e.id === "e2")
+    expect(orphan?.activityName).toBeNull()
+    expect(orphan?.activityId).toBe("a9")
+  })
+
+  test("progressPercent still averages the LATEST entry per logged activity", async () => {
+    const { result } = await run()
+    // 60 and 30 over the two activities that have any entry at all.
+    expect(result.progressPercent).toBe(45)
+  })
+})
