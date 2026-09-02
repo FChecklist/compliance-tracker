@@ -17,6 +17,7 @@
 import { createId } from "@paralleldrive/cuid2"
 import { after } from "next/server"
 import { veriMeetings, veriMeetingActionItems, veriMeetingShareLinks, tasks, auditLogs, projects, db } from "@/lib/db"
+import { MEETING_DELETED_STATUS } from "@/lib/db/schema"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { logActivity } from "@/lib/audit"
 import { eq, and, desc, ne } from "drizzle-orm"
@@ -74,7 +75,13 @@ function assertEditable(meeting: { status: string }) {
 // that only ever applies to a DRAFT (never to a published, audit-relevant
 // record) carries no information a timestamp column would add. That keeps this
 // item migration-free, which is what the programme item asserts.
-export const MEETING_DELETED_STATUS = "deleted"
+//
+// The literal lives in schema.ts, beside the column it is a value of, so the
+// table's OTHER readers (adoption-metrics-service, report-engine-service's
+// TABLE_REGISTRY) can filter it out without importing this service and the
+// LLM/task-execution graph behind it. Re-exported here under the name every
+// caller in this file and its routes already uses.
+export { MEETING_DELETED_STATUS }
 
 // The exact sentence the PROJEXA UI renders beside a disabled Delete, kept
 // here so the server's refusal and the client's disabled-reason cannot drift.

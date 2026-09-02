@@ -6266,7 +6266,15 @@ export const veriMeetings = complianceSchemaDB.table('veri_meetings', {
   minutes: text('minutes'),
   minutesHistory: jsonb('minutes_history').notNull().default([]), // { date, amendedBy, text }[]
   systemId: text('system_id').unique(), // e.g. MOM-2026-4821 -- nullable, pre-existing rows never get one retroactively
-  status: text('status').notNull().default('draft'), // 'draft' | 'published' -- once published, meeting-level fields lock
+  // 'draft' | 'published' | 'deleted'. Once published, meeting-level fields
+  // lock. R67 D-21 added the third value as a DRAFT-ONLY soft delete (a
+  // published meeting is audit-relevant and is refused outright) -- see
+  // MEETING_DELETED_STATUS below, which is the one place that spells it, and
+  // veri-meeting-service.ts, which owns the transition. EVERY reader of this
+  // table must exclude it: veri-meeting-service's own three read paths,
+  // adoption-metrics-service's meetingsManaged count, and TABLE_REGISTRY's
+  // veri_meetings entry in report-engine-service all do.
+  status: text('status').notNull().default('draft'),
   publishedAt: timestamp('published_at'),
   publishedById: text('published_by_id'),
   // Wave 74 (Meeting Intelligence, AI_OS_CERTIFICATION.md §3.2 NOT_BUILT):
@@ -6291,6 +6299,14 @@ export const veriMeetings = complianceSchemaDB.table('veri_meetings', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// R67 D-21: the third value of veriMeetings.status, declared HERE rather than
+// only in veri-meeting-service.ts so the table's other readers
+// (adoption-metrics-service, report-engine-service's TABLE_REGISTRY) can
+// exclude a soft-deleted draft without importing that whole service and the
+// LLM/task-execution graph behind it. veri-meeting-service re-exports it under
+// the same name it has always had.
+export const MEETING_DELETED_STATUS = 'deleted'
 
 // Wave 44: mirrors conversationShareLinks (Wave 36) exactly -- tokenized,
 // time-limited, individually revocable. Deliberately NOT meettrack-v2's own

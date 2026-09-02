@@ -294,6 +294,27 @@ describe("R67 D-28 -- pure rules shared by create and update", () => {
 })
 
 describe("updateProgressEntry -- R67 D-28", () => {
+  // A patch naming no field used to reach db.update().set({}), where
+  // drizzle's mapUpdateSet filters every undefined and throws a plain
+  // Error("No values to set") -- not a ServiceError, so the route's generic
+  // catch answered 500 for what is plainly a 400. PATCH {} is a request a real
+  // Bearer-key integration will send.
+  test("an EMPTY patch is a 400 by name, not a 500, and nothing is written", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { updateProgressEntry, ServiceError } = await import("./construction-progress-service")
+
+    let thrown: unknown
+    try {
+      await updateProgressEntry({ orgId: ORG }, "entry-existing", {})
+    } catch (err) {
+      thrown = err
+    }
+    expect(thrown).toBeInstanceOf(ServiceError)
+    expect((thrown as Error).message).toBe("No fields to update")
+    expect((thrown as { status: number }).status).toBe(400)
+    expect(updatedSets).toHaveLength(0)
+  })
+
   test("a percent outside 0-100 is refused with the same message create uses, and NOTHING is written", async () => {
     await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
     const { updateProgressEntry, PERCENT_COMPLETE_RANGE_MESSAGE } = await import("./construction-progress-service")
