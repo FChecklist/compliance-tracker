@@ -208,6 +208,116 @@ export async function deleteProgressEntry(ctx: { orgId: string }, entryId: strin
   })
 }
 
+// ─── R67 lane D22 (item D-77, rec R-289) ──────────────────────────────────
+// A WORK-PROGRESS ENTRY HAD NO OBJECT PAGE AND NO WAY BACK. The list printed
+// a row and that was the end of it: there was no route to one entry, no way to
+// see its remarks or the photo the crew attached, and no way to correct a
+// quantity typed wrong on site -- the only mutation that existed was DELETE.
+// A record you can only destroy is not a record anyone will trust.
+//
+// This is the read and the correction. Deliberately NOT re-parented: the
+// activity and the BOQ line an entry was recorded against are what make it
+// that entry, and moving it between activities is a different act (delete and
+// re-record) with different consequences for every roll-up that reads it.
+
+export type ProgressEntryDetail = Awaited<ReturnType<typeof getProgressEntry>>
+
+/** One entry, with everything the object page shows -- so the screen makes ONE call, not five. */
+export async function getProgressEntry(ctx: { orgId: string }, entryId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const entry = await db.query.constructionWorkProgressEntries.findFirst({
+      where: and(eq(constructionWorkProgressEntries.id, entryId), eq(constructionWorkProgressEntries.orgId, ctx.orgId)),
+    })
+    if (!entry) throw new ServiceError("Progress entry not found", 404)
+
+    const [activity, project, recordedBy, lines] = await Promise.all([
+      db.query.constructionActivities.findFirst({
+        where: and(eq(constructionActivities.id, entry.activityId), eq(constructionActivities.orgId, ctx.orgId)),
+        columns: { id: true, name: true, unit: true },
+      }),
+      db.query.projects.findFirst({
+        where: and(eq(projects.id, entry.projectId), eq(projects.orgId, ctx.orgId)),
+        columns: { id: true, name: true },
+      }),
+      db.query.users.findFirst({
+        where: and(eq(usersTable.id, entry.recordedById), eq(usersTable.orgId, ctx.orgId)),
+        columns: { id: true, name: true },
+      }),
+      entry.boqLineItemId
+        ? db.query.constructionBoqLineItems.findMany({
+            where: and(eq(constructionBoqLineItems.orgId, ctx.orgId), inArray(constructionBoqLineItems.id, [entry.boqLineItemId])),
+            columns: { id: true, boqId: true, itemCode: true, description: true, unit: true, quantity: true },
+          })
+        : Promise.resolve([]),
+    ])
+
+    // The SAME composer the list uses, so one entry and its row in the list can
+    // never name the same BOQ line two different ways.
+    const [withLine] = attachBoqLines([entry], lines)
+    return {
+      ...withLine,
+      activityName: activity?.name ?? null,
+      activityUnit: activity?.unit ?? null,
+      projectName: project?.name ?? null,
+      // The person, by name. An id is never printed on a screen (R-230/R-289).
+      recordedByName: recordedBy?.name ?? null,
+    }
+  })
+}
+
+/**
+ * Corrects a recorded entry.
+ *
+ * WHAT MAY CHANGE: the measured facts (date, quantity, percent, basis) and the
+ * remarks. WHAT MAY NOT: project, activity and BOQ line -- see this section's
+ * header.
+ *
+ * The linked schedule activities are rolled up again on the SAME transaction,
+ * exactly as createProgressEntry does (programme decision D-06 forbids a
+ * nested withTenantContext). rollUpLinkedIssueCompletion recomputes from every
+ * entry on the line rather than adding a delta, so re-running it after an edit
+ * is both correct and idempotent -- a quantity typed as 500 and corrected to
+ * 50 leaves the activity reading what the site records now say, not the sum of
+ * both readings.
+ */
+export async function updateProgressEntry(
+  ctx: { orgId: string },
+  entryId: string,
+  input: { entryDate?: string; quantityDone?: number; percentComplete?: number; remarks?: string | null; entryBasis?: "DELTA" | "SNAPSHOT" }
+) {
+  if (input.percentComplete !== undefined && (input.percentComplete < 0 || input.percentComplete > 100)) {
+    throw new ServiceError("percentComplete must be between 0 and 100", 400)
+  }
+  if (input.entryBasis !== undefined && input.entryBasis !== "DELTA" && input.entryBasis !== "SNAPSHOT") {
+    throw new ServiceError("entryBasis must be DELTA or SNAPSHOT", 400)
+  }
+  if (input.entryDate !== undefined && !input.entryDate) throw new ServiceError("entryDate is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const entry = await db.query.constructionWorkProgressEntries.findFirst({
+      where: and(eq(constructionWorkProgressEntries.id, entryId), eq(constructionWorkProgressEntries.orgId, ctx.orgId)),
+    })
+    if (!entry) throw new ServiceError("Progress entry not found", 404)
+
+    const patch: Record<string, unknown> = {}
+    if (input.entryDate !== undefined) patch.entryDate = input.entryDate
+    if (input.quantityDone !== undefined) patch.quantityDone = String(input.quantityDone)
+    if (input.percentComplete !== undefined) patch.percentComplete = String(input.percentComplete)
+    if (input.entryBasis !== undefined) patch.entryBasis = input.entryBasis
+    if (input.remarks !== undefined) patch.remarks = input.remarks || null
+    if (Object.keys(patch).length === 0) throw new ServiceError("Nothing to update", 400)
+
+    const [row] = await db
+      .update(constructionWorkProgressEntries)
+      .set(patch)
+      .where(and(eq(constructionWorkProgressEntries.id, entryId), eq(constructionWorkProgressEntries.orgId, ctx.orgId)))
+      .returning()
+
+    if (row.boqLineItemId) await rollUpLinkedIssueCompletion(db, ctx.orgId, row.boqLineItemId, row.id)
+    return row
+  })
+}
+
 // ─── R67 lane D22 (item D-49, rec R-125) ──────────────────────────────────
 // THE DOUBLE ENTRY THIS CLOSES: a site engineer records quantities against a
 // BOQ line here, and then a PM separately retypes a percent on the schedule

@@ -568,3 +568,32 @@ describe("attachBoqLines", () => {
     expect(entry!.quantityDone).toBe("40")
   })
 })
+
+// ─── R67 lane D22 (item D-77, rec R-289) ──────────────────────────────────
+// Correcting an entry. Every rule below is refused BEFORE withTenantContext is
+// entered, so these assertions run with no database and no mock at all -- which
+// is exactly the point: a bad percentage must never reach a transaction.
+import { updateProgressEntry } from "./construction-progress-service"
+
+describe("updateProgressEntry validation", () => {
+  const ctx = { orgId: "org-d77" }
+
+  test("refuses a percentage outside 0-100 before opening a transaction", async () => {
+    await expect(updateProgressEntry(ctx, "entry-1", { percentComplete: 101 })).rejects.toThrow(
+      "percentComplete must be between 0 and 100"
+    )
+    await expect(updateProgressEntry(ctx, "entry-1", { percentComplete: -1 })).rejects.toThrow(
+      "percentComplete must be between 0 and 100"
+    )
+  })
+
+  test("accepts the two real bases and refuses anything else", async () => {
+    await expect(
+      updateProgressEntry(ctx, "entry-1", { entryBasis: "CUMULATIVE" as unknown as "DELTA" })
+    ).rejects.toThrow("entryBasis must be DELTA or SNAPSHOT")
+  })
+
+  test("refuses blanking the entry date -- an undated site record is not a record", async () => {
+    await expect(updateProgressEntry(ctx, "entry-1", { entryDate: "" })).rejects.toThrow("entryDate is required")
+  })
+})
