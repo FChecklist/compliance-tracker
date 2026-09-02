@@ -101,6 +101,79 @@ export async function updateProjectValue(ctx: { orgId: string }, projectId: stri
   })
 }
 
+// ─── R67 D-62: ONE project-money model ───────────────────────────────────────
+//
+// The defect (audit R-202): the same project told three different money stories
+// one click apart. The home dashboard showed getOrgDashboard's per-project
+// `value` (the active BOQ's ROOT line-item total). /dashboard/project showed
+// getProjectDashboard's `projectValue` (the user-entered figure, falling back to
+// the sum of linked purchase orders) NEXT TO its `contractValue` (the earned-
+// value contract total). The Project Status report showed a third arrangement of
+// the same numbers. None of them was wrong on its own; nothing named which
+// question each answered, so they read as three answers to one question.
+//
+// The fix is not a new number. It is naming the three facts once, here, and
+// making every screen read this one helper:
+//
+//   contractValue  -- what the BOQ says this job is worth (root lines only, the
+//                     same D-3/B-3 no-double-counting rule computeEarnedValue
+//                     uses). null when the project has no active BOQ.
+//   projectValue   -- the COMMERCIAL value: the figure a human entered, else the
+//                     sum of the purchase orders raised against the project.
+//                     null when neither exists, NEVER 0 -- "nobody has set a
+//                     project value" and "this project is worth nothing" are
+//                     different facts and only one of them is ever true here.
+//   earnedValue    -- how much of the contract has actually been earned.
+//
+// projectValue deliberately does NOT fall back to the BOQ. That is Rajat's
+// standing ruling, recorded on the projects.projectValue column itself in
+// schema.ts: the commercial value of a job is a PO/user-entered fact, not a
+// restatement of its scope. Falling back would silently make contractValue and
+// projectValue the same number for every project that has a BOQ and no PO --
+// which is exactly the "three stories" confusion in a new disguise.
+//
+// projectValueSource is returned so a screen can SAY which of the two sources it
+// is showing, rather than presenting a derived figure as if it had been typed.
+export type ProjectValueSource = "entered" | "purchase_orders" | null
+
+export type ProjectMoney = {
+  contractValue: number | null
+  projectValue: number | null
+  projectValueSource: ProjectValueSource
+  earnedValue: number | null
+}
+
+/**
+ * Pure: every caller has already read these four inputs on its own already-open
+ * transaction, so this adds no query of its own and can be unit-tested directly.
+ * A 0 that was really read stays 0; only a genuinely absent figure is null.
+ */
+export function resolveProjectMoney(input: {
+  /** projects.projectValue, already Number()'d, or null when the column is null. */
+  enteredProjectValue: number | null
+  /** SUM(erp_purchase_orders.grand_total) for this project, or null when there are none. */
+  purchaseOrderTotal: number | null
+  /** The active BOQ's root-line total, or null when the project has no active BOQ. */
+  boqContractValue: number | null
+  /** computeEarnedValue()'s earnedValue for the active BOQ, or null. */
+  earnedValue: number | null
+}): ProjectMoney {
+  const projectValue =
+    input.enteredProjectValue !== null
+      ? input.enteredProjectValue
+      : input.purchaseOrderTotal !== null
+        ? input.purchaseOrderTotal
+        : null
+  const projectValueSource: ProjectValueSource =
+    input.enteredProjectValue !== null ? "entered" : input.purchaseOrderTotal !== null ? "purchase_orders" : null
+  return {
+    contractValue: input.boqContractValue,
+    projectValue,
+    projectValueSource,
+    earnedValue: input.earnedValue,
+  }
+}
+
 export type ProjectDashboard = {
   projectId: string
   projectName: string
@@ -124,6 +197,8 @@ export type ProjectDashboard = {
   // exists -- a zero project value on a dashboard reads as a real figure.
   // Deliberately NOT derived from the BOQ (Rajat's ruling, see schema.ts).
   projectValue: number | null
+  /** R67 D-62: which of the two sources projectValue came from, so a screen can say so. */
+  projectValueSource: ProjectValueSource
   // R42 seq24: same D-3 earnedValueReport() getOrgDashboard already
   // exposes -- null (not 0) when construction isn't enabled or no BOQ
   // exists yet. contractValue is parent-BOQ-lines-only (TC-11).
@@ -201,13 +276,17 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
     // Point 121: user-entered value WINS when set -- a human overriding a
     // derived figure is always deliberate. Falls back to the SUM of linked
     // POs' grand_total. null (never 0) when neither exists.
-    let projectValue: number | null = project.projectValue !== null ? Number(project.projectValue) : null
-    if (projectValue === null) {
-      const [poRow] = await db.select({ total: sql<number | null>`sum(${erpPurchaseOrders.grandTotal})` })
-        .from(erpPurchaseOrders)
-        .where(and(eq(erpPurchaseOrders.orgId, ctx.orgId), eq(erpPurchaseOrders.projectId, projectId)))
-      projectValue = poRow?.total !== null && poRow?.total !== undefined ? Number(poRow.total) : null
-    }
+    //
+    // R67 D-62: the RULE now lives in resolveProjectMoney() below and is shared
+    // with getOrgDashboard; this block only READS the two sources. The PO sum is
+    // read unconditionally rather than only when the entered value is absent, so
+    // the source this function reports is a fact about the data and not about
+    // which branch happened to run.
+    const enteredProjectValue = project.projectValue !== null ? Number(project.projectValue) : null
+    const [poRow] = await db.select({ total: sql<number | null>`sum(${erpPurchaseOrders.grandTotal})` })
+      .from(erpPurchaseOrders)
+      .where(and(eq(erpPurchaseOrders.orgId, ctx.orgId), eq(erpPurchaseOrders.projectId, projectId)))
+    const purchaseOrderTotal = poRow?.total !== null && poRow?.total !== undefined ? Number(poRow.total) : null
 
     // R42 seq24 (M28 DASHBOARD.PROJECT, D-3): the SAME earnedValueReport()
     // getOrgDashboard already calls -- ONE summation path, never a second,
@@ -271,6 +350,16 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
       // getOrgDashboard already uses for this exact case.
     }
 
+    // R67 D-62: one helper, three named facts -- the same one the home
+    // dashboard and (through projectStatusReport, which delegates here) the
+    // Project Status report now read.
+    const money = resolveProjectMoney({
+      enteredProjectValue,
+      purchaseOrderTotal,
+      boqContractValue: contractValue,
+      earnedValue,
+    })
+
     return {
       projectId: project.id,
       projectName: project.name,
@@ -281,10 +370,11 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
       delayedTaskCount: Number(taskStats?.delayed ?? 0),
       photoCount: Number(photoRow?.total ?? 0),
       taskCount: Number(taskStats?.total ?? 0),
-      projectValue,
-      earnedValue,
+      projectValue: money.projectValue,
+      projectValueSource: money.projectValueSource,
+      earnedValue: money.earnedValue,
       percentByValue,
-      contractValue,
+      contractValue: money.contractValue,
     }
   })
 }
@@ -298,7 +388,30 @@ export type OrgDashboardSummary = {
   totalBudget: number | null
   totalRevenue: number
   totalExpenses: number
-  projects: { id: string; name: string; revenue: number; expenses: number; taskCount: number; delayedTaskCount: number; earnedValue: number | null; percentByValue: number | null }[]
+  projects: {
+    id: string
+    name: string
+    revenue: number
+    expenses: number
+    taskCount: number
+    delayedTaskCount: number
+    earnedValue: number | null
+    percentByValue: number | null
+    /**
+     * R67 D-62: the SAME three facts /dashboard/project reports, from the same
+     * resolveProjectMoney() helper -- so the home and the project dashboard can
+     * no longer disagree about what a project is worth.
+     */
+    contractValue: number | null
+    projectValue: number | null
+    projectValueSource: ProjectValueSource
+    /**
+     * @deprecated R67 D-62 -- kept as an exact alias of contractValue so callers
+     * written before the money model was named keep working. New readers use
+     * contractValue, which says which of the three figures this is.
+     */
+    value: number | null
+  }[]
 }
 
 /** Company -> [Department] -> Project drill-down. departmentId filters by the project LEAD's department (projects has no direct departmentId column -- see file header). */
@@ -320,7 +433,10 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
 
     const projectConditions = [eq(projects.orgId, ctx.orgId), eq(projects.isActive, true)]
     if (projectIds) projectConditions.push(inArray(projects.id, projectIds))
-    const projectRows = await db.query.projects.findMany({ where: and(...projectConditions), columns: { id: true, name: true } })
+    // R67 D-62: projectValue comes down with the row now -- the home used to
+    // have no access to it at all, which is why it showed the BOQ total where
+    // /dashboard/project showed the entered/PO figure.
+    const projectRows = await db.query.projects.findMany({ where: and(...projectConditions), columns: { id: true, name: true, projectValue: true } })
     const ids = projectRows.map((p) => p.id)
     if (ids.length === 0) return { totalProjects: 0, totalBudget: null, totalRevenue: 0, totalExpenses: 0, projects: [] }
 
@@ -378,6 +494,20 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
           .groupBy(constructionBoqLineItems.boqId)
       : []
     const valueByBoqMap = new Map(valueByBoq.map((v) => [v.boqId, Number(v.total)]))
+
+    // R67 D-62: the second half of projectValue, grouped in ONE query for every
+    // project in scope rather than the per-project read getProjectDashboard
+    // does -- same figure, no extra pool connections (this reuses the already
+    // open outer transaction, per R43_MGR_01's rule for this function).
+    const poByProject = await db.select({ projectId: erpPurchaseOrders.projectId, total: sql<number | null>`sum(${erpPurchaseOrders.grandTotal})` })
+      .from(erpPurchaseOrders)
+      .where(and(eq(erpPurchaseOrders.orgId, ctx.orgId), inArray(erpPurchaseOrders.projectId, ids)))
+      .groupBy(erpPurchaseOrders.projectId)
+    const poMap = new Map(
+      poByProject
+        .filter((r): r is { projectId: string; total: number | string } => r.projectId !== null && r.total !== null)
+        .map((r) => [r.projectId, Number(r.total)])
+    )
 
     const revenueMap = new Map(revenueByProject.map((r) => [r.projectId, Number(r.total)]))
     const expenseMap = new Map(expensesByProject.map((r) => [r.projectId, Number(r.total)]))
@@ -492,16 +622,26 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
     const projectSummaries = projectRows.map((p) => {
       const activeBoqId = boqIdByProject.get(p.id)
       const ev = evByProject.get(p.id) ?? null
+      // R67 D-62: the same helper /dashboard/project uses. null (not 0) when the
+      // project has no BOQ at all yet -- a real "no scope defined" state,
+      // distinct from a real BOQ worth zero.
+      const money = resolveProjectMoney({
+        enteredProjectValue: p.projectValue !== null ? Number(p.projectValue) : null,
+        purchaseOrderTotal: poMap.get(p.id) ?? null,
+        boqContractValue: activeBoqId ? (valueByBoqMap.get(activeBoqId) ?? 0) : null,
+        earnedValue: ev?.earnedValue ?? null,
+      })
       return {
         id: p.id, name: p.name,
         revenue: revenueMap.get(p.id) ?? 0,
         expenses: expenseMap.get(p.id) ?? 0,
         taskCount: taskMap.get(p.id)?.total ?? 0,
         delayedTaskCount: taskMap.get(p.id)?.delayed ?? 0,
-        // null (not 0) when the project has no BOQ at all yet -- a real "no
-        // scope defined" state, distinct from a real BOQ worth zero.
-        value: activeBoqId ? (valueByBoqMap.get(activeBoqId) ?? 0) : null,
-        earnedValue: ev?.earnedValue ?? null,
+        contractValue: money.contractValue,
+        projectValue: money.projectValue,
+        projectValueSource: money.projectValueSource,
+        value: money.contractValue, // deprecated alias -- see the type above
+        earnedValue: money.earnedValue,
         percentByValue: ev?.percentByValue ?? null,
       }
     })

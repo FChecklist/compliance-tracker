@@ -451,6 +451,85 @@ export async function earnedValueReport(ctx: { orgId: string }, projectId: strin
 // function's own comment for why it's not stored). variance = vendorAmount -
 // budget; null (not 0) when no vendor amount has been entered yet for a
 // line, a real "not yet quoted" state, not a fabricated zero variance.
+/**
+ * R67 D-62 (audit R-202). One BOQ line, as the Budget tab reads it. Pure, so the
+ * arithmetic and the null rules can be tested without a database.
+ *
+ * WHY THIS TOOK NO MIGRATION. D-62 says to check whether the line already
+ * persists a budget percent and a vendor amount before inventing columns, and it
+ * does: budgetPercentage (NOT NULL DEFAULT 25 -- the "25% default budget with a
+ * per-line override" the item asks for is the column's own default, shipped by
+ * Point 154), vendorId and vendorAmount have been real columns since 22 Aug, and
+ * updateLineItemBudget() in construction-boq-service.ts is their write path.
+ * Nothing here is new storage; the figures simply had no reader.
+ *
+ * WHICH MATERIAL/MANPOWER COLUMNS (settled at the R67 lane I merge, 2026-09-03).
+ * This function reads materialAmount / manpowerAmount, NOT materialCost /
+ * labourCost. Both pairs exist on construction_boq_line_items and they mean
+ * different things, which schema.ts states at the column: materialCost/
+ * labourCost are Wave 125's rate-ANALYSIS inputs, PER UNIT, multiplied up by
+ * computedRate() to justify a rate; materialAmount/manpowerAmount are lane I's
+ * budget-side AMOUNTS for the whole line, entered next to budgetPercentage and
+ * vendorAmount, and are the pair this report is meant to project. D-62's first
+ * draft read the cost pair -- exactly the conflation schema.ts warns against --
+ * and the lane I merge corrected it. Do not swap them back.
+ *
+ * The category is the line's OWN `category` column (lane I, I-05), not a value
+ * re-derived through activityId -> activity -> category: that indirection cost
+ * two extra reads per report and answered null for every line filed under no
+ * activity, including lines the importer had already categorised from the
+ * customer's own spreadsheet.
+ *
+ * null, never 0, for every unset figure: a line nobody has quoted and a line
+ * quoted at zero are different facts, and only the second is worth reporting as
+ * a variance.
+ */
+export type BudgetLineInput = {
+  id: string
+  itemCode: string | null
+  description: string
+  amount: string | number
+  budgetPercentage: string | number
+  materialAmount: string | number | null
+  manpowerAmount: string | number | null
+  vendorId: string | null
+  vendorAmount: string | number | null
+  category: string | null
+}
+
+export function toBudgetLine(item: BudgetLineInput, supplierNameById: Map<string, string>) {
+  const rawBudget = Number(item.amount) * (Number(item.budgetPercentage) / 100)
+  const vendorAmount = item.vendorAmount !== null ? Number(item.vendorAmount) : null
+  const rawVariance = vendorAmount !== null ? vendorAmount - rawBudget : null
+  return {
+    lineItemId: item.id,
+    code: item.itemCode,
+    description: item.description,
+    amount: Number(item.amount),
+    // R67 lane I (WS-I item I-05, R-177): the line's own category, so the
+    // Budget table can show a Category column and group by a real value.
+    // null (never "") -- normalizeCategory in construction-boq-service.ts is
+    // the single writer, so "no category" is one value here, and the Budget
+    // Report's Category filter shows those lines under "No category" rather
+    // than inventing one.
+    category: item.category,
+    budgetPercentage: Number(item.budgetPercentage),
+    budget: Math.round(rawBudget * 100) / 100,
+    // R67 lane I (WS-I item I-03): the material/manpower split, projected
+    // alongside the budget it belongs to. null (not 0) when the QS has not
+    // split this line -- "unsplit" and "split as zero" are different facts and
+    // a report that conflated them would read as if every line had been costed.
+    materialAmount: item.materialAmount !== null ? Number(item.materialAmount) : null,
+    manpowerAmount: item.manpowerAmount !== null ? Number(item.manpowerAmount) : null,
+    vendorId: item.vendorId,
+    vendorName: item.vendorId ? (supplierNameById.get(item.vendorId) ?? null) : null,
+    vendorAmount,
+    variance: rawVariance !== null ? Math.round(rawVariance * 100) / 100 : null,
+    _rawBudget: rawBudget,
+    _rawVariance: rawVariance,
+  }
+}
+
 export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -468,6 +547,13 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
       : []
     const supplierNameById = new Map(suppliers.map((s) => [s.id, s.name]))
 
+    // R67 D-62's Budget Report Category filter reads each line's own `category`
+    // column (lane I, I-05) inside toBudgetLine below. D-62's first draft
+    // resolved it through activityId -> activity -> category with two extra
+    // reads on this transaction; that indirection is gone, and with it the null
+    // it returned for every line the importer had categorised but nobody had
+    // linked to an activity.
+
     // R48 gap-closure (2026-08-30, F088: "Report figures reconcile to the
     // database exactly"). Real, confirmed bug: totals below used to sum the
     // already-ROUNDED per-line display values (each independently rounded
@@ -478,38 +564,7 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     // budget/variance alongside the rounded display value, and total from
     // the RAW figures, rounding only once at the very end -- the totals now
     // reconcile exactly to a raw SQL sum over the same rows.
-    const lines = lineItems.map((item) => {
-      const rawBudget = Number(item.amount) * (Number(item.budgetPercentage) / 100)
-      const vendorAmount = item.vendorAmount !== null ? Number(item.vendorAmount) : null
-      const rawVariance = vendorAmount !== null ? vendorAmount - rawBudget : null
-      return {
-        lineItemId: item.id,
-        code: item.itemCode,
-        description: item.description,
-        // R67 lane I (WS-I item I-05, R-177): the line's own category, so the
-        // Budget table can show a Category column and group by a real value
-        // instead of re-deriving it through activityId -> activity -> category.
-        // null (never "") -- normalizeCategory in construction-boq-service.ts
-        // is the single writer, so "no category" is one value here.
-        category: item.category,
-        amount: Number(item.amount),
-        budgetPercentage: Number(item.budgetPercentage),
-        budget: Math.round(rawBudget * 100) / 100,
-        // R67 lane I (WS-I item I-03): the material/manpower split, projected
-        // alongside the budget it belongs to. null (not 0) when the QS has not
-        // split this line -- "unsplit" and "split as zero" are different facts
-        // and a report that conflated them would read as if every line had
-        // been costed.
-        materialAmount: item.materialAmount !== null ? Number(item.materialAmount) : null,
-        manpowerAmount: item.manpowerAmount !== null ? Number(item.manpowerAmount) : null,
-        vendorId: item.vendorId,
-        vendorName: item.vendorId ? (supplierNameById.get(item.vendorId) ?? null) : null,
-        vendorAmount,
-        variance: rawVariance !== null ? Math.round(rawVariance * 100) / 100 : null,
-        _rawBudget: rawBudget,
-        _rawVariance: rawVariance,
-      }
-    })
+    const lines = lineItems.map((item) => toBudgetLine(item, supplierNameById))
 
     const totalBudget = Math.round(lines.reduce((s, l) => s + l._rawBudget, 0) * 100) / 100
     const totalVendorAmount = Math.round(lines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100
