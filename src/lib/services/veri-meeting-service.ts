@@ -93,13 +93,48 @@ export async function getVeriMeeting(ctx: { orgId: string }, meetingId: string) 
   })
 }
 
+// ─── R67 lane D22 (item D-58, rec R-187) ──────────────────────────────────
+// A meeting is minuted WHILE it happens, so the create screen has to be able
+// to carry minutes and the action items agreed in the room. Before this, this
+// DTO took title/type/when/attendees/agenda only: a user who typed minutes on
+// the create screen had to save an empty meeting, open it, and type them
+// again. Both new fields are optional -- every existing caller is unchanged.
+export type MeetingActionItemInput = { title: string; assigneeUserId?: string | null; dueDate?: string | null }
+
+/**
+ * Pure: the action-item rows a create call really means.
+ *
+ * Blank descriptions are dropped rather than rejected, because the create
+ * screen keeps one empty repeating row on screen at all times -- a trailing
+ * empty row is the UI's resting state, not a user error to fail the whole
+ * save over. Everything else is trimmed and normalised to null so an empty
+ * string never lands in a FK column.
+ */
+export function normalizeMeetingActionItems(items: MeetingActionItemInput[] | undefined): MeetingActionItemInput[] {
+  if (!Array.isArray(items)) return []
+  return items
+    .map((item) => ({
+      title: typeof item?.title === "string" ? item.title.trim() : "",
+      assigneeUserId: typeof item?.assigneeUserId === "string" && item.assigneeUserId.trim() ? item.assigneeUserId.trim() : null,
+      dueDate: typeof item?.dueDate === "string" && item.dueDate.trim() ? item.dueDate.trim() : null,
+    }))
+    .filter((item) => item.title.length > 0)
+}
+
 export async function createVeriMeeting(
   ctx: VeriMeetingContext,
-  input: { title: string; meetingType?: string; scheduledAt: string; attendees?: string[]; agenda?: string[]; contextEntityType?: string; contextEntityId?: string }
+  input: {
+    title: string; meetingType?: string; scheduledAt: string; attendees?: string[]; agenda?: string[]
+    contextEntityType?: string; contextEntityId?: string
+    minutes?: string | null
+    actionItems?: MeetingActionItemInput[]
+  }
 ) {
   const title = input.title?.trim()
   if (!title) throw new ServiceError("title is required", 400)
   if (!input.scheduledAt) throw new ServiceError("scheduledAt is required", 400)
+  const minutes = typeof input.minutes === "string" && input.minutes.trim() ? input.minutes : null
+  const actionItems = normalizeMeetingActionItems(input.actionItems)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const [meeting] = await db.insert(veriMeetings).values({
@@ -108,11 +143,35 @@ export async function createVeriMeeting(
       contextEntityType: input.contextEntityType || null, contextEntityId: input.contextEntityId || null,
       systemId: generateSystemId(),
       createdById: ctx.userId,
+      minutes,
+      // The amend-don't-overwrite history starts with what was typed live, so
+      // the first version of the minutes is as auditable as every later edit.
+      minutesHistory: minutes ? [{ date: new Date().toISOString(), amendedBy: ctx.userId, text: minutes }] : [],
     }).returning()
+
+    // Real `tasks` rows, same table addMeetingActionItem() writes to and the
+    // same one VERI To Do / "Needs you" already reads -- not a parallel
+    // tracking list. Written on THIS transaction so a meeting is never saved
+    // with half its agreed actions missing.
+    for (const item of actionItems) {
+      const [task] = await db.insert(tasks).values({
+        orgId: ctx.orgId,
+        userId: item.assigneeUserId ?? ctx.userId,
+        assignedById: ctx.userId,
+        title: item.title,
+        description: `Action item from meeting: ${title}`,
+        status: "in_progress",
+        dueDate: item.dueDate ? new Date(item.dueDate) : null,
+      }).returning()
+      await db.insert(veriMeetingActionItems).values({ meetingId: meeting!.id, taskId: task!.id })
+    }
 
     await logActivity({
       tx: db, action: "veri_meeting.created", entityType: "veri_meeting", entityId: meeting!.id,
-      details: `Created meeting "${title}"`, orgId: ctx.orgId, ...actorOf(ctx),
+      details: actionItems.length
+        ? `Created meeting "${title}" with ${actionItems.length} action item(s)`
+        : `Created meeting "${title}"`,
+      orgId: ctx.orgId, ...actorOf(ctx),
     })
     return meeting
   })

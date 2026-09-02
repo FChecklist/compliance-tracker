@@ -67,6 +67,19 @@ active:
           lastProgressAt (D-49)
         src/app/api/v1/projexa/schedule/import/route.ts (new)
         src/app/api/v1/projexa/scope/import/route.ts -- dryRun preview flag (D-52/D-60)
+        src/lib/services/veri-meeting-service.ts (+ new .test.ts) -- live minutes and the
+          action items agreed in the room, carried on the create DTO (D-58)
+        src/lib/services/org-directory-service.ts (new, + .test.ts) -- the org directory
+          behind every people picker; ends "paste a known VERIDIAN user ID" (D-58)
+        src/lib/services/construction-boq-service.ts (+ .test.ts) -- searchable BOQ line
+          lookup by code/description with remaining quantity (D-64)
+        src/lib/services/construction-roster-import-service.ts (new, + .test.ts) -- labour
+          roster xlsx/csv import parser (D-68)
+        src/lib/pdf/meeting-minutes-pdf.ts (+ .test.ts) -- project name, the real agreed
+          action items, page numbers (D-58)
+        src/app/api/v1/projexa/org-users/route.ts (new), scope/lines/route.ts (new),
+          labour/import/route.ts (new), veri-meetings/route.ts and veri-meetings/[id]/pdf/
+          route.ts (D-58/D-64/D-68)
         docs/master/TEST_COVERAGE_GAP.md (regenerated)
 
       File scope in projexa: src/app/(app)/budgets/**, src/app/(app)/accounting/annual-budgets/**,
@@ -74,6 +87,12 @@ active:
         src/components/BudgetProjectClient.tsx, ScopeImportClient.tsx, ScheduleImportClient.tsx,
         CostVarianceAnalyticalClient.tsx, ScopeClient.tsx, ScopeObjectClient.tsx,
         ScheduleTaskObjectClient.tsx, MoM*Client.tsx, WorkProgress*Client.tsx,
+        ScopeCreateClient.tsx, src/app/(app)/labour/import/**,
+        src/components/{SearchSelect,ShareSheet,AttendeesField,OrgUserPicker,ImportScreen}.tsx
+        (+ their .test.ts), src/components/screens/{ScreenFrame,ObjectScreen}.tsx (the D-09
+        fork -- the ui-kit source is not on this machine and must not be edited in
+        node_modules), src/lib/{mom-draft,boq-line-options}.ts (+ tests),
+        src/app/api/{org/users,scope/lines,labour/import}/route.ts,
         src/lib/nav-routes.ts, src/components/AppSidebar.tsx, messages/*.json.
 
       NOT touching: drizzle/** (no migration authored by this lane), platform.* tables, the
