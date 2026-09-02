@@ -171,3 +171,35 @@ describe("B-08 -- failureFromRow reads the typed columns drizzle/0528 adds", () 
     expect(f!.context).toBeUndefined();
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R67 B-11 -- the D-03 field vocabulary
+// ═══════════════════════════════════════════════════════════════════════════
+import { FIELD_VOCABULARY, vocabularyKeyForParam } from "./error-codes";
+
+describe("B-11 -- vocabularyKeyForParam maps a parameter to the key a client renders", () => {
+  test("every parameter the real function catalogue declares maps into the vocabulary", () => {
+    const declared = ["projectId", "itemCode", "boqLineItemId", "percent", "quantityDone", "rosterId", "date", "scheduledAt", "boqId"];
+    for (const param of declared) {
+      expect(FIELD_VOCABULARY).toContain(vocabularyKeyForParam(param) as (typeof FIELD_VOCABULARY)[number]);
+    }
+  });
+
+  test("the five D-03 fields resolve to their own keys", () => {
+    expect(vocabularyKeyForParam("projectId")).toBe("project");
+    expect(vocabularyKeyForParam("itemCode")).toBe("boqLine");
+    expect(vocabularyKeyForParam("boqLineItemId")).toBe("boqLine");
+    expect(vocabularyKeyForParam("percent")).toBe("value");
+    expect(vocabularyKeyForParam("quantityDone")).toBe("value");
+  });
+
+  test("an unmapped camelCase parameter degrades to 'value' rather than reaching a screen", () => {
+    expect(vocabularyKeyForParam("externalUrl")).toBe("value");
+    expect(vocabularyKeyForParam("someInternalThing")).toBe("value");
+  });
+
+  test("an unmapped single lower-case word keeps its own readable name", () => {
+    expect(vocabularyKeyForParam("title")).toBe("title");
+    expect(vocabularyKeyForParam("category")).toBe("category");
+  });
+});

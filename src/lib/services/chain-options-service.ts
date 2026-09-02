@@ -27,8 +27,11 @@
 //      the list look wrong, so it is listed and disabled with the reason.
 import { and, asc, desc, eq } from "drizzle-orm"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { constructionBoqLineItems, constructionBoqs, constructionLabourRoster } from "@/lib/db/schema"
-import { functionSpec, type CardSchema } from "@/lib/pipeline/function-registry"
+import { constructionBoqLineItems, constructionBoqs, constructionLabourRoster, projects } from "@/lib/db/schema"
+import { buildChain } from "@/lib/pipeline/derive-chain"
+import { vocabularyKeyForParam, type PipelineErrorCode } from "@/lib/pipeline/error-codes"
+import { functionSpec, requiredParamSatisfied, type CardSchema, type FunctionSpec } from "@/lib/pipeline/function-registry"
+import { validate } from "@/lib/pipeline/validate"
 
 export type ChainOptionNext = "card" | "route" | "ask" | "run"
 
@@ -48,6 +51,12 @@ export type ChainOption = {
   group?: string
   /** preselected when the level opens (attendance: everyone present). */
   selected?: boolean
+  /**
+   * R67 B-11 -- what the client sends back as this field's value on the next
+   * chain-options request ("40 %", a BOQ line's record id, an ISO date).
+   * Defaults to `id` when the two are the same thing.
+   */
+  value?: string
 }
 
 export type ChainOptionsResult = {
@@ -67,10 +76,17 @@ export type BoqLineRow = {
   description: string
   unit: string
   childCount: number
+  /**
+   * R67 B-11 -- the line's own total quantity, the ONLY honest denominator
+   * for "2 nos done" -> a percent. 0 means the BOQ never carried one, which
+   * is why the value level then offers percent chips alone.
+   */
+  quantity: number
 }
 
 export type BoqVersionRow = { id: string; version: number; title: string; status: string }
 export type RosterRow = { id: string; name: string; trade: string | null; employeeCode: string | null }
+export type ProjectRow = { id: string; name: string }
 
 /**
  * The one seam between the levels and the database. Injectable so every
@@ -82,6 +98,13 @@ export type ChainOptionsRepo = {
   latestBoqLines(projectId: string): Promise<{ boqId: string; version: number; lines: BoqLineRow[] } | null>
   boqVersions(projectId: string): Promise<BoqVersionRow[]>
   roster(projectId: string): Promise<RosterRow[]>
+  /**
+   * R67 B-11. The project level answers with the org's real projects instead
+   * of the "pick a project in the top rail" hint B-03 could only give: when
+   * `project` is the first unresolved field, refusing to list the choices IS
+   * the refusal this item exists to remove.
+   */
+  projects(): Promise<ProjectRow[]>
 }
 
 // ── The catalogue of modules and their verbs ───────────────────────────────
@@ -89,7 +112,7 @@ export type ChainOptionsRepo = {
 // each ending in a real function or a real route. A verb with no backing
 // executor and no route does not belong here -- it would be a dead end, and
 // M24 forbids dead ends.
-type VerbDef = {
+export type VerbDef = {
   id: string
   label: string
   /** the level this verb opens; "leaf" means the verb itself finishes the chain */
@@ -99,7 +122,7 @@ type VerbDef = {
   route?: string
 }
 
-type ModuleDef = { id: string; label: string; verbs: VerbDef[] }
+export type ModuleDef = { id: string; label: string; verbs: VerbDef[] }
 
 const MODULES: readonly ModuleDef[] = [
   {
@@ -423,6 +446,507 @@ function reportParameterOptions(projectId: string | null): ChainOptionsResult {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// R67 B-11 -- THE ASK-DON'T-REFUSE CONTRACT.
+//
+// B-03 answers "what are the choices at this level?". This answers the
+// question band 2 actually has to ask on every keystroke: "given the segments
+// the user has picked and the values they have already supplied, WHICH FIELD
+// IS STILL MISSING, what are its choices, and can I show the confirmation
+// card yet?" -- { level, missing:[field], options, done }.
+//
+// The three rules that keep it from becoming a second rule set:
+//   1. WHAT IS REQUIRED comes from function-registry.ts's requiredParams and
+//      is judged by requiredParamSatisfied() -- the same predicate validate()
+//      and the executor's server-side re-check use. Nothing here re-states
+//      which parameters a function needs.
+//   2. THE LAST WORD IS validate()'s. Once every field looks answered, the
+//      assembled params go through the real validate() before `done` is
+//      allowed to be true, so a BOQ line that is not in this project's BOQ,
+//      or a percent outside 0..100, comes back as a level rather than as a
+//      confirmation card that would fail on submit.
+//   3. THE CHAIN IS DERIVED, NEVER COMPOSED HERE -- derive-chain.ts's
+//      buildChain() renders it from the function id, exactly as
+//      run-submission.ts does, so the words in band 2 and the words in Task
+//      Master cannot drift.
+//
+// FIELD ORDER IS PROJECT -> RECORD -> VALUE, and it falls out of the
+// structure rather than out of a table: the project gate runs first because
+// no record level can be read without one, the verb's own record level runs
+// second because that is what the verb opens, and the spec's remaining
+// parameters run last in their declared order.
+//
+// ONE READ PER REQUEST still holds: the project gate returns before any
+// record read, and a level reads only its own collection.
+
+/** The D-03 field vocabulary a `missing` entry may name. */
+export type ChainFieldKey = "project" | "boqLine" | "boqVersion" | "value" | "date" | "worker" | "material" | "task"
+
+/**
+ * A level names a field from the vocabulary above, one of the two segment
+ * levels, the confirmation card, or -- for a purely TYPED field with nothing
+ * to pick -- that field's own single lower-case word. Never a camelCase
+ * parameter name: vocabularyKeyForParam() degrades anything carrying a
+ * capital to "value" before it can get here.
+ */
+export type ChainLevelKey = ChainFieldKey | "module" | "verb" | "confirm" | "title" | "name" | "category"
+
+export type ChainLevelOption = ChainOption & {
+  /** which field (or segment level) this option answers. */
+  kind: ChainLevelKey
+  /** what the client sends back as that field's value on the next request. */
+  value?: string
+}
+
+export type ChainLevelResult = {
+  /** The field (or segment level) this answer is about. */
+  level: ChainLevelKey
+  /** The question, as a server-owned human sentence. */
+  legend: string
+  /**
+   * The first unresolved field, in the D-03 vocabulary -- never a camelCase
+   * parameter name. Empty exactly when `done` is true.
+   */
+  missing: ChainLevelKey[]
+  options: ChainLevelOption[]
+  /** true when everything is resolved and `card` is the confirmation schema. */
+  done: boolean
+  /** the level takes several picks at once (attendance). */
+  multi?: boolean
+  /** the user may type instead of picking (a value, a title). */
+  allowsFreeText?: boolean
+  /** values already filled in, so the level opens answered. */
+  defaults?: Record<string, unknown>
+  /** derive-chain's rendering of the segments so far, e.g. "Work Progress > New entry". */
+  chain?: string
+  functionId?: string
+  /** the params as resolved so far -- what POST tasks receives on confirm. */
+  params?: Record<string, unknown>
+  /** present exactly when done and the leaf is a card. */
+  card?: CardSchema
+  /** the route a COMMAND/navigation leaf opens, present when done. */
+  route?: string
+  /** set when validate() refused the values supplied; the client's dictionary owns the sentence. */
+  code?: PipelineErrorCode
+}
+
+export const CHAIN_LEVEL_LEGENDS = {
+  project: "Which project?",
+  value: "How much is done?",
+  date: "Which date?",
+  confirmCard: "Ready to save?",
+  confirmAsk: "Ready to answer?",
+  confirmRun: "Ready to run?",
+  confirmRoute: "Ready to open?",
+  freeText: "Type it",
+} as const
+
+/**
+ * The value chips. A CLOSED, deliberately short list of input affordances --
+ * not data: the quantity steps are the small counts a day's work is recorded
+ * in (capped by the line's own quantity, so a chip can never over-record),
+ * and the percent steps are the quarters plus the 40 % R-317 names. Typing a
+ * value is always allowed beside them.
+ */
+export const VALUE_QUANTITY_STEPS: readonly number[] = [1, 2, 5, 10]
+export const VALUE_PERCENT_STEPS: readonly number[] = [25, 40, 50, 75, 100]
+
+/**
+ * "2 nos" | "40 %" | "40" -> the params that answer them. A BARE NUMBER is a
+ * percent, because percent is what record_work_progress's own required
+ * parameter is; a number with any other suffix is a quantity in that unit,
+ * which executeRecordWorkProgress converts against the line's total.
+ */
+export function parseValueInput(raw: string): { percent: number } | { quantityDone: number } | null {
+  const text = raw.trim()
+  const match = /^([0-9]+(?:\.[0-9]+)?)\s*([A-Za-z%.]*)$/.exec(text)
+  if (!match) return null
+  const amount = Number(match[1])
+  if (!Number.isFinite(amount)) return null
+  const suffix = match[2].trim()
+  if (suffix.length === 0 || suffix === "%") return { percent: amount }
+  return { quantityDone: amount }
+}
+
+// ── Segment matching ───────────────────────────────────────────────────────
+// The composer sends what the user picked ("work-progress", "record"); the
+// catalogue above is keyed by its own ids ("work_progress",
+// "record_progress"). Normalise, then alias, then allow a verb to be named by
+// either half of its id -- so "record", "record_progress" and "progress" all
+// reach the same verb and no spelling of a real chain is a dead end.
+function normaliseSegment(segment: string): string {
+  return segment.trim().toLowerCase().replace(/[\s-]+/g, "_")
+}
+
+const MODULE_ALIASES: Readonly<Record<string, string>> = {
+  progress: "work_progress",
+  work: "work_progress",
+  labour: "manpower",
+  attendance: "manpower",
+  workers: "manpower",
+  boq: "scope",
+  report: "reports",
+  budgets: "budget",
+}
+
+const VERB_ALIASES: Readonly<Record<string, string>> = {
+  record: "record_progress",
+  mark: "mark_attendance",
+  attendance: "mark_attendance",
+  revision: "new_revision",
+  revise: "new_revision",
+  wpr: "work_progress_report",
+}
+
+export function matchSegments(segments: readonly string[]): { moduleDef?: ModuleDef; verb?: VerbDef } {
+  const [rawModule, rawVerb] = segments.map(normaliseSegment)
+  if (!rawModule) return {}
+  const moduleId = MODULE_ALIASES[rawModule] ?? rawModule
+  const moduleDef = MODULES.find((m) => m.id === moduleId)
+  if (!moduleDef || !rawVerb) return { moduleDef }
+  const verbId = VERB_ALIASES[rawVerb] ?? rawVerb
+  const verb =
+    moduleDef.verbs.find((v) => v.id === verbId) ??
+    moduleDef.verbs.find((v) => v.id.startsWith(`${rawVerb}_`) || v.id.endsWith(`_${rawVerb}`))
+  return { moduleDef, verb }
+}
+
+/** Which field the verb's own record level fills. */
+const FIELD_BY_OPENS: Readonly<Record<VerbDef["opens"], ChainFieldKey | null>> = {
+  "boq-line": "boqLine",
+  roster: "worker",
+  "boq-version": "boqVersion",
+  // The report's period IS a date range, so it asks in the date vocabulary
+  // rather than inventing a ninth key the client dictionary cannot render.
+  "report-parameters": "date",
+  leaf: null,
+}
+
+/** The parameter each vocabulary key writes into a submission's params. */
+const PARAM_BY_FIELD: Readonly<Record<ChainFieldKey, string>> = {
+  project: "projectId",
+  boqLine: "boqLineItemId",
+  boqVersion: "boqId",
+  value: "percent",
+  date: "date",
+  worker: "rosterId",
+  material: "itemId",
+  task: "issueId",
+}
+
+export type ChainLevelInput = {
+  /** the segments picked so far, e.g. ["work-progress", "record"]. */
+  segments: readonly string[]
+  /** the project the top rail already has, used when `resolved.project` is absent. */
+  projectId: string | null
+  /** the fields the user has already answered, in the D-03 vocabulary. */
+  resolved: Readonly<Partial<Record<ChainFieldKey, string>>>
+}
+
+function blank(value: unknown): boolean {
+  return value === undefined || value === null || (typeof value === "string" && value.trim().length === 0)
+}
+
+function withLevel(
+  level: ChainLevelKey,
+  missing: ChainLevelKey[],
+  base: ChainOptionsResult,
+  extra: Partial<ChainLevelResult> = {}
+): ChainLevelResult {
+  return {
+    level,
+    legend: base.legend,
+    missing,
+    options: base.options.map((o) => ({ ...o, kind: level, value: o.value ?? o.id })),
+    done: false,
+    ...(base.multi ? { multi: true } : {}),
+    ...(base.defaults ? { defaults: base.defaults } : {}),
+    ...extra,
+  }
+}
+
+/** The vocabulary key a function's required parameter asks for. */
+function fieldForRequired(required: FunctionSpec["requiredParams"][number]): ChainLevelKey {
+  return (required.field ?? vocabularyKeyForParam(required.name)) as ChainLevelKey
+}
+
+/**
+ * "How much is done?" -- quantity chips in the line's own unit beside percent
+ * chips. Both are real answers: executeRecordWorkProgress converts a quantity
+ * against the line's total, so neither chip is a dead end.
+ */
+function valueOptions(line: BoqLineRow | null): ChainOptionsResult {
+  const options: ChainOption[] = []
+  if (line && line.unit && Number.isFinite(line.quantity) && line.quantity > 0) {
+    for (const step of VALUE_QUANTITY_STEPS) {
+      if (step > line.quantity) continue
+      options.push({
+        id: `qty_${step}`,
+        label: `${step} ${line.unit}`,
+        group: "Quantity",
+        isLeaf: true,
+        next: "card",
+        value: `${step} ${line.unit}`,
+      })
+    }
+  }
+  for (const step of VALUE_PERCENT_STEPS) {
+    options.push({
+      id: `pct_${step}`,
+      label: `${step} %`,
+      group: "Percent",
+      isLeaf: true,
+      next: "card",
+      value: `${step} %`,
+    })
+  }
+  return { legend: CHAIN_LEVEL_LEGENDS.value, kind: "parameter", options }
+}
+
+/** "Which date?" -- the two days a site entry is ever back-dated to. */
+function dateOptions(): ChainOptionsResult {
+  const today = new Date()
+  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
+  return {
+    legend: CHAIN_LEVEL_LEGENDS.date,
+    kind: "parameter",
+    options: [
+      { id: iso(today), label: "Today", isLeaf: true, next: "card", selected: true, value: iso(today) },
+      { id: iso(yesterday), label: "Yesterday", isLeaf: true, next: "card", value: iso(yesterday) },
+    ],
+    defaults: { date: iso(today) },
+  }
+}
+
+function projectOptions(rows: ProjectRow[]): ChainOptionsResult {
+  if (rows.length === 0) {
+    return {
+      legend: CHAIN_LEVEL_LEGENDS.project,
+      kind: "record",
+      options: [
+        {
+          id: "new_project",
+          label: "Create a project",
+          isLeaf: false,
+          next: "route",
+          route: "/projects/new",
+          unavailableReason: "This account has no projects yet",
+        },
+      ],
+    }
+  }
+  return {
+    legend: CHAIN_LEVEL_LEGENDS.project,
+    kind: "record",
+    options: rows.map((p) => ({ id: p.id, label: p.name, isLeaf: false, next: "card" as const, value: p.id })),
+  }
+}
+
+function confirmLegend(next: ChainOptionNext): string {
+  switch (next) {
+    case "ask":
+      return CHAIN_LEVEL_LEGENDS.confirmAsk
+    case "run":
+      return CHAIN_LEVEL_LEGENDS.confirmRun
+    case "route":
+      return CHAIN_LEVEL_LEGENDS.confirmRoute
+    default:
+      return CHAIN_LEVEL_LEGENDS.confirmCard
+  }
+}
+
+/**
+ * R67 B-11 -- THE LEVEL RESOLVER.
+ *
+ * Read-only, at most ONE repo call, and PURE apart from that call. Returns
+ * the first unresolved field with its real choices, or `done` with the
+ * confirmation card schema and the params POST /api/v1/projexa/tasks will
+ * receive -- which that route re-validates for permission and existence
+ * regardless, because an option list is a hint and never an authorisation.
+ */
+export async function resolveChainLevel(input: ChainLevelInput, repo: ChainOptionsRepo): Promise<ChainLevelResult> {
+  const { moduleDef, verb } = matchSegments(input.segments)
+  if (!moduleDef) return withLevel("module", ["module"], moduleOptions())
+  if (!verb) return withLevel("verb", ["verb"], verbOptions(moduleDef))
+
+  const spec = verb.functionId ? functionSpec(verb.functionId) : undefined
+  const projectId = !blank(input.resolved.project) ? String(input.resolved.project) : input.projectId
+  const needsAProject = spec ? spec.requiresProject : verb.opens !== "leaf"
+
+  // ---- FIELD 1: the project ----------------------------------------------
+  if (needsAProject && blank(projectId)) {
+    return withLevel("project", ["project"], projectOptions(await repo.projects()))
+  }
+
+  // ---- the ONE read this level needs -------------------------------------
+  const recordField = FIELD_BY_OPENS[verb.opens]
+  const boq = verb.opens === "boq-line" && projectId ? await repo.latestBoqLines(projectId) : null
+  const pickedLine =
+    boq && !blank(input.resolved.boqLine) ? (boq.lines.find((l) => l.id === input.resolved.boqLine) ?? null) : null
+
+  // ---- the params assembled from what the user has answered --------------
+  const params: Record<string, unknown> = {}
+  if (projectId) params.projectId = projectId
+  for (const [key, raw] of Object.entries(input.resolved)) {
+    if (blank(raw) || key === "project") continue
+    const field = key as ChainFieldKey
+    if (field === "value") {
+      const parsed = parseValueInput(String(raw))
+      if (parsed) Object.assign(params, parsed)
+      continue
+    }
+    params[PARAM_BY_FIELD[field]] = String(raw)
+  }
+  // The chips address a BOQ line by record id; carrying its code too lets the
+  // chain and the receipt line name it the way the BOQ does.
+  if (pickedLine?.itemCode) params.itemCode = pickedLine.itemCode
+
+  // ---- FIELD 2: whatever the verb itself opens ---------------------------
+  if (recordField && blank(input.resolved[recordField])) {
+    switch (verb.opens) {
+      case "boq-line":
+        return withLevel(recordField, [recordField], await boqLineLevel(boq, verb, projectId!))
+      case "roster":
+        return withLevel(recordField, [recordField], await rosterOptions(projectId!, verb, repo))
+      case "boq-version":
+        return withLevel(recordField, [recordField], await boqVersionOptions(projectId!, repo))
+      case "report-parameters":
+        return withLevel(recordField, [recordField], reportParameterOptions(projectId ?? null))
+      default:
+        break
+    }
+  }
+
+  // A picked BOQ line that is not in this project's BOQ is not a resolved
+  // field at all -- ask again, with the code the client's dictionary renders
+  // as "There is no line ... - pick a line".
+  if (verb.opens === "boq-line" && !blank(input.resolved.boqLine) && !pickedLine) {
+    return {
+      ...withLevel("boqLine", ["boqLine"], await boqLineLevel(boq, verb, projectId!)),
+      code: "BOQ_LINE_NOT_FOUND",
+    }
+  }
+
+  // ---- FIELD 3..n: the function's own remaining required parameters ------
+  if (spec) {
+    for (const required of spec.requiredParams) {
+      if (required.name === "projectId") continue
+      if (requiredParamSatisfied(required, params)) continue
+      const field = fieldForRequired(required)
+      if (field === "value") {
+        return withLevel("value", ["value"], valueOptions(pickedLine), { allowsFreeText: true })
+      }
+      if (field === "date") {
+        return withLevel("date", ["date"], dateOptions())
+      }
+      if (field === "worker") {
+        return withLevel("worker", ["worker"], await rosterOptions(projectId!, verb, repo))
+      }
+      if (field === "boqVersion") {
+        return withLevel("boqVersion", ["boqVersion"], await boqVersionOptions(projectId!, repo))
+      }
+      // A typed field (a title, a name, a link): there is nothing to pick, so
+      // the level says so honestly rather than returning an empty list the
+      // client would render as "no options".
+      return withLevel(field, [field], { legend: `${required.label}?`, kind: "parameter", options: [] }, { allowsFreeText: true })
+    }
+
+    // ---- rule 2: validate() has the last word --------------------------
+    const verdict = validate(
+      { functionId: spec.functionId, params },
+      {
+        candidateFunctionIds: [spec.functionId],
+        // The ids this request's own read proved exist in this project's BOQ.
+        boqLineItemIds: new Set((boq?.lines ?? []).map((l) => l.id)),
+        // chain-options is a READ endpoint whose route already applied the
+        // member/read gate, and every leaf is re-authorised by POST
+        // /api/v1/projexa/tasks on submit -- so permission is deliberately
+        // not re-decided here from a set this service cannot see.
+        userPermittedFunctionIds: new Set([spec.functionId]),
+        // Reachability the read itself proved: the repo runs org-scoped
+        // inside withTenantContext, so rows coming back for this project are
+        // the proof that the org may reach it.
+        reachableProjectIds: projectId ? new Set([projectId]) : new Set(),
+        submissionProjectId: projectId,
+        boqVersion: boq ? `v${boq.version}` : null,
+      }
+    )
+    if (!verdict.valid) {
+      const field = (verdict.missing[0] ? vocabularyKeyForParam(verdict.missing[0]) : "value") as ChainLevelKey
+      const level =
+        field === "boqLine"
+          ? withLevel("boqLine", ["boqLine"], await boqLineLevel(boq, verb, projectId!))
+          : field === "value"
+            ? withLevel("value", ["value"], valueOptions(pickedLine), { allowsFreeText: true })
+            : withLevel(field, [field], { legend: CHAIN_LEVEL_LEGENDS.freeText, kind: "parameter", options: [] }, { allowsFreeText: true })
+      return { ...level, code: verdict.code }
+    }
+  }
+
+  // ---- done: nothing is missing -----------------------------------------
+  const route = doneRoute(verb, input.resolved, projectId ?? null)
+  const card = spec?.card
+  const chain = spec
+    ? buildChain({ mode: "projects", rootLabel: null, functionId: spec.functionId, params, screen: null }).steps.join(" > ")
+    : `${moduleDef.label} > ${verb.label}`
+  return {
+    level: "confirm",
+    legend: confirmLegend(verb.next),
+    missing: [],
+    done: true,
+    options: [
+      {
+        id: "confirm",
+        label: card?.primaryLabel ?? verb.label,
+        kind: "confirm",
+        isLeaf: true,
+        next: verb.next,
+        functionId: verb.functionId,
+        params,
+        route,
+        schema: card,
+      },
+    ],
+    chain,
+    functionId: verb.functionId,
+    params,
+    ...(card ? { card } : {}),
+    ...(route ? { route } : {}),
+  }
+}
+
+/** The BOQ-line level built from a read this request has already done. */
+async function boqLineLevel(
+  boq: { boqId: string; version: number; lines: BoqLineRow[] } | null,
+  verb: VerbDef,
+  projectId: string
+): Promise<ChainOptionsResult> {
+  // Reuses B-03's own builder by handing it the rows already in hand -- one
+  // read per request, and exactly one place that decides what a BOQ-line
+  // option looks like.
+  return boqLineOptions(projectId, verb, {
+    latestBoqLines: async () => boq,
+    boqVersions: async () => [],
+    roster: async () => [],
+    projects: async () => [],
+  })
+}
+
+/** Where a finished navigation/command chain actually lands. */
+function doneRoute(
+  verb: VerbDef,
+  resolved: Readonly<Partial<Record<ChainFieldKey, string>>>,
+  projectId: string | null
+): string | undefined {
+  if (verb.opens === "boq-version" && resolved.boqVersion) return `/scope/${resolved.boqVersion}/revise`
+  if (verb.opens === "report-parameters") {
+    const chosen = reportParameterOptions(projectId).options.find((o) => o.id === resolved.date)
+    if (chosen?.route) return chosen.route
+  }
+  return verb.route
+}
+
 // ── The real repo. ONE withTenantContext per method; a request calls one. ──
 export function makeChainOptionsRepo(ctx: { orgId: string; userId?: string }): ChainOptionsRepo {
   return {
@@ -441,6 +965,8 @@ export function makeChainOptionsRepo(ctx: { orgId: string; userId?: string }): C
             itemCode: constructionBoqLineItems.itemCode,
             description: constructionBoqLineItems.description,
             unit: constructionBoqLineItems.unit,
+            // R67 B-11: numeric, so drizzle hands it back as a string.
+            quantity: constructionBoqLineItems.quantity,
             parentLineItemId: constructionBoqLineItems.parentLineItemId,
           })
           .from(constructionBoqLineItems)
@@ -462,6 +988,7 @@ export function makeChainOptionsRepo(ctx: { orgId: string; userId?: string }): C
             itemCode: r.itemCode,
             description: r.description,
             unit: r.unit,
+            quantity: Number(r.quantity ?? 0),
             childCount: childCounts.get(r.id) ?? 0,
           })),
         }
@@ -502,6 +1029,21 @@ export function makeChainOptionsRepo(ctx: { orgId: string; userId?: string }): C
             )
           )
           .orderBy(asc(constructionLabourRoster.trade), asc(constructionLabourRoster.name))
+        return rows
+      })
+    },
+
+    // R67 B-11. Bounded on purpose: a level is a pick-list, and an org with
+    // more projects than this needs the project screen's own search, not a
+    // 500-row chip strip.
+    async projects() {
+      return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+        const rows = await db
+          .select({ id: projects.id, name: projects.name })
+          .from(projects)
+          .where(and(eq(projects.orgId, ctx.orgId), eq(projects.isActive, true)))
+          .orderBy(asc(projects.name))
+          .limit(50)
         return rows
       })
     },

@@ -161,6 +161,69 @@ export function codeForParam(param: string): PipelineErrorCode {
 }
 
 /**
+ * R67 B-11 -- THE D-03 FIELD VOCABULARY, keyed by parameter name.
+ *
+ * `missing` is the one field a client may read WITHOUT going through its
+ * dictionary (chain-options' band-2 level renders it directly as "which field
+ * am I asking for"), so it must never carry a camelCase parameter name. These
+ * eight keys are exactly projexa's FIX_PARAMS in src/lib/task-errors.ts --
+ * duplicated as strings rather than imported because the two repos deploy
+ * separately, the same reason that file duplicates the code list.
+ *
+ * This is a RENDERING map, not a second rule set: what is required, in what
+ * order, and whether it is satisfied is still decided by
+ * function-registry.ts's requiredParams and validate().
+ */
+export const FIELD_VOCABULARY = ["project", "boqLine", "boqVersion", "value", "date", "worker", "material", "task"] as const;
+
+export type FieldVocabularyKey = (typeof FIELD_VOCABULARY)[number];
+
+const VOCABULARY_BY_PARAM: Readonly<Record<string, FieldVocabularyKey>> = {
+  projectId: "project",
+  project: "project",
+  itemCode: "boqLine",
+  boqLine: "boqLine",
+  boqLineItemId: "boqLine",
+  boqId: "boqVersion",
+  boqVersion: "boqVersion",
+  percent: "value",
+  percentComplete: "value",
+  quantity: "value",
+  quantityDone: "value",
+  hours: "value",
+  dailyRate: "value",
+  value: "value",
+  date: "date",
+  entryDate: "date",
+  attendanceDate: "date",
+  scheduledAt: "date",
+  spentOn: "date",
+  rosterId: "worker",
+  workerName: "worker",
+  worker: "worker",
+  itemId: "material",
+  materialId: "material",
+  material: "material",
+  issueId: "task",
+  taskId: "task",
+  activityId: "task",
+  task: "task",
+};
+
+/**
+ * The vocabulary key a parameter answers to. An unmapped parameter falls back
+ * to its own name ONLY when that name is already a single lower-case word
+ * ("title", "name", "category" -- readable, and no worse than the code's own
+ * sentence); anything carrying a capital is a camelCase internal name and
+ * degrades to "value" rather than reaching a screen.
+ */
+export function vocabularyKeyForParam(param: string): string {
+  const mapped = VOCABULARY_BY_PARAM[param];
+  if (mapped) return mapped;
+  return /[^a-z]/.test(param) ? "value" : param;
+}
+
+/**
  * A TRANSPORT failure, not a user failure. Deliberately a regex over the
  * driver's own message rather than an error-class check: the real R66 case
  * arrived as a plain Error from `postgres`, and the three layers between it
