@@ -40,6 +40,47 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (subagent, r67/d3-screens-manpower-materials-budgets-schedule) -- R67 lane D3: the compliance-tracker half of the Manpower/Materials screen items (D-30, D-36)"
+    claimed_at: "2026-09-03T (this session)"
+    claim: |
+      PROGRAMME R67 (implementation of the owner-approved R66 UX/product-design audit),
+      lane D3 "screens-manpower-materials-budgets-schedule". Most of this lane is PROJEXA
+      front-end work in the projexa repo; only the items below touch this repo.
+
+      File scope in compliance-tracker, ADDITIVE ONLY:
+        - src/lib/services/construction-labour-service.ts (+ new sibling .test.ts) --
+          recordAttendanceBatch(): the batch/upsert twin of the existing one-row-per-call
+          recordAttendance(), so the new PROJEXA daily attendance sheet marks a whole
+          roster in ONE withTenantContext transaction instead of 38; listAttendance()
+          gains from/to. Nothing existing is changed in behaviour.
+        - src/app/api/v1/construction/attendance/route.ts (GET forwards from/to),
+          src/app/api/v1/construction/attendance/bulk/route.ts (new POST),
+          src/app/api/v1/projexa/attendance/bulk/route.ts (re-export).
+        - src/lib/services/construction-materials-service.ts (+ new sibling .test.ts) --
+          getMaterialReceipt()/voidMaterialReceipt(): a SOFT void (voidedAt/voidReason/
+          voidedBy), never a delete, excluded from getMaterialCostReport's totals.
+        - src/app/api/v1/construction/materials/receipts/[id]/route.ts (new GET/PATCH).
+          No /api/v1/projexa/materials/... alias is added: that namespace is already the
+          ERP stock ledger (erp-inventory-service.ts), and every PROJEXA materials proxy
+          reaches the construction receipts through callVeridian's `root: true` path.
+        - src/lib/db/schema.ts -- the four additive columns those two items need on
+          construction_material_receipts (reference, voided_at, void_reason, voided_by).
+
+      DECLARED OVERLAP, read before merging: the DDL for those columns belongs to R67
+      item I-02 ("Migrations: attendance batch key, roster codes and trades, material
+      issues/void, org number format"), which is a DIFFERENT lane's file scope, so this
+      branch adds NO drizzle/*.sql file and NO drizzle/meta/_journal.json entry -- only
+      the drizzle table declaration the service code needs to compile. I-02 must carry
+      those four columns (its own brief lists voided_at/void_reason/voided_by but NOT
+      `reference`, which D-36 requires) plus the unique index on construction_attendance
+      (org_id, roster_id, attendance_date). recordAttendanceBatch() is deliberately
+      written to be correct WITH OR WITHOUT that index (read-then-update/insert inside
+      the one transaction, not ON CONFLICT), so nothing here is blocked on I-02 landing
+      first; the receipts columns genuinely are.
+
+      Not touching: the pipeline (classify/executor/validate/run-submission), any AI
+      router/escalation file, billing_*, construction-progress-service.ts,
+      construction-boq-service.ts, erp-inventory-service.ts, or any migration file.
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |

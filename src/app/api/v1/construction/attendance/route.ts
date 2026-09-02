@@ -8,10 +8,15 @@ export async function GET(request: NextRequest) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    // R67 D-30/D-33: `from`/`to` forwarded so the daily sheet, the worker
+    // object page's month history and the daily summary all filter in SQL
+    // instead of pulling a project's whole attendance ledger to the browser.
     const attendance = await listAttendance({ orgId: ctx.orgId }, {
       projectId: request.nextUrl.searchParams.get("projectId") ?? undefined,
       rosterId: request.nextUrl.searchParams.get("rosterId") ?? undefined,
       attendanceDate: request.nextUrl.searchParams.get("attendanceDate") ?? undefined,
+      from: request.nextUrl.searchParams.get("from") ?? undefined,
+      to: request.nextUrl.searchParams.get("to") ?? undefined,
     })
     return NextResponse.json({ attendance })
   } catch (error) {
