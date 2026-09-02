@@ -151,7 +151,7 @@ describe("B-08 -- a statement timeout is its own code", () => {
   });
 });
 
-describe("B-08 -- failureFromRow reads the typed columns drizzle/0528 adds", () => {
+describe("B-08 -- failureFromRow reads the typed columns drizzle/0533 adds", () => {
   test("a real code and its business params come back as a failure", () => {
     const f = failureFromRow("BOQ_LINE_NOT_FOUND", { itemCode: "1", project: "Cedar Heights Villa - Phase 1", version: "Rev0" });
     expect(f).not.toBeNull();

@@ -182,7 +182,7 @@ active:
         src/lib/ai/adapter.ts (the AiProviderRefusalError sentence only)
         src/lib/ai/refusal.ts (new) + .test.ts
         src/lib/db/schema.ts (pipelineTasks.errorCode / errorParams only)
-        drizzle/0528_r67_pipeline_task_error_codes.sql (new, hand-written)
+        drizzle/0533_r67_pipeline_task_error_codes.sql (new, hand-written)
         drizzle/meta/_journal.json (one appended entry, idx 350)
         docs/master/TEST_COVERAGE_GAP.md (regenerated)
       Does NOT touch: platform.* migrations (0528 is compliance.*, two nullable
@@ -190,7 +190,7 @@ active:
       (the new write executors CALL them unchanged), phrase_map/analyse.ts, the
       billing/* files claimed below.
 
-      DEPLOY ORDER: drizzle/0528 must be applied BEFORE this code is deployed --
+      DEPLOY ORDER: drizzle/0533 must be applied BEFORE this code is deployed --
       GET /api/v1/projexa/tasks selects error_code/error_params by name. The
       migration is additive and safe to apply to a database still running the
       previous build. See the migration's own header.

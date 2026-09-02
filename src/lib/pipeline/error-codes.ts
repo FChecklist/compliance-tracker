@@ -400,7 +400,7 @@ export function isRetryableFailure(code: PipelineErrorCode): boolean {
 
 /**
  * R67 B-08 -- the reverse of what updateTask() writes into the typed columns
- * compliance.pipeline_tasks.error_code / error_params (drizzle/0528).
+ * compliance.pipeline_tasks.error_code / error_params (drizzle/0533).
  * Returns null for a row whose code column is empty or carries a value this
  * build does not know, so GET falls back to parsing the serialised `error`
  * object and, failing that, hands the client a legacy row to map itself.

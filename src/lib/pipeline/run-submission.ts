@@ -1013,7 +1013,7 @@ async function updateTask(orgId: string, taskId: string, status: TaskOutcome["st
         status,
         result: (result as object | undefined) ?? null,
         error: failure ? serialiseFailure(failure) : null,
-        // R67 B-08 (drizzle/0528): the code and its parameters get real
+        // R67 B-08 (drizzle/0533): the code and its parameters get real
         // columns, so a failure can be counted and grouped in SQL instead of
         // by parsing JSON out of a text column. `error_params` carries ONLY
         // the business values a sentence interpolates -- never `debug`,

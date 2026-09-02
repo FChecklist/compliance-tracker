@@ -220,7 +220,7 @@ export async function GET(request: NextRequest) {
           params: pipelineTasks.params,
           status: pipelineTasks.status,
           error: pipelineTasks.error,
-          // R67 B-08 (drizzle/0528): the typed failure, in its own columns.
+          // R67 B-08 (drizzle/0533): the typed failure, in its own columns.
           errorCode: pipelineTasks.errorCode,
           errorParams: pipelineTasks.errorParams,
           createdAt: pipelineTasks.createdAt,
