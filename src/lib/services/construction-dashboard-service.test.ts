@@ -64,3 +64,39 @@ describe("construction-dashboard-service: no nested withTenantContext transactio
     }
   })
 })
+
+// R67 D-02 (audit R-004/R-009): "no budget has been set" and "the budget is
+// zero" are different facts, and both dashboards used to return 0 for both --
+// which is what made PROJEXA's home render "AED 0" as a real figure and every
+// Budget-vs-Actual tile claim the project was over budget on its first
+// expense. Both totals are now count-gated: null unless at least one
+// erp_budget_line_items row matched. Held here in the same static-source style
+// as the guards above (this repo runs `bun test` with no live Postgres behind
+// it, so the SQL itself cannot be executed in a unit test) -- these assertions
+// catch the exact regression, a re-introduced `?? 0` on either budget read.
+describe("construction-dashboard-service: a missing budget is null, never 0", () => {
+  test("getProjectDashboard returns budget from the row COUNT, not a coalesced sum", () => {
+    const body = functionBody("getProjectDashboard")
+    expect(body).toMatch(/lines:\s*sql<number>`count\(/)
+    expect(body).toMatch(/budget:\s*Number\(budgetRow\?\.lines \?\? 0\) > 0 \? Number\(budgetRow!\.total\) : null/)
+    expect(body).not.toMatch(/budget:\s*Number\(budgetRow\?\.total \?\? 0\)/)
+  })
+
+  test("getOrgDashboard returns totalBudget from the row COUNT, not a coalesced sum", () => {
+    const body = functionBody("getOrgDashboard")
+    expect(body).toMatch(/lines:\s*sql<number>`count\(/)
+    expect(body).toMatch(/totalBudget:\s*Number\(budgetTotal\?\.lines \?\? 0\) > 0 \? Number\(budgetTotal!\.total\) : null/)
+    expect(body).not.toMatch(/totalBudget:\s*Number\(budgetTotal\?\.total \?\? 0\)/)
+  })
+
+  test("getOrgDashboard's empty-scope early returns report a null budget too, not 0", () => {
+    const body = functionBody("getOrgDashboard")
+    expect(body).not.toMatch(/totalBudget:\s*0\b/)
+    expect(body.match(/totalBudget:\s*null/g)?.length).toBe(2)
+  })
+
+  test("both public types declare the nullable budget, so every consumer is forced to handle it", () => {
+    expect(CODE).toMatch(/budget:\s*number \| null/)
+    expect(CODE).toMatch(/totalBudget:\s*number \| null/)
+  })
+})

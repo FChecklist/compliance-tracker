@@ -668,3 +668,26 @@ describe("workProgressReport with categoryFilter (R67 I-05, real code path)", ()
     expect(result.activities).toEqual([])
   })
 })
+
+// R67 D-02 (audit R-004/R-009). budgetVsActual() reads
+// getProjectDashboard().budget, which is now `number | null` -- null when no
+// erp_budget_line_items row exists for the project's scope. `budget - actual`
+// on a null budget would have reported every unbudgeted project as overspent
+// by exactly its own spend; the rule now lives in one pure function.
+describe("budgetVariance (R67 D-02: no budget means no variance)", () => {
+  test("returns null when no budget has been set, rather than 0 - actual", async () => {
+    const { budgetVariance } = await import("./construction-reports-service")
+    expect(budgetVariance(null, 185_000)).toBeNull()
+  })
+
+  test("returns the real signed variance when a budget exists", async () => {
+    const { budgetVariance } = await import("./construction-reports-service")
+    expect(budgetVariance(500_000, 185_000)).toBe(315_000)
+    expect(budgetVariance(100_000, 185_000)).toBe(-85_000)
+  })
+
+  test("a genuine zero budget still produces a real variance, not null", async () => {
+    const { budgetVariance } = await import("./construction-reports-service")
+    expect(budgetVariance(0, 185_000)).toBe(-185_000)
+  })
+})

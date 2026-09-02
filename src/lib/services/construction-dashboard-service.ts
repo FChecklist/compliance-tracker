@@ -104,7 +104,15 @@ export async function updateProjectValue(ctx: { orgId: string }, projectId: stri
 export type ProjectDashboard = {
   projectId: string
   projectName: string
-  budget: number
+  // R67 D-02 (audit R-004/R-009): null (never 0) when this project's scope has
+  // NO erp_budget_line_items rows at all. A budget of zero and "nobody has set
+  // a budget" are different facts, and the dashboards that read this were
+  // rendering the second as "AED 0" -- a figure a user reasonably reads as a
+  // real, approved, zero budget, and which made every "Budget vs Actual" tile
+  // claim the project was over budget the moment a single expense existed.
+  // Same null-not-zero convention projectValue/earnedValue/contractValue below
+  // already use.
+  budget: number | null
   revenue: number
   expenses: number
   progressPercent: number // average of each activity's latest logged percentComplete
@@ -133,7 +141,13 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
     const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
     if (!project) throw new ServiceError("Project not found", 404)
 
-    const [budgetRow] = await db.select({ total: sql<number>`coalesce(sum(${erpBudgetLineItems.annualAmount}), 0)::float` })
+    // R67 D-02: the row count comes back alongside the sum so "no budget rows"
+    // can be told apart from "budget rows that sum to zero" -- count() over the
+    // joined column is 0 exactly when nothing matched.
+    const [budgetRow] = await db.select({
+      total: sql<number>`coalesce(sum(${erpBudgetLineItems.annualAmount}), 0)::float`,
+      lines: sql<number>`count(${erpBudgetLineItems.id})::int`,
+    })
       .from(erpBudgetLineItems)
       .innerJoin(erpBudgets, eq(erpBudgetLineItems.budgetId, erpBudgets.id))
       .innerJoin(erpCostCenters, eq(erpBudgets.costCenterId, erpCostCenters.id))
@@ -260,7 +274,7 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
     return {
       projectId: project.id,
       projectName: project.name,
-      budget: Number(budgetRow?.total ?? 0),
+      budget: Number(budgetRow?.lines ?? 0) > 0 ? Number(budgetRow!.total) : null,
       revenue: Number(revenueRow?.total ?? 0),
       expenses: Number(expenseRow?.total ?? 0),
       progressPercent: Math.round(progressPercent),
@@ -279,7 +293,9 @@ export type OrgDashboardFilters = { departmentId?: string }
 
 export type OrgDashboardSummary = {
   totalProjects: number
-  totalBudget: number
+  // R67 D-02: null (never 0) when NO erp_budget_line_items row exists for any
+  // project in scope -- see ProjectDashboard.budget's comment above.
+  totalBudget: number | null
   totalRevenue: number
   totalExpenses: number
   projects: { id: string; name: string; revenue: number; expenses: number; taskCount: number; delayedTaskCount: number; earnedValue: number | null; percentByValue: number | null }[]
@@ -299,14 +315,14 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         ? await db.query.projects.findMany({ where: and(eq(projects.orgId, ctx.orgId), inArray(projects.leadUserId, leadIds)), columns: { id: true } })
         : []
       projectIds = scoped.map((p) => p.id)
-      if (projectIds.length === 0) return { totalProjects: 0, totalBudget: 0, totalRevenue: 0, totalExpenses: 0, projects: [] }
+      if (projectIds.length === 0) return { totalProjects: 0, totalBudget: null, totalRevenue: 0, totalExpenses: 0, projects: [] }
     }
 
     const projectConditions = [eq(projects.orgId, ctx.orgId), eq(projects.isActive, true)]
     if (projectIds) projectConditions.push(inArray(projects.id, projectIds))
     const projectRows = await db.query.projects.findMany({ where: and(...projectConditions), columns: { id: true, name: true } })
     const ids = projectRows.map((p) => p.id)
-    if (ids.length === 0) return { totalProjects: 0, totalBudget: 0, totalRevenue: 0, totalExpenses: 0, projects: [] }
+    if (ids.length === 0) return { totalProjects: 0, totalBudget: null, totalRevenue: 0, totalExpenses: 0, projects: [] }
 
     const revenueByProject = await db.select({ projectId: erpSalesInvoices.projectId, total: sql<number>`coalesce(sum(${erpSalesInvoices.grandTotal}), 0)::float` })
       .from(erpSalesInvoices)
@@ -326,7 +342,11 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
     }).from(pmsIssues).where(and(eq(pmsIssues.orgId, ctx.orgId), inArray(pmsIssues.projectId, ids), eq(pmsIssues.isArchived, false)))
       .groupBy(pmsIssues.projectId)
 
-    const [budgetTotal] = await db.select({ total: sql<number>`coalesce(sum(${erpBudgetLineItems.annualAmount}), 0)::float` })
+    // R67 D-02: count alongside the sum -- see getProjectDashboard's own note.
+    const [budgetTotal] = await db.select({
+      total: sql<number>`coalesce(sum(${erpBudgetLineItems.annualAmount}), 0)::float`,
+      lines: sql<number>`count(${erpBudgetLineItems.id})::int`,
+    })
       .from(erpBudgetLineItems)
       .innerJoin(erpBudgets, eq(erpBudgetLineItems.budgetId, erpBudgets.id))
       .innerJoin(erpCostCenters, eq(erpBudgets.costCenterId, erpCostCenters.id))
@@ -488,7 +508,7 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
 
     return {
       totalProjects: projectRows.length,
-      totalBudget: Number(budgetTotal?.total ?? 0),
+      totalBudget: Number(budgetTotal?.lines ?? 0) > 0 ? Number(budgetTotal!.total) : null,
       totalRevenue: projectSummaries.reduce((s, p) => s + p.revenue, 0),
       totalExpenses: projectSummaries.reduce((s, p) => s + p.expenses, 0),
       projects: projectSummaries,

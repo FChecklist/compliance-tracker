@@ -571,6 +571,18 @@ export async function budgetSummary(ctx: { orgId: string }, projectId: string) {
   })
 }
 
+/**
+ * R67 D-02. Budget-vs-actual variance when the budget itself may be absent.
+ * getProjectDashboard().budget is `number | null` -- null means no budget row
+ * exists for the project's scope, and "no budget" has no variance. Returning
+ * `0 - actual` there would report every unbudgeted project as overspent by
+ * exactly its own spend, which is the fabricated figure this item exists to
+ * remove. Extracted so the rule is unit-testable without a live DB.
+ */
+export function budgetVariance(budget: number | null, actual: number): number | null {
+  return budget === null ? null : budget - actual
+}
+
 // 8. Budget vs Actual -- budget total (via cost center) vs actual expenses (construction_expense_entries).
 export async function budgetVsActual(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
@@ -579,7 +591,7 @@ export async function budgetVsActual(ctx: { orgId: string }, projectId: string) 
     getExpenseSummaryByHead(ctx, projectId),
   ])
   const actual = expenseByHead.reduce((s, r) => s + Number(r.total), 0)
-  return { budget: dashboard.budget, actual, variance: dashboard.budget - actual, byHead: expenseByHead }
+  return { budget: dashboard.budget, actual, variance: budgetVariance(dashboard.budget, actual), byHead: expenseByHead }
 }
 
 // 9. Material Consumption Report -- net stock movement per item for this project (negative = consumed).

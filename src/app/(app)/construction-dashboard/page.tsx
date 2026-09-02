@@ -42,17 +42,27 @@ type Department = { id: string; name: string };
 
 export default function ConstructionDashboardPage() {
   const currencies = useCurrencies();
-  // R48 gap-closure (2026-08-30, F059): the API now redacts financial
-  // fields to null server-side for roles below "manager" (a real security
-  // fix, not a display choice -- see the API route's own comment). money()
-  // must handle that null without crashing (n.toLocaleString() on null
-  // throws) -- render a plain "restricted" placeholder instead of a figure.
-  const money = (n: number | null) => n === null ? "Restricted" : `${currencyLabel(undefined, currencies)}${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-
   const [data, setData] = useState<OrgDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [departmentId, setDepartmentId] = useState("all");
+
+  // R48 gap-closure (2026-08-30, F059): the API redacts financial fields to
+  // null server-side for roles below "manager" (a real security fix, not a
+  // display choice -- see the API route's own comment), so money() must
+  // handle null without crashing (n.toLocaleString() on null throws).
+  //
+  // R67 D-02 makes null mean a SECOND thing on one of these fields:
+  // getOrgDashboard().totalBudget is now null when no budget rows exist at
+  // all, so "Restricted" alone would tell an org with no budget that its own
+  // figure is being withheld from it. The two are distinguishable because the
+  // redaction nulls revenue and expenses TOGETHER with the budget, while a
+  // missing budget nulls only the budget -- so the wording follows that.
+  const restricted = data !== null && data.totalRevenue === null && data.totalExpenses === null;
+  const money = (n: number | null) =>
+    n === null
+      ? (restricted ? "Restricted" : "Not set")
+      : `${currencyLabel(undefined, currencies)}${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
   useEffect(() => {
     fetch("/api/departments")
