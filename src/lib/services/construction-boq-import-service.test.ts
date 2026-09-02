@@ -594,3 +594,105 @@ describe("mapRowsToLineItems -- synthetic anchor codes read as data, not debug a
     expect(shutter.parentItemCode).toBe(receptionCounter.itemCode) // still resolves correctly, just under the new naming
   })
 })
+
+// R67 D-25 -- the import PREVIEW. The importer has shipped for months and only
+// a screen was missing; the screen must not re-parse the spreadsheet in the
+// browser (PROJEXA is not allowed an XLSX library, and a second parser is a
+// second set of rules that can disagree with the one that imports), so the
+// preview is the SAME parse, returned without writing. These pin the two
+// additive outputs that makes possible: per-row `issues`, classified as
+// blocking or not, and `toPreviewRows`.
+describe("mapRowsToLineItems -- per-row issues for the import preview (D-25)", () => {
+  const mapping = { itemCode: "code", description: "desc", unit: "unit", quantity: "qty", rate: "rate" } as const
+
+  test("a non-numeric Qty is a BLOCKING issue naming its sheet row", () => {
+    const rows = [
+      { code: "1", desc: "Blockwork", unit: "sqm", qty: 10, rate: 5 },
+      { code: "2", desc: "Plaster", unit: "sqm", qty: "TBD", rate: 5 },
+    ]
+    const { issues, lineItems } = mapRowsToLineItems(rows, mapping)
+    // Sheet row 3 = header + two data rows; the second data row is the bad one.
+    expect(issues).toContainEqual({ row: 3, message: "Row 3: Qty is not a number", blocking: true })
+    expect(lineItems).toHaveLength(1)
+  })
+
+  test("a non-numeric Rate is blocking too, and says Rate rather than Qty", () => {
+    const rows = [{ code: "1", desc: "Blockwork", unit: "sqm", qty: 10, rate: "N/A" }]
+    const { issues } = mapRowsToLineItems(rows, mapping)
+    expect(issues).toContainEqual({ row: 2, message: "Row 2: Rate is not a number", blocking: true })
+  })
+
+  test("a clean sheet produces NO issues at all -- the preview can honestly say '0 with errors'", () => {
+    const rows = [{ code: "1", desc: "Blockwork", unit: "sqm", qty: 10, rate: 5 }]
+    expect(mapRowsToLineItems(rows, mapping).issues).toHaveLength(0)
+  })
+
+  test("a skipped category header is reported but NOT blocking -- it is a legitimate skip", () => {
+    const rows = [
+      { code: "1.00", desc: "PARTITION AND LINING", unit: "", qty: "", rate: "" },
+      { code: "1.01", desc: "Blockwork", unit: "sqm", qty: 10, rate: 5 },
+    ]
+    const { issues } = mapRowsToLineItems(rows, mapping)
+    expect(issues.filter((i) => i.blocking)).toHaveLength(0)
+    expect(issues[0].message).toContain("category header")
+  })
+
+  test("a duplicate Item Code is flagged BEFORE import, naming both rows -- createBoq would otherwise reject it after the upload", () => {
+    const rows = [
+      { code: "A1", desc: "Blockwork", unit: "sqm", qty: 10, rate: 5 },
+      { code: "A1", desc: "Plaster", unit: "sqm", qty: 4, rate: 3 },
+    ]
+    const { issues } = mapRowsToLineItems(rows, mapping)
+    const duplicate = issues.find((i) => i.message.includes("duplicate Item Code"))
+    expect(duplicate).toBeDefined()
+    expect(duplicate!.blocking).toBe(true)
+    expect(duplicate!.row).toBe(3)
+    expect(duplicate!.message).toContain("first used on row 2")
+  })
+
+  test("every issue row number matches the row number the free-text warnings already used", () => {
+    const rows = [{ code: "1", desc: "Blockwork", unit: "sqm", qty: "oops", rate: 5 }]
+    const { issues, warnings } = mapRowsToLineItems(rows, mapping)
+    expect(warnings[0]).toContain("Row 2:")
+    expect(issues[0].row).toBe(2)
+  })
+})
+
+describe("mapRowsToLineItems -- Category column (D-24/D-25)", () => {
+  test("a real Category column lands on the line item, not on the description", () => {
+    const rows = [{ Category: "Gypsum", "Item Code": "1", Description: "Partition", Unit: "sqm", Qty: 10, Rate: 5 }]
+    const mapping = mapBoqHeaders(["Category", "Item Code", "Description", "Unit", "Qty", "Rate"])
+    const { lineItems } = mapRowsToLineItems(rows, mapping)
+    expect(lineItems[0].description).toBe("Partition")
+    expect(lineItems[0].category).toBe("Gypsum")
+  })
+
+  test("a sheet whose ONLY text column is 'Category' still uses it as the description -- the pre-existing last-resort alias is untouched", () => {
+    const mapping = mapBoqHeaders(["Category", "Unit", "Qty", "Rate"])
+    expect(mapping.description).toBe("Category")
+    expect(mapping.category).toBeUndefined()
+  })
+})
+
+describe("toPreviewRows (D-25)", () => {
+  test("shows what will actually be SAVED for a sub-task, not the blank 0/0 its sheet row carries", async () => {
+    const { toPreviewRows } = await import("./construction-boq-import-service")
+    const lineItems: BoqLineItemInput[] = [
+      { itemCode: "1", description: "Partition", unit: "sqm", quantity: 100, rate: 50 },
+      { itemCode: "1.1", parentItemCode: "1", breakdownPercentage: 30, description: "Frame", unit: "sqm", quantity: 0, rate: 0 },
+    ]
+    const rows = toPreviewRows(lineItems)
+    expect(rows[0]).toMatchObject({ code: "1", quantity: 100, rate: 50, amount: 5000 })
+    // F2/F3/F4: qty = root qty, rate = root rate x 30%, amount = 1500.
+    expect(rows[1]).toMatchObject({ code: "1.1", quantity: 100, rate: 15, amount: 1500, parentItemCode: "1", breakdownPercentage: 30 })
+  })
+
+  test("an uncategorised, uncoded line reports null rather than an invented value", async () => {
+    const { toPreviewRows } = await import("./construction-boq-import-service")
+    const [row] = toPreviewRows([{ description: "Blockwork", unit: "sqm", quantity: 10, rate: 5 }])
+    expect(row.category).toBeNull()
+    expect(row.code).toBeNull()
+    expect(row.parentItemCode).toBeNull()
+    expect(row.breakdownPercentage).toBeNull()
+  })
+})
