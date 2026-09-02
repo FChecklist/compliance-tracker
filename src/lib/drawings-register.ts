@@ -101,6 +101,25 @@ export function matchesDiscipline(dto: { discipline: string | null }, discipline
   return (dto.discipline ?? "").trim().toLowerCase() === discipline.trim().toLowerCase()
 }
 
+/**
+ * R67 D-11. The grace window: how long after upload the person who uploaded a
+ * drawing may still undo it with a hard Remove, before the records-management
+ * rules (retention, disposal, legal hold) take over. 24 hours is the item's own
+ * figure, and it exists because a freshly uploaded drawing with a null
+ * disposalDate is otherwise UNDELETABLE by its own uploader -- the disposal
+ * gate refuses it for want of a retention policy nobody has set.
+ */
+export const RECENT_WINDOW_HOURS = 24
+
+export function isRecentDrawing(createdAt: Date | string, now: Date = new Date()): boolean {
+  const created = createdAt instanceof Date ? createdAt : new Date(createdAt)
+  if (Number.isNaN(created.getTime())) return false
+  const elapsedMs = now.getTime() - created.getTime()
+  // A createdAt in the future is clock skew, not a fresh upload; it stays
+  // inside the window rather than being treated as ancient.
+  return elapsedMs < RECENT_WINDOW_HOURS * 60 * 60 * 1000
+}
+
 /** The register's own words for a Kind -- what a person reads, not the wire value. */
 export function kindLabel(kind: DrawingKind): string {
   return kind === "3d_walkthrough" ? "3D Walkthrough" : "DWG"

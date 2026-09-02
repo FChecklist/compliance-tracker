@@ -5,7 +5,7 @@
 
 VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for Module": "No systematic test-generation tooling"). Coverage here means "has a sibling `<name>.test.ts` file", not line-coverage percentage -- see this script's own header for why that's the right proxy for triaging files with ZERO tests. Files are ranked by line count because the largest untested files are both the riskiest to modify/refactor blind ("AI Can Safely Modify/Refactor Module" findings) and the highest-value next target.
 
-**Summary:** 131/250 service files have a sibling test file (52.4%).
+**Summary:** 127/245 service files have a sibling test file (51.8%).
 
 ## Top 20 untested files by size (highest priority first)
 
@@ -23,13 +23,13 @@ VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for Module": "No s
 | 10 | `src/lib/services/fm-register-digitization-service.ts` | 310 |
 | 11 | `src/lib/services/erp-goods-receipt-service.ts` | 307 |
 | 12 | `src/lib/services/communication-drafting-service.ts` | 302 |
-| 13 | `src/lib/services/document-service.ts` | 298 |
-| 14 | `src/lib/services/ai-report-builder-service.ts` | 251 |
-| 15 | `src/lib/services/veri-chat-service.ts` | 250 |
-| 16 | `src/lib/services/mdm-quality-service.ts` | 249 |
-| 17 | `src/lib/services/notice-service.ts` | 243 |
-| 18 | `src/lib/services/firm-engagement-service.ts` | 239 |
-| 19 | `src/lib/services/fm-ppm-service.ts` | 239 |
-| 20 | `src/lib/services/interior-floorplan-service.ts` | 238 |
+| 13 | `src/lib/services/ai-report-builder-service.ts` | 251 |
+| 14 | `src/lib/services/veri-chat-service.ts` | 250 |
+| 15 | `src/lib/services/mdm-quality-service.ts` | 249 |
+| 16 | `src/lib/services/notice-service.ts` | 243 |
+| 17 | `src/lib/services/firm-engagement-service.ts` | 239 |
+| 18 | `src/lib/services/fm-ppm-service.ts` | 239 |
+| 19 | `src/lib/services/interior-floorplan-service.ts` | 238 |
+| 20 | `src/lib/services/erp-returns-service.ts` | 236 |
 
-_Total untested files (all sizes): 119. Showing top 20._
+_Total untested files (all sizes): 118. Showing top 20._

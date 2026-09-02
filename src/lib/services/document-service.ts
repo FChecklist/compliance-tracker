@@ -184,20 +184,64 @@ export async function getDocumentVersionHistory(ctx: { orgId: string }, document
   })
 }
 
+export type UpdateDocumentMetadataInput = {
+  /** R67 D-11: a name typed wrong at upload time was unfixable before this. */
+  name?: string
+  category?: string | null
+  expiryDate?: string | null
+  linkedEntityType?: string | null
+  linkedEntityId?: string | null
+  /**
+   * R67 D-11: a PARTIAL patch of the metadata jsonb, MERGED over what is
+   * already there. Drawings-only (see METADATA_PATCHABLE_CATEGORIES): the only
+   * metadata key any screen edits today is a drawing's discipline, and a
+   * generic "replace the metadata blob" patch on this table would let a caller
+   * drop isExternalLink -- the flag that decides whether fileUrl is a storage
+   * path or a URL -- and silently break the file link on every read.
+   */
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * The categories whose metadata this function will patch. Deliberately narrow:
+ * permits keep their own dedicated route (permits/[id]) precisely so that
+ * widening this contract to carry per-module fields never became necessary,
+ * and R67 D-11 only needs the drawings' discipline.
+ */
+export const METADATA_PATCHABLE_CATEGORIES = ["drawing", "drawing_3d"] as const
+
 export async function updateDocumentMetadata(
   ctx: { orgId: string; userId: string },
   documentId: string,
-  input: { category?: string | null; expiryDate?: string | null; linkedEntityType?: string | null; linkedEntityId?: string | null }
+  input: UpdateDocumentMetadataInput
 ) {
+  if (input.name !== undefined && !input.name.trim()) throw new ServiceError("name cannot be empty", 400)
+
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.documents.findFirst({ where: and(eq(documents.id, documentId), eq(documents.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Document not found", 404)
 
+    // The category the row will HAVE after this patch is what the gate is
+    // measured against, so a caller cannot move a permit into a drawing
+    // category and patch its metadata in the same call, nor patch a drawing's
+    // discipline while moving it out of the drawing categories.
+    const effectiveCategory = input.category !== undefined ? input.category : existing.category
+    if (input.metadata !== undefined && !(METADATA_PATCHABLE_CATEGORIES as readonly (string | null)[]).includes(effectiveCategory)) {
+      throw new ServiceError(
+        `Only ${METADATA_PATCHABLE_CATEGORIES.join(" and ")} documents carry editable metadata; this one is ${effectiveCategory ?? "uncategorised"}`,
+        400
+      )
+    }
+
+    const existingMetadata = (existing.metadata ?? {}) as Record<string, unknown>
+
     const [updated] = await db.update(documents).set({
+      ...(input.name !== undefined ? { name: input.name.trim() } : {}),
       ...(input.category !== undefined ? { category: input.category } : {}),
       ...(input.expiryDate !== undefined ? { expiryDate: input.expiryDate ? new Date(input.expiryDate) : null } : {}),
       ...(input.linkedEntityType !== undefined ? { linkedEntityType: input.linkedEntityType } : {}),
       ...(input.linkedEntityId !== undefined ? { linkedEntityId: input.linkedEntityId } : {}),
+      ...(input.metadata !== undefined ? { metadata: { ...existingMetadata, ...input.metadata } } : {}),
     }).where(eq(documents.id, documentId)).returning()
 
     return updated
