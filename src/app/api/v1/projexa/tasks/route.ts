@@ -25,6 +25,8 @@ import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-gua
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
 import { runSubmission, runDirectTask } from "@/lib/pipeline/run-submission"
+import { parseFailure } from "@/lib/pipeline/error-codes"
+import { functionLabel } from "@/lib/pipeline/function-registry"
 
 const TASK_STATUSES = ["to_do", "in_progress", "waiting", "done", "blocked"] as const
 type TaskStatus = (typeof TASK_STATUSES)[number]
@@ -146,10 +148,26 @@ export async function GET(request: NextRequest) {
         .limit(limit)
     })
 
-    const group = (statuses: TaskStatus[]) => rows.filter((r) => statuses.includes(r.status as TaskStatus))
+    // R67 B-01 (D-03): every row gains the STRUCTURED failure and the
+    // function's HUMAN LABEL, so the client can render a sentence and a Fix
+    // chain without parsing prose and without ever printing a function id.
+    //   failure -- {code, missing, context, picker}, parsed from the column
+    //              run-submission.ts now writes as JSON. null for a row
+    //              written before this change (the client's own
+    //              legacyToCode() covers those, so there is one legacy
+    //              mapping in the programme, not two).
+    //   label   -- "Record progress", never "record_work_progress".
+    // `error` is still returned verbatim for backward compatibility; nothing
+    // new should render it.
+    const decorated = rows.map((r) => ({
+      ...r,
+      label: r.functionId ? functionLabel(r.functionId) : null,
+      failure: parseFailure(r.error),
+    }))
+    const group = (statuses: TaskStatus[]) => decorated.filter((r) => statuses.includes(r.status as TaskStatus))
 
     return NextResponse.json({
-      tasks: rows,
+      tasks: decorated,
       // LIVE COUNTS, so the user knows before clicking (M24's header tabs).
       counts: {
         needsYou: group(["to_do", "waiting"]).length,

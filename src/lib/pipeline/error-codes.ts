@@ -1,0 +1,221 @@
+// R67 lane B (B-01 / D-03) -- THE CLOSED VOCABULARY.
+//
+// Before this file, every pipeline failure was a free-text English sentence
+// composed in THIS repo and rendered verbatim by PROJEXA's Task Master
+// ("itemCode is required", "no project resolved for this task", and -- the
+// R66 walkthrough's worst case -- a Postgres driver string carrying an
+// internal address, "write CONNECT_TIMEOUT 3.109.171.244:6543"). Programme
+// decision D-03 settles that split: THE SERVER RETURNS A CODE, THE CLIENT
+// OWNS THE WORDING. compliance-tracker never again emits a user-facing
+// sentence for a failure, and projexa's src/lib/task-errors.ts is the one
+// place a human sentence exists.
+//
+// Everything here is PURE -- no DB, no I/O, no model -- so the whole
+// vocabulary is exhaustively unit-testable, the same posture validate.ts
+// and classify.ts already hold.
+
+/**
+ * THE CLOSED SET. D-03 names five (BOQ_LINE_REQUIRED, BOQ_LINE_NOT_FOUND,
+ * PROJECT_REQUIRED, VALUE_REQUIRED, BACKEND_UNAVAILABLE); the rest exist
+ * because validate()/executeTask() genuinely produce those failures today
+ * and dropping them into a catch-all would lose information the user needs
+ * to fix the request. Adding a code is a deliberate act: the projexa
+ * dictionary must gain a sentence for it in the same programme, or the
+ * client renders its "Something went wrong (code X)" fallback.
+ */
+export const PIPELINE_ERROR_CODES = [
+  // --- what the request is missing (the user can fix these) --------------
+  "PROJECT_REQUIRED",
+  "BOQ_LINE_REQUIRED",
+  "VALUE_REQUIRED",
+  "DATE_REQUIRED",
+  "WORKER_REQUIRED",
+  "TITLE_REQUIRED",
+  "TASK_REQUIRED",
+  "ACTIVITY_REQUIRED",
+  "HOURS_REQUIRED",
+  "MATERIAL_REQUIRED",
+  "QUANTITY_REQUIRED",
+  // --- what the request named but does not exist / is not usable ---------
+  "BOQ_LINE_NOT_FOUND",
+  "BOQ_LINE_IS_PARENT",
+  "PROJECT_NOT_REACHABLE",
+  "VALUE_OUT_OF_RANGE",
+  // --- what this account/workspace may not do ----------------------------
+  "FUNCTION_NOT_AVAILABLE",
+  "NOT_PERMITTED",
+  "READ_AS_QUESTION",
+  "DEPENDENCY_FAILED",
+  // --- what went wrong on our side (never the user's fault) --------------
+  "BACKEND_UNAVAILABLE",
+  "INTERNAL_ERROR",
+] as const;
+
+export type PipelineErrorCode = (typeof PIPELINE_ERROR_CODES)[number];
+
+/**
+ * B-01's `picker` hint: which chain the client should load to FIX this
+ * failure in one click, rather than asking the user to retype the sentence.
+ * "none" means there is nothing the user can pick -- BACKEND_UNAVAILABLE is
+ * a Retry, not a picker.
+ */
+export type PickerHint = "boq-line" | "project" | "value" | "date" | "worker" | "task" | "material" | "none";
+
+const PICKER_BY_CODE: Readonly<Record<PipelineErrorCode, PickerHint>> = {
+  PROJECT_REQUIRED: "project",
+  BOQ_LINE_REQUIRED: "boq-line",
+  VALUE_REQUIRED: "value",
+  DATE_REQUIRED: "date",
+  WORKER_REQUIRED: "worker",
+  TITLE_REQUIRED: "value",
+  TASK_REQUIRED: "task",
+  ACTIVITY_REQUIRED: "task",
+  HOURS_REQUIRED: "value",
+  MATERIAL_REQUIRED: "material",
+  QUANTITY_REQUIRED: "value",
+  BOQ_LINE_NOT_FOUND: "boq-line",
+  BOQ_LINE_IS_PARENT: "boq-line",
+  PROJECT_NOT_REACHABLE: "project",
+  VALUE_OUT_OF_RANGE: "value",
+  FUNCTION_NOT_AVAILABLE: "none",
+  NOT_PERMITTED: "none",
+  READ_AS_QUESTION: "none",
+  DEPENDENCY_FAILED: "none",
+  BACKEND_UNAVAILABLE: "none",
+  INTERNAL_ERROR: "none",
+};
+
+/** Values safe to hand a client: real business identifiers, never internals. */
+export type FailureContext = Record<string, string | number | null>;
+
+/**
+ * The ONE failure shape every pipeline stage returns. `missing` names the
+ * parameter(s) the user still has to supply, in the parameter vocabulary the
+ * client's Fix chain understands; `context` carries the real business values
+ * a sentence needs to interpolate ({code}, {project}, {version}).
+ */
+export type PipelineFailure = {
+  code: PipelineErrorCode;
+  missing: string[];
+  context?: FailureContext;
+  picker: PickerHint;
+};
+
+export function pipelineFailure(code: PipelineErrorCode, missing: string[] = [], context?: FailureContext): PipelineFailure {
+  return context && Object.keys(context).length > 0
+    ? { code, missing, context, picker: PICKER_BY_CODE[code] }
+    : { code, missing, picker: PICKER_BY_CODE[code] };
+}
+
+/**
+ * Which code a missing/empty parameter deserves. Parameter names come from
+ * the real function catalogue (function-registry.ts) and from the classifier's
+ * own params, so this is a lookup with a safe default rather than a guess.
+ */
+const CODE_BY_PARAM: Readonly<Record<string, PipelineErrorCode>> = {
+  projectId: "PROJECT_REQUIRED",
+  project: "PROJECT_REQUIRED",
+  itemCode: "BOQ_LINE_REQUIRED",
+  boqLine: "BOQ_LINE_REQUIRED",
+  boqLineItemId: "BOQ_LINE_REQUIRED",
+  percent: "VALUE_REQUIRED",
+  percentComplete: "VALUE_REQUIRED",
+  quantity: "QUANTITY_REQUIRED",
+  quantityDone: "QUANTITY_REQUIRED",
+  date: "DATE_REQUIRED",
+  entryDate: "DATE_REQUIRED",
+  attendanceDate: "DATE_REQUIRED",
+  scheduledAt: "DATE_REQUIRED",
+  spentOn: "DATE_REQUIRED",
+  rosterId: "WORKER_REQUIRED",
+  workerName: "WORKER_REQUIRED",
+  name: "WORKER_REQUIRED",
+  title: "TITLE_REQUIRED",
+  issueId: "TASK_REQUIRED",
+  taskId: "TASK_REQUIRED",
+  hours: "HOURS_REQUIRED",
+  itemId: "MATERIAL_REQUIRED",
+  materialId: "MATERIAL_REQUIRED",
+};
+
+export function codeForParam(param: string): PipelineErrorCode {
+  return CODE_BY_PARAM[param] ?? "VALUE_REQUIRED";
+}
+
+/**
+ * A TRANSPORT failure, not a user failure. Deliberately a regex over the
+ * driver's own message rather than an error-class check: the real R66 case
+ * arrived as a plain Error from `postgres`, and the three layers between it
+ * and here (drizzle, the service, withTenantContext) each re-wrap without a
+ * stable class. The `\b5\d\d\b` clause catches an upstream HTTP 5xx that a
+ * fetch-based service surfaced as text.
+ */
+const TRANSPORT_PATTERNS: readonly RegExp[] = [
+  /CONNECT_TIMEOUT|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND|EPIPE|EAI_AGAIN/i,
+  /\b5\d\d\b/,
+  /statement timeout|connection terminated|connection closed|timeout exceeded/i,
+  // host:port -- an IPv4 address or a hostname with a port, e.g.
+  // "3.109.171.244:6543" or "db.example.supabase.co:5432".
+  /(?:\d{1,3}\.){3}\d{1,3}:\d{2,5}|[a-z0-9.-]+\.[a-z]{2,}:\d{2,5}/i,
+];
+
+export function isTransportErrorMessage(message: string): boolean {
+  return TRANSPORT_PATTERNS.some((re) => re.test(message));
+}
+
+/**
+ * B-01's normaliser: an UNEXPECTED thrown error becomes a code, and the raw
+ * text survives ONLY in `debug`, which is written to the server log and is
+ * never persisted and never selected by GET /api/v1/projexa/tasks.
+ */
+export function normaliseThrownError(error: unknown): { failure: PipelineFailure; debug: string } {
+  const debug = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  const code: PipelineErrorCode = isTransportErrorMessage(debug) ? "BACKEND_UNAVAILABLE" : "INTERNAL_ERROR";
+  return { failure: pipelineFailure(code), debug };
+}
+
+/**
+ * What goes into compliance.pipeline_tasks.error. A stable JSON object, NOT
+ * prose and NOT the driver's text -- `debug` is deliberately not a field of
+ * PipelineFailure, so there is no way to serialise it here by accident.
+ *
+ * (B-08 adds real error_code/error_params columns behind a migration; until
+ * that lands this column is the only place the code can live, and encoding
+ * it as JSON is what lets GET return it structured instead of the client
+ * parsing prose.)
+ */
+export function serialiseFailure(failure: PipelineFailure): string {
+  return JSON.stringify({ code: failure.code, missing: failure.missing, context: failure.context ?? null });
+}
+
+/**
+ * The reverse, for GET. Returns null for a legacy row (every row written
+ * before this change holds an English sentence, not JSON) -- the client's
+ * own legacyToCode() fallback covers those, so there is exactly ONE legacy
+ * mapping in the programme rather than two that drift.
+ */
+export function parseFailure(stored: string | null | undefined): PipelineFailure | null {
+  if (!stored || !stored.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(stored) as { code?: unknown; missing?: unknown; context?: unknown };
+    if (typeof parsed.code !== "string" || !(PIPELINE_ERROR_CODES as readonly string[]).includes(parsed.code)) return null;
+    const code = parsed.code as PipelineErrorCode;
+    const missing = Array.isArray(parsed.missing) ? parsed.missing.filter((m): m is string => typeof m === "string") : [];
+    const context = parsed.context && typeof parsed.context === "object" ? (parsed.context as FailureContext) : undefined;
+    return pipelineFailure(code, missing, context);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * gap_log.reason and the console line only. A CODE LINE, not a sentence:
+ * "BOQ_LINE_NOT_FOUND missing=itemCode" reads the same to an engineer as the
+ * old prose did, and can never leak into the UI as a half-English string
+ * because nothing user-facing reads gap_log.
+ */
+export function failureLogLine(failure: PipelineFailure): string {
+  const missing = failure.missing.length > 0 ? ` missing=${failure.missing.join(",")}` : "";
+  const context = failure.context ? ` context=${JSON.stringify(failure.context)}` : "";
+  return `${failure.code}${missing}${context}`;
+}

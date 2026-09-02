@@ -13,8 +13,19 @@ import { createProgressEntry } from "@/lib/services/construction-progress-servic
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
 import { dispatchTool } from "@/lib/task-execution-engine";
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
+import { normaliseThrownError, pipelineFailure, type PipelineFailure } from "./error-codes";
 
-export type ExecutionOutcome = { success: true; result: unknown } | { success: false; error: string };
+/**
+ * R67 lane B (B-01, decision D-03). `error: string` is gone: a failure is a
+ * CODE plus the parameters that are missing, and the sentence a human reads
+ * is composed in projexa's src/lib/task-errors.ts. `debug` is the raw driver
+ * text -- it is logged server-side and is NEVER persisted and NEVER returned
+ * by GET /api/v1/projexa/tasks, which is how "write CONNECT_TIMEOUT
+ * 3.109.171.244:6543" reached an end user's screen in the R66 walkthrough.
+ */
+export type ExecutionOutcome =
+  | { success: true; result: unknown }
+  | { success: false; failure: PipelineFailure; debug?: string };
 
 export type ExecutableTask = {
   orgId: string;
@@ -44,9 +55,9 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
   const itemCode = task.params.itemCode;
   const percent = task.params.percent;
   const projectId = task.projectId;
-  if (typeof itemCode !== "string" || !itemCode) return { success: false, error: "itemCode is required" };
-  if (typeof percent !== "number") return { success: false, error: "percent is required" };
-  if (!projectId) return { success: false, error: "no project resolved for this task" };
+  if (typeof itemCode !== "string" || !itemCode) return { success: false, failure: pipelineFailure("BOQ_LINE_REQUIRED", ["itemCode"]) };
+  if (typeof percent !== "number") return { success: false, failure: pipelineFailure("VALUE_REQUIRED", ["percent"]) };
+  if (!projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
 
   return withTenantContext({ orgId: task.orgId, userId: task.userId }, async (db) => {
     // Real data-model quirk found while wiring this (not invented): the most
@@ -57,12 +68,33 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
       where: and(eq(constructionBoqs.orgId, task.orgId), eq(constructionBoqs.projectId, projectId)),
       orderBy: [desc(constructionBoqs.version), desc(constructionBoqs.createdAt)],
     });
-    if (!boq) return { success: false, error: `no BOQ found for project "${projectId}"` };
+    // R67 B-01: a project with no BOQ at all and a project whose BOQ has no
+    // such line are the SAME fact to the person typing -- the line they named
+    // is not there to record against -- so both carry BOQ_LINE_NOT_FOUND and
+    // the client's one sentence ("There is no line {code} on {project}
+    // {version} -- pick a line") is true in both cases. `version` is null
+    // when there is no BOQ, and the dictionary drops an empty slot.
+    if (!boq) {
+      return { success: false, failure: pipelineFailure("BOQ_LINE_NOT_FOUND", ["itemCode"], { itemCode, version: null }) };
+    }
 
     const lineItem = await db.query.constructionBoqLineItems.findFirst({
       where: and(eq(constructionBoqLineItems.boqId, boq.id), eq(constructionBoqLineItems.itemCode, itemCode)),
     });
-    if (!lineItem) return { success: false, error: `item code "${itemCode}" not found in this project's BOQ` };
+    if (!lineItem) {
+      return { success: false, failure: pipelineFailure("BOQ_LINE_NOT_FOUND", ["itemCode"], { itemCode, version: boq.version ?? null }) };
+    }
+
+    // T-WPR-15-1's invariant, checked BEFORE the write instead of letting
+    // createProgressEntry throw its own English sentence through the catch
+    // block below: a parent line's percent is derived from its children and
+    // must never be stored directly.
+    const child = await db.query.constructionBoqLineItems.findFirst({
+      where: eq(constructionBoqLineItems.parentLineItemId, lineItem.id),
+    });
+    if (child) {
+      return { success: false, failure: pipelineFailure("BOQ_LINE_IS_PARENT", ["itemCode"], { itemCode }) };
+    }
 
     // construction_work_progress_entries.activity_id is NOT NULL, but this
     // org's real BOQ line items carry no activity_id link of their own
@@ -78,7 +110,7 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     const activity = await db.query.constructionActivities.findFirst({
       where: and(eq(constructionActivities.orgId, task.orgId), eq(constructionActivities.projectId, projectId)),
     });
-    if (!activity) return { success: false, error: `no construction activity exists yet for project "${projectId}" -- create one before recording progress` };
+    if (!activity) return { success: false, failure: pipelineFailure("ACTIVITY_REQUIRED", ["activityId"]) };
 
     const row = await createProgressEntry(
       { orgId: task.orgId, userId: task.userId },
@@ -96,7 +128,7 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
 }
 
 async function executeGetProjectDashboard(task: ExecutableTask): Promise<ExecutionOutcome> {
-  if (!task.projectId) return { success: false, error: "no project resolved for this task" };
+  if (!task.projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
   const dashboard = await getProjectDashboard({ orgId: task.orgId }, task.projectId);
   // F089/F059: same redaction the API route applies, for the same reason --
   // see this file's ExecutableTask.role comment. `task.role` undefined
@@ -144,9 +176,13 @@ function makeDispatchExecutor(codeReference: string): (task: ExecutableTask) => 
     // dispatchTool if one was not resolved. Checked here so the user gets
     // the honest reason rather than a raw engine error.
     const needsProject = codeReference !== "list_over_budget_projects" && codeReference !== "list_delayed_activities";
-    if (needsProject && !task.projectId) return { success: false, error: "no project resolved for this task" };
+    // R67 B-02: the project may have arrived on the task's own params
+    // (validate() fills it from the submission's projectId) even when the
+    // top-level projectId was not threaded through by this caller.
+    const projectId = task.projectId ?? (typeof task.params.projectId === "string" ? task.params.projectId : null);
+    if (needsProject && !projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
     const result = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
-      dispatchTool(db, task.orgId, task.userId, codeReference, { inputs: { projectId: task.projectId ?? undefined } })
+      dispatchTool(db, task.orgId, task.userId, codeReference, { inputs: { projectId: projectId ?? undefined } })
     );
     return { success: true, result };
   };
@@ -216,10 +252,19 @@ export function hasExecutor(functionId: string): boolean {
   return functionId in EXECUTORS;
 }
 
-export async function executeTask(task: ExecutableTask): Promise<ExecutionOutcome> {
-  const executor = EXECUTORS[task.functionId];
+/**
+ * `executors` is injectable for tests ONLY -- every production caller uses
+ * the default registry. It exists because B-01's whole point is what happens
+ * when an executor THROWS a transport error, and there is no honest way to
+ * make a real Postgres connection time out inside a unit test.
+ */
+export async function executeTask(
+  task: ExecutableTask,
+  executors: Record<string, (task: ExecutableTask) => Promise<ExecutionOutcome>> = EXECUTORS
+): Promise<ExecutionOutcome> {
+  const executor = executors[task.functionId];
   if (!executor) {
-    return { success: false, error: `no executor is registered for function_id "${task.functionId}" yet` };
+    return { success: false, failure: pipelineFailure("FUNCTION_NOT_AVAILABLE", [], { functionId: task.functionId }) };
   }
   try {
     return await executor(task);
@@ -237,10 +282,13 @@ export async function executeTask(task: ExecutableTask): Promise<ExecutionOutcom
     // "write CONNECT_TIMEOUT 3.109.171.244:6543" and was rendered verbatim to
     // the end user, leaking an internal IP:port. Log the real error
     // server-side; return a safe, honest-but-generic message for display.
+    //
+    // R67 B-01 replaces that generic sentence with a CODE. The raw text is
+    // still logged here in full, and travels no further than `debug` --
+    // which run-submission.ts logs and deliberately does not persist, so
+    // GET /api/v1/projexa/tasks cannot select it.
     console.error(`executeTask: unexpected error running "${task.functionId}"`, error);
-    return {
-      success: false,
-      error: "This couldn't be completed right now due to an internal error. Retry shortly, or contact support if it persists.",
-    };
+    const { failure, debug } = normaliseThrownError(error);
+    return { success: false, failure, debug };
   }
 }

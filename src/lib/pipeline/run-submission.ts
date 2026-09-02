@@ -26,6 +26,7 @@ import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
+import { codeForParam, failureLogLine, pipelineFailure, serialiseFailure, type PipelineFailure } from "./error-codes";
 import { createMemoryRecord } from "@/lib/services/memory-service";
 
 // M26: "Pass the module's 5-15 functions ... NEVER 400 unbound functions --
@@ -54,7 +55,13 @@ export type TaskOutcome = {
   status: "to_do" | "in_progress" | "waiting" | "done" | "blocked";
   segmentText: string;
   result?: unknown;
-  error?: string;
+  /**
+   * R67 B-01 (D-03): the structured failure, never a sentence. `error:
+   * string` is gone from this shape on purpose -- there is now no field a
+   * caller could render verbatim and accidentally show a user a driver
+   * message or a camelCase parameter name.
+   */
+  failure?: PipelineFailure;
 };
 
 export type RunSubmissionResult = {
@@ -72,6 +79,12 @@ export type RunSubmissionResult = {
   classification: SubmissionClassification;
   chatMessages: string[];
   tasks: TaskOutcome[];
+  /**
+   * R67 B-01: every segment that could not be run, with the closed-vocabulary
+   * code that says why. This is what the client turns into a sentence and a
+   * Fix chain; `chatMessages` now carries only real conversational replies.
+   */
+  failures: ({ segmentText: string } & PipelineFailure)[];
   /** segments that resolved to nothing -- one gap_log row each. */
   gaps: { text: string; reason: string }[];
   flagged: boolean; // MAX_SEGMENTS truncation, surfaced so the caller can ask the user to split their message
@@ -184,7 +197,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     // to persist classification onto -- returned for shape-consistency only.
     // Zero segments means zero task-verdicts, i.e. CHAT_ONLY by the same
     // rule classifySubmission() applies everywhere else.
-    return { submissionId: null, status: "chat", classification: "CHAT_ONLY", chatMessages: [], tasks: [], gaps: [], flagged: false, l0HitRate: 1, modelCalls: 0 };
+    return { submissionId: null, status: "chat", classification: "CHAT_ONLY", chatMessages: [], tasks: [], failures: [], gaps: [], flagged: false, l0HitRate: 1, modelCalls: 0 };
   }
 
   const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
@@ -222,6 +235,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   const chatMessages: string[] = [];
   const gaps: { text: string; reason: string }[] = [];
   const tasks: TaskOutcome[] = [];
+  const failures: ({ segmentText: string } & PipelineFailure)[] = [];
 
   // A segment carrying an explicit orderingHint runs as a dependency chain:
   // each depends on the previous ORDERED segment's task. R53 Phase 6:
@@ -255,6 +269,22 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       continue;
     }
 
+    // M26 PARTIAL: a valid function with a missing value is a FORM FIELD,
+    // not a gap. ASK THE USER. Do NOT escalate, do NOT log a gap, and do
+    // NOT mint a task that would run with a guessed value.
+    //
+    // R67 B-01 moved this ABOVE validate(): validate() now enforces each
+    // function's declared required params itself, so leaving the order as it
+    // was would have turned every M26-PARTIAL "ask the user" into a gap.
+    // The answer is a structured failure carrying the same field names --
+    // the client renders "Pick a BOQ line", never "I need itemCode".
+    if (c.missingParams.length > 0) {
+      for (const name of c.missingParams) {
+        failures.push({ segmentText: seg.text, ...pipelineFailure(codeForParam(name), [name]) });
+      }
+      continue;
+    }
+
     const validationCtx: ValidationContext = {
       candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
       // boqLineItemId existence is re-checked for real inside executor.ts's
@@ -263,24 +293,25 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       boqLineItemIds: new Set(),
       userPermittedFunctionIds: new Set(CANDIDATE_FUNCTION_IDS),
       reachableProjectIds: input.projectId ? new Set([input.projectId]) : new Set(),
+      // R67 B-02: the project the composer's top rail already had.
+      submissionProjectId: input.projectId ?? null,
+      projectLabel: rootLabel,
     };
 
     const v = validate({ functionId: c.functionId, params: c.params }, validationCtx);
     if (!v.valid) {
       // M26: "a candidate that fails validation is a FAIL, not a suggestion."
-      await logGap(input, submissionId, seg.text, c.functionId, v.reason);
-      gaps.push({ text: seg.text, reason: v.reason });
-      chatMessages.push(`I can't do that yet: "${seg.text}" (${v.reason})`);
+      // The gap_log row keeps a CODE LINE for engineers; the caller gets the
+      // structured failure and composes the sentence itself.
+      const line = failureLogLine(v);
+      await logGap(input, submissionId, seg.text, c.functionId, line);
+      gaps.push({ text: seg.text, reason: line });
+      failures.push({ segmentText: seg.text, code: v.code, missing: v.missing, context: v.context, picker: v.picker });
       continue;
     }
-
-    // M26 PARTIAL: a valid function with a missing value is a FORM FIELD,
-    // not a gap. ASK THE USER. Do NOT escalate, do NOT log a gap, and do
-    // NOT mint a task that would run with a guessed value.
-    if (c.missingParams.length > 0) {
-      chatMessages.push(c.message ?? `I need ${c.missingParams.join(", ")} for "${seg.text}".`);
-      continue;
-    }
+    // B-02: the params validate() resolved, not the ones the classifier
+    // produced -- projectId may have just been filled in from the submission.
+    const resolvedParams = v.params;
 
     // R53 PHASE 5: PHRASE -> FUNCTION -> CHAIN, never the reverse. The chain
     // is derived from the function the PHRASE resolved to, and from the mode
@@ -291,12 +322,12 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       mode: input.mode,
       rootLabel,
       functionId: c.functionId,
-      params: c.params,
+      params: resolvedParams,
     });
     if (!firstDerivedChain) firstDerivedChain = derived;
 
     const dependsOn = seg.orderingHint !== undefined ? previousOrderedTaskId : null;
-    const taskId = await mintTask(input, submissionId, tasks.length, dependsOn, c.functionId, c.params, derived);
+    const taskId = await mintTask(input, submissionId, tasks.length, dependsOn, c.functionId, resolvedParams, derived);
     chainByTaskId.set(taskId, derived);
 
     const advance = (failed: boolean) => {
@@ -311,26 +342,29 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     // a task, and this refuses to execute it anyway. Blocked with the
     // honest reason rather than silently skipped.
     if (c.verdict === "chat" && functionWrites(c.functionId)) {
-      const reason = `read as a question, so "${c.functionId}" was not run -- say it as an instruction to record it`;
-      await updateTask(input.orgId, taskId, "blocked", undefined, reason);
-      tasks.push({ taskId, functionId: c.functionId, verdict: "chat", status: "blocked", segmentText: seg.text, error: reason });
+      const f = pipelineFailure("READ_AS_QUESTION", [], { functionId: c.functionId });
+      await updateTask(input.orgId, taskId, "blocked", undefined, f);
+      tasks.push({ taskId, functionId: c.functionId, verdict: "chat", status: "blocked", segmentText: seg.text, failure: f });
+      failures.push({ segmentText: seg.text, ...f });
       if (c.message) chatMessages.push(c.message);
       advance(true);
       continue;
     }
 
     if (seg.orderingHint !== undefined && previousOrderedFailed) {
-      const reason = `blocked: dependency task ${previousOrderedTaskId} did not complete`;
-      await updateTask(input.orgId, taskId, "blocked", undefined, reason);
-      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, error: reason });
+      const f = pipelineFailure("DEPENDENCY_FAILED");
+      await updateTask(input.orgId, taskId, "blocked", undefined, f);
+      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, failure: f });
+      failures.push({ segmentText: seg.text, ...f });
       advance(true);
       continue;
     }
 
     if (!hasExecutor(c.functionId)) {
-      const reason = `no executor is registered for function_id "${c.functionId}" yet`;
-      await updateTask(input.orgId, taskId, "blocked", undefined, reason);
-      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, error: reason });
+      const f = pipelineFailure("FUNCTION_NOT_AVAILABLE", [], { functionId: c.functionId });
+      await updateTask(input.orgId, taskId, "blocked", undefined, f);
+      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, failure: f });
+      failures.push({ segmentText: seg.text, ...f });
       advance(true);
       continue;
     }
@@ -339,9 +373,9 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     const outcome = await executeTask({
       orgId: input.orgId,
       userId: input.userId,
-      projectId: input.projectId ?? null,
+      projectId: (typeof resolvedParams.projectId === "string" ? resolvedParams.projectId : null) ?? input.projectId ?? null,
       functionId: c.functionId,
-      params: c.params,
+      params: resolvedParams,
       role: input.role,
     });
     if (outcome.success) {
@@ -351,11 +385,15 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       // file's own captureTaskResultMemory()/buildTaskResultMemoryContent()
       // header for why.
       if (functionWrites(c.functionId)) {
-        await captureTaskResultMemory(input, c.functionId, seg.text, c.params);
+        await captureTaskResultMemory(input, c.functionId, seg.text, resolvedParams);
       }
     } else {
-      await updateTask(input.orgId, taskId, "blocked", undefined, outcome.error);
-      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, error: outcome.error });
+      // R67 B-01: the raw driver text goes to the LOG, the code goes to the
+      // row. Nothing that reaches the client has ever seen `debug`.
+      if (outcome.debug) console.error(`[pipeline] task=${taskId} ${outcome.failure.code} raw=${outcome.debug}`);
+      await updateTask(input.orgId, taskId, "blocked", undefined, outcome.failure);
+      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, failure: outcome.failure });
+      failures.push({ segmentText: seg.text, ...outcome.failure });
     }
     advance(!outcome.success);
   }
@@ -404,6 +442,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     classification,
     chatMessages,
     tasks,
+    failures,
     gaps,
     flagged,
     l0HitRate,
@@ -475,15 +514,24 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
   const verdict = functionWrites(input.functionId) ? ("task" as const) : ("chat" as const);
   const classification = classifySubmission([verdict]);
 
+  const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
+
   const validationCtx: ValidationContext = {
     candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
     boqLineItemIds: new Set(),
     userPermittedFunctionIds: new Set(CANDIDATE_FUNCTION_IDS),
     reachableProjectIds: input.projectId ? new Set([input.projectId]) : new Set(),
+    // R67 B-02: THE PILL PATH IS WHERE "Review Budget -- blocked -- no
+    // project resolved for this task" was reproduced in every budget
+    // screenshot. The rail's project is in the POST body; this is where it
+    // finally reaches the candidate's params.
+    submissionProjectId: input.projectId ?? null,
+    projectLabel: rootLabel,
   };
   const v = validate({ functionId: input.functionId, params }, validationCtx);
   if (!v.valid) {
-    await logGap(base, submissionId, base.rawInput, input.functionId, v.reason);
+    const line = failureLogLine(v);
+    await logGap(base, submissionId, base.rawInput, input.functionId, line);
     await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
       db.update(submissions).set({ status: "failed", classification }).where(eq(submissions.id, submissionId))
     );
@@ -491,28 +539,29 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
       submissionId,
       status: "failed",
       classification,
-      chatMessages: [`I can't do that yet: ${v.reason}`],
+      chatMessages: [],
       tasks: [],
-      gaps: [{ text: base.rawInput, reason: v.reason }],
+      failures: [{ segmentText: base.rawInput, code: v.code, missing: v.missing, context: v.context, picker: v.picker }],
+      gaps: [{ text: base.rawInput, reason: line }],
       flagged: false,
       l0HitRate: 1,
       modelCalls: 0,
     };
   }
+  const resolvedParams = v.params;
 
-  const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
   const derived = await deriveChain(makeChainRepo(input.orgId), {
     mode: input.mode,
     rootLabel,
     functionId: input.functionId,
-    params,
+    params: resolvedParams,
   });
 
-  const taskId = await mintTask(base, submissionId, 0, null, input.functionId, params, derived);
+  const taskId = await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived);
 
-  let outcome: { success: boolean; result?: unknown; error?: string };
+  let outcome: { success: true; result: unknown } | { success: false; failure: PipelineFailure; debug?: string };
   if (!hasExecutor(input.functionId)) {
-    outcome = { success: false, error: `no executor is registered for function_id "${input.functionId}" yet` };
+    outcome = { success: false, failure: pipelineFailure("FUNCTION_NOT_AVAILABLE", [], { functionId: input.functionId }) };
   } else {
     // R65 Part D Phase 3 -- see markInProgress()'s own header comment. Only
     // reached once hasExecutor() has already confirmed this task will
@@ -522,9 +571,9 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     outcome = await executeTask({
       orgId: input.orgId,
       userId: input.userId,
-      projectId: input.projectId ?? null,
+      projectId: (typeof resolvedParams.projectId === "string" ? resolvedParams.projectId : null) ?? input.projectId ?? null,
       functionId: input.functionId,
-      params,
+      params: resolvedParams,
       role: input.role,
     });
   }
@@ -534,10 +583,11 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     // R65 Part C Phase 3: task memory, same as runSubmission()'s own
     // execution loop above -- WRITE tasks only.
     if (functionWrites(input.functionId)) {
-      await captureTaskResultMemory(base, input.functionId, base.rawInput, params);
+      await captureTaskResultMemory(base, input.functionId, base.rawInput, resolvedParams);
     }
   } else {
-    await updateTask(input.orgId, taskId, "blocked", undefined, outcome.error);
+    if (outcome.debug) console.error(`[pipeline] task=${taskId} ${outcome.failure.code} raw=${outcome.debug}`);
+    await updateTask(input.orgId, taskId, "blocked", undefined, outcome.failure);
   }
 
   await recordPillUse(base, input.functionId, derived);
@@ -556,7 +606,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     submissionId,
     status,
     classification,
-    chatMessages: outcome.success ? [] : [outcome.error ?? "That did not run."],
+    chatMessages: [],
     tasks: [
       {
         taskId,
@@ -564,10 +614,11 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
         verdict,
         status: outcome.success ? "done" : "blocked",
         segmentText: base.rawInput,
-        result: outcome.result,
-        error: outcome.error,
+        result: outcome.success ? outcome.result : undefined,
+        failure: outcome.success ? undefined : outcome.failure,
       },
     ],
+    failures: outcome.success ? [] : [{ segmentText: base.rawInput, ...outcome.failure }],
     gaps: [],
     flagged: false,
     l0HitRate: 1, // a pill is Level 0 by definition -- the user supplied the function
@@ -792,11 +843,17 @@ async function mintTask(
   });
 }
 
-async function updateTask(orgId: string, taskId: string, status: TaskOutcome["status"], result: unknown, error: string | undefined) {
+/**
+ * R67 B-01: `error` is now the SERIALISED CLOSED-VOCABULARY FAILURE
+ * ({"code":...,"missing":[...],"context":{...}}), never prose and never the
+ * driver's own text -- serialiseFailure() has no way to write `debug`, so
+ * this column cannot leak an internal address the way it did in R66.
+ */
+async function updateTask(orgId: string, taskId: string, status: TaskOutcome["status"], result: unknown, failure: PipelineFailure | undefined) {
   await withTenantContext({ orgId }, (db) =>
     db
       .update(pipelineTasks)
-      .set({ status, result: (result as object | undefined) ?? null, error: error ?? null, updatedAt: new Date() })
+      .set({ status, result: (result as object | undefined) ?? null, error: failure ? serialiseFailure(failure) : null, updatedAt: new Date() })
       .where(eq(pipelineTasks.id, taskId))
   );
 }
