@@ -28,7 +28,7 @@ import { ServiceError } from "./compliance-service"
 // BOQ/progress reads and calls this directly (see below) instead of calling
 // earnedValueReport() once per project. Same circular-import safety as
 // earnedValueReport above (call-time only, never module-evaluation time).
-import { earnedValueReport, computeEarnedValue, type EvLineItem } from "./construction-reports-service"
+import { computeEarnedValue, type EvLineItem } from "./construction-reports-service"
 import { isConstructionEnabledForOrg } from "./construction-enablement-service"
 export { ServiceError }
 
@@ -125,6 +125,10 @@ export type ProjectDashboard = {
 }
 
 export async function getProjectDashboard(ctx: { orgId: string }, projectId: string): Promise<ProjectDashboard> {
+  // R66 audit: the enablement check is itself a withTenantContext transaction
+  // (product-branch-service.ts isBranchEnabledForOrg) -- run it BEFORE opening
+  // this one so no request ever holds two pooled connections at once.
+  const constructionEnabled = await isConstructionEnabledForOrg(ctx.orgId).catch(() => false)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
     if (!project) throw new ServiceError("Project not found", 404)
@@ -196,20 +200,61 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
     // so the project dashboard and the org dashboard/WPR report can never
     // disagree. contractValue is parent-lines-only by that function's own
     // contract (v5 D-3) -- this is what TC-11 checks (5,000 not 10,000).
+    // R66 audit (2026-09-02, LOCAL DEV PATCH that validates the recommended
+    // fix): earnedValueReport() opens TWO nested transactions
+    // (requireConstructionEnabled() + its own withTenantContext) while THIS
+    // transaction already holds one of tenant-scoped.ts's 5 pooled
+    // connections -- the same self-deadlock R43_MGR_01 removed from
+    // getOrgDashboard on 2026-08-27, still live here. Reproduced live: all 5
+    // app_runtime sessions "idle in transaction" for 25 minutes, parked on the
+    // PO-sum query above. Same batched pattern as getOrgDashboard: read the
+    // active BOQ's items + progress on the already-open `db` and run the pure
+    // computeEarnedValue() in memory -- zero extra pool connections.
     let earnedValue: number | null = null
     let percentByValue: number | null = null
     let contractValue: number | null = null
     try {
-      const ev = await earnedValueReport(ctx, projectId)
-      if (ev.contractValue > 0) {
-        earnedValue = ev.earnedValue
-        percentByValue = ev.percentByValue
-        contractValue = ev.contractValue
+      if (constructionEnabled) {
+        const activeBoq = await db.query.constructionBoqs.findFirst({
+          where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId), sql`${constructionBoqs.status} != 'superseded'`),
+          orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)],
+          columns: { id: true },
+        })
+        if (activeBoq) {
+          const items = await db.query.constructionBoqLineItems.findMany({
+            where: eq(constructionBoqLineItems.boqId, activeBoq.id),
+            columns: { id: true, boqId: true, parentLineItemId: true, rate: true, amount: true, breakdownPercentage: true },
+          })
+          let qtyByItem = new Map<string, number>()
+          let latestPercentByItem = new Map<string, number>()
+          if (items.length > 0) {
+            const evIdsSql = sql.join(items.map((i) => sql`${i.id}`), sql`, `)
+            const qtyRows = (await db.execute(sql`
+              SELECT boq_line_item_id, coalesce(sum(quantity_done), 0)::float AS total_qty
+              FROM compliance.construction_work_progress_entries
+              WHERE boq_line_item_id = ANY(ARRAY[${evIdsSql}]) AND entry_basis = 'DELTA'
+              GROUP BY boq_line_item_id
+            `)) as { boq_line_item_id: string; total_qty: number }[]
+            qtyByItem = new Map(qtyRows.map((r) => [r.boq_line_item_id, Number(r.total_qty)]))
+            const percentRows = (await db.execute(sql`
+              SELECT DISTINCT ON (boq_line_item_id) boq_line_item_id, percent_complete
+              FROM compliance.construction_work_progress_entries
+              WHERE boq_line_item_id = ANY(ARRAY[${evIdsSql}])
+              ORDER BY boq_line_item_id, entry_date DESC
+            `)) as { boq_line_item_id: string; percent_complete: number }[]
+            latestPercentByItem = new Map(percentRows.map((r) => [r.boq_line_item_id, Number(r.percent_complete)]))
+          }
+          const ev = computeEarnedValue(items, qtyByItem, latestPercentByItem)
+          if (ev.contractValue > 0) {
+            earnedValue = ev.earnedValue
+            percentByValue = ev.percentByValue
+            contractValue = ev.contractValue
+          }
+        }
       }
     } catch {
-      // requireConstructionEnabled() throws when construction isn't enabled
-      // for this org -- null (not 0) is the correct "no data" signal, same
-      // convention getOrgDashboard already uses for this exact case.
+      // null (not 0) is the correct "no data" signal, same convention
+      // getOrgDashboard already uses for this exact case.
     }
 
     return {
@@ -242,6 +287,9 @@ export type OrgDashboardSummary = {
 
 /** Company -> [Department] -> Project drill-down. departmentId filters by the project LEAD's department (projects has no direct departmentId column -- see file header). */
 export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashboardFilters = {}): Promise<OrgDashboardSummary> {
+  // R66 audit: same hoist as getProjectDashboard -- R43_MGR_01 removed the
+  // per-project nesting but left this one nested transaction inside.
+  const constructionEnabled = await isConstructionEnabledForOrg(ctx.orgId).catch(() => false)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     let projectIds: string[] | undefined
     if (filters.departmentId) {
@@ -368,7 +416,7 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
     // earnedValueReport() directly, untouched here) keeps the old fallback.
     const evByProject = new Map<string, { earnedValue: number; percentByValue: number } | null>()
     try {
-      if (activeBoqIds.length > 0 && (await isConstructionEnabledForOrg(ctx.orgId))) {
+      if (activeBoqIds.length > 0 && constructionEnabled) {
         const allLineItems = await db.query.constructionBoqLineItems.findMany({
           where: inArray(constructionBoqLineItems.boqId, activeBoqIds),
           columns: { id: true, boqId: true, parentLineItemId: true, rate: true, amount: true, breakdownPercentage: true },
