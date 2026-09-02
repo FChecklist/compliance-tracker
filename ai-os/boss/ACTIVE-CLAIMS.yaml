@@ -83,7 +83,11 @@ active:
         ScopeReviseClient.tsx, ScopeObjectClient.tsx, WorkProgressReportClient.tsx (+ .test.tsx),
         BoqCategorySelect.tsx (new, + .test.tsx), BoqCategoriesCard.tsx (new, + .test.tsx),
         SettingsClient.tsx, src/lib/authz/api-write-policy.ts (two /scope/categories entries),
-        src/app/api/work-progress/report/route.ts, src/app/api/scope/categories/**.
+        src/app/api/work-progress/report/route.ts, src/app/api/scope/categories/**,
+        src/components/CategoryDistributionCharts.test.tsx (one line: its
+          happy-dom GlobalRegistrator.register() was the repo's only UNGUARDED
+          one and survived purely on alphabetical luck -- BoqCategoriesCard.test.tsx
+          now sorts ahead of it, so it needed the same guard the other ten suites use).
 
       NOT touching: any other lane's files, the pipeline (src/lib/pipeline/**), the
       ui-kit (D-09: fork into projexa instead), platform.* tables, or any guardrail script's
