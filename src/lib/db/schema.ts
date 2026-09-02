@@ -144,6 +144,22 @@ export const organisations = complianceSchemaDB.table('organisations', {
   faviconUrl: text('favicon_url'),
   customDomain: text('custom_domain').unique(),
   emailSenderName: text('email_sender_name'),
+  // R67 lane I (WS-I item I-02, for C03-12): how this org reads dates and
+  // numbers. Both nullable, no DB-level default, because "not set" has to stay
+  // distinguishable from "deliberately set to the same value as the fallback"
+  // -- the same posture licensedSeats/monthlyCostCapUsd above already use, and
+  // the same reason src/lib/currency.ts refuses to guess a currency. A caller
+  // that reads null applies its own documented fallback; nothing here silently
+  // reformats an existing org's screens.
+  //
+  // drizzle/0529_r67_i02_manpower_material_org_format.sql backfills these ONLY
+  // for orgs whose base currency is AED or INR, to 'dd-MM-yyyy' (the real
+  // convention in both of this product's markets, and what the customer's own
+  // sheets use) -- every other org stays NULL rather than being assigned a
+  // format nobody asked for. numberLocale is a BCP-47 tag ('en-IN', 'en-AE',
+  // 'en-US'...) fed straight to Intl/toLocaleString, not a bespoke enum.
+  dateFormat: text('date_format'),
+  numberLocale: text('number_locale'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -4443,9 +4459,54 @@ export const pmsIssues = complianceSchemaDB.table('pms_issues', {
   // computation (dueDate vs the moment status enters a "completed" group)
   // both read this; it's set by the service layer on update, not derived.
   completionPercentage: integer('completion_percentage').notNull().default(0),
+  // R67 lane I (WS-I item I-04, R-127): WHERE completionPercentage above came
+  // from. Today the number is set by the service layer on update with no
+  // record of its provenance, so a percentage a PM typed on the Gantt bar and
+  // one derived from the site's own work-progress entries are indistinguishable
+  // -- which makes "is this schedule telling me the truth?" unanswerable.
+  //
+  // 'manual'       -- a human set it directly (every pre-existing row: the
+  //                   column defaults to it, so nothing is retroactively
+  //                   reclassified as something it was not).
+  // 'site_records' -- derived from real construction_work_progress_entries,
+  //                   in which case completedFromEntryId names the entry the
+  //                   figure was last derived from.
+  //
+  // Plain text, not an enum, matching this table's own free-text conventions
+  // and avoiding a pg enum that a third source (an import, a client app)
+  // would need DDL to extend. completedFromEntryId carries no DB-level FK for
+  // the same reason constructionWorkProgressEntries.boqLineItemId does not:
+  // a deleted progress entry must leave a stale-but-honest reference, not
+  // block the delete or cascade into schedule data.
+  completionSource: text('completion_source').notNull().default('manual'),
+  completedFromEntryId: text('completed_from_entry_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// R67 lane I (WS-I item I-04, R-127): which BOQ line(s) a schedule activity
+// actually delivers. Without it, a Gantt bar and the BOQ value it is supposed
+// to earn have no link at all, so "% complete by BOQ value" cannot be computed
+// from the schedule and the two views drift by construction.
+//
+// A JOIN TABLE, not a column on pms_issues: one activity routinely covers
+// several BOQ lines (a "Level 3 blockwork" activity against every blockwork
+// line on that floor) and one BOQ line can be delivered by several activities.
+// `weight` splits a line across the activities that deliver it -- default 1
+// means "this activity delivers the whole line", which is the common case and
+// keeps every single-link row correct with nothing to configure.
+export const pmsIssueBoqLinks = complianceSchemaDB.table('pms_issue_boq_links', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  issueId: text('issue_id').notNull().references(() => pmsIssues.id, { onDelete: 'cascade' }),
+  boqLineItemId: text('boq_line_item_id').notNull(),
+  weight: numeric('weight').notNull().default('1'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const pmsIssueBoqLinksRelations = relations(pmsIssueBoqLinks, ({ one }) => ({
+  issue: one(pmsIssues, { fields: [pmsIssueBoqLinks.issueId], references: [pmsIssues.id] }),
+}))
 
 export const pmsIssueAssignees = complianceSchemaDB.table('pms_issue_assignees', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -10804,7 +10865,58 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   budgetPercentage: numeric('budget_percentage').notNull().default('25'),
   vendorId: text('vendor_id'),
   vendorAmount: numeric('vendor_amount'),
+  // R67 lane I (WS-I item I-03, for C03-16's in-place editors and
+  // C03-21/C03-22's report columns): the material and manpower split of a
+  // line's budget, as the QS actually enters it. Both nullable -- a line with
+  // no split entered is a real, common state and must stay distinguishable
+  // from a line split as 0/0, which is why neither defaults to '0'.
+  //
+  // Deliberately NOT materialCost/labourCost above: those are Wave 125's
+  // rate-ANALYSIS inputs, per UNIT, which computedRate() multiplies up to
+  // justify a rate. These two are AMOUNTS for the whole line, on the budget
+  // side of the same row (alongside budgetPercentage/vendorAmount), and are
+  // what boqBudgetVarianceReport projects. Reusing the cost columns for both
+  // meanings is exactly the D-3/B-3 drift this programme is elsewhere fixing.
+  // Nothing derives one pair from the other, and no invariant forces
+  // materialAmount + manpowerAmount to equal the line's budget -- a
+  // partially-split line is legitimate mid-entry.
+  materialAmount: numeric('material_amount'),
+  manpowerAmount: numeric('manpower_amount'),
+  // R67 lane I (WS-I item I-05, R-177): the line's work category (Civil,
+  // Gypsum, Joinery, ...). Nullable -- an uncategorised line is legal and
+  // renders a "no category" chip rather than blocking Save.
+  //
+  // WHY A TEXT COLUMN AND NOT AN FK to construction_boq_categories: the BOQ
+  // importer maps a "Category" header straight off a customer's spreadsheet,
+  // where the value is whatever they typed. A hard FK would mean either
+  // rejecting an import whose categories are not pre-registered, or silently
+  // creating master rows from spreadsheet text -- both worse. The org-level
+  // list (constructionBoqCategories below) is the pick-list and the rename/
+  // delete unit; this column is the value. Rename therefore updates lines BY
+  // ID (the service looks up the category row, then updates every line whose
+  // text equals its old name), never by blind text replace across the org.
+  category: text('category'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// R67 lane I (WS-I item I-05, R-177): the org's editable BOQ category list --
+// what the Category select on a BOQ line offers, and what Settings edits.
+// Org-scoped, not project-scoped: a contractor's trade breakdown is a company
+// convention reused across every project (unlike constructionCategories above,
+// which is the per-project Category -> Activity progress hierarchy and is a
+// genuinely different concept -- see its own comment).
+//
+// isActive rather than a hard delete: deleting a category that is in use is
+// refused outright ("Used by 12 BOQ lines"), and retiring an unused one must
+// not orphan the historical lines that still carry its name.
+export const constructionBoqCategories = complianceSchemaDB.table('construction_boq_categories', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // Work Progress classification hierarchy: Category (e.g. "Civil") ->
@@ -11020,6 +11132,31 @@ export const constructionAttendance = complianceSchemaDB.table('construction_att
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// R67 lane I (WS-I item I-02, for C03-05): the per-org sequence behind the
+// auto-generated 'W-0001' worker numbering. A dedicated counter row rather
+// than a Postgres SEQUENCE because the numbering is PER ORG (a sequence is a
+// single global object -- one per org would mean DDL at runtime, which the
+// app_runtime role must never do) and rather than max(employee_code)+1
+// because that races: two concurrent roster creates read the same max and
+// both write W-0007. THE CONTRACT for the caller that will generate codes
+// (C03-05, a separate workstream -- this lane ships the schema only): claim
+// the next number with a single atomic statement inside the same transaction
+// as the roster insert, e.g.
+//   INSERT INTO compliance.construction_employee_code_counters (org_id, last_number)
+//   VALUES ($1, 1) ON CONFLICT (org_id)
+//   DO UPDATE SET last_number = construction_employee_code_counters.last_number + 1,
+//                 updated_at = now()
+//   RETURNING last_number;
+// never read-then-write. drizzle/0529 seeds each org's counter from the
+// highest 'W-nnnn' code already on its roster, so a generated number can
+// never collide with a hand-typed one, and the partial unique index on
+// (org_id, employee_code) is the database-level backstop if it ever tries.
+export const constructionEmployeeCodeCounters = complianceSchemaDB.table('construction_employee_code_counters', {
+  orgId: text('org_id').primaryKey(),
+  lastNumber: integer('last_number').notNull().default(0),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 export const constructionLabourRosterRelations = relations(constructionLabourRoster, ({ many }) => ({
   attendance: many(constructionAttendance),
 }))
@@ -11041,6 +11178,11 @@ export const constructionMaterials = complianceSchemaDB.table('construction_mate
   spec: text('spec'),
   unit: text('unit').notNull(),
   unitCost: numeric('unit_cost').notNull().default('0'),
+  // R67 lane I (WS-I item I-02, for C03-13): the stock level at or below which
+  // this material should be re-ordered. Nullable = no reorder alerting for this
+  // material at all, which is every pre-existing row's real state -- opt-in, not
+  // a silent 0 that would make every material look permanently "in stock".
+  reorderLevel: numeric('reorder_level'),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
@@ -11056,15 +11198,62 @@ export const constructionMaterialReceipts = complianceSchemaDB.table('constructi
   vendorId: text('vendor_id'),
   notes: text('notes'),
   createdById: text('created_by_id').notNull(),
+  // R67 lane I (WS-I item I-02, for C03-09): a receipt is VOIDED, never
+  // deleted. A goods-receipt note is an accounting document -- the audit trail
+  // ("this delivery was recorded and then cancelled, by whom, why, when") is
+  // the whole point, and a DELETE destroys it. Every consumer that totals
+  // stock or cost must filter `voided_at IS NULL`; a voided row stays
+  // queryable for the history it carries. All three nullable together: a
+  // voided receipt has all three set, a live one has none.
+  voidedAt: timestamp('voided_at'),
+  voidReason: text('void_reason'),
+  voidedById: text('voided_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// R67 lane I (WS-I item I-02, for C03-13): the outbound half of the material
+// ledger. constructionMaterials/constructionMaterialReceipts (Point 33)
+// deliberately modelled inbound ONLY -- its own comment above says "No
+// outbound/consumption/stock-on-hand -- not requested" -- so "what is actually
+// left on site" was unanswerable. This is the smallest table that answers it:
+// issues out, optionally attributed to the BOQ line the material was consumed
+// against, so consumption can be read per scope item and not just per project.
+//
+// Deliberately NOT erp_stock_ledger_entries: that is a full valuation layer
+// (warehouses, valuation rates, moving-average costing) against erp_items, a
+// different master from construction_materials -- wiring site consumption into
+// it would mean either duplicating every material as an erp_item or teaching
+// the valuation engine a second master. Same reasoning Point 33 used when it
+// chose not to build on erp_stock_* in the first place.
+//
+// boqLineItemId is nullable and carries no DB-level FK, matching
+// constructionWorkProgressEntries.boqLineItemId's own posture on the same
+// link (a deleted BOQ line must not block or orphan a real issue record).
+export const constructionMaterialIssues = complianceSchemaDB.table('construction_material_issues', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  materialId: text('material_id').notNull().references(() => constructionMaterials.id),
+  issuedDate: date('issued_date', { mode: 'string' }).notNull(),
+  quantity: numeric('quantity').notNull(),
+  boqLineItemId: text('boq_line_item_id'),
+  issuedTo: text('issued_to'), // free text -- a gang/foreman/subcontractor name, the same advisory posture as constructionLabourRoster.trade (site labour rarely has a login account to link to)
+  note: text('note'),
+  createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 export const constructionMaterialsRelations = relations(constructionMaterials, ({ many }) => ({
   receipts: many(constructionMaterialReceipts),
+  issues: many(constructionMaterialIssues),
 }))
 
 export const constructionMaterialReceiptsRelations = relations(constructionMaterialReceipts, ({ one }) => ({
   material: one(constructionMaterials, { fields: [constructionMaterialReceipts.materialId], references: [constructionMaterials.id] }),
+}))
+
+export const constructionMaterialIssuesRelations = relations(constructionMaterialIssues, ({ one }) => ({
+  material: one(constructionMaterials, { fields: [constructionMaterialIssues.materialId], references: [constructionMaterials.id] }),
 }))
 
 // Certified Payroll (SAP-mapping gap analysis HCM-006, "Certified Payroll

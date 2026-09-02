@@ -594,3 +594,80 @@ describe("mapRowsToLineItems -- synthetic anchor codes read as data, not debug a
     expect(shutter.parentItemCode).toBe(receptionCounter.itemCode) // still resolves correctly, just under the new naming
   })
 })
+
+// R67 lane I (WS-I item I-05, R-177): Sumeet's own "Category" header is mapped
+// automatically, so an imported BOQ arrives categorised instead of landing
+// entirely in the Work Progress Report's "Uncategorized" bucket. The
+// declaration ORDER of BOQ_FIELD_ALIASES is load-bearing here -- see the
+// service's own comment on the `category` key -- so the two sheet shapes that
+// order protects are both pinned below.
+describe("mapRowsToLineItems -- Category header mapping (R67 I-05)", () => {
+  test("a sheet with BOTH Description and Category maps them to different fields", () => {
+    const mapping = mapBoqHeaders(["Sl No", "Category", "Description (Task)", "Unit", "Qty", "Rate"])
+    expect(mapping.description).toBe("Description (Task)")
+    expect(mapping.category).toBe("Category")
+  })
+
+  test("a simple sheet with ONLY a Category column still uses it as the description -- today's behaviour, unchanged", () => {
+    const mapping = mapBoqHeaders(["Sl No", "Category", "Unit", "Qty", "Rate"])
+    expect(mapping.description).toBe("Category")
+    expect(mapping.category).toBeUndefined()
+  })
+
+  test("each row's category is carried onto its line item, trimmed, with blank treated as absent", () => {
+    const rows = [
+      { code: "1", cat: " Civil ", desc: "Blockwork", unit: "sqm", qty: 100, rate: 50 },
+      { code: "2", cat: "", desc: "Site clearance", unit: "ls", qty: 1, rate: 900 },
+      { code: "3", cat: "Gypsum", desc: "Ceiling", unit: "sqm", qty: 20, rate: 120 },
+    ]
+    const mapping = { itemCode: "code", category: "cat", description: "desc", unit: "unit", quantity: "qty", rate: "rate" } as const
+    const { lineItems } = mapRowsToLineItems(rows, mapping)
+
+    expect(lineItems.map((l) => l.category)).toEqual(["Civil", undefined, "Gypsum"])
+  })
+
+  test("a sub-task with a blank Category cell inherits its parent's, and never splits its parent's group", () => {
+    const rows = [
+      { code: "2", cat: "Gypsum", desc: "Main: Partition", unit: "sqm", qty: 100, rate: 50 },
+      { code: "2.1", cat: "", desc: "Sub: Frame", unit: "sqm", qty: 0, rate: 0, pct: 40 },
+      { code: "2.2", cat: "Joinery", desc: "Sub: Board", unit: "sqm", qty: 0, rate: 0, pct: 60 },
+    ]
+    const mapping = { itemCode: "code", category: "cat", description: "desc", unit: "unit", quantity: "qty", rate: "rate", breakdownPercentage: "pct" } as const
+    const { lineItems } = mapRowsToLineItems(rows, mapping)
+
+    expect(lineItems.map((l) => l.category)).toEqual(["Gypsum", "Gypsum", "Joinery"])
+  })
+
+  test("an unlabeled sub-task attached to a SYNTHETIC anchor code still inherits that parent's category", () => {
+    const rows = [
+      { slNo: "", cat: "Joinery", desc: "Reception Counter", qty: 1, rate: 25000 },
+      { slNo: "", cat: "", desc: "", sub: "Shutter", qty: "", rate: "", pct: 100 },
+    ]
+    const mapping = { itemCode: "slNo", category: "cat", description: "desc", subTask: "sub", quantity: "qty", rate: "rate", breakdownPercentage: "pct" } as const
+    const { lineItems } = mapRowsToLineItems(rows, mapping)
+
+    const shutter = lineItems.find((i) => i.description === "Shutter")!
+    expect(shutter.parentItemCode).toBe(lineItems[0].itemCode)
+    expect(shutter.category).toBe("Joinery")
+  })
+
+  test("a row with no parent is never given another row's category", () => {
+    const rows = [
+      { code: "1", cat: "Civil", desc: "Blockwork", unit: "sqm", qty: 10, rate: 5 },
+      { code: "2", cat: "", desc: "Standalone item", unit: "ls", qty: 1, rate: 100 },
+    ]
+    const mapping = { itemCode: "code", category: "cat", description: "desc", unit: "unit", quantity: "qty", rate: "rate" } as const
+    const { lineItems } = mapRowsToLineItems(rows, mapping)
+    expect(lineItems[1].category).toBeUndefined()
+  })
+
+  test("end to end through a real xlsx buffer: a Category column arrives on the parsed line items", async () => {
+    const buffer = buildXlsxBuffer([
+      { "Sl No": "1", Category: "Civil", "Description (Task)": "Blockwork", Unit: "sqm", Qty: 100, Rate: 50 },
+      { "Sl No": "2", Category: "Paint", "Description (Task)": "Emulsion", Unit: "sqm", Qty: 200, Rate: 12 },
+    ])
+    const { lineItems, mapping } = await parseBoqSpreadsheet(buffer, "boq.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    expect(mapping.category).toBe("Category")
+    expect(lineItems.map((l) => l.category)).toEqual(["Civil", "Paint"])
+  })
+})
