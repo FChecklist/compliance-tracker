@@ -508,3 +508,63 @@ describe("setActivityCompletionManually", () => {
     expect(audited[0].apiKey).toEqual({ id: "key-1", name: "PROJEXA" })
   })
 })
+
+// ─── R67 lane D22 (item D-64, rec R-230) ──────────────────────────────────
+// The Work Progress list printed a 25-character cuid in its "BOQ line" column
+// because nothing joined the entry to the line it names. attachBoqLines() is
+// that join's pure half; the item's acceptance is that every returned entry
+// carries a non-empty code and description, which is what these assert.
+import { attachBoqLines } from "./construction-progress-service"
+
+type EntryFixture = { id: string; boqLineItemId: string | null; quantityDone: string }
+
+const LINES = [
+  { id: "li-1", boqId: "boq-1", itemCode: "R60SK-A", description: "R60 skiphop sub", unit: "m3", quantity: "120" },
+  { id: "li-2", boqId: "boq-1", itemCode: null, description: "Blockwork to core walls", unit: "m2", quantity: "80" },
+]
+
+describe("attachBoqLines", () => {
+  test("every entry with a linked line carries a non-empty code and description", () => {
+    const entries: EntryFixture[] = [
+      { id: "e1", boqLineItemId: "li-1", quantityDone: "40" },
+      { id: "e2", boqLineItemId: "li-1", quantityDone: "5" },
+    ]
+    const result = attachBoqLines(entries, LINES)
+    expect(result).toHaveLength(2)
+    for (const entry of result) {
+      expect(entry.boqLine).not.toBeNull()
+      expect(entry.boqLine!.code).toBeTruthy()
+      expect(entry.boqLine!.description.length).toBeGreaterThan(0)
+    }
+  })
+
+  test("carries the line's own unit and contracted quantity, and the ENTRY's own quantity", () => {
+    const [entry] = attachBoqLines([{ id: "e1", boqLineItemId: "li-1", quantityDone: "40" }], LINES)
+    expect(entry!.boqLine).toEqual({
+      boqLineId: "li-1", code: "R60SK-A", description: "R60 skiphop sub",
+      unit: "m3", qtyTotal: 120, qtyDone: 40, boqId: "boq-1",
+    })
+  })
+
+  test("a line with no item code still carries its description -- the screen shows words, never an id", () => {
+    const [entry] = attachBoqLines([{ id: "e1", boqLineItemId: "li-2", quantityDone: "10" }], LINES)
+    expect(entry!.boqLine!.code).toBeNull()
+    expect(entry!.boqLine!.description).toBe("Blockwork to core walls")
+  })
+
+  test("an entry recorded against no BOQ line is null, never the string 'null' and never an id", () => {
+    const [entry] = attachBoqLines([{ id: "e1", boqLineItemId: null, quantityDone: "3" }], LINES)
+    expect(entry!.boqLine).toBeNull()
+  })
+
+  test("an entry whose line is not in the loaded set degrades to null rather than inventing one", () => {
+    const [entry] = attachBoqLines([{ id: "e1", boqLineItemId: "li-gone", quantityDone: "3" }], LINES)
+    expect(entry!.boqLine).toBeNull()
+  })
+
+  test("leaves every original field on the entry untouched", () => {
+    const [entry] = attachBoqLines([{ id: "e1", boqLineItemId: "li-1", quantityDone: "40" }], LINES)
+    expect(entry!.id).toBe("e1")
+    expect(entry!.quantityDone).toBe("40")
+  })
+})

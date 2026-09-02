@@ -99,19 +99,87 @@ export async function createActivity(ctx: { orgId: string }, input: { projectId:
 // column) and boqLineItemId (the direct-link column added by R12 point 7)
 // as additional, purely optional filters -- every existing caller that
 // passes none of them keeps getting exactly the same result set as before.
+// ─── R67 lane D22 (item D-64, rec R-230) ──────────────────────────────────
+// THE 25-CHARACTER ID IN THE "BOQ LINE" COLUMN. This list is what a site
+// engineer reads back to check what they logged, and its BOQ line column
+// printed a cuid, because the entry row carries only boq_line_item_id and
+// nothing joined it to the line. The PROJEXA screen papered over it with a
+// client-side lookup against whichever BOQ the form happened to have loaded --
+// so an entry recorded against any OTHER revision still rendered as its raw id.
+// Joining here fixes it for the list, the report and the chat at once.
+
+/** What an entry says about the BOQ line it was recorded against. */
+export type ProgressEntryBoqLine = {
+  boqLineId: string
+  code: string | null
+  description: string
+  unit: string
+  /** The line's contracted quantity. */
+  qtyTotal: number
+  /** This entry's own quantity, not the line's running total -- one row, one fact. */
+  qtyDone: number
+  boqId: string
+}
+
+/**
+ * Pure: attaches each entry's BOQ line, by id, from an already-loaded set.
+ *
+ * Kept separate from the query so the shape is provable without a database,
+ * the same discipline lineProgressFraction()/computeLinkedIssueCompletion()
+ * below already follow. An entry with no boq_line_item_id -- legitimate, the
+ * column is nullable -- gets `boqLine: null`, which the screen renders as an
+ * en-dash. It must never render as the string "null" or as an id.
+ */
+export function attachBoqLines<T extends { boqLineItemId: string | null; quantityDone: string | number }>(
+  entries: T[],
+  lines: { id: string; boqId: string; itemCode: string | null; description: string; unit: string; quantity: string | number }[]
+): (T & { boqLine: ProgressEntryBoqLine | null })[] {
+  const byId = new Map(lines.map((l) => [l.id, l]))
+  return entries.map((entry) => {
+    const line = entry.boqLineItemId ? byId.get(entry.boqLineItemId) : undefined
+    return {
+      ...entry,
+      boqLine: line
+        ? {
+            boqLineId: line.id,
+            code: line.itemCode,
+            description: line.description,
+            unit: line.unit,
+            qtyTotal: Number(line.quantity) || 0,
+            qtyDone: Number(entry.quantityDone) || 0,
+            boqId: line.boqId,
+          }
+        : null,
+    }
+  })
+}
+
 export async function listProgressEntries(
   ctx: { orgId: string },
   filters: { projectId?: string; activityId?: string; boqLineItemId?: string; dateFrom?: string; dateTo?: string }
 ) {
   if (!filters.projectId && !filters.activityId) throw new ServiceError("projectId or activityId is required", 400)
-  return withTenantContext({ orgId: ctx.orgId }, (db) => {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const conditions = [eq(constructionWorkProgressEntries.orgId, ctx.orgId)]
     if (filters.projectId) conditions.push(eq(constructionWorkProgressEntries.projectId, filters.projectId))
     if (filters.activityId) conditions.push(eq(constructionWorkProgressEntries.activityId, filters.activityId))
     if (filters.boqLineItemId) conditions.push(eq(constructionWorkProgressEntries.boqLineItemId, filters.boqLineItemId))
     if (filters.dateFrom) conditions.push(gte(constructionWorkProgressEntries.entryDate, filters.dateFrom))
     if (filters.dateTo) conditions.push(lte(constructionWorkProgressEntries.entryDate, filters.dateTo))
-    return db.query.constructionWorkProgressEntries.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.entryDate) })
+    const entries = await db.query.constructionWorkProgressEntries.findMany({
+      where: and(...conditions),
+      orderBy: (t, { desc }) => desc(t.entryDate),
+    })
+
+    // ONE extra query for the whole page, not one per row.
+    const lineIds = [...new Set(entries.map((e) => e.boqLineItemId).filter((v): v is string => !!v))]
+    const lines = lineIds.length
+      ? await db.query.constructionBoqLineItems.findMany({
+          where: and(eq(constructionBoqLineItems.orgId, ctx.orgId), inArray(constructionBoqLineItems.id, lineIds)),
+          columns: { id: true, boqId: true, itemCode: true, description: true, unit: true, quantity: true },
+        })
+      : []
+    return attachBoqLines(entries, lines)
   })
 }
 

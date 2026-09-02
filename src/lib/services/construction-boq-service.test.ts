@@ -532,3 +532,112 @@ describe("updateLineItemBudget -- material/manpower amounts and category (R67 I-
     expect(setCalls).toEqual([])
   })
 })
+
+// ─── R67 lane D22 (item D-64, rec R-230) ──────────────────────────────────
+// The searchable BOQ line lookup's pure half: what a typed query matches, what
+// an option carries, and which revision "the current BOQ" means when no caller
+// names one.
+import { matchesBoqLineQuery, resolveCurrentBoq, toBoqLineOptions } from "./construction-boq-service"
+
+describe("matchesBoqLineQuery", () => {
+  const line = { itemCode: "R60SK-A", description: "R60 skiphop sub" }
+
+  test("matches a code, case-insensitively, on a prefix or a fragment", () => {
+    expect(matchesBoqLineQuery(line, "R60SK")).toBe(true)
+    expect(matchesBoqLineQuery(line, "r60sk-a")).toBe(true)
+    expect(matchesBoqLineQuery(line, "SK-A")).toBe(true)
+  })
+
+  test("matches a word from the description, because that is what a site engineer knows", () => {
+    expect(matchesBoqLineQuery(line, "skiphop")).toBe(true)
+    expect(matchesBoqLineQuery(line, "Skiphop")).toBe(true)
+  })
+
+  test("an empty query matches everything, so the picker works before a key is pressed", () => {
+    expect(matchesBoqLineQuery(line, "")).toBe(true)
+    expect(matchesBoqLineQuery(line, "   ")).toBe(true)
+    expect(matchesBoqLineQuery(line, undefined)).toBe(true)
+  })
+
+  test("a line with no code is still findable by its description", () => {
+    expect(matchesBoqLineQuery({ itemCode: null, description: "Blockwork" }, "block")).toBe(true)
+    expect(matchesBoqLineQuery({ itemCode: null, description: "Blockwork" }, "R60")).toBe(false)
+  })
+})
+
+describe("toBoqLineOptions", () => {
+  const boq = { id: "boq-1", title: "Fit-out", version: 2 }
+  const parent = row({ id: "p", itemCode: "A", description: "Concrete works", unit: "m3", quantity: "120" })
+  const child = row({ id: "c", itemCode: "A-1", description: "Pour podium slab", unit: "m3", quantity: "120", parentLineItemId: "p" })
+
+  test("reports how much of a line is left, from what has been recorded against it", () => {
+    const [option] = toBoqLineOptions(boq, [parent], new Map([["p", 40]]))
+    expect(option!.quantity).toBe(120)
+    expect(option!.quantityDone).toBe(40)
+    expect(option!.remainingQuantity).toBe(80)
+  })
+
+  test("over-recording reads as nothing left, never as negative work remaining", () => {
+    const [option] = toBoqLineOptions(boq, [parent], new Map([["p", 200]]))
+    expect(option!.remainingQuantity).toBe(0)
+  })
+
+  test("a line nothing has been recorded against has its whole quantity remaining", () => {
+    const [option] = toBoqLineOptions(boq, [parent], new Map())
+    expect(option!.quantityDone).toBe(0)
+    expect(option!.remainingQuantity).toBe(120)
+  })
+
+  test("flags the parent, so the picker can say 'parent - pick a child' instead of accepting it", () => {
+    const options = toBoqLineOptions(boq, [parent, child], new Map())
+    expect(options.find((o) => o.id === "p")!.isParent).toBe(true)
+    expect(options.find((o) => o.id === "c")!.isParent).toBe(false)
+  })
+
+  test("carries the BOQ it belongs to, so a row can deep-link to the right revision", () => {
+    const [option] = toBoqLineOptions(boq, [parent], new Map())
+    expect(option!.boqId).toBe("boq-1")
+    expect(option!.boqVersion).toBe(2)
+  })
+
+  test("orders by code, with uncoded lines last rather than first", () => {
+    const b = row({ id: "b", itemCode: "B", description: "Blockwork" })
+    const uncoded = row({ id: "u", itemCode: null, description: "Aardvark" })
+    const options = toBoqLineOptions(boq, [uncoded, b, parent], new Map())
+    expect(options.map((o) => o.id)).toEqual(["p", "b", "u"])
+  })
+})
+
+describe("resolveCurrentBoq", () => {
+  const at = (iso: string) => new Date(iso)
+
+  test("prefers an approved BOQ over everything else", () => {
+    const boqs = [
+      { status: "draft", version: 5, createdAt: at("2026-08-01T00:00:00Z") },
+      { status: "approved", version: 1, createdAt: at("2026-07-01T00:00:00Z") },
+    ]
+    expect(resolveCurrentBoq(boqs)!.status).toBe("approved")
+  })
+
+  test("falls back to submitted, then to the highest version", () => {
+    expect(resolveCurrentBoq([
+      { status: "draft", version: 5, createdAt: at("2026-08-01T00:00:00Z") },
+      { status: "submitted", version: 1, createdAt: at("2026-07-01T00:00:00Z") },
+    ])!.status).toBe("submitted")
+
+    expect(resolveCurrentBoq([
+      { status: "draft", version: 1, createdAt: at("2026-08-01T00:00:00Z") },
+      { status: "draft", version: 3, createdAt: at("2026-07-01T00:00:00Z") },
+    ])!.version).toBe(3)
+  })
+
+  test("breaks a version tie on createdAt, so the order is deterministic across engines", () => {
+    const newer = { status: "draft", version: 2, createdAt: at("2026-08-02T00:00:00Z") }
+    const older = { status: "draft", version: 2, createdAt: at("2026-08-01T00:00:00Z") }
+    expect(resolveCurrentBoq([older, newer])).toBe(newer)
+  })
+
+  test("a project with no BOQ yet resolves to null, which is a normal first-week state", () => {
+    expect(resolveCurrentBoq([])).toBeNull()
+  })
+})
