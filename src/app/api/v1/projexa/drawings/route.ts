@@ -7,9 +7,25 @@
 // (schema.ts's documents table comment, Wave 117/142) -- a dedicated
 // `constructionDrawings` table would fragment retention/versioning/
 // auto-classification that this row already gets for free.
+//
+// R67 D-10: the register's own vocabulary (what a Kind is, what the Discipline
+// filter keeps, what a row looks like) now lives in src/lib/drawings-register.ts
+// and is shared with the export route and the single-drawing route, so three
+// endpoints cannot drift into three answers. This route keeps what only a route
+// should hold: the service-role storage client that signs a file URL.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listDocuments, createDocumentRecord, ServiceError } from "@/lib/services/document-service"
+import {
+  DRAWING_CATEGORIES,
+  categoryFilterForKind,
+  categoryForKind,
+  matchesDiscipline,
+  toDrawingDto,
+  type DrawingCategory,
+  type DrawingDto,
+  type DrawingRow,
+} from "@/lib/drawings-register"
 import { createClient } from "@supabase/supabase-js"
 
 const BUCKET = "compliance-documents"
@@ -22,27 +38,12 @@ function getStorageAdminClient() {
   )
 }
 
-const DRAWING_CATEGORIES = ["drawing", "drawing_3d"] as const
-type DrawingCategory = (typeof DRAWING_CATEGORIES)[number]
-
-async function toDrawingDto(
-  doc: { id: string; name: string; category: string | null; metadata: unknown; fileUrl: string; fileType: string | null; createdAt: Date },
-  admin: ReturnType<typeof getStorageAdminClient>
-) {
-  const metadata = (doc.metadata ?? {}) as { isExternalLink?: boolean; discipline?: string }
-  const documentUrl = metadata.isExternalLink
+async function signDrawing(doc: DrawingRow, admin: ReturnType<typeof getStorageAdminClient>): Promise<DrawingDto> {
+  const isExternalLink = ((doc.metadata ?? {}) as { isExternalLink?: boolean }).isExternalLink === true
+  const documentUrl = isExternalLink
     ? doc.fileUrl
     : (await admin.storage.from(BUCKET).createSignedUrl(doc.fileUrl, SIGNED_URL_TTL_SECONDS)).data?.signedUrl ?? null
-  return {
-    id: doc.id,
-    name: doc.name,
-    kind: doc.category === "drawing_3d" ? "3d_walkthrough" : "dwg",
-    discipline: metadata.discipline ?? null,
-    isExternalLink: !!metadata.isExternalLink,
-    fileType: doc.fileType,
-    documentUrl,
-    createdAt: doc.createdAt,
-  }
+  return toDrawingDto(doc, documentUrl)
 }
 
 export async function GET(request: NextRequest) {
@@ -52,8 +53,11 @@ export async function GET(request: NextRequest) {
 
   const projectId = request.nextUrl.searchParams.get("projectId")
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })
-  const kind = request.nextUrl.searchParams.get("kind") // 'dwg' | '3d_walkthrough' | omitted for both
-  const category: DrawingCategory | undefined = kind === "3d_walkthrough" ? "drawing_3d" : kind === "dwg" ? "drawing" : undefined
+  const category = categoryFilterForKind(request.nextUrl.searchParams.get("kind"))
+  // R67 D-10: the register's Filter offers Kind AND Discipline. Discipline
+  // lives in the metadata jsonb, so it is applied to this project's own rows
+  // rather than as a WHERE clause -- see matchesDiscipline's own comment.
+  const discipline = request.nextUrl.searchParams.get("discipline")
 
   try {
     const admin = getStorageAdminClient()
@@ -63,7 +67,9 @@ export async function GET(request: NextRequest) {
       )
     )
     const docs = lists.flat().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    const drawings = await Promise.all(docs.map((doc) => toDrawingDto(doc, admin)))
+    const drawings = (await Promise.all(docs.map((doc) => signDrawing(doc, admin)))).filter((d) =>
+      matchesDiscipline(d, discipline)
+    )
     return NextResponse.json({ drawings })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
@@ -88,7 +94,7 @@ export async function POST(request: NextRequest) {
     const projectId = (formData.get("projectId") as string | null)?.trim()
     if (!projectId) return NextResponse.json({ error: "projectId is required" }, { status: 400 })
     const kind = (formData.get("kind") as string | null) || "dwg" // 'dwg' | '3d_walkthrough'
-    const category: DrawingCategory = kind === "3d_walkthrough" ? "drawing_3d" : "drawing"
+    const category: DrawingCategory = categoryForKind(kind)
     const discipline = (formData.get("discipline") as string | null) || null
     const externalUrl = (formData.get("externalUrl") as string | null) || null
     const file = formData.get("file")
@@ -110,7 +116,7 @@ export async function POST(request: NextRequest) {
     })
 
     const admin = getStorageAdminClient()
-    return NextResponse.json(await toDrawingDto(doc, admin), { status: 201 })
+    return NextResponse.json(await signDrawing(doc, admin), { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa drawings create error:", error)
