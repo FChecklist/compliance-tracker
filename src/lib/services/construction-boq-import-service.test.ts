@@ -671,3 +671,70 @@ describe("mapRowsToLineItems -- Category header mapping (R67 I-05)", () => {
     expect(lineItems.map((l) => l.category)).toEqual(["Civil", "Paint"])
   })
 })
+
+// R67 lane D22 (item D-52, rec R-176): the per-row preview the three-step
+// import screen prints between "Choose file" and the commit. Pure, so the
+// three edge cases the item names are provable without a spreadsheet.
+import { analyseBoqPreview } from "./construction-boq-import-service"
+
+describe("analyseBoqPreview (R67 D-52)", () => {
+  const base = { description: "Line", unit: "m2", quantity: 2, rate: 100 }
+
+  test("a clean row is 'ok' with no messages, and its amount is quantity x rate", () => {
+    const { rows } = analyseBoqPreview([{ ...base, itemCode: "A-1", category: "Civil" }])
+    expect(rows[0].status).toBe("ok")
+    expect(rows[0].messages).toEqual([])
+    expect(rows[0].amount).toBe(200)
+  })
+
+  test("a duplicate code flags BOTH occurrences -- one marked row cannot show which two collided", () => {
+    const { rows } = analyseBoqPreview([
+      { ...base, itemCode: "A-1", category: "Civil" },
+      { ...base, itemCode: "B-2", category: "Civil" },
+      { ...base, itemCode: "A-1", category: "Civil" },
+    ])
+    expect(rows.map((r) => r.status)).toEqual(["warning", "ok", "warning"])
+    expect(rows[0].messages[0]).toBe("Duplicate code A-1 — appears 2 times")
+    expect(rows[2].messages[0]).toBe("Duplicate code A-1 — appears 2 times")
+  })
+
+  test("the duplicate check is case-insensitive, so 'a-1' and 'A-1' are one code", () => {
+    const { rows } = analyseBoqPreview([
+      { ...base, itemCode: "A-1", category: "Civil" },
+      { ...base, itemCode: "a-1", category: "Civil" },
+    ])
+    expect(rows.every((r) => r.status === "warning")).toBe(true)
+  })
+
+  test("a parent code appearing after its child is ACCEPTED and said so, not rejected", () => {
+    const { rows, willImport } = analyseBoqPreview([
+      { ...base, itemCode: "1.1", parentItemCode: "1", breakdownPercentage: 40, category: "Civil" },
+      { ...base, itemCode: "1", category: "Civil" },
+    ])
+    expect(rows[0].messages).toEqual(["Parent code 1 appears later in the file — accepted, resolved after load"])
+    expect(willImport).toBe(2)
+  })
+
+  test("a parent that already appeared above its child says nothing at all", () => {
+    const { rows } = analyseBoqPreview([
+      { ...base, itemCode: "1", category: "Civil" },
+      { ...base, itemCode: "1.1", parentItemCode: "1", breakdownPercentage: 40, category: "Civil" },
+    ])
+    expect(rows[1].messages).toEqual([])
+  })
+
+  test("a blank category names the real downstream consequence, not just 'missing'", () => {
+    const { rows } = analyseBoqPreview([{ ...base, itemCode: "A-1" }])
+    expect(rows[0].messages).toEqual(["Category empty - WPR will show Uncategorized"])
+    expect(rows[0].status).toBe("warning")
+  })
+
+  test("none of the three messages blocks -- every parsed row still imports", () => {
+    const { willImport, totalParsed } = analyseBoqPreview([
+      { ...base, itemCode: "A-1" },
+      { ...base, itemCode: "A-1" },
+    ])
+    expect(willImport).toBe(2)
+    expect(totalParsed).toBe(2)
+  })
+})

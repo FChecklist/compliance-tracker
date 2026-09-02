@@ -11,9 +11,17 @@
 // requireAuthOrApiKey() + requireRoleOrScope() and derives actorId as
 // ctx.dbUser?.id ?? ctx.apiKey!.id, exactly as src/app/api/v1/construction/
 // boq/route.ts's POST already does for the non-import BOQ create endpoint.
+//
+// R67 lane D22 (items D-52/D-60/D-68): a dryRun flag. parseBoqSpreadsheet()
+// was ALREADY a pure parse with no write of its own -- the write is the
+// createBoq/createBoqRevision call below it -- so the preview a three-step
+// import screen needs is this route returning after the parse instead of a
+// second parsing path that could drift from the committing one. The preview
+// the user approves is therefore, by construction, the same reading that gets
+// committed.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { parseBoqSpreadsheet, ServiceError } from "@/lib/services/construction-boq-import-service"
+import { parseBoqSpreadsheet, analyseBoqPreview, ServiceError } from "@/lib/services/construction-boq-import-service"
 import { createBoq, createBoqRevision } from "@/lib/services/construction-boq-service"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
@@ -39,10 +47,26 @@ export async function POST(request: NextRequest) {
     const parentBoqId = formData.get("parentBoqId") ? String(formData.get("parentBoqId")) : null
     const title = formData.get("title") ? String(formData.get("title")) : file.name.replace(/\.[^.]+$/, "")
 
+    const dryRun = String(formData.get("dryRun") || "") === "true"
+
     const buffer = Buffer.from(await file.arrayBuffer())
-    const { lineItems, warnings, totalRows } = await parseBoqSpreadsheet(buffer, file.name, file.type)
+    const { lineItems, warnings, totalRows, mapping } = await parseBoqSpreadsheet(buffer, file.name, file.type)
     if (lineItems.length === 0) {
       return NextResponse.json({ error: "No usable line items found in this spreadsheet", warnings }, { status: 400 })
+    }
+
+    if (dryRun) {
+      const preview = analyseBoqPreview(lineItems)
+      return NextResponse.json({
+        dryRun: true, fileName: file.name, mapping, totalRows, warnings,
+        // Capped at 50: the preview is for a human to scan, and a 2,000-line
+        // BOQ's full row list is a payload nobody reads. willImport/totalParsed
+        // below still describe the WHOLE file, so "50 of 128 rows will import"
+        // can never be produced by this cap.
+        rows: preview.rows.slice(0, 50),
+        willImport: preview.willImport,
+        totalParsed: preview.totalParsed,
+      })
     }
 
     // External API-key callers have no real user id -- record the key's id
