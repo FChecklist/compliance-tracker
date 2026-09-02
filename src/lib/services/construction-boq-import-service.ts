@@ -19,7 +19,7 @@ import type { BoqLineItemInput } from "./construction-boq-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
-export type BoqFieldKey = "itemCode" | "parentItemCode" | "description" | "subTask" | "unit" | "quantity" | "rate" | "breakdownPercentage" | "amount"
+export type BoqFieldKey = "itemCode" | "parentItemCode" | "description" | "subTask" | "unit" | "quantity" | "rate" | "breakdownPercentage" | "amount" | "category"
 
 // Alias order within each field is a PRIORITY order, not just a membership
 // list: mapBoqHeaders resolves a field by trying its aliases in order and
@@ -49,6 +49,23 @@ export const BOQ_FIELD_ALIASES: Record<BoqFieldKey, string[]> = {
   // the stored amount is still always quantity x rate (unchanged), never the
   // printed value from this column.
   amount: ["amount", "amt", "value"],
+  // R67 lane I (WS-I item I-05, R-177): Sumeet's own "Category" header, mapped
+  // automatically so an imported BOQ arrives categorised instead of landing
+  // entirely in "Uncategorized".
+  //
+  // *** ORDER MATTERS AND IS LOAD-BEARING. *** This key is declared LAST, and
+  // mapBoqHeaders iterates these keys in declaration order taking the first
+  // unused header per field. `description` (above) still keeps "category" as
+  // its own last-resort alias, so:
+  //   * a sheet with BOTH "Description (Task)" and "Category" -> description
+  //     takes the Description column, and this field then takes Category;
+  //   * a simple sheet with ONLY a "Category" column acting as the row's text
+  //     -> description takes it, exactly as it did before this change, and
+  //     this field maps to nothing. Today's behaviour for that sheet shape is
+  //     preserved byte-for-byte.
+  // Moving this key earlier in the record would silently break the second
+  // case by stealing the only description column.
+  category: ["category", "work category", "trade", "section"],
 }
 
 // R38 (R-71/TC-51): parseAmount() silently returns 0 for genuine garbage
@@ -105,7 +122,7 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
   // BoQ exports) of a sub-task row that has no itemCode of its own and needs
   // its parentItemCode inferred positionally, from the nearest preceding row
   // that did have an itemCode (see the positional-fallback comment below).
-  const rawItems: { itemCode?: string; explicitParentCode?: string; description: string; unit: string; quantity: number; rate: number; breakdownPercentage?: number; isUnlabeledSubTask: boolean }[] = []
+  const rawItems: { itemCode?: string; explicitParentCode?: string; description: string; unit: string; quantity: number; rate: number; breakdownPercentage?: number; isUnlabeledSubTask: boolean; category?: string }[] = []
 
   rows.forEach((row, idx) => {
     const descriptionRaw = mapping.description ? String(row[mapping.description] ?? "").trim() : ""
@@ -190,7 +207,13 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
       }
     }
 
-    rawItems.push({ itemCode, explicitParentCode, description, unit, quantity, rate, breakdownPercentage: breakdownPercentage || undefined, isUnlabeledSubTask })
+    // R67 lane I (WS-I item I-05): the row's own Category cell, trimmed, with
+    // blank treated as absent so "" and undefined never become two different
+    // "no category" values downstream (construction-boq-service.ts's
+    // normalizeCategory enforces the same rule on the write path).
+    const category = mapping.category ? String(row[mapping.category] ?? "").trim() || undefined : undefined
+
+    rawItems.push({ itemCode, explicitParentCode, description, unit, quantity, rate, breakdownPercentage: breakdownPercentage || undefined, isUnlabeledSubTask, category })
   })
 
   // Built from rawItems ONLY, which -- thanks to the header skip above --
@@ -202,6 +225,15 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
   const allItemCodes = new Set(rawItems.filter((i) => i.itemCode).map((i) => i.itemCode!.trim()))
 
   let lastItemCode: string | undefined
+  // R67 lane I (WS-I item I-05): resolved item code -> that row's category, so
+  // a sub-task can inherit its parent's. Built INCREMENTALLY as the rows are
+  // walked, keyed by the RESOLVED code (which may be a synthetic "LI-nnnn"
+  // anchor) rather than looked up in rawItems by raw itemCode -- the
+  // positional fallback below attaches a sub-task to exactly such a synthetic
+  // anchor, which has no raw itemCode to find. Parents always precede their
+  // children in a real BoQ export (both the dot-prefix and the positional
+  // rules depend on that), so the parent's entry is always already present.
+  const categoryByResolvedCode = new Map<string, string>()
   const lineItems: BoqLineItemInput[] = rawItems.map((i, idx) => {
     let parentItemCode = i.explicitParentCode
     if (!parentItemCode && i.itemCode) {
@@ -240,10 +272,20 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     let resolvedItemCode = i.itemCode
     if (!resolvedItemCode && !i.isUnlabeledSubTask) resolvedItemCode = `LI-${String(idx + 1).padStart(4, "0")}`
     if (resolvedItemCode) lastItemCode = resolvedItemCode
+    // R67 lane I (WS-I item I-05): a sub-task row's Category cell is blank on
+    // every real prospect BoQ export -- the category is written once, on the
+    // parent task row. A sub-task inherits it rather than falling into
+    // "Uncategorized" and splitting its own parent's category group in two.
+    // Its OWN category still wins whenever the sheet actually gives it one,
+    // and a row with no parent is never given someone else's category.
+    let category = i.category
+    if (!category && parentItemCode) category = categoryByResolvedCode.get(parentItemCode)
+    if (resolvedItemCode && category) categoryByResolvedCode.set(resolvedItemCode, category)
     return {
       itemCode: resolvedItemCode, parentItemCode,
       breakdownPercentage: parentItemCode ? i.breakdownPercentage : undefined,
       description: i.description, unit: i.unit, quantity: i.quantity, rate: i.rate,
+      ...(category ? { category } : {}),
     }
   })
 

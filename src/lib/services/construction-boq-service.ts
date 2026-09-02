@@ -57,6 +57,20 @@ export type BoqLineItemInput = {
   equipmentCost?: number
   overheadPercent?: number
   profitPercent?: number
+  // R67 lane I (WS-I item I-03): the material/manpower split of THIS LINE's
+  // budget, in currency, for the whole line. Distinct from materialCost/
+  // labourCost above, which are Wave 125's per-UNIT rate-analysis inputs --
+  // see the schema.ts comment on these two columns for why they are not the
+  // same field wearing two hats. Optional: an unsplit line is legitimate.
+  materialAmount?: number
+  manpowerAmount?: number
+  // R67 lane I (WS-I item I-05, R-177): the line's work category (Civil,
+  // Gypsum, ...). Free text matched against the org's editable category list
+  // (constructionBoqCategories) -- a value not on that list is still accepted
+  // and stored, because the BOQ importer maps whatever the customer's own
+  // spreadsheet says. A blank/absent category is legal and renders a
+  // "no category" chip rather than blocking Save.
+  category?: string
 }
 
 export type BoqInput = {
@@ -306,6 +320,22 @@ async function assertLineItemsPersisted(db: TenantDb, boqId: string, expected: n
   }
 }
 
+/**
+ * R67 lane I (WS-I item I-05, R-177): the ONE place a BOQ line's category text
+ * is normalised. "", "   " and undefined all become null, and a real value is
+ * trimmed. Without this, `""` and `null` would be two different "no category"
+ * values in the same column and the Category-wise report's Uncategorized
+ * bucket would silently split in two -- the exact class of grouping defect
+ * REPORT.GLOBAL's tie check exists to catch. Inner whitespace and case are
+ * left exactly as entered: "Gypsum Board" is the customer's own wording, and
+ * an importer that case-folded it would rename their categories for them.
+ */
+export function normalizeCategory(category: string | null | undefined): string | null {
+  if (typeof category !== "string") return null
+  const trimmed = category.trim()
+  return trimmed === "" ? null : trimmed
+}
+
 async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items: BoqLineItemInput[]) {
   if (items.length === 0) return
   const byItemCode = new Map(items.filter((i) => i.itemCode).map((i) => [i.itemCode!, i]))
@@ -345,6 +375,13 @@ async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items
           equipmentCost: item.equipmentCost !== undefined ? String(item.equipmentCost) : null,
           overheadPercent: item.overheadPercent !== undefined ? String(item.overheadPercent) : null,
           profitPercent: item.profitPercent !== undefined ? String(item.profitPercent) : null,
+          // R67 lane I (I-03/I-05). normalizeCategory collapses "", "   " and
+          // undefined to a single null, so "no category" is ONE value in the
+          // database and the Category-wise report's "Uncategorized" bucket
+          // means exactly one thing.
+          materialAmount: item.materialAmount !== undefined ? String(item.materialAmount) : null,
+          manpowerAmount: item.manpowerAmount !== undefined ? String(item.manpowerAmount) : null,
+          category: normalizeCategory(item.category),
         }
       })
     ).returning({ id: constructionBoqLineItems.id, itemCode: constructionBoqLineItems.itemCode })
@@ -378,6 +415,16 @@ export function toLineItemInput(item: BoqLineItemRow, itemCodeById: Map<string, 
     equipmentCost: item.equipmentCost !== null ? Number(item.equipmentCost) : undefined,
     overheadPercent: item.overheadPercent !== null ? Number(item.overheadPercent) : undefined,
     profitPercent: item.profitPercent !== null ? Number(item.profitPercent) : undefined,
+    // R67 lane I (I-03/I-05): carried forward on a revision like every other
+    // per-line field. A revision that dropped the category would silently
+    // uncategorise the whole BOQ the first time anyone revised it.
+    // `!= null` (loose) rather than the `!== null` used above: these three
+    // columns are newer than some callers' row fixtures, and Number(undefined)
+    // is NaN -- which would be written back to the revision as a real numeric
+    // value. A missing field and a NULL field must both mean "not set".
+    materialAmount: item.materialAmount != null ? Number(item.materialAmount) : undefined,
+    manpowerAmount: item.manpowerAmount != null ? Number(item.manpowerAmount) : undefined,
+    category: item.category ?? undefined,
   }
 }
 
@@ -429,13 +476,39 @@ export async function getBoq(ctx: { orgId: string }, boqId: string) {
 // drift this run is elsewhere fixing). budgetPercentage recomputes
 // computedBudget on every read automatically (it's derived, never stored),
 // so "override to 40% -> recomputes" needs no extra logic here at all.
+// R67 lane I (WS-I items I-03 and I-05) extends this same PATCH rather than
+// adding a second write path: materialAmount/manpowerAmount are C03-16's
+// in-place editors and category is R-177's Category column, and all four sit
+// on the same row, edited from the same BOQ table, by the same role. A second
+// endpoint for them would be the drift this programme is elsewhere fixing.
+// Every field stays OPTIONAL and `undefined` still means "leave alone", so a
+// caller that sends only budgetPercentage behaves exactly as before. `null`
+// is a real, distinct instruction meaning "clear this field".
 export async function updateLineItemBudget(
   ctx: { orgId: string },
   lineItemId: string,
-  input: { budgetPercentage?: number; vendorId?: string | null; vendorAmount?: number | null }
+  input: {
+    budgetPercentage?: number
+    vendorId?: string | null
+    vendorAmount?: number | null
+    materialAmount?: number | null
+    manpowerAmount?: number | null
+    category?: string | null
+  }
 ) {
   if (input.budgetPercentage !== undefined && (input.budgetPercentage < 0 || input.budgetPercentage > 100)) {
     throw new ServiceError("budgetPercentage must be between 0 and 100", 400)
+  }
+  // A negative material/manpower amount is never a real budget split, and
+  // silently storing one would put a negative subtotal into every report that
+  // groups by these columns. Rejected at the write path, the same way
+  // budgetPercentage's own range is.
+  for (const key of ["materialAmount", "manpowerAmount"] as const) {
+    const value = input[key]
+    if (value === undefined || value === null) continue
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+      throw new ServiceError(`${key} must be a non-negative number, got ${JSON.stringify(value)}`, 400)
+    }
   }
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const existing = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, lineItemId) })
@@ -447,6 +520,9 @@ export async function updateLineItemBudget(
       ...(input.budgetPercentage !== undefined ? { budgetPercentage: String(input.budgetPercentage) } : {}),
       ...(input.vendorId !== undefined ? { vendorId: input.vendorId } : {}),
       ...(input.vendorAmount !== undefined ? { vendorAmount: input.vendorAmount === null ? null : String(input.vendorAmount) } : {}),
+      ...(input.materialAmount !== undefined ? { materialAmount: input.materialAmount === null ? null : String(input.materialAmount) } : {}),
+      ...(input.manpowerAmount !== undefined ? { manpowerAmount: input.manpowerAmount === null ? null : String(input.manpowerAmount) } : {}),
+      ...(input.category !== undefined ? { category: normalizeCategory(input.category) } : {}),
     }).where(eq(constructionBoqLineItems.id, lineItemId)).returning()
     return withComputedRate(updated)
   })
