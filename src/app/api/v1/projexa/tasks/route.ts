@@ -20,14 +20,24 @@
 //                                  function, so no classifier and NO MODEL
 //                                  CALL EVER
 import { NextRequest, NextResponse } from "next/server"
-import { and, desc, eq, inArray } from "drizzle-orm"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
 import { runSubmission, runDirectTask } from "@/lib/pipeline/run-submission"
+import { NEEDS_YOU_STATUSES, nextTaskCursor, parseTaskCursor } from "@/lib/pipeline/task-cursor"
 
 const TASK_STATUSES = ["to_do", "in_progress", "waiting", "done", "blocked"] as const
 type TaskStatus = (typeof TASK_STATUSES)[number]
+
+// R67 F-26 (R-242): the leading sort key -- 1 for a row that needs the user, 0
+// for everything else. Built once at module scope so the ORDER BY and the
+// cursor predicate below can never express it two different ways, which would
+// make a page boundary repeat or skip rows.
+const NEEDS_YOU_RANK = sql`(case when ${pipelineTasks.status} in (${sql.join(
+  NEEDS_YOU_STATUSES.map((s) => sql`${s}`),
+  sql`, `
+)}) then 1 else 0 end)`
 
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
@@ -116,12 +126,29 @@ export async function GET(request: NextRequest) {
     .filter((s): s is TaskStatus => (TASK_STATUSES as readonly string[]).includes(s))
   const limitRaw = Number(url.searchParams.get("limit") ?? "50")
   const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.trunc(limitRaw), 1), 200) : 50
+  // R67 F-26 (R-242): a KEYSET page, not an offset one. Rows are minted while
+  // the user reads, and an offset page 2 silently repeats or skips whatever
+  // shifted underneath it. A cursor this server no longer understands is
+  // ignored (parseTaskCursor returns null), so a stale bookmark starts from the
+  // top rather than failing a read.
+  const cursor = parseTaskCursor(url.searchParams.get("cursor"))
 
   try {
     const rows = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
       const conditions = [eq(pipelineTasks.orgId, ctx.orgId!)]
       if (projectId) conditions.push(eq(pipelineTasks.projectId, projectId))
       if (requested.length > 0) conditions.push(inArray(pipelineTasks.status, requested))
+      if (cursor) {
+        // Strictly after the cursor's position in (rank DESC, created_at DESC,
+        // id DESC). All three parts are needed: see task-cursor.ts.
+        conditions.push(sql`(
+          ${NEEDS_YOU_RANK} < ${cursor.rank}
+          or (${NEEDS_YOU_RANK} = ${cursor.rank} and (
+            ${pipelineTasks.createdAt} < ${cursor.createdAt}
+            or (${pipelineTasks.createdAt} = ${cursor.createdAt} and ${pipelineTasks.id} < ${cursor.id})
+          ))
+        )`)
+      }
       return db
         .select({
           id: pipelineTasks.id,
@@ -142,7 +169,11 @@ export async function GET(request: NextRequest) {
         .from(pipelineTasks)
         .leftJoin(submissions, eq(pipelineTasks.submissionId, submissions.id))
         .where(and(...conditions))
-        .orderBy(desc(pipelineTasks.createdAt))
+        // M24 orders Task Master by WHOSE MOVE IT IS first and only then by
+        // recency: with limit=20 a plain created_at DESC would fill the page
+        // with the newest completed rows and push what is stuck on the user off
+        // the bottom, which is the one thing the pane exists to prevent.
+        .orderBy(sql`${NEEDS_YOU_RANK} desc`, desc(pipelineTasks.createdAt), desc(pipelineTasks.id))
         .limit(limit)
     })
 
@@ -150,6 +181,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       tasks: rows,
+      // null when this page is the last one -- so the UI never renders a
+      // "Show 20 more" control that would load nothing.
+      nextCursor: nextTaskCursor(rows, limit),
       // LIVE COUNTS, so the user knows before clicking (M24's header tabs).
       counts: {
         needsYou: group(["to_do", "waiting"]).length,
