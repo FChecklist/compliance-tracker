@@ -11,9 +11,14 @@ import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { constructionBoqLineItems, constructionBoqs, constructionActivities } from "@/lib/db/schema";
 import { createProgressEntry } from "@/lib/services/construction-progress-service";
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
+import { createRosterEntry, recordAttendance } from "@/lib/services/construction-labour-service";
+import { createBoqRevision } from "@/lib/services/construction-boq-service";
+import { createMeeting } from "@/lib/services/pms-meeting-service";
+import { createDocumentRecord } from "@/lib/services/document-service";
 import { dispatchTool } from "@/lib/task-execution-engine";
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
 import { normaliseThrownError, pipelineFailure, type PipelineFailure } from "./error-codes";
+import { functionSpec, WRITE_FUNCTION_IDS as REGISTERED_WRITES } from "./function-registry";
 
 /**
  * R67 lane B (B-01, decision D-03). `error: string` is gone: a failure is a
@@ -50,6 +55,39 @@ export type ExecutableTask = {
    */
   role?: string | null;
 };
+
+/**
+ * R67 B-04 -- THE SERVER-SIDE RE-CHECK.
+ *
+ * validate() already refuses a task whose declared required params are
+ * missing, and chain-options only ever offers real records. This checks the
+ * same list again anyway, at the last moment before a real write, because
+ * "the client only offered valid options" is not a security property: a
+ * caller can POST {functionId, params} straight at tasks/route.ts. Same
+ * closed vocabulary, so the user sees the same sentence either way, and the
+ * service is never reached with a missing field (which would surface as its
+ * own English "attendanceDate is required" through the catch block).
+ */
+function missingRequiredParam(task: ExecutableTask): PipelineFailure | null {
+  const spec = functionSpec(task.functionId);
+  if (!spec) return null;
+  for (const required of spec.requiredParams) {
+    const value = required.name === "projectId" ? (task.projectId ?? task.params.projectId) : task.params[required.name];
+    const empty = value === undefined || value === null || (typeof value === "string" && value.trim().length === 0);
+    if (empty) return pipelineFailure(required.code, [required.name]);
+  }
+  return null;
+}
+
+function str(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function num(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
+  return undefined;
+}
 
 async function executeRecordWorkProgress(task: ExecutableTask): Promise<ExecutionOutcome> {
   const itemCode = task.params.itemCode;
@@ -223,6 +261,109 @@ function makeOrgScopedExecutor(codeReference: string): (task: ExecutableTask) =>
   };
 }
 
+// ── R67 B-04: Sumeet's daily writes, through the existing services ────────
+//
+// Each executor below calls THE SAME service function the PROJEXA create
+// route already calls, with no new SQL and no second validation path. Every
+// one of them:
+//   - re-checks its declared required params server-side (missingRequiredParam);
+//   - lets the service open its own withTenantContext, and opens NONE of its
+//     own -- D-06 forbids a nested tenant transaction, and every service
+//     below already runs its project/record existence checks inside that one;
+//   - returns the created row's id and the route its object lives at, so the
+//     client can print a receipt line and land the right pane on the real
+//     record.
+type WriteResult = { id: string; route: string; record: unknown };
+
+function created(id: string, route: string, record: unknown): ExecutionOutcome {
+  return { success: true, result: { id, route, record } satisfies WriteResult };
+}
+
+async function executeRecordAttendance(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return { success: false, failure: missing };
+  const projectId = (task.projectId ?? str(task.params.projectId))!;
+  const row = await recordAttendance(
+    { orgId: task.orgId },
+    {
+      projectId,
+      rosterId: str(task.params.rosterId)!,
+      // The pipeline's own parameter vocabulary is `date`; the service's
+      // column is attendanceDate. Adapted here, once.
+      attendanceDate: str(task.params.date)!,
+      status: str(task.params.status) ?? "present",
+      hoursWorked: num(task.params.hours),
+    }
+  );
+  return created(row.id, `/labour?tab=attendance`, row);
+}
+
+async function executeAddRosterEntry(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return { success: false, failure: missing };
+  const projectId = (task.projectId ?? str(task.params.projectId))!;
+  const row = await createRosterEntry(
+    { orgId: task.orgId },
+    {
+      projectId,
+      name: str(task.params.name)!,
+      dailyRate: num(task.params.dailyRate) ?? 0,
+      trade: str(task.params.trade),
+      employeeCode: str(task.params.employeeCode),
+      skillLevel: str(task.params.skillLevel),
+      vendorId: str(task.params.vendorId),
+    }
+  );
+  return created(row.id, `/labour/${row.id}`, row);
+}
+
+async function executeCreateMeeting(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return { success: false, failure: missing };
+  const projectId = (task.projectId ?? str(task.params.projectId))!;
+  const agenda = Array.isArray(task.params.agendaItems)
+    ? (task.params.agendaItems as unknown[]).filter((a): a is string => typeof a === "string" && a.trim().length > 0)
+    : undefined;
+  const row = await createMeeting({ orgId: task.orgId, userId: task.userId }, projectId, {
+    title: str(task.params.title)!,
+    scheduledAt: str(task.params.scheduledAt)!,
+    durationMinutes: num(task.params.durationMinutes),
+    agendaItems: agenda,
+  });
+  return created(row.id, `/moms/${row.id}`, row);
+}
+
+async function executeCreateBoqRevision(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return { success: false, failure: missing };
+  const row = await createBoqRevision({ orgId: task.orgId, userId: task.userId }, str(task.params.boqId)!, {
+    title: str(task.params.title),
+  });
+  return created(row.id, `/scope/${row.id}`, row);
+}
+
+async function executeCreateDocument(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return { success: false, failure: missing };
+  // LINK-ONLY, deliberately. createDocumentRecord's other branch takes a
+  // File, and a chat submission carries JSON params -- it cannot carry
+  // bytes. Uploading a file stays on /documents/upload, which is the real
+  // path for it; this covers the link-only record the service already
+  // supports (a drawing set, a 3D walkthrough URL).
+  const row = await createDocumentRecord(
+    { orgId: task.orgId, userId: task.userId },
+    {
+      name: str(task.params.name)!,
+      category: str(task.params.category)!,
+      externalUrl: str(task.params.externalUrl)!,
+      expiryDate: str(task.params.expiryDate) ?? null,
+      linkedEntityType: task.projectId ? "project" : null,
+      linkedEntityId: task.projectId ?? null,
+    }
+  );
+  return created(row.id, `/documents/${row.id}`, row);
+}
+
 /**
  * R67 B-02 -- CATALOGUE IDS THAT RESOLVE TO AN EXISTING READ.
  *
@@ -243,6 +384,11 @@ const READ_ONLY_ALIASES: Readonly<Record<string, string>> = {
 
 const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutcome>> = {
   record_work_progress: executeRecordWorkProgress,
+  record_attendance: executeRecordAttendance,
+  add_roster_entry: executeAddRosterEntry,
+  create_meeting: executeCreateMeeting,
+  create_boq_revision: executeCreateBoqRevision,
+  create_document: executeCreateDocument,
   get_construction_project_dashboard: executeGetProjectDashboard,
   ...Object.fromEntries(READ_ONLY_DISPATCH_FUNCTION_IDS.map((ref) => [ref, makeDispatchExecutor(ref)])),
   ...Object.fromEntries(Object.entries(READ_ONLY_ALIASES).map(([id, ref]) => [id, makeDispatchExecutor(ref)])),
@@ -257,8 +403,14 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
  * treated as a read, which is the safe direction to be wrong in: mistaking
  * a write for a read blocks it with an honest reason, while mistaking a
  * read for a write would let a question record a real row.
+ *
+ * R67 B-04: the list is now DERIVED from function-registry.ts's own `writes`
+ * flag rather than repeated here, so a write registered in the catalogue can
+ * never be missing from this set (which would let classify.ts call it a
+ * CHAT and run a write off a question). Filtered to what actually has an
+ * executor, so the set stays a statement about what this file can run.
  */
-const WRITE_FUNCTION_IDS: ReadonlySet<string> = new Set(["record_work_progress"]);
+const WRITE_FUNCTION_IDS: ReadonlySet<string> = new Set([...REGISTERED_WRITES].filter((id) => id in EXECUTORS));
 
 export function functionWrites(functionId: string): boolean {
   return WRITE_FUNCTION_IDS.has(functionId);

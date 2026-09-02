@@ -346,10 +346,10 @@ async function rosterOptions(projectId: string | null, verb: VerbDef, repo: Chai
       selected: true,
       next: verb.next,
       functionId: verb.functionId,
-      params: { projectId, rosterId: w.id, attendanceDate: today, status: "present" },
+      params: { projectId, rosterId: w.id, date: today, status: "present" },
       schema,
     })),
-    defaults: { projectId, attendanceDate: today, status: "present" },
+    defaults: { projectId, date: today, status: "present" },
   }
 }
 

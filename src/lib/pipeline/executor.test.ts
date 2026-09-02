@@ -87,3 +87,70 @@ describe("R67 B-01 -- executeTask normalises a thrown transport error to a code"
     expect(outcome).toEqual({ success: true, result: { id: "row_1" } });
   });
 });
+
+// ── R67 B-04: Sumeet's daily writes are registered ────────────────────────
+describe("B-04 -- the writes the pipeline can now execute", () => {
+  test("WRITE_FUNCTION_IDS contains record_attendance and create_meeting", () => {
+    expect(functionWrites("record_attendance")).toBe(true);
+    expect(functionWrites("create_meeting")).toBe(true);
+    expect(functionWrites("add_roster_entry")).toBe(true);
+    expect(functionWrites("create_boq_revision")).toBe(true);
+    expect(functionWrites("create_document")).toBe(true);
+    // Still exactly the writes -- a read must never drift into this set.
+    expect(functionWrites("review_budget")).toBe(false);
+    expect(functionWrites("get_construction_project_dashboard")).toBe(false);
+  });
+
+  test("every registered write has a real executor", () => {
+    for (const id of ["record_work_progress", "record_attendance", "add_roster_entry", "create_meeting", "create_boq_revision", "create_document"]) {
+      expect(hasExecutor(id)).toBe(true);
+    }
+  });
+
+  test("record_attendance with a missing date returns {code:'DATE_REQUIRED', missing:['date']} rather than throwing", async () => {
+    const outcome = await executeTask({
+      ...TASK,
+      functionId: "record_attendance",
+      params: { rosterId: "w1" },
+    });
+    expect(outcome.success).toBe(false);
+    if (outcome.success) return;
+    expect(outcome.failure.code).toBe("DATE_REQUIRED");
+    expect(outcome.failure.missing).toEqual(["date"]);
+    expect(outcome.failure.picker).toBe("date");
+  });
+
+  test("record_attendance with no worker asks for the worker, not the date", async () => {
+    const outcome = await executeTask({ ...TASK, functionId: "record_attendance", params: { date: "2026-09-02" } });
+    expect(outcome.success).toBe(false);
+    if (outcome.success) return;
+    expect(outcome.failure.code).toBe("WORKER_REQUIRED");
+    expect(outcome.failure.missing).toEqual(["rosterId"]);
+  });
+
+  test("create_meeting with no title asks for the title", async () => {
+    const outcome = await executeTask({ ...TASK, functionId: "create_meeting", params: { scheduledAt: "2026-09-03T10:00:00Z" } });
+    expect(outcome.success).toBe(false);
+    if (outcome.success) return;
+    expect(outcome.failure.code).toBe("TITLE_REQUIRED");
+    expect(outcome.failure.missing).toEqual(["title"]);
+  });
+
+  test("a write with no project resolved asks for the project first", async () => {
+    const outcome = await executeTask({
+      ...TASK,
+      projectId: null,
+      functionId: "record_attendance",
+      params: { rosterId: "w1", date: "2026-09-02" },
+    });
+    expect(outcome.success).toBe(false);
+    if (outcome.success) return;
+    expect(outcome.failure.code).toBe("PROJECT_REQUIRED");
+    expect(outcome.failure.missing).toEqual(["projectId"]);
+  });
+
+  // Every assertion above ran with no database: the required-param guard
+  // returns before the service is called, which is the point -- a missing
+  // field must never reach recordAttendance() and come back as its own
+  // English "attendanceDate is required" through the catch block.
+});

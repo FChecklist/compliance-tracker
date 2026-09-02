@@ -154,7 +154,7 @@ describe("level 2 -- ['manpower','mark_attendance'] returns the roster", () => {
     const first = r.options[0]
     expect(first.functionId).toBe("record_attendance")
     expect(first.params).toMatchObject({ projectId: PROJECT, rosterId: "w1", status: "present" })
-    expect(String(first.params?.attendanceDate)).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(String(first.params?.date)).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
   test("an empty roster offers the way to fill it", async () => {

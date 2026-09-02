@@ -36,6 +36,9 @@ export const PIPELINE_ERROR_CODES = [
   "HOURS_REQUIRED",
   "MATERIAL_REQUIRED",
   "QUANTITY_REQUIRED",
+  "CATEGORY_REQUIRED",
+  "LINK_REQUIRED",
+  "BOQ_VERSION_REQUIRED",
   // --- what the request named but does not exist / is not usable ---------
   "BOQ_LINE_NOT_FOUND",
   "BOQ_LINE_IS_PARENT",
@@ -59,7 +62,7 @@ export type PipelineErrorCode = (typeof PIPELINE_ERROR_CODES)[number];
  * "none" means there is nothing the user can pick -- BACKEND_UNAVAILABLE is
  * a Retry, not a picker.
  */
-export type PickerHint = "boq-line" | "project" | "value" | "date" | "worker" | "task" | "material" | "none";
+export type PickerHint = "boq-line" | "boq-version" | "project" | "value" | "date" | "worker" | "task" | "material" | "none";
 
 const PICKER_BY_CODE: Readonly<Record<PipelineErrorCode, PickerHint>> = {
   PROJECT_REQUIRED: "project",
@@ -73,6 +76,9 @@ const PICKER_BY_CODE: Readonly<Record<PipelineErrorCode, PickerHint>> = {
   HOURS_REQUIRED: "value",
   MATERIAL_REQUIRED: "material",
   QUANTITY_REQUIRED: "value",
+  CATEGORY_REQUIRED: "value",
+  LINK_REQUIRED: "none",
+  BOQ_VERSION_REQUIRED: "boq-version",
   BOQ_LINE_NOT_FOUND: "boq-line",
   BOQ_LINE_IS_PARENT: "boq-line",
   PROJECT_NOT_REACHABLE: "project",
@@ -136,6 +142,10 @@ const CODE_BY_PARAM: Readonly<Record<string, PipelineErrorCode>> = {
   hours: "HOURS_REQUIRED",
   itemId: "MATERIAL_REQUIRED",
   materialId: "MATERIAL_REQUIRED",
+  category: "CATEGORY_REQUIRED",
+  externalUrl: "LINK_REQUIRED",
+  boqId: "BOQ_VERSION_REQUIRED",
+  dailyRate: "VALUE_REQUIRED",
 };
 
 export function codeForParam(param: string): PipelineErrorCode {

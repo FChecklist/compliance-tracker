@@ -95,6 +95,118 @@ const SPEC_LIST: readonly FunctionSpec[] = [
     },
   },
 
+  // ---- R67 B-04: Sumeet's daily writes -----------------------------------
+  // Each one wraps the SAME service function PROJEXA's own create route
+  // already calls. No new SQL, no second write path, no duplicated
+  // validation -- the only new thing is that the composer can now reach them.
+  {
+    functionId: "record_attendance",
+    label: "Mark attendance",
+    module: "manpower",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "rosterId", label: "Worker", code: "WORKER_REQUIRED" },
+      { name: "date", label: "Date", code: "DATE_REQUIRED" },
+    ],
+    card: {
+      fields: [
+        { key: "rosterId", label: "Worker", type: "select", required: true, picker: "worker" },
+        { key: "date", label: "Date", type: "date", required: true },
+        { key: "status", label: "Status", type: "select", required: false, default: "present" },
+        { key: "hours", label: "Hours worked", type: "number", unit: "h", required: false },
+      ],
+      primaryLabel: "Save attendance",
+    },
+  },
+  {
+    functionId: "add_roster_entry",
+    label: "Add a worker",
+    module: "manpower",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "name", label: "Name", code: "WORKER_REQUIRED" },
+      { name: "dailyRate", label: "Daily rate", code: "VALUE_REQUIRED" },
+    ],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: true },
+        { key: "dailyRate", label: "Daily rate", type: "number", required: true },
+        { key: "trade", label: "Trade", type: "text", required: false },
+        { key: "employeeCode", label: "ID", type: "text", required: false },
+      ],
+      primaryLabel: "Save worker",
+    },
+  },
+  {
+    functionId: "create_meeting",
+    label: "New meeting",
+    module: "meetings",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "title", label: "Title", code: "TITLE_REQUIRED" },
+      { name: "scheduledAt", label: "Date and time", code: "DATE_REQUIRED" },
+    ],
+    card: {
+      fields: [
+        { key: "title", label: "Title", type: "text", required: true },
+        { key: "scheduledAt", label: "Date and time", type: "date", required: true },
+        { key: "durationMinutes", label: "Duration", type: "number", unit: "min", required: false },
+      ],
+      primaryLabel: "Save meeting",
+    },
+  },
+  {
+    functionId: "create_boq_revision",
+    label: "New BOQ revision",
+    module: "scope",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "boqId", label: "BOQ version", code: "BOQ_VERSION_REQUIRED" },
+    ],
+    card: {
+      fields: [
+        { key: "boqId", label: "From version", type: "select", required: true, picker: "boq-version" },
+        { key: "title", label: "Title", type: "text", required: false },
+      ],
+      primaryLabel: "Save revision",
+    },
+  },
+  {
+    functionId: "create_document",
+    label: "Add a document link",
+    module: "documents",
+    kind: "write",
+    writes: true,
+    // A document record is org-scoped; a project link is optional metadata.
+    requiresProject: false,
+    requiredParams: [
+      { name: "name", label: "Name", code: "TITLE_REQUIRED" },
+      { name: "category", label: "Category", code: "CATEGORY_REQUIRED" },
+      { name: "externalUrl", label: "Link", code: "LINK_REQUIRED" },
+    ],
+    card: {
+      fields: [
+        { key: "name", label: "Name", type: "text", required: true },
+        { key: "category", label: "Category", type: "text", required: true },
+        { key: "externalUrl", label: "Link", type: "text", required: true },
+        { key: "expiryDate", label: "Expires", type: "date", required: false },
+      ],
+      primaryLabel: "Save document",
+    },
+  },
+
   // ---- project-scoped reads --------------------------------------------
   readSpec("get_construction_project_dashboard", "View project dashboard", "dashboard", true),
   readSpec("get_construction_budget_status", "View budget status", "budget", true),
@@ -146,6 +258,13 @@ export function functionLabel(functionId: string): string {
 export function functionKind(functionId: string): FunctionKind {
   return SPECS[functionId]?.kind ?? "ask";
 }
+
+/**
+ * R67 B-04 -- THE SINGLE SOURCE OF "does this write". executor.ts's
+ * WRITE_FUNCTION_IDS is derived from this so the registry and the
+ * TASK/CHAT split (classify.ts) can never drift apart.
+ */
+export const WRITE_FUNCTION_IDS: ReadonlySet<string> = new Set(SPEC_LIST.filter((s) => s.writes).map((s) => s.functionId));
 
 export const FUNCTION_SPECS = SPECS;
 export const ALL_FUNCTION_SPECS = SPEC_LIST;
