@@ -40,6 +40,52 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (subagent, r67-lane-I) -- PROGRAMME R67 workstream WS-I (data-migrations), items I-01..I-05"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implementation programme R67,
+      lane I ("data-migrations"). Branch r67/i-data-migrations, worktree
+      C:/ct/ct-worktrees/r67-I (compliance-tracker) + C:/ct/projexa-worktrees/r67-I (projexa).
+
+      Verified live before starting (not assumed): the highest migration on this branch's
+      origin/main base is drizzle/0527_r65_parte_billing_contracts.sql with journal idx 349
+      (counted with PowerShell Get-ChildItem, NOT Git Bash `ls` -- that under-reported the
+      directory as 0325 on this laptop, a known local tooling fault). This lane therefore
+      takes 0528-0532 and re-checks for collision against origin/main immediately before merge.
+
+      File scope in compliance-tracker:
+        drizzle/0528_r67_i01_screen_definition_labels.sql
+        drizzle/0529_r67_i02_manpower_material_org_format.sql
+        drizzle/0530_r67_i03_boq_amounts_demo_fiscal_year.sql
+        drizzle/0531_r67_i04_schedule_boq_link_and_label_fix.sql
+        drizzle/0532_r67_i05_boq_line_category.sql
+        drizzle/meta/_journal.json (five appended entries)
+        src/lib/db/schema.ts (constructionAttendance/constructionLabourRoster/
+          constructionMaterials/constructionMaterialReceipts/constructionBoqLineItems/
+          organisations/pmsIssues column additions + constructionMaterialIssues,
+          constructionEmployeeCodeCounters, constructionBoqCategories, pmsIssueBoqLinks tables)
+        src/lib/services/screen-definitions-labels.ts (+ .test.ts)
+        src/lib/services/construction-boq-service.ts (+ .test.ts)
+        src/lib/services/construction-boq-import-service.ts (+ .test.ts)
+        src/lib/services/construction-reports-service.ts (+ .test.ts)
+        src/lib/services/construction-boq-category-service.ts (+ .test.ts)
+        src/lib/services/org-provisioning-fiscal-year.ts (+ .test.ts)
+        src/app/api/v1/construction/boq/line-items/[id]/route.ts
+        src/app/api/v1/construction/boq/categories/route.ts (+ [id]/route.ts)
+        src/app/api/v1/projexa/scope/categories/route.ts (+ [id]/route.ts)
+        scripts/check-screen-definition-labels.mjs (+ .test.ts), .github/workflows/ci.yml (one new job)
+        docs/master/TEST_COVERAGE_GAP.md (regenerated)
+
+      File scope in projexa: src/lib/boq-helpers.ts (+ .test.ts),
+        src/lib/work-progress-report.ts (+ .test.ts), src/components/ScopeCreateClient.tsx,
+        ScopeReviseClient.tsx, ScopeObjectClient.tsx, WorkProgressReportClient.tsx,
+        BoqCategoriesCard.tsx (new), SettingsClient.tsx,
+        src/app/api/work-progress/report/route.ts, src/app/api/scope/categories/**.
+
+      NOT touching: any other lane's files, the pipeline (src/lib/pipeline/**), the
+      ui-kit (D-09: fork into projexa instead), platform.* tables, or any guardrail script's
+      strictness (AGENTS.md Rule 9). No other active entry in this file claims drizzle/**,
+      construction-boq-service.ts, construction-reports-service.ts or screen_definitions.
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |
