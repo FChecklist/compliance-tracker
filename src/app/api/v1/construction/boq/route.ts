@@ -34,11 +34,16 @@ async function GET_impl(request: NextRequest) {
     // the whole thing in ONE transaction (see its own header comment), and
     // `?include=variation` adds the per-revision variation figure PROJEXA's
     // /scope screen used to fetch with one /compare request PER ROW.
+    //
+    // R67 F-29 (R-273) adds `?include=compare`, which puts each revision's
+    // lineCount / total / deltaAmount / deltaPct on the row. It shares the
+    // SAME statement as `variation`, so asking for both is not a second query.
     const include = request.nextUrl.searchParams.get("include")
-    const { variation } = parseBoqInclude(include)
-    const boqs = await listBoqs({ orgId: ctx.orgId }, projectId, {
-      include: variation ? "lineItems,variation" : "lineItems",
-    })
+    const { variation, compare } = parseBoqInclude(include)
+    const parts = ["lineItems"]
+    if (variation) parts.push("variation")
+    if (compare) parts.push("compare")
+    const boqs = await listBoqs({ orgId: ctx.orgId }, projectId, { include: parts.join(",") })
     return NextResponse.json({ boqs })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

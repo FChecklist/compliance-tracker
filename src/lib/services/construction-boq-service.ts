@@ -434,12 +434,34 @@ function withComputedRate(item: typeof constructionBoqLineItems.$inferSelect) {
 // diff key -- same itemCode is already rejected by validateLineItemInputs, same
 // description with no itemCode is not -- where diffLineItems' Map keeps the last
 // and the sum keeps both. The sum is the correct answer in that case.)
+// R67 F-29 (audit recommendation R-273) -- THE COMPARE SUMMARY JOINS THE LIST.
+//
+// F-23 above put each revision's variation-vs-prior into the list payload and
+// deleted the one /api/scope/{id}/compare request PER ROW the /scope screen
+// was making to fill a single cell. R-273 finishes the job: the screen also
+// wants to show, per revision, HOW BIG that revision is (its line count and
+// its total) and how far it moved from the previous one in PERCENT, not only
+// in currency -- "+1,005" says nothing about whether that is a rounding error
+// or a doubling of the contract.
+//
+// All five figures come out of the SAME statement the variation already used,
+// so `?include=compare` costs no extra round trip over `?include=variation`,
+// and asking for both costs one statement, not two. That is the whole point:
+// the alternative -- a second endpoint, or a second query -- would reintroduce
+// the fan-out this pair of items exists to remove.
+//
+// deltaPct is NULL, never 0 and never Infinity, when there is no parent or the
+// parent totalled zero. A percentage change from nothing is not a number, and
+// printing "∞%" or "0%" beside a real increase would be a false statement
+// about the project's money.
 export type BoqListOptions = {
   /**
    * Comma-separated, mirroring the route's own `?include=`. Recognised values:
-   * `lineItems` (every revision's line items, batched) and `variation`
-   * (variationVsPrior + lineDelta per revision). Anything else is ignored --
-   * an unknown include must never fail a list a caller can otherwise read.
+   * `lineItems` (every revision's line items, batched), `variation`
+   * (variationVsPrior + lineDelta per revision) and `compare` (the
+   * lineCount / total / deltaAmount / deltaPct summary). Anything else is
+   * ignored -- an unknown include must never fail a list a caller can
+   * otherwise read.
    */
   include?: string | null
 }
@@ -451,33 +473,56 @@ export type BoqRevisionVariation = {
   lineDelta: number | null
 }
 
+export type BoqRevisionCompare = {
+  /** How many line items this revision has. */
+  lineCount: number
+  /** Σ(quantity × rate) over this revision's own line items. */
+  total: number
+  /** total(this) − total(parent). null on a baseline -- the same number as variationVsPrior. */
+  deltaAmount: number | null
+  /** That delta as a percentage of the parent's total. null on a baseline OR when the parent totalled zero. */
+  deltaPct: number | null
+}
+
 export type BoqListRow = typeof constructionBoqs.$inferSelect &
   Partial<BoqRevisionVariation> & {
     lineItems?: ReturnType<typeof withComputedRate>[]
+    compare?: BoqRevisionCompare
   }
 
-export function parseBoqInclude(include: string | null | undefined): { lineItems: boolean; variation: boolean } {
+export function parseBoqInclude(include: string | null | undefined): {
+  lineItems: boolean
+  variation: boolean
+  compare: boolean
+} {
   const parts = new Set(
     (include ?? "")
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean)
   )
-  return { lineItems: parts.has("lineItems"), variation: parts.has("variation") }
+  return { lineItems: parts.has("lineItems"), variation: parts.has("variation"), compare: parts.has("compare") }
 }
 
+type RevisionSummary = BoqRevisionVariation & BoqRevisionCompare
+
 /**
- * The per-revision variation summary, in ONE statement.
+ * The per-revision summary, in ONE statement, however many revisions there are.
  *
  * `revision` is this project's whole chain, so a parent is always resolvable
  * inside the same CTE -- createBoqRevision() always writes the child with its
  * parent's projectId, so a chain never crosses projects.
+ *
+ * R67 F-29 widened this from two columns to five. It is deliberately still one
+ * statement and one pass: `variation` and `compare` are two views of the same
+ * grouped aggregate, and computing them separately would put back exactly the
+ * per-revision fan-out F-23 removed.
  */
-async function loadRevisionVariations(
+async function loadRevisionSummaries(
   db: TenantDb,
   orgId: string,
   projectId: string
-): Promise<Map<string, BoqRevisionVariation>> {
+): Promise<Map<string, RevisionSummary>> {
   const rows = (await db.execute(sql`
     WITH revision AS (
       SELECT id, parent_boq_id
@@ -493,24 +538,59 @@ async function loadRevisionVariations(
       GROUP BY li.boq_id
     )
     SELECT r.id AS boq_id,
+           coalesce(c.total, 0)::float AS total,
+           coalesce(c.line_count, 0)::int AS line_count,
            CASE WHEN r.parent_boq_id IS NULL THEN NULL
                 ELSE (coalesce(c.total, 0) - coalesce(p.total, 0))::float END AS variation_vs_prior,
            CASE WHEN r.parent_boq_id IS NULL THEN NULL
-                ELSE (coalesce(c.line_count, 0) - coalesce(p.line_count, 0))::int END AS line_delta
+                ELSE (coalesce(c.line_count, 0) - coalesce(p.line_count, 0))::int END AS line_delta,
+           -- NULLIF, not a division: a percentage change from a parent that
+           -- totalled nothing is not a number, and "∞%" or "0%" beside a real
+           -- increase would be a false statement about the project's money.
+           CASE WHEN r.parent_boq_id IS NULL THEN NULL
+                ELSE ((coalesce(c.total, 0) - coalesce(p.total, 0))
+                      / NULLIF(coalesce(p.total, 0), 0) * 100)::float END AS delta_pct
     FROM revision r
     LEFT JOIN totals c ON c.boq_id = r.id
     LEFT JOIN totals p ON p.boq_id = r.parent_boq_id
-  `)) as { boq_id: string; variation_vs_prior: number | null; line_delta: number | null }[]
+  `)) as {
+    boq_id: string
+    total: number | null
+    line_count: number | null
+    variation_vs_prior: number | null
+    line_delta: number | null
+    delta_pct: number | null
+  }[]
 
   return new Map(
-    rows.map((r) => [
-      r.boq_id,
-      {
-        variationVsPrior: r.variation_vs_prior === null ? null : Number(r.variation_vs_prior),
-        lineDelta: r.line_delta === null ? null : Number(r.line_delta),
-      },
-    ])
+    rows.map((r) => {
+      const deltaAmount = r.variation_vs_prior === null ? null : Number(r.variation_vs_prior)
+      return [
+        r.boq_id,
+        {
+          variationVsPrior: deltaAmount,
+          lineDelta: r.line_delta === null ? null : Number(r.line_delta),
+          lineCount: Number(r.line_count ?? 0),
+          total: Number(r.total ?? 0),
+          deltaAmount,
+          deltaPct: r.delta_pct === null ? null : Number(r.delta_pct),
+        },
+      ]
+    })
   )
+}
+
+/** A revision with no rows in the summary at all -- a chain member the CTE
+ *  could not see. Zeroes for its own size (it genuinely has no line items) and
+ *  nulls for every comparison, which is the honest answer to "how far did it
+ *  move" when we do not know. */
+const EMPTY_REVISION_SUMMARY: RevisionSummary = {
+  variationVsPrior: null,
+  lineDelta: null,
+  lineCount: 0,
+  total: 0,
+  deltaAmount: null,
+  deltaPct: null,
 }
 
 export async function listBoqs(
@@ -534,7 +614,7 @@ export async function listBoqs(
     })
     // Every existing caller passes no options and keeps getting exactly the
     // headers it got before -- one statement, one transaction.
-    if (boqs.length === 0 || (!include.lineItems && !include.variation)) return boqs
+    if (boqs.length === 0 || (!include.lineItems && !include.variation && !include.compare)) return boqs
 
     const boqIds = boqs.map((b) => b.id)
     const lineItemsByBoq = new Map<string, ReturnType<typeof withComputedRate>[]>()
@@ -549,17 +629,34 @@ export async function listBoqs(
       }
     }
 
-    const variationByBoq = include.variation
-      ? await loadRevisionVariations(db, ctx.orgId, projectId)
-      : new Map<string, BoqRevisionVariation>()
+    // R67 F-29: ONE statement serves both `variation` and `compare` -- they are
+    // two projections of the same grouped aggregate, so asking for both costs
+    // exactly what asking for either costs.
+    const summaryByBoq =
+      include.variation || include.compare
+        ? await loadRevisionSummaries(db, ctx.orgId, projectId)
+        : new Map<string, RevisionSummary>()
 
-    return boqs.map((boq) => ({
-      ...boq,
-      ...(include.lineItems ? { lineItems: lineItemsByBoq.get(boq.id) ?? [] } : {}),
-      ...(include.variation
-        ? (variationByBoq.get(boq.id) ?? { variationVsPrior: null, lineDelta: null })
-        : {}),
-    }))
+    return boqs.map((boq) => {
+      const summary = summaryByBoq.get(boq.id) ?? EMPTY_REVISION_SUMMARY
+      return {
+        ...boq,
+        ...(include.lineItems ? { lineItems: lineItemsByBoq.get(boq.id) ?? [] } : {}),
+        ...(include.variation
+          ? { variationVsPrior: summary.variationVsPrior, lineDelta: summary.lineDelta }
+          : {}),
+        ...(include.compare
+          ? {
+              compare: {
+                lineCount: summary.lineCount,
+                total: summary.total,
+                deltaAmount: summary.deltaAmount,
+                deltaPct: summary.deltaPct,
+              },
+            }
+          : {}),
+      }
+    })
   })
 }
 

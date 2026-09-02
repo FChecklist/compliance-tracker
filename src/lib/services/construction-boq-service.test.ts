@@ -607,12 +607,186 @@ describe("listBoqs -- R67 F-23: one transaction, one grouped statement, variatio
 
 describe("parseBoqInclude -- the route's ?include= contract", () => {
   test("recognises both values, in either order, with whitespace", () => {
-    expect(parseBoqInclude("variation, lineItems")).toEqual({ lineItems: true, variation: true })
+    expect(parseBoqInclude("variation, lineItems")).toEqual({ lineItems: true, variation: true, compare: false })
   })
 
   test("an unknown include is ignored rather than failing a list the caller can otherwise read", () => {
-    expect(parseBoqInclude("nonsense")).toEqual({ lineItems: false, variation: false })
-    expect(parseBoqInclude(null)).toEqual({ lineItems: false, variation: false })
-    expect(parseBoqInclude(undefined)).toEqual({ lineItems: false, variation: false })
+    expect(parseBoqInclude("nonsense")).toEqual({ lineItems: false, variation: false, compare: false })
+    expect(parseBoqInclude(null)).toEqual({ lineItems: false, variation: false, compare: false })
+    expect(parseBoqInclude(undefined)).toEqual({ lineItems: false, variation: false, compare: false })
+  })
+
+  // R67 F-29 (R-273)
+  test("recognises 'compare' alongside the other two", () => {
+    expect(parseBoqInclude("lineItems,variation,compare")).toEqual({ lineItems: true, variation: true, compare: true })
+    expect(parseBoqInclude("compare")).toEqual({ lineItems: false, variation: false, compare: true })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 F-29 (audit recommendation R-273) -- the per-revision COMPARE summary
+// rides on the list, in the same one statement F-23 established.
+// ---------------------------------------------------------------------------
+//
+// The /scope screen wants more than "the variation was +1,005": it wants how
+// big each revision is (line count and total) and how far it moved in PERCENT,
+// because +1,005 says nothing about whether that is a rounding error or a
+// doubling of the contract. R-273's requirement is that all of it arrives with
+// the list -- ONE round trip for TWENTY revisions, not one per row -- so that
+// is what this block asserts, with a twenty-revision fixture rather than the
+// two-revision one above, because "one query" is only interesting at scale.
+
+const F29_ORG = "org-r67-f29"
+const F29_PROJECT = "project-r67-f29"
+const F29_REVISIONS = 20
+
+/** rev N has N line items, each 10 x (N+1) -> total = N * 10 * (N + 1). */
+function f29Total(index: number): number {
+  return index * 10 * (index + 1)
+}
+function f29LineCount(index: number): number {
+  return index
+}
+function f29Id(index: number): string {
+  return `boq-f29-${index}`
+}
+
+// Newest first, mirroring listBoqs' own version DESC ordering.
+const f29Boqs = Array.from({ length: F29_REVISIONS }, (_, i) => {
+  const index = F29_REVISIONS - i // 20 .. 1
+  return {
+    id: f29Id(index),
+    orgId: F29_ORG,
+    projectId: F29_PROJECT,
+    version: index,
+    title: index === 1 ? "Baseline" : `Rev ${index - 1}`,
+    status: index === F29_REVISIONS ? "draft" : "superseded",
+    parentBoqId: index === 1 ? null : f29Id(index - 1),
+    createdAt: new Date(`2026-09-${String(index).padStart(2, "0")}T00:00:00Z`),
+  }
+})
+
+let f29TransactionCount = 0
+let f29ExecutedSql: string[] = []
+
+const f29Db = {
+  query: {
+    constructionBoqs: { findMany: async () => f29Boqs },
+    constructionBoqLineItems: { findMany: async () => [] },
+  },
+  execute: async (statement: unknown) => {
+    f29ExecutedSql.push(f23SqlText(statement))
+    // Stands in for Postgres. Every figure is computed here from the fixture
+    // with the formula written out longhand, so a wrong mapping in the service
+    // still fails rather than being read back out of the code under test.
+    return f29Boqs.map((b) => {
+      const index = b.version
+      const parentIndex = b.parentBoqId === null ? null : index - 1
+      const total = f29Total(index)
+      const parentTotal = parentIndex === null ? null : f29Total(parentIndex)
+      return {
+        boq_id: b.id,
+        total,
+        line_count: f29LineCount(index),
+        variation_vs_prior: parentTotal === null ? null : total - parentTotal,
+        line_delta: parentIndex === null ? null : f29LineCount(index) - f29LineCount(parentIndex),
+        delta_pct: parentTotal === null || parentTotal === 0 ? null : ((total - parentTotal) / parentTotal) * 100,
+      }
+    })
+  },
+}
+
+const f29WithTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
+  f29TransactionCount += 1
+  return fn(f29Db as unknown as never)
+})
+
+describe("listBoqs -- R67 F-29: the compare summary for TWENTY revisions in one round trip", () => {
+  beforeEach(() => {
+    f29TransactionCount = 0
+    f29ExecutedSql = []
+    f29WithTenantContext.mockClear()
+  })
+
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => f23RealTenantScoped)
+  })
+
+  test("twenty revisions cost ONE transaction and ONE statement -- the acceptance condition of R-273", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    const rows = await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "compare" })
+
+    expect(rows).toHaveLength(F29_REVISIONS)
+    expect(f29TransactionCount).toBe(1)
+    expect(f29ExecutedSql).toHaveLength(1)
+  })
+
+  test("compare.deltaAmount on the second revision is total(rev2) - total(rev1)", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    const rows = await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "compare" })
+    const second = rows.find((r) => r.id === f29Id(2))!
+
+    expect(second.compare!.deltaAmount).toBe(f29Total(2) - f29Total(1))
+    // 60 - 20 = 40, and 40 / 20 = 200 %.
+    expect(second.compare!.deltaAmount).toBe(40)
+    expect(second.compare!.deltaPct).toBeCloseTo(200, 6)
+    expect(second.compare!.total).toBe(f29Total(2))
+    expect(second.compare!.lineCount).toBe(f29LineCount(2))
+  })
+
+  test("the baseline reports its own size but NULL for every comparison -- there is nothing to compare it to", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    const baseline = (await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "compare" })).find(
+      (r) => r.id === f29Id(1)
+    )!
+
+    expect(baseline.compare!.lineCount).toBe(1)
+    expect(baseline.compare!.total).toBe(f29Total(1))
+    // Null, NOT zero: "no prior revision" and "no change from the prior
+    // revision" are different facts and must not render the same.
+    expect(baseline.compare!.deltaAmount).toBeNull()
+    expect(baseline.compare!.deltaPct).toBeNull()
+  })
+
+  test("asking for variation AND compare together is still ONE statement, and the two agree", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    const rows = await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "variation,compare" })
+
+    expect(f29ExecutedSql).toHaveLength(1)
+    for (const row of rows) {
+      // They are two projections of the same aggregate; if they could disagree
+      // the screen could show two different variations for one revision.
+      expect(row.compare!.deltaAmount).toBe(row.variationVsPrior ?? null)
+    }
+  })
+
+  test("the statement computes the percentage with NULLIF, so a zero-total parent can never divide by zero", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "compare" })
+
+    const text = f29ExecutedSql[0].replace(/\s+/g, " ").toLowerCase()
+    expect(text).toContain("nullif(coalesce(p.total, 0), 0)")
+    expect(text).toContain("group by li.boq_id")
+  })
+
+  test("a caller that asks for neither gets no compare object at all -- the payload does not grow for nothing", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    const rows = await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "lineItems" })
+
+    expect(f29ExecutedSql).toHaveLength(0)
+    expect(rows[0].compare).toBeUndefined()
   })
 })
