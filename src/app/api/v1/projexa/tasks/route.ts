@@ -25,7 +25,13 @@ import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-gua
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
 import { runSubmission, runDirectTask, proposeSubmission, submitForVerdict, confirmSubmission } from "@/lib/pipeline/run-submission"
-import { failureFromRow, parseFailure } from "@/lib/pipeline/error-codes"
+import {
+  failureFromRow,
+  isStatementTimeoutMessage,
+  parseFailure,
+  pipelineFailure,
+  revealsInternals,
+} from "@/lib/pipeline/error-codes"
 import { functionLabel } from "@/lib/pipeline/function-registry"
 
 const TASK_STATUSES = ["to_do", "in_progress", "waiting", "done", "blocked"] as const
@@ -238,8 +244,22 @@ export async function GET(request: NextRequest) {
     //              legacyToCode() covers those, so there is one legacy
     //              mapping in the programme, not two).
     //   label   -- "Record progress", never "record_work_progress".
-    // `error` is still returned verbatim for backward compatibility; nothing
-    // new should render it.
+    //
+    // R67 FIX PASS -- `error` IS NO LONGER RETURNED. It used to be spread
+    // through verbatim "for backward compatibility", which meant every row
+    // written before B-01 still shipped its original prose to every browser,
+    // the R66 driver string "write CONNECT_TIMEOUT 3.109.171.244:6543"
+    // included. B-01's own rule is that the raw text lives only in a `debug`
+    // field this route never selects, and a column nothing renders is still a
+    // payload somebody can read. What replaces it:
+    //   * a legacy string that DISCLOSES INTERNALS (a driver errno or a
+    //     host:port) is converted here into a real closed-vocabulary failure
+    //     -- the same two predicates normaliseThrownError() uses, so there is
+    //     no second classifier -- and the text itself is dropped;
+    //   * any other legacy string travels as `legacyError`, which projexa's
+    //     own legacyToCode() maps back into the dictionary. That keeps ONE
+    //     legacy prose mapping in the programme, in the repo that owns the
+    //     wording, exactly as B-10 decided.
     //
     // R67 B-08: the typed columns win when they are populated; the serialised
     // `error` object is the fallback for a row written between B-01 and the
@@ -249,13 +269,23 @@ export async function GET(request: NextRequest) {
     // `missing` has no column of its own -- it is a Fix-chain hint, not
     // something anyone groups by -- so it is taken from the serialised object
     // and merged onto the typed code, which is the authority.
-    const decorated = rows.map((r) => {
-      const parsed = parseFailure(r.error)
-      const typed = failureFromRow(r.errorCode, r.errorParams)
+    const decorated = rows.map(({ error, ...row }) => {
+      const parsed = parseFailure(error)
+      const typed = failureFromRow(row.errorCode, row.errorParams)
+      const structured = typed ? { ...typed, missing: parsed?.missing ?? [] } : parsed
+      const legacy = !structured && typeof error === "string" && error.trim().length > 0 ? error.trim() : null
+      const legacyFailure =
+        legacy && isStatementTimeoutMessage(legacy)
+          ? pipelineFailure("UPSTREAM_TIMEOUT")
+          : legacy && revealsInternals(legacy)
+            ? pipelineFailure("BACKEND_UNAVAILABLE")
+            : null
       return {
-        ...r,
-        label: r.functionId ? functionLabel(r.functionId) : null,
-        failure: typed ? { ...typed, missing: parsed?.missing ?? [] } : parsed,
+        ...row,
+        label: row.functionId ? functionLabel(row.functionId) : null,
+        failure: structured ?? legacyFailure,
+        /** Safe legacy prose only -- null once the row has any structured failure. */
+        legacyError: legacyFailure ? null : legacy,
       }
     })
     const group = (statuses: TaskStatus[]) => decorated.filter((r) => statuses.includes(r.status as TaskStatus))
