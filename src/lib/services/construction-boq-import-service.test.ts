@@ -738,3 +738,29 @@ describe("analyseBoqPreview (R67 D-52)", () => {
     expect(totalParsed).toBe(2)
   })
 })
+
+// R67 lane D22 (item D-52): the "Map columns" step's corrections.
+import { applyMappingOverride } from "./construction-boq-import-service"
+
+describe("applyMappingOverride (R67 D-52)", () => {
+  const headers = ["Ref", "Description", "Qty", "Rate", "Unit"]
+  const auto = { description: "Description", quantity: "Qty", rate: "Rate", unit: "Unit" }
+
+  test("a correction is merged over the auto mapping -- the other fields do not have to be restated", () => {
+    expect(applyMappingOverride(auto, { itemCode: "Ref" }, headers)).toEqual({ ...auto, itemCode: "Ref" })
+  })
+
+  test("an explicit empty string unmaps a field, which is a real thing a user can mean", () => {
+    expect(applyMappingOverride(auto, { rate: "" }, headers)).toEqual({ description: "Description", quantity: "Qty", unit: "Unit" })
+  })
+
+  test("a correction naming a column that is not in the sheet is IGNORED, never stored", () => {
+    // Storing it would make mapRowsToLineItems read row[undefined] for every
+    // row and silently import blank descriptions.
+    expect(applyMappingOverride(auto, { description: "Nope" }, headers)).toEqual(auto)
+  })
+
+  test("no override at all returns the auto mapping unchanged", () => {
+    expect(applyMappingOverride(auto, undefined, headers)).toEqual(auto)
+  })
+})

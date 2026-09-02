@@ -292,12 +292,54 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
   return { lineItems, warnings }
 }
 
-/** Parses an uploaded BoQ spreadsheet (xlsx/xls/csv) into hierarchical BoqLineItemInput[], ready for createBoq/createBoqRevision. */
-export async function parseBoqSpreadsheet(buffer: Buffer, fileName: string, mimeType: string): Promise<{ lineItems: BoqLineItemInput[]; warnings: string[]; mapping: BoqColumnMapping; totalRows: number }> {
+/**
+ * Parses an uploaded BoQ spreadsheet (xlsx/xls/csv) into hierarchical
+ * BoqLineItemInput[], ready for createBoq/createBoqRevision.
+ *
+ * R67 lane D22 (item D-52): `mappingOverride` lets the import screen's
+ * "Map columns" step correct a header the auto-matcher got wrong -- a real
+ * customer sheet with a "Ref" column the aliases do not know, say. It is
+ * MERGED OVER the auto-detected mapping rather than replacing it, so a caller
+ * that corrects one field does not have to restate the other eight; a field
+ * explicitly set to undefined/"" unmaps it. The `headers` are returned so the
+ * screen can offer the sheet's real column names as the choices, instead of
+ * asking a human to type one.
+ */
+export async function parseBoqSpreadsheet(
+  buffer: Buffer,
+  fileName: string,
+  mimeType: string,
+  options: { mappingOverride?: BoqColumnMapping } = {}
+): Promise<{ lineItems: BoqLineItemInput[]; warnings: string[]; mapping: BoqColumnMapping; headers: string[]; totalRows: number }> {
   const parsed = await parseFile(buffer, fileName, mimeType)
-  const mapping = mapBoqHeaders(parsed.headers)
+  const mapping = applyMappingOverride(mapBoqHeaders(parsed.headers), options.mappingOverride, parsed.headers)
   const { lineItems, warnings } = mapRowsToLineItems(parsed.rows as Record<string, unknown>[], mapping)
-  return { lineItems, warnings, mapping, totalRows: parsed.totalRows }
+  return { lineItems, warnings, mapping, headers: parsed.headers, totalRows: parsed.totalRows }
+}
+
+/**
+ * Merges a caller's column corrections over the auto-detected mapping.
+ *
+ * A correction naming a column that is not in the sheet is IGNORED rather than
+ * stored: mapRowsToLineItems would then read `row[undefined]` for every row and
+ * silently produce blank descriptions, which is a far worse failure than
+ * keeping the auto-detected column. An explicit empty string unmaps the field,
+ * which is a real thing a user can mean ("this column is not the Rate").
+ */
+export function applyMappingOverride(
+  auto: BoqColumnMapping,
+  override: BoqColumnMapping | undefined,
+  headers: string[]
+): BoqColumnMapping {
+  if (!override) return auto
+  const known = new Set(headers)
+  const merged: BoqColumnMapping = { ...auto }
+  for (const [field, header] of Object.entries(override) as [BoqFieldKey, string | undefined][]) {
+    if (header === undefined || header === "") { delete merged[field]; continue }
+    if (!known.has(header)) continue
+    merged[field] = header
+  }
+  return merged
 }
 
 // ─── R67 lane D22 (item D-52, rec R-176) ──────────────────────────────────

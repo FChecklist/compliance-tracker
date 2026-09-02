@@ -21,7 +21,7 @@
 // committed.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { parseBoqSpreadsheet, analyseBoqPreview, ServiceError } from "@/lib/services/construction-boq-import-service"
+import { parseBoqSpreadsheet, analyseBoqPreview, ServiceError, type BoqColumnMapping } from "@/lib/services/construction-boq-import-service"
 import { createBoq, createBoqRevision } from "@/lib/services/construction-boq-service"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
@@ -48,9 +48,17 @@ export async function POST(request: NextRequest) {
     const title = formData.get("title") ? String(formData.get("title")) : file.name.replace(/\.[^.]+$/, "")
 
     const dryRun = String(formData.get("dryRun") || "") === "true"
+    // The "Map columns" step's corrections, as {field: header}. Malformed JSON
+    // is ignored rather than 400ing the whole upload -- the auto-detected
+    // mapping is still a usable answer, and the preview shows what was used.
+    let mappingOverride: BoqColumnMapping | undefined
+    const mappingRaw = formData.get("mapping")
+    if (mappingRaw) {
+      try { mappingOverride = JSON.parse(String(mappingRaw)) as BoqColumnMapping } catch { mappingOverride = undefined }
+    }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const { lineItems, warnings, totalRows, mapping } = await parseBoqSpreadsheet(buffer, file.name, file.type)
+    const { lineItems, warnings, totalRows, mapping, headers } = await parseBoqSpreadsheet(buffer, file.name, file.type, { mappingOverride })
     if (lineItems.length === 0) {
       return NextResponse.json({ error: "No usable line items found in this spreadsheet", warnings }, { status: 400 })
     }
@@ -58,7 +66,7 @@ export async function POST(request: NextRequest) {
     if (dryRun) {
       const preview = analyseBoqPreview(lineItems)
       return NextResponse.json({
-        dryRun: true, fileName: file.name, mapping, totalRows, warnings,
+        dryRun: true, fileName: file.name, mapping, headers, totalRows, warnings,
         // Capped at 50: the preview is for a human to scan, and a 2,000-line
         // BOQ's full row list is a payload nobody reads. willImport/totalParsed
         // below still describe the WHOLE file, so "50 of 128 rows will import"
@@ -77,7 +85,16 @@ export async function POST(request: NextRequest) {
       ? await createBoqRevision({ orgId: ctx.orgId, userId: actorId }, parentBoqId, { title, lineItems })
       : await createBoq({ orgId: ctx.orgId, userId: actorId }, { projectId, title, lineItems })
 
-    return NextResponse.json({ boq, importSummary: { totalRows, importedLineItems: lineItems.length, warnings } }, { status: 201 })
+    // R67 lane D22 (item D-52): totalValue is what the import screen's receipt
+    // line names ("BOQ <title> v<n> created - <lines> lines, <currency>
+    // <total>"). Summed over ROOT lines only, because a weighted sub-task's
+    // amount is a share of its parent's (schema.ts's canonical child-rate
+    // rule) -- the same rule boqTotal() applies on the PROJEXA side, so the
+    // receipt can never disagree with the BOQ page it lands on.
+    const totalValue = Math.round(
+      lineItems.filter((l) => !l.parentItemCode).reduce((sum, l) => sum + l.quantity * l.rate, 0) * 100
+    ) / 100
+    return NextResponse.json({ boq, importSummary: { totalRows, importedLineItems: lineItems.length, totalValue, warnings } }, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa scope import error:", error)
