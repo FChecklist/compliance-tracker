@@ -532,3 +532,15 @@ describe("updateLineItemBudget -- material/manpower amounts and category (R67 I-
     expect(setCalls).toEqual([])
   })
 })
+
+describe("toLineItemInput -- category carries forward into a revision", () => {
+  test("a categorised line keeps its category when a revision copies it forward", () => {
+    const persisted = row({ id: "p1", itemCode: "C001", description: "Gypsum partition", unit: "sqm", quantity: "10", rate: "5", category: "Gypsum" })
+    expect(toLineItemInput(persisted, new Map()).category).toBe("Gypsum")
+  })
+
+  test("an uncategorised line stays undefined (not null) -- BoqLineItemInput's fields are optional, never nullable", () => {
+    const persisted = row({ id: "p2", description: "Plain item", unit: "nos", quantity: "1", rate: "1" })
+    expect(toLineItemInput(persisted, new Map()).category).toBeUndefined()
+  })
+})
