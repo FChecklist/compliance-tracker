@@ -157,3 +157,44 @@ describe("B-01 -- a missing declared parameter is asked for, in the closed vocab
   });
 });
 
+// ── R67 B-02: "Review Budget -- blocked -- no project resolved for this task" ─
+describe("B-02 -- the submission's own projectId resolves a project-scoped function", () => {
+  test("review_budget with params {} and a submission carrying projectId 'p1' is VALID with params.projectId === 'p1'", () => {
+    const ctx: ValidationContext = {
+      ...BASE_CTX,
+      reachableProjectIds: new Set(["p1"]),
+      submissionProjectId: "p1",
+    };
+    const r = validate({ functionId: "review_budget", params: {} }, ctx);
+    expect(r.valid).toBe(true);
+    if (r.valid) expect(r.params.projectId).toBe("p1");
+  });
+
+  test("an explicit params.projectId still wins over the submission's", () => {
+    const ctx: ValidationContext = {
+      ...BASE_CTX,
+      reachableProjectIds: new Set(["p1", "project_1"]),
+      submissionProjectId: "p1",
+    };
+    const r = validate({ functionId: "review_budget", params: { projectId: "project_1" } }, ctx);
+    expect(r.valid).toBe(true);
+    if (r.valid) expect(r.params.projectId).toBe("project_1");
+  });
+
+  test("with no project anywhere it returns {code:'PROJECT_REQUIRED', missing:['projectId']} and no function id or camelCase in any rendered field", () => {
+    const ctx: ValidationContext = { ...BASE_CTX, submissionProjectId: null };
+    const r = validate({ functionId: "review_budget", params: {} }, ctx);
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    expect(r.code).toBe("PROJECT_REQUIRED");
+    expect(r.missing).toEqual(["projectId"]);
+    expect(r.picker).toBe("project");
+    // Nothing renderable carries a function id or a camelCase sentence:
+    // `missing` is a machine field the client maps through its dictionary,
+    // and `code`/`picker` are the only other things it receives.
+    expect(r.code).not.toContain("review_budget");
+    expect(r.code).not.toMatch(CAMEL_CASE);
+    expect(r.picker).not.toMatch(CAMEL_CASE);
+    expect(r.context).toBeUndefined();
+  });
+});

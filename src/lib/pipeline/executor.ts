@@ -223,10 +223,29 @@ function makeOrgScopedExecutor(codeReference: string): (task: ExecutableTask) =>
   };
 }
 
+/**
+ * R67 B-02 -- CATALOGUE IDS THAT RESOLVE TO AN EXISTING READ.
+ *
+ * Every budget screenshot in the R66 walkthrough showed the left pane
+ * repeating "Review Budget -- blocked -- no project resolved for this task"
+ * while the right pane was already scoped to that project. Two separate
+ * defects produced that line: the submission's projectId never reached the
+ * candidate's params (fixed in validate.ts), and `review_budget` -- the id
+ * PROJEXA's Budget card carries -- had no executor at all.
+ *
+ * It is registered as an ALIAS of a real read, not as a second
+ * implementation, and deliberately NOT in WRITE_FUNCTION_IDS: reviewing a
+ * budget records nothing.
+ */
+const READ_ONLY_ALIASES: Readonly<Record<string, string>> = {
+  review_budget: "get_construction_budget_status",
+};
+
 const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutcome>> = {
   record_work_progress: executeRecordWorkProgress,
   get_construction_project_dashboard: executeGetProjectDashboard,
   ...Object.fromEntries(READ_ONLY_DISPATCH_FUNCTION_IDS.map((ref) => [ref, makeDispatchExecutor(ref)])),
+  ...Object.fromEntries(Object.entries(READ_ONLY_ALIASES).map(([id, ref]) => [id, makeDispatchExecutor(ref)])),
   ...Object.fromEntries(READ_ONLY_ORG_SCOPED_FUNCTION_IDS.map((ref) => [ref, makeOrgScopedExecutor(ref)])),
 };
 

@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
-import { executeTask, hasExecutor, type ExecutableTask, type ExecutionOutcome } from "./executor";
+import { executeTask, functionWrites, hasExecutor, type ExecutableTask, type ExecutionOutcome } from "./executor";
 import { serialiseFailure } from "./error-codes";
 
 // The registered executors themselves do real DB access via
@@ -22,6 +22,14 @@ describe("hasExecutor -- the registry of functions this pipeline can actually ru
     expect(hasExecutor("approve_variation")).toBe(false);
     expect(hasExecutor("delete_everything")).toBe(false);
     expect(hasExecutor("")).toBe(false);
+  });
+
+  // R67 B-02 -- "Review Budget -- blocked -- no project resolved for this task"
+  test("review_budget is executable and is a READ, not a write", () => {
+    expect(hasExecutor("review_budget")).toBe(true);
+    expect(functionWrites("review_budget")).toBe(false);
+    // WRITE_FUNCTION_IDS stays exactly one entry until B-04.
+    expect(functionWrites("record_work_progress")).toBe(true);
   });
 });
 

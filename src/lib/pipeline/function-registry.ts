@@ -98,6 +98,11 @@ const SPEC_LIST: readonly FunctionSpec[] = [
   // ---- project-scoped reads --------------------------------------------
   readSpec("get_construction_project_dashboard", "View project dashboard", "dashboard", true),
   readSpec("get_construction_budget_status", "View budget status", "budget", true),
+  // R67 B-02: the catalogue's own id for PROJEXA's Budget card (Sumeet order
+  // 9). A READ -- it resolves to the same real backing action the budget pill
+  // already uses -- so it is registered here and in the read-only dispatch
+  // aliases, never in WRITE_FUNCTION_IDS.
+  readSpec("review_budget", "Review Budget", "budget", true),
   readSpec("get_construction_kpi_status", "View KPIs", "reports", true),
   readSpec("generate_construction_progress_summary", "View progress summary", "reports", true),
   readSpec("detect_construction_budget_schedule_risk", "Check budget and schedule risk", "reports", true),
