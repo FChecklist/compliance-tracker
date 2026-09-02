@@ -24,7 +24,7 @@ import { and, desc, eq, inArray } from "drizzle-orm"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
-import { runSubmission, runDirectTask } from "@/lib/pipeline/run-submission"
+import { runSubmission, runDirectTask, proposeSubmission } from "@/lib/pipeline/run-submission"
 import { parseFailure } from "@/lib/pipeline/error-codes"
 import { functionLabel } from "@/lib/pipeline/function-registry"
 
@@ -52,6 +52,30 @@ export async function POST(request: NextRequest) {
   const projectId = typeof body.projectId === "string" ? body.projectId : null
 
   try {
+    // R67 B-05 -- STEP ONE: PROPOSE. {rawInput, dryRun:true} classifies,
+    // derives the chain, works out what is still missing and offers the real
+    // choices for it, WITHOUT minting a task. A parameter the classifier
+    // could not fill used to become a pipeline_tasks row with status
+    // 'blocked'; now it is a question, answered before anything is recorded,
+    // and it is counted in no badge because no row exists. Step two is the
+    // existing {functionId, params} path below, unchanged.
+    if (body.dryRun === true) {
+      const rawInput = typeof body.rawInput === "string" ? body.rawInput : ""
+      if (rawInput.trim().length === 0) {
+        return NextResponse.json({ error: "dryRun needs rawInput" }, { status: 400 })
+      }
+      const proposal = await proposeSubmission({
+        orgId: ctx.orgId,
+        userId: actorId,
+        mode,
+        projectId,
+        rawInput,
+        role: ctx.dbUser?.role ?? null,
+      })
+      // 200, not 201: nothing was created.
+      return NextResponse.json(proposal, { status: 200 })
+    }
+
     if (typeof body.functionId === "string" && body.functionId.trim().length > 0) {
       const result = await runDirectTask({
         orgId: ctx.orgId,

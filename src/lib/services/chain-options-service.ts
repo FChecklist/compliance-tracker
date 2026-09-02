@@ -162,11 +162,11 @@ function moduleOptions(): ChainOptionsResult {
   }
 }
 
-function verbOptions(module: ModuleDef): ChainOptionsResult {
+function verbOptions(moduleDef: ModuleDef): ChainOptionsResult {
   return {
     legend: CHAIN_OPTION_LEGENDS.verb,
     kind: "verb",
-    options: module.verbs.map((v) => ({
+    options: moduleDef.verbs.map((v) => ({
       id: v.id,
       label: v.label,
       isLeaf: v.opens === "leaf",
@@ -211,13 +211,13 @@ export async function buildChainOptions(input: BuildChainOptionsInput, repo: Cha
 
   if (!moduleId) return moduleOptions()
 
-  const module = MODULES.find((m) => m.id === moduleId)
-  if (!module) return moduleOptions()
+  const moduleDef = MODULES.find((m) => m.id === moduleId)
+  if (!moduleDef) return moduleOptions()
 
-  if (!verbId) return verbOptions(module)
+  if (!verbId) return verbOptions(moduleDef)
 
-  const verb = module.verbs.find((v) => v.id === verbId)
-  if (!verb) return verbOptions(module)
+  const verb = moduleDef.verbs.find((v) => v.id === verbId)
+  if (!verb) return verbOptions(moduleDef)
 
   switch (verb.opens) {
     case "boq-line":

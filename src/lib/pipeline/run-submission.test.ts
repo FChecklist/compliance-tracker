@@ -49,3 +49,164 @@ describe("buildTaskResultMemoryContent -- R65 Part C Phase 3 task memory", () =>
     expect(content).not.toContain("()")
   })
 })
+
+// ── R67 B-05: the dry run (the proposal step) ─────────────────────────────
+// dryRunSubmission() lives in dry-run.ts and is re-exported from
+// run-submission.ts, so this file covers it: it is the same public surface a
+// route imports. Every dependency is injected, so each branch is proven with
+// no database and no model call.
+import { readFileSync } from "node:fs"
+import { dryRunSubmission, NO_COMMENTARY_SENTENCE } from "./run-submission"
+import { gapAnswer, type DryRunDeps } from "./dry-run"
+import type { L0Repo } from "./level0"
+import type { ReuseCacheRepo } from "./reuse-cache"
+
+const BOQ_OPTIONS = [
+  { id: "EX-01", label: "EX-01 Excavation in ordinary soil" },
+  { id: "EX-02", label: "EX-02 Excavation in hard rock" },
+]
+
+function depsFor(phrase: Record<string, { functionId: string; fixedParams: Record<string, unknown> | null }>, over: Partial<DryRunDeps> = {}): DryRunDeps {
+  const l0Repo: L0Repo = {
+    findPhraseMapMatch: async (_orgId, normalised) => phrase[normalised] ?? null,
+    findLastPillUse: async () => null,
+  }
+  const reuseRepo: ReuseCacheRepo = {
+    findReuseHit: async () => null,
+    recordReuseHit: async () => {
+      throw new Error("the dry run must not reach the model on a phrase-map hit")
+    },
+  }
+  return {
+    l0Repo,
+    reuseRepo,
+    chainRepo: { findScreen: async () => null },
+    rootLabel: "Cedar Heights Villa - Phase 1",
+    boqLineOptions: async () => BOQ_OPTIONS,
+    runRead: async () => ({ success: true, result: { rows: [{ activity: "Excavation", percent: 40 }] } }),
+    providerAvailable: () => true,
+    ...over,
+  }
+}
+
+const BASE = {
+  orgId: "org_1",
+  userId: "user_1",
+  mode: "Projects",
+  projectId: "p1",
+  candidateFunctionIds: ["record_work_progress", "get_construction_project_dashboard"],
+}
+
+describe("B-05 -- a WRITE proposal asks for what is missing and mints nothing", () => {
+  const deps = depsFor({
+    "record 50% progress on excavation": { functionId: "record_work_progress", fixedParams: { percent: 50 } },
+  })
+
+  test("kind is 'write' and `missing` names the BOQ line in words", async () => {
+    const r = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on excavation" }, deps)
+    expect(r.dryRun).toBe(true)
+    expect(r.kind).toBe("write")
+    expect(r.status).toBe("needs_input")
+    expect(r.missing).toContainEqual(
+      expect.objectContaining({ name: "itemCode", label: "BOQ line", code: "BOQ_LINE_REQUIRED" })
+    )
+  })
+
+  test("the missing BOQ line comes with the project's real lines as chips, not 'please retype it'", async () => {
+    const r = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on excavation" }, deps)
+    expect(r.missing[0].options).toEqual(BOQ_OPTIONS)
+  })
+
+  test("it returns the derived chain and the human label, never a function id to print", async () => {
+    const r = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on excavation" }, deps)
+    expect(r.chain?.full).toBe("Cedar Heights Villa - Phase 1 > Work Progress > New entry")
+    expect(r.label).toBe("Record progress")
+  })
+
+  test("it carries the card schema so the client renders the card from the server's fields", async () => {
+    const r = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on excavation" }, deps)
+    expect(r.schema?.primaryLabel).toBe("Save progress")
+  })
+
+  test("NO pipeline_tasks row is created -- the module has no path to the table at all", async () => {
+    const r = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on excavation" }, deps)
+    expect(JSON.stringify(r)).not.toContain("taskId")
+    // Structural proof, not a spy: dry-run.ts imports neither the tasks table
+    // nor a transaction, so there is no code path that could insert one.
+    const source = readFileSync(new URL("./dry-run.ts", import.meta.url).pathname.replace(/^\//, ""), "utf8")
+    expect(source).not.toContain("pipelineTasks")
+    expect(source).not.toContain("withTenantContext")
+  })
+})
+
+describe("B-05 -- an ASK answers from the records even when the model will not", () => {
+  const phrase = {
+    "show me the project dashboard": { functionId: "get_construction_project_dashboard", fixedParams: null },
+  }
+
+  test("provider unavailable: rows plus the sentence, never a bare refusal", async () => {
+    const r = await dryRunSubmission(
+      { ...BASE, rawInput: "show me the project dashboard" },
+      depsFor(phrase, { providerAvailable: () => false })
+    )
+    expect(r.kind).toBe("ask")
+    expect(r.status).toBe("answered")
+    expect(r.answer?.rows).toEqual({ rows: [{ activity: "Excavation", percent: 40 }] })
+    expect(r.answer?.text?.startsWith("VERI can't add commentary right now")).toBe(true)
+    expect(r.answer?.text).toBe(NO_COMMENTARY_SENTENCE)
+    expect(r.answer?.text).not.toContain("not available for this account")
+  })
+
+  test("provider available: the same rows, with nothing apologised for", async () => {
+    const r = await dryRunSubmission({ ...BASE, rawInput: "show me the project dashboard" }, depsFor(phrase))
+    expect(r.status).toBe("answered")
+    expect(r.answer?.text).toBeNull()
+    expect(r.answer?.chain).toContain("Cedar Heights Villa")
+  })
+
+  test("a read that fails for a missing parameter becomes needs_input, not a blocked task", async () => {
+    const r = await dryRunSubmission(
+      { ...BASE, projectId: null, rawInput: "show me the project dashboard" },
+      depsFor(phrase, {
+        runRead: async () => ({ success: false, failure: { code: "PROJECT_REQUIRED", missing: ["projectId"], picker: "project" } }),
+      })
+    )
+    expect(r.status).toBe("needs_input")
+    expect(r.missing[0]).toMatchObject({ name: "projectId", label: "Project", code: "PROJECT_REQUIRED" })
+  })
+})
+
+describe("B-05 -- a GAP is an answer with a destination", () => {
+  test("the exact sentence for a capability that is not wired", () => {
+    expect(gapAnswer("create a customer called ABC Ltd")).toEqual({
+      message: "Creating customers from chat is not enabled for this workspace - Open Customers",
+      route: "/customers",
+    })
+  })
+
+  test("a recognised module without a create verb still gets its screen", () => {
+    expect(gapAnswer("what about our vendors").route).toBe("/vendors")
+  })
+
+  test("an unrecognised request never invents a promise", () => {
+    const answer = gapAnswer("do the thing with the stuff")
+    expect(answer.message).toBe("That is not enabled for this workspace yet - Open Home")
+    expect(answer.route).toBe("/dashboard")
+  })
+
+  test("no gap sentence ever says 'not available for this account'", () => {
+    for (const text of ["create a customer", "raise an invoice", "add an employee", "nonsense"]) {
+      expect(gapAnswer(text).message).not.toContain("not available for this account")
+    }
+  })
+
+  test("an unresolved segment comes back as a gap with a route, not as a task", async () => {
+    const r = await dryRunSubmission(
+      { ...BASE, rawInput: "create a customer called ABC Ltd" },
+      depsFor({}, { reuseRepo: { findReuseHit: async () => null, recordReuseHit: async () => {} } })
+    )
+    expect(r.status).toBe("gap")
+    expect(r.functionId).toBeNull()
+    expect(r.route).toBe("/customers")
+  })
+})

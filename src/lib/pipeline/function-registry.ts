@@ -64,6 +64,12 @@ export type FunctionSpec = {
   requiresProject: boolean;
   requiredParams: RequiredParam[];
   card?: CardSchema;
+  /**
+   * Only for kind "run" (a COMMAND verb: Run / Export / Share). A command
+   * does not execute anything server-side -- it opens the screen that already
+   * does the thing, with its parameters attached.
+   */
+  route?: string;
 };
 
 function readSpec(functionId: string, label: string, module: string, requiresProject: boolean): FunctionSpec {
@@ -205,6 +211,20 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       ],
       primaryLabel: "Save document",
     },
+  },
+
+  // ---- COMMAND verbs: they open a screen, they do not execute ----------
+  {
+    functionId: "run_work_progress_report",
+    label: "Run the Work Progress Report",
+    module: "reports",
+    kind: "run",
+    writes: false,
+    requiresProject: true,
+    requiredParams: [{ name: "projectId", label: "Project", code: "PROJECT_REQUIRED" }],
+    // D-02: ONE Work Progress Report, at /work-progress?tab=report, with its
+    // parameters in the URL so it runs on arrival.
+    route: "/work-progress?tab=report",
   },
 
   // ---- project-scoped reads --------------------------------------------

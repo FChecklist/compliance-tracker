@@ -27,6 +27,9 @@ import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
 import { codeForParam, failureLogLine, pipelineFailure, serialiseFailure, type PipelineFailure } from "./error-codes";
+import { dryRunSubmission as dryRun, type DryRunDeps, type DryRunResult } from "./dry-run";
+import { makeChainOptionsRepo } from "@/lib/services/chain-options-service";
+import { assertAiProviderAllowed } from "@/lib/ai/adapter";
 import { createMemoryRecord } from "@/lib/services/memory-service";
 
 // M26: "Pass the module's 5-15 functions ... NEVER 400 unbound functions --
@@ -898,3 +901,50 @@ async function logGap(
 }
 
 export { normalisePhrase };
+
+// ─── R67 B-05: THE DRY RUN ────────────────────────────────────────────────
+// The proposal step lives in dry-run.ts (pure apart from its injected deps);
+// this is where its real, DB- and provider-backed deps are built, because
+// this file already owns every one of those wires. Re-exported from here so
+// callers keep one import path for "the pipeline".
+export { dryRunSubmission, NO_COMMENTARY_SENTENCE, type DryRunResult, type DryRunProposal } from "./dry-run";
+
+/**
+ * The live deps. `providerAvailable` asks the adapter the same question the
+ * assistant route asks -- and answers it WITHOUT throwing, because "the model
+ * will refuse" is a fact the ASK path must be able to route around, not an
+ * error to propagate. That is the whole of B-05's determinism promise: the
+ * records answer the question, the model only ever added commentary.
+ */
+export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunDeps> {
+  const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
+  const boqRepo = makeChainOptionsRepo({ orgId: input.orgId, userId: input.userId });
+  return {
+    l0Repo: makeL0Repo(input.orgId, input.userId),
+    reuseRepo: makeReuseCacheRepo(input.orgId, input.userId),
+    chainRepo: makeChainRepo(input.orgId),
+    rootLabel,
+    boqLineOptions: async (projectId: string) => {
+      const boq = await boqRepo.latestBoqLines(projectId);
+      if (!boq) return [];
+      return boq.lines
+        .filter((l) => l.childCount === 0)
+        .map((l) => ({ id: l.itemCode ?? l.id, label: l.itemCode ? `${l.itemCode} ${l.description}` : l.description }));
+    },
+    runRead: (task) => executeTask(task),
+    providerAvailable: () => {
+      try {
+        assertAiProviderAllowed(input.userId);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
+/** The one call a route makes: build the real deps, then propose. */
+export async function proposeSubmission(input: RunSubmissionInput): Promise<DryRunResult> {
+  const deps = await makeDryRunDeps(input);
+  return dryRun({ ...input, candidateFunctionIds: CANDIDATE_FUNCTION_IDS }, deps);
+}

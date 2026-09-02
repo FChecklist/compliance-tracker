@@ -14,6 +14,8 @@
 // Swapping providers must be a config change, never a rewrite of anything
 // that calls classify()/analyse().
 
+import { NO_COMMENTARY_SENTENCE } from "./refusal";
+
 export type ClassificationResult = {
   functionId: string | null;
   params: Record<string, unknown>;
@@ -67,13 +69,17 @@ export function assertAiProviderAllowed(userId: string): void {
     console.error(
       "[ai/adapter] AI_PROVIDER=claude-cli but RAJAT_USER_ID is not configured -- refusing to serve AI rather than silently guessing who is allowed to use it."
     );
-    throw new AiProviderRefusalError("AI is not available: no owner identity is configured for AI_PROVIDER=claude-cli.");
+    // R67 B-05: a refusal must never be a dead end. R66 recorded a user
+    // being told "... not available for this account." with no next step,
+    // for a question the database could answer perfectly well without a
+    // model. Both refusals below now say what still works.
+    throw new AiProviderRefusalError(NO_COMMENTARY_SENTENCE);
   }
   if (userId !== allowed) {
     console.error(
       `[ai/adapter] AI_PROVIDER=claude-cli refused a request from user "${userId}" (only "${allowed}" is permitted). Anthropic's Claude Code policy permits OAuth/subscription auth for ordinary individual use only -- never to serve a request on behalf of a different person. Set AI_PROVIDER=openrouter before this product serves anyone other than that one account.`
     );
-    throw new AiProviderRefusalError("AI is not available for this account.");
+    throw new AiProviderRefusalError(NO_COMMENTARY_SENTENCE);
   }
 }
 
