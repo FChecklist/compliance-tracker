@@ -8,10 +8,15 @@ export async function GET(request: NextRequest) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    // R67 F-25 (R-241): ?date= for one day, ?from=/?to= for a range.
+    // ?attendanceDate= is the original name and still works.
     const attendance = await listAttendance({ orgId: ctx.orgId }, {
       projectId: request.nextUrl.searchParams.get("projectId") ?? undefined,
       rosterId: request.nextUrl.searchParams.get("rosterId") ?? undefined,
+      date: request.nextUrl.searchParams.get("date") ?? undefined,
       attendanceDate: request.nextUrl.searchParams.get("attendanceDate") ?? undefined,
+      from: request.nextUrl.searchParams.get("from") ?? undefined,
+      to: request.nextUrl.searchParams.get("to") ?? undefined,
     })
     return NextResponse.json({ attendance })
   } catch (error) {

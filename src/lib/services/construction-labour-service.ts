@@ -4,7 +4,7 @@
 // matching this codebase's convention elsewhere (e.g. documents.isLatestVersion).
 import { constructionLabourRoster, constructionAttendance, projects } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq } from "drizzle-orm"
+import { and, eq, gte, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -74,13 +74,48 @@ export async function updateRosterEntry(
   })
 }
 
-export async function listAttendance(ctx: { orgId: string }, filters: { projectId?: string; rosterId?: string; attendanceDate?: string }) {
+// R67 F-25 (audit recommendation R-241) -- ATTENDANCE IS A DATED QUESTION.
+//
+// THE MEASURED PROBLEM. PROJEXA's Manpower screen fetched THE WHOLE ATTENDANCE
+// LOG on every landing, with no date filter at all, even though the screen
+// opens on the Roster tab and never shows a row of it until the user switches.
+// A site with 40 workers produces 40 rows a day, so the payload grows without
+// bound for a table nobody has asked to see, and the one date a foreman
+// actually wants -- today -- is buried in it.
+//
+// `date` (one day) and `from`/`to` (a range, both inclusive, entryDate is a
+// plain date column) are the filters that were missing. `attendanceDate` is
+// KEPT as an alias for `date` so every existing caller and every existing
+// ?attendanceDate= query string keeps working unchanged; passing both is not
+// an error, they mean the same thing and `date` wins.
+export type AttendanceFilters = {
+  projectId?: string
+  rosterId?: string
+  /** One exact day, YYYY-MM-DD. */
+  date?: string
+  /** Back-compat alias for `date` -- the original parameter name. */
+  attendanceDate?: string
+  /** Inclusive range start, YYYY-MM-DD. Ignored when `date` is set. */
+  from?: string
+  /** Inclusive range end, YYYY-MM-DD. Ignored when `date` is set. */
+  to?: string
+}
+
+export async function listAttendance(ctx: { orgId: string }, filters: AttendanceFilters) {
   if (!filters.projectId && !filters.rosterId) throw new ServiceError("projectId or rosterId is required", 400)
+  const exactDate = filters.date ?? filters.attendanceDate
   return withTenantContext({ orgId: ctx.orgId }, (db) => {
     const conditions = [eq(constructionAttendance.orgId, ctx.orgId)]
     if (filters.projectId) conditions.push(eq(constructionAttendance.projectId, filters.projectId))
     if (filters.rosterId) conditions.push(eq(constructionAttendance.rosterId, filters.rosterId))
-    if (filters.attendanceDate) conditions.push(eq(constructionAttendance.attendanceDate, filters.attendanceDate))
+    // A single day is an equality, not a degenerate range -- it can use the
+    // (project_id, attendance_date) index directly.
+    if (exactDate) {
+      conditions.push(eq(constructionAttendance.attendanceDate, exactDate))
+    } else {
+      if (filters.from) conditions.push(gte(constructionAttendance.attendanceDate, filters.from))
+      if (filters.to) conditions.push(lte(constructionAttendance.attendanceDate, filters.to))
+    }
     return db.query.constructionAttendance.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.attendanceDate) })
   })
 }

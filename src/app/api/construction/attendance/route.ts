@@ -8,10 +8,15 @@ export async function GET(request: NextRequest) {
   if (!orgId) return NextResponse.json({ attendance: [] })
 
   try {
+    // R67 F-25 (R-241): same dated filters as the /api/v1 twin, so the two
+    // surfaces cannot drift apart.
     const attendance = await listAttendance({ orgId }, {
       projectId: request.nextUrl.searchParams.get("projectId") ?? undefined,
       rosterId: request.nextUrl.searchParams.get("rosterId") ?? undefined,
+      date: request.nextUrl.searchParams.get("date") ?? undefined,
       attendanceDate: request.nextUrl.searchParams.get("attendanceDate") ?? undefined,
+      from: request.nextUrl.searchParams.get("from") ?? undefined,
+      to: request.nextUrl.searchParams.get("to") ?? undefined,
     })
     return NextResponse.json({ attendance })
   } catch (error) {
