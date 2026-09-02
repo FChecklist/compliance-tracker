@@ -224,6 +224,23 @@ export async function executeTask(task: ExecutableTask): Promise<ExecutionOutcom
   try {
     return await executor(task);
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "unknown execution error" };
+    // R66 visual QA (2026-09-02): this used to return error.message straight
+    // through. Every executor ABOVE already returns its own clean, honest
+    // string for an expected condition ("no project resolved for this task",
+    // "no BOQ found for project ...") -- those are deliberate, human-authored,
+    // safe to show verbatim (GET /api/v1/projexa/tasks -> M24Shell renders
+    // pipeline_tasks.error on the "Needs you" blocked-row detail line, by
+    // design). This catch block is different: it only fires on an UNEXPECTED
+    // thrown exception -- a DB driver timeout, a network error, a bug -- and
+    // .message on those can carry raw internals. Reproduced live in the R66
+    // walkthrough: a Postgres connection-timeout bubbled up as
+    // "write CONNECT_TIMEOUT 3.109.171.244:6543" and was rendered verbatim to
+    // the end user, leaking an internal IP:port. Log the real error
+    // server-side; return a safe, honest-but-generic message for display.
+    console.error(`executeTask: unexpected error running "${task.functionId}"`, error);
+    return {
+      success: false,
+      error: "This couldn't be completed right now due to an internal error. Retry shortly, or contact support if it persists.",
+    };
   }
 }
