@@ -40,6 +40,43 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (subagent, r67-D21-screens-moms-scope) -- PROGRAMME R67 lane D21: the compliance-tracker half of the R66 UX audit's MoM + Scope items (D-17 MoM autosave/delete/publish-confirm, D-19 org-user picker feed, D-21 branded MoM share link + public PDF, D-22 scope ObjectScreen fork is projexa-only)"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implemented as PROGRAMME R67.
+      This lane's items and their acceptance criteria are fixed by the programme's own
+      lane_D21.items.json + decisions.md (binding decisions D-01..D-09 plus the 2026-09-02
+      owner approvals); a decision beats an item's wording. Branch r67/d21-screens-moms-scope
+      in worktree C:/ct/ct-worktrees/r67-D21, cut from a fresh origin/main (HEAD 5a64aaee).
+
+      compliance-tracker file scope, additive only:
+        - src/lib/services/veri-meeting-service.ts -- soft delete of DRAFT meetings only
+          (status 'deleted', no migration: veri_meetings.status is free text and was already
+          a two-value convention), list/get filtering for it, and the pure share-link
+          composer (per-brand message + shareOrigin-derived URL) D-21 needs.
+        - src/lib/services/veri-meeting-service.test.ts -- NEW sibling test; this file had
+          none, so it is what satisfies the "New Test Coverage Check" gate for the change
+          above. docs/master/TEST_COVERAGE_GAP.md regenerated in the same commit.
+        - src/lib/services/hr-service.ts (+ its existing sibling test) -- one PURE helper
+          (filterOrgUsersByQuery) so D-19's people picker reuses listEmployees' existing
+          users read path instead of adding a parallel directory service.
+        - src/app/api/v1/projexa/veri-meetings/[id]/route.ts (adds DELETE),
+          .../[id]/share-links/route.ts (brand + shareOrigin body),
+          src/app/api/veri-meetings/share/[token]/pdf/route.ts (NEW, public, token-gated --
+          reuses the shipped generateMeetingMinutesPdf, no new PDF code),
+          src/app/api/v1/projexa/users/route.ts (NEW, org-scoped user list for the picker).
+
+      Did NOT touch: any drizzle/ migration (this lane needs none), the pipeline
+      (classify/validate/executor/run-submission), construction-boq-service.ts,
+      construction-progress-service.ts, construction-labour-service.ts or any billing/
+      Part D/Part E file. Deliberately did not implement any other lane's prerequisite
+      (e.g. WS-B's chain-options endpoint) -- those are built against their described
+      contract only.
+    claim_registration_note: >-
+      Registered per AGENTS.md Rule 11 as the FIRST commit on this lane's own worktree
+      branch (never a direct push to main -- Rule 6), matching the precedent the
+      r65-partd-reuse-cache-wiring entry below already set for this file's "commit the
+      claim first, fast" instruction under branch protection.
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |
