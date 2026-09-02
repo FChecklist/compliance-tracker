@@ -93,6 +93,33 @@ active:
       ui-kit (D-09: fork into projexa instead), platform.* tables, or any guardrail script's
       strictness (AGENTS.md Rule 9). No other active entry in this file claims drizzle/**,
       construction-boq-service.ts, construction-reports-service.ts or screen_definitions.
+  - session_label: "claude-code (subagent, r67/a-composer-shell) -- PROGRAMME R67 lane A (WS-A composer shell), items A-01..A-22"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC (programme R67, implementing the owner-approved R66 UX/product-design
+      audit; binding decisions D-01..D-10 in the programme's decisions record,
+      notably D-09 "no veridian-ui-kit release -- fork the shell components into
+      projexa" and D-10 "pill demotion approved for PROJEXA only").
+
+      Lane A is the COMPOSER SHELL lane and is almost entirely in the OTHER repo
+      (FChecklist/projexa, worktree C:/ct/projexa-worktrees/r67-A, branch
+      r67/a-composer-shell): the M24 composer's control strip, pill strip,
+      chain root/project resolution and instruction strings. This entry is
+      registered here because two later items in the lane (A-07, A-08) also
+      touch THIS repo.
+    scope_note: >-
+      compliance-tracker file scope claimed by this lane (later items only, not
+      yet started at claim time): src/app/api/v1/projexa/pill-usage/route.ts
+      (A-07: accept/return leaf card ids in the existing free-text
+      compliance.pill_usage.pillKey column + return a label per ranked entry;
+      A-08: return the top three leaf chains of the last seven days) and
+      src/app/api/v1/projexa/tasks/route.ts (A-08: insert a
+      compliance.chain_history row on every confirmed submission). Both tables
+      already exist (schema.ts:13096 pill_usage, :13112 chain_history) so NO
+      migration and no schema.ts change is claimed. Nothing else in this repo is
+      touched by lane A -- in particular not src/lib/pipeline/* (that is lane
+      WS-B's executor-registration and error-dictionary work, which this lane
+      only consumes as a contract).
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |
