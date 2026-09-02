@@ -641,18 +641,23 @@ export async function createBoqRevision(
     // item's result onto its CURRENT id, since findScopeReductionViolations
     // looks progress up by change.current.id. Removed items are unaffected
     // (their "id" IS the previous/only id, already correct).
-    const progressByPreviousId = await loadLatestProgressByLineItem(db, ctx.orgId, [...removed, ...changed.map((c) => c.previous)])
-    const progressByLineItem = new Map(progressByPreviousId)
+    const progressByPreviousId = await loadLatestProgressDetailByLineItem(db, ctx.orgId, [...removed, ...changed.map((c) => c.previous)])
+    const progressDetailByLineItem = new Map(progressByPreviousId)
     for (const c of changed) {
-      const pct = progressByPreviousId.get(c.previous.id)
-      if (pct !== undefined) progressByLineItem.set(c.current.id, pct)
+      const progress = progressByPreviousId.get(c.previous.id)
+      if (progress !== undefined) progressDetailByLineItem.set(c.current.id, progress)
     }
+    const progressByLineItem = new Map([...progressDetailByLineItem].map(([id, p]) => [id, p.percentComplete]))
     const violations = findScopeReductionViolations({ removed, changed }, progressByLineItem)
     if (violations.length > 0 && !input.allowScopeReductionOverride) {
-      throw new ServiceError(
+      // R67 D-27: the same block, now carrying the violating lines as
+      // STRUCTURED rows as well as inside the sentence, so the revise screen
+      // can render "R60SK-A - 12 m2 recorded on 28 Aug 2026" in a table above
+      // the override instead of printing a paragraph.
+      throw new ScopeReductionError(
         `Scope reduction blocked -- this revision would remove or reduce work already completed on site: ${violations.join("; ")}. ` +
           `Pass allowScopeReductionOverride: true to proceed anyway.`,
-        409
+        buildScopeReductionConflicts({ removed, changed }, progressDetailByLineItem)
       )
     }
 
@@ -758,12 +763,91 @@ export function resolveProgressByLineItem(
   byLineItemId: Map<string, number>,
   byActivityId: Map<string, number>
 ): Map<string, number> {
-  const progressByLineItem = new Map<string, number>()
+  return resolveByLineItem(items, byLineItemId, byActivityId)
+}
+
+/**
+ * R67 D-27: the same resolution rule, carrying the WHOLE most-recent progress
+ * entry rather than only its percentage -- because "R60SK-A - 12 m2 recorded on
+ * 28 Aug 2026" needs the quantity and the date as well. Generic so the two
+ * cannot drift: resolveProgressByLineItem above is this function at T = number.
+ */
+export type LineItemProgress = { percentComplete: number; quantityDone: number; entryDate: string }
+
+function resolveByLineItem<T>(items: BoqLineItemRow[], byLineItemId: Map<string, T>, byActivityId: Map<string, T>): Map<string, T> {
+  const resolved = new Map<string, T>()
   for (const item of items) {
-    if (byLineItemId.has(item.id)) { progressByLineItem.set(item.id, byLineItemId.get(item.id)!); continue }
-    if (item.activityId && byActivityId.has(item.activityId)) progressByLineItem.set(item.id, byActivityId.get(item.activityId)!)
+    if (byLineItemId.has(item.id)) { resolved.set(item.id, byLineItemId.get(item.id)!); continue }
+    if (item.activityId && byActivityId.has(item.activityId)) resolved.set(item.id, byActivityId.get(item.activityId)!)
   }
-  return progressByLineItem
+  return resolved
+}
+
+export function resolveProgressDetailByLineItem(
+  items: BoqLineItemRow[],
+  byLineItemId: Map<string, LineItemProgress>,
+  byActivityId: Map<string, LineItemProgress>
+): Map<string, LineItemProgress> {
+  return resolveByLineItem(items, byLineItemId, byActivityId)
+}
+
+/**
+ * R67 D-27 (R-068). The 409 this service already threw named the violating
+ * lines only inside a prose sentence -- '"Blockwork" is 40% complete on site
+ * and would be removed entirely' -- which a UI can print but cannot render as a
+ * table, sort, count, or link to the line. This turns the SAME violations into
+ * structured rows carrying what a site engineer needs to judge the override:
+ * the item code, the quantity actually recorded, its unit, and when it was last
+ * recorded.
+ *
+ * Pure and DB-free, sharing findScopeReductionViolations' own rule for what
+ * counts as a violation (a removed line, or a changed line whose netVariation
+ * is negative, that has ANY recorded progress) so the block and the table can
+ * never disagree about which lines they are talking about.
+ */
+export type ScopeReductionConflict = {
+  itemCode: string | null
+  description: string
+  recordedQty: number
+  unit: string
+  lastRecordedAt: string
+}
+
+export function buildScopeReductionConflicts(
+  diff: { removed: BoqLineItemRow[]; changed: ChangedLineItem[] },
+  progressByLineItem: Map<string, LineItemProgress>
+): ScopeReductionConflict[] {
+  const conflicts: ScopeReductionConflict[] = []
+  const push = (item: BoqLineItemRow, progress: LineItemProgress | undefined) => {
+    if (!progress || !(progress.percentComplete > 0)) return
+    conflicts.push({
+      itemCode: item.itemCode,
+      description: item.description,
+      recordedQty: progress.quantityDone,
+      unit: item.unit,
+      lastRecordedAt: progress.entryDate,
+    })
+  }
+
+  for (const item of diff.removed) push(item, progressByLineItem.get(item.id))
+  for (const change of diff.changed) {
+    if (change.netVariation >= 0) continue
+    push(change.current, progressByLineItem.get(change.current.id))
+  }
+  return conflicts
+}
+
+/**
+ * R67 D-27: the 409 createBoqRevision raises when a revision would reduce or
+ * remove scope already completed on site. A ServiceError, so every existing
+ * `catch (error instanceof ServiceError)` in the route layer keeps working
+ * unchanged and still answers 409 with this message; a route that WANTS the
+ * structured rows checks for this subclass and adds `conflicts` to the body.
+ */
+export class ScopeReductionError extends ServiceError {
+  constructor(message: string, public readonly conflicts: ScopeReductionConflict[]) {
+    super(message, 409)
+  }
 }
 
 /**
@@ -781,6 +865,18 @@ export function resolveProgressByLineItem(
  * from the pure merge/violation logic above.
  */
 export async function loadLatestProgressByLineItem(db: TenantDb, orgId: string, items: BoqLineItemRow[]): Promise<Map<string, number>> {
+  const detail = await loadLatestProgressDetailByLineItem(db, orgId, items)
+  return new Map([...detail].map(([id, p]) => [id, p.percentComplete]))
+}
+
+/**
+ * R67 D-27: the DB half of the conflict table -- the same read
+ * loadLatestProgressByLineItem has always done, keeping the WHOLE most-recent
+ * entry (percentage, quantity done, date) instead of discarding all but the
+ * percentage. loadLatestProgressByLineItem above is now a projection of this,
+ * so there is still exactly ONE query and one resolution rule (arch rule AR-01).
+ */
+export async function loadLatestProgressDetailByLineItem(db: TenantDb, orgId: string, items: BoqLineItemRow[]): Promise<Map<string, LineItemProgress>> {
   const lineItemIds = items.map((i) => i.id)
   const activityIds = [...new Set(items.map((i) => i.activityId).filter((id): id is string => !!id))]
 
@@ -797,14 +893,19 @@ export async function loadLatestProgressByLineItem(db: TenantDb, orgId: string, 
   // Most-recent entry per direct link (boq_line_item_id) and per fallback
   // link (activity_id) -- kept as two separate maps because a single row
   // can satisfy either lookup and "most recent" is per-key, not per-row.
-  const byLineItemId = new Map<string, number>()
-  const byActivityId = new Map<string, number>()
+  const byLineItemId = new Map<string, LineItemProgress>()
+  const byActivityId = new Map<string, LineItemProgress>()
+  const toProgress = (row: typeof rows[number]): LineItemProgress => ({
+    percentComplete: Number(row.percentComplete),
+    quantityDone: Number(row.quantityDone),
+    entryDate: String(row.entryDate),
+  })
   for (const row of rows) {
-    if (row.boqLineItemId && !byLineItemId.has(row.boqLineItemId)) byLineItemId.set(row.boqLineItemId, Number(row.percentComplete))
-    if (row.activityId && !byActivityId.has(row.activityId)) byActivityId.set(row.activityId, Number(row.percentComplete))
+    if (row.boqLineItemId && !byLineItemId.has(row.boqLineItemId)) byLineItemId.set(row.boqLineItemId, toProgress(row))
+    if (row.activityId && !byActivityId.has(row.activityId)) byActivityId.set(row.activityId, toProgress(row))
   }
 
-  return resolveProgressByLineItem(items, byLineItemId, byActivityId)
+  return resolveProgressDetailByLineItem(items, byLineItemId, byActivityId)
 }
 
 /**
