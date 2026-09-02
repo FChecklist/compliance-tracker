@@ -40,6 +40,47 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (subagent, r67-lane-D22) -- PROGRAMME R67 workstream WS-D lane D22 (screens-work-progress), items D-41/D-48/D-49/D-52/D-54/D-58/D-60/D-63/D-64/D-68/D-75/D-76/D-77"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implementation programme R67,
+      lane D22 ("screens-work-progress"). Branch r67/d22-screens-work-progress, worktree
+      C:/ct/ct-worktrees/r67-D22 (compliance-tracker) + C:/ct/projexa-worktrees/r67-D22
+      (projexa).
+
+      DEPENDENCY, DISCLOSED: items D-41/D-49/D-54 declare dependsOn I-03/I-04/I-05, all of
+      which are already built on branch r67/i-data-migrations (the WS-I lane above) and not
+      yet merged to main. This branch therefore MERGES r67/i-data-migrations rather than
+      re-implementing any part of it -- material_amount/manpower_amount, the BOQ line
+      `category` column, pms_issue_boq_links and pms_issues.completion_source are consumed
+      here, never re-declared. No migration in drizzle/ is authored by this lane; if WS-I
+      merges first this branch's diff against main collapses to lane D22's own files only.
+
+      File scope in compliance-tracker (this lane's own changes only):
+        src/lib/services/construction-reports-service.ts (+ .test.ts) -- boqBudgetVarianceReport
+          widened with unit/quantity/rate/boqId/boqTitle and the material/revenue actuals
+        src/lib/services/construction-progress-service.ts (+ .test.ts) -- linked-issue
+          completion roll-up from BOQ work-progress entries (D-49)
+        src/lib/services/schedule-import-service.ts (new, + .test.ts) -- programme xlsx/csv
+          import parser (D-48)
+        src/lib/services/schedule-service.ts -- getGanttData projects completionSource/
+          lastProgressAt (D-49)
+        src/app/api/v1/projexa/schedule/import/route.ts (new)
+        src/app/api/v1/projexa/scope/import/route.ts -- dryRun preview flag (D-52/D-60)
+        docs/master/TEST_COVERAGE_GAP.md (regenerated)
+
+      File scope in projexa: src/app/(app)/budgets/**, src/app/(app)/accounting/annual-budgets/**,
+        src/app/(app)/scope/import/**, src/app/(app)/schedule/import/**,
+        src/components/BudgetProjectClient.tsx, ScopeImportClient.tsx, ScheduleImportClient.tsx,
+        CostVarianceAnalyticalClient.tsx, ScopeClient.tsx, ScopeObjectClient.tsx,
+        ScheduleTaskObjectClient.tsx, MoM*Client.tsx, WorkProgress*Client.tsx,
+        src/lib/nav-routes.ts, src/components/AppSidebar.tsx, messages/*.json.
+
+      NOT touching: drizzle/** (no migration authored by this lane), platform.* tables, the
+      ui-kit (D-09: fork into projexa instead), src/lib/pipeline/**, or any guardrail
+      script's strictness (AGENTS.md Rule 9). AGENTS.md Rule 12: the six ai-os/memory/
+      indexes were checked before broad search (the programme's own repo_map.md, produced by
+      a read-only exploration of both repos, is the citation used here).
   - session_label: "claude-code (subagent, r67-lane-I) -- PROGRAMME R67 workstream WS-I (data-migrations), items I-01..I-05"
     claimed_at: "2026-09-02T (this session)"
     claim: |

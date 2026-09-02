@@ -668,3 +668,105 @@ describe("workProgressReport with categoryFilter (R67 I-05, real code path)", ()
     expect(result.activities).toEqual([])
   })
 })
+
+// R67 lane D22 (item D-41): the Budget screen PROJEXA now renders at /budgets
+// prints Sumeet's own columns -- S.No | Category | Code | Description | Qty |
+// Rate | Amount | Budget % | Budget | Vendor | Vendor Amt | Material |
+// Manpower -- and deep-links each row back to /scope/{boqId}#line-{id}. Qty,
+// Rate, Unit and the BOQ's own identity were the parts this report could not
+// answer, so the screen would have had to load the whole BOQ a second time.
+// Exercised through the real boqBudgetVarianceReport() code path with only the
+// DB layer and the construction-enablement gate mocked, the same convention
+// the workProgressReport block above uses.
+describe("boqBudgetVarianceReport widened for the project Budget screen (R67 D-41)", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+    await mock.module("./construction-enablement-service", () => realEnablementService)
+  })
+
+  const BOQ = { id: "boq-9", projectId: "proj-1", title: "Fit-out BOQ", version: 2, status: "approved", createdAt: new Date("2026-08-01") }
+  const LINE_ITEMS = [
+    {
+      id: "li-1", itemCode: "R60SK", description: "R60 skiphop sub", category: "Civil",
+      quantity: "10", unit: "m2", rate: "650", amount: "6500", parentLineItemId: null,
+      budgetPercentage: "25", materialAmount: "900", manpowerAmount: "600",
+      vendorId: "sup-1", vendorAmount: "1700",
+    },
+    {
+      id: "li-2", itemCode: "GYP-1", description: "Ceiling grid", category: "Gypsum",
+      quantity: "4", unit: "m2", rate: "100", amount: "400", parentLineItemId: null,
+      budgetPercentage: "25", materialAmount: null, manpowerAmount: null,
+      vendorId: null, vendorAmount: null,
+    },
+  ]
+
+  async function runBudgetVariance(boqs: unknown[] = [BOQ], lineItems: unknown[] = LINE_ITEMS) {
+    const fakeDb = {
+      query: {
+        constructionBoqs: { findMany: mock(async () => boqs) },
+        constructionBoqLineItems: { findMany: mock(async () => lineItems) },
+      },
+      select: () => ({ from: () => ({ where: () => Promise.resolve([{ id: "sup-1", name: "Skiphop Interiors" }]) }) }),
+    }
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablementService,
+      requireConstructionEnabled: mock(async () => {}),
+    }))
+    const { boqBudgetVarianceReport } = await import("./construction-reports-service")
+    return boqBudgetVarianceReport({ orgId: "org-budget-test" }, "proj-1")
+  }
+
+  test("every line carries the Sumeet columns the Budget screen prints -- quantity, unit, rate, category and the material/manpower split", async () => {
+    const result = await runBudgetVariance()
+    expect(result.lines[0]).toMatchObject({
+      lineItemId: "li-1", code: "R60SK", description: "R60 skiphop sub", category: "Civil",
+      quantity: 10, unit: "m2", rate: 650, amount: 6500,
+      budgetPercentage: 25, budget: 1625,
+      materialAmount: 900, manpowerAmount: 600,
+      vendorName: "Skiphop Interiors", vendorAmount: 1700, variance: 75,
+    })
+    // Numbers, not the numeric-as-string Drizzle hands back -- a screen that
+    // does arithmetic on these must never get "10" + "4" = "104".
+    expect(typeof result.lines[0].quantity).toBe("number")
+    expect(typeof result.lines[0].rate).toBe("number")
+  })
+
+  test("a line the QS has not split reads null for material/manpower, never a fabricated 0", async () => {
+    const result = await runBudgetVariance()
+    expect(result.lines[1].materialAmount).toBeNull()
+    expect(result.lines[1].manpowerAmount).toBeNull()
+  })
+
+  test("the report names the BOQ its lines came from, so each row can deep-link to /scope/{boqId}#line-{id}", async () => {
+    const result = await runBudgetVariance()
+    expect(result.boqId).toBe("boq-9")
+    expect(result.boqTitle).toBe("Fit-out BOQ")
+    expect(result.boqVersion).toBe(2)
+  })
+
+  test("a project with no BOQ answers the SAME keys, so the screen renders zeroes rather than NaN", async () => {
+    const result = await runBudgetVariance([], [])
+    expect(Object.keys(result).sort()).toEqual(
+      ["boqId", "boqTitle", "boqVersion", "lines", "totalBudget", "totalManpowerAmount", "totalMaterialAmount", "totalVariance", "totalVendorAmount"].sort()
+    )
+    expect(result.boqId).toBeNull()
+    expect(result.lines).toEqual([])
+    expect(result.totalBudget).toBe(0)
+  })
+
+  test("the grand total ties to the per-line budgets, and moving one line's Budget % moves it by exactly that line's delta", async () => {
+    const before = await runBudgetVariance()
+    expect(before.totalBudget).toBe(1625 + 100)
+    expect(before.totalBudget).toBe(before.lines.reduce((s, l) => s + l.budget, 0))
+
+    mock.restore()
+    const at30 = await runBudgetVariance([BOQ], [{ ...LINE_ITEMS[0], budgetPercentage: "30" }, LINE_ITEMS[1]])
+    expect(at30.lines[0].budget).toBe(1950)
+    expect(at30.totalBudget - before.totalBudget).toBe(325)
+  })
+})

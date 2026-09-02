@@ -459,7 +459,14 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     // R67 lane I (I-03): the empty-project shape must carry the SAME keys as
     // the populated one, or a caller that reads totalMaterialAmount gets
     // undefined on a project with no BOQ and renders "NaN".
-    if (!latest) return { lines: [], totalBudget: 0, totalVendorAmount: 0, totalVariance: 0, totalMaterialAmount: 0, totalManpowerAmount: 0 }
+    //
+    // R67 lane D22 (item D-41): boqId/boqTitle/boqVersion identify WHICH
+    // revision these lines came from, so PROJEXA's project Budget screen can
+    // deep-link each row back to /scope/{boqId}#line-{id} (the BOQ object page
+    // stays the source of truth) without a second round trip to find the
+    // latest BOQ. null on a project with no BOQ at all -- the same
+    // "same keys in both shapes" rule I-03 established just above.
+    if (!latest) return { boqId: null, boqTitle: null, boqVersion: null, lines: [], totalBudget: 0, totalVendorAmount: 0, totalVariance: 0, totalMaterialAmount: 0, totalManpowerAmount: 0 }
 
     const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id) })
     const vendorIds = [...new Set(lineItems.map((i) => i.vendorId).filter((id): id is string => !!id))]
@@ -492,6 +499,19 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
         // null (never "") -- normalizeCategory in construction-boq-service.ts
         // is the single writer, so "no category" is one value here.
         category: item.category,
+        // R67 lane D22 (item D-41): Sumeet's own printed budget sheet is
+        // S.No | Category | Code | Description | Qty | Unit | Rate | Amount |
+        // Budget % | Budget | ... -- Qty, Unit and Rate were the three columns
+        // this report could not fill, so PROJEXA's Budget screen had to fetch
+        // the whole BOQ a second time just to print them. Projected here, from
+        // the same already-loaded rows, so one call answers the whole screen.
+        // parentLineItemId comes with them because a child line's Qty/Rate are
+        // DERIVED (schema.ts's canonical child-rate rule) and the screen must
+        // render them as derived rather than as independently editable.
+        quantity: Number(item.quantity),
+        unit: item.unit,
+        rate: Number(item.rate),
+        parentLineItemId: item.parentLineItemId,
         amount: Number(item.amount),
         budgetPercentage: Number(item.budgetPercentage),
         budget: Math.round(rawBudget * 100) / 100,
@@ -522,6 +542,9 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     const totalManpowerAmount = Math.round(lines.reduce((s, l) => s + (l.manpowerAmount ?? 0), 0) * 100) / 100
 
     return {
+      boqId: latest.id,
+      boqTitle: latest.title,
+      boqVersion: latest.version,
       lines: lines.map(({ _rawBudget, _rawVariance, ...line }) => line),
       totalBudget,
       totalVendorAmount,
