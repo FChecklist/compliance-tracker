@@ -11041,6 +11041,12 @@ export const constructionMaterials = complianceSchemaDB.table('construction_mate
   spec: text('spec'),
   unit: text('unit').notNull(),
   unitCost: numeric('unit_cost').notNull().default('0'),
+  // R67 D-40. Optional per-material threshold: when onHand drops below it the
+  // master row is flagged "Low" (glyph AND word, never colour alone). Nullable
+  // because most materials on a fit-out never get one, and 0 is a real
+  // threshold ("flag me the moment it runs out") that must not be confused
+  // with "no threshold set".
+  reorderLevel: numeric('reorder_level'),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
@@ -11074,12 +11080,53 @@ export const constructionMaterialReceipts = complianceSchemaDB.table('constructi
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// R67 D-40 (Sumeet's item 8, "material database -- spec, cost, qty"). The
+// module had receipts but no issues, so it could say what arrived on site and
+// never what left the store: "qty" was unanswerable and the master carried no
+// quantity column at all.
+//
+// This is the OUT side of the same ledger, deliberately shaped like
+// construction_material_receipts (same org/project/material scoping, same
+// numeric-as-string quantity, same createdById) so onHand is one subtraction of
+// two grouped sums over two tables that agree on their columns -- not a
+// denormalised stock balance that can drift from the movements that produced
+// it. There is no separate valuation layer here: erp_stock_* exists for that
+// and is heavier than what was asked for.
+//
+// An issue has no unitCost of its own. What material left the store is a
+// quantity question; what it COST is answered by the receipts it came from,
+// which is where the Cost Report already computes it.
+export const constructionMaterialIssues = complianceSchemaDB.table('construction_material_issues', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  materialId: text('material_id').notNull().references(() => constructionMaterials.id),
+  issuedDate: date('issued_date', { mode: 'string' }).notNull(),
+  quantity: numeric('quantity').notNull(),
+  // Which BOQ line this material was consumed against, when the storekeeper
+  // knows. Nullable and un-referenced on purpose: site staff issue material
+  // long before anyone has decided which line it belongs to, and a hard FK
+  // would make the honest answer ("not yet") unrecordable.
+  boqItemId: text('boq_item_id'),
+  // The gang, subcontractor or person who took it -- free text, because on a
+  // real site this is "Falcon gang 3" as often as it is a named user.
+  issuedTo: text('issued_to'),
+  note: text('note'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const constructionMaterialsRelations = relations(constructionMaterials, ({ many }) => ({
   receipts: many(constructionMaterialReceipts),
+  issues: many(constructionMaterialIssues),
 }))
 
 export const constructionMaterialReceiptsRelations = relations(constructionMaterialReceipts, ({ one }) => ({
   material: one(constructionMaterials, { fields: [constructionMaterialReceipts.materialId], references: [constructionMaterials.id] }),
+}))
+
+export const constructionMaterialIssuesRelations = relations(constructionMaterialIssues, ({ one }) => ({
+  material: one(constructionMaterials, { fields: [constructionMaterialIssues.materialId], references: [constructionMaterials.id] }),
 }))
 
 // Certified Payroll (SAP-mapping gap analysis HCM-006, "Certified Payroll

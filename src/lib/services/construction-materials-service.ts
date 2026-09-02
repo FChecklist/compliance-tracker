@@ -4,7 +4,7 @@
 // not built. receipt.unitCost defaults from the master's unitCost but is
 // stored per receipt (a delivery can be priced differently), matching
 // construction-labour-service.ts's dailyCost-computed-at-write-time posture.
-import { constructionMaterials, constructionMaterialReceipts, users } from "@/lib/db"
+import { constructionMaterials, constructionMaterialIssues, constructionMaterialReceipts, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, isNull, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -16,6 +16,25 @@ export type MaterialInput = {
   spec?: string
   unit: string
   unitCost?: number
+  reorderLevel?: number | null
+}
+
+export type MaterialIssueInput = {
+  projectId: string
+  materialId: string
+  issuedDate: string
+  quantity: number
+  boqItemId?: string | null
+  issuedTo?: string | null
+  note?: string | null
+  createdById: string
+}
+
+/** The master row as the list returns it -- the stored columns plus the quantities. */
+export type MaterialWithQuantities = typeof constructionMaterials.$inferSelect & {
+  receivedToDate: number
+  issuedToDate: number
+  onHand: number
 }
 
 export type MaterialReceiptInput = {
@@ -30,12 +49,66 @@ export type MaterialReceiptInput = {
   createdById: string
 }
 
-export async function listMaterials(ctx: { orgId: string }, projectId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.constructionMaterials.findMany({
+// R67 D-40 (Sumeet's item 8, "material database -- spec, cost, qty"). The
+// master had no quantity at all: a storekeeper could see what a bag of cement
+// is meant to cost and not how many were on site.
+//
+// receivedToDate / issuedToDate / onHand are computed here rather than stored,
+// so they can never drift from the movements that produced them, and they are
+// computed as TWO grouped aggregates inside the SAME transaction as the master
+// read -- never one query per material. That distinction is not stylistic:
+// tenant-scoped.ts runs on a 5-connection pool, so an N+1 over a 200-line
+// master is how this module would take the whole app down.
+//
+// Voided receipts are excluded by the same isNull(voidedAt) predicate the Cost
+// Report uses (D-36), so "Received to date" on the master and the Cost Report's
+// own total can never disagree about whether a cancelled delivery counts.
+export async function listMaterials(ctx: { orgId: string }, projectId: string): Promise<MaterialWithQuantities[]> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const materials = await db.query.constructionMaterials.findMany({
       where: and(eq(constructionMaterials.orgId, ctx.orgId), eq(constructionMaterials.projectId, projectId)),
     })
-  )
+    if (materials.length === 0) return []
+
+    const receivedRows = await db.select({
+      materialId: constructionMaterialReceipts.materialId,
+      total: sql<string>`coalesce(sum(${constructionMaterialReceipts.quantity}), 0)`,
+    })
+      .from(constructionMaterialReceipts)
+      .where(and(
+        eq(constructionMaterialReceipts.orgId, ctx.orgId),
+        eq(constructionMaterialReceipts.projectId, projectId),
+        isNull(constructionMaterialReceipts.voidedAt)
+      ))
+      .groupBy(constructionMaterialReceipts.materialId)
+
+    const issuedRows = await db.select({
+      materialId: constructionMaterialIssues.materialId,
+      total: sql<string>`coalesce(sum(${constructionMaterialIssues.quantity}), 0)`,
+    })
+      .from(constructionMaterialIssues)
+      .where(and(
+        eq(constructionMaterialIssues.orgId, ctx.orgId),
+        eq(constructionMaterialIssues.projectId, projectId)
+      ))
+      .groupBy(constructionMaterialIssues.materialId)
+
+    const receivedById = new Map(receivedRows.map((r) => [r.materialId, Number(r.total)]))
+    const issuedById = new Map(issuedRows.map((r) => [r.materialId, Number(r.total)]))
+
+    return materials.map((material) => {
+      const receivedToDate = receivedById.get(material.id) ?? 0
+      const issuedToDate = issuedById.get(material.id) ?? 0
+      return {
+        ...material,
+        receivedToDate,
+        issuedToDate,
+        // Rounded to the same 3 decimals the UI renders quantities at, so a
+        // float subtraction cannot surface 119.99999999999999 on screen.
+        onHand: Math.round((receivedToDate - issuedToDate) * 1000) / 1000,
+      }
+    })
+  })
 }
 
 export async function createMaterial(ctx: { orgId: string }, input: MaterialInput) {
@@ -49,6 +122,9 @@ export async function createMaterial(ctx: { orgId: string }, input: MaterialInpu
       orgId: ctx.orgId, projectId: input.projectId, name,
       spec: input.spec || null, unit: input.unit.trim(),
       unitCost: String(input.unitCost ?? 0),
+      // R67 D-40: null and 0 are different facts here -- see the column's own
+      // comment in schema.ts -- so an omitted threshold stores null.
+      reorderLevel: input.reorderLevel === undefined || input.reorderLevel === null ? null : String(input.reorderLevel),
     }).returning()
     return row
   })
@@ -59,18 +135,48 @@ export async function createMaterial(ctx: { orgId: string }, input: MaterialInpu
 // unit-cost correction or retiring a material had no path except
 // re-creating it. Mirrors construction-labour-service.ts's identical
 // getRosterEntry()/updateRosterEntry() fix this same session.
-export async function getMaterial(ctx: { orgId: string }, materialId: string) {
+// R67 D-40: the object page leads on On hand, so the single-material read
+// carries the same three quantities the master list does, computed the same way
+// (see listMaterials' own comment) and in one transaction.
+export async function getMaterial(ctx: { orgId: string }, materialId: string): Promise<MaterialWithQuantities> {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const material = await db.query.constructionMaterials.findFirst({ where: and(eq(constructionMaterials.id, materialId), eq(constructionMaterials.orgId, ctx.orgId)) })
     if (!material) throw new ServiceError("Material not found", 404)
-    return material
+
+    const [receivedRow] = await db.select({
+      total: sql<string>`coalesce(sum(${constructionMaterialReceipts.quantity}), 0)`,
+    })
+      .from(constructionMaterialReceipts)
+      .where(and(
+        eq(constructionMaterialReceipts.orgId, ctx.orgId),
+        eq(constructionMaterialReceipts.materialId, materialId),
+        isNull(constructionMaterialReceipts.voidedAt)
+      ))
+
+    const [issuedRow] = await db.select({
+      total: sql<string>`coalesce(sum(${constructionMaterialIssues.quantity}), 0)`,
+    })
+      .from(constructionMaterialIssues)
+      .where(and(
+        eq(constructionMaterialIssues.orgId, ctx.orgId),
+        eq(constructionMaterialIssues.materialId, materialId)
+      ))
+
+    const receivedToDate = Number(receivedRow?.total ?? 0)
+    const issuedToDate = Number(issuedRow?.total ?? 0)
+    return {
+      ...material,
+      receivedToDate,
+      issuedToDate,
+      onHand: Math.round((receivedToDate - issuedToDate) * 1000) / 1000,
+    }
   })
 }
 
 export async function updateMaterial(
   ctx: { orgId: string },
   materialId: string,
-  patch: Partial<{ name: string; spec: string | null; unit: string; unitCost: number; isActive: boolean }>
+  patch: Partial<{ name: string; spec: string | null; unit: string; unitCost: number; reorderLevel: number | null; isActive: boolean }>
 ) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const existing = await db.query.constructionMaterials.findFirst({ where: and(eq(constructionMaterials.id, materialId), eq(constructionMaterials.orgId, ctx.orgId)) })
@@ -79,7 +185,16 @@ export async function updateMaterial(
     if (patch.unit !== undefined && !patch.unit.trim()) throw new ServiceError("unit cannot be empty", 400)
 
     const [row] = await db.update(constructionMaterials)
-      .set({ ...patch, unitCost: patch.unitCost !== undefined ? String(patch.unitCost) : undefined })
+      .set({
+        ...patch,
+        unitCost: patch.unitCost !== undefined ? String(patch.unitCost) : undefined,
+        // R67 D-40: an explicit null CLEARS the threshold; an absent key leaves
+        // it alone. Passing `undefined` through String() would have written the
+        // literal "undefined".
+        reorderLevel: patch.reorderLevel === undefined
+          ? undefined
+          : patch.reorderLevel === null ? null : String(patch.reorderLevel),
+      })
       .where(eq(constructionMaterials.id, materialId)).returning()
     return row
   })
@@ -234,6 +349,80 @@ export async function createMaterialReceipt(ctx: { orgId: string }, input: Mater
       vendorId: input.vendorId || null,
       reference: input.reference?.trim() || null,
       notes: input.notes || null,
+      createdById: input.createdById,
+    }).returning()
+    return row
+  })
+}
+
+// R67 D-40: the OUT side of the ledger.
+export async function listMaterialIssues(ctx: { orgId: string }, projectId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.constructionMaterialIssues.findMany({
+      where: and(eq(constructionMaterialIssues.orgId, ctx.orgId), eq(constructionMaterialIssues.projectId, projectId)),
+      with: { material: true },
+      orderBy: (t, { desc }) => desc(t.issuedDate),
+    })
+  )
+}
+
+// R67 D-40. The on-hand cap is enforced HERE, not only in the form: the form's
+// cap is a courtesy to the storekeeper, this is the rule. Two people issuing
+// the last 50 bags from two phones would otherwise both pass a client check and
+// drive the ledger negative, and a negative on-hand is not a number anyone can
+// act on.
+//
+// Both sums run inside the SAME transaction as the insert, so the balance this
+// decision is made on is the balance at the moment of writing.
+export async function createMaterialIssue(ctx: { orgId: string }, input: MaterialIssueInput) {
+  if (!input.materialId) throw new ServiceError("materialId is required", 400)
+  if (!input.projectId) throw new ServiceError("projectId is required", 400)
+  if (!input.issuedDate) throw new ServiceError("issuedDate is required", 400)
+  if (input.quantity === undefined || input.quantity === null) throw new ServiceError("quantity is required", 400)
+  const quantity = Number(input.quantity)
+  if (!Number.isFinite(quantity) || quantity <= 0) throw new ServiceError("quantity must be greater than 0", 400)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const material = await db.query.constructionMaterials.findFirst({
+      where: and(eq(constructionMaterials.id, input.materialId), eq(constructionMaterials.orgId, ctx.orgId)),
+    })
+    if (!material) throw new ServiceError("Material not found", 404)
+
+    const [receivedRow] = await db.select({
+      total: sql<string>`coalesce(sum(${constructionMaterialReceipts.quantity}), 0)`,
+    })
+      .from(constructionMaterialReceipts)
+      .where(and(
+        eq(constructionMaterialReceipts.orgId, ctx.orgId),
+        eq(constructionMaterialReceipts.materialId, input.materialId),
+        isNull(constructionMaterialReceipts.voidedAt)
+      ))
+
+    const [issuedRow] = await db.select({
+      total: sql<string>`coalesce(sum(${constructionMaterialIssues.quantity}), 0)`,
+    })
+      .from(constructionMaterialIssues)
+      .where(and(
+        eq(constructionMaterialIssues.orgId, ctx.orgId),
+        eq(constructionMaterialIssues.materialId, input.materialId)
+      ))
+
+    const onHand = Math.round((Number(receivedRow?.total ?? 0) - Number(issuedRow?.total ?? 0)) * 1000) / 1000
+    if (quantity > onHand) {
+      // The message names the real figure and the real unit, because "invalid
+      // quantity" tells a storekeeper nothing they can act on.
+      throw new ServiceError(`Only ${onHand} ${material.unit} on hand`, 400)
+    }
+
+    const [row] = await db.insert(constructionMaterialIssues).values({
+      orgId: ctx.orgId,
+      projectId: input.projectId,
+      materialId: input.materialId,
+      issuedDate: input.issuedDate,
+      quantity: String(quantity),
+      boqItemId: input.boqItemId?.trim() || null,
+      issuedTo: input.issuedTo?.trim() || null,
+      note: input.note?.trim() || null,
       createdById: input.createdById,
     }).returning()
     return row

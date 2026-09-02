@@ -63,20 +63,36 @@ active:
           No /api/v1/projexa/materials/... alias is added: that namespace is already the
           ERP stock ledger (erp-inventory-service.ts), and every PROJEXA materials proxy
           reaches the construction receipts through callVeridian's `root: true` path.
+        - src/lib/services/construction-materials-service.ts (D-40, same file) --
+          listMaterials()/getMaterial() gain receivedToDate/issuedToDate/onHand as TWO
+          grouped aggregates in the SAME transaction (never one query per material, on a
+          5-connection pool); new listMaterialIssues()/createMaterialIssue(), whose
+          on-hand cap is enforced server-side inside the writing transaction;
+          createMaterial()/updateMaterial() carry reorderLevel (null clears, 0 is a real
+          threshold).
+        - src/app/api/v1/construction/materials/issues/route.ts (new GET/POST).
         - src/lib/db/schema.ts -- the four additive columns those two items need on
-          construction_material_receipts (reference, voided_at, void_reason, voided_by).
+          construction_material_receipts (reference, voided_at, void_reason, voided_by),
+          plus (D-40) construction_materials.reorder_level and the new table
+          construction_material_issues.
 
-      DECLARED OVERLAP, read before merging: the DDL for those columns belongs to R67
+      DECLARED OVERLAP, read before merging: the DDL for all of the above belongs to R67
       item I-02 ("Migrations: attendance batch key, roster codes and trades, material
       issues/void, org number format"), which is a DIFFERENT lane's file scope, so this
       branch adds NO drizzle/*.sql file and NO drizzle/meta/_journal.json entry -- only
-      the drizzle table declaration the service code needs to compile. I-02 must carry
-      those four columns (its own brief lists voided_at/void_reason/voided_by but NOT
-      `reference`, which D-36 requires) plus the unique index on construction_attendance
-      (org_id, roster_id, attendance_date). recordAttendanceBatch() is deliberately
-      written to be correct WITH OR WITHOUT that index (read-then-update/insert inside
-      the one transaction, not ON CONFLICT), so nothing here is blocked on I-02 landing
-      first; the receipts columns genuinely are.
+      the drizzle table declarations the service code needs to compile. I-02 must carry
+      those four receipt columns (its own brief lists voided_at/void_reason/voided_by but
+      NOT `reference`, which D-36 requires), the unique index on construction_attendance
+      (org_id, roster_id, attendance_date), AND -- added by D-40 --
+      compliance.construction_materials.reorder_level (numeric, nullable) plus the whole
+      compliance.construction_material_issues table (id text pk, org_id, project_id,
+      material_id -> construction_materials.id, issued_date date, quantity numeric,
+      boq_item_id text null, issued_to text null, note text null, created_by_id,
+      created_at, with the same RLS pattern as construction_material_receipts).
+      recordAttendanceBatch() is deliberately written to be correct WITH OR WITHOUT that
+      index (read-then-update/insert inside the one transaction, not ON CONFLICT), so
+      nothing here is blocked on I-02 landing first; the receipts columns, reorder_level
+      and the issues table genuinely are.
 
       Not touching: the pipeline (classify/executor/validate/run-submission), any AI
       router/escalation file, billing_*, construction-progress-service.ts,

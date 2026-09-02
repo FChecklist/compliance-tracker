@@ -23,7 +23,7 @@
 // would not, and is not what this file claims to cover.
 /// <reference types="bun-types" />
 import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test"
-import type { SQL } from "drizzle-orm"
+import { getTableName, type SQL, type Table } from "drizzle-orm"
 
 const ORG = "org-r67-d36"
 const OTHER_ORG = "org-other"
@@ -88,8 +88,19 @@ function evaluateCondition(node: unknown, row: Row): boolean {
 }
 
 // ── fixtures ────────────────────────────────────────────────────────────
-const CEMENT = { id: "mat-cement", orgId: ORG, projectId: PROJECT, name: "Cement OPC 53", spec: "53 grade", unit: "bag", unitCost: "420", isActive: true }
-const STEEL = { id: "mat-steel", orgId: ORG, projectId: PROJECT, name: "Steel rebar 12mm", spec: null, unit: "kg", unitCost: "3", isActive: true }
+const CEMENT = { id: "mat-cement", orgId: ORG, projectId: PROJECT, name: "Cement OPC 53", spec: "53 grade", unit: "bag", unitCost: "420", reorderLevel: null, isActive: true }
+const STEEL = { id: "mat-steel", orgId: ORG, projectId: PROJECT, name: "Steel rebar 12mm", spec: null, unit: "kg", unitCost: "3", reorderLevel: null, isActive: true }
+
+// R67 D-40
+function issue(overrides: Row): Row {
+  return {
+    id: "iss-x", orgId: ORG, projectId: PROJECT, materialId: CEMENT.id,
+    issuedDate: "2026-08-29", quantity: "10",
+    boqItemId: null, issuedTo: null, note: null,
+    createdById: "user-1", createdAt: new Date("2026-08-29T00:00:00Z"),
+    ...overrides,
+  }
+}
 
 function receipt(overrides: Row): Row {
   return {
@@ -104,6 +115,7 @@ function receipt(overrides: Row): Row {
 
 let materialRows: Row[] = []
 let receiptRows: Row[] = []
+let issueRows: Row[] = []
 let userRows: Row[] = []
 
 const mockWithTenantContext = mock(async (ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
@@ -112,6 +124,19 @@ const mockWithTenantContext = mock(async (ctx: { orgId: string }, fn: (db: unkno
 })
 
 let selectedGroupColumn: string | null = null
+
+// Which in-memory table a real drizzle table object stands for. Keyed on
+// drizzle's OWN table name, so a rename in schema.ts surfaces here as a loud
+// "fake db: unknown table" rather than as a silently empty result.
+function rowsFor(table: Table): Row[] {
+  switch (getTableName(table)) {
+    case "construction_material_receipts": return receiptRows
+    case "construction_material_issues": return issueRows
+    case "construction_materials": return materialRows
+    case "users": return userRows
+    default: throw new Error(`fake db: unknown table "${getTableName(table)}"`)
+  }
+}
 
 const fakeDb = {
   query: {
@@ -123,50 +148,74 @@ const fakeDb = {
       findMany: async ({ where }: { where: SQL }) => receiptRows.filter((r) => evaluateCondition(where, r)),
       findFirst: async ({ where }: { where: SQL }) => receiptRows.find((r) => evaluateCondition(where, r)),
     },
+    constructionMaterialIssues: {
+      findMany: async ({ where }: { where: SQL }) => issueRows.filter((r) => evaluateCondition(where, r)),
+      findFirst: async ({ where }: { where: SQL }) => issueRows.find((r) => evaluateCondition(where, r)),
+    },
   },
   // See the file header: this stands in for Postgres's own SUM/GROUP BY over
-  // exactly the rows the service's real where-clause selected. The same
-  // builder also serves getMaterialReceipt's users lookup, which awaits
-  // .where() directly instead of grouping -- routed by the projection's own
-  // shape (a "name" column means the users lookup), so both paths still run
-  // the service's real predicates through the evaluator.
+  // exactly the rows the service's real where-clause selected. Which rows those
+  // are comes from the REAL table handed to .from(), and what is returned comes
+  // from the projection's own shape:
+  //   { name, ... }                     -> getMaterialReceipt's users lookup
+  //   { materialId, totalQuantity... }  -> getMaterialCostReport's aggregate
+  //   { materialId, total }             -> listMaterials' quantity aggregates
+  //   { total } with no groupBy         -> the single-material on-hand sums
+  // Every path still runs the service's real predicates through the evaluator.
   select: (shape: Record<string, unknown>) => ({
-    from: () => ({
-      where: (where: SQL) => ({
-        then: (resolve: (rows: Row[]) => unknown) =>
-          resolve("name" in shape ? userRows.filter((r) => evaluateCondition(where, r)) : []),
-        groupBy: (column: { name: string }) => {
-          selectedGroupColumn = column.name
-          const matching = receiptRows.filter((r) => evaluateCondition(where, r))
-          const groups = new Map<string, Row[]>()
-          for (const r of matching) {
-            const key = String(r[snakeToCamel(column.name)])
-            groups.set(key, [...(groups.get(key) ?? []), r])
-          }
-          return Promise.resolve([...groups.entries()].map(([materialId, rows]) => ({
-            materialId,
-            totalQuantityReceived: String(rows.reduce((s, r) => s + Number(r.quantity), 0)),
-            totalCost: String(rows.reduce((s, r) => s + Number(r.quantity) * Number(r.unitCost), 0)),
-          })))
-        },
-      }),
+    from: (table: Table) => ({
+      where: (where: SQL) => {
+        const matching = () => rowsFor(table).filter((r) => evaluateCondition(where, r))
+        return {
+          then: (resolve: (rows: Row[]) => unknown) => {
+            if ("name" in shape) return resolve(matching())
+            // An ungrouped aggregate: Postgres returns exactly one row.
+            return resolve([{ total: String(matching().reduce((s, r) => s + Number(r.quantity), 0)) }])
+          },
+          groupBy: (column: { name: string }) => {
+            selectedGroupColumn = column.name
+            const groups = new Map<string, Row[]>()
+            for (const r of matching()) {
+              const key = String(r[snakeToCamel(column.name)])
+              groups.set(key, [...(groups.get(key) ?? []), r])
+            }
+            return Promise.resolve([...groups.entries()].map(([materialId, rows]) => {
+              const totalQuantity = rows.reduce((s, r) => s + Number(r.quantity), 0)
+              return "totalQuantityReceived" in shape
+                ? {
+                    materialId,
+                    totalQuantityReceived: String(totalQuantity),
+                    totalCost: String(rows.reduce((s, r) => s + Number(r.quantity) * Number(r.unitCost), 0)),
+                  }
+                : { materialId, total: String(totalQuantity) }
+            }))
+          },
+        }
+      },
     }),
   }),
-  insert: () => ({
+  insert: (table: Table) => ({
     values: (value: Row) => ({
       returning: async () => {
-        const created = { id: `rec-${receiptRows.length + 1}`, createdAt: new Date("2026-09-03T00:00:00Z"), ...value }
-        receiptRows.push(created)
+        const rows = rowsFor(table)
+        const prefix = { construction_material_issues: "iss", construction_materials: "mat" }[getTableName(table)] ?? "rec"
+        const created = { id: `${prefix}-${rows.length + 1}`, createdAt: new Date("2026-09-03T00:00:00Z"), ...value }
+        rows.push(created)
         return [created]
       },
     }),
   }),
-  update: () => ({
+  update: (table: Table) => ({
     set: (patch: Row) => ({
       where: (where: SQL) => ({
         returning: async () => {
-          const hits = receiptRows.filter((r) => evaluateCondition(where, r))
-          for (const hit of hits) Object.assign(hit, patch)
+          // Drizzle SKIPS undefined values in .set() -- "leave this column
+          // alone" -- and the reorderLevel contract depends on that difference
+          // (undefined leaves it, null clears it). A fake that assigned
+          // undefined would pass a broken service.
+          const applied = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
+          const hits = rowsFor(table).filter((r) => evaluateCondition(where, r))
+          for (const hit of hits) Object.assign(hit, applied)
           return hits
         },
       }),
@@ -182,6 +231,7 @@ async function useMocks(): Promise<void> {
 beforeEach(() => {
   materialRows = [{ ...CEMENT }, { ...STEEL }]
   receiptRows = []
+  issueRows = []
   userRows = [
     { id: "user-1", orgId: ORG, name: "Sana Iqbal" },
     { id: "user-9", orgId: ORG, name: "Rohit Verma" },
@@ -338,5 +388,169 @@ describe("getMaterialReceipt / createMaterialReceipt -- R67 D-36 object page fie
     expect(withoutRef.reference).toBeNull()
     // unitCost still defaults from the master when the receipt omits it.
     expect(withoutRef.unitCost).toBe(CEMENT.unitCost)
+  })
+})
+
+describe("listMaterials quantities -- R67 D-40 acceptance", () => {
+  test("with receipts of 200 and issues of 80 the master row reads receivedToDate 200, issuedToDate 80, onHand 120", async () => {
+    await useMocks()
+    const { listMaterials } = await import("./construction-materials-service")
+
+    receiptRows = [
+      receipt({ id: "rec-1", quantity: "120" }),
+      receipt({ id: "rec-2", quantity: "80" }),
+    ]
+    issueRows = [
+      issue({ id: "iss-1", quantity: "50" }),
+      issue({ id: "iss-2", quantity: "30" }),
+    ]
+
+    const cement = (await listMaterials({ orgId: ORG }, PROJECT)).find((m) => m.id === CEMENT.id)!
+    expect(cement.receivedToDate).toBe(200)
+    expect(cement.issuedToDate).toBe(80)
+    expect(cement.onHand).toBe(120)
+  })
+
+  test("a material with no movements reads 0/0/0, not an absent field -- and the aggregate is grouped, never per material", async () => {
+    await useMocks()
+    const { listMaterials } = await import("./construction-materials-service")
+
+    const steel = (await listMaterials({ orgId: ORG }, PROJECT)).find((m) => m.id === STEEL.id)!
+    expect(steel.receivedToDate).toBe(0)
+    expect(steel.issuedToDate).toBe(0)
+    expect(steel.onHand).toBe(0)
+    expect(selectedGroupColumn).toBe("material_id")
+  })
+
+  test("a VOIDED receipt does not count towards Received to date, so the master and the Cost Report agree", async () => {
+    await useMocks()
+    const { listMaterials, voidMaterialReceipt } = await import("./construction-materials-service")
+
+    receiptRows = [receipt({ id: "rec-keep", quantity: "200" }), receipt({ id: "rec-void", quantity: "50" })]
+    await voidMaterialReceipt({ orgId: ORG }, "rec-void", { voidReason: "Never delivered", voidedBy: "user-9" })
+
+    const cement = (await listMaterials({ orgId: ORG }, PROJECT)).find((m) => m.id === CEMENT.id)!
+    expect(cement.receivedToDate).toBe(200)
+    expect(cement.onHand).toBe(200)
+  })
+
+  test("getMaterial carries the same three quantities, so the object page and the list cannot disagree", async () => {
+    await useMocks()
+    const { getMaterial } = await import("./construction-materials-service")
+
+    receiptRows = [receipt({ id: "rec-1", quantity: "200" })]
+    issueRows = [issue({ id: "iss-1", quantity: "80" })]
+
+    const cement = await getMaterial({ orgId: ORG }, CEMENT.id)
+    expect(cement.receivedToDate).toBe(200)
+    expect(cement.issuedToDate).toBe(80)
+    expect(cement.onHand).toBe(120)
+  })
+})
+
+describe("createMaterialIssue -- R67 D-40", () => {
+  test("an issue within the on-hand balance is written, with a blank issuedTo stored as null", async () => {
+    await useMocks()
+    const { createMaterialIssue } = await import("./construction-materials-service")
+
+    receiptRows = [receipt({ id: "rec-1", quantity: "200" })]
+
+    const created = await createMaterialIssue({ orgId: ORG }, {
+      projectId: PROJECT, materialId: CEMENT.id, issuedDate: "2026-09-02",
+      quantity: 80, issuedTo: "  ", createdById: "user-1",
+    })
+    expect(created.quantity).toBe("80")
+    expect(created.issuedTo).toBeNull()
+    expect(issueRows).toHaveLength(1)
+  })
+
+  test("issuing MORE than is on hand is refused with the real figure and the real unit -- the client cap is not the rule", async () => {
+    await useMocks()
+    const { createMaterialIssue, ServiceError } = await import("./construction-materials-service")
+
+    receiptRows = [receipt({ id: "rec-1", quantity: "200" })]
+    issueRows = [issue({ id: "iss-1", quantity: "80" })]
+
+    await expect(createMaterialIssue({ orgId: ORG }, {
+      projectId: PROJECT, materialId: CEMENT.id, issuedDate: "2026-09-02",
+      quantity: 130, createdById: "user-1",
+    })).rejects.toThrow("Only 120 bag on hand")
+
+    // Nothing was written: a refused issue must not move the balance.
+    expect(issueRows).toHaveLength(1)
+
+    // And it is a 400, not a 500 -- the form shows the sentence, not a crash.
+    try {
+      await createMaterialIssue({ orgId: ORG }, {
+        projectId: PROJECT, materialId: CEMENT.id, issuedDate: "2026-09-02",
+        quantity: 130, createdById: "user-1",
+      })
+      throw new Error("expected a refusal")
+    } catch (err) {
+      expect(err).toBeInstanceOf(ServiceError)
+      expect((err as InstanceType<typeof ServiceError>).status).toBe(400)
+    }
+  })
+
+  test("a voided receipt does not fund an issue -- on hand is computed from surviving receipts only", async () => {
+    await useMocks()
+    const { createMaterialIssue, voidMaterialReceipt } = await import("./construction-materials-service")
+
+    receiptRows = [receipt({ id: "rec-1", quantity: "200" })]
+    await voidMaterialReceipt({ orgId: ORG }, "rec-1", { voidReason: "Never delivered", voidedBy: "user-9" })
+
+    await expect(createMaterialIssue({ orgId: ORG }, {
+      projectId: PROJECT, materialId: CEMENT.id, issuedDate: "2026-09-02",
+      quantity: 1, createdById: "user-1",
+    })).rejects.toThrow("Only 0 bag on hand")
+  })
+
+  test("zero and negative quantities are refused before anything is read", async () => {
+    await useMocks()
+    const { createMaterialIssue, ServiceError } = await import("./construction-materials-service")
+    receiptRows = [receipt({ id: "rec-1", quantity: "200" })]
+
+    await expect(createMaterialIssue({ orgId: ORG }, {
+      projectId: PROJECT, materialId: CEMENT.id, issuedDate: "2026-09-02", quantity: 0, createdById: "user-1",
+    })).rejects.toThrow(ServiceError)
+    await expect(createMaterialIssue({ orgId: ORG }, {
+      projectId: PROJECT, materialId: CEMENT.id, issuedDate: "2026-09-02", quantity: -5, createdById: "user-1",
+    })).rejects.toThrow(ServiceError)
+    expect(issueRows).toHaveLength(0)
+  })
+
+  test("another org's material cannot be issued against -- the lookup is org-scoped, not id-only", async () => {
+    await useMocks()
+    const { createMaterialIssue, ServiceError } = await import("./construction-materials-service")
+    materialRows = [{ ...CEMENT, orgId: OTHER_ORG }]
+
+    await expect(createMaterialIssue({ orgId: ORG }, {
+      projectId: PROJECT, materialId: CEMENT.id, issuedDate: "2026-09-02", quantity: 1, createdById: "user-1",
+    })).rejects.toThrow(ServiceError)
+  })
+})
+
+describe("reorderLevel -- R67 D-40", () => {
+  test("an omitted threshold is stored as null, and an explicit 0 is kept -- they are different facts", async () => {
+    await useMocks()
+    const { createMaterial } = await import("./construction-materials-service")
+
+    const withoutThreshold = await createMaterial({ orgId: ORG }, { projectId: PROJECT, name: "Sand", unit: "cum" })
+    expect(withoutThreshold.reorderLevel).toBeNull()
+
+    const withZero = await createMaterial({ orgId: ORG }, { projectId: PROJECT, name: "Nails", unit: "kg", reorderLevel: 0 })
+    expect(withZero.reorderLevel).toBe("0")
+  })
+
+  test("updateMaterial can CLEAR a threshold with an explicit null and leaves it alone when the key is absent", async () => {
+    await useMocks()
+    const { updateMaterial } = await import("./construction-materials-service")
+    materialRows = [{ ...CEMENT, reorderLevel: "50" }]
+
+    const renamed = await updateMaterial({ orgId: ORG }, CEMENT.id, { name: "Cement OPC 43" })
+    expect(renamed.reorderLevel).toBe("50")
+
+    const cleared = await updateMaterial({ orgId: ORG }, CEMENT.id, { reorderLevel: null })
+    expect(cleared.reorderLevel).toBeNull()
   })
 })
