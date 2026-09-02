@@ -42,6 +42,12 @@ await mock.module("postgres", () => ({
   },
 }))
 
+// R67 F-16: readAppRuntimePoolHealth() reads pg_stat_activity through the raw
+// handle (never a transaction -- opening one to measure transactions would
+// consume a slot it is reporting on), so the stub needs an `execute` too.
+let poolHealthRows: Record<string, unknown>[] = []
+const executedRaw: string[] = []
+
 await mock.module("drizzle-orm/postgres-js", () => ({
   drizzle: () => ({
     transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
@@ -53,10 +59,24 @@ await mock.module("drizzle-orm/postgres-js", () => ({
         openTransactions -= 1
       }
     },
+    execute: async (query: { queryChunks?: unknown[] }) => {
+      executedRaw.push((query.queryChunks ?? []).map((c) => String((c as { value?: unknown })?.value ?? c)).join(""))
+      return poolHealthRows
+    },
   }),
 }))
 
-const { withTenantContext, isInsideTenantContext, assertNotNested } = await import("./tenant-scoped")
+const {
+  withTenantContext,
+  isInsideTenantContext,
+  assertNotNested,
+  appRuntimePoolOptions,
+  extractRouteFromStack,
+  reportIdleTransactionTermination,
+  readAppRuntimePoolHealth,
+  IDLE_IN_TRANSACTION_SQLSTATE,
+  IDLE_IN_TRANSACTION_TIMEOUT_MS,
+} = await import("./tenant-scoped")
 
 const CTX = { orgId: "org-1" }
 
@@ -181,5 +201,194 @@ describe("the app_runtime pool options this guard exists to protect", () => {
     expect(postgresOptions?.connect_timeout).toBe(10)
     expect(postgresOptions?.idle_timeout).toBe(30)
     expect((postgresOptions?.connection as { statement_timeout?: number })?.statement_timeout).toBe(25_000)
+  })
+})
+
+// R67 F-16 (R-233) -- the idle-in-transaction safety net and the pool probe.
+describe("F-16: the 30 s idle-in-transaction safety net travels with the connection", () => {
+  test("postgres() is given connection.options carrying the timeout as a -c startup option", async () => {
+    // The real assertion of the item: the setting is in the application's own
+    // connection, not only in the role the owner has already ALTERed. A role
+    // setting is one `ALTER ROLE ... RESET ALL` from vanishing, and does not
+    // exist at all on a developer's database.
+    await withTenantContext(CTX, async () => "ok")
+
+    const connection = postgresOptions?.connection as { options?: string; statement_timeout?: number } | undefined
+    expect(connection?.options).toContain("-c idle_in_transaction_session_timeout=30000")
+    // statement_timeout is a different axis (how long ONE QUERY may run) and is
+    // not replaced by it -- a session parked idle in transaction is running no
+    // query at all, which is why statement_timeout never caught this fault.
+    expect(connection?.statement_timeout).toBe(25_000)
+  })
+
+  test("the exported options builder is the same object the client is built from", () => {
+    const built = appRuntimePoolOptions()
+
+    expect(built.max).toBe(5)
+    expect(built.connection.options).toBe(`-c idle_in_transaction_session_timeout=${IDLE_IN_TRANSACTION_TIMEOUT_MS}`)
+    expect(IDLE_IN_TRANSACTION_TIMEOUT_MS).toBe(30_000)
+  })
+})
+
+describe("F-16: a transaction the server terminated is logged, not swallowed", () => {
+  function captureWarnings(): { warnings: string[]; restore: () => void } {
+    const warnings: string[] = []
+    const realWarn = console.warn
+    console.warn = (...args: unknown[]) => { warnings.push(args.map(String).join(" ")) }
+    return { warnings, restore: () => { console.warn = realWarn } }
+  }
+
+  test("a 25P03 failure inside withTenantContext warns with its SQL text, and still rejects", async () => {
+    const { warnings, restore } = captureWarnings()
+
+    // The exact shape postgres.js rejects with: a PostgresError carrying the
+    // SQLSTATE, plus the statement that was in flight hung off `query`.
+    const terminated = Object.assign(new Error("terminating connection due to idle-in-transaction timeout"), {
+      code: IDLE_IN_TRANSACTION_SQLSTATE,
+      query: "select id, name from compliance.projects where org_id = $1",
+    })
+
+    try {
+      await expect(withTenantContext(CTX, async () => { throw terminated })).rejects.toThrow(
+        "terminating connection due to idle-in-transaction timeout"
+      )
+    } finally {
+      restore()
+    }
+
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain("25P03")
+    expect(warnings[0]).toContain("select id, name from compliance.projects")
+    expect(warnings[0]).toContain("route=")
+  })
+
+  test("an ordinary failure is not logged as a terminated transaction", async () => {
+    const { warnings, restore } = captureWarnings()
+
+    try {
+      await expect(withTenantContext(CTX, async () => { throw new Error("a plain bug") })).rejects.toThrow("a plain bug")
+    } finally {
+      restore()
+    }
+
+    expect(warnings).toHaveLength(0)
+  })
+
+  test("reportIdleTransactionTermination says whether it recognised the error", () => {
+    const { warnings, restore } = captureWarnings()
+    let recognised = false
+    let ignored = true
+
+    try {
+      recognised = reportIdleTransactionTermination(
+        Object.assign(new Error("terminated"), { code: "25P03", query: "SELECT 1" }),
+        "/api/v1/projexa/scope"
+      )
+      ignored = reportIdleTransactionTermination(Object.assign(new Error("nope"), { code: "23505" }), "/api/whatever")
+    } finally {
+      restore()
+    }
+
+    expect(recognised).toBe(true)
+    expect(ignored).toBe(false)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain("route=/api/v1/projexa/scope")
+  })
+
+  test("a driver that reports no SQL text still produces a usable line", () => {
+    const { warnings, restore } = captureWarnings()
+    try {
+      reportIdleTransactionTermination(Object.assign(new Error("terminated"), { code: "25P03" }), null)
+    } finally {
+      restore()
+    }
+
+    expect(warnings[0]).toContain("(the driver reported no SQL text)")
+    expect(warnings[0]).toContain("route=unknown")
+  })
+})
+
+describe("F-16: extractRouteFromStack", () => {
+  test("finds the route from a dev/source stack frame", () => {
+    const stack = [
+      "    at listBoqs (C:\\ct\\ct\\src\\lib\\services\\construction-boq-service.ts:401:12)",
+      "    at GET (C:\\ct\\ct\\src\\app\\api\\v1\\construction\\boq\\route.ts:26:20)",
+    ].join("\n")
+
+    expect(extractRouteFromStack(stack)).toBe("/api/v1/construction/boq")
+  })
+
+  test("finds it in a compiled Next build stack too, where the file is route.js", () => {
+    const stack = "    at m (/var/task/.next/server/app/api/v1/projexa/permits/route.js:1:2345)"
+
+    expect(extractRouteFromStack(stack)).toBe("/api/v1/projexa/permits")
+  })
+
+  test("drops route groups, which are directory names and never part of a URL", () => {
+    const stack = "    at GET (/repo/src/app/api/(internal)/pool-health/route.ts:9:1)"
+
+    expect(extractRouteFromStack(stack)).toBe("/api/pool-health")
+  })
+
+  test("returns null rather than inventing a route when no handler frame is present", () => {
+    expect(extractRouteFromStack("    at someScript (/repo/scripts/backfill.mjs:3:1)")).toBeNull()
+    expect(extractRouteFromStack("")).toBeNull()
+  })
+})
+
+describe("F-16: readAppRuntimePoolHealth", () => {
+  test("reports the pg_stat_activity breakdown for app_runtime's own sessions", async () => {
+    poolHealthRows = [{
+      role_name: "app_runtime",
+      database_name: "postgres",
+      // postgres.js returns bigint counts as strings -- the real shape, not a
+      // convenience.
+      active: "1",
+      idle: "2",
+      idle_in_transaction: "2",
+      idle_in_transaction_aborted: "0",
+      total: "5",
+      oldest_idle_in_transaction_seconds: "1523.4",
+    }]
+
+    const health = await readAppRuntimePoolHealth()
+
+    expect(health.role).toBe("app_runtime")
+    expect(health.active).toBe(1)
+    expect(health.idle).toBe(2)
+    expect(health.idleInTransaction).toBe(2)
+    expect(health.total).toBe(5)
+    expect(health.maxPoolSize).toBe(5)
+    expect(health.oldestIdleInTransactionSeconds).toBeCloseTo(1523.4)
+    expect(health.idleInTransactionTimeoutMs).toBe(30_000)
+  })
+
+  test("it does not open a transaction to measure transactions", async () => {
+    poolHealthRows = [{ role_name: "app_runtime", database_name: "postgres", active: "0", idle: "0", idle_in_transaction: "0", idle_in_transaction_aborted: "0", total: "0", oldest_idle_in_transaction_seconds: null }]
+    executedRaw.length = 0
+
+    await readAppRuntimePoolHealth()
+
+    expect(maxConcurrentTransactions).toBe(0)
+    expect(executedRaw.join(" ")).toContain("pg_stat_activity")
+  })
+
+  test("states Postgres reports that this probe does not name are still counted, so the parts add up", async () => {
+    poolHealthRows = [{
+      role_name: "app_runtime",
+      database_name: "postgres",
+      active: "1",
+      idle: "1",
+      idle_in_transaction: "0",
+      idle_in_transaction_aborted: "0",
+      total: "3",
+      oldest_idle_in_transaction_seconds: null,
+    }]
+
+    const health = await readAppRuntimePoolHealth()
+
+    expect(health.other).toBe(1)
+    expect(health.active + health.idle + health.idleInTransaction + health.idleInTransactionAborted + health.other).toBe(health.total)
+    expect(health.oldestIdleInTransactionSeconds).toBeNull()
   })
 })

@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (subagent, r67/f1-performance-1) -- PROGRAMME R67 lane F1 (WS-F performance), items F-01..F-15: the compliance-tracker half of PROJEXA's latency work"
+  - session_label: "claude-code (subagent, r67/f1-performance-1) -- PROGRAMME R67 lane F1 (WS-F performance), items F-01..F-17: the compliance-tracker half of PROJEXA's latency work"
     claimed_at: "2026-09-02T (this session)"
     claim: |
       SPEC: the owner-approved R66 UX/product-design audit, workstream WS-F
@@ -50,6 +50,36 @@ active:
       streamed with Suspense, 8 s budget) and D-06 (the nested-
       withTenantContext guard, which F-12/F-15 own and which IS implemented on
       this branch -- see the added scope below).
+
+      Items F-16..F-17 add, in this repo (added 2026-09-03, same session and
+      branch -- the last group of the lane):
+        src/lib/db/tenant-scoped.ts (+ the existing .test.ts)
+          -- F-16: the app_runtime pool now carries
+             `connection.options = '-c idle_in_transaction_session_timeout=30000'`
+             so the safety net travels with the application and not only with
+             the role the owner has already ALTERed on pcrjmlpuqsbocqfwoxod
+             (that ALTER ROLE is NOT re-applied here and is not in this
+             branch). withTenantContext logs SQLSTATE 25P03 at warn level with
+             the in-flight SQL and the route (recovered from the stack it
+             already captures for the D-06 guard) and re-throws unchanged.
+             Adds readAppRuntimePoolHealth(), which reads pg_stat_activity
+             through the raw handle -- NOT through withTenantContext, because
+             opening a transaction to measure transactions would consume one of
+             the five slots it reports on. Pool max stays 5.
+        src/app/api/internal/pool-health/route.ts (NEW)
+          -- F-16: GET, requireAuth + requireRole(dbUser, "admin"), never
+             public, no caching. Unlike its /api/internal/* siblings this is
+             read by a person during an incident, not by a cron job, so it is
+             session-gated rather than CRON_SECRET-gated.
+        src/lib/auth/api-key-audit.ts (NEW, + new .test.ts) -- new directory
+        src/lib/supabase/api-key-auth.ts
+          -- F-17: the per-request api_key_request_log INSERT and the
+             api_keys.last_used_at UPDATE move into an in-process queue (one
+             multi-row INSERT per 5 s or per 100 rows, last_used_at at most
+             once per key per minute), so a PROJEXA page making 7-22 API-key
+             calls stops issuing 2 extra pool operations per call. The
+             rate limiter reads the queue's own pending count alongside the DB
+             count, so buffering cannot widen the 60 s window it enforces.
 
       Items F-12..F-15 add, in this repo:
         src/lib/db/tenant-scoped.ts (+ new .test.ts)
