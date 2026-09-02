@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listIssues, createIssue, ServiceError, type IssueInput } from "@/lib/services/pms-issue-service"
-import { listIssueTypes } from "@/lib/services/pms-taxonomy-service"
+import { resolveDefaultIssueTypeId } from "@/lib/services/pms-taxonomy-service"
 import { withRouteTiming } from "@/lib/route-timing"
 
 // R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
@@ -70,10 +70,16 @@ async function POST_impl(request: NextRequest) {
     // an ad-hoc task) -- default to the org's default type (seeded "Task"
     // type, see pms-enablement-service.ts) or its first type when a
     // specific typeId isn't supplied.
+    //
+    // R67 F-33 (R-278): this used to call listIssueTypes(), which opens its own
+    // withTenantContext -- a whole extra transaction on the critical path of
+    // every POST, to read a configuration row that only changes when an admin
+    // edits it. resolveDefaultIssueTypeId() answers it from a 60 s org-level
+    // cache that createIssueType() busts. A MISS is never cached, so the
+    // refusal below still clears the moment an admin configures a type.
     let typeId = body.typeId as string | undefined
     if (!typeId) {
-      const types = await listIssueTypes({ orgId: ctx.orgId })
-      typeId = types.find((t) => t.isDefault)?.id ?? types[0]?.id
+      typeId = (await resolveDefaultIssueTypeId({ orgId: ctx.orgId })) ?? undefined
       if (!typeId) {
         return NextResponse.json(
           { error: "No issue types configured for this organisation -- ask an admin to set one up in VERIDIAN AI PMS" },

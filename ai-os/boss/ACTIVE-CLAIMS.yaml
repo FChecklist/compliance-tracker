@@ -75,6 +75,25 @@ active:
         src/lib/vercel-region.test.ts (+ new, F-32)
       Re-verified at extension time: no other active entry in this file names any of
       these routes, /api/v1/documents, veri-meetings, or Server-Timing/latency work.
+      CORRECTED 2026-09-03 for group 4 (F-33, "POST schedule task under 1 s"). The scope
+      above named src/lib/services/schedule-service.ts on the item's own wording; reading
+      the code first showed that file is the READ-ONLY Gantt layer (calculateCriticalPath,
+      getGanttData, baselines, workload) and contains no create path at all. PROJEXA's
+      "New Task" really lands on POST /api/v1/projexa/schedule -> pms-issue-service.ts's
+      createIssue(). schedule-service.ts is therefore NOT touched, and the real scope is:
+        src/lib/query-timing.ts (+ .test.ts)                -- new, imports nothing
+        src/lib/services/schedule-lookup-cache.ts (+ .test.ts) -- new, imports nothing
+        src/lib/services/pms-issue-service.ts (+ .test.ts)  -- createIssue() only
+        src/lib/services/pms-taxonomy-service.ts (+ .test.ts) -- two cached resolvers
+        src/lib/supabase/api-key-auth.ts (+ .test.ts)       -- the two usage-log writes
+                                                               move into after()
+        src/app/api/v1/projexa/schedule/route.ts            -- cached type resolution
+      Verified before extending: the only entry in this file naming pms-issue-service.ts is
+      the Task #47 claim of 2026-07-31, which its own rebase_note records as merged on
+      2026-09-01, not active; grep for "pms-taxonomy", "api-key-auth", "api_key_request_log"
+      and "query-timing" returns nothing at all. No pms_issues COLUMN or schema change is
+      made here, so Task #47's own "explicitly not touching pms_issues columns/schema"
+      boundary is respected from this side too.
       Does NOT touch: the pipeline (classify/executor/validate/derive-chain), billing_*
       or platform-billing (the r65-parte lane above), ai_cost_reconciliations, auth-guard,
       tenant-scoped.ts's own contract, or any platform.* table.
