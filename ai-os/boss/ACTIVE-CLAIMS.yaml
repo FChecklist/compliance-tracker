@@ -40,7 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-<<<<<<< HEAD
   - session_label: "claude-code (subagent, r67-lane-I) -- PROGRAMME R67 workstream WS-I (data-migrations), items I-01..I-05"
     claimed_at: "2026-09-02T (this session)"
     claim: |

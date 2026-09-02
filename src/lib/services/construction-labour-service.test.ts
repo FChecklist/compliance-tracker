@@ -11,14 +11,15 @@
 // This does NOT touch a live DB. It exercises the real createRosterEntry() with
 // only withTenantContext mocked -- this repo's established pattern (see
 // construction-progress-service.test.ts's own header for why that is honest) --
-// and the fake below computes the next employee code from the rows it has
-// actually stored, so "a second call returns the next number" is a real
-// sequence, not a canned string.
+// and the fake below stands in for compliance.construction_employee_code_counters
+// the way drizzle/0529_r67_i02 defines it -- seeded on first use from the
+// highest 'W-nnnn' actually stored, then incremented by the claim itself -- so
+// "a second call returns the next number" is a real sequence, not a canned
+// string.
 /// <reference types="bun-types" />
 import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test"
 import {
   formatEmployeeCode,
-  nextEmployeeCodeSequence,
   mergeTrades,
   SEED_TRADES,
   EMPLOYEE_CODE_PREFIX,
@@ -28,6 +29,12 @@ const ORG = "org-d34"
 const PROJECT = "project-d34"
 
 let insertedRows: Record<string, unknown>[] = []
+// Stands in for the counter ROW, not for a max() query: null until the first
+// claim, which seeds it (as 0529 does) from the highest generated code already
+// stored and then increments. `executeCalls` proves the service claims the
+// number with ONE statement rather than reading and writing.
+let counterLastNumber: number | null = null
+let executeCalls = 0
 
 const projectRows = [{ id: PROJECT, orgId: ORG }]
 
@@ -37,19 +44,17 @@ const fakeDb = {
       findFirst: async () => projectRows[0],
     },
   },
-  // The service asks for the highest generated code already stored. The fake
-  // answers from what it has really inserted, so the sequence is genuinely
-  // derived rather than hard-coded.
-  select: () => ({
-    from: () => ({
-      where: async () => [{
-        maxSequence: insertedRows.reduce((max, row) => {
-          const match = String(row.employeeCode ?? "").match(/^W-(\d+)$/)
-          return match ? Math.max(max, Number.parseInt(match[1], 10)) : max
-        }, 0),
-      }],
-    }),
-  }),
+  execute: async () => {
+    executeCalls += 1
+    if (counterLastNumber === null) {
+      counterLastNumber = insertedRows.reduce((max, row) => {
+        const match = String(row.employeeCode ?? "").match(/^W-(\d+)$/)
+        return match ? Math.max(max, Number.parseInt(match[1], 10)) : max
+      }, 0)
+    }
+    counterLastNumber += 1
+    return [{ last_number: counterLastNumber }]
+  },
   insert: () => ({
     values: (v: Record<string, unknown>) => ({
       returning: async () => {
@@ -72,6 +77,8 @@ async function restoreRealModules(): Promise<void> {
 
 beforeEach(() => {
   insertedRows = []
+  counterLastNumber = null
+  executeCalls = 0
   mockWithTenantContext.mockClear()
 })
 
@@ -90,18 +97,6 @@ describe("employee-code generation (pure)", () => {
     expect(formatEmployeeCode(12345)).toBe("W-12345")
   })
 
-  test("the next sequence follows the highest generated code an org already holds", () => {
-    expect(nextEmployeeCodeSequence(["W-0001", "W-0007", "W-0003"])).toBe(8)
-  })
-
-  test("an empty roster starts at 1", () => {
-    expect(nextEmployeeCodeSequence([])).toBe(1)
-  })
-
-  test("customer-assigned codes never set the counter -- they are the customer's labels, not this sequence", () => {
-    expect(nextEmployeeCodeSequence(["EMP-001", "12", "Ali's badge", null, undefined])).toBe(1)
-    expect(nextEmployeeCodeSequence(["EMP-9999", "W-0002"])).toBe(3)
-  })
 })
 
 describe("createRosterEntry -- R67 D-34 auto ID", () => {
@@ -142,6 +137,39 @@ describe("createRosterEntry -- R67 D-34 auto ID", () => {
 
     const row = await createRosterEntry({ orgId: ORG }, { projectId: PROJECT, name: "Ali", employeeCode: "   ", dailyRate: 120 })
     expect(row.employeeCode).toMatch(/^W-\d{4}$/)
+  })
+
+  // The reason the read-then-write max(employee_code) this function used to do
+  // is gone: lane I's drizzle/0529_r67_i02 put a partial UNIQUE index on
+  // (org_id, employee_code), so two creates that read the same max would make
+  // the second INSERT raise a unique violation. The number is claimed with ONE
+  // statement against the counter table instead.
+  test("the number is claimed with a SINGLE statement -- never a read followed by a write", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { createRosterEntry } = await import("./construction-labour-service")
+
+    await createRosterEntry({ orgId: ORG }, { projectId: PROJECT, name: "Ali", dailyRate: 120 })
+    expect(executeCalls).toBe(1)
+  })
+
+  test("a caller's own code costs no counter number at all -- the sequence is not burned by a verbatim code", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { createRosterEntry } = await import("./construction-labour-service")
+
+    await createRosterEntry({ orgId: ORG }, { projectId: PROJECT, name: "Ali", employeeCode: "EMP-001", dailyRate: 120 })
+    expect(executeCalls).toBe(0)
+
+    const generated = await createRosterEntry({ orgId: ORG }, { projectId: PROJECT, name: "Bilal", dailyRate: 130 })
+    expect(generated.employeeCode).toBe("W-0001")
+  })
+
+  test("the counter is seeded from the highest generated code already on the roster, so it cannot collide with one", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { createRosterEntry } = await import("./construction-labour-service")
+
+    await createRosterEntry({ orgId: ORG }, { projectId: PROJECT, name: "Legacy", employeeCode: "W-0007", dailyRate: 100 })
+    const next = await createRosterEntry({ orgId: ORG }, { projectId: PROJECT, name: "Ali", dailyRate: 120 })
+    expect(next.employeeCode).toBe("W-0008")
   })
 })
 
