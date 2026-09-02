@@ -15,7 +15,13 @@ export async function GET(request: NextRequest) {
   try {
     const q = request.nextUrl.searchParams.get("q") ?? undefined
     const limit = resolveDirectoryLimit(request.nextUrl.searchParams.get("limit"))
-    const users = await listOrgDirectory({ orgId: ctx.orgId }, { q, limit })
+    // R67 D-77: `ids` resolves people a screen ALREADY holds the ids of (a
+    // task's assignees) into names, so no screen has to print a key.
+    const ids = (request.nextUrl.searchParams.get("ids") ?? "")
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean)
+    const users = await listOrgDirectory({ orgId: ctx.orgId }, { q, limit, ids: ids.length ? ids : undefined })
     return NextResponse.json({ users })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

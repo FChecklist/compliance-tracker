@@ -48,29 +48,61 @@ export function resolveDirectoryLimit(raw: string | number | null | undefined): 
 }
 
 /**
+ * Pure: the directory page, from already-loaded rows.
+ *
+ * R67 lane D22 (item D-75) made this its own exported function so the rule
+ * that matters most here -- A PICKER MUST ONLY EVER SHOW THE CALLING ORG'S
+ * OWN PEOPLE -- is provable in a unit test rather than only readable in a
+ * where-clause. It is the THIRD layer of that guarantee, not the only one:
+ * withTenantContext sets app.current_org_id for RLS, the query carries an
+ * explicit users.orgId equality, and this filters the rows again. A directory
+ * that leaked one org's staff names into another org's picker would be a
+ * data-protection incident, not a UI bug, so it is checked three times and
+ * asserted once.
+ *
+ * Inactive users are excluded here too: assigning work to a leaver is never
+ * intended.
+ */
+// `orgId` is nullable on compliance.users (a platform-level account has none),
+// and a row with no org is not a row of THIS org -- the equality below excludes
+// it, which is the behaviour we want and the reason the constraint admits null
+// rather than pretending the column is NOT NULL.
+export function filterDirectoryRows<T extends { id: string; orgId: string | null; isActive: boolean; name: string; email: string }>(
+  rows: T[],
+  options: { orgId: string; q?: string; limit?: number | string | null; ids?: string[] }
+): T[] {
+  const limit = resolveDirectoryLimit(options.limit)
+  const wanted = options.ids && options.ids.length ? new Set(options.ids) : null
+  return rows
+    .filter((u) => u.orgId === options.orgId && u.isActive === true)
+    // `ids` is a RESOLUTION, not a search: a screen that already holds ids
+    // (a task's assignees, an action item's owner) needs their names so it can
+    // print words instead of keys, and asking it to guess a query string that
+    // happens to match them would be absurd. Still org-scoped and still
+    // capped, so it cannot be used to walk another org's user table.
+    .filter((u) => (wanted ? wanted.has(u.id) : matchesDirectoryQuery(u, options.q)))
+    .slice(0, limit)
+}
+
+/**
  * The calling org's active users, filtered by `q` and capped.
  *
  * Org scoping is BOTH the withTenantContext org and an explicit
- * users.orgId equality -- the same belt-and-braces every other read in this
- * codebase uses, because a directory that leaked one org's staff names into
- * another org's picker would be a data-protection incident, not a UI bug.
- * Inactive users are excluded: assigning work to a leaver is never intended.
+ * users.orgId equality, and then filterDirectoryRows() once more -- see its
+ * comment for why this one is checked three times.
  */
 export async function listOrgDirectory(
   ctx: { orgId: string },
-  options: { q?: string; limit?: number } = {}
+  options: { q?: string; limit?: number; ids?: string[] } = {}
 ): Promise<OrgDirectoryUser[]> {
   if (!ctx.orgId) throw new ServiceError("An organisation is required to read the directory", 400)
-  const limit = resolveDirectoryLimit(options.limit)
   const rows = await withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.users.findMany({
       where: and(eq(users.orgId, ctx.orgId), eq(users.isActive, true)),
-      columns: { id: true, name: true, email: true, role: true },
+      columns: { id: true, orgId: true, name: true, email: true, role: true, isActive: true },
       orderBy: (t, { asc }) => asc(t.name),
     })
   )
-  return rows
-    .filter((u) => matchesDirectoryQuery(u, options.q))
-    .slice(0, limit)
+  return filterDirectoryRows(rows, { orgId: ctx.orgId, q: options.q, limit: options.limit, ids: options.ids })
     .map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role }))
 }
