@@ -8,10 +8,15 @@ export async function GET(request: NextRequest) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    // R67 F-06: `from`/`to` bound the log to a window (PROJEXA's /labour asks
+    // for the last 30 days). Both optional -- omitting them keeps the previous
+    // unbounded behaviour for every existing caller.
     const attendance = await listAttendance({ orgId: ctx.orgId }, {
       projectId: request.nextUrl.searchParams.get("projectId") ?? undefined,
       rosterId: request.nextUrl.searchParams.get("rosterId") ?? undefined,
       attendanceDate: request.nextUrl.searchParams.get("attendanceDate") ?? undefined,
+      from: request.nextUrl.searchParams.get("from") ?? undefined,
+      to: request.nextUrl.searchParams.get("to") ?? undefined,
     })
     return NextResponse.json({ attendance })
   } catch (error) {

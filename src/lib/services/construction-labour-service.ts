@@ -4,7 +4,7 @@
 // matching this codebase's convention elsewhere (e.g. documents.isLatestVersion).
 import { constructionLabourRoster, constructionAttendance, projects } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq } from "drizzle-orm"
+import { and, eq, gte, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -74,13 +74,55 @@ export async function updateRosterEntry(
   })
 }
 
-export async function listAttendance(ctx: { orgId: string }, filters: { projectId?: string; rosterId?: string; attendanceDate?: string }) {
+export type AttendanceFilters = {
+  projectId?: string
+  rosterId?: string
+  attendanceDate?: string
+  from?: string
+  to?: string
+}
+
+// R67 F-06 (R-088/R-094). The attendance log had exactly one date filter --
+// `attendanceDate`, an exact match -- so PROJEXA's /labour screen asked for
+// EVERY attendance row this project has ever recorded, on every page load.
+// That list grows as workers x days: a 40-worker site is 40 rows a day, so a
+// project a year old answers this call with roughly 10,000 rows nobody looks
+// at. There is no page size and no window; the only reason it is fast today is
+// that the demo data is small.
+//
+// A half-open [from, to] window fixes it at the source. Both bounds are
+// optional and default to "no bound", so every existing caller -- the object
+// screens, the reports service, the /labour/[id] worker page -- keeps its
+// exact previous behaviour; only a caller that asks for a window gets one.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * Validates the optional [from, to] attendance window.
+ *
+ * Deliberately strict: `attendance_date` is a Postgres DATE compared as text
+ * here, so a malformed bound would not error, it would silently match nothing
+ * and be read as "this worker was never on site". A caller that sends a bad
+ * date is told so (400) rather than shown a confidently empty log.
+ */
+export function normaliseAttendanceRange(filters: { from?: string; to?: string }): { from?: string; to?: string } {
+  const from = filters.from?.trim() || undefined
+  const to = filters.to?.trim() || undefined
+  if (from && !ISO_DATE.test(from)) throw new ServiceError("from must be a date in YYYY-MM-DD format", 400)
+  if (to && !ISO_DATE.test(to)) throw new ServiceError("to must be a date in YYYY-MM-DD format", 400)
+  if (from && to && from > to) throw new ServiceError("from must not be later than to", 400)
+  return { from, to }
+}
+
+export async function listAttendance(ctx: { orgId: string }, filters: AttendanceFilters) {
   if (!filters.projectId && !filters.rosterId) throw new ServiceError("projectId or rosterId is required", 400)
+  const { from, to } = normaliseAttendanceRange(filters)
   return withTenantContext({ orgId: ctx.orgId }, (db) => {
     const conditions = [eq(constructionAttendance.orgId, ctx.orgId)]
     if (filters.projectId) conditions.push(eq(constructionAttendance.projectId, filters.projectId))
     if (filters.rosterId) conditions.push(eq(constructionAttendance.rosterId, filters.rosterId))
     if (filters.attendanceDate) conditions.push(eq(constructionAttendance.attendanceDate, filters.attendanceDate))
+    if (from) conditions.push(gte(constructionAttendance.attendanceDate, from))
+    if (to) conditions.push(lte(constructionAttendance.attendanceDate, to))
     return db.query.constructionAttendance.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.attendanceDate) })
   })
 }

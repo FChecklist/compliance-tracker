@@ -40,14 +40,28 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (subagent, r67/f1-performance-1) -- PROGRAMME R67 lane F1 (WS-F performance), items F-01..F-05: the compliance-tracker half of PROJEXA's latency work"
+  - session_label: "claude-code (subagent, r67/f1-performance-1) -- PROGRAMME R67 lane F1 (WS-F performance), items F-01..F-10: the compliance-tracker half of PROJEXA's latency work"
     claimed_at: "2026-09-02T (this session)"
     claim: |
       SPEC: the owner-approved R66 UX/product-design audit, workstream WS-F
-      (performance), lane F1 items F-01, F-02, F-03, F-04, F-05, plus binding
-      decisions D-04 (module pages fetch server-side, streamed with Suspense,
-      8 s budget) and D-06 (nested-withTenantContext guard -- NOT implemented
-      here; F-12/F-15 own it and this lane must not duplicate it).
+      (performance), lane F1 items F-01, F-02, F-03, F-04, F-05, and (added
+      2026-09-02, same session/branch) F-06, F-07, F-08, F-09, F-10, plus
+      binding decisions D-04 (module pages fetch server-side, streamed with
+      Suspense, 8 s budget) and D-06 (nested-withTenantContext guard -- NOT
+      implemented here; F-12/F-15 own it and this lane must not duplicate it).
+
+      Items F-06..F-10 add, in this repo:
+        src/lib/services/construction-labour-service.ts (+ new .test.ts)
+          -- listAttendance() gains an optional [from, to] window so PROJEXA's
+             /labour stops asking for a project's whole workers-x-days
+             attendance history on every page load (F-06). The audit's premise
+             that listAttendance was "already date-aware" was wrong: it had
+             an exact-date filter only.
+        src/app/api/v1/construction/attendance/route.ts (forwards from/to)
+        src/lib/services/construction-reports-service.ts (+ .test.ts)
+          -- requireConstructionEnabled() memoised per org, 60 s TTL, so a
+             report run stops paying an extra withTenantContext transaction
+             for a package check that cannot change between two clicks (F-10)
 
       Verified before starting: origin/main already carries the R66 dashboard
       pool-deadlock fix (construction-dashboard-service.ts hoists
