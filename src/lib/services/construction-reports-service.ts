@@ -231,9 +231,19 @@ export async function projectStatusReport(ctx: { orgId: string }, projectId: str
 }
 
 // 4. Attendance Report -- present/absent/half_day counts + cost, by trade.
-export async function attendanceReport(ctx: { orgId: string }, projectId: string) {
+//
+// R67 D-31: dateFrom/dateTo are additive and optional. Omitting both keeps the
+// existing all-time behaviour byte for byte, which is what the report registry
+// (and therefore every existing caller) does -- the dispatcher passes only
+// (ctx, projectId). They exist so the Manpower screen's "Today / This week /
+// This month" panel can reuse THIS aggregate rather than a second, parallel
+// grouping written for the screen.
+export async function attendanceReport(ctx: { orgId: string }, projectId: string, dateFrom?: string, dateTo?: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId)]
+    if (dateFrom) conditions.push(gte(constructionAttendance.attendanceDate, dateFrom))
+    if (dateTo) conditions.push(lte(constructionAttendance.attendanceDate, dateTo))
     const rows = await db.select({
       trade: constructionLabourRoster.trade,
       status: constructionAttendance.status,
@@ -241,10 +251,160 @@ export async function attendanceReport(ctx: { orgId: string }, projectId: string
       cost: sql<number>`coalesce(sum(${constructionAttendance.dailyCost}), 0)::float`,
     }).from(constructionAttendance)
       .innerJoin(constructionLabourRoster, eq(constructionAttendance.rosterId, constructionLabourRoster.id))
-      .where(and(eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId)))
+      .where(and(...conditions))
       .groupBy(constructionLabourRoster.trade, constructionAttendance.status)
     return { rows }
   })
+}
+
+// ---------------------------------------------------------------------------
+// R67 D-31 (R-090): the trade-wise attendance summary the Manpower screen shows.
+//
+// Sumeet asked for "how many people are on site today, by trade, and what they
+// cost". Both halves of that answer already existed as aggregates in this file
+// -- attendanceReport() groups by (trade, status) with cost, manpowerCostReport()
+// groups by trade with an attendance-row count and cost -- and neither was
+// reachable from the screen where the work happens. So no new SQL grouping is
+// written here: the summary COMPOSES those two, and because they are two
+// independently-issued aggregates over the same window, comparing them is a
+// real reconciliation rather than a tautology (see reconcileAttendanceSummary).
+export const UNSPECIFIED_TRADE_LABEL = "Unspecified"
+
+/**
+ * Worker-days per attendance status. Identical to construction-labour-service's
+ * COST_MULTIPLIER, and for the same reason: a half day is half a worker-day
+ * exactly as it is half a day's pay, and an absence is neither. Kept here as
+ * its own named constant rather than imported, because that one is about MONEY
+ * and this one is about PEOPLE -- they agree today, and a future change to
+ * either must be a deliberate decision about the other.
+ */
+export const WORKER_DAY_WEIGHT: Record<string, number> = { present: 1, half_day: 0.5, absent: 0 }
+
+export type AttendanceStatusRow = { trade: string | null; status: string; count: number | string; cost: number | string }
+export type AttendanceSummaryRow = {
+  trade: string
+  present: number
+  halfDay: number
+  absent: number
+  workerDays: number
+  cost: number
+}
+
+function toNumber(value: number | string | null | undefined): number {
+  if (value === null || value === undefined) return 0
+  const n = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Pure. Folds attendanceReport()'s (trade, status) rows into one row per trade. */
+export function buildAttendanceSummaryRows(statusRows: AttendanceStatusRow[]): AttendanceSummaryRow[] {
+  const byTrade = new Map<string, AttendanceSummaryRow>()
+  for (const row of statusRows) {
+    // A blank trade is a real roster row with no trade recorded, not a missing
+    // group -- it is named, never dropped, or the totals stop adding up.
+    const trade = row.trade?.trim() || UNSPECIFIED_TRADE_LABEL
+    const current = byTrade.get(trade) ?? { trade, present: 0, halfDay: 0, absent: 0, workerDays: 0, cost: 0 }
+    const count = toNumber(row.count)
+    if (row.status === "present") current.present += count
+    else if (row.status === "half_day") current.halfDay += count
+    else if (row.status === "absent") current.absent += count
+    current.workerDays += count * (WORKER_DAY_WEIGHT[row.status] ?? 0)
+    current.cost += toNumber(row.cost)
+    byTrade.set(trade, current)
+  }
+  // Alphabetical, with the unnamed group last: a stable order the screen and
+  // the PDF share, so a printed sheet matches what was on screen.
+  return [...byTrade.values()].sort((a, b) => {
+    if (a.trade === UNSPECIFIED_TRADE_LABEL) return 1
+    if (b.trade === UNSPECIFIED_TRADE_LABEL) return -1
+    return a.trade.localeCompare(b.trade)
+  })
+}
+
+/** Pure. The bold grand-total row. */
+export function totalAttendanceSummary(rows: AttendanceSummaryRow[]): Omit<AttendanceSummaryRow, "trade"> {
+  return rows.reduce(
+    (total, row) => ({
+      present: total.present + row.present,
+      halfDay: total.halfDay + row.halfDay,
+      absent: total.absent + row.absent,
+      workerDays: total.workerDays + row.workerDays,
+      cost: total.cost + row.cost,
+    }),
+    { present: 0, halfDay: 0, absent: 0, workerDays: 0, cost: 0 }
+  )
+}
+
+export type AttendanceReconciliation = {
+  ties: boolean
+  /** Attendance rows counted by the (trade, status) aggregate vs by the per-trade one. */
+  rowCountFromStatuses: number
+  rowCountFromTrades: number
+  costFromStatuses: number
+  costFromTrades: number
+}
+
+/**
+ * Pure. Compares the two aggregates against each other. This is NOT a
+ * tautology: `rows` come from attendanceReport()'s (trade, status) grouping and
+ * `byTrade` from manpowerCostReport()'s own separate query, so a difference
+ * means one of them saw rows the other did not -- a join that dropped a roster
+ * row, a write that landed between the two reads -- and the screen must say so
+ * rather than print a total nobody can reproduce.
+ *
+ * Compared on ATTENDANCE-ROW COUNT, not worker-days: manpowerCostReport counts
+ * every attendance row including absences, while worker-days weight them. The
+ * comparable quantity is present + halfDay + absent.
+ */
+export function reconcileAttendanceSummary(
+  rows: AttendanceSummaryRow[],
+  byTrade: { totalCost: number | string; workerDays: number | string }[]
+): AttendanceReconciliation {
+  const rowCountFromStatuses = rows.reduce((s, r) => s + r.present + r.halfDay + r.absent, 0)
+  const rowCountFromTrades = byTrade.reduce((s, r) => s + toNumber(r.workerDays), 0)
+  const costFromStatuses = rows.reduce((s, r) => s + r.cost, 0)
+  const costFromTrades = byTrade.reduce((s, r) => s + toNumber(r.totalCost), 0)
+  // Money is summed as floats on both sides; a sub-cent difference is the
+  // float, not a disagreement about the data.
+  const ties = rowCountFromStatuses === rowCountFromTrades && Math.abs(costFromStatuses - costFromTrades) < 0.005
+  return { ties, rowCountFromStatuses, rowCountFromTrades, costFromStatuses, costFromTrades }
+}
+
+/** Pure. "12 people on site" -- the headline count, which is bodies present at all, half-day included. */
+export function headcountOnSite(rows: AttendanceSummaryRow[]): number {
+  return rows.reduce((s, r) => s + r.present + r.halfDay, 0)
+}
+
+export type AttendanceSummary = {
+  projectId: string
+  from: string | null
+  to: string | null
+  rows: AttendanceSummaryRow[]
+  totals: Omit<AttendanceSummaryRow, "trade">
+  headcount: number
+  reconciliation: AttendanceReconciliation
+}
+
+export async function attendanceSummary(
+  ctx: { orgId: string },
+  projectId: string,
+  from?: string,
+  to?: string
+): Promise<AttendanceSummary> {
+  const [statuses, byTrade] = await Promise.all([
+    attendanceReport(ctx, projectId, from, to),
+    manpowerCostReport(ctx, projectId, undefined, undefined, from, to),
+  ])
+  const rows = buildAttendanceSummaryRows(statuses.rows)
+  return {
+    projectId,
+    from: from ?? null,
+    to: to ?? null,
+    rows,
+    totals: totalAttendanceSummary(rows),
+    headcount: headcountOnSite(rows),
+    reconciliation: reconcileAttendanceSummary(rows, byTrade.byTrade),
+  }
 }
 
 // 5. Site Picture Report -- documents(category='site_photo') grouped by date.
@@ -700,11 +860,17 @@ export async function vendorCostReport(ctx: { orgId: string }, projectId: string
 // filter is exactly "how many people worked"), and totalCost is that same
 // day's real labour cost -- the row's own oracle ("trade-wise summary
 // returns correct headcount and cost for that date").
-export async function manpowerCostReport(ctx: { orgId: string }, projectId: string, date?: string, trade?: string) {
+// R67 D-31: dateFrom/dateTo added after date/trade so every existing positional
+// caller (the report dispatcher passes date and trade only) is untouched. `date`
+// stays the exact-day filter it has always been; the range is for the Manpower
+// panel's Today / This week / This month presets.
+export async function manpowerCostReport(ctx: { orgId: string }, projectId: string, date?: string, trade?: string, dateFrom?: string, dateTo?: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const conditions = [eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId)]
     if (date) conditions.push(eq(constructionAttendance.attendanceDate, date))
+    if (dateFrom) conditions.push(gte(constructionAttendance.attendanceDate, dateFrom))
+    if (dateTo) conditions.push(lte(constructionAttendance.attendanceDate, dateTo))
     if (trade) conditions.push(eq(constructionLabourRoster.trade, trade))
     const rows = await db.select({
       trade: constructionLabourRoster.trade,
