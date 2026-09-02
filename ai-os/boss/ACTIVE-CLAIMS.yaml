@@ -152,8 +152,38 @@ active:
         src/app/api/v1/projexa/projects/route.ts (adds GET, 60 s per-org cache)
         src/app/api/v1/projexa/permits/route.ts (+ new route.test.ts)
         src/app/api/v1/projexa/drawings/route.ts
-        src/app/api/v1/projexa/drawings/[id]/document-url/route.ts (new)
+        src/app/api/v1/projexa/drawings/[id]/document-url/route.ts (+ new route.test.ts)
         src/lib/storage/signed-document-url.ts (+ .test.ts) (new)
+
+      Added by the review fix pass (2026-09-03, same session and branch), all
+      consequences of F-02's DTO change reaching further than the PROJEXA
+      clients it was written for:
+        src/app/(app)/permits/page.tsx (+ new page.test.ts)
+        src/app/(app)/drawings/page.tsx (+ new page.test.ts)
+          -- VERIDIAN's OWN shipped register screens consume the same
+             /api/v1/projexa/permits and /drawings endpoints F-02 changed, and
+             were not migrated with PROJEXA's: every permit's "View" and every
+             uploaded drawing's "Open" had silently become "--". Both now
+             render from hasDocument and sign the URL on click. Source-assertion
+             tests (this repo has no jsdom/@testing-library -- see
+             src/components/AppShell.test.ts's own header).
+        src/app/api/v1/projexa/permits/[id]/route.ts
+          -- F-02 made this the ONLY path to a permit's file, and it still did
+             a bare unguarded createSignedUrl. Moved onto the shared
+             signDocumentUrl() helper, so a Storage outage costs the file link
+             and not the whole object screen.
+        docs/API_CHANGELOG.md
+          -- the first BREAKING entry this contract has recorded (permits
+             documentUrl removed, drawings documentUrl semantics changed),
+             with the migration path and an explicit, flagged note that it
+             shipped under v1 rather than behind a new /api/v2 prefix, which
+             is an open Owner decision.
+        (merge) origin/main was merged into this branch and the conflicts in
+             construction-reports-service.ts (+ .test.ts),
+             construction-boq-service.test.ts, ACTIVE-CLAIMS.yaml and
+             docs/master/TEST_COVERAGE_GAP.md resolved by hand; every report
+             function arriving from main now calls the memoised
+             ensureConstructionEnabled, not requireConstructionEnabled.
 
       NOT claimed / deliberately untouched: the postgres() pool options in
       tenant-scoped.ts (F-16 owns the idle_in_transaction connection option and
