@@ -72,6 +72,18 @@ active:
           -- F-14: categories and recentEntries folded into
              getProjectDashboard's existing transaction, so /dashboard/project
              stops making two extra client calls for them.
+        src/lib/services/construction-labour-service.ts (+ .test.ts)
+          -- F-13: listRoster() returns vendorName per row, resolved by one
+             batched read on the transaction it already holds, so PROJEXA's
+             Work Progress Report stops fetching the org's whole vendor master
+             just to turn a handful of vendorIds into names.
+        src/app/api/v1/construction/progress/route.ts
+          -- F-13: forwards dateFrom/dateTo to listProgressEntries, which has
+             always supported the window but never exposed it.
+        src/lib/pipeline/executor.ts (+ .test.ts)
+          -- F-15: executeRecordWorkProgress (the pipeline's only write) held
+             its lookup transaction open across createProgressEntry's own.
+             Split, so one task holds one connection at a time.
 
       Items F-06..F-10 add, in this repo:
         src/lib/services/construction-labour-service.ts (+ new .test.ts)
