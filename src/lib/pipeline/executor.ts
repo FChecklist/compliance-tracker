@@ -13,8 +13,24 @@ import { createProgressEntry } from "@/lib/services/construction-progress-servic
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
 import { dispatchTool } from "@/lib/task-execution-engine";
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
+import type { TaskFailure } from "./task-error-codes";
 
-export type ExecutionOutcome = { success: true; result: unknown } | { success: false; error: string };
+// R67 D-03: a failure now carries a CODE alongside the human sentence.
+// Decision D-03: "The server returns {code, missing: [field]} (the 'needs_input'
+// payload); the client never shows a camelCase parameter name, a function id, or
+// a host:port." The sentence is unchanged and is still what gets persisted into
+// pipeline_tasks.error -- the code is additive, so nothing that reads the error
+// text today changes behaviour, and PROJEXA's dictionary
+// (projexa src/lib/task-errors.ts) can render a closed-vocabulary sentence plus
+// a 'Fix' chain instead of re-printing a parameter name.
+//
+// `failure` is optional on purpose: only the conditions inside D-03's closed
+// five-code set carry one. An executor failing for a reason outside that set
+// keeps its own honest sentence and no code, which the client renders verbatim
+// rather than mapping to something it does not mean.
+export type ExecutionOutcome =
+  | { success: true; result: unknown }
+  | { success: false; error: string; failure?: TaskFailure };
 
 export type ExecutableTask = {
   orgId: string;
@@ -44,9 +60,15 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
   const itemCode = task.params.itemCode;
   const percent = task.params.percent;
   const projectId = task.projectId;
-  if (typeof itemCode !== "string" || !itemCode) return { success: false, error: "itemCode is required" };
-  if (typeof percent !== "number") return { success: false, error: "percent is required" };
-  if (!projectId) return { success: false, error: "no project resolved for this task" };
+  if (typeof itemCode !== "string" || !itemCode) {
+    return { success: false, error: "itemCode is required", failure: { code: "BOQ_LINE_REQUIRED", missing: ["itemCode"] } };
+  }
+  if (typeof percent !== "number") {
+    return { success: false, error: "percent is required", failure: { code: "VALUE_REQUIRED", missing: ["percent"] } };
+  }
+  if (!projectId) {
+    return { success: false, error: "no project resolved for this task", failure: { code: "PROJECT_REQUIRED", missing: ["projectId"] } };
+  }
 
   return withTenantContext({ orgId: task.orgId, userId: task.userId }, async (db) => {
     // Real data-model quirk found while wiring this (not invented): the most
@@ -62,7 +84,17 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     const lineItem = await db.query.constructionBoqLineItems.findFirst({
       where: and(eq(constructionBoqLineItems.boqId, boq.id), eq(constructionBoqLineItems.itemCode, itemCode)),
     });
-    if (!lineItem) return { success: false, error: `item code "${itemCode}" not found in this project's BOQ` };
+    if (!lineItem) {
+      // The line code and the BOQ version travel as CONTEXT, not inside the
+      // sentence -- PROJEXA's dictionary builds "There is no line 1.01 on
+      // <project> v2 -- pick a line" from them, so the wording lives in one
+      // place and this repo never writes user prose.
+      return {
+        success: false,
+        error: `item code "${itemCode}" not found in this project's BOQ`,
+        failure: { code: "BOQ_LINE_NOT_FOUND", context: { lineCode: itemCode, boqVersion: boq.version } },
+      };
+    }
 
     // construction_work_progress_entries.activity_id is NOT NULL, but this
     // org's real BOQ line items carry no activity_id link of their own
@@ -96,7 +128,9 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
 }
 
 async function executeGetProjectDashboard(task: ExecutableTask): Promise<ExecutionOutcome> {
-  if (!task.projectId) return { success: false, error: "no project resolved for this task" };
+  if (!task.projectId) {
+    return { success: false, error: "no project resolved for this task", failure: { code: "PROJECT_REQUIRED", missing: ["projectId"] } };
+  }
   const dashboard = await getProjectDashboard({ orgId: task.orgId }, task.projectId);
   // F089/F059: same redaction the API route applies, for the same reason --
   // see this file's ExecutableTask.role comment. `task.role` undefined
@@ -144,7 +178,9 @@ function makeDispatchExecutor(codeReference: string): (task: ExecutableTask) => 
     // dispatchTool if one was not resolved. Checked here so the user gets
     // the honest reason rather than a raw engine error.
     const needsProject = codeReference !== "list_over_budget_projects" && codeReference !== "list_delayed_activities";
-    if (needsProject && !task.projectId) return { success: false, error: "no project resolved for this task" };
+    if (needsProject && !task.projectId) {
+      return { success: false, error: "no project resolved for this task", failure: { code: "PROJECT_REQUIRED", missing: ["projectId"] } };
+    }
     const result = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
       dispatchTool(db, task.orgId, task.userId, codeReference, { inputs: { projectId: task.projectId ?? undefined } })
     );
@@ -238,9 +274,13 @@ export async function executeTask(task: ExecutableTask): Promise<ExecutionOutcom
     // the end user, leaking an internal IP:port. Log the real error
     // server-side; return a safe, honest-but-generic message for display.
     console.error(`executeTask: unexpected error running "${task.functionId}"`, error);
+    // R67 D-03: the same sanitised sentence, now carrying BACKEND_UNAVAILABLE
+    // so the client can offer the Retry that decision D-03 asks for instead of
+    // re-printing prose.
     return {
       success: false,
       error: "This couldn't be completed right now due to an internal error. Retry shortly, or contact support if it persists.",
+      failure: { code: "BACKEND_UNAVAILABLE" },
     };
   }
 }

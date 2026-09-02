@@ -4,6 +4,8 @@
 // failed validate() result the same as a miss (gap_log + honest "cannot do
 // that yet"), never surface it to the user as a lower-confidence option.
 
+import type { TaskFailure } from "./task-error-codes";
+
 export type ValidationCandidate = {
   functionId: string;
   params: Record<string, unknown>;
@@ -23,10 +25,17 @@ export type ValidationContext = {
   reachableProjectIds: ReadonlySet<string>;
 };
 
-export type ValidationResult = { valid: true } | { valid: false; reason: string };
+// R67 D-03: a validation failure carries the same closed code set the executor
+// does, so the Task Master can render one dictionary's sentence whichever gate
+// refused. `reason` is unchanged -- every existing caller and every existing
+// assertion in validate.test.ts keeps working; `failure` is purely additive and
+// is only present for the conditions inside D-03's five-code set.
+export type ValidationResult =
+  | { valid: true }
+  | { valid: false; reason: string; failure?: TaskFailure };
 
-function fail(reason: string): ValidationResult {
-  return { valid: false, reason };
+function fail(reason: string, failure?: TaskFailure): ValidationResult {
+  return { valid: false, reason, ...(failure ? { failure } : {}) };
 }
 
 // Minimal, generic type-checking by param NAME convention rather than a full
@@ -68,7 +77,10 @@ export function validate(candidate: ValidationCandidate, ctx: ValidationContext)
   const boqLineItemId = candidate.params.boqLineItemId;
   if (typeof boqLineItemId === "string" && boqLineItemId.length > 0) {
     if (!ctx.boqLineItemIds.has(boqLineItemId)) {
-      return fail(`boq_line_item_id "${boqLineItemId}" does not exist in this BOQ`);
+      // No lineCode context here: what failed is an internal boq_line_item_id,
+      // and D-03 forbids putting one in front of a user. The client's
+      // BOQ_LINE_NOT_FOUND sentence falls back to its context-free wording.
+      return fail(`boq_line_item_id "${boqLineItemId}" does not exist in this BOQ`, { code: "BOQ_LINE_NOT_FOUND" });
     }
   }
 
@@ -82,7 +94,10 @@ export function validate(candidate: ValidationCandidate, ctx: ValidationContext)
   const projectId = candidate.params.projectId;
   if (typeof projectId === "string" && projectId.length > 0) {
     if (!ctx.reachableProjectIds.has(projectId)) {
-      return fail(`project "${projectId}" is not reachable by this user`);
+      return fail(`project "${projectId}" is not reachable by this user`, {
+        code: "PROJECT_REQUIRED",
+        missing: ["projectId"],
+      });
     }
   }
 

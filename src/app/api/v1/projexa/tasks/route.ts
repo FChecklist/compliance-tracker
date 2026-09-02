@@ -25,6 +25,7 @@ import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-gua
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
 import { runSubmission, runDirectTask } from "@/lib/pipeline/run-submission"
+import { resolveTaskFailure } from "@/lib/pipeline/task-error-codes"
 
 const TASK_STATUSES = ["to_do", "in_progress", "waiting", "done", "blocked"] as const
 type TaskStatus = (typeof TASK_STATUSES)[number]
@@ -134,6 +135,10 @@ export async function GET(request: NextRequest) {
           params: pipelineTasks.params,
           status: pipelineTasks.status,
           error: pipelineTasks.error,
+          // R67 D-03: read (never returned raw) only so the structured
+          // {code, missing} run-submission.ts persists on a blocked row can be
+          // lifted out of it below.
+          result: pipelineTasks.result,
           createdAt: pipelineTasks.createdAt,
           updatedAt: pipelineTasks.updatedAt,
           rawInput: submissions.rawInput,
@@ -146,10 +151,27 @@ export async function GET(request: NextRequest) {
         .limit(limit)
     })
 
-    const group = (statuses: TaskStatus[]) => rows.filter((r) => statuses.includes(r.status as TaskStatus))
+    // R67 D-03 -- the 'needs_input' payload. Decision D-03: "The server returns
+    // {code, missing: [field]} ... the client never shows a camelCase parameter
+    // name, a function id, or a host:port." The code comes from the structured
+    // failure this task was blocked with; for rows written before that existed,
+    // it is classified from executor.ts's own closed set of sentences. `error`
+    // is untouched, so every existing consumer keeps working, and `result` is
+    // dropped from the response rather than newly exposed.
+    const decorated = rows.map(({ result, ...row }) => {
+      const failure = resolveTaskFailure(result, row.error)
+      return {
+        ...row,
+        code: failure?.code ?? null,
+        missing: failure?.missing ?? null,
+        errorContext: failure?.context ?? null,
+      }
+    })
+
+    const group = (statuses: TaskStatus[]) => decorated.filter((r) => statuses.includes(r.status as TaskStatus))
 
     return NextResponse.json({
-      tasks: rows,
+      tasks: decorated,
       // LIVE COUNTS, so the user knows before clicking (M24's header tabs).
       counts: {
         needsYou: group(["to_do", "waiting"]).length,

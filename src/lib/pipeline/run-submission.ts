@@ -26,6 +26,7 @@ import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
+import { failureRecord, type TaskFailure } from "./task-error-codes";
 import { createMemoryRecord } from "@/lib/services/memory-service";
 
 // M26: "Pass the module's 5-15 functions ... NEVER 400 unbound functions --
@@ -354,7 +355,10 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
         await captureTaskResultMemory(input, c.functionId, seg.text, c.params);
       }
     } else {
-      await updateTask(input.orgId, taskId, "blocked", undefined, outcome.error);
+      // R67 D-03: the structured {code, missing} travels in `result` (jsonb,
+      // null on a blocked row until now) so GET /api/v1/projexa/tasks can hand
+      // PROJEXA a code rather than PROJEXA parsing prose. `error` is unchanged.
+      await updateTask(input.orgId, taskId, "blocked", failureRecord(outcome.failure), outcome.error);
       tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, error: outcome.error });
     }
     advance(!outcome.success);
@@ -510,7 +514,9 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
 
   const taskId = await mintTask(base, submissionId, 0, null, input.functionId, params, derived);
 
-  let outcome: { success: boolean; result?: unknown; error?: string };
+  // R67 D-03: `failure` carries the closed-set {code, missing} when the
+  // executor supplied one -- see executor.ts's ExecutionOutcome.
+  let outcome: { success: boolean; result?: unknown; error?: string; failure?: TaskFailure };
   if (!hasExecutor(input.functionId)) {
     outcome = { success: false, error: `no executor is registered for function_id "${input.functionId}" yet` };
   } else {
@@ -537,7 +543,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
       await captureTaskResultMemory(base, input.functionId, base.rawInput, params);
     }
   } else {
-    await updateTask(input.orgId, taskId, "blocked", undefined, outcome.error);
+    await updateTask(input.orgId, taskId, "blocked", failureRecord(outcome.failure), outcome.error);
   }
 
   await recordPillUse(base, input.functionId, derived);
