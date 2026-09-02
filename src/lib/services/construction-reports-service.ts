@@ -33,20 +33,156 @@ async function activityIdsForProject(db: TenantDb, orgId: string, projectId: str
   return rows
 }
 
+// R67 lane I (WS-I item I-05, R-177). The bucket a line with no category of
+// its own falls into. ONE constant, so the report, the filter and the UI can
+// never disagree about its spelling -- the Category-wise tab shows this label
+// only for lines that TRULY have none.
+export const UNCATEGORIZED_LABEL = "Uncategorized"
+
+export type CategoryLine = {
+  lineItemId: string
+  code: string | null
+  description: string
+  /** null on the row means "no category"; the roll-up buckets it under UNCATEGORIZED_LABEL. */
+  category: string | null
+  amount: number
+  parentLineItemId: string | null
+}
+
+export type CategorySubtotal = { category: string; subtotal: number; lineCount: number }
+
+/**
+ * R67 lane I (WS-I item I-05). Pure: groups BOQ lines by category, applies an
+ * optional category filter, and returns subtotals plus a Grand Total that ties
+ * to them by construction (the total is the sum of the subtotals, never a
+ * second, independently-computed sum that could drift -- REPORT.GLOBAL).
+ *
+ * TWO RULES THAT MATTER:
+ *
+ * 1. MONEY SUMS ROOT LINES ONLY (Master v5 B-3/D-3, the same
+ *    rootBoqLineItemsOnly discipline scopeReport and categoryBoqAmountsReport
+ *    already use): a weighted sub-task's amount is derived from its root
+ *    ancestor's qty x rate x breakdown %, so the root row already carries the
+ *    full value and summing both double-counts. Child rows are still RETURNED
+ *    (a QS needs to see them) and still counted in lineCount, they just
+ *    contribute 0 to the subtotal.
+ *
+ * 2. THE FILTER IS CASE-INSENSITIVE, matching construction-boq-category-
+ *    service.ts's own comparison rule. A line imported as "civil" must not
+ *    silently fall out of a "Civil" filter -- that is a missing row in a money
+ *    report, the exact defect the tie check exists to catch.
+ */
+export function rollUpLinesByCategory(
+  lines: CategoryLine[],
+  categoryFilter?: string[]
+): { lines: CategoryLine[]; byCategory: CategorySubtotal[]; grandTotal: number } {
+  // A filter that cleans down to nothing (omitted, [], or only blank strings --
+  // e.g. a stray `?category=` on the URL) means EVERY category, never none.
+  // Returning an empty report there would look exactly like "this project has
+  // no BOQ", which is a different and much more alarming fact.
+  const cleaned = (categoryFilter ?? []).map((c) => c.trim().toLowerCase()).filter((c) => c !== "")
+  const wanted = cleaned.length > 0 ? new Set(cleaned) : null
+  const labelOf = (line: CategoryLine) => line.category ?? UNCATEGORIZED_LABEL
+
+  const kept = wanted ? lines.filter((l) => wanted.has(labelOf(l).toLowerCase())) : lines
+
+  const buckets = new Map<string, CategorySubtotal>()
+  for (const line of kept) {
+    const label = labelOf(line)
+    const key = label.toLowerCase()
+    const bucket = buckets.get(key) ?? { category: label, subtotal: 0, lineCount: 0 }
+    bucket.lineCount += 1
+    // Rule 1 above: only a root line's amount is real money at this level.
+    if (line.parentLineItemId === null) bucket.subtotal += line.amount
+    buckets.set(key, bucket)
+  }
+
+  // Uncategorized always last -- it is a residue, not a category, and reading
+  // it between "Paint" and "Plumbing" makes it look like one.
+  const byCategory = [...buckets.values()].sort((a, b) => {
+    if (a.category === UNCATEGORIZED_LABEL) return 1
+    if (b.category === UNCATEGORIZED_LABEL) return -1
+    return a.category.localeCompare(b.category)
+  }).map((b) => ({ ...b, subtotal: Math.round(b.subtotal * 100) / 100 }))
+
+  const grandTotal = Math.round(byCategory.reduce((s, b) => s + b.subtotal, 0) * 100) / 100
+  return { lines: kept, byCategory, grandTotal }
+}
+
+export type WorkProgressReportOptions = {
+  /** R67 I-05: keep only lines in these categories. Empty/omitted = every category. */
+  categoryFilter?: string[]
+}
+
 // 1. Work Progress Report -- latest logged % complete + total quantity done per activity.
-export async function workProgressReport(ctx: { orgId: string }, projectId: string) {
+//
+// R67 lane I (WS-I item I-05, R-177) adds the CATEGORY dimension alongside the
+// activity one, additively: `activities` keeps its exact previous shape and
+// meaning for every existing caller, and `lines`/`byCategory`/`grandTotal` are
+// new keys computed from the latest non-superseded BOQ's line items, filtered
+// server-side by `options.categoryFilter`.
+//
+// Why the category rows come from the BOQ and not from `activities`: an
+// activity has no category of its own except through
+// constructionCategories (the per-project progress hierarchy), and most real
+// BOQ lines have no activityId at all -- an imported BOQ never does. The new
+// construction_boq_line_items.category column (drizzle/0532) is the only place
+// a line's real category lives.
+export async function workProgressReport(
+  ctx: { orgId: string },
+  projectId: string,
+  options: WorkProgressReportOptions = {}
+) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const activities = await activityIdsForProject(db, ctx.orgId, projectId)
-    if (activities.length === 0) return { activities: [] }
-    const ids = activities.map((a) => a.id)
-    const totals = await db.select({
-      activityId: constructionWorkProgressEntries.activityId,
-      totalQuantityDone: sql<number>`coalesce(sum(${constructionWorkProgressEntries.quantityDone}), 0)::float`,
-      latestPercent: sql<number>`(array_agg(${constructionWorkProgressEntries.percentComplete} order by ${constructionWorkProgressEntries.entryDate} desc))[1]`,
-    }).from(constructionWorkProgressEntries).where(inArray(constructionWorkProgressEntries.activityId, ids)).groupBy(constructionWorkProgressEntries.activityId)
-    const byActivity = new Map(totals.map((t) => [t.activityId, t]))
-    return { activities: activities.map((a) => ({ activityId: a.id, name: a.name, quantityDone: Number(byActivity.get(a.id)?.totalQuantityDone ?? 0), percentComplete: Number(byActivity.get(a.id)?.latestPercent ?? 0) })) }
+
+    let activityRows: { activityId: string; name: string; quantityDone: number; percentComplete: number }[] = []
+    if (activities.length > 0) {
+      const ids = activities.map((a) => a.id)
+      const totals = await db.select({
+        activityId: constructionWorkProgressEntries.activityId,
+        totalQuantityDone: sql<number>`coalesce(sum(${constructionWorkProgressEntries.quantityDone}), 0)::float`,
+        latestPercent: sql<number>`(array_agg(${constructionWorkProgressEntries.percentComplete} order by ${constructionWorkProgressEntries.entryDate} desc))[1]`,
+      }).from(constructionWorkProgressEntries).where(inArray(constructionWorkProgressEntries.activityId, ids)).groupBy(constructionWorkProgressEntries.activityId)
+      const byActivity = new Map(totals.map((t) => [t.activityId, t]))
+      activityRows = activities.map((a) => ({ activityId: a.id, name: a.name, quantityDone: Number(byActivity.get(a.id)?.totalQuantityDone ?? 0), percentComplete: Number(byActivity.get(a.id)?.latestPercent ?? 0) }))
+    }
+
+    // Same "latest active revision" pick as scopeReport/categoryBoqAmountsReport,
+    // including PR #1325's createdAt DESC tiebreaker -- this report must not
+    // categorise a different revision than the Scope report totals.
+    const boqs = await db.query.constructionBoqs.findMany({
+      where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
+      orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)],
+    })
+    const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
+    const lineItems = latest
+      ? await db.query.constructionBoqLineItems.findMany({
+          where: eq(constructionBoqLineItems.boqId, latest.id),
+          columns: { id: true, itemCode: true, description: true, category: true, amount: true, parentLineItemId: true },
+        })
+      : []
+
+    const rollup = rollUpLinesByCategory(
+      lineItems.map((item) => ({
+        lineItemId: item.id,
+        code: item.itemCode,
+        description: item.description,
+        category: item.category,
+        amount: Number(item.amount),
+        parentLineItemId: item.parentLineItemId,
+      })),
+      options.categoryFilter
+    )
+
+    return {
+      activities: activityRows,
+      boqId: latest?.id ?? null,
+      lines: rollup.lines,
+      byCategory: rollup.byCategory,
+      grandTotal: rollup.grandTotal,
+    }
   })
 }
 
@@ -320,7 +456,10 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
     const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
-    if (!latest) return { lines: [], totalBudget: 0, totalVendorAmount: 0, totalVariance: 0 }
+    // R67 lane I (I-03): the empty-project shape must carry the SAME keys as
+    // the populated one, or a caller that reads totalMaterialAmount gets
+    // undefined on a project with no BOQ and renders "NaN".
+    if (!latest) return { lines: [], totalBudget: 0, totalVendorAmount: 0, totalVariance: 0, totalMaterialAmount: 0, totalManpowerAmount: 0 }
 
     const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id) })
     const vendorIds = [...new Set(lineItems.map((i) => i.vendorId).filter((id): id is string => !!id))]
@@ -347,9 +486,22 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
         lineItemId: item.id,
         code: item.itemCode,
         description: item.description,
+        // R67 lane I (WS-I item I-05, R-177): the line's own category, so the
+        // Budget table can show a Category column and group by a real value
+        // instead of re-deriving it through activityId -> activity -> category.
+        // null (never "") -- normalizeCategory in construction-boq-service.ts
+        // is the single writer, so "no category" is one value here.
+        category: item.category,
         amount: Number(item.amount),
         budgetPercentage: Number(item.budgetPercentage),
         budget: Math.round(rawBudget * 100) / 100,
+        // R67 lane I (WS-I item I-03): the material/manpower split, projected
+        // alongside the budget it belongs to. null (not 0) when the QS has not
+        // split this line -- "unsplit" and "split as zero" are different facts
+        // and a report that conflated them would read as if every line had
+        // been costed.
+        materialAmount: item.materialAmount !== null ? Number(item.materialAmount) : null,
+        manpowerAmount: item.manpowerAmount !== null ? Number(item.manpowerAmount) : null,
         vendorId: item.vendorId,
         vendorName: item.vendorId ? (supplierNameById.get(item.vendorId) ?? null) : null,
         vendorAmount,
@@ -362,12 +514,20 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     const totalBudget = Math.round(lines.reduce((s, l) => s + l._rawBudget, 0) * 100) / 100
     const totalVendorAmount = Math.round(lines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100
     const totalVariance = Math.round(lines.reduce((s, l) => s + (l._rawVariance ?? 0), 0) * 100) / 100
+    // R67 lane I (WS-I item I-03): totalled once, at the end, over the raw
+    // per-line values -- the same single-rounding rule the R48 gap-closure
+    // note above established for totalBudget/totalVariance, so these totals
+    // reconcile exactly to a raw SQL SUM over the same rows.
+    const totalMaterialAmount = Math.round(lines.reduce((s, l) => s + (l.materialAmount ?? 0), 0) * 100) / 100
+    const totalManpowerAmount = Math.round(lines.reduce((s, l) => s + (l.manpowerAmount ?? 0), 0) * 100) / 100
 
     return {
       lines: lines.map(({ _rawBudget, _rawVariance, ...line }) => line),
       totalBudget,
       totalVendorAmount,
       totalVariance,
+      totalMaterialAmount,
+      totalManpowerAmount,
     }
   })
 }
@@ -929,13 +1089,31 @@ export async function projectCompletionReport(ctx: { orgId: string }, projectId:
 // 18. Category BOQ Amounts Report -- BOQ line-item `amount` totaled per
 // category, for the PROJEXA Company/Department/Project drill-down's
 // category-distribution chart (pie share-of-total + completed-vs-total
-// bar). Category attribution goes lineItem.activityId -> activity.categoryId
-// -> category.name (constructionBoqLineItems has no direct category column
-// of its own -- see its schema.ts comment); a line item with no activityId,
-// or one whose activity's category was deleted, falls into a synthetic
+// bar). A line item with no category at all falls into a synthetic
 // "Uncategorized" bucket rather than being silently dropped, so
 // sum(byCategory.totalAmount) + uncategorizedAmount always equals the BOQ's
 // real total, matching scopeReport's totalValue for the same project.
+//
+// R67 lane I (WS-I item I-05, R-177) -- ATTRIBUTION ORDER, and why it changed:
+// this used to resolve a category ONLY through
+// lineItem.activityId -> activity.categoryId -> category.name, because
+// construction_boq_line_items had no category column (that is what this
+// comment used to say). It does now (drizzle/0532), and the direct column
+// WINS: most real lines have no activityId at all -- an imported BOQ never
+// does -- which is exactly why nearly every amount used to land in
+// Uncategorized and the charts had almost nothing to plot. Order is now:
+//   1. the line's own `category` text (the R-177 column, what the customer
+//      actually typed or imported);
+//   2. failing that, the old activityId -> activity -> category path, so every
+//      pre-existing categorised line keeps reporting exactly as before;
+//   3. failing both, Uncategorized.
+//
+// categoryId STAYS A NON-NULL STRING for every bucket, because PROJEXA's
+// category-distribution route uses it as a Map key and a React key. A bucket
+// that came from the text column and matches no constructionCategories row
+// gets the stable synthetic id "text:<lowercased name>" -- distinguishable,
+// never colliding with a real cuid, and honestly resolving to 0% in the
+// completion lookup (there is no per-category progress row behind it).
 export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -946,19 +1124,39 @@ export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId
     if (!latest) return { categories: [], uncategorizedAmount: 0, totalAmount: 0 }
 
     const [lineItems, categories, activities] = await Promise.all([
-      db.query.constructionBoqLineItems.findMany({ where: rootBoqLineItemsOnly(latest.id), columns: { activityId: true, amount: true } }),
+      db.query.constructionBoqLineItems.findMany({ where: rootBoqLineItemsOnly(latest.id), columns: { activityId: true, amount: true, category: true } }),
       db.query.constructionCategories.findMany({ where: and(eq(constructionCategories.orgId, ctx.orgId), eq(constructionCategories.projectId, projectId)) }),
       activityIdsForProject(db, ctx.orgId, projectId),
     ])
     const categoryIdByActivity = new Map(activities.map((a) => [a.id, a.categoryId]))
+    // A direct category TEXT that names an existing project category resolves
+    // to that same row, so the two attribution paths converge on ONE bucket
+    // instead of showing "Civil" twice in the pie.
+    const categoryIdByLowerName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c.id]))
     const amountByCategory = new Map<string, number>()
+    // Buckets that came from the text column and match no project category row.
+    const syntheticNameById = new Map<string, string>()
     let uncategorizedAmount = 0
+
     for (const item of lineItems) {
+      const amount = Number(item.amount)
+      const directName = typeof item.category === "string" ? item.category.trim() : ""
+      if (directName !== "") {
+        const matchedId = categoryIdByLowerName.get(directName.toLowerCase())
+        const bucketId = matchedId ?? `text:${directName.toLowerCase()}`
+        if (!matchedId) syntheticNameById.set(bucketId, directName)
+        amountByCategory.set(bucketId, (amountByCategory.get(bucketId) ?? 0) + amount)
+        continue
+      }
       const categoryId = item.activityId ? categoryIdByActivity.get(item.activityId) : undefined
-      if (!categoryId) { uncategorizedAmount += Number(item.amount); continue }
-      amountByCategory.set(categoryId, (amountByCategory.get(categoryId) ?? 0) + Number(item.amount))
+      if (!categoryId) { uncategorizedAmount += amount; continue }
+      amountByCategory.set(categoryId, (amountByCategory.get(categoryId) ?? 0) + amount)
     }
-    const byCategory = categories.map((c) => ({ categoryId: c.id, name: c.name, totalAmount: amountByCategory.get(c.id) ?? 0 }))
+
+    const byCategory = [
+      ...categories.map((c) => ({ categoryId: c.id, name: c.name, totalAmount: amountByCategory.get(c.id) ?? 0 })),
+      ...[...syntheticNameById.entries()].map(([id, name]) => ({ categoryId: id, name, totalAmount: amountByCategory.get(id) ?? 0 })),
+    ]
     const totalAmount = byCategory.reduce((s, c) => s + c.totalAmount, 0) + uncategorizedAmount
     return { categories: byCategory, uncategorizedAmount, totalAmount }
   })

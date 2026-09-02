@@ -529,3 +529,142 @@ describe("computeEarnedValue -- R46/R-51 percent-complete fallback + root-with-c
     expect(computeEarnedValue([], new Map(), new Map())).toEqual({ earnedValue: 0, contractValue: 0, percentByValue: 0 })
   })
 })
+
+// ---------------------------------------------------------------------------
+// R67 lane I (WS-I item I-05, R-177): the Category dimension of the Work
+// Progress Report. rollUpLinesByCategory is pure and tested directly; the real
+// workProgressReport() code path is then exercised with only the DB layer and
+// the construction-enablement gate mocked, so "categoryFilter=['Civil'] returns
+// only Civil rows and a Grand Total equal to their subtotal" is a proven
+// behaviour of the shipped function, not of a helper it happens to call.
+import {
+  UNCATEGORIZED_LABEL,
+  rollUpLinesByCategory,
+  type CategoryLine,
+} from "./construction-reports-service"
+
+const CATEGORY_LINES: CategoryLine[] = [
+  { lineItemId: "l1", code: "1", description: "Blockwork", category: "Civil", amount: 1000, parentLineItemId: null },
+  { lineItemId: "l2", code: "2", description: "Plaster", category: "Civil", amount: 500, parentLineItemId: null },
+  { lineItemId: "l3", code: "3", description: "Ceiling", category: "Gypsum", amount: 400, parentLineItemId: null },
+  { lineItemId: "l4", code: "4", description: "Odd job", category: null, amount: 100, parentLineItemId: null },
+  // A weighted sub-task of l1: its amount is a share of l1's and must never be
+  // added on top (Master v5 B-3/D-3).
+  { lineItemId: "l1a", code: "1.1", description: "Sub: Frame", category: "Civil", amount: 400, parentLineItemId: "l1" },
+]
+
+describe("rollUpLinesByCategory (R67 I-05)", () => {
+  test("unfiltered: subtotals per category, Uncategorized last, Grand Total = sum of subtotals", () => {
+    const { byCategory, grandTotal } = rollUpLinesByCategory(CATEGORY_LINES)
+    expect(byCategory).toEqual([
+      { category: "Civil", subtotal: 1500, lineCount: 3 },
+      { category: "Gypsum", subtotal: 400, lineCount: 1 },
+      { category: UNCATEGORIZED_LABEL, subtotal: 100, lineCount: 1 },
+    ])
+    expect(grandTotal).toBe(2000)
+    expect(grandTotal).toBe(byCategory.reduce((s, c) => s + c.subtotal, 0))
+  })
+
+  test("a weighted sub-task is returned and counted but contributes no money -- never double-counted", () => {
+    const civil = rollUpLinesByCategory(CATEGORY_LINES).byCategory.find((c) => c.category === "Civil")!
+    expect(civil.lineCount).toBe(3) // l1, l2, l1a
+    expect(civil.subtotal).toBe(1500) // l1 + l2 only; l1a's 400 is a share of l1's 1000
+  })
+
+  test("categoryFilter=['Civil'] keeps only Civil rows and the Grand Total equals their subtotal", () => {
+    const { lines, byCategory, grandTotal } = rollUpLinesByCategory(CATEGORY_LINES, ["Civil"])
+    expect(lines.map((l) => l.lineItemId)).toEqual(["l1", "l2", "l1a"])
+    expect(byCategory).toEqual([{ category: "Civil", subtotal: 1500, lineCount: 3 }])
+    expect(grandTotal).toBe(1500)
+    expect(grandTotal).toBe(byCategory[0].subtotal)
+  })
+
+  test("the filter is case-insensitive -- an imported 'civil' line is not silently dropped from a 'Civil' filter", () => {
+    const lines: CategoryLine[] = [
+      { lineItemId: "a", code: null, description: "x", category: "civil", amount: 10, parentLineItemId: null },
+      { lineItemId: "b", code: null, description: "y", category: "CIVIL", amount: 20, parentLineItemId: null },
+    ]
+    const { grandTotal, byCategory } = rollUpLinesByCategory(lines, ["Civil"])
+    expect(grandTotal).toBe(30)
+    expect(byCategory.length).toBe(1) // one bucket, not two spellings
+  })
+
+  test("Uncategorized is selectable by name, and matches only lines that truly have none", () => {
+    const { lines, grandTotal } = rollUpLinesByCategory(CATEGORY_LINES, [UNCATEGORIZED_LABEL])
+    expect(lines.map((l) => l.lineItemId)).toEqual(["l4"])
+    expect(grandTotal).toBe(100)
+  })
+
+  test("an empty or all-blank filter means every category, not none", () => {
+    expect(rollUpLinesByCategory(CATEGORY_LINES, []).grandTotal).toBe(2000)
+    expect(rollUpLinesByCategory(CATEGORY_LINES, ["  "]).grandTotal).toBe(2000)
+  })
+
+  test("a filter naming a category nobody uses returns nothing and a Grand Total of 0 -- never the unfiltered total", () => {
+    const { lines, byCategory, grandTotal } = rollUpLinesByCategory(CATEGORY_LINES, ["Joinery"])
+    expect(lines).toEqual([])
+    expect(byCategory).toEqual([])
+    expect(grandTotal).toBe(0)
+  })
+})
+
+describe("workProgressReport with categoryFilter (R67 I-05, real code path)", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+    await mock.module("./construction-enablement-service", () => realEnablementService)
+  })
+
+  async function runWorkProgressReport(categoryFilter?: string[]) {
+    const fakeDb = {
+      query: {
+        constructionActivities: { findMany: mock(async () => []) },
+        constructionBoqs: { findMany: mock(async () => [{ id: "boq-1", status: "approved", version: 2 }]) },
+        constructionBoqLineItems: {
+          findMany: mock(async () =>
+            CATEGORY_LINES.map((l) => ({
+              id: l.lineItemId,
+              itemCode: l.code,
+              description: l.description,
+              category: l.category,
+              amount: String(l.amount),
+              parentLineItemId: l.parentLineItemId,
+            }))
+          ),
+        },
+      },
+      select: () => ({ from: () => ({ where: () => ({ groupBy: () => Promise.resolve([]) }) }) }),
+    }
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablementService,
+      requireConstructionEnabled: mock(async () => {}),
+    }))
+    const { workProgressReport } = await import("./construction-reports-service")
+    return workProgressReport({ orgId: "org-wpr-test" }, "proj-1", categoryFilter ? { categoryFilter } : {})
+  }
+
+  test("categoryFilter=['Civil'] returns only Civil rows and a Grand Total equal to their subtotal", async () => {
+    const result = await runWorkProgressReport(["Civil"])
+    expect(result.lines.map((l) => l.lineItemId)).toEqual(["l1", "l2", "l1a"])
+    expect(result.byCategory).toEqual([{ category: "Civil", subtotal: 1500, lineCount: 3 }])
+    expect(result.grandTotal).toBe(1500)
+    expect(result.grandTotal).toBe(result.byCategory[0].subtotal)
+  })
+
+  test("no filter returns every category, and the report still names the BOQ it categorised", async () => {
+    const result = await runWorkProgressReport()
+    expect(result.boqId).toBe("boq-1")
+    expect(result.byCategory.map((c) => c.category)).toEqual(["Civil", "Gypsum", UNCATEGORIZED_LABEL])
+    expect(result.grandTotal).toBe(2000)
+  })
+
+  test("the pre-existing `activities` key is still present and still its own shape", async () => {
+    const result = await runWorkProgressReport()
+    expect(Array.isArray(result.activities)).toBe(true)
+    expect(result.activities).toEqual([])
+  })
+})
