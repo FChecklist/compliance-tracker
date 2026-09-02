@@ -10,39 +10,48 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listDocuments, createDocumentRecord, ServiceError } from "@/lib/services/document-service"
-import { createClient } from "@supabase/supabase-js"
-
-const BUCKET = "compliance-documents"
-const SIGNED_URL_TTL_SECONDS = 300
-
-function getStorageAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
+import { signDocumentUrl } from "@/lib/storage/signed-document-url"
 
 const DRAWING_CATEGORIES = ["drawing", "drawing_3d"] as const
 type DrawingCategory = (typeof DRAWING_CATEGORIES)[number]
 
-async function toDrawingDto(
-  doc: { id: string; name: string; category: string | null; metadata: unknown; fileUrl: string; fileType: string | null; createdAt: Date },
-  admin: ReturnType<typeof getStorageAdminClient>
-) {
+type DrawingDocRow = { id: string; name: string; category: string | null; metadata: unknown; fileUrl: string; fileType: string | null; createdAt: Date }
+
+// R67 F-02 (R-018/R-021/R-030/R-035), same fix as permits/route.ts: the list
+// used to mint one Supabase Storage signed URL per uploaded drawing, inside
+// the list request, so a register's first byte waited on N sequential Storage
+// round trips and a Storage misconfiguration 500'd the whole register.
+//
+// An EXTERNAL-LINK row (a Matterport/SketchUp share URL) keeps its
+// documentUrl: that value is the stored string itself, costs no I/O, and is
+// what the row's link has always pointed at. A storage-backed row reports
+// `hasDocument` and the UI fetches its signed URL on click, from
+// GET /drawings/{id}/document-url. A register that is external links only
+// therefore never constructs the storage admin client at all.
+function toDrawingListDto(doc: DrawingDocRow) {
   const metadata = (doc.metadata ?? {}) as { isExternalLink?: boolean; discipline?: string }
-  const documentUrl = metadata.isExternalLink
-    ? doc.fileUrl
-    : (await admin.storage.from(BUCKET).createSignedUrl(doc.fileUrl, SIGNED_URL_TTL_SECONDS)).data?.signedUrl ?? null
+  const isExternalLink = !!metadata.isExternalLink
   return {
     id: doc.id,
     name: doc.name,
     kind: doc.category === "drawing_3d" ? "3d_walkthrough" : "dwg",
     discipline: metadata.discipline ?? null,
-    isExternalLink: !!metadata.isExternalLink,
+    isExternalLink,
     fileType: doc.fileType,
-    documentUrl,
+    // Present only when it costs nothing to produce -- see above.
+    documentUrl: isExternalLink ? doc.fileUrl : null,
+    hasDocument: Boolean(doc.fileUrl),
     createdAt: doc.createdAt,
   }
+}
+
+// Single-row signing for the create response. A Next.js route.ts may only
+// export HTTP method handlers, so the shared version the on-click endpoint
+// also uses lives in src/lib/storage/signed-document-url.ts.
+async function signOneDrawing(doc: DrawingDocRow): Promise<string | null> {
+  const metadata = (doc.metadata ?? {}) as { isExternalLink?: boolean }
+  if (metadata.isExternalLink) return doc.fileUrl || null
+  return signDocumentUrl(doc.fileUrl, "v1 projexa drawings create")
 }
 
 export async function GET(request: NextRequest) {
@@ -56,15 +65,14 @@ export async function GET(request: NextRequest) {
   const category: DrawingCategory | undefined = kind === "3d_walkthrough" ? "drawing_3d" : kind === "dwg" ? "drawing" : undefined
 
   try {
-    const admin = getStorageAdminClient()
     const lists = await Promise.all(
       (category ? [category] : [...DRAWING_CATEGORIES]).map((c) =>
         listDocuments({ orgId: ctx.orgId! }, { category: c, linkedEntityType: "project", linkedEntityId: projectId })
       )
     )
     const docs = lists.flat().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    const drawings = await Promise.all(docs.map((doc) => toDrawingDto(doc, admin)))
-    return NextResponse.json({ drawings })
+    // Synchronous now -- no per-row Storage round trip left to await.
+    return NextResponse.json({ drawings: docs.map(toDrawingListDto) })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa drawings list error:", error)
@@ -109,8 +117,10 @@ export async function POST(request: NextRequest) {
       ...(file instanceof File ? { file } : { externalUrl: externalUrl! }),
     })
 
-    const admin = getStorageAdminClient()
-    return NextResponse.json(await toDrawingDto(doc, admin), { status: 201 })
+    return NextResponse.json(
+      { ...toDrawingListDto(doc), documentUrl: await signOneDrawing(doc) },
+      { status: 201 }
+    )
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa drawings create error:", error)
