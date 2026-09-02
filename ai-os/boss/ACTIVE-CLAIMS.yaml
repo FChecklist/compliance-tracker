@@ -150,6 +150,36 @@ active:
       `All ${mode.toLowerCase()}`) and chain_history.mode (:631). The field is
       therefore still sent, derived from the chain rather than from a control,
       and nothing in this repo changed.
+  - session_label: "claude-code (subagent, r67/b-backend-chain) -- PROGRAMME R67 lane B (backend-chain), items B-01..B-05"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implementation brief
+      scratchpad/impl/ws/lane_B.items.json (items B-01..B-11) + binding decisions D-03
+      (closed-vocabulary {code, missing} error contract, sentences live in projexa),
+      D-06 (no nested withTenantContext), D-09 (no veridian-ui-kit release).
+      Worktree C:/ct/ct-worktrees/r67-B on branch r67/b-backend-chain, cut from
+      origin/main at 5a64aaee.
+
+      File scope claimed in compliance-tracker (this repo):
+        src/lib/pipeline/error-codes.ts (new) + .test.ts
+        src/lib/pipeline/function-registry.ts (new) + .test.ts
+        src/lib/pipeline/validate.ts + validate.test.ts
+        src/lib/pipeline/executor.ts + executor.test.ts
+        src/lib/pipeline/run-submission.ts + run-submission.test.ts
+        src/lib/pipeline/derive-chain.ts (verb-family/kind derivation only)
+        src/app/api/v1/projexa/tasks/route.ts (dry-run + structured failure in GET)
+        src/app/api/v1/projexa/chain-options/route.ts (new)
+        src/lib/services/chain-options-service.ts (new) + .test.ts
+        src/lib/ai/adapter.ts (the AiProviderRefusalError sentence only)
+        docs/master/TEST_COVERAGE_GAP.md (regenerated)
+      Does NOT touch: platform.* migrations, drizzle/ (no migration in B-01..B-05),
+      construction-*/pms-*/document-service.ts themselves (the new write executors CALL
+      them unchanged), phrase_map/analyse.ts, the billing/* files claimed below.
+
+      Companion worktree (separate repo, separate PR): C:/ct/projexa-worktrees/r67-B,
+      same branch name, for the projexa half of B-02 only
+      (src/lib/composer-placeholders.ts + M24Shell placeholder wiring).
+
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |
