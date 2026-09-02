@@ -7,7 +7,7 @@ import {
   constructionCategories, constructionActivities, constructionWorkProgressEntries, constructionBoqLineItems, constructionBoqs, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, gte, lte } from "drizzle-orm"
+import { and, eq, gte, inArray, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { listDocuments } from "./document-service"
 export { ServiceError }
@@ -96,19 +96,81 @@ export async function createActivity(ctx: { orgId: string }, input: { projectId:
 // column) and boqLineItemId (the direct-link column added by R12 point 7)
 // as additional, purely optional filters -- every existing caller that
 // passes none of them keeps getting exactly the same result set as before.
+// R67 F-05 (R-075). The four display fields the Work Progress list needs on
+// every row, resolved HERE, inside the transaction that already read the
+// entries -- not by the browser.
+//
+// What this replaces: PROJEXA's Daily Entry screen used to fetch the entries,
+// then GET /api/scope (1.5-4.4 s -- the full BOQ list with every line item of
+// every revision), then GET /api/scope/{id} for the current revision, purely
+// to turn a boqLineItemId into a readable "A-102 -- Blockwork". Analytics then
+// repeated the same three-hop chain on tab switch. That was 15 requests and
+// 7.4 s to network idle on a screen whose own backend answers in 400-831 ms.
+//
+// `unit` is the BOQ LINE's unit when the entry is linked to one, because that
+// is the unit its quantity was measured in; it falls back to the activity's
+// unit for the legacy activity-only entries (R12 point 7 made the BOQ link
+// optional, and pre-R12 rows have none).
+export type ProgressEntryWithLabels = typeof constructionWorkProgressEntries.$inferSelect & {
+  activityName: string | null
+  boqItemCode: string | null
+  boqLineDescription: string | null
+  unit: string | null
+}
+
 export async function listProgressEntries(
   ctx: { orgId: string },
   filters: { projectId?: string; activityId?: string; boqLineItemId?: string; dateFrom?: string; dateTo?: string }
-) {
+): Promise<ProgressEntryWithLabels[]> {
   if (!filters.projectId && !filters.activityId) throw new ServiceError("projectId or activityId is required", 400)
-  return withTenantContext({ orgId: ctx.orgId }, (db) => {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const conditions = [eq(constructionWorkProgressEntries.orgId, ctx.orgId)]
     if (filters.projectId) conditions.push(eq(constructionWorkProgressEntries.projectId, filters.projectId))
     if (filters.activityId) conditions.push(eq(constructionWorkProgressEntries.activityId, filters.activityId))
     if (filters.boqLineItemId) conditions.push(eq(constructionWorkProgressEntries.boqLineItemId, filters.boqLineItemId))
     if (filters.dateFrom) conditions.push(gte(constructionWorkProgressEntries.entryDate, filters.dateFrom))
     if (filters.dateTo) conditions.push(lte(constructionWorkProgressEntries.entryDate, filters.dateTo))
-    return db.query.constructionWorkProgressEntries.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.entryDate) })
+    const entries = await db.query.constructionWorkProgressEntries.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.entryDate) })
+    if (entries.length === 0) return []
+
+    // Two batched reads on the SAME open transaction -- never one per row.
+    const activityIds = [...new Set(entries.map((e) => e.activityId).filter((id): id is string => !!id))]
+    const lineItemIds = [...new Set(entries.map((e) => e.boqLineItemId).filter((id): id is string => !!id))]
+
+    const readActivities = async (): Promise<{ id: string; name: string; unit: string | null }[]> =>
+      activityIds.length === 0
+        ? []
+        : db.query.constructionActivities.findMany({
+            where: and(eq(constructionActivities.orgId, ctx.orgId), inArray(constructionActivities.id, activityIds)),
+            columns: { id: true, name: true, unit: true },
+          })
+    const readLineItems = async (): Promise<{ id: string; itemCode: string | null; description: string; unit: string }[]> =>
+      lineItemIds.length === 0
+        ? []
+        : db.query.constructionBoqLineItems.findMany({
+            where: and(eq(constructionBoqLineItems.orgId, ctx.orgId), inArray(constructionBoqLineItems.id, lineItemIds)),
+            columns: { id: true, itemCode: true, description: true, unit: true },
+          })
+
+    const [activityRows, lineItemRows] = await Promise.all([readActivities(), readLineItems()])
+
+    const activityById = new Map(activityRows.map((a) => [a.id, a]))
+    const lineItemById = new Map(lineItemRows.map((l) => [l.id, l]))
+
+    return entries.map((entry) => {
+      const activity = entry.activityId ? activityById.get(entry.activityId) : undefined
+      const lineItem = entry.boqLineItemId ? lineItemById.get(entry.boqLineItemId) : undefined
+      return {
+        ...entry,
+        // null (not the raw id) when the referenced row is genuinely gone --
+        // the client decides how to say "unknown", it is not this layer's job
+        // to fabricate a label that looks like a real name.
+        activityName: activity?.name ?? null,
+        boqItemCode: lineItem?.itemCode ?? null,
+        boqLineDescription: lineItem?.description ?? null,
+        unit: lineItem?.unit ?? activity?.unit ?? null,
+      }
+    })
   })
 }
 

@@ -106,6 +106,24 @@ const lineItemRows = [
 
 let insertedRows: Record<string, unknown>[] = []
 
+// R67 F-05 fixtures. listProgressEntries() now resolves each row's display
+// labels itself, so the fake needs the three findMany() reads it makes: the
+// entries, then ONE batched activity read and ONE batched line-item read.
+// Deliberately labelled differently from each other so a row that picked up
+// the wrong activity's name, or a BOQ line's unit where the activity's was
+// expected, is visible in the assertion rather than plausible.
+const labelActivityRows = [
+  { id: "ACT-A", orgId: ORG, name: "Blockwork", unit: "sqm" },
+  { id: "ACT-B", orgId: ORG, name: "Plastering", unit: "sqm" },
+]
+const labelLineItemRows = [
+  { id: "LINE-A", orgId: ORG, itemCode: "A-102", description: "230mm blockwork to walls", unit: "cum" },
+]
+let progressEntryRows: Record<string, unknown>[] = []
+// Every findMany() the service issues, in order, so a test can prove it made
+// three reads and not one-per-row.
+let findManyCalls: string[] = []
+
 const fakeDb = {
   query: {
     projects: {
@@ -113,9 +131,23 @@ const fakeDb = {
     },
     constructionActivities: {
       findFirst: async ({ where }: { where: SQL }) => activityRows.find((r) => matches(r, where)),
+      findMany: async () => {
+        findManyCalls.push("constructionActivities")
+        return labelActivityRows
+      },
     },
     constructionBoqLineItems: {
       findFirst: async ({ where }: { where: SQL }) => lineItemRows.find((r) => matches(r, where)),
+      findMany: async () => {
+        findManyCalls.push("constructionBoqLineItems")
+        return labelLineItemRows
+      },
+    },
+    constructionWorkProgressEntries: {
+      findMany: async () => {
+        findManyCalls.push("constructionWorkProgressEntries")
+        return progressEntryRows
+      },
     },
     constructionBoqs: {
       findFirst: async ({ where }: { where: SQL }) => boqRows.find((r) => matches(r, where)),
@@ -140,6 +172,8 @@ async function restoreRealModules(): Promise<void> {
 beforeEach(() => {
   capturedOrgIds = []
   insertedRows = []
+  progressEntryRows = []
+  findManyCalls = []
   mockWithTenantContext.mockClear()
 })
 
@@ -199,5 +233,87 @@ describe("createProgressEntry -- R48_PROGRESS_ENTRY_NO_PROJECT_MEMBERSHIP_CHECK_
     ).rejects.toThrow(ServiceError)
 
     expect(insertedRows).toHaveLength(0)
+  })
+})
+
+
+// R67 F-05 (R-075). The Work Progress list needs a readable activity name and
+// BOQ line on every row. It used to get them by fetching GET /api/scope (the
+// whole BOQ list, 1.5-4.4 s) and then GET /api/scope/{id} from the BROWSER,
+// after the entries had already arrived -- three serial hops per screen, and
+// the Analytics tab repeated the whole chain on switch. listProgressEntries()
+// now returns those labels itself, from the transaction it already holds.
+describe("listProgressEntries -- R67 F-05 joined display labels", () => {
+  async function callList() {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { listProgressEntries } = await import("./construction-progress-service")
+    return listProgressEntries({ orgId: ORG }, { projectId: PROJECT_A })
+  }
+
+  test("a BOQ-linked entry carries activityName, boqItemCode, boqLineDescription and the BOQ line's unit", async () => {
+    progressEntryRows = [
+      { id: "e1", orgId: ORG, projectId: PROJECT_A, activityId: "ACT-A", boqLineItemId: "LINE-A", entryDate: "2026-09-01", quantityDone: "5", percentComplete: "40" },
+    ]
+
+    const [entry] = await callList()
+
+    expect(entry.activityName).toBe("Blockwork")
+    expect(entry.boqItemCode).toBe("A-102")
+    expect(entry.boqLineDescription).toBe("230mm blockwork to walls")
+    // the BOQ line's unit wins over the activity's -- it is the unit the
+    // quantity was actually measured in
+    expect(entry.unit).toBe("cum")
+    // the original row is preserved, not replaced by a projection
+    expect(entry.id).toBe("e1")
+    expect(entry.percentComplete).toBe("40")
+  })
+
+  test("a legacy activity-only entry falls back to the activity's unit and reports null BOQ fields", async () => {
+    progressEntryRows = [
+      { id: "e2", orgId: ORG, projectId: PROJECT_A, activityId: "ACT-B", boqLineItemId: null, entryDate: "2026-09-01", quantityDone: "2", percentComplete: "10" },
+    ]
+
+    const [entry] = await callList()
+
+    expect(entry.activityName).toBe("Plastering")
+    expect(entry.boqItemCode).toBeNull()
+    expect(entry.boqLineDescription).toBeNull()
+    expect(entry.unit).toBe("sqm")
+  })
+
+  test("a reference that no longer resolves reports null, never the raw id dressed up as a name", async () => {
+    progressEntryRows = [
+      { id: "e3", orgId: ORG, projectId: PROJECT_A, activityId: "ACT-DELETED", boqLineItemId: "LINE-DELETED", entryDate: "2026-09-01", quantityDone: "1", percentComplete: "5" },
+    ]
+
+    const [entry] = await callList()
+
+    expect(entry.activityName).toBeNull()
+    expect(entry.boqItemCode).toBeNull()
+    expect(entry.boqLineDescription).toBeNull()
+    expect(entry.unit).toBeNull()
+  })
+
+  test("N entries cost exactly ONE activity read and ONE line-item read, not one per row", async () => {
+    progressEntryRows = Array.from({ length: 25 }, (_, i) => ({
+      id: `e${i}`, orgId: ORG, projectId: PROJECT_A, activityId: i % 2 ? "ACT-A" : "ACT-B",
+      boqLineItemId: "LINE-A", entryDate: "2026-09-01", quantityDone: "1", percentComplete: "1",
+    }))
+
+    const rows = await callList()
+
+    expect(rows).toHaveLength(25)
+    expect(findManyCalls).toEqual(["constructionWorkProgressEntries", "constructionActivities", "constructionBoqLineItems"])
+    // and all of it on ONE tenant transaction
+    expect(mockWithTenantContext).toHaveBeenCalledTimes(1)
+  })
+
+  test("an empty result set makes no label reads at all", async () => {
+    progressEntryRows = []
+
+    const rows = await callList()
+
+    expect(rows).toEqual([])
+    expect(findManyCalls).toEqual(["constructionWorkProgressEntries"])
   })
 })
