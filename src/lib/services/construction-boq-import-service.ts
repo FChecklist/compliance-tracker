@@ -161,6 +161,35 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
       return
     }
 
+    // R67 lane D22 (item D-68, rec R-258): a ROOT row with a real description
+    // and a real quantity but a BLANK rate used to import silently at rate 0 --
+    // a priced BOQ line worth nothing, indistinguishable from a line whose rate
+    // genuinely is 0 (a typed "0" is non-blank and still imports, unchanged).
+    // The two branches above already reject a rate cell that is present but
+    // unreadable; an absent one is the same data gap and gets the same
+    // treatment, in the words the item specifies.
+    //
+    // SUB-TASKS ARE EXEMPT, and must be: the canonical child-rate rule
+    // (schema.ts F2/F3) DERIVES a sub-task's quantity and rate from its root
+    // ancestor, so a real prospect export leaves those cells blank on every
+    // child row. Flagging them would reject the very sheets this importer was
+    // built for. A row is a sub-task when it carries a Sub Task value or an
+    // explicit Parent code -- the same two signals the hierarchy resolution
+    // below uses. The category-header branch above already catches a row where
+    // BOTH cells are blank and neither signal is present.
+    const parentCodeRaw = mapping.parentItemCode ? String(row[mapping.parentItemCode] ?? "").trim() : ""
+    const isSubTaskRow = !!subTaskRaw || !!parentCodeRaw
+    if (!isSubTaskRow) {
+      if (rateRaw === "") {
+        warnings.push(`Row ${idx + 2}: Rate is blank`)
+        return
+      }
+      if (quantityRaw === "") {
+        warnings.push(`Row ${idx + 2}: Qty is blank`)
+        return
+      }
+    }
+
     const itemCode = mapping.itemCode ? String(row[mapping.itemCode] ?? "").trim() || undefined : undefined
     const explicitParentCode = mapping.parentItemCode ? String(row[mapping.parentItemCode] ?? "").trim() || undefined : undefined
     const unit = mapping.unit ? String(row[mapping.unit] ?? "").trim() : ""
