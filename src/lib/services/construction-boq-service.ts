@@ -39,6 +39,11 @@ export type BoqLineItemInput = {
   breakdownPercentage?: number
   description: string
   unit: string
+  // R67 D-24 (drizzle/0528): free-text trade/work category (Joinery, Gypsum,
+  // Paint, Civil, Misc, ...). Optional -- a BOQ line without one is legal and
+  // reads as "Uncategorized" downstream. Trimmed at the write path below so a
+  // spreadsheet's " Joinery " and a form's "Joinery" are the same category.
+  category?: string
   // R45 seq 7 / E-127 (canonical child-rate rule -- see
   // deriveLineItemQuantityAndRate's doc comment): authoritative ONLY when
   // parentItemCode is unset. When parentItemCode IS set, whatever is passed
@@ -337,6 +342,7 @@ async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items
           breakdownPercentage: item.breakdownPercentage !== undefined ? String(item.breakdownPercentage) : null,
           description: item.description,
           unit: item.unit,
+          category: normalizeCategory(item.category),
           quantity: String(quantity),
           rate: String(rate),
           amount: String(quantity * rate),
@@ -367,6 +373,10 @@ export function toLineItemInput(item: BoqLineItemRow, itemCodeById: Map<string, 
   return {
     activityId: item.activityId ?? undefined,
     itemCode: item.itemCode ?? undefined,
+    // R67 D-24: carried forward, or a revision would silently un-categorise
+    // every line it copies -- the same class of silent loss R44 seq3 fixed for
+    // the line items themselves.
+    category: item.category ?? undefined,
     parentItemCode: item.parentLineItemId ? itemCodeById.get(item.parentLineItemId) : undefined,
     breakdownPercentage: item.breakdownPercentage !== null ? Number(item.breakdownPercentage) : undefined,
     description: item.description,
@@ -392,6 +402,64 @@ function computedBudget(item: { amount: string; budgetPercentage: string }): num
 
 function withComputedRate(item: typeof constructionBoqLineItems.$inferSelect) {
   return { ...item, computedRate: computedRate(item), computedBudget: computedBudget(item) }
+}
+
+/**
+ * R67 D-24. One place that decides what a stored category string looks like:
+ * trimmed, and an empty/blank value stored as NULL rather than "". Without
+ * this, " Joinery " and "Joinery" become two categories in every report that
+ * groups by this column, and a form that submits an untouched field writes an
+ * empty string that reads as a category named nothing.
+ */
+export function normalizeCategory(value: string | null | undefined): string | null {
+  const trimmed = (value ?? "").trim()
+  return trimmed === "" ? null : trimmed
+}
+
+/**
+ * R67 D-24. The picklist the BOQ create/revise grids offer: a fixed seed of
+ * the trades Sumeet's own sheets use, plus every category this org has already
+ * written, case-insensitively de-duplicated with the ORG's own spelling
+ * winning over the seed's (their "CIVIL" is their house style, not a typo of
+ * ours). Pure and DB-free so the ordering/de-duplication rule is testable
+ * without a live database, matching this file's own convention
+ * (computeHierarchicalAmount, diffLineItems, findScopeReductionViolations).
+ */
+export const BOQ_CATEGORY_SEED = ["Joinery", "Gypsum", "Paint", "Civil", "Misc"] as const
+
+export function mergeBoqCategories(existing: ReadonlyArray<string | null | undefined>): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  const push = (raw: string | null | undefined) => {
+    const value = normalizeCategory(raw)
+    if (!value) return
+    const key = value.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push(value)
+  }
+  // The org's own spelling is added FIRST so it, not the seed's, is the one
+  // that survives de-duplication.
+  for (const value of [...existing].sort((a, b) => (a ?? "").localeCompare(b ?? ""))) push(value)
+  for (const value of BOQ_CATEGORY_SEED) push(value)
+  return out
+}
+
+/** Distinct categories already used on this project's BOQ lines, merged with the seed list. */
+export async function listBoqCategories(ctx: { orgId: string }, projectId: string): Promise<string[]> {
+  const existing = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boqs = await db.query.constructionBoqs.findMany({
+      where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
+      columns: { id: true },
+    })
+    if (boqs.length === 0) return [] as (string | null)[]
+    const rows = await db.query.constructionBoqLineItems.findMany({
+      where: inArray(constructionBoqLineItems.boqId, boqs.map((b) => b.id)),
+      columns: { category: true },
+    })
+    return rows.map((r) => r.category)
+  })
+  return mergeBoqCategories(existing)
 }
 
 export async function listBoqs(ctx: { orgId: string }, projectId: string) {

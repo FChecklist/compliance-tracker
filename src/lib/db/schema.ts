@@ -10804,6 +10804,16 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   budgetPercentage: numeric('budget_percentage').notNull().default('25'),
   vendorId: text('vendor_id'),
   vendorAmount: numeric('vendor_amount'),
+  // R67 D-24 (drizzle/0528): the per-line trade/work category Sumeet's own BOQ
+  // and Budget Report are organised by (Joinery, Gypsum, Paint, Civil, ...).
+  // The importer has ALWAYS read a "Category" column off the spreadsheet
+  // (construction-boq-import-service.ts's BOQ_FIELD_ALIASES) but only ever as
+  // a last-resort DESCRIPTION alias -- there was nowhere to store it, so the
+  // Work Progress Report's category-wise view read "Uncategorized" for every
+  // imported line. Nullable and free text: the picklist is a UI seed merged
+  // with whatever this org already uses (listBoqCategories), not a closed
+  // enum, because a contractor's trade vocabulary is theirs, not ours.
+  category: text('category'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

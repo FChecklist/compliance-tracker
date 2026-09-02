@@ -1,0 +1,25 @@
+-- R67 D-24 (R-061 / R-067) -- per-line trade/work Category on a BOQ line item.
+--
+-- WHY: Sumeet's own BOQ and Budget Report are organised by trade (Joinery,
+-- Gypsum, Paint, Civil, Misc). The spreadsheet importer has ALWAYS recognised
+-- a "Category" column -- construction-boq-import-service.ts's
+-- BOQ_FIELD_ALIASES lists it -- but only as a LAST-RESORT DESCRIPTION alias,
+-- because there was no column to put it in. The consequence is visible in the
+-- product: the Work Progress Report's category-wise view reads
+-- "Uncategorized" for every line, and the Cost Variance table has no Category
+-- column at all.
+--
+-- Nullable and free text on purpose. It is NOT an enum: the picklist the UI
+-- offers is a seed list merged with the distinct values this org already uses
+-- (construction-boq-service.ts's listBoqCategories / mergeBoqCategories), so a
+-- contractor can add a trade without a migration. Every existing row keeps
+-- NULL, which the UI renders as "Uncategorized" -- an honest "not classified",
+-- distinct from a category literally named that.
+--
+-- HAND-WRITTEN, not `bun run db:generate`: this repo's drizzle meta snapshots
+-- have drifted far from schema.ts, so drizzle-kit emits a whole-schema
+-- recreation rather than this one ALTER. Numbered after the highest existing
+-- file (0527) and registered in drizzle/meta/_journal.json with the next idx.
+-- IF NOT EXISTS keeps it idempotent and re-runnable, matching the shape
+-- check-migration-schema-drift.mjs parses.
+ALTER TABLE "compliance"."construction_boq_line_items" ADD COLUMN IF NOT EXISTS "category" text;

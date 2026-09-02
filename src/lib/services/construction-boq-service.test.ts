@@ -9,6 +9,7 @@ import { describe, expect, test } from "bun:test"
 import {
   computeHierarchicalAmount, deriveLineItemQuantityAndRate, diffLineItems, computeTotalVariation, findScopeReductionViolations,
   resolveProgressByLineItem, toLineItemInput,
+  BOQ_CATEGORY_SEED, mergeBoqCategories, normalizeCategory,
   ServiceError, type BoqLineItemInput, type BoqLineItemRow, type ChangedLineItem,
 } from "./construction-boq-service"
 
@@ -408,5 +409,57 @@ describe("toLineItemInput -- copy-forward round-trip for create-with-reference",
     const mapped = persisted.map((item) => toLineItemInput(item, new Map()))
     expect(mapped).toHaveLength(153)
     expect(mapped.every((i) => i.quantity === 10 && i.rate === 5)).toBe(true)
+  })
+})
+
+// R67 D-24 (drizzle/0528) -- the per-line trade Category. The column exists so
+// the Work Progress Report's category-wise view and Sumeet's Budget Report
+// stop reading "Uncategorized" for every imported line. These pin the two
+// rules that decide what actually lands in it.
+describe("normalizeCategory", () => {
+  test("trims, so a spreadsheet's ' Joinery ' and a form's 'Joinery' are ONE category", () => {
+    expect(normalizeCategory(" Joinery ")).toBe("Joinery")
+  })
+
+  test("an untouched field becomes NULL, never a category named nothing", () => {
+    expect(normalizeCategory("")).toBeNull()
+    expect(normalizeCategory("   ")).toBeNull()
+    expect(normalizeCategory(null)).toBeNull()
+    expect(normalizeCategory(undefined)).toBeNull()
+  })
+})
+
+describe("mergeBoqCategories -- the org-configurable picklist", () => {
+  test("an org with no BOQ history still gets the full seed list", () => {
+    expect(mergeBoqCategories([])).toEqual([...BOQ_CATEGORY_SEED])
+  })
+
+  test("categories this org already uses come first, then the unused seed trades", () => {
+    expect(mergeBoqCategories(["Waterproofing", "Aluminium"])).toEqual([
+      "Aluminium", "Waterproofing", "Joinery", "Gypsum", "Paint", "Civil", "Misc",
+    ])
+  })
+
+  test("de-duplicates case-insensitively, and the ORG's own spelling wins over the seed's", () => {
+    const merged = mergeBoqCategories(["CIVIL"])
+    expect(merged).toContain("CIVIL")
+    expect(merged).not.toContain("Civil")
+    expect(merged.filter((c) => c.toLowerCase() === "civil")).toHaveLength(1)
+  })
+
+  test("blank and null stored values never become picklist entries", () => {
+    expect(mergeBoqCategories([null, undefined, "", "   "])).toEqual([...BOQ_CATEGORY_SEED])
+  })
+})
+
+describe("toLineItemInput -- category carries forward into a revision", () => {
+  test("a categorised line keeps its category when a revision copies it forward", () => {
+    const persisted = row({ id: "p1", itemCode: "C001", description: "Gypsum partition", unit: "sqm", quantity: "10", rate: "5", category: "Gypsum" })
+    expect(toLineItemInput(persisted, new Map()).category).toBe("Gypsum")
+  })
+
+  test("an uncategorised line stays undefined (not null) -- BoqLineItemInput's fields are optional, never nullable", () => {
+    const persisted = row({ id: "p2", description: "Plain item", unit: "nos", quantity: "1", rate: "1" })
+    expect(toLineItemInput(persisted, new Map()).category).toBeUndefined()
   })
 })
