@@ -22,6 +22,11 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { isSelfApproval } from "./approval-workflow-service"
+// R67 F-27 (R-243): a BOQ write moves contract value, earned value and
+// "% Complete by BOQ Value" on the project dashboard, which now holds a 60 s
+// cache. ONE helper, in a dependency-free module -- see its own header for why
+// it does not live in construction-dashboard-service.ts.
+import { bustProjectDashboardCache } from "./project-dashboard-cache"
 export { ServiceError }
 
 export type BoqContext = { orgId: string; userId: string }
@@ -619,6 +624,9 @@ export async function createBoq(ctx: BoqContext, input: BoqInput) {
     await insertLineItems(db, ctx.orgId, boq.id, lineItems)
     await assertLineItemsPersisted(db, boq.id, lineItems.length)
     return getBoqRow(db, boq.id)
+  }).then((row) => {
+    bustProjectDashboardCache(ctx.orgId, row.projectId)
+    return row
   })
 }
 
@@ -721,6 +729,9 @@ export async function createBoqRevision(
     await db.update(constructionBoqs).set({ status: "superseded", updatedAt: new Date() }).where(eq(constructionBoqs.id, parent.id))
 
     return getBoqRow(db, boq.id)
+  }).then((row) => {
+    bustProjectDashboardCache(ctx.orgId, row.projectId)
+    return row
   })
 }
 
@@ -997,7 +1008,10 @@ export async function deleteBoq(ctx: { orgId: string }, boqId: string) {
       await db.delete(constructionBoqLineItems).where(eq(constructionBoqLineItems.boqId, boqId))
     }
     await db.delete(constructionBoqs).where(eq(constructionBoqs.id, boqId))
-    return { deleted: true, id: boqId, lineItemsDeleted: lineItemIds.length }
+    return { deleted: true, id: boqId, projectId: boq.projectId, lineItemsDeleted: lineItemIds.length }
+  }).then((result) => {
+    bustProjectDashboardCache(ctx.orgId, result.projectId)
+    return result
   })
 }
 

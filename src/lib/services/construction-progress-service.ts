@@ -10,6 +10,11 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, desc, eq, gte, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { listDocuments } from "./document-service"
+// R67 F-27 (R-243): logging or deleting progress moves % complete, earned
+// value and the progress bar on the per-project dashboard, which now holds a
+// 60 s cache. ONE helper, imported from a dependency-free module so this
+// service does not have to depend on the dashboard service.
+import { bustProjectDashboardCache } from "./project-dashboard-cache"
 export { ServiceError }
 
 // R48 gap-closure (2026-08-29, F039: "Daily progress report with photos" --
@@ -186,6 +191,10 @@ export async function deleteProgressEntry(ctx: { orgId: string }, entryId: strin
     if (!entry) throw new ServiceError("Progress entry not found", 404)
     await db.delete(constructionWorkProgressEntries).where(eq(constructionWorkProgressEntries.id, entryId))
     return { deleted: true, id: entryId, activityId: entry.activityId, projectId: entry.projectId }
+  }).then((result) => {
+    // R67 F-27: a deleted entry changes % complete and earned value.
+    bustProjectDashboardCache(ctx.orgId, result.projectId)
+    return result
   })
 }
 
@@ -265,6 +274,11 @@ export async function createProgressEntry(
     }).returning()
     return row
   }).then((row) => {
+    // R67 F-27: this row moved % complete, earned value and the progress bar
+    // on the project dashboard. Bust BEFORE anything async below, so the very
+    // next read recomputes rather than serving the figure from a moment ago --
+    // "I just logged progress, where is it?" is the whole point.
+    bustProjectDashboardCache(ctx.orgId, row.projectId)
     // Wave 126: fire-and-forget automation trigger, matching
     // pms-issue-service.ts's updateIssue() status-change trigger posture
     // (dynamic import, void, never blocks/breaks the write it enriches).

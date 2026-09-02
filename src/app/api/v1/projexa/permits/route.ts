@@ -28,6 +28,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listExpiringDocuments, listDocuments, createDocumentRecord, ServiceError } from "@/lib/services/document-service"
+// R67 F-27 (R-243): a new permit moves the "Permits Expiring" tile on the
+// project dashboard, which now holds a 60 s cache. Busted here rather than
+// inside createDocumentRecord: that function is the generic document writer for
+// every module, and only a PERMIT linked to a project changes this figure.
+import { bustProjectDashboardCache } from "@/lib/services/project-dashboard-cache"
 import { createClient } from "@supabase/supabase-js"
 
 const BUCKET = "compliance-documents"
@@ -117,6 +122,8 @@ export async function POST(request: NextRequest) {
       linkedEntityType: "project", linkedEntityId: projectId,
       metadata: { permitAuthority, permitNumber, issueDate },
     })
+
+    bustProjectDashboardCache(ctx.orgId, projectId)
 
     const admin = getStorageAdminClient()
     return NextResponse.json(await toPermitDto(doc, admin), { status: 201 })
