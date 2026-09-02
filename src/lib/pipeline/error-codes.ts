@@ -219,6 +219,30 @@ export function parseFailure(stored: string | null | undefined): PipelineFailure
 }
 
 /**
+ * R67 B-06 -- TRANSPORT FAILURES ARE NOT BLOCKED TASKS.
+ *
+ * "Blocked" in M24's vocabulary means a person has to decide or correct
+ * something. A connection timeout is neither: nothing about the user's
+ * request was wrong, nothing was saved, and the only sensible next move is to
+ * send it again. Minting it as `blocked` put it in the loud, red half of Task
+ * Master and told a site engineer they had made a mistake -- exactly the row
+ * the R66 walkthrough captured under "write CONNECT_TIMEOUT ...".
+ *
+ * These codes are therefore recorded as `waiting` (M24's closed 5-status set
+ * has no 'retry' value and deliberately does not grow one -- see
+ * pipelineTaskStatusEnum's own comment in schema.ts), which the tasks route
+ * already groups under "needs you" without the blocked styling, and the
+ * client's dictionary pairs with its [Retry] word-button.
+ */
+export const RETRYABLE_ERROR_CODES: ReadonlySet<PipelineErrorCode> = new Set<PipelineErrorCode>([
+  "BACKEND_UNAVAILABLE",
+]);
+
+export function isRetryableFailure(code: PipelineErrorCode): boolean {
+  return RETRYABLE_ERROR_CODES.has(code);
+}
+
+/**
  * gap_log.reason and the console line only. A CODE LINE, not a sentence:
  * "BOQ_LINE_NOT_FOUND missing=itemCode" reads the same to an engineer as the
  * old prose did, and can never leak into the UI as a half-English string

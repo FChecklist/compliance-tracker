@@ -26,7 +26,7 @@ import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
-import { codeForParam, failureLogLine, pipelineFailure, serialiseFailure, type PipelineFailure } from "./error-codes";
+import { codeForParam, failureLogLine, isRetryableFailure, pipelineFailure, serialiseFailure, type PipelineFailure } from "./error-codes";
 import { dryRunSubmission as dryRun, type DryRunDeps, type DryRunResult } from "./dry-run";
 import { makeChainOptionsRepo } from "@/lib/services/chain-options-service";
 import { assertAiProviderAllowed } from "@/lib/ai/adapter";
@@ -99,6 +99,28 @@ export type RunSubmissionResult = {
 
 function normalisePhrase(text: string): string {
   return normaliseForMatch(text);
+}
+
+/**
+ * R67 B-06 -- WHICH ROW STATUS A FAILURE DESERVES.
+ *
+ * `blocked` is M24's loud state and it means a person has to decide or
+ * correct something. A transport failure is not that: the request was fine,
+ * nothing was saved, and the next move is simply to send it again. Recording
+ * it as blocked is what put "write CONNECT_TIMEOUT 3.109.171.244:6543" into
+ * the red half of Task Master in the R66 walkthrough and told a site engineer
+ * they had made a mistake.
+ *
+ * `waiting` is the honest in-set answer -- M24's five statuses are closed (see
+ * pipelineTaskStatusEnum's own comment in schema.ts, which explicitly refuses
+ * a sixth value) and GET /api/v1/projexa/tasks already groups `waiting` under
+ * "needs you" WITHOUT the blocked styling, which is exactly where a
+ * retryable row belongs.
+ *
+ * Exported so this rule is provable without a database.
+ */
+export function statusForFailure(failure: PipelineFailure): TaskOutcome["status"] {
+  return isRetryableFailure(failure.code) ? "waiting" : "blocked";
 }
 
 // ─── R65 Part C Phase 3: task memory (directive §23/Phase 5) ──────────────
@@ -394,8 +416,10 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       // R67 B-01: the raw driver text goes to the LOG, the code goes to the
       // row. Nothing that reaches the client has ever seen `debug`.
       if (outcome.debug) console.error(`[pipeline] task=${taskId} ${outcome.failure.code} raw=${outcome.debug}`);
-      await updateTask(input.orgId, taskId, "blocked", undefined, outcome.failure);
-      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, failure: outcome.failure });
+      // R67 B-06: a transport failure is a RETRY, not a blocked task.
+      const failedStatus = statusForFailure(outcome.failure);
+      await updateTask(input.orgId, taskId, failedStatus, undefined, outcome.failure);
+      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: failedStatus, segmentText: seg.text, failure: outcome.failure });
       failures.push({ segmentText: seg.text, ...outcome.failure });
     }
     advance(!outcome.success);
@@ -590,7 +614,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     }
   } else {
     if (outcome.debug) console.error(`[pipeline] task=${taskId} ${outcome.failure.code} raw=${outcome.debug}`);
-    await updateTask(input.orgId, taskId, "blocked", undefined, outcome.failure);
+    await updateTask(input.orgId, taskId, statusForFailure(outcome.failure), undefined, outcome.failure);
   }
 
   await recordPillUse(base, input.functionId, derived);
@@ -615,7 +639,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
         taskId,
         functionId: input.functionId,
         verdict,
-        status: outcome.success ? "done" : "blocked",
+        status: outcome.success ? "done" : statusForFailure(outcome.failure),
         segmentText: base.rawInput,
         result: outcome.success ? outcome.result : undefined,
         failure: outcome.success ? undefined : outcome.failure,

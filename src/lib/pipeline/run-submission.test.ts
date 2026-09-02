@@ -210,3 +210,23 @@ describe("B-05 -- a GAP is an answer with a destination", () => {
     expect(r.route).toBe("/customers")
   })
 })
+
+// ── R67 B-06: a transport failure is a RETRY, not a blocked task ──────────
+import { statusForFailure } from "./run-submission"
+import { pipelineFailure } from "./error-codes"
+
+describe("B-06 -- statusForFailure keeps a transport failure out of the blocked half", () => {
+  test("BACKEND_UNAVAILABLE is recorded as waiting, never blocked", () => {
+    expect(statusForFailure(pipelineFailure("BACKEND_UNAVAILABLE"))).toBe("waiting")
+  })
+
+  test("a real user-fixable failure is still blocked", () => {
+    expect(statusForFailure(pipelineFailure("BOQ_LINE_REQUIRED", ["boqLine"]))).toBe("blocked")
+    expect(statusForFailure(pipelineFailure("PROJECT_REQUIRED", ["projectId"]))).toBe("blocked")
+    expect(statusForFailure(pipelineFailure("NOT_PERMITTED"))).toBe("blocked")
+  })
+
+  test("an application bug is blocked -- retrying it changes nothing", () => {
+    expect(statusForFailure(pipelineFailure("INTERNAL_ERROR"))).toBe("blocked")
+  })
+})
