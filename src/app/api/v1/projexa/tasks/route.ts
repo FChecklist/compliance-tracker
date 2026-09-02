@@ -151,10 +151,15 @@ async function GET_impl(request: NextRequest) {
   const cursor = parseTaskCursor(url.searchParams.get("cursor"))
 
   try {
-    const rows = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
-      const conditions = [eq(pipelineTasks.orgId, ctx.orgId!)]
-      if (projectId) conditions.push(eq(pipelineTasks.projectId, projectId))
-      if (requested.length > 0) conditions.push(inArray(pipelineTasks.status, requested))
+    const { rows, statusTotals } = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
+      // The predicate that defines the SET the user is looking at (org, and
+      // optionally one project and one status filter). The cursor is NOT part
+      // of it: a cursor names a position inside this set, not a smaller set.
+      const setConditions = [eq(pipelineTasks.orgId, ctx.orgId!)]
+      if (projectId) setConditions.push(eq(pipelineTasks.projectId, projectId))
+      if (requested.length > 0) setConditions.push(inArray(pipelineTasks.status, requested))
+
+      const conditions = [...setConditions]
       if (cursor) {
         // Strictly after the cursor's position in (rank DESC, created_at DESC,
         // id DESC). All three parts are needed: see task-cursor.ts.
@@ -166,7 +171,7 @@ async function GET_impl(request: NextRequest) {
           ))
         )`)
       }
-      return db
+      const page = await db
         .select({
           id: pipelineTasks.id,
           submissionId: pipelineTasks.submissionId,
@@ -192,22 +197,41 @@ async function GET_impl(request: NextRequest) {
         // the bottom, which is the one thing the pane exists to prevent.
         .orderBy(sql`${NEEDS_YOU_RANK} desc`, desc(pipelineTasks.createdAt), desc(pipelineTasks.id))
         .limit(limit)
+
+      // R67 F-26 FIX: the header tabs count the SET, not the page. Before
+      // paging existed the two were the same thing (limit=50 over a pane that
+      // showed all 50), so counting rows.filter(...) was honest. With
+      // limit=20 it is not: a user with 34 open tasks would read "Home 20",
+      // and after "Show 20 more" the pane would show 40 rows above tabs still
+      // reading 20. One extra grouped aggregate over the same predicate,
+      // inside the same transaction, keeps the tabs true at any page size.
+      const totals = await db
+        .select({ status: pipelineTasks.status, n: sql<number>`count(*)::int` })
+        .from(pipelineTasks)
+        .where(and(...setConditions))
+        .groupBy(pipelineTasks.status)
+
+      return { rows: page, statusTotals: totals }
     })
 
     const group = (statuses: TaskStatus[]) => rows.filter((r) => statuses.includes(r.status as TaskStatus))
+    const total = (statuses: TaskStatus[]) =>
+      statusTotals.reduce((sum, t) => (statuses.includes(t.status as TaskStatus) ? sum + Number(t.n) : sum), 0)
 
     return NextResponse.json({
       tasks: rows,
       // null when this page is the last one -- so the UI never renders a
       // "Show 20 more" control that would load nothing.
       nextCursor: nextTaskCursor(rows, limit),
-      // LIVE COUNTS, so the user knows before clicking (M24's header tabs).
+      // LIVE COUNTS over the whole set (M24's header tabs), independent of how
+      // many pages the client has pulled. `groups` below stays page-scoped --
+      // it carries the rows actually being rendered.
       counts: {
-        needsYou: group(["to_do", "waiting"]).length,
-        running: group(["in_progress"]).length,
-        done: group(["done"]).length,
-        blocked: group(["blocked"]).length,
-        total: rows.length,
+        needsYou: total(["to_do", "waiting"]),
+        running: total(["in_progress"]),
+        done: total(["done"]),
+        blocked: total(["blocked"]),
+        total: statusTotals.reduce((sum, t) => sum + Number(t.n), 0),
       },
       groups: {
         needsYou: group(["to_do", "waiting"]),
