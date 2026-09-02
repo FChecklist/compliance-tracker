@@ -104,6 +104,7 @@ function receipt(overrides: Row): Row {
 
 let materialRows: Row[] = []
 let receiptRows: Row[] = []
+let userRows: Row[] = []
 
 const mockWithTenantContext = mock(async (ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
   void ctx
@@ -124,10 +125,16 @@ const fakeDb = {
     },
   },
   // See the file header: this stands in for Postgres's own SUM/GROUP BY over
-  // exactly the rows the service's real where-clause selected.
-  select: () => ({
+  // exactly the rows the service's real where-clause selected. The same
+  // builder also serves getMaterialReceipt's users lookup, which awaits
+  // .where() directly instead of grouping -- routed by the projection's own
+  // shape (a "name" column means the users lookup), so both paths still run
+  // the service's real predicates through the evaluator.
+  select: (shape: Record<string, unknown>) => ({
     from: () => ({
       where: (where: SQL) => ({
+        then: (resolve: (rows: Row[]) => unknown) =>
+          resolve("name" in shape ? userRows.filter((r) => evaluateCondition(where, r)) : []),
         groupBy: (column: { name: string }) => {
           selectedGroupColumn = column.name
           const matching = receiptRows.filter((r) => evaluateCondition(where, r))
@@ -175,6 +182,10 @@ async function useMocks(): Promise<void> {
 beforeEach(() => {
   materialRows = [{ ...CEMENT }, { ...STEEL }]
   receiptRows = []
+  userRows = [
+    { id: "user-1", orgId: ORG, name: "Sana Iqbal" },
+    { id: "user-9", orgId: ORG, name: "Rohit Verma" },
+  ]
   selectedGroupColumn = null
   mockWithTenantContext.mockClear()
 })
@@ -285,6 +296,28 @@ describe("getMaterialReceipt / createMaterialReceipt -- R67 D-36 object page fie
     const found = await getMaterialReceipt({ orgId: ORG }, "rec-1")
     expect(found.reference).toBe("DN-4471")
     await expect(getMaterialReceipt({ orgId: ORG }, "rec-2")).rejects.toThrow(ServiceError)
+  })
+
+  test("the recorder's id is resolved to a NAME so the object page never prints a raw cuid", async () => {
+    await useMocks()
+    const { getMaterialReceipt, voidMaterialReceipt } = await import("./construction-materials-service")
+    receiptRows = [receipt({ id: "rec-1", createdById: "user-1" })]
+
+    expect((await getMaterialReceipt({ orgId: ORG }, "rec-1")).recordedByName).toBe("Sana Iqbal")
+
+    await voidMaterialReceipt({ orgId: ORG }, "rec-1", { voidReason: "Keyed wrong", voidedBy: "user-9" })
+    const voided = await getMaterialReceipt({ orgId: ORG }, "rec-1")
+    expect(voided.voidedByName).toBe("Rohit Verma")
+  })
+
+  test("an unresolvable recorder (an API key's id, not a user's) is null -- the screen renders the en-dash, never the id", async () => {
+    await useMocks()
+    const { getMaterialReceipt } = await import("./construction-materials-service")
+    receiptRows = [receipt({ id: "rec-1", createdById: "apikey-abc123" })]
+
+    const found = await getMaterialReceipt({ orgId: ORG }, "rec-1")
+    expect(found.recordedByName).toBeNull()
+    expect(found.voidedByName).toBeNull()
   })
 
   test("a receipt stores vendorId and reference, and a blank reference is stored as null rather than an empty string", async () => {

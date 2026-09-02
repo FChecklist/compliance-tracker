@@ -4,9 +4,9 @@
 // not built. receipt.unitCost defaults from the master's unitCost but is
 // stored per receipt (a delivery can be priced differently), matching
 // construction-labour-service.ts's dailyCost-computed-at-write-time posture.
-import { constructionMaterials, constructionMaterialReceipts } from "@/lib/db"
+import { constructionMaterials, constructionMaterialReceipts, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, isNull, sql } from "drizzle-orm"
+import { and, eq, inArray, isNull, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -102,7 +102,10 @@ export async function listMaterialReceipts(ctx: { orgId: string }, projectId: st
 
 // R67 D-36: the receipt object page. Same org-scoped single-row shape as
 // getMaterial() above; carries the material so the page can link to it
-// without a second hop.
+// without a second hop, and resolves the two user ids to NAMES so the page
+// never has to print a raw cuid at the user (createdById can also be an API
+// key's id, in which case the name resolves to null and the screen renders
+// the en-dash -- "we cannot say who" rather than an opaque identifier).
 export async function getMaterialReceipt(ctx: { orgId: string }, receiptId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const receipt = await db.query.constructionMaterialReceipts.findFirst({
@@ -110,7 +113,21 @@ export async function getMaterialReceipt(ctx: { orgId: string }, receiptId: stri
       with: { material: true },
     })
     if (!receipt) throw new ServiceError("Material receipt not found", 404)
-    return receipt
+
+    const ids = [receipt.createdById, receipt.voidedBy].filter((id): id is string => !!id)
+    const nameById = new Map<string, string>()
+    if (ids.length > 0) {
+      const rows = await db.select({ id: users.id, name: users.name })
+        .from(users)
+        .where(and(eq(users.orgId, ctx.orgId), inArray(users.id, ids)))
+      for (const row of rows) nameById.set(row.id, row.name)
+    }
+
+    return {
+      ...receipt,
+      recordedByName: nameById.get(receipt.createdById) ?? null,
+      voidedByName: receipt.voidedBy ? nameById.get(receipt.voidedBy) ?? null : null,
+    }
   })
 }
 
