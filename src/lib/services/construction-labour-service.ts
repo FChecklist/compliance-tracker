@@ -2,9 +2,9 @@
 // attendance. dailyCost is computed here at write time from
 // roster.dailyRate (half_day = half rate), not a DB generated column,
 // matching this codebase's convention elsewhere (e.g. documents.isLatestVersion).
-import { constructionLabourRoster, constructionAttendance, projects } from "@/lib/db"
+import { constructionLabourRoster, constructionAttendance, erpSuppliers, projects } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, gte, lte } from "drizzle-orm"
+import { and, eq, gte, inArray, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -18,12 +18,34 @@ export type RosterInput = {
   dailyRate: number
 }
 
+// R67 F-13 (R-193/R-217): each row carries its vendor's NAME, resolved by ONE
+// batched read on the transaction this function already holds (never one per
+// row, and skipped entirely when no row is subcontracted).
+//
+// Why it belongs here: every consumer of this list that wants to show "who the
+// worker belongs to" had to fetch the whole vendor master separately and join
+// it in the browser -- PROJEXA's Work Progress Report did exactly that as one
+// of its six VERIDIAN calls, purely to turn a vendorId into a name. vendorId is
+// kept alongside it, so nothing that keys on the id has to change.
+//
+// A vendor row that has been deleted reports null, never the raw id: the caller
+// decides how to say "unknown", the same convention
+// construction-progress-service.ts uses for its own label resolution.
 export async function listRoster(ctx: { orgId: string }, projectId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.constructionLabourRoster.findMany({
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await db.query.constructionLabourRoster.findMany({
       where: and(eq(constructionLabourRoster.orgId, ctx.orgId), eq(constructionLabourRoster.projectId, projectId)),
     })
-  )
+    const vendorIds = [...new Set(rows.map((r) => r.vendorId).filter((id): id is string => !!id))]
+    const vendors = vendorIds.length === 0
+      ? []
+      : await db.query.erpSuppliers.findMany({
+          where: and(eq(erpSuppliers.orgId, ctx.orgId), inArray(erpSuppliers.id, vendorIds)),
+          columns: { id: true, supplierName: true },
+        })
+    const nameById = new Map(vendors.map((v) => [v.id, v.supplierName]))
+    return rows.map((r) => ({ ...r, vendorName: r.vendorId ? (nameById.get(r.vendorId) ?? null) : null }))
+  })
 }
 
 export async function createRosterEntry(ctx: { orgId: string }, input: RosterInput) {

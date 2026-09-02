@@ -106,3 +106,83 @@ describe("listAttendance: validates the window before opening a transaction", ()
     expect(withTenantContext.mock.calls.length).toBe(0)
   })
 })
+
+// R67 F-13 (R-193/R-217) -- listRoster returns each worker's vendor NAME.
+//
+// THE FAULT. Every consumer that wanted to show "who this worker belongs to"
+// had to fetch the org's whole vendor master separately and join it itself.
+// PROJEXA's Work Progress Report did exactly that as one of its six VERIDIAN
+// calls, purely to turn a handful of vendorIds into names.
+//
+// The three ways the fix could be silently wrong, each pinned below: reading
+// the vendor master once per ROW (the N+1 this repo keeps removing), reading it
+// at all when nobody is subcontracted, and rendering a deleted vendor's raw id
+// as if it were a name.
+describe("listRoster: vendor names, batched", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  async function loadWith(roster: unknown[], vendors: unknown[]) {
+    const vendorFindMany = mock(async () => vendors)
+    const withTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) =>
+      fn({
+        query: {
+          constructionLabourRoster: { findMany: async () => roster },
+          erpSuppliers: { findMany: vendorFindMany },
+        },
+      })
+    )
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext }))
+    const { listRoster } = await import("./construction-labour-service")
+    const rows = await listRoster({ orgId: "org-1" }, "p1")
+    return { rows, vendorFindMany, withTenantContext }
+  }
+
+  test("every row carries its vendor's name, from ONE vendor read for the whole list", async () => {
+    const { rows, vendorFindMany, withTenantContext } = await loadWith(
+      [
+        { id: "r1", name: "Ramesh", vendorId: "v1" },
+        { id: "r2", name: "Suresh", vendorId: "v1" },
+        { id: "r3", name: "Imran", vendorId: "v2" },
+      ],
+      [
+        { id: "v1", supplierName: "ABC Contractors" },
+        { id: "v2", supplierName: "XYZ Electricals" },
+      ]
+    )
+
+    expect(rows.map((r) => r.vendorName)).toEqual(["ABC Contractors", "ABC Contractors", "XYZ Electricals"])
+    // One read for three rows and two vendors -- never one per row.
+    expect(vendorFindMany.mock.calls.length).toBe(1)
+    // And all of it inside the transaction listRoster already opens.
+    expect(withTenantContext.mock.calls.length).toBe(1)
+  })
+
+  test("direct labour reports a null vendor name, and costs no vendor read at all", async () => {
+    const { rows, vendorFindMany } = await loadWith(
+      [{ id: "r1", name: "Ramesh", vendorId: null }],
+      []
+    )
+
+    expect(rows[0].vendorName).toBeNull()
+    expect(vendorFindMany.mock.calls.length).toBe(0)
+  })
+
+  test("a deleted vendor reports null, NEVER the raw id -- the caller decides how to say 'unknown'", async () => {
+    const { rows } = await loadWith([{ id: "r1", name: "Ramesh", vendorId: "v-gone" }], [])
+
+    expect(rows[0].vendorName).toBeNull()
+    expect(rows[0].vendorId).toBe("v-gone")
+  })
+
+  test("the existing row fields are untouched -- this is additive", async () => {
+    const { rows } = await loadWith(
+      [{ id: "r1", name: "Ramesh", trade: "Mason", dailyRate: "800", vendorId: "v1" }],
+      [{ id: "v1", supplierName: "ABC Contractors" }]
+    )
+
+    expect(rows[0]).toEqual({ id: "r1", name: "Ramesh", trade: "Mason", dailyRate: "800", vendorId: "v1", vendorName: "ABC Contractors" })
+  })
+})
