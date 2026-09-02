@@ -120,6 +120,21 @@ active:
       touched by lane A -- in particular not src/lib/pipeline/* (that is lane
       WS-B's executor-registration and error-dictionary work, which this lane
       only consumes as a contract).
+    scope_amendment_2026_09_02: >-
+      As BUILT for A-07/A-08, two corrections to the scope note above, recorded
+      rather than left to be discovered in review. (1) TWO FILES WERE ADDED that
+      the note did not anticipate: src/lib/services/projexa-pill-usage-service.ts
+      and its sibling test. The ranking, the new label derivation and the recent-
+      chain selection are pure and were put in a service so they could be unit
+      tested without a database, which is also what the "New Test Coverage
+      Check" gate requires of any added src/lib/services/*.ts; consequently
+      docs/master/TEST_COVERAGE_GAP.md was regenerated (126/245 -> 127/246) by
+      importing the exported functions of scripts/report-test-coverage-gap.mjs,
+      whose isMain guard no-ops on Windows. (2) src/app/api/v1/projexa/tasks/
+      route.ts WAS NOT TOUCHED and its claim is released: A-08's chain_history
+      write already exists and is already correct -- run-submission.ts:369-370
+      and :543-544 record one row per task on both the typed and the pill path,
+      with outcome ok/failed. Verified by reading it, not assumed.
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |
