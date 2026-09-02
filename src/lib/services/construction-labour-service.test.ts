@@ -130,17 +130,86 @@ const fakeDb = {
       },
     }),
   }),
+  // R67 F-30. The attendance summary is a grouped aggregate, so it goes
+  // through db.execute() with raw SQL rather than the query builder. This
+  // stands in for Postgres by reading the DAY out of the statement drizzle
+  // built and grouping the SAME fixture by status -- so a service that stopped
+  // filtering by day, or that mis-mapped a status, still fails here.
+  execute: async (statement: unknown) => {
+    executedSql.push(sqlText(statement))
+    const params = sqlParams(statement)
+    const [orgId, projectId, date] = params as [string, string, string]
+    const rows = attendanceRows.filter(
+      (r) => r.orgId === orgId && r.projectId === projectId && r.attendanceDate === date
+    )
+    const byStatus = new Map<string, { entries: number; cost: number }>()
+    for (const r of rows) {
+      const bucket = byStatus.get(r.status) ?? { entries: 0, cost: 0 }
+      bucket.entries += 1
+      bucket.cost += Number(r.dailyCost)
+      byStatus.set(r.status, bucket)
+    }
+    return [...byStatus].map(([status, b]) => ({ status, entries: b.entries, cost: b.cost }))
+  },
 }
 
-const mockWithTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) =>
-  fn(fakeDb as unknown as never)
-)
+let executedSql: string[] = []
+let transactionCount = 0
+
+/** The literal text drizzle assembled, so the SHAPE of a raw statement can be
+ *  asserted. Bound parameters are recovered separately by sqlParams(). */
+function sqlText(node: unknown): string {
+  if (!node || typeof node !== "object") return ""
+  const chunks = (node as { queryChunks?: unknown[] }).queryChunks
+  if (!Array.isArray(chunks)) return ""
+  let out = ""
+  for (const chunk of chunks) {
+    if (chunk && typeof chunk === "object") {
+      const value = (chunk as { value?: unknown }).value
+      if (Array.isArray(value)) out += value.join("")
+      else out += sqlText(chunk)
+    }
+  }
+  return out
+}
+
+/**
+ * The bound parameters, in the order the statement interpolates them.
+ *
+ * A value interpolated into a raw `sql` template arrives as a PRIMITIVE chunk
+ * sitting between StringChunks -- not as a wrapped Param object, which is what
+ * the query builder produces. Verified directly against drizzle rather than
+ * assumed: a walker that only looked for `{ value, encoder }` found nothing
+ * here and silently reported an empty summary.
+ */
+function sqlParams(node: unknown, acc: unknown[] = []): unknown[] {
+  if (!node || typeof node !== "object") return acc
+  const chunks = (node as { queryChunks?: unknown[] }).queryChunks
+  if (!Array.isArray(chunks)) return acc
+  for (const chunk of chunks) {
+    if (chunk === null || typeof chunk !== "object") {
+      acc.push(chunk)
+    } else if ("value" in chunk && "encoder" in chunk && !Array.isArray((chunk as { value: unknown }).value)) {
+      acc.push((chunk as { value: unknown }).value)
+    } else if (!Array.isArray((chunk as { value?: unknown }).value)) {
+      sqlParams(chunk, acc)
+    }
+  }
+  return acc
+}
+
+const mockWithTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
+  transactionCount += 1
+  return fn(fakeDb as unknown as never)
+})
 
 const realTenantScoped = await import("@/lib/db/tenant-scoped")
 
 beforeEach(() => {
   insertedAttendance = []
   existingAttendanceForConflict = undefined
+  executedSql = []
+  transactionCount = 0
   mockWithTenantContext.mockClear()
 })
 
@@ -267,5 +336,97 @@ describe("listRoster", () => {
 
     expect(rows.map((r) => r.id).sort()).toEqual(["r1", "r2"])
     expect(await listRoster({ orgId: ORG }, OTHER_PROJECT)).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 F-30 (audit recommendation R-274) -- the /labour landing in ONE hop.
+// ---------------------------------------------------------------------------
+//
+// The screen wants the roster AND "how did today go". Asking for them one
+// after the other is two round trips to VERIDIAN and two transactions on a
+// five-connection pool for one landing. getLabourLanding() answers both from
+// one transaction, and the summary is a grouped aggregate over ONE DAY, so it
+// stays a constant-size answer however long the project runs.
+describe("getLabourLanding -- R67 F-30: roster and the day's summary, one transaction", () => {
+  test("returns both, and opens exactly ONE tenant transaction to do it", async () => {
+    const { getLabourLanding } = await loadService()
+
+    const landing = await getLabourLanding({ orgId: ORG }, PROJECT, { attendanceDate: "2026-09-02" })
+
+    expect(landing.roster.map((r) => r.id).sort()).toEqual(["r1", "r2"])
+    expect(landing.attendanceSummary).not.toBeNull()
+    expect(transactionCount).toBe(1)
+    // One grouped statement for the summary -- not one per status, and not the
+    // whole log pulled back to be counted in JS.
+    expect(executedSql).toHaveLength(1)
+  })
+
+  test("the summary counts that ONE day, by status, with the day's cost", async () => {
+    const { getLabourLanding } = await loadService()
+
+    const { attendanceSummary } = await getLabourLanding({ orgId: ORG }, PROJECT, { attendanceDate: "2026-09-02" })
+
+    // 2026-09-02 on THIS project: r1 present (500) + r2 half_day (250).
+    expect(attendanceSummary).toEqual({
+      date: "2026-09-02",
+      recorded: 2,
+      present: 1,
+      halfDay: 1,
+      absent: 0,
+      totalCost: 750,
+    })
+  })
+
+  test("another project's same-day row is not counted -- the summary is project-scoped", async () => {
+    const { getLabourLanding } = await loadService()
+
+    const { attendanceSummary } = await getLabourLanding({ orgId: ORG }, PROJECT, { attendanceDate: "2026-09-02" })
+
+    // a-other is the same day, same org, DIFFERENT project, and costs 700.
+    expect(attendanceSummary!.totalCost).toBe(750);
+    expect(attendanceSummary!.recorded).toBe(2)
+  })
+
+  test("a day with nothing recorded returns zeroes, not null -- 'nobody marked attendance' is an answer", async () => {
+    const { getLabourLanding } = await loadService()
+
+    const { attendanceSummary } = await getLabourLanding({ orgId: ORG }, PROJECT, { attendanceDate: "2026-12-25" })
+
+    expect(attendanceSummary).toEqual({
+      date: "2026-12-25",
+      recorded: 0,
+      present: 0,
+      halfDay: 0,
+      absent: 0,
+      totalCost: 0,
+    })
+  })
+
+  test("the statement filters on the day itself, so it can use the (project_id, attendance_date) index", async () => {
+    const { getLabourLanding } = await loadService()
+
+    await getLabourLanding({ orgId: ORG }, PROJECT, { attendanceDate: "2026-09-03" })
+
+    const text = executedSql[0].replace(/\s+/g, " ").toLowerCase()
+    expect(text).toContain("compliance.construction_attendance")
+    expect(text).toContain("attendance_date =")
+    expect(text).toContain("group by status")
+  })
+
+  test("no date at all means no summary -- and no statement is run for one", async () => {
+    const { getLabourLanding } = await loadService()
+
+    const landing = await getLabourLanding({ orgId: ORG }, PROJECT)
+
+    expect(landing.roster).toHaveLength(2)
+    expect(landing.attendanceSummary).toBeNull()
+    expect(executedSql).toHaveLength(0)
+  })
+
+  test("a missing projectId is a 400, never a landing scoped to the whole org", async () => {
+    const { getLabourLanding, ServiceError } = await loadService()
+
+    await expect(getLabourLanding({ orgId: ORG }, "")).rejects.toThrow(ServiceError)
   })
 })
