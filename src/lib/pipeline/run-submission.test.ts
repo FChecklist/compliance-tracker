@@ -436,3 +436,59 @@ describe("B-11 -- the BOQ read is only paid for when a line is actually named", 
     expect(referencesBoqLine({})).toBe(false)
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R67 FIX PASS -- the project chain-options offered must also be executable
+//
+// The same defect class the commit above fixed for BOQ lines, one field
+// higher up. B-11's project level answers with the org's REAL project ids as
+// option values; buildValidationContext seeded `reachableProjectIds` from the
+// top rail alone, so a client that posted an offered project id in params
+// without also switching the rail had its own offered choice refused with
+// PROJECT_NOT_REACHABLE, for ever. Latent only because M24Shell does not send
+// params.projectId today.
+// ═══════════════════════════════════════════════════════════════════════════
+describe("FIX PASS -- a projectId the request itself carried is reachable", () => {
+  test("params.projectId differing from the rail's is NOT refused", () => {
+    const ctx = buildValidationContext({
+      projectId: "p1",
+      projectLabel: "Cedar Heights Villa - Phase 1",
+      boq: null,
+      params: { projectId: "p2" },
+    })
+    const r = validate({ functionId: "get_construction_project_dashboard", params: { projectId: "p2" } }, ctx)
+    expect(r.valid).toBe(true)
+    if (r.valid) expect(r.params.projectId).toBe("p2")
+  })
+
+  test("the rail's own project still validates when params name none", () => {
+    const ctx = buildValidationContext({
+      projectId: "p1",
+      projectLabel: "Cedar Heights Villa - Phase 1",
+      boq: null,
+      params: {},
+    })
+    const r = validate({ functionId: "get_construction_project_dashboard", params: {} }, ctx)
+    expect(r.valid).toBe(true)
+    if (r.valid) expect(r.params.projectId).toBe("p1")
+  })
+
+  test("the guard still catches a project id NOTHING in the request carried -- a hallucinated one", () => {
+    const ctx = buildValidationContext({
+      projectId: "p1",
+      projectLabel: "Cedar Heights Villa - Phase 1",
+      boq: null,
+      params: { projectId: "p2" },
+    })
+    // The candidate's resolved params name a THIRD project that neither the
+    // rail nor the request ever mentioned: still PROJECT_NOT_REACHABLE.
+    const r = validate({ functionId: "get_construction_project_dashboard", params: { projectId: "p_invented" } }, ctx)
+    expect(r.valid).toBe(false)
+    if (!r.valid) expect(r.code).toBe("PROJECT_NOT_REACHABLE")
+  })
+
+  test("omitting params entirely keeps the previous behaviour exactly", () => {
+    const ctx = buildValidationContext({ projectId: "p1", projectLabel: null, boq: null })
+    expect([...ctx.reachableProjectIds]).toEqual(["p1"])
+  })
+})

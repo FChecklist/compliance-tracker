@@ -91,13 +91,35 @@ export function buildValidationContext(args: {
   projectId: string | null;
   projectLabel: string | null;
   boq: BoqValidationFacts | null;
+  /**
+   * R67 FIX PASS: the candidate's own params, so a projectId the REQUEST
+   * carried is seeded into the reachable set beside the rail's.
+   *
+   * Without this, chain-options' new project level was a trap of exactly the
+   * kind the "the chain the server itself offered must be executable" commit
+   * fixed for BOQ lines: that level returns real project ids as option
+   * values, and a client that posted one back in params without also
+   * switching the top rail had its OWN offered choice refused with
+   * PROJECT_NOT_REACHABLE, for ever.
+   *
+   * This is not a weakened boundary, because it was never the boundary.
+   * `reachableProjectIds` is a HALLUCINATION GUARD -- it catches a project id
+   * the classifier invented, which is never in the request -- and real
+   * reachability is enforced two layers down, by withTenantContext's org
+   * scoping and by each service's own lookup (a project outside this org
+   * comes back as ServiceError 404 -> RECORD_NOT_FOUND).
+   */
+  params?: Record<string, unknown>;
 }): ValidationContext {
+  const requestedProjectIds = [args.projectId, args.params?.projectId].filter(
+    (id): id is string => typeof id === "string" && id.trim().length > 0
+  );
   return {
     candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
     boqLineItemIds: args.boq?.lineItemIds ?? new Set<string>(),
     ...(args.boq ? { boqItemCodes: args.boq.itemCodes, boqVersion: args.boq.version } : {}),
     userPermittedFunctionIds: new Set(CANDIDATE_FUNCTION_IDS),
-    reachableProjectIds: args.projectId ? new Set([args.projectId]) : new Set<string>(),
+    reachableProjectIds: new Set(requestedProjectIds),
     // R67 B-02: the project the composer's top rail already had.
     submissionProjectId: args.projectId ?? null,
     projectLabel: args.projectLabel,
@@ -408,6 +430,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       projectId: input.projectId ?? null,
       projectLabel: rootLabel,
       boq: await boqFacts(c.params),
+      params: c.params,
     });
 
     const v = validate({ functionId: c.functionId, params: c.params }, validationCtx);
@@ -489,6 +512,11 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       functionId: c.functionId,
       params: resolvedParams,
       role: input.role,
+      // R67 FIX PASS: the project's name, already resolved above for the
+      // derived chain, so the executor's BOQ_LINE_NOT_FOUND carries the same
+      // {project} validate()'s does and the one sentence reads the same way
+      // whichever stage refused the line.
+      projectLabel: rootLabel,
     });
     if (outcome.success) {
       await updateTask(input.orgId, taskId, "done", outcome.result, undefined);
@@ -652,6 +680,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     projectId: input.projectId ?? null,
     projectLabel: rootLabel,
     boq: await makeBoqFactsResolver(input.orgId, input.userId, input.projectId ?? null)(params),
+    params,
   });
   const v = validate({ functionId: input.functionId, params }, validationCtx);
   if (!v.valid) {
@@ -700,6 +729,8 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
       functionId: input.functionId,
       params: resolvedParams,
       role: input.role,
+      // R67 FIX PASS -- see the same line in runSubmission()'s loop.
+      projectLabel: rootLabel,
     });
   }
 

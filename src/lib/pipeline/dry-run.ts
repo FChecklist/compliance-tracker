@@ -339,6 +339,9 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
         functionId,
         params,
         role: input.role,
+        // R67 FIX PASS: the project's name, so a read that fails on a BOQ
+        // line gets the same sentence the write path does.
+        projectLabel: deps.rootLabel,
       });
       if (!outcome.success) {
         proposals.push({
@@ -405,8 +408,13 @@ function labelForParam(functionId: string, name: string | undefined): string {
   return codeForParam(name) === "PROJECT_REQUIRED" ? "Project" : "Value";
 }
 
-/** A COMMAND verb answers with a route that already carries its parameters. */
-function buildRunRoute(route: string | undefined, params: Record<string, unknown>): string {
+/**
+ * A COMMAND verb answers with a route that already carries its parameters.
+ * Exported for its own sibling test: reaching it only through
+ * dryRunSubmission() would mean testing the URL builder through a DB-backed
+ * wrapper, which proves less and costs more.
+ */
+export function buildRunRoute(route: string | undefined, params: Record<string, unknown>): string {
   if (!route) return "/dashboard";
   const [base, existing] = route.split("?");
   const search = new URLSearchParams(existing ?? "");
