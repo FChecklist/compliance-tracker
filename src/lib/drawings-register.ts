@@ -36,16 +36,48 @@ export function categoryFilterForKind(kind: string | null | undefined): DrawingC
   return undefined
 }
 
+// ─── R67 D-12: the three states a drawing can be in ─────────────────────────
+// 'current'      -- the build set: this is the one you build from.
+// 'superseded'   -- a later revision with the same Drawing No. took over.
+// 'for_approval' -- uploaded, not yet the build set.
+export const DRAWING_STATUSES = ["current", "superseded", "for_approval"] as const
+export type DrawingStatus = (typeof DRAWING_STATUSES)[number]
+
+/** A new upload is not the build set until someone says so. */
+export const DEFAULT_DRAWING_STATUS: DrawingStatus = "for_approval"
+
+/**
+ * Anything that is not one of the three is the default rather than a crash: the
+ * status lives in a jsonb blob, and rows created before D-12 have no status at
+ * all. They are not 'current' by accident -- that would silently promote every
+ * historical row into the build set.
+ */
+export function normaliseDrawingStatus(raw: unknown): DrawingStatus {
+  return (DRAWING_STATUSES as readonly unknown[]).includes(raw) ? (raw as DrawingStatus) : DEFAULT_DRAWING_STATUS
+}
+
 export type DrawingMetadata = {
   discipline: string | null
   isExternalLink: boolean
+  drawingNo: string | null
+  rev: string | null
+  status: DrawingStatus
+  supersedesId: string | null
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null
 }
 
 export function readDrawingMetadata(raw: unknown): DrawingMetadata {
-  const meta = (raw ?? {}) as { discipline?: unknown; isExternalLink?: unknown }
+  const meta = (raw ?? {}) as Record<string, unknown>
   return {
-    discipline: typeof meta.discipline === "string" && meta.discipline.trim() ? meta.discipline : null,
+    discipline: readString(meta.discipline),
     isExternalLink: meta.isExternalLink === true,
+    drawingNo: readString(meta.drawingNo),
+    rev: readString(meta.rev),
+    status: normaliseDrawingStatus(meta.status),
+    supersedesId: readString(meta.supersedesId),
   }
 }
 
@@ -68,6 +100,11 @@ export type DrawingDto = {
   fileType: string | null
   documentUrl: string | null
   createdAt: Date | string
+  /** R67 D-12: the four fields that answer "is this the one I build from?". */
+  drawingNo: string | null
+  rev: string | null
+  status: DrawingStatus
+  supersedesId: string | null
 }
 
 /**
@@ -86,7 +123,20 @@ export function toDrawingDto(doc: DrawingRow, documentUrl: string | null): Drawi
     fileType: doc.fileType,
     documentUrl,
     createdAt: doc.createdAt,
+    drawingNo: metadata.drawingNo,
+    rev: metadata.rev,
+    status: metadata.status,
+    supersedesId: metadata.supersedesId,
   }
+}
+
+/**
+ * R67 D-12's "Current only" chip, on by default so the register shows the build
+ * set. `status=all` (or an unknown value) means every state.
+ */
+export function matchesStatus(dto: { status: DrawingStatus }, status?: string | null): boolean {
+  if (!status || !status.trim() || status === "all") return true
+  return dto.status === status
 }
 
 /**
@@ -137,7 +187,7 @@ export function kindLabel(kind: DrawingKind): string {
  */
 export const DRAWING_EXPORT_COLUMNS = ["Name", "Drawing No.", "Kind", "Discipline", "Rev", "Added", "Link"] as const
 
-export function toDrawingExportRow(dto: DrawingDto & { drawingNo?: string | null; rev?: string | null }): ExportRow {
+export function toDrawingExportRow(dto: DrawingDto): ExportRow {
   const added = dto.createdAt instanceof Date ? dto.createdAt : new Date(dto.createdAt)
   return {
     Name: dto.name,
@@ -150,6 +200,6 @@ export function toDrawingExportRow(dto: DrawingDto & { drawingNo?: string | null
   }
 }
 
-export function toDrawingExportRows(dtos: (DrawingDto & { drawingNo?: string | null; rev?: string | null })[]): ExportRow[] {
+export function toDrawingExportRows(dtos: DrawingDto[]): ExportRow[] {
   return dtos.map(toDrawingExportRow)
 }

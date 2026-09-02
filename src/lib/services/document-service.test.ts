@@ -27,6 +27,8 @@ type Row = Record<string, unknown>
 let existingDoc: Row | undefined
 let capturedWhere: SQL | undefined
 let capturedSet: Row | undefined
+let updates: Row[] = []
+let inserts: Row[] = []
 let tenantContexts: { orgId: string; userId?: string }[] = []
 
 const fakeDb = {
@@ -41,12 +43,21 @@ const fakeDb = {
   update: () => ({
     set: (values: Row) => {
       capturedSet = values
+      updates.push(values)
       return {
         where: () => ({
           returning: async () => [{ ...(existingDoc ?? {}), ...values }],
         }),
       }
     },
+  }),
+  insert: () => ({
+    values: (values: Row) => ({
+      returning: async () => {
+        inserts.push(values)
+        return [{ id: "doc-new", ...values }]
+      },
+    }),
   }),
 }
 
@@ -74,6 +85,8 @@ beforeEach(() => {
   }
   capturedWhere = undefined
   capturedSet = undefined
+  updates = []
+  inserts = []
   tenantContexts = []
   mockWithTenantContext.mockClear()
 })
@@ -171,5 +184,178 @@ describe("updateDocumentMetadata -- R67 D-11 drawing edit", () => {
       updateDocumentMetadata({ orgId: ORG, userId: "user-1" }, "doc-1", { name: "Anything" })
     ).rejects.toThrow(ServiceError)
     expect(capturedSet).toBeUndefined()
+  })
+})
+
+// ─── R67 D-12 (audit R-034): the register and its automatic supersede ────────
+// "A register that cannot answer 'is this the one I build from?' is not a
+// register." The acceptance: creating AR-101 Rev A then AR-101 Rev B on the same
+// project leaves Rev A 'superseded' and Rev B 'current' with supersedesId equal
+// to Rev A's id, and BOTH writes happen inside ONE transaction.
+//
+// These create through externalUrl rather than a File on purpose: the file
+// branch uploads bytes to Supabase Storage before any of this runs, which a unit
+// test has no business doing. The supersede path is identical either way -- it
+// is decided entirely by drawingNo/status, which are the same for both.
+describe("createDrawingRecord -- R67 D-12 supersede", () => {
+  const PROJECT = "proj-1"
+
+  test("the FIRST revision has nothing to supersede and is written as it was asked for", async () => {
+    const { createDrawingRecord } = await loadService()
+    existingDoc = undefined // no 'current' AR-101 on this project yet
+
+    const doc = await createDrawingRecord({ orgId: ORG, userId: "user-1" }, {
+      name: "AR-101 Ground floor plan",
+      category: "drawing",
+      projectId: PROJECT,
+      discipline: "Architectural",
+      drawingNo: "AR-101",
+      rev: "A",
+      status: "current",
+      externalUrl: "https://example.com/AR-101-A",
+    })
+
+    expect(updates).toHaveLength(0) // nothing superseded
+    expect(inserts).toHaveLength(1)
+    expect(inserts[0].metadata).toEqual({
+      isExternalLink: true,
+      discipline: "Architectural",
+      drawingNo: "AR-101",
+      rev: "A",
+      status: "current",
+      supersedesId: null,
+    })
+    expect((doc as Row).linkedEntityId).toBe(PROJECT)
+  })
+
+  test("THE ACCEPTANCE: Rev B supersedes Rev A, records which row it replaced, and does both in ONE transaction", async () => {
+    const { createDrawingRecord } = await loadService()
+    // Rev A, already current on this project.
+    existingDoc = {
+      id: "doc-rev-a",
+      orgId: ORG,
+      name: "AR-101 Ground floor plan",
+      category: "drawing",
+      linkedEntityType: "project",
+      linkedEntityId: PROJECT,
+      metadata: { discipline: "Architectural", drawingNo: "AR-101", rev: "A", status: "current", isExternalLink: true },
+    }
+
+    await createDrawingRecord({ orgId: ORG, userId: "user-1" }, {
+      name: "AR-101 Ground floor plan",
+      category: "drawing",
+      projectId: PROJECT,
+      discipline: "Architectural",
+      drawingNo: "AR-101",
+      rev: "B",
+      status: "current",
+      externalUrl: "https://example.com/AR-101-B",
+    })
+
+    // Rev A becomes superseded -- and keeps everything else it had.
+    expect(updates).toHaveLength(1)
+    expect(updates[0].metadata).toEqual({
+      discipline: "Architectural",
+      drawingNo: "AR-101",
+      rev: "A",
+      status: "superseded",
+      isExternalLink: true,
+    })
+    // Rev B is current and says which row it replaced.
+    expect(inserts).toHaveLength(1)
+    const inserted = inserts[0].metadata as Row
+    expect(inserted.status).toBe("current")
+    expect(inserted.rev).toBe("B")
+    expect(inserted.supersedesId).toBe("doc-rev-a")
+    // ONE transaction for both writes: a second withTenantContext would trip
+    // D-06's nesting guard, and -- guard or no guard -- would open a window in
+    // which two rows are 'current', or none is.
+    expect(mockWithTenantContext).toHaveBeenCalledTimes(1)
+    expect(tenantContexts).toEqual([{ orgId: ORG, userId: "user-1" }])
+  })
+
+  test("the previous revision is looked for by drawing number, project and 'current' -- not by name", async () => {
+    const { createDrawingRecord } = await loadService()
+    existingDoc = undefined
+
+    await createDrawingRecord({ orgId: ORG, userId: "user-1" }, {
+      name: "AR-101 Ground floor plan",
+      category: "drawing",
+      projectId: PROJECT,
+      drawingNo: "AR-101",
+      rev: "B",
+      status: "current",
+      externalUrl: "https://example.com/AR-101-B",
+    })
+
+    const rendered = dialect.sqlToQuery(capturedWhere!)
+    expect(rendered.sql).toContain("drawingNo")
+    expect(rendered.sql).toContain("'current'")
+    expect(rendered.sql).toContain("linked_entity_id")
+    expect(rendered.params).toContain("AR-101")
+    expect(rendered.params).toContain(PROJECT)
+    expect(rendered.params).toContain(ORG)
+  })
+
+  test("a drawing uploaded FOR APPROVAL supersedes nothing -- it is not the build set yet", async () => {
+    const { createDrawingRecord } = await loadService()
+    existingDoc = {
+      id: "doc-rev-a",
+      orgId: ORG,
+      metadata: { drawingNo: "AR-101", rev: "A", status: "current" },
+    }
+
+    await createDrawingRecord({ orgId: ORG, userId: "user-1" }, {
+      name: "AR-101 Ground floor plan",
+      category: "drawing",
+      projectId: PROJECT,
+      drawingNo: "AR-101",
+      rev: "B",
+      externalUrl: "https://example.com/AR-101-B",
+    })
+
+    expect(updates).toHaveLength(0)
+    expect((inserts[0].metadata as Row).status).toBe("for_approval") // the default
+    expect((inserts[0].metadata as Row).supersedesId).toBeNull()
+  })
+
+  test("a drawing with no Drawing No. supersedes nothing -- there is nothing to match on", async () => {
+    const { createDrawingRecord } = await loadService()
+    existingDoc = { id: "doc-rev-a", orgId: ORG, metadata: { status: "current" } }
+
+    await createDrawingRecord({ orgId: ORG, userId: "user-1" }, {
+      name: "Villa 21 walkthrough",
+      category: "drawing_3d",
+      projectId: PROJECT,
+      status: "current",
+      externalUrl: "https://my.matterport.com/show/?m=abc",
+    })
+
+    expect(updates).toHaveLength(0)
+    expect((inserts[0].metadata as Row).drawingNo).toBeNull()
+    expect((inserts[0].metadata as Row).supersedesId).toBeNull()
+  })
+
+  test("a nameless or projectless drawing is refused before anything is written", async () => {
+    const { createDrawingRecord, ServiceError } = await loadService()
+
+    await expect(
+      createDrawingRecord({ orgId: ORG, userId: "user-1" }, {
+        name: "   ",
+        category: "drawing",
+        projectId: PROJECT,
+        externalUrl: "https://example.com/x",
+      })
+    ).rejects.toThrow(ServiceError)
+    await expect(
+      createDrawingRecord({ orgId: ORG, userId: "user-1" }, {
+        name: "AR-101",
+        category: "drawing",
+        projectId: "",
+        externalUrl: "https://example.com/x",
+      })
+    ).rejects.toThrow(ServiceError)
+    expect(inserts).toHaveLength(0)
+    expect(mockWithTenantContext).not.toHaveBeenCalled()
   })
 })

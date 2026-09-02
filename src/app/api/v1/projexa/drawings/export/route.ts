@@ -18,6 +18,7 @@ import {
   DRAWING_CATEGORIES,
   categoryFilterForKind,
   matchesDiscipline,
+  matchesStatus,
   toDrawingDto,
   toDrawingExportRows,
 } from "@/lib/drawings-register"
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })
   const category = categoryFilterForKind(request.nextUrl.searchParams.get("kind"))
   const discipline = request.nextUrl.searchParams.get("discipline")
+  const status = request.nextUrl.searchParams.get("status")
 
   try {
     const lists = await Promise.all(
@@ -46,7 +48,7 @@ export async function GET(request: NextRequest) {
     // URL for link rows, which the row already carries in fileUrl.
     const dtos = docs
       .map((doc) => toDrawingDto(doc, ((doc.metadata ?? {}) as { isExternalLink?: boolean }).isExternalLink === true ? doc.fileUrl : null))
-      .filter((d) => matchesDiscipline(d, discipline))
+      .filter((d) => matchesDiscipline(d, discipline) && matchesStatus(d, status))
 
     const buffer = rowsToXLSXBuffer(toDrawingExportRows(dtos), "Drawings")
     // Blob, not a raw Buffer/Uint8Array -- same BodyInit-typing reason

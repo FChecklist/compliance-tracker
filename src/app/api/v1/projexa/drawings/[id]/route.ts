@@ -18,7 +18,7 @@ import { documents, projects } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { updateDocumentMetadata, ServiceError } from "@/lib/services/document-service"
-import { isDrawingCategory, isRecentDrawing, toDrawingDto } from "@/lib/drawings-register"
+import { isDrawingCategory, isRecentDrawing, readDrawingMetadata, toDrawingDto } from "@/lib/drawings-register"
 import { createClient } from "@supabase/supabase-js"
 
 const BUCKET = "compliance-documents"
@@ -66,12 +66,23 @@ async function loadDrawing(orgId: string, id: string) {
         )
       )
 
-    return { doc, project, references: count ?? 0 }
+    // R67 D-12: the revision this one replaced, so the object page can offer a
+    // "Supersedes" facet that actually goes somewhere. Resolved in this same
+    // transaction rather than as a second round trip from the browser.
+    const supersedesId = readDrawingMetadata(doc.metadata).supersedesId
+    const supersedes = supersedesId
+      ? await db.query.documents.findFirst({
+          where: and(eq(documents.id, supersedesId), eq(documents.orgId, orgId)),
+          columns: { id: true, name: true, metadata: true },
+        })
+      : null
+
+    return { doc, project, references: count ?? 0, supersedes: supersedes ?? null }
   })
 }
 
 async function toObjectDto(loaded: NonNullable<Awaited<ReturnType<typeof loadDrawing>>>) {
-  const { doc, project, references } = loaded
+  const { doc, project, references, supersedes } = loaded
   const isExternalLink = ((doc.metadata ?? {}) as { isExternalLink?: boolean }).isExternalLink === true
   let documentUrl: string | null = null
   if (isExternalLink) {
@@ -93,6 +104,17 @@ async function toObjectDto(loaded: NonNullable<Awaited<ReturnType<typeof loadDra
     isRecent: isRecentDrawing(doc.createdAt),
     references,
     versionNumber: doc.versionNumber,
+    // The raw fields, not a formatted label: how a drawing is named on screen is
+    // the screen's decision (projexa's drawingLabel), and formatting it twice in
+    // two repos is how the two start disagreeing.
+    supersedes: supersedes
+      ? {
+          id: supersedes.id,
+          name: supersedes.name,
+          drawingNo: readDrawingMetadata(supersedes.metadata).drawingNo,
+          rev: readDrawingMetadata(supersedes.metadata).rev,
+        }
+      : null,
     expiresInSeconds: SIGNED_URL_TTL_SECONDS,
   }
 }

@@ -15,12 +15,14 @@
 // should hold: the service-role storage client that signs a file URL.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
-import { listDocuments, createDocumentRecord, ServiceError } from "@/lib/services/document-service"
+import { listDocuments, createDrawingRecord, ServiceError } from "@/lib/services/document-service"
 import {
   DRAWING_CATEGORIES,
+  DRAWING_STATUSES,
   categoryFilterForKind,
   categoryForKind,
   matchesDiscipline,
+  matchesStatus,
   toDrawingDto,
   type DrawingCategory,
   type DrawingDto,
@@ -58,6 +60,10 @@ export async function GET(request: NextRequest) {
   // lives in the metadata jsonb, so it is applied to this project's own rows
   // rather than as a WHERE clause -- see matchesDiscipline's own comment.
   const discipline = request.nextUrl.searchParams.get("discipline")
+  // R67 D-12: the register's "Current only" chip, which the screen turns on by
+  // default so the list shows the build set. Omitted (or "all") means every
+  // state, so no existing caller loses rows.
+  const status = request.nextUrl.searchParams.get("status")
 
   try {
     const admin = getStorageAdminClient()
@@ -67,8 +73,8 @@ export async function GET(request: NextRequest) {
       )
     )
     const docs = lists.flat().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    const drawings = (await Promise.all(docs.map((doc) => signDrawing(doc, admin)))).filter((d) =>
-      matchesDiscipline(d, discipline)
+    const drawings = (await Promise.all(docs.map((doc) => signDrawing(doc, admin)))).filter(
+      (d) => matchesDiscipline(d, discipline) && matchesStatus(d, status)
     )
     return NextResponse.json({ drawings })
   } catch (error) {
@@ -97,6 +103,14 @@ export async function POST(request: NextRequest) {
     const category: DrawingCategory = categoryForKind(kind)
     const discipline = (formData.get("discipline") as string | null) || null
     const externalUrl = (formData.get("externalUrl") as string | null) || null
+    // R67 D-12: the register fields. An unknown status is refused rather than
+    // stored -- a status nobody can filter on is worse than none.
+    const drawingNo = (formData.get("drawingNo") as string | null) || null
+    const rev = (formData.get("rev") as string | null) || null
+    const rawStatus = (formData.get("status") as string | null) || null
+    if (rawStatus && !(DRAWING_STATUSES as readonly string[]).includes(rawStatus)) {
+      return NextResponse.json({ error: `status must be one of ${DRAWING_STATUSES.join(", ")}` }, { status: 400 })
+    }
     const file = formData.get("file")
     const name = (formData.get("name") as string | null)?.trim() || (file instanceof File ? file.name : null)
     if (!name) return NextResponse.json({ error: "name is required" }, { status: 400 })
@@ -108,10 +122,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "DWG drawings require a file upload" }, { status: 400 })
     }
 
-    const doc = await createDocumentRecord({ orgId: ctx.orgId, userId: actorId }, {
-      name, category,
-      linkedEntityType: "project", linkedEntityId: projectId,
-      metadata: { discipline },
+    // R67 D-12: createDrawingRecord, not createDocumentRecord -- the supersede
+    // of the previous 'current' revision has to happen in the SAME transaction
+    // as the insert (see the service's own comment).
+    const doc = await createDrawingRecord({ orgId: ctx.orgId, userId: actorId }, {
+      name, category, projectId, discipline, drawingNo, rev,
+      ...(rawStatus ? { status: rawStatus as (typeof DRAWING_STATUSES)[number] } : {}),
       ...(file instanceof File ? { file } : { externalUrl: externalUrl! }),
     })
 

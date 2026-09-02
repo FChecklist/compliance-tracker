@@ -11,6 +11,8 @@ import {
   kindForCategory,
   kindLabel,
   matchesDiscipline,
+  matchesStatus,
+  normaliseDrawingStatus,
   readDrawingMetadata,
   toDrawingDto,
   toDrawingExportRows,
@@ -69,15 +71,55 @@ describe("category and kind", () => {
 })
 
 describe("readDrawingMetadata", () => {
+  // R67 D-12 added drawingNo/rev/status/supersedesId to this blob.
+  const EMPTY = { discipline: null, isExternalLink: false, drawingNo: null, rev: null, status: "for_approval", supersedesId: null }
+
   test("a missing or malformed metadata blob is not a crash and not a false discipline", () => {
-    expect(readDrawingMetadata(null)).toEqual({ discipline: null, isExternalLink: false })
-    expect(readDrawingMetadata({ discipline: "   " })).toEqual({ discipline: null, isExternalLink: false })
-    expect(readDrawingMetadata({ discipline: 42 })).toEqual({ discipline: null, isExternalLink: false })
+    expect(readDrawingMetadata(null)).toEqual(EMPTY)
+    expect(readDrawingMetadata({ discipline: "   " })).toEqual(EMPTY)
+    expect(readDrawingMetadata({ discipline: 42 })).toEqual(EMPTY)
   })
 
   test("isExternalLink is true only when it is literally true", () => {
     expect(readDrawingMetadata({ isExternalLink: true }).isExternalLink).toBe(true)
     expect(readDrawingMetadata({ isExternalLink: "yes" }).isExternalLink).toBe(false)
+  })
+
+  // R67 D-12: a row written before the register existed has NO status. It must
+  // not become 'current' by accident -- that would silently promote every
+  // historical drawing into the build set.
+  test("a pre-D-12 row is 'for_approval', never 'current' by default", () => {
+    expect(readDrawingMetadata({ discipline: "MEP" }).status).toBe("for_approval")
+    expect(normaliseDrawingStatus(undefined)).toBe("for_approval")
+    expect(normaliseDrawingStatus("nonsense")).toBe("for_approval")
+    expect(normaliseDrawingStatus("superseded")).toBe("superseded")
+    expect(normaliseDrawingStatus("current")).toBe("current")
+  })
+
+  test("the register fields are read as trimmed strings or null", () => {
+    expect(readDrawingMetadata({ drawingNo: " AR-101 ", rev: "B", supersedesId: "doc-a", status: "current" })).toEqual({
+      discipline: null,
+      isExternalLink: false,
+      drawingNo: "AR-101",
+      rev: "B",
+      status: "current",
+      supersedesId: "doc-a",
+    })
+    expect(readDrawingMetadata({ drawingNo: "", rev: 7 }).drawingNo).toBeNull()
+  })
+})
+
+describe("matchesStatus -- the 'Current only' chip", () => {
+  test("no filter, or 'all', keeps every state", () => {
+    expect(matchesStatus({ status: "superseded" })).toBe(true)
+    expect(matchesStatus({ status: "superseded" }, "all")).toBe(true)
+    expect(matchesStatus({ status: "for_approval" }, "")).toBe(true)
+  })
+
+  test("'current' keeps the build set and nothing else", () => {
+    expect(matchesStatus({ status: "current" }, "current")).toBe(true)
+    expect(matchesStatus({ status: "superseded" }, "current")).toBe(false)
+    expect(matchesStatus({ status: "for_approval" }, "current")).toBe(false)
   })
 })
 
@@ -92,6 +134,10 @@ describe("toDrawingDto", () => {
       fileType: "application/acad",
       documentUrl: "https://signed.example/AR-101.dwg",
       createdAt: ADDED,
+      drawingNo: null,
+      rev: null,
+      status: "for_approval",
+      supersedesId: null,
     })
   })
 

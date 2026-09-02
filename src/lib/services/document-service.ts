@@ -7,7 +7,8 @@
 // discriminators instead of a per-module FK.
 import { documents } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, isNotNull, lte, sql } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, lte, sql } from "drizzle-orm"
+import type { DrawingStatus } from "@/lib/drawings-register"
 import { ServiceError } from "./compliance-service"
 import { createClient } from "@supabase/supabase-js"
 import { createId } from "@paralleldrive/cuid2"
@@ -53,9 +54,23 @@ export type CreateDocumentRecordInput = {
 // never ctx.apiKey?.id (that id has no row in compliance.users; see
 // schema.ts's own comment on documents.uploadedById for the real production
 // FK-violation this caused, and why null is the honest value instead).
-export async function createDocumentRecord(ctx: { orgId: string; userId: string | null }, input: CreateDocumentRecordInput) {
-  if (!input.name?.trim()) throw new ServiceError("name is required", 400)
+type PreparedStorage = { objectPath: string; fileType: string | null; fileSize: number | null; meta: Record<string, unknown> }
 
+/**
+ * The bytes half of creating a document: upload the file (or record the
+ * external URL) and return what the row needs. Extracted in R67 D-12 so
+ * createDrawingRecord() below can share it -- a second copy of the upload path
+ * is a second place for the bucket name, the size cap and the isExternalLink
+ * flag to drift.
+ *
+ * Deliberately runs BEFORE (and outside) any transaction: uploading bytes with
+ * a tenant transaction open would hold one of the pool's five connections for
+ * the length of a 50 MB upload.
+ */
+async function prepareDocumentStorage(
+  orgId: string,
+  input: { name: string; metadata?: unknown } & ({ file: File; externalUrl?: never } | { file?: never; externalUrl: string })
+): Promise<PreparedStorage> {
   let objectPath: string
   let fileType: string | null = null
   let fileSize: number | null = null
@@ -63,7 +78,7 @@ export async function createDocumentRecord(ctx: { orgId: string; userId: string 
 
   if (input.file) {
     if (input.file.size > MAX_SIZE_BYTES) throw new ServiceError("File exceeds 25 MB limit", 400)
-    objectPath = `${ctx.orgId}/${createId()}-${sanitizeFileName(input.file.name)}`
+    objectPath = `${orgId}/${createId()}-${sanitizeFileName(input.file.name)}`
     const bytes = new Uint8Array(await input.file.arrayBuffer())
     const admin = getStorageAdminClient()
     const { error: uploadError } = await admin.storage.from(BUCKET).upload(objectPath, bytes, {
@@ -82,6 +97,14 @@ export async function createDocumentRecord(ctx: { orgId: string; userId: string 
     meta.isExternalLink = true
   }
 
+  return { objectPath, fileType, fileSize, meta }
+}
+
+export async function createDocumentRecord(ctx: { orgId: string; userId: string | null }, input: CreateDocumentRecordInput) {
+  if (!input.name?.trim()) throw new ServiceError("name is required", 400)
+
+  const { objectPath, fileType, fileSize, meta } = await prepareDocumentStorage(ctx.orgId, input)
+
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const [doc] = await db.insert(documents).values({
       name: input.name.trim(),
@@ -98,6 +121,95 @@ export async function createDocumentRecord(ctx: { orgId: string; userId: string 
       isLatestVersion: true,
       metadata: Object.keys(meta).length ? meta : undefined,
     }).returning()
+    return doc
+  })
+}
+
+// ─── R67 D-12: the drawing register (drawingNo / rev / status / supersedes) ──
+
+export type CreateDrawingRecordInput = {
+  name: string
+  category: "drawing" | "drawing_3d"
+  projectId: string
+  discipline?: string | null
+  drawingNo?: string | null
+  rev?: string | null
+  /** Defaults to 'for_approval' -- a new upload is not the build set until someone says so. */
+  status?: DrawingStatus
+} & ({ file: File; externalUrl?: never } | { file?: never; externalUrl: string })
+
+/**
+ * R67 D-12 (audit R-034). "A register that cannot answer 'is this the one I
+ * build from?' is not a register." The four fields that answer it live in the
+ * documents row's metadata jsonb -- no table change -- and this is the one
+ * place a drawing row is created, because the supersede has to happen in the
+ * SAME transaction as the insert.
+ *
+ * The rule: a new drawing that is itself 'current' takes over the build set
+ * from the existing 'current' row with the same Drawing No. on the same
+ * project -- that row becomes 'superseded', and the new row records which row
+ * it replaced (supersedesId). A drawing uploaded 'for_approval' disturbs
+ * nothing: it is not the build set yet, so superseding the drawing people are
+ * building from would be exactly wrong.
+ *
+ * ONE transaction, not two: withTenantContext opens a transaction, and D-06's
+ * nesting guard throws on a second one entered inside the first (and, guard or
+ * no guard, two transactions here would mean a window in which two rows are
+ * 'current' -- or none is).
+ */
+export async function createDrawingRecord(ctx: { orgId: string; userId: string | null }, input: CreateDrawingRecordInput) {
+  if (!input.name?.trim()) throw new ServiceError("name is required", 400)
+  if (!input.projectId?.trim()) throw new ServiceError("projectId is required", 400)
+
+  const status: DrawingStatus = input.status ?? "for_approval"
+  const drawingNo = input.drawingNo?.trim() || null
+  const rev = input.rev?.trim() || null
+
+  const { objectPath, fileType, fileSize, meta } = await prepareDocumentStorage(ctx.orgId, {
+    name: input.name,
+    metadata: { discipline: input.discipline ?? null },
+    ...(input.file ? { file: input.file } : { externalUrl: input.externalUrl! }),
+  })
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
+    let supersedesId: string | null = null
+
+    if (drawingNo && status === "current") {
+      const previous = await db.query.documents.findFirst({
+        where: and(
+          eq(documents.orgId, ctx.orgId),
+          eq(documents.linkedEntityType, "project"),
+          eq(documents.linkedEntityId, input.projectId),
+          inArray(documents.category, ["drawing", "drawing_3d"]),
+          sql`${documents.metadata}->>'drawingNo' = ${drawingNo}`,
+          sql`${documents.metadata}->>'status' = 'current'`
+        ),
+      })
+      if (previous) {
+        const previousMeta = (previous.metadata ?? {}) as Record<string, unknown>
+        await db
+          .update(documents)
+          .set({ metadata: { ...previousMeta, status: "superseded" } })
+          .where(eq(documents.id, previous.id))
+        supersedesId = previous.id
+      }
+    }
+
+    const [doc] = await db.insert(documents).values({
+      name: input.name.trim(),
+      fileUrl: objectPath,
+      fileType,
+      fileSize,
+      uploadedById: ctx.userId,
+      orgId: ctx.orgId,
+      category: input.category,
+      linkedEntityType: "project",
+      linkedEntityId: input.projectId,
+      versionNumber: 1,
+      isLatestVersion: true,
+      metadata: { ...meta, drawingNo, rev, status, supersedesId },
+    }).returning()
+
     return doc
   })
 }
