@@ -62,5 +62,19 @@
 -- ADDITIVE AND REVERSIBLE. Two nullable columns, no default, no backfill, no
 -- constraint: applying it cannot fail on existing data and cannot change the
 -- behaviour of any code that has not been deployed yet.
+--
+-- *** DEPLOY ORDER: APPLY THIS MIGRATION BEFORE THE CODE, NOT AFTER. ***
+-- GET /api/v1/projexa/tasks SELECTs pipeline_tasks.error_code and
+-- error_params by name. Those columns do not exist until this file has run,
+-- so a build that reaches an environment ahead of the migration makes the
+-- Task Master list 500 for every user of BOTH products -- an outage, not a
+-- degradation. The migration is additive and safe to apply to a database
+-- still running the previous build, so the safe order is always:
+--   1. apply 0528 (Supabase MCP: apply_migration)
+--   2. verify: select column_name from information_schema.columns
+--        where table_schema='compliance' and table_name='pipeline_tasks'
+--          and column_name in ('error_code','error_params');   -- expect 2 rows
+--   3. deploy the code
+-- There is no window in which step 1 alone breaks anything.
 ALTER TABLE "compliance"."pipeline_tasks" ADD COLUMN IF NOT EXISTS "error_code" text;--> statement-breakpoint
 ALTER TABLE "compliance"."pipeline_tasks" ADD COLUMN IF NOT EXISTS "error_params" jsonb;
