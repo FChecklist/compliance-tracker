@@ -135,6 +135,21 @@ active:
       write already exists and is already correct -- run-submission.ts:369-370
       and :543-544 record one row per task on both the typed and the pill path,
       with outcome ok/failed. Verified by reading it, not assumed.
+    scope_amendment_3_2026_09_03: >-
+      Lane A's last two items, A-21 (the composer strip names the RECORD on an
+      object page) and A-22 (the deleted mode tabs stay deleted), touched NO
+      file in this repo -- both are repo "projexa" and their whole change is in
+      the forked shell there. Recorded so a reviewer seeing no compliance-
+      tracker diff for them knows it is deliberate rather than forgotten. A-22
+      did however make a finding ABOUT this repo that its own item contradicts:
+      the item says to drop `mode` from the /api/tasks POST body because "the
+      server ignores it", and it does not -- src/app/api/v1/projexa/tasks/
+      route.ts:49 reads it, and it reaches submissions.mode (run-submission.ts:
+      196/446, selected back by that route's GET at :140), deriveChain's root
+      for a project-less chain (run-submission.ts:291 -> derive-chain.ts:170,
+      `All ${mode.toLowerCase()}`) and chain_history.mode (:631). The field is
+      therefore still sent, derived from the chain rather than from a control,
+      and nothing in this repo changed.
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |
