@@ -58,6 +58,17 @@ export type RequiredParam = {
    * parameter's own name is already vocabulary enough.
    */
   field?: string;
+  /**
+   * R67 B-07 -- OTHER PARAMETERS THAT ANSWER THE SAME QUESTION.
+   *
+   * The classifier extracts a human item CODE out of what the user typed
+   * ("EX-01"), but the verdict offers the project's real BOQ lines as chips,
+   * so what comes back on confirm is a line item ID. Both are "the BOQ line",
+   * and executeRecordWorkProgress resolves either against this project's own
+   * BOQ. Without this, a user who picked the chip the server itself offered
+   * would be asked for the BOQ line again, for ever.
+   */
+  alsoSatisfiedBy?: string[];
 };
 
 /** B-05: the verb family, which decides what a submission's answer looks like. */
@@ -97,7 +108,7 @@ const SPEC_LIST: readonly FunctionSpec[] = [
     requiresProject: true,
     requiredParams: [
       { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
-      { name: "itemCode", label: "BOQ line", code: "BOQ_LINE_REQUIRED", field: "boqLine" },
+      { name: "itemCode", label: "BOQ line", code: "BOQ_LINE_REQUIRED", field: "boqLine", alsoSatisfiedBy: ["boqLineItemId"] },
       { name: "percent", label: "Percent complete", code: "VALUE_REQUIRED" },
     ],
     card: {
@@ -270,6 +281,32 @@ const SPECS: Readonly<Record<string, FunctionSpec>> = Object.fromEntries(SPEC_LI
 
 export function functionSpec(functionId: string): FunctionSpec | undefined {
   return SPECS[functionId];
+}
+
+function blank(value: unknown): boolean {
+  return value === undefined || value === null || (typeof value === "string" && value.trim().length === 0);
+}
+
+/**
+ * R67 B-07 -- IS THIS REQUIRED PARAMETER ANSWERED?
+ *
+ * The one place that question is decided, so validate(), the executor's
+ * server-side re-check and the dry run's `missing` list can never disagree
+ * about whether a BOQ line picked from the server's own chips counts.
+ * `projectId` is special only in that it can also arrive on the submission
+ * rather than in the params, which each caller resolves its own way and
+ * passes in here as `fallback`.
+ */
+export function requiredParamSatisfied(
+  required: RequiredParam,
+  params: Record<string, unknown>,
+  fallback?: unknown
+): boolean {
+  if (!blank(params[required.name])) return true;
+  for (const alias of required.alsoSatisfiedBy ?? []) {
+    if (!blank(params[alias])) return true;
+  }
+  return !blank(fallback);
 }
 
 /**

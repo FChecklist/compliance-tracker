@@ -18,7 +18,7 @@ import { createDocumentRecord } from "@/lib/services/document-service";
 import { dispatchTool } from "@/lib/task-execution-engine";
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
 import { normaliseThrownError, pipelineFailure, type PipelineFailure } from "./error-codes";
-import { functionSpec, WRITE_FUNCTION_IDS as REGISTERED_WRITES } from "./function-registry";
+import { functionSpec, requiredParamSatisfied, WRITE_FUNCTION_IDS as REGISTERED_WRITES } from "./function-registry";
 
 /**
  * R67 lane B (B-01, decision D-03). `error: string` is gone: a failure is a
@@ -72,10 +72,11 @@ function missingRequiredParam(task: ExecutableTask): PipelineFailure | null {
   const spec = functionSpec(task.functionId);
   if (!spec) return null;
   for (const required of spec.requiredParams) {
-    const value = required.name === "projectId" ? (task.projectId ?? task.params.projectId) : task.params[required.name];
-    const empty = value === undefined || value === null || (typeof value === "string" && value.trim().length === 0);
+    const fallback = required.name === "projectId" ? task.projectId : undefined;
     // R67 B-09/B-10: the D-03 vocabulary key, same as validate() reports.
-    if (empty) return pipelineFailure(required.code, [required.field ?? required.name]);
+    if (!requiredParamSatisfied(required, task.params, fallback)) {
+      return pipelineFailure(required.code, [required.field ?? required.name]);
+    }
   }
   return null;
 }

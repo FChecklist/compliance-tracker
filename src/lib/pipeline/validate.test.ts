@@ -202,3 +202,28 @@ describe("B-02 -- the submission's own projectId resolves a project-scoped funct
     expect(r.context).toBeUndefined();
   });
 });
+
+// ── R67 B-07: a BOQ line picked from the server's OWN chips counts ─────────
+// The verdict offers the project's real lines addressed by their record id,
+// so what comes back on confirm is `boqLineItemId`, not the human item code
+// the classifier extracts. Without this, a user who clicked exactly what the
+// server offered would be asked for the BOQ line again, for ever.
+describe("B-07 -- boqLineItemId answers the same question as itemCode", () => {
+  test("a record id from the chips satisfies the BOQ-line requirement", () => {
+    const ctx = { ...BASE_CTX, boqLineItemIds: new Set(["line_9"]) };
+    const r = validate(
+      { functionId: "record_work_progress", params: { boqLineItemId: "line_9", percent: 50, projectId: "project_1" } },
+      ctx
+    );
+    expect(r.valid).toBe(true);
+  });
+
+  test("neither one supplied is still BOQ_LINE_REQUIRED, named in the D-03 vocabulary", () => {
+    const r = validate({ functionId: "record_work_progress", params: { percent: 50, projectId: "project_1" } }, BASE_CTX);
+    expect(r.valid).toBe(false);
+    if (!r.valid) {
+      expect(r.code).toBe("BOQ_LINE_REQUIRED");
+      expect(r.missing).toEqual(["boqLine"]);
+    }
+  });
+})

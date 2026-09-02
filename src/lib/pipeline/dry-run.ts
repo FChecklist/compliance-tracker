@@ -27,7 +27,7 @@ import { classifySegment, type Classification, type ResolvedFunction } from "./c
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
 import { deriveChain, type ChainRepo, type DerivedChain } from "./derive-chain";
 import { functionWrites, type ExecutableTask, type ExecutionOutcome } from "./executor";
-import { functionKind, functionLabel, functionSpec, type CardSchema, type FunctionKind } from "./function-registry";
+import { functionKind, functionLabel, functionSpec, requiredParamSatisfied, type CardSchema, type FunctionKind } from "./function-registry";
 import { codeForParam, type PipelineErrorCode } from "./error-codes";
 import { NO_COMMENTARY_SENTENCE } from "@/lib/ai/refusal";
 
@@ -157,9 +157,12 @@ export function missingParamsFor(functionId: string, params: Record<string, unkn
   const out: DryRunMissing[] = [];
   const declared = spec?.requiredParams ?? [];
   for (const required of declared) {
-    const value = required.name === "projectId" ? (params.projectId ?? projectId) : params[required.name];
-    const empty = value === undefined || value === null || (typeof value === "string" && value.trim().length === 0);
-    if (empty) out.push({ name: required.name, label: required.label, code: required.code });
+    const fallback = required.name === "projectId" ? projectId : undefined;
+    // R67 B-07: a BOQ line answered with the record id the verdict's own
+    // chips carry counts as answered -- see requiredParamSatisfied().
+    if (!requiredParamSatisfied(required, params, fallback)) {
+      out.push({ name: required.name, label: required.label, code: required.code });
+    }
   }
   // A function with no registry entry still gets an honest answer: nothing
   // is claimed to be missing rather than a guessed field list.

@@ -16,7 +16,7 @@ import {
   pipelineFailure,
   type PipelineFailure,
 } from "./error-codes";
-import { functionSpec } from "./function-registry";
+import { functionSpec, requiredParamSatisfied } from "./function-registry";
 
 export type ValidationCandidate = {
   functionId: string;
@@ -158,7 +158,7 @@ export function validate(candidate: ValidationCandidate, ctx: ValidationContext)
   if (spec) {
     for (const required of spec.requiredParams) {
       if (required.name === "projectId") continue; // handled by the project rule below
-      if (isMissing(params[required.name])) {
+      if (!requiredParamSatisfied(required, params)) {
         // R67 B-09/B-10: `missing` names the field in the D-03 vocabulary
         // ("boqLine"), not the classifier's parameter ("itemCode"). Both
         // callers of this result -- the projexa dictionary and the Fix chain
