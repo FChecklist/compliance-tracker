@@ -5,7 +5,7 @@
 
 VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for Module": "No systematic test-generation tooling"). Coverage here means "has a sibling `<name>.test.ts` file", not line-coverage percentage -- see this script's own header for why that's the right proxy for triaging files with ZERO tests. Files are ranked by line count because the largest untested files are both the riskiest to modify/refactor blind ("AI Can Safely Modify/Refactor Module" findings) and the highest-value next target.
 
-**Summary:** 128/245 service files have a sibling test file (52.2%).
+**Summary:** 130/246 service files have a sibling test file (52.8%).
 
 ## Top 20 untested files by size (highest priority first)
 
@@ -32,4 +32,4 @@ VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for Module": "No s
 | 19 | `src/lib/services/interior-floorplan-service.ts` | 238 |
 | 20 | `src/lib/services/erp-returns-service.ts` | 236 |
 
-_Total untested files (all sizes): 117. Showing top 20._
+_Total untested files (all sizes): 116. Showing top 20._
