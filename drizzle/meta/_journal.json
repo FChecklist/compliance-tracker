@@ -2451,6 +2451,41 @@
       "when": 1788288400000,
       "tag": "0527_r65_parte_billing_contracts",
       "breakpoints": true
+    },
+    {
+      "idx": 350,
+      "version": "7",
+      "when": 1788288500000,
+      "tag": "0528_r67_i01_screen_definition_labels",
+      "breakpoints": true
+    },
+    {
+      "idx": 351,
+      "version": "7",
+      "when": 1788288600000,
+      "tag": "0529_r67_i02_manpower_material_org_format",
+      "breakpoints": true
+    },
+    {
+      "idx": 352,
+      "version": "7",
+      "when": 1788288700000,
+      "tag": "0530_r67_i03_boq_amounts_demo_fiscal_year",
+      "breakpoints": true
+    },
+    {
+      "idx": 353,
+      "version": "7",
+      "when": 1788288800000,
+      "tag": "0531_r67_i04_schedule_boq_link_and_label_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 354,
+      "version": "7",
+      "when": 1788288900000,
+      "tag": "0532_r67_i05_boq_line_category",
+      "breakpoints": true
     }
   ]
 }

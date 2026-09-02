@@ -40,6 +40,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const weekStart = request.nextUrl.searchParams.get("weekStart")
       if (!weekStart) return NextResponse.json({ error: "weekStart query param is required for the certified-payroll report" }, { status: 400 })
       result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId, weekStart)
+    } else if (reportName === "work-progress") {
+      // R67 lane I (WS-I item I-05, R-177): the Category multi-select on the
+      // WPR parameter bar. Repeatable `category` params (?category=Civil&
+      // category=Paint) rather than one comma-joined value -- a real category
+      // name may legitimately contain a comma, and splitting on it would
+      // silently filter for a category nobody has. Omitting the param entirely
+      // keeps the previous every-category behaviour.
+      const categoryFilter = request.nextUrl.searchParams.getAll("category").filter((c) => c.trim() !== "")
+      result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId, { categoryFilter })
     } else if (reportName === "manpower-cost") {
       // R39/R-C07: both optional -- omitted keeps the existing all-time,
       // all-trade behavior.
