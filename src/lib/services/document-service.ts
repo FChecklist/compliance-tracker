@@ -28,12 +28,43 @@ function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120)
 }
 
+/**
+ * R67 D-14: what PROJEXA's "Relates to" combobox offers. linkedEntityType stays
+ * a free-text discriminator on the table (see the schema comment on
+ * documents.linkedEntityType -- ERP and HR modules use their own values), so
+ * this is NOT an allow-list that rejects anything else; it is the set the
+ * Documents create screen can produce, exported so the screen and the route
+ * cannot drift apart, and so a reader can see what "Relates to" means here.
+ */
+export const PROJEXA_DOCUMENT_LINK_TYPES = ["project", "permit", "rfi", "mom", "boq_line"] as const
+export type ProjexaDocumentLinkType = (typeof PROJEXA_DOCUMENT_LINK_TYPES)[number]
+
+/** R67 D-14: the three fields an .eml can answer for itself, kept in the metadata jsonb. */
+export type DocumentEmailFields = {
+  from?: string | null
+  receivedOn?: string | null
+  subject?: string | null
+}
+
 export type CreateDocumentRecordInput = {
   name: string
   category: string
   expiryDate?: string | null
   linkedEntityType?: string | null
   linkedEntityId?: string | null
+  /**
+   * R67 D-14. The project this document belongs to, INDEPENDENT of what it is
+   * related to. Before this, PROJEXA filed every document with
+   * linkedEntityType='project' because that was the only way the project's
+   * Documents list could find it again; the moment "Relates to" can name a
+   * permit, an RFI or a meeting, the project link is gone and the document
+   * disappears from the list it was uploaded on. This keeps the project
+   * recoverable (metadata.projectId) whatever the row is related to -- see
+   * DocumentFilters.projectScopeId below, which is the read side of it.
+   */
+  projectId?: string | null
+  /** Only meaningful for category 'email'; empty fields are not stored. */
+  email?: DocumentEmailFields
   metadata?: unknown
 } & (
   | { file: File; externalUrl?: never }
@@ -100,10 +131,43 @@ async function prepareDocumentStorage(
   return { objectPath, fileType, fileSize, meta }
 }
 
+/**
+ * R67 D-14. The email header fields and the owning project, merged into the
+ * metadata jsonb rather than added as columns.
+ *
+ * WHY NOT THREE COLUMNS. compliance.documents already carries per-category
+ * fields in metadata by design -- permits keep permitNumber/permitAuthority
+ * there, and R67 D-12 put the whole drawing register (drawingNo/rev/status/
+ * supersedesId) there in this same file, for the reason the table's own schema
+ * comment gives: these are per-module fields, not facts about every document.
+ * Three sparse columns read by one category would be the first exception to
+ * that, and the honest one is not to make it. Empty values are not stored at
+ * all, so a non-email document's metadata is unchanged.
+ */
+export function buildDocumentMetadata(
+  base: Record<string, unknown>,
+  input: { projectId?: string | null; email?: DocumentEmailFields }
+): Record<string, unknown> {
+  const meta = { ...base }
+  if (input.projectId?.trim()) meta.projectId = input.projectId.trim()
+  const email = input.email ?? {}
+  if (email.from?.trim()) meta.emailFrom = email.from.trim()
+  if (email.receivedOn?.trim()) meta.emailReceivedOn = email.receivedOn.trim()
+  if (email.subject?.trim()) meta.emailSubject = email.subject.trim()
+  return meta
+}
+
 export async function createDocumentRecord(ctx: { orgId: string; userId: string | null }, input: CreateDocumentRecordInput) {
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
+  // R67 D-14: "related to a permit" with no permit id is not a relation, it is
+  // a lost document. The two fields have always been written together by every
+  // caller; nothing enforced it until now.
+  if (input.linkedEntityType && !input.linkedEntityId) {
+    throw new ServiceError(`A document related to a ${input.linkedEntityType} needs that ${input.linkedEntityType}'s id`, 400)
+  }
 
   const { objectPath, fileType, fileSize, meta } = await prepareDocumentStorage(ctx.orgId, input)
+  const metadata = buildDocumentMetadata(meta, input)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const [doc] = await db.insert(documents).values({
@@ -119,7 +183,7 @@ export async function createDocumentRecord(ctx: { orgId: string; userId: string 
       linkedEntityId: input.linkedEntityId ?? null,
       versionNumber: 1,
       isLatestVersion: true,
-      metadata: Object.keys(meta).length ? meta : undefined,
+      metadata: Object.keys(metadata).length ? metadata : undefined,
     }).returning()
     return doc
   })
@@ -218,6 +282,16 @@ export type DocumentFilters = {
   category?: string
   linkedEntityType?: string
   linkedEntityId?: string
+  /**
+   * R67 D-14: "every document that belongs to this project", whatever it is
+   * RELATED to -- the project's own documents (linkedEntityId = the project,
+   * which is how every row written before D-14 is filed) plus the ones filed
+   * against one of its permits, RFIs or meetings (metadata.projectId). Without
+   * this, giving the create screen a real "Relates to" would make a document
+   * vanish from the list it was uploaded on the moment it was related to
+   * anything other than the project itself.
+   */
+  projectScopeId?: string
   latestOnly?: boolean
 }
 
@@ -234,6 +308,14 @@ export function buildDocumentFilterConditions(orgId: string, filters: DocumentFi
   if (filters.category) conditions.push(eq(documents.category, filters.category))
   if (filters.linkedEntityType) conditions.push(eq(documents.linkedEntityType, filters.linkedEntityType))
   if (filters.linkedEntityId) conditions.push(eq(documents.linkedEntityId, filters.linkedEntityId))
+  // R67 D-14. The one OR in this set, and deliberately so: it is a single
+  // question ("does this row belong to that project?") that two columns can
+  // answer, not two independent filters.
+  if (filters.projectScopeId) {
+    conditions.push(
+      sql`(${documents.linkedEntityId} = ${filters.projectScopeId} OR ${documents.metadata}->>'projectId' = ${filters.projectScopeId})`
+    )
+  }
   if (filters.latestOnly !== false) conditions.push(eq(documents.isLatestVersion, true))
   return conditions
 }

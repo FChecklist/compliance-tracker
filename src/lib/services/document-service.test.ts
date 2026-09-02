@@ -359,3 +359,120 @@ describe("createDrawingRecord -- R67 D-12 supersede", () => {
     expect(mockWithTenantContext).not.toHaveBeenCalled()
   })
 })
+
+// ─── R67 D-14 (audit R-039/R-044): "Relates to", and the project that survives it ─
+// The create screen's "Relates to" combobox can now file a document against a
+// permit, an RFI or a meeting instead of against the project. That is the whole
+// point of the field -- and it is also how a document disappears from the list
+// it was uploaded on, because that list asked for linkedEntityType='project'.
+// projectId (metadata) and projectScopeId (the read side) are the pair that
+// keeps both true.
+describe("createDocumentRecord -- R67 D-14 Relates to, project scope and email fields", () => {
+  const PROJECT = "proj-1"
+
+  test("a document related to a PERMIT still records the project it belongs to", async () => {
+    const { createDocumentRecord } = await loadService()
+
+    await createDocumentRecord({ orgId: ORG, userId: "user-1" }, {
+      name: "DEWA_permit_2026",
+      category: "permit",
+      linkedEntityType: "permit",
+      linkedEntityId: "permit-9",
+      projectId: PROJECT,
+      externalUrl: "https://example.com/permit.pdf",
+    })
+
+    expect(inserts).toHaveLength(1)
+    expect(inserts[0].linkedEntityType).toBe("permit")
+    expect(inserts[0].linkedEntityId).toBe("permit-9")
+    // ...so the project's Documents list can still find it.
+    expect(inserts[0].metadata).toEqual({ isExternalLink: true, projectId: PROJECT })
+  })
+
+  test("the three email fields are stored, and only the ones that were given", async () => {
+    const { createDocumentRecord } = await loadService()
+
+    await createDocumentRecord({ orgId: ORG, userId: "user-1" }, {
+      name: "RE DEWA connection approval",
+      category: "email",
+      linkedEntityType: "project",
+      linkedEntityId: PROJECT,
+      projectId: PROJECT,
+      email: { from: "sumeet@skylinebuilders.example", receivedOn: "2026-05-10", subject: "  " },
+      externalUrl: "https://example.com/mail.eml",
+    })
+
+    expect(inserts[0].metadata).toEqual({
+      isExternalLink: true,
+      projectId: PROJECT,
+      emailFrom: "sumeet@skylinebuilders.example",
+      emailReceivedOn: "2026-05-10",
+    })
+  })
+
+  test("a non-email document's metadata is unchanged -- no blank email keys are written", async () => {
+    const { createDocumentRecord } = await loadService()
+
+    await createDocumentRecord({ orgId: ORG, userId: "user-1" }, {
+      name: "Contract",
+      category: "contract",
+      email: { from: null, receivedOn: null, subject: null },
+      externalUrl: "https://example.com/contract.pdf",
+    })
+
+    expect(inserts[0].metadata).toEqual({ isExternalLink: true })
+  })
+
+  test("'related to a permit' with no permit id is refused before anything is uploaded or written", async () => {
+    const { createDocumentRecord, ServiceError } = await loadService()
+
+    await expect(
+      createDocumentRecord({ orgId: ORG, userId: "user-1" }, {
+        name: "Orphan",
+        category: "other",
+        linkedEntityType: "permit",
+        externalUrl: "https://example.com/x.pdf",
+      })
+    ).rejects.toThrow(ServiceError)
+    expect(inserts).toHaveLength(0)
+    expect(mockWithTenantContext).not.toHaveBeenCalled()
+  })
+})
+
+describe("buildDocumentFilterConditions -- R67 D-14 projectScopeId", () => {
+  test("asks for the project's own documents OR the ones filed against its permits/RFIs/meetings", async () => {
+    const { buildDocumentFilterConditions } = await loadService()
+    const conditions = buildDocumentFilterConditions(ORG, { projectScopeId: "proj-1" })
+    // The conditions are an independent, composable AND-set (see the function's
+    // own header comment), so the one this item adds is rendered on its own --
+    // a real check on the SQL, not on a canned answer.
+    const orClause = dialect.sqlToQuery(conditions[1] as SQL)
+    expect(orClause.sql).toContain("linked_entity_id")
+    expect(orClause.sql).toContain("'projectId'")
+    expect(orClause.sql).toContain(" OR ")
+    expect(orClause.params).toEqual(["proj-1", "proj-1"])
+  })
+
+  test("is absent when no project scope is asked for -- the existing filters are unchanged", async () => {
+    const { buildDocumentFilterConditions } = await loadService()
+    const conditions = buildDocumentFilterConditions(ORG, { linkedEntityId: "proj-1" })
+    for (const condition of conditions) {
+      expect(dialect.sqlToQuery(condition as SQL).sql).not.toContain("'projectId'")
+    }
+  })
+})
+
+describe("buildDocumentMetadata -- R67 D-14", () => {
+  test("merges over what the storage step already put there, never replacing it", async () => {
+    const { buildDocumentMetadata } = await loadService()
+    expect(buildDocumentMetadata({ isExternalLink: true }, { projectId: "proj-1" })).toEqual({
+      isExternalLink: true,
+      projectId: "proj-1",
+    })
+  })
+
+  test("whitespace-only values are not stored", async () => {
+    const { buildDocumentMetadata } = await loadService()
+    expect(buildDocumentMetadata({}, { projectId: "   ", email: { subject: "\t" } })).toEqual({})
+  })
+})
