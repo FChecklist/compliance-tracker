@@ -578,7 +578,20 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
     // Permits are documents with category='permit' linked to a project -- the
     // same shape document-service.ts#listExpiringDocuments reads, grouped in
     // one pass here instead of one call per project.
-    const permitCutoff = new Date()
+    //
+    // The window is BOUNDED AT BOTH ENDS. It shipped with only the upper bound,
+    // so a permit that expired six months ago satisfied `expiryDate <= cutoff`
+    // and was counted -- and PROJEXA renders this count as literal words ("2
+    // permits expiring in 30 days"), so an org holding old expired permit
+    // documents saw a permanently lit "needs you" row whose stated reason was
+    // untrue. Deliberately NOT answered by adding a second "expired" count: a
+    // permit that lapsed three years ago would light the row forever just the
+    // same, and this screen's own rule (see projectRowStatus's docstring in
+    // PROJEXA) is that an alarm which is always on is not a signal. Documents
+    // already past their date are document hygiene, and belong on the documents
+    // screen that can actually clear them.
+    const permitFloor = new Date()
+    const permitCutoff = new Date(permitFloor)
     permitCutoff.setDate(permitCutoff.getDate() + PERMIT_EXPIRY_HORIZON_DAYS)
     const permitsByProject = await db.select({ projectId: documents.linkedEntityId, total: sql<number>`count(*)` })
       .from(documents)
@@ -589,6 +602,7 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         inArray(documents.linkedEntityId, ids),
         eq(documents.isLatestVersion, true),
         isNotNull(documents.expiryDate),
+        gte(documents.expiryDate, permitFloor),
         lte(documents.expiryDate, permitCutoff),
       ))
       .groupBy(documents.linkedEntityId)

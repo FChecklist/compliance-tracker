@@ -40,11 +40,11 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (subagent, r67-lane-E1) -- PROGRAMME R67 workstream WS-E (reports-charts-1), items E-01..E-05"
+  - session_label: "claude-code (subagent, r67-lane-E1) -- PROGRAMME R67 workstream WS-E (reports-charts-1), items E-01..E-20"
     claimed_at: "2026-09-03T (this session)"
     claim: |
       SPEC: the owner-approved R66 UX/product-design audit, implementation programme R67,
-      lane E1 ("reports-charts-1"), items E-01..E-10 of 20. Branch r67/e1-reports-charts-1,
+      lane E1 ("reports-charts-1"), items E-01..E-20 (all 20). Branch r67/e1-reports-charts-1,
       worktree C:/ct/ct-worktrees/r67-E1 (compliance-tracker) +
       C:/ct/projexa-worktrees/r67-E1 (projexa).
 
@@ -55,7 +55,17 @@ active:
 
       Migration numbering verified live on this branch immediately before writing:
       highest is drizzle/0532_r67_i05_boq_line_category.sql, journal idx 354 (lane I's
-      range). This lane therefore takes 0533 and re-checks for collision before merge.
+      range).
+
+      THIS LANE SHIPS NO MIGRATION, and 0533 stays free for whoever needs it next.
+      Item E-04 was flagged needsMigration:true on the premise that the Work Progress
+      Report's row in compliance.report_definitions had to be updated. That premise is
+      false: SELECT id, status FROM compliance.report_definitions WHERE name ILIKE
+      '%work progress%' returns ZERO rows live on pcrjmlpuqsbocqfwoxod (verified
+      2026-09-03, recorded at report-catalog-service.ts:96-99). The construction report
+      catalog is static code in that service, so E-04 is a code change with nothing to
+      migrate -- writing a 0533 would have reserved a number for an UPDATE against a row
+      that does not exist.
 
       File scope in compliance-tracker:
         src/lib/services/construction-dashboard-service.ts (+ .test.ts)
@@ -64,7 +74,7 @@ active:
         src/app/api/v1/projexa/dashboard/route.ts
         src/app/api/v1/construction/materials/cost-report/route.ts
         src/app/api/v1/construction/materials/cost-report/export/route.ts (NEW)
-        drizzle/0533_r67_e04_work_progress_report_definition_status.sql (NEW) + meta/_journal.json
+        (no drizzle/ file -- see the migration note above; 0533 is NOT taken by this lane)
         docs/master/TEST_COVERAGE_GAP.md (regenerated)
         --- added for items E-06..E-10 (2026-09-03) ---
         src/app/api/v1/projexa/reports/[reportName]/route.ts (budget-variance params)
@@ -96,6 +106,14 @@ active:
         src/app/api/v1/projexa/work-progress/report/xlsx/route.ts (NEW) -- the XLSX relay
         src/lib/services/construction-dashboard-service.ts (+ .test.ts) -- per-project
         lastProgressAt, read out of the query that already runs (E-19)
+        --- added in the review fix pass (2026-09-03) ---
+        src/app/api/construction/dashboard/route.ts (+ NEW route.test.ts) -- the non-manager
+        branch now redacts spendOverValue too; it had drifted from its v1 sibling
+        src/app/api/v1/projexa/dashboard/route.test.ts -- the mirrored redaction assertion,
+        so the two routes cannot drift apart again
+        src/lib/services/construction-dashboard-service.ts (+ .test.ts) -- the permit
+        window gains its missing LOWER bound (an already-expired permit was counted as
+        "expiring in 30 days")
 
       File scope in projexa: DashboardHomeView, ProjectRow (new), GroupedBarChart (new),
       CategoryDistributionCharts, DashboardProjectClient, WorkProgressReportClient,
@@ -116,6 +134,19 @@ active:
       with a sibling test), ReportOutput.tsx (omitKeys), ReportCatalogSection.tsx,
       app/share/report/[token]/page.tsx (renders the second shareable report),
       api/reports/[reportName]/export + .../share (new relays).
+      --- added for items E-16..E-20 (2026-09-03) ---
+      lib/report-registry.ts, lib/dashboard-kpis.ts (new, each with a sibling test),
+      components/ExportShareActions.tsx, DesignStudioCostAnalysisClient, design-studio
+      page, dashboard/loading.tsx, MoMObjectClient, PermitsListClient,
+      WorkProgressListClient, WorkProgressAnalyticalClient,
+      api/work-progress/report/xlsx (new relay).
+      --- added in the review fix pass (2026-09-03) ---
+      api/reports/[reportName]/export/route.ts (+ NEW route.test.ts) -- the relay now
+      forwards the report's from/to period; without it every Design Studio Cost Analysis
+      export silently described the whole project instead of the selected month
+      components/reports/ProjectStatusCard.test.tsx (NEW),
+      components/dashboard/DashboardFilterDrawer.test.tsx (NEW) -- the two components
+      this lane shipped with no sibling test
 
       NOT touching: the pipeline (classify/executor/validate), platform.* tables,
       construction-labour-service.ts (lane D3 owns recordAttendanceBatch per D-12), or

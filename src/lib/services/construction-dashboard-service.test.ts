@@ -119,6 +119,22 @@ describe("getOrgDashboard: the R67 E-01 additions are batched, not per-project",
   test("spendOverValue is false, never a claim, when there is no contract value to exceed", () => {
     expect(body).toMatch(/spendOverValue:\s*value !== null && expenses > value/)
   })
+
+  // Fix pass. permitsExpiring30d is rendered by PROJEXA as literal words ("2
+  // permits expiring in 30 days"), and the query shipped with only an upper
+  // bound -- so a permit that expired six months ago satisfied
+  // `expiryDate <= cutoff`, was counted, and lit a permanent "needs you" row
+  // whose stated reason was false. The window must be closed at BOTH ends.
+  test("the permit window has a lower bound, so an already-expired permit is not counted as expiring", () => {
+    expect(body).toMatch(/gte\(documents\.expiryDate, permitFloor\)/)
+    expect(body).toMatch(/lte\(documents\.expiryDate, permitCutoff\)/)
+    // The floor is now, and the cutoff is measured FROM the floor, so the two
+    // bounds cannot be read from two different clock ticks.
+    expect(body).toMatch(/const permitFloor = new Date\(\)/)
+    expect(body).toMatch(/const permitCutoff = new Date\(permitFloor\)/)
+    // ...and the bounds still sit in the ONE grouped read, not a second query.
+    expect((body.match(/\.from\(documents\)/g) ?? []).length).toBe(1)
+  })
 })
 
 // R67 E-19 (R-180): the home screen's summary sentence needs a third signal --

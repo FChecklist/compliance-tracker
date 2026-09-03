@@ -21,7 +21,14 @@ export async function GET(request: NextRequest) {
         // figures too -- redacted alongside the one they were split out of.
         totalBudget: null, totalLedgerBudget: null, totalRevenue: null, totalExpenses: null,
         financialsRedacted: true,
-        projects: summary.projects.map((p) => ({ ...p, revenue: null, expenses: null, earnedValue: null, percentByValue: null, budget: null })),
+        // R67 E-01 fix pass: spendOverValue is DERIVED from expenses against
+        // the contract value, and `value` itself is spread straight through --
+        // so leaving the verdict in handed a member exactly the comparison
+        // redacting revenue/expenses/budget exists to withhold. null (not
+        // false), because "you may not see this" and "spend has not passed the
+        // contract value" are different statements. Mirrors the v1 route
+        // line-for-line; the two must not drift again.
+        projects: summary.projects.map((p) => ({ ...p, revenue: null, expenses: null, earnedValue: null, percentByValue: null, spendOverValue: null, budget: null })),
       })
     }
     return NextResponse.json(summary)
