@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId } from "@/lib/supabase/auth-guard"
 import { listProgressEntries, createProgressEntry, ServiceError } from "@/lib/services/construction-progress-service"
 
 export async function GET(request: NextRequest) {
@@ -35,7 +35,12 @@ export async function POST(request: NextRequest) {
     // own doc comment in auth-guard.ts). PROJEXA's real proxy always
     // authenticates with a shared per-org API key, so this path was live
     // for every real progress entry PROJEXA has ever logged.
-    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail)
+    //
+    // R67 WS-H (D-05): the same call now also reads the X-Acting-User header
+    // PROJEXA sends, so a work-progress entry is attributed by the stronger
+    // id binding where the account is linked, falling back to actorEmail
+    // exactly as before where it is not.
+    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail, readActingUserId(request))
     if (actingUserErr) return actingUserErr
     const result = await createProgressEntry({ orgId: ctx.orgId, userId: actingUser!.id }, body)
     return NextResponse.json(result, { status: 201 })

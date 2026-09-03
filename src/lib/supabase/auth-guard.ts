@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { createClient } from "./server"
 import { db, users, organisations, accessReviewCertifications } from "@/lib/db"
-import { eq, and } from "drizzle-orm"
+import { eq, and, or } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
 import { validateApiKey } from "./api-key-auth"
 import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
@@ -502,12 +502,80 @@ export async function requireAuthOrApiKey(request: Request): Promise<CombinedAut
 // actual person, verifiable and auditable, never a fabricated identity. A
 // session caller's ctx.dbUser is always preferred and actorEmail is ignored
 // for them, so this changes nothing for a direct/session-authenticated call.
+//
+// R67 WS-H / PROGRAMME DECISION D-05 (identity bridge for time logs and
+// approvals). The actorEmail path above is a body field, so it only ever
+// worked for a POST/PATCH with a JSON body -- a GET (PROJEXA's "my
+// timesheet" list) had no way to say who was asking at all. D-05 adds a
+// transport-level acting-user id: PROJEXA's server routes send the logged-in
+// PROJEXA user's Supabase id as the `X-Acting-User` header on every call
+// that needs attribution, and this function maps it to a real, org-scoped,
+// active compliance.users row -- matching users.auth_user_id (the column
+// that already links a compliance user to a Supabase auth identity) or, for
+// a caller that already holds a VERIDIAN user id, users.id.
+//
+// PRECEDENCE, and the one deliberate deviation from the item's wording,
+// stated plainly rather than buried: the header is PREFERRED, and an
+// unmapped header id with no usable actorEmail is rejected with
+// USER_NOT_LINKED, which is the behaviour item H-03's acceptance names. But
+// when the same request ALSO carries an actorEmail that resolves to a real,
+// active, org-scoped user, that fallback still wins over a hard failure.
+// Reason: nothing in either product populates users.auth_user_id with a
+// PROJEXA Supabase id yet, so a header-only-or-nothing rule would take the
+// timesheet POST that correction C-08 measured returning 201 on the demo org
+// and break it for every account on day one. Both paths resolve an actual
+// named person (never the API key), which is what D-05 exists to guarantee;
+// the header is simply the stronger of the two bindings. Linking an account
+// (setting auth_user_id) upgrades it to the id path with no code change.
+export const ACTING_USER_HEADER = "x-acting-user"
+
+/** D-05: the acting-user id PROJEXA sends on a write, or null when absent/blank. */
+export function readActingUserId(request: { headers: Headers }): string | null {
+  const raw = request.headers.get(ACTING_USER_HEADER)
+  const trimmed = raw?.trim()
+  return trimmed ? trimmed : null
+}
+
+/** The single sentence a caller whose acting-user id maps to nothing is shown. */
+export const USER_NOT_LINKED_MESSAGE = "Your PROJEXA account is not linked to a VERIDIAN user - ask your admin"
+
 export async function resolveActingUser(
   ctx: CombinedAuthContext,
-  actorEmail?: string | null
+  actorEmail?: string | null,
+  actorId?: string | null
 ): Promise<{ user: typeof users.$inferSelect | null; error: NextResponse | null }> {
   if (ctx.dbUser) return { user: ctx.dbUser, error: null }
   if (!ctx.apiKey) return { user: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
+
+  if (actorId) {
+    const linked = ctx.orgId
+      ? (await db.query.users.findFirst({
+          where: and(
+            eq(users.orgId, ctx.orgId),
+            or(eq(users.authUserId, actorId), eq(users.id, actorId))
+          ),
+        })) ?? null
+      : null
+    if (linked && linked.isActive) return { user: linked, error: null }
+    if (linked && !linked.isActive) {
+      return {
+        user: null,
+        error: NextResponse.json(
+          { error: "The VERIDIAN user linked to this PROJEXA account is deactivated - ask your admin", code: "USER_DEACTIVATED" },
+          { status: 400 }
+        ),
+      }
+    }
+    // Unmapped id: fall through to actorEmail only if one was actually sent
+    // (see the precedence note above); otherwise this is D-05's own refusal.
+    if (!actorEmail) {
+      return {
+        user: null,
+        error: NextResponse.json({ error: USER_NOT_LINKED_MESSAGE, code: "USER_NOT_LINKED" }, { status: 400 }),
+      }
+    }
+  }
+
   if (!actorEmail) {
     return {
       user: null,
@@ -518,7 +586,13 @@ export async function resolveActingUser(
     ? (await db.query.users.findFirst({ where: and(eq(users.email, actorEmail), eq(users.orgId, ctx.orgId)) })) ?? null
     : null
   if (!actingUser) {
-    return { user: null, error: NextResponse.json({ error: `No user found for actorEmail "${actorEmail}" in this organisation` }, { status: 400 }) }
+    // D-05: when the caller ALSO sent an acting-user id, neither binding
+    // resolved, so the user reads the linkage sentence rather than an
+    // internal-sounding "actorEmail" field name they never typed.
+    if (actorId) {
+      return { user: null, error: NextResponse.json({ error: USER_NOT_LINKED_MESSAGE, code: "USER_NOT_LINKED" }, { status: 400 }) }
+    }
+    return { user: null, error: NextResponse.json({ error: `No user found for actorEmail "${actorEmail}" in this organisation`, code: "USER_NOT_LINKED" }, { status: 400 }) }
   }
   if (!actingUser.isActive) {
     return { user: null, error: NextResponse.json({ error: `actorEmail "${actorEmail}" resolves to a deactivated user` }, { status: 400 }) }

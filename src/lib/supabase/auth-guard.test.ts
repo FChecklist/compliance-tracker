@@ -22,10 +22,11 @@
 // uses -- no DB/Supabase Auth involved, so no mock.module needed, matching
 // permission-service.test.ts's pattern of building a CombinedAuthContext
 // object literal directly instead of going through a real session.
-import { describe, test, expect } from "bun:test"
+import { describe, test, expect, mock, afterEach } from "bun:test"
 import {
   hasRole,
   hasScope,
+  readActingUserId,
   requireRole,
   requireReportsReadAccess,
   requireRoleOrScope,
@@ -240,5 +241,100 @@ describe("ROLE_RANK completeness (GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK)", () =
     for (const key of Object.keys(ROLE_RANK)) {
       expect(realRoles.has(key), `ROLE_RANK has a "${key}" entry that is not a real userRoleEnum value`).toBe(true)
     }
+  })
+})
+
+// R67 WS-H / PROGRAMME DECISION D-05 (identity bridge). resolveActingUser()
+// is the ONE place a PROJEXA request stops being "the org's API key" and
+// becomes a named person, so the failure modes that would make manager
+// validation meaningless are locked in here: an acting-user id that maps to
+// nothing in this org, and an id that maps to a deactivated account.
+//
+// The DB is mocked rather than exercised live -- this repo's established
+// pattern for a tenant-scoped read in a .test.ts (see
+// pms-time-service.test.ts's own header). The assertion is about the
+// resolution ORDER and the returned code/status, which is exactly what a
+// route depends on, never about drizzle's SQL building.
+const realDbModule = await import("@/lib/db")
+
+/**
+ * Answers successive db.query.users.findFirst() calls from `answers`, in
+ * order -- so a test can say "the id lookup finds nothing, the email lookup
+ * finds someone" and actually prove the second lookup was reached.
+ */
+async function loadAuthGuardWithUserLookups(answers: Array<Record<string, unknown> | undefined>) {
+  const queue = [...answers]
+  await mock.module("@/lib/db", () => ({
+    ...realDbModule,
+    db: { query: { users: { findFirst: mock(async () => queue.shift()) } } },
+  }))
+  return import("./auth-guard")
+}
+
+const PROJEXA_ORG_KEY_CTX = { orgId: "org-1", dbUser: null, apiKey: { id: "key-1", name: "PROJEXA org key", scopes: ["read", "write"] }, response: null }
+
+describe("resolveActingUser -- D-05 X-Acting-User bridge", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db", () => realDbModule)
+  })
+
+  test("an X-Acting-User id with no matching org-scoped compliance.users row fails with the code USER_NOT_LINKED", async () => {
+    const { resolveActingUser } = await loadAuthGuardWithUserLookups([undefined])
+    const { user, error } = await resolveActingUser(PROJEXA_ORG_KEY_CTX as never, null, "supabase-user-with-no-veridian-row")
+    expect(user).toBeNull()
+    expect(error).not.toBeNull()
+    expect(error!.status).toBe(400)
+    const body = await error!.json()
+    expect(body.code).toBe("USER_NOT_LINKED")
+    expect(body.error).toBe("Your PROJEXA account is not linked to a VERIDIAN user - ask your admin")
+  })
+
+  test("an X-Acting-User id that maps to an active user in this org resolves to that real person", async () => {
+    const { resolveActingUser } = await loadAuthGuardWithUserLookups([{ id: "veridian-user-9", orgId: "org-1", isActive: true }])
+    const { user, error } = await resolveActingUser(PROJEXA_ORG_KEY_CTX as never, null, "supabase-user-1")
+    expect(error).toBeNull()
+    expect(user!.id).toBe("veridian-user-9")
+  })
+
+  test("an X-Acting-User id that maps to a deactivated user is refused, never silently attributed", async () => {
+    const { resolveActingUser } = await loadAuthGuardWithUserLookups([{ id: "veridian-user-9", orgId: "org-1", isActive: false }])
+    const { user, error } = await resolveActingUser(PROJEXA_ORG_KEY_CTX as never, null, "supabase-user-1")
+    expect(user).toBeNull()
+    const body = await error!.json()
+    expect(body.code).toBe("USER_DEACTIVATED")
+  })
+
+  test("a session caller's own dbUser wins outright -- the header is ignored for them", async () => {
+    const { resolveActingUser } = await loadAuthGuardWithUserLookups([{ id: "someone-else", orgId: "org-1", isActive: true }])
+    const sessionCtx = { orgId: "org-1", dbUser: { id: "session-user" }, apiKey: null, response: null }
+    const { user, error } = await resolveActingUser(sessionCtx as never, null, "supabase-user-1")
+    expect(error).toBeNull()
+    expect(user!.id).toBe("session-user")
+  })
+
+  test("an unmapped id still falls back to a real actorEmail rather than breaking a working write (documented D-05 precedence)", async () => {
+    const { resolveActingUser } = await loadAuthGuardWithUserLookups([undefined, { id: "veridian-user-by-email", orgId: "org-1", isActive: true }])
+    const { user, error } = await resolveActingUser(PROJEXA_ORG_KEY_CTX as never, "priya@skylinebuilders-demo.veridianai.dev", "unmapped-supabase-id")
+    expect(error).toBeNull()
+    expect(user!.id).toBe("veridian-user-by-email")
+  })
+
+  test("no id and no actorEmail is still the original 400 -- this change adds a path, it does not open one", async () => {
+    const { resolveActingUser } = await loadAuthGuardWithUserLookups([])
+    const { user, error } = await resolveActingUser(PROJEXA_ORG_KEY_CTX as never)
+    expect(user).toBeNull()
+    expect(error!.status).toBe(400)
+  })
+})
+
+describe("readActingUserId -- D-05 header read", () => {
+  test("reads and trims the X-Acting-User header", () => {
+    expect(readActingUserId({ headers: new Headers({ "X-Acting-User": "  supabase-user-1  " }) })).toBe("supabase-user-1")
+  })
+
+  test("a missing or blank header is null, never an empty-string id that would match nothing loudly", () => {
+    expect(readActingUserId({ headers: new Headers() })).toBeNull()
+    expect(readActingUserId({ headers: new Headers({ "X-Acting-User": "   " }) })).toBeNull()
   })
 })
