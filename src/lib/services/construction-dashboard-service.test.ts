@@ -101,10 +101,24 @@ describe("construction-dashboard-service: listProjectsForSelection stays a cheap
 // already holds.
 describe("construction-dashboard-service: getOrgDashboard carries progressPercent", () => {
   test("the summary type declares progressPercent per project", () => {
-    const typeStart = CODE.indexOf("export type OrgDashboardSummary")
-    expect(typeStart).toBeGreaterThan(-1)
-    const typeBlock = CODE.slice(typeStart, CODE.indexOf("\nexport ", typeStart + 1))
-    expect(typeBlock).toContain("progressPercent: number")
+    // R67 E-21 (rebase): the summary's per-project row moved OUT of an inline
+    // object literal into the exported OrgDashboardProject, because the
+    // launchpad needs to name that row type. The rule under test is unchanged
+    // -- the row a caller reads declares progressPercent as a plain number --
+    // so it is asserted where the field now lives, and the indirection itself
+    // is pinned so the two cannot drift apart.
+    const summaryStart = CODE.indexOf("export type OrgDashboardSummary")
+    expect(summaryStart).toBeGreaterThan(-1)
+    const summaryBlock = CODE.slice(summaryStart, CODE.indexOf("\nexport ", summaryStart + 1))
+    expect(summaryBlock).toContain("projects: OrgDashboardProject[]")
+
+    const rowStart = CODE.indexOf("export type OrgDashboardProject")
+    expect(rowStart).toBeGreaterThan(-1)
+    const rowBlock = CODE.slice(rowStart, CODE.indexOf("\nexport ", rowStart + 1))
+    expect(rowBlock).toContain("progressPercent: number")
+    // and NOT `number | null` -- F-01's reading, kept over E-21's, so "nothing
+    // logged yet" is 0% rather than "Not set". See the field's own comment.
+    expect(rowBlock).not.toContain("progressPercent: number | null")
   })
 
   test("it is derived from a grouped query, not a per-project call", () => {
@@ -371,10 +385,20 @@ describe("construction-dashboard-service: a missing budget is null, never 0", ()
   })
 
   test("getOrgDashboard returns totalBudget from the row COUNT, not a coalesced sum", () => {
+    // R67 E-21 (rebase): the org-wide SUM this rule was written against became
+    // a query GROUPED by cost-centre project, because the launchpad renders a
+    // budget PER project. D-02's rule is unchanged and is still asserted: the
+    // total is decided by a row COUNT, so "no budget rows anywhere" reports
+    // null and never a coalesced 0. It is now the count summed over the same
+    // groups the per-project figures come from, which additionally means the
+    // total cannot disagree with the parts.
     const body = functionBody("getOrgDashboard")
     expect(body).toMatch(/lines:\s*sql<number>`count\(/)
-    expect(body).toMatch(/totalBudget:\s*Number\(budgetTotal\?\.lines \?\? 0\) > 0 \? Number\(budgetTotal!\.total\) : null/)
+    expect(body).toMatch(/totalBudget: budgetByProject\.reduce\(\(s, r\) => s \+ Number\(r\.lines\), 0\) > 0/)
+    expect(body).toMatch(/\?\s*budgetByProject\.reduce\(\(s, r\) => s \+ Number\(r\.total\), 0\)\s*\n\s*:\s*null,/)
+    // the failure this guards: a sum that cannot tell "no rows" from "zero".
     expect(body).not.toMatch(/totalBudget:\s*Number\(budgetTotal\?\.total \?\? 0\)/)
+    expect(body).not.toMatch(/totalBudget: budgetByProject\.reduce\(\(s, r\) => s \+ Number\(r\.total\), 0\),/)
   })
 
   test("getOrgDashboard's empty-scope early returns report a null budget too, not 0", () => {
@@ -715,5 +739,83 @@ describe("getProjectDashboard: category progress and recent entries ride on the 
 
     expect(enablementSpy.mock.calls.length).toBe(1)
     expect(order).toEqual(["enablement", "transaction"])
+  })
+})
+
+describe("construction-dashboard-service: getOrgDashboard row shape (E-21)", () => {
+  const body = functionBody("getOrgDashboard")
+
+  const LAUNCHPAD_FIELDS = [
+    "contractValue",
+    "earnedValue",
+    "earnedValuePrevWeek",
+    "percentByValue",
+    "progressPercent",
+    "budget",
+    "spent",
+    "tasksDue",
+    "tasksLate",
+    "hasSchedule",
+    // R67 E-23 (R-206): the BOQ-derived budget Sumeet's company chart plots.
+    "boqBudget",
+  ]
+
+  for (const field of LAUNCHPAD_FIELDS) {
+    test(`every project row carries ${field}`, () => {
+      // Declared on the exported row type...
+      expect(CODE).toMatch(new RegExp(`export type OrgDashboardProject = \\{[\\s\\S]*?\\b${field}\\b[\\s\\S]*?\\n\\}`))
+      // ...and actually populated by the mapping, not just typed.
+      expect(body).toMatch(new RegExp(`\\n\\s*${field}:`))
+    })
+  }
+
+  test("the row type is what getOrgDashboard's summary promises", () => {
+    expect(CODE).toMatch(/projects: OrgDashboardProject\[\]/)
+  })
+
+  test("no per-project fan-out: nothing is awaited inside a .map() over the project rows", () => {
+    // The R43_MGR_01 regression shape -- `Promise.all(projectRows.map(async ...))`
+    // is what put 2N nested transactions on a 5-connection pool.
+    expect(body).not.toMatch(/\.map\(\s*async/)
+    expect(body).not.toMatch(/Promise\.all\(/)
+  })
+
+  test("progressPercent is a grouped query, not one read per project", () => {
+    // R67 E-21 (rebase): asserted against F-01's query, which is the one that
+    // survived. E-21 had written a second query reading project_id off the
+    // ENTRIES table; F-01's joins construction_activities and scopes on the
+    // activity's own org_id/project_id, and two queries for one number is how
+    // two screens start disagreeing. See the deletion note in the source.
+    expect(body).toMatch(/DISTINCT ON \(e\.activity_id\)/)
+    expect(body).toMatch(/GROUP BY latest\.project_id/)
+    // exactly ONE activity-log-percent query in this function.
+    expect(body.match(/avg\([a-z.]*percent_complete\)/g)?.length).toBe(1)
+  })
+
+  test("budget is grouped per cost-centre project and the org total is the sum of those same rows", () => {
+    expect(body).toMatch(/groupBy\(erpCostCenters\.projectId\)/)
+    expect(body).toMatch(/totalBudget: budgetByProject\.reduce\(/)
+  })
+
+  test("earnedValuePrevWeek reuses computeEarnedValue over a date-windowed read, never a second formula", () => {
+    expect(body).toMatch(/entry_date < \$\{baselineDate\}/)
+    // computeEarnedValue is called twice in this function: now, and at the baseline.
+    expect(body.match(/computeEarnedValue\(/g)?.length).toBe(2)
+  })
+
+  test("EARNED_VALUE_BASELINE_DAYS is exported so the client can name the window it is comparing against", () => {
+    expect(CODE).toMatch(/export const EARNED_VALUE_BASELINE_DAYS = 7/)
+  })
+
+  test("budget is null-not-zero when the project has no budget rows, and progressPercent is F-01's 0", () => {
+    // budget: `?? null`, never `?? 0` -- "no budget rows" and "a budget of
+    // zero" are different facts and the launchpad renders them differently.
+    expect(body).toMatch(/budget: budgetMap\.get\(p\.id\) \?\? null/)
+    // progressPercent: E-21 sent null here and F-01 sends 0. F-01 reached main
+    // first and its reading is the one kept, because "no progress recorded" IS
+    // zero percent complete -- unlike a missing BOQ or a missing budget, where
+    // there is no figure at all. Pinned so the two lanes cannot re-diverge.
+    expect(body).toContain("progressPercent: Math.round(progressMap.get(p.id) ?? 0)")
+    expect(body).not.toMatch(/progressPercent:.*\?\? null/)
   })
 })

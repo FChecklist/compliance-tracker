@@ -84,11 +84,23 @@ async function GET_impl(request: NextRequest) {
     // rank, so a site engineer received the same budget/revenue/expenses as
     // a manager once the page loaded. Redact server-side instead of gating
     // the whole route -- a member still needs task counts/delayed counts.
+    // R67 E-21: getOrgDashboard's project rows gained contractValue,
+    // earnedValuePrevWeek, budget and spent. Every one of those is a
+    // financial figure, so each is redacted here alongside the four that
+    // already were -- adding a money field to the service without adding it
+    // to this list is exactly how F059 happened the first time.
+    // progressPercent, tasksDue/tasksLate and hasSchedule are NOT money and
+    // stay visible: a site engineer still needs their own schedule.
     if (ctx.dbUser && !hasRole(ctx.dbUser, "manager")) {
       return NextResponse.json({
         ...summary,
         totalBudget: null, totalRevenue: null, totalExpenses: null,
-        projects: summary.projects.map((p) => ({ ...p, revenue: null, expenses: null, earnedValue: null, percentByValue: null })),
+        projects: summary.projects.map((p) => ({
+          ...p,
+          revenue: null, expenses: null, spent: null, budget: null, boqBudget: null,
+          value: null, contractValue: null,
+          earnedValue: null, earnedValuePrevWeek: null, percentByValue: null,
+        })),
       })
     }
     return NextResponse.json(summary)
