@@ -28,6 +28,12 @@ import type { SQL } from "drizzle-orm"
 const ORG = "org-r62b7"
 const PROJECT_A = "project-a"
 const PROJECT_B = "project-b"
+// R67 B-09 needs a project that genuinely has NO BOQ, to exercise the other
+// half of its rule. PROJECT_A cannot be it: R67 D-28 gave PROJECT_A its own BOQ
+// (BOQ-A) so LINE-PARENT/LINE-CHILD could exercise the parent-line rule on the
+// new PATCH path. Rather than weaken either fixture, the no-BOQ case gets its
+// own project.
+const PROJECT_NO_BOQ = "project-no-boq"
 
 // Walks a drizzle eq()/and() SQL condition tree and pulls out every
 // {columnName: value} equality predicate it contains, regardless of AND
@@ -92,10 +98,12 @@ const mockWithTenantContext = mock(async (ctx: { orgId: string }, fn: (db: unkno
 const projectRows = [
   { id: PROJECT_A, orgId: ORG },
   { id: PROJECT_B, orgId: ORG },
+  { id: PROJECT_NO_BOQ, orgId: ORG },
 ]
 const activityRows = [
   { id: "ACT-B", orgId: ORG, projectId: PROJECT_B },
   { id: "ACT-A", orgId: ORG, projectId: PROJECT_A },
+  { id: "ACT-NO-BOQ", orgId: ORG, projectId: PROJECT_NO_BOQ },
 ]
 const boqRows = [
   { id: "BOQ-B", orgId: ORG, projectId: PROJECT_B },
@@ -302,9 +310,11 @@ describe("createProgressEntry -- R67 B-09: the BOQ-line rule", () => {
     await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
     const { createProgressEntry } = await import("./construction-progress-service")
 
+    // PROJECT_NO_BOQ, not PROJECT_A: PROJECT_A has held a BOQ since D-28, and
+    // this test is about the branch where there is nothing to link to at all.
     const row = await createProgressEntry(
       { orgId: ORG, userId: "user-1" },
-      { projectId: PROJECT_A, activityId: "ACT-A", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
+      { projectId: PROJECT_NO_BOQ, activityId: "ACT-NO-BOQ", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
     )
 
     expect(row.linkedToBoq).toBe(false)
