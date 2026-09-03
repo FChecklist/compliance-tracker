@@ -45,6 +45,7 @@
 
 import { readFileSync, readdirSync, writeFileSync } from "node:fs"
 import path from "node:path"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 export const SERVICES_LABEL = "src/lib/services"
 
@@ -119,9 +120,28 @@ export function renderReport({ total, testedCount, untested }, topN) {
 }
 
 // --- top-level script body (real fs I/O; not exercised by unit tests) ---
-const isMain = process.argv[1] && import.meta.url === new URL(process.argv[1], "file://").href
+// pathToFileURL, not new URL(argv1, "file://") -- a raw Windows path
+// ("C:\ct\...\file.mjs") is not valid URL syntax (backslashes, bare drive
+// letter), so new URL() silently produces garbage instead of throwing,
+// making isMain permanently false on Windows: this script's own CLI entry
+// point has never actually run anything on this laptop, write or --check,
+// for either invocation form -- confirmed while investigating a real
+// "--check says stale" CI failure that could never be reproduced locally
+// because the script was silently no-op'ing on every local attempt.
+// pathToFileURL handles Windows paths correctly and matches import.meta.url.
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
 if (isMain) {
-  const REPO_ROOT = new URL("..", import.meta.url).pathname
+  // fileURLToPath, not new URL(...).pathname -- on Windows, .pathname on a
+  // file:// URL returns "/C:/..." (a leading slash before the drive letter),
+  // which path.join() then mangles into a doubled, non-existent drive
+  // ("C:\C:\..."), so readdirSync(SERVICES_DIR) throws ENOENT on Windows
+  // every time. Silent on CI (Linux has no drive letters, so the bug never
+  // manifested there), but meant this script has never actually been
+  // runnable on this Windows laptop -- confirmed while investigating a real
+  // "--check says stale" CI failure that could not be reproduced locally
+  // because every local regeneration attempt was silently crashing instead
+  // of running. fileURLToPath handles both platforms correctly.
+  const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url))
   const SERVICES_DIR = path.join(REPO_ROOT, "src/lib/services")
   const REPORT_PATH = path.join(REPO_ROOT, "docs/master/TEST_COVERAGE_GAP.md")
 
