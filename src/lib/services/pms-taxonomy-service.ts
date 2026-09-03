@@ -12,6 +12,10 @@ import { hasRole } from "@/lib/supabase/auth-guard"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
+import {
+  bustScheduleLookupCache, issueStatusCacheKey, issueTypeCacheKey,
+  readScheduleLookup, writeScheduleLookup,
+} from "./schedule-lookup-cache"
 
 export type PmsContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -41,17 +45,96 @@ export async function listIssueTypes(ctx: { orgId: string }) {
   )
 }
 
+/**
+ * Which issue type a task goes under when the caller did not name one.
+ *
+ * Pure selection rule, extracted so the choice is testable without a DB and so
+ * the cached path and the uncached path can never disagree: the org's own
+ * default type, else its first type by name (the order listIssueTypes()
+ * returns), else nothing.
+ */
+export function pickDefaultIssueTypeId(
+  types: Array<{ id: string; isDefault: boolean | null }>
+): string | null {
+  return types.find((t) => t.isDefault)?.id ?? types[0]?.id ?? null
+}
+
+/**
+ * R67 F-33 (R-278): the issue-type lookup on the task-create hot path, cached
+ * per org for 60 s.
+ *
+ * PROJEXA's "New Task" dialog never sends a typeId, so before this every single
+ * POST opened a WHOLE EXTRA TRANSACTION (listIssueTypes() has its own
+ * withTenantContext) just to read a configuration row that changes when an
+ * admin edits it and at no other time. On a warm cache the create path now asks
+ * Postgres nothing at all for this.
+ *
+ * A MISS IS NOT CACHED. "This org has no issue types" is the answer that makes
+ * the route refuse the write; caching it would keep refusing for a minute after
+ * an admin fixed it. See schedule-lookup-cache.ts.
+ */
+export async function resolveDefaultIssueTypeId(
+  ctx: { orgId: string },
+  options: { onCacheHit?: () => void } = {}
+): Promise<string | null> {
+  const key = issueTypeCacheKey(ctx.orgId)
+  const cached = readScheduleLookup(key)
+  if (cached) {
+    options.onCacheHit?.()
+    return cached
+  }
+  const types = await listIssueTypes(ctx)
+  const typeId = pickDefaultIssueTypeId(types)
+  if (typeId) writeScheduleLookup(key, typeId)
+  return typeId
+}
+
+/**
+ * R67 F-33 (R-278): the status a new task starts in, cached per org+project for
+ * 60 s.
+ *
+ * Takes the CALLER'S `db` rather than opening its own transaction, because on a
+ * miss it must run inside the create's own transaction -- copy-on-first-use
+ * (ensureDefaultStatusesForProject) writes the five default statuses, and that
+ * write belongs to the same transaction the task is inserted in, so a failed
+ * create does not leave a half-configured project behind.
+ */
+export async function resolveDefaultStatusId(
+  db: TenantDb,
+  orgId: string,
+  projectId: string,
+  options: { onCacheHit?: () => void } = {}
+): Promise<string | null> {
+  const key = issueStatusCacheKey(orgId, projectId)
+  const cached = readScheduleLookup(key)
+  if (cached) {
+    options.onCacheHit?.()
+    return cached
+  }
+  const statuses = await ensureDefaultStatusesForProject(db, orgId, projectId)
+  const statusId = statuses.find((s) => s.isDefault)?.id ?? statuses[0]?.id ?? null
+  if (statusId) writeScheduleLookup(key, statusId)
+  return statusId
+}
+
 export async function createIssueType(ctx: PmsContext, input: { name: string; icon?: string; color?: string; isEpic?: boolean }) {
   if (!hasRole(ctx.dbUser, "admin")) throw new ServiceError("Creating an issue type requires admin role or higher", 403)
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const [row] = await db.insert(pmsIssueTypes).values({
+  const row = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [created] = await db.insert(pmsIssueTypes).values({
       orgId: ctx.orgId, name, icon: input.icon || null, color: input.color || null, isEpic: input.isEpic ?? false,
     }).returning()
-    return row
+    return created
   })
+  // R67 F-33: a new type can change which type resolveDefaultIssueTypeId()
+  // picks (it orders by name), so the cached answer is dropped the moment the
+  // taxonomy moves -- busted AFTER the transaction commits, never before, so a
+  // rolled-back create cannot leave the cache emptied for a change that did not
+  // happen.
+  bustScheduleLookupCache(ctx.orgId, issueTypeCacheKey(ctx.orgId))
+  return row
 }
 
 export async function listIssueStatuses(ctx: { orgId: string }, projectId: string) {
@@ -74,17 +157,23 @@ export async function createIssueStatus(
   const validGroups = new Set(["backlog", "unstarted", "started", "completed", "cancelled", "triage"])
   if (!validGroups.has(input.group)) throw new ServiceError(`group must be one of: ${[...validGroups].join(", ")}`, 400)
 
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  const row = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
     if (!project) throw new ServiceError("Project not found", 404)
 
-    const [row] = await db.insert(pmsIssueStatuses).values({
+    const [created] = await db.insert(pmsIssueStatuses).values({
       orgId: ctx.orgId, projectId, name,
       group: input.group as "backlog" | "unstarted" | "started" | "completed" | "cancelled" | "triage",
       color: input.color || null, position: input.position ?? 0,
     }).returning()
-    return row
+    return created
   })
+  // R67 F-33: a new status can change which status a new task starts in
+  // (resolveDefaultStatusId() falls back to the first row when none is marked
+  // default), so the cached answer for THIS project is dropped once the write
+  // has actually committed.
+  bustScheduleLookupCache(ctx.orgId, issueStatusCacheKey(ctx.orgId, projectId))
+  return row
 }
 
 export async function createWorkflowTransition(

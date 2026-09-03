@@ -29,6 +29,7 @@ import {
   type DrawingRow,
 } from "@/lib/drawings-register"
 import { createClient } from "@supabase/supabase-js"
+import { withRouteTiming } from "@/lib/route-timing"
 
 const BUCKET = "compliance-documents"
 const SIGNED_URL_TTL_SECONDS = 300
@@ -48,7 +49,15 @@ async function signDrawing(doc: DrawingRow, admin: ReturnType<typeof getStorageA
   return toDrawingDto(doc, documentUrl)
 }
 
-export async function GET(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function GET(...args: Parameters<typeof GET_impl>) {
+  return withRouteTiming("GET", () => GET_impl(...args))
+}
+
+async function GET_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return requireOrg(ctx)!
@@ -84,7 +93,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function POST(...args: Parameters<typeof POST_impl>) {
+  return withRouteTiming("POST", () => POST_impl(...args))
+}
+
+async function POST_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")

@@ -9,7 +9,8 @@ import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
-import { ensureDefaultStatusesForProject } from "./pms-taxonomy-service"
+import { resolveDefaultStatusId } from "./pms-taxonomy-service"
+import { createQueryTimer } from "@/lib/query-timing"
 
 // dbUser is optional/nullable: neither createIssue() nor updateIssue() below
 // actually reads ctx.dbUser (only orgId/userId are used), but the type used
@@ -208,43 +209,110 @@ export async function getIssue(ctx: { orgId: string }, issueId: string) {
   })
 }
 
+// R67 F-33 (audit recommendation R-278) -- POST a schedule task under 1 s.
+//
+// WHAT THIS PATH USED TO COST, per create, all of it serial:
+//   route  1. listIssueTypes()            -- its OWN withTenantContext, i.e. a
+//                                            whole second transaction opened
+//                                            before this one, because PROJEXA's
+//                                            "New Task" dialog never sends a
+//                                            typeId
+//   here   2. projects.findFirst          -- "does this project exist"
+//          3. statuses.findMany           -- "what status do new tasks start in"
+//          4. projects.update ... RETURNING -- claim the next number
+//          5. pmsIssues.insert
+//          6. rollup findMany + 7. rollup update
+//          8-11. getIssueRow(): re-read the issue, its assignees, its labels,
+//                and its CHILDREN
+// Eleven round trips over a remote pooler, on a five-connection pool.
+//
+// WHAT IT COSTS NOW, on a warm cache: four. Queries 1 and 3 are answered from
+// schedule-lookup-cache.ts; query 2 is GONE because the RETURNING clause of
+// query 4 already proves the project exists in this org (and now scopes the
+// counter update by org_id, which it did not do before); queries 8-11 are gone
+// because every value they read back is already known here -- see
+// issueRowAfterCreate() below.
+//
+// WHAT DELIBERATELY DID NOT MOVE: the insert, the assignee/label rows and the
+// project rollup all stay inside the one tenant transaction. They are the
+// write, and a task that exists without its rows is worse than a slow one.
 export async function createIssue(ctx: PmsContext, input: IssueInput) {
   const title = input.title?.trim()
   if (!title) throw new ServiceError("title is required", 400)
   if (!input.typeId) throw new ServiceError("typeId is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-    const project = await db.query.projects.findFirst({ where: and(eq(projects.id, input.projectId), eq(projects.orgId, ctx.orgId)) })
-    if (!project) throw new ServiceError("Project not found", 404)
+  const timer = createQueryTimer("createIssue")
+  try {
+    return await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+      // ONE statement does two jobs: claims the next task number atomically and
+      // proves the project exists IN THIS ORG. Zero rows back means no such
+      // project -- the same 404 the separate findFirst used to give, one round
+      // trip earlier. The increment is rolled back with everything else if any
+      // later step throws, so an abandoned create does not burn a number.
+      const [claimed] = await timer.time("project.claimNumber", () =>
+        db.update(projects)
+          .set({ issueSequence: sql`${projects.issueSequence} + 1` })
+          .where(and(eq(projects.id, input.projectId), eq(projects.orgId, ctx.orgId)))
+          .returning({ issueSequence: projects.issueSequence })
+      )
+      if (!claimed) throw new ServiceError("Project not found", 404)
+      const number = claimed.issueSequence
 
-    let statusId = input.statusId
-    if (!statusId) {
-      const statuses = await ensureDefaultStatusesForProject(db, ctx.orgId, input.projectId)
-      statusId = statuses.find((s) => s.isDefault)?.id ?? statuses[0]?.id
-    }
-    if (!statusId) throw new ServiceError("statusId is required and no default status could be resolved", 400)
+      let statusId = input.statusId
+      if (!statusId) {
+        statusId = (await timer.time("status.resolveDefault", () =>
+          resolveDefaultStatusId(db, ctx.orgId, input.projectId, {
+            onCacheHit: () => timer.note("status.cacheHit"),
+          })
+        )) ?? undefined
+      }
+      if (!statusId) throw new ServiceError("statusId is required and no default status could be resolved", 400)
 
-    const [updatedProject] = await db.update(projects)
-      .set({ issueSequence: sql`${projects.issueSequence} + 1` })
-      .where(eq(projects.id, input.projectId))
-      .returning({ issueSequence: projects.issueSequence })
-    const number = updatedProject.issueSequence
+      const [issue] = await timer.time("issue.insert", () =>
+        db.insert(pmsIssues).values({
+          orgId: ctx.orgId, clientId: input.clientId || null, projectId: input.projectId, typeId: input.typeId, statusId,
+          priority: (input.priority as typeof pmsIssues.$inferInsert.priority) || "no_priority",
+          number, title, description: input.description || null,
+          parentIssueId: input.parentIssueId || null, milestoneId: input.milestoneId || null,
+          estimatePointId: input.estimatePointId || null, startDate: input.startDate || null, dueDate: input.dueDate || null,
+          createdById: ctx.userId,
+        }).returning()
+      )
 
-    const [issue] = await db.insert(pmsIssues).values({
-      orgId: ctx.orgId, clientId: input.clientId || null, projectId: input.projectId, typeId: input.typeId, statusId,
-      priority: (input.priority as typeof pmsIssues.$inferInsert.priority) || "no_priority",
-      number, title, description: input.description || null,
-      parentIssueId: input.parentIssueId || null, milestoneId: input.milestoneId || null,
-      estimatePointId: input.estimatePointId || null, startDate: input.startDate || null, dueDate: input.dueDate || null,
-      createdById: ctx.userId,
-    }).returning()
+      await timer.time("issue.assignees", () => syncAssignees(db, issue.id, input.assigneeIds))
+      await timer.time("issue.labels", () => syncLabels(db, issue.id, input.labelIds))
+      await timer.time("project.rollup", () => recalculateProjectRollup(db, ctx.orgId, input.projectId))
 
-    await syncAssignees(db, issue.id, input.assigneeIds)
-    await syncLabels(db, issue.id, input.labelIds)
-    await recalculateProjectRollup(db, ctx.orgId, input.projectId)
+      return issueRowAfterCreate(issue, input)
+    })
+  } finally {
+    timer.finish({ projectId: input.projectId })
+  }
+}
 
-    return getIssueRow(db, issue.id)
-  })
+/**
+ * The row a create returns, built from what the create itself already knows
+ * instead of re-reading it -- the same shape getIssueRow() produces, so a
+ * client cannot tell a create's response from a subsequent GET.
+ *
+ * Every field is derivable here, and that is checked rather than assumed:
+ *  - the INSERT's own RETURNING row is the stored row, defaults applied;
+ *  - assignees and labels are exactly what was just written (syncAssignees()
+ *    also sets issues.assignee_id to the first of them, mirrored here);
+ *  - children: a row whose id did not exist a moment ago, inside the very
+ *    transaction that created it, cannot have children -- so the parent rollup
+ *    is the issue's own percentage. The shared rule is still applied by name so
+ *    this can never drift from getIssueRow()'s.
+ */
+function issueRowAfterCreate(issue: typeof pmsIssues.$inferSelect, input: IssueInput) {
+  const assigneeIds = input.assigneeIds ?? []
+  return {
+    ...issue,
+    assigneeId: input.assigneeIds === undefined ? issue.assigneeId : (input.assigneeIds[0] ?? null),
+    completionPercentage: computeParentCompletionPercentage(issue.completionPercentage, []),
+    assigneeIds,
+    labelIds: input.labelIds ?? [],
+  }
 }
 
 async function getIssueRow(db: TenantDb, issueId: string) {
