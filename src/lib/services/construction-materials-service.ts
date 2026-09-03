@@ -24,7 +24,7 @@ export type MaterialIssueInput = {
   materialId: string
   issuedDate: string
   quantity: number
-  boqItemId?: string | null
+  boqLineItemId?: string | null
   issuedTo?: string | null
   note?: string | null
   createdById: string
@@ -420,7 +420,7 @@ export async function createMaterialIssue(ctx: { orgId: string }, input: Materia
       materialId: input.materialId,
       issuedDate: input.issuedDate,
       quantity: String(quantity),
-      boqItemId: input.boqItemId?.trim() || null,
+      boqLineItemId: input.boqLineItemId?.trim() || null,
       issuedTo: input.issuedTo?.trim() || null,
       note: input.note?.trim() || null,
       createdById: input.createdById,

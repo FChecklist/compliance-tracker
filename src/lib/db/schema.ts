@@ -11075,7 +11075,13 @@ export const constructionMaterialReceipts = complianceSchemaDB.table('constructi
   // than a delete.
   voidedAt: timestamp('voided_at'),
   voidReason: text('void_reason'),
-  voidedBy: text('voided_by'),
+  // The COLUMN is `voided_by_id`, not `voided_by`: that is the name the
+  // migration which actually creates it uses
+  // (drizzle/0529_r67_i02_manpower_material_org_format.sql, lane I, merged
+  // 2026-09-03), and it matches created_by_id beside it. This declaration was
+  // written against the expected name before that migration landed and is
+  // corrected here -- a mismatch would 500 on the first void.
+  voidedBy: text('voided_by_id'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
@@ -11107,7 +11113,11 @@ export const constructionMaterialIssues = complianceSchemaDB.table('construction
   // knows. Nullable and un-referenced on purpose: site staff issue material
   // long before anyone has decided which line it belongs to, and a hard FK
   // would make the honest answer ("not yet") unrecordable.
-  boqItemId: text('boq_item_id'),
+  //
+  // The column is `boq_line_item_id`, matching the migration that creates this
+  // table (drizzle/0529_r67_i02_manpower_material_org_format.sql, lane I) and
+  // the name construction_boq_line_items uses everywhere else in this schema.
+  boqLineItemId: text('boq_line_item_id'),
   // The gang, subcontractor or person who took it -- free text, because on a
   // real site this is "Falcon gang 3" as often as it is a named user.
   issuedTo: text('issued_to'),

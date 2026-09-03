@@ -96,7 +96,7 @@ function issue(overrides: Row): Row {
   return {
     id: "iss-x", orgId: ORG, projectId: PROJECT, materialId: CEMENT.id,
     issuedDate: "2026-08-29", quantity: "10",
-    boqItemId: null, issuedTo: null, note: null,
+    boqLineItemId: null, issuedTo: null, note: null,
     createdById: "user-1", createdAt: new Date("2026-08-29T00:00:00Z"),
     ...overrides,
   }
