@@ -446,6 +446,12 @@ function withComputedRate(item: typeof constructionBoqLineItems.$inferSelect) {
   return { ...item, computedRate: computedRate(item), computedBudget: computedBudget(item) }
 }
 
+// R67 F-04 (R-060/R-063) was the SAME fix arriving from lane F1, and lands
+// here under D-11: F-23's version below is canonical, and F-04's distinct
+// capability -- the chain-walked "vs the ORIGINAL revision" figure, which the
+// grouped CTE cannot answer because it only ever joins ONE hop to the parent
+// -- is folded in as computeChainVariation(), computed in memory over line
+// items this transaction has already read. Both lanes' tests are kept.
 // R67 F-23 (audit recommendation R-239) -- THE /scope FAN-OUT, CLOSED.
 //
 // THE MEASURED PROBLEM. /api/v1/construction/boq's GET handler ran
@@ -531,8 +537,21 @@ export type BoqRevisionCompare = {
   deltaPct: number | null
 }
 
+/**
+ * R67 F-04 (R-060/R-063). The variation figures that CANNOT come out of F-23's
+ * grouped CTE, because that statement joins exactly one hop (parent_boq_id) and
+ * this pair has to walk the whole revision chain back to its root.
+ */
+export type ChainVariation = {
+  /** Change against the IMMEDIATE parent revision. null (never 0) on a baseline. */
+  totalVariation: number | null
+  /** Change against the ROOT of this revision chain. null on the root itself. */
+  totalVariationVsOriginal: number | null
+}
+
 export type BoqListRow = typeof constructionBoqs.$inferSelect &
-  Partial<BoqRevisionVariation> & {
+  Partial<BoqRevisionVariation> &
+  Partial<ChainVariation> & {
     lineItems?: ReturnType<typeof withComputedRate>[]
     compare?: BoqRevisionCompare
   }
@@ -665,6 +684,9 @@ export async function listBoqs(
 
     const boqIds = boqs.map((b) => b.id)
     const lineItemsByBoq = new Map<string, ReturnType<typeof withComputedRate>[]>()
+    // R67 F-04: the RAW rows are kept beside the computed ones so the
+    // chain-walked figures below cost no second read and no second statement.
+    const rawLineItemsByBoq = new Map<string, BoqLineItemRow[]>()
     if (include.lineItems) {
       const rows = await db.query.constructionBoqLineItems.findMany({
         where: inArray(constructionBoqLineItems.boqId, boqIds),
@@ -673,6 +695,9 @@ export async function listBoqs(
         const list = lineItemsByBoq.get(row.boqId) ?? []
         list.push(withComputedRate(row))
         lineItemsByBoq.set(row.boqId, list)
+        const raw = rawLineItemsByBoq.get(row.boqId) ?? []
+        raw.push(row)
+        rawLineItemsByBoq.set(row.boqId, raw)
       }
     }
 
@@ -684,6 +709,18 @@ export async function listBoqs(
         ? await loadRevisionSummaries(db, ctx.orgId, projectId)
         : new Map<string, RevisionSummary>()
 
+    // R67 F-04 (R-060/R-063), folded onto F-23's one-statement list under D-11.
+    // `variationVsPrior` above is the SQL aggregate against the IMMEDIATE
+    // parent; these two walk the parentBoqId chain in memory, which is the only
+    // way to answer "how far has this revision moved from the ORIGINAL?"
+    // without a second query. Computed only when the line items are already in
+    // hand AND variation was asked for, so no caller pays for a figure it did
+    // not request and F-23's statement count is unchanged.
+    const chainVariationByBoq =
+      include.lineItems && include.variation
+        ? computeChainVariation(boqs, rawLineItemsByBoq)
+        : new Map<string, ChainVariation>()
+
     return boqs.map((boq) => {
       const summary = summaryByBoq.get(boq.id) ?? EMPTY_REVISION_SUMMARY
       return {
@@ -692,6 +729,7 @@ export async function listBoqs(
         ...(include.variation
           ? { variationVsPrior: summary.variationVsPrior, lineDelta: summary.lineDelta }
           : {}),
+        ...(chainVariationByBoq.get(boq.id) ?? {}),
         ...(include.compare
           ? {
               compare: {
@@ -706,6 +744,88 @@ export async function listBoqs(
     })
   })
 }
+
+/**
+ * R67 F-04 (R-060/R-063). The chain-walked variation figures, over line items
+ * the caller has already loaded -- no query of its own, by construction.
+ *
+ * The arithmetic is NOT reimplemented: it reuses the exact `diffLineItems` +
+ * `computeTotalVariation` pair compareBoq() uses, so a list row's figure and
+ * the compare screen's figure cannot disagree.
+ *
+ * Both are null (never 0) when they do not apply: a baseline revision has no
+ * prior and no original to differ from, and "no baseline" is not "no change".
+ */
+function computeChainVariation<B extends { id: string; parentBoqId: string | null }>(
+  boqs: B[],
+  itemsByBoqId: Map<string, BoqLineItemRow[]>
+): Map<string, ChainVariation> {
+  const boqById = new Map(boqs.map((b) => [b.id, b]))
+
+  function originalBoqId(startId: string): string {
+    let currentId = startId
+    const seen = new Set<string>([startId])
+    for (;;) {
+      const parentId = boqById.get(currentId)?.parentBoqId
+      // Stops at a null parent, a parent outside this project's list, or a
+      // cycle -- all three mean "this is as far back as we can honestly go".
+      // parentBoqId is plain data: a looped chain must degrade to a null
+      // cell, never hang the list.
+      if (!parentId || !boqById.has(parentId) || seen.has(parentId)) return currentId
+      seen.add(parentId)
+      currentId = parentId
+    }
+  }
+
+  function variationBetween(baselineBoqId: string | undefined, currentItems: BoqLineItemRow[]): number | null {
+    if (!baselineBoqId) return null
+    return computeTotalVariation(diffLineItems(itemsByBoqId.get(baselineBoqId) ?? [], currentItems))
+  }
+
+  return new Map<string, ChainVariation>(
+    boqs.map((boq) => {
+      const lineItems = itemsByBoqId.get(boq.id) ?? []
+      const rootId = originalBoqId(boq.id)
+      return [
+        boq.id,
+        {
+          totalVariation: variationBetween(
+            boq.parentBoqId && boqById.has(boq.parentBoqId) ? boq.parentBoqId : undefined,
+            lineItems
+          ),
+          totalVariationVsOriginal: rootId === boq.id ? null : variationBetween(rootId, lineItems),
+        },
+      ]
+    })
+  )
+}
+
+/**
+ * The pure, DB-free half of listBoqs() -- grouping + the two chain variation
+ * figures -- extracted so it is independently unit-testable without a live
+ * database, exactly as diffLineItems/computeHierarchicalAmount/
+ * resolveProgressByLineItem already are in this file.
+ */
+export function buildBoqListRows<B extends { id: string; parentBoqId: string | null }>(
+  boqs: B[],
+  allLineItems: BoqLineItemRow[]
+) {
+  const itemsByBoqId = new Map<string, BoqLineItemRow[]>()
+  for (const item of allLineItems) {
+    const list = itemsByBoqId.get(item.boqId)
+    if (list) list.push(item)
+    else itemsByBoqId.set(item.boqId, [item])
+  }
+
+  const chainVariationByBoq = computeChainVariation(boqs, itemsByBoqId)
+
+  return boqs.map((boq) => ({
+    ...boq,
+    lineItems: (itemsByBoqId.get(boq.id) ?? []).map(withComputedRate),
+    ...chainVariationByBoq.get(boq.id)!,
+  }))
+}
+
 
 export async function getBoq(ctx: { orgId: string }, boqId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {

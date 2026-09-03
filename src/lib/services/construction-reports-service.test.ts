@@ -27,6 +27,7 @@ import {
   aggregateDesignerTimesheetCosts,
   aggregateDesignerApprovalStatus,
   aggregateWorkAnalysis,
+  computeCategoryProgress,
   computeCertifiedPayroll,
   computeEarnedValue,
   computeBudgetVarianceLine,
@@ -543,6 +544,214 @@ describe("computeEarnedValue -- R46/R-51 percent-complete fallback + root-with-c
 
   test("empty line-item list -- all zero, not an error", () => {
     expect(computeEarnedValue([], new Map(), new Map())).toEqual({ earnedValue: 0, contractValue: 0, percentByValue: 0 })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 F-10 (R-134) acceptance test.
+//
+// THE FAULT. requireConstructionEnabled() is the first statement of every one
+// of the ~20 report functions in this service, and it is not a cheap boolean:
+// it goes through isBranchEnabledForOrg(), which opens its OWN
+// withTenantContext transaction and takes one of only five app_runtime
+// connections. A composite report calls several report functions, so one
+// /reports run could spend three or four pooled connections re-answering "does
+// this org have the construction module?" -- a question whose answer is a
+// purchased package and cannot change between two clicks.
+//
+// Two assertions, exactly the item's own:
+//   (a) two consecutive report runs for the same org inside the TTL call
+//       requireConstructionEnabled ONCE;
+//   (b) a spy on withTenantContext records no call made while another is
+//       already open -- i.e. this service opens no nested transaction, which on
+//       a five-connection pool with a 25 s statement timeout is what turns a
+//       two-query report into a deadlock.
+const realReportsTenantScoped = await import("@/lib/db/tenant-scoped")
+const realReportsEnablement = await import("./construction-enablement-service")
+
+// A thenable proxy standing in for drizzle's chainable query builder: any
+// method returns itself, and awaiting it yields rows. Every report under test
+// here reads an empty set, which is a legitimate answer and keeps the fake
+// honest -- what is being measured is the TRANSACTIONS opened, not the SQL.
+function emptyQueryChain(): any {
+  const proxy: any = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === "then") return (resolve: (v: unknown) => void) => resolve([])
+        return () => proxy
+      },
+    }
+  )
+  return proxy
+}
+
+const fakeReportsDb = {
+  query: new Proxy({}, { get: () => ({ findMany: async () => [], findFirst: async () => null }) }),
+  select: () => emptyQueryChain(),
+}
+
+describe("construction-reports-service: enablement memo + no nested transactions (R67 F-10)", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realReportsTenantScoped)
+    await mock.module("./construction-enablement-service", () => realReportsEnablement)
+  })
+
+  async function loadServiceWithSpies() {
+    const requireConstructionEnabledSpy = mock(async () => {})
+    let openDepth = 0
+    let maxOpenDepth = 0
+    const withTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
+      openDepth += 1
+      maxOpenDepth = Math.max(maxOpenDepth, openDepth)
+      try {
+        return await fn(fakeReportsDb)
+      } finally {
+        openDepth -= 1
+      }
+    })
+
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realReportsTenantScoped, withTenantContext }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realReportsEnablement,
+      requireConstructionEnabled: requireConstructionEnabledSpy,
+    }))
+
+    const service = await import("./construction-reports-service")
+    service.__resetConstructionEnablementMemo()
+    return { service, requireConstructionEnabledSpy, withTenantContext, depth: () => maxOpenDepth }
+  }
+
+  test("(a) two consecutive report runs for the same org inside the TTL check enablement ONCE", async () => {
+    const { service, requireConstructionEnabledSpy } = await loadServiceWithSpies()
+
+    await service.attendanceReport({ orgId: "org-memo" }, "p1")
+    await service.attendanceReport({ orgId: "org-memo" }, "p1")
+
+    expect(requireConstructionEnabledSpy.mock.calls.length).toBe(1)
+  })
+
+  test("(a2) different report functions for the same org share the one memoised check", async () => {
+    const { service, requireConstructionEnabledSpy } = await loadServiceWithSpies()
+
+    await service.attendanceReport({ orgId: "org-memo" }, "p1")
+    await service.scopeReport({ orgId: "org-memo" }, "p1")
+    await service.workProgressReport({ orgId: "org-memo" }, "p1")
+
+    expect(requireConstructionEnabledSpy.mock.calls.length).toBe(1)
+  })
+
+  test("(a3) a DIFFERENT org is never served another org's memoised answer", async () => {
+    const { service, requireConstructionEnabledSpy } = await loadServiceWithSpies()
+
+    await service.attendanceReport({ orgId: "org-one" }, "p1")
+    await service.attendanceReport({ orgId: "org-two" }, "p1")
+
+    expect(requireConstructionEnabledSpy.mock.calls.length).toBe(2)
+  })
+
+  test("(a4) a REFUSAL is never memoised -- an org that has just enabled construction is not told 'no' for a minute", async () => {
+    const requireConstructionEnabledSpy = mock(async (_orgId: string) => {
+      throw new (realReportsEnablement.ServiceError as new (m: string, s: number) => Error)("not part of your Module", 403)
+    })
+    const withTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeReportsDb))
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realReportsTenantScoped, withTenantContext }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realReportsEnablement,
+      requireConstructionEnabled: requireConstructionEnabledSpy,
+    }))
+
+    const service = await import("./construction-reports-service")
+    service.__resetConstructionEnablementMemo()
+
+    await expect(service.attendanceReport({ orgId: "org-blocked" }, "p1")).rejects.toThrow(/not part of your Module/)
+    await expect(service.attendanceReport({ orgId: "org-blocked" }, "p1")).rejects.toThrow(/not part of your Module/)
+
+    expect(requireConstructionEnabledSpy.mock.calls.length).toBe(2)
+    // And no transaction was opened for a report that was refused.
+    expect(withTenantContext.mock.calls.length).toBe(0)
+  })
+
+  test("(b) no withTenantContext is ever entered while another is already open", async () => {
+    const { service, withTenantContext, depth } = await loadServiceWithSpies()
+
+    await service.workProgressReport({ orgId: "org-nest" }, "p1")
+    await service.attendanceReport({ orgId: "org-nest" }, "p1")
+    await service.sitePictureReport({ orgId: "org-nest" }, "p1")
+    await service.scopeReport({ orgId: "org-nest" }, "p1")
+    await service.budgetSummary({ orgId: "org-nest" }, "p1")
+    await service.materialConsumptionReport({ orgId: "org-nest" }, "p1")
+    await service.vendorCostReport({ orgId: "org-nest" }, "p1")
+    await service.projectPeriodReport({ orgId: "org-nest" }, "p1", "2026-08-01", "2026-09-01")
+
+    expect(withTenantContext.mock.calls.length).toBeGreaterThan(0)
+    expect(depth()).toBe(1)
+  })
+
+  test("(b2) one report opens exactly ONE transaction -- the enablement check is not a second one", async () => {
+    const { service, withTenantContext } = await loadServiceWithSpies()
+
+    await service.attendanceReport({ orgId: "org-count" }, "p1")
+
+    expect(withTenantContext.mock.calls.length).toBe(1)
+  })
+})
+
+// R67 F-14 (R-215). computeCategoryProgress is the pure half of
+// categoryProgressReport, extracted so getProjectDashboard can fold the same
+// breakdown into the transaction it already holds instead of PROJEXA making a
+// second HTTP call (and a second pooled transaction) for it. Same reason
+// computeEarnedValue was extracted: ONE arithmetic path, so the dashboard chart
+// and the named report cannot disagree.
+describe("computeCategoryProgress (R67 F-14)", () => {
+  const CATEGORIES = [
+    { id: "c1", name: "Substructure" },
+    { id: "c2", name: "Superstructure" },
+  ]
+
+  test("averages the latest percent across a category's activities", () => {
+    const rows = computeCategoryProgress(
+      CATEGORIES,
+      [
+        { id: "a1", categoryId: "c1" },
+        { id: "a2", categoryId: "c1" },
+        { id: "a3", categoryId: "c2" },
+      ],
+      new Map([["a1", 80], ["a2", 20], ["a3", 55]])
+    )
+    expect(rows).toEqual([
+      { categoryId: "c1", name: "Substructure", percentComplete: 50 },
+      { categoryId: "c2", name: "Superstructure", percentComplete: 55 },
+    ])
+  })
+
+  test("an activity nobody has logged against counts as 0, not as absent", () => {
+    // Three activities, one at 60% -> 20%, NOT 60%. Treating the unlogged ones
+    // as absent would report a category as three times more complete than it is.
+    const [row] = computeCategoryProgress(
+      [CATEGORIES[0]],
+      [
+        { id: "a1", categoryId: "c1" },
+        { id: "a2", categoryId: "c1" },
+        { id: "a3", categoryId: "c1" },
+      ],
+      new Map([["a1", 60]])
+    )
+    expect(row.percentComplete).toBe(20)
+  })
+
+  test("a category with no activities is 0, and is still listed", () => {
+    const rows = computeCategoryProgress(CATEGORIES, [{ id: "a1", categoryId: "c1" }], new Map([["a1", 100]]))
+    expect(rows).toEqual([
+      { categoryId: "c1", name: "Substructure", percentComplete: 100 },
+      { categoryId: "c2", name: "Superstructure", percentComplete: 0 },
+    ])
+  })
+
+  test("an activity with no category is not attributed to one", () => {
+    const rows = computeCategoryProgress([CATEGORIES[0]], [{ id: "a1", categoryId: null }], new Map([["a1", 90]]))
+    expect(rows[0].percentComplete).toBe(0)
   })
 })
 

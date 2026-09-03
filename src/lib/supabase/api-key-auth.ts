@@ -1,11 +1,12 @@
-import { db, apiKeys, apiKeyRequestLog } from "@/lib/db"
+import { db, apiKeyRequestLog } from "@/lib/db"
 import { eq, and, gte, sql } from "drizzle-orm"
 import { hashSHA256 } from "@/lib/api-keys"
 import { lookupApiKeyByHash } from "@/lib/db/preauth-lookups"
-import { after } from "next/server"
+import { pendingApiKeyRequestCount, recordApiKeyUse } from "@/lib/auth/api-key-audit"
 
-// R67 F-33 (audit recommendation R-278, latency_backend_evidence.md item 6) --
-// THE USAGE BOOKKEEPING RUNS AFTER THE RESPONSE, NOT BESIDE IT.
+// R67 F-17 (R-234) x F-33 (R-278) -- THE USAGE BOOKKEEPING LEAVES THE REQUEST
+// PATH. Two lanes fixed the same fault from opposite ends, and this is the
+// folded result (decision D-11).
 //
 // Every API-key request -- which is EVERY PROJEXA request, read or write --
 // wrote two rows here: api_keys.last_used_at and one api_key_request_log row.
@@ -17,29 +18,22 @@ import { after } from "next/server"
 // a hypothetical), and on Vercel a bare promise can be killed the moment the
 // response is sent, so the row it was going to write is silently lost.
 //
-// after() fixes both halves: the work is deferred until the response has been
-// sent, and the runtime is told to keep the invocation alive for it. Every one
-// of them also gets a .catch() -- an un-caught rejection here was an unhandled
-// rejection with no message anywhere, which is how a request log stops being
-// written without anyone noticing.
+// F-33's answer was to defer both writes with next/server's after(). F-17's was
+// to batch them into an in-process queue. The queue SUBSUMES the deferral and
+// keeps F-33's guarantee: src/lib/auth/api-key-audit.ts schedules its flush
+// through after() when a request scope exists (so the runtime keeps the
+// invocation alive for the write) and degrades to setImmediate when there is
+// none -- a test, a script, or its own background timer -- and every write has
+// an error handler, so a failed audit row is logged rather than left as an
+// unhandled rejection. On top of that it collapses N requests into ONE
+// multi-row INSERT and at most one last_used_at UPDATE per key per minute,
+// which is the part after() alone could not do: after() moves the two
+// statements per request, it does not remove them.
 //
-// WHY THE FALLBACK. after() throws outside a request scope, and validateApiKey()
-// is also reachable from tests and scripts. There, the write simply runs
-// immediately -- the previous behaviour, minus the missing error handler.
-// `work` returns a PromiseLike, not a Promise: a drizzle query builder is
-// thenable but has no .catch of its own, so it is adopted by Promise.resolve
-// before the handler is attached.
-function afterResponse(label: string, work: () => PromiseLike<unknown>): void {
-  const run = () => Promise.resolve(work()).catch((err) => {
-    console.error(`[api-key-auth] ${label} failed (non-fatal):`, err instanceof Error ? err.message : err)
-  })
-  try {
-    after(run)
-  } catch {
-    // No request scope (a test, a script, a background job): do it now.
-    void run()
-  }
-}
+// afterResponse(), F-33's local helper, is therefore gone rather than kept
+// beside the queue -- two deferral mechanisms writing the same two rows would
+// double-write them. Nothing it guaranteed is lost; see the tests at the foot
+// of api-key-auth.test.ts, which now assert it of the queue.
 
 export type ApiKeyContext = {
   orgId: string
@@ -137,7 +131,11 @@ function effectiveRateLimitFor(row: { id: string; rateLimitPerMinute: number | n
  * effectiveRateLimitFor() above), rejects a known demo/seed key unless
  * explicitly allowlisted via DEMO_API_KEY_IDS (see KNOWN_DEMO_KEY_IDS
  * above), and logs the request into api_key_request_log for both the
- * rate-limit count and the usage-analytics dashboard.
+ * rate-limit count and the usage-analytics dashboard. Since R67 F-17 that
+ * log write (and the api_keys.last_used_at touch that used to accompany it)
+ * goes through the batching queue in src/lib/auth/api-key-audit.ts instead
+ * of issuing two more statements on the shared pool per request; the
+ * rate-limit count reads that queue's pending rows alongside the DB's.
  */
 export async function validateApiKey(request: Request): Promise<ValidateApiKeyResult> {
   const authHeader = request.headers.get("authorization")
@@ -161,36 +159,40 @@ export async function validateApiKey(request: Request): Promise<ValidateApiKeyRe
 
   const route = new URL(request.url).pathname
   const rateLimit = effectiveRateLimitFor(row)
+  const at = new Date()
 
   if (rateLimit !== null) {
-    const cutoff = new Date(Date.now() - RATE_LIMIT_WINDOW_SECONDS * 1000)
+    const cutoff = new Date(at.getTime() - RATE_LIMIT_WINDOW_SECONDS * 1000)
     const [{ count }] = await db.select({ count: sql<number>`count(*)` })
       .from(apiKeyRequestLog)
       .where(and(eq(apiKeyRequestLog.apiKeyId, row.id), gte(apiKeyRequestLog.createdAt, cutoff)))
 
-    if (Number(count) >= rateLimit) {
-      // Still logged -- a rejected request is the one an operator most wants to
-      // see in the usage dashboard -- but after the 429 has been sent.
-      afterResponse("rate-limited request log insert", () =>
-        db.insert(apiKeyRequestLog).values({
-          apiKeyId: row.id, orgId: row.orgId, route, method: request.method, wasRateLimited: true,
-        })
-      )
+    // R67 F-17: the request log is now written in batches (see
+    // src/lib/auth/api-key-audit.ts), so the DB count alone is up to one flush
+    // interval out of date -- which would hand every key a free window at the
+    // start of each batch. The queue's own unwritten rows close it.
+    const queued = pendingApiKeyRequestCount(row.id, cutoff)
+
+    if (Number(count) + queued >= rateLimit) {
+      // R67 F-33: still logged -- a rejected request is the one an operator most
+      // wants to see in the usage dashboard -- but never beside the 429.
+      void recordApiKeyUse({
+        apiKeyId: row.id, orgId: row.orgId, route, method: request.method, wasRateLimited: true, at,
+      })
       return { status: "rate_limited", retryAfterSeconds: RATE_LIMIT_WINDOW_SECONDS }
     }
   }
 
-  // R67 F-33: both of these are usage bookkeeping, not part of the answer --
-  // deferred until after the response is sent. See afterResponse() above for
-  // why an un-awaited promise was not already off the hot path.
-  afterResponse("last_used_at update", () =>
-    db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, row.id))
-  )
-  afterResponse("request log insert", () =>
-    db.insert(apiKeyRequestLog).values({
-      apiKeyId: row.id, orgId: row.orgId, route, method: request.method, wasRateLimited: false,
-    })
-  )
+  // R67 F-17 x F-33: was two separate un-awaited statements on the shared max:5
+  // `db` pool per request -- an INSERT here and an UPDATE of apiKeys.lastUsedAt
+  // -- which src/lib/db/index.ts's own R43_EXEC_02 comment names as part of what
+  // serialised that pool into 504s. Both now go through the audit queue: one
+  // multi-row INSERT per batch, scheduled after the response has been sent, and
+  // last_used_at at most once per key per minute. Kept here, in the helper that
+  // resolves the Bearer key, so no route has to opt in.
+  void recordApiKeyUse({
+    apiKeyId: row.id, orgId: row.orgId, route, method: request.method, wasRateLimited: false, at,
+  })
 
   return {
     status: "ok",

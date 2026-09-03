@@ -20,12 +20,72 @@ type BudgetAction = "ignore" | "warn" | "stop"
 // though the data already supported it. Omitted means "no filter", same
 // unchanged-by-default convention as every other companyId filter added
 // this wave.
+// R67 F-08 (R-112). A budget list that shows only a name and a status cannot
+// be read: the two things anyone scanning budgets actually wants are WHICH
+// YEAR and HOW MUCH, and both were absent because the list returned bare
+// erp_budgets rows -- the amount lives in erp_budget_line_items and the year's
+// name in erp_fiscal_years.
+//
+// The obvious wrong fix is a call per row (getBudget() per budget, an N+1 of
+// transactions against a 5-connection pool -- exactly the /scope fault R67
+// F-04 removed). Instead both are resolved by TWO extra queries inside the
+// transaction listBudgets already holds, whose cost does not grow with the
+// number of budgets.
+export type BudgetListSource = { id: string; fiscalYearId: string }
+export type BudgetLineItemTotal = { budgetId: string; total: string | number | null }
+export type BudgetFiscalYear = { id: string; yearName: string }
+export type BudgetListExtras = { annualAmount: number; fiscalYearName: string | null }
+
+/**
+ * Pure: folds the batched totals and fiscal-year names onto the budget rows.
+ *
+ * A budget with no line items is 0, not null -- it is a real, created budget
+ * that nothing has been allocated to yet, and a blank cell would read as
+ * "unknown". A fiscal year that cannot be resolved is null, NOT the raw id:
+ * an opaque id shown where a year name belongs is worse than an em-dash,
+ * because it looks like data.
+ */
+export function attachBudgetListFields<T extends BudgetListSource>(
+  budgets: T[],
+  lineItemTotals: BudgetLineItemTotal[],
+  fiscalYears: BudgetFiscalYear[]
+): (T & BudgetListExtras)[] {
+  const totalByBudget = new Map(lineItemTotals.map((t) => [t.budgetId, Number(t.total ?? 0)]))
+  const yearNameById = new Map(fiscalYears.map((f) => [f.id, f.yearName]))
+  return budgets.map((b) => ({
+    ...b,
+    annualAmount: Number.isFinite(totalByBudget.get(b.id)) ? (totalByBudget.get(b.id) as number) : 0,
+    fiscalYearName: yearNameById.get(b.fiscalYearId) ?? null,
+  }))
+}
+
 export async function listBudgets(ctx: { orgId: string }, filters?: { companyId?: string }) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const conditions = [eq(erpBudgets.orgId, ctx.orgId)]
     if (filters?.companyId) conditions.push(eq(erpBudgets.companyId, filters.companyId))
-    return db.query.erpBudgets.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.createdAt) })
+    const budgets = await db.query.erpBudgets.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.createdAt) })
+    if (budgets.length === 0) return []
+
+    // Two batched reads on the transaction this function already holds -- one
+    // grouped sum and one id lookup -- regardless of how many budgets there are.
+    const budgetIds = budgets.map((b) => b.id)
+    const lineItemTotals = await db
+      .select({
+        budgetId: erpBudgetLineItems.budgetId,
+        total: sql<string>`coalesce(sum(${erpBudgetLineItems.annualAmount}), 0)`,
+      })
+      .from(erpBudgetLineItems)
+      .where(inArray(erpBudgetLineItems.budgetId, budgetIds))
+      .groupBy(erpBudgetLineItems.budgetId)
+
+    const fiscalYearIds = [...new Set(budgets.map((b) => b.fiscalYearId))]
+    const fiscalYears = await db.query.erpFiscalYears.findMany({
+      where: and(eq(erpFiscalYears.orgId, ctx.orgId), inArray(erpFiscalYears.id, fiscalYearIds)),
+      columns: { id: true, yearName: true },
+    })
+
+    return attachBudgetListFields(budgets, lineItemTotals, fiscalYears)
   })
 }
 

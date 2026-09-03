@@ -27,13 +27,14 @@ async function GET_impl(request: NextRequest) {
     // compute the report's Amt/Percentage columns, so `lineItems` is always
     // included -- that contract is unchanged.
     //
-    // R67 F-23 (R-239). It used to be satisfied with
-    // `Promise.all(boqs.map(getBoq))`, and every getBoq() opens its OWN
-    // withTenantContext transaction, so an N-revision project fanned out N
-    // concurrent transactions on a five-connection pool. listBoqs() now does
-    // the whole thing in ONE transaction (see its own header comment), and
-    // `?include=variation` adds the per-revision variation figure PROJEXA's
-    // /scope screen used to fetch with one /compare request PER ROW.
+    // R67 F-23 (R-239) / F-04 (R-060/R-063) -- the SAME fix, arriving from two
+    // lanes. It used to be satisfied with `Promise.all(boqs.map(getBoq))`, and
+    // every getBoq() opens its OWN withTenantContext transaction, so an
+    // N-revision project fanned out N concurrent transactions on a
+    // five-connection pool. listBoqs() now does the whole thing in ONE
+    // transaction (see its own header comment), and `?include=variation` adds
+    // the per-revision variation figures PROJEXA's /scope screen used to fetch
+    // with one /compare request PER ROW.
     //
     // R67 F-29 (R-273) adds `?include=compare`, which puts each revision's
     // lineCount / total / deltaAmount / deltaPct on the row. It shares the
