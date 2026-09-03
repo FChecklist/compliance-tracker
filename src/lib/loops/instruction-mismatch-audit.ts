@@ -1,6 +1,6 @@
 import { db, instructionCommitments, instructionMismatchDetections, tasks, auditLogs, messages, notifications } from "@/lib/db"
 import { eq, and, lt, gte } from "drizzle-orm"
-import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
+import { resolveModel } from "@/lib/ai-router/mother-router"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
@@ -42,7 +42,17 @@ export async function runInstructionMismatchAudit(): Promise<{
   let skippedNoModel = 0
 
   for (const commitment of pending) {
-    const modelConfig = await resolveModelConfig(commitment.orgId, "task_oa")
+    // R67 Part B Phase 3.6 Wave 1: migrated from orchestra-model-resolver.ts's
+    // resolveModelConfig() to Mother Router's resolveModel() for the added
+    // audit trail (ai_routing_audit_log) and hot-swappable policy override.
+    // end_user_org scope calls the exact same resolveModelConfig(orgId, layerKey,
+    // sourceType) as its baseline (mother-router.ts:712) -- an org's own BYO
+    // customer_model_config passes through completely untouched, so this is a
+    // zero-behavior-change migration today (no ai_routing_policies row exists
+    // yet). `.resolvedConfig` is the field that carries the real apiKey/fallback
+    // the old direct ResolvedModelConfig | null return provided; it is undefined
+    // (not null) on the "no baseline at all" branch, hence the `?? null`.
+    const modelConfig = (await resolveModel({ scope: "end_user_org", orgId: commitment.orgId, layerKey: "task_oa" })).resolvedConfig ?? null
     if (!modelConfig) {
       skippedNoModel++
       continue
