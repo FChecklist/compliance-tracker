@@ -19,6 +19,11 @@ async function GET_impl(request: NextRequest) {
   try {
     // R67 F-25 (R-241): ?date= for one day, ?from=/?to= for a range.
     // ?attendanceDate= is the original name and still works.
+    //
+    // R67 D-30/D-33 read the same window: the daily sheet asks for one date,
+    // the worker object page's month history and the daily summary ask for a
+    // range, and all three filter in SQL instead of pulling a project's whole
+    // attendance ledger to the browser.
     const attendance = await listAttendance({ orgId: ctx.orgId }, {
       projectId: request.nextUrl.searchParams.get("projectId") ?? undefined,
       rosterId: request.nextUrl.searchParams.get("rosterId") ?? undefined,
