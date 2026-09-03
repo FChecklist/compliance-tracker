@@ -61,13 +61,24 @@ type Captured = { submission?: Record<string, unknown>; task?: Record<string, un
  * what the service tried to insert/update and answers the one SELECT the
  * service makes with `existingOpenTaskIds`.
  */
-function makeFakeDb(existingOpenTaskIds: string[], captured: Captured) {
+function makeFakeDb(
+  existingOpenTaskIds: string[],
+  captured: Captured,
+  // R67 WS-H fix pass: closing a row now RECOMPUTES the submission's derived
+  // status from its child tasks (schema.ts's M25 invariant on
+  // compliance.submissions.status), so the double has to answer the child-task
+  // SELECT too. Default: the one task this service mints, now done.
+  childTasks: Array<{ submissionId: string; status: string }> = [{ submissionId: "submission-1", status: "done" }]
+) {
   return {
     select: () => ({
       from: () => ({
-        where: () => ({
-          limit: async () => existingOpenTaskIds.map((id) => ({ id })),
-        }),
+        // Two callers with two shapes: the open-row lookup ends in .limit(1),
+        // the child-status recompute awaits the where() directly.
+        where: () =>
+          Object.assign(Promise.resolve(childTasks), {
+            limit: async () => existingOpenTaskIds.map((id) => ({ id })),
+          }),
       }),
     }),
     insert: (table: unknown) => ({
@@ -227,5 +238,101 @@ describe("openTimesheetReturnedTask / closeTimesheetReturnedTask", () => {
     const result = await closeTimesheetReturnedTask({ orgId: "org1", userId: "designer-1" }, "entry-1")
     expect(result).toEqual({ closed: 1 })
     expect(captured.updates[0].result).toEqual({ decision: "resubmitted", decidedById: "designer-1" })
+  })
+})
+
+// R67 WS-H fix pass. schema.ts on compliance.submissions.status: "DERIVED from
+// this submission's own pipelineTasks ... the only writer of this column after
+// INSERT must be the same service function that recomputes it from child task
+// statuses" (M25). The first cut wrote 'done' straight after closing a task --
+// right only because each submission this service mints carries exactly ONE
+// task. These pin the recompute so a future second task cannot silently
+// invalidate it.
+describe("closing a review row recomputes the submission's DERIVED status (M25)", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  /** The second update the service issues is the submission recompute. */
+  function submissionPatch(captured: Captured) {
+    return captured.updates[1]
+  }
+
+  test("a submission whose every task is done becomes done", async () => {
+    const captured: Captured = { updates: [] }
+    const { closeTimesheetReviewTask } = await loadServiceWith(
+      makeFakeDb([], captured, [{ submissionId: "submission-1", status: "done" }])
+    )
+    await closeTimesheetReviewTask({ orgId: "org1", userId: "manager-1" }, "entry-1", "approved")
+    expect(submissionPatch(captured)).toEqual({ status: "done" })
+  })
+
+  test("a submission with a second, still-open task stays in_progress rather than being marked done", async () => {
+    const captured: Captured = { updates: [] }
+    const { closeTimesheetReviewTask } = await loadServiceWith(
+      makeFakeDb([], captured, [
+        { submissionId: "submission-1", status: "done" },
+        { submissionId: "submission-1", status: "to_do" },
+      ])
+    )
+    await closeTimesheetReviewTask({ orgId: "org1", userId: "manager-1" }, "entry-1", "approved")
+    expect(submissionPatch(captured)).toEqual({ status: "in_progress" })
+  })
+
+  test("a blocked sibling task makes the submission partial -- M25's 'any FAILED task -> PARTIAL'", async () => {
+    const captured: Captured = { updates: [] }
+    const { closeTimesheetReviewTask } = await loadServiceWith(
+      makeFakeDb([], captured, [
+        { submissionId: "submission-1", status: "done" },
+        { submissionId: "submission-1", status: "blocked" },
+      ])
+    )
+    await closeTimesheetReviewTask({ orgId: "org1", userId: "manager-1" }, "entry-1", "approved")
+    expect(submissionPatch(captured)).toEqual({ status: "partial" })
+  })
+
+  test("nothing was closed, so nothing is recomputed", async () => {
+    const captured: Captured = { updates: [] }
+    const { closeTimesheetReviewTask } = await loadServiceWith(
+      makeFakeDb([], captured, [{ submissionId: "submission-1", status: "done" }])
+    )
+    // Simulate "no open row matched": the update double always returns one row,
+    // so this asserts the shape instead -- one task patch, one submission patch,
+    // never a bare unconditional submission write.
+    await closeTimesheetReviewTask({ orgId: "org1", userId: "manager-1" }, "entry-1", "approved")
+    expect(captured.updates).toHaveLength(2)
+    expect(captured.updates[0].status).toBe("done")
+  })
+})
+
+// R67 WS-H fix pass. The Task Master bookkeeping that follows a decision now
+// lives in ONE function instead of two near-identical route blocks. It must
+// NEVER fail the decision: the hours have already moved.
+describe("recordTimesheetDecisionTasks -- bookkeeping never rolls back a real decision", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  const ENTRY = { userId: "designer-1", hours: "3", spentOn: "2026-09-02" }
+
+  test("an approval closes the reviewer's row and opens no returned row", async () => {
+    const captured: Captured = { updates: [] }
+    const { recordTimesheetDecisionTasks } = await loadServiceWith(makeFakeDb([], captured))
+    const result = await recordTimesheetDecisionTasks({ orgId: "org1", userId: "manager-1" }, "entry-1", "approved", null, ENTRY)
+    expect(result).toEqual({ reviewTaskClosed: 1, returnedTaskCreated: false, reviewTaskError: null })
+  })
+
+  test("a failure writing the task rows is REPORTED, not thrown -- the decision stands", async () => {
+    const exploding = {
+      select: () => ({ from: () => ({ where: () => { throw new Error("pipeline_tasks unavailable") } }) }),
+      insert: () => ({ values: () => ({ returning: async () => [] }) }),
+      update: () => ({ set: () => ({ where: () => { throw new Error("pipeline_tasks unavailable") } }) }),
+    }
+    const { recordTimesheetDecisionTasks } = await loadServiceWith(exploding)
+    const result = await recordTimesheetDecisionTasks({ orgId: "org1", userId: "manager-1" }, "entry-1", "approved", null, ENTRY)
+    expect(result.reviewTaskError).toBe("pipeline_tasks unavailable")
+    expect(result.reviewTaskClosed).toBe(0)
   })
 })

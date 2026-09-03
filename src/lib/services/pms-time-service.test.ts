@@ -273,3 +273,124 @@ describe("submitDayForReview -- one decision over the whole day, not a loop", ()
     await expect(submitDayForReview({ orgId: "org1", userId: "designer1" }, { projectId: "project-1", spentOn: "" })).rejects.toThrow("spentOn is required")
   })
 })
+
+// R67 WS-H fix pass. The create screen's landing receipt is item H-01's exact
+// sentence "Timesheet entry TS-000123 saved", and it can only say that if the
+// WRITE answers with the same `ref` the reads do. Before this, logTime returned
+// the bare inserted row, the client fell back to the raw cuid, and the receipt
+// read "Timesheet entry cm3x9k2a0004fg saved".
+describe("logTime -- the created entry names itself", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  test("the created entry carries the same TS- ref the reads return", async () => {
+    const fakeDb = {
+      query: { pmsIssues: { findFirst: mock(async () => ({ id: "issue-1", orgId: "org1" })) } },
+      insert: () => ({
+        values: (row: Record<string, unknown>) => ({
+          returning: async () => [{ id: "clx9m2k4a000123", ...row }],
+        }),
+      }),
+    }
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { logTime } = await import("./pms-time-service")
+    const created = await logTime(
+      { orgId: "org1", userId: "designer1", dbUser: { id: "designer1" } as never },
+      { issueId: "issue-1", hours: "3", spentOn: "2026-09-02" }
+    )
+    expect(created.ref).toBe(timesheetEntryRef("clx9m2k4a000123"))
+    expect(created.ref).toStartWith("TS-")
+  })
+})
+
+// R67 WS-H fix pass (item H-03, "Approve (bulk per day)"). The manager's mirror
+// of submitDayForReview: one transaction, not a client loop that can leave a
+// day half-decided.
+describe("reviewDayForReview -- a whole day is decided at once, or not at all", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  function makeReviewDb(issues: Array<Record<string, unknown>>, pending: Array<Record<string, unknown>>) {
+    return {
+      query: {
+        pmsIssues: { findMany: mock(async () => issues) },
+        pmsTimeEntries: { findMany: mock(async () => pending) },
+      },
+      update: () => ({
+        set: (patch: Record<string, unknown>) => ({
+          where: () => ({ returning: async () => pending.map((p) => ({ ...p, ...patch })) }),
+        }),
+      }),
+    }
+  }
+
+  const ISSUES = [{ id: "issue-1", number: 12, title: "Joinery shop drawings" }]
+  const PENDING = [
+    { id: "e1", issueId: "issue-1", hours: "3", approvalStatus: "submitted", userId: "designer1" },
+    { id: "e2", issueId: "issue-1", hours: "4.5", approvalStatus: "submitted", userId: "designer1" },
+  ]
+
+  test("approves every submitted row of that designer's day in one write", async () => {
+    const fakeDb = makeReviewDb(ISSUES, PENDING)
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { reviewDayForReview } = await import("./pms-time-service")
+    const result = await reviewDayForReview({ orgId: "org1", userId: "manager1" }, {
+      designerId: "designer1", projectId: "project-1", spentOn: "2026-09-02", decision: "approved",
+    })
+    expect(result.decided).toBe(2)
+    expect(result.hours).toBe(7.5)
+    expect(result.entries.map((e) => e.approvalStatus)).toEqual(["approved", "approved"])
+    expect(result.entries[0].ref).toBe(timesheetEntryRef("e1"))
+  })
+
+  test("returning a day carries the manager's reason onto every row it decided", async () => {
+    const fakeDb = makeReviewDb(ISSUES, PENDING)
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { reviewDayForReview } = await import("./pms-time-service")
+    const result = await reviewDayForReview({ orgId: "org1", userId: "manager1" }, {
+      designerId: "designer1", projectId: "project-1", spentOn: "2026-09-02", decision: "rejected",
+      rejectionReason: "Split the site visit off the drawings line",
+    })
+    expect(result.decision).toBe("rejected")
+    expect(result.entries.every((e) => e.rejectionReason === "Split the site visit off the drawings line")).toBe(true)
+  })
+
+  test("a manager cannot bulk-approve their OWN day", async () => {
+    const { reviewDayForReview } = await import("./pms-time-service")
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, {
+      designerId: "manager1", projectId: "project-1", spentOn: "2026-09-02", decision: "approved",
+    })).rejects.toThrow("The submitter cannot review their own time entry")
+  })
+
+  test("returning a day without saying what to change is refused server-side, not only by the screen", async () => {
+    const { reviewDayForReview, REJECTION_REASON_TOO_SHORT } = await import("./pms-time-service")
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, {
+      designerId: "designer1", projectId: "project-1", spentOn: "2026-09-02", decision: "rejected", rejectionReason: "no",
+    })).rejects.toThrow(REJECTION_REASON_TOO_SHORT)
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, {
+      designerId: "designer1", projectId: "project-1", spentOn: "2026-09-02", decision: "rejected",
+    })).rejects.toThrow(REJECTION_REASON_TOO_SHORT)
+  })
+
+  test("a day with nothing submitted is refused rather than reported as an empty success", async () => {
+    const fakeDb = makeReviewDb(ISSUES, [])
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { reviewDayForReview } = await import("./pms-time-service")
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, {
+      designerId: "designer1", projectId: "project-1", spentOn: "2026-09-02", decision: "approved",
+    })).rejects.toThrow("No submitted hours to review for this day")
+  })
+
+  test("designerId, projectId, spentOn and a real decision are all required", async () => {
+    const { reviewDayForReview } = await import("./pms-time-service")
+    const base = { designerId: "designer1", projectId: "project-1", spentOn: "2026-09-02", decision: "approved" as const }
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, { ...base, designerId: "" })).rejects.toThrow("designerId is required")
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, { ...base, projectId: "" })).rejects.toThrow("projectId is required")
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, { ...base, spentOn: "" })).rejects.toThrow("spentOn is required")
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, { ...base, decision: "maybe" as never })).rejects.toThrow("decision must be approved or rejected")
+  })
+})

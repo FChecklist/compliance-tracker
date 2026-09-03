@@ -33,6 +33,7 @@ import { pipelineTasks, submissions } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import { getTimeEntry } from "./pms-time-service"
 export { ServiceError }
 
 /** The pipeline function id these rows carry. verbFor() maps it to "Review". */
@@ -197,6 +198,64 @@ export async function closeTimesheetReturnedTask(ctx: { orgId: string; userId: s
   return closeTimesheetTask(ctx, timeEntryId, TIMESHEET_RETURNED_FUNCTION_ID, "resubmitted")
 }
 
+export type TimesheetDecisionTasks = {
+  reviewTaskClosed: number
+  returnedTaskCreated: boolean
+  reviewTaskError: string | null
+}
+
+/**
+ * The Task Master bookkeeping that follows a manager's decision, in ONE place
+ * instead of two near-identical blocks in the approve and reject routes (which
+ * is also what pushed the reject handler past this repo's complexity ceiling).
+ *
+ * The bookkeeping NEVER fails the decision. The hours have already moved; a
+ * task row that could not be written is reported on the response so the screen
+ * can say so, and logged, but it does not roll back a decision that really was
+ * made. Sequenced, never nested, for D-06's reason.
+ */
+export async function recordTimesheetDecisionTasks(
+  ctx: { orgId: string; userId: string },
+  timeEntryId: string,
+  decision: "approved" | "rejected",
+  rejectionReason: string | null,
+  entry: { userId: string; hours: string | number; spentOn: string }
+): Promise<TimesheetDecisionTasks> {
+  let reviewTaskClosed = 0
+  let returnedTaskCreated = false
+  try {
+    const closed = await closeTimesheetReviewTask(ctx, timeEntryId, decision, rejectionReason)
+    reviewTaskClosed = closed.closed
+
+    if (decision === "rejected") {
+      // Item H-03: the returned entry becomes the DESIGNER's "Needs you" row,
+      // carrying the manager's reason, so they never have to open the entry to
+      // find out what to change.
+      const detail = await getTimeEntry({ orgId: ctx.orgId }, timeEntryId)
+      const returned = await openTimesheetReturnedTask({ orgId: ctx.orgId }, {
+        timeEntryId,
+        projectId: detail.projectId,
+        designerId: entry.userId,
+        designerName: detail.loggedBy?.name ?? entry.userId,
+        hours: entry.hours,
+        issueNumber: detail.issue?.number ?? null,
+        issueTitle: detail.issue?.title ?? null,
+        spentOn: entry.spentOn,
+        rejectionReason,
+      })
+      returnedTaskCreated = returned.created
+    }
+    return { reviewTaskClosed, returnedTaskCreated, reviewTaskError: null }
+  } catch (taskError) {
+    console.error(`timesheet ${decision} -- Task Master update failed (the decision IS recorded):`, taskError)
+    return {
+      reviewTaskClosed,
+      returnedTaskCreated,
+      reviewTaskError: taskError instanceof Error ? taskError.message : "Could not update the Task Master rows",
+    }
+  }
+}
+
 async function closeTimesheetTask(
   ctx: { orgId: string; userId: string },
   timeEntryId: string,
@@ -220,10 +279,57 @@ async function closeTimesheetTask(
       .returning({ id: pipelineTasks.id, submissionId: pipelineTasks.submissionId })
 
     if (rows.length > 0) {
-      await db.update(submissions)
-        .set({ status: "done" })
-        .where(and(eq(submissions.orgId, ctx.orgId), inArray(submissions.id, rows.map((r) => r.submissionId))))
+      await recomputeSubmissionStatuses(db, ctx.orgId, [...new Set(rows.map((r) => r.submissionId))])
     }
     return { closed: rows.length }
   })
+}
+
+/**
+ * schema.ts on compliance.submissions.status: "DERIVED from this submission's
+ * own pipelineTasks, never set independently by a route handler ... the only
+ * writer of this column after INSERT must be the same service function that
+ * recomputes it from child task statuses" (M25).
+ *
+ * The first cut of this service wrote `status: 'done'` straight after closing
+ * a task. That happened to be right, because every submission this service
+ * mints carries exactly one task -- but "happens to be right" is precisely
+ * what the invariant exists to stop, and a second task on one of these
+ * submissions would have made it silently wrong. So the status is RECOMPUTED
+ * from the children, in the same transaction that just changed one of them.
+ *
+ * The mapping is M25's own: every child done -> done; any blocked child (this
+ * schema's closed 5-status set has no 'failed') -> partial; anything still
+ * open -> in_progress.
+ */
+async function recomputeSubmissionStatuses(
+  db: Parameters<Parameters<typeof withTenantContext>[1]>[0],
+  orgId: string,
+  submissionIds: string[]
+): Promise<void> {
+  if (submissionIds.length === 0) return
+  const children = await db.select({ submissionId: pipelineTasks.submissionId, status: pipelineTasks.status })
+    .from(pipelineTasks)
+    .where(and(eq(pipelineTasks.orgId, orgId), inArray(pipelineTasks.submissionId, submissionIds)))
+
+  const bySubmission = new Map<string, string[]>()
+  for (const child of children) {
+    const bucket = bySubmission.get(child.submissionId)
+    if (bucket) bucket.push(child.status)
+    else bySubmission.set(child.submissionId, [child.status])
+  }
+
+  for (const submissionId of submissionIds) {
+    const statuses = bySubmission.get(submissionId) ?? []
+    // No children at all is not "done" -- there is nothing that finished.
+    if (statuses.length === 0) continue
+    const next = statuses.includes("blocked")
+      ? "partial"
+      : statuses.every((s) => s === "done")
+        ? "done"
+        : "in_progress"
+    await db.update(submissions)
+      .set({ status: next })
+      .where(and(eq(submissions.orgId, orgId), eq(submissions.id, submissionId)))
+  }
 }

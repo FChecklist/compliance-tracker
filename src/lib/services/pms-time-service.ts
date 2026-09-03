@@ -134,7 +134,7 @@ export async function updateTimeEntry(
       ...(patch.activityType !== undefined ? { activityType: patch.activityType || null } : {}),
       ...(patch.comments !== undefined ? { comments: patch.comments || null } : {}),
     }).where(eq(pmsTimeEntries.id, entryId)).returning()
-    return row
+    return { ...row, ref: timesheetEntryRef(row.id) }
   })
 }
 
@@ -155,7 +155,12 @@ export async function logTime(
       orgId: ctx.orgId, issueId: input.issueId, userId: ctx.userId, hours: input.hours,
       spentOn: input.spentOn, activityType: input.activityType || null, comments: input.comments || null,
     }).returning()
-    return entry
+    // R67 WS-H fix pass: every WRITE answers with the same `ref` the reads do.
+    // Without it the create screen's landing receipt fell back to the raw cuid
+    // and read "Timesheet entry cm3x9k2a0004fg saved" instead of item H-01's
+    // quoted "Timesheet entry TS-000123 saved" -- a response that cannot name
+    // the thing it just created forces its caller to invent a name.
+    return { ...entry, ref: timesheetEntryRef(entry.id) }
   })
 }
 
@@ -190,6 +195,15 @@ export async function deleteTimeEntry(ctx: { orgId: string; userId: string }, en
 // somebody has already reported.
 export const RESUBMITTABLE_STATUSES = ["draft", "rejected"] as const
 
+// R67 WS-H (item H-02): "Reject opens a required Reason field of at least 5
+// characters". Until the fix pass that rule lived only in the review screen's
+// disabled-button check, which is a courtesy, not a guarantee -- any other
+// caller could return a day with an empty reason and the designer would get a
+// "Needs you" row that does not say what to change. It is enforced here, where
+// the decision is actually written.
+export const REJECTION_REASON_MIN_LENGTH = 5
+export const REJECTION_REASON_TOO_SHORT = `Say what to change in at least ${REJECTION_REASON_MIN_LENGTH} characters`
+
 export async function submitTimeEntry(ctx: { orgId: string; userId: string }, entryId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const existing = await db.query.pmsTimeEntries.findFirst({ where: and(eq(pmsTimeEntries.id, entryId), eq(pmsTimeEntries.orgId, ctx.orgId)) })
@@ -202,7 +216,7 @@ export async function submitTimeEntry(ctx: { orgId: string; userId: string }, en
     const [row] = await db.update(pmsTimeEntries)
       .set({ approvalStatus: "submitted", rejectionReason: null })
       .where(eq(pmsTimeEntries.id, entryId)).returning()
-    return row
+    return { ...row, ref: timesheetEntryRef(row.id) }
   })
 }
 
@@ -264,6 +278,74 @@ async function reviewTimeEntry(ctx: { orgId: string; userId: string }, entryId: 
       })
       .where(eq(pmsTimeEntries.id, entryId)).returning()
     return row
+  })
+}
+
+// R67 WS-H fix pass (item H-03, "Approve (bulk per day)"). The manager's side
+// of submitDayForReview, and it exists for the identical reason: the review
+// queue decides ONE DESIGNER'S DAY, and a client loop of N POSTs can
+// half-succeed. A manager approving a four-row day whose third call fails ends
+// with two rows approved and two not, and there is no honest thing to show
+// them -- the day is neither decided nor undecided.
+//
+// One transaction over exactly the rows that are still `submitted` for that
+// designer on that day and project. Self-review is refused the same way
+// reviewTimeEntry refuses it, and it is refused for the WHOLE call rather than
+// per row, so a manager who logged one of the day's entries cannot approve the
+// other three by accident.
+export async function reviewDayForReview(
+  ctx: { orgId: string; userId: string },
+  input: { designerId: string; projectId: string; spentOn: string; decision: "approved" | "rejected"; rejectionReason?: string }
+) {
+  if (!input.designerId) throw new ServiceError("designerId is required", 400)
+  if (!input.projectId) throw new ServiceError("projectId is required", 400)
+  if (!input.spentOn) throw new ServiceError("spentOn is required", 400)
+  if (input.decision !== "approved" && input.decision !== "rejected") {
+    throw new ServiceError("decision must be approved or rejected", 400)
+  }
+  if (input.decision === "rejected" && (input.rejectionReason ?? "").trim().length < REJECTION_REASON_MIN_LENGTH) {
+    throw new ServiceError(REJECTION_REASON_TOO_SHORT, 400)
+  }
+  if (input.designerId === ctx.userId) {
+    throw new ServiceError("The submitter cannot review their own time entry", 403)
+  }
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const issues = await db.query.pmsIssues.findMany({
+      where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, input.projectId)),
+      columns: { id: true, number: true, title: true },
+    })
+    const issueIds = issues.map((i) => i.id)
+    if (issueIds.length === 0) throw new ServiceError("No submitted hours to review for this day", 400)
+
+    const pending = await db.query.pmsTimeEntries.findMany({
+      where: and(
+        eq(pmsTimeEntries.orgId, ctx.orgId),
+        eq(pmsTimeEntries.userId, input.designerId),
+        eq(pmsTimeEntries.spentOn, input.spentOn),
+        eq(pmsTimeEntries.approvalStatus, "submitted"),
+        inArray(pmsTimeEntries.issueId, issueIds)
+      ),
+    })
+    if (pending.length === 0) throw new ServiceError("No submitted hours to review for this day", 400)
+
+    const rows = await db.update(pmsTimeEntries)
+      .set({
+        approvalStatus: input.decision,
+        approvedById: ctx.userId,
+        approvedAt: new Date(),
+        rejectionReason: input.decision === "rejected" ? (input.rejectionReason?.trim() || null) : null,
+      })
+      .where(inArray(pmsTimeEntries.id, pending.map((p) => p.id)))
+      .returning()
+
+    const issueById = new Map(issues.map((i) => [i.id, i]))
+    return {
+      decided: rows.length,
+      decision: input.decision,
+      hours: rows.reduce((sum, r) => sum + Number(r.hours), 0),
+      entries: rows.map((r) => ({ ...r, ref: timesheetEntryRef(r.id), issue: issueById.get(r.issueId) ?? null })),
+    }
   })
 }
 

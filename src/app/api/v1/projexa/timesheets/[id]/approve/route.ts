@@ -18,9 +18,9 @@
 // submit route documents -- and a failure to close is reported on the
 // response rather than rolling back a decision that really was made.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRole, resolveActingUser, readActingUserId } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRole, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import { approveTimeEntry, ServiceError } from "@/lib/services/pms-time-service"
-import { closeTimesheetReviewTask } from "@/lib/services/timesheet-review-task-service"
+import { recordTimesheetDecisionTasks } from "@/lib/services/timesheet-review-task-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   const body = await request.json().catch(() => ({}))
-  const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail, readActingUserId(request))
+  const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail ?? readActingUserEmail(request), readActingUserId(request))
   if (actingUserErr) return actingUserErr
   const roleErr = requireRole(actingUser, "manager")
   if (roleErr) return roleErr
@@ -38,18 +38,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params
     const entry = await approveTimeEntry({ orgId: ctx.orgId, userId: actingUser!.id }, id)
-
-    let reviewTaskClosed = 0
-    let reviewTaskError: string | null = null
-    try {
-      const closed = await closeTimesheetReviewTask({ orgId: ctx.orgId, userId: actingUser!.id }, id, "approved", null)
-      reviewTaskClosed = closed.closed
-    } catch (taskError) {
-      reviewTaskError = taskError instanceof Error ? taskError.message : "Could not close the review task"
-      console.error("v1 projexa timesheet approved -- review task close failed (the decision IS recorded):", taskError)
-    }
-
-    return NextResponse.json({ ...entry, reviewTaskClosed, reviewTaskError })
+    const tasks = await recordTimesheetDecisionTasks(
+      { orgId: ctx.orgId, userId: actingUser!.id },
+      id,
+      "approved",
+      null,
+      entry
+    )
+    return NextResponse.json({ ...entry, ...tasks })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa timesheet approve error:", error)

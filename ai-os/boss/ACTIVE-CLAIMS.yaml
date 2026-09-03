@@ -62,6 +62,19 @@ active:
       src/app/api/v1/construction/progress/route.ts (reads the same header at its existing
       resolveActingUser call site, one line), docs/master/TEST_COVERAGE_GAP.md (regenerated).
 
+      FIX PASS (after review), added to the same scope: the branch was rebuilt on CURRENT
+      origin/main (merge, not a stale base) and reconciled under D-11's addendum -- lane D0's
+      already-merged Design Studio module is CANONICAL and lane H's extra capabilities are
+      folded into it, with BOTH lanes' tests kept. New in this repo: an
+      X-Acting-User-Email header (auth-guard readActingUserEmail) replacing the ?actorEmail=
+      query parameter this lane had introduced; pms-time-service reviewDayForReview()
+      (bulk per-day approve/return in ONE transaction, the manager's mirror of
+      submitDayForReview) at src/app/api/v1/projexa/timesheets/review-day/route.ts;
+      logTime/submitTimeEntry/updateTimeEntry now return the same TS- ref the reads do;
+      timesheet-review-task-service recomputes compliance.submissions.status from its child
+      tasks instead of writing 'done' directly (schema.ts M25 invariant) and owns the
+      shared recordTimesheetDecisionTasks() the approve/reject routes both call.
+
       NOT touched, deliberately: no new migration (drizzle/0268_pms_time_entry_approval_flow.sql
       already ships every approval column H-04 asks for, and pms_billable_rates already exists
       -- verified in this worktree, not assumed); src/lib/services/construction-labour-service.ts
