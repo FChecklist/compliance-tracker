@@ -60,6 +60,13 @@ active:
         src/lib/pipeline/level0.ts (+ .test.ts) -- tier 3b, the timesheet structural pattern
         src/lib/pipeline/classify-only.ts, run-submission.ts, derive-chain.ts (threading only)
         src/app/api/v1/projexa/tasks/route.ts (actorEmail -> actorUserId)
+        src/lib/services/construction-labour-service.ts (+ .test.ts, new) and
+          src/app/api/v1/construction/attendance/route.ts -- C-08's recordAttendanceBatch,
+          added 2026-09-03. Re-checked at that point: no other entry under `active:` claims
+          construction-labour-service.ts or the attendance route (r67-lane-I claims
+          construction-boq*/reports/screen-definitions services only), so the "NOT touching
+          src/lib/services/**" line below is narrowed to "except this one file, which C-08
+          names".
       Later items in this lane additionally take src/lib/pipeline/classify.ts and a
       compliance.pipeline_tasks error_code/error_details migration (C-13).
 
@@ -68,7 +75,8 @@ active:
         M24Shell,Composer,ControlStrip}.tsx, src/components/ReportsClient.tsx,
         src/app/api/{tasks,classify,chain-options}/route.ts (all + their .test.ts).
 
-      NOT touching: drizzle/** (until C-13), src/lib/services/**, the ui-kit (D-09: fork into
+      NOT touching: drizzle/** (until C-13), src/lib/services/** apart from
+      construction-labour-service.ts (see above), the ui-kit (D-09: fork into
       projexa instead), any guardrail script's strictness (AGENTS.md Rule 9), or any file
       another lane's entry claims.
   - session_label: "claude-code (subagent, r67-lane-I) -- PROGRAMME R67 workstream WS-I (data-migrations), items I-01..I-05"

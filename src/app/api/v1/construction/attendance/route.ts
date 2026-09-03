@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { listAttendance, recordAttendance, ServiceError } from "@/lib/services/construction-labour-service"
+import {
+  listAttendance,
+  recordAttendance,
+  recordAttendanceBatch,
+  ServiceError,
+} from "@/lib/services/construction-labour-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
@@ -30,10 +35,27 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
+    // R67 WS-C (C-08): TWO BODIES, ONE ROUTE. A body carrying `entries` marks
+    // a whole crew in ONE transaction; every existing single-row caller
+    // (AttendanceCreateClient's form, and any integration already pointed
+    // here) keeps working untouched, because the branch is on the presence of
+    // the new field and nothing about the old shape moved.
+    if (Array.isArray((body as { entries?: unknown })?.entries)) {
+      const result = await recordAttendanceBatch({ orgId: ctx.orgId }, body)
+      return NextResponse.json(result, { status: 201 })
+    }
     const result = await recordAttendance({ orgId: ctx.orgId }, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
-    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof ServiceError) {
+      // The CODE travels with the refusal, so the client can tell "already
+      // saved -- replace it?" apart from every other 409 without matching on
+      // the wording of a sentence.
+      return NextResponse.json(
+        error.code ? { error: error.message, code: error.code } : { error: error.message },
+        { status: error.status }
+      )
+    }
     console.error("v1 construction attendance record error:", error)
     return NextResponse.json({ error: "Failed to record attendance" }, { status: 500 })
   }
