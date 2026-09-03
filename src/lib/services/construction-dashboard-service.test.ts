@@ -1,5 +1,8 @@
 /// <reference types="bun-types" />
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
+// R67 E-39 (rebase): E-39's own numOrNull() folded into main's numOrNull(),
+// which already had every call site -- one function, not two. See its comment.
+import { numOrNull } from "./construction-dashboard-service"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { resolveProjectMoney } from "./construction-dashboard-service"
@@ -828,5 +831,87 @@ describe("construction-dashboard-service: getOrgDashboard row shape (E-21)", () 
     // there is no figure at all. Pinned so the two lanes cannot re-diverge.
     expect(body).toContain("progressPercent: Math.round(progressMap.get(p.id) ?? 0)")
     expect(body).not.toMatch(/progressPercent:.*\?\? null/)
+  })
+})
+// R67 E-39 (R-271 / R-297 / R-293). THE PROJECT DASHBOARD PAYLOAD.
+//
+// The defect was one `coalesce(..., 0)`: a project with no ERP cost-centre
+// budget reported a budget of ZERO, and the Budget vs Actual card then drew a
+// full bar with an up arrow and the words "over budget" against a target of
+// zero -- permanently, for every project that does not run VERIDIAN's ERP
+// budgets, which is most of them.
+//
+// numOrNull is the rule itself and is tested for real below. The rest are
+// source-shape guards, in the same spirit (and with the same stated limits) as
+// the pool-deadlock guards at the top of this file: they catch the exact
+// regression -- re-adding the coalesce, or dropping one of the named fields --
+// not every possible way to get this wrong. A live-database assertion is NOT
+// run here; this lane has no database.
+describe("construction-dashboard-service: numOrNull (E-39)", () => {
+  test("SQL NULL becomes null, never 0 -- the whole point", () => {
+    // postgres.js hands a sum() over zero rows back as null, and Number(null)
+    // is 0. That silent coercion is the bug.
+    expect(numOrNull(null)).toBe(null)
+    expect(numOrNull(undefined)).toBe(null)
+  })
+
+  test("a real zero stays a real zero", () => {
+    expect(numOrNull(0)).toBe(0)
+    expect(numOrNull("0")).toBe(0)
+  })
+
+  test("numeric strings (what postgres returns for numeric columns) are parsed", () => {
+    expect(numOrNull("1625.5")).toBe(1625.5)
+  })
+
+  test("a value that is not a number is null, not NaN -- NaN renders as a figure", () => {
+    expect(numOrNull("not a number")).toBe(null)
+  })
+})
+
+describe("construction-dashboard-service: getProjectDashboard payload (E-39)", () => {
+  // R67 E-39 MERGE NOTE (rebase onto main, 2026-09-03). This block was written
+  // as source-shape guards over getProjectDashboard's own body: it asserted the
+  // budget query was not coalesced, and that the named fields were returned
+  // from the literal in that function. While the lane sat on the branch, F-27
+  // replaced ALL of that with ONE SQL statement plus the pure, exported
+  // toProjectDashboard(), so there is no longer a per-project budget query in
+  // that function to inspect.
+  //
+  // The RULES under test are unchanged, so they are restated against the code
+  // that now decides them -- and restated as BEHAVIOUR rather than source text,
+  // which is a stronger test than the one it replaces. The budget rule itself
+  // ("no rows" is null, "a budget of zero" is 0) is already covered
+  // behaviourally by the "a missing budget is null, never 0" suite above, via
+  // the row COUNT that F-27's statement returns; it is not duplicated here.
+  test("both progress bases are returned under names that say what they measure", async () => {
+    const { toProjectDashboard } = await loadService()
+    // Two different progress figures reach this screen and both were called
+    // "progress"; a reader comparing 60% with 0% could not tell they measure
+    // different things rather than contradicting each other.
+    const d = toProjectDashboard(SQL_ROW, true)
+    expect(d.progressByActivityLogPct).toBe(Math.round(SQL_ROW.progress_percent))
+    expect(d.progressByBoqValuePct).toBe(d.percentByValue)
+    // The originals stay -- other consumers read them.
+    expect(d.progressPercent).toBe(d.progressByActivityLogPct)
+  })
+
+  test("the BOQ-value base is null, not 0, when there is no BOQ to measure against", async () => {
+    const { toProjectDashboard } = await loadService()
+    // The distinction the two names exist to make: "nothing logged" is 0% on
+    // the activity log, while "no BOQ at all" is not a percentage of anything.
+    const d = toProjectDashboard({ ...SQL_ROW, ev_items: [], progress_percent: 0 }, true)
+    expect(d.progressByActivityLogPct).toBe(0)
+    expect(d.progressByBoqValuePct).toBeNull()
+  })
+
+  test("generatedAt travels with the figures, so every tile can say 'as of'", async () => {
+    const { toProjectDashboard } = await loadService()
+    const before = Date.now()
+    const d = toProjectDashboard(SQL_ROW, true)
+    expect(typeof d.generatedAt).toBe("string")
+    const stamped = Date.parse(d.generatedAt)
+    expect(Number.isNaN(stamped)).toBe(false)
+    expect(stamped).toBeGreaterThanOrEqual(before - 1000)
   })
 })

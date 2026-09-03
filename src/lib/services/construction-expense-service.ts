@@ -249,10 +249,17 @@ export async function createExpenseEntry(ctx: { orgId: string; userId: string },
     // avoids extending that shared engine's condition grammar.
     void import("./construction-dashboard-service").then(({ getProjectDashboard }) =>
       getProjectDashboard({ orgId: ctx.orgId }, row.projectId).then((dashboard) => {
+        // R67 E-39 x D-02 (resolved on rebase): E-39 wrote an inline
+        // `dashboard.budget ?? 0` guard here for the same reason D-02 wrote
+        // budgetExceeded() above -- a null budget must never fire the trigger,
+        // or the first expense on every unbudgeted project raises an alert
+        // about a budget nobody set. D-02's named helper reached main first and
+        // is the one kept: one predicate, tested where it is defined, rather
+        // than the same rule spelled out at each call site.
         if (budgetExceeded(dashboard.budget, dashboard.expenses)) {
           void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
             evaluateAndRunRules({ orgId: ctx.orgId }, "construction_expense.budget_exceeded", {
-              projectId: row.projectId, budget: dashboard.budget, expenses: dashboard.expenses,
+              projectId: row.projectId, budget, expenses: dashboard.expenses,
             })
           )
         }

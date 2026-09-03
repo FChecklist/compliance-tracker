@@ -223,9 +223,26 @@ export type ProjectDashboard = {
   revenue: number
   expenses: number
   progressPercent: number // average of each activity's latest logged percentComplete
+  /**
+   * R67 E-39: the SAME number as progressPercent, under a name that says what
+   * it measures. Two different progress figures reach this screen and both
+   * were called "progress"; a reader comparing 60% here with 0% there could
+   * not tell they were measuring different things. progressPercent is kept
+   * because other consumers read it -- these two are the names the UI uses.
+   */
+  progressByActivityLogPct: number
+  /** R67 E-39: the SAME number as percentByValue -- earned value over contract value. */
+  progressByBoqValuePct: number | null
   delayedTaskCount: number // open pms_issues past dueDate (approximation -- doesn't check status "completed" group, see comment above)
   photoCount: number
   taskCount: number
+  /**
+   * R67 E-39 (R-293): when these figures were computed, ISO 8601. Every tile
+   * prints "as of ..." from it -- a dashboard whose data is four minutes old
+   * and one whose fetch silently failed twenty minutes ago look identical
+   * without it.
+   */
+  generatedAt: string
   // Point 121: COALESCE(user-entered projects.projectValue, SUM of linked
   // erp_purchase_orders.grandTotal). null (never 0) when NEITHER source
   // exists -- a zero project value on a dashboard reads as a real figure.
@@ -350,8 +367,17 @@ function num(value: string | number | null | undefined): number {
  * in resolveProjectMoney() above, and this only reads the two sources out of the
  * row it is handed.
  */
-function numOrNull(value: string | number | null | undefined): number | null {
-  return value === null || value === undefined ? null : Number(value)
+export function numOrNull(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined) return null
+  // R67 E-39 (R-271), folded in on rebase. E-39 wrote this same rule as its own
+  // exported numberOrNull(); one function, not two, and this is the one that
+  // already had every call site. Its addition is the finite check: a SQL sum()
+  // over zero rows is NULL and postgres.js hands back JavaScript null, but a
+  // column that arrives as a non-numeric string would otherwise become NaN and
+  // be rendered as "NaN" on a tile. "Not a number" is not a figure, so it takes
+  // the same "we have no figure" path as null.
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 type EarnedValueFigures = { earnedValue: number | null; percentByValue: number | null; contractValue: number | null }
@@ -385,14 +411,26 @@ export function toProjectDashboard(row: DashboardSqlRow, constructionEnabled: bo
     boqContractValue: ev.contractValue,
     earnedValue: ev.earnedValue,
   })
+  const roundedProgress = Math.round(num(row.progress_percent))
   return {
     projectId: row.project_id,
     projectName: row.project_name,
     // R67 D-02: null when the budget CTE matched no line items at all.
+    // (E-39 reached the same rule independently by dropping the coalesce() and
+    // reading SQL NULL; D-02's row-count form arrived on main first and is the
+    // one kept -- one rule, one place, same answer.)
     budget: num(row.budget_lines) > 0 ? num(row.budget) : null,
     revenue: num(row.revenue),
     expenses: num(row.expenses),
-    progressPercent: Math.round(num(row.progress_percent)),
+    progressPercent: roundedProgress,
+    // R67 E-39 (R-297): the same two figures under names that say what they
+    // MEASURE. Both reach the project dashboard and both were called
+    // "progress", so a reader seeing 60% on one tile and 0% on another could
+    // not tell they were different measurements rather than a contradiction.
+    // progressPercent and percentByValue are kept as-is because other
+    // consumers read them; these are the names the tiles render.
+    progressByActivityLogPct: roundedProgress,
+    progressByBoqValuePct: ev.percentByValue,
     delayedTaskCount: num(row.delayed_task_count),
     photoCount: num(row.photo_count),
     taskCount: num(row.task_count),
@@ -403,6 +441,13 @@ export function toProjectDashboard(row: DashboardSqlRow, constructionEnabled: bo
     contractValue: money.contractValue,
     permitsExpiringCount: num(row.permits_expiring),
     permitsExpiredCount: num(row.permits_expired),
+    // R67 E-39 (R-293): when these figures were computed. Every tile prints
+    // "as of ..." from it, because a dashboard four minutes old and one whose
+    // fetch quietly failed twenty minutes ago look identical without it. Set
+    // here, at projection time, so a CACHED dashboard keeps the stamp of the
+    // read it actually came from rather than being restamped on serving --
+    // which would make a cache hit claim to be fresher than it is.
+    generatedAt: new Date().toISOString(),
     // R67 F-14: the same pure function the named report uses, over the rows the
     // one statement already returned. An activity with no logged entry is
     // absent from activity_percents and computeCategoryProgress reads it as 0,

@@ -86,6 +86,9 @@ export async function dispatchConstructionTool(
     // R67 D-02: p.budget is now `number | null` (null = no budget set at all,
     // which is not a budget of zero). Reuses the one rule that decides this,
     // rather than restating it -- see construction-expense-service.ts.
+    // (E-39 independently wrote the same `?? 0` guard inline here; D-02's
+    // shared predicate reached main first and is the one kept, so there is one
+    // definition of "over budget" rather than three.)
     const { budgetExceeded } = await import("@/lib/services/construction-expense-service")
     return results.filter((p) => budgetExceeded(p.budget, p.expenses))
   }

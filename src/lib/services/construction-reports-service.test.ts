@@ -1752,16 +1752,31 @@ describe("R67 E-32: buildReportTable -- the {columns, rows} contract", () => {
     expect(table.note).toContain("60%")
   })
 
-  test("category-boq-amounts: amounts total, percentages do not", () => {
+  // Fixtures corrected to the handler's REAL row (R67 E-36..E-40 group):
+  // categoryBoqAmountsReport returns { categoryId, name, totalAmount } and no
+  // completion figure at all -- that lives in "category-progress", a different
+  // report. The old "% complete" column named a field that never arrives.
+  test("category-boq-amounts: amounts total, and there is no completion figure here to show", () => {
     const table = buildReportTable("category-boq-amounts", {
       categories: [
-        { categoryId: "c1", name: "Civil", totalAmount: 4_000_000, completedPercent: 40 },
-        { categoryId: "text:paint", name: "Paint", totalAmount: 4000, completedPercent: 100 },
+        { categoryId: "c1", name: "Civil", totalAmount: 4_000_000 },
+        { categoryId: "text:paint", name: "Paint", totalAmount: 4000 },
       ],
       uncategorizedAmount: 0, totalAmount: 4_004_000,
     }, "AED")
-    expect(labels(table)).toEqual(["Category", "BOQ amount", "% complete"])
+    expect(labels(table)).toEqual(["Category", "BOQ amount"])
     expect(table.totals).toEqual({ totalAmount: 4_004_000 })
+    expect(table.note).toBeUndefined()
+  })
+
+  test("category-boq-amounts: BOQ value on uncategorised lines is stated, not dropped", () => {
+    const table = buildReportTable("category-boq-amounts", {
+      categories: [{ categoryId: "c1", name: "Civil", totalAmount: 4_000_000 }],
+      uncategorizedAmount: 4000, totalAmount: 4_004_000,
+    }, "AED")
+    // The rows sum to less than the total, and the reader is told why rather
+    // than left to find a 4,000 discrepancy.
+    expect(table.note).toContain("no category")
   })
 
   test("earned-value: one row, three typed figures", () => {
@@ -1781,13 +1796,18 @@ describe("R67 E-32: buildReportTable -- the {columns, rows} contract", () => {
   })
 
   test("kpi: one row per definition, carrying how many readings it has", () => {
+    // The column on constructionKpiDefinitions is `metricName`; there is no
+    // `name`, so the old fixture described a row the handler cannot return.
     const table = buildReportTable("kpi", {
-      definitions: [{ id: "k1", name: "Safety incidents", unit: "count" }, { id: "k2", name: "Rework", unit: null }],
+      definitions: [
+        { id: "k1", metricName: "Safety incidents", unit: "count" },
+        { id: "k2", metricName: "Rework", unit: null },
+      ],
       entries: [{ id: "e1", kpiDefinitionId: "k1" }, { id: "e2", kpiDefinitionId: "k1" }],
     }, "AED")
     expect(labels(table)).toEqual(["KPI", "Unit", "Readings"])
-    expect(table.rows[0]).toEqual({ name: "Safety incidents", unit: "count", entryCount: 2 })
-    expect(table.rows[1]).toEqual({ name: "Rework", unit: null, entryCount: 0 })
+    expect(table.rows[0]).toEqual({ metricName: "Safety incidents", unit: "count", entryCount: 2 })
+    expect(table.rows[1]).toEqual({ metricName: "Rework", unit: null, entryCount: 0 })
   })
 
   test("designer-timesheet: project-scoped hours per designer, and it says where the rest is", () => {
@@ -1804,20 +1824,28 @@ describe("R67 E-32: buildReportTable -- the {columns, rows} contract", () => {
   })
 
   test("designer-approval-status: one column per approval state, each totalled", () => {
+    // The handler's key is `byDesigner`, and pms_time_entries.approval_status
+    // has four values -- draft | submitted | approved | REJECTED. "sent_back"
+    // is not one this system stores, so the old column could never fill.
     const table = buildReportTable("designer-approval-status", {
-      byUser: [{
+      byDesigner: [{
         userId: "u1", userName: "Asha",
         draft: { hours: 2, entries: 1 }, submitted: { hours: 4, entries: 2 },
-        approved: { hours: 6, entries: 3 }, sent_back: { hours: 0, entries: 0 },
+        approved: { hours: 6, entries: 3 }, rejected: { hours: 0, entries: 0 },
       }],
     }, "AED")
-    expect(labels(table)).toEqual(["Designer", "Draft (h)", "Submitted (h)", "Approved (h)", "Sent back (h)"])
-    expect(table.totals).toEqual({ draft: 2, submitted: 4, approved: 6, sent_back: 0 })
+    expect(labels(table)).toEqual(["Designer", "Draft (h)", "Submitted (h)", "Approved (h)", "Rejected (h)"])
+    expect(table.totals).toEqual({ draft: 2, submitted: 4, approved: 6, rejected: 0 })
   })
 
   test("work-analysis: hours and how many tasks each person touched", () => {
+    // The handler's key is `byDesigner` (workAnalysisReport returns
+    // { byDesigner: [...] }, including on its empty-project early return). The
+    // old fixture said `byUser`, which is the name of a LOCAL inside
+    // aggregateWorkAnalysis and never reaches the payload -- so this described
+    // a row the report cannot produce.
     const table = buildReportTable("work-analysis", {
-      byUser: [{
+      byDesigner: [{
         userId: "u1", userName: "Asha", totalHours: 12,
         byTask: [{ taskId: "t1", taskName: "Layout", hours: 8 }, { taskId: "t2", taskName: "Detailing", hours: 4 }],
         byCategory: [],

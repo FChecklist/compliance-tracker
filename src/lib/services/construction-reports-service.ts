@@ -1592,17 +1592,34 @@ export type TimesheetStatusEntry = {
   hours: number
 }
 
-const APPROVAL_STATUSES = ["draft", "submitted", "approved", "rejected"] as const
+// R67 E-32 follow-up (E-36..E-40 group): typed, not Record<string, ...>.
+// `counts` was a Record with a STRING key, and spreading a string-indexed
+// record into an object literal produces a type with no known properties at
+// all -- so aggregateDesignerApprovalStatus()'s public return type was
+// `{ userId, userName }[]`, the four status buckets were invisible to
+// TypeScript, and E-32's report-table builder for this report referenced
+// `u.draft.hours` against a type that had no `draft`. Runtime values are
+// unchanged; the keys are simply now declared.
+type ApprovalStatusKey = TimesheetStatusEntry["approvalStatus"]
+type ApprovalStatusCount = { hours: number; entries: number }
 
 export function aggregateDesignerApprovalStatus(entries: TimesheetStatusEntry[]) {
-  const byUser = new Map<string, { userId: string; userName: string; counts: Record<string, { hours: number; entries: number }> }>()
+  const byUser = new Map<
+    string,
+    { userId: string; userName: string; counts: Record<ApprovalStatusKey, ApprovalStatusCount> }
+  >()
   for (const e of entries) {
     let bucket = byUser.get(e.userId)
     if (!bucket) {
       bucket = {
         userId: e.userId,
         userName: e.userName,
-        counts: Object.fromEntries(APPROVAL_STATUSES.map((s) => [s, { hours: 0, entries: 0 }])),
+        counts: {
+          draft: { hours: 0, entries: 0 },
+          submitted: { hours: 0, entries: 0 },
+          approved: { hours: 0, entries: 0 },
+          rejected: { hours: 0, entries: 0 },
+        },
       }
       byUser.set(e.userId, bucket)
     }
@@ -2421,11 +2438,26 @@ const REPORT_TABLE_BUILDERS: { [K in ReportName]: (payload: Payload<K>) => Built
   // is a null -- a real "there is no such number" -- and never a zero. The
   // comparison the report is FOR lives in the totals row, where all three
   // figures are real.
+  // R67 E-32 x E-39 x D-02 (resolved on rebase): `budget` and `variance` are
+  // `number | null` on this payload now -- D-02 made getProjectDashboard report
+  // null (never 0) for a project with no ERP budget rows, and budgetVariance()
+  // propagates that. `totals` is a map of NUMBERS, and its own contract is
+  // "present only where summing that column is a real statement", so a budget
+  // nobody has set is omitted rather than written as a 0 that would read as a
+  // measured zero budget and make every unbudgeted project look overspent by
+  // its whole spend. The renderer already prints an en dash for an absent
+  // total, which is the honest cell here.
   "budget-vs-actual": (p) => ({
     columns: [textCol("head", "Expense head"), moneyCol("budget", "Budget"), moneyCol("actual", "Actual"), moneyCol("variance", "Variance")],
     rows: p.byHead.map((r) => ({ head: r.expenseHead, budget: null, actual: Number(r.total), variance: null })),
-    totals: { budget: p.budget, actual: p.actual, variance: p.variance },
-    note: "The ERP budget is a single project-wide figure, so there is no per-head budget to compare against; the comparison is the total row.",
+    totals: {
+      ...(p.budget !== null ? { budget: p.budget } : {}),
+      actual: p.actual,
+      ...(p.variance !== null ? { variance: p.variance } : {}),
+    },
+    note: p.budget === null
+      ? "No ERP budget is set for this project, so there is nothing to compare the spend against."
+      : "The ERP budget is a single project-wide figure, so there is no per-head budget to compare against; the comparison is the total row.",
   }),
 
   "material-consumption": (p) => ({
@@ -2496,33 +2528,44 @@ const REPORT_TABLE_BUILDERS: { [K in ReportName]: (payload: Payload<K>) => Built
     note: "Hours logged on this project, per designer. The budget-vs-actual and org-wide breakdowns are a different grain and are served by ?format=legacy.",
   }),
 
+  // R67 E-32 follow-up: this read `p.byUser` and a "sent_back" status. The
+  // handler's key is `byDesigner`, and the four real statuses are draft |
+  // submitted | approved | REJECTED (pms_time_entries.approval_status) --
+  // "sent back" is not a value this system stores, so the column was a name
+  // for a number that could never arrive.
   "designer-approval-status": (p) => ({
     columns: [
       textCol("userName", "Designer"), numCol("draft", "Draft (h)"), numCol("submitted", "Submitted (h)"),
-      numCol("approved", "Approved (h)"), numCol("sent_back", "Sent back (h)"),
+      numCol("approved", "Approved (h)"), numCol("rejected", "Rejected (h)"),
     ],
-    rows: p.byUser.map((u) => ({
+    rows: p.byDesigner.map((u) => ({
       userName: u.userName,
-      draft: u.draft.hours, submitted: u.submitted.hours, approved: u.approved.hours, sent_back: u.sent_back.hours,
+      draft: u.draft.hours, submitted: u.submitted.hours, approved: u.approved.hours, rejected: u.rejected.hours,
     })),
     totals: {
-      draft: sumColumn(p.byUser, (u) => u.draft.hours),
-      submitted: sumColumn(p.byUser, (u) => u.submitted.hours),
-      approved: sumColumn(p.byUser, (u) => u.approved.hours),
-      sent_back: sumColumn(p.byUser, (u) => u.sent_back.hours),
+      draft: sumColumn(p.byDesigner, (u) => u.draft.hours),
+      submitted: sumColumn(p.byDesigner, (u) => u.submitted.hours),
+      approved: sumColumn(p.byDesigner, (u) => u.approved.hours),
+      rejected: sumColumn(p.byDesigner, (u) => u.rejected.hours),
     },
   }),
 
+  // R67 E-32 follow-up: `p.byUser` -> `p.byDesigner`, the handler's own key.
   "work-analysis": (p) => ({
     columns: [textCol("userName", "Person"), numCol("totalHours", "Hours"), numCol("taskCount", "Tasks worked")],
-    rows: p.byUser.map((u) => ({ userName: u.userName, totalHours: u.totalHours, taskCount: u.byTask.length })),
-    totals: { totalHours: sumColumn(p.byUser, (u) => u.totalHours), taskCount: sumColumn(p.byUser, (u) => u.byTask.length) },
+    rows: p.byDesigner.map((u) => ({ userName: u.userName, totalHours: u.totalHours, taskCount: u.byTask.length })),
+    totals: {
+      totalHours: sumColumn(p.byDesigner, (u) => u.totalHours),
+      taskCount: sumColumn(p.byDesigner, (u) => u.byTask.length),
+    },
   }),
 
+  // R67 E-32 follow-up: the column is `metricName` on the real row -- a KPI
+  // definition has no `name`.
   kpi: (p) => ({
-    columns: [textCol("name", "KPI"), textCol("unit", "Unit"), numCol("entryCount", "Readings")],
+    columns: [textCol("metricName", "KPI"), textCol("unit", "Unit"), numCol("entryCount", "Readings")],
     rows: p.definitions.map((d) => ({
-      name: d.name,
+      metricName: d.metricName,
       unit: d.unit ?? null,
       entryCount: p.entries.filter((e) => e.kpiDefinitionId === d.id).length,
     })),
@@ -2555,10 +2598,22 @@ const REPORT_TABLE_BUILDERS: { [K in ReportName]: (payload: Payload<K>) => Built
     note: `Overall ${p.overallPercentComplete}% complete, averaged over the categories below.`,
   }),
 
+  // R67 E-32 follow-up: this report has NO completion figure -- it totals BOQ
+  // line amounts per category and nothing else (the completion percentage is
+  // "category-progress", a different report, and the two are combined for the
+  // charts by src/lib/category-distribution.ts in projexa). The "% complete"
+  // column named a field that does not exist on the row, so it could only ever
+  // have rendered an en dash. Money that belongs to no category is real BOQ
+  // money and is stated rather than dropped, which is why the rows can sum to
+  // less than the total.
   "category-boq-amounts": (p) => ({
-    columns: [textCol("name", "Category"), moneyCol("totalAmount", "BOQ amount"), pctCol("completedPercent", "% complete")],
-    rows: p.categories.map((c) => ({ name: c.name, totalAmount: c.totalAmount, completedPercent: c.completedPercent })),
+    columns: [textCol("name", "Category"), moneyCol("totalAmount", "BOQ amount")],
+    rows: p.categories.map((c) => ({ name: c.name, totalAmount: c.totalAmount })),
     totals: { totalAmount: p.totalAmount },
+    note:
+      p.uncategorizedAmount > 0
+        ? `The total includes ${p.uncategorizedAmount} of BOQ value on lines with no category.`
+        : undefined,
   }),
 
   "certified-payroll": (p) => ({
