@@ -8,11 +8,16 @@ import {
   pmsIssues, pmsIssueBoqLinks,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, gte, lte, inArray, sql } from "drizzle-orm"
+import { and, desc, eq, gte, lte, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { listDocuments } from "./document-service"
 import { logActivity } from "@/lib/audit"
 import { users as usersTable } from "@/lib/db"
+// R67 F-27 (R-243): logging or deleting progress moves % complete, earned
+// value and the progress bar on the per-project dashboard, which now holds a
+// 60 s cache. ONE helper, imported from a dependency-free module so this
+// service does not have to depend on the dashboard service.
+import { bustProjectDashboardCache } from "./project-dashboard-cache"
 export { ServiceError }
 
 /**
@@ -131,65 +136,178 @@ export async function createActivity(ctx: { orgId: string }, input: { projectId:
 // column) and boqLineItemId (the direct-link column added by R12 point 7)
 // as additional, purely optional filters -- every existing caller that
 // passes none of them keeps getting exactly the same result set as before.
-// ─── R67 lane D22 (item D-64, rec R-230) ──────────────────────────────────
-// THE 25-CHARACTER ID IN THE "BOQ LINE" COLUMN. This list is what a site
+// ─── R67 lane D22 (item D-64, rec R-230) x R67 D-28/F-24 (already on main) ──
+// THE 25-CHARACTER ID IN THE "BOQ LINE" COLUMN, and what closed it.
+//
+// Lane D22 and lane D-28/F-24 found the same defect -- this list is what a site
 // engineer reads back to check what they logged, and its BOQ line column
 // printed a cuid, because the entry row carries only boq_line_item_id and
-// nothing joined it to the line. The PROJEXA screen papered over it with a
-// client-side lookup against whichever BOQ the form happened to have loaded --
-// so an entry recorded against any OTHER revision still rendered as its raw id.
-// Joining here fixes it for the list, the report and the chat at once.
+// nothing joined it to the line. PROJEXA papered over it with a client-side
+// lookup against whichever BOQ the form happened to have loaded, so an entry
+// recorded against any OTHER revision still rendered as its raw id.
+//
+// Two implementations existed. F-24's LEFT JOIN (below, already on main) is
+// kept, because it resolves the name in the SAME statement and removes the
+// client's /api/scope fan-out that D22's in-memory attachBoqLines() left in
+// place. D22's own attachBoqLines()/ProgressEntryBoqLine pair is therefore
+// folded away rather than kept beside it -- two shapes for one fact on one
+// payload is the double truth this programme exists to remove -- and the one
+// thing D22's shape carried that the join did not, the line's OWN BOQ id, is
+// added to the projection below as boqLineBoqId so the cell can LINK to the
+// line instead of merely naming it (R-230's second half).
+// R67 F-24 (audit recommendation R-240) -- THE NAMES COME WITH THE ROWS.
+//
+// THE MEASURED PROBLEM. /work-progress reached idle at 7.4 s over 15 calls
+// because the browser ran a SERIAL chain to answer one question: what does the
+// BOQ column say? It fetched the entries, then the activities, then
+// /api/scope, then one /api/scope/{id} per revision -- pulling every line item
+// of a whole BOQ across the wire -- and after all that still rendered a raw id
+// like "e5eibnze72n8u2y3aoeok" in the cell, because the resolution frequently
+// missed.
+//
+// A progress entry's activity and BOQ line are a JOIN. Two LEFT JOINs (LEFT,
+// so an entry whose line item was later deleted -- boq_line_item_id is ON
+// DELETE SET NULL, see schema.ts -- still lists, with nulls, rather than
+// vanishing) put activityName, boqItemCode and boqDescription on the row, in
+// the SAME statement, and the client's whole scope fan-out disappears. The
+// payload stays small on purpose: three resolved strings per row, never the
+// BOQ.
+//
+// Column list, not `select()`: an explicit projection is what keeps this from
+// silently widening into "every column of three tables" when any of them
+// gains one.
+//
+// R67 D-28 x F-24 RECONCILIATION (integration train, lane D21 onto main).
+// Two lanes joined the same two tables for two different reasons and both are
+// kept:
+//   * F-24 (already on main) needed the LIST to stop fanning out to /api/scope,
+//     and deliberately capped what crosses the wire -- resolved strings only,
+//     "never the BOQ". Its field name `boqDescription` is the one PROJEXA's
+//     merged list client already reads, so it is the canonical name here.
+//   * D-28 (this lane) needed the entry's UNIT on every row -- a quantity with
+//     no unit beside it is not a measurement -- and the line's contracted
+//     figures on the OBJECT page, so a delete confirmation can state a real
+//     blast radius instead of guessing.
+// So: the list projection gains `unit` (a label, not a measurement, so F-24's
+// "nothing priced or quantified crosses the wire" rule still holds literally),
+// and quantity/rate/amount are projected ONLY by getProgressEntry, which
+// returns exactly one row.
+//
+// LEFT, not INNER, on both sides deliberately: boq_line_item_id is nullable
+// (an activity-only entry is legitimate, see createProgressEntry) and its FK
+// is ON DELETE SET NULL, so an inner join would silently DROP real entries
+// rather than show them with an em-dash. The activity join is left too --
+// activity_id is NOT NULL, but a join that can only ever fail closed is worth
+// more than one that can hide a row if referential integrity ever slips.
+const BASE_ENTRY_COLUMNS = {
+  id: constructionWorkProgressEntries.id,
+  orgId: constructionWorkProgressEntries.orgId,
+  projectId: constructionWorkProgressEntries.projectId,
+  activityId: constructionWorkProgressEntries.activityId,
+  boqLineItemId: constructionWorkProgressEntries.boqLineItemId,
+  entryDate: constructionWorkProgressEntries.entryDate,
+  quantityDone: constructionWorkProgressEntries.quantityDone,
+  percentComplete: constructionWorkProgressEntries.percentComplete,
+  entryBasis: constructionWorkProgressEntries.entryBasis,
+  remarks: constructionWorkProgressEntries.remarks,
+  recordedById: constructionWorkProgressEntries.recordedById,
+  createdAt: constructionWorkProgressEntries.createdAt,
+  activityName: constructionActivities.name,
+  boqItemCode: constructionBoqLineItems.itemCode,
+  boqDescription: constructionBoqLineItems.description,
+  // R67 lane D22 (D-64, rec R-230), folded into F-24's projection: the line's
+  // OWN BOQ id. Naming the line is only half of R-230 -- the cell has to be a
+  // way IN to the line ("/scope/{boqId}#line-{lineItemId}"), and without this
+  // the screen would have to fetch a BOQ to discover which one the line sits
+  // on, which is the fan-out F-24 removed. One id per row, no figures: F-24's
+  // "nothing priced or quantified crosses the wire in the list" still holds.
+  boqLineBoqId: constructionBoqLineItems.boqId,
+  // Inputs to resolveProgressUnit() only -- they are stripped from the row
+  // before it is returned, so no caller has to know the precedence rule.
+  activityUnit: constructionActivities.unit,
+  boqLineUnit: constructionBoqLineItems.unit,
+} as const
 
-/** What an entry says about the BOQ line it was recorded against. */
-export type ProgressEntryBoqLine = {
-  boqLineId: string
-  code: string | null
-  description: string
-  unit: string
-  /** The line's contracted quantity. */
-  qtyTotal: number
-  /** This entry's own quantity, not the line's running total -- one row, one fact. */
-  qtyDone: number
-  boqId: string
+// R67 D-28: the line's own contracted figures travel with the ONE entry the
+// object page asked for, so the delete confirmation can state a REAL blast
+// radius ("the running total drops from 60% to 48%") using PROJEXA's existing
+// computeLineItemProgress() rule, instead of the screen guessing or fetching
+// a whole BOQ to find one line. Never in the list -- see F-24's cap above.
+const OBJECT_ENTRY_COLUMNS = {
+  ...BASE_ENTRY_COLUMNS,
+  boqLineQuantity: constructionBoqLineItems.quantity,
+  boqLineRate: constructionBoqLineItems.rate,
+  boqLineAmount: constructionBoqLineItems.amount,
+  // R67 lane D22 (D-77, rec R-289): the project and the person, by NAME.
+  projectName: projects.name,
+  recordedByName: usersTable.name,
+} as const
+
+/** One enriched progress row: the entry, the two joined names, the unit. */
+export type EnrichedProgressEntry = {
+  id: string
+  orgId: string
+  projectId: string
+  activityId: string
+  boqLineItemId: string | null
+  entryDate: string
+  quantityDone: string
+  percentComplete: string
+  entryBasis: string
+  remarks: string | null
+  recordedById: string
+  createdAt: Date
+  /** The activity's name. null only if the activity row is gone. */
+  activityName: string | null
+  /** The linked BOQ line's item code, e.g. "R60SK". null when unlinked. */
+  boqItemCode: string | null
+  /** The linked BOQ line's description. null when unlinked. */
+  boqDescription: string | null
+  /** The BOQ the linked line lives on, so a cell can link to it. null when unlinked. */
+  boqLineBoqId: string | null
+  /** The BOQ line's unit when the entry names a line, else the activity's own. */
+  unit: string | null
 }
 
 /**
- * Pure: attaches each entry's BOQ line, by id, from an already-loaded set.
- *
- * Kept separate from the query so the shape is provable without a database,
- * the same discipline lineProgressFraction()/computeLinkedIssueCompletion()
- * below already follow. An entry with no boq_line_item_id -- legitimate, the
- * column is nullable -- gets `boqLine: null`, which the screen renders as an
- * en-dash. It must never render as the string "null" or as an id.
+ * What listProgressEntries returns. Kept as its own exported name because
+ * F-24's callers already import it.
  */
-export function attachBoqLines<T extends { boqLineItemId: string | null; quantityDone: string | number }>(
-  entries: T[],
-  lines: { id: string; boqId: string; itemCode: string | null; description: string; unit: string; quantity: string | number }[]
-): (T & { boqLine: ProgressEntryBoqLine | null })[] {
-  const byId = new Map(lines.map((l) => [l.id, l]))
-  return entries.map((entry) => {
-    const line = entry.boqLineItemId ? byId.get(entry.boqLineItemId) : undefined
-    return {
-      ...entry,
-      boqLine: line
-        ? {
-            boqLineId: line.id,
-            code: line.itemCode,
-            description: line.description,
-            unit: line.unit,
-            qtyTotal: Number(line.quantity) || 0,
-            qtyDone: Number(entry.quantityDone) || 0,
-            boqId: line.boqId,
-          }
-        : null,
-    }
-  })
+export type ProgressEntryRow = EnrichedProgressEntry
+
+/** What getProgressEntry returns: the list row plus the line's contracted figures. */
+export type ProgressEntryDetail = EnrichedProgressEntry & {
+  boqLineQuantity: string | null
+  boqLineRate: string | null
+  boqLineAmount: string | null
+  /** R67 lane D22 (D-77): the activity's own unit, beside the line's. */
+  activityUnit: string | null
+  /** R67 lane D22 (D-77): the project's name -- never its id. */
+  projectName: string | null
+  /** R67 lane D22 (D-77): who recorded it, by name -- never their id. */
+  recordedByName: string | null
+}
+
+type EnrichedRow = Record<string, unknown> & { activityUnit?: string | null; boqLineUnit?: string | null }
+
+/**
+ * Pure: the ONE rule for which unit a progress row is measured in. A quantity
+ * recorded against a BOQ line is in that line's unit; an activity-only entry
+ * is in the activity's. Exported so the rule is testable without a database.
+ */
+export function resolveProgressUnit(row: { boqLineUnit?: string | null; activityUnit?: string | null }): string | null {
+  return row.boqLineUnit ?? row.activityUnit ?? null
+}
+
+function toEnrichedEntry<T extends EnrichedProgressEntry>(row: EnrichedRow): T {
+  const { activityUnit, boqLineUnit, ...rest } = row
+  return { ...(rest as unknown as Omit<T, "unit">), unit: resolveProgressUnit({ activityUnit, boqLineUnit }) } as T
 }
 
 export async function listProgressEntries(
   ctx: { orgId: string },
   filters: { projectId?: string; activityId?: string; boqLineItemId?: string; dateFrom?: string; dateTo?: string }
-) {
+): Promise<ProgressEntryRow[]> {
   if (!filters.projectId && !filters.activityId) throw new ServiceError("projectId or activityId is required", 400)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const conditions = [eq(constructionWorkProgressEntries.orgId, ctx.orgId)]
@@ -198,20 +316,48 @@ export async function listProgressEntries(
     if (filters.boqLineItemId) conditions.push(eq(constructionWorkProgressEntries.boqLineItemId, filters.boqLineItemId))
     if (filters.dateFrom) conditions.push(gte(constructionWorkProgressEntries.entryDate, filters.dateFrom))
     if (filters.dateTo) conditions.push(lte(constructionWorkProgressEntries.entryDate, filters.dateTo))
-    const entries = await db.query.constructionWorkProgressEntries.findMany({
-      where: and(...conditions),
-      orderBy: (t, { desc }) => desc(t.entryDate),
-    })
+    const rows = await selectEntries(db, BASE_ENTRY_COLUMNS, and(...conditions))
+      .orderBy(desc(constructionWorkProgressEntries.entryDate))
+    return (rows as EnrichedRow[]).map((r) => toEnrichedEntry<ProgressEntryRow>(r))
+  })
+}
 
-    // ONE extra query for the whole page, not one per row.
-    const lineIds = [...new Set(entries.map((e) => e.boqLineItemId).filter((v): v is string => !!v))]
-    const lines = lineIds.length
-      ? await db.query.constructionBoqLineItems.findMany({
-          where: and(eq(constructionBoqLineItems.orgId, ctx.orgId), inArray(constructionBoqLineItems.id, lineIds)),
-          columns: { id: true, boqId: true, itemCode: true, description: true, unit: true, quantity: true },
-        })
-      : []
-    return attachBoqLines(entries, lines)
+function selectEntries(
+  db: TenantDb,
+  columns: typeof BASE_ENTRY_COLUMNS | typeof OBJECT_ENTRY_COLUMNS,
+  where: ReturnType<typeof and>
+) {
+  return db.select(columns).from(constructionWorkProgressEntries)
+    .leftJoin(constructionActivities, eq(constructionActivities.id, constructionWorkProgressEntries.activityId))
+    .leftJoin(constructionBoqLineItems, eq(constructionBoqLineItems.id, constructionWorkProgressEntries.boqLineItemId))
+    .where(where)
+}
+
+// R67 D-28: one entry, the same enriched shape the list returns plus the
+// line's figures -- the object page must never have to re-resolve a name the
+// list already knew.
+//
+// R67 lane D22 (item D-77, rec R-289), folded in: the object page also has to
+// say WHICH PROJECT this entry belongs to and WHO recorded it, and R-289's rule
+// is that an id is never printed on a screen. Both are resolved here, on the
+// same statement, for the same reason the two joins above exist -- a screen
+// that has to fetch a name is a screen that will eventually print the id
+// instead. Two more LEFT joins, and only on the single-row read: the list has
+// no column for either and must not pay for them.
+export async function getProgressEntry(ctx: { orgId: string }, entryId: string): Promise<ProgressEntryDetail> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [row] = await db.select(OBJECT_ENTRY_COLUMNS).from(constructionWorkProgressEntries)
+      .leftJoin(constructionActivities, eq(constructionActivities.id, constructionWorkProgressEntries.activityId))
+      .leftJoin(constructionBoqLineItems, eq(constructionBoqLineItems.id, constructionWorkProgressEntries.boqLineItemId))
+      .leftJoin(projects, eq(projects.id, constructionWorkProgressEntries.projectId))
+      .leftJoin(usersTable, eq(usersTable.id, constructionWorkProgressEntries.recordedById))
+      .where(and(eq(constructionWorkProgressEntries.id, entryId), eq(constructionWorkProgressEntries.orgId, ctx.orgId)))
+    if (!row) throw new ServiceError("Progress entry not found", 404)
+    const detail = toEnrichedEntry<ProgressEntryDetail>(row as EnrichedRow)
+    // toEnrichedEntry() strips activityUnit because the list resolves it into
+    // `unit`. The object page needs the activity's own unit back beside the
+    // line's, so an activity-only entry still states what it is measured in.
+    return { ...detail, activityUnit: (row as EnrichedRow).activityUnit ?? null }
   })
 }
 
@@ -256,119 +402,35 @@ export async function deleteProgressEntry(ctx: { orgId: string }, entryId: strin
     // and the activity correctly reads 0 rather than a stale figure.
     if (entry.boqLineItemId) await rollUpLinkedIssueCompletion(db, ctx.orgId, entry.boqLineItemId, null)
     return { deleted: true, id: entryId, activityId: entry.activityId, projectId: entry.projectId }
+  }).then((result) => {
+    // R67 F-27: a deleted entry changes % complete and earned value.
+    bustProjectDashboardCache(ctx.orgId, result.projectId)
+    return result
   })
 }
 
-// ─── R67 lane D22 (item D-77, rec R-289) ──────────────────────────────────
+// ─── R67 lane D22 (item D-77, rec R-289) x R67 D-28 (already on main) ─────
 // A WORK-PROGRESS ENTRY HAD NO OBJECT PAGE AND NO WAY BACK. The list printed
 // a row and that was the end of it: there was no route to one entry, no way to
 // see its remarks or the photo the crew attached, and no way to correct a
 // quantity typed wrong on site -- the only mutation that existed was DELETE.
 // A record you can only destroy is not a record anyone will trust.
 //
-// This is the read and the correction. Deliberately NOT re-parented: the
-// activity and the BOQ line an entry was recorded against are what make it
-// that entry, and moving it between activities is a different act (delete and
-// re-record) with different consequences for every roll-up that reads it.
-
-export type ProgressEntryDetail = Awaited<ReturnType<typeof getProgressEntry>>
-
-/** One entry, with everything the object page shows -- so the screen makes ONE call, not five. */
-export async function getProgressEntry(ctx: { orgId: string }, entryId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const entry = await db.query.constructionWorkProgressEntries.findFirst({
-      where: and(eq(constructionWorkProgressEntries.id, entryId), eq(constructionWorkProgressEntries.orgId, ctx.orgId)),
-    })
-    if (!entry) throw new ServiceError("Progress entry not found", 404)
-
-    const [activity, project, recordedBy, lines] = await Promise.all([
-      db.query.constructionActivities.findFirst({
-        where: and(eq(constructionActivities.id, entry.activityId), eq(constructionActivities.orgId, ctx.orgId)),
-        columns: { id: true, name: true, unit: true },
-      }),
-      db.query.projects.findFirst({
-        where: and(eq(projects.id, entry.projectId), eq(projects.orgId, ctx.orgId)),
-        columns: { id: true, name: true },
-      }),
-      db.query.users.findFirst({
-        where: and(eq(usersTable.id, entry.recordedById), eq(usersTable.orgId, ctx.orgId)),
-        columns: { id: true, name: true },
-      }),
-      entry.boqLineItemId
-        ? db.query.constructionBoqLineItems.findMany({
-            where: and(eq(constructionBoqLineItems.orgId, ctx.orgId), inArray(constructionBoqLineItems.id, [entry.boqLineItemId])),
-            columns: { id: true, boqId: true, itemCode: true, description: true, unit: true, quantity: true },
-          })
-        : Promise.resolve([]),
-    ])
-
-    // The SAME composer the list uses, so one entry and its row in the list can
-    // never name the same BOQ line two different ways.
-    const [withLine] = attachBoqLines([entry], lines)
-    return {
-      ...withLine,
-      activityName: activity?.name ?? null,
-      activityUnit: activity?.unit ?? null,
-      projectName: project?.name ?? null,
-      // The person, by name. An id is never printed on a screen (R-230/R-289).
-      recordedByName: recordedBy?.name ?? null,
-    }
-  })
-}
-
-/**
- * Corrects a recorded entry.
- *
- * WHAT MAY CHANGE: the measured facts (date, quantity, percent, basis) and the
- * remarks. WHAT MAY NOT: project, activity and BOQ line -- see this section's
- * header.
- *
- * The linked schedule activities are rolled up again on the SAME transaction,
- * exactly as createProgressEntry does (programme decision D-06 forbids a
- * nested withTenantContext). rollUpLinkedIssueCompletion recomputes from every
- * entry on the line rather than adding a delta, so re-running it after an edit
- * is both correct and idempotent -- a quantity typed as 500 and corrected to
- * 50 leaves the activity reading what the site records now say, not the sum of
- * both readings.
- */
-export async function updateProgressEntry(
-  ctx: { orgId: string },
-  entryId: string,
-  input: { entryDate?: string; quantityDone?: number; percentComplete?: number; remarks?: string | null; entryBasis?: "DELTA" | "SNAPSHOT" }
-) {
-  if (input.percentComplete !== undefined && (input.percentComplete < 0 || input.percentComplete > 100)) {
-    throw new ServiceError("percentComplete must be between 0 and 100", 400)
-  }
-  if (input.entryBasis !== undefined && input.entryBasis !== "DELTA" && input.entryBasis !== "SNAPSHOT") {
-    throw new ServiceError("entryBasis must be DELTA or SNAPSHOT", 400)
-  }
-  if (input.entryDate !== undefined && !input.entryDate) throw new ServiceError("entryDate is required", 400)
-
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const entry = await db.query.constructionWorkProgressEntries.findFirst({
-      where: and(eq(constructionWorkProgressEntries.id, entryId), eq(constructionWorkProgressEntries.orgId, ctx.orgId)),
-    })
-    if (!entry) throw new ServiceError("Progress entry not found", 404)
-
-    const patch: Record<string, unknown> = {}
-    if (input.entryDate !== undefined) patch.entryDate = input.entryDate
-    if (input.quantityDone !== undefined) patch.quantityDone = String(input.quantityDone)
-    if (input.percentComplete !== undefined) patch.percentComplete = String(input.percentComplete)
-    if (input.entryBasis !== undefined) patch.entryBasis = input.entryBasis
-    if (input.remarks !== undefined) patch.remarks = input.remarks || null
-    if (Object.keys(patch).length === 0) throw new ServiceError("Nothing to update", 400)
-
-    const [row] = await db
-      .update(constructionWorkProgressEntries)
-      .set(patch)
-      .where(and(eq(constructionWorkProgressEntries.id, entryId), eq(constructionWorkProgressEntries.orgId, ctx.orgId)))
-      .returning()
-
-    if (row.boqLineItemId) await rollUpLinkedIssueCompletion(db, ctx.orgId, row.boqLineItemId, row.id)
-    return row
-  })
-}
-
+// Both lanes wrote that read and that correction. D-28's pair (below, already
+// on main) is the one kept, on merit rather than on arrival order: its PATCH
+// re-runs create's OWN validation through helpers extracted from it -- the
+// percent range, the entry-basis vocabulary, the project-scoped activity
+// lookup and the parent-line refusal, one implementation each -- where lane
+// D22's re-stated a weaker copy of two of the four and could not have caught a
+// line moved to another project's BOQ. D22's getProgressEntry/updateProgressEntry
+// are therefore folded away, and the two things they had that D-28's did not
+// are folded IN: the object read's project/recorder names (see
+// getProgressEntry above) and D-49's roll-up on the update path (see below).
+// Deliberately NOT re-parented in either lane's version, and still not: the
+// activity and the BOQ line an entry was recorded against are what make it that
+// entry -- except that D-28's PATCH does allow both to be corrected, which is
+// the stronger reading of "correct a mis-keyed entry" and is validated as
+// strictly as a create.
 // ─── R67 lane D22 (item D-49, rec R-125) ──────────────────────────────────
 // THE DOUBLE ENTRY THIS CLOSES: a site engineer records quantities against a
 // BOQ line here, and then a PM separately retypes a percent on the schedule
@@ -521,19 +583,180 @@ export async function rollUpLinkedIssueCompletion(
   return updated
 }
 
+// R67 D-28: the parent-line refusal, as ONE exported string. The PATCH path
+// added by D-28 has to answer with exactly the same sentence the POST path
+// does -- the item's own requirement is that editing an entry runs "exactly
+// the same validation as create and returns the backend message verbatim" --
+// and two copies of a sentence are two sentences that can drift.
+export const PARENT_LINE_PROGRESS_MESSAGE =
+  "Progress cannot be recorded directly against a parent BOQ line item -- its quantity/percent is derived from its child line items. Select one of its child line items instead."
+
+export const PERCENT_COMPLETE_RANGE_MESSAGE = "percentComplete must be between 0 and 100"
+
+/**
+ * Pure. R39/R-46: defaults to DELTA (today's only real convention) so every
+ * existing caller -- none of which have ever sent this field -- keeps behaving
+ * identically. Only a caller that explicitly opts into SNAPSHOT gets the
+ * latest-wins roll-up treatment.
+ */
+export function normaliseEntryBasis(entryBasis?: string | null): "DELTA" | "SNAPSHOT" {
+  const value = entryBasis ?? "DELTA"
+  if (value !== "DELTA" && value !== "SNAPSHOT") throw new ServiceError("entryBasis must be DELTA or SNAPSHOT", 400)
+  return value
+}
+
+/** Pure. 0-100 inclusive, the one range rule both create and update apply. */
+export function assertPercentComplete(percentComplete: number): void {
+  if (!Number.isFinite(percentComplete) || percentComplete < 0 || percentComplete > 100) {
+    throw new ServiceError(PERCENT_COMPLETE_RANGE_MESSAGE, 400)
+  }
+}
+
+// R67 D-28: extracted verbatim from createProgressEntry so the PATCH path
+// enforces the SAME two rules -- the line must belong to a BOQ of THIS
+// project, and it must not be a parent line -- rather than a second, weaker
+// copy of them. Every comment below is the original one, unchanged.
+async function resolveBoqLineItemForEntry(db: TenantDb, orgId: string, projectId: string, boqLineItemId: string): Promise<string> {
+  // R12 point 7 (Option B): the direct BOQ-line link -- optional, so
+  // every existing (activity-only) caller keeps working unchanged. When
+  // supplied, must resolve to a real line item this org owns (line items
+  // carry no orgId of their own; ownership is via their boq).
+  //
+  // org-scoped DIRECTLY (the column exists) rather than only inferentially
+  // through the parent BOQ read below.
+  const lineItem = await db.query.constructionBoqLineItems.findFirst({ where: and(eq(constructionBoqLineItems.id, boqLineItemId), eq(constructionBoqLineItems.orgId, orgId)) })
+  // Same rule one hop further out. construction_boq_line_items has no
+  // project_id column, so the project boundary has to be enforced on the
+  // parent BOQ -- which does carry project_id NOT NULL.
+  const boq = lineItem ? await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, lineItem.boqId), eq(constructionBoqs.orgId, orgId), eq(constructionBoqs.projectId, projectId)) }) : null
+  if (!lineItem || !boq) throw new ServiceError("BOQ line item not found", 404)
+
+  // T-WPR-15-1 (WPR-15, R41-R45): confirmed live 2026-08-25 that this
+  // endpoint accepted a progress entry posted directly against a PARENT
+  // BOQ line item with zero guard (POST against item 1.01 "Partition
+  // wall", which HAS breakdown children, returned 201 -- the exact
+  // failure mode WPR-15 forbids: "a parent figure must never be storable
+  // directly"). The schema's own canonical-child-rate-rule comment on
+  // constructionBoqLineItems.parentLineItemId establishes the real
+  // invariant this enforces: a ROOT/parent line's percent/qty is always
+  // DERIVED (rolled up from its children, see
+  // work-progress-report.ts's applyWeightedParentRollup on the PROJEXA
+  // side), never independently entered -- so a caller must never be able
+  // to store one directly, only the roll-up may produce it. "Parent"
+  // here means "has at least one other line item pointing at it via
+  // parentLineItemId", NOT merely "parentLineItemId is null" -- a
+  // standalone leaf line with no children of its own (parentLineItemId
+  // null, e.g. a line with no hierarchical breakdown) is a perfectly
+  // valid, real progress-tracking target and must keep working.
+  const child = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.parentLineItemId, boqLineItemId) })
+  if (child) throw new ServiceError(PARENT_LINE_PROGRESS_MESSAGE, 400)
+  return boqLineItemId
+}
+
+// R67 D-28: correcting a mis-keyed entry was impossible -- there was no
+// update path at all, only create and delete, so a site engineer who typed
+// 12 instead of 1.2 had to delete the row and retype every field. This runs
+// the SAME validation create does (percent range, entry basis, the
+// project-scoped activity lookup and the parent-line rule) through the same
+// extracted helpers, so the two can never diverge, and every field is
+// optional: an omitted field is left exactly as it was.
+export async function updateProgressEntry(
+  ctx: { orgId: string },
+  entryId: string,
+  patch: { activityId?: string; boqLineItemId?: string | null; entryDate?: string; quantityDone?: number; percentComplete?: number; remarks?: string | null; entryBasis?: "DELTA" | "SNAPSHOT" }
+) {
+  // A patch that names no field at all is a caller error, and it must be
+  // answered as one. Without this it reached db.update().set({}) with every
+  // value undefined, where drizzle's own mapUpdateSet filters the undefineds
+  // and then throws a plain Error("No values to set") -- not a ServiceError,
+  // so the route's generic catch logged it and answered 500. This is a
+  // Bearer-key-callable public v1 route (and its /projexa/work-progress/[id]
+  // alias), so "PATCH {}" is a request a real integration will send.
+  if (Object.keys(patch).length === 0) throw new ServiceError("No fields to update", 400)
+  if (patch.percentComplete !== undefined) assertPercentComplete(patch.percentComplete)
+  const entryBasis = patch.entryBasis !== undefined ? normaliseEntryBasis(patch.entryBasis) : undefined
+  if (patch.entryDate !== undefined && !patch.entryDate) throw new ServiceError("entryDate is required", 400)
+  if (patch.activityId !== undefined && !patch.activityId) throw new ServiceError("activityId is required", 400)
+
+  await withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.constructionWorkProgressEntries.findFirst({
+      where: and(eq(constructionWorkProgressEntries.id, entryId), eq(constructionWorkProgressEntries.orgId, ctx.orgId)),
+    })
+    if (!existing) throw new ServiceError("Progress entry not found", 404)
+
+    // The project is the entry's own -- an edit never moves an entry between
+    // projects, so the same activity/BOQ-line project boundary create enforces
+    // is enforced here against the row that already exists.
+    const projectId = existing.projectId
+
+    if (patch.activityId !== undefined) {
+      const activity = await db.query.constructionActivities.findFirst({ where: and(eq(constructionActivities.id, patch.activityId), eq(constructionActivities.orgId, ctx.orgId), eq(constructionActivities.projectId, projectId)) })
+      if (!activity) throw new ServiceError("Activity not found", 404)
+    }
+
+    let boqLineItemId: string | null | undefined
+    if (patch.boqLineItemId !== undefined) {
+      boqLineItemId = patch.boqLineItemId
+        ? await resolveBoqLineItemForEntry(db, ctx.orgId, projectId, patch.boqLineItemId)
+        : null
+    }
+
+    await db.update(constructionWorkProgressEntries).set({
+      activityId: patch.activityId,
+      boqLineItemId,
+      entryDate: patch.entryDate,
+      quantityDone: patch.quantityDone !== undefined ? String(patch.quantityDone) : undefined,
+      percentComplete: patch.percentComplete !== undefined ? String(patch.percentComplete) : undefined,
+      entryBasis,
+      remarks: patch.remarks !== undefined ? patch.remarks : undefined,
+    }).where(eq(constructionWorkProgressEntries.id, entryId))
+
+    // R67 lane D22 (item D-49), folded onto D-28's PATCH by the integration
+    // merge: create and delete already re-derive every schedule activity linked
+    // to the line, on this same transaction (programme decision D-06 forbids a
+    // nested withTenantContext). The correction path had no such call, and it
+    // is the one that matters most -- a quantity typed as 500 and corrected to
+    // 50 would otherwise leave the schedule asserting a percentage derived from
+    // a reading nobody stands behind any more, with completed_from_entry_id
+    // still pointing at this very entry as its provenance.
+    //
+    // BOTH lines, not just the new one: D-28's PATCH may move an entry to a
+    // different BOQ line or clear it, and the line it LEFT has to be re-derived
+    // too or it keeps counting a quantity that is no longer recorded against
+    // it. rollUpLinkedIssueCompletion recomputes from every entry on the line
+    // rather than adding a delta, so running it twice is correct and idempotent.
+    const linesToRoll = new Set<string>()
+    if (existing.boqLineItemId) linesToRoll.add(existing.boqLineItemId)
+    const finalLineId = boqLineItemId !== undefined ? boqLineItemId : existing.boqLineItemId
+    if (finalLineId) linesToRoll.add(finalLineId)
+    for (const lineId of linesToRoll) {
+      // The provenance is this entry only for the line it now names; a line it
+      // no longer belongs to is re-derived with no single entry to point at.
+      await rollUpLinkedIssueCompletion(db, ctx.orgId, lineId, lineId === finalLineId ? entryId : null)
+    }
+    return existing.projectId
+  }).then((projectId) => {
+    // R67 F-27 (R-243), same reasoning as create and delete: a corrected
+    // quantity moves % complete and earned value on the project dashboard, so
+    // the 60 s cache must not answer the next read with the old figure. The
+    // edit path was the only one of the three without this, because create and
+    // delete came from a different lane than the PATCH did.
+    bustProjectDashboardCache(ctx.orgId, projectId)
+  })
+
+  // Read back through the same enriched path the list uses, so the object
+  // page never has to guess what the joined names became after an edit.
+  return getProgressEntry(ctx, entryId)
+}
+
 export async function createProgressEntry(
   ctx: { orgId: string; userId: string },
   input: { projectId: string; activityId: string; boqLineItemId?: string; entryDate: string; quantityDone: number; percentComplete: number; remarks?: string; entryBasis?: "DELTA" | "SNAPSHOT" }
 ) {
   if (!input.activityId) throw new ServiceError("activityId is required", 400)
   if (!input.entryDate) throw new ServiceError("entryDate is required", 400)
-  if (input.percentComplete < 0 || input.percentComplete > 100) throw new ServiceError("percentComplete must be between 0 and 100", 400)
-  // R39/R-46: defaults to DELTA (today's only real convention) so every
-  // existing caller -- none of which have ever sent this field -- keeps
-  // behaving identically. Only a caller that explicitly opts into SNAPSHOT
-  // gets the latest-wins roll-up treatment.
-  const entryBasis = input.entryBasis ?? "DELTA"
-  if (entryBasis !== "DELTA" && entryBasis !== "SNAPSHOT") throw new ServiceError("entryBasis must be DELTA or SNAPSHOT", 400)
+  assertPercentComplete(input.percentComplete)
+  const entryBasis = normaliseEntryBasis(input.entryBasis)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     await assertProject(db, ctx.orgId, input.projectId)
@@ -568,40 +791,7 @@ export async function createProgressEntry(
     // carry no orgId of their own; ownership is via their boq).
     let boqLineItemId: string | null = null
     if (input.boqLineItemId) {
-      // org-scoped DIRECTLY (the column exists) rather than only inferentially
-    // through the parent BOQ read below.
-    const lineItem = await db.query.constructionBoqLineItems.findFirst({ where: and(eq(constructionBoqLineItems.id, input.boqLineItemId), eq(constructionBoqLineItems.orgId, ctx.orgId)) })
-      // Same rule one hop further out. construction_boq_line_items has no
-    // project_id column, so the project boundary has to be enforced on the
-    // parent BOQ -- which does carry project_id NOT NULL.
-    const boq = lineItem ? await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, lineItem.boqId), eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, input.projectId)) }) : null
-      if (!lineItem || !boq) throw new ServiceError("BOQ line item not found", 404)
-
-      // T-WPR-15-1 (WPR-15, R41-R45): confirmed live 2026-08-25 that this
-      // endpoint accepted a progress entry posted directly against a PARENT
-      // BOQ line item with zero guard (POST against item 1.01 "Partition
-      // wall", which HAS breakdown children, returned 201 -- the exact
-      // failure mode WPR-15 forbids: "a parent figure must never be storable
-      // directly"). The schema's own canonical-child-rate-rule comment on
-      // constructionBoqLineItems.parentLineItemId establishes the real
-      // invariant this enforces: a ROOT/parent line's percent/qty is always
-      // DERIVED (rolled up from its children, see
-      // work-progress-report.ts's applyWeightedParentRollup on the PROJEXA
-      // side), never independently entered -- so a caller must never be able
-      // to store one directly, only the roll-up may produce it. "Parent"
-      // here means "has at least one other line item pointing at it via
-      // parentLineItemId", NOT merely "parentLineItemId is null" -- a
-      // standalone leaf line with no children of its own (parentLineItemId
-      // null, e.g. a line with no hierarchical breakdown) is a perfectly
-      // valid, real progress-tracking target and must keep working.
-      const child = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.parentLineItemId, input.boqLineItemId) })
-      if (child) {
-        throw new ServiceError(
-          "Progress cannot be recorded directly against a parent BOQ line item -- its quantity/percent is derived from its child line items. Select one of its child line items instead.",
-          400
-        )
-      }
-      boqLineItemId = input.boqLineItemId
+      boqLineItemId = await resolveBoqLineItemForEntry(db, ctx.orgId, input.projectId, input.boqLineItemId)
     }
 
     const [row] = await db.insert(constructionWorkProgressEntries).values({
@@ -625,6 +815,11 @@ export async function createProgressEntry(
     // then describes the row that was really written.
     return { ...row, linkedToBoq: boqLineItemId !== null }
   }).then((row) => {
+    // R67 F-27: this row moved % complete, earned value and the progress bar
+    // on the project dashboard. Bust BEFORE anything async below, so the very
+    // next read recomputes rather than serving the figure from a moment ago --
+    // "I just logged progress, where is it?" is the whole point.
+    bustProjectDashboardCache(ctx.orgId, row.projectId)
     // Wave 126: fire-and-forget automation trigger, matching
     // pms-issue-service.ts's updateIssue() status-change trigger posture
     // (dynamic import, void, never blocks/breaks the write it enriches).

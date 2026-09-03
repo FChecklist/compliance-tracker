@@ -12,16 +12,24 @@
 // ctx.dbUser?.id ?? ctx.apiKey!.id, exactly as src/app/api/v1/construction/
 // boq/route.ts's POST already does for the non-import BOQ create endpoint.
 //
-// R67 lane D22 (items D-52/D-60/D-68): a dryRun flag. parseBoqSpreadsheet()
-// was ALREADY a pure parse with no write of its own -- the write is the
-// createBoq/createBoqRevision call below it -- so the preview a three-step
-// import screen needs is this route returning after the parse instead of a
-// second parsing path that could drift from the committing one. The preview
-// the user approves is therefore, by construction, the same reading that gets
-// committed.
+// R67 D-25 x R67 lane D22 (items D-52/D-60): the DRY RUN, written by two lanes
+// and merged into one. Both reached the same conclusion for the same reason --
+// parseBoqSpreadsheet() was ALREADY a pure parse with no write of its own, so
+// the preview a three-step import screen needs is this route returning after
+// the parse, never a second parsing path in the browser (PROJEXA is not
+// allowed an XLSX library, and a second parser is a second set of rules that
+// can disagree with the one that imports). The preview the user approves is
+// therefore, by construction, the same reading that gets committed.
+//
+// A dry run is a READ -- it needs no write role and creates nothing. The role
+// gate reads the `?dryRun=1` QUERY parameter, because it has to be answered
+// before the body is consumed; the `dryRun=true` FORM field lane D22's screen
+// sends is honoured too, for the response shape only. A caller that sends only
+// the form field has therefore already passed the write-role gate, which is
+// stricter than it needs to be but never weaker.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { parseBoqSpreadsheet, analyseBoqPreview, ServiceError, type BoqColumnMapping } from "@/lib/services/construction-boq-import-service"
+import { parseBoqSpreadsheet, toPreviewRows, analyseBoqPreview, ServiceError, type BoqColumnMapping } from "@/lib/services/construction-boq-import-service"
 import { createBoq, createBoqRevision } from "@/lib/services/construction-boq-service"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
@@ -29,8 +37,13 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const roleErr = requireRoleOrScope(ctx, "member", "write")
-  if (roleErr) return roleErr
+  const dryRunQuery = request.nextUrl.searchParams.get("dryRun") === "1"
+  // A dry run writes nothing, so it is gated as a read; a real import still
+  // needs the write role it always did.
+  if (!dryRunQuery) {
+    const roleErr = requireRoleOrScope(ctx, "member", "write")
+    if (roleErr) return roleErr
+  }
   // IF ctx.orgId is falsy THEN 400, never an empty/silent success (error E-52).
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
@@ -42,12 +55,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `File too large. Maximum size is 10 MB. Your file: ${(file.size / 1024 / 1024).toFixed(1)} MB` }, { status: 400 })
     }
 
+    const dryRun = dryRunQuery || String(formData.get("dryRun") || "") === "true"
+
     const projectId = String(formData.get("projectId") || "")
-    if (!projectId) return NextResponse.json({ error: "projectId is required" }, { status: 400 })
+    // A dry run has nothing to attach the parse to, so it does not need a
+    // project -- the preview is about the FILE.
+    if (!projectId && !dryRun) return NextResponse.json({ error: "projectId is required" }, { status: 400 })
     const parentBoqId = formData.get("parentBoqId") ? String(formData.get("parentBoqId")) : null
     const title = formData.get("title") ? String(formData.get("title")) : file.name.replace(/\.[^.]+$/, "")
 
-    const dryRun = String(formData.get("dryRun") || "") === "true"
     // The "Map columns" step's corrections, as {field: header}. Malformed JSON
     // is ignored rather than 400ing the whole upload -- the auto-detected
     // mapping is still a usable answer, and the preview shows what was used.
@@ -58,23 +74,54 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const { lineItems, warnings, totalRows, mapping, headers } = await parseBoqSpreadsheet(buffer, file.name, file.type, { mappingOverride })
-    if (lineItems.length === 0) {
-      return NextResponse.json({ error: "No usable line items found in this spreadsheet", warnings }, { status: 400 })
+    const { lineItems, warnings, issues, totalRows, mapping, headers } =
+      await parseBoqSpreadsheet(buffer, file.name, file.type, { mappingOverride })
+
+    // BEFORE the empty-file 400 deliberately: a preview of a file that yielded
+    // nothing must still be able to SAY so, with its issues attached, rather
+    // than answering an error the screen has to translate.
+    if (dryRun) {
+      const blocking = issues.filter((i) => i.blocking)
+      // The two lanes produced two per-row verdicts: D-25's toPreviewRows says
+      // what will be SAVED (the canonical child-rate derivation applied), and
+      // D22's analyseBoqPreview says what a human should LOOK AT (duplicate
+      // codes, a forward parent reference, a missing category). They are merged
+      // onto ONE row list by index rather than returned as two, so the screen
+      // cannot show a row's figures from one list and its status from another.
+      const preview = analyseBoqPreview(lineItems)
+      const statusByIndex = new Map(preview.rows.map((r) => [r.index, r]))
+      // Capped at 50: the preview is for a human to scan, and a 2,000-line
+      // BOQ's full row list is a payload nobody reads. The summary below still
+      // describes the WHOLE file, so "50 of 128 rows will import" can never be
+      // produced by this cap.
+      const rows = toPreviewRows(lineItems).slice(0, 50).map((row, i) => ({
+        ...row,
+        status: statusByIndex.get(i + 1)?.status ?? "ok",
+        messages: statusByIndex.get(i + 1)?.messages ?? [],
+      }))
+      return NextResponse.json({
+        dryRun: true,
+        fileName: file.name,
+        // The sheet's real column names, and what each field was matched to, so
+        // the "Map columns" step can offer choices instead of asking a human to
+        // type one.
+        mapping,
+        headers,
+        rows,
+        issues,
+        warnings,
+        summary: {
+          totalRows,
+          readyLines: lineItems.length,
+          rowsWithErrors: new Set(blocking.map((i) => i.row)).size,
+          willImport: preview.willImport,
+          totalParsed: preview.totalParsed,
+        },
+      })
     }
 
-    if (dryRun) {
-      const preview = analyseBoqPreview(lineItems)
-      return NextResponse.json({
-        dryRun: true, fileName: file.name, mapping, headers, totalRows, warnings,
-        // Capped at 50: the preview is for a human to scan, and a 2,000-line
-        // BOQ's full row list is a payload nobody reads. willImport/totalParsed
-        // below still describe the WHOLE file, so "50 of 128 rows will import"
-        // can never be produced by this cap.
-        rows: preview.rows.slice(0, 50),
-        willImport: preview.willImport,
-        totalParsed: preview.totalParsed,
-      })
+    if (lineItems.length === 0) {
+      return NextResponse.json({ error: "No usable line items found in this spreadsheet", warnings }, { status: 400 })
     }
 
     // External API-key callers have no real user id -- record the key's id

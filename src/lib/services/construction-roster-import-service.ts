@@ -1,48 +1,72 @@
-// R67 lane D22 (item D-68, rec R-258) -- LABOUR ROSTER EXCEL IMPORT.
+// R67 D-34 (R-091): bulk load of the labour roster from a spreadsheet.
 //
-// The third of the three imports a construction org actually has: a BOQ, a
-// programme, and the crew list. The first two now exist (construction-boq-
-// import-service.ts, schedule-import-service.ts); this is the one that was
-// still typed in one worker at a time through /labour/new, on projects that
-// carry a hundred.
+// Modelled directly on construction-boq-import-service.ts's parseBoqSpreadsheet
+// -- same reuse discipline, same shape, same vocabulary -- rather than a second
+// way of reading a file: it goes through src/lib/ingest/parser.ts's parseFile
+// (xlsx/xls/csv, already shipped) and a small, roster-specific alias table.
+// Parsing stays here, server-side, because PROJEXA must not gain an XLSX
+// library; the import SCREEN sends the file and renders what this returns.
 //
-// ALL PARSING STAYS HERE, in compliance-tracker. PROJEXA must not gain an XLSX
-// library (programme rule; see repo_map.md section C) -- the browser uploads
-// the file as FormData and the server answers with parsed rows. Parsing itself
-// reuses src/lib/ingest/parser.ts's parseFile(), whose xlsx import is dynamic,
-// exactly as the two shipped importers do. Nothing about xlsx is re-invented.
+// The columns are the ones the customer's own roster sheet carries: ID, Name,
+// Trade, Company, Daily Rate.
 //
-// THE THREE RULES THE ITEM NAMES, all in the pure half so they are provable
-// without a database:
-//   * a blank ID auto-numbers W-0001, W-0002, ... continuing past whatever the
-//     sheet itself already used, so a half-coded sheet does not collide;
-//   * an unknown company is NOT invented -- the row carries an offer,
-//     "Create vendor 'Al Rashid Contracting'", which the screen shows and a
-//     human accepts;
-//   * duplicates by name PLUS trade are flagged, never merged. Two carpenters
-//     called Mohammed Ali on one site is an ordinary fact, and silently
-//     collapsing them would lose a man's attendance and his pay.
+// ── MERGE NOTE (integration train, R67 lane D22 item D-68 onto this) ────────
+// Lane D22 wrote a SECOND roster importer at this same path, with its own
+// route (/v1/projexa/labour/import) and its own PROJEXA screen. Two parsers
+// for one sheet is two sets of rules that can disagree about the same file --
+// the thing both headers were written to prevent -- so this one is kept whole
+// (it is already on main, with its route, its PROJEXA client and their tests)
+// and D-68's distinct rules are folded IN below rather than kept beside it:
+//   * `skillLevel`, a sixth column the roster table has always had
+//     (schema.ts construction_labour_roster.skill_level) and neither importer
+//     could fill;
+//   * duplicates by name PLUS trade are FLAGGED, never merged -- two carpenters
+//     called Mohammed Ali on one site is an ordinary fact, and collapsing them
+//     would lose a man's attendance and his pay.
+// D-68's blank-ID auto-numbering needed no folding: createRosterEntry() already
+// generates the next employee code from the highest one stored, which is why
+// the route writes rows sequentially. Two D-68 capabilities are deliberately
+// NOT folded in and are named in the PR body rather than dropped quietly: the
+// screen-correctable column mapping, and CREATING an unmatched vendor from the
+// import screen (this route already reports `unmatchedCompanies`, so the fact
+// reaches the user; accepting the offer in one click does not exist yet).
 import { parseFile } from "@/lib/ingest/parser"
-import { parseAmount, isMalformedNumericCell } from "@/lib/gst/column-mapper"
-import { constructionLabourRoster, erpSuppliers, projects } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq } from "drizzle-orm"
+import { parseAmount } from "@/lib/gst/column-mapper"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
 export type RosterFieldKey = "employeeCode" | "name" | "trade" | "company" | "dailyRate" | "skillLevel"
 
-/** Alias order within a field is a PRIORITY order, not a membership list -- the same rule the BOQ and schedule importers document. */
+// Alias order within each field is a PRIORITY order (mapRosterHeaders resolves
+// fields in this record's key order and marks each matched header as used), so
+// a sheet carrying both "ID" and "Employee ID" resolves the same way twice.
 export const ROSTER_FIELD_ALIASES: Record<RosterFieldKey, string[]> = {
-  employeeCode: ["id", "employee id", "employee code", "worker id", "code", "emp id"],
-  name: ["name", "worker name", "employee name", "labour name", "worker"],
-  trade: ["trade", "skill", "category", "designation", "role"],
-  company: ["company", "vendor", "subcontractor", "contractor", "supplier", "agency"],
+  employeeCode: ["id", "worker id", "employee id", "employee code", "code", "emp id", "emp code"],
+  name: ["name", "worker name", "employee name", "worker", "labour name"],
+  trade: ["trade", "skill", "category", "designation", "work type"],
+  company: ["company", "subcontractor", "vendor", "contractor", "supplier"],
   dailyRate: ["daily rate", "rate", "wage", "daily wage", "rate per day", "per day"],
+  // R67 D-68, folded in: the roster table has carried skill_level since it was
+  // created and no import path could fill it.
   skillLevel: ["skill level", "grade", "level"],
 }
 
-export const NO_USABLE_ROWS = "No usable rows found - check that the first row holds the column headers"
+export type RosterRowIssue = { row: number; message: string; blocking: boolean }
+
+/** One parsed roster row, ready for createRosterEntry. `company` is the sheet's TEXT -- resolving it to a vendor id is the caller's job, and an unmatched name is not an error. */
+export type RosterImportRow = {
+  employeeCode: string | null
+  name: string
+  trade: string | null
+  company: string | null
+  /** R67 D-68: the sheet's skill grade, when it has that column. */
+  skillLevel: string | null
+  dailyRate: number
+  /** 1-based sheet row, header included -- the first data row is row 2. Same numbering the BOQ importer uses, so the two never disagree about which line a user is looking at. */
+  sheetRow: number
+  /** True when this row cannot be written and will be skipped. */
+  skipped: boolean
+}
 
 function normalizeHeader(h: string): string {
   return h.trim().toLowerCase().replace(/[^a-z0-9%]+/g, " ").trim().replace(/\s+/g, " ")
@@ -54,299 +78,164 @@ export function mapRosterHeaders(headers: string[]): RosterColumnMapping {
   const mapping: RosterColumnMapping = {}
   const used = new Set<string>()
   for (const field of Object.keys(ROSTER_FIELD_ALIASES) as RosterFieldKey[]) {
+    let match: string | undefined
     for (const alias of ROSTER_FIELD_ALIASES[field]) {
-      const match = headers.find((h) => !used.has(h) && normalizeHeader(h) === alias)
-      if (match) {
-        mapping[field] = match
-        used.add(match)
-        break
-      }
+      match = headers.find((h) => !used.has(h) && normalizeHeader(h) === alias)
+      if (match) break
     }
+    if (match) { mapping[field] = match; used.add(match) }
   }
   return mapping
 }
 
-export type ParsedRosterRow = {
-  rowNumber: number
-  employeeCode: string
-  /** true when this code was generated here rather than read from the sheet. */
-  employeeCodeGenerated: boolean
-  name: string
-  trade: string | null
-  skillLevel: string | null
-  company: string | null
-  dailyRate: number
-  /** Rose messages for this row, in the "Row 3: Rate is blank" shape the item specifies. */
-  errors: string[]
-  /** Clay messages: imported, but not exactly as the sheet said. */
-  warnings: string[]
-  /** Present when the company named is not one this org knows: "Create vendor 'X'". */
-  createVendorOffer: string | null
-}
-
-export type RosterParseResult = {
-  rows: ParsedRosterRow[]
-  mapping: RosterColumnMapping
-  /** Every header actually present in the file, so the screen's mapping row can offer them. */
-  headers: string[]
-  totalRows: number
-  blockingErrors: string[]
-  /** Company names on the sheet that this org has no vendor for. */
-  unknownCompanies: string[]
+// Same rule the BOQ importer uses: parseAmount() degrades genuine garbage
+// ("TBD", "N/A", a typo) to 0, which at a call site is indistinguishable from a
+// cell that legitimately says 0. Mirrors its cleaning steps before testing the
+// result, so every shape parseAmount really accepts ("1,200", "AED 120",
+// "(50)") passes and only true garbage is flagged.
+function isMalformedNumericCell(raw: string): boolean {
+  if (raw === "") return false
+  const cleaned = raw
+    .replace(/[,₹\s]/g, "")
+    .replace(/^[^\d.\-(]+/, "")
+    .replace(/^\((.*)\)$/, "-$1")
+  return !/^-?\d+(\.\d+)?$/.test(cleaned)
 }
 
 /**
- * Pure: the caller's corrections applied over the automatic header match.
+ * Pure, no DB/xlsx access -- independently unit-testable.
  *
- * An empty string is a real instruction meaning "this field has no column in
- * this file" -- distinct from an absent key, which means "leave the automatic
- * match alone". A header the file does not contain is ignored rather than
- * trusted: the screen offers only real headers, so anything else came from a
- * stale or hand-edited request.
- */
-export function applyRosterMappingOverride(
-  auto: RosterColumnMapping,
-  override: Record<string, unknown> | undefined,
-  headers: string[]
-): RosterColumnMapping {
-  if (!override) return auto
-  const result: RosterColumnMapping = { ...auto }
-  for (const field of Object.keys(ROSTER_FIELD_ALIASES) as RosterFieldKey[]) {
-    if (!(field in override)) continue
-    const value = override[field]
-    if (typeof value !== "string") continue
-    const header = value.trim()
-    if (!header) delete result[field]
-    else if (headers.includes(header)) result[field] = header
-  }
-  return result
-}
-
-/** Pure: W-0001 style. Exported so the screen and the tests use the same shape as the writer. */
-export function formatWorkerCode(n: number): string {
-  return `W-${String(n).padStart(4, "0")}`
-}
-
-function cell(row: Record<string, unknown>, header: string | undefined): string {
-  if (!header) return ""
-  const value = row[header]
-  return value === null || value === undefined ? "" : String(value).trim()
-}
-
-/**
- * Pure: turns spreadsheet rows into roster rows, applying the item's three
- * rules. `knownCompanies` is the org's existing vendor names, lower-cased --
- * passed in rather than queried so this stays a pure function.
+ * BLOCKING vs NOT is the distinction the import screen renders and counts:
+ *  - a row with no name, or with a rate that is missing/garbage/negative,
+ *    CANNOT be written and is marked skipped (blocking, per row);
+ *  - a row with no trade IS written, but is flagged, because a blank trade is
+ *    exactly what makes every trade-wise figure downstream read "Unspecified".
+ * A file-level problem (no Name column at all) throws instead, because there is
+ * nothing to preview.
  */
 export function mapRowsToRosterEntries(
   rows: Record<string, unknown>[],
-  mapping: RosterColumnMapping,
-  knownCompanies: Map<string, string>
-): { rows: ParsedRosterRow[]; blockingErrors: string[]; unknownCompanies: string[] } {
-  if (!mapping.name) {
-    return { rows: [], blockingErrors: ["No Name column found - a roster needs one column of worker names"], unknownCompanies: [] }
-  }
+  mapping: RosterColumnMapping
+): { entries: RosterImportRow[]; issues: RosterRowIssue[] } {
+  if (!mapping.name) throw new ServiceError("Could not find a Name column in this spreadsheet", 400)
+  if (!mapping.dailyRate) throw new ServiceError("Could not find a Daily Rate column in this spreadsheet", 400)
 
-  // Auto-numbering continues PAST whatever the sheet already used, so a sheet
-  // that codes half its rows W-0001..W-0010 and leaves the rest blank does not
-  // generate a code that collides with one of its own.
-  const usedCodes = new Set<string>()
-  let highest = 0
-  for (const raw of rows) {
-    const code = cell(raw, mapping.employeeCode)
-    if (!code) continue
-    usedCodes.add(code.toLowerCase())
-    const match = /^W-(\d+)$/i.exec(code)
-    if (match) highest = Math.max(highest, Number.parseInt(match[1]!, 10))
-  }
+  const entries: RosterImportRow[] = []
+  const issues: RosterRowIssue[] = []
+  // R67 D-68, folded in: first sheet row seen for each (name, trade) pair.
+  const firstSeenAt = new Map<string, number>()
 
-  const seen = new Map<string, number>()
-  const unknownCompanies = new Set<string>()
-  const parsed: ParsedRosterRow[] = []
+  rows.forEach((row, idx) => {
+    const sheetRow = idx + 2
+    const cells = readRosterCells(row, mapping)
 
-  rows.forEach((raw, index) => {
-    // +2: the header is row 1, so the first data row is row 2 -- the number the
-    // person looking at the sheet in Excel can actually find.
-    const rowNumber = index + 2
-    const name = cell(raw, mapping.name)
-    // A wholly blank line in the middle of a sheet is not an error, it is
-    // formatting. Only a row with SOME content and no name is a problem.
-    const hasAnyContent = (Object.keys(mapping) as RosterFieldKey[]).some((f) => cell(raw, mapping[f]))
-    if (!name && !hasAnyContent) return
+    // A wholly blank row is padding at the bottom of a real sheet, not an
+    // error worth naming.
+    if (!cells.name && !cells.rateRaw && !cells.trade && !cells.company && !cells.employeeCode && !cells.skillLevel) return
 
-    const errors: string[] = []
-    const warnings: string[] = []
-    if (!name) errors.push(`Row ${rowNumber}: Name is blank`)
+    const dailyRate = cells.rateRaw === "" ? 0 : parseAmount(row[mapping.dailyRate!])
+    const rowIssues = validateRosterRow({ ...cells, dailyRate, sheetRow })
 
-    // parseAmount() degrades genuine garbage to 0, which is indistinguishable
-    // from a real "0" -- isMalformedNumericCell() is the same guard the BOQ
-    // importer uses (R-71/TC-51) so "TBD" in a rate column is caught rather
-    // than becoming a worker on a zero daily rate.
-    const rateRaw = cell(raw, mapping.dailyRate)
-    const rateMalformed = isMalformedNumericCell(rateRaw)
-    const dailyRate = rateMalformed ? 0 : parseAmount(rateRaw)
-    if (!rateRaw) errors.push(`Row ${rowNumber}: Rate is blank`)
-    else if (rateMalformed) errors.push(`Row ${rowNumber}: Rate "${rateRaw}" is not a number`)
-    else if (dailyRate < 0) errors.push(`Row ${rowNumber}: Rate cannot be negative`)
-
-    let employeeCode = cell(raw, mapping.employeeCode)
-    let employeeCodeGenerated = false
-    if (!employeeCode) {
-      do {
-        highest += 1
-        employeeCode = formatWorkerCode(highest)
-      } while (usedCodes.has(employeeCode.toLowerCase()))
-      usedCodes.add(employeeCode.toLowerCase())
-      employeeCodeGenerated = true
-    }
-
-    const trade = cell(raw, mapping.trade) || null
-    const company = cell(raw, mapping.company) || null
-    let createVendorOffer: string | null = null
-    if (company && !knownCompanies.has(company.toLowerCase())) {
-      createVendorOffer = `Create vendor '${company}'`
-      unknownCompanies.add(company)
-    }
-
-    // Flagged, NEVER merged: two carpenters with the same name on one site is
-    // an ordinary fact, and collapsing them would lose a man's attendance.
-    const dupeKey = `${name.toLowerCase()}|${(trade ?? "").toLowerCase()}`
-    const firstSeenAt = seen.get(dupeKey)
-    if (name) {
-      if (firstSeenAt !== undefined) {
-        warnings.push(`Row ${rowNumber}: same name and trade as row ${firstSeenAt} - imported as a separate worker`)
+    // R67 D-68, folded in: FLAGGED, never merged. Two carpenters called
+    // Mohammed Ali on one site is an ordinary fact; collapsing them would lose
+    // a man's attendance and his pay. So this is non-blocking and the row is
+    // still written -- it exists to make a real accidental double-paste
+    // visible, not to refuse a real pair of namesakes.
+    if (cells.name) {
+      const key = `${cells.name.toLowerCase()}|${cells.trade.toLowerCase()}`
+      const seenAt = firstSeenAt.get(key)
+      if (seenAt !== undefined) {
+        rowIssues.push({
+          row: sheetRow,
+          message: `Row ${sheetRow}: same name and trade as row ${seenAt} -- imported as a separate worker, not merged`,
+          blocking: false,
+        })
       } else {
-        seen.set(dupeKey, rowNumber)
+        firstSeenAt.set(key, sheetRow)
       }
     }
 
-    parsed.push({
-      rowNumber, employeeCode, employeeCodeGenerated, name,
-      trade, skillLevel: cell(raw, mapping.skillLevel) || null, company,
+    issues.push(...rowIssues)
+
+    entries.push({
+      employeeCode: cells.employeeCode || null,
+      name: cells.name,
+      trade: cells.trade || null,
+      company: cells.company || null,
+      skillLevel: cells.skillLevel || null,
       dailyRate,
-      errors, warnings, createVendorOffer,
+      sheetRow,
+      skipped: rowIssues.some((i) => i.blocking),
     })
   })
 
-  const blockingErrors = parsed.length === 0 ? [NO_USABLE_ROWS] : []
-  return { rows: parsed, blockingErrors, unknownCompanies: [...unknownCompanies] }
+  return { entries, issues }
 }
 
-/** Reads the uploaded file and returns the preview. No writes, no transaction. */
-export async function parseRosterSpreadsheet(
-  buffer: Buffer,
-  fileName: string,
-  mimeType: string,
-  knownCompanies: Map<string, string>,
-  mappingOverride?: Record<string, unknown>
-): Promise<RosterParseResult> {
-  let parsed
-  try {
-    parsed = await parseFile(buffer, fileName, mimeType)
-  } catch {
-    // parseFile throws on an empty sheet; a sheet whose rows are all blank is
-    // the same situation to the person holding it, and needs the same sentence.
-    return { rows: [], mapping: {}, headers: [], totalRows: 0, blockingErrors: [NO_USABLE_ROWS], unknownCompanies: [] }
+type RosterCells = { employeeCode: string; name: string; trade: string; company: string; skillLevel: string; rateRaw: string }
+
+function readRosterCells(row: Record<string, unknown>, mapping: RosterColumnMapping): RosterCells {
+  const read = (column: string | undefined) => (column ? String(row[column] ?? "").trim() : "")
+  return {
+    employeeCode: read(mapping.employeeCode),
+    name: read(mapping.name),
+    trade: read(mapping.trade),
+    company: read(mapping.company),
+    skillLevel: read(mapping.skillLevel),
+    rateRaw: read(mapping.dailyRate),
   }
-  const mapping = applyRosterMappingOverride(mapRosterHeaders(parsed.headers), mappingOverride, parsed.headers)
-  const { rows, blockingErrors, unknownCompanies } = mapRowsToRosterEntries(parsed.rows as Record<string, unknown>[], mapping, knownCompanies)
-  return { rows, mapping, headers: parsed.headers, totalRows: parsed.totalRows, blockingErrors, unknownCompanies }
-}
-
-/** The org's vendor names, lower-cased name -> id, for the unknown-company check. */
-export async function loadKnownCompanies(orgId: string): Promise<Map<string, string>> {
-  return withTenantContext({ orgId }, async (db) => {
-    const suppliers = await db.query.erpSuppliers.findMany({
-      where: and(eq(erpSuppliers.orgId, orgId), eq(erpSuppliers.isActive, true)),
-      columns: { id: true, supplierName: true },
-    })
-    return new Map(suppliers.map((s) => [s.supplierName.trim().toLowerCase(), s.id]))
-  })
-}
-
-export type RosterImportResult = {
-  projectId: string
-  createdRosterIds: string[]
-  skippedRows: number
-  createdVendorNames: string[]
 }
 
 /**
- * Commits a parsed roster.
- *
- * ONE TRANSACTION for the whole import, never a nested one (programme decision
- * D-06): a half-imported crew list is worse than none, and createRosterEntry()
- * opens its own withTenantContext per call, which would be one transaction per
- * worker on a five-connection pool.
- *
- * `createVendors` is opt-in and explicit -- the offer on a row is an offer, and
- * an import that silently created vendor master records would be a
- * side effect nobody asked for. Rows carrying errors are rejected outright
- * unless the caller passes skipRowsWithErrors, which is the screen's own
- * "Skip rows with errors" toggle.
+ * Pure. Everything wrong with one row, in the order a reader would notice it.
+ * A BLOCKING issue means the row cannot be written and will be skipped; a
+ * non-blocking one means it will be written and is worth saying anyway.
  */
-export async function importRosterEntries(
-  ctx: { orgId: string },
-  input: {
-    projectId: string
-    rows: ParsedRosterRow[]
-    skipRowsWithErrors?: boolean
-    createVendors?: boolean
+export function validateRosterRow(
+  cell: { name: string; rateRaw: string; trade: string; dailyRate: number; sheetRow: number }
+): RosterRowIssue[] {
+  const { sheetRow } = cell
+  const issues: RosterRowIssue[] = []
+  if (!cell.name) issues.push({ row: sheetRow, message: `Row ${sheetRow}: no worker name`, blocking: true })
+
+  if (cell.rateRaw === "") {
+    issues.push({ row: sheetRow, message: `Row ${sheetRow}: no daily rate`, blocking: true })
+  } else if (isMalformedNumericCell(cell.rateRaw)) {
+    issues.push({ row: sheetRow, message: `Row ${sheetRow}: Daily Rate is not a number`, blocking: true })
+  } else if (cell.dailyRate < 0) {
+    issues.push({ row: sheetRow, message: `Row ${sheetRow}: Daily Rate cannot be negative`, blocking: true })
   }
-): Promise<RosterImportResult> {
-  if (!input.projectId) throw new ServiceError("projectId is required", 400)
 
-  const usable = input.skipRowsWithErrors ? input.rows.filter((r) => r.errors.length === 0) : input.rows
-  const stillBroken = usable.filter((r) => r.errors.length > 0)
-  if (stillBroken.length > 0) {
-    throw new ServiceError(
-      `${stillBroken.length} row(s) cannot be imported - fix them in the file, or choose "Skip rows with errors". Nothing was saved.`,
-      400
-    )
+  // Not blocking: the worker still belongs on the roster. Said anyway, because
+  // a blank trade is exactly what makes every trade-wise figure downstream read
+  // "Unspecified".
+  if (!cell.trade) {
+    issues.push({ row: sheetRow, message: `Row ${sheetRow}: no trade -- this worker will not appear in any trade-wise total`, blocking: false })
   }
-  if (usable.length === 0) throw new ServiceError(NO_USABLE_ROWS, 400)
+  return issues
+}
 
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const project = await db.query.projects.findFirst({ where: and(eq(projects.id, input.projectId), eq(projects.orgId, ctx.orgId)) })
-    if (!project) throw new ServiceError("Project not found", 404)
+/** "Import 38 rows (2 skipped)" / "Import 38 rows" -- one wording, so the button and the summary can never disagree. */
+export function rosterImportSummary(entries: RosterImportRow[]): { importable: number; skipped: number; label: string } {
+  const skipped = entries.filter((e) => e.skipped).length
+  const importable = entries.length - skipped
+  return {
+    importable,
+    skipped,
+    label: skipped > 0
+      ? `Import ${importable} row${importable === 1 ? "" : "s"} (${skipped} skipped)`
+      : `Import ${importable} row${importable === 1 ? "" : "s"}`,
+  }
+}
 
-    const suppliers = await db.query.erpSuppliers.findMany({
-      where: eq(erpSuppliers.orgId, ctx.orgId),
-      columns: { id: true, supplierName: true },
-    })
-    const vendorIdByName = new Map(suppliers.map((s) => [s.supplierName.trim().toLowerCase(), s.id]))
-    const createdVendorNames: string[] = []
-
-    if (input.createVendors) {
-      const missing = [...new Set(
-        usable.map((r) => r.company?.trim()).filter((c): c is string => !!c && !vendorIdByName.has(c.toLowerCase()))
-      )]
-      for (const name of missing) {
-        const [vendor] = await db.insert(erpSuppliers).values({ orgId: ctx.orgId, supplierName: name, supplierType: "subcontractor" }).returning()
-        vendorIdByName.set(name.toLowerCase(), vendor!.id)
-        createdVendorNames.push(name)
-      }
-    }
-
-    const createdRosterIds: string[] = []
-    for (const row of usable) {
-      // A company we were not asked to create stays UNLINKED rather than being
-      // silently attached to a similarly-named vendor -- the worker is still
-      // imported, which is what the sheet was for.
-      const vendorId = row.company ? vendorIdByName.get(row.company.trim().toLowerCase()) ?? null : null
-      const [created] = await db.insert(constructionLabourRoster).values({
-        orgId: ctx.orgId, projectId: input.projectId, name: row.name,
-        employeeCode: row.employeeCode || null, trade: row.trade, skillLevel: row.skillLevel,
-        vendorId, dailyRate: String(row.dailyRate),
-      }).returning({ id: constructionLabourRoster.id })
-      createdRosterIds.push(created!.id)
-    }
-
-    return {
-      projectId: input.projectId,
-      createdRosterIds,
-      skippedRows: input.rows.length - usable.length,
-      createdVendorNames,
-    }
-  })
+/** Parses an uploaded roster spreadsheet (xlsx/xls/csv) into rows ready for createRosterEntry. */
+export async function parseRosterSpreadsheet(
+  buffer: Buffer,
+  fileName: string,
+  mimeType: string
+): Promise<{ entries: RosterImportRow[]; issues: RosterRowIssue[]; mapping: RosterColumnMapping; totalRows: number }> {
+  const parsed = await parseFile(buffer, fileName, mimeType)
+  const mapping = mapRosterHeaders(parsed.headers)
+  const { entries, issues } = mapRowsToRosterEntries(parsed.rows as Record<string, unknown>[], mapping)
+  return { entries, issues, mapping, totalRows: parsed.totalRows }
 }

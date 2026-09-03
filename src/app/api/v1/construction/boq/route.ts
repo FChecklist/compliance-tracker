@@ -3,9 +3,18 @@
 // routes, which can change without notice. Same service calls either way.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { listBoqs, getBoq, createBoq, ServiceError } from "@/lib/services/construction-boq-service"
+import { listBoqs, parseBoqInclude, createBoq, ServiceError } from "@/lib/services/construction-boq-service"
+import { withRouteTiming } from "@/lib/route-timing"
 
-export async function GET(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function GET(...args: Parameters<typeof GET_impl>) {
+  return withRouteTiming("GET", () => GET_impl(...args))
+}
+
+async function GET_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
@@ -14,16 +23,29 @@ export async function GET(request: NextRequest) {
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })
 
   try {
-    const boqs = await listBoqs({ orgId: ctx.orgId }, projectId)
     // PROJEXA's Work Progress Report needs each line item's rate/amount to
-    // compute the report's Amt/Percentage columns, and this was previously
-    // the only external-facing BOQ endpoint -- it returned headers only
-    // (title/version/status), no line items, with no other v1 route
-    // exposing them. Additive-only: enriches each boq with `lineItems` by
-    // reusing the existing getBoq() service (same data getBoq(id) already
-    // returns internally), no schema or service-layer change.
-    const boqsWithLineItems = await Promise.all(boqs.map((boq) => getBoq({ orgId: ctx.orgId! }, boq.id)))
-    return NextResponse.json({ boqs: boqsWithLineItems })
+    // compute the report's Amt/Percentage columns, so `lineItems` is always
+    // included -- that contract is unchanged.
+    //
+    // R67 F-23 (R-239) / F-04 (R-060/R-063) -- the SAME fix, arriving from two
+    // lanes. It used to be satisfied with `Promise.all(boqs.map(getBoq))`, and
+    // every getBoq() opens its OWN withTenantContext transaction, so an
+    // N-revision project fanned out N concurrent transactions on a
+    // five-connection pool. listBoqs() now does the whole thing in ONE
+    // transaction (see its own header comment), and `?include=variation` adds
+    // the per-revision variation figures PROJEXA's /scope screen used to fetch
+    // with one /compare request PER ROW.
+    //
+    // R67 F-29 (R-273) adds `?include=compare`, which puts each revision's
+    // lineCount / total / deltaAmount / deltaPct on the row. It shares the
+    // SAME statement as `variation`, so asking for both is not a second query.
+    const include = request.nextUrl.searchParams.get("include")
+    const { variation, compare } = parseBoqInclude(include)
+    const parts = ["lineItems"]
+    if (variation) parts.push("variation")
+    if (compare) parts.push("compare")
+    const boqs = await listBoqs({ orgId: ctx.orgId }, projectId, { include: parts.join(",") })
+    return NextResponse.json({ boqs })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 construction BOQ list error:", error)
@@ -31,7 +53,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function POST(...args: Parameters<typeof POST_impl>) {
+  return withRouteTiming("POST", () => POST_impl(...args))
+}
+
+async function POST_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")

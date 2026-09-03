@@ -5,7 +5,7 @@
 // unless the caller explicitly passes allowScopeReductionOverride: true.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { createBoqRevision, ServiceError } from "@/lib/services/construction-boq-service"
+import { createBoqRevision, ScopeReductionError, ServiceError } from "@/lib/services/construction-boq-service"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuthOrApiKey(request)
@@ -21,6 +21,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const result = await createBoqRevision({ orgId: ctx.orgId, userId: actorId }, id, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
+    // R67 D-27: the scope-reduction 409 also carries the violating lines as
+    // structured rows, so the caller can render them as a table above the
+    // override instead of printing the sentence. Additive -- `error` is
+    // unchanged, so a client that only reads that keeps working.
+    if (error instanceof ScopeReductionError) {
+      return NextResponse.json({ error: error.message, conflicts: error.conflicts }, { status: error.status })
+    }
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 construction BOQ revision create error:", error)
     return NextResponse.json({ error: "Failed to create BOQ revision" }, { status: 500 })

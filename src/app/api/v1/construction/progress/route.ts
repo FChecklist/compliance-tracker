@@ -1,16 +1,33 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import { listProgressEntries, createProgressEntry, ProgressRuleError, ServiceError } from "@/lib/services/construction-progress-service"
+import { withRouteTiming } from "@/lib/route-timing"
 
-export async function GET(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function GET(...args: Parameters<typeof GET_impl>) {
+  return withRouteTiming("GET", () => GET_impl(...args))
+}
+
+async function GET_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    // R67 F-13 (R-193/R-217): dateFrom/dateTo are forwarded. listProgressEntries
+    // has always supported the window; nothing exposed it, so every caller --
+    // including PROJEXA's Work Progress Report, which only ever looks at
+    // entries up to its own `to` date -- had to pull a project's entire logging
+    // history and discard most of it. Both bounds stay optional, so every
+    // existing caller behaves exactly as before.
     const entries = await listProgressEntries({ orgId: ctx.orgId }, {
       projectId: request.nextUrl.searchParams.get("projectId") ?? undefined,
       activityId: request.nextUrl.searchParams.get("activityId") ?? undefined,
+      dateFrom: request.nextUrl.searchParams.get("dateFrom") ?? undefined,
+      dateTo: request.nextUrl.searchParams.get("dateTo") ?? undefined,
     })
     return NextResponse.json({ entries })
   } catch (error) {
@@ -20,7 +37,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function POST(...args: Parameters<typeof POST_impl>) {
+  return withRouteTiming("POST", () => POST_impl(...args))
+}
+
+async function POST_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")
@@ -35,7 +60,16 @@ export async function POST(request: NextRequest) {
     // own doc comment in auth-guard.ts). PROJEXA's real proxy always
     // authenticates with a shared per-org API key, so this path was live
     // for every real progress entry PROJEXA has ever logged.
-    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail)
+    //
+    // R67 WS-H (D-05): the same call now also reads the X-Acting-User header
+    // PROJEXA sends, so a work-progress entry is attributed by the stronger
+    // id binding where the account is linked, falling back to actorEmail
+    // exactly as before where it is not.
+    const { user: actingUser, error: actingUserErr } = await resolveActingUser(
+      ctx,
+      body?.actorEmail ?? readActingUserEmail(request),
+      readActingUserId(request)
+    )
     if (actingUserErr) return actingUserErr
     const result = await createProgressEntry({ orgId: ctx.orgId, userId: actingUser!.id }, body)
     return NextResponse.json(result, { status: 201 })

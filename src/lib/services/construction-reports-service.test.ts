@@ -13,14 +13,31 @@
 // describe block below mocks only the DB layer (withTenantContext +
 // requireConstructionEnabled), matching this repo's tenant-isolation.test.ts
 // pattern -- no live DB, but the real designerTimesheetReport() code path.
+//
+// R67 merge note (D-11, lane D3 x lane D21): both lanes appended a new describe
+// block to the end of this file, so git saw an append/append conflict where the
+// merge base had neither. NOTHING WAS DROPPED -- D3's
+// `aggregateManpowerDailySummary` (D-53) block and D21's
+// `computeBudgetVarianceLine`/attendance-summary (D-26) blocks both survive, in
+// that order. They share no symbols: D21's UNSPECIFIED_TRADE_LABEL and D3's
+// UNCATEGORISED_TRADE_LABEL are distinct exports covering distinct aggregators.
 /// <reference types="bun-types" />
 import { describe, expect, test, mock, afterEach } from "bun:test"
 import {
   aggregateDesignerTimesheetCosts,
   aggregateDesignerApprovalStatus,
   aggregateWorkAnalysis,
+  computeCategoryProgress,
   computeCertifiedPayroll,
   computeEarnedValue,
+  computeBudgetVarianceLine,
+  isLineOverBudget,
+  buildAttendanceSummaryRows,
+  totalAttendanceSummary,
+  reconcileAttendanceSummary,
+  headcountOnSite,
+  UNSPECIFIED_TRADE_LABEL,
+  WORKER_DAY_WEIGHT,
   WH347_DAY_LABELS,
   type DesignerTimesheetBudgetLine,
   type DesignerTimesheetEntry,
@@ -531,6 +548,214 @@ describe("computeEarnedValue -- R46/R-51 percent-complete fallback + root-with-c
 })
 
 // ---------------------------------------------------------------------------
+// R67 F-10 (R-134) acceptance test.
+//
+// THE FAULT. requireConstructionEnabled() is the first statement of every one
+// of the ~20 report functions in this service, and it is not a cheap boolean:
+// it goes through isBranchEnabledForOrg(), which opens its OWN
+// withTenantContext transaction and takes one of only five app_runtime
+// connections. A composite report calls several report functions, so one
+// /reports run could spend three or four pooled connections re-answering "does
+// this org have the construction module?" -- a question whose answer is a
+// purchased package and cannot change between two clicks.
+//
+// Two assertions, exactly the item's own:
+//   (a) two consecutive report runs for the same org inside the TTL call
+//       requireConstructionEnabled ONCE;
+//   (b) a spy on withTenantContext records no call made while another is
+//       already open -- i.e. this service opens no nested transaction, which on
+//       a five-connection pool with a 25 s statement timeout is what turns a
+//       two-query report into a deadlock.
+const realReportsTenantScoped = await import("@/lib/db/tenant-scoped")
+const realReportsEnablement = await import("./construction-enablement-service")
+
+// A thenable proxy standing in for drizzle's chainable query builder: any
+// method returns itself, and awaiting it yields rows. Every report under test
+// here reads an empty set, which is a legitimate answer and keeps the fake
+// honest -- what is being measured is the TRANSACTIONS opened, not the SQL.
+function emptyQueryChain(): any {
+  const proxy: any = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === "then") return (resolve: (v: unknown) => void) => resolve([])
+        return () => proxy
+      },
+    }
+  )
+  return proxy
+}
+
+const fakeReportsDb = {
+  query: new Proxy({}, { get: () => ({ findMany: async () => [], findFirst: async () => null }) }),
+  select: () => emptyQueryChain(),
+}
+
+describe("construction-reports-service: enablement memo + no nested transactions (R67 F-10)", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realReportsTenantScoped)
+    await mock.module("./construction-enablement-service", () => realReportsEnablement)
+  })
+
+  async function loadServiceWithSpies() {
+    const requireConstructionEnabledSpy = mock(async () => {})
+    let openDepth = 0
+    let maxOpenDepth = 0
+    const withTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
+      openDepth += 1
+      maxOpenDepth = Math.max(maxOpenDepth, openDepth)
+      try {
+        return await fn(fakeReportsDb)
+      } finally {
+        openDepth -= 1
+      }
+    })
+
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realReportsTenantScoped, withTenantContext }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realReportsEnablement,
+      requireConstructionEnabled: requireConstructionEnabledSpy,
+    }))
+
+    const service = await import("./construction-reports-service")
+    service.__resetConstructionEnablementMemo()
+    return { service, requireConstructionEnabledSpy, withTenantContext, depth: () => maxOpenDepth }
+  }
+
+  test("(a) two consecutive report runs for the same org inside the TTL check enablement ONCE", async () => {
+    const { service, requireConstructionEnabledSpy } = await loadServiceWithSpies()
+
+    await service.attendanceReport({ orgId: "org-memo" }, "p1")
+    await service.attendanceReport({ orgId: "org-memo" }, "p1")
+
+    expect(requireConstructionEnabledSpy.mock.calls.length).toBe(1)
+  })
+
+  test("(a2) different report functions for the same org share the one memoised check", async () => {
+    const { service, requireConstructionEnabledSpy } = await loadServiceWithSpies()
+
+    await service.attendanceReport({ orgId: "org-memo" }, "p1")
+    await service.scopeReport({ orgId: "org-memo" }, "p1")
+    await service.workProgressReport({ orgId: "org-memo" }, "p1")
+
+    expect(requireConstructionEnabledSpy.mock.calls.length).toBe(1)
+  })
+
+  test("(a3) a DIFFERENT org is never served another org's memoised answer", async () => {
+    const { service, requireConstructionEnabledSpy } = await loadServiceWithSpies()
+
+    await service.attendanceReport({ orgId: "org-one" }, "p1")
+    await service.attendanceReport({ orgId: "org-two" }, "p1")
+
+    expect(requireConstructionEnabledSpy.mock.calls.length).toBe(2)
+  })
+
+  test("(a4) a REFUSAL is never memoised -- an org that has just enabled construction is not told 'no' for a minute", async () => {
+    const requireConstructionEnabledSpy = mock(async (_orgId: string) => {
+      throw new (realReportsEnablement.ServiceError as new (m: string, s: number) => Error)("not part of your Module", 403)
+    })
+    const withTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeReportsDb))
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realReportsTenantScoped, withTenantContext }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realReportsEnablement,
+      requireConstructionEnabled: requireConstructionEnabledSpy,
+    }))
+
+    const service = await import("./construction-reports-service")
+    service.__resetConstructionEnablementMemo()
+
+    await expect(service.attendanceReport({ orgId: "org-blocked" }, "p1")).rejects.toThrow(/not part of your Module/)
+    await expect(service.attendanceReport({ orgId: "org-blocked" }, "p1")).rejects.toThrow(/not part of your Module/)
+
+    expect(requireConstructionEnabledSpy.mock.calls.length).toBe(2)
+    // And no transaction was opened for a report that was refused.
+    expect(withTenantContext.mock.calls.length).toBe(0)
+  })
+
+  test("(b) no withTenantContext is ever entered while another is already open", async () => {
+    const { service, withTenantContext, depth } = await loadServiceWithSpies()
+
+    await service.workProgressReport({ orgId: "org-nest" }, "p1")
+    await service.attendanceReport({ orgId: "org-nest" }, "p1")
+    await service.sitePictureReport({ orgId: "org-nest" }, "p1")
+    await service.scopeReport({ orgId: "org-nest" }, "p1")
+    await service.budgetSummary({ orgId: "org-nest" }, "p1")
+    await service.materialConsumptionReport({ orgId: "org-nest" }, "p1")
+    await service.vendorCostReport({ orgId: "org-nest" }, "p1")
+    await service.projectPeriodReport({ orgId: "org-nest" }, "p1", "2026-08-01", "2026-09-01")
+
+    expect(withTenantContext.mock.calls.length).toBeGreaterThan(0)
+    expect(depth()).toBe(1)
+  })
+
+  test("(b2) one report opens exactly ONE transaction -- the enablement check is not a second one", async () => {
+    const { service, withTenantContext } = await loadServiceWithSpies()
+
+    await service.attendanceReport({ orgId: "org-count" }, "p1")
+
+    expect(withTenantContext.mock.calls.length).toBe(1)
+  })
+})
+
+// R67 F-14 (R-215). computeCategoryProgress is the pure half of
+// categoryProgressReport, extracted so getProjectDashboard can fold the same
+// breakdown into the transaction it already holds instead of PROJEXA making a
+// second HTTP call (and a second pooled transaction) for it. Same reason
+// computeEarnedValue was extracted: ONE arithmetic path, so the dashboard chart
+// and the named report cannot disagree.
+describe("computeCategoryProgress (R67 F-14)", () => {
+  const CATEGORIES = [
+    { id: "c1", name: "Substructure" },
+    { id: "c2", name: "Superstructure" },
+  ]
+
+  test("averages the latest percent across a category's activities", () => {
+    const rows = computeCategoryProgress(
+      CATEGORIES,
+      [
+        { id: "a1", categoryId: "c1" },
+        { id: "a2", categoryId: "c1" },
+        { id: "a3", categoryId: "c2" },
+      ],
+      new Map([["a1", 80], ["a2", 20], ["a3", 55]])
+    )
+    expect(rows).toEqual([
+      { categoryId: "c1", name: "Substructure", percentComplete: 50 },
+      { categoryId: "c2", name: "Superstructure", percentComplete: 55 },
+    ])
+  })
+
+  test("an activity nobody has logged against counts as 0, not as absent", () => {
+    // Three activities, one at 60% -> 20%, NOT 60%. Treating the unlogged ones
+    // as absent would report a category as three times more complete than it is.
+    const [row] = computeCategoryProgress(
+      [CATEGORIES[0]],
+      [
+        { id: "a1", categoryId: "c1" },
+        { id: "a2", categoryId: "c1" },
+        { id: "a3", categoryId: "c1" },
+      ],
+      new Map([["a1", 60]])
+    )
+    expect(row.percentComplete).toBe(20)
+  })
+
+  test("a category with no activities is 0, and is still listed", () => {
+    const rows = computeCategoryProgress(CATEGORIES, [{ id: "a1", categoryId: "c1" }], new Map([["a1", 100]]))
+    expect(rows).toEqual([
+      { categoryId: "c1", name: "Substructure", percentComplete: 100 },
+      { categoryId: "c2", name: "Superstructure", percentComplete: 0 },
+    ])
+  })
+
+  test("an activity with no category is not attributed to one", () => {
+    const rows = computeCategoryProgress([CATEGORIES[0]], [{ id: "a1", categoryId: null }], new Map([["a1", 90]]))
+    expect(rows[0].percentComplete).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // R67 lane I (WS-I item I-05, R-177): the Category dimension of the Work
 // Progress Report. rollUpLinesByCategory is pure and tested directly; the real
 // workProgressReport() code path is then exercised with only the DB layer and
@@ -750,7 +975,10 @@ describe("boqBudgetVarianceReport widened for the project Budget screen (R67 D-4
       quantity: 10, unit: "m2", rate: 650, amount: 6500,
       budgetPercentage: 25, budget: 1625,
       materialAmount: 900, manpowerAmount: 600,
-      vendorName: "Skiphop Interiors", vendorAmount: 1700, variance: 75,
+      // R67 integration: `variance` follows D-26's contract change -- it is
+      // BUDGET REMAINING (budget 1625 - committed 3200), not the original
+      // overspend figure (vendorAmount - budget) this lane was written against.
+      vendorName: "Skiphop Interiors", vendorAmount: 1700, variance: -1575,
     })
     // Numbers, not the numeric-as-string Drizzle hands back -- a screen that
     // does arithmetic on these must never get "10" + "4" = "104".
@@ -773,8 +1001,17 @@ describe("boqBudgetVarianceReport widened for the project Budget screen (R67 D-4
 
   test("a project with no BOQ answers the SAME keys, so the screen renders zeroes rather than NaN", async () => {
     const result = await runBudgetVariance([], [])
+    // R67 integration: the empty shape is the union of what both lanes' screens
+    // read. Listed exactly rather than as a subset, because the whole point of
+    // this test is that a key present in the populated shape and missing here
+    // renders "NaN" on a project that has no BOQ yet.
     expect(Object.keys(result).sort()).toEqual(
-      ["boqId", "boqTitle", "boqVersion", "lines", "totalBudget", "totalManpowerAmount", "totalMaterialAmount", "totalVariance", "totalVendorAmount", "totalActual", "totalRevenue"].sort()
+      [
+        "boqId", "boqTitle", "boqVersion", "lines",
+        "totalBudget", "totalVendorAmount", "totalMaterialAmount", "totalManpowerAmount",
+        "totalCommitted", "totalVariance", "budgetRemaining",
+        "totalActual", "totalRevenue", "linesOverBudget", "lineCount",
+      ].sort()
     )
     expect(result.boqId).toBeNull()
     expect(result.lines).toEqual([])
@@ -824,9 +1061,264 @@ describe("boqBudgetVarianceReport widened for the project Budget screen (R67 D-4
     expect(result.lines[1].revenue).toBeNull()
   })
 
-  test("the original vendor-vs-budget `variance` is unchanged, so the project Budget screen (D-41) still reads it", async () => {
+  // R67 integration, replacing this lane's "the original vendor-vs-budget
+  // `variance` is unchanged" test. It is NOT unchanged: D-26 (already on main)
+  // redefined `variance` as BUDGET REMAINING -- same name, opposite sign. The
+  // assertion is corrected to the merged contract rather than deleted, and the
+  // alias relationship both lanes' screens depend on is pinned with it.
+  test("`variance` is budget remaining (D-26's contract), and `actual` is exactly `committed` under Sumeet's name", async () => {
     const result = await runBudgetVariance()
-    expect(result.lines[0].variance).toBe(75) // vendorAmount 1700 - budget 1625
+    // budget 1625 - committed (1700 + 900 + 600) = -1575
+    expect(result.lines[0].variance).toBe(-1575)
+    expect(result.lines[0].budgetRemaining).toBe(result.lines[0].variance)
+    expect(result.lines[0].actual).toBe(result.lines[0].committed)
+    expect(result.totalActual).toBe(result.totalCommitted)
+    // A line nobody has costed is neither over nor under budget, on every name.
     expect(result.lines[1].variance).toBeNull()
+    expect(result.lines[1].committed).toBeNull()
+    expect(result.lines[1].actual).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 D-53: the Manpower Daily Summary aggregator.
+//
+// aggregateManpowerDailySummary() is the whole arithmetic of the tab -- the DB
+// half around it is one joined SELECT and one vendor-name lookup -- so the row
+// oracle the item states ("the totals row Daily cost equals the sum of the two
+// trade rows" and "expanding a trade lists the same headcount as its Present +
+// Absent + Half-day") is asserted here directly.
+// ---------------------------------------------------------------------------
+import {
+  aggregateManpowerDailySummary,
+  UNCATEGORISED_TRADE_LABEL,
+  type ManpowerDailyPerson,
+} from "./construction-reports-service"
+
+function person(over: Partial<ManpowerDailyPerson> & Pick<ManpowerDailyPerson, "id" | "name" | "status">): ManpowerDailyPerson {
+  return {
+    employeeCode: null,
+    trade: null,
+    company: null,
+    dailyRate: 100,
+    cost: 0,
+    ...over,
+  }
+}
+
+describe("aggregateManpowerDailySummary", () => {
+  // Two trades on one date, exactly the acceptance fixture.
+  const people: ManpowerDailyPerson[] = [
+    person({ id: "r1", name: "Ali Hassan", trade: "Civil", status: "present", dailyRate: 120, cost: 120 }),
+    person({ id: "r2", name: "Bilal Khan", trade: "Civil", status: "half_day", dailyRate: 120, cost: 60 }),
+    person({ id: "r3", name: "Chandra Rao", trade: "Civil", status: "absent", dailyRate: 120, cost: 0 }),
+    person({ id: "r4", name: "Dinesh Kumar", trade: "Paint", status: "present", dailyRate: 90, cost: 90 }),
+    person({ id: "r5", name: "Ehsan Ali", trade: "Paint", status: "present", dailyRate: 90, cost: 90 }),
+  ]
+
+  const { rows, totals } = aggregateManpowerDailySummary(people)
+
+  test("one row per trade with the present/absent/half-day split", () => {
+    expect(rows).toEqual([
+      { trade: "Civil", present: 1, absent: 1, halfDay: 1, headcount: 3, cost: 180 },
+      { trade: "Paint", present: 2, absent: 0, halfDay: 0, headcount: 2, cost: 180 },
+    ])
+  })
+
+  test("headcount is exactly present + absent + half-day, so an expanded trade lists that many people", () => {
+    for (const row of rows) {
+      expect(row.headcount).toBe(row.present + row.absent + row.halfDay)
+      expect(people.filter((p) => p.trade === row.trade)).toHaveLength(row.headcount)
+    }
+  })
+
+  test("the totals row Daily cost equals the sum of the trade rows", () => {
+    expect(totals.cost).toBe(360)
+    expect(totals.cost).toBe(rows.reduce((sum, row) => sum + row.cost, 0))
+    expect(totals.headcount).toBe(5)
+  })
+
+  test("a worker with no trade groups under 'Uncategorised trade', and it sorts LAST", () => {
+    const { rows: mixed } = aggregateManpowerDailySummary([
+      person({ id: "r6", name: "Zia", trade: null, status: "present", cost: 100 }),
+      person({ id: "r7", name: "Adnan", trade: "  ", status: "present", cost: 100 }),
+      person({ id: "r8", name: "Yusuf", trade: "Civil", status: "present", cost: 100 }),
+    ])
+    expect(mixed.map((r) => r.trade)).toEqual(["Civil", UNCATEGORISED_TRADE_LABEL])
+    expect(mixed[1]).toMatchObject({ present: 2, headcount: 2, cost: 200 })
+  })
+
+  test("an unmarked day aggregates to no rows and a zeroed totals row, never to NaN", () => {
+    const { rows: none, totals: zero } = aggregateManpowerDailySummary([])
+    expect(none).toEqual([])
+    expect(zero).toEqual({ trade: "Total", present: 0, absent: 0, halfDay: 0, headcount: 0, cost: 0 })
+  })
+
+  test("money adds without binary-float drift (0.1 + 0.2 must not become 0.30000000000000004)", () => {
+    const { totals: drift } = aggregateManpowerDailySummary([
+      person({ id: "r9", name: "A", trade: "Civil", status: "present", cost: 0.1 }),
+      person({ id: "r10", name: "B", trade: "Civil", status: "present", cost: 0.2 }),
+    ])
+    expect(drift.cost).toBe(0.3)
+  })
+})
+
+// R67 D-26 (R-066) -- the Cost Variance tab's real arithmetic. Sumeet's budget
+// model against a scope line is vendor, MATERIAL and MANPOWER; only vendor
+// existed, so "committed" could never be more than the subcontract. The sign
+// also changed: variance now reads as HOW MUCH BUDGET IS LEFT
+// (budget - vendor - material - manpower), so positive is under budget.
+describe("computeBudgetVarianceLine (D-26)", () => {
+  const line = (over: Partial<Parameters<typeof computeBudgetVarianceLine>[0]> = {}) => ({
+    amount: 100, budgetPercentage: 100, vendorAmount: null, materialAmount: null, manpowerAmount: null, ...over,
+  })
+
+  // The item's own acceptance, both halves.
+  test("budget 100 with null vendor, material AND manpower returns variance null -- never a fabricated 0", () => {
+    const result = computeBudgetVarianceLine(line())
+    expect(result.budget).toBe(100)
+    expect(result.committed).toBeNull()
+    expect(result.variance).toBeNull()
+  })
+
+  test("the same line with material 30 and manpower 20 returns variance 50", () => {
+    const result = computeBudgetVarianceLine(line({ materialAmount: 30, manpowerAmount: 20 }))
+    expect(result.committed).toBe(50)
+    expect(result.variance).toBe(50)
+  })
+
+  test("all three components are counted, not just the vendor", () => {
+    const result = computeBudgetVarianceLine(line({ vendorAmount: 40, materialAmount: 30, manpowerAmount: 20 }))
+    expect(result.committed).toBe(90)
+    expect(result.variance).toBe(10)
+  })
+
+  test("a REAL zero on one component is not the same as no data -- variance becomes a real number", () => {
+    const result = computeBudgetVarianceLine(line({ materialAmount: 0 }))
+    expect(result.committed).toBe(0)
+    expect(result.variance).toBe(100)
+  })
+
+  test("committed cost above budget gives a NEGATIVE variance -- that is what 'over budget' now means", () => {
+    expect(computeBudgetVarianceLine(line({ vendorAmount: 130 })).variance).toBe(-30)
+  })
+
+  test("budget is still amount x budgetPercentage / 100, unchanged from Point 154", () => {
+    expect(computeBudgetVarianceLine(line({ amount: 400, budgetPercentage: 25 })).budget).toBe(100)
+  })
+})
+
+describe("isLineOverBudget (D-26)", () => {
+  test("a negative variance is over budget", () => {
+    expect(isLineOverBudget(-0.01)).toBe(true)
+  })
+
+  test("exactly on budget is NOT over budget", () => {
+    expect(isLineOverBudget(0)).toBe(false)
+  })
+
+  test("a line with no committed cost is neither over nor under -- it is uncosted", () => {
+    expect(isLineOverBudget(null)).toBe(false)
+  })
+})
+
+// R67 D-31 (R-090): the trade-wise attendance summary the Manpower screen
+// renders. These test the pure builders that turn the two EXISTING aggregates
+// (attendanceReport's (trade, status) grouping and manpowerCostReport's
+// per-trade one) into the rows, the grand total and the honesty check the
+// screen shows -- no new SQL grouping exists to test.
+describe("attendance summary builders (R67 D-31)", () => {
+  const STATUS_ROWS = [
+    { trade: "Mason", status: "present", count: 12, cost: 1440 },
+    { trade: "Mason", status: "absent", count: 1, cost: 0 },
+    { trade: "Electrician", status: "present", count: 4, cost: 600 },
+    { trade: "Electrician", status: "half_day", count: 2, cost: 150 },
+    { trade: null, status: "present", count: 1, cost: 90 },
+  ]
+
+  test("folds (trade, status) rows into one row per trade, alphabetically, with the unnamed trade last", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    expect(rows.map((r) => r.trade)).toEqual(["Electrician", "Mason", UNSPECIFIED_TRADE_LABEL])
+  })
+
+  test("a blank trade is NAMED, never dropped -- dropping it would break the totals", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    const unspecified = rows.find((r) => r.trade === UNSPECIFIED_TRADE_LABEL)!
+    expect(unspecified.present).toBe(1)
+    expect(unspecified.cost).toBe(90)
+  })
+
+  test("worker-days weight a half day as half and an absence as none", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    const mason = rows.find((r) => r.trade === "Mason")!
+    const electrician = rows.find((r) => r.trade === "Electrician")!
+    expect(mason.workerDays).toBe(12) // 12 present, 1 absent -> the absence adds nothing
+    expect(electrician.workerDays).toBe(5) // 4 present + 2 half days
+    expect(WORKER_DAY_WEIGHT.half_day).toBe(0.5)
+    expect(WORKER_DAY_WEIGHT.absent).toBe(0)
+  })
+
+  test("counts come back split by status, so 'Absent 1' is visible rather than folded into a single number", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    const mason = rows.find((r) => r.trade === "Mason")!
+    expect(mason).toMatchObject({ present: 12, halfDay: 0, absent: 1, cost: 1440 })
+  })
+
+  test("the grand total is the sum of the rows on screen, in every column", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    expect(totalAttendanceSummary(rows)).toEqual({ present: 17, halfDay: 2, absent: 1, workerDays: 18, cost: 2280 })
+  })
+
+  test("the headline count is bodies on site -- present plus half day, never absences", () => {
+    expect(headcountOnSite(buildAttendanceSummaryRows(STATUS_ROWS))).toBe(19)
+  })
+
+  test("numeric strings from the driver are read as numbers, not concatenated", () => {
+    const rows = buildAttendanceSummaryRows([{ trade: "Mason", status: "present", count: "3", cost: "360.50" }])
+    expect(rows[0].present).toBe(3)
+    expect(rows[0].cost).toBe(360.5)
+  })
+
+  test("the reconciliation TIES when both aggregates saw the same attendance rows and money", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    // manpowerCostReport counts every attendance row, absences included:
+    // Mason 13, Electrician 6, unnamed 1 = 20.
+    const byTrade = [
+      { totalCost: 1440, workerDays: 13 },
+      { totalCost: 750, workerDays: 6 },
+      { totalCost: 90, workerDays: 1 },
+    ]
+    const result = reconcileAttendanceSummary(rows, byTrade)
+    expect(result.ties).toBe(true)
+    expect(result.rowCountFromStatuses).toBe(20)
+    expect(result.rowCountFromTrades).toBe(20)
+  })
+
+  test("the reconciliation FAILS when the second aggregate saw rows the first did not -- the screen must not print a total nobody can reproduce", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    const byTrade = [
+      { totalCost: 1440, workerDays: 13 },
+      { totalCost: 750, workerDays: 6 },
+      // the unnamed-trade row is missing here
+    ]
+    expect(reconcileAttendanceSummary(rows, byTrade).ties).toBe(false)
+  })
+
+  test("a sub-cent float difference in money is NOT reported as a disagreement", () => {
+    const rows = buildAttendanceSummaryRows([{ trade: "Mason", status: "present", count: 1, cost: 100.001 }])
+    expect(reconcileAttendanceSummary(rows, [{ totalCost: 100, workerDays: 1 }]).ties).toBe(true)
+  })
+
+  test("a real money difference IS reported", () => {
+    const rows = buildAttendanceSummaryRows([{ trade: "Mason", status: "present", count: 1, cost: 100 }])
+    expect(reconcileAttendanceSummary(rows, [{ totalCost: 120, workerDays: 1 }]).ties).toBe(false)
+  })
+
+  test("no attendance at all is an empty summary, not a crash", () => {
+    const rows = buildAttendanceSummaryRows([])
+    expect(rows).toEqual([])
+    expect(totalAttendanceSummary(rows)).toEqual({ present: 0, halfDay: 0, absent: 0, workerDays: 0, cost: 0 })
+    expect(headcountOnSite(rows)).toBe(0)
+    expect(reconcileAttendanceSummary(rows, []).ties).toBe(true)
   })
 })

@@ -11,18 +11,33 @@ import { createId } from "@paralleldrive/cuid2"
 import { ServiceError } from "./compliance-service"
 import { listBoqs, getBoq } from "./construction-boq-service"
 import { listActivities, listCategories, listProgressEntries } from "./construction-progress-service"
+import { attendanceSummary } from "./construction-reports-service"
 export { ServiceError }
 
 export type ReportRef = { projectId: string; from: string; to: string }
+
+// R67 D-31 (R-090): the Manpower screen's "Share" reuses THIS mechanism rather
+// than growing a second one -- same table, same token, same expiry and
+// revocation rules, same public resolve route. Adding a member here is the only
+// change the mechanism needed.
+export const SHAREABLE_REPORT_TYPES = ["work_progress", "attendance_summary"] as const
+export type ShareableReportType = (typeof SHAREABLE_REPORT_TYPES)[number]
+
+/** Pure. Whether a link row may still be resolved. Expired, revoked and unknown are deliberately indistinguishable to a visitor. */
+export function isShareLinkUsable(link: { revokedAt: Date | null; expiresAt: Date } | null | undefined, now: Date): boolean {
+  if (!link) return false
+  if (link.revokedAt) return false
+  return link.expiresAt >= now
+}
 
 export async function createReportShareLink(
   // R38: userId is null for an API-key-authenticated (server-to-server)
   // caller -- there is no real `users` row to attribute the link to. See
   // schema.ts's createdById comment for the FK-violation bug this fixes.
   ctx: { orgId: string; userId: string | null },
-  input: { reportType: "work_progress"; reportRef: ReportRef; expiresInHours?: number }
+  input: { reportType: ShareableReportType; reportRef: ReportRef; expiresInHours?: number }
 ) {
-  if (input.reportType !== "work_progress") throw new ServiceError("Unsupported report type", 400)
+  if (!SHAREABLE_REPORT_TYPES.includes(input.reportType)) throw new ServiceError("Unsupported report type", 400)
   if (!input.reportRef?.projectId || !input.reportRef?.from || !input.reportRef?.to) {
     throw new ServiceError("reportRef.projectId, from and to are required", 400)
   }
@@ -69,13 +84,25 @@ export async function revokeReportShareLink(ctx: { orgId: string }, linkId: stri
 // visitor can therefore only ever reach the one org + one report the token
 // was minted for, nothing else in the multi-tenant database.
 export async function resolveReportShareLink(token: string) {
-  const link = await db.query.reportShareLinks.findFirst({ where: eq(reportShareLinks.token, token) })
-  if (!link || link.revokedAt || link.expiresAt < new Date()) {
+  const found = await db.query.reportShareLinks.findFirst({ where: eq(reportShareLinks.token, token) })
+  if (!isShareLinkUsable(found, new Date()) || !found) {
     throw new ServiceError("This share link is invalid or has expired", 404)
   }
+  const link = found
 
-  if (link.reportType !== "work_progress") throw new ServiceError("This share link is invalid or has expired", 404)
+  if (!SHAREABLE_REPORT_TYPES.includes(link.reportType as ShareableReportType)) {
+    throw new ServiceError("This share link is invalid or has expired", 404)
+  }
   const ref: ReportRef = JSON.parse(link.reportRef)
+
+  // R67 D-31: the attendance summary resolves through the SAME rule the work
+  // progress report does -- the link's OWN stored orgId, never one derived from
+  // the request -- so a public visitor still reaches exactly one org's one
+  // report and nothing else in the multi-tenant database.
+  if (link.reportType === "attendance_summary") {
+    const summary = await attendanceSummary({ orgId: link.orgId }, ref.projectId, ref.from, ref.to)
+    return { reportType: link.reportType, ...summary }
+  }
 
   const boqs = await listBoqs({ orgId: link.orgId }, ref.projectId)
   const boqsWithLineItems = await Promise.all(boqs.map((boq) => getBoq({ orgId: link.orgId }, boq.id)))

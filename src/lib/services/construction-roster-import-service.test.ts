@@ -1,224 +1,226 @@
-/// <reference types="bun-types" />
-// R67 lane D22 (item D-68, rec R-258). The roster importer's pure half: header
-// matching, and the three rules the item names -- a blank ID auto-numbers, an
-// unknown company is offered rather than invented, and duplicates by name plus
-// trade are flagged rather than merged.
+// R67 D-34 (R-091): the roster spreadsheet parser. Pure -- mapRowsToRosterEntries
+// takes already-parsed rows, so these are real assertions about the rules,
+// not about xlsx.
 //
-// No DB and no xlsx here, the same discipline schedule-import-service.test.ts
-// and construction-boq-import-service.test.ts follow: parseRosterSpreadsheet()
-// is one parseFile() call over these functions, and importRosterEntries() is
-// one withTenantContext write, both exercised through the API surface.
+// The distinction that matters, and that the import screen renders: a row that
+// CANNOT be written is skipped and named (blocking, per row); a row with no
+// trade IS written but flagged, because a blank trade is exactly what makes
+// every trade-wise figure downstream read "Unspecified". A file with no Name
+// column at all throws, because there is nothing to preview.
+/// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
 import {
-  ROSTER_FIELD_ALIASES, applyRosterMappingOverride, formatWorkerCode, mapRosterHeaders, mapRowsToRosterEntries, NO_USABLE_ROWS,
+  mapRosterHeaders,
+  mapRowsToRosterEntries,
+  rosterImportSummary,
+  ServiceError,
 } from "./construction-roster-import-service"
 
 const HEADERS = ["ID", "Name", "Trade", "Company", "Daily Rate"]
 const MAPPING = mapRosterHeaders(HEADERS)
-const NO_COMPANIES = new Map<string, string>()
 
-function sheet(rows: Record<string, unknown>[]) {
-  return mapRowsToRosterEntries(rows, MAPPING, NO_COMPANIES)
+function rows(...values: Record<string, unknown>[]) {
+  return values
 }
 
 describe("mapRosterHeaders", () => {
-  test("matches the item's own column set", () => {
+  test("maps the customer's own column names", () => {
     expect(MAPPING).toEqual({ employeeCode: "ID", name: "Name", trade: "Trade", company: "Company", dailyRate: "Daily Rate" })
   })
 
-  test("accepts the synonyms a real contractor's sheet uses", () => {
-    const mapping = mapRosterHeaders(["Worker Name", "Skill", "Subcontractor", "Wage", "Emp ID"])
-    expect(mapping.name).toBe("Worker Name")
-    expect(mapping.trade).toBe("Skill")
-    expect(mapping.company).toBe("Subcontractor")
-    expect(mapping.dailyRate).toBe("Wage")
-    expect(mapping.employeeCode).toBe("Emp ID")
+  test("matches on meaning, not on exact spelling or case", () => {
+    expect(mapRosterHeaders(["Employee ID", "Worker Name", "Skill", "Subcontractor", "Rate per day"]))
+      .toEqual({ employeeCode: "Employee ID", name: "Worker Name", trade: "Skill", company: "Subcontractor", dailyRate: "Rate per day" })
   })
 
-  test("never assigns one column to two fields", () => {
-    const mapping = mapRosterHeaders(["Code"])
-    const assigned = Object.values(mapping)
-    expect(new Set(assigned).size).toBe(assigned.length)
-  })
-
-  test("every field has at least one alias, so no column is unreachable", () => {
-    for (const aliases of Object.values(ROSTER_FIELD_ALIASES)) expect(aliases.length).toBeGreaterThan(0)
+  test("a sheet with only Name and Rate still maps -- the rest are genuinely optional", () => {
+    expect(mapRosterHeaders(["Name", "Rate"])).toEqual({ name: "Name", dailyRate: "Rate" })
   })
 })
 
-describe("a blank ID auto-numbers W-0001", () => {
-  test("numbers from W-0001 when the sheet codes nobody", () => {
-    const { rows } = sheet([
-      { Name: "Mohammed Ali", Trade: "Carpenter", "Daily Rate": "180" },
-      { Name: "Suresh Kumar", Trade: "Mason", "Daily Rate": "160" },
-    ])
-    expect(rows.map((r) => r.employeeCode)).toEqual(["W-0001", "W-0002"])
-    expect(rows.every((r) => r.employeeCodeGenerated)).toBe(true)
-  })
-
-  test("continues PAST the codes the sheet already uses, so it never collides with its own", () => {
-    const { rows } = sheet([
-      { ID: "W-0007", Name: "Mohammed Ali", Trade: "Carpenter", "Daily Rate": "180" },
-      { Name: "Suresh Kumar", Trade: "Mason", "Daily Rate": "160" },
-    ])
-    expect(rows[0]!.employeeCode).toBe("W-0007")
-    expect(rows[0]!.employeeCodeGenerated).toBe(false)
-    expect(rows[1]!.employeeCode).toBe("W-0008")
-  })
-
-  test("keeps a customer's own non-W code exactly as written", () => {
-    const { rows } = sheet([{ ID: "EMP/2026/44", Name: "Ravi", Trade: "Painter", "Daily Rate": "150" }])
-    expect(rows[0]!.employeeCode).toBe("EMP/2026/44")
-    expect(rows[0]!.employeeCodeGenerated).toBe(false)
-  })
-
-  test("formatWorkerCode is the shared shape", () => {
-    expect(formatWorkerCode(1)).toBe("W-0001")
-    expect(formatWorkerCode(1234)).toBe("W-1234")
-    expect(formatWorkerCode(12345)).toBe("W-12345")
-  })
-})
-
-describe("an unknown company is offered, never invented", () => {
-  test("carries the offer in the exact words the item specifies", () => {
-    const { rows, unknownCompanies } = sheet([
-      { Name: "Ravi", Trade: "Painter", Company: "Al Rashid Contracting", "Daily Rate": "150" },
-    ])
-    expect(rows[0]!.createVendorOffer).toBe("Create vendor 'Al Rashid Contracting'")
-    expect(unknownCompanies).toEqual(["Al Rashid Contracting"])
-  })
-
-  test("a company the org already has is not offered again", () => {
-    const known = new Map([["al rashid contracting", "sup-1"]])
-    const { rows, unknownCompanies } = mapRowsToRosterEntries(
-      [{ Name: "Ravi", Trade: "Painter", Company: "Al Rashid Contracting", "Daily Rate": "150" }],
-      MAPPING, known
+describe("mapRowsToRosterEntries", () => {
+  test("parses a clean sheet", () => {
+    const { entries, issues } = mapRowsToRosterEntries(
+      rows(
+        { ID: "EMP-001", Name: "Ali", Trade: "Mason", Company: "Skyline Labour", "Daily Rate": "120" },
+        { ID: "", Name: "Bilal", Trade: "Electrician", Company: "", "Daily Rate": "1,300" }
+      ),
+      MAPPING
     )
-    expect(rows[0]!.createVendorOffer).toBeNull()
-    expect(unknownCompanies).toEqual([])
-  })
-
-  test("a row with no company at all is neither offered nor an error -- direct labour is normal", () => {
-    const { rows } = sheet([{ Name: "Ravi", Trade: "Painter", "Daily Rate": "150" }])
-    expect(rows[0]!.createVendorOffer).toBeNull()
-    expect(rows[0]!.errors).toEqual([])
-  })
-
-  test("the same unknown company across many rows is offered once", () => {
-    const { unknownCompanies } = sheet([
-      { Name: "A", Trade: "Painter", Company: "Zenith Labour", "Daily Rate": "150" },
-      { Name: "B", Trade: "Mason", Company: "Zenith Labour", "Daily Rate": "150" },
+    expect(issues).toEqual([])
+    // R67 D-68 folded in by the integration merge: every row now carries
+    // skillLevel, null when the sheet has no such column. Asserted here rather
+    // than loosened away, so the shape stays exact.
+    expect(entries).toEqual([
+      { employeeCode: "EMP-001", name: "Ali", trade: "Mason", company: "Skyline Labour", skillLevel: null, dailyRate: 120, sheetRow: 2, skipped: false },
+      { employeeCode: null, name: "Bilal", trade: "Electrician", company: null, skillLevel: null, dailyRate: 1300, sheetRow: 3, skipped: false },
     ])
-    expect(unknownCompanies).toEqual(["Zenith Labour"])
+  })
+
+  test("row numbers are 1-based over the SHEET, header included -- the first data row is row 2", () => {
+    const { issues } = mapRowsToRosterEntries(rows({ Name: "", Trade: "Mason", "Daily Rate": "120" }), MAPPING)
+    expect(issues[0].message).toBe("Row 2: no worker name")
+  })
+
+  test("a row with no name is skipped and named, not imported blank", () => {
+    const { entries, issues } = mapRowsToRosterEntries(rows({ ID: "X", Name: "  ", Trade: "Mason", "Daily Rate": "120" }), MAPPING)
+    expect(entries[0].skipped).toBe(true)
+    expect(issues).toContainEqual({ row: 2, message: "Row 2: no worker name", blocking: true })
+  })
+
+  test("a missing daily rate is skipped -- a worker with no rate silently costs nothing", () => {
+    const { entries, issues } = mapRowsToRosterEntries(rows({ Name: "Ali", Trade: "Mason", "Daily Rate": "" }), MAPPING)
+    expect(entries[0].skipped).toBe(true)
+    expect(issues).toContainEqual({ row: 2, message: "Row 2: no daily rate", blocking: true })
+  })
+
+  test("a garbage daily rate is caught rather than silently imported as 0", () => {
+    const { entries, issues } = mapRowsToRosterEntries(rows({ Name: "Ali", Trade: "Mason", "Daily Rate": "TBD" }), MAPPING)
+    expect(entries[0].skipped).toBe(true)
+    expect(issues).toContainEqual({ row: 2, message: "Row 2: Daily Rate is not a number", blocking: true })
+  })
+
+  test("a negative daily rate is refused", () => {
+    const { entries, issues } = mapRowsToRosterEntries(rows({ Name: "Ali", Trade: "Mason", "Daily Rate": "-40" }), MAPPING)
+    expect(entries[0].skipped).toBe(true)
+    expect(issues).toContainEqual({ row: 2, message: "Row 2: Daily Rate cannot be negative", blocking: true })
+  })
+
+  test("a rate written as 'AED 120' or '(50)' is a real number, not garbage", () => {
+    const { entries, issues } = mapRowsToRosterEntries(
+      rows({ Name: "Ali", Trade: "Mason", "Daily Rate": "AED 120" }),
+      MAPPING
+    )
+    expect(entries[0].dailyRate).toBe(120)
+    expect(issues).toEqual([])
+  })
+
+  test("a missing trade is flagged but NOT skipped -- the worker still belongs on the roster", () => {
+    const { entries, issues } = mapRowsToRosterEntries(rows({ Name: "Ali", Trade: "", "Daily Rate": "120" }), MAPPING)
+    expect(entries[0].skipped).toBe(false)
+    expect(entries[0].trade).toBeNull()
+    expect(issues).toContainEqual({
+      row: 2,
+      message: "Row 2: no trade -- this worker will not appear in any trade-wise total",
+      blocking: false,
+    })
+  })
+
+  test("a wholly blank row is padding, not an error worth naming", () => {
+    const { entries, issues } = mapRowsToRosterEntries(rows({ ID: "", Name: "", Trade: "", Company: "", "Daily Rate": "" }), MAPPING)
+    expect(entries).toEqual([])
+    expect(issues).toEqual([])
+  })
+
+  test("a sheet with no Name column at all throws -- there is nothing to preview", () => {
+    expect(() => mapRowsToRosterEntries(rows({ Trade: "Mason", "Daily Rate": "120" }), { trade: "Trade", dailyRate: "Daily Rate" }))
+      .toThrow(ServiceError)
+  })
+
+  test("a sheet with no Daily Rate column at all throws", () => {
+    expect(() => mapRowsToRosterEntries(rows({ Name: "Ali" }), { name: "Name" })).toThrow(ServiceError)
   })
 })
 
-describe("duplicates by name plus trade are flagged, never merged", () => {
-  test("both rows survive, and the second says which row it repeats", () => {
-    const { rows } = sheet([
-      { Name: "Mohammed Ali", Trade: "Carpenter", "Daily Rate": "180" },
-      { Name: "Mohammed Ali", Trade: "Carpenter", "Daily Rate": "180" },
-    ])
-    expect(rows).toHaveLength(2)
-    expect(rows[0]!.warnings).toEqual([])
-    expect(rows[1]!.warnings[0]).toBe("Row 3: same name and trade as row 2 - imported as a separate worker")
+describe("rosterImportSummary", () => {
+  test("names the skipped rows in the primary action, so the count is never a surprise", () => {
+    const { entries } = mapRowsToRosterEntries(
+      rows(
+        { Name: "Ali", Trade: "Mason", "Daily Rate": "120" },
+        { Name: "", Trade: "Mason", "Daily Rate": "120" },
+        { Name: "Bilal", Trade: "Mason", "Daily Rate": "TBD" }
+      ),
+      MAPPING
+    )
+    expect(rosterImportSummary(entries)).toEqual({ importable: 1, skipped: 2, label: "Import 1 row (2 skipped)" })
+  })
+
+  test("a clean file does not mention skipping at all", () => {
+    const { entries } = mapRowsToRosterEntries(
+      rows(
+        { Name: "Ali", Trade: "Mason", "Daily Rate": "120" },
+        { Name: "Bilal", Trade: "Mason", "Daily Rate": "130" }
+      ),
+      MAPPING
+    )
+    expect(rosterImportSummary(entries).label).toBe("Import 2 rows")
+  })
+
+  test("an empty file reports zero rather than pretending it can import", () => {
+    expect(rosterImportSummary([])).toEqual({ importable: 0, skipped: 0, label: "Import 0 rows" })
+  })
+})
+
+// ── R67 lane D22 (item D-68, rec R-258), FOLDED IN by the integration merge ──
+// Lane D22 wrote a second roster importer with its own tests. Its parser is
+// gone (see the service header: one sheet, one set of rules), so these are the
+// two D-68 rules that WERE folded into this parser, re-aimed at it. Nothing
+// D-68 proved about these two rules has stopped being proved.
+//
+// Its other assertions are not orphaned either: blank-ID auto-numbering is
+// createRosterEntry's job and is tested in construction-labour-service.test.ts,
+// and the two capabilities that were not folded in (the screen-correctable
+// mapping row, and creating an unmatched vendor from the import screen) had
+// their tests removed with the code they tested, which the PR body names.
+describe("R67 D-68 folded in -- skill level, and duplicates flagged not merged", () => {
+  test("a Skill Level column is mapped, and 'Skill' still means trade", () => {
+    const mapping = mapRosterHeaders(["Name", "Skill", "Skill Level", "Daily Rate"])
+    expect(mapping.trade).toBe("Skill")
+    expect(mapping.skillLevel).toBe("Skill Level")
+  })
+
+  test("the sheet's skill grade reaches the row -- the roster column existed and nothing could fill it", () => {
+    const mapping = mapRosterHeaders(["Name", "Trade", "Grade", "Daily Rate"])
+    const { entries } = mapRowsToRosterEntries(
+      rows({ Name: "Mohammed Ali", Trade: "Carpenter", Grade: "Skilled", "Daily Rate": "180" }),
+      mapping
+    )
+    expect(entries[0]!.skillLevel).toBe("Skilled")
+  })
+
+  test("a sheet with no skill-level column leaves it null, never an empty string", () => {
+    const { entries } = mapRowsToRosterEntries(
+      rows({ Name: "Mohammed Ali", Trade: "Carpenter", "Daily Rate": "180" }),
+      MAPPING
+    )
+    expect(entries[0]!.skillLevel).toBeNull()
+  })
+
+  test("both rows of a name+trade duplicate survive, and the second says which row it repeats", () => {
+    const { entries, issues } = mapRowsToRosterEntries(
+      rows(
+        { Name: "Mohammed Ali", Trade: "Carpenter", "Daily Rate": "180" },
+        { Name: "Mohammed Ali", Trade: "Carpenter", "Daily Rate": "180" }
+      ),
+      MAPPING
+    )
+    expect(entries).toHaveLength(2)
+    expect(issues.filter((i) => i.row === 3 && i.message.includes("same name and trade"))).toHaveLength(1)
+    expect(issues.find((i) => i.message.includes("same name and trade"))!.message)
+      .toBe("Row 3: same name and trade as row 2 -- imported as a separate worker, not merged")
   })
 
   test("the same name in a DIFFERENT trade is not a duplicate at all", () => {
-    const { rows } = sheet([
-      { Name: "Mohammed Ali", Trade: "Carpenter", "Daily Rate": "180" },
-      { Name: "Mohammed Ali", Trade: "Mason", "Daily Rate": "170" },
-    ])
-    expect(rows[1]!.warnings).toEqual([])
+    const { issues } = mapRowsToRosterEntries(
+      rows(
+        { Name: "Mohammed Ali", Trade: "Carpenter", "Daily Rate": "180" },
+        { Name: "Mohammed Ali", Trade: "Mason", "Daily Rate": "170" }
+      ),
+      MAPPING
+    )
+    expect(issues.filter((i) => i.message.includes("same name and trade"))).toHaveLength(0)
   })
 
-  test("a duplicate is a warning, not an error -- it still imports", () => {
-    const { rows } = sheet([
-      { Name: "Mohammed Ali", Trade: "Carpenter", "Daily Rate": "180" },
-      { Name: "Mohammed Ali", Trade: "Carpenter", "Daily Rate": "180" },
-    ])
-    expect(rows[1]!.errors).toEqual([])
-  })
-})
-
-describe("per-row messages name the row the way the sheet numbers it", () => {
-  test("a blank rate reads exactly 'Row 3: Rate is blank'", () => {
-    const { rows } = sheet([
-      { Name: "Ravi", Trade: "Painter", "Daily Rate": "150" },
-      { Name: "Suresh", Trade: "Mason" },
-    ])
-    expect(rows[1]!.rowNumber).toBe(3)
-    expect(rows[1]!.errors).toEqual(["Row 3: Rate is blank"])
-  })
-
-  test("a rate that is not a number is caught, not degraded to a worker on zero pay", () => {
-    const { rows } = sheet([{ Name: "Ravi", Trade: "Painter", "Daily Rate": "TBD" }])
-    expect(rows[0]!.errors).toEqual(['Row 2: Rate "TBD" is not a number'])
-  })
-
-  test("a formatted rate is accepted, not flagged", () => {
-    const { rows } = sheet([{ Name: "Ravi", Trade: "Painter", "Daily Rate": "AED 1,250" }])
-    expect(rows[0]!.errors).toEqual([])
-    expect(rows[0]!.dailyRate).toBe(1250)
-  })
-
-  test("a negative rate is refused", () => {
-    const { rows } = sheet([{ Name: "Ravi", Trade: "Painter", "Daily Rate": "-50" }])
-    expect(rows[0]!.errors).toEqual(["Row 2: Rate cannot be negative"])
-  })
-
-  test("a row with content but no name is an error; a wholly blank row is just formatting", () => {
-    const { rows } = sheet([
-      { Name: "Ravi", Trade: "Painter", "Daily Rate": "150" },
-      { Name: "", Trade: "", Company: "", "Daily Rate": "" },
-      { Trade: "Mason", "Daily Rate": "160" },
-    ])
-    expect(rows).toHaveLength(2)
-    expect(rows[1]!.errors).toContain("Row 4: Name is blank")
-  })
-})
-
-describe("a sheet that cannot be read at all", () => {
-  test("a sheet with no Name column says so instead of importing nothing silently", () => {
-    const result = mapRowsToRosterEntries([{ Foo: "bar" }], mapRosterHeaders(["Foo"]), NO_COMPANIES)
-    expect(result.rows).toEqual([])
-    expect(result.blockingErrors[0]).toContain("No Name column found")
-  })
-
-  test("a sheet with headers but no usable rows says so", () => {
-    const result = sheet([])
-    expect(result.blockingErrors).toEqual([NO_USABLE_ROWS])
-  })
-})
-
-describe("applyRosterMappingOverride -- the screen's correctable mapping row", () => {
-  const headers = ["ID", "Name", "Trade", "Company", "Daily Rate", "Notes"]
-  const auto = mapRosterHeaders(headers)
-
-  test("no override leaves the automatic match exactly as it was", () => {
-    expect(applyRosterMappingOverride(auto, undefined, headers)).toEqual(auto)
-    expect(applyRosterMappingOverride(auto, {}, headers)).toEqual(auto)
-  })
-
-  test("re-points a field at another real column in the file", () => {
-    const result = applyRosterMappingOverride(auto, { trade: "Notes" }, headers)
-    expect(result.trade).toBe("Notes")
-    expect(result.name).toBe("Name")
-  })
-
-  test("an empty string means 'this field has no column here', and removes it", () => {
-    const result = applyRosterMappingOverride(auto, { company: "" }, headers)
-    expect("company" in result).toBe(false)
-  })
-
-  test("a header the file does not contain is ignored, never trusted", () => {
-    const result = applyRosterMappingOverride(auto, { name: "Column That Is Not There" }, headers)
-    expect(result.name).toBe("Name")
-  })
-
-  test("a non-string value is ignored rather than corrupting the mapping", () => {
-    const result = applyRosterMappingOverride(auto, { name: 7, trade: null }, headers)
-    expect(result.name).toBe("Name")
-    expect(result.trade).toBe("Trade")
+  test("a duplicate is a warning, not a reason to skip -- both workers still import", () => {
+    const { entries, issues } = mapRowsToRosterEntries(
+      rows(
+        { Name: "Mohammed Ali", Trade: "Carpenter", "Daily Rate": "180" },
+        { Name: "Mohammed Ali", Trade: "Carpenter", "Daily Rate": "180" }
+      ),
+      MAPPING
+    )
+    expect(entries.every((e) => !e.skipped)).toBe(true)
+    expect(issues.find((i) => i.message.includes("same name and trade"))!.blocking).toBe(false)
+    expect(rosterImportSummary(entries).importable).toBe(2)
   })
 })

@@ -1,17 +1,41 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { listAttendance, recordAttendance, ServiceError } from "@/lib/services/construction-labour-service"
+import { withRouteTiming } from "@/lib/route-timing"
 
-export async function GET(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function GET(...args: Parameters<typeof GET_impl>) {
+  return withRouteTiming("GET", () => GET_impl(...args))
+}
+
+async function GET_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    // R67 F-25 (R-241): ?date= for one day, ?from=/?to= for a range.
+    // ?attendanceDate= is the original name and still works.
+    // R67 F-06: `from`/`to` bound the log to a window (PROJEXA's /labour asks
+    // for a window ending on the chosen day). Both optional -- omitting them
+    // keeps the previous unbounded behaviour for every existing caller.
+    //
+    // R67 D-30/D-33 read the same window: the daily sheet asks for one date,
+    // the worker object page's month history and the daily summary ask for a
+    // range, and all three filter in SQL instead of pulling a project's whole
+    // attendance ledger to the browser. Two lanes arrived at the same filter
+    // set from opposite ends -- one to bound a list, one to ask a dated
+    // question -- which is why the parameters below serve both unchanged.
     const attendance = await listAttendance({ orgId: ctx.orgId }, {
       projectId: request.nextUrl.searchParams.get("projectId") ?? undefined,
       rosterId: request.nextUrl.searchParams.get("rosterId") ?? undefined,
+      date: request.nextUrl.searchParams.get("date") ?? undefined,
       attendanceDate: request.nextUrl.searchParams.get("attendanceDate") ?? undefined,
+      from: request.nextUrl.searchParams.get("from") ?? undefined,
+      to: request.nextUrl.searchParams.get("to") ?? undefined,
     })
     return NextResponse.json({ attendance })
   } catch (error) {
@@ -21,7 +45,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function POST(...args: Parameters<typeof POST_impl>) {
+  return withRouteTiming("POST", () => POST_impl(...args))
+}
+
+async function POST_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")

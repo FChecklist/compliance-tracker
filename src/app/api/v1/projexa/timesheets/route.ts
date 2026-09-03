@@ -9,9 +9,21 @@
 // pms-time-service.ts has no listTimeEntriesForUser()), so PROJEXA's own
 // "My Timesheet" view can reuse the existing per-project listing without
 // adding business logic here beyond a plain array filter.
+//
+// R67 WS-H (D-05 identity bridge). Both handlers now read the acting user id
+// PROJEXA sends as the X-Acting-User header and hand it to resolveActingUser
+// alongside the existing body/query actorEmail -- see that function's own
+// comment for the precedence and why the email fallback is kept.
+//
+// GET changed in one user-visible way, deliberately: `mine=true` from an
+// API-key caller used to answer with an EMPTY LIST (ctx.dbUser is always
+// null for a key, so `entries.filter` had nothing to match), which is the
+// silent-empty-200 fault this repo has an org-guard sweep test for. It now
+// resolves the real acting user and surfaces the real reason when it can't.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, requireOrg, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import { listTimeEntriesForProject, listTimeEntriesForIssue, logTime, ServiceError } from "@/lib/services/pms-time-service"
+import { withRouteTiming } from "@/lib/route-timing"
 
 // R43_MGR_02 (production incident, live Vercel runtime telemetry): this
 // route still produced "Vercel Runtime Timeout Error: Task timed out after
@@ -46,23 +58,50 @@ async function readJsonBody(request: NextRequest): Promise<any> {
   return result
 }
 
-export async function GET(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function GET(...args: Parameters<typeof GET_impl>) {
+  return withRouteTiming("GET", () => GET_impl(...args))
+}
+
+async function GET_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return requireOrg(ctx)!
 
   const projectId = request.nextUrl.searchParams.get("projectId")
   const issueId = request.nextUrl.searchParams.get("issueId")
+  const spentOn = request.nextUrl.searchParams.get("spentOn") ?? undefined
   const mine = request.nextUrl.searchParams.get("mine") === "true"
   if (!projectId && !issueId) return NextResponse.json({ error: "projectId or issueId query param is required" }, { status: 400 })
 
   try {
+    let selfId: string | undefined
+    if (mine) {
+      // Both halves of the acting user's identity arrive as HEADERS, never as
+      // query parameters: an email in a query string is written to access logs
+      // and rides the Referer header off-site, which is the exact reason the
+      // id is a header too. See ACTING_USER_EMAIL_HEADER in auth-guard.ts.
+      const { user: actingUser, error: actingUserErr } = await resolveActingUser(
+        ctx,
+        readActingUserEmail(request),
+        readActingUserId(request)
+      )
+      if (actingUserErr) return actingUserErr
+      selfId = actingUser!.id
+    }
+
     let entries = issueId
       ? await listTimeEntriesForIssue({ orgId: ctx.orgId }, issueId)
-      : await listTimeEntriesForProject({ orgId: ctx.orgId }, projectId!)
-    if (mine) {
-      const selfId = ctx.dbUser?.id
-      entries = selfId ? entries.filter((e) => e.userId === selfId) : []
+      : await listTimeEntriesForProject({ orgId: ctx.orgId }, projectId!, { spentOn, userId: selfId })
+    // The project path filters in SQL; the issue path is a plain array filter
+    // because listTimeEntriesForIssue takes no filters and one issue's
+    // entries is a small, bounded set.
+    if (issueId) {
+      if (selfId) entries = entries.filter((e) => e.userId === selfId)
+      if (spentOn) entries = entries.filter((e) => e.spentOn === spentOn)
     }
     return NextResponse.json({ entries })
   } catch (error) {
@@ -72,7 +111,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function POST(...args: Parameters<typeof POST_impl>) {
+  return withRouteTiming("POST", () => POST_impl(...args))
+}
+
+async function POST_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")
@@ -91,7 +138,11 @@ export async function POST(request: NextRequest) {
   // key, never a per-user identity). Same resolveActingUser() fix.
   try {
     const body = await readJsonBody(request)
-    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail)
+    const { user: actingUser, error: actingUserErr } = await resolveActingUser(
+      ctx,
+      body?.actorEmail ?? readActingUserEmail(request),
+      readActingUserId(request)
+    )
     if (actingUserErr) return actingUserErr
 
     const result = await logTime({ orgId: ctx.orgId, userId: actingUser!.id, dbUser: actingUser! }, body)
