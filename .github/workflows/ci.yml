@@ -171,9 +171,51 @@ jobs:
       # script's own header, treats an unreachable DB as a warning, not a
       # failure -- prod downtime must not block every PR in the repo from
       # merging.
+      # R67B (2026-09-03) added two E-74 gates inside this same script
+      # (platform.r43_faults fault_id E74_MIGRATOR_CURSOR_ORPHANS_MIGRATIONS),
+      # so no new job is needed for them:
+      #   - DB-free, always runs: no NEW migration may carry a `when`
+      #     timestamp at or below an entry already ahead of it in the journal
+      #     array. drizzle-kit migrate gates on a single max(created_at)
+      #     watermark, so such a migration becomes permanently unreachable the
+      #     moment anything that overtook it is applied -- skipped silently,
+      #     exit 0. Catching it on the PR is the only cheap moment.
+      #   - DB-backed, degrades to a warning without DATABASE_URL exactly like
+      #     the hash leg: zero journal entries may be orphaned (no applied row
+      #     AND at/below the watermark). Three real ones existed on
+      #     2026-09-03 and were repaired; this keeps the count at zero.
       - run: node scripts/check-migration-integrity.mjs
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  migration-replay-from-empty:
+    # R67B (2026-09-03), platform.r43_faults fault_id
+    # E103_MIGRATION_REPLAY_EMPTY_DB_BREAK. E-103 says a fresh database cannot
+    # be built by replaying drizzle/ from empty. It had been triaged four
+    # times without ever being RUN, because no throwaway Postgres was
+    # available to whoever was triaging; each pass reasoned from file contents
+    # and reached a different, more optimistic, wrong answer.
+    #
+    # This job runs it, on real Postgres (PGlite -- Postgres compiled to WASM,
+    # no server or Docker needed). It is REPORT-ONLY and deliberately does not
+    # gate merges: as of 2026-09-03 only 50 of 360 journal entries apply
+    # cleanly, the first failure is at array position 3, and the cause is that
+    # 95 live tables plus compliance.current_org_id() have no CREATE TABLE or
+    # CREATE FUNCTION anywhere in the migration folder (most of this schema was
+    # built with `db:push`, which writes nothing to drizzle/). Fixing that is
+    # deliberate schema archaeology needing its own reviewed PR, so failing
+    # every build on it today would only teach people to ignore a red check.
+    #
+    # What it does provide is a number that moves. Anyone attempting the
+    # baseline can now prove progress in one command instead of arguing from
+    # file contents, and any regression shows up in the log. Add --strict to
+    # the run below on the day a clean replay is expected to hold.
+    name: Migration Replay From Empty (E-103, report-only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: node scripts/replay-migrations-from-empty.mjs --report
   governance-yaml-parse-check:
     # GAP-CI-WORKFLOW-FILE-PUSH-BLOCKED-MISSING-OAUTH-SCOPE (ai-os/
     # MASTER-TRACKER.yaml, closed 2026-08-30, R1-R64 recheck): this job and
