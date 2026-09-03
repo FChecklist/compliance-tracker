@@ -28,12 +28,27 @@ function mockAuth(ctx: { orgId: string | null; response?: Response | null; dbUse
       response: ctx.response ?? null,
     })),
     resolveActingUser: mock(async (c: any) => ({ user: c.dbUser, error: null })),
+    // R67 WS-H (D-05): the handler reads the X-Acting-User header through
+    // this helper now, so the module mock must export it or the dynamic
+    // import("./route") below fails at load time.
+    readActingUserId: mock(() => null),
   }))
 }
 
 function mockService(implOverride?: () => Promise<unknown>) {
   const submitTimeEntry = mock(implOverride ?? (async () => ({ id: "entry-1", approvalStatus: "submitted" })))
-  mock.module("@/lib/services/pms-time-service", () => ({ submitTimeEntry, ServiceError }))
+  // R67 WS-H (item H-02): the handler reads the entry back (to name the task
+  // and project on the reviewer's row) and then mints that row. Both are
+  // mocked here -- this file's subject is the body-read timeout, not the
+  // review-task lifecycle, which has its own service test.
+  mock.module("@/lib/services/pms-time-service", () => ({
+    submitTimeEntry,
+    getTimeEntry: mock(async () => ({ projectId: "project-1", issue: { id: "issue-1", number: 12, title: "Joinery shop drawings" } })),
+    ServiceError,
+  }))
+  mock.module("@/lib/services/timesheet-review-task-service", () => ({
+    openTimesheetReviewTask: mock(async () => ({ taskId: "task-1", created: true })),
+  }))
   return submitTimeEntry
 }
 
@@ -103,7 +118,11 @@ describe("POST /api/v1/projexa/timesheets/[id]/submit -- R43_MGR_02 body-read ti
     const res = await POST(normalBodyRequest({}) as any, { params: Promise.resolve({ id: "entry-1" }) })
 
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ id: "entry-1", approvalStatus: "submitted" })
+    // R67 WS-H (item H-02): the response now also reports what happened to
+    // the reviewer's Task Master row, so the client can say "submitted, but
+    // the review task was not created" instead of implying either that
+    // nothing happened or that everything did.
+    expect(await res.json()).toEqual({ id: "entry-1", approvalStatus: "submitted", reviewTaskCreated: true, reviewTaskError: null })
     expect(submitTimeEntry).toHaveBeenCalledTimes(1)
     expect(submitTimeEntry.mock.calls[0][1]).toBe("entry-1")
   })
