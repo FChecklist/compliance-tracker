@@ -1,0 +1,14 @@
+-- Companion to 0538: qualifying the vector cast as extensions.vector was
+-- necessary but not sufficient -- app_runtime had no USAGE grant on the
+-- `extensions` schema at all (verified live: has_schema_privilege returned
+-- false), so even the schema-qualified reference failed with
+-- "permission denied for schema extensions" (42501). Found running the
+-- GraphRAG embeddings backfill script's --execute path for real, 2026-09-03.
+--
+-- This grants USAGE only (the ability to reference objects in the schema by
+-- qualified name, e.g. extensions.vector) -- it does not widen data access
+-- to anything beyond what app_runtime already reaches; pgvector is already
+-- in active use elsewhere in this database (12 live HNSW indexes per the
+-- R68 IMG study), just always through the `postgres` role's connections
+-- until now, never through app_runtime's own.
+GRANT USAGE ON SCHEMA extensions TO app_runtime;
