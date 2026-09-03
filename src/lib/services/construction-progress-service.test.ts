@@ -163,6 +163,12 @@ function selectResult(rows: Record<string, unknown>[]): SelectResult {
 type JoinChain = { leftJoin: () => JoinChain; where: () => SelectResult }
 const joinChain: JoinChain = { leftJoin: () => joinChain, where: () => selectResult(enrichedRows) }
 
+// R67 integration note: lane F1's F-05 fixtures (labelActivityRows,
+// labelLineItemRows, findManyCalls) and its own `let progressEntryRows` are
+// gone. They stubbed the batched-ORM-read mechanism F-24 replaced with two LEFT
+// JOINs, and the second `progressEntryRows` shadowed main's real fixture of the
+// same name. The list's joined labels are covered by the F-24 suite below.
+
 const fakeDb = {
   query: {
     projects: {
@@ -174,11 +180,11 @@ const fakeDb = {
     constructionBoqLineItems: {
       findFirst: async ({ where }: { where: SQL }) => lineItemRows.find((r) => matches(r, where)),
     },
-    constructionBoqs: {
-      findFirst: async ({ where }: { where: SQL }) => boqRows.find((r) => matches(r, where)),
-    },
     constructionWorkProgressEntries: {
       findFirst: async ({ where }: { where: SQL }) => progressEntryRows.find((r) => matches(r, where)),
+    },
+    constructionBoqs: {
+      findFirst: async ({ where }: { where: SQL }) => boqRows.find((r) => matches(r, where)),
     },
   },
   insert: () => ({
@@ -276,6 +282,29 @@ describe("createProgressEntry -- R48_PROGRESS_ENTRY_NO_PROJECT_MEMBERSHIP_CHECK_
     expect(insertedRows).toHaveLength(0)
   })
 })
+
+// ---------------------------------------------------------------------------
+// R67 F-05 (R-075) x F-24 (R-240), reconciled by the integration train.
+//
+// Both lanes fixed the SAME fault: the Work Progress list used to answer "what
+// does the BOQ column say?" with a serial client chain -- entries, then
+// GET /api/scope (the whole BOQ list, 1.5-4.4 s), then GET /api/scope/{id} --
+// and still rendered a raw id in the cell. F-05 resolved the labels with two
+// batched ORM reads inside the transaction; F-24 resolved them with two LEFT
+// JOINs in one statement. F-24 is on main, so under decision D-11 it is
+// canonical, and F-05's suite below was written against a mechanism that no
+// longer exists (three findMany() calls, and the field name
+// `boqLineDescription`, which F-24 calls `boqDescription` -- the name PROJEXA's
+// merged list client already reads).
+//
+// Nothing was dropped without checking where it landed:
+//   * labels on the row, one read not N per row  -> F-24's suite below
+//   * the entry's own fields untouched            -> F-24's suite below
+//   * the unit precedence rule                    -> resolveProgressUnit's own
+//                                                    tests further down
+//   * "a gone reference reports null, never the raw id" -> NOT covered by
+//     F-24's fixture, so it is carried over here, rewritten against the join.
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // R67 F-24 (audit recommendation R-240) -- the activity and BOQ-line NAMES come
@@ -428,6 +457,46 @@ describe("listProgressEntries -- R67 F-24: resolved names in the payload, one st
   })
 })
 
+
+// R67 F-05, carried over: the case F-24's own fixture does not cover.
+describe("listProgressEntries -- a reference that no longer resolves", () => {
+  beforeEach(() => {
+    wpSelectCalls = 0
+    wpJoinCount = 0
+    wpProjection = {}
+    wpWithTenantContext.mockClear()
+  })
+
+  afterEach(async () => {
+    mock.restore()
+    await restoreRealModules()
+  })
+
+  test("reports null, never the raw id dressed up as a name", async () => {
+    // boq_line_item_id is ON DELETE SET NULL and the joins are LEFT, so a row
+    // whose activity or BOQ line is gone must still LIST -- with nulls, which
+    // the client renders as an em-dash. A raw id in a name cell is the defect
+    // the audit photographed.
+    const previous = { name: wpFixtureRow.name, item_code: wpFixtureRow.item_code, description: wpFixtureRow.description }
+    wpFixtureRow.name = null
+    wpFixtureRow.item_code = null
+    wpFixtureRow.description = null
+    try {
+      await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: wpWithTenantContext }))
+      const { listProgressEntries } = await import("./construction-progress-service")
+
+      const [row] = await listProgressEntries({ orgId: WP_ORG }, { projectId: WP_PROJECT })
+
+      expect(row.id).toBe("entry-1")
+      expect(row.activityName).toBeNull()
+      expect(row.boqItemCode).toBeNull()
+      expect(row.boqDescription).toBeNull()
+      expect(row.unit).toBeNull()
+    } finally {
+      Object.assign(wpFixtureRow, previous)
+    }
+  })
+})
 // ── R67 B-09: ONE RULE FOR A PROGRESS ENTRY, BOTH PROJECT STATES ──────────
 // The fixture already contains exactly the two projects this rule needs:
 // PROJECT_B has a BOQ (BOQ-B), PROJECT_A has none. So both branches are

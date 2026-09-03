@@ -79,12 +79,121 @@ history" below, which already flagged this exact gap.
   the same posture this repo already applies to any other hard-to-reverse,
   outward-facing change. No `v1` route has been
   deprecated as of this writing — every entry below is additive.
-- **No breaking change has shipped yet** — the contract has stayed at
-  `1.0.0` through every entry below (see "Known gaps in this history").
-  This policy exists so the *next* one, whenever it happens, has a rule to
-  follow instead of being decided ad hoc.
+- **One breaking change has shipped: 2026-09-03 (R67 F-02).** Everything
+  before it was additive, and the contract version stayed at `1.0.0`
+  throughout. The 2026-09-03 entry below is the first change that removes a
+  response field and changes another's semantics, and it is labelled
+  **Breaking** with a migration note, per the rule above. It ships **under
+  `v1`, not behind a new `/api/v2/projexa/**` prefix**, which this policy
+  otherwise calls for — that deviation was a deliberate decision, is recorded
+  in the entry itself, and is flagged for the Owner rather than settled
+  quietly here. This policy exists so the *next* one has a rule to follow
+  instead of being decided ad hoc.
 
 ---
+
+## 2026-09-03
+
+R67 workstream F (performance) lane F1 — the register screens stopped paying a
+Supabase Storage round trip per row, and several list endpoints now answer in
+one request what previously took two or more. Every change is listed below;
+the internal `GET /api/internal/pool-health` added by the same lane is **not**
+part of this surface (it is an `/api/internal/**` operator route, session-gated
+to admins) and is deliberately not listed as a public endpoint.
+
+### Breaking
+
+Both changes below exist because the registers used to mint a signed Storage
+URL for **every row on every list request** — a network round trip per permit
+and per drawing, awaited inside the list handler, whether or not anybody ever
+clicked the file. Register latency scaled linearly with register size, and
+because the signing call was unguarded, one Storage misconfiguration (a rotated
+service-role key, a renamed bucket) turned a whole register into a 500 even
+though every row's real data had already been read successfully.
+
+- **Breaking — `GET /api/v1/projexa/permits`: `documentUrl` removed.** Each
+  row now carries `hasDocument` (boolean) instead, and **no `documentUrl` key
+  at all**. `documentUrl: null` was rejected as the softer alternative
+  precisely because it reads as *"this permit has no file"*, which for a
+  permit that has one is false.
+  **Migration for integrators:** read `hasDocument` to decide whether to
+  offer a link, then fetch `GET /api/v1/projexa/permits/{id}` at the moment
+  the user asks for the file — that existing object route returns the same
+  `documentUrl` it always has, signing exactly one URL, with a one-hour TTL.
+- **Breaking — `GET /api/v1/projexa/drawings`: `documentUrl` semantics
+  changed.** The key is still present, but it is now non-null **only for an
+  external-link 3D walkthrough** (a Matterport/SketchUp URL, which is already
+  a URL and costs no I/O to return). For a drawing backed by an uploaded file
+  it is now always `null`, and the row's `hasDocument` (boolean, new) is what
+  says a file exists. A caller that treats `documentUrl === null` as "no
+  file" will under-report every uploaded drawing.
+  **Migration for integrators:** if `documentUrl` is set, use it. Otherwise,
+  if `hasDocument` is true, call the new
+  `GET /api/v1/projexa/drawings/{id}/document-url` (below) when the user asks
+  for the file.
+
+**Why this shipped under `v1` rather than as `/api/v2/projexa/**`.** The
+Versioning Policy above says a breaking change requires a new version prefix.
+This one did not get one, for a reason recorded here rather than left implicit:
+the change was specified field-by-field ("no `documentUrl`") in the
+owner-approved R66 UX audit, its two affected routes are consumed today only by
+PROJEXA and by VERIDIAN's own `(app)/permits` and `(app)/drawings` screens
+(both migrated in the same change), and standing up a parallel `v2` namespace
+for two endpoints is a larger architectural commitment than the R67 lane that
+made this change was scoped to decide. **If any third-party integration is
+live against either endpoint, this is a real break and the `v2` route is the
+correct answer** — that call belongs to the Owner, and this paragraph exists so
+it is made deliberately rather than discovered.
+
+### Additive
+
+- **`GET /api/v1/projexa/drawings/{id}/document-url` (new)** — mints one
+  signed URL for one drawing, at the moment it is asked for. Scoped
+  identically to the register itself (the document must belong to the
+  caller's org *and* be one of the two drawing categories), so it cannot be
+  used to fish a signed URL for an arbitrary document id. Returns
+  `{ documentUrl, isExternalLink }`; an external link is returned as-is with
+  no Storage call. A signing failure is a `502` carrying
+  `"This drawing's file could not be opened right now. Please retry."` —
+  never a `500`, and never a `200` with no URL in it.
+- **`GET /api/v1/projexa/projects` (new method on an existing route)** —
+  previously `405`, POST-only. Returns `{ projects: [{ id, name, status }] }`
+  from one indexed read, with a 60-second per-org cache that `POST` to the
+  same route invalidates. It exists so a client can answer "which project am
+  I on" without calling `GET /dashboard`, the earned-value/BOQ/invoice
+  aggregate, which cost 1.4–4.0 s per page.
+- **`GET /api/v1/projexa/permits`: `hasDocument` (boolean) added** — see the
+  Breaking section above for the field it replaces.
+- **`GET /api/v1/projexa/drawings`: `hasDocument` (boolean) added** — as
+  above.
+- **`GET /api/v1/projexa/project-budgets`: `fiscalYearName` (string, nullable)
+  and `annualAmount` (number) added to each **list** row.** Folded onto the
+  rows from two batched reads inside the transaction the list already holds,
+  so the cost is constant regardless of row count. Deliberately **not** added
+  to the `POST` create response: a freshly created budget would have to invent
+  them.
+- **`GET /api/v1/construction/boq`: `totalVariation` and
+  `totalVariationVsOriginal` (number, nullable) added to each row.**
+  Variation against the immediate parent revision and against Rev0
+  respectively, computed with the same `diffLineItems`/`computeTotalVariation`
+  pair `GET /boq/{id}/compare` uses, so a list cell and the compare screen
+  cannot disagree. **Both are `null`, never `0`, when they do not apply** —
+  Rev0 has no baseline, and "no baseline" is not "no change". Replaces a
+  client-side fan-out of one `/compare` call per revision.
+- **`GET /api/v1/construction/progress`: `activityName`, `boqItemCode`,
+  `boqLineDescription` and `unit` added to each row**, resolved by two
+  batched reads regardless of row count. An unresolvable reference reports
+  `null` rather than the raw id. Also gained optional **`dateFrom` / `dateTo`
+  query parameters** (both optional; omitting them is the previous
+  behaviour).
+- **`GET /api/v1/construction/attendance`: optional `from` / `to` query
+  parameters added** for a date window. Both optional and validated before a
+  pooled connection is taken; every existing caller is unchanged.
+- **`GET /api/v1/construction/labour-roster`: `vendorName` (string, nullable)
+  added to each row**, from one batched read on the transaction the list
+  already holds, and skipped entirely when nobody on the roster is
+  subcontracted. A vendor row that has been deleted reports `null`, never a
+  raw id.
 
 ## 2026-07-30
 
@@ -246,5 +355,11 @@ history" below, which already flagged this exact gap.
   cover data models that don't yet have an equivalent core `/api/v1/erp/**`
   or `/api/v1/*` route for non-PROJEXA VERIDIAN AI OS tenants. That gap is
   tracked in `ai-os/MASTER-TRACKER.yaml`, not repeated here.
-- The contract version has stayed at `1.0.0` through every entry above —
-  no breaking change requiring a `2.0.0` has shipped yet as of this writing.
+- The contract version is still `1.0.0`, but that is no longer the same
+  statement as "nothing breaking has shipped": the 2026-09-03 (R67 F-02)
+  entry above removes `documentUrl` from the permits register and changes its
+  meaning on the drawings register, under `v1`, for the reasons recorded in
+  that entry. The version number was not bumped because the Versioning Policy
+  ties a break to a new **prefix** rather than to a version string, and no
+  `/api/v2/**` namespace exists. Whether one should exist for those two routes
+  is an open Owner decision, flagged there.

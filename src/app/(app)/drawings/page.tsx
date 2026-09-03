@@ -33,9 +33,15 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ProjectPicker, NoProjectsCard, type PickerProject } from "@/components/ProjectPicker";
 
+// R67 F-02 (R-054). The register stopped minting a Supabase Storage signed URL
+// per row -- one network round trip per drawing, on a list nobody may click.
+// `documentUrl` now arrives non-null ONLY for an external-link walkthrough,
+// which costs no I/O to return; a stored file says `hasDocument: true` and its
+// URL is signed on click, by the endpoint below.
 type Drawing = {
   id: string; name: string; kind: "dwg" | "3d_walkthrough"; discipline: string | null;
-  isExternalLink: boolean; fileType: string | null; documentUrl: string | null; createdAt: string;
+  isExternalLink: boolean; fileType: string | null; documentUrl: string | null;
+  hasDocument: boolean; createdAt: string;
 };
 
 function DrawingsPageInner() {
@@ -52,6 +58,8 @@ function DrawingsPageInner() {
 
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<"dwg" | "3d_walkthrough">("dwg");
@@ -91,6 +99,34 @@ function DrawingsPageInner() {
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // R67 F-02. The register no longer carries a signed URL per row, so this asks
+  // for one drawing's URL at click time. The blank tab is opened SYNCHRONOUSLY,
+  // before the await: a browser only treats window.open() as user-initiated
+  // inside the click handler's own turn, so opening it after the fetch resolves
+  // is what a popup blocker kills. Same shape as PROJEXA's DrawingsClient.
+  const openDrawing = async (drawing: Drawing) => {
+    if (drawing.documentUrl) {
+      window.open(drawing.documentUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    const tab = window.open("", "_blank", "noopener,noreferrer");
+    setOpeningId(drawing.id);
+    try {
+      const res = await fetch(`/api/v1/projexa/drawings/${encodeURIComponent(drawing.id)}/document-url`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.documentUrl) throw new Error(data?.error ?? "No file link came back for this drawing");
+      if (tab) tab.location.href = data.documentUrl;
+      // If the popup was blocked, honour the click in this tab instead of
+      // silently doing nothing.
+      else window.open(data.documentUrl, "_self");
+    } catch (err) {
+      tab?.close();
+      toast.error(err instanceof Error && err.message ? err.message : "Couldn't open this drawing");
+    } finally {
+      setOpeningId(null);
+    }
+  };
 
   const createDrawing = async () => {
     if (!projectId || !name.trim()) return;
@@ -216,10 +252,18 @@ function DrawingsPageInner() {
                         <TableCell className="text-ct-muted">{d.discipline ?? "--"}</TableCell>
                         <TableCell className="text-ct-muted">{new Date(d.createdAt).toLocaleDateString()}</TableCell>
                         <TableCell className="text-right">
-                          {d.documentUrl ? (
-                            <a href={d.documentUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-ct-saffron hover:underline">
-                              Open <ExternalLink className="size-3" />
-                            </a>
+                          {/* R67 F-02: the link renders from hasDocument (or an
+                              external link's own URL), and the storage URL is
+                              signed on click -- not once per row on load. */}
+                          {d.documentUrl || d.hasDocument ? (
+                            <button
+                              type="button"
+                              disabled={openingId === d.id}
+                              onClick={() => openDrawing(d)}
+                              className="inline-flex items-center gap-1 text-xs text-ct-saffron hover:underline disabled:opacity-60"
+                            >
+                              {openingId === d.id ? "Opening..." : "Open"} <ExternalLink className="size-3" />
+                            </button>
                           ) : "--"}
                         </TableCell>
                       </TableRow>

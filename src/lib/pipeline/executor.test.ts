@@ -1,5 +1,5 @@
 /// <reference types="bun-types" />
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import { executeTask, functionWrites, hasExecutor, type ExecutableTask, type ExecutionOutcome } from "./executor";
 import { isRetryableFailure, normaliseThrownError, serialiseFailure } from "./error-codes";
 import { functionSpec, requiredParamSatisfied } from "./function-registry";
@@ -264,5 +264,171 @@ describe("B-11 -- a quantity answers 'how much is done' as well as a percent", (
     expect(requiredParamSatisfied(percent, { quantityDone: 2 })).toBe(true);
     expect(requiredParamSatisfied(percent, { percent: 40 })).toBe(true);
     expect(requiredParamSatisfied(percent, { itemCode: "EX-01" })).toBe(false);
+  });
+});
+
+// R67 F-15 (R-232/R-251) -- the pipeline's ONE write path is no longer nested.
+//
+// THE FAULT. executeRecordWorkProgress() held a tenant transaction open for its
+// three lookups AND for createProgressEntry(), which opens its own. That is two
+// of tenant-scoped.ts's five app_runtime connections held by a single task, on
+// the exact path M24's Task Master uses to record progress -- the same shape
+// that self-deadlocked the dashboard in production. The D-06 guard added in
+// F-12 turns it from a slow success into an error, so it had to be flattened.
+//
+// Only the DB layer and the progress service are mocked (the "capture the real
+// modules, restore in afterEach" pattern used across this repo's service
+// tests), so the real executor runs: its own lookups, its own error strings.
+const realTenantScoped = await import("@/lib/db/tenant-scoped");
+const realProgressService = await import("@/lib/services/construction-progress-service");
+
+type Order = string[];
+
+function fakeDb(overrides: Record<string, unknown> = {}) {
+  // MERGE NOTE (F-15 x B-01): the real executor calls
+  // constructionBoqLineItems.findFirst TWICE -- once for the line the user
+  // named, then again to ask whether that line has a CHILD, because a parent
+  // line's percent is derived from its children and may not be written
+  // directly. One canned answer for both would make every leaf line look like
+  // a parent and fail the happy path with BOQ_LINE_IS_PARENT, so the fake
+  // answers the second probe with "no child", which is what a leaf is.
+  let lineItemCalls = 0;
+  return {
+    query: {
+      constructionBoqs: { findFirst: async () => ({ id: "boq-1", version: 2 }) },
+      constructionBoqLineItems: {
+        findFirst: async () => {
+          lineItemCalls += 1;
+          return lineItemCalls === 1 ? { id: "li-1", itemCode: "1.01", quantity: "100" } : undefined;
+        },
+      },
+      constructionActivities: { findFirst: async () => ({ id: "act-1" }) },
+      ...overrides,
+    },
+  };
+}
+
+async function loadExecutor(db: unknown) {
+  const order: Order = [];
+  let openTransactions = 0;
+  let maxOpenTransactions = 0;
+  const withTenantContext = mock(async (_ctx: { orgId: string }, fn: (tx: unknown) => Promise<unknown>) => {
+    openTransactions += 1;
+    maxOpenTransactions = Math.max(maxOpenTransactions, openTransactions);
+    order.push("open-transaction");
+    try {
+      return await fn(db);
+    } finally {
+      openTransactions -= 1;
+      order.push("close-transaction");
+    }
+  });
+  const createProgressEntry = mock(async () => {
+    order.push("create-progress-entry");
+    return { id: "entry-1", percentComplete: "40" };
+  });
+
+  await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext }));
+  await mock.module("@/lib/services/construction-progress-service", () => ({ ...realProgressService, createProgressEntry }));
+
+  const { executeTask } = await import("./executor");
+  return { executeTask, order, withTenantContext, createProgressEntry, maxOpen: () => maxOpenTransactions };
+}
+
+// Named apart from this file's other TASK fixture (params: {}, used by the
+// B-01 normalisation suites): this one has to carry a real line and a real
+// value, because it must reach the write.
+const SPLIT_TASK: ExecutableTask = {
+  orgId: "org-1",
+  userId: "user-1",
+  projectId: "p1",
+  functionId: "record_work_progress",
+  params: { itemCode: "1.01", percent: 40 },
+};
+
+describe("executeRecordWorkProgress: the lookups and the write no longer share a connection", () => {
+  afterEach(async () => {
+    mock.restore();
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped);
+    await mock.module("@/lib/services/construction-progress-service", () => realProgressService);
+  });
+
+  test("the lookup transaction CLOSES before the write starts", async () => {
+    const { executeTask, order, createProgressEntry, maxOpen } = await loadExecutor(fakeDb());
+
+    const outcome = await executeTask(SPLIT_TASK);
+
+    expect(outcome.success).toBe(true);
+    expect(createProgressEntry.mock.calls.length).toBe(1);
+    // The whole point: never two transactions open at once for one task.
+    expect(maxOpen()).toBe(1);
+    expect(order).toEqual(["open-transaction", "close-transaction", "create-progress-entry"]);
+  });
+
+  test("the write receives the references the lookups resolved", async () => {
+    const { executeTask, createProgressEntry } = await loadExecutor(fakeDb());
+
+    await executeTask(SPLIT_TASK);
+
+    const [, input] = createProgressEntry.mock.calls[0] as [unknown, Record<string, unknown>];
+    expect(input.activityId).toBe("act-1");
+    expect(input.boqLineItemId).toBe("li-1");
+    expect(input.percentComplete).toBe(40);
+    expect(input.projectId).toBe("p1");
+  });
+
+  // MERGE NOTE (F-15 x B-01). These three used to assert free-text `error`
+  // strings. ExecutionOutcome no longer has a free-text arm -- B-01 replaced it
+  // with a closed vocabulary of codes, which is what gives the client its one
+  // sentence and its picker -- so they assert the CODE. What F-15 owns here is
+  // unchanged and is the second half of each case: the write is never reached.
+  test("a missing BOQ fails with BOQ_LINE_NOT_FOUND, and never reaches the write", async () => {
+    const { executeTask, createProgressEntry } = await loadExecutor(
+      fakeDb({ constructionBoqs: { findFirst: async () => undefined } })
+    );
+
+    const outcome = await executeTask(SPLIT_TASK);
+
+    expect(outcome.success).toBe(false);
+    expect(outcome.success === false && outcome.failure.code).toBe("BOQ_LINE_NOT_FOUND");
+    expect(createProgressEntry.mock.calls.length).toBe(0);
+  });
+
+  test("an unknown item code fails with BOQ_LINE_NOT_FOUND, and never reaches the write", async () => {
+    const { executeTask, createProgressEntry } = await loadExecutor(
+      fakeDb({ constructionBoqLineItems: { findFirst: async () => undefined } })
+    );
+
+    const outcome = await executeTask(SPLIT_TASK);
+
+    expect(outcome.success).toBe(false);
+    expect(outcome.success === false && outcome.failure.code).toBe("BOQ_LINE_NOT_FOUND");
+    expect(createProgressEntry.mock.calls.length).toBe(0);
+  });
+
+  test("a project with no activity fails with ACTIVITY_REQUIRED, and never reaches the write", async () => {
+    const { executeTask, createProgressEntry } = await loadExecutor(
+      fakeDb({ constructionActivities: { findFirst: async () => undefined } })
+    );
+
+    const outcome = await executeTask(SPLIT_TASK);
+
+    expect(outcome.success).toBe(false);
+    expect(outcome.success === false && outcome.failure.code).toBe("ACTIVITY_REQUIRED");
+    expect(createProgressEntry.mock.calls.length).toBe(0);
+  });
+
+  // The failure paths above all return BEFORE the write, so the transaction
+  // discipline F-15 exists to enforce has to hold on them too: one transaction,
+  // opened and closed, and nothing after it.
+  test("a failure path still opens exactly one transaction and closes it", async () => {
+    const { executeTask, order, maxOpen } = await loadExecutor(
+      fakeDb({ constructionActivities: { findFirst: async () => undefined } })
+    );
+
+    await executeTask(SPLIT_TASK);
+
+    expect(maxOpen()).toBe(1);
+    expect(order).toEqual(["open-transaction", "close-transaction"]);
   });
 });

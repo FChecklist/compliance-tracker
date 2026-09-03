@@ -26,9 +26,13 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ProjectPicker, NoProjectsCard, type PickerProject } from "@/components/ProjectPicker";
 
+// R67 F-02 (R-018/R-021). The register stopped minting a Supabase Storage
+// signed URL per row -- one network round trip per permit, on a list nobody may
+// click. It reports whether the permit HAS a file; the URL is signed on click,
+// by GET /api/v1/projexa/permits/{id}, which signs exactly one.
 type Permit = {
   id: string; name: string; permitNumber: string | null; permitAuthority: string | null;
-  issueDate: string | null; endDate: string | null; daysToExpiry: number | null; documentUrl: string | null;
+  issueDate: string | null; endDate: string | null; daysToExpiry: number | null; hasDocument: boolean;
 };
 
 function statusBadge(daysToExpiry: number | null) {
@@ -45,6 +49,7 @@ export default function PermitsPage() {
 
   const [permits, setPermits] = useState<Permit[]>([]);
   const [loading, setLoading] = useState(false);
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -83,6 +88,31 @@ export default function PermitsPage() {
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // R67 F-02. One signed URL, minted because a human clicked -- not one per row
+  // on every load. The blank tab is opened SYNCHRONOUSLY, before the await: a
+  // browser only treats window.open() as user-initiated inside the click
+  // handler's own turn, so opening it after the fetch resolves is what a popup
+  // blocker kills.
+  const openPermitDocument = async (permit: Permit) => {
+    const tab = window.open("", "_blank", "noopener,noreferrer");
+    setOpeningId(permit.id);
+    try {
+      const res = await fetch(`/api/v1/projexa/permits/${encodeURIComponent(permit.id)}`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error ?? "Couldn't open this permit's document");
+      // The row said there IS a file, so a null URL here means the signing
+      // itself failed -- say that, rather than "no document".
+      if (!data?.documentUrl) throw new Error("This permit's file could not be opened right now. Please retry.");
+      if (tab) tab.location.href = data.documentUrl;
+      else window.open(data.documentUrl, "_self");
+    } catch (err) {
+      tab?.close();
+      toast.error(err instanceof Error && err.message ? err.message : "Couldn't open this permit's document");
+    } finally {
+      setOpeningId(null);
+    }
+  };
 
   const createPermit = async () => {
     if (!projectId || !file || !name.trim()) return;
@@ -196,10 +226,18 @@ export default function PermitsPage() {
                         <TableCell className="text-ct-muted">{p.endDate ? new Date(p.endDate).toLocaleDateString() : "--"}</TableCell>
                         <TableCell>{statusBadge(p.daysToExpiry)}</TableCell>
                         <TableCell className="text-right">
-                          {p.documentUrl ? (
-                            <a href={p.documentUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-ct-saffron hover:underline">
-                              View <ExternalLink className="size-3" />
-                            </a>
+                          {/* R67 F-02: the link renders from hasDocument,
+                              and the storage URL is signed on click --
+                              not once per row on load. */}
+                          {p.hasDocument ? (
+                            <button
+                              type="button"
+                              disabled={openingId === p.id}
+                              onClick={() => openPermitDocument(p)}
+                              className="inline-flex items-center gap-1 text-xs text-ct-saffron hover:underline disabled:opacity-60"
+                            >
+                              {openingId === p.id ? "Opening..." : "View"} <ExternalLink className="size-3" />
+                            </button>
                           ) : "--"}
                         </TableCell>
                       </TableRow>
