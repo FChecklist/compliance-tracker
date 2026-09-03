@@ -10,7 +10,7 @@
 // describe block already uses for this same tenant-scoped-db precedent.
 /// <reference types="bun-types" />
 import { describe, expect, test, mock, afterEach } from "bun:test"
-import { resolvePmsBillableRatePure } from "./pms-time-service"
+import { resolvePmsBillableRatePure, timesheetEntryRef } from "./pms-time-service"
 
 describe("resolvePmsBillableRatePure -- 2-tier rate precedence (per-user > org default)", () => {
   test("returns null when no rates exist at all", () => {
@@ -87,6 +87,24 @@ describe("submitTimeEntry / approveTimeEntry / rejectTimeEntry: designer-entry -
     expect(result.approvalStatus).toBe("submitted")
   })
 
+  // R67 WS-H (item H-03): a RETURNED entry must be fixable and re-sendable,
+  // or the "sent back with a reason" loop has no way to close.
+  test("a returned entry can be corrected and re-submitted, and re-submitting clears the stale reason", async () => {
+    const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "rejected", rejectionReason: "Hours look inflated for this task" })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { submitTimeEntry } = await import("./pms-time-service")
+    const result = await submitTimeEntry({ orgId: "org1", userId: "designer1" }, "e1") as { approvalStatus: string; rejectionReason: string | null }
+    expect(result.approvalStatus).toBe("submitted")
+    expect(result.rejectionReason).toBeNull()
+  })
+
+  test("an APPROVED entry still cannot be re-submitted -- it has already been counted as cost", async () => {
+    const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "approved" })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { submitTimeEntry } = await import("./pms-time-service")
+    await expect(submitTimeEntry({ orgId: "org1", userId: "designer1" }, "e1")).rejects.toThrow("Only a draft or returned time entry can be submitted")
+  })
+
   test("a different user cannot submit someone else's draft entry", async () => {
     const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "draft" })
     await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
@@ -138,5 +156,241 @@ describe("submitTimeEntry / approveTimeEntry / rejectTimeEntry: designer-entry -
     const result = await rejectTimeEntry({ orgId: "org1", userId: "manager1" }, "e1", "Hours look inflated for this task") as { approvalStatus: string; rejectionReason: string }
     expect(result.approvalStatus).toBe("rejected")
     expect(result.rejectionReason).toBe("Hours look inflated for this task")
+  })
+})
+
+// R67 WS-H (items H-01/H-03): the day grid's own two service additions.
+// Same mocked-tenant-scoped-db pattern as the state-machine block above.
+describe("timesheetEntryRef -- the short, stable reference the object page quotes", () => {
+  test("derives a TS- reference from the row's own id, uppercased", () => {
+    expect(timesheetEntryRef("clx9m2k4a000abcdef")).toBe("TS-ABCDEF")
+  })
+
+  test("is stable for the same id and different for different ids", () => {
+    expect(timesheetEntryRef("entry-000123")).toBe(timesheetEntryRef("entry-000123"))
+    expect(timesheetEntryRef("entry-000123")).not.toBe(timesheetEntryRef("entry-000124"))
+  })
+
+  test("a short id is not padded with anything invented", () => {
+    expect(timesheetEntryRef("ab")).toBe("TS-AB")
+  })
+})
+
+describe("updateTimeEntry -- Edit on the object page is draft-only and owner-only", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  test("the logging designer can edit their own draft entry", async () => {
+    const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "draft", hours: "2" })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { updateTimeEntry } = await import("./pms-time-service")
+    const result = await updateTimeEntry({ orgId: "org1", userId: "designer1" }, "e1", { hours: "3.25" }) as { hours: string }
+    expect(result.hours).toBe("3.25")
+  })
+
+  test("a returned entry is editable -- that is the whole point of sending it back", async () => {
+    const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "rejected", hours: "8" })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { updateTimeEntry } = await import("./pms-time-service")
+    const result = await updateTimeEntry({ orgId: "org1", userId: "designer1" }, "e1", { hours: "6" }) as { hours: string }
+    expect(result.hours).toBe("6")
+  })
+
+  test("a submitted entry cannot be edited underneath the manager reviewing it", async () => {
+    const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "submitted", hours: "2" })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { updateTimeEntry } = await import("./pms-time-service")
+    await expect(updateTimeEntry({ orgId: "org1", userId: "designer1" }, "e1", { hours: "3" })).rejects.toThrow("Only a draft or returned time entry can be edited")
+  })
+
+  test("someone else's draft entry cannot be edited", async () => {
+    const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "draft", hours: "2" })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { updateTimeEntry } = await import("./pms-time-service")
+    await expect(updateTimeEntry({ orgId: "org1", userId: "someoneElse" }, "e1", { hours: "3" })).rejects.toThrow("Only the logging user may edit this entry")
+  })
+
+  test("zero or negative hours are refused with the exact per-field sentence the grid shows", async () => {
+    const { updateTimeEntry } = await import("./pms-time-service")
+    await expect(updateTimeEntry({ orgId: "org1", userId: "designer1" }, "e1", { hours: "0" })).rejects.toThrow("Hours must be more than 0")
+    await expect(updateTimeEntry({ orgId: "org1", userId: "designer1" }, "e1", { hours: "-2" })).rejects.toThrow("Hours must be more than 0")
+  })
+})
+
+describe("submitDayForReview -- one decision over the whole day, not a loop", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  function makeDayDb(issues: Array<Record<string, unknown>>, drafts: Array<Record<string, unknown>>) {
+    return {
+      query: {
+        pmsIssues: { findMany: mock(async () => issues) },
+        pmsTimeEntries: { findMany: mock(async () => drafts) },
+      },
+      update: () => ({
+        set: (patch: Record<string, unknown>) => ({
+          where: () => ({ returning: async () => drafts.map((d) => ({ ...d, ...patch })) }),
+        }),
+      }),
+    }
+  }
+
+  test("submits every draft row of that day in one write and reports the real count and hours", async () => {
+    const fakeDb = makeDayDb(
+      [{ id: "issue-1", number: 12, title: "Joinery shop drawings" }],
+      [
+        { id: "e1", issueId: "issue-1", hours: "3", approvalStatus: "draft" },
+        { id: "e2", issueId: "issue-1", hours: "4.5", approvalStatus: "draft" },
+      ]
+    )
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { submitDayForReview } = await import("./pms-time-service")
+    const result = await submitDayForReview({ orgId: "org1", userId: "designer1" }, { projectId: "project-1", spentOn: "2026-09-02" })
+
+    expect(result.submitted).toBe(2)
+    expect(result.hours).toBe(7.5)
+    expect(result.entries.map((e) => e.approvalStatus)).toEqual(["submitted", "submitted"])
+    // The caller needs task + ref per entry to mint one review row each.
+    expect(result.entries[0].ref).toBe(timesheetEntryRef("e1"))
+    expect(result.entries[0].issue).toEqual({ id: "issue-1", number: 12, title: "Joinery shop drawings" })
+  })
+
+  test("a day with nothing logged is refused rather than reported as a successful empty submit", async () => {
+    const fakeDb = makeDayDb([{ id: "issue-1", number: 12, title: "Joinery shop drawings" }], [])
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { submitDayForReview } = await import("./pms-time-service")
+    await expect(submitDayForReview({ orgId: "org1", userId: "designer1" }, { projectId: "project-1", spentOn: "2026-09-02" }))
+      .rejects.toThrow("No hours logged for this day")
+  })
+
+  test("projectId and spentOn are both required -- a day submit with no day is meaningless", async () => {
+    const { submitDayForReview } = await import("./pms-time-service")
+    await expect(submitDayForReview({ orgId: "org1", userId: "designer1" }, { projectId: "", spentOn: "2026-09-02" })).rejects.toThrow("projectId is required")
+    await expect(submitDayForReview({ orgId: "org1", userId: "designer1" }, { projectId: "project-1", spentOn: "" })).rejects.toThrow("spentOn is required")
+  })
+})
+
+// R67 WS-H fix pass. The create screen's landing receipt is item H-01's exact
+// sentence "Timesheet entry TS-000123 saved", and it can only say that if the
+// WRITE answers with the same `ref` the reads do. Before this, logTime returned
+// the bare inserted row, the client fell back to the raw cuid, and the receipt
+// read "Timesheet entry cm3x9k2a0004fg saved".
+describe("logTime -- the created entry names itself", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  test("the created entry carries the same TS- ref the reads return", async () => {
+    const fakeDb = {
+      query: { pmsIssues: { findFirst: mock(async () => ({ id: "issue-1", orgId: "org1" })) } },
+      insert: () => ({
+        values: (row: Record<string, unknown>) => ({
+          returning: async () => [{ id: "clx9m2k4a000123", ...row }],
+        }),
+      }),
+    }
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { logTime } = await import("./pms-time-service")
+    const created = await logTime(
+      { orgId: "org1", userId: "designer1", dbUser: { id: "designer1" } as never },
+      { issueId: "issue-1", hours: "3", spentOn: "2026-09-02" }
+    )
+    expect(created.ref).toBe(timesheetEntryRef("clx9m2k4a000123"))
+    expect(created.ref).toStartWith("TS-")
+  })
+})
+
+// R67 WS-H fix pass (item H-03, "Approve (bulk per day)"). The manager's mirror
+// of submitDayForReview: one transaction, not a client loop that can leave a
+// day half-decided.
+describe("reviewDayForReview -- a whole day is decided at once, or not at all", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  function makeReviewDb(issues: Array<Record<string, unknown>>, pending: Array<Record<string, unknown>>) {
+    return {
+      query: {
+        pmsIssues: { findMany: mock(async () => issues) },
+        pmsTimeEntries: { findMany: mock(async () => pending) },
+      },
+      update: () => ({
+        set: (patch: Record<string, unknown>) => ({
+          where: () => ({ returning: async () => pending.map((p) => ({ ...p, ...patch })) }),
+        }),
+      }),
+    }
+  }
+
+  const ISSUES = [{ id: "issue-1", number: 12, title: "Joinery shop drawings" }]
+  const PENDING = [
+    { id: "e1", issueId: "issue-1", hours: "3", approvalStatus: "submitted", userId: "designer1" },
+    { id: "e2", issueId: "issue-1", hours: "4.5", approvalStatus: "submitted", userId: "designer1" },
+  ]
+
+  test("approves every submitted row of that designer's day in one write", async () => {
+    const fakeDb = makeReviewDb(ISSUES, PENDING)
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { reviewDayForReview } = await import("./pms-time-service")
+    const result = await reviewDayForReview({ orgId: "org1", userId: "manager1" }, {
+      designerId: "designer1", projectId: "project-1", spentOn: "2026-09-02", decision: "approved",
+    })
+    expect(result.decided).toBe(2)
+    expect(result.hours).toBe(7.5)
+    expect(result.entries.map((e) => e.approvalStatus)).toEqual(["approved", "approved"])
+    expect(result.entries[0].ref).toBe(timesheetEntryRef("e1"))
+  })
+
+  test("returning a day carries the manager's reason onto every row it decided", async () => {
+    const fakeDb = makeReviewDb(ISSUES, PENDING)
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { reviewDayForReview } = await import("./pms-time-service")
+    const result = await reviewDayForReview({ orgId: "org1", userId: "manager1" }, {
+      designerId: "designer1", projectId: "project-1", spentOn: "2026-09-02", decision: "rejected",
+      rejectionReason: "Split the site visit off the drawings line",
+    })
+    expect(result.decision).toBe("rejected")
+    expect(result.entries.every((e) => e.rejectionReason === "Split the site visit off the drawings line")).toBe(true)
+  })
+
+  test("a manager cannot bulk-approve their OWN day", async () => {
+    const { reviewDayForReview } = await import("./pms-time-service")
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, {
+      designerId: "manager1", projectId: "project-1", spentOn: "2026-09-02", decision: "approved",
+    })).rejects.toThrow("The submitter cannot review their own time entry")
+  })
+
+  test("returning a day without saying what to change is refused server-side, not only by the screen", async () => {
+    const { reviewDayForReview, REJECTION_REASON_TOO_SHORT } = await import("./pms-time-service")
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, {
+      designerId: "designer1", projectId: "project-1", spentOn: "2026-09-02", decision: "rejected", rejectionReason: "no",
+    })).rejects.toThrow(REJECTION_REASON_TOO_SHORT)
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, {
+      designerId: "designer1", projectId: "project-1", spentOn: "2026-09-02", decision: "rejected",
+    })).rejects.toThrow(REJECTION_REASON_TOO_SHORT)
+  })
+
+  test("a day with nothing submitted is refused rather than reported as an empty success", async () => {
+    const fakeDb = makeReviewDb(ISSUES, [])
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { reviewDayForReview } = await import("./pms-time-service")
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, {
+      designerId: "designer1", projectId: "project-1", spentOn: "2026-09-02", decision: "approved",
+    })).rejects.toThrow("No submitted hours to review for this day")
+  })
+
+  test("designerId, projectId, spentOn and a real decision are all required", async () => {
+    const { reviewDayForReview } = await import("./pms-time-service")
+    const base = { designerId: "designer1", projectId: "project-1", spentOn: "2026-09-02", decision: "approved" as const }
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, { ...base, designerId: "" })).rejects.toThrow("designerId is required")
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, { ...base, projectId: "" })).rejects.toThrow("projectId is required")
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, { ...base, spentOn: "" })).rejects.toThrow("spentOn is required")
+    await expect(reviewDayForReview({ orgId: "org1", userId: "manager1" }, { ...base, decision: "maybe" as never })).rejects.toThrow("decision must be approved or rejected")
   })
 })

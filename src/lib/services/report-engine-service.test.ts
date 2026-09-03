@@ -6,7 +6,8 @@
 import { describe, expect, test } from "bun:test"
 import {
   validateReportDefinitionInput, deriveReportDomainFromClassifications, buildAggregationNote, isBillingScheduleDue,
-  aggregateSalesByMaterialServiceType, usableBudget, type SalesByServiceTypeLine, type CreateReportDefinitionInput,
+  aggregateSalesByMaterialServiceType, usableBudget, TABLE_REGISTRY,
+  type SalesByServiceTypeLine, type CreateReportDefinitionInput,
 } from "./report-engine-service"
 
 const BASE: CreateReportDefinitionInput = {
@@ -279,5 +280,22 @@ describe("usableBudget", () => {
   test("a real budget comes back unchanged, so CPI/EVA keep computing on the real figure", () => {
     expect(usableBudget(900000)).toBe(900000)
     expect(usableBudget(0.5)).toBe(0.5)
+  })
+})
+
+// R67 D-21: veri_meetings gained a third status, 'deleted' -- a soft-deleted
+// DRAFT. This generic report engine is one of the two readers OUTSIDE
+// veri-meeting-service, so without a table-level predicate every definition
+// over that table would keep counting rows the product has stopped showing.
+// baseWhere is not expressible from a definition's JSON config on purpose: it
+// is a property of the table, not a filter a report may opt out of.
+describe("TABLE_REGISTRY baseWhere (R67 D-21)", () => {
+  test("veri_meetings carries a base predicate, so soft-deleted drafts are excluded from every definition over it", () => {
+    expect(TABLE_REGISTRY.veri_meetings.baseWhere).toBeDefined()
+  })
+
+  test("a table with nothing to hide carries none -- baseWhere is the exception, not a default every entry pays for", () => {
+    expect(TABLE_REGISTRY.compliance_items.baseWhere).toBeUndefined()
+    expect(TABLE_REGISTRY.notices.baseWhere).toBeUndefined()
   })
 })

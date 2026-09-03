@@ -68,7 +68,8 @@ import {
   interiorFurniturePlacements, interiorMaterials, users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, or, isNull, isNotNull, inArray, sql, gte, lt, lte, ilike, type SQL } from "drizzle-orm"
+import { and, eq, ne, or, isNull, isNotNull, inArray, sql, gte, lt, lte, ilike, type SQL } from "drizzle-orm"
+import { MEETING_DELETED_STATUS } from "@/lib/db/schema"
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson, stripJsonFence } from "@/lib/llm-client"
@@ -233,7 +234,13 @@ export async function runAggregation(
 // at the end, never rename/remove an existing key (report_definitions rows
 // reference these keys by string in their jsonb execution_config, so a
 // rename silently breaks every row that used the old key).
-export type TableRegistryEntry = { table: PgTable; orgIdColumn: AnyPgColumn; columns: Record<string, AnyPgColumn> }
+// `baseWhere` (R67 D-21) is a predicate ANDed into EVERY aggregation over the
+// entry's table, alongside the org filter and independent of anything a
+// report_definitions row asks for. It exists for rows a table holds but that no
+// report should ever count -- today only veri_meetings' soft-deleted drafts. It
+// is deliberately not expressible from a definition's JSON config: it is a
+// property of the table, decided in code, not a filter a report may opt out of.
+export type TableRegistryEntry = { table: PgTable; orgIdColumn: AnyPgColumn; columns: Record<string, AnyPgColumn>; baseWhere?: SQL }
 
 export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
   compliance_items: { table: complianceItems, orgIdColumn: complianceItems.orgId, columns: { status: complianceItems.status, priority: complianceItems.priority, complianceType: complianceItems.complianceType, departmentId: complianceItems.departmentId } },
@@ -316,7 +323,10 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
   // meeting" -- veri_meetings has no dedicated sales/pre-sales flag, so any
   // report reading this table documents that limitation in its own
   // dataGapNote/description rather than silently overclaiming precision.
-  veri_meetings: { table: veriMeetings, orgIdColumn: veriMeetings.orgId, columns: { meetingType: veriMeetings.meetingType, contextEntityType: veriMeetings.contextEntityType } },
+  // R67 D-21: baseWhere excludes soft-deleted DRAFTS (status 'deleted'). The
+  // product stops showing them the moment they are deleted, so a report that
+  // still counted them would disagree with every screen the reader can open.
+  veri_meetings: { table: veriMeetings, orgIdColumn: veriMeetings.orgId, columns: { meetingType: veriMeetings.meetingType, contextEntityType: veriMeetings.contextEntityType }, baseWhere: ne(veriMeetings.status, MEETING_DELETED_STATUS) },
   // -- 2026-08-22 (Sumeet 8-report closure pass) --
   // construction_boq_line_items had NO org_id column at all until migration
   // add_org_id_to_construction_boq_line_items (this pass) added one,
@@ -406,6 +416,9 @@ export function buildAggregationNote(
 export async function runAggregationFromConfig(ctx: { orgId: string }, config: AggregationConfig, runtimeScope?: { companyId?: string }): Promise<ReportDefinitionResult> {
   const { entry, groupByColumn, aggregationColumn, filterColumn } = resolveAggregationTarget(config)
   const whereClauses: SQL[] = []
+  // The table's own base predicate first, so no definition can be written that
+  // reads rows the table says are not reportable (R67 D-21).
+  if (entry.baseWhere) whereClauses.push(entry.baseWhere)
   if (filterColumn && config.filterEquals) whereClauses.push(eq(filterColumn, config.filterEquals.value))
   if (runtimeScope?.companyId && entry.columns.companyId) whereClauses.push(eq(entry.columns.companyId, runtimeScope.companyId))
   const extraWhere = whereClauses.length > 0 ? and(...whereClauses) : undefined

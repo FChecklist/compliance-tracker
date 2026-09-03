@@ -4,7 +4,7 @@
 // matching this codebase's convention elsewhere (e.g. documents.isLatestVersion).
 import { constructionLabourRoster, constructionAttendance, projects } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, gte, lte, sql } from "drizzle-orm"
+import { and, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -16,6 +16,108 @@ export type RosterInput = {
   skillLevel?: string
   vendorId?: string
   dailyRate: number
+}
+
+// ---------------------------------------------------------------------------
+// R67 D-34 (R-085/R-091): the roster is where every trade-wise number
+// downstream comes from, and it was the weakest form in the product.
+//
+// employee_code was "customer-assigned free-text, not a key, not unique-
+// enforced, not auto-generated" (see schema.ts's own comment) and the create
+// form marked it optional -- so most workers landed on the list with an ID cell
+// reading "—", and the success line could not name what it had just made.
+// A blank code now gets one, generated per org.
+export const EMPLOYEE_CODE_PREFIX = "W-"
+const EMPLOYEE_CODE_PAD = 4
+
+/** Pure. "W-0042". Four digits is the zero-padding the acceptance pins; a bigger number simply gets longer rather than wrapping. */
+export function formatEmployeeCode(sequence: number): string {
+  return `${EMPLOYEE_CODE_PREFIX}${String(sequence).padStart(EMPLOYEE_CODE_PAD, "0")}`
+}
+
+// NOTE: an earlier draft of this file also exported a pure
+// nextEmployeeCodeSequence(existingCodes) helper. It is gone deliberately: its
+// only caller was the max(employee_code)+1 read-then-write that
+// generateEmployeeCode below no longer does, and the rule it encoded ("ignore
+// customer-assigned codes that are not in the W-nnnn shape") now lives where it
+// belongs -- in drizzle/0529_r67_i02's seeding of
+// construction_employee_code_counters, which is the only place that has to
+// decide it. An exported pure helper nothing calls is a second copy of a rule
+// waiting to drift from the one the database applies.
+
+/**
+ * The generated-code branch. THIS IS THE CALLER schema.ts's comment on
+ * compliance.construction_employee_code_counters names as its contract, and it
+ * follows that contract literally: claim the next number with ONE atomic
+ * statement, inside the same transaction as the roster insert, never
+ * read-then-write.
+ *
+ * WHY NOT max(employee_code)+1 (which an earlier draft of this function used):
+ * R67 lane I's drizzle/0529_r67_i02 created a PARTIAL UNIQUE INDEX
+ * construction_labour_roster_org_employee_code_unique on
+ * (org_id, employee_code) where the code is non-blank. Under a read-then-write
+ * two concurrent creates read the same max, both format the same "W-0007", and
+ * the second INSERT raises a unique violation -- a 500 for a user who did
+ * nothing wrong. The counter row serialises the claim instead: the second
+ * transaction blocks on the ON CONFLICT DO UPDATE until the first commits, then
+ * reads the incremented value.
+ *
+ * The counter is per org (not a Postgres SEQUENCE) because a sequence is a
+ * single global object and one-per-org would mean runtime DDL, which the
+ * app_runtime role must never do. 0529 seeds each org's counter from the
+ * highest 'W-nnnn' already on its roster, so a generated number can never
+ * collide with a code someone typed by hand.
+ */
+async function generateEmployeeCode(db: TenantDb, orgId: string): Promise<string> {
+  const claimed = await db.execute(sql`
+    INSERT INTO compliance.construction_employee_code_counters (org_id, last_number)
+    VALUES (${orgId}, 1)
+    ON CONFLICT (org_id) DO UPDATE
+      SET last_number = construction_employee_code_counters.last_number + 1,
+          updated_at = now()
+    RETURNING last_number
+  `)
+  // drizzle's execute() returns the driver's own result shape; postgres-js
+  // yields the rows array directly, node-postgres wraps them in `.rows`.
+  const rows = (Array.isArray(claimed) ? claimed : (claimed as { rows?: unknown[] }).rows) ?? []
+  const lastNumber = Number((rows[0] as { last_number?: number | string } | undefined)?.last_number)
+  if (!Number.isFinite(lastNumber) || lastNumber < 1) {
+    throw new ServiceError("Could not allocate a worker ID", 500)
+  }
+  return formatEmployeeCode(lastNumber)
+}
+
+/**
+ * The trades the create/edit form offers. Seeded so a brand-new org is not
+ * asked to invent a vocabulary, merged with whatever the org has actually used
+ * so an existing free-text trade never disappears from the picker the day it
+ * becomes a Select.
+ */
+export const SEED_TRADES = ["Mason", "Carpenter", "Electrician", "Plumber", "Painter", "Helper", "Supervisor"] as const
+
+/** Pure. Case-insensitive merge, seeds first (in their given order), then anything else the org has used, alphabetically. */
+export function mergeTrades(existing: (string | null | undefined)[]): string[] {
+  const seen = new Map<string, string>()
+  for (const seed of SEED_TRADES) seen.set(seed.toLowerCase(), seed)
+  const extra: string[] = []
+  for (const value of existing) {
+    const trade = value?.trim()
+    if (!trade) continue
+    const key = trade.toLowerCase()
+    if (seen.has(key)) continue
+    seen.set(key, trade)
+    extra.push(trade)
+  }
+  return [...SEED_TRADES, ...extra.sort((a, b) => a.localeCompare(b))]
+}
+
+export async function listRosterTrades(ctx: { orgId: string }): Promise<string[]> {
+  const used = await withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.selectDistinct({ trade: constructionLabourRoster.trade })
+      .from(constructionLabourRoster)
+      .where(and(eq(constructionLabourRoster.orgId, ctx.orgId), isNotNull(constructionLabourRoster.trade)))
+  )
+  return mergeTrades(used.map((r) => r.trade))
 }
 
 export async function listRoster(ctx: { orgId: string }, projectId: string) {
@@ -125,14 +227,29 @@ export async function createRosterEntry(ctx: { orgId: string }, input: RosterInp
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
   if (!input.projectId) throw new ServiceError("projectId is required", 400)
+  // R67 D-34: a rate that is not a number used to be stringified straight into
+  // a numeric column ("NaN"), and a negative one was stored as-is -- both then
+  // corrupt every trade-wise cost figure downstream. Refused BY NAME, before a
+  // transaction is opened. Left optional (defaulting to 0, as before) so no
+  // existing caller changes behaviour.
+  if (input.dailyRate !== undefined && input.dailyRate !== null) {
+    if (!Number.isFinite(input.dailyRate) || input.dailyRate < 0) {
+      throw new ServiceError("dailyRate must be a number of 0 or more", 400)
+    }
+  }
 
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const project = await db.query.projects.findFirst({ where: and(eq(projects.id, input.projectId), eq(projects.orgId, ctx.orgId)) })
     if (!project) throw new ServiceError("Project not found", 404)
 
+    // R67 D-34: a blank code is FILLED, not stored as null. The caller's own
+    // code, when it supplies one, is still stored verbatim -- this generates,
+    // it never overrides.
+    const employeeCode = input.employeeCode?.trim() || (await generateEmployeeCode(db, ctx.orgId))
+
     const [row] = await db.insert(constructionLabourRoster).values({
       orgId: ctx.orgId, projectId: input.projectId, name,
-      employeeCode: input.employeeCode || null,
+      employeeCode,
       trade: input.trade || null, skillLevel: input.skillLevel || null, vendorId: input.vendorId || null,
       dailyRate: String(input.dailyRate ?? 0),
     }).returning()
@@ -196,6 +313,14 @@ export type AttendanceFilters = {
   to?: string
 }
 
+// R67 D-30 folds in here: the daily attendance sheet reads one date, but the
+// worker object page's attendance history reads a month window and the
+// daily-summary tab reads a range. `from`/`to` are what those two need, and
+// F-25 (already on main) is the canonical implementation of them -- doing the
+// windowing client-side would mean pulling every attendance row a project has
+// ever had and filtering in the browser, which is exactly the "fetch
+// everything then reduce in JS" pattern getMaterialCostReport's own header
+// rejects.
 export async function listAttendance(ctx: { orgId: string }, filters: AttendanceFilters) {
   if (!filters.projectId && !filters.rosterId) throw new ServiceError("projectId or rosterId is required", 400)
   const exactDate = filters.date ?? filters.attendanceDate
@@ -215,7 +340,26 @@ export async function listAttendance(ctx: { orgId: string }, filters: Attendance
   })
 }
 
-const COST_MULTIPLIER: Record<string, number> = { present: 1, half_day: 0.5, absent: 0 }
+export type AttendanceStatus = "present" | "absent" | "half_day"
+
+// The one place the present/half-day/absent -> money rule lives. Exported so
+// the batch path below and its unit test read the SAME multipliers the
+// single-row recordAttendance() has used since Wave 116, rather than a
+// second copy that could drift.
+export const ATTENDANCE_COST_MULTIPLIER: Record<AttendanceStatus, number> = { present: 1, half_day: 0.5, absent: 0 }
+
+const COST_MULTIPLIER: Record<string, number> = ATTENDANCE_COST_MULTIPLIER
+
+export function isAttendanceStatus(value: unknown): value is AttendanceStatus {
+  return value === "present" || value === "absent" || value === "half_day"
+}
+
+/** Pure: the money a single marked row is worth. `dailyRate` arrives as the numeric column's string form. */
+export function computeDailyCost(dailyRate: string | number, status: AttendanceStatus): number {
+  const rate = Number(dailyRate)
+  if (!Number.isFinite(rate)) return 0
+  return Math.round(rate * ATTENDANCE_COST_MULTIPLIER[status] * 100) / 100
+}
 
 export async function recordAttendance(
   ctx: { orgId: string },
@@ -244,14 +388,166 @@ export async function recordAttendance(
     }).returning()
     return row
   }).then((row) => {
-    // Wave 126: fire-and-forget automation trigger.
+    // Wave 126: fire-and-forget automation trigger. The .catch() matches the
+    // batch path below -- an automation rule that throws must not become an
+    // unhandled rejection on a write that has already succeeded.
     if (row.status === "absent") {
       void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
         evaluateAndRunRules({ orgId: ctx.orgId }, "construction_attendance.worker_absent", {
           rosterId: row.rosterId, projectId: row.projectId, attendanceDate: row.attendanceDate,
         })
-      )
+      ).catch((err) => console.error("attendance automation trigger failed:", err))
     }
     return row
   })
+}
+
+export type AttendanceBatchRow = { rosterId: string; status: AttendanceStatus; hoursWorked?: number | null }
+
+export type AttendanceBatchInput = {
+  projectId: string
+  attendanceDate: string
+  rows: AttendanceBatchRow[]
+}
+
+export type AttendanceBatchResult = {
+  attendanceDate: string
+  savedCount: number
+  createdCount: number
+  updatedCount: number
+  totalCost: number
+  attendance: (typeof constructionAttendance.$inferSelect)[]
+}
+
+// R67 D-30 (Daily Attendance Sheet). recordAttendance() above writes exactly
+// ONE row per call and 409s if that worker/date pair already exists, so
+// marking a 38-worker roster meant 38 HTTP round trips, 38 withTenantContext
+// TRANSACTIONS on a 5-connection pool, and no way at all to correct a
+// mis-marked row from the sheet. This is the batch twin: one transaction,
+// three round trips of work regardless of roster size (roster lookup,
+// existing-row lookup, then the writes), and an UPSERT on
+// (orgId, rosterId, attendanceDate) so re-saving the same sheet corrects the
+// rows instead of duplicating or 409ing them.
+//
+// The upsert is done as read-then-update/insert inside the transaction rather
+// than ON CONFLICT: the unique index on (org_id, roster_id, attendance_date)
+// this key needs ships in the R67 WS-I migration set, which is a different
+// lane's file, so this path must be correct with OR without it. Once that
+// index exists it additionally makes the pair unique under concurrency; the
+// logic here does not change.
+//
+// dailyCost is recomputed from the roster's own dailyRate on every save --
+// never trusted from the client, and never carried over from the row's
+// previous status -- matching recordAttendance()'s write-time posture.
+export async function recordAttendanceBatch(ctx: { orgId: string }, input: AttendanceBatchInput): Promise<AttendanceBatchResult> {
+  if (!input.projectId) throw new ServiceError("projectId is required", 400)
+  if (!input.attendanceDate) throw new ServiceError("attendanceDate is required", 400)
+  const rows = input.rows ?? []
+  if (rows.length === 0) throw new ServiceError("At least one marked row is required", 400)
+
+  const seen = new Set<string>()
+  for (const row of rows) {
+    if (!row?.rosterId) throw new ServiceError("Every row needs a rosterId", 400)
+    if (seen.has(row.rosterId)) throw new ServiceError(`Worker ${row.rosterId} appears twice in the same sheet`, 400)
+    seen.add(row.rosterId)
+    if (!isAttendanceStatus(row.status)) throw new ServiceError(`Unknown attendance status "${String(row.status)}"`, 400)
+    if (row.hoursWorked !== undefined && row.hoursWorked !== null && !Number.isFinite(Number(row.hoursWorked))) {
+      throw new ServiceError("hoursWorked must be a number", 400)
+    }
+  }
+  const rosterIds = [...seen]
+
+  const result = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    // One lookup for the whole sheet. Scoped by projectId as well as orgId so
+    // a sheet cannot silently mark a worker who belongs to another project of
+    // the same org -- the same intra-tenant misattribution
+    // construction-progress-service.ts's own R48 fix closed.
+    const rosterRows = await db.query.constructionLabourRoster.findMany({
+      where: and(
+        eq(constructionLabourRoster.orgId, ctx.orgId),
+        eq(constructionLabourRoster.projectId, input.projectId),
+        inArray(constructionLabourRoster.id, rosterIds)
+      ),
+    })
+    const rosterById = new Map(rosterRows.map((r) => [r.id, r]))
+    const missing = rosterIds.filter((id) => !rosterById.has(id))
+    if (missing.length > 0) throw new ServiceError(`Roster entry not found on this project: ${missing.join(", ")}`, 404)
+
+    const existingRows = await db.query.constructionAttendance.findMany({
+      where: and(
+        eq(constructionAttendance.orgId, ctx.orgId),
+        eq(constructionAttendance.attendanceDate, input.attendanceDate),
+        inArray(constructionAttendance.rosterId, rosterIds)
+      ),
+    })
+    const existingByRosterId = new Map(existingRows.map((r) => [r.rosterId, r]))
+
+    const saved: (typeof constructionAttendance.$inferSelect)[] = []
+    const toInsert: (typeof constructionAttendance.$inferInsert)[] = []
+    let updatedCount = 0
+
+    for (const row of rows) {
+      const roster = rosterById.get(row.rosterId)!
+      const dailyCost = computeDailyCost(roster.dailyRate, row.status)
+      const hoursWorked = row.hoursWorked === undefined || row.hoursWorked === null ? null : String(row.hoursWorked)
+      const existing = existingByRosterId.get(row.rosterId)
+
+      if (existing) {
+        // Still one transaction: an UPDATE per corrected row, not a
+        // transaction per row. Only rows already on this date are touched.
+        const [updated] = await db.update(constructionAttendance)
+          .set({ status: row.status, hoursWorked, dailyCost: String(dailyCost), projectId: input.projectId })
+          .where(eq(constructionAttendance.id, existing.id))
+          .returning()
+        saved.push(updated)
+        updatedCount++
+      } else {
+        toInsert.push({
+          orgId: ctx.orgId, projectId: input.projectId, rosterId: row.rosterId,
+          attendanceDate: input.attendanceDate, status: row.status,
+          hoursWorked, dailyCost: String(dailyCost),
+        })
+      }
+    }
+
+    // Every new row in ONE insert statement.
+    if (toInsert.length > 0) {
+      const inserted = await db.insert(constructionAttendance).values(toInsert).returning()
+      saved.push(...inserted)
+    }
+
+    return {
+      attendanceDate: input.attendanceDate,
+      savedCount: saved.length,
+      createdCount: toInsert.length,
+      updatedCount,
+      totalCost: Math.round(saved.reduce((sum, r) => sum + Number(r.dailyCost), 0) * 100) / 100,
+      attendance: saved,
+    }
+  })
+
+  // Wave 126 parity: the single-row path fires the absence automation, so the
+  // sheet must too or a worker marked absent from the sheet would silently
+  // skip rules a worker marked one-at-a-time triggers. Fire-and-forget, same
+  // as recordAttendance().
+  //
+  // The .catch() is not optional here even though the trigger is
+  // fire-and-forget by design. This path fans out N rules through
+  // Promise.all(), so ONE failing rule rejects the whole array; with nothing
+  // attached that is an unhandled promise rejection, which Node can escalate
+  // to a process exit. The sheet has already been saved and returned at this
+  // point -- the correct behaviour is to log and carry on, never to take the
+  // server down for a rule that misfired.
+  const absent = result.attendance.filter((r) => r.status === "absent")
+  if (absent.length > 0) {
+    void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
+      Promise.all(absent.map((row) =>
+        evaluateAndRunRules({ orgId: ctx.orgId }, "construction_attendance.worker_absent", {
+          rosterId: row.rosterId, projectId: row.projectId, attendanceDate: row.attendanceDate,
+        })
+      ))
+    ).catch((err) => console.error("attendance batch automation trigger failed:", err))
+  }
+
+  return result
 }

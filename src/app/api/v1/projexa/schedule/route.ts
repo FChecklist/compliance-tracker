@@ -11,7 +11,8 @@
 // separately-purchased PMS product branch.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
-import { listIssues, createIssue, ServiceError, type IssueInput } from "@/lib/services/pms-issue-service"
+import { listIssues, ServiceError } from "@/lib/services/pms-issue-service"
+import { createScheduleActivity, type ScheduleActivityInput } from "@/lib/services/schedule-service"
 import { resolveDefaultIssueTypeId } from "@/lib/services/pms-taxonomy-service"
 import { withRouteTiming } from "@/lib/route-timing"
 
@@ -88,7 +89,15 @@ async function POST_impl(request: NextRequest) {
       }
     }
 
-    const input: IssueInput = {
+    // R67 D-47: a programme activity, not just an issue. startDate is now
+    // required by createScheduleActivity (a bar with no start cannot be drawn),
+    // durationDays derives the finish when no explicit one is given, and
+    // predecessorId / boqLineItemId are validated and written as the two edges
+    // the Timeline and the BOQ rollup read. Every one of these is optional on
+    // the wire except startDate, so an existing caller that sends only
+    // projectId + title now gets a 400 naming the field it is missing rather
+    // than an activity nothing can place.
+    const input: ScheduleActivityInput = {
       projectId: body.projectId,
       typeId,
       title: body.title,
@@ -97,9 +106,12 @@ async function POST_impl(request: NextRequest) {
       statusId: body.statusId,
       dueDate: body.dueDate,
       startDate: body.startDate,
+      durationDays: body.durationDays === undefined || body.durationDays === null ? undefined : Number(body.durationDays),
+      predecessorId: body.predecessorId || undefined,
+      boqLineItemId: body.boqLineItemId || undefined,
       assigneeIds: body.assigneeIds,
     }
-    const task = await createIssue({ orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }, input)
+    const task = await createScheduleActivity({ orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }, input)
     return NextResponse.json(task, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

@@ -24,16 +24,19 @@
 -- hardcoded COLUMNS fallback, so without these rows the three new columns
 -- would be invisible on any database where a drawings.list row exists.
 --
--- Numbered 0536, the next free number after
--- drizzle/0535_r67_f25_attendance_project_date_index.sql (lane F2), read from
--- `git ls-tree -r --name-only origin/main -- drizzle/` at integration time
--- (origin/main bdf8a2a2); journal idx 358, appended after lane F2's 357.
--- This file has now been renumbered FOUR times by merging lanes -- drafted as
+-- Numbered 0537, the next free number after
+-- drizzle/0536_r67_d36_material_receipt_reference.sql (lane D3), read from
+-- `git ls-tree -r --name-only origin/main -- drizzle/` on a FRESHLY FETCHED
+-- origin/main at integration time; journal idx 359, appended after lane D3's
+-- 358 with a strictly later `when` (1788289400000 vs D3's 1788289300000).
+-- This file has now been renumbered FIVE times by merging lanes -- drafted as
 -- 0528 (collided with lane I), then 0533 (collided with lane B), then 0534
--- (collided with lane F2's 0534_r67_f23_boq_list_indexes) -- so re-read
--- origin/main's drizzle/ listing before merging rather than trusting this
--- header. Do NOT trust a local Git Bash `ls` of this directory either: it
--- under-reports on this laptop, which is how the first collision happened.
+-- (collided with lane F2's 0534_r67_f23_boq_list_indexes), then 0536 (collided
+-- with lane D3's 0536_r67_d36_material_receipt_reference, which landed on main
+-- after D1 had already resolved and pushed once) -- so re-read origin/main's
+-- drizzle/ listing before merging rather than trusting this header. Do NOT
+-- trust a local Git Bash `ls` of this directory either: it under-reports on
+-- this laptop, which is how the first collision happened.
 -- Note also that scripts/check-migration-collision.mjs compares against the
 -- MERGE-BASE, so it passes while a real collision exists, and it silently
 -- no-ops on Windows -- this check has to be done by hand.
