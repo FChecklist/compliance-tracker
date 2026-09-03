@@ -2654,9 +2654,13 @@ describe("R67 E-32: buildReportTable -- the {columns, rows} contract", () => {
 // what can silently go wrong, is WHICH budget a row shows and whether a
 // missing figure becomes a zero.
 describe("R67 E-33: buildBudgetVsActualByProject", () => {
+  // R67 E-06/E-23 second-merge fix: PortfolioProjectRow's fields renamed to
+  // match OrgDashboardProjectSummary's own convention -- `budget` is now the
+  // BOQ-derived figure (was `boqBudget`) and `ledgerBudget` is the ERP
+  // cost-centre fallback (was `budget`). Same two facts, canonical names.
   const project = (over: Partial<PortfolioProjectRow> = {}): PortfolioProjectRow => ({
     id: "p1", name: "Cedar Heights Villa - Phase 1",
-    revenue: 475_000, boqBudget: 200_000, budget: 150_000,
+    revenue: 475_000, budget: 200_000, ledgerBudget: 150_000,
     spent: 185_000, earnedValue: 118_750, progressPercent: 60,
     ...over,
   })
@@ -2678,20 +2682,20 @@ describe("R67 E-33: buildBudgetVsActualByProject", () => {
   })
 
   test("the ERP cost-centre budget stands in when the BOQ carries none", () => {
-    expect(buildBudgetVsActualByProject([project({ boqBudget: null })], "AED").rows[0].budget).toBe(150_000)
+    expect(buildBudgetVsActualByProject([project({ budget: null })], "AED").rows[0].budget).toBe(150_000)
     // A BOQ that exists but budgets nothing is not a budget either.
-    expect(buildBudgetVsActualByProject([project({ boqBudget: 0 })], "AED").rows[0].budget).toBe(150_000)
+    expect(buildBudgetVsActualByProject([project({ budget: 0 })], "AED").rows[0].budget).toBe(150_000)
   })
 
   test("no budget anywhere is NULL, never 0 -- 'not set' and 'budgeted at zero' are different facts", () => {
-    const table = buildBudgetVsActualByProject([project({ boqBudget: null, budget: null })], "AED")
+    const table = buildBudgetVsActualByProject([project({ budget: null, ledgerBudget: null })], "AED")
     expect(table.rows[0].budget).toBeNull()
   })
 
   test("the row says WHICH budget it landed on, so the caption cannot disagree with the bar", () => {
     expect(buildBudgetVsActualByProject([project()], "AED").rows[0].budgetSource).toBe("boq")
-    expect(buildBudgetVsActualByProject([project({ boqBudget: null })], "AED").rows[0].budgetSource).toBe("erp")
-    expect(buildBudgetVsActualByProject([project({ boqBudget: null, budget: null })], "AED").rows[0].budgetSource).toBe("none")
+    expect(buildBudgetVsActualByProject([project({ budget: null })], "AED").rows[0].budgetSource).toBe("erp")
+    expect(buildBudgetVsActualByProject([project({ budget: null, ledgerBudget: null })], "AED").rows[0].budgetSource).toBe("none")
     expect(buildBudgetVsActualByProject([project()], "AED").columns.map((c) => c.key)).not.toContain("budgetSource")
   })
 
@@ -2711,7 +2715,7 @@ describe("R67 E-33: buildBudgetVsActualByProject", () => {
 
   test("the money columns total across the portfolio; the percentage does not", () => {
     const table = buildBudgetVsActualByProject(
-      [project(), project({ id: "p2", name: "Oakwood", revenue: 100_000, boqBudget: 50_000, spent: 25_000, earnedValue: 10_000, progressPercent: 20 })],
+      [project(), project({ id: "p2", name: "Oakwood", revenue: 100_000, budget: 50_000, spent: 25_000, earnedValue: 10_000, progressPercent: 20 })],
       "AED"
     )
     expect(table.totals).toEqual({ revenue: 575_000, budget: 250_000, actual: 210_000, earnedValue: 128_750 })

@@ -3285,15 +3285,18 @@ const REPORT_TABLE_BUILDERS: { [K in ReportName]: (payload: Payload<K>) => Built
       amount: l.amount, budgetPercentage: l.budgetPercentage, budget: l.budget,
       vendorName: l.vendorName, vendorAmount: l.vendorAmount, variance: l.variance,
     })),
-    // R67 E-26 x D-26: totalVariance is `number | null` -- null when NOT ONE
-    // line carries a committed cost, which is a real "nothing has been costed
-    // yet" state and not a variance of zero. `totals` is a map of numbers whose
-    // own contract is "present only where summing that column is a real
-    // statement", so it is omitted rather than written as a 0 that would read
-    // as "exactly on budget". The renderer prints an en dash for an absent
-    // total. Budget and vendor amount are always real sums over the root lines.
+    // R67 E-26 x D-26 x E-06 (second-merge fix): totalBudget and totalVariance
+    // are BOTH `number | null` -- totalBudget via sumRootLineBudgets() is null
+    // when not one root line carries an amount (E-06's "no BOQ is not a budget
+    // of nothing" rule), and totalVariance is null when NOT ONE line carries a
+    // committed cost. Neither is a real "nothing measured" state fabricated as
+    // a 0. `totals` is a map of numbers whose own contract is "present only
+    // where summing that column is a real statement", so both are omitted
+    // rather than written as a 0 that would read as "exactly on budget". The
+    // renderer prints an en dash for an absent total. Vendor amount is always
+    // a real sum over the root lines (it has no "no BOQ" state of its own).
     totals: {
-      budget: p.totalBudget,
+      ...(p.totalBudget !== null ? { budget: p.totalBudget } : {}),
       vendorAmount: p.totalVendorAmount,
       ...(p.totalVariance !== null ? { variance: p.totalVariance } : {}),
     },
@@ -3331,9 +3334,10 @@ export type PortfolioProjectRow = {
   id: string
   name: string
   revenue: number
-  /** BOQ-derived budget: root line amount x budget %. Falls back to the ERP cost-centre budget. */
-  boqBudget: number | null
+  /** BOQ-derived budget: root line amount x budget %. Falls back to the ERP cost-centre (`ledgerBudget`) below. */
   budget: number | null
+  /** ERP cost-centre (annual ledger) budget -- the fallback when the BOQ carries no budget %. Same split OrgDashboardProjectSummary uses (E-06/E-23 second-merge fix). */
+  ledgerBudget: number | null
   spent: number
   earnedValue: number | null
   progressPercent: number | null
@@ -3350,7 +3354,7 @@ export type PortfolioProjectRow = {
  */
 export function buildBudgetVsActualByProject(projects: PortfolioProjectRow[], currency: string | null): ReportTable {
   const rows = projects.map((p) => {
-    const budget = p.boqBudget !== null && p.boqBudget > 0 ? p.boqBudget : p.budget
+    const budget = p.budget !== null && p.budget > 0 ? p.budget : p.ledgerBudget
     return {
       project: p.name,
       // Carried but NOT a column: the chart makes each row a link to that
@@ -3364,7 +3368,7 @@ export function buildBudgetVsActualByProject(projects: PortfolioProjectRow[], cu
       // chart's caption has to say whether the reader is looking at a BOQ
       // figure or an ERP cost-centre one, and re-deriving that on the client
       // from a null check is how the caption comes to disagree with the bar.
-      budgetSource: budget === null ? "none" : p.boqBudget !== null && p.boqBudget > 0 ? "boq" : "erp",
+      budgetSource: budget === null ? "none" : p.budget !== null && p.budget > 0 ? "boq" : "erp",
       actual: p.spent,
       earnedValue: p.earnedValue,
       progressPct: p.progressPercent,

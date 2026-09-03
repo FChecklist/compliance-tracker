@@ -1362,6 +1362,10 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         earnedValue: ev?.earnedValue ?? null,
       })
       const tasks = taskMap.get(p.id)
+      // Exactly what resolveProjectMoney derives as contractValue -- kept
+      // under its own name here for spendOverValue below, which predates the
+      // money model and reads more clearly against the BOQ-specific term.
+      const value = money.contractValue
       return {
         id: p.id, name: p.name,
         revenue: revenueMap.get(p.id) ?? 0,
@@ -1372,10 +1376,7 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         tasksDue: tasks?.due ?? 0,
         tasksLate: tasks?.delayed ?? 0,
         hasSchedule: (tasks?.withDueDate ?? 0) > 0,
-        // Exactly what resolveProjectMoney derives as contractValue -- kept
-        // under its own name here for spendOverValue below, which predates the
-        // money model and reads more clearly against the BOQ-specific term.
-        value: money.contractValue,
+        value,
         // Same "no BOQ at all" rule as `value` directly above -- one active
         // BOQ produces both figures or neither.
         budget: activeBoqId ? (budgetByBoqMap.get(activeBoqId) ?? 0) : null,
@@ -1399,7 +1400,7 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         percentByActivity: averageLatestPercent(percentsByProject.get(p.id) ?? []),
         // A null contract value cannot be exceeded -- "we do not know the
         // contract value" must not read as "you are overspent".
-        spendOverValue: money.contractValue !== null && expenses > money.contractValue,
+        spendOverValue: value !== null && expenses > value,
         permitsExpiring30d: permitMap.get(p.id) ?? 0,
         // R67 E-19: null means NOTHING has ever been recorded -- a different
         // state from "recorded, but a long time ago", and the home screen says

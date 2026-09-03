@@ -451,14 +451,17 @@ describe("getOrgDashboard: lastProgressAt rides the query that already runs (R67
     // pinned. A per-project fan-out over the progress table would be the
     // regression this guards against.
     const progressReads = body.match(/construction_work_progress_entries/g) ?? []
-    // getOrgDashboard reads that table FOUR times in total, all of them
+    // getOrgDashboard reads that table SIX times in total, all of them
     // grouped/batched, never per-project: once for the activity percentages
     // (which now also carries entry_date), twice inside the earned-value
-    // block (quantities and latest percent per BOQ line), and once more for
-    // F-01's own grouped progressPercent-per-project query (landed on main
-    // after this guard was written; folded in, not fanned out -- see the
-    // "batched, not per-project" describe block above).
-    expect(progressReads.length).toBe(4)
+    // block (quantities and latest percent per BOQ line), twice more for
+    // E-21's own "vs last week" baseline read of that same pair (see
+    // earnedValuePrevWeek's own comment -- same two queries, window closed at
+    // the baseline date), and once more for F-01's own grouped
+    // progressPercent-per-project query (landed on main after this guard was
+    // written; folded in, not fanned out -- see the "batched, not per-project"
+    // describe block above).
+    expect(progressReads.length).toBe(6)
   })
 
   test("it is folded per project by a plain string comparison, so no time zone can reorder it", () => {
@@ -545,11 +548,15 @@ function fakeOrgDb(opts: { projects: { id: string; name: string }[]; boqByProjec
   const answerFor = (fields: Record<string, unknown>): unknown[] => {
     const keys = Object.keys(fields).sort().join(",")
     // The ERP annual ledger sum (erp_budget_line_items via the cost centre).
-    // R67 D-02 (second-merge fold-in): the statement also asks for `lines` --
-    // the row COUNT that tells "no budget set" (0 lines) apart from "a real
-    // budget that sums to zero" (lines > 0). This fixture is never about that
-    // distinction (it always has a real ledger row), so lines is a fixed 1.
-    if (keys === "lines,total") return [{ total: opts.ledgerTotal, lines: 1 }]
+    // R67 D-02/E-23 (second-merge fold-in): GROUPED by project now (E-23's own
+    // per-project `ledgerBudget` field needs the breakdown the portfolio total
+    // used to compute alone), so the statement also asks for `projectId`
+    // alongside the row COUNT (`lines`) that tells "no budget set" (0 lines)
+    // apart from "a real budget that sums to zero" (lines > 0). Every fixture
+    // in this describe block has exactly one project, so one row carries the
+    // whole ledgerTotal. This fixture is never about the lines distinction
+    // (it always has a real ledger row), so lines is a fixed 1.
+    if (keys === "lines,projectId,total") return [{ projectId: opts.projects[0]?.id, total: opts.ledgerTotal, lines: 1 }]
     // The per-BOQ root-line value AND budget -- one query, two figures.
     if (keys === "boqId,budget,total") {
       return Object.entries(opts.valueByBoq).map(([boqId, v]) => ({ boqId, total: v.total, budget: v.budget }))
