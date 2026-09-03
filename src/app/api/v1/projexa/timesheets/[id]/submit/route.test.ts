@@ -48,6 +48,10 @@ function mockService(implOverride?: () => Promise<unknown>) {
   }))
   mock.module("@/lib/services/timesheet-review-task-service", () => ({
     openTimesheetReviewTask: mock(async () => ({ taskId: "task-1", created: true })),
+    // Also mocked: a re-submit closes the designer's own "Needs you" row
+    // before minting the reviewer's, so the module mock must export it or
+    // the dynamic import("./route") fails at load time.
+    closeTimesheetReturnedTask: mock(async () => ({ closed: 0 })),
   }))
   return submitTimeEntry
 }

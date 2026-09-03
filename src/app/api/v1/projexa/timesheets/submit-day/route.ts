@@ -17,7 +17,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId } from "@/lib/supabase/auth-guard"
 import { submitDayForReview, ServiceError } from "@/lib/services/pms-time-service"
-import { openTimesheetReviewTask } from "@/lib/services/timesheet-review-task-service"
+import { openTimesheetReviewTask, closeTimesheetReturnedTask } from "@/lib/services/timesheet-review-task-service"
 
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
     let reviewTaskError: string | null = null
     for (const entry of result.entries) {
       try {
+        await closeTimesheetReturnedTask({ orgId: ctx.orgId, userId: actingUser!.id }, entry.id)
         const minted = await openTimesheetReviewTask({ orgId: ctx.orgId }, {
           timeEntryId: entry.id,
           projectId: body.projectId,

@@ -87,6 +87,24 @@ describe("submitTimeEntry / approveTimeEntry / rejectTimeEntry: designer-entry -
     expect(result.approvalStatus).toBe("submitted")
   })
 
+  // R67 WS-H (item H-03): a RETURNED entry must be fixable and re-sendable,
+  // or the "sent back with a reason" loop has no way to close.
+  test("a returned entry can be corrected and re-submitted, and re-submitting clears the stale reason", async () => {
+    const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "rejected", rejectionReason: "Hours look inflated for this task" })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { submitTimeEntry } = await import("./pms-time-service")
+    const result = await submitTimeEntry({ orgId: "org1", userId: "designer1" }, "e1") as { approvalStatus: string; rejectionReason: string | null }
+    expect(result.approvalStatus).toBe("submitted")
+    expect(result.rejectionReason).toBeNull()
+  })
+
+  test("an APPROVED entry still cannot be re-submitted -- it has already been counted as cost", async () => {
+    const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "approved" })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { submitTimeEntry } = await import("./pms-time-service")
+    await expect(submitTimeEntry({ orgId: "org1", userId: "designer1" }, "e1")).rejects.toThrow("Only a draft or returned time entry can be submitted")
+  })
+
   test("a different user cannot submit someone else's draft entry", async () => {
     const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "draft" })
     await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
@@ -172,11 +190,19 @@ describe("updateTimeEntry -- Edit on the object page is draft-only and owner-onl
     expect(result.hours).toBe("3.25")
   })
 
+  test("a returned entry is editable -- that is the whole point of sending it back", async () => {
+    const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "rejected", hours: "8" })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { updateTimeEntry } = await import("./pms-time-service")
+    const result = await updateTimeEntry({ orgId: "org1", userId: "designer1" }, "e1", { hours: "6" }) as { hours: string }
+    expect(result.hours).toBe("6")
+  })
+
   test("a submitted entry cannot be edited underneath the manager reviewing it", async () => {
     const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "submitted", hours: "2" })
     await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
     const { updateTimeEntry } = await import("./pms-time-service")
-    await expect(updateTimeEntry({ orgId: "org1", userId: "designer1" }, "e1", { hours: "3" })).rejects.toThrow("Only a draft time entry can be edited")
+    await expect(updateTimeEntry({ orgId: "org1", userId: "designer1" }, "e1", { hours: "3" })).rejects.toThrow("Only a draft or returned time entry can be edited")
   })
 
   test("someone else's draft entry cannot be edited", async () => {

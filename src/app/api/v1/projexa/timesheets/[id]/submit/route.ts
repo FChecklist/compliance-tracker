@@ -23,7 +23,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, resolveActingUser, readActingUserId } from "@/lib/supabase/auth-guard"
 import { submitTimeEntry, getTimeEntry, ServiceError } from "@/lib/services/pms-time-service"
-import { openTimesheetReviewTask } from "@/lib/services/timesheet-review-task-service"
+import { openTimesheetReviewTask, closeTimesheetReturnedTask } from "@/lib/services/timesheet-review-task-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -77,6 +77,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     let reviewTaskCreated = false
     let reviewTaskError: string | null = null
     try {
+      // A re-submit after a return closes the designer's own "Needs you"
+      // row first -- leaving it open would keep telling them to fix
+      // something they have already fixed.
+      await closeTimesheetReturnedTask({ orgId: ctx.orgId, userId: actingUser!.id }, id)
       const detail = await getTimeEntry({ orgId: ctx.orgId }, id)
       const result = await openTimesheetReviewTask({ orgId: ctx.orgId }, {
         timeEntryId: id,

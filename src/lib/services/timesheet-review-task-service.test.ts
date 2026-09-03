@@ -180,3 +180,52 @@ describe("openTimesheetReviewTask / closeTimesheetReviewTask", () => {
     })).rejects.toThrow("timeEntryId is required")
   })
 })
+
+// R67 WS-H (item H-03). The other half of the loop: a returned entry has to
+// reach the DESIGNER as their own "Needs you" row carrying the manager's
+// reason, and that row has to close when they send the correction back.
+describe("openTimesheetReturnedTask / closeTimesheetReturnedTask", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  const ENTRY = {
+    timeEntryId: "entry-1", projectId: "project-1", designerId: "designer-1",
+    hours: "3", issueNumber: 12, issueTitle: "Joinery shop drawings", designerName: "Priya", spentOn: "2026-09-02",
+  }
+
+  test("the designer's row carries the manager's reason as its line 2, so they need not open the entry", async () => {
+    const captured: Captured = { updates: [] }
+    const { openTimesheetReturnedTask, TIMESHEET_RETURNED_FUNCTION_ID, TIMESHEET_RETURNED_CHAIN_STEPS } = await loadServiceWith(makeFakeDb([], captured))
+    const result = await openTimesheetReturnedTask({ orgId: "org1" }, { ...ENTRY, rejectionReason: "Hours look inflated for this task" })
+
+    expect(result.created).toBe(true)
+    expect(captured.task!.functionId).toBe(TIMESHEET_RETURNED_FUNCTION_ID)
+    expect((captured.task!.derivedChain as { steps: string[] }).steps).toEqual([...TIMESHEET_RETURNED_CHAIN_STEPS])
+    expect(captured.submission!.rawInput).toBe("3.00 h, #12 Joinery shop drawings, Priya, 2 Sep - sent back: Hours look inflated for this task")
+  })
+
+  test("a return with no reason still says it was sent back rather than rendering 'sent back: null'", async () => {
+    const captured: Captured = { updates: [] }
+    const { openTimesheetReturnedTask } = await loadServiceWith(makeFakeDb([], captured))
+    await openTimesheetReturnedTask({ orgId: "org1" }, { ...ENTRY, rejectionReason: null })
+    expect(captured.submission!.rawInput).toBe("3.00 h, #12 Joinery shop drawings, Priya, 2 Sep - sent back")
+  })
+
+  test("the returned row is a SECOND row, told apart from the reviewer's by its function id", async () => {
+    const captured: Captured = { updates: [] }
+    const { openTimesheetReturnedTask, TIMESHEET_REVIEW_FUNCTION_ID, TIMESHEET_RETURNED_FUNCTION_ID } = await loadServiceWith(makeFakeDb([], captured))
+    await openTimesheetReturnedTask({ orgId: "org1" }, { ...ENTRY, rejectionReason: "Fix the category" })
+    expect(captured.task!.functionId).not.toBe(TIMESHEET_REVIEW_FUNCTION_ID)
+    expect(captured.task!.functionId).toBe(TIMESHEET_RETURNED_FUNCTION_ID)
+  })
+
+  test("sending the correction back closes the designer's row, recorded as resubmitted", async () => {
+    const captured: Captured = { updates: [] }
+    const { closeTimesheetReturnedTask } = await loadServiceWith(makeFakeDb([], captured))
+    const result = await closeTimesheetReturnedTask({ orgId: "org1", userId: "designer-1" }, "entry-1")
+    expect(result).toEqual({ closed: 1 })
+    expect(captured.updates[0].result).toEqual({ decision: "resubmitted", decidedById: "designer-1" })
+  })
+})

@@ -120,7 +120,9 @@ export async function updateTimeEntry(
     const existing = await db.query.pmsTimeEntries.findFirst({ where: and(eq(pmsTimeEntries.id, entryId), eq(pmsTimeEntries.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Time entry not found", 404)
     if (existing.userId !== ctx.userId) throw new ServiceError("Only the logging user may edit this entry", 403)
-    if (existing.approvalStatus !== "draft") throw new ServiceError("Only a draft time entry can be edited", 400)
+    if (!(RESUBMITTABLE_STATUSES as readonly string[]).includes(existing.approvalStatus)) {
+      throw new ServiceError("Only a draft or returned time entry can be edited", 400)
+    }
     if (patch.issueId) {
       const issue = await db.query.pmsIssues.findFirst({ where: and(eq(pmsIssues.id, patch.issueId), eq(pmsIssues.orgId, ctx.orgId)) })
       if (!issue) throw new ServiceError("Issue not found", 404)
@@ -174,15 +176,31 @@ export async function deleteTimeEntry(ctx: { orgId: string; userId: string }, en
 // approveKpiEntry -- role gating (submit=owner, approve/reject=manager+)
 // is enforced at the route layer via requireRole, self-approval blocked
 // here the same way approveKpiEntry blocks it.
+// R67 WS-H (item H-03). "A rejected day returns to the designer as a 'Needs
+// you' row carrying the reason" -- which only means anything if the designer
+// can then FIX IT AND SEND IT BACK. Until this change they could not: submit
+// required approvalStatus === 'draft', and a returned entry is 'rejected',
+// so the workflow had no way to close. A returned entry is now editable and
+// re-submittable by its owner, and re-submitting CLEARS the old rejection
+// reason -- leaving last week's reason attached to this week's corrected
+// hours would be a stale accusation on a fixed row.
+//
+// Approved is deliberately NOT in this set: an approved entry has already
+// been counted as cost, and reopening it silently would move a number
+// somebody has already reported.
+export const RESUBMITTABLE_STATUSES = ["draft", "rejected"] as const
+
 export async function submitTimeEntry(ctx: { orgId: string; userId: string }, entryId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const existing = await db.query.pmsTimeEntries.findFirst({ where: and(eq(pmsTimeEntries.id, entryId), eq(pmsTimeEntries.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Time entry not found", 404)
     if (existing.userId !== ctx.userId) throw new ServiceError("Only the logging user may submit this entry", 403)
-    if (existing.approvalStatus !== "draft") throw new ServiceError("Only a draft time entry can be submitted", 400)
+    if (!(RESUBMITTABLE_STATUSES as readonly string[]).includes(existing.approvalStatus)) {
+      throw new ServiceError("Only a draft or returned time entry can be submitted", 400)
+    }
 
     const [row] = await db.update(pmsTimeEntries)
-      .set({ approvalStatus: "submitted" })
+      .set({ approvalStatus: "submitted", rejectionReason: null })
       .where(eq(pmsTimeEntries.id, entryId)).returning()
     return row
   })
@@ -211,14 +229,16 @@ export async function submitDayForReview(
         eq(pmsTimeEntries.orgId, ctx.orgId),
         eq(pmsTimeEntries.userId, ctx.userId),
         eq(pmsTimeEntries.spentOn, input.spentOn),
-        eq(pmsTimeEntries.approvalStatus, "draft"),
+        // Drafts AND returned rows: a day that came back for a correction is
+        // re-sent as a day, not row by row.
+        inArray(pmsTimeEntries.approvalStatus, [...RESUBMITTABLE_STATUSES]),
         inArray(pmsTimeEntries.issueId, issueIds)
       ),
     })
     if (drafts.length === 0) throw new ServiceError("No hours logged for this day", 400)
 
     const ids = drafts.map((d) => d.id)
-    const rows = await db.update(pmsTimeEntries).set({ approvalStatus: "submitted" }).where(inArray(pmsTimeEntries.id, ids)).returning()
+    const rows = await db.update(pmsTimeEntries).set({ approvalStatus: "submitted", rejectionReason: null }).where(inArray(pmsTimeEntries.id, ids)).returning()
     const issueById = new Map(issues.map((i) => [i.id, i]))
     return {
       submitted: rows.length,

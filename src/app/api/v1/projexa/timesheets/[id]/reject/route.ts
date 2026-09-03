@@ -12,8 +12,8 @@
 // response rather than rolling back a decision that really was made.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRole, resolveActingUser, readActingUserId } from "@/lib/supabase/auth-guard"
-import { rejectTimeEntry, ServiceError } from "@/lib/services/pms-time-service"
-import { closeTimesheetReviewTask } from "@/lib/services/timesheet-review-task-service"
+import { rejectTimeEntry, getTimeEntry, ServiceError } from "@/lib/services/pms-time-service"
+import { closeTimesheetReviewTask, openTimesheetReturnedTask } from "@/lib/services/timesheet-review-task-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -33,16 +33,34 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     const entry = await rejectTimeEntry({ orgId: ctx.orgId, userId: actingUser!.id }, id, body?.rejectionReason)
 
     let reviewTaskClosed = 0
+    let returnedTaskCreated = false
     let reviewTaskError: string | null = null
     try {
       const closed = await closeTimesheetReviewTask({ orgId: ctx.orgId, userId: actingUser!.id }, id, "rejected", body?.rejectionReason ?? null)
       reviewTaskClosed = closed.closed
+
+      // Item H-03: the returned entry becomes the DESIGNER's "Needs you"
+      // row, carrying the manager's reason, so they never have to open the
+      // entry to find out what to change. Sequenced, never nested (D-06).
+      const detail = await getTimeEntry({ orgId: ctx.orgId }, id)
+      const returned = await openTimesheetReturnedTask({ orgId: ctx.orgId }, {
+        timeEntryId: id,
+        projectId: detail.projectId,
+        designerId: entry.userId,
+        designerName: detail.loggedBy?.name ?? entry.userId,
+        hours: entry.hours,
+        issueNumber: detail.issue?.number ?? null,
+        issueTitle: detail.issue?.title ?? null,
+        spentOn: entry.spentOn,
+        rejectionReason: body?.rejectionReason ?? null,
+      })
+      returnedTaskCreated = returned.created
     } catch (taskError) {
-      reviewTaskError = taskError instanceof Error ? taskError.message : "Could not close the review task"
-      console.error("v1 projexa timesheet rejected -- review task close failed (the decision IS recorded):", taskError)
+      reviewTaskError = taskError instanceof Error ? taskError.message : "Could not update the Task Master rows"
+      console.error("v1 projexa timesheet rejected -- Task Master update failed (the decision IS recorded):", taskError)
     }
 
-    return NextResponse.json({ ...entry, reviewTaskClosed, reviewTaskError })
+    return NextResponse.json({ ...entry, reviewTaskClosed, returnedTaskCreated, reviewTaskError })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa timesheet reject error:", error)

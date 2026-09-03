@@ -41,6 +41,15 @@ export const TIMESHEET_REVIEW_FUNCTION_ID = "review_timesheet_entry"
 /** The chain the shell joins with " > " to build the row's object. */
 export const TIMESHEET_REVIEW_CHAIN_STEPS = ["Timesheet", "Approve"] as const
 
+// R67 WS-H (item H-03): "a rejected day returns to the designer as a 'Needs
+// you' row in the Task Master carrying the reason". That is a SECOND row,
+// addressed to the designer, not the reviewer's row reworded -- the
+// reviewer's row is closed (they are done) and the designer's is opened
+// (they are not). Both live on pipeline_tasks and are told apart by their
+// function id, which is also how each is found again to close it.
+export const TIMESHEET_RETURNED_FUNCTION_ID = "review_returned_timesheet_entry"
+export const TIMESHEET_RETURNED_CHAIN_STEPS = ["Timesheet", "Fix"] as const
+
 /** Statuses that mean "this review is still open" -- what closing looks for. */
 const OPEN_STATUSES = ["to_do", "waiting", "in_progress"] as const
 
@@ -94,6 +103,29 @@ export type OpenTimesheetReviewTaskInput = TimesheetReviewRowInput & {
  * reviewer's list.
  */
 export async function openTimesheetReviewTask(ctx: { orgId: string }, input: OpenTimesheetReviewTaskInput) {
+  return openTimesheetTask(ctx, input, TIMESHEET_REVIEW_FUNCTION_ID, [...TIMESHEET_REVIEW_CHAIN_STEPS], buildTimesheetReviewDetail(input))
+}
+
+/**
+ * Opens the DESIGNER's row when their hours come back. The reason the
+ * manager typed is the row's line 2 -- "the DECIDING information" (M24) --
+ * so the designer never has to open the entry to find out what to change.
+ */
+export async function openTimesheetReturnedTask(
+  ctx: { orgId: string },
+  input: OpenTimesheetReviewTaskInput & { rejectionReason?: string | null }
+) {
+  const detail = `${buildTimesheetReviewDetail(input)}${input.rejectionReason ? ` - sent back: ${input.rejectionReason}` : " - sent back"}`
+  return openTimesheetTask(ctx, input, TIMESHEET_RETURNED_FUNCTION_ID, [...TIMESHEET_RETURNED_CHAIN_STEPS], detail)
+}
+
+async function openTimesheetTask(
+  ctx: { orgId: string },
+  input: OpenTimesheetReviewTaskInput,
+  functionId: string,
+  steps: string[],
+  detail: string
+) {
   if (!input.timeEntryId) throw new ServiceError("timeEntryId is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -101,19 +133,18 @@ export async function openTimesheetReviewTask(ctx: { orgId: string }, input: Ope
       .from(pipelineTasks)
       .where(and(
         eq(pipelineTasks.orgId, ctx.orgId),
-        eq(pipelineTasks.functionId, TIMESHEET_REVIEW_FUNCTION_ID),
+        eq(pipelineTasks.functionId, functionId),
         inArray(pipelineTasks.status, [...OPEN_STATUSES]),
         sql`${pipelineTasks.params}->>'timeEntryId' = ${input.timeEntryId}`
       ))
       .limit(1)
     if (existing.length > 0) return { taskId: existing[0].id, created: false }
 
-    const detail = buildTimesheetReviewDetail(input)
     const [submission] = await db.insert(submissions).values({
       orgId: ctx.orgId,
       projectId: input.projectId,
       mode: "Projects",
-      selectedChain: { root: "Design Studio", steps: [...TIMESHEET_REVIEW_CHAIN_STEPS] },
+      selectedChain: { root: "Design Studio", steps },
       rawInput: detail,
       // The submission belongs to the person whose work is being reviewed --
       // that is who raised it, and submissions.user_id is a real user id, so
@@ -129,8 +160,8 @@ export async function openTimesheetReviewTask(ctx: { orgId: string }, input: Ope
       orgId: ctx.orgId,
       projectId: input.projectId,
       projectSource: "stated",
-      derivedChain: { root: "Design Studio", steps: [...TIMESHEET_REVIEW_CHAIN_STEPS] },
-      functionId: TIMESHEET_REVIEW_FUNCTION_ID,
+      derivedChain: { root: "Design Studio", steps },
+      functionId,
       params: { timeEntryId: input.timeEntryId, designerId: input.designerId, spentOn: input.spentOn },
       executor: "person",
       status: "to_do",
@@ -154,6 +185,25 @@ export async function closeTimesheetReviewTask(
   decision: "approved" | "rejected",
   rejectionReason?: string | null
 ) {
+  return closeTimesheetTask(ctx, timeEntryId, TIMESHEET_REVIEW_FUNCTION_ID, decision, rejectionReason)
+}
+
+/**
+ * Closes the DESIGNER's "Needs you" row when they send the corrected hours
+ * back. Returns { closed: 0 } for an entry that was never returned, which is
+ * the normal case and not an error.
+ */
+export async function closeTimesheetReturnedTask(ctx: { orgId: string; userId: string }, timeEntryId: string) {
+  return closeTimesheetTask(ctx, timeEntryId, TIMESHEET_RETURNED_FUNCTION_ID, "resubmitted")
+}
+
+async function closeTimesheetTask(
+  ctx: { orgId: string; userId: string },
+  timeEntryId: string,
+  functionId: string,
+  decision: "approved" | "rejected" | "resubmitted",
+  rejectionReason?: string | null
+) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const rows = await db.update(pipelineTasks)
       .set({
@@ -163,7 +213,7 @@ export async function closeTimesheetReviewTask(
       })
       .where(and(
         eq(pipelineTasks.orgId, ctx.orgId),
-        eq(pipelineTasks.functionId, TIMESHEET_REVIEW_FUNCTION_ID),
+        eq(pipelineTasks.functionId, functionId),
         inArray(pipelineTasks.status, [...OPEN_STATUSES]),
         sql`${pipelineTasks.params}->>'timeEntryId' = ${timeEntryId}`
       ))
