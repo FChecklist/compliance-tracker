@@ -15,6 +15,37 @@ import { listBoqs, getBoq } from "@/lib/services/construction-boq-service"
 import { listActivities, listCategories, listProgressEntries, ServiceError } from "@/lib/services/construction-progress-service"
 import { generateWorkProgressReportPdf } from "@/lib/pdf/work-progress-report-pdf"
 
+/**
+ * R67 E-36 (R-268). The downloaded file is named after the PROJECT, not its id.
+ *
+ * This route already sent a Content-Disposition, and Content-Disposition WINS
+ * over an <a download> attribute -- so whatever the browser saved was decided
+ * here, and what it decided was `work-progress-report-g555imnoq4wihavpwc7t64um
+ * -2026-08-01-to-2026-09-03.pdf`. A raw cuid in a filename is the same defect
+ * this audit keeps closing on screen (E-22: "does not contain
+ * 'g555imnoq4wihavpwc7t64um'"), and a QS who downloads three projects' reports
+ * cannot tell them apart in a Downloads folder.
+ *
+ * ASCII only, because a Content-Disposition `filename=` parameter is a
+ * quoted-string in an HTTP header: a non-Latin-1 byte there is not merely
+ * ugly, it makes the header invalid and some runtimes throw on it.
+ * Decomposing first and DELETING the combining marks matters: without that
+ * line the squeeze below turns each accent into its own separator, so
+ * "Villa Aguas" (with an acute on the A) would save as "villa-a-guas".
+ * Names that reduce to nothing (a project named only in Arabic, say) fall
+ * back to the word "project" rather than to an empty segment.
+ */
+export function pdfFileName(projectName: string, from: string, to: string): string {
+  const slug = projectName
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+  return `${slug || "project"}-work-progress-${from}-${to}.pdf`
+}
+
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
@@ -75,7 +106,8 @@ export async function GET(request: NextRequest) {
     return new NextResponse(new Blob([pdfBuffer], { type: "application/pdf" }), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="work-progress-report-${projectId}-${from}-to-${to}.pdf"`,
+        // R67 E-36: named after the project, not its id -- see pdfFileName above.
+        "Content-Disposition": `attachment; filename="${pdfFileName(project.name, from, to)}"`,
       },
     })
   } catch (error) {
