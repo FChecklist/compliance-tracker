@@ -11,16 +11,42 @@ export const dynamic = "force-dynamic";
 // deletes anything itself).
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2, Database, Search, AlertTriangle, Gauge } from "lucide-react";
+import { Loader2, Database, Search, AlertTriangle, Gauge, GitBranch } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type DuplicateCandidate = {
   a: { entityType: string; entityId: string; content: string };
   b: { entityType: string; entityId: string; content: string };
   score: number;
 };
+
+type RegistryModule = { moduleKey: string; displayName: string; domain: string; category: string | null };
+type ImpactRow = { dependentTable: string; depth: number; viaColumn: string | null };
+type ImpactResult = { moduleKey: string; qualifiedTable: string; depth: number; rows: ImpactRow[] };
+
+/** "table:compliance.pms_budgets" -> "compliance.pms_budgets"; "asset_type:document" -> "document (asset type)". Matches the two node-key shapes platform.graph_impact() can return (PART_B_STATUS.md 1.8). */
+function formatDependentTable(nodeKey: string): string {
+  if (nodeKey.startsWith("table:")) return nodeKey.slice("table:".length);
+  if (nodeKey.startsWith("asset_type:")) return `${nodeKey.slice("asset_type:".length)} (asset type)`;
+  return nodeKey;
+}
 
 type CoverageByType = { total: number; indexed: number; coveragePercent: number };
 type CoverageReport = {
@@ -46,6 +72,12 @@ export default function CapabilityRegistryPage() {
   const [duplicates, setDuplicates] = useState<DuplicateCandidate[] | null>(null);
   const [coverage, setCoverage] = useState<CoverageReport | null>(null);
 
+  const [modules, setModules] = useState<RegistryModule[]>([]);
+  const [selectedModuleKey, setSelectedModuleKey] = useState<string>("");
+  const [impactDepth, setImpactDepth] = useState<"1" | "2">("2");
+  const [impactLoading, setImpactLoading] = useState(false);
+  const [impact, setImpact] = useState<ImpactResult | null>(null);
+
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then((d) => setIsAdmin(d.role === "admin"));
   }, []);
@@ -67,6 +99,30 @@ export default function CapabilityRegistryPage() {
   useEffect(() => {
     if (isAdmin) checkCoverage();
   }, [isAdmin, checkCoverage]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch("/api/capability-registry/modules")
+      .then((r) => r.json())
+      .then((d) => setModules(d.modules ?? []))
+      .catch(() => toast.error("Failed to load module list"));
+  }, [isAdmin]);
+
+  const runImpactAnalysis = async () => {
+    if (!selectedModuleKey) return;
+    setImpactLoading(true);
+    setImpact(null);
+    try {
+      const res = await fetch(`/api/capability-registry/impact?moduleKey=${encodeURIComponent(selectedModuleKey)}&depth=${impactDepth}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Impact analysis failed");
+      setImpact(data);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Impact analysis failed");
+    } finally {
+      setImpactLoading(false);
+    }
+  };
 
   const runBackfill = async () => {
     setBackfilling(true);
@@ -165,6 +221,72 @@ export default function CapabilityRegistryPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="rounded-xl shadow-card bg-white">
+        <CardContent className="pt-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <GitBranch className="size-4 text-ct-teal" />
+            <h2 className="text-sm font-semibold text-ct-navy">Impact analysis</h2>
+          </div>
+          <p className="text-xs text-ct-muted">Pick a module and see every table that would break if its own table changed shape -- a live traversal of the schema dependency graph (platform.graph_impact), not a static doc.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={selectedModuleKey} onValueChange={setSelectedModuleKey}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Select a module..." />
+              </SelectTrigger>
+              <SelectContent>
+                {modules.map((m) => (
+                  <SelectItem key={m.moduleKey} value={m.moduleKey}>
+                    {m.displayName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={impactDepth} onValueChange={(v) => setImpactDepth(v as "1" | "2")}>
+              <SelectTrigger className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Depth 1</SelectItem>
+                <SelectItem value="2">Depth 2</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button onClick={runImpactAnalysis} disabled={impactLoading || !selectedModuleKey} size="sm" variant="outline">
+              {impactLoading ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GitBranch className="size-4 mr-2" />}
+              Analyze impact
+            </Button>
+          </div>
+
+          {impact && (
+            impact.rows.length === 0 ? (
+              <p className="text-sm text-ct-muted">Nothing depends on {impact.qualifiedTable} within depth {impact.depth}.</p>
+            ) : (
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Dependent table</TableHead>
+                      <TableHead className="w-20">Depth</TableHead>
+                      <TableHead>Via column</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {impact.rows.map((row, i) => (
+                      <TableRow key={`${row.dependentTable}-${i}`}>
+                        <TableCell className="font-mono text-xs">{formatDependentTable(row.dependentTable)}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-xs">{row.depth}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-ct-muted">{row.viaColumn ?? "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )
+          )}
+        </CardContent>
+      </Card>
 
       {duplicates !== null && (
         <div className="space-y-2">
