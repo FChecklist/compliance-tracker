@@ -91,6 +91,20 @@ active:
           page needs; nothing single-entry was reachable from PROJEXA before (D-77)
         docs/master/TEST_COVERAGE_GAP.md (regenerated; verified still current after D-75/D-77,
           which added no new service file)
+        .gitattributes -- `*.ts`/`*.tsx text eol=lf` beside the existing drizzle/*.sql rule
+          (review fix: seven of this lane's files had been committed with CRLF from a Windows
+          worktree, five of them flipped from LF, producing ~2,300 lines of phantom diff; all
+          seven are renormalised and the attribute stops the class recurring)
+        src/lib/services/construction-progress-service.ts (+ .test.ts) -- deleteProgressEntry()
+          now rolls the linked activity back down on the same transaction and clears
+          completed_from_entry_id, so D-77's Delete button cannot leave the schedule asserting a
+          percentage derived from a deleted row (review fix)
+        src/lib/services/org-directory-service.ts (+ .test.ts) -- the search, the id resolution
+          and the cap moved INTO the query; the picker was reading the org's whole user table
+          per keystroke on a 5-connection pool (review fix)
+        src/lib/services/veri-meeting-service.ts (+ .test.ts) -- assertAssigneesInOrg() on both
+          action-item write paths, so tasks.userId cannot be handed an id from another org
+          (review fix)
 
       File scope in projexa: src/app/(app)/budgets/**, src/app/(app)/accounting/annual-budgets/**,
         src/app/(app)/scope/import/**, src/app/(app)/schedule/import/**,
@@ -109,6 +123,22 @@ active:
         (only the ?from= tab a task's Back returns to, D-77),
         src/lib/authz/api-write-policy.ts (the /work-progress/[id] tier, D-77),
         src/lib/nav-routes.ts (+ .test.ts), src/components/AppSidebar.tsx, messages/*.json.
+
+      Review fixes in projexa (same lane, same branch): src/lib/money.ts + money.test.ts
+        DELETED and their four callers moved onto lane G's merged src/lib/format-money.ts /
+        use-org-money.ts; boqStatusPill() removed from src/lib/boq-list.ts in favour of WS-G's
+        src/components/ui/status-pill.tsx, leaving only BOQ_SEMANTIC_STATUS (this backend's own
+        status words); the four raw NUL bytes taken out of MoMObjectClient.tsx (they made the
+        file invisible to grep and one paragraph away from git treating it as binary);
+        ImportScreen gained mappingDisabledReason so /schedule/import stops offering a dropdown
+        its parser cannot honour; and two new sibling tests -- screens/ObjectScreen.test.tsx
+        (the D-09 fork's own contract) and BudgetLineCells.test.tsx (the inline-save state
+        machine three screens share). Also src/lib/{module-catalogue,card-catalogue}.ts, whose
+        "New budget" leaf pointed at /budgets/new -- a route D-41 removed.
+
+      This branch MERGES projexa origin/main at a4e2f6d (#229 lane G, #230 WS-I, #231 lane A).
+        projexa #232 and compliance-tracker #1578 (both lane B) landed after that resolution was
+        made and verified and are NOT included; integration handles them.
 
       NOT touching: drizzle/** (no migration authored by this lane), platform.* tables, the
       ui-kit (D-09: fork into projexa instead), src/lib/pipeline/**, or any guardrail
