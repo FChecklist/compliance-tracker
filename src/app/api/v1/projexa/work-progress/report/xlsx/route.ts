@@ -12,6 +12,12 @@
 // (no bespoke query), the SAME computeRows arithmetic via
 // work-progress-report-export.ts, then stream the binary. Two exports of one
 // report that disagree would be worse than one export.
+//
+// R67 second-merge note: a lane-E1 branch built this SAME route independently
+// (E-18/E-20) against a different pair of helpers (services/report-export.ts)
+// and without the role gate below, real org lookup, currency, or friendly
+// empty-BOQ sheet this version has. This version -- the one that already
+// matches the sibling pdf/route.ts byte-for-byte in shape -- is the one kept.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { organisations, projects } from "@/lib/db"

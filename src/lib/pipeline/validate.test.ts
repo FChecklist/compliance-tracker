@@ -244,3 +244,56 @@ describe("B-11 -- a quantity answers 'how much is done' as well as a percent doe
     if (!r.valid) expect(r.code).toBe("VALUE_REQUIRED");
   });
 });
+
+// R67 C-03 (decision D-03) -- the failure now carries a CODE and the FIELD,
+// so a product can render a closed-vocabulary sentence instead of `reason`,
+// which is written for an engineer reading a log.
+// R67 WS-C (C-03), rewritten in the FIX PASS.
+//
+// Lane C added this block when validate() still returned `{ valid:false,
+// reason }` and C-03 was adding `code`/`missing` beside it. Lane B has since
+// merged to main and gone further: `reason` is GONE -- a failure is a
+// PipelineFailure and nothing here composes English at all -- and the
+// vocabulary is finer (VALUE_OUT_OF_RANGE and PROJECT_NOT_REACHABLE are
+// distinct from VALUE_REQUIRED and PROJECT_REQUIRED). Under D-11 main is
+// canonical, so this block now asserts MAIN's behaviour, and keeps only the
+// cases main's own describes above do not already cover.
+describe("validate() -- the closed-vocabulary payload, per lane B", () => {
+  test("no user-facing sentence survives validation at all", () => {
+    const r = validate({ functionId: "delete_organisation", params: {} }, BASE_CTX);
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    // THE POINT OF D-03: there is no `reason` string to leak. The client owns
+    // the wording; this side owns the code.
+    expect((r as unknown as { reason?: unknown }).reason).toBeUndefined();
+    expect(r.code).toBe("FUNCTION_NOT_AVAILABLE");
+    expect(r.missing).toEqual([]);
+  });
+
+  test("an out-of-range percent is its OWN code, not a missing value", () => {
+    const r = validate({ functionId: "record_work_progress", params: { ...FULL_PROGRESS_PARAMS, percent: 999 } }, BASE_CTX);
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    // A number that IS there and is wrong is a different question from one
+    // that is absent -- "999 is not a percentage" vs "type a percentage".
+    expect(r.code).toBe("VALUE_OUT_OF_RANGE");
+    expect(r.missing).toEqual(["percent"]);
+  });
+
+  test("a project this caller cannot reach is not reported as a missing project", () => {
+    const r = validate({ functionId: "record_work_progress", params: { ...FULL_PROGRESS_PARAMS, projectId: "other" } }, BASE_CTX);
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    expect(r.code).toBe("PROJECT_NOT_REACHABLE");
+    expect(r.missing).toEqual(["projectId"]);
+  });
+
+  test("a permission refusal is never dressed up as a missing value", () => {
+    const ctx: ValidationContext = { ...BASE_CTX, userPermittedFunctionIds: new Set() };
+    const r = validate({ functionId: "record_work_progress", params: FULL_PROGRESS_PARAMS }, ctx);
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    expect(r.code).toBe("NOT_PERMITTED");
+    expect(r.missing).toEqual([]);
+  });
+});

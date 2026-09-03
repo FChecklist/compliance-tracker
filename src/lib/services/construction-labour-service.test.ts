@@ -432,6 +432,32 @@ describe("getLabourLanding -- R67 F-30: roster and the day's summary, one transa
 })
 
 // ---------------------------------------------------------------------------
+// R67 WS-C (C-08) -- was the batch attendance write's composer-half describe
+// block, folded in during the FIX PASS under decision D-11, then reconciled a
+// SECOND time here now that lane D3's own recordAttendanceBatch (decision
+// D-12) has actually landed on main.
+//
+// Everything the removed block asserted about "refuse with REPLACE_REQUIRED"
+// pinned lane C's own placeholder implementation, which D-12 always intended
+// to be provisional -- "there was nothing for lane C's composer half to call
+// and the implementation is carried here in the meantime... on merge-second
+// the service function and the route branch are deleted in favour of D3's."
+// D3's version answers a second save differently on purpose (an upsert that
+// corrects the row, not a refusal), so those assertions do not carry over --
+// keeping them would pin behaviour the canonical function deliberately does
+// not have. D3's own coverage for its recordAttendanceBatch lives in the
+// D-34/F-06/F-13 sections below and is unchanged. Only the one assertion that
+// is still true of BOTH shapes survives, next to the vocabulary it pins.
+// ---------------------------------------------------------------------------
+
+describe("ATTENDANCE_STATUSES", () => {
+  test("is the closed set the UI's three chips map to", async () => {
+    const { ATTENDANCE_STATUSES } = await import("./construction-labour-service")
+    expect([...ATTENDANCE_STATUSES]).toEqual(["present", "absent", "half_day"])
+  })
+})
+
+// ---------------------------------------------------------------------------
 // R67 D-34 (R-085/R-091) -- MERGED IN BY THE INTEGRATION TRAIN.
 //
 // Lane D-34 and lane F-25 both wrote this file from scratch (it had none

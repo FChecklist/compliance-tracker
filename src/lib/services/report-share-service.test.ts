@@ -85,9 +85,16 @@ describe("isShareLinkUsable -- the whole guard on a public, unauthenticated rout
 })
 
 describe("createReportShareLink -- R67 D-31 widening", () => {
-  test("both report types are shareable, and nothing else is", async () => {
+  // R67 merge (2026-09-03): item E-12 added project_status to this same list
+  // in the same wave, with its own public renderer landing in that change --
+  // the rule this list encodes (a type may only be here if
+  // resolveReportShareLink can really render it) is unchanged, so the merge is
+  // a union. The assertion still says "and nothing else is": it pins the WHOLE
+  // vocabulary, which is what stops a fourth type being minted without a
+  // renderer.
+  test("every shareable report type is listed, and nothing else is", async () => {
     const { SHAREABLE_REPORT_TYPES } = await import("./report-share-service")
-    expect([...SHAREABLE_REPORT_TYPES]).toEqual(["work_progress", "attendance_summary"])
+    expect([...SHAREABLE_REPORT_TYPES]).toEqual(["work_progress", "project_status", "attendance_summary"])
   })
 
   test("an unsupported report type is refused BEFORE any transaction is opened", async () => {

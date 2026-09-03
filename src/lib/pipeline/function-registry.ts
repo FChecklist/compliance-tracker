@@ -240,6 +240,43 @@ const SPEC_LIST: readonly FunctionSpec[] = [
     },
   },
 
+  // ---- R67 C-03: the timesheet write -------------------------------------
+  //
+  // FIX PASS, decision D-11: lane C declared these same facts in its own
+  // src/lib/pipeline/function-slots.ts, written before lane B's registry
+  // existed. Two competing declarations of "what a write cannot run without"
+  // is exactly the drift D-03 exists to remove, so function-slots.ts is
+  // deleted and its one function that main did not carry -- record_timesheet
+  // -- is folded in here, in the registry's own vocabulary.
+  //
+  // `task` is what a person says ("joinery shop drawings"); `issueId` is what
+  // the composer has once a chip has been picked. Either satisfies the slot,
+  // which is why executeRecordTimesheet fuzzy-matches the words against THIS
+  // PROJECT's own issue titles and refuses an ambiguous match rather than
+  // guessing between two tasks.
+  {
+    functionId: "record_timesheet",
+    label: "Log time",
+    module: "schedule",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "task", label: "Task", code: "TASK_REQUIRED", field: "task", alsoSatisfiedBy: ["issueId"] },
+      { name: "hours", label: "Hours", code: "HOURS_REQUIRED", field: "value" },
+    ],
+    card: {
+      fields: [
+        { key: "task", label: "Task", type: "select", required: true, picker: "task" },
+        { key: "hours", label: "Hours", type: "number", unit: "h", required: true },
+        { key: "spentOn", label: "Date", type: "date", required: false },
+        { key: "activityType", label: "Category", type: "text", required: false },
+      ],
+      primaryLabel: "Save time log",
+    },
+  },
+
   // ---- COMMAND verbs: they open a screen, they do not execute ----------
   {
     functionId: "run_work_progress_report",

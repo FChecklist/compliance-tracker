@@ -18,7 +18,7 @@ class ServiceError extends Error {
   }
 }
 
-function mockAuth(ctx: { orgId: string | null; response?: Response | null; roleErr?: Response | null; hasRoleResult?: boolean }) {
+function mockAuth(ctx: { orgId: string | null; response?: Response | null; roleErr?: Response | null; isManager?: boolean }) {
   mock.module("@/lib/supabase/auth-guard", () => ({
     requireAuthOrApiKey: mock(async () => ({
       orgId: ctx.orgId,
@@ -30,12 +30,13 @@ function mockAuth(ctx: { orgId: string | null; response?: Response | null; roleE
     // R48 gap-closure (2026-08-30, F059): the route now also imports
     // hasRole() to redact financial fields below "manager" rank. These
     // tests are about the org-resolution/role-gate guards above, not the
-    // redaction feature itself, so the mock returns true unconditionally
-    // -- every existing assertion here (checking the full, unredacted
+    // redaction feature itself, so the mock defaults to true -- every
+    // existing assertion here (checking the full, unredacted
     // getOrgDashboard result is returned) keeps its original meaning.
-    // R67 E-21: hasRoleResult: false exercises the redaction branch itself,
-    // which the new money fields must be inside.
-    hasRole: mock(() => ctx.hasRoleResult ?? true),
+    // R67 E-01/E-21 fix pass: isManager:false opts a test into the redaction
+    // branch, so this route and its /api/construction/dashboard sibling
+    // (which drifted on spendOverValue) are each pinned by a real test.
+    hasRole: mock(() => ctx.isManager ?? true),
   }))
 }
 
@@ -103,6 +104,49 @@ describe("GET /api/v1/projexa/dashboard", () => {
     expect(getOrgDashboard.mock.calls[0][0]).toEqual({ orgId: "org-1" })
   })
 
+  test("a member below manager rank gets every financial figure as null, the spend-over-value verdict included", async () => {
+    // R48 gap-closure F059, re-pinned in the R67 E-01/E-06 fix pass. The
+    // sibling /api/construction/dashboard route returns this same payload
+    // behind this same rule and had NOT redacted spendOverValue; the two
+    // assertions now exist side by side so they cannot drift again.
+    mockAuth({ orgId: "org-1", isManager: false })
+    mockService(async () => ({
+      totalProjects: 1,
+      totalBudget: 900000,
+      totalLedgerBudget: 250000,
+      totalRevenue: 450000,
+      totalExpenses: 700000,
+      projects: [{
+        id: "p-1", name: "Cedar Heights Villa",
+        revenue: 450000, expenses: 700000, value: 600000, budget: 900000,
+        earnedValue: 300000, percentByValue: 50, percentByActivity: 46,
+        spendOverValue: true, permitsExpiring30d: 2, delayedTaskCount: 3,
+      }],
+    }))
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest() as any)
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.totalBudget).toBeNull()
+    expect(body.totalLedgerBudget).toBeNull()
+    expect(body.totalRevenue).toBeNull()
+    expect(body.totalExpenses).toBeNull()
+    expect(body.financialsRedacted).toBe(true)
+    const row = body.projects[0]
+    expect(row.revenue).toBeNull()
+    expect(row.expenses).toBeNull()
+    expect(row.earnedValue).toBeNull()
+    expect(row.percentByValue).toBeNull()
+    expect(row.budget).toBeNull()
+    // null, NOT false -- false would itself be a claim about the finances.
+    expect(row.spendOverValue).toBeNull()
+    // Non-financial figures survive: a site engineer's job depends on both.
+    expect(row.percentByActivity).toBe(46)
+    expect(row.permitsExpiring30d).toBe(2)
+  })
+
   test("a rank-1 (viewer-tier) role is rejected by the role gate before getOrgDashboard runs", async () => {
     mockAuth({ orgId: "org-1", roleErr: new Response(JSON.stringify({ error: "Insufficient role" }), { status: 403 }) })
     const getOrgDashboard = mockService()
@@ -114,14 +158,16 @@ describe("GET /api/v1/projexa/dashboard", () => {
     expect(getOrgDashboard).not.toHaveBeenCalled()
   })
 
-  // R67 E-21 (R-195/R-204/R-205). getOrgDashboard's project rows gained
-  // contractValue, earnedValuePrevWeek, boqBudget, budget and spent. Every
-  // one of those is a financial figure, and F059 was precisely the case of a
-  // money field reaching a member-rank caller because it was added to the
-  // service and not to this list. This test is the guard: a below-manager
-  // caller sees no money on a project row, and still sees their own schedule.
-  test("below manager rank, EVERY money field on a project row is redacted -- including the ones E-21 added", async () => {
-    mockAuth({ orgId: "org-1", hasRoleResult: false })
+  // R67 E-21 (R-195/R-204/R-205), field names as of the E-06/E-23 second
+  // merge: getOrgDashboard's project rows gained contractValue,
+  // earnedValuePrevWeek, ledgerBudget (E-23's ERP-ledger figure, distinct
+  // from the BOQ-derived `budget`) and spent. Every one of those is a
+  // financial figure, and F059 was precisely the case of a money field
+  // reaching a member-rank caller because it was added to the service and
+  // not to this list. This test is the guard: a below-manager caller sees no
+  // money on a project row, and still sees their own schedule.
+  test("below manager rank, EVERY money field on a project row is redacted -- including the ones E-21/E-23 added", async () => {
+    mockAuth({ orgId: "org-1", isManager: false })
     mockService(async () => ({
       totalProjects: 1,
       totalBudget: 900000,
@@ -131,7 +177,7 @@ describe("GET /api/v1/projexa/dashboard", () => {
         {
           id: "p-1", name: "Cedar",
           revenue: 450000, expenses: 120000, spent: 120000,
-          budget: 90000, boqBudget: 80000,
+          budget: 90000, ledgerBudget: 80000,
           value: 475000, contractValue: 475000,
           earnedValue: 118750, earnedValuePrevWeek: 95000, percentByValue: 25,
           progressPercent: 60, taskCount: 4, delayedTaskCount: 1,
@@ -151,7 +197,7 @@ describe("GET /api/v1/projexa/dashboard", () => {
 
     const row = body.projects[0]
     for (const moneyField of [
-      "revenue", "expenses", "spent", "budget", "boqBudget",
+      "revenue", "expenses", "spent", "budget", "ledgerBudget",
       "value", "contractValue", "earnedValue", "earnedValuePrevWeek", "percentByValue",
     ]) {
       expect(row[moneyField]).toBeNull()

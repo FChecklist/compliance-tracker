@@ -411,6 +411,11 @@ export function computeDailyCost(dailyRate: string | number, status: AttendanceS
   return Math.round(rate * ATTENDANCE_COST_MULTIPLIER[status] * 100) / 100
 }
 
+// Kept as the array form ATTENDANCE_STATUSES's own test pins ("the closed
+// set the UI's three chips map to"); AttendanceStatus itself is the literal
+// union declared above, so it is not re-declared here.
+export const ATTENDANCE_STATUSES = ["present", "absent", "half_day"] as const satisfies readonly AttendanceStatus[]
+
 export async function recordAttendance(
   ctx: { orgId: string },
   input: { projectId: string; rosterId: string; attendanceDate: string; status?: string; hoursWorked?: number }

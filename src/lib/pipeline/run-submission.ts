@@ -159,6 +159,12 @@ export type RunSubmissionInput = {
   rawInput: string;
   /** R48 gap-closure (2026-08-30, F089) -- see executor.ts's ExecutableTask.role comment. Optional: callers with no role available (e.g. the MCP AI-link route) simply don't get the redaction. */
   role?: string | null;
+  /**
+   * R67 C-03 (decision D-05, the identity bridge) -- see executor.ts's
+   * ExecutableTask.actorUserId. `userId` above may be an api_keys.id; this is
+   * always a real compliance.users.id or nothing at all.
+   */
+  actorUserId?: string | null;
 };
 
 export type TaskOutcome = {
@@ -517,6 +523,8 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       // {project} validate()'s does and the one sentence reads the same way
       // whichever stage refused the line.
       projectLabel: rootLabel,
+      // R67 C-03 (D-05): the named person a timesheet row is attributed to.
+      actorUserId: input.actorUserId ?? null,
     });
     if (outcome.success) {
       await updateTask(input.orgId, taskId, "done", outcome.result, undefined);
@@ -624,6 +632,8 @@ export type RunDirectTaskInput = {
    * row that look like two things the user asked for.
    */
   existingSubmissionId?: string;
+  /** R67 C-03 (D-05) -- see RunSubmissionInput.actorUserId. */
+  actorUserId?: string | null;
 };
 
 export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmissionResult> {
@@ -635,6 +645,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     projectId: input.projectId ?? null,
     rawInput: input.note ?? `[pill] ${input.functionId}`,
     role: input.role,
+    actorUserId: input.actorUserId ?? null,
   };
 
   const submissionId =
@@ -731,6 +742,8 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
       role: input.role,
       // R67 FIX PASS -- see the same line in runSubmission()'s loop.
       projectLabel: rootLabel,
+      // R67 C-03 (D-05): the named person a timesheet row is attributed to.
+      actorUserId: input.actorUserId ?? null,
     });
   }
 
@@ -1190,6 +1203,8 @@ export type ConfirmSubmissionInput = {
   /** the answers to whatever the verdict said was missing. */
   params?: Record<string, unknown>;
   role?: string | null;
+  /** R67 C-03 (D-05) -- see RunSubmissionInput.actorUserId. */
+  actorUserId?: string | null;
 };
 
 export type ConfirmSubmissionOutcome =
@@ -1272,6 +1287,7 @@ export async function confirmSubmission(input: ConfirmSubmissionInput): Promise<
     params,
     note: row.rawInput,
     role: input.role,
+    actorUserId: input.actorUserId ?? null,
     existingSubmissionId: row.id,
   });
   return { ok: true, result };

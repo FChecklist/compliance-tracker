@@ -73,14 +73,18 @@ async function GET_impl(request: NextRequest) {
   }
 
   try {
-    // R67 E-23: from/to narrow revenue and expenses only -- the BOQ-derived
-    // budget is a property of the BOQ line, not of a period. See
-    // OrgDashboardFilters' own comment; the chart states the same thing to
-    // the reader.
+    // R67 E-02/E-23 (both lanes built this independently): the home's Filter
+    // drawer -- which absorbs the retired /dashboard/hierarchy screen's own
+    // selects -- passes departmentId and an optional from/to window. The
+    // window narrows revenue and spend only; the service's own type comment
+    // says why the BOQ-derived figures are left alone, and the response
+    // carries dateRangeApplied so the screen can caption exactly what it
+    // filtered.
+    const { searchParams } = request.nextUrl
     const summary = await getOrgDashboard({ orgId: ctx.orgId }, {
-      departmentId: request.nextUrl.searchParams.get("departmentId") ?? undefined,
-      from: request.nextUrl.searchParams.get("from") ?? undefined,
-      to: request.nextUrl.searchParams.get("to") ?? undefined,
+      departmentId: searchParams.get("departmentId") ?? undefined,
+      from: searchParams.get("from") ?? undefined,
+      to: searchParams.get("to") ?? undefined,
     })
     // R48 gap-closure (2026-08-30, F059: "MEMBER cannot see budget or
     // margin"). This is the REAL route the (app)/construction-dashboard
@@ -102,12 +106,31 @@ async function GET_impl(request: NextRequest) {
     if (ctx.dbUser && !hasRole(ctx.dbUser, "manager")) {
       return NextResponse.json({
         ...summary,
-        totalBudget: null, totalRevenue: null, totalExpenses: null,
+        // R67 E-06: the ledger sum is a financial figure too, and so is the
+        // per-project BOQ budget the rows carry -- both redacted alongside the
+        // tile they now sit beside. financialsRedacted says WHY they are null,
+        // so a screen can tell "you may not see this" from "there is no BOQ",
+        // which are now two different reasons for the same absent figure.
+        totalBudget: null, totalLedgerBudget: null, totalRevenue: null, totalExpenses: null,
+        financialsRedacted: true,
+        // R67 E-01: spendOverValue is DERIVED from expenses against the
+        // contract value, so leaving it in would hand a member the very
+        // comparison the two redacted figures exist to withhold -- redacted
+        // to null (not false), because "you may not see this" and "spend has
+        // not passed the contract value" are different statements.
+        // R67 E-21: getOrgDashboard's project rows also gained spent (an alias
+        // of expenses), ledgerBudget, value and earnedValuePrevWeek -- every
+        // one a financial figure, so each is redacted here alongside the ones
+        // above. Adding a money field to the service without adding it to
+        // this list is exactly how F059 happened the first time.
+        // progressPercent, percentByActivity, tasksDue/tasksLate, hasSchedule
+        // and permitsExpiring30d stay: none of them is financial, and a site
+        // engineer's whole job depends on their own schedule.
         projects: summary.projects.map((p) => ({
           ...p,
-          revenue: null, expenses: null, spent: null, budget: null, boqBudget: null,
+          revenue: null, expenses: null, spent: null, budget: null, ledgerBudget: null,
           value: null, contractValue: null,
-          earnedValue: null, earnedValuePrevWeek: null, percentByValue: null,
+          earnedValue: null, earnedValuePrevWeek: null, percentByValue: null, spendOverValue: null,
         })),
       })
     }

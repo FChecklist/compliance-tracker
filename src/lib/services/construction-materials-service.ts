@@ -4,7 +4,7 @@
 // not built. receipt.unitCost defaults from the master's unitCost but is
 // stored per receipt (a delivery can be priced differently), matching
 // construction-labour-service.ts's dailyCost-computed-at-write-time posture.
-import { constructionMaterials, constructionMaterialIssues, constructionMaterialReceipts, users } from "@/lib/db"
+import { constructionMaterials, constructionMaterialIssues, constructionMaterialReceipts, erpSuppliers, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -286,65 +286,227 @@ export async function voidMaterialReceipt(
 // columns stored as strings (see createMaterialReceipt above) -- summed in
 // SQL, not fetched row-by-row and reduced in JS, so this scales the same way
 // that precedent does.
+// R67 E-05 (R-103). The Cost Report tab was "a summary card wearing the word
+// report": no date range, no grand total, no vendor, no export, and it counted
+// receipts that had been VOIDED. This is the real report behind it.
+//
+// WHAT CHANGED, and why each part is here rather than in the browser:
+//   * from / to -- a report with no period is not a report. Filtered in SQL so
+//     the totals row and the rows above it can never describe different sets.
+//   * groupBy -- "which material cost most" and "which vendor cost most" are
+//     the two questions a QS actually asks of this ledger.
+//   * vendor names -- receipts carry only a vendor_id; every screen that
+//     showed it showed a cuid. Joined once here, not per row.
+//   * voided receipts EXCLUDED (WS-I item I-02 added voided_at for exactly
+//     this: a voided goods receipt stays queryable for its audit trail and
+//     must never be counted again as cost). Every consumer that totals cost
+//     must filter voided_at IS NULL -- that column's own schema comment.
+//   * totals -- returned WITH the rows, from the same grouped read, so the
+//     grand total ties by construction rather than by the browser re-adding
+//     the numbers and hoping.
+//
+// MERGED WITH R67 D-57 (audit R-186), which asked this same function for a
+// from/to window and landed on main first. Its contract is kept exactly and is
+// the one described above: both bounds are INCLUSIVE (received_date is a date
+// column, not a timestamp, so a `to` of today includes today's deliveries);
+// the window is applied inside the grouped aggregate rather than by summing
+// the whole ledger and subtracting, so the report does not get slower as a
+// project's history grows and the browser never receives receipts it is only
+// going to discard; and omitting BOTH bounds keeps the previous all-time
+// behaviour, so every existing caller is unaffected. D-57's `{ from, to }`
+// third argument is a structural subset of MaterialCostReportOptions below,
+// so callers written against it keep working unchanged. D-36's rule that
+// voided receipts are excluded at the one place the totals are produced
+// composes with the window in the same predicate: a windowed report still
+// cannot count a voided delivery.
+export type MaterialCostReportGroupBy = "material" | "vendor"
+
+export type MaterialCostReportOptions = {
+  /** YYYY-MM-DD, inclusive. Omitted = no lower bound. */
+  from?: string
+  /** YYYY-MM-DD, inclusive. Omitted = no upper bound. */
+  to?: string
+  groupBy?: MaterialCostReportGroupBy
+}
+
+/** One (material, vendor) pair as the grouped SQL read returns it. */
+export type MaterialReceiptGroup = {
+  materialId: string
+  vendorId: string | null
+  quantity: number
+  cost: number
+}
+
+export type MaterialCostReportRow = {
+  /** materialId when grouping by material, vendorId (or "unassigned") when grouping by vendor. */
+  key: string
+  materialId: string | null
+  name: string
+  spec: string | null
+  vendorId: string | null
+  vendorName: string | null
+  unit: string | null
+  totalQuantityReceived: number
+  totalCost: number
+  averageUnitCost: number
+  /** The material master's own unit cost. null when the row spans more than one material. */
+  masterUnitCost: number | null
+  /** averageUnitCost - masterUnitCost. null when there is nothing single to compare against. */
+  variance: number | null
+}
+
+export type MaterialCostReport = {
+  rows: MaterialCostReportRow[]
+  totals: { quantity: number; cost: number }
+  /** Echoed back so the screen's parameter bar and its numbers can never disagree. */
+  params: { projectId: string; from: string | null; to: string | null; groupBy: MaterialCostReportGroupBy }
+}
+
+/** More than one distinct material/vendor/unit rolled into one row. Stated in words, never blank. */
+export const MIXED_MATERIALS_LABEL = "Multiple materials"
+export const MIXED_VENDORS_LABEL = "Multiple vendors"
+export const NO_VENDOR_KEY = "unassigned"
+export const NO_VENDOR_LABEL = "No vendor recorded"
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
 /**
- * R67 D-57 (audit R-186): `from`/`to` narrow the report to a received-date
- * window, INCLUSIVE on both bounds (received_date is a date column, not a
- * timestamp, so a `to` of today includes today's deliveries).
+ * Pure roll-up: grouped (material, vendor) receipt totals -> the report's rows
+ * and its grand total. DB-free so the arithmetic that a QS checks by hand is
+ * testable without a database, the same convention computeEarnedValue and
+ * aggregateDesignerTimesheetCosts follow in construction-reports-service.ts.
  *
- * The filter is applied in the same grouped aggregate, not by summing the
- * whole ledger and subtracting: a Cost Report over a month must not get slower
- * as a project's history grows, and the browser must never receive receipts it
- * is only going to discard. Omitting both keeps the previous all-time
- * behaviour exactly, so every existing caller is unaffected.
+ * The identity this guarantees, and which the screen asserts before it will
+ * enable Export: sum(rows.totalCost) === totals.cost, in BOTH groupings, because
+ * both are folded from the same input array.
  */
+export function aggregateMaterialCostReport(
+  groups: MaterialReceiptGroup[],
+  materialById: Map<string, { name: string; spec: string | null; unit: string; unitCost: string | number | null }>,
+  vendorNameById: Map<string, string>,
+  params: MaterialCostReport["params"]
+): MaterialCostReport {
+  const byKey = new Map<string, { quantity: number; cost: number; materialIds: Set<string>; vendorIds: Set<string | null> }>()
+  for (const g of groups) {
+    const key = params.groupBy === "vendor" ? (g.vendorId ?? NO_VENDOR_KEY) : g.materialId
+    const bucket = byKey.get(key) ?? { quantity: 0, cost: 0, materialIds: new Set<string>(), vendorIds: new Set<string | null>() }
+    bucket.quantity += g.quantity
+    bucket.cost += g.cost
+    bucket.materialIds.add(g.materialId)
+    bucket.vendorIds.add(g.vendorId)
+    byKey.set(key, bucket)
+  }
+
+  const rows: MaterialCostReportRow[] = [...byKey.entries()].map(([key, bucket]) => {
+    const materialIds = [...bucket.materialIds]
+    const soleMaterialId = materialIds.length === 1 ? materialIds[0] : null
+    const soleMaterial = soleMaterialId ? materialById.get(soleMaterialId) : undefined
+    const vendorIds = [...bucket.vendorIds]
+    const soleVendorId = vendorIds.length === 1 ? vendorIds[0] : null
+
+    const totalCost = round2(bucket.cost)
+    const quantity = round2(bucket.quantity)
+    const averageUnitCost = quantity > 0 ? round2(totalCost / quantity) : 0
+    const masterUnitCost = soleMaterial && soleMaterial.unitCost !== null && soleMaterial.unitCost !== ""
+      ? round2(Number(soleMaterial.unitCost))
+      : null
+
+    return {
+      key,
+      materialId: soleMaterialId,
+      name: soleMaterial ? soleMaterial.name : soleMaterialId ?? MIXED_MATERIALS_LABEL,
+      spec: soleMaterial?.spec ?? null,
+      vendorId: soleVendorId,
+      vendorName: soleVendorId === null
+        ? (vendorIds.length > 1 ? MIXED_VENDORS_LABEL : NO_VENDOR_LABEL)
+        : (vendorNameById.get(soleVendorId) ?? soleVendorId),
+      // A quantity summed across two different units is meaningless, so the
+      // unit is only stated when there IS one.
+      unit: soleMaterial?.unit ?? null,
+      totalQuantityReceived: quantity,
+      totalCost,
+      averageUnitCost,
+      masterUnitCost,
+      variance: masterUnitCost !== null ? round2(averageUnitCost - masterUnitCost) : null,
+    }
+  })
+
+  // Costliest first -- the question this report answers is "where did the
+  // money go", and that is the row a reader wants at the top.
+  rows.sort((a, b) => b.totalCost - a.totalCost)
+
+  return {
+    rows,
+    totals: {
+      quantity: round2(groups.reduce((s, g) => s + g.quantity, 0)),
+      cost: round2(groups.reduce((s, g) => s + g.cost, 0)),
+    },
+    params,
+  }
+}
+
 export async function getMaterialCostReport(
   ctx: { orgId: string },
   projectId: string,
-  filters: { from?: string; to?: string } = {}
-) {
+  options: MaterialCostReportOptions = {}
+): Promise<MaterialCostReport> {
+  const groupBy: MaterialCostReportGroupBy = options.groupBy === "vendor" ? "vendor" : "material"
+  const from = options.from?.trim() || null
+  const to = options.to?.trim() || null
+  const params = { projectId, from, to, groupBy }
+
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const totals = await db.select({
+    const conditions = [
+      eq(constructionMaterialReceipts.orgId, ctx.orgId),
+      eq(constructionMaterialReceipts.projectId, projectId),
+      // WS-I I-02's own rule: a voided receipt stays queryable for its audit
+      // trail and is never counted as cost again.
+      isNull(constructionMaterialReceipts.voidedAt),
+    ]
+    if (from) conditions.push(gte(constructionMaterialReceipts.receivedDate, from))
+    if (to) conditions.push(lte(constructionMaterialReceipts.receivedDate, to))
+
+    // One grouped read, by (material, vendor) -- the finest grain BOTH
+    // groupings fold from, so switching Group by never re-queries and the two
+    // views can never disagree. Summed in SQL, same posture as before.
+    const grouped = await db.select({
       materialId: constructionMaterialReceipts.materialId,
-      totalQuantityReceived: sql<string>`coalesce(sum(${constructionMaterialReceipts.quantity}), 0)`,
-      totalCost: sql<string>`coalesce(sum(${constructionMaterialReceipts.quantity} * ${constructionMaterialReceipts.unitCost}), 0)`,
+      vendorId: constructionMaterialReceipts.vendorId,
+      quantity: sql<string>`coalesce(sum(${constructionMaterialReceipts.quantity}), 0)`,
+      cost: sql<string>`coalesce(sum(${constructionMaterialReceipts.quantity} * coalesce(${constructionMaterialReceipts.unitCost}, 0)), 0)`,
     })
       .from(constructionMaterialReceipts)
-      // R67 D-36: voided receipts are excluded from every total, in SQL, at
-      // the one place the totals are produced -- so the Cost Report, the
-      // master's "Received to date" and anything else reading this aggregate
-      // can never disagree about whether a voided delivery counts.
-      // R67 D-57: the From/To window composes with that exclusion in the same
-      // predicate, so a windowed report still cannot count a voided delivery.
-      .where(and(
-        eq(constructionMaterialReceipts.orgId, ctx.orgId),
-        eq(constructionMaterialReceipts.projectId, projectId),
-        isNull(constructionMaterialReceipts.voidedAt),
-        ...(filters.from ? [gte(constructionMaterialReceipts.receivedDate, filters.from)] : []),
-        ...(filters.to ? [lte(constructionMaterialReceipts.receivedDate, filters.to)] : [])
-      ))
-      .groupBy(constructionMaterialReceipts.materialId)
+      .where(and(...conditions))
+      .groupBy(constructionMaterialReceipts.materialId, constructionMaterialReceipts.vendorId)
 
-    if (totals.length === 0) return []
+    if (grouped.length === 0) return { rows: [], totals: { quantity: 0, cost: 0 }, params }
 
     const materials = await db.query.constructionMaterials.findMany({
       where: and(eq(constructionMaterials.orgId, ctx.orgId), eq(constructionMaterials.projectId, projectId)),
+      columns: { id: true, name: true, spec: true, unit: true, unitCost: true },
     })
-    const materialById = new Map(materials.map((m) => [m.id, m]))
+    const materialById = new Map(materials.map((m) => [m.id, { name: m.name, spec: m.spec, unit: m.unit, unitCost: m.unitCost }]))
 
-    return totals.map((t) => {
-      const material = materialById.get(t.materialId)
-      const totalQuantityReceived = Number(t.totalQuantityReceived)
-      const totalCost = Math.round(Number(t.totalCost) * 100) / 100
-      return {
-        materialId: t.materialId,
-        name: material?.name ?? t.materialId,
-        spec: material?.spec ?? null,
-        unit: material?.unit ?? "",
-        totalQuantityReceived,
-        totalCost,
-        averageUnitCost: totalQuantityReceived > 0 ? Math.round((totalCost / totalQuantityReceived) * 100) / 100 : 0,
-      }
-    })
+    // Vendors are erp_suppliers (the /api/v1/projexa/vendors route's own
+    // aliasing) -- looked up once for every vendor on the report, never per
+    // row, and only when at least one receipt actually names one.
+    const vendorIds = [...new Set(grouped.map((g) => g.vendorId).filter((v): v is string => Boolean(v)))]
+    const vendors = vendorIds.length > 0
+      ? await db.query.erpSuppliers.findMany({
+          where: and(eq(erpSuppliers.orgId, ctx.orgId), inArray(erpSuppliers.id, vendorIds)),
+          columns: { id: true, supplierName: true },
+        })
+      : []
+    const vendorNameById = new Map(vendors.map((v) => [v.id, v.supplierName]))
+
+    return aggregateMaterialCostReport(
+      grouped.map((g) => ({ materialId: g.materialId, vendorId: g.vendorId, quantity: Number(g.quantity), cost: Number(g.cost) })),
+      materialById,
+      vendorNameById,
+      params
+    )
   })
 }
 

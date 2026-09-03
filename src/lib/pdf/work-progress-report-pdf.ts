@@ -96,16 +96,19 @@ export type ComputedRow = {
   description: string
   categoryName: string
   isChild: boolean // WPR-06: a hierarchical BoQ sub-task -- percent cells render blank
-  // R67 E-28: the line's own unit and CONTRACTED quantity. Already on every
-  // WprPdfLineItem and already read below to compute the balance -- projected
-  // here so the XLSX export can carry the ordered quantity beside the done
-  // quantity without re-deriving it, and so the screen and the export agree.
+  // R67 E-18/E-20/E-28 (second-merge fix, both lanes built this
+  // independently): the line's own unit and CONTRACTED quantity. Already on
+  // every WprPdfLineItem and already read below to compute the balance --
+  // projected here so the XLSX export can carry the ordered quantity beside
+  // the done quantity without re-deriving it, and so the screen and the
+  // export agree.
   //
-  // NAMED FOR WHAT IT IS. R-244 asks for a "PO Qty" column. There is no
-  // purchase-order quantity anywhere in this schema -- construction_boq_line_
-  // items has `quantity` and nothing links a BOQ line to a PO line -- so this
-  // is the BOQ's own contracted quantity, called that, rather than a made-up
-  // figure wearing a PO label.
+  // NAMED FOR WHAT IT IS, not poQty. R-244 asks for a "PO Qty" column. There
+  // is no purchase-order quantity anywhere in this schema -- construction_
+  // boq_line_items has `quantity` and nothing links a BOQ line to a PO line
+  // -- so this is the BOQ's own contracted quantity, called that, rather
+  // than a made-up figure wearing a PO label. work-progress-report-export.ts
+  // (the export this now feeds) reads it as `boqQty`.
   unit: string
   boqQty: number
   rate: number
