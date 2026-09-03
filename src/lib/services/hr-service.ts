@@ -60,6 +60,39 @@ export async function listEmployees(ctx: { orgId: string }, filters?: { companyI
   })
 }
 
+// ─── People picker feed (R67 D-19) ────────────────────────────────────────
+// PROJEXA's MoM action-item form asked a site engineer to PASTE A VERIDIAN
+// USER ID, with an on-screen apology admitting there was no directory. There
+// already is one: listEmployees() above returns every user in the org. All
+// that was missing between it and a combobox was the type-ahead filter, which
+// is pure and belongs here rather than in a second "directory service".
+export type OrgUserOption = { id: string; name: string | null; email: string; role: string }
+
+export const ORG_USER_PICKER_LIMIT = 20
+
+/**
+ * Pure -- no DB access -- so it is unit-tested directly (same convention as
+ * validateEmployeeProfileInput below). Case-insensitive substring match over
+ * name and email; an empty/blank query returns the head of the list rather
+ * than nothing, because the picker opens before the user has typed anything.
+ * Ordering is by name (then email) so the list does not reshuffle between
+ * keystrokes.
+ */
+export function filterOrgUsersByQuery(
+  orgUsers: readonly { id: string; name: string | null; email: string; role: string }[],
+  query?: string | null,
+  limit: number = ORG_USER_PICKER_LIMIT
+): OrgUserOption[] {
+  const q = (query ?? "").trim().toLowerCase()
+  const matched = q
+    ? orgUsers.filter((u) => (u.name ?? "").toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+    : [...orgUsers]
+  return matched
+    .sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email) || a.email.localeCompare(b.email))
+    .slice(0, Math.max(0, limit))
+    .map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role }))
+}
+
 // Org chart: zero new schema -- a read-only tree over the already-existing
 // users.reportingToId/departmentId (Wave 1). The one clear "already have
 // the data, just needed a UI" finding from this research.

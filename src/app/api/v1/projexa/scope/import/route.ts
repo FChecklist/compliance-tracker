@@ -11,9 +11,17 @@
 // requireAuthOrApiKey() + requireRoleOrScope() and derives actorId as
 // ctx.dbUser?.id ?? ctx.apiKey!.id, exactly as src/app/api/v1/construction/
 // boq/route.ts's POST already does for the non-import BOQ create endpoint.
+//
+// R67 D-25: this route also answers `?dryRun=1`, which runs the SAME
+// parseBoqSpreadsheet and returns the parsed rows plus their per-row issues
+// WITHOUT writing anything. That exists because the import preview screen must
+// not re-parse the spreadsheet in the browser: PROJEXA is not allowed an XLSX
+// library, and a second parser would be a second set of rules that can
+// disagree with the one that actually imports. A dry run is a READ -- it needs
+// no write role and creates nothing.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { parseBoqSpreadsheet, ServiceError } from "@/lib/services/construction-boq-import-service"
+import { parseBoqSpreadsheet, toPreviewRows, ServiceError } from "@/lib/services/construction-boq-import-service"
 import { createBoq, createBoqRevision } from "@/lib/services/construction-boq-service"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
@@ -21,8 +29,13 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const roleErr = requireRoleOrScope(ctx, "member", "write")
-  if (roleErr) return roleErr
+  const dryRun = request.nextUrl.searchParams.get("dryRun") === "1"
+  // A dry run writes nothing, so it is gated as a read; a real import still
+  // needs the write role it always did.
+  if (!dryRun) {
+    const roleErr = requireRoleOrScope(ctx, "member", "write")
+    if (roleErr) return roleErr
+  }
   // IF ctx.orgId is falsy THEN 400, never an empty/silent success (error E-52).
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
@@ -35,12 +48,30 @@ export async function POST(request: NextRequest) {
     }
 
     const projectId = String(formData.get("projectId") || "")
-    if (!projectId) return NextResponse.json({ error: "projectId is required" }, { status: 400 })
+    // A dry run has nothing to attach the parse to, so it does not need a
+    // project -- the preview is about the FILE.
+    if (!projectId && !dryRun) return NextResponse.json({ error: "projectId is required" }, { status: 400 })
     const parentBoqId = formData.get("parentBoqId") ? String(formData.get("parentBoqId")) : null
     const title = formData.get("title") ? String(formData.get("title")) : file.name.replace(/\.[^.]+$/, "")
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const { lineItems, warnings, totalRows } = await parseBoqSpreadsheet(buffer, file.name, file.type)
+    const { lineItems, warnings, issues, totalRows } = await parseBoqSpreadsheet(buffer, file.name, file.type)
+
+    if (dryRun) {
+      const blocking = issues.filter((i) => i.blocking)
+      return NextResponse.json({
+        dryRun: true,
+        rows: toPreviewRows(lineItems),
+        issues,
+        warnings,
+        summary: {
+          totalRows,
+          readyLines: lineItems.length,
+          rowsWithErrors: new Set(blocking.map((i) => i.row)).size,
+        },
+      })
+    }
+
     if (lineItems.length === 0) {
       return NextResponse.json({ error: "No usable line items found in this spreadsheet", warnings }, { status: 400 })
     }
