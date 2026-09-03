@@ -121,6 +121,55 @@ describe("getOrgDashboard: the R67 E-01 additions are batched, not per-project",
   })
 })
 
+// R67 E-19 (R-180): the home screen's summary sentence needs a third signal --
+// "nothing has moved on this project in a month". The fact it is derived from
+// is the latest recorded progress entry per project, and the whole point is
+// that it costs NO extra query: entry_date joins the DISTINCT ON row set that
+// already exists for percentByActivity. A per-project read here is the exact
+// shape R43_MGR_01 removed after it deadlocked the five-connection pool.
+describe("getOrgDashboard: lastProgressAt rides the query that already runs (R67 E-19)", () => {
+  const body = functionBody("getOrgDashboard")
+
+  test("entry_date is selected by the SAME DISTINCT ON query that reads percent_complete", () => {
+    expect(body).toMatch(/SELECT DISTINCT ON \(activity_id\) activity_id, percent_complete, entry_date/)
+  })
+
+  test("no second query was added for it", () => {
+    // One activity read, one permit read -- the two the E-01 block already
+    // pinned. A third db.execute over the progress table would be the fan-out.
+    const progressReads = body.match(/construction_work_progress_entries/g) ?? []
+    // getOrgDashboard reads that table twice in total: once for the activity
+    // percentages (which now also carries entry_date) and twice inside the
+    // earned-value block (quantities and latest percent per BOQ line).
+    expect(progressReads.length).toBe(3)
+  })
+
+  test("it is folded per project by a plain string comparison, so no time zone can reorder it", () => {
+    expect(body).toMatch(/if \(!current \|\| lastEntry > current\) lastProgressByProject\.set/)
+    expect(body).toMatch(/lastProgressAt: lastProgressByProject\.get\(p\.id\) \?\? null/)
+  })
+})
+
+describe("isoDay (R67 E-19)", () => {
+  test("reduces both driver shapes to the same YYYY-MM-DD string", async () => {
+    const { isoDay } = await import("./construction-dashboard-service")
+    expect(isoDay("2026-09-01")).toBe("2026-09-01")
+    // postgres.js can hand back a full timestamp for a date column depending on
+    // its type parser; the day is what this figure means either way.
+    expect(isoDay("2026-09-01T00:00:00.000Z")).toBe("2026-09-01")
+    expect(isoDay(new Date("2026-09-01T10:30:00.000Z"))).toBe("2026-09-01")
+  })
+
+  test("an absent or unreadable date is null, never today", async () => {
+    const { isoDay } = await import("./construction-dashboard-service")
+    expect(isoDay(null)).toBeNull()
+    expect(isoDay(undefined)).toBeNull()
+    expect(isoDay("")).toBeNull()
+    expect(isoDay("not a date")).toBeNull()
+    expect(isoDay(new Date("nonsense"))).toBeNull()
+  })
+})
+
 // R67 E-02 (R-012): the home's Filter drawer absorbs the retired
 // /dashboard/hierarchy screen's selects and adds a date range. The rule these
 // pin is the one that keeps the screen honest: the window narrows the two SUMS

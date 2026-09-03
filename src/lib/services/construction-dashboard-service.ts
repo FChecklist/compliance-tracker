@@ -347,6 +347,20 @@ export function averageLatestPercent(percents: number[]): number | null {
   return Math.round(percents.reduce((sum, p) => sum + p, 0) / percents.length)
 }
 
+/**
+ * R67 E-19 (R-180): entry_date comes back from db.execute() as either a string
+ * (postgres.js's `date` mapping) or a Date, depending on the driver's type
+ * parser. Both are reduced to YYYY-MM-DD here so the comparison that picks the
+ * latest one is a plain string comparison that cannot depend on a time zone --
+ * the same reason src/lib/format-date.ts pins its locale on the other side.
+ */
+export function isoDay(value: string | Date | null | undefined): string | null {
+  if (!value) return null
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString().slice(0, 10)
+  const text = String(value).trim()
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : null
+}
+
 export type OrgDashboardProjectSummary = {
   id: string
   name: string
@@ -376,6 +390,15 @@ export type OrgDashboardProjectSummary = {
   spendOverValue: boolean
   /** R67 E-01: permits (documents category='permit') expiring within 30 days, this project only. */
   permitsExpiring30d: number
+  /**
+   * R67 E-19 (R-180): the date of the most recent work-progress entry on this
+   * project, YYYY-MM-DD, or null when none has ever been recorded. The home
+   * screen's summary sentence needs a third signal beside delayed tasks and
+   * overspend -- "nothing has moved here in a month" -- and this is the fact it
+   * is derived from. Read out of the DISTINCT ON query that already exists for
+   * percentByActivity; no extra round trip.
+   */
+  lastProgressAt: string | null
 }
 
 export type OrgDashboardSummary = {
@@ -515,19 +538,32 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
       columns: { id: true, projectId: true },
     })
     const percentsByProject = new Map<string, number[]>()
+    /** R67 E-19: the latest recorded progress entry date per project, YYYY-MM-DD. */
+    const lastProgressByProject = new Map<string, string>()
     if (activityRows.length > 0) {
       // Same ARRAY[...] construction, and for the same postgres.js reason, as
       // latestBoqPerProject above and getProjectDashboard's own equivalent
       // query -- one DISTINCT ON for every activity across every project.
       const activityIdsSql = sql.join(activityRows.map((a) => sql`${a.id}`), sql`, `)
+      // R67 E-19 (R-180): entry_date joins this SAME row set. The DISTINCT ON
+      // already orders by it to pick the latest percentage; selecting it costs
+      // nothing and is what lets the home screen say "no progress recorded for
+      // 34 days" about a named project instead of a mood. NOT a second query --
+      // re-adding a per-project read here is exactly what R43_MGR_01 removed.
       const latestRows = (await db.execute(sql`
-        SELECT DISTINCT ON (activity_id) activity_id, percent_complete
+        SELECT DISTINCT ON (activity_id) activity_id, percent_complete, entry_date
         FROM compliance.construction_work_progress_entries
         WHERE activity_id = ANY(ARRAY[${activityIdsSql}])
         ORDER BY activity_id, entry_date DESC
-      `)) as { activity_id: string; percent_complete: number }[]
+      `)) as { activity_id: string; percent_complete: number; entry_date: string | Date }[]
       const percentByActivityId = new Map(latestRows.map((r) => [r.activity_id, Number(r.percent_complete)]))
+      const lastEntryByActivityId = new Map(latestRows.map((r) => [r.activity_id, isoDay(r.entry_date)]))
       for (const activity of activityRows) {
+        const lastEntry = lastEntryByActivityId.get(activity.id)
+        if (lastEntry) {
+          const current = lastProgressByProject.get(activity.projectId)
+          if (!current || lastEntry > current) lastProgressByProject.set(activity.projectId, lastEntry)
+        }
         const percent = percentByActivityId.get(activity.id)
         // Only activities that have actually been logged against contribute --
         // an activity nobody has touched is "not recorded", not "0% done", and
@@ -688,6 +724,10 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         // contract value" must not read as "you are overspent".
         spendOverValue: value !== null && expenses > value,
         permitsExpiring30d: permitMap.get(p.id) ?? 0,
+        // R67 E-19: null means NOTHING has ever been recorded -- a different
+        // state from "recorded, but a long time ago", and the home screen says
+        // each of them in its own words rather than treating both as stalled.
+        lastProgressAt: lastProgressByProject.get(p.id) ?? null,
       }
     })
 
