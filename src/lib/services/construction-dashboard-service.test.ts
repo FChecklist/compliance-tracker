@@ -38,7 +38,17 @@ const SOURCE = readFileSync(path.join(import.meta.dir, "construction-dashboard-s
 const CODE = SOURCE.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "")
 
 function functionBody(name: string): string {
-  const start = CODE.indexOf(`export async function ${name}(`)
+  // R67 integration fix: this only ever looked for `export async function`,
+  // which was true of every function it was asked about when it was written.
+  // The one-statement rewrite moved the per-project money and budget decisions
+  // into the PURE, synchronous toProjectDashboard(), so the helper now finds
+  // either form -- otherwise a guard asked about a real exported function
+  // fails with "expected > -1" and looks like a missing implementation.
+  const start = (() => {
+    const asAsync = CODE.indexOf(`export async function ${name}(`)
+    if (asAsync !== -1) return asAsync
+    return CODE.indexOf(`export function ${name}(`)
+  })()
   expect(start).toBeGreaterThan(-1)
   const next = CODE.indexOf("\nexport ", start + 1)
   return CODE.slice(start, next === -1 ? undefined : next)
