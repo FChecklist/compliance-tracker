@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (subagent, r67/d3-screens-manpower-materials-budgets-schedule) -- R67 lane D3: the compliance-tracker half of the Manpower/Materials screen items (D-30, D-36)"
+  - session_label: "claude-code (subagent, r67/d3-screens-manpower-materials-budgets-schedule) -- R67 lane D3: the compliance-tracker half of the Manpower/Materials/Schedule screen items (D-30, D-36, D-40, D-47)"
     claimed_at: "2026-09-03T (this session)"
     claim: |
       PROGRAMME R67 (implementation of the owner-approved R66 UX/product-design audit),
@@ -75,6 +75,18 @@ active:
           construction_material_receipts (reference, voided_at, void_reason, voided_by),
           plus (D-40) construction_materials.reorder_level and the new table
           construction_material_issues.
+        - src/lib/services/schedule-service.ts (+ new sibling .test.ts) (D-47) --
+          createScheduleActivity(): startDate is required, durationDays derives the
+          finish date, and predecessorId / boqLineItemId are VALIDATED in one read
+          transaction before anything is written, then stored as a pms_issue_relations
+          'blocked_by' edge and a pms_issue_boq_links row. Nothing existing in that file
+          changes behaviour; the two new date helpers (deriveDueDate /
+          deriveDurationDays) are pure. createIssue() itself is untouched.
+        - src/app/api/v1/projexa/schedule/route.ts (D-47) -- POST now builds a
+          ScheduleActivityInput and calls createScheduleActivity() instead of
+          createIssue(). BEHAVIOUR CHANGE, declared: startDate becomes REQUIRED on this
+          route (400 otherwise). The only caller in either repo is PROJEXA's own
+          /api/schedule/tasks proxy, which now requires it too.
 
       DECLARED OVERLAP, read before merging: the DDL for all of the above belongs to R67
       item I-02 ("Migrations: attendance batch key, roster codes and trades, material
@@ -93,6 +105,17 @@ active:
       index (read-then-update/insert inside the one transaction, not ON CONFLICT), so
       nothing here is blocked on I-02 landing first; the receipts columns, reorder_level
       and the issues table genuinely are.
+
+      MERGE RECONCILIATION, 2026-09-03: origin/main was merged into this branch to pick
+      up lane I's drizzle/0528-0532 (I-02's material columns and issues table, and
+      I-04's pms_issue_boq_links, which D-47 writes to). Two conflicts were resolved by
+      hand and one SILENT bad auto-merge was found and fixed: git produced TWO
+      `constructionMaterialIssues` declarations in schema.ts and spliced lane I's
+      construction_material_receipts void columns (voided_at / void_reason /
+      voided_by_id) INTO the issues table, because the surrounding
+      created_by_id/created_at lines matched. Reconciled to one declaration matching
+      drizzle/0529 column for column. Anyone merging another branch across this region
+      should re-check it the same way.
 
       Not touching: the pipeline (classify/executor/validate/run-submission), any AI
       router/escalation file, billing_*, construction-progress-service.ts,

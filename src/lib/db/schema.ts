@@ -11241,6 +11241,22 @@ export const constructionMaterialReceipts = complianceSchemaDB.table('constructi
 // An issue has no unitCost of its own. What material left the store is a
 // quantity question; what it COST is answered by the receipts it came from,
 // which is where the Cost Report already computes it.
+//
+// Deliberately NOT erp_stock_ledger_entries (lane I's item I-02, which creates
+// this table in drizzle/0529, reached the same conclusion independently): that
+// is a full valuation layer -- warehouses, valuation rates, moving-average
+// costing -- against erp_items, a different master from construction_materials,
+// so wiring site consumption into it would mean either duplicating every
+// material as an erp_item or teaching the valuation engine a second master.
+//
+// MERGE NOTE (2026-09-03): lane I declared this same table, and `git merge`
+// produced BOTH declarations plus a mis-spliced copy of the RECEIPT void
+// columns (voided_at / void_reason / voided_by_id) inside this one -- the
+// surrounding created_by_id/created_at lines matched, so the hunk landed in the
+// wrong table. Reconciled to one declaration matching
+// drizzle/0529_r67_i02_manpower_material_org_format.sql column for column;
+// construction_material_issues has no void columns there and must not have any
+// here.
 export const constructionMaterialIssues = complianceSchemaDB.table('construction_material_issues', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
@@ -11260,48 +11276,6 @@ export const constructionMaterialIssues = complianceSchemaDB.table('construction
   // The gang, subcontractor or person who took it -- free text, because on a
   // real site this is "Falcon gang 3" as often as it is a named user.
   issuedTo: text('issued_to'),
-  note: text('note'),
-  createdById: text('created_by_id').notNull(),
-  // R67 lane I (WS-I item I-02, for C03-09): a receipt is VOIDED, never
-  // deleted. A goods-receipt note is an accounting document -- the audit trail
-  // ("this delivery was recorded and then cancelled, by whom, why, when") is
-  // the whole point, and a DELETE destroys it. Every consumer that totals
-  // stock or cost must filter `voided_at IS NULL`; a voided row stays
-  // queryable for the history it carries. All three nullable together: a
-  // voided receipt has all three set, a live one has none.
-  voidedAt: timestamp('voided_at'),
-  voidReason: text('void_reason'),
-  voidedById: text('voided_by_id'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-})
-
-// R67 lane I (WS-I item I-02, for C03-13): the outbound half of the material
-// ledger. constructionMaterials/constructionMaterialReceipts (Point 33)
-// deliberately modelled inbound ONLY -- its own comment above says "No
-// outbound/consumption/stock-on-hand -- not requested" -- so "what is actually
-// left on site" was unanswerable. This is the smallest table that answers it:
-// issues out, optionally attributed to the BOQ line the material was consumed
-// against, so consumption can be read per scope item and not just per project.
-//
-// Deliberately NOT erp_stock_ledger_entries: that is a full valuation layer
-// (warehouses, valuation rates, moving-average costing) against erp_items, a
-// different master from construction_materials -- wiring site consumption into
-// it would mean either duplicating every material as an erp_item or teaching
-// the valuation engine a second master. Same reasoning Point 33 used when it
-// chose not to build on erp_stock_* in the first place.
-//
-// boqLineItemId is nullable and carries no DB-level FK, matching
-// constructionWorkProgressEntries.boqLineItemId's own posture on the same
-// link (a deleted BOQ line must not block or orphan a real issue record).
-export const constructionMaterialIssues = complianceSchemaDB.table('construction_material_issues', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  orgId: text('org_id').notNull(),
-  projectId: text('project_id').notNull(),
-  materialId: text('material_id').notNull().references(() => constructionMaterials.id),
-  issuedDate: date('issued_date', { mode: 'string' }).notNull(),
-  quantity: numeric('quantity').notNull(),
-  boqLineItemId: text('boq_line_item_id'),
-  issuedTo: text('issued_to'), // free text -- a gang/foreman/subcontractor name, the same advisory posture as constructionLabourRoster.trade (site labour rarely has a login account to link to)
   note: text('note'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),

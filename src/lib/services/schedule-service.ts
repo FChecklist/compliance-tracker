@@ -4,13 +4,14 @@
 // 116) -- critical path is never stored, only computed on request from
 // startDate/dueDate + typed relations/lagDays that already exist.
 import {
-  pmsIssues, pmsIssueRelations,
+  pmsIssues, pmsIssueRelations, pmsIssueBoqLinks, constructionBoqLineItems,
   pmsScheduleBaselines, pmsBaselineIssueSnapshots, pmsResourceAllocations,
 } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
+import { createIssue, type IssueInput, type PmsContext } from "./pms-issue-service"
 // Task #47 gap fix: reuse the same direct-children completion rollup
 // pms-issue-service.ts already exposes (getIssue()/listIssues()) instead of
 // duplicating the aggregation query/math here -- the Gantt chart's
@@ -174,6 +175,141 @@ export async function getGanttData(ctx: { orgId: string }, projectId: string) {
   const taskIds = new Set(tasks.map((t) => t.id))
   const dependencies = normalizeEdges(relationsRaw).filter((e) => taskIds.has(e.predecessorId) && taskIds.has(e.successorId))
   return { tasks, dependencies, milestones }
+}
+
+// ─── R67 D-47 (audit R-121) -- creating an ACTIVITY, not just an issue ──────
+//
+// /schedule/tasks/new could set a title, a type, a priority and a due date.
+// A programme needs a START, a DURATION, what an activity FOLLOWS, and which
+// BOQ line it earns its value from -- and none of those could be sent at all,
+// so the Timeline it feeds could not draw a bar, could not draw a dependency
+// line, and could not roll a BOQ line's progress up from the work that
+// delivers it.
+//
+// This lives in schedule-service.ts rather than pms-issue-service.ts because it
+// is schedule semantics (duration, predecessor, BOQ link) composed over the
+// generic issue create, not a change to what an issue IS. createIssue() keeps
+// its own contract untouched.
+
+/** Whole days from `start` to `due`; null when either is missing. Pure. */
+export function deriveDurationDays(startDate?: string | null, dueDate?: string | null): number | null {
+  if (!startDate || !dueDate) return null
+  return daysBetween(startDate, dueDate)
+}
+
+/**
+ * The finish date to store, from whichever of finish/duration the caller sent.
+ *
+ * An explicit dueDate always wins -- a caller that sent both meant the date.
+ * A duration without a start cannot derive anything and is not an error here
+ * (the start is validated separately, with its own message).
+ * Pure, so the rule is testable without a database.
+ */
+export function deriveDueDate(
+  startDate?: string | null,
+  dueDate?: string | null,
+  durationDays?: number | null
+): string | null {
+  if (dueDate) return dueDate
+  if (!startDate) return null
+  if (durationDays === undefined || durationDays === null) return null
+  if (!Number.isFinite(durationDays) || durationDays < 0) return null
+  return addDays(startDate, Math.round(durationDays))
+}
+
+export type ScheduleActivityInput = Omit<IssueInput, "dueDate"> & {
+  dueDate?: string
+  /** Days from Start; used only when no explicit finish date is given. */
+  durationDays?: number
+  /** The activity this one follows. Stored as a 'blocked_by' relation, which is the direction the Gantt reads. */
+  predecessorId?: string
+  /** The BOQ line this activity delivers, stored in pms_issue_boq_links. */
+  boqLineItemId?: string
+}
+
+/**
+ * Creates a schedule activity and its two optional edges.
+ *
+ * SEQUENCING, and why it is three steps rather than one transaction: both
+ * createIssue() and this function's own writes open their own
+ * withTenantContext, and nesting one inside another is exactly what programme
+ * decision D-06 forbids (it deadlocks the 5-connection pool). So the two ids
+ * the caller supplied are VALIDATED FIRST, in one read transaction, before
+ * anything is written -- which turns the common failure ("that BOQ line is not
+ * on this project") into a clean 404 with nothing created, rather than an
+ * orphaned activity. If the edge write itself still fails afterwards, the error
+ * says the activity was created and what did not attach, instead of pretending
+ * the whole call failed.
+ */
+export async function createScheduleActivity(ctx: PmsContext, input: ScheduleActivityInput) {
+  if (!input.startDate) throw new ServiceError("startDate is required", 400)
+
+  const dueDate = deriveDueDate(input.startDate, input.dueDate, input.durationDays) ?? undefined
+  if (dueDate && daysBetween(input.startDate, dueDate)! < 0) {
+    throw new ServiceError("Due date is before the start date", 400)
+  }
+
+  if (input.predecessorId || input.boqLineItemId) {
+    await withTenantContext({ orgId: ctx.orgId }, async (db) => {
+      if (input.predecessorId) {
+        const predecessor = await db.query.pmsIssues.findFirst({
+          where: and(eq(pmsIssues.id, input.predecessorId!), eq(pmsIssues.orgId, ctx.orgId)),
+          columns: { id: true, projectId: true },
+        })
+        if (!predecessor) throw new ServiceError("Predecessor activity not found", 404)
+        if (predecessor.projectId !== input.projectId) {
+          throw new ServiceError("The predecessor belongs to a different project", 400)
+        }
+      }
+      if (input.boqLineItemId) {
+        const line = await db.query.constructionBoqLineItems.findFirst({
+          where: and(
+            eq(constructionBoqLineItems.id, input.boqLineItemId!),
+            eq(constructionBoqLineItems.orgId, ctx.orgId)
+          ),
+          columns: { id: true },
+        })
+        if (!line) throw new ServiceError("BOQ line item not found", 404)
+      }
+    })
+  }
+
+  const { durationDays: _duration, predecessorId, boqLineItemId, ...issueInput } = input
+  const issue = await createIssue(ctx, { ...issueInput, dueDate })
+
+  if (predecessorId || boqLineItemId) {
+    try {
+      await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+        if (predecessorId) {
+          // 'blocked_by' from the NEW activity's own perspective: predecessorIdsOf()
+          // and normalizeEdges() both read that direction as
+          // predecessor -> successor, so the Gantt draws the line without a
+          // mirror row being invented here.
+          await db.insert(pmsIssueRelations).values({
+            orgId: ctx.orgId,
+            issueId: issue.id!,
+            relatedIssueId: predecessorId,
+            relationType: "blocked_by",
+          })
+        }
+        if (boqLineItemId) {
+          await db.insert(pmsIssueBoqLinks).values({
+            orgId: ctx.orgId,
+            issueId: issue.id!,
+            boqLineItemId,
+          })
+        }
+      })
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      throw new ServiceError(
+        `Activity #${issue.number} was created, but its predecessor/BOQ link could not be saved: ${detail}`,
+        500
+      )
+    }
+  }
+
+  return issue
 }
 
 export async function captureBaseline(ctx: { orgId: string; userId: string }, projectId: string, name: string) {
