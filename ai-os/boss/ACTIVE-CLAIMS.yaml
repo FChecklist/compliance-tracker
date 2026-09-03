@@ -195,6 +195,182 @@ active:
       The PROJEXA half of the same items lands in the projexa repo on the
       matching branch r67/f1-performance-1.
 
+  - session_label: "claude-code (subagent, r67/d3-screens-manpower-materials-budgets-schedule) -- R67 lane D3: the compliance-tracker half of the Manpower/Materials/Schedule screen items (D-30, D-36, D-40, D-47)"
+    claimed_at: "2026-09-03T (this session)"
+    claim: |
+      PROGRAMME R67 (implementation of the owner-approved R66 UX/product-design audit),
+      lane D3 "screens-manpower-materials-budgets-schedule". Most of this lane is PROJEXA
+      front-end work in the projexa repo; only the items below touch this repo.
+
+      File scope in compliance-tracker, ADDITIVE ONLY:
+        - src/lib/services/construction-labour-service.ts (+ new sibling .test.ts) --
+          recordAttendanceBatch(): the batch/upsert twin of the existing one-row-per-call
+          recordAttendance(), so the new PROJEXA daily attendance sheet marks a whole
+          roster in ONE withTenantContext transaction instead of 38; listAttendance()
+          gains from/to. Nothing existing is changed in behaviour.
+        - src/app/api/v1/construction/attendance/route.ts (GET forwards from/to),
+          src/app/api/v1/construction/attendance/bulk/route.ts (new POST),
+          src/app/api/v1/projexa/attendance/bulk/route.ts (re-export).
+        - src/lib/services/construction-materials-service.ts (+ new sibling .test.ts) --
+          getMaterialReceipt()/voidMaterialReceipt(): a SOFT void (voidedAt/voidReason/
+          voidedBy), never a delete, excluded from getMaterialCostReport's totals.
+        - src/app/api/v1/construction/materials/receipts/[id]/route.ts (new GET/PATCH).
+          No /api/v1/projexa/materials/... alias is added: that namespace is already the
+          ERP stock ledger (erp-inventory-service.ts), and every PROJEXA materials proxy
+          reaches the construction receipts through callVeridian's `root: true` path.
+        - src/lib/services/construction-materials-service.ts (D-40, same file) --
+          listMaterials()/getMaterial() gain receivedToDate/issuedToDate/onHand as TWO
+          grouped aggregates in the SAME transaction (never one query per material, on a
+          5-connection pool); new listMaterialIssues()/createMaterialIssue(), whose
+          on-hand cap is enforced server-side inside the writing transaction;
+          createMaterial()/updateMaterial() carry reorderLevel (null clears, 0 is a real
+          threshold).
+        - src/app/api/v1/construction/materials/issues/route.ts (new GET/POST).
+        - src/lib/db/schema.ts -- the four additive columns those two items need on
+          construction_material_receipts (reference, voided_at, void_reason, voided_by),
+          plus (D-40) construction_materials.reorder_level and the new table
+          construction_material_issues.
+        - src/lib/services/schedule-service.ts (+ new sibling .test.ts) (D-47) --
+          createScheduleActivity(): startDate is required, durationDays derives the
+          finish date, and predecessorId / boqLineItemId are VALIDATED in one read
+          transaction before anything is written, then stored as a pms_issue_relations
+          'blocked_by' edge and a pms_issue_boq_links row. Nothing existing in that file
+          changes behaviour; the two new date helpers (deriveDueDate /
+          deriveDurationDays) are pure. createIssue() itself is untouched.
+        - src/app/api/v1/projexa/schedule/route.ts (D-47) -- POST now builds a
+          ScheduleActivityInput and calls createScheduleActivity() instead of
+          createIssue(). BEHAVIOUR CHANGE, declared: startDate becomes REQUIRED on this
+          route (400 otherwise). The only caller in either repo is PROJEXA's own
+          /api/schedule/tasks proxy, which now requires it too.
+
+        - src/lib/services/construction-reports-service.ts (+ its EXISTING sibling
+          .test.ts) (D-53) -- manpowerDailySummary() and its pure aggregator
+          aggregateManpowerDailySummary(): trade-wise present/absent/half-day plus the
+          people behind each trade for ONE date, in ONE withTenantContext transaction.
+          It is a NEW function, not a change to attendanceReport()/manpowerCostReport(),
+          both of which keep their existing contracts; it exists because neither can
+          answer the question (one has no date filter, the other has no status split and
+          no people) and because chaining the two would cost two transactions on a
+          5-connection pool. REPORT_REGISTRY gains one entry,
+          "manpower-daily-summary".
+        - src/app/api/v1/projexa/reports/[reportName]/route.ts (D-53) -- one extra
+          `else if` branch forwarding ?date= for that report. No other report's
+          behaviour changes.
+        - src/lib/services/schedule-service.ts (D-56) -- getGanttData() now stamps each
+          task with the BOQ line that owns its progress (attachBoqLinks(), pure and
+          tested), read INSIDE the transaction it already opens for the relations query,
+          never as a fourth parallel one. Additive field; every existing consumer is
+          unaffected.
+        - src/lib/services/construction-materials-service.ts (D-57) -- getMaterialCostReport()
+          takes an optional inclusive {from,to} received-date window, applied in the SAME
+          grouped aggregate as the existing void exclusion. Both omitted keeps the exact
+          previous all-time behaviour, so report-engine-service.ts's caller is unaffected.
+        - src/app/api/v1/construction/materials/cost-report/route.ts (D-57) -- forwards
+          ?from and ?to.
+
+      D-57 DEVIATION, declared: the item names erp-inventory-service.ts for the material
+      master DTO. That is the wrong service for this screen -- PROJEXA's
+      /api/materials/master proxies to /api/v1/construction/materials, i.e.
+      construction-materials-service.ts, which is where D-40 already put
+      receivedToDate/issuedToDate/onHand. Nothing was added to erp-inventory-service.ts;
+      an unused DTO field on a service this path never calls would be dead code.
+
+      DECLARED OVERLAP, read before merging: the DDL for all of the above belongs to R67
+      item I-02 ("Migrations: attendance batch key, roster codes and trades, material
+      issues/void, org number format"), which is a DIFFERENT lane's file scope, so this
+      branch adds NO drizzle/*.sql file and NO drizzle/meta/_journal.json entry -- only
+      the drizzle table declarations the service code needs to compile.
+
+      STATUS after merging origin/main on 2026-09-03: I-02 landed as
+      drizzle/0529_r67_i02_manpower_material_org_format.sql and supplies
+      construction_material_receipts.voided_at / void_reason / voided_by_id,
+      construction_materials.reorder_level, the whole construction_material_issues
+      table, and the attendance uniqueness work. I-04 (drizzle/0531) supplies
+      pms_issue_boq_links, which D-47 writes to.
+
+      THE ONE REMAINING GAP IS NOW CLOSED IN THIS BRANCH, and the file scope above is
+      amended to say so:
+        - drizzle/0536_r67_d36_material_receipt_reference.sql (NEW, hand-written) and
+          its drizzle/meta/_journal.json entry (idx 358).
+
+      Why this branch now owns a migration after three handoffs saying it would not:
+      compliance.construction_material_receipts.`reference` is declared in schema.ts and
+      is in NO migration -- 0529 adds the three void columns and stops. Lane I has
+      already MERGED (0529-0532 are on origin/main, and 0533-0535 above them), so no
+      other lane is going to add it. It is also worse than "the first save fails":
+      drizzle's relational query builder names every declared column in its SELECT, so
+      listMaterialReceipts() and getMaterialReceipt() 500 too -- the whole Materials >
+      Inbound tab, the receipt object page, the Void action and the Line total column,
+      all on READ. 0536 is the next free number after 0535 on origin/main.
+      Post-apply verification SELECT is stated in the migration's own header.
+
+      recordAttendanceBatch() is deliberately written to be correct WITH OR WITHOUT the
+      attendance unique index (read-then-update/insert inside the one transaction, not
+      ON CONFLICT), so nothing here was ever blocked on I-02 landing first.
+
+      MERGE RECONCILIATION, 2026-09-03: origin/main was merged into this branch to pick
+      up lane I's drizzle/0528-0532 (I-02's material columns and issues table, and
+      I-04's pms_issue_boq_links, which D-47 writes to). Two conflicts were resolved by
+      hand and one SILENT bad auto-merge was found and fixed: git produced TWO
+      `constructionMaterialIssues` declarations in schema.ts and spliced lane I's
+      construction_material_receipts void columns (voided_at / void_reason /
+      voided_by_id) INTO the issues table, because the surrounding
+      created_by_id/created_at lines matched. Reconciled to one declaration matching
+      drizzle/0529 column for column. Anyone merging another branch across this region
+      should re-check it the same way.
+
+      SECOND MERGE OF origin/main, 2026-09-03 (fix pass): picked up lane B (#1578), lane
+      D0 (#1580) and lane F2 (#1579). Five conflicts, all resolved toward D-11's rule
+      that the version already on main is canonical and the arriving lane folds its
+      capability in:
+        - construction-labour-service.ts listAttendance(): F-25's version (already on
+          main) is kept whole -- `date` + the `attendanceDate` alias + inclusive
+          from/to, with a single day as an equality so it can use 0535's index. D-30's
+          from/to were a strict subset of it, so nothing of D3's was lost.
+        - construction-labour-service.test.ts was an ADD/ADD conflict: both lanes wrote
+          this service's first test file, from no common ancestor. F-25's keeps the
+          shared path; D3's batch/computeDailyCost tests move to the sibling
+          construction-labour-service.batch.test.ts. BOTH suites run (36 tests). They
+          are two files rather than one because each carries its own fake-db condition
+          evaluator with its own helper names, and hand-splicing them would risk
+          silently weakening whichever lost.
+        - /api/v1/projexa/schedule/route.ts: F-33's cached resolveDefaultIssueTypeId()
+          and F-28's withRouteTiming are kept; D-47's createScheduleActivity() call is
+          kept. Both, not either.
+        - /api/v1/construction/attendance/route.ts and docs/master/TEST_COVERAGE_GAP.md:
+          main's version, then regenerated.
+
+      FOR THE PR BODY -- three things that must appear there, not only here:
+
+        1. BREAKING API CHANGE on POST /api/v1/construction/../v1/projexa/schedule.
+           It now routes to createScheduleActivity(), which refuses with 400
+           "startDate is required". A caller that previously created a task with only
+           projectId + title now gets that 400. The only in-repo caller is PROJEXA's own
+           /api/schedule/tasks proxy (which now requires it too), and ct's pipeline
+           WRITE_FUNCTION_IDS is still only ['record_work_progress'] -- but this is a
+           documented public surface for PROJEXA-AI.COM, so the owner needs to say
+           whether an external integration relies on it. If there is any doubt, the
+           cheap fix is to default startDate to today's ISO date IN THE ROUTE and leave
+           the service's own requirement alone; no caller then loses a bar it could draw.
+
+        2. drizzle/0536_r67_d36_material_receipt_reference.sql is new in this PR, with
+           its journal entry. Post-apply verification:
+             SELECT column_name, data_type, is_nullable
+               FROM information_schema.columns
+              WHERE table_schema='compliance'
+                AND table_name='construction_material_receipts'
+                AND column_name='reference';
+           Expect exactly one row: (reference, text, YES). If it returns nothing, the
+           Materials > Inbound tab is down.
+
+        3. The D-57 deviation recorded above (erp-inventory-service.ts is the wrong
+           service for this screen, so nothing was added to it).
+
+      Not touching: the pipeline (classify/executor/validate/run-submission), any AI
+      router/escalation file, billing_*, construction-progress-service.ts,
+      construction-boq-service.ts, or erp-inventory-service.ts. One migration file is
+      added (0536, above); no existing migration is edited.
+
   - session_label: "claude-code (subagent, r67-lane-H) -- PROGRAMME R67 workstream WS-H (design-studio-identity), items H-01..H-04"
     claimed_at: "2026-09-03T (this session)"
     claim: |
@@ -237,6 +413,7 @@ active:
       D-12 gives the attendance write to lane D3; src/lib/services/construction-reports-service.ts
       is read-only for this lane (designerTimesheetReport / designerApprovalStatusReport already
       exist and are reached through the existing /v1/projexa/reports/[reportName] route).
+
   - session_label: "claude-code (subagent, r67-lane-I) -- PROGRAMME R67 workstream WS-I (data-migrations), items I-01..I-05"
     claimed_at: "2026-09-02T (this session)"
     claim: |
