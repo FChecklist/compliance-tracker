@@ -96,6 +96,18 @@ export type ComputedRow = {
   description: string
   categoryName: string
   isChild: boolean // WPR-06: a hierarchical BoQ sub-task -- percent cells render blank
+  // R67 E-28: the line's own unit and CONTRACTED quantity. Already on every
+  // WprPdfLineItem and already read below to compute the balance -- projected
+  // here so the XLSX export can carry the ordered quantity beside the done
+  // quantity without re-deriving it, and so the screen and the export agree.
+  //
+  // NAMED FOR WHAT IT IS. R-244 asks for a "PO Qty" column. There is no
+  // purchase-order quantity anywhere in this schema -- construction_boq_line_
+  // items has `quantity` and nothing links a BOQ line to a PO line -- so this
+  // is the BOQ's own contracted quantity, called that, rather than a made-up
+  // figure wearing a PO label.
+  unit: string
+  boqQty: number
   rate: number
   contractAmt: number // R46/CONS-03: this line's own contracted value (qty x rate) -- see generateWorkProgressReportPdf's Grand Total note below
   prevQty: number; currentQty: number; thirdQty: number
@@ -159,6 +171,8 @@ export function computeRows(data: WorkProgressReportPdfData, mode: "total" | "ba
       description: line.description,
       categoryName: category?.name ?? "Uncategorized",
       isChild: !!line.parentLineItemId,
+      unit: line.unit,
+      boqQty: qtyTotalBoq,
       rate, contractAmt: amtTotalBoq,
       prevQty, currentQty, thirdQty: mode === "balance" ? balanceQty : totalQty,
       prevAmt, currentAmt, thirdAmt: mode === "balance" ? balanceAmt : totalAmt,
