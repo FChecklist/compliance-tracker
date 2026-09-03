@@ -291,6 +291,19 @@ async function captureTaskResultMemory(
   try {
     await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
       createMemoryRecord(db, input.orgId, {
+        // R68 Phase 6: identity only, verdict derived server-side. `userId`
+        // here may be an api_keys.id (D-05, see RunSubmissionInput's own
+        // comment on actorUserId), which is exactly why both are passed --
+        // the gate resolves the real user first and falls back to the
+        // api-key path, rather than this call site guessing which it holds.
+        actor: { orgId: input.orgId, userId: input.userId, actorUserId: input.actorUserId ?? null },
+        // A completed task's real result, recorded by the pipeline itself:
+        // SYSTEM-originated. Not AI-originated -- the content is a
+        // deterministic render of the executed function and its params
+        // (buildTaskResultMemoryContent above), not model output -- so no
+        // model id or prompt hash is invented to fill the field.
+        originatorType: "SYSTEM",
+        originatorId: input.actorUserId ?? input.userId,
         scopeType: input.projectId ? "PROJECT" : "ORGANIZATION",
         projectId: input.projectId ?? null,
         userId: input.userId,

@@ -20,34 +20,20 @@ export type AuthContext = {
   response: NextResponse | null
 }
 
-// The DB enum (schema.ts userRoleEnum) has 11 values: the original 4, 6
-// Wave 1 hierarchy roles, and stage_0. This type/ROLE_RANK previously only
-// recognized the original 4 -- any user with one of the 6 newer roles
-// (including veridian_admin, meant to be the MOST privileged) got
-// `ROLE_RANK[role] ?? 0`, i.e. rank 0, and failed every requireRole() check
-// including the lowest-bar ones. That's a real, live bug: those 6 roles
-// existed in the DB and were assignable, but were functionally locked out
-// of everything.
-//
-// GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK: the same fix simply didn't extend
-// to stage_0 when it was added later -- schema.ts's own comment on that enum
-// value already specifies the intended rank ("Ranks 1 in ROLE_RANK
-// (auth-guard.ts) -- same tier as viewer/client_viewer/external_auditor"),
-// this was just never wired in. Confirmed via OCID-047's real API-level
-// role/rights test execution: a real stage_0 user failed all 5 real routes
-// tested, including the single lowest-bar action (rank 2, `member`).
-export type UserRole = 'admin' | 'manager' | 'member' | 'viewer'
-  | 'veridian_admin' | 'branch_manager' | 'senior_professional' | 'team_member' | 'client_viewer' | 'external_auditor'
-  | 'stage_0'
-
-export const ROLE_RANK: Record<UserRole, number> = {
-  viewer: 1, client_viewer: 1, external_auditor: 1, stage_0: 1,
-  member: 2, team_member: 2,
-  senior_professional: 3, manager: 3,
-  branch_manager: 4,
-  admin: 5,
-  veridian_admin: 6,
-}
+// R68 Phase 6: `UserRole` and `ROLE_RANK` themselves now live in
+// ./role-rank.ts -- a leaf module with no imports at all -- and are
+// re-exported here unchanged, so every existing `import { ROLE_RANK, type
+// UserRole } from "@/lib/supabase/auth-guard"` in the codebase keeps working
+// exactly as before. The move is not cosmetic: this file transitively pulls
+// in next/server, next/headers, the drizzle schema and eight service
+// modules, and a caller that needs nothing but a rank comparison should not
+// have to load any of it. See role-rank.ts's own header for the case that
+// forced it.
+// Imported (not only re-exported) because `export ... from` creates no local
+// binding, and hasRole() below reads ROLE_RANK directly.
+import { ROLE_RANK, type UserRole } from "./role-rank"
+export { ROLE_RANK }
+export type { UserRole }
 
 export function hasRole(dbUser: typeof users.$inferSelect | null, minimumRole: UserRole): boolean {
   if (!dbUser) return false

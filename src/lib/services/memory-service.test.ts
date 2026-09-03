@@ -88,8 +88,36 @@ function mockDbModule(executeImpl?: ReturnType<typeof mock>) {
   }))
 }
 
+// R68 Phase 6. Every write function now runs the three-boolean authorization
+// gate (memory-write-authorization.ts) before its first write. These tests are
+// about memory-service.ts's OWN branching (guards, row mapping, call
+// sequencing), so the gate is stubbed to a pass here rather than being
+// re-tested through this file's queue fixtures -- stubbing the whole module
+// also keeps the gate's own DB reads out of makeQueueTx's response queue, so
+// every existing index-sensitive assertion below still means exactly what it
+// meant before. The REAL gate, including it actually refusing an unauthorized
+// write end-to-end through createMemoryRecord(), is exercised unmocked in
+// src/lib/services/r68-phase6-write-path.test.ts.
+const ACTOR = { orgId: "org-1", userId: "user-1", actorUserId: "user-1" }
+
+function mockAuthorizationModule() {
+  mock.module("./memory-write-authorization", () => ({
+    assertMemoryWriteAuthorized: mock(async () => ({
+      allowed: true,
+      callerContextResolves: true,
+      inputsResolve: true,
+      roleSufficient: true,
+      chainChecked: false,
+      resolvedRole: "admin",
+      requiredRole: "member",
+      reason: null,
+    })),
+  }))
+}
+
 beforeEach(() => {
   mock.restore()
+  mockAuthorizationModule()
 })
 
 describe("createMemoryRecord", () => {
@@ -101,6 +129,7 @@ describe("createMemoryRecord", () => {
 
     await expect(
       createMemoryRecord(tx, "org-1", {
+        actor: ACTOR,
         // @ts-expect-error -- deliberately passing an excluded scope type to test the runtime guard
         scopeType: "GLOBAL",
         memoryType: "FACT",
@@ -118,6 +147,7 @@ describe("createMemoryRecord", () => {
 
     await expect(
       createMemoryRecord(tx, "org-1", {
+        actor: ACTOR,
         scopeType: "ORGANIZATION",
         memoryType: "FACT",
         content: "   ",
@@ -134,6 +164,7 @@ describe("createMemoryRecord", () => {
 
     await expect(
       createMemoryRecord(tx, "", {
+        actor: ACTOR,
         scopeType: "ORGANIZATION",
         memoryType: "FACT",
         content: "some fact",
@@ -153,6 +184,7 @@ describe("createMemoryRecord", () => {
     const { tx, calls } = makeQueueTx([[rawRow()], []])
 
     const result = await createMemoryRecord(tx, "org-1", {
+      actor: ACTOR,
       scopeType: "ORGANIZATION",
       memoryType: "FACT",
       content: "the sky is blue",
@@ -181,6 +213,7 @@ describe("createMemoryRecord", () => {
     const { tx, calls } = makeQueueTx([[rawRow()], [], []])
 
     await createMemoryRecord(tx, "org-1", {
+      actor: ACTOR,
       scopeType: "CONVERSATION",
       memoryType: "CONTEXT",
       content: "user prefers dark mode",
@@ -204,6 +237,7 @@ describe("createMemoryRecord", () => {
 
     await expect(
       createMemoryRecord(tx, "org-1", {
+        actor: ACTOR,
         scopeType: "ORGANIZATION",
         memoryType: "FACT",
         content: "some fact",
@@ -225,6 +259,7 @@ describe("createMemoryRecord", () => {
 
     await expect(
       createMemoryRecord(tx, "org-1", {
+        actor: ACTOR,
         scopeType: "ORGANIZATION",
         memoryType: "FACT",
         content: "some fact",
@@ -243,6 +278,7 @@ describe("createMemoryRecord", () => {
     const { tx, calls } = makeQueueTx([[rawRow({ scope_type: "DEPARTMENT", scope_id: "dept-1" })], []])
 
     const result = await createMemoryRecord(tx, "org-1", {
+      actor: ACTOR,
       scopeType: "DEPARTMENT",
       scopeId: "dept-1",
       memoryType: "ORGANIZATION_INSTRUCTION",
@@ -263,6 +299,7 @@ describe("createMemoryRecord", () => {
 
     await expect(
       createMemoryRecord(tx, "org-1", {
+        actor: ACTOR,
         scopeType: "DEPARTMENT",
         memoryType: "ORGANIZATION_INSTRUCTION",
         content: "engineering standup is at 10am",
@@ -282,6 +319,7 @@ describe("createMemoryRecord", () => {
 
     await expect(
       createMemoryRecord(tx, "org-1", {
+        actor: ACTOR,
         scopeType: "ORGANIZATION",
         memoryType: "FACT",
         content: "org-wide fact",
@@ -300,6 +338,7 @@ describe("createMemoryRecord", () => {
 
     await expect(
       createMemoryRecord(tx, "org-1", {
+        actor: ACTOR,
         scopeType: "USER",
         memoryType: "PREFERENCE",
         content: "prefers dark mode",
@@ -317,6 +356,7 @@ describe("createMemoryRecord", () => {
     const { tx, calls } = makeQueueTx([[rawRow({ scope_type: "USER", user_id: "user-9", is_personal: true })], []])
 
     const result = await createMemoryRecord(tx, "org-1", {
+      actor: ACTOR,
       scopeType: "USER",
       userId: "user-9",
       memoryType: "PREFERENCE",
@@ -343,6 +383,7 @@ describe("createMemoryRecord", () => {
     const { tx } = makeQueueTx([[rawRow()], []])
 
     const result = await createMemoryRecord(tx, "org-1", {
+      actor: ACTOR,
       scopeType: "ORGANIZATION",
       memoryType: "FACT",
       content: "some fact",
@@ -448,7 +489,7 @@ describe("supersedeMemoryRecord", () => {
     const { tx } = makeQueueTx([[]]) // SELECT existing row -> empty
 
     await expect(
-      supersedeMemoryRecord(tx, "missing-id", "new content", { type: "USER" })
+      supersedeMemoryRecord(tx, "missing-id", "new content", { actor: ACTOR, type: "USER" })
     ).rejects.toThrow(/not found/)
   })
 
@@ -459,7 +500,7 @@ describe("supersedeMemoryRecord", () => {
     const { tx } = makeQueueTx([[rawRow({ lifecycle_state: "SUPERSEDED", superseded_by_id: "mem-2" })]])
 
     await expect(
-      supersedeMemoryRecord(tx, "mem-1", "new content", { type: "SYSTEM" })
+      supersedeMemoryRecord(tx, "mem-1", "new content", { actor: ACTOR, type: "SYSTEM" })
     ).rejects.toThrow(/already been superseded/)
   })
 
@@ -470,7 +511,7 @@ describe("supersedeMemoryRecord", () => {
     const { tx } = makeQueueTx([[rawRow({ org_id: null, scope_type: "GLOBAL" })]])
 
     await expect(
-      supersedeMemoryRecord(tx, "mem-1", "new content", { type: "SYSTEM" })
+      supersedeMemoryRecord(tx, "mem-1", "new content", { actor: ACTOR, type: "SYSTEM" })
     ).rejects.toThrow(/admin\/service_role-only path/)
   })
 
@@ -481,7 +522,7 @@ describe("supersedeMemoryRecord", () => {
     const { tx } = makeQueueTx([])
 
     await expect(
-      supersedeMemoryRecord(tx, "mem-1", "  ", { type: "USER" })
+      supersedeMemoryRecord(tx, "mem-1", "  ", { actor: ACTOR, type: "USER" })
     ).rejects.toThrow(/newContent must not be empty/)
   })
 
@@ -499,8 +540,15 @@ describe("supersedeMemoryRecord", () => {
     const { tx, calls } = makeQueueTx([[oldRow], [], [newRow], [], []])
 
     const result = await supersedeMemoryRecord(tx, "mem-1", "the sky is actually cyan", {
+      actor: ACTOR,
       type: "AI",
       reason: "corrected by a later observation",
+      // R68 Phase 6: this test declared type "AI" before the attribution rule
+      // existed, and would now be refused without these two -- which is the
+      // rule working. Supplied here rather than downgraded to "SYSTEM"
+      // precisely because the scenario really is an AI-driven revision.
+      modelId: "anthropic/claude-sonnet-5",
+      promptHash: "sha256:8f14e45fceea167a5a36dedd4bea2543",
     })
 
     expect(result.next.id).toBe("mem-2")
@@ -530,7 +578,7 @@ describe("supersedeMemoryRecord", () => {
     // would throw on `undefined` -- so a regression here fails loudly.
     const { tx, calls } = makeQueueTx([[oldRow]])
 
-    const result = await supersedeMemoryRecord(tx, "mem-1", "the sky is blue", { type: "USER" })
+    const result = await supersedeMemoryRecord(tx, "mem-1", "the sky is blue", { actor: ACTOR, type: "USER" })
 
     expect(result.next).toEqual(result.previous)
     expect(result.previous.content).toBe("the sky is blue")
@@ -549,7 +597,7 @@ describe("supersedeMemoryRecord", () => {
     const oldRow = rawRow({ content: "the sky is blue", content_hash: sha256("the sky is blue") })
     const { tx, calls } = makeQueueTx([[oldRow]])
 
-    const result = await supersedeMemoryRecord(tx, "mem-1", "  the sky is blue  \n", { type: "USER" })
+    const result = await supersedeMemoryRecord(tx, "mem-1", "  the sky is blue  \n", { actor: ACTOR, type: "USER" })
 
     expect(result.next).toEqual(result.previous)
     expect(calls.length).toBe(1)
@@ -570,7 +618,7 @@ describe("supersedeMemoryRecord", () => {
     const { tx } = makeQueueTx([[oldRow]])
 
     await expect(
-      supersedeMemoryRecord(tx, "mem-1", "the sky is blue", { type: "USER" })
+      supersedeMemoryRecord(tx, "mem-1", "the sky is blue", { actor: ACTOR, type: "USER" })
     ).rejects.toThrow(/already been superseded/)
   })
 })
@@ -583,7 +631,7 @@ describe("promoteMemoryRecord", () => {
     const { tx } = makeQueueTx([[]])
 
     await expect(
-      promoteMemoryRecord(tx, "missing-id", "CONFIRMED", { type: "USER" })
+      promoteMemoryRecord(tx, "missing-id", "CONFIRMED", { actor: ACTOR, type: "USER" })
     ).rejects.toThrow(/not found/)
   })
 
@@ -594,7 +642,7 @@ describe("promoteMemoryRecord", () => {
     const { tx } = makeQueueTx([[rawRow({ org_id: null, scope_type: "GLOBAL" })]])
 
     await expect(
-      promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { type: "SYSTEM" })
+      promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { actor: ACTOR, type: "SYSTEM" })
     ).rejects.toThrow(/admin\/service_role-only path/)
   })
 
@@ -607,7 +655,7 @@ describe("promoteMemoryRecord", () => {
       [rawRow({ lifecycle_state: "CONFIRMED" })],
     ])
 
-    const result = await promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { type: "USER", id: "user-1" })
+    const result = await promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { actor: ACTOR, type: "USER", id: "user-1" })
 
     expect(result.lifecycleState).toBe("CONFIRMED")
     expect(calls.length).toBe(2) // SELECT + UPDATE
@@ -625,7 +673,7 @@ describe("promoteMemoryRecord", () => {
       [rawRow({ lifecycle_state: "CANDIDATE" })],
     ])
 
-    const result = await promoteMemoryRecord(tx, "mem-1", "CANDIDATE", { type: "SYSTEM" })
+    const result = await promoteMemoryRecord(tx, "mem-1", "CANDIDATE", { actor: ACTOR, type: "SYSTEM" })
     expect(result.lifecycleState).toBe("CANDIDATE")
   })
 
@@ -638,7 +686,13 @@ describe("promoteMemoryRecord", () => {
       [rawRow({ lifecycle_state: "ACTIVE" })],
     ])
 
-    const result = await promoteMemoryRecord(tx, "mem-1", "ACTIVE", { type: "AI", reason: "repeated successful use" })
+    const result = await promoteMemoryRecord(tx, "mem-1", "ACTIVE", {
+      actor: ACTOR,
+      type: "AI",
+      reason: "repeated successful use",
+      modelId: "anthropic/claude-sonnet-5",
+      promptHash: "sha256:8f14e45fceea167a5a36dedd4bea2543",
+    })
     expect(result.lifecycleState).toBe("ACTIVE")
   })
 
@@ -649,7 +703,7 @@ describe("promoteMemoryRecord", () => {
     const { tx, calls } = makeQueueTx([[rawRow({ lifecycle_state: "CANDIDATE" })]])
 
     await expect(
-      promoteMemoryRecord(tx, "mem-1", "ACTIVE", { type: "USER" })
+      promoteMemoryRecord(tx, "mem-1", "ACTIVE", { actor: ACTOR, type: "USER" })
     ).rejects.toThrow(/only legal next state is CONFIRMED, not ACTIVE/)
     expect(calls.length).toBe(1) // SELECT only, no UPDATE issued
   })
@@ -661,7 +715,7 @@ describe("promoteMemoryRecord", () => {
     const { tx } = makeQueueTx([[rawRow({ lifecycle_state: "ACTIVE" })]])
 
     await expect(
-      promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { type: "USER" })
+      promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { actor: ACTOR, type: "USER" })
     ).rejects.toThrow(/has no further promotion/)
   })
 
@@ -672,7 +726,7 @@ describe("promoteMemoryRecord", () => {
     const { tx } = makeQueueTx([[rawRow({ lifecycle_state: "SUPERSEDED", superseded_by_id: "mem-2" })]])
 
     await expect(
-      promoteMemoryRecord(tx, "mem-1", "ACTIVE", { type: "USER" })
+      promoteMemoryRecord(tx, "mem-1", "ACTIVE", { actor: ACTOR, type: "USER" })
     ).rejects.toThrow(/has no further promotion/)
   })
 
@@ -683,7 +737,7 @@ describe("promoteMemoryRecord", () => {
     const { tx } = makeQueueTx([[rawRow({ lifecycle_state: "ARCHIVED" })]])
 
     await expect(
-      promoteMemoryRecord(tx, "mem-1", "CANDIDATE", { type: "USER" })
+      promoteMemoryRecord(tx, "mem-1", "CANDIDATE", { actor: ACTOR, type: "USER" })
     ).rejects.toThrow(/has no further promotion/)
   })
 
@@ -696,7 +750,7 @@ describe("promoteMemoryRecord", () => {
       [rawRow({ lifecycle_state: "CONFIRMED" })],
     ])
 
-    await promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { type: "USER", id: "user-1", reason: "user confirmed it" })
+    await promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { actor: ACTOR, type: "USER", id: "user-1", reason: "user confirmed it" })
 
     const updateSql = JSON.stringify(calls[1])
     expect(updateSql).toContain("existingKey")
@@ -712,7 +766,7 @@ describe("archiveMemoryRecord", () => {
     const { archiveMemoryRecord } = await import("./memory-service")
     const { tx } = makeQueueTx([[]])
 
-    await expect(archiveMemoryRecord(tx, "missing-id", { type: "USER" })).rejects.toThrow(/not found/)
+    await expect(archiveMemoryRecord(tx, "missing-id", { actor: ACTOR, type: "USER" })).rejects.toThrow(/not found/)
   })
 
   test("refuses a GLOBAL/INDUSTRY (org_id NULL) row", async () => {
@@ -721,7 +775,7 @@ describe("archiveMemoryRecord", () => {
     const { archiveMemoryRecord } = await import("./memory-service")
     const { tx } = makeQueueTx([[rawRow({ org_id: null, scope_type: "INDUSTRY" })]])
 
-    await expect(archiveMemoryRecord(tx, "mem-1", { type: "SYSTEM" })).rejects.toThrow(/admin\/service_role-only path/)
+    await expect(archiveMemoryRecord(tx, "mem-1", { actor: ACTOR, type: "SYSTEM" })).rejects.toThrow(/admin\/service_role-only path/)
   })
 
   test("refuses to archive an already-archived record (idempotency guard)", async () => {
@@ -730,7 +784,7 @@ describe("archiveMemoryRecord", () => {
     const { archiveMemoryRecord } = await import("./memory-service")
     const { tx } = makeQueueTx([[rawRow({ lifecycle_state: "ARCHIVED" })]])
 
-    await expect(archiveMemoryRecord(tx, "mem-1", { type: "USER" })).rejects.toThrow(/already ARCHIVED/)
+    await expect(archiveMemoryRecord(tx, "mem-1", { actor: ACTOR, type: "USER" })).rejects.toThrow(/already ARCHIVED/)
   })
 
   test("archives a CANDIDATE record directly, without requiring CONFIRMED/ACTIVE first", async () => {
@@ -742,7 +796,7 @@ describe("archiveMemoryRecord", () => {
       [rawRow({ lifecycle_state: "ARCHIVED" })],
     ])
 
-    const result = await archiveMemoryRecord(tx, "mem-1", { type: "USER", reason: "rejected AI inference" })
+    const result = await archiveMemoryRecord(tx, "mem-1", { actor: ACTOR, type: "USER", reason: "rejected AI inference" })
 
     expect(result.lifecycleState).toBe("ARCHIVED")
     expect(calls.length).toBe(2)
@@ -760,7 +814,13 @@ describe("archiveMemoryRecord", () => {
       [rawRow({ lifecycle_state: "ARCHIVED" })],
     ])
 
-    const result = await archiveMemoryRecord(tx, "mem-1", { type: "AI", reason: "no longer relevant" })
+    const result = await archiveMemoryRecord(tx, "mem-1", {
+      actor: ACTOR,
+      type: "AI",
+      reason: "no longer relevant",
+      modelId: "anthropic/claude-sonnet-5",
+      promptHash: "sha256:8f14e45fceea167a5a36dedd4bea2543",
+    })
     expect(result.lifecycleState).toBe("ARCHIVED")
   })
 
@@ -773,7 +833,7 @@ describe("archiveMemoryRecord", () => {
       [rawRow({ lifecycle_state: "ARCHIVED" })],
     ])
 
-    const result = await archiveMemoryRecord(tx, "mem-1", { type: "SYSTEM" })
+    const result = await archiveMemoryRecord(tx, "mem-1", { actor: ACTOR, type: "SYSTEM" })
     expect(result.lifecycleState).toBe("ARCHIVED")
   })
 })

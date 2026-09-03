@@ -47,6 +47,21 @@ import { createHash } from "crypto"
 import { db } from "@/lib/db"
 import { storeEmbedding, generateEmbedding } from "@/lib/embeddings"
 import type { ActorCtx } from "@/lib/services/actor-context"
+// R68 Phase 6 (the write path). Two separate concerns, deliberately in two
+// separate modules rather than inlined here:
+//   - memory-write-authorization.ts -- R-IMG-07's three booleans (chain row
+//     exists, inputs resolve, caller holds min_role), computed SERVER-SIDE
+//     from live rows on the caller's own tenant transaction. Every write
+//     function below calls assertMemoryWriteAuthorized() before its first
+//     write statement, and none of them accept an "authorized" flag from a
+//     caller -- see that file's header for why the actor type carries
+//     identity only and rejects anything that looks like a verdict.
+//   - memory-write-attribution.ts -- R-IMG-07's "an unattributable AI write
+//     is a corruption of the record", enforced rather than merely enabled:
+//     an AI-originated write missing model id or prompt hash now throws
+//     before any row is written, instead of silently persisting NULLs.
+import { assertMemoryWriteAuthorized, type MemoryWriteActor } from "./memory-write-authorization"
+import { assertAttributionComplete, buildAttributionEntry, type ChangedByType } from "./memory-write-attribution"
 
 // ─── Types (mirrors the CHECK constraints in drizzle/0520's memory_records/
 // memory_sources/memory_versions -- kept as plain string unions, not a
@@ -115,7 +130,12 @@ export type LifecycleState = "TRANSIENT" | "CANDIDATE" | "CONFIRMED" | "ACTIVE" 
 
 export type MemorySourceKind = "CONVERSATION" | "TASK" | "DOCUMENT" | "SHEET_ROW" | "MANUAL"
 
-export type ChangedByType = "USER" | "SYSTEM" | "AI"
+// Single definition, kept in memory-write-attribution.ts so that module can
+// enforce the AI-attribution rule without importing back into this file (a
+// cycle). Re-exported here so this file's long-standing public surface is
+// unchanged for every existing importer.
+export type { ChangedByType }
+export type { MemoryWriteActor }
 
 export type MemoryRecord = {
   id: string
@@ -267,6 +287,23 @@ async function embedAndMirror(tx: TenantDb, memoryRecordId: string, content: str
 // ─── createMemoryRecord ────────────────────────────────────────────────
 
 export type CreateMemoryRecordInput = {
+  // R68 Phase 6: WHO is performing this write. Identity only -- the
+  // authorization verdict is derived from live compliance.users /
+  // compliance.api_keys rows inside `tx`, never from anything on this
+  // object (memory-write-authorization.ts rejects an actor that arrives
+  // carrying `role`/`authorized`/`permissions`). Required, not optional:
+  // an optional gate is not a gate.
+  actor: MemoryWriteActor
+  // R68 Phase 6 attribution. `originatorType` defaults to "SYSTEM" (the
+  // honest description of today's two real callers, both of which write on
+  // behalf of a completed real-world event rather than a model). When this
+  // write is AI-originated -- originatorType "AI", or provenanceType
+  // "AI_INFERRED" -- modelId AND promptHash become mandatory and the write
+  // is refused without them.
+  originatorType?: ChangedByType
+  originatorId?: string | null
+  modelId?: string | null
+  promptHash?: string | null
   scopeType: OrgScopedMemoryScopeType
   scopeId?: string | null
   userId?: string | null
@@ -359,9 +396,54 @@ export async function createMemoryRecord(
     throw new Error("createMemoryRecord: content must not be empty")
   }
 
+  // ── R68 Phase 6 gate. Both checks run BEFORE the first write statement,
+  // and both are pure-server-side: the attribution check reads only this
+  // call's own arguments, and the authorization check reads only live rows
+  // on `tx`. Attribution is checked first because it needs no database round
+  // trip -- an AI write with no model/prompt hash is refused without costing
+  // a query. ──
+  if (input.actor.orgId !== orgId) {
+    // The actor is the authorization identity and `orgId` is the row's
+    // tenant; if they disagree, one of them is wrong and guessing which
+    // would be exactly the "silent identity change" E-45's own prevention
+    // rule warns about (platform.error_log E-45: "A credential fallback is
+    // an identity change. Never make one silently").
+    throw new Error(
+      `createMemoryRecord: actor.orgId (${input.actor.orgId}) does not match the orgId this record is being written for (${orgId})`
+    )
+  }
+  const attribution = assertAttributionComplete("createMemoryRecord", {
+    originatorType: input.originatorType,
+    provenanceType: input.provenanceType,
+    modelId: input.modelId,
+    promptHash: input.promptHash,
+  })
+  await assertMemoryWriteAuthorized(tx, input.actor, {
+    operation: "create",
+    scopeType: input.scopeType,
+    scopeId: input.scopeId ?? null,
+    targetUserId: input.userId ?? null,
+  })
+
   const id = createId()
   const contentHash = createHash("sha256").update(trimmedContent).digest("hex")
-  const metadataJson = JSON.stringify(input.metadata ?? {})
+  // metadata.attribution is written on EVERY create, not only AI ones: "which
+  // caller, which chain" is worth recording for a human or system write too,
+  // and a slot that only appears sometimes is a slot nobody can query
+  // reliably. modelId/promptHash are null for a non-AI write, which is the
+  // truthful value -- not a gap. See memory-write-attribution.ts's header for
+  // why this lives in metadata rather than in a version_number = 1
+  // memory_versions row (that row would collide with the first real
+  // supersession under memory_versions_record_version_unique).
+  const metadataJson = JSON.stringify({
+    ...(input.metadata ?? {}),
+    attribution: buildAttributionEntry({
+      originatorType: input.originatorType ?? "SYSTEM",
+      originatorId: input.originatorId ?? input.actor.actorUserId ?? input.actor.userId,
+      attribution,
+      chainId: input.actor.chainId ?? null,
+    }),
+  })
 
   const inserted = (await tx.execute(sql`
     INSERT INTO compliance.memory_records
@@ -487,6 +569,13 @@ export async function searchMemories(
 // ─── supersedeMemoryRecord ──────────────────────────────────────────────
 
 export type SupersedeMemoryRecordChangedBy = {
+  // R68 Phase 6: the authorization identity (see CreateMemoryRecordInput.actor
+  // -- same type, same "identity only, verdict derived server-side" contract).
+  // Distinct from `id` below, which is the AUDIT label persisted as
+  // memory_versions.changed_by_id: one says who may do this, the other says
+  // who is recorded as having done it, and conflating them is how an audit
+  // trail ends up being trusted as an authorization check.
+  actor: MemoryWriteActor
   type: ChangedByType
   id?: string | null
   reason?: string | null
@@ -579,6 +668,27 @@ export async function supersedeMemoryRecord(
     )
   }
 
+  // ── R68 Phase 6 gate. Placed AFTER the row is fetched (so boolean 2 can be
+  // decided against the row the caller actually read under RLS, with no
+  // second read and therefore no window between the two) and BEFORE the
+  // byte-identical no-op check below -- an unauthorized caller must be
+  // refused whether or not the content happens to be unchanged, otherwise
+  // "supersede with identical content" becomes a free probe for whether a
+  // given memory id exists in someone else's reach. ──
+  const attribution = assertAttributionComplete("supersedeMemoryRecord", {
+    originatorType: changedBy.type,
+    provenanceType: previous.provenanceType,
+    modelId: changedBy.modelId,
+    promptHash: changedBy.promptHash,
+  })
+  await assertMemoryWriteAuthorized(tx, changedBy.actor, {
+    operation: "supersede",
+    scopeType: previous.scopeType,
+    scopeId: previous.scopeId,
+    targetUserId: previous.userId,
+    existingRecord: { id: previous.id, orgId: previous.orgId, scopeType: previous.scopeType, userId: previous.userId },
+  })
+
   const newContentHash = createHash("sha256").update(trimmedContent).digest("hex")
   if (newContentHash === previous.contentHash) {
     // See this function's own docstring: a true no-op, not a degenerate
@@ -596,7 +706,21 @@ export async function supersedeMemoryRecord(
   `)
 
   const newId = createId()
-  const metadataJson = JSON.stringify(previous.metadata ?? {})
+  // Carries the previous row's metadata forward (unchanged behaviour) but
+  // stamps THIS revision's own attribution over any inherited one -- the new
+  // row was produced by this caller/model/chain, not by whoever produced the
+  // row it supersedes. The superseded row keeps its own attribution intact,
+  // and the columnar record of this revision lives on the memory_versions
+  // snapshot written just above (model_id / prompt_hash, drizzle/0541).
+  const metadataJson = JSON.stringify({
+    ...(previous.metadata ?? {}),
+    attribution: buildAttributionEntry({
+      originatorType: changedBy.type,
+      originatorId: changedBy.id ?? changedBy.actor.actorUserId ?? changedBy.actor.userId,
+      attribution,
+      chainId: changedBy.actor.chainId ?? null,
+    }),
+  })
 
   const insertedNewRows = (await tx.execute(sql`
     INSERT INTO compliance.memory_records
@@ -707,6 +831,15 @@ function appendLifecycleHistory(
       changedByType: entry.changedBy.type,
       changedById: entry.changedBy.id ?? null,
       reason: entry.changedBy.reason ?? null,
+      // R68 Phase 6: a lifecycle transition is a real write to institutional
+      // memory, so it carries the same four attribution facts every other
+      // write does. An AI-driven promotion with no model/prompt hash is
+      // refused by assertAttributionComplete() in the two callers below
+      // before this is ever reached -- these fields are null only for a
+      // genuinely non-AI transition.
+      modelId: entry.changedBy.modelId ?? null,
+      promptHash: entry.changedBy.promptHash ?? null,
+      chainId: entry.changedBy.actor?.chainId ?? null,
       at: new Date().toISOString(),
     },
   ]
@@ -739,6 +872,38 @@ async function fetchOwnOrgMemoryRecordOrThrow(tx: TenantDb, id: string, callerNa
 }
 
 /**
+ * R68 Phase 6: the shared attribution + three-boolean gate for the two
+ * lifecycle-transition writes, so promoteMemoryRecord() and
+ * archiveMemoryRecord() cannot drift apart on what they check (the same
+ * reason fetchOwnOrgMemoryRecordOrThrow() above is shared between them).
+ *
+ * `current` has already been fetched under RLS by the caller, so it is passed
+ * straight through as `existingRecord` -- boolean 2 is decided against the
+ * exact row that will be updated, not a second read of it.
+ */
+async function assertMemoryLifecycleWriteAuthorized(
+  tx: TenantDb,
+  operation: "promote" | "archive",
+  current: MemoryRecord,
+  changedBy: MemoryLifecycleChangedBy,
+  callerName: string
+): Promise<void> {
+  assertAttributionComplete(callerName, {
+    originatorType: changedBy.type,
+    provenanceType: current.provenanceType,
+    modelId: changedBy.modelId,
+    promptHash: changedBy.promptHash,
+  })
+  await assertMemoryWriteAuthorized(tx, changedBy.actor, {
+    operation,
+    scopeType: current.scopeType,
+    scopeId: current.scopeId,
+    targetUserId: current.userId,
+    existingRecord: { id: current.id, orgId: current.orgId, scopeType: current.scopeType, userId: current.userId },
+  })
+}
+
+/**
  * Advances one memory_records row exactly one legal step along the
  * directive §29 lifecycle (TRANSIENT -> CANDIDATE -> CONFIRMED -> ACTIVE).
  * `toState` must match the single legal next state for the row's CURRENT
@@ -760,6 +925,13 @@ export async function promoteMemoryRecord(
   changedBy: MemoryLifecycleChangedBy
 ): Promise<MemoryRecord> {
   const current = await fetchOwnOrgMemoryRecordOrThrow(tx, id, "promoteMemoryRecord")
+
+  // R68 Phase 6 gate -- before the legal-transition check as well as before
+  // the UPDATE: whether a transition is legal is a question about the row,
+  // whether this caller may perform it is a question about the caller, and
+  // the caller question is answered first so an unauthorized caller learns
+  // nothing about the row's current state from the error it gets back.
+  await assertMemoryLifecycleWriteAuthorized(tx, "promote", current, changedBy, "promoteMemoryRecord")
 
   const legalNext = LEGAL_PROMOTIONS[current.lifecycleState as LifecycleState]
   if (!legalNext || legalNext !== toState) {
@@ -802,6 +974,8 @@ export async function promoteMemoryRecord(
  */
 export async function archiveMemoryRecord(tx: TenantDb, id: string, changedBy: MemoryLifecycleChangedBy): Promise<MemoryRecord> {
   const current = await fetchOwnOrgMemoryRecordOrThrow(tx, id, "archiveMemoryRecord")
+
+  await assertMemoryLifecycleWriteAuthorized(tx, "archive", current, changedBy, "archiveMemoryRecord")
 
   if (current.lifecycleState === "ARCHIVED") {
     throw new Error(`archiveMemoryRecord: ${id} is already ARCHIVED`)
