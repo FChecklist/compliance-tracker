@@ -1039,6 +1039,15 @@ export const embeddings = complianceSchemaDB.table('embeddings', {
   // (db.query.embeddings...) would have silently seen neither field.
   isReal: boolean('is_real').notNull().default(false),
   isPlatformScope: boolean('is_platform_scope').notNull().default(false),
+  // R68 Phase 5 (drizzle/0545): which model's space this vector lives in
+  // (e.g. 'openai/text-embedding-3-small', 'hash-pseudo-vector'), and that
+  // space's dimensionality -- findSimilar() (embeddings.ts) filters on
+  // embedding_model so a query vector is never cosine-compared against a
+  // stored vector from a different embedding space. Historical is_real=true
+  // rows predating this column are backfilled 'unknown-legacy' (real
+  // per-row provenance is not recoverable -- see 0545's own header).
+  embeddingModel: text('embedding_model').notNull(),
+  dim: integer('dim').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -13711,6 +13720,10 @@ export const documentChunk = complianceSchemaDB.table('document_chunk', {
   contentHash: text('content_hash'),
   tokenEstimate: integer('token_estimate'),
   isReal: boolean('is_real').notNull().default(false),
+  // R68 Phase 5 (drizzle/0545): same fields/reasoning as compliance.embeddings
+  // above -- see that table's own comment.
+  embeddingModel: text('embedding_model').notNull(),
+  dim: integer('dim').notNull(),
   contentErasedAt: timestamp('content_erased_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })

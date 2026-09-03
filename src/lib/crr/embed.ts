@@ -63,7 +63,13 @@ function getRawClient() {
   return rawClient
 }
 
-export type EmbedFn = (text: string) => Promise<{ vector: number[]; isReal: boolean }>
+// R68 Phase 5: `model` added to this return shape (was `{ vector, isReal }`
+// only) -- persisted verbatim into document_chunk.embedding_model below, the
+// same field compliance.embeddings.embedding_model carries via
+// embeddings.ts's own storeEmbedding. Real callers (defaultEmbed) already
+// produce it unchanged, since generateEmbeddingUncached's own return shape
+// grew this field.
+export type EmbedFn = (text: string) => Promise<{ vector: number[]; isReal: boolean; model: string }>
 
 // The one shape this file actually calls a postgres.js client as -- a
 // tagged-template function returning the matched rows. Narrow on purpose
@@ -117,17 +123,21 @@ export async function storeChunkEmbedding(
   const vectorStr = `[${result.vector.join(",")}]`
   const tokenEstimate = estimateTokenCount(input.chunk.content)
 
+  // R68 Phase 5: embedding_model/dim derived from the embed() result itself
+  // (never a new required input to this function) -- matches
+  // embeddings.ts's storeEmbedding, which derives the same two columns the
+  // same way for compliance.embeddings.
   const rows = await client`
     INSERT INTO compliance.document_chunk
-      (id, source_object_id, org_id, seq, char_start, char_end, content, content_hash, token_estimate, is_real, embedding, created_at)
+      (id, source_object_id, org_id, seq, char_start, char_end, content, content_hash, token_estimate, is_real, embedding, embedding_model, dim, created_at)
     VALUES
-      (gen_random_uuid()::text, ${input.sourceObjectId}, ${input.orgId}, ${input.chunk.seq}, ${input.chunk.charStart}, ${input.chunk.charEnd}, ${input.chunk.content}, ${contentHash}, ${tokenEstimate}, true, ${vectorStr}::vector, NOW())
+      (gen_random_uuid()::text, ${input.sourceObjectId}, ${input.orgId}, ${input.chunk.seq}, ${input.chunk.charStart}, ${input.chunk.charEnd}, ${input.chunk.content}, ${contentHash}, ${tokenEstimate}, true, ${vectorStr}::vector, ${result.model}, ${result.vector.length}, NOW())
     RETURNING id
   `
   return { id: rows[0].id, isReal: true }
 }
 
-async function defaultEmbed(text: string): Promise<{ vector: number[]; isReal: boolean }> {
+async function defaultEmbed(text: string): Promise<{ vector: number[]; isReal: boolean; model: string }> {
   const { generateEmbeddingUncached } = await import("@/lib/embeddings")
   return generateEmbeddingUncached(text)
 }
@@ -160,7 +170,8 @@ async function defaultEmbed(text: string): Promise<{ vector: number[]; isReal: b
 // CHUNKED rather than regressing it to FAILED, exactly so a retry calls this
 // same function again and the pre-check above skips everything already
 // written.
-export type BatchEmbedFn = (texts: string[]) => Promise<{ vector: number[]; isReal: boolean }[]>
+// R68 Phase 5: `model` added per item, same reasoning as EmbedFn above.
+export type BatchEmbedFn = (texts: string[]) => Promise<{ vector: number[]; isReal: boolean; model: string }[]>
 
 // The one shape this file's resumability pre-check actually needs: a
 // tagged-template function returning rows with a numeric `seq`. Separately
@@ -242,7 +253,7 @@ export async function storeChunkEmbeddingsBatch(
   return { written, skipped }
 }
 
-async function defaultEmbedBatch(texts: string[]): Promise<{ vector: number[]; isReal: boolean }[]> {
+async function defaultEmbedBatch(texts: string[]): Promise<{ vector: number[]; isReal: boolean; model: string }[]> {
   const { generateEmbeddingsBatchUncached } = await import("@/lib/embeddings")
   return generateEmbeddingsBatchUncached(texts)
 }
