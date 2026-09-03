@@ -19,9 +19,14 @@ import {
   constructionBoqs, constructionBoqLineItems, constructionWorkProgressEntries, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, or, type SQL } from "drizzle-orm"
+import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { isSelfApproval } from "./approval-workflow-service"
+// R67 F-27 (R-243): a BOQ write moves contract value, earned value and
+// "% Complete by BOQ Value" on the project dashboard, which now holds a 60 s
+// cache. ONE helper, in a dependency-free module -- see its own header for why
+// it does not live in construction-dashboard-service.ts.
+import { bustProjectDashboardCache } from "./project-dashboard-cache"
 export { ServiceError }
 
 export type BoqContext = { orgId: string; userId: string }
@@ -441,9 +446,208 @@ function withComputedRate(item: typeof constructionBoqLineItems.$inferSelect) {
   return { ...item, computedRate: computedRate(item), computedBudget: computedBudget(item) }
 }
 
-export async function listBoqs(ctx: { orgId: string }, projectId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.constructionBoqs.findMany({
+// R67 F-23 (audit recommendation R-239) -- THE /scope FAN-OUT, CLOSED.
+//
+// THE MEASURED PROBLEM. /api/v1/construction/boq's GET handler ran
+// `Promise.all(boqs.map(getBoq))`, and every getBoq() opens its OWN
+// withTenantContext transaction (see that function, unchanged below). A
+// five-revision project therefore asked tenant-scoped.ts's FIVE-connection
+// pool for five concurrent transactions at once, on top of listBoqs' own --
+// the same pool-starvation shape R43_MGR_01 removed from getOrgDashboard.
+// PROJEXA then fired one more request per revision (/api/scope/{id}/compare)
+// purely to fill the green "Variation vs. prior" cell, so /scope made 22 API
+// calls and reached idle at 7.6 s.
+//
+// WHAT REPLACES IT. ONE transaction, and inside it at most three statements
+// regardless of how many revisions the project has:
+//   1. the revision headers (as before),
+//   2. `include=lineItems` -- every revision's line items in ONE inArray read
+//      instead of one getBoq() transaction per revision,
+//   3. `include=variation` -- one CTE over construction_boq_line_items grouped
+//      by boq_id, joined to each revision's parent through the existing
+//      parent_boq_id chain, so the per-row variation figure PROJEXA used to
+//      fetch one-request-per-row now arrives with the list.
+//
+// WHY variationVsPrior IS THE SAME NUMBER THE COMPARE SCREEN SHOWS. The CTE
+// computes Σ(quantity × rate) for the child revision minus the same for its
+// parent. computeTotalVariation() (below) computes addedTotal − removedTotal +
+// Σ changed netVariation over diffLineItems()' key-matched diff. Unchanged
+// items contribute 0 to both, added items contribute their full amount to
+// both, removed items subtract their full amount in both, and a changed item
+// contributes curr.amount − prev.amount in both -- so the two are algebraically
+// identical, and `amount` is stored as quantity × rate by insertLineItems().
+// The list figure and the compare screen's total can therefore never disagree.
+// (The one divergence is pathological: two line items in ONE revision sharing a
+// diff key -- same itemCode is already rejected by validateLineItemInputs, same
+// description with no itemCode is not -- where diffLineItems' Map keeps the last
+// and the sum keeps both. The sum is the correct answer in that case.)
+// R67 F-29 (audit recommendation R-273) -- THE COMPARE SUMMARY JOINS THE LIST.
+//
+// F-23 above put each revision's variation-vs-prior into the list payload and
+// deleted the one /api/scope/{id}/compare request PER ROW the /scope screen
+// was making to fill a single cell. R-273 finishes the job: the screen also
+// wants to show, per revision, HOW BIG that revision is (its line count and
+// its total) and how far it moved from the previous one in PERCENT, not only
+// in currency -- "+1,005" says nothing about whether that is a rounding error
+// or a doubling of the contract.
+//
+// All five figures come out of the SAME statement the variation already used,
+// so `?include=compare` costs no extra round trip over `?include=variation`,
+// and asking for both costs one statement, not two. That is the whole point:
+// the alternative -- a second endpoint, or a second query -- would reintroduce
+// the fan-out this pair of items exists to remove.
+//
+// deltaPct is NULL, never 0 and never Infinity, when there is no parent or the
+// parent totalled zero. A percentage change from nothing is not a number, and
+// printing "∞%" or "0%" beside a real increase would be a false statement
+// about the project's money.
+export type BoqListOptions = {
+  /**
+   * Comma-separated, mirroring the route's own `?include=`. Recognised values:
+   * `lineItems` (every revision's line items, batched), `variation`
+   * (variationVsPrior + lineDelta per revision) and `compare` (the
+   * lineCount / total / deltaAmount / deltaPct summary). Anything else is
+   * ignored -- an unknown include must never fail a list a caller can
+   * otherwise read.
+   */
+  include?: string | null
+}
+
+export type BoqRevisionVariation = {
+  /** Σ(quantity × rate) here minus Σ(quantity × rate) on the parent revision. null on a baseline (no parent). */
+  variationVsPrior: number | null
+  /** line-item count here minus line-item count on the parent revision. null on a baseline. */
+  lineDelta: number | null
+}
+
+export type BoqRevisionCompare = {
+  /** How many line items this revision has. */
+  lineCount: number
+  /** Σ(quantity × rate) over this revision's own line items. */
+  total: number
+  /** total(this) − total(parent). null on a baseline -- the same number as variationVsPrior. */
+  deltaAmount: number | null
+  /** That delta as a percentage of the parent's total. null on a baseline OR when the parent totalled zero. */
+  deltaPct: number | null
+}
+
+export type BoqListRow = typeof constructionBoqs.$inferSelect &
+  Partial<BoqRevisionVariation> & {
+    lineItems?: ReturnType<typeof withComputedRate>[]
+    compare?: BoqRevisionCompare
+  }
+
+export function parseBoqInclude(include: string | null | undefined): {
+  lineItems: boolean
+  variation: boolean
+  compare: boolean
+} {
+  const parts = new Set(
+    (include ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+  )
+  return { lineItems: parts.has("lineItems"), variation: parts.has("variation"), compare: parts.has("compare") }
+}
+
+type RevisionSummary = BoqRevisionVariation & BoqRevisionCompare
+
+/**
+ * The per-revision summary, in ONE statement, however many revisions there are.
+ *
+ * `revision` is this project's whole chain, so a parent is always resolvable
+ * inside the same CTE -- createBoqRevision() always writes the child with its
+ * parent's projectId, so a chain never crosses projects.
+ *
+ * R67 F-29 widened this from two columns to five. It is deliberately still one
+ * statement and one pass: `variation` and `compare` are two views of the same
+ * grouped aggregate, and computing them separately would put back exactly the
+ * per-revision fan-out F-23 removed.
+ */
+async function loadRevisionSummaries(
+  db: TenantDb,
+  orgId: string,
+  projectId: string
+): Promise<Map<string, RevisionSummary>> {
+  const rows = (await db.execute(sql`
+    WITH revision AS (
+      SELECT id, parent_boq_id
+      FROM compliance.construction_boqs
+      WHERE org_id = ${orgId} AND project_id = ${projectId}
+    ),
+    totals AS (
+      SELECT li.boq_id AS boq_id,
+             coalesce(sum(li.quantity * li.rate), 0)::float AS total,
+             count(*)::int AS line_count
+      FROM compliance.construction_boq_line_items li
+      JOIN revision r ON r.id = li.boq_id
+      GROUP BY li.boq_id
+    )
+    SELECT r.id AS boq_id,
+           coalesce(c.total, 0)::float AS total,
+           coalesce(c.line_count, 0)::int AS line_count,
+           CASE WHEN r.parent_boq_id IS NULL THEN NULL
+                ELSE (coalesce(c.total, 0) - coalesce(p.total, 0))::float END AS variation_vs_prior,
+           CASE WHEN r.parent_boq_id IS NULL THEN NULL
+                ELSE (coalesce(c.line_count, 0) - coalesce(p.line_count, 0))::int END AS line_delta,
+           -- NULLIF, not a division: a percentage change from a parent that
+           -- totalled nothing is not a number, and "∞%" or "0%" beside a real
+           -- increase would be a false statement about the project's money.
+           CASE WHEN r.parent_boq_id IS NULL THEN NULL
+                ELSE ((coalesce(c.total, 0) - coalesce(p.total, 0))
+                      / NULLIF(coalesce(p.total, 0), 0) * 100)::float END AS delta_pct
+    FROM revision r
+    LEFT JOIN totals c ON c.boq_id = r.id
+    LEFT JOIN totals p ON p.boq_id = r.parent_boq_id
+  `)) as {
+    boq_id: string
+    total: number | null
+    line_count: number | null
+    variation_vs_prior: number | null
+    line_delta: number | null
+    delta_pct: number | null
+  }[]
+
+  return new Map(
+    rows.map((r) => {
+      const deltaAmount = r.variation_vs_prior === null ? null : Number(r.variation_vs_prior)
+      return [
+        r.boq_id,
+        {
+          variationVsPrior: deltaAmount,
+          lineDelta: r.line_delta === null ? null : Number(r.line_delta),
+          lineCount: Number(r.line_count ?? 0),
+          total: Number(r.total ?? 0),
+          deltaAmount,
+          deltaPct: r.delta_pct === null ? null : Number(r.delta_pct),
+        },
+      ]
+    })
+  )
+}
+
+/** A revision with no rows in the summary at all -- a chain member the CTE
+ *  could not see. Zeroes for its own size (it genuinely has no line items) and
+ *  nulls for every comparison, which is the honest answer to "how far did it
+ *  move" when we do not know. */
+const EMPTY_REVISION_SUMMARY: RevisionSummary = {
+  variationVsPrior: null,
+  lineDelta: null,
+  lineCount: 0,
+  total: 0,
+  deltaAmount: null,
+  deltaPct: null,
+}
+
+export async function listBoqs(
+  ctx: { orgId: string },
+  projectId: string,
+  options: BoqListOptions = {}
+): Promise<BoqListRow[]> {
+  const include = parseBoqInclude(options.include)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boqs = await db.query.constructionBoqs.findMany({
       where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
       // Point 177/E-116 fix: version DESC alone has no stable tiebreaker when a
       // project has two or more INDEPENDENT (non-revision-chain) BOQs at the
@@ -455,7 +659,52 @@ export async function listBoqs(ctx: { orgId: string }, projectId: string) {
       // and matches the intuitive meaning of "latest" when versions tie.
       orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)],
     })
-  )
+    // Every existing caller passes no options and keeps getting exactly the
+    // headers it got before -- one statement, one transaction.
+    if (boqs.length === 0 || (!include.lineItems && !include.variation && !include.compare)) return boqs
+
+    const boqIds = boqs.map((b) => b.id)
+    const lineItemsByBoq = new Map<string, ReturnType<typeof withComputedRate>[]>()
+    if (include.lineItems) {
+      const rows = await db.query.constructionBoqLineItems.findMany({
+        where: inArray(constructionBoqLineItems.boqId, boqIds),
+      })
+      for (const row of rows) {
+        const list = lineItemsByBoq.get(row.boqId) ?? []
+        list.push(withComputedRate(row))
+        lineItemsByBoq.set(row.boqId, list)
+      }
+    }
+
+    // R67 F-29: ONE statement serves both `variation` and `compare` -- they are
+    // two projections of the same grouped aggregate, so asking for both costs
+    // exactly what asking for either costs.
+    const summaryByBoq =
+      include.variation || include.compare
+        ? await loadRevisionSummaries(db, ctx.orgId, projectId)
+        : new Map<string, RevisionSummary>()
+
+    return boqs.map((boq) => {
+      const summary = summaryByBoq.get(boq.id) ?? EMPTY_REVISION_SUMMARY
+      return {
+        ...boq,
+        ...(include.lineItems ? { lineItems: lineItemsByBoq.get(boq.id) ?? [] } : {}),
+        ...(include.variation
+          ? { variationVsPrior: summary.variationVsPrior, lineDelta: summary.lineDelta }
+          : {}),
+        ...(include.compare
+          ? {
+              compare: {
+                lineCount: summary.lineCount,
+                total: summary.total,
+                deltaAmount: summary.deltaAmount,
+                deltaPct: summary.deltaPct,
+              },
+            }
+          : {}),
+      }
+    })
+  })
 }
 
 export async function getBoq(ctx: { orgId: string }, boqId: string) {
@@ -548,6 +797,9 @@ export async function createBoq(ctx: BoqContext, input: BoqInput) {
     await insertLineItems(db, ctx.orgId, boq.id, lineItems)
     await assertLineItemsPersisted(db, boq.id, lineItems.length)
     return getBoqRow(db, boq.id)
+  }).then((row) => {
+    bustProjectDashboardCache(ctx.orgId, row.projectId)
+    return row
   })
 }
 
@@ -655,6 +907,9 @@ export async function createBoqRevision(
     await db.update(constructionBoqs).set({ status: "superseded", updatedAt: new Date() }).where(eq(constructionBoqs.id, parent.id))
 
     return getBoqRow(db, boq.id)
+  }).then((row) => {
+    bustProjectDashboardCache(ctx.orgId, row.projectId)
+    return row
   })
 }
 
@@ -1027,7 +1282,10 @@ export async function deleteBoq(ctx: { orgId: string }, boqId: string) {
       await db.delete(constructionBoqLineItems).where(eq(constructionBoqLineItems.boqId, boqId))
     }
     await db.delete(constructionBoqs).where(eq(constructionBoqs.id, boqId))
-    return { deleted: true, id: boqId, lineItemsDeleted: lineItemIds.length }
+    return { deleted: true, id: boqId, projectId: boq.projectId, lineItemsDeleted: lineItemIds.length }
+  }).then((result) => {
+    bustProjectDashboardCache(ctx.orgId, result.projectId)
+    return result
   })
 }
 

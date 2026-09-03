@@ -10,6 +10,11 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, desc, eq, gte, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { listDocuments } from "./document-service"
+// R67 F-27 (R-243): logging or deleting progress moves % complete, earned
+// value and the progress bar on the per-project dashboard, which now holds a
+// 60 s cache. ONE helper, imported from a dependency-free module so this
+// service does not have to depend on the dashboard service.
+import { bustProjectDashboardCache } from "./project-dashboard-cache"
 export { ServiceError }
 
 /**
@@ -128,30 +133,43 @@ export async function createActivity(ctx: { orgId: string }, input: { projectId:
 // column) and boqLineItemId (the direct-link column added by R12 point 7)
 // as additional, purely optional filters -- every existing caller that
 // passes none of them keeps getting exactly the same result set as before.
-export async function listProgressEntries(
-  ctx: { orgId: string },
-  filters: { projectId?: string; activityId?: string; boqLineItemId?: string; dateFrom?: string; dateTo?: string }
-) {
-  if (!filters.projectId && !filters.activityId) throw new ServiceError("projectId or activityId is required", 400)
-  return withTenantContext({ orgId: ctx.orgId }, (db) => {
-    const conditions = [eq(constructionWorkProgressEntries.orgId, ctx.orgId)]
-    if (filters.projectId) conditions.push(eq(constructionWorkProgressEntries.projectId, filters.projectId))
-    if (filters.activityId) conditions.push(eq(constructionWorkProgressEntries.activityId, filters.activityId))
-    if (filters.boqLineItemId) conditions.push(eq(constructionWorkProgressEntries.boqLineItemId, filters.boqLineItemId))
-    if (filters.dateFrom) conditions.push(gte(constructionWorkProgressEntries.entryDate, filters.dateFrom))
-    if (filters.dateTo) conditions.push(lte(constructionWorkProgressEntries.entryDate, filters.dateTo))
-    return selectEnrichedEntries(db, and(...conditions), true)
-  })
-}
-
-// R67 D-28 (R-069/R-071). The Work Progress LIST rendered an entry's BOQ line
-// as a RAW CUID, because the only names available to it were whatever
-// PROJEXA's own screen happened to have fetched for its form -- one BOQ's line
-// items, resolved by that screen's own "current BOQ" preference order. An
-// entry recorded against ANY OTHER revision therefore had no name to resolve
-// to and fell back to printing its id. The names belong on the row, from the
-// revision the entry actually references, so they are LEFT-joined here once
-// and every reader gets the same answer.
+// R67 F-24 (audit recommendation R-240) -- THE NAMES COME WITH THE ROWS.
+//
+// THE MEASURED PROBLEM. /work-progress reached idle at 7.4 s over 15 calls
+// because the browser ran a SERIAL chain to answer one question: what does the
+// BOQ column say? It fetched the entries, then the activities, then
+// /api/scope, then one /api/scope/{id} per revision -- pulling every line item
+// of a whole BOQ across the wire -- and after all that still rendered a raw id
+// like "e5eibnze72n8u2y3aoeok" in the cell, because the resolution frequently
+// missed.
+//
+// A progress entry's activity and BOQ line are a JOIN. Two LEFT JOINs (LEFT,
+// so an entry whose line item was later deleted -- boq_line_item_id is ON
+// DELETE SET NULL, see schema.ts -- still lists, with nulls, rather than
+// vanishing) put activityName, boqItemCode and boqDescription on the row, in
+// the SAME statement, and the client's whole scope fan-out disappears. The
+// payload stays small on purpose: three resolved strings per row, never the
+// BOQ.
+//
+// Column list, not `select()`: an explicit projection is what keeps this from
+// silently widening into "every column of three tables" when any of them
+// gains one.
+//
+// R67 D-28 x F-24 RECONCILIATION (integration train, lane D21 onto main).
+// Two lanes joined the same two tables for two different reasons and both are
+// kept:
+//   * F-24 (already on main) needed the LIST to stop fanning out to /api/scope,
+//     and deliberately capped what crosses the wire -- resolved strings only,
+//     "never the BOQ". Its field name `boqDescription` is the one PROJEXA's
+//     merged list client already reads, so it is the canonical name here.
+//   * D-28 (this lane) needed the entry's UNIT on every row -- a quantity with
+//     no unit beside it is not a measurement -- and the line's contracted
+//     figures on the OBJECT page, so a delete confirmation can state a real
+//     blast radius instead of guessing.
+// So: the list projection gains `unit` (a label, not a measurement, so F-24's
+// "nothing priced or quantified crosses the wire" rule still holds literally),
+// and quantity/rate/amount are projected ONLY by getProgressEntry, which
+// returns exactly one row.
 //
 // LEFT, not INNER, on both sides deliberately: boq_line_item_id is nullable
 // (an activity-only entry is legitimate, see createProgressEntry) and its FK
@@ -159,7 +177,7 @@ export async function listProgressEntries(
 // rather than show them with an em-dash. The activity join is left too --
 // activity_id is NOT NULL, but a join that can only ever fail closed is worth
 // more than one that can hide a row if referential integrity ever slips.
-const ENRICHED_ENTRY_COLUMNS = {
+const BASE_ENTRY_COLUMNS = {
   id: constructionWorkProgressEntries.id,
   orgId: constructionWorkProgressEntries.orgId,
   projectId: constructionWorkProgressEntries.projectId,
@@ -173,20 +191,27 @@ const ENRICHED_ENTRY_COLUMNS = {
   recordedById: constructionWorkProgressEntries.recordedById,
   createdAt: constructionWorkProgressEntries.createdAt,
   activityName: constructionActivities.name,
-  activityUnit: constructionActivities.unit,
   boqItemCode: constructionBoqLineItems.itemCode,
-  boqLineDescription: constructionBoqLineItems.description,
+  boqDescription: constructionBoqLineItems.description,
+  // Inputs to resolveProgressUnit() only -- they are stripped from the row
+  // before it is returned, so no caller has to know the precedence rule.
+  activityUnit: constructionActivities.unit,
   boqLineUnit: constructionBoqLineItems.unit,
-  // R67 D-28: the line's own contracted figures travel with the entry so the
-  // delete confirmation can state a REAL blast radius ("the running total
-  // drops from 60% to 48%") using PROJEXA's existing
-  // computeLineItemProgress() rule, instead of the screen guessing or
-  // fetching a whole BOQ to find one line.
+} as const
+
+// R67 D-28: the line's own contracted figures travel with the ONE entry the
+// object page asked for, so the delete confirmation can state a REAL blast
+// radius ("the running total drops from 60% to 48%") using PROJEXA's existing
+// computeLineItemProgress() rule, instead of the screen guessing or fetching
+// a whole BOQ to find one line. Never in the list -- see F-24's cap above.
+const OBJECT_ENTRY_COLUMNS = {
+  ...BASE_ENTRY_COLUMNS,
   boqLineQuantity: constructionBoqLineItems.quantity,
   boqLineRate: constructionBoqLineItems.rate,
   boqLineAmount: constructionBoqLineItems.amount,
 } as const
 
+/** One enriched progress row: the entry, the two joined names, the unit. */
 export type EnrichedProgressEntry = {
   id: string
   orgId: string
@@ -200,14 +225,27 @@ export type EnrichedProgressEntry = {
   remarks: string | null
   recordedById: string
   createdAt: Date
+  /** The activity's name. null only if the activity row is gone. */
   activityName: string | null
+  /** The linked BOQ line's item code, e.g. "R60SK". null when unlinked. */
   boqItemCode: string | null
-  boqLineDescription: string | null
+  /** The linked BOQ line's description. null when unlinked. */
+  boqDescription: string | null
+  /** The BOQ line's unit when the entry names a line, else the activity's own. */
+  unit: string | null
+}
+
+/**
+ * What listProgressEntries returns. Kept as its own exported name because
+ * F-24's callers already import it.
+ */
+export type ProgressEntryRow = EnrichedProgressEntry
+
+/** What getProgressEntry returns: the list row plus the line's contracted figures. */
+export type ProgressEntryDetail = EnrichedProgressEntry & {
   boqLineQuantity: string | null
   boqLineRate: string | null
   boqLineAmount: string | null
-  /** The BOQ line's unit when the entry names a line, else the activity's own. */
-  unit: string | null
 }
 
 type EnrichedRow = Record<string, unknown> & { activityUnit?: string | null; boqLineUnit?: string | null }
@@ -221,31 +259,52 @@ export function resolveProgressUnit(row: { boqLineUnit?: string | null; activity
   return row.boqLineUnit ?? row.activityUnit ?? null
 }
 
-function toEnrichedEntry(row: EnrichedRow): EnrichedProgressEntry {
+function toEnrichedEntry<T extends EnrichedProgressEntry>(row: EnrichedRow): T {
   const { activityUnit, boqLineUnit, ...rest } = row
-  return { ...(rest as unknown as Omit<EnrichedProgressEntry, "unit">), unit: resolveProgressUnit({ activityUnit, boqLineUnit }) }
+  return { ...(rest as unknown as Omit<T, "unit">), unit: resolveProgressUnit({ activityUnit, boqLineUnit }) } as T
 }
 
-async function selectEnrichedEntries(db: TenantDb, where: ReturnType<typeof and>, ordered: boolean): Promise<EnrichedProgressEntry[]> {
-  const query = db.select(ENRICHED_ENTRY_COLUMNS).from(constructionWorkProgressEntries)
+export async function listProgressEntries(
+  ctx: { orgId: string },
+  filters: { projectId?: string; activityId?: string; boqLineItemId?: string; dateFrom?: string; dateTo?: string }
+): Promise<ProgressEntryRow[]> {
+  if (!filters.projectId && !filters.activityId) throw new ServiceError("projectId or activityId is required", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(constructionWorkProgressEntries.orgId, ctx.orgId)]
+    if (filters.projectId) conditions.push(eq(constructionWorkProgressEntries.projectId, filters.projectId))
+    if (filters.activityId) conditions.push(eq(constructionWorkProgressEntries.activityId, filters.activityId))
+    if (filters.boqLineItemId) conditions.push(eq(constructionWorkProgressEntries.boqLineItemId, filters.boqLineItemId))
+    if (filters.dateFrom) conditions.push(gte(constructionWorkProgressEntries.entryDate, filters.dateFrom))
+    if (filters.dateTo) conditions.push(lte(constructionWorkProgressEntries.entryDate, filters.dateTo))
+    const rows = await selectEntries(db, BASE_ENTRY_COLUMNS, and(...conditions))
+      .orderBy(desc(constructionWorkProgressEntries.entryDate))
+    return (rows as EnrichedRow[]).map((r) => toEnrichedEntry<ProgressEntryRow>(r))
+  })
+}
+
+function selectEntries(
+  db: TenantDb,
+  columns: typeof BASE_ENTRY_COLUMNS | typeof OBJECT_ENTRY_COLUMNS,
+  where: ReturnType<typeof and>
+) {
+  return db.select(columns).from(constructionWorkProgressEntries)
     .leftJoin(constructionActivities, eq(constructionActivities.id, constructionWorkProgressEntries.activityId))
     .leftJoin(constructionBoqLineItems, eq(constructionBoqLineItems.id, constructionWorkProgressEntries.boqLineItemId))
     .where(where)
-  const rows = ordered ? await query.orderBy(desc(constructionWorkProgressEntries.entryDate)) : await query
-  return (rows as EnrichedRow[]).map(toEnrichedEntry)
 }
 
-// R67 D-28: one entry, the same enriched shape the list returns -- the object
-// page must never have to re-resolve a name the list already knew.
-export async function getProgressEntry(ctx: { orgId: string }, entryId: string): Promise<EnrichedProgressEntry> {
+// R67 D-28: one entry, the same enriched shape the list returns plus the
+// line's figures -- the object page must never have to re-resolve a name the
+// list already knew.
+export async function getProgressEntry(ctx: { orgId: string }, entryId: string): Promise<ProgressEntryDetail> {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const [row] = await selectEnrichedEntries(
+    const [row] = await selectEntries(
       db,
-      and(eq(constructionWorkProgressEntries.id, entryId), eq(constructionWorkProgressEntries.orgId, ctx.orgId)),
-      false
+      OBJECT_ENTRY_COLUMNS,
+      and(eq(constructionWorkProgressEntries.id, entryId), eq(constructionWorkProgressEntries.orgId, ctx.orgId))
     )
     if (!row) throw new ServiceError("Progress entry not found", 404)
-    return row
+    return toEnrichedEntry<ProgressEntryDetail>(row as EnrichedRow)
   })
 }
 
@@ -271,6 +330,10 @@ export async function deleteProgressEntry(ctx: { orgId: string }, entryId: strin
     if (!entry) throw new ServiceError("Progress entry not found", 404)
     await db.delete(constructionWorkProgressEntries).where(eq(constructionWorkProgressEntries.id, entryId))
     return { deleted: true, id: entryId, activityId: entry.activityId, projectId: entry.projectId }
+  }).then((result) => {
+    // R67 F-27: a deleted entry changes % complete and earned value.
+    bustProjectDashboardCache(ctx.orgId, result.projectId)
+    return result
   })
 }
 
@@ -463,6 +526,11 @@ export async function createProgressEntry(
     // stored, never from what was asked for.
     return { ...row, linkedToBoq: boqLineItemId !== null }
   }).then((row) => {
+    // R67 F-27: this row moved % complete, earned value and the progress bar
+    // on the project dashboard. Bust BEFORE anything async below, so the very
+    // next read recomputes rather than serving the figure from a moment ago --
+    // "I just logged progress, where is it?" is the whole point.
+    bustProjectDashboardCache(ctx.orgId, row.projectId)
     // Wave 126: fire-and-forget automation trigger, matching
     // pms-issue-service.ts's updateIssue() status-change trigger posture
     // (dynamic import, void, never blocks/breaks the write it enriches).
