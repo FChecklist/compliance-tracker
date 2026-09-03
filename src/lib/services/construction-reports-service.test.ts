@@ -30,6 +30,8 @@ import {
   type CertifiedPayrollAttendanceRow,
   type CertifiedPayrollWageRate,
   type EvLineItem,
+  attributeBoqAmountsByCategory,
+  mergeCategoryProgressWithAmounts,
 } from "./construction-reports-service"
 
 // Fixture: 3 designers across 2 projects and 3 categories.
@@ -666,5 +668,126 @@ describe("workProgressReport with categoryFilter (R67 I-05, real code path)", ()
     const result = await runWorkProgressReport()
     expect(Array.isArray(result.activities)).toBe(true)
     expect(result.activities).toEqual([])
+  })
+})
+
+// R67 E-02 (R-012). The project dashboard's category panel becomes
+// "Completed AED n / Total AED n" instead of a bare percentage, which means
+// the percentage (from the ACTIVITY hierarchy) and the money (from the BOQ
+// LINES) must meet on one set of buckets. These two pure functions are that
+// join; both are DB-free, tested here directly per this file's own convention.
+describe("attributeBoqAmountsByCategory (R67 E-02)", () => {
+  const CATEGORIES = [{ id: "cat-civil", name: "Civil" }, { id: "cat-mep", name: "MEP" }]
+  const ACTIVITIES = [{ id: "act-1", categoryId: "cat-mep" }]
+
+  test("the line's own category TEXT wins, and matches an existing project category case-insensitively", () => {
+    const out = attributeBoqAmountsByCategory(
+      [{ activityId: null, amount: 1000, category: "civil" }],
+      CATEGORIES,
+      ACTIVITIES
+    )
+    expect(out.categories.find((c) => c.categoryId === "cat-civil")?.totalAmount).toBe(1000)
+    // NOT a second "civil" bucket beside the real "Civil" one -- that is the
+    // duplicate-slice defect this convergence rule exists to prevent.
+    expect(out.categories.filter((c) => c.totalAmount > 0)).toHaveLength(1)
+  })
+
+  test("no category text falls back to the activity's category, exactly as before", () => {
+    const out = attributeBoqAmountsByCategory(
+      [{ activityId: "act-1", amount: 500, category: null }],
+      CATEGORIES,
+      ACTIVITIES
+    )
+    expect(out.categories.find((c) => c.categoryId === "cat-mep")?.totalAmount).toBe(500)
+    expect(out.uncategorizedAmount).toBe(0)
+  })
+
+  test("a category text matching no project row gets a stable synthetic id, never a collision with a real cuid", () => {
+    const out = attributeBoqAmountsByCategory(
+      [{ activityId: null, amount: 250, category: "Joinery" }],
+      CATEGORIES,
+      ACTIVITIES
+    )
+    const synthetic = out.categories.find((c) => c.name === "Joinery")
+    expect(synthetic?.categoryId).toBe("text:joinery")
+    expect(synthetic?.totalAmount).toBe(250)
+  })
+
+  test("neither path resolves: the amount lands in uncategorized, and the totals still tie", () => {
+    const out = attributeBoqAmountsByCategory(
+      [
+        { activityId: null, amount: 1000, category: "Civil" },
+        { activityId: null, amount: 300, category: null },
+      ],
+      CATEGORIES,
+      ACTIVITIES
+    )
+    expect(out.uncategorizedAmount).toBe(300)
+    // The identity the pie depends on: every line's amount is in the total
+    // exactly once, whichever bucket it landed in.
+    expect(out.totalAmount).toBe(1300)
+    expect(out.categories.reduce((s, c) => s + c.totalAmount, 0) + out.uncategorizedAmount).toBe(out.totalAmount)
+  })
+
+  test("drizzle numeric columns arrive as strings and are summed as numbers, not concatenated", () => {
+    const out = attributeBoqAmountsByCategory(
+      [
+        { activityId: null, amount: "1000.50", category: "Civil" },
+        { activityId: null, amount: "2000.25", category: "Civil" },
+      ],
+      CATEGORIES,
+      ACTIVITIES
+    )
+    expect(out.categories.find((c) => c.categoryId === "cat-civil")?.totalAmount).toBe(3000.75)
+  })
+})
+
+describe("mergeCategoryProgressWithAmounts (R67 E-02)", () => {
+  const AMOUNTS = {
+    categories: [
+      { categoryId: "cat-civil", name: "Civil", totalAmount: 750 },
+      { categoryId: "cat-mep", name: "MEP", totalAmount: 250 },
+    ],
+    uncategorizedAmount: 0,
+    totalAmount: 1000,
+  }
+  const NAMES = new Map([["cat-civil", "Civil"], ["cat-mep", "MEP"]])
+
+  test("completedAmount is the category's own money times its own percentage", () => {
+    const rows = mergeCategoryProgressWithAmounts(new Map([["cat-civil", 40]]), AMOUNTS, NAMES)
+    const civil = rows.find((r) => r.categoryId === "cat-civil")!
+    expect(civil.totalAmount).toBe(750)
+    expect(civil.percentComplete).toBe(40)
+    expect(civil.completedAmount).toBe(300)
+  })
+
+  test("sharePercent is the slice of the BOQ, to one decimal, and the slices sum to 100", () => {
+    const rows = mergeCategoryProgressWithAmounts(new Map(), AMOUNTS, NAMES)
+    expect(rows.find((r) => r.categoryId === "cat-civil")!.sharePercent).toBe(75)
+    expect(rows.find((r) => r.categoryId === "cat-mep")!.sharePercent).toBe(25)
+    expect(rows.reduce((s, r) => s + r.sharePercent, 0)).toBe(100)
+  })
+
+  test("a money bucket with no progress hierarchy behind it is 0%, not dropped", () => {
+    const withText = { ...AMOUNTS, categories: [...AMOUNTS.categories, { categoryId: "text:joinery", name: "Joinery", totalAmount: 0 }] }
+    const rows = mergeCategoryProgressWithAmounts(new Map([["cat-civil", 40]]), withText, NAMES)
+    const joinery = rows.find((r) => r.categoryId === "text:joinery")!
+    expect(joinery.percentComplete).toBe(0)
+    expect(rows).toHaveLength(3)
+  })
+
+  test("a progress bucket with no BOQ money behind it keeps its NAME and reports 0 money", () => {
+    const rows = mergeCategoryProgressWithAmounts(new Map([["cat-finishes", 20]]), AMOUNTS, new Map([["cat-finishes", "Finishes"]]))
+    const finishes = rows.find((r) => r.categoryId === "cat-finishes")!
+    expect(finishes.name).toBe("Finishes")
+    expect(finishes.totalAmount).toBe(0)
+    expect(finishes.completedAmount).toBe(0)
+  })
+
+  test("a BOQ worth nothing produces 0 shares, never NaN", () => {
+    const empty = { categories: [{ categoryId: "cat-civil", name: "Civil", totalAmount: 0 }], uncategorizedAmount: 0, totalAmount: 0 }
+    const rows = mergeCategoryProgressWithAmounts(new Map([["cat-civil", 50]]), empty, NAMES)
+    expect(rows[0].sharePercent).toBe(0)
+    expect(Number.isNaN(rows[0].sharePercent)).toBe(false)
   })
 })

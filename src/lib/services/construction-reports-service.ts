@@ -1047,13 +1047,89 @@ export async function expenseReport(ctx: { orgId: string }, projectId: string) {
   return { byHead, total: byHead.reduce((s, r) => s + Number(r.total), 0) }
 }
 
+export type CategoryProgressRow = {
+  categoryId: string
+  name: string
+  percentComplete: number
+  /** R67 E-02: this category's share of the latest BOQ, in money. */
+  totalAmount: number
+  /** R67 E-02: totalAmount x percentComplete, so a bar can read "Completed AED n / Total AED n". */
+  completedAmount: number
+  /** R67 E-02: totalAmount as a percentage of the BOQ total -- the pie's slice size. */
+  sharePercent: number
+}
+
+/**
+ * R67 E-02 (R-012). The project dashboard's category panel used to be a
+ * percent-only bar: "Civil 40%" with no idea whether Civil is a tenth of the
+ * job or nine tenths. This joins the percentage (which comes from the ACTIVITY
+ * hierarchy) to the money (which comes from the BOQ LINES), keyed on the same
+ * bucket ids attributeBoqAmountsByCategory produces.
+ *
+ * Pure, and deliberately total: a bucket that exists only in the amounts (a
+ * text category with no progress hierarchy behind it) is returned at 0%, and a
+ * bucket that exists only in the progress side is returned with 0 money. A row
+ * is never silently dropped, because a dropped row is money that stops adding
+ * up.
+ */
+export function mergeCategoryProgressWithAmounts(
+  progressByCategoryId: Map<string, number>,
+  amounts: CategoryAmountRollup,
+  namesByCategoryId: Map<string, string>
+): CategoryProgressRow[] {
+  const bucketIds = new Set<string>([...amounts.categories.map((c) => c.categoryId), ...progressByCategoryId.keys()])
+  const amountById = new Map(amounts.categories.map((c) => [c.categoryId, c]))
+  return [...bucketIds].map((id) => {
+    const bucket = amountById.get(id)
+    const totalAmount = bucket?.totalAmount ?? 0
+    const percentComplete = progressByCategoryId.get(id) ?? 0
+    return {
+      categoryId: id,
+      name: bucket?.name ?? namesByCategoryId.get(id) ?? id,
+      percentComplete,
+      totalAmount,
+      completedAmount: Math.round(totalAmount * percentComplete) / 100,
+      // A zero-value BOQ has no shares to speak of -- 0, never NaN.
+      sharePercent: amounts.totalAmount > 0 ? Math.round((totalAmount / amounts.totalAmount) * 1000) / 10 : 0,
+    }
+  })
+}
+
 // 16. Category Progress Report -- latest % complete averaged per category (via its activities).
+//
+// R67 E-02 (R-012): additively extended with the MONEY behind each category
+// (totalAmount / completedAmount / sharePercent), so PROJEXA's project
+// dashboard can render the real category-distribution charts against this one
+// project-scoped report instead of the org-wide hierarchy endpoint it used to
+// need. `categories[].percentComplete` keeps its exact previous meaning and
+// value for every existing caller.
 export async function categoryProgressReport(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const categories = await db.query.constructionCategories.findMany({ where: and(eq(constructionCategories.orgId, ctx.orgId), eq(constructionCategories.projectId, projectId)) })
     const activities = await activityIdsForProject(db, ctx.orgId, projectId)
-    if (activities.length === 0) return { categories: categories.map((c) => ({ categoryId: c.id, name: c.name, percentComplete: 0 })) }
+
+    // The BOQ half. Same "latest non-superseded revision" pick and same root-
+    // lines-only discipline as categoryBoqAmountsReport -- read in this SAME
+    // transaction rather than by calling that function, which would open a
+    // second one (the nested-transaction pool deadlock fixed in
+    // construction-dashboard-service.ts on 2026-09-02).
+    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
+    const latestBoq = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
+    const boqLines = latestBoq
+      ? await db.query.constructionBoqLineItems.findMany({ where: rootBoqLineItemsOnly(latestBoq.id), columns: { activityId: true, amount: true, category: true } })
+      : []
+    const amounts = attributeBoqAmountsByCategory(boqLines, categories, activities)
+    const namesByCategoryId = new Map(categories.map((c) => [c.id, c.name]))
+
+    if (activities.length === 0) {
+      return {
+        categories: mergeCategoryProgressWithAmounts(new Map(), amounts, namesByCategoryId),
+        uncategorizedAmount: amounts.uncategorizedAmount,
+        totalAmount: amounts.totalAmount,
+        boqId: latestBoq?.id ?? null,
+      }
+    }
     const ids = activities.map((a) => a.id)
     // Same fix as construction-dashboard-service.ts's getProjectDashboard()
     // (verified live in production 2026-07-08) -- a plain JS array as a
@@ -1068,13 +1144,18 @@ export async function categoryProgressReport(ctx: { orgId: string }, projectId: 
       ORDER BY activity_id, entry_date DESC
     `)) as { activity_id: string; percent_complete: number }[]
     const percentByActivity = new Map(rows.map((r) => [r.activity_id, Number(r.percent_complete)]))
+    const progressByCategoryId = new Map<string, number>()
+    for (const c of categories) {
+      const activityIdsInCat = activities.filter((a) => a.categoryId === c.id).map((a) => a.id)
+      const percents = activityIdsInCat.map((id) => percentByActivity.get(id) ?? 0)
+      const avg = percents.length > 0 ? percents.reduce((s, p) => s + p, 0) / percents.length : 0
+      progressByCategoryId.set(c.id, Math.round(avg))
+    }
     return {
-      categories: categories.map((c) => {
-        const activityIdsInCat = activities.filter((a) => a.categoryId === c.id).map((a) => a.id)
-        const percents = activityIdsInCat.map((id) => percentByActivity.get(id) ?? 0)
-        const avg = percents.length > 0 ? percents.reduce((s, p) => s + p, 0) / percents.length : 0
-        return { categoryId: c.id, name: c.name, percentComplete: Math.round(avg) }
-      }),
+      categories: mergeCategoryProgressWithAmounts(progressByCategoryId, amounts, namesByCategoryId),
+      uncategorizedAmount: amounts.uncategorizedAmount,
+      totalAmount: amounts.totalAmount,
+      boqId: latestBoq?.id ?? null,
     }
   })
 }
@@ -1114,6 +1195,59 @@ export async function projectCompletionReport(ctx: { orgId: string }, projectId:
 // gets the stable synthetic id "text:<lowercased name>" -- distinguishable,
 // never colliding with a real cuid, and honestly resolving to 0% in the
 // completion lookup (there is no per-category progress row behind it).
+export type CategoryAmountLine = { activityId: string | null; amount: number | string; category: string | null }
+export type CategoryAmountBucket = { categoryId: string; name: string; totalAmount: number }
+export type CategoryAmountRollup = { categories: CategoryAmountBucket[]; uncategorizedAmount: number; totalAmount: number }
+
+/**
+ * R67 E-02 (R-012): the attribution rule above, extracted verbatim into a pure
+ * function so categoryProgressReport can label its bars "Completed AED n /
+ * Total AED n" from the SAME buckets categoryBoqAmountsReport already
+ * produces. Two independent copies of this three-step fallback would be two
+ * different pies for one BOQ -- exactly the "three screens disagree about one
+ * number" defect the audit is closing.
+ *
+ * No DB access: the caller fetches, this decides. Same DB-free pure-aggregation
+ * convention as aggregateDesignerTimesheetCosts / computeEarnedValue above.
+ */
+export function attributeBoqAmountsByCategory(
+  lineItems: CategoryAmountLine[],
+  categories: { id: string; name: string }[],
+  activities: { id: string; categoryId: string | null }[]
+): CategoryAmountRollup {
+  const categoryIdByActivity = new Map(activities.map((a) => [a.id, a.categoryId]))
+  // A direct category TEXT that names an existing project category resolves
+  // to that same row, so the two attribution paths converge on ONE bucket
+  // instead of showing "Civil" twice in the pie.
+  const categoryIdByLowerName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c.id]))
+  const amountByCategory = new Map<string, number>()
+  // Buckets that came from the text column and match no project category row.
+  const syntheticNameById = new Map<string, string>()
+  let uncategorizedAmount = 0
+
+  for (const item of lineItems) {
+    const amount = Number(item.amount)
+    const directName = typeof item.category === "string" ? item.category.trim() : ""
+    if (directName !== "") {
+      const matchedId = categoryIdByLowerName.get(directName.toLowerCase())
+      const bucketId = matchedId ?? `text:${directName.toLowerCase()}`
+      if (!matchedId) syntheticNameById.set(bucketId, directName)
+      amountByCategory.set(bucketId, (amountByCategory.get(bucketId) ?? 0) + amount)
+      continue
+    }
+    const categoryId = item.activityId ? categoryIdByActivity.get(item.activityId) : undefined
+    if (!categoryId) { uncategorizedAmount += amount; continue }
+    amountByCategory.set(categoryId, (amountByCategory.get(categoryId) ?? 0) + amount)
+  }
+
+  const byCategory = [
+    ...categories.map((c) => ({ categoryId: c.id, name: c.name, totalAmount: amountByCategory.get(c.id) ?? 0 })),
+    ...[...syntheticNameById.entries()].map(([id, name]) => ({ categoryId: id, name, totalAmount: amountByCategory.get(id) ?? 0 })),
+  ]
+  const totalAmount = byCategory.reduce((s, c) => s + c.totalAmount, 0) + uncategorizedAmount
+  return { categories: byCategory, uncategorizedAmount, totalAmount }
+}
+
 export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -1128,37 +1262,7 @@ export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId
       db.query.constructionCategories.findMany({ where: and(eq(constructionCategories.orgId, ctx.orgId), eq(constructionCategories.projectId, projectId)) }),
       activityIdsForProject(db, ctx.orgId, projectId),
     ])
-    const categoryIdByActivity = new Map(activities.map((a) => [a.id, a.categoryId]))
-    // A direct category TEXT that names an existing project category resolves
-    // to that same row, so the two attribution paths converge on ONE bucket
-    // instead of showing "Civil" twice in the pie.
-    const categoryIdByLowerName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c.id]))
-    const amountByCategory = new Map<string, number>()
-    // Buckets that came from the text column and match no project category row.
-    const syntheticNameById = new Map<string, string>()
-    let uncategorizedAmount = 0
-
-    for (const item of lineItems) {
-      const amount = Number(item.amount)
-      const directName = typeof item.category === "string" ? item.category.trim() : ""
-      if (directName !== "") {
-        const matchedId = categoryIdByLowerName.get(directName.toLowerCase())
-        const bucketId = matchedId ?? `text:${directName.toLowerCase()}`
-        if (!matchedId) syntheticNameById.set(bucketId, directName)
-        amountByCategory.set(bucketId, (amountByCategory.get(bucketId) ?? 0) + amount)
-        continue
-      }
-      const categoryId = item.activityId ? categoryIdByActivity.get(item.activityId) : undefined
-      if (!categoryId) { uncategorizedAmount += amount; continue }
-      amountByCategory.set(categoryId, (amountByCategory.get(categoryId) ?? 0) + amount)
-    }
-
-    const byCategory = [
-      ...categories.map((c) => ({ categoryId: c.id, name: c.name, totalAmount: amountByCategory.get(c.id) ?? 0 })),
-      ...[...syntheticNameById.entries()].map(([id, name]) => ({ categoryId: id, name, totalAmount: amountByCategory.get(id) ?? 0 })),
-    ]
-    const totalAmount = byCategory.reduce((s, c) => s + c.totalAmount, 0) + uncategorizedAmount
-    return { categories: byCategory, uncategorizedAmount, totalAmount }
+    return attributeBoqAmountsByCategory(lineItems, categories, activities)
   })
 }
 
