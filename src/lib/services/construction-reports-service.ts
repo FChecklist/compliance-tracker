@@ -1359,6 +1359,143 @@ export async function certifiedPayrollReport(ctx: { orgId: string }, projectId: 
   })
 }
 
+// R67 D-53 (audit R-181). Sumeet's report 4 is a DAILY manpower sheet:
+// trade-wise present/absent/half-day with that day's labour cost, and the
+// people behind each trade row. Neither existing report answers it:
+// attendanceReport() has no date filter at all (it aggregates a project's
+// whole history), and manpowerCostReport() is date-aware but returns only
+// cost and a worker-day count per trade -- no status split and no people.
+//
+// It is ONE function rather than a caller that awaits both, because both of
+// those open their own withTenantContext transaction and the app_runtime pool
+// is 5 connections wide (tenant-scoped.ts:31-38); chaining them would double
+// the transaction cost of the screen /labour already renders slowly. Nesting
+// them inside a third transaction is forbidden outright (programme decision
+// D-06). So: one transaction, one joined read of the day's marked rows, and
+// one vendor-name lookup for the companies that read mentions -- the grouping
+// itself is done by the pure aggregator below, which is what the unit test
+// exercises.
+export const UNCATEGORISED_TRADE_LABEL = "Uncategorised trade"
+
+export type ManpowerDailyPerson = {
+  /** The roster entry's id -- the person, not the attendance row. */
+  id: string
+  employeeCode: string | null
+  name: string
+  trade: string | null
+  company: string | null
+  dailyRate: number
+  status: string
+  /**
+   * What this person cost on this date. This is the attendance row's STORED
+   * dailyCost, which construction-labour-service.ts computed from the roster
+   * rate at the moment the day was marked (present x rate, half_day x rate/2,
+   * absent 0 -- ATTENDANCE_COST_MULTIPLIER). Re-deriving it here from today's
+   * dailyRate would retro-price a past day whenever a worker's rate changes,
+   * which is exactly the bug a stored cost exists to prevent.
+   */
+  cost: number
+}
+
+export type ManpowerDailyTradeRow = {
+  trade: string
+  present: number
+  absent: number
+  halfDay: number
+  headcount: number
+  cost: number
+}
+
+/**
+ * Pure: the day's marked people -> one row per trade plus the totals row.
+ *
+ * headcount is present + absent + halfDay, i.e. every person marked on the
+ * date, so an expanded trade always lists exactly `headcount` people. Trades
+ * sort alphabetically with the un-traded bucket LAST, never interleaved
+ * alphabetically as "U" -- it is not a trade, it is the absence of one.
+ */
+export function aggregateManpowerDailySummary(people: readonly ManpowerDailyPerson[]): {
+  rows: ManpowerDailyTradeRow[]
+  totals: ManpowerDailyTradeRow
+} {
+  const byTrade = new Map<string, ManpowerDailyTradeRow>()
+  for (const person of people) {
+    const trade = person.trade && person.trade.trim() !== "" ? person.trade.trim() : UNCATEGORISED_TRADE_LABEL
+    const row = byTrade.get(trade) ?? { trade, present: 0, absent: 0, halfDay: 0, headcount: 0, cost: 0 }
+    if (person.status === "present") row.present++
+    else if (person.status === "half_day") row.halfDay++
+    else if (person.status === "absent") row.absent++
+    row.headcount = row.present + row.absent + row.halfDay
+    row.cost = Math.round((row.cost + (Number.isFinite(person.cost) ? person.cost : 0)) * 100) / 100
+    byTrade.set(trade, row)
+  }
+
+  const rows = [...byTrade.values()].sort((a, b) => {
+    if (a.trade === UNCATEGORISED_TRADE_LABEL) return 1
+    if (b.trade === UNCATEGORISED_TRADE_LABEL) return -1
+    return a.trade.localeCompare(b.trade)
+  })
+
+  const totals = rows.reduce<ManpowerDailyTradeRow>(
+    (acc, row) => ({
+      trade: "Total",
+      present: acc.present + row.present,
+      absent: acc.absent + row.absent,
+      halfDay: acc.halfDay + row.halfDay,
+      headcount: acc.headcount + row.headcount,
+      cost: Math.round((acc.cost + row.cost) * 100) / 100,
+    }),
+    { trade: "Total", present: 0, absent: 0, halfDay: 0, headcount: 0, cost: 0 }
+  )
+
+  return { rows, totals }
+}
+
+export async function manpowerDailySummary(ctx: { orgId: string }, projectId: string, date?: string) {
+  await requireConstructionEnabled(ctx.orgId)
+  const attendanceDate = date ?? new Date().toISOString().slice(0, 10)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const marked = await db.select({
+      rosterId: constructionLabourRoster.id,
+      employeeCode: constructionLabourRoster.employeeCode,
+      name: constructionLabourRoster.name,
+      trade: constructionLabourRoster.trade,
+      vendorId: constructionLabourRoster.vendorId,
+      dailyRate: constructionLabourRoster.dailyRate,
+      status: constructionAttendance.status,
+      dailyCost: constructionAttendance.dailyCost,
+    }).from(constructionAttendance)
+      .innerJoin(constructionLabourRoster, eq(constructionAttendance.rosterId, constructionLabourRoster.id))
+      .where(and(
+        eq(constructionAttendance.orgId, ctx.orgId),
+        eq(constructionAttendance.projectId, projectId),
+        eq(constructionAttendance.attendanceDate, attendanceDate)
+      ))
+
+    // One lookup for every company mentioned, not one per worker.
+    const vendorIds = [...new Set(marked.map((row) => row.vendorId).filter((id): id is string => !!id))]
+    const vendorRows = vendorIds.length > 0
+      ? await db.select({ id: erpSuppliers.id, name: erpSuppliers.supplierName })
+        .from(erpSuppliers)
+        .where(and(eq(erpSuppliers.orgId, ctx.orgId), inArray(erpSuppliers.id, vendorIds)))
+      : []
+    const vendorName = new Map(vendorRows.map((v) => [v.id, v.name]))
+
+    const people: ManpowerDailyPerson[] = marked.map((row) => ({
+      id: row.rosterId,
+      employeeCode: row.employeeCode,
+      name: row.name,
+      trade: row.trade,
+      company: row.vendorId ? vendorName.get(row.vendorId) ?? null : null,
+      dailyRate: Number(row.dailyRate ?? 0),
+      status: row.status,
+      cost: Math.round(Number(row.dailyCost ?? 0) * 100) / 100,
+    })).sort((a, b) => a.name.localeCompare(b.name))
+
+    return { date: attendanceDate, ...aggregateManpowerDailySummary(people), people }
+  })
+}
+
 export const REPORT_REGISTRY = {
   "work-progress": workProgressReport,
   "weekly-project": weeklyProjectReport,
@@ -1371,6 +1508,9 @@ export const REPORT_REGISTRY = {
   "material-consumption": materialConsumptionReport,
   "vendor-cost": vendorCostReport,
   "manpower-cost": manpowerCostReport,
+  // R67 D-53: registered here so the Reports picker's "Attendance"/"Manpower
+  // Cost" entries and /labour?tab=summary reach the SAME function by name.
+  "manpower-daily-summary": manpowerDailySummary,
   "designer-timesheet": designerTimesheetReport,
   "designer-approval-status": designerApprovalStatusReport,
   "work-analysis": workAnalysisReport,

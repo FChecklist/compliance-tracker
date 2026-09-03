@@ -88,6 +88,20 @@ active:
           route (400 otherwise). The only caller in either repo is PROJEXA's own
           /api/schedule/tasks proxy, which now requires it too.
 
+        - src/lib/services/construction-reports-service.ts (+ its EXISTING sibling
+          .test.ts) (D-53) -- manpowerDailySummary() and its pure aggregator
+          aggregateManpowerDailySummary(): trade-wise present/absent/half-day plus the
+          people behind each trade for ONE date, in ONE withTenantContext transaction.
+          It is a NEW function, not a change to attendanceReport()/manpowerCostReport(),
+          both of which keep their existing contracts; it exists because neither can
+          answer the question (one has no date filter, the other has no status split and
+          no people) and because chaining the two would cost two transactions on a
+          5-connection pool. REPORT_REGISTRY gains one entry,
+          "manpower-daily-summary".
+        - src/app/api/v1/projexa/reports/[reportName]/route.ts (D-53) -- one extra
+          `else if` branch forwarding ?date= for that report. No other report's
+          behaviour changes.
+
       DECLARED OVERLAP, read before merging: the DDL for all of the above belongs to R67
       item I-02 ("Migrations: attendance batch key, roster codes and trades, material
       issues/void, org number format"), which is a DIFFERENT lane's file scope, so this

@@ -55,6 +55,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const date = request.nextUrl.searchParams.get("date") ?? undefined
       const trade = request.nextUrl.searchParams.get("trade") ?? undefined
       result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId, date, trade)
+    } else if (reportName === "manpower-daily-summary") {
+      // R67 D-53: one date, and it defaults to today inside the service rather
+      // than here, so a direct service caller and this dispatcher can never
+      // disagree about which day "no date" means.
+      const date = request.nextUrl.searchParams.get("date") ?? undefined
+      result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId, date)
     } else {
       result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId)
     }

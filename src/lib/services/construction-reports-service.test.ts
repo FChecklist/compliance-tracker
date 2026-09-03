@@ -668,3 +668,86 @@ describe("workProgressReport with categoryFilter (R67 I-05, real code path)", ()
     expect(result.activities).toEqual([])
   })
 })
+
+// ---------------------------------------------------------------------------
+// R67 D-53: the Manpower Daily Summary aggregator.
+//
+// aggregateManpowerDailySummary() is the whole arithmetic of the tab -- the DB
+// half around it is one joined SELECT and one vendor-name lookup -- so the row
+// oracle the item states ("the totals row Daily cost equals the sum of the two
+// trade rows" and "expanding a trade lists the same headcount as its Present +
+// Absent + Half-day") is asserted here directly.
+// ---------------------------------------------------------------------------
+import {
+  aggregateManpowerDailySummary,
+  UNCATEGORISED_TRADE_LABEL,
+  type ManpowerDailyPerson,
+} from "./construction-reports-service"
+
+function person(over: Partial<ManpowerDailyPerson> & Pick<ManpowerDailyPerson, "id" | "name" | "status">): ManpowerDailyPerson {
+  return {
+    employeeCode: null,
+    trade: null,
+    company: null,
+    dailyRate: 100,
+    cost: 0,
+    ...over,
+  }
+}
+
+describe("aggregateManpowerDailySummary", () => {
+  // Two trades on one date, exactly the acceptance fixture.
+  const people: ManpowerDailyPerson[] = [
+    person({ id: "r1", name: "Ali Hassan", trade: "Civil", status: "present", dailyRate: 120, cost: 120 }),
+    person({ id: "r2", name: "Bilal Khan", trade: "Civil", status: "half_day", dailyRate: 120, cost: 60 }),
+    person({ id: "r3", name: "Chandra Rao", trade: "Civil", status: "absent", dailyRate: 120, cost: 0 }),
+    person({ id: "r4", name: "Dinesh Kumar", trade: "Paint", status: "present", dailyRate: 90, cost: 90 }),
+    person({ id: "r5", name: "Ehsan Ali", trade: "Paint", status: "present", dailyRate: 90, cost: 90 }),
+  ]
+
+  const { rows, totals } = aggregateManpowerDailySummary(people)
+
+  test("one row per trade with the present/absent/half-day split", () => {
+    expect(rows).toEqual([
+      { trade: "Civil", present: 1, absent: 1, halfDay: 1, headcount: 3, cost: 180 },
+      { trade: "Paint", present: 2, absent: 0, halfDay: 0, headcount: 2, cost: 180 },
+    ])
+  })
+
+  test("headcount is exactly present + absent + half-day, so an expanded trade lists that many people", () => {
+    for (const row of rows) {
+      expect(row.headcount).toBe(row.present + row.absent + row.halfDay)
+      expect(people.filter((p) => p.trade === row.trade)).toHaveLength(row.headcount)
+    }
+  })
+
+  test("the totals row Daily cost equals the sum of the trade rows", () => {
+    expect(totals.cost).toBe(360)
+    expect(totals.cost).toBe(rows.reduce((sum, row) => sum + row.cost, 0))
+    expect(totals.headcount).toBe(5)
+  })
+
+  test("a worker with no trade groups under 'Uncategorised trade', and it sorts LAST", () => {
+    const { rows: mixed } = aggregateManpowerDailySummary([
+      person({ id: "r6", name: "Zia", trade: null, status: "present", cost: 100 }),
+      person({ id: "r7", name: "Adnan", trade: "  ", status: "present", cost: 100 }),
+      person({ id: "r8", name: "Yusuf", trade: "Civil", status: "present", cost: 100 }),
+    ])
+    expect(mixed.map((r) => r.trade)).toEqual(["Civil", UNCATEGORISED_TRADE_LABEL])
+    expect(mixed[1]).toMatchObject({ present: 2, headcount: 2, cost: 200 })
+  })
+
+  test("an unmarked day aggregates to no rows and a zeroed totals row, never to NaN", () => {
+    const { rows: none, totals: zero } = aggregateManpowerDailySummary([])
+    expect(none).toEqual([])
+    expect(zero).toEqual({ trade: "Total", present: 0, absent: 0, halfDay: 0, headcount: 0, cost: 0 })
+  })
+
+  test("money adds without binary-float drift (0.1 + 0.2 must not become 0.30000000000000004)", () => {
+    const { totals: drift } = aggregateManpowerDailySummary([
+      person({ id: "r9", name: "A", trade: "Civil", status: "present", cost: 0.1 }),
+      person({ id: "r10", name: "B", trade: "Civil", status: "present", cost: 0.2 }),
+    ])
+    expect(drift.cost).toBe(0.3)
+  })
+})
