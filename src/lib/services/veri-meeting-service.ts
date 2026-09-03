@@ -19,7 +19,7 @@ import { after } from "next/server"
 import { veriMeetings, veriMeetingActionItems, veriMeetingShareLinks, tasks, auditLogs, users as usersTable, db } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { logActivity } from "@/lib/audit"
-import { eq, and, desc, inArray } from "drizzle-orm"
+import { eq, and, desc, inArray, notInArray, sql } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
@@ -66,19 +66,90 @@ function assertEditable(meeting: { status: string }) {
   }
 }
 
+// ─── R67 D-16: the two aggregates the MoM LIST screen needs ──────────────
+// PROJEXA's MoM list renders Meeting | Date & time | Attendees | Open
+// actions | Status | Action. "Attendees" and "Open actions" were the two
+// columns it could not draw: the list DTO carried neither, and the only way
+// to get them was one GET /api/moms/{id} per row (getVeriMeeting loads the
+// action items) -- an N+1 the list would have paid on every render. Both are
+// therefore computed here, in the list, and returned as additive fields.
+//
+// "Open" is defined exactly as listMyMeetingActionItems() below already
+// defines it -- a linked `tasks` row whose status is neither completed nor
+// cancelled -- rather than a second, drifting definition.
+export const CLOSED_ACTION_ITEM_STATUSES = ["completed", "cancelled"] as const
+
+/**
+ * Pure: how many attendees a meeting row carries.
+ *
+ * `veri_meetings.attendees` is jsonb, declared `string[]` (names, not FKs --
+ * external attendees may not be app users) and defaulted to `[]`, so the
+ * Drizzle-inferred type is `unknown`. Anything that is not an array is 0 --
+ * a malformed row must not crash a list of 50 meetings. Blank strings are
+ * not attendees; a non-string entry is counted because it is still a real
+ * element the object page would render, and silently reporting fewer
+ * attendees than the meeting has would be the same "confident wrong number"
+ * this programme exists to remove.
+ */
+export function countAttendees(attendees: unknown): number {
+  if (!Array.isArray(attendees)) return 0
+  return attendees.filter((a) => (typeof a === "string" ? a.trim().length > 0 : a !== null && a !== undefined)).length
+}
+
+/**
+ * Pure: joins the grouped open-action-item counts onto the meeting rows and
+ * computes attendeesCount. A meeting with no matching group row has zero
+ * open action items -- the grouped query returns no row at all for it, which
+ * is not the same as "unknown", because the query covered every id in the
+ * list.
+ */
+export function attachMeetingListAggregates<T extends { id: string; attendees: unknown }>(
+  meetings: T[],
+  openActionItemCounts: { meetingId: string; openCount: number }[]
+): (T & { attendeesCount: number; openActionItems: number })[] {
+  const openByMeeting = new Map(openActionItemCounts.map((r) => [r.meetingId, Number(r.openCount) || 0]))
+  return meetings.map((m) => ({
+    ...m,
+    attendeesCount: countAttendees(m.attendees),
+    openActionItems: openByMeeting.get(m.id) ?? 0,
+  }))
+}
+
 // Wave 143: contextEntityId scoping added -- PROJEXA's MoM screen is
 // per-project, so it needs "meetings for this project" rather than the
 // full org-wide feed every existing internal caller (VeriChatPanel's
 // Meetings tab) wants.
+//
+// R67 D-20: the org-wide branch (contextEntityId omitted) is what PROJEXA's
+// new "All projects" list mode queries -- it already existed and needed no
+// change, so the client can stop pretending a project was chosen.
+//
+// R67 D-16: every row now also carries attendeesCount and openActionItems.
+// ONE extra grouped query for the whole page, inside the same tenant
+// transaction, not one per row.
 export async function listVeriMeetings(ctx: { orgId: string }, contextEntityId?: string) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.veriMeetings.findMany({
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const meetings = await db.query.veriMeetings.findMany({
       where: contextEntityId
         ? and(eq(veriMeetings.orgId, ctx.orgId), eq(veriMeetings.contextEntityId, contextEntityId))
         : eq(veriMeetings.orgId, ctx.orgId),
       orderBy: desc(veriMeetings.scheduledAt),
     })
-  )
+    if (meetings.length === 0) return attachMeetingListAggregates(meetings, [])
+
+    const openActionItemCounts = await db
+      .select({ meetingId: veriMeetingActionItems.meetingId, openCount: sql<number>`count(*)::int` })
+      .from(veriMeetingActionItems)
+      .innerJoin(tasks, eq(tasks.id, veriMeetingActionItems.taskId))
+      .where(and(
+        inArray(veriMeetingActionItems.meetingId, meetings.map((m) => m.id)),
+        eq(tasks.orgId, ctx.orgId),
+        notInArray(tasks.status, [...CLOSED_ACTION_ITEM_STATUSES]),
+      ))
+      .groupBy(veriMeetingActionItems.meetingId)
+
+    return attachMeetingListAggregates(meetings, openActionItemCounts)
+  })
 }
 
 export async function getVeriMeeting(ctx: { orgId: string }, meetingId: string) {
