@@ -21,6 +21,14 @@ import {
   aggregateWorkAnalysis,
   computeCertifiedPayroll,
   computeEarnedValue,
+  computeBudgetVarianceLine,
+  isLineOverBudget,
+  buildAttendanceSummaryRows,
+  totalAttendanceSummary,
+  reconcileAttendanceSummary,
+  headcountOnSite,
+  UNSPECIFIED_TRADE_LABEL,
+  WORKER_DAY_WEIGHT,
   WH347_DAY_LABELS,
   type DesignerTimesheetBudgetLine,
   type DesignerTimesheetEntry,
@@ -666,5 +674,165 @@ describe("workProgressReport with categoryFilter (R67 I-05, real code path)", ()
     const result = await runWorkProgressReport()
     expect(Array.isArray(result.activities)).toBe(true)
     expect(result.activities).toEqual([])
+  })
+})
+
+// R67 D-26 (R-066) -- the Cost Variance tab's real arithmetic. Sumeet's budget
+// model against a scope line is vendor, MATERIAL and MANPOWER; only vendor
+// existed, so "committed" could never be more than the subcontract. The sign
+// also changed: variance now reads as HOW MUCH BUDGET IS LEFT
+// (budget - vendor - material - manpower), so positive is under budget.
+describe("computeBudgetVarianceLine (D-26)", () => {
+  const line = (over: Partial<Parameters<typeof computeBudgetVarianceLine>[0]> = {}) => ({
+    amount: 100, budgetPercentage: 100, vendorAmount: null, materialAmount: null, manpowerAmount: null, ...over,
+  })
+
+  // The item's own acceptance, both halves.
+  test("budget 100 with null vendor, material AND manpower returns variance null -- never a fabricated 0", () => {
+    const result = computeBudgetVarianceLine(line())
+    expect(result.budget).toBe(100)
+    expect(result.committed).toBeNull()
+    expect(result.variance).toBeNull()
+  })
+
+  test("the same line with material 30 and manpower 20 returns variance 50", () => {
+    const result = computeBudgetVarianceLine(line({ materialAmount: 30, manpowerAmount: 20 }))
+    expect(result.committed).toBe(50)
+    expect(result.variance).toBe(50)
+  })
+
+  test("all three components are counted, not just the vendor", () => {
+    const result = computeBudgetVarianceLine(line({ vendorAmount: 40, materialAmount: 30, manpowerAmount: 20 }))
+    expect(result.committed).toBe(90)
+    expect(result.variance).toBe(10)
+  })
+
+  test("a REAL zero on one component is not the same as no data -- variance becomes a real number", () => {
+    const result = computeBudgetVarianceLine(line({ materialAmount: 0 }))
+    expect(result.committed).toBe(0)
+    expect(result.variance).toBe(100)
+  })
+
+  test("committed cost above budget gives a NEGATIVE variance -- that is what 'over budget' now means", () => {
+    expect(computeBudgetVarianceLine(line({ vendorAmount: 130 })).variance).toBe(-30)
+  })
+
+  test("budget is still amount x budgetPercentage / 100, unchanged from Point 154", () => {
+    expect(computeBudgetVarianceLine(line({ amount: 400, budgetPercentage: 25 })).budget).toBe(100)
+  })
+})
+
+describe("isLineOverBudget (D-26)", () => {
+  test("a negative variance is over budget", () => {
+    expect(isLineOverBudget(-0.01)).toBe(true)
+  })
+
+  test("exactly on budget is NOT over budget", () => {
+    expect(isLineOverBudget(0)).toBe(false)
+  })
+
+  test("a line with no committed cost is neither over nor under -- it is uncosted", () => {
+    expect(isLineOverBudget(null)).toBe(false)
+  })
+})
+
+// R67 D-31 (R-090): the trade-wise attendance summary the Manpower screen
+// renders. These test the pure builders that turn the two EXISTING aggregates
+// (attendanceReport's (trade, status) grouping and manpowerCostReport's
+// per-trade one) into the rows, the grand total and the honesty check the
+// screen shows -- no new SQL grouping exists to test.
+describe("attendance summary builders (R67 D-31)", () => {
+  const STATUS_ROWS = [
+    { trade: "Mason", status: "present", count: 12, cost: 1440 },
+    { trade: "Mason", status: "absent", count: 1, cost: 0 },
+    { trade: "Electrician", status: "present", count: 4, cost: 600 },
+    { trade: "Electrician", status: "half_day", count: 2, cost: 150 },
+    { trade: null, status: "present", count: 1, cost: 90 },
+  ]
+
+  test("folds (trade, status) rows into one row per trade, alphabetically, with the unnamed trade last", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    expect(rows.map((r) => r.trade)).toEqual(["Electrician", "Mason", UNSPECIFIED_TRADE_LABEL])
+  })
+
+  test("a blank trade is NAMED, never dropped -- dropping it would break the totals", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    const unspecified = rows.find((r) => r.trade === UNSPECIFIED_TRADE_LABEL)!
+    expect(unspecified.present).toBe(1)
+    expect(unspecified.cost).toBe(90)
+  })
+
+  test("worker-days weight a half day as half and an absence as none", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    const mason = rows.find((r) => r.trade === "Mason")!
+    const electrician = rows.find((r) => r.trade === "Electrician")!
+    expect(mason.workerDays).toBe(12) // 12 present, 1 absent -> the absence adds nothing
+    expect(electrician.workerDays).toBe(5) // 4 present + 2 half days
+    expect(WORKER_DAY_WEIGHT.half_day).toBe(0.5)
+    expect(WORKER_DAY_WEIGHT.absent).toBe(0)
+  })
+
+  test("counts come back split by status, so 'Absent 1' is visible rather than folded into a single number", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    const mason = rows.find((r) => r.trade === "Mason")!
+    expect(mason).toMatchObject({ present: 12, halfDay: 0, absent: 1, cost: 1440 })
+  })
+
+  test("the grand total is the sum of the rows on screen, in every column", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    expect(totalAttendanceSummary(rows)).toEqual({ present: 17, halfDay: 2, absent: 1, workerDays: 18, cost: 2280 })
+  })
+
+  test("the headline count is bodies on site -- present plus half day, never absences", () => {
+    expect(headcountOnSite(buildAttendanceSummaryRows(STATUS_ROWS))).toBe(19)
+  })
+
+  test("numeric strings from the driver are read as numbers, not concatenated", () => {
+    const rows = buildAttendanceSummaryRows([{ trade: "Mason", status: "present", count: "3", cost: "360.50" }])
+    expect(rows[0].present).toBe(3)
+    expect(rows[0].cost).toBe(360.5)
+  })
+
+  test("the reconciliation TIES when both aggregates saw the same attendance rows and money", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    // manpowerCostReport counts every attendance row, absences included:
+    // Mason 13, Electrician 6, unnamed 1 = 20.
+    const byTrade = [
+      { totalCost: 1440, workerDays: 13 },
+      { totalCost: 750, workerDays: 6 },
+      { totalCost: 90, workerDays: 1 },
+    ]
+    const result = reconcileAttendanceSummary(rows, byTrade)
+    expect(result.ties).toBe(true)
+    expect(result.rowCountFromStatuses).toBe(20)
+    expect(result.rowCountFromTrades).toBe(20)
+  })
+
+  test("the reconciliation FAILS when the second aggregate saw rows the first did not -- the screen must not print a total nobody can reproduce", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    const byTrade = [
+      { totalCost: 1440, workerDays: 13 },
+      { totalCost: 750, workerDays: 6 },
+      // the unnamed-trade row is missing here
+    ]
+    expect(reconcileAttendanceSummary(rows, byTrade).ties).toBe(false)
+  })
+
+  test("a sub-cent float difference in money is NOT reported as a disagreement", () => {
+    const rows = buildAttendanceSummaryRows([{ trade: "Mason", status: "present", count: 1, cost: 100.001 }])
+    expect(reconcileAttendanceSummary(rows, [{ totalCost: 100, workerDays: 1 }]).ties).toBe(true)
+  })
+
+  test("a real money difference IS reported", () => {
+    const rows = buildAttendanceSummaryRows([{ trade: "Mason", status: "present", count: 1, cost: 100 }])
+    expect(reconcileAttendanceSummary(rows, [{ totalCost: 120, workerDays: 1 }]).ties).toBe(false)
+  })
+
+  test("no attendance at all is an empty summary, not a crash", () => {
+    const rows = buildAttendanceSummaryRows([])
+    expect(rows).toEqual([])
+    expect(totalAttendanceSummary(rows)).toEqual({ present: 0, halfDay: 0, absent: 0, workerDays: 0, cost: 0 })
+    expect(headcountOnSite(rows)).toBe(0)
+    expect(reconcileAttendanceSummary(rows, []).ties).toBe(true)
   })
 })

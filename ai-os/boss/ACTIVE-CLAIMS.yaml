@@ -331,6 +331,80 @@ active:
       band, the picked module's verbs hold it otherwise, and picking a module clears
       the verdict.
 
+  - session_label: "claude-code (subagent, r67-D21-screens-moms-scope) -- PROGRAMME R67 lane D21: the R66 UX audit's MoM, Scope, Work Progress and Manpower items (D-17..D-19, D-21..D-28, D-31, D-34)"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implemented as PROGRAMME R67.
+      This lane's items and their acceptance criteria are fixed by the programme's own
+      lane_D21.items.json + decisions.md (binding decisions D-01..D-09 plus the 2026-09-02
+      owner approvals); a decision beats an item's wording. Branch r67/d21-screens-moms-scope
+      in worktree C:/ct/ct-worktrees/r67-D21, REBASED onto origin/main 22167d02 after lane I
+      (r67(I): data-migrations, #1576) landed. This entry was AMENDED after the rebase: the
+      version first committed described only the lane's first commit and said "did NOT touch
+      any drizzle/ migration ... construction-boq-service.ts, construction-progress-service.ts,
+      construction-labour-service.ts", which stopped being true five commits later. The scope
+      below is the real, whole surface, so a parallel lane reading this file sees what is
+      actually claimed rather than what was claimed on day one.
+
+      compliance-tracker file scope, additive only:
+        - MIGRATIONS: NONE. The lane originally carried 0528/0529 for the BOQ line `category`
+          and `material_amount`/`manpower_amount` columns; lane I's already-merged 0530 and
+          0532 create all three, so both files and both journal entries were DELETED in the
+          rebase rather than renumbered. drizzle/ and drizzle/meta/_journal.json are
+          untouched by this branch.
+        - src/lib/services/veri-meeting-service.ts (+ NEW .test.ts) -- DRAFT-only soft delete
+          (status 'deleted'; veri_meetings.status is free text, so no migration), read
+          filtering for it, and the pure share-link composer D-21 needs.
+        - src/lib/services/hr-service.ts (+ existing .test.ts) -- one PURE helper
+          (filterOrgUsersByQuery) so D-19's people picker reuses listEmployees' read path.
+        - src/lib/services/construction-boq-service.ts (+ .test.ts) -- D-24: `category`
+          carried through insertLineItems/toLineItemInput so a revision cannot silently
+          un-categorise the lines it copies. The category PICKLIST is lane I's
+          construction-boq-category-service.ts + /boq/categories route; this lane's own
+          duplicate vocabulary was deleted in the rebase.
+        - src/lib/services/construction-boq-import-service.ts (+ .test.ts) -- D-25: per-row
+          issues[], pre-upload duplicate-code detection, a Category column mapping, and
+          toPreviewRows() for the dry-run preview. No new parse code.
+        - src/lib/services/construction-reports-service.ts (+ .test.ts) -- D-26
+          computeBudgetVarianceLine/isLineOverBudget (CONTRACT CHANGE: boqBudgetVarianceReport's
+          per-line `variance` now means budget REMAINING, not overspend -- sign flipped, see the
+          function's own comment) and D-31's date-ranged attendanceReport/manpowerCostReport
+          plus attendanceSummary().
+        - src/lib/services/construction-progress-service.ts (+ .test.ts) -- D-28: joined
+          activity/BOQ-line names on list+get, updateProgressEntry with create's own validation.
+        - src/lib/services/construction-labour-service.ts (+ NEW .test.ts) -- D-34: generated
+          'W-nnnn' worker codes claimed from lane I's compliance.construction_employee_code_counters
+          with the atomic upsert that table's schema comment prescribes, daily-rate validation,
+          listRosterTrades/mergeTrades.
+        - src/lib/services/construction-roster-import-service.ts (+ NEW .test.ts) -- D-34
+          roster spreadsheet importer, modelled on the shipped BOQ importer.
+        - src/lib/services/report-share-service.ts (+ NEW .test.ts) -- D-31: 'attendance_summary'
+          as a second shareable type on the same table/token/expiry rules.
+        - src/lib/pdf/attendance-summary-pdf.ts (+ .test.ts) -- D-31, modelled on the shipped WPR
+          generator; does no arithmetic of its own.
+        - src/lib/services/adoption-metrics-service.ts, src/lib/services/report-engine-service.ts,
+          src/lib/db/schema.ts (comment only) -- one line each so the D-17 soft delete is
+          honoured by the two OTHER readers of veri_meetings.
+        - Routes: v1/projexa/veri-meetings/[id] (DELETE), .../share-links, veri-meetings/share/
+          [token]/pdf (NEW public), v1/projexa/users (NEW), v1/projexa/scope/import (dryRun) and
+          .../import/template (NEW), v1/construction/boq/line-items/[id], .../boq/[id]/revisions,
+          v1/construction/progress/[id] (NEW) + v1/projexa/work-progress/[id] alias,
+          v1/projexa/attendance/summary (+ /pdf), v1/projexa/labour-roster/import and /trades.
+        - docs/master/TEST_COVERAGE_GAP.md regenerated (the gate's own script, not by hand).
+
+      File scope in projexa: the MoM, Scope, Work Progress and Manpower screens
+      (MoMCreateClient, MoMObjectClient, MoMsClient, ScopeClient, ScopeCreateClient,
+      ScopeReviseClient, ScopeObjectClient, ScopeImportClient, BoqLineGrid,
+      CostVarianceAnalyticalClient, WorkProgress* , Roster*, AttendanceSummaryPanel), the pure
+      modules behind them (boq-lineage, boq-helpers, scope-conflicts, mom-form, org-time,
+      org-user-picker, roster-form, attendance-summary, work-progress-report, format-date),
+      nav-routes.ts, authz/page-access.ts, authz/api-write-policy.ts, veridian-client.ts, and
+      src/components/screens/ObjectScreen.tsx -- the D-09 FORK of the kit's ObjectScreen.
+      node_modules/@fchecklist/veridian-ui-kit is NOT edited and no kit release is assumed.
+
+      Did NOT touch: the pipeline (classify/validate/executor/run-submission), platform.*
+      tables, any billing/Part D/Part E file, any guardrail script's strictness (AGENTS.md
+      Rule 9), or any dependency/lockfile/CI/tsconfig/eslint file in either repo.
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |
