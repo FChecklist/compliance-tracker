@@ -385,6 +385,49 @@ export async function listMaterialIssues(ctx: { orgId: string }, projectId: stri
   )
 }
 
+// R67 D-40. ONE RULE, ONE SPELLING. The refusal below is shown to the same
+// storekeeper as PROJEXA's own field-level warning (src/lib/unit-label.ts),
+// and the two used to disagree: the form said "Only 120 bags on hand" and the
+// server -- which is the one that actually refuses, and whose sentence the
+// form prints verbatim when it loses the race -- said "Only 120 bag on hand".
+// Same rule, two spellings, on one screen. The rule is ported here rather than
+// the client dropping its "s", because the authority is what a user must be
+// able to read back to a colleague.
+//
+// The rule itself is deliberately conservative: unit is free text set per
+// material, so this cannot be a lookup of every unit that will ever exist. Unit
+// SYMBOLS are plural-invariant ("120 kg", never "120 kgs"; "5 cum", never
+// "5 cums"), countable nouns -- bag, drum, roll, sheet -- take an "s", and
+// anything uncertain is returned UNCHANGED. A missing "s" reads as terse; an
+// invented one reads as a system that does not know what it is measuring.
+// Kept byte-identical to pluraliseUnit() in projexa's src/lib/unit-label.ts.
+const INVARIANT_UNITS = new Set([
+  // mass
+  "kg", "g", "mg", "t", "mt", "ton", "tonne", "lb", "lbs",
+  // length
+  "m", "cm", "mm", "km", "ft", "in", "rmt", "rft", "lm",
+  // area / volume
+  "m2", "m3", "sqm", "sqft", "cum", "cft", "cbm",
+  // capacity / count-ish abbreviations
+  "l", "ml", "ltr", "nos", "no", "pcs", "qty", "set", "each", "ea", "unit",
+])
+
+/** `pluraliseUnit("bag", 120) === "bags"`; `("kg", 120) === "kg"`; `("bag", 1) === "bag"`. */
+export function pluraliseUnit(unit: string | null | undefined, quantity: number): string {
+  const value = (unit ?? "").trim()
+  if (!value) return ""
+  if (quantity === 1) return value
+  const lower = value.toLowerCase()
+  if (INVARIANT_UNITS.has(lower)) return value
+  if (lower.endsWith("s")) return value
+  return `${value}s`
+}
+
+/** The one sentence for "you are trying to issue more than is on site". */
+export function onHandLimitMessage(onHand: number, unit: string | null | undefined): string {
+  return `Only ${onHand} ${pluraliseUnit(unit, onHand)} on hand`.replace(/\s+/g, " ").trim()
+}
+
 // R67 D-40. The on-hand cap is enforced HERE, not only in the form: the form's
 // cap is a courtesy to the storekeeper, this is the rule. Two people issuing
 // the last 50 bags from two phones would otherwise both pass a client check and
@@ -429,8 +472,10 @@ export async function createMaterialIssue(ctx: { orgId: string }, input: Materia
     const onHand = Math.round((Number(receivedRow?.total ?? 0) - Number(issuedRow?.total ?? 0)) * 1000) / 1000
     if (quantity > onHand) {
       // The message names the real figure and the real unit, because "invalid
-      // quantity" tells a storekeeper nothing they can act on.
-      throw new ServiceError(`Only ${onHand} ${material.unit} on hand`, 400)
+      // quantity" tells a storekeeper nothing they can act on -- and it is
+      // spelled exactly the way the form spells it, so the user never sees the
+      // same refusal two ways depending on who caught it.
+      throw new ServiceError(onHandLimitMessage(onHand, material.unit), 400)
     }
 
     const [row] = await db.insert(constructionMaterialIssues).values({

@@ -474,7 +474,7 @@ describe("createMaterialIssue -- R67 D-40", () => {
     await expect(createMaterialIssue({ orgId: ORG }, {
       projectId: PROJECT, materialId: CEMENT.id, issuedDate: "2026-09-02",
       quantity: 130, createdById: "user-1",
-    })).rejects.toThrow("Only 120 bag on hand")
+    })).rejects.toThrow("Only 120 bags on hand")
 
     // Nothing was written: a refused issue must not move the balance.
     expect(issueRows).toHaveLength(1)
@@ -502,7 +502,61 @@ describe("createMaterialIssue -- R67 D-40", () => {
     await expect(createMaterialIssue({ orgId: ORG }, {
       projectId: PROJECT, materialId: CEMENT.id, issuedDate: "2026-09-02",
       quantity: 1, createdById: "user-1",
-    })).rejects.toThrow("Only 0 bag on hand")
+    })).rejects.toThrow("Only 0 bags on hand")
+  })
+
+  // The refusal above is the SAME sentence PROJEXA's own field-level warning
+  // shows (src/lib/unit-label.ts's onHandLimitMessage), and the form prints the
+  // server's words verbatim when it loses the race the server check exists for.
+  // These pin the spelling on the authoritative side so the two can never drift
+  // back apart.
+  test("the refusal is pluralised exactly as the form pluralises it -- 'bags' for 120, 'bag' for 1", async () => {
+    await useMocks()
+    const { createMaterialIssue } = await import("./construction-materials-service")
+
+    receiptRows = [receipt({ id: "rec-1", quantity: "200" })]
+    issueRows = [issue({ id: "iss-1", quantity: "80" })]
+    await expect(createMaterialIssue({ orgId: ORG }, {
+      projectId: PROJECT, materialId: CEMENT.id, issuedDate: "2026-09-02",
+      quantity: 130, createdById: "user-1",
+    })).rejects.toThrow("Only 120 bags on hand")
+
+    // A balance of exactly one keeps the singular -- "Only 1 bags on hand"
+    // would read as a bug in the sentence, not a shortage on site.
+    issueRows = [issue({ id: "iss-1", quantity: "199" })]
+    await expect(createMaterialIssue({ orgId: ORG }, {
+      projectId: PROJECT, materialId: CEMENT.id, issuedDate: "2026-09-02",
+      quantity: 2, createdById: "user-1",
+    })).rejects.toThrow("Only 1 bag on hand")
+  })
+
+  test("a unit that is a SYMBOL is never given an 's' -- 'Only 120 kg on hand', not 'kgs'", async () => {
+    await useMocks()
+    const { createMaterialIssue } = await import("./construction-materials-service")
+
+    materialRows = [{ ...CEMENT, unit: "kg" }]
+    receiptRows = [receipt({ id: "rec-1", quantity: "200" })]
+    issueRows = [issue({ id: "iss-1", quantity: "80" })]
+
+    await expect(createMaterialIssue({ orgId: ORG }, {
+      projectId: PROJECT, materialId: CEMENT.id, issuedDate: "2026-09-02",
+      quantity: 130, createdById: "user-1",
+    })).rejects.toThrow("Only 120 kg on hand")
+  })
+
+  test("pluraliseUnit leaves an unknown unit alone rather than inventing a plural for it", async () => {
+    await useMocks()
+    const { pluraliseUnit, onHandLimitMessage } = await import("./construction-materials-service")
+
+    expect(pluraliseUnit("bag", 120)).toBe("bags")
+    expect(pluraliseUnit("bag", 1)).toBe("bag")
+    expect(pluraliseUnit("kg", 120)).toBe("kg")
+    expect(pluraliseUnit("cum", 5)).toBe("cum")
+    // Already plural, and empty/absent: unchanged in both directions.
+    expect(pluraliseUnit("bags", 120)).toBe("bags")
+    expect(pluraliseUnit(null, 120)).toBe("")
+    // A blank unit must not leave a double space in the sentence.
+    expect(onHandLimitMessage(120, null)).toBe("Only 120 on hand")
   })
 
   test("zero and negative quantities are refused before anything is read", async () => {

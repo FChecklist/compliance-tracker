@@ -271,13 +271,15 @@ export async function recordAttendance(
     }).returning()
     return row
   }).then((row) => {
-    // Wave 126: fire-and-forget automation trigger.
+    // Wave 126: fire-and-forget automation trigger. The .catch() matches the
+    // batch path below -- an automation rule that throws must not become an
+    // unhandled rejection on a write that has already succeeded.
     if (row.status === "absent") {
       void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
         evaluateAndRunRules({ orgId: ctx.orgId }, "construction_attendance.worker_absent", {
           rosterId: row.rosterId, projectId: row.projectId, attendanceDate: row.attendanceDate,
         })
-      )
+      ).catch((err) => console.error("attendance automation trigger failed:", err))
     }
     return row
   })
@@ -411,6 +413,14 @@ export async function recordAttendanceBatch(ctx: { orgId: string }, input: Atten
   // sheet must too or a worker marked absent from the sheet would silently
   // skip rules a worker marked one-at-a-time triggers. Fire-and-forget, same
   // as recordAttendance().
+  //
+  // The .catch() is not optional here even though the trigger is
+  // fire-and-forget by design. This path fans out N rules through
+  // Promise.all(), so ONE failing rule rejects the whole array; with nothing
+  // attached that is an unhandled promise rejection, which Node can escalate
+  // to a process exit. The sheet has already been saved and returned at this
+  // point -- the correct behaviour is to log and carry on, never to take the
+  // server down for a rule that misfired.
   const absent = result.attendance.filter((r) => r.status === "absent")
   if (absent.length > 0) {
     void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
@@ -419,7 +429,7 @@ export async function recordAttendanceBatch(ctx: { orgId: string }, input: Atten
           rosterId: row.rosterId, projectId: row.projectId, attendanceDate: row.attendanceDate,
         })
       ))
-    )
+    ).catch((err) => console.error("attendance batch automation trigger failed:", err))
   }
 
   return result
