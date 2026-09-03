@@ -83,7 +83,11 @@ export async function dispatchConstructionTool(
     const results = await Promise.all(
       orgDashboard.projects.slice(0, 20).map((p) => getProjectDashboard({ orgId }, p.id))
     )
-    return results.filter((p) => p.budget > 0 && p.expenses > p.budget)
+    // R67 D-02: p.budget is now `number | null` (null = no budget set at all,
+    // which is not a budget of zero). Reuses the one rule that decides this,
+    // rather than restating it -- see construction-expense-service.ts.
+    const { budgetExceeded } = await import("@/lib/services/construction-expense-service")
+    return results.filter((p) => budgetExceeded(p.budget, p.expenses))
   }
 
   if (codeReference === "get_construction_kpi_status") {

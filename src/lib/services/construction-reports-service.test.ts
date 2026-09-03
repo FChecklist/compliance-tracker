@@ -21,6 +21,15 @@
 // `computeBudgetVarianceLine`/attendance-summary (D-26) blocks both survive, in
 // that order. They share no symbols: D21's UNSPECIFIED_TRADE_LABEL and D3's
 // UNCATEGORISED_TRADE_LABEL are distinct exports covering distinct aggregators.
+//
+// R67 merge note (D-11, lane D1 x lane D21, 2026-09-03): lane D1's "R67 D-62
+// toBudgetLine" block also survives, in the middle of this file. Its three
+// variance assertions were RESTATED, not deleted -- toBudgetLine now computes
+// through D21's computeBudgetVarianceLine, which defines variance as budget
+// REMAINING rather than overspend, so the same facts carry the opposite sign.
+// The restatement is documented at the assertions themselves, and one new
+// assertion was added there covering the half D1's vendor-only formula could
+// not see (material and manpower are committed cost too).
 /// <reference types="bun-types" />
 import { describe, expect, test, mock, afterEach } from "bun:test"
 import {
@@ -30,6 +39,7 @@ import {
   computeCategoryProgress,
   computeCertifiedPayroll,
   computeEarnedValue,
+  toBudgetLine,
   computeBudgetVarianceLine,
   isLineOverBudget,
   buildAttendanceSummaryRows,
@@ -1077,6 +1087,139 @@ describe("boqBudgetVarianceReport widened for the project Budget screen (R67 D-4
     expect(result.lines[1].variance).toBeNull()
     expect(result.lines[1].committed).toBeNull()
     expect(result.lines[1].actual).toBeNull()
+  })
+})
+
+// R67 D-02 (audit R-004/R-009). budgetVsActual() reads
+// getProjectDashboard().budget, which is now `number | null` -- null when no
+// erp_budget_line_items row exists for the project's scope. `budget - actual`
+// on a null budget would have reported every unbudgeted project as overspent
+// by exactly its own spend; the rule now lives in one pure function.
+describe("budgetVariance (R67 D-02: no budget means no variance)", () => {
+  test("returns null when no budget has been set, rather than 0 - actual", async () => {
+    const { budgetVariance } = await import("./construction-reports-service")
+    expect(budgetVariance(null, 185_000)).toBeNull()
+  })
+
+  test("returns the real signed variance when a budget exists", async () => {
+    const { budgetVariance } = await import("./construction-reports-service")
+    expect(budgetVariance(500_000, 185_000)).toBe(315_000)
+    expect(budgetVariance(100_000, 185_000)).toBe(-85_000)
+  })
+
+  test("a genuine zero budget still produces a real variance, not null", async () => {
+    const { budgetVariance } = await import("./construction-reports-service")
+    expect(budgetVariance(0, 185_000)).toBe(-185_000)
+  })
+})
+
+// --- R67 D-62: the Budget tab's own line -----------------------------------
+//
+// toBudgetLine() is the pure half of boqBudgetVarianceReport(), extracted so the
+// arithmetic and -- more importantly -- the null rules can be checked without a
+// database. Everything it reads is an EXISTING column: budgetPercentage (NOT
+// NULL DEFAULT 25), vendorId, vendorAmount, materialAmount, manpowerAmount and
+// the line's own category. D-62 asks for a migration only if they were missing;
+// they are not.
+//
+// materialAmount/manpowerAmount, NOT materialCost/labourCost: settled at the
+// R67 lane I merge (2026-09-03). The cost pair is Wave 125's PER-UNIT rate
+// analysis; the amount pair is the budget-side split for the whole line, which
+// is what this report projects. schema.ts states the distinction at both
+// columns. The first draft of D-62 read the cost pair, and this test file now
+// asserts the corrected pair so the swap cannot come back unnoticed.
+describe("R67 D-62 toBudgetLine", () => {
+  const vendors = new Map([["sup_1", "Al Noor Trading"]])
+  const base = {
+    id: "li_1",
+    itemCode: "1.2",
+    description: "Blockwork",
+    amount: "100000",
+    budgetPercentage: "25",
+    materialAmount: null,
+    manpowerAmount: null,
+    vendorId: null,
+    vendorAmount: null,
+    category: null,
+  }
+
+  test("the 25% default budget is the column's default, applied per line", () => {
+    expect(toBudgetLine(base, vendors).budget).toBe(25_000)
+    expect(toBudgetLine(base, vendors).budgetPercentage).toBe(25)
+  })
+
+  test("a per-line override recomputes the budget from that line's own percent", () => {
+    expect(toBudgetLine({ ...base, budgetPercentage: "40" }, vendors).budget).toBe(40_000)
+  })
+
+  // R67 MERGE (D-11, lane D1 x lane D21, 2026-09-03). RESTATED, NOT DELETED.
+  // D1 wrote these three assertions against its own sign (variance =
+  // vendorAmount - budget, so 30,000 committed against a 25,000 budget read
+  // +5,000 "overspent"). D21's computeBudgetVarianceLine, which toBudgetLine now
+  // computes through, defines variance as BUDGET REMAINING (budget - committed),
+  // so the same facts read -5,000. The FACTS each assertion pins down are
+  // unchanged and all three still bite:
+  //   - nothing costed at all  -> null, never 0
+  //   - a real quote above the budget -> a real, signed variance
+  //   - a genuine quote of ZERO is a quote, and is not "not yet costed"
+  test("variance is null -- not 0 -- until a cost has actually been entered", () => {
+    expect(toBudgetLine(base, vendors).variance).toBeNull()
+    // 25,000 budget, 30,000 committed -> 5,000 OVER, i.e. -5,000 remaining.
+    expect(toBudgetLine({ ...base, vendorAmount: "30000" }, vendors).variance).toBe(-5_000)
+    // A real quote of zero is a real quote, and does produce a variance:
+    // nothing has been committed, so the whole 25,000 budget remains.
+    expect(toBudgetLine({ ...base, vendorAmount: "0" }, vendors).variance).toBe(25_000)
+  })
+
+  // R67 D-26, asserted from D1's own fixture: "committed" is vendor PLUS
+  // material PLUS manpower, not the subcontract alone. Under D1's original
+  // vendor-only formula a line costed entirely through material and manpower
+  // reported no variance at all.
+  test("material and manpower are committed cost too, not just the vendor amount", () => {
+    const line = toBudgetLine({ ...base, materialAmount: "60000", manpowerAmount: "15000" }, vendors)
+    expect(line.committed).toBe(75_000)
+    expect(line.variance).toBe(-50_000)
+    expect(isLineOverBudget(line.variance)).toBe(true)
+  })
+
+  test("Material and Manpower come from the line's own budget-side columns, null when unset", () => {
+    const line = toBudgetLine({ ...base, materialAmount: "60000", manpowerAmount: "15000" }, vendors)
+    expect(line.materialAmount).toBe(60_000)
+    expect(line.manpowerAmount).toBe(15_000)
+    const bare = toBudgetLine(base, vendors)
+    expect(bare.materialAmount).toBeNull()
+    expect(bare.manpowerAmount).toBeNull()
+  })
+
+  test("a line split as 0/0 stays distinguishable from a line nobody has split", () => {
+    const split = toBudgetLine({ ...base, materialAmount: "0", manpowerAmount: "0" }, vendors)
+    expect(split.materialAmount).toBe(0)
+    expect(split.manpowerAmount).toBe(0)
+    expect(toBudgetLine(base, vendors).materialAmount).toBeNull()
+  })
+
+  test("the vendor is named, not shown as an id, and is null when the line has no vendor", () => {
+    expect(toBudgetLine({ ...base, vendorId: "sup_1" }, vendors).vendorName).toBe("Al Noor Trading")
+    expect(toBudgetLine(base, vendors).vendorName).toBeNull()
+    // A vendor id whose supplier row is gone must not render as the raw id.
+    expect(toBudgetLine({ ...base, vendorId: "sup_missing" }, vendors).vendorName).toBeNull()
+  })
+
+  test("Category is the line's own column and is null -- never \"\" -- when it has none", () => {
+    expect(toBudgetLine({ ...base, category: "Civil" }, vendors).category).toBe("Civil")
+    expect(toBudgetLine(base, vendors).category).toBeNull()
+  })
+
+  test("totals are summed from the RAW figures, so per-line rounding cannot drift them", () => {
+    const items = ["a", "b", "c"].map((id) => ({ ...base, id, amount: "10", budgetPercentage: "33.333" }))
+    const lines = items.map((i) => toBudgetLine(i, vendors))
+    // Each line displays 3.33 (3.3333 rounded); the true total is 9.9999.
+    expect(lines[0].budget).toBe(3.33)
+    const rawTotal = Math.round(lines.reduce((s, l) => s + l._rawBudget, 0) * 100) / 100
+    const roundedTotal = Math.round(lines.reduce((s, l) => s + l.budget, 0) * 100) / 100
+    expect(rawTotal).toBe(10)
+    expect(roundedTotal).toBe(9.99)
+    expect(roundedTotal).not.toBe(rawTotal)
   })
 })
 

@@ -110,6 +110,21 @@ export function deriveReportDomainFromClassifications(classifications: string[])
   return "custom"
 }
 
+/**
+ * R67 D-02. budgetVsActual().budget is now `number | null` -- null when the
+ * project has NO erp_budget_line_items row at all, which is a different fact
+ * from a budget of zero (see construction-dashboard-service.ts's own note).
+ *
+ * Every cost formula in this file needs the same thing from it: a budget it
+ * can actually divide by. This returns that budget, or null when there is
+ * none to divide by -- so the three formulas below make one decision, in one
+ * place, and each says "no budget set" in its own note rather than dividing
+ * by zero or reporting an unbudgeted project as infinitely overspent.
+ */
+export function usableBudget(budget: number | null): number | null {
+  return budget !== null && budget > 0 ? budget : null
+}
+
 export type ExecutionType = "deterministic_aggregation" | "deterministic_formula" | "ai_recipe" | "external_service"
 
 // ─── execution_config shapes, one per ExecutionType ───────────────────────
@@ -486,15 +501,16 @@ async function computeCpi(ctx: { orgId: string }, params: Record<string, unknown
   const projectId = String(params.projectId ?? "")
   if (!projectId) throw new ServiceError("projectId is required for the CPI formula", 400)
   const [budget, completion] = await Promise.all([budgetVsActual(ctx, projectId), projectCompletionReport(ctx, projectId)])
-  if (budget.budget <= 0) {
+  const bac = usableBudget(budget.budget)
+  if (bac === null) {
     return { columns: ["Metric", "Value"], rows: [{ Metric: "CPI", Value: "N/A" }], note: "Project has no budget set (via its cost centre) -- cannot compute Earned Value." }
   }
-  const earnedValue = budget.budget * (completion.overallPercentComplete / 100)
+  const earnedValue = bac * (completion.overallPercentComplete / 100)
   const cpi = budget.actual > 0 ? earnedValue / budget.actual : earnedValue > 0 ? Infinity : 1
   return {
     columns: ["Metric", "Value"],
     rows: [
-      { Metric: "Budget (BAC)", Value: Math.round(budget.budget) },
+      { Metric: "Budget (BAC)", Value: Math.round(bac) },
       { Metric: "Actual Cost", Value: Math.round(budget.actual) },
       { Metric: "Earned Value (Budget x % Complete)", Value: Math.round(earnedValue) },
       { Metric: "CPI", Value: Number.isFinite(cpi) ? Math.round(cpi * 100) / 100 : 99 },
@@ -576,15 +592,16 @@ async function computeEarnedValueAnalysis(ctx: { orgId: string }, params: Record
       return { columns: ["Metric", "Value"], rows: [{ Metric: "Earned Value Analysis", Value: "N/A" }], note: "Project has no startDate/targetDate set -- cannot compute a time-linear Planned Value baseline." }
     }
     const [budget, completion] = await Promise.all([budgetVsActual(ctx, projectId), projectCompletionReport(ctx, projectId)])
-    if (budget.budget <= 0) {
+    const bac = usableBudget(budget.budget)
+    if (bac === null) {
       return { columns: ["Metric", "Value"], rows: [{ Metric: "Earned Value Analysis", Value: "N/A" }], note: "Project has no budget set (via its cost centre) -- cannot compute Planned/Earned Value in cost terms." }
     }
     const start = new Date(project.startDate).getTime()
     const target = new Date(project.targetDate).getTime()
     const totalMs = target - start
     const plannedPercent = totalMs <= 0 ? 100 : Math.max(0, Math.min(100, ((Date.now() - start) / totalMs) * 100))
-    const pv = budget.budget * (plannedPercent / 100)
-    const ev = budget.budget * (completion.overallPercentComplete / 100)
+    const pv = bac * (plannedPercent / 100)
+    const ev = bac * (completion.overallPercentComplete / 100)
     const ac = budget.actual
     return {
       columns: ["Metric", "Value"],
@@ -1168,7 +1185,13 @@ async function computeCostOverrunReport(ctx: { orgId: string }): Promise<ReportD
     const results: { name: string; budget: number; actual: number; overrun: number }[] = []
     for (const p of activeProjects) {
       const bva = await budgetVsActual(ctx, p.id)
-      if (bva.budget > 0 && bva.variance < 0) results.push({ name: p.name, budget: bva.budget, actual: bva.actual, overrun: Math.abs(bva.variance) })
+      const bac = usableBudget(bva.budget)
+      // R67 D-02: a project with NO budget cannot be a cost overrun. Before,
+      // a null budget would have arrived here as 0 and been filtered out by
+      // `> 0` -- the same outcome, but now it is stated rather than relied on.
+      if (bac !== null && bva.variance !== null && bva.variance < 0) {
+        results.push({ name: p.name, budget: bac, actual: bva.actual, overrun: Math.abs(bva.variance) })
+      }
     }
     results.sort((a, b) => b.overrun - a.overrun)
     return {

@@ -5,7 +5,7 @@
 
 VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for Module": "No systematic test-generation tooling"). Coverage here means "has a sibling `<name>.test.ts` file", not line-coverage percentage -- see this script's own header for why that's the right proxy for triaging files with ZERO tests. Files are ranked by line count because the largest untested files are both the riskiest to modify/refactor blind ("AI Can Safely Modify/Refactor Module" findings) and the highest-value next target.
 
-**Summary:** 142/256 service files have a sibling test file (55.5%).
+**Summary:** 143/256 service files have a sibling test file (55.9%).
 
 ## Top 20 untested files by size (highest priority first)
 
@@ -22,14 +22,14 @@ VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for Module": "No s
 | 9 | `src/lib/services/fm-register-digitization-service.ts` | 310 |
 | 10 | `src/lib/services/erp-goods-receipt-service.ts` | 307 |
 | 11 | `src/lib/services/communication-drafting-service.ts` | 302 |
-| 12 | `src/lib/services/document-service.ts` | 298 |
-| 13 | `src/lib/services/ai-report-builder-service.ts` | 251 |
-| 14 | `src/lib/services/veri-chat-service.ts` | 250 |
-| 15 | `src/lib/services/mdm-quality-service.ts` | 249 |
-| 16 | `src/lib/services/notice-service.ts` | 243 |
-| 17 | `src/lib/services/firm-engagement-service.ts` | 239 |
-| 18 | `src/lib/services/fm-ppm-service.ts` | 239 |
-| 19 | `src/lib/services/interior-floorplan-service.ts` | 238 |
-| 20 | `src/lib/services/erp-returns-service.ts` | 236 |
+| 12 | `src/lib/services/ai-report-builder-service.ts` | 251 |
+| 13 | `src/lib/services/veri-chat-service.ts` | 250 |
+| 14 | `src/lib/services/mdm-quality-service.ts` | 249 |
+| 15 | `src/lib/services/notice-service.ts` | 243 |
+| 16 | `src/lib/services/firm-engagement-service.ts` | 239 |
+| 17 | `src/lib/services/fm-ppm-service.ts` | 239 |
+| 18 | `src/lib/services/interior-floorplan-service.ts` | 238 |
+| 19 | `src/lib/services/erp-returns-service.ts` | 236 |
+| 20 | `src/lib/services/erp-inventory-planning-service.ts` | 233 |
 
-_Total untested files (all sizes): 114. Showing top 20._
+_Total untested files (all sizes): 113. Showing top 20._

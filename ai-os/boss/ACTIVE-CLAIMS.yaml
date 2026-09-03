@@ -1,4 +1,4 @@
-﻿# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
+# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
 # direct response to the Owner naming 4 parallel Claude sessions working
 # across this codebase at once, with no existing mechanism for one session
@@ -578,6 +578,17 @@ active:
       ui-kit (D-09: fork into projexa instead), platform.* tables, or any guardrail script's
       strictness (AGENTS.md Rule 9). No other active entry in this file claims drizzle/**,
       construction-boq-service.ts, construction-reports-service.ts or screen_definitions.
+
+      NOTE (added while lane D1 rebased onto this lane's merged work, 2026-09-03):
+      drizzle/0528_r67_i01_screen_definition_labels.sql section (3) appends Drawing No. /
+      Rev / Status to every drawings.list registry row using the field names
+      `drawingNumber` / `revision`. Lane D1's API and PROJEXA client emit `drawingNo` /
+      `rev`, so lane D1's own drizzle/0536_r67_drawings_list_columns.sql renames those two
+      fields on EVERY drawings.list row (including org overrides) and then writes the
+      canonical column order on the global row. 0534 must be applied AFTER 0528; applying
+      0528 again afterwards is a no-op (its NOT EXISTS guard keys on the 'Drawing No.'
+      label, which 0534 preserves).
+
   - session_label: "claude-code (subagent, r67/a-composer-shell) -- PROGRAMME R67 lane A (WS-A composer shell), items A-01..A-22"
     claimed_at: "2026-09-02T (this session)"
     claim: |
@@ -774,6 +785,58 @@ active:
       band, the picked module's verbs hold it otherwise, and picking a module clears
       the verdict.
 
+  - session_label: "claude-code (subagent, r67-D1) -- PROGRAMME R67, lane D1 (screens / dashboard / permits / drawings / documents): the compliance-tracker half of the owner-approved R66 UX audit items"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the R66 UX/product-design audit, owner-approved 2026-09-02 (scratchpad
+      impl/decisions.md D-01..D-10 + corrections C-01..C-15; lane file ws/lane_D1.items.json).
+      Branch r67/d1-screens-dashboard-permits-drawings-documents, worktree
+      C:/ct/ct-worktrees/r67-D1. PR-only per Rule 6; nothing pushed to main.
+
+      Most of lane D1 is PROJEXA-side (its own repo/branch of the same name). The
+      compliance-tracker file scope claimed here is only what the "repo: both" items need:
+        - D-02 (audit R-004/R-009): src/lib/services/construction-dashboard-service.ts
+          (+ .test.ts) -- getProjectDashboard().budget and getOrgDashboard().totalBudget
+          return null (never 0) when no erp_budget_line_items row exists for the scope, so
+          PROJEXA's dashboards stop rendering "AED 0" as a real, approved budget. Consumers
+          forced to handle the wider type, each with its sibling test updated:
+          construction-expense-service.ts (budgetExceeded()), construction-reports-service.ts
+          (budgetVariance()), construction-ai-service.ts (overspendRatioOf()),
+          report-engine-service.ts (usableBudget()), src/lib/task-execution/
+          construction-tools.ts, and src/app/(app)/construction-dashboard/page.tsx (so a
+          missing budget reads "Not set", not the role-redaction wording "Restricted").
+        - D-10/D-11/D-12 (drawings): src/lib/drawings-register.ts (+ .test.ts),
+          src/lib/services/document-service.ts (+ .test.ts) -- createDrawingRecord(),
+          the supersede-in-one-transaction rule and the partial metadata patch --
+          plus src/app/api/v1/projexa/drawings/route.ts, .../drawings/export/route.ts and
+          .../drawings/[id]/route.ts (GET/PATCH/DELETE).
+        - D-14/D-15 (documents): document-service.ts's createDocumentRecord() gains the
+          permit/rfi/mom/boq_line link plus the three email fields and a separate
+          projectId; createDocumentVersion() + .../documents/[id]/versions.
+        - D-62 (project money): construction-dashboard-service.ts's resolveProjectMoney()
+          and construction-reports-service.ts's boqBudgetVarianceReport() budget columns.
+        - D-78 (storage probe): src/lib/storage-config.ts (+ .test.ts),
+          src/app/api/health/route.ts, src/app/api/v1/projexa/storage-status/route.ts.
+        - drizzle/0537_r67_drawings_list_columns.sql + its meta/_journal.json entry
+          (idx 359) -- DATA only, no DDL. It renames lane I's 0528 section (3) fields
+          `drawingNumber`/`revision` to `drawingNo`/`rev` on every drawings.list row and
+          writes the canonical column order on the global row; it must be applied AFTER
+          0528. Numbered by reading `git ls-tree origin/main -- drizzle/` on a FRESHLY
+          FETCHED origin/main at integration time (highest 0536 = lane D3's, highest
+          journal idx 358). RENUMBERED FIVE TIMES by merging lanes -- drafted 0528
+          (collided with lane I), then 0533 (lane B), then 0534 (lane F2), then 0536
+          (lane D3, which landed after D1 had already resolved and pushed once) -- so
+          re-read that listing before merging rather than trusting this number.
+        - docs/master/TEST_COVERAGE_GAP.md (regenerated against the rebased tree).
+      No schema.ts change and no route contract break (dashboard `budget` keeps its name and
+      is now nullable; getOrgDashboard's per-project `value` survives as a deprecated alias
+      -- both documented in the PR). Not touching: the pipeline
+      (classify/executor/validate), any AI-router/model-selection file, billing_*/Formula 1-2
+      (r65-parte's area, see the entry below), or any guardrail script's strictness
+      (AGENTS.md Rule 9).
+
+      Rule 12: checked ai-os/memory/ indexes before starting; no prior entry claims the
+      construction dashboard/budget-null area.
   - session_label: "claude-code (subagent, r67-D21-screens-moms-scope) -- PROGRAMME R67 lane D21: the R66 UX audit's MoM, Scope, Work Progress and Manpower items (D-17..D-19, D-21..D-28, D-31, D-34)"
     claimed_at: "2026-09-02T (this session)"
     claim: |
