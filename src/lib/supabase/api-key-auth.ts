@@ -2,6 +2,44 @@ import { db, apiKeys, apiKeyRequestLog } from "@/lib/db"
 import { eq, and, gte, sql } from "drizzle-orm"
 import { hashSHA256 } from "@/lib/api-keys"
 import { lookupApiKeyByHash } from "@/lib/db/preauth-lookups"
+import { after } from "next/server"
+
+// R67 F-33 (audit recommendation R-278, latency_backend_evidence.md item 6) --
+// THE USAGE BOOKKEEPING RUNS AFTER THE RESPONSE, NOT BESIDE IT.
+//
+// Every API-key request -- which is EVERY PROJEXA request, read or write --
+// wrote two rows here: api_keys.last_used_at and one api_key_request_log row.
+// Neither is needed to answer the caller. Both were already un-awaited, which
+// looks like "off the hot path" and is not: an un-awaited promise still
+// competes for the same five-connection pool the request's own real queries are
+// queued on (see the R43_EXEC_02 note in src/lib/db/index.ts -- that pool
+// contending with itself is a diagnosed production fault on this codebase, not
+// a hypothetical), and on Vercel a bare promise can be killed the moment the
+// response is sent, so the row it was going to write is silently lost.
+//
+// after() fixes both halves: the work is deferred until the response has been
+// sent, and the runtime is told to keep the invocation alive for it. Every one
+// of them also gets a .catch() -- an un-caught rejection here was an unhandled
+// rejection with no message anywhere, which is how a request log stops being
+// written without anyone noticing.
+//
+// WHY THE FALLBACK. after() throws outside a request scope, and validateApiKey()
+// is also reachable from tests and scripts. There, the write simply runs
+// immediately -- the previous behaviour, minus the missing error handler.
+// `work` returns a PromiseLike, not a Promise: a drizzle query builder is
+// thenable but has no .catch of its own, so it is adopted by Promise.resolve
+// before the handler is attached.
+function afterResponse(label: string, work: () => PromiseLike<unknown>): void {
+  const run = () => Promise.resolve(work()).catch((err) => {
+    console.error(`[api-key-auth] ${label} failed (non-fatal):`, err instanceof Error ? err.message : err)
+  })
+  try {
+    after(run)
+  } catch {
+    // No request scope (a test, a script, a background job): do it now.
+    void run()
+  }
+}
 
 export type ApiKeyContext = {
   orgId: string
@@ -131,19 +169,28 @@ export async function validateApiKey(request: Request): Promise<ValidateApiKeyRe
       .where(and(eq(apiKeyRequestLog.apiKeyId, row.id), gte(apiKeyRequestLog.createdAt, cutoff)))
 
     if (Number(count) >= rateLimit) {
-      db.insert(apiKeyRequestLog).values({
-        apiKeyId: row.id, orgId: row.orgId, route, method: request.method, wasRateLimited: true,
-      }).then(() => {})
+      // Still logged -- a rejected request is the one an operator most wants to
+      // see in the usage dashboard -- but after the 429 has been sent.
+      afterResponse("rate-limited request log insert", () =>
+        db.insert(apiKeyRequestLog).values({
+          apiKeyId: row.id, orgId: row.orgId, route, method: request.method, wasRateLimited: true,
+        })
+      )
       return { status: "rate_limited", retryAfterSeconds: RATE_LIMIT_WINDOW_SECONDS }
     }
   }
 
-  // Fire-and-forget, matches the existing mcp_access_codes last_used_at
-  // pattern in api/mcp/route.ts -- don't block the caller's response on it.
-  db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, row.id)).then(() => {})
-  db.insert(apiKeyRequestLog).values({
-    apiKeyId: row.id, orgId: row.orgId, route, method: request.method, wasRateLimited: false,
-  }).then(() => {})
+  // R67 F-33: both of these are usage bookkeeping, not part of the answer --
+  // deferred until after the response is sent. See afterResponse() above for
+  // why an un-awaited promise was not already off the hot path.
+  afterResponse("last_used_at update", () =>
+    db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, row.id))
+  )
+  afterResponse("request log insert", () =>
+    db.insert(apiKeyRequestLog).values({
+      apiKeyId: row.id, orgId: row.orgId, route, method: request.method, wasRateLimited: false,
+    })
+  )
 
   return {
     status: "ok",

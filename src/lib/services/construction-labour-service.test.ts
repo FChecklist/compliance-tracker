@@ -1,362 +1,432 @@
-// R67 D-30 (Daily Attendance Sheet). construction-labour-service.ts had no
-// sibling test at all before this file, which is also why the repo's "New
-// Test Coverage Check" CI gate requires one the moment the service is
-// touched.
+// R67 F-25 (audit recommendation R-241) -- the first tests this service has
+// ever had, written for the dated attendance query it just gained.
 //
-// WHAT THIS EXERCISES AND HOW HONESTLY. This does NOT touch a live DB. It
-// runs the real recordAttendanceBatch()/listAttendance() with only
-// withTenantContext mocked -- the same convention
-// construction-progress-service.test.ts established -- but the fake db below
-// does not return canned rows: it EVALUATES the actual drizzle condition tree
-// the service builds (eq / and / inArray / gte / lte) against an in-memory
-// table, so a service that stopped scoping by orgId, by projectId, by
-// attendanceDate or by the roster-id set would start matching rows it should
-// not and these tests would fail. The evaluator supports exactly the
-// operators this service uses and throws on anything else rather than
-// silently treating an unknown predicate as "no constraint" -- an unsupported
-// operator must fail loudly, not pass.
+// THE DEFECT THIS PINS. PROJEXA's Manpower screen fetched a project's ENTIRE
+// attendance log on every landing, with no date filter of any kind, for a tab
+// that opens closed. listAttendance() now takes `date` (one day) and
+// `from`/`to` (an inclusive range), keeping `attendanceDate` as an alias so no
+// existing caller or query string breaks.
+//
+// This does NOT touch a live DB (this directory's standing convention, see
+// construction-progress-service.test.ts's own header). It exercises the real
+// listAttendance() with only withTenantContext mocked, and the fake db below
+// does NOT return canned rows: it PARSES the drizzle condition tree the service
+// actually built -- every eq/gte/lte predicate, at any AND depth -- and filters
+// the fixture with it. So if the service stopped adding the date predicate, the
+// fake would return the other day's rows too and these tests would fail, which
+// is exactly the regression they exist to catch.
 /// <reference types="bun-types" />
-import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test"
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import type { SQL } from "drizzle-orm"
 
-const ORG = "org-r67-d30"
-const OTHER_ORG = "org-other"
-const PROJECT = "project-cedar"
-const OTHER_PROJECT = "project-marina"
+const ORG = "org-r67-f25"
+const PROJECT = "project-r67-f25"
+const OTHER_PROJECT = "project-other"
 
-type Row = Record<string, unknown>
+type Predicate = { column: string; op: string; value: unknown }
 
-function isSql(node: unknown): node is { queryChunks: unknown[] } {
-  return !!node && typeof node === "object" && Array.isArray((node as { queryChunks?: unknown[] }).queryChunks)
-}
-function isColumn(node: unknown): node is { name: string } {
-  return !!node && typeof node === "object" && "columnType" in node && "name" in node
-}
-function isParam(node: unknown): node is { value: unknown } {
-  return !!node && typeof node === "object" && "encoder" in node && "value" in node
-}
-function isStringChunk(node: unknown): node is { value: string[] } {
-  return !!node && typeof node === "object" && !("encoder" in node) && Array.isArray((node as { value?: unknown }).value)
+/**
+ * Walks a drizzle condition tree and recovers every {column, operator, value}
+ * triple it contains. Drizzle renders `eq(col, v)` as queryChunks
+ * [StringChunk, Column, StringChunk(" = "), Param, StringChunk] and `and(a, b)`
+ * as those sub-trees interleaved with " and " StringChunks -- so remembering
+ * the last Column seen, then the StringChunk that followed it, then pairing
+ * both with the next Param, recovers eq/gte/lte alike at any depth. A LIST, not
+ * a Record: the same column legitimately appears twice in a from/to range.
+ */
+function extractPredicates(node: unknown, acc: Predicate[] = []): Predicate[] {
+  if (!node || typeof node !== "object") return acc
+  const chunks = (node as { queryChunks?: unknown[] }).queryChunks
+  if (!Array.isArray(chunks)) return acc
+  let pendingColumn: string | null = null
+  let pendingOp: string | null = null
+  for (const chunk of chunks) {
+    if (!chunk || typeof chunk !== "object") continue
+    if ("columnType" in chunk && "name" in chunk) {
+      pendingColumn = (chunk as { name: string }).name
+      pendingOp = null
+    } else if (Array.isArray((chunk as { value?: unknown }).value)) {
+      // A StringChunk. Only the one immediately after a Column is an operator.
+      if (pendingColumn && pendingOp === null) {
+        pendingOp = ((chunk as { value: string[] }).value.join("") || "").trim()
+      }
+    } else if ("value" in chunk && "encoder" in chunk) {
+      if (pendingColumn && pendingOp) {
+        acc.push({ column: pendingColumn, op: pendingOp, value: (chunk as { value: unknown }).value })
+      }
+      pendingColumn = null
+      pendingOp = null
+    } else {
+      extractPredicates(chunk, acc)
+    }
+  }
+  return acc
 }
 
-// Drizzle renders `eq(col, v)` as an SQL node whose queryChunks are
-// [StringChunk(""), Column, StringChunk(" = "), Param, StringChunk("")], and
-// `and(a, b)` as [StringChunk("("), SQL[ a, StringChunk(" and "), b ],
-// StringChunk(")")]. `inArray(col, values)` is the same leaf shape with the
-// operator " in " and a plain Array of Params as the operand. Verified
-// empirically against this repo's own drizzle-orm version before this
-// evaluator was written.
+/** Real drizzle rows come back camelCase; the Column objects carry snake_case. */
 function snakeToCamel(s: string): string {
   return s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
 }
 
-function evaluateCondition(node: unknown, row: Row): boolean {
-  if (node === undefined || node === null) return true
-  if (!isSql(node)) throw new Error("fake db: unsupported condition node (not a drizzle SQL chunk)")
-  const chunks = node.queryChunks
-
-  const colIndex = chunks.findIndex(isColumn)
-  if (colIndex !== -1) {
-    const column = chunks[colIndex] as { name: string }
-    const opChunk = chunks[colIndex + 1]
-    const operand = chunks[colIndex + 2]
-    const op = isStringChunk(opChunk) ? String(opChunk.value[0]).trim() : ""
-    const actual = row[snakeToCamel(column.name)]
-
-    if (op === "in") {
-      if (!Array.isArray(operand)) throw new Error("fake db: 'in' operand was not an array of params")
-      return operand.map((p) => (isParam(p) ? p.value : p)).includes(actual)
-    }
-    const expected = isParam(operand) ? operand.value : operand
-    switch (op) {
-      case "=": return actual === expected
-      case "<>": return actual !== expected
-      case ">=": return String(actual) >= String(expected)
-      case "<=": return String(actual) <= String(expected)
-      case ">": return String(actual) > String(expected)
-      case "<": return String(actual) < String(expected)
-      default: throw new Error(`fake db: unsupported operator "${op}"`)
-    }
-  }
-
-  const subConditions = chunks.filter(isSql)
-  if (subConditions.length === 0) throw new Error("fake db: condition had neither a column nor sub-conditions")
-  const joiners = chunks
-    .filter(isStringChunk)
-    .map((c) => String(c.value[0]).trim())
-    .filter((s) => s === "and" || s === "or")
-  const results = subConditions.map((sub) => evaluateCondition(sub, row))
-  return joiners.includes("or") ? results.some(Boolean) : results.every(Boolean)
+function satisfies(row: Record<string, unknown>, where: unknown): boolean {
+  return extractPredicates(where).every(({ column, op, value }) => {
+    const actual = row[snakeToCamel(column)]
+    if (op === "=") return actual === value
+    if (op === ">=") return String(actual) >= String(value)
+    if (op === "<=") return String(actual) <= String(value)
+    // An operator this evaluator does not know must FAIL loudly rather than
+    // silently pass every row -- a silently-ignored predicate is exactly the
+    // bug shape these tests exist to catch.
+    throw new Error(`unhandled predicate operator "${op}" on ${column}`)
+  })
 }
 
-// ── fixtures ────────────────────────────────────────────────────────────
-// ALI and BINA are on PROJECT; CARLOS is on a DIFFERENT project of the same
-// org (the intra-tenant misattribution case); DAWOOD belongs to a different
-// org entirely.
-const ALI = { id: "roster-ali", orgId: ORG, projectId: PROJECT, name: "Ali Hassan", dailyRate: "300", isActive: true }
-const BINA = { id: "roster-bina", orgId: ORG, projectId: PROJECT, name: "Bina Rao", dailyRate: "250", isActive: true }
-const CARLOS = { id: "roster-carlos", orgId: ORG, projectId: OTHER_PROJECT, name: "Carlos Diaz", dailyRate: "400", isActive: true }
-const DAWOOD = { id: "roster-dawood", orgId: OTHER_ORG, projectId: PROJECT, name: "Dawood Khan", dailyRate: "500", isActive: true }
+type AttendanceRow = {
+  id: string
+  orgId: string
+  projectId: string
+  rosterId: string
+  attendanceDate: string
+  status: string
+  hoursWorked: string | null
+  dailyCost: string
+}
 
-let rosterRows: Row[] = []
-let attendanceRows: Row[] = []
-let idSeq = 0
-let tenantContextCalls = 0
+// Two days, two workers, plus one row belonging to a DIFFERENT project so the
+// project predicate is genuinely exercised rather than assumed.
+const attendanceRows: AttendanceRow[] = [
+  { id: "a-sep01", orgId: ORG, projectId: PROJECT, rosterId: "r1", attendanceDate: "2026-09-01", status: "present", hoursWorked: "8", dailyCost: "500" },
+  { id: "a-sep02-r1", orgId: ORG, projectId: PROJECT, rosterId: "r1", attendanceDate: "2026-09-02", status: "present", hoursWorked: "8", dailyCost: "500" },
+  { id: "a-sep02-r2", orgId: ORG, projectId: PROJECT, rosterId: "r2", attendanceDate: "2026-09-02", status: "half_day", hoursWorked: "4", dailyCost: "250" },
+  { id: "a-sep03", orgId: ORG, projectId: PROJECT, rosterId: "r1", attendanceDate: "2026-09-03", status: "absent", hoursWorked: null, dailyCost: "0" },
+  { id: "a-other", orgId: ORG, projectId: OTHER_PROJECT, rosterId: "r9", attendanceDate: "2026-09-02", status: "present", hoursWorked: "8", dailyCost: "700" },
+]
 
-const mockWithTenantContext = mock(async (ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
-  tenantContextCalls++
-  void ctx
-  return fn(fakeDb as unknown as never)
-})
+const rosterRows = [
+  { id: "r1", orgId: ORG, projectId: PROJECT, name: "Ravi", dailyRate: "500", isActive: true },
+  { id: "r2", orgId: ORG, projectId: PROJECT, name: "Sunil", dailyRate: "500", isActive: true },
+]
+
+let insertedAttendance: Record<string, unknown>[] = []
+let existingAttendanceForConflict: AttendanceRow | undefined
 
 const fakeDb = {
   query: {
-    constructionLabourRoster: {
-      findMany: async ({ where }: { where: SQL }) => rosterRows.filter((r) => evaluateCondition(where, r)),
-      findFirst: async ({ where }: { where: SQL }) => rosterRows.find((r) => evaluateCondition(where, r)),
-    },
     constructionAttendance: {
-      findMany: async ({ where }: { where: SQL }) => attendanceRows.filter((r) => evaluateCondition(where, r)),
-      findFirst: async ({ where }: { where: SQL }) => attendanceRows.find((r) => evaluateCondition(where, r)),
+      findMany: async ({ where }: { where: SQL }) => attendanceRows.filter((r) => satisfies(r, where)),
+      findFirst: async () => existingAttendanceForConflict,
+    },
+    constructionLabourRoster: {
+      findMany: async ({ where }: { where: SQL }) => rosterRows.filter((r) => satisfies(r, where)),
+      findFirst: async ({ where }: { where: SQL }) => rosterRows.find((r) => satisfies(r, where)),
     },
   },
   insert: () => ({
-    values: (value: Row | Row[]) => ({
+    values: (v: Record<string, unknown>) => ({
       returning: async () => {
-        const incoming = Array.isArray(value) ? value : [value]
-        const created = incoming.map((v) => ({ id: `att-${++idSeq}`, createdAt: new Date("2026-09-02T00:00:00Z"), ...v }))
-        attendanceRows.push(...created)
-        return created
+        const row = { ...v, id: "new-attendance" }
+        insertedAttendance.push(row)
+        return [row]
       },
     }),
   }),
-  update: () => ({
-    set: (patch: Row) => ({
-      where: (where: SQL) => ({
-        returning: async () => {
-          const hits = attendanceRows.filter((r) => evaluateCondition(where, r))
-          for (const hit of hits) Object.assign(hit, patch)
-          return hits
-        },
-      }),
-    }),
-  }),
+  // R67 F-30. The attendance summary is a grouped aggregate, so it goes
+  // through db.execute() with raw SQL rather than the query builder. This
+  // stands in for Postgres by reading the DAY out of the statement drizzle
+  // built and grouping the SAME fixture by status -- so a service that stopped
+  // filtering by day, or that mis-mapped a status, still fails here.
+  execute: async (statement: unknown) => {
+    executedSql.push(sqlText(statement))
+    const params = sqlParams(statement)
+    const [orgId, projectId, date] = params as [string, string, string]
+    const rows = attendanceRows.filter(
+      (r) => r.orgId === orgId && r.projectId === projectId && r.attendanceDate === date
+    )
+    const byStatus = new Map<string, { entries: number; cost: number }>()
+    for (const r of rows) {
+      const bucket = byStatus.get(r.status) ?? { entries: 0, cost: 0 }
+      bucket.entries += 1
+      bucket.cost += Number(r.dailyCost)
+      byStatus.set(r.status, bucket)
+    }
+    return [...byStatus].map(([status, b]) => ({ status, entries: b.entries, cost: b.cost }))
+  },
 }
+
+let executedSql: string[] = []
+let transactionCount = 0
+
+/** The literal text drizzle assembled, so the SHAPE of a raw statement can be
+ *  asserted. Bound parameters are recovered separately by sqlParams(). */
+function sqlText(node: unknown): string {
+  if (!node || typeof node !== "object") return ""
+  const chunks = (node as { queryChunks?: unknown[] }).queryChunks
+  if (!Array.isArray(chunks)) return ""
+  let out = ""
+  for (const chunk of chunks) {
+    if (chunk && typeof chunk === "object") {
+      const value = (chunk as { value?: unknown }).value
+      if (Array.isArray(value)) out += value.join("")
+      else out += sqlText(chunk)
+    }
+  }
+  return out
+}
+
+/**
+ * The bound parameters, in the order the statement interpolates them.
+ *
+ * A value interpolated into a raw `sql` template arrives as a PRIMITIVE chunk
+ * sitting between StringChunks -- not as a wrapped Param object, which is what
+ * the query builder produces. Verified directly against drizzle rather than
+ * assumed: a walker that only looked for `{ value, encoder }` found nothing
+ * here and silently reported an empty summary.
+ */
+function sqlParams(node: unknown, acc: unknown[] = []): unknown[] {
+  if (!node || typeof node !== "object") return acc
+  const chunks = (node as { queryChunks?: unknown[] }).queryChunks
+  if (!Array.isArray(chunks)) return acc
+  for (const chunk of chunks) {
+    if (chunk === null || typeof chunk !== "object") {
+      acc.push(chunk)
+    } else if ("value" in chunk && "encoder" in chunk && !Array.isArray((chunk as { value: unknown }).value)) {
+      acc.push((chunk as { value: unknown }).value)
+    } else if (!Array.isArray((chunk as { value?: unknown }).value)) {
+      sqlParams(chunk, acc)
+    }
+  }
+  return acc
+}
+
+const mockWithTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
+  transactionCount += 1
+  return fn(fakeDb as unknown as never)
+})
 
 const realTenantScoped = await import("@/lib/db/tenant-scoped")
-const realAutomation = await import("./automation-rule-service")
-
-async function useMocks(): Promise<void> {
-  await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
-  // recordAttendanceBatch fires the Wave 126 absence automation
-  // fire-and-forget after the transaction; stub it so a test that marks
-  // someone absent does not reach the real rule engine (and a real DB).
-  await mock.module("./automation-rule-service", () => ({ evaluateAndRunRules: async () => [] }))
-}
 
 beforeEach(() => {
-  rosterRows = [{ ...ALI }, { ...BINA }, { ...CARLOS }, { ...DAWOOD }]
-  attendanceRows = []
-  idSeq = 0
-  tenantContextCalls = 0
+  insertedAttendance = []
+  existingAttendanceForConflict = undefined
+  executedSql = []
+  transactionCount = 0
   mockWithTenantContext.mockClear()
 })
 
 afterEach(async () => {
   mock.restore()
   await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
-  await mock.module("./automation-rule-service", () => realAutomation)
 })
 
-describe("computeDailyCost -- the one present/half-day/absent money rule", () => {
-  test("present is the full daily rate", async () => {
-    const { computeDailyCost } = await import("./construction-labour-service")
-    expect(computeDailyCost("300", "present")).toBe(300)
+async function loadService() {
+  await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+  return import("./construction-labour-service")
+}
+
+describe("listAttendance -- R67 F-25: a dated question gets a dated query", () => {
+  test("date '2026-09-02' returns only that day's rows, not the whole log", async () => {
+    const { listAttendance } = await loadService()
+
+    const rows = await listAttendance({ orgId: ORG }, { projectId: PROJECT, date: "2026-09-02" })
+
+    expect(rows.map((r) => r.id).sort()).toEqual(["a-sep02-r1", "a-sep02-r2"])
+    expect(rows.every((r) => r.attendanceDate === "2026-09-02")).toBe(true)
   })
 
-  test("half_day is exactly half the daily rate", async () => {
-    const { computeDailyCost } = await import("./construction-labour-service")
-    expect(computeDailyCost("250", "half_day")).toBe(125)
-    expect(computeDailyCost(275, "half_day")).toBe(137.5)
+  test("the day filter is scoped to the project as well -- another project's same-day row is not returned", async () => {
+    const { listAttendance } = await loadService()
+
+    const rows = await listAttendance({ orgId: ORG }, { projectId: PROJECT, date: "2026-09-02" })
+
+    expect(rows.map((r) => r.id)).not.toContain("a-other")
   })
 
-  test("absent is zero -- not the rate, and not null", async () => {
-    const { computeDailyCost } = await import("./construction-labour-service")
-    expect(computeDailyCost("300", "absent")).toBe(0)
+  test("attendanceDate is still honoured -- every pre-F-25 caller and ?attendanceDate= query string is unchanged", async () => {
+    const { listAttendance } = await loadService()
+
+    const rows = await listAttendance({ orgId: ORG }, { projectId: PROJECT, attendanceDate: "2026-09-01" })
+
+    expect(rows.map((r) => r.id)).toEqual(["a-sep01"])
   })
 
-  test("a non-numeric rate degrades to 0 rather than producing NaN in a money column", async () => {
-    const { computeDailyCost } = await import("./construction-labour-service")
-    expect(computeDailyCost("", "present")).toBe(0)
-    expect(computeDailyCost("not-a-rate", "present")).toBe(0)
-  })
-})
+  test("from/to is an INCLUSIVE range on both ends", async () => {
+    const { listAttendance } = await loadService()
 
-describe("recordAttendanceBatch -- R67 D-30 acceptance", () => {
-  test("saving the same sheet twice leaves exactly 2 rows (upsert, not 4), and half_day costs half the roster rate", async () => {
-    await useMocks()
-    const { recordAttendanceBatch } = await import("./construction-labour-service")
+    const rows = await listAttendance({ orgId: ORG }, { projectId: PROJECT, from: "2026-09-01", to: "2026-09-02" })
 
-    const rows = [
-      { rosterId: ALI.id, status: "present" as const },
-      { rosterId: BINA.id, status: "half_day" as const },
-    ]
-
-    const first = await recordAttendanceBatch({ orgId: ORG }, { projectId: PROJECT, attendanceDate: "2026-09-02", rows })
-    const second = await recordAttendanceBatch({ orgId: ORG }, { projectId: PROJECT, attendanceDate: "2026-09-02", rows })
-
-    expect(attendanceRows).toHaveLength(2)
-    expect(first.createdCount).toBe(2)
-    expect(second.createdCount).toBe(0)
-    expect(second.updatedCount).toBe(2)
-
-    const bina = attendanceRows.find((r) => r.rosterId === BINA.id)!
-    expect(Number(bina.dailyCost)).toBe(Number(BINA.dailyRate) * 0.5)
-    const ali = attendanceRows.find((r) => r.rosterId === ALI.id)!
-    expect(Number(ali.dailyCost)).toBe(Number(ALI.dailyRate))
+    expect(rows.map((r) => r.id).sort()).toEqual(["a-sep01", "a-sep02-r1", "a-sep02-r2"])
   })
 
-  test("re-saving with a corrected status rewrites the row's status AND its cost instead of appending a second row", async () => {
-    await useMocks()
-    const { recordAttendanceBatch } = await import("./construction-labour-service")
+  test("`date` wins over a range when both are supplied -- one day is never widened by a stale from/to", async () => {
+    const { listAttendance } = await loadService()
 
-    await recordAttendanceBatch({ orgId: ORG }, {
-      projectId: PROJECT, attendanceDate: "2026-09-02",
-      rows: [{ rosterId: ALI.id, status: "present" }],
-    })
-    await recordAttendanceBatch({ orgId: ORG }, {
-      projectId: PROJECT, attendanceDate: "2026-09-02",
-      rows: [{ rosterId: ALI.id, status: "absent" }],
-    })
+    const rows = await listAttendance({ orgId: ORG }, { projectId: PROJECT, date: "2026-09-03", from: "2026-09-01", to: "2026-09-03" })
 
-    expect(attendanceRows).toHaveLength(1)
-    expect(attendanceRows[0].status).toBe("absent")
-    expect(Number(attendanceRows[0].dailyCost)).toBe(0)
+    expect(rows.map((r) => r.id)).toEqual(["a-sep03"])
   })
 
-  test("a second date does not collide with the first -- the key is (roster, date), not roster alone", async () => {
-    await useMocks()
-    const { recordAttendanceBatch } = await import("./construction-labour-service")
+  test("no date filter at all still returns the project's whole log -- the default is unchanged", async () => {
+    const { listAttendance } = await loadService()
 
-    await recordAttendanceBatch({ orgId: ORG }, { projectId: PROJECT, attendanceDate: "2026-09-02", rows: [{ rosterId: ALI.id, status: "present" }] })
-    await recordAttendanceBatch({ orgId: ORG }, { projectId: PROJECT, attendanceDate: "2026-09-03", rows: [{ rosterId: ALI.id, status: "present" }] })
+    const rows = await listAttendance({ orgId: ORG }, { projectId: PROJECT })
 
-    expect(attendanceRows).toHaveLength(2)
-    expect(attendanceRows.map((r) => r.attendanceDate).sort()).toEqual(["2026-09-02", "2026-09-03"])
+    expect(rows).toHaveLength(4)
   })
 
-  test("the whole sheet is ONE transaction, however many rows it carries", async () => {
-    await useMocks()
-    const { recordAttendanceBatch } = await import("./construction-labour-service")
+  test("a rosterId-only read (no project) is still allowed, and is still dated", async () => {
+    const { listAttendance } = await loadService()
 
-    await recordAttendanceBatch({ orgId: ORG }, {
-      projectId: PROJECT, attendanceDate: "2026-09-02",
-      rows: [{ rosterId: ALI.id, status: "present" }, { rosterId: BINA.id, status: "absent" }],
-    })
+    const rows = await listAttendance({ orgId: ORG }, { rosterId: "r1", date: "2026-09-02" })
 
-    expect(tenantContextCalls).toBe(1)
+    expect(rows.map((r) => r.id)).toEqual(["a-sep02-r1"])
   })
 
-  test("the footer total is the sum of the saved rows' costs", async () => {
-    await useMocks()
-    const { recordAttendanceBatch } = await import("./construction-labour-service")
+  test("neither projectId nor rosterId is rejected before a transaction is opened", async () => {
+    const { listAttendance, ServiceError } = await loadService()
 
-    const result = await recordAttendanceBatch({ orgId: ORG }, {
-      projectId: PROJECT, attendanceDate: "2026-09-02",
-      rows: [{ rosterId: ALI.id, status: "present" }, { rosterId: BINA.id, status: "half_day" }],
-    })
-
-    expect(result.savedCount).toBe(2)
-    expect(result.totalCost).toBe(300 + 125)
-    expect(result.attendanceDate).toBe("2026-09-02")
-  })
-
-  test("hoursWorked is stored when given and left null when omitted -- an unmarked hours cell is not zero", async () => {
-    await useMocks()
-    const { recordAttendanceBatch } = await import("./construction-labour-service")
-
-    await recordAttendanceBatch({ orgId: ORG }, {
-      projectId: PROJECT, attendanceDate: "2026-09-02",
-      rows: [{ rosterId: ALI.id, status: "present", hoursWorked: 7.5 }, { rosterId: BINA.id, status: "present" }],
-    })
-
-    expect(attendanceRows.find((r) => r.rosterId === ALI.id)!.hoursWorked).toBe("7.5")
-    expect(attendanceRows.find((r) => r.rosterId === BINA.id)!.hoursWorked).toBeNull()
+    await expect(listAttendance({ orgId: ORG }, { date: "2026-09-02" })).rejects.toThrow(ServiceError)
+    expect(mockWithTenantContext).not.toHaveBeenCalled()
   })
 })
 
-describe("recordAttendanceBatch -- refusals, nothing written", () => {
-  test("a worker who belongs to a DIFFERENT project of the same org is rejected 404, and no row is written for anyone in the sheet", async () => {
-    await useMocks()
-    const { recordAttendanceBatch, ServiceError } = await import("./construction-labour-service")
+describe("recordAttendance -- dailyCost is derived from the roster's rate at write time", () => {
+  test("present costs the full daily rate", async () => {
+    const { recordAttendance } = await loadService()
 
-    await expect(recordAttendanceBatch({ orgId: ORG }, {
-      projectId: PROJECT, attendanceDate: "2026-09-02",
-      rows: [{ rosterId: ALI.id, status: "present" }, { rosterId: CARLOS.id, status: "present" }],
-    })).rejects.toThrow(ServiceError)
+    await recordAttendance({ orgId: ORG }, { projectId: PROJECT, rosterId: "r1", attendanceDate: "2026-09-04", status: "present" })
 
-    expect(attendanceRows).toHaveLength(0)
+    expect(insertedAttendance[0].dailyCost).toBe("500")
   })
 
-  test("a worker belonging to another ORG is rejected -- the roster lookup is org-scoped, not id-only", async () => {
-    await useMocks()
-    const { recordAttendanceBatch, ServiceError } = await import("./construction-labour-service")
+  test("half_day costs exactly half, and absent costs nothing", async () => {
+    const { recordAttendance } = await loadService()
 
-    await expect(recordAttendanceBatch({ orgId: ORG }, {
-      projectId: PROJECT, attendanceDate: "2026-09-02",
-      rows: [{ rosterId: DAWOOD.id, status: "present" }],
-    })).rejects.toThrow(ServiceError)
+    await recordAttendance({ orgId: ORG }, { projectId: PROJECT, rosterId: "r1", attendanceDate: "2026-09-04", status: "half_day" })
+    await recordAttendance({ orgId: ORG }, { projectId: PROJECT, rosterId: "r1", attendanceDate: "2026-09-05", status: "absent" })
 
-    expect(attendanceRows).toHaveLength(0)
+    expect(insertedAttendance[0].dailyCost).toBe("250")
+    expect(insertedAttendance[1].dailyCost).toBe("0")
   })
 
-  test("the same worker twice in one sheet is rejected rather than racing two writes for one cell", async () => {
-    await useMocks()
-    const { recordAttendanceBatch, ServiceError } = await import("./construction-labour-service")
+  test("an unknown roster is a 404, not a row written against a rate nobody has", async () => {
+    const { recordAttendance, ServiceError } = await loadService()
 
-    await expect(recordAttendanceBatch({ orgId: ORG }, {
-      projectId: PROJECT, attendanceDate: "2026-09-02",
-      rows: [{ rosterId: ALI.id, status: "present" }, { rosterId: ALI.id, status: "absent" }],
-    })).rejects.toThrow(ServiceError)
-
-    expect(attendanceRows).toHaveLength(0)
+    await expect(
+      recordAttendance({ orgId: ORG }, { projectId: PROJECT, rosterId: "ghost", attendanceDate: "2026-09-04" })
+    ).rejects.toThrow(ServiceError)
+    expect(insertedAttendance).toHaveLength(0)
   })
 
-  test("an empty sheet, a missing date and an unknown status are each refused with a 400", async () => {
-    await useMocks()
-    const { recordAttendanceBatch, ServiceError } = await import("./construction-labour-service")
+  test("a second entry for the same worker on the same date is a 409, never a silent duplicate", async () => {
+    existingAttendanceForConflict = attendanceRows[1]
+    const { recordAttendance, ServiceError } = await loadService()
 
-    await expect(recordAttendanceBatch({ orgId: ORG }, { projectId: PROJECT, attendanceDate: "2026-09-02", rows: [] }))
-      .rejects.toThrow(ServiceError)
-    await expect(recordAttendanceBatch({ orgId: ORG }, { projectId: PROJECT, attendanceDate: "", rows: [{ rosterId: ALI.id, status: "present" }] }))
-      .rejects.toThrow(ServiceError)
-    await expect(recordAttendanceBatch({ orgId: ORG }, {
-      projectId: PROJECT, attendanceDate: "2026-09-02",
-      rows: [{ rosterId: ALI.id, status: "sick" as unknown as "present" }],
-    })).rejects.toThrow(ServiceError)
-
-    expect(attendanceRows).toHaveLength(0)
-    expect(tenantContextCalls).toBe(0)
+    await expect(
+      recordAttendance({ orgId: ORG }, { projectId: PROJECT, rosterId: "r1", attendanceDate: "2026-09-02" })
+    ).rejects.toThrow(ServiceError)
+    expect(insertedAttendance).toHaveLength(0)
   })
 })
 
-describe("listAttendance -- R67 D-30/D-33 from/to window", () => {
-  test("from/to filter in SQL and are inclusive at both ends", async () => {
-    await useMocks()
-    const { recordAttendanceBatch, listAttendance } = await import("./construction-labour-service")
+describe("listRoster", () => {
+  test("is scoped to the org AND the project, never the org alone", async () => {
+    const { listRoster } = await loadService()
 
-    for (const date of ["2026-08-31", "2026-09-01", "2026-09-15", "2026-09-30", "2026-10-01"]) {
-      await recordAttendanceBatch({ orgId: ORG }, { projectId: PROJECT, attendanceDate: date, rows: [{ rosterId: ALI.id, status: "present" }] })
-    }
+    const rows = await listRoster({ orgId: ORG }, PROJECT)
 
-    const september = await listAttendance({ orgId: ORG }, { rosterId: ALI.id, from: "2026-09-01", to: "2026-09-30" })
-    expect(september.map((r) => (r as unknown as Row).attendanceDate).sort())
-      .toEqual(["2026-09-01", "2026-09-15", "2026-09-30"])
+    expect(rows.map((r) => r.id).sort()).toEqual(["r1", "r2"])
+    expect(await listRoster({ orgId: ORG }, OTHER_PROJECT)).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 F-30 (audit recommendation R-274) -- the /labour landing in ONE hop.
+// ---------------------------------------------------------------------------
+//
+// The screen wants the roster AND "how did today go". Asking for them one
+// after the other is two round trips to VERIDIAN and two transactions on a
+// five-connection pool for one landing. getLabourLanding() answers both from
+// one transaction, and the summary is a grouped aggregate over ONE DAY, so it
+// stays a constant-size answer however long the project runs.
+describe("getLabourLanding -- R67 F-30: roster and the day's summary, one transaction", () => {
+  test("returns both, and opens exactly ONE tenant transaction to do it", async () => {
+    const { getLabourLanding } = await loadService()
+
+    const landing = await getLabourLanding({ orgId: ORG }, PROJECT, { attendanceDate: "2026-09-02" })
+
+    expect(landing.roster.map((r) => r.id).sort()).toEqual(["r1", "r2"])
+    expect(landing.attendanceSummary).not.toBeNull()
+    expect(transactionCount).toBe(1)
+    // One grouped statement for the summary -- not one per status, and not the
+    // whole log pulled back to be counted in JS.
+    expect(executedSql).toHaveLength(1)
   })
 
-  test("a query with neither projectId nor rosterId is refused rather than returning the whole org", async () => {
-    await useMocks()
-    const { listAttendance, ServiceError } = await import("./construction-labour-service")
-    await expect(listAttendance({ orgId: ORG }, {})).rejects.toThrow(ServiceError)
+  test("the summary counts that ONE day, by status, with the day's cost", async () => {
+    const { getLabourLanding } = await loadService()
+
+    const { attendanceSummary } = await getLabourLanding({ orgId: ORG }, PROJECT, { attendanceDate: "2026-09-02" })
+
+    // 2026-09-02 on THIS project: r1 present (500) + r2 half_day (250).
+    expect(attendanceSummary).toEqual({
+      date: "2026-09-02",
+      recorded: 2,
+      present: 1,
+      halfDay: 1,
+      absent: 0,
+      totalCost: 750,
+    })
+  })
+
+  test("another project's same-day row is not counted -- the summary is project-scoped", async () => {
+    const { getLabourLanding } = await loadService()
+
+    const { attendanceSummary } = await getLabourLanding({ orgId: ORG }, PROJECT, { attendanceDate: "2026-09-02" })
+
+    // a-other is the same day, same org, DIFFERENT project, and costs 700.
+    expect(attendanceSummary!.totalCost).toBe(750);
+    expect(attendanceSummary!.recorded).toBe(2)
+  })
+
+  test("a day with nothing recorded returns zeroes, not null -- 'nobody marked attendance' is an answer", async () => {
+    const { getLabourLanding } = await loadService()
+
+    const { attendanceSummary } = await getLabourLanding({ orgId: ORG }, PROJECT, { attendanceDate: "2026-12-25" })
+
+    expect(attendanceSummary).toEqual({
+      date: "2026-12-25",
+      recorded: 0,
+      present: 0,
+      halfDay: 0,
+      absent: 0,
+      totalCost: 0,
+    })
+  })
+
+  test("the statement filters on the day itself, so it can use the (project_id, attendance_date) index", async () => {
+    const { getLabourLanding } = await loadService()
+
+    await getLabourLanding({ orgId: ORG }, PROJECT, { attendanceDate: "2026-09-03" })
+
+    const text = executedSql[0].replace(/\s+/g, " ").toLowerCase()
+    expect(text).toContain("compliance.construction_attendance")
+    expect(text).toContain("attendance_date =")
+    expect(text).toContain("group by status")
+  })
+
+  test("no date at all means no summary -- and no statement is run for one", async () => {
+    const { getLabourLanding } = await loadService()
+
+    const landing = await getLabourLanding({ orgId: ORG }, PROJECT)
+
+    expect(landing.roster).toHaveLength(2)
+    expect(landing.attendanceSummary).toBeNull()
+    expect(executedSql).toHaveLength(0)
+  })
+
+  test("a missing projectId is a 400, never a landing scoped to the whole org", async () => {
+    const { getLabourLanding, ServiceError } = await loadService()
+
+    await expect(getLabourLanding({ orgId: ORG }, "")).rejects.toThrow(ServiceError)
   })
 })

@@ -7,10 +7,47 @@ import {
   constructionCategories, constructionActivities, constructionWorkProgressEntries, constructionBoqLineItems, constructionBoqs, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, gte, lte } from "drizzle-orm"
+import { and, desc, eq, gte, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { listDocuments } from "./document-service"
+// R67 F-27 (R-243): logging or deleting progress moves % complete, earned
+// value and the progress bar on the per-project dashboard, which now holds a
+// 60 s cache. ONE helper, imported from a dependency-free module so this
+// service does not have to depend on the dashboard service.
+import { bustProjectDashboardCache } from "./project-dashboard-cache"
 export { ServiceError }
+
+/**
+ * R67 lane B (B-09) -- ONE RULE FOR A PROGRESS ENTRY, IN ONE PLACE.
+ *
+ * Before this, the form and the composer disagreed about whether a BOQ line
+ * was required: PROJEXA's Daily Entry form marked it OPTIONAL and buried it
+ * below the derived fields, while the chat pipeline refused without one and
+ * said "itemCode is required". Two answers to one question, and neither of
+ * them was the product's.
+ *
+ * The rule adopted is the recommended one, and it lives HERE -- in the
+ * service both callers already go through -- rather than in either caller:
+ *
+ *   the project has at least one BOQ  -> a BOQ line is REQUIRED
+ *   the project has no BOQ at all     -> the entry is accepted, unlinked,
+ *                                        and the Work Progress Report says
+ *                                        so instead of silently dropping it
+ *
+ * It is raised as a CODE, never a sentence (decision D-03): the wording lives
+ * in projexa's src/lib/task-errors.ts, so the form and the composer print the
+ * same words because they read the same dictionary -- not because someone
+ * kept two strings in step by hand.
+ */
+export class ProgressRuleError extends ServiceError {
+  readonly missing: string[]
+  constructor(code: string, missing: string[]) {
+    // The MESSAGE is a code line, not prose. There is deliberately no English
+    // here for a route to leak into a UI by accident.
+    super(`${code} missing=${missing.join(",")}`, 400, { code })
+    this.missing = missing
+  }
+}
 
 // R48 gap-closure (2026-08-29, F039: "Daily progress report with photos" --
 // genuinely missing, confirmed by searching the whole repo for any file
@@ -96,10 +133,40 @@ export async function createActivity(ctx: { orgId: string }, input: { projectId:
 // column) and boqLineItemId (the direct-link column added by R12 point 7)
 // as additional, purely optional filters -- every existing caller that
 // passes none of them keeps getting exactly the same result set as before.
+// R67 F-24 (audit recommendation R-240) -- THE NAMES COME WITH THE ROWS.
+//
+// THE MEASURED PROBLEM. /work-progress reached idle at 7.4 s over 15 calls
+// because the browser ran a SERIAL chain to answer one question: what does the
+// BOQ column say? It fetched the entries, then the activities, then
+// /api/scope, then one /api/scope/{id} per revision -- pulling every line item
+// of a whole BOQ across the wire -- and after all that still rendered a raw id
+// like "e5eibnze72n8u2y3aoeok" in the cell, because the resolution frequently
+// missed.
+//
+// A progress entry's activity and BOQ line are a JOIN. Two LEFT JOINs (LEFT,
+// so an entry whose line item was later deleted -- boq_line_item_id is ON
+// DELETE SET NULL, see schema.ts -- still lists, with nulls, rather than
+// vanishing) put activityName, boqItemCode and boqDescription on the row, in
+// the SAME statement, and the client's whole scope fan-out disappears. The
+// payload stays small on purpose: three resolved strings per row, never the
+// BOQ.
+//
+// Column list, not `select()`: an explicit projection is what keeps this from
+// silently widening into "every column of three tables" when any of them
+// gains one.
+export type ProgressEntryRow = typeof constructionWorkProgressEntries.$inferSelect & {
+  /** The activity's name. null only if the activity row is gone. */
+  activityName: string | null
+  /** The linked BOQ line's item code, e.g. "R60SK". null when unlinked. */
+  boqItemCode: string | null
+  /** The linked BOQ line's description. null when unlinked. */
+  boqDescription: string | null
+}
+
 export async function listProgressEntries(
   ctx: { orgId: string },
   filters: { projectId?: string; activityId?: string; boqLineItemId?: string; dateFrom?: string; dateTo?: string }
-) {
+): Promise<ProgressEntryRow[]> {
   if (!filters.projectId && !filters.activityId) throw new ServiceError("projectId or activityId is required", 400)
   return withTenantContext({ orgId: ctx.orgId }, (db) => {
     const conditions = [eq(constructionWorkProgressEntries.orgId, ctx.orgId)]
@@ -108,7 +175,29 @@ export async function listProgressEntries(
     if (filters.boqLineItemId) conditions.push(eq(constructionWorkProgressEntries.boqLineItemId, filters.boqLineItemId))
     if (filters.dateFrom) conditions.push(gte(constructionWorkProgressEntries.entryDate, filters.dateFrom))
     if (filters.dateTo) conditions.push(lte(constructionWorkProgressEntries.entryDate, filters.dateTo))
-    return db.query.constructionWorkProgressEntries.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.entryDate) })
+    return db
+      .select({
+        id: constructionWorkProgressEntries.id,
+        orgId: constructionWorkProgressEntries.orgId,
+        projectId: constructionWorkProgressEntries.projectId,
+        activityId: constructionWorkProgressEntries.activityId,
+        boqLineItemId: constructionWorkProgressEntries.boqLineItemId,
+        entryDate: constructionWorkProgressEntries.entryDate,
+        quantityDone: constructionWorkProgressEntries.quantityDone,
+        percentComplete: constructionWorkProgressEntries.percentComplete,
+        entryBasis: constructionWorkProgressEntries.entryBasis,
+        remarks: constructionWorkProgressEntries.remarks,
+        recordedById: constructionWorkProgressEntries.recordedById,
+        createdAt: constructionWorkProgressEntries.createdAt,
+        activityName: constructionActivities.name,
+        boqItemCode: constructionBoqLineItems.itemCode,
+        boqDescription: constructionBoqLineItems.description,
+      })
+      .from(constructionWorkProgressEntries)
+      .leftJoin(constructionActivities, eq(constructionActivities.id, constructionWorkProgressEntries.activityId))
+      .leftJoin(constructionBoqLineItems, eq(constructionBoqLineItems.id, constructionWorkProgressEntries.boqLineItemId))
+      .where(and(...conditions))
+      .orderBy(desc(constructionWorkProgressEntries.entryDate))
   })
 }
 
@@ -134,6 +223,10 @@ export async function deleteProgressEntry(ctx: { orgId: string }, entryId: strin
     if (!entry) throw new ServiceError("Progress entry not found", 404)
     await db.delete(constructionWorkProgressEntries).where(eq(constructionWorkProgressEntries.id, entryId))
     return { deleted: true, id: entryId, activityId: entry.activityId, projectId: entry.projectId }
+  }).then((result) => {
+    // R67 F-27: a deleted entry changes % complete and earned value.
+    bustProjectDashboardCache(ctx.orgId, result.projectId)
+    return result
   })
 }
 
@@ -163,6 +256,20 @@ export async function createProgressEntry(
     // Same shape src/lib/pipeline/executor.ts already uses.
     const activity = await db.query.constructionActivities.findFirst({ where: and(eq(constructionActivities.id, input.activityId), eq(constructionActivities.orgId, ctx.orgId), eq(constructionActivities.projectId, input.projectId)) })
     if (!activity) throw new ServiceError("Activity not found", 404)
+
+    // R67 B-09 -- THE ONE RULE, checked here so both callers get one answer.
+    // A project that has a BOQ is a project whose progress is measured
+    // against it: an entry with no line cannot be rolled up, cannot be
+    // valued, and disappears from the Work Progress Report. So it is refused
+    // -- with a code, before anything is written. A project with NO BOQ has
+    // nothing to link to, and refusing there would make the module unusable
+    // for a job that is not billed off a bill of quantities at all.
+    const projectHasBoq = await db.query.constructionBoqs.findFirst({
+      where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, input.projectId)),
+    })
+    if (projectHasBoq && !input.boqLineItemId) {
+      throw new ProgressRuleError("BOQ_LINE_REQUIRED", ["boqLine"])
+    }
 
     // R12 point 7 (Option B): the direct BOQ-line link -- optional, so
     // every existing (activity-only) caller keeps working unchanged. When
@@ -211,8 +318,16 @@ export async function createProgressEntry(
       entryDate: input.entryDate, quantityDone: input.quantityDone !== undefined ? String(input.quantityDone) : undefined, percentComplete: String(input.percentComplete),
       entryBasis, remarks: input.remarks || null, recordedById: ctx.userId,
     }).returning()
-    return row
+    // R67 B-09: the caller is told, on the row itself, whether this entry is
+    // counted by the Work Progress Report. Derived from what was actually
+    // stored, never from what was asked for.
+    return { ...row, linkedToBoq: boqLineItemId !== null }
   }).then((row) => {
+    // R67 F-27: this row moved % complete, earned value and the progress bar
+    // on the project dashboard. Bust BEFORE anything async below, so the very
+    // next read recomputes rather than serving the figure from a moment ago --
+    // "I just logged progress, where is it?" is the whole point.
+    bustProjectDashboardCache(ctx.orgId, row.projectId)
     // Wave 126: fire-and-forget automation trigger, matching
     // pms-issue-service.ts's updateIssue() status-change trigger posture
     // (dynamic import, void, never blocks/breaks the write it enriches).

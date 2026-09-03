@@ -13365,6 +13365,30 @@ export const pipelineTasks = complianceSchemaDB.table('pipeline_tasks', {
   executor: pipelineTaskExecutorEnum('executor').notNull().default('software'),
   status: pipelineTaskStatusEnum('status').notNull().default('to_do'),
   result: jsonb('result'),
+  // R67 B-01/B-08 (decision D-03) -- THE FAILURE, TYPED.
+  //
+  // `error` used to hold a free-text English sentence composed in this repo
+  // and rendered verbatim by PROJEXA's Task Master. The R66 walkthrough
+  // captured what that produced on a real screen: "itemCode is required",
+  // "no project resolved for this task", and a Postgres driver string
+  // carrying an internal address ("write CONNECT_TIMEOUT 3.109.171.244:6543").
+  //
+  // B-01 changed the column's CONTENT to a serialised {code, missing,
+  // context} object; these two columns give that object real, queryable
+  // homes so a failure can be counted and grouped in SQL instead of by
+  // parsing JSON out of a text column. `error` is kept as the same
+  // serialised object (NOT the driver's text -- the raw message is logged
+  // server-side and deliberately never persisted, which is the whole point
+  // of B-01) so that rows written between the two changes still read.
+  //
+  // error_code is one of src/lib/pipeline/error-codes.ts's closed set;
+  // error_params carries only real business values ({itemCode, project,
+  // version}) that the projexa dictionary interpolates into its sentence.
+  // Deliberately text, not an enum: the vocabulary is owned by application
+  // code that both repos version independently, and a migration per new code
+  // would guarantee the two drift.
+  errorCode: text('error_code'),
+  errorParams: jsonb('error_params'),
   error: text('error'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

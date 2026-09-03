@@ -16,6 +16,7 @@
 import { NextResponse } from "next/server";
 import { resolveAiLinkToken } from "@/lib/ai-links/user-links";
 import { runSubmission } from "@/lib/pipeline/run-submission";
+import { failureLogLine } from "@/lib/pipeline/error-codes";
 
 const TOOL_DEFINITIONS = [
   {
@@ -65,7 +66,23 @@ async function handleTool(name: string, args: Record<string, unknown>, orgId: st
     const question = String(args.question ?? "");
     if (!question.trim()) throw new Error("question is required");
     const result = await runSubmission({ orgId, userId, mode: "Projects", projectId: null, rawInput: question });
-    return { answer: result.chatMessages.join("\n") || JSON.stringify(result) };
+    const said = result.chatMessages.join("\n").trim();
+    if (said) return { answer: said };
+    // R67 FIX PASS -- COLLATERAL OF REMOVING PROSE FROM THE PIPELINE.
+    //
+    // runSubmission() used to push "I can't do that yet: <reason>" into
+    // chatMessages for a validation failure; D-03 moved that sentence to the
+    // client, and the reason now travels in `failures` as {code, missing}.
+    // This call site kept `|| JSON.stringify(result)`, so an MCP client that
+    // used to receive one honest line started receiving the whole result
+    // object. MCP has no projexa dictionary to consult and its caller is
+    // itself a model, so the CODE LINE -- "BOQ_LINE_REQUIRED missing=boqLine"
+    // -- is the right rendering here: exhaustive, stable, and no new prose
+    // that could drift from the client's wording.
+    if (result.failures.length > 0) {
+      return { answer: `I can't answer that yet: ${result.failures.map((f) => failureLogLine(f)).join("; ")}` };
+    }
+    return { answer: JSON.stringify(result) };
   }
   throw new Error(`Unknown tool: ${name}`);
 }
