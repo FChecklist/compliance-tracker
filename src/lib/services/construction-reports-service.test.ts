@@ -38,6 +38,7 @@ import {
   aggregateWorkAnalysis,
   buildPeriodDays,
   computeCategoryProgress,
+  summariseBudgetLines,
   computeCertifiedPayroll,
   computeEarnedValue,
   toBudgetLine,
@@ -47,11 +48,13 @@ import {
   totalAttendanceSummary,
   reconcileAttendanceSummary,
   headcountOnSite,
+  DERIVED_BUDGET_NOTE,
   rollUpAttendanceByTrade,
   UNSPECIFIED_TRADE_LABEL,
   WORKER_DAY_WEIGHT,
   WH347_DAY_LABELS,
   type AttendanceWorkerRow,
+  type BudgetLineInput,
   type DesignerTimesheetBudgetLine,
   type DesignerTimesheetEntry,
   type DesignerTimesheetRosterUser,
@@ -1364,5 +1367,131 @@ describe("rollUpAttendanceByTrade -- Sumeet's trade subtotals (E-22)", () => {
     ]
     const subtotalSalary = rollUpAttendanceByTrade(workers).reduce((s, r) => s + r.salary, 0)
     expect(subtotalSalary).toBe(workers.reduce((s, w) => s + w.salary, 0))
+  })
+})
+
+// R67 E-26 (R-212). The acceptance case, stated in the item's own numbers: a
+// 6,500 root line at 25% with one derived child of 2,275 must total 1,625 and
+// not 2,193.75 -- 1,625 is the root's own budget, 2,193.75 is that budget plus
+// the child's 568.75, which is a slice of the very same 1,625 counted twice.
+describe("summariseBudgetLines -- roots only, children kept (E-26)", () => {
+  // R67 E-26 MERGE NOTE (rebase onto main, 2026-09-03). This block was written
+  // against a pure computeBoqBudgetVariance() this lane added. While it sat on
+  // the branch, lanes D1 and D21 landed toBudgetLine() + computeBudgetVarianceLine()
+  // in this file and INVERTED the meaning of `variance`: it used to be
+  // vendorAmount - budget (overspend) and is now budget - vendor - material -
+  // manpower (budget remaining). Keeping this lane's function would have left
+  // the file with two exported implementations of one arithmetic, with opposite
+  // signs -- exactly the defect that file's own D-11 merge note forbids.
+  //
+  // So the FUNCTION was dropped and the RULE was folded into the merged code:
+  // summariseBudgetLines() totals over root lines only, summing the `_raw`
+  // figures toBudgetLine() already computed. The assertions below are restated
+  // against that, not deleted -- and the ones that name a variance are restated
+  // under the NEW sign, which is why "375" became "-375" and is called out.
+  function boqLine(over: Partial<BudgetLineInput> = {}): BudgetLineInput {
+    return {
+      id: "l1", itemCode: "1", description: "Root line", category: null,
+      unit: null, quantity: null, rate: null,
+      amount: 6500, budgetPercentage: 25, materialAmount: null, manpowerAmount: null,
+      vendorId: null, vendorAmount: null, parentLineItemId: null, ...over,
+    }
+  }
+
+  function summarise(items: BudgetLineInput[], suppliers = new Map<string, string>()) {
+    return summariseBudgetLines(items.map((item, i) => toBudgetLine(item, suppliers, i)))
+  }
+
+  const root = boqLine({ id: "root", itemCode: "1", amount: 6500, budgetPercentage: 25 })
+  // AMOUNT_child = AMOUNT_root x breakdownPercentage/100 -> 6500 x 35% = 2275.
+  const child = boqLine({ id: "child", itemCode: "1.1", description: "Sub-task", amount: 2275, budgetPercentage: 25, parentLineItemId: "root" })
+
+  test("totalBudget is the root's 1625, not root + derived child", () => {
+    const report = summarise([root, child])
+    expect(report.totalBudget).toBe(1625)
+    expect(report.totalBudget).not.toBe(2193.75)
+  })
+
+  test("the child row is still returned, flagged budgetIsDerived with its % of parent", () => {
+    const report = summarise([root, child])
+    expect(report.lines).toHaveLength(2)
+    const childRow = report.lines.find((l) => l.lineItemId === "child")!
+    expect(childRow.budgetIsDerived).toBe(true)
+    expect(childRow.budget).toBe(568.75)
+    expect(childRow.percentOfParent).toBe(35)
+    expect(report.lines.find((l) => l.lineItemId === "root")!.budgetIsDerived).toBe(false)
+    expect(report.lines.find((l) => l.lineItemId === "root")!.percentOfParent).toBeNull()
+  })
+
+  test("vendor amounts and variance also total over roots only", () => {
+    const report = summarise([
+      { ...root, vendorAmount: 2000 },
+      { ...child, vendorAmount: 700 },
+    ])
+    expect(report.totalVendorAmount).toBe(2000)
+    // Under D-26's sign this is budget - committed = 1625 - 2000 = -375
+    // (over budget by 375). The child's own 700 is NOT in it.
+    expect(report.totalVariance).toBe(-375)
+    expect(report.budgetRemaining).toBe(-375)
+  })
+
+  test("the material/manpower split totals over roots only for the same reason", () => {
+    const report = summarise([
+      { ...root, materialAmount: 1000, manpowerAmount: 625 },
+      { ...child, materialAmount: 350, manpowerAmount: 218.75 },
+    ])
+    expect(report.totalMaterialAmount).toBe(1000)
+    expect(report.totalManpowerAmount).toBe(625)
+  })
+
+  test("a line that was never costed stays null -- not a fabricated zero variance", () => {
+    const report = summarise([root])
+    expect(report.lines[0].vendorAmount).toBeNull()
+    expect(report.lines[0].variance).toBeNull()
+    expect(report.totalCommitted).toBeNull()
+    expect(report.totalVariance).toBeNull()
+  })
+
+  test("the empty BOQ carries every key the populated one does, and the rule in words", () => {
+    const empty = summariseBudgetLines([])
+    const populated = summarise([root])
+    expect(Object.keys(empty).sort()).toEqual(Object.keys(populated).sort())
+    expect(empty.lines).toEqual([])
+    expect(empty.totalBudget).toBe(0)
+    expect(empty.totalCommitted).toBeNull()
+    expect(empty.note).toBe(DERIVED_BUDGET_NOTE)
+  })
+
+  test("the note states the rule the totals actually follow", () => {
+    expect(DERIVED_BUDGET_NOTE).toContain("root BOQ lines only")
+    expect(DERIVED_BUDGET_NOTE).toContain("never added into a total")
+  })
+
+  test("the vendor name comes from the supplier map, and an unknown vendor id reads null", () => {
+    const report = summarise(
+      [boqLine({ id: "a", vendorId: "v1" }), boqLine({ id: "b", vendorId: "v-missing" })],
+      new Map([["v1", "Al Noor Contracting"]])
+    )
+    expect(report.lines[0].vendorName).toBe("Al Noor Contracting")
+    expect(report.lines[1].vendorName).toBeNull()
+  })
+
+  test("the counts describe the ROWS shown, so a child is counted as a row but not as money", () => {
+    const report = summarise([root, child])
+    expect(report.lineCount).toBe(2)
+    expect(report.totalBudget).toBe(1625)
+  })
+
+  test("summing is the ONLY thing this does -- the per-line arithmetic stays in computeBudgetVarianceLine", () => {
+    // Guards the merge: if someone re-adds a private budget/variance formula
+    // here, the file is back to two implementations with two signs.
+    const line = toBudgetLine(boqLine({ vendorAmount: 2000 }), new Map(), 0)
+    const direct = computeBudgetVarianceLine({
+      amount: 6500, budgetPercentage: 25, vendorAmount: 2000,
+      materialAmount: null, manpowerAmount: null,
+    })
+    expect(line.budget).toBe(Math.round(direct.budget * 100) / 100)
+    expect(line.variance).toBe(Math.round(direct.variance! * 100) / 100)
+    expect(summariseBudgetLines([line]).totalBudget).toBe(line.budget)
   })
 })

@@ -968,7 +968,21 @@ export type BudgetLineInput = {
   vendorId: string | null
   vendorAmount: string | number | null
   category: string | null
+  /**
+   * R67 E-26 (R-212): null on a root line, the parent's id on a sub-task.
+   * Optional so the many existing callers that build a BudgetLineInput by hand
+   * keep compiling; absent is read as "root", which is what a caller with no
+   * hierarchy means.
+   */
+  parentLineItemId?: string | null
 }
+
+/**
+ * R67 E-26 (R-212). THE SENTENCE THIS REPORT NOW OBEYS, printed on the report
+ * itself so a QS reading a printout knows the rule the totals follow.
+ */
+export const DERIVED_BUDGET_NOTE =
+  "Totals sum root BOQ lines only. A sub-task's budget is derived from its parent line, so it is shown for detail and never added into a total."
 
 export function toBudgetLine(item: BudgetLineInput, supplierNameById: Map<string, string>, index = 0) {
   const vendorAmount = item.vendorAmount !== null ? Number(item.vendorAmount) : null
@@ -1022,9 +1036,105 @@ export function toBudgetLine(item: BudgetLineInput, supplierNameById: Map<string
     // consumers keep working, and is the one to drop once they have moved.
     variance: rawVariance !== null ? Math.round(rawVariance * 100) / 100 : null,
     budgetRemaining: rawVariance !== null ? Math.round(rawVariance * 100) / 100 : null,
+    // R67 E-26 (R-212): the two facts the UI needs to show a sub-task without
+    // COUNTING it. A sub-task's amount is AMOUNT_root x breakdownPercentage/100,
+    // so its budget is derived from the root's and the root row already carries
+    // the whole value -- see the roots-only totals in boqBudgetVarianceReport.
+    parentLineItemId: item.parentLineItemId ?? null,
+    budgetIsDerived: (item.parentLineItemId ?? null) !== null,
+    /**
+     * Filled in by the caller that can see the whole BOQ (a pure row projection
+     * cannot know its parent's budget). null on a root, and on a child whose
+     * parent is not among the rows being reported.
+     */
+    percentOfParent: null as number | null,
     _rawBudget: rawBudget,
     _rawCommitted: rawCommitted,
     _rawVariance: rawVariance,
+  }
+}
+
+export type BudgetLine = ReturnType<typeof toBudgetLine>
+
+/**
+ * R67 E-26 (R-212). THE FIX, and the reason this report's totals changed.
+ *
+ * THE BUG. The totals summed EVERY line -- roots and their derived sub-tasks
+ * alike. This file's own `rootBoqLineItemsOnly` rule (and scopeReport, and
+ * categoryBoqAmountsReport, and earnedValueReport, and projexa's WPR grand
+ * total) already records why that is wrong: a sub-task's amount is
+ * AMOUNT_root x breakdownPercentage/100, so the root row already carries the
+ * full value and adding the child on top counts the same money twice. The
+ * observed consequence was a QS being shown two budgets for one BOQ that were
+ * 35% apart -- this report's total against the Work Progress Report's.
+ *
+ * WHAT DID NOT CHANGE. Every line is still RETURNED, child rows included: a QS
+ * needs to see the breakdown, and hiding the rows would trade one wrong answer
+ * for a missing one. Each row says which it is (`parentLineItemId`,
+ * `budgetIsDerived`) and what share of its parent it represents
+ * (`percentOfParent`), so the UI can show a child without counting it.
+ *
+ * WHY THIS IS A SEPARATE, PURE FUNCTION. E-26's acceptance is a unit test on
+ * the roots-only rule, and the report around it needs a database. It is NOT a
+ * second implementation of the arithmetic: every figure here is summed from the
+ * `_raw*` values toBudgetLine() already computed through
+ * computeBudgetVarianceLine(), so there remains exactly ONE place that decides
+ * what a line's budget, committed cost and variance are. (Two exported
+ * functions each computing "the variance" is the defect this file's own D-11
+ * merge note records, and it is not repeated here.)
+ *
+ * ROUNDING. Unchanged from the R48 gap-closure rule: totals are summed from the
+ * RAW per-line figures and rounded once at the end, so they reconcile exactly
+ * to a raw SQL SUM over the same rows rather than drifting by accumulated
+ * per-line rounding.
+ */
+export function summariseBudgetLines(lines: BudgetLine[]) {
+  // Each sub-task's share of its parent's budget, so the UI can print "35% of
+  // parent" beside an indented row instead of leaving the reader to work out
+  // why a child's budget is what it is. Done here rather than in toBudgetLine
+  // because only this scope can see the parent row.
+  const rawBudgetById = new Map(lines.map((l) => [l.lineItemId, l._rawBudget]))
+  for (const line of lines) {
+    if (line.parentLineItemId === null) continue
+    const parentBudget = rawBudgetById.get(line.parentLineItemId)
+    if (parentBudget === undefined || parentBudget === 0) continue
+    line.percentOfParent = Math.round((line._rawBudget / parentBudget) * 100 * 100) / 100
+  }
+
+  // Applying the roots-only rule to only SOME of the money totals would just
+  // move the disagreement, so it applies to every one of them.
+  const rootLines = lines.filter((l) => l.parentLineItemId === null)
+
+  const totalBudget = Math.round(rootLines.reduce((s, l) => s + l._rawBudget, 0) * 100) / 100
+  const totalVendorAmount = Math.round(rootLines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100
+  // R67 D-26: null, not 0, when NO line carries any committed cost -- the tiles
+  // then read "Committed AED –" rather than a zero that looks like a measured
+  // figure. One costed line is enough to make the total real.
+  const costedLines = rootLines.filter((l) => l._rawCommitted !== null)
+  const totalCommitted = costedLines.length === 0 ? null : Math.round(costedLines.reduce((s, l) => s + (l._rawCommitted ?? 0), 0) * 100) / 100
+  const totalVariance = costedLines.length === 0 ? null : Math.round(costedLines.reduce((s, l) => s + (l._rawVariance ?? 0), 0) * 100) / 100
+  // R67 lane I (WS-I item I-03): totalled once, at the end, over the raw
+  // per-line values -- the same single-rounding rule as above.
+  const totalMaterialAmount = Math.round(rootLines.reduce((s, l) => s + (l.materialAmount ?? 0), 0) * 100) / 100
+  const totalManpowerAmount = Math.round(rootLines.reduce((s, l) => s + (l.manpowerAmount ?? 0), 0) * 100) / 100
+
+  return {
+    lines: lines.map(({ _rawBudget, _rawCommitted, _rawVariance, ...line }) => line),
+    totalBudget,
+    totalVendorAmount,
+    totalCommitted,
+    totalVariance,
+    budgetRemaining: totalVariance,
+    totalMaterialAmount,
+    totalManpowerAmount,
+    // Counts, not money: these describe the ROWS the table shows, which is
+    // every line including sub-tasks, so they are deliberately NOT filtered to
+    // roots the way the money totals are. `note` states that rule on the report
+    // itself, so a QS reading a printout knows which population each figure
+    // covers.
+    linesOverBudget: lines.filter((l) => isLineOverBudget(l.variance)).length,
+    lineCount: lines.length,
+    note: DERIVED_BUDGET_NOTE,
   }
 }
 
@@ -1043,12 +1153,10 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     // keys as the populated one, or a caller that reads totalMaterialAmount or
     // totalCommitted gets undefined on a project with no BOQ and renders "NaN".
     if (!latest) {
-      return {
-        boqId: null, lines: [], totalBudget: 0, totalVendorAmount: 0,
-        totalMaterialAmount: 0, totalManpowerAmount: 0,
-        totalCommitted: null, totalVariance: null, budgetRemaining: null,
-        linesOverBudget: 0, lineCount: 0,
-      }
+      // R67 E-26: built through the SAME summariser as the populated branch, so
+      // the promise this comment makes is kept by construction rather than by
+      // two literals being maintained in step.
+      return { boqId: null, ...summariseBudgetLines([]) }
     }
 
     const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id) })
@@ -1080,35 +1188,7 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     // computeBudgetVarianceLine so the projection and the arithmetic cannot
     // drift apart. `index` feeds D-26's serialNumber.
     const lines = lineItems.map((item, index) => toBudgetLine(item, supplierNameById, index))
-
-    const totalBudget = Math.round(lines.reduce((s, l) => s + l._rawBudget, 0) * 100) / 100
-    const totalVendorAmount = Math.round(lines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100
-    // R67 D-26: null, not 0, when NO line carries any committed cost -- the
-    // tiles then read "Committed AED –" rather than a zero that looks like a
-    // measured figure. One costed line is enough to make the total real.
-    const costedLines = lines.filter((l) => l._rawCommitted !== null)
-    const totalCommitted = costedLines.length === 0 ? null : Math.round(costedLines.reduce((s, l) => s + (l._rawCommitted ?? 0), 0) * 100) / 100
-    const totalVariance = costedLines.length === 0 ? null : Math.round(costedLines.reduce((s, l) => s + (l._rawVariance ?? 0), 0) * 100) / 100
-    // R67 lane I (WS-I item I-03): totalled once, at the end, over the raw
-    // per-line values -- the same single-rounding rule the R48 gap-closure
-    // note above established for totalBudget/totalVariance, so these totals
-    // reconcile exactly to a raw SQL SUM over the same rows.
-    const totalMaterialAmount = Math.round(lines.reduce((s, l) => s + (l.materialAmount ?? 0), 0) * 100) / 100
-    const totalManpowerAmount = Math.round(lines.reduce((s, l) => s + (l.manpowerAmount ?? 0), 0) * 100) / 100
-
-    return {
-      boqId: latest.id,
-      lines: lines.map(({ _rawBudget, _rawCommitted, _rawVariance, ...line }) => line),
-      totalBudget,
-      totalVendorAmount,
-      totalCommitted,
-      totalVariance,
-      budgetRemaining: totalVariance,
-      totalMaterialAmount,
-      totalManpowerAmount,
-      linesOverBudget: lines.filter((l) => isLineOverBudget(l.variance)).length,
-      lineCount: lines.length,
-    }
+    return { boqId: latest.id, ...summariseBudgetLines(lines) }
   })
 }
 
