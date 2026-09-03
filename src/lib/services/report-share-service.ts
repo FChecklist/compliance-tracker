@@ -11,21 +11,56 @@ import { createId } from "@paralleldrive/cuid2"
 import { ServiceError } from "./compliance-service"
 import { listBoqs, getBoq } from "./construction-boq-service"
 import { listActivities, listCategories, listProgressEntries } from "./construction-progress-service"
+import { getProjectDashboard } from "./construction-dashboard-service"
+import { boqBudgetVarianceReport } from "./construction-reports-service"
 export { ServiceError }
 
 export type ReportRef = { projectId: string; from: string; to: string }
+
+/**
+ * R67 E-12 (R-136). The report types a public, expiring link can be minted for.
+ *
+ * This list is the WHOLE contract: a token may only be minted for a type that
+ * resolveReportShareLink() below can really render, because a link that 404s
+ * for whoever received it is worse than no link at all. Item E-09 deliberately
+ * left Share on the Reports screen copying its in-app URL for exactly that
+ * reason -- project_status had no public renderer. It has one now
+ * (projexa src/app/share/report/[token]/page.tsx), so the type is added here
+ * and in the same change, never before it.
+ */
+export const SHAREABLE_REPORT_TYPES = ["work_progress", "project_status"] as const
+export type ShareableReportType = (typeof SHAREABLE_REPORT_TYPES)[number]
+
+/**
+ * Pure. Refuses anything this service cannot actually resolve, and names what
+ * it CAN do rather than saying only "unsupported" -- a caller that guessed a
+ * type is told the real vocabulary.
+ */
+export function assertShareableReportType(value: unknown): ShareableReportType {
+  if (typeof value === "string" && (SHAREABLE_REPORT_TYPES as readonly string[]).includes(value)) {
+    return value as ShareableReportType
+  }
+  throw new ServiceError(`Unsupported report type. Shareable reports: ${SHAREABLE_REPORT_TYPES.join(", ")}`, 400)
+}
+
+/** Pure. The reference every shareable report needs, checked before a row is written. */
+export function assertReportRef(ref: unknown): ReportRef {
+  const r = ref as ReportRef | undefined
+  if (!r?.projectId || !r?.from || !r?.to) {
+    throw new ServiceError("reportRef.projectId, from and to are required", 400)
+  }
+  return { projectId: r.projectId, from: r.from, to: r.to }
+}
 
 export async function createReportShareLink(
   // R38: userId is null for an API-key-authenticated (server-to-server)
   // caller -- there is no real `users` row to attribute the link to. See
   // schema.ts's createdById comment for the FK-violation bug this fixes.
   ctx: { orgId: string; userId: string | null },
-  input: { reportType: "work_progress"; reportRef: ReportRef; expiresInHours?: number }
+  input: { reportType: ShareableReportType; reportRef: ReportRef; expiresInHours?: number }
 ) {
-  if (input.reportType !== "work_progress") throw new ServiceError("Unsupported report type", 400)
-  if (!input.reportRef?.projectId || !input.reportRef?.from || !input.reportRef?.to) {
-    throw new ServiceError("reportRef.projectId, from and to are required", 400)
-  }
+  assertShareableReportType(input.reportType)
+  assertReportRef(input.reportRef)
   const expiresInHours = input.expiresInHours ?? 168 // 7 days, matching veri_meeting_share_links' default
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (tx) => {
     const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000)
@@ -74,8 +109,30 @@ export async function resolveReportShareLink(token: string) {
     throw new ServiceError("This share link is invalid or has expired", 404)
   }
 
-  if (link.reportType !== "work_progress") throw new ServiceError("This share link is invalid or has expired", 404)
+  if (!(SHAREABLE_REPORT_TYPES as readonly string[]).includes(link.reportType)) {
+    throw new ServiceError("This share link is invalid or has expired", 404)
+  }
   const ref: ReportRef = JSON.parse(link.reportRef)
+
+  // R67 E-12 (R-136): the Project Status document, publicly. The SAME two
+  // reads the authenticated screen uses -- the dashboard figures and the BOQ
+  // budget line by line -- so a shared link and the screen it was shared from
+  // state the same facts. Both are called with the link's OWN stored orgId,
+  // never one derived from the request, so RLS still bounds every byte.
+  if (link.reportType === "project_status") {
+    const [dashboard, variance] = await Promise.all([
+      getProjectDashboard({ orgId: link.orgId }, ref.projectId),
+      boqBudgetVarianceReport({ orgId: link.orgId }, ref.projectId, {}),
+    ])
+    return {
+      reportType: link.reportType,
+      projectId: ref.projectId, from: ref.from, to: ref.to,
+      boqTitle: variance.boqTitle,
+      dashboard,
+      lines: variance.lines.filter((l) => l.isRootLine),
+      totals: { budget: variance.totalBudget, vendorAmount: variance.totalVendorAmount },
+    }
+  }
 
   const boqs = await listBoqs({ orgId: link.orgId }, ref.projectId)
   const boqsWithLineItems = await Promise.all(boqs.map((boq) => getBoq({ orgId: link.orgId }, boq.id)))

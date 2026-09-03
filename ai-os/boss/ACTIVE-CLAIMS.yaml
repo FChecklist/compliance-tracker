@@ -76,6 +76,12 @@ active:
         src/lib/services/construction-expense-service.ts, construction-ai-service.ts,
         report-engine-service.ts, src/lib/task-execution/construction-tools.ts
         (all four only where they read ProjectDashboard.budget, which is now nullable)
+        --- added for items E-11..E-15 (2026-09-03) ---
+        src/lib/services/report-export.ts (NEW, + NEW .test.ts) -- the ReportExportSchema
+        src/lib/services/report-share-service.ts (+ NEW .test.ts) -- second shareable type
+        src/lib/pdf/report-document-pdf.ts (NEW, + NEW .test.ts)
+        src/lib/services/report-catalog-service.ts (+ .test.ts) -- catalog entries agree
+        src/app/api/v1/projexa/reports/[reportName]/export/route.ts (schema-driven)
 
       File scope in projexa: DashboardHomeView, ProjectRow (new), GroupedBarChart (new),
       CategoryDistributionCharts, DashboardProjectClient, WorkProgressReportClient,
@@ -90,6 +96,12 @@ active:
       api/reports/budget-variance/export (new relay), api/construction-budget/summary
       (DELETED -- it proxied /construction/budget/summary, which does not exist in
       compliance-tracker, and had no caller).
+      --- added for items E-11..E-15 (2026-09-03) ---
+      lib/report-parameters.ts, lib/report-schema.ts, lib/report-document-actions.ts,
+      components/reports/ReportDocument.tsx, components/report-format.ts (all new, each
+      with a sibling test), ReportOutput.tsx (omitKeys), ReportCatalogSection.tsx,
+      app/share/report/[token]/page.tsx (renders the second shareable report),
+      api/reports/[reportName]/export + .../share (new relays).
 
       NOT touching: the pipeline (classify/executor/validate), platform.* tables,
       construction-labour-service.ts (lane D3 owns recordAttendanceBatch per D-12), or

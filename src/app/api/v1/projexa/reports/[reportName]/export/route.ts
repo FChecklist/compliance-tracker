@@ -1,22 +1,32 @@
-// R67 E-07 (R-114): server-rendered PDF / XLSX / CSV for the Budget Summary /
-// Cost Variance report. The screen shipped with Export hard-coded to
-// "(Not yet available)"; this is the half of the fix that makes it real.
+// R67 E-07 (R-114) and E-12 (R-136): server-rendered PDF / XLSX / CSV for the
+// reports that have a document schema.
 //
-// PROJEXA must not gain a PDF or an XLSX library, so the bytes are made here
-// and its route only relays them -- the same division the Work Progress Report
-// PDF and the Material Cost Report export already ship.
+// The screen shipped with Export hard-coded to "(Not yet available)"; this is
+// the half of the fix that makes it real. PROJEXA must not gain a PDF or an
+// XLSX library, so the bytes are made here and its route only relays them --
+// the same division the Work Progress Report PDF and the Material Cost Report
+// export already ship.
+//
+// E-12 removed this route's own opinion about columns. The tabular formats are
+// now built from the ReportExportSchema in src/lib/services/report-export.ts,
+// which is the SAME description PROJEXA's ReportDocument renders the on-screen
+// table from -- so an exported file cannot disagree with the table it came
+// from, which is exactly what R-136 records happening. XLSX still goes through
+// report-export-shared.ts's rowsToXLSXBuffer and its OWASP formula-injection
+// guard: BOQ descriptions, categories and vendor names are user-typed free text
+// and are exactly the fields that guard exists for.
 //
 // The rows come from boqBudgetVarianceReport with the SAME category/vendor
-// parameters the screen used, so an exported file can never disagree with the
-// table it was exported from. XLSX goes through report-export-shared.ts's
-// rowsToXLSXBuffer, which carries the OWASP formula-injection guard -- BOQ
-// descriptions, categories and vendor names are user-typed free text and are
-// exactly the fields that guard exists for.
+// parameters the screen used. project-status shares them deliberately: the
+// Project Status card is scalars, and the TABLE under it (E-13's Subcontractor
+// / Budget breakup) is the BOQ's budget line by line -- the same rows, a
+// narrower schema.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { boqBudgetVarianceReport, ServiceError } from "@/lib/services/construction-reports-service"
-import { rowsToCSV, rowsToXLSXBuffer, type ExportRow } from "@/lib/report-export-shared"
-import { generateBudgetVarianceReportPdf } from "@/lib/pdf/budget-variance-report-pdf"
+import { reportCsv, reportExportSchema, reportXlsxBuffer } from "@/lib/services/report-export"
+import { generateBudgetVarianceReportPdf, filterLabel } from "@/lib/pdf/budget-variance-report-pdf"
+import { generateReportDocumentPdf } from "@/lib/pdf/report-document-pdf"
 import { organisations, projects, erpCurrencies } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
@@ -24,17 +34,18 @@ import { and, eq } from "drizzle-orm"
 const FORMATS = ["pdf", "xlsx", "csv"] as const
 type Format = (typeof FORMATS)[number]
 
-/** The en dash, the same "no figure" token every screen in this product uses. */
-const EMPTY = "–"
+const CONTENT_TYPE: Record<Format, string> = {
+  pdf: "application/pdf",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  csv: "text/csv; charset=utf-8",
+}
 
 /**
- * Which reports can be exported as a document today. It sits under
- * [reportName] rather than beside it so there is ONE export path per report
- * name -- the generic schema-driven renderer (C04-12 / item E-12) extends this
- * map rather than adding a second route shape. A name that is not in it is
- * refused in words, never with a silent empty file.
+ * Which reports can be exported as a document today. A name that is not here is
+ * refused in words, never with a silent empty file. Adding one is adding a
+ * schema -- there is no second route shape to write.
  */
-const EXPORTABLE = new Set(["budget-variance"])
+const EXPORTABLE = ["budget-variance", "project-status"] as const
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ reportName: string }> }) {
   const ctx = await requireAuthOrApiKey(request)
@@ -43,9 +54,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const orgId = ctx.orgId // narrow once -- TS cannot carry the check into the closure below
 
   const { reportName } = await params
-  if (!EXPORTABLE.has(reportName)) {
+  const schema = (EXPORTABLE as readonly string[]).includes(reportName) ? reportExportSchema(reportName) : null
+  if (!schema) {
     return NextResponse.json(
-      { error: `The ${reportName} report has no document export yet. Exportable reports: ${[...EXPORTABLE].join(", ")}` },
+      { error: `The ${reportName} report has no document export yet. Exportable reports: ${EXPORTABLE.join(", ")}` },
       { status: 400 }
     )
   }
@@ -73,8 +85,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // exporting both would hand a QS a file whose column does not add up to
     // its own total row.
     const rootLines = report.lines.filter((l) => l.isRootLine)
+    // The service's own single-rounded totals, never re-summed from the rounded
+    // per-line display figures (R48 gap-closure F088).
+    const totals = {
+      budget: report.totalBudget,
+      vendorAmount: report.totalVendorAmount,
+      variance: report.totalVariance,
+    }
 
-    const filename = `budget-variance-${projectId}${categories.length > 0 ? `-${categories.length}cat` : ""}${vendorId ? "-vendor" : ""}`
+    const filename = `${schema.slug}-${projectId}${categories.length > 0 ? `-${categories.length}cat` : ""}${vendorId ? "-vendor" : ""}`
 
     if (format === "pdf") {
       // Same withTenantContext-wrapped branded-header lookup the sibling
@@ -90,52 +109,48 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         return { project, org, currency }
       })
       if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 })
+      const branding = org ?? { name: "VERIDIAN AI", address: null, gstin: null }
 
-      const pdf = generateBudgetVarianceReportPdf({
-        org: org ?? { name: "VERIDIAN AI", address: null, gstin: null },
-        projectName: project.name,
-        boqTitle: report.boqTitle,
-        currency: currency?.code ?? null,
-        lines: report.lines,
-        totals: { budget: report.totalBudget, vendorAmount: report.totalVendorAmount, variance: report.totalVariance },
-        filters: { categories, vendorName },
-      })
-      return new NextResponse(new Blob([pdf], { type: "application/pdf" }), {
+      // budget-variance keeps its own generator: it prints the weighted
+      // sub-task count and the "positive variance is over budget" note, which
+      // are facts about THAT report rather than about documents in general.
+      // Every other schema is rendered by the shared template.
+      const pdf =
+        schema.slug === "budget-variance"
+          ? generateBudgetVarianceReportPdf({
+              org: branding,
+              projectName: project.name,
+              boqTitle: report.boqTitle,
+              currency: currency?.code ?? null,
+              lines: report.lines,
+              totals: { budget: totals.budget, vendorAmount: totals.vendorAmount, variance: totals.variance },
+              filters: { categories, vendorName },
+            })
+          : generateReportDocumentPdf(schema, {
+              org: branding,
+              projectName: project.name,
+              subtitle: report.boqTitle ? `BOQ ${report.boqTitle}` : null,
+              currency: currency?.code ?? null,
+              rows: rootLines,
+              totals,
+              filterLine: filterLabel({ categories, vendorName }),
+              emptyMessage: report.boqId
+                ? `No budget lines for ${filterLabel({ categories, vendorName })}.`
+                : "No BOQ approved for this project yet.",
+            })
+
+      return new NextResponse(new Blob([pdf], { type: CONTENT_TYPE.pdf }), {
         headers: {
-          "Content-Type": "application/pdf",
+          "Content-Type": CONTENT_TYPE.pdf,
           "Content-Disposition": `attachment; filename="${filename}.pdf"`,
         },
       })
     }
 
-    // The tabular formats carry the same rows a QS re-adds by hand, plus the
-    // grand total as its own last row -- so the file and the screen show the
-    // same arithmetic, not just the same numbers.
-    const rows: ExportRow[] = [
-      ...rootLines.map((l) => ({
-        "S.No": l.sNo === null ? EMPTY : l.sNo,
-        Category: l.category ?? EMPTY,
-        Code: l.code ?? EMPTY,
-        Description: l.description,
-        Qty: l.quantity,
-        Rate: l.rate,
-        Amt: l.amount,
-        Budget: l.budget,
-        Vendor: l.vendorName ?? EMPTY,
-        "Vendor Amt": l.vendorAmount === null ? EMPTY : l.vendorAmount,
-        Variance: l.variance === null ? EMPTY : l.variance,
-      })),
-      {
-        "S.No": "Grand Total", Category: "", Code: "", Description: "", Qty: "", Rate: "", Amt: "",
-        Budget: report.totalBudget === null ? EMPTY : report.totalBudget,
-        Vendor: "", "Vendor Amt": report.totalVendorAmount, Variance: report.totalVariance,
-      },
-    ]
-
     if (format === "csv") {
-      return new NextResponse(rowsToCSV(rows), {
+      return new NextResponse(reportCsv(schema, rootLines, totals), {
         headers: {
-          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Type": CONTENT_TYPE.csv,
           "Content-Disposition": `attachment; filename="${filename}.csv"`,
         },
       })
@@ -145,16 +160,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // typed ArrayBufferLike (it may be a SharedArrayBuffer), which is not a
     // BlobPart -- the same narrowing every other binary route in this repo
     // does before handing bytes to a Blob.
-    const xlsx = new Uint8Array(rowsToXLSXBuffer(rows, "Budget Variance"))
-    return new NextResponse(new Blob([xlsx], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), {
+    const xlsx = new Uint8Array(reportXlsxBuffer(schema, rootLines, totals))
+    return new NextResponse(new Blob([xlsx], { type: CONTENT_TYPE.xlsx }), {
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Type": CONTENT_TYPE.xlsx,
         "Content-Disposition": `attachment; filename="${filename}.xlsx"`,
       },
     })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error("v1 projexa budget-variance export error:", error)
-    return NextResponse.json({ error: "Failed to export the budget variance report" }, { status: 500 })
+    console.error(`v1 projexa ${reportName} export error:`, error)
+    return NextResponse.json({ error: `Failed to export the ${reportName} report` }, { status: 500 })
   }
 }
