@@ -13327,34 +13327,49 @@ export const pipelineTasks = complianceSchemaDB.table('pipeline_tasks', {
   executor: pipelineTaskExecutorEnum('executor').notNull().default('software'),
   status: pipelineTaskStatusEnum('status').notNull().default('to_do'),
   result: jsonb('result'),
-  // THE SENTENCE A CLIENT MAY RENDER. Masked before it gets here (executor.ts
-  // -> failure-classification.ts). Not the raw exception -- see error_details.
-  error: text('error'),
-  // R67 C-13 (drizzle/0533) -- THE FAILURE, SPLIT IN TWO.
+  // R67 B-01/B-08 (decision D-03) -- THE FAILURE, TYPED.
   //
-  // The R66 walkthrough captured `error` being rendered verbatim to a site
-  // engineer as "write CONNECT_TIMEOUT 3.109.171.244:6543": one column held
-  // both the thing a person needs to read and the thing only an engineer can
-  // use, so every consumer had to guess which it had.
+  // `error` used to hold a free-text English sentence composed in this repo
+  // and rendered verbatim by PROJEXA's Task Master. The R66 walkthrough
+  // captured what that produced on a real screen: "itemCode is required",
+  // "no project resolved for this task", and a Postgres driver string
+  // carrying an internal address ("write CONNECT_TIMEOUT 3.109.171.244:6543").
   //
-  // error_code is D-03's closed vocabulary (BOQ_LINE_REQUIRED, PROJECT_REQUIRED,
-  // VALUE_REQUIRED, TASK_REQUIRED, FUNCTION_NOT_AVAILABLE, INFRA_UNAVAILABLE,
-  // UNKNOWN) -- deliberately TEXT, not an enum: the vocabulary is owned by
-  // src/lib/pipeline/failure-classification.ts and a product adding a sentence
-  // must not need a migration to do it.
+  // B-01 changed the column's CONTENT to a serialised {code, missing,
+  // context} object; these two columns give that object real, queryable
+  // homes so a failure can be counted and grouped in SQL instead of by
+  // parsing JSON out of a text column. `error` is kept as the same
+  // serialised object (NOT the driver's text -- the raw message is logged
+  // server-side and deliberately never persisted, which is the whole point
+  // of B-01) so that rows written between the two changes still read.
   //
-  // error_details is THE RAW TEXT, and it is ours. No route in this repo
-  // returns it; GET /api/v1/projexa/tasks selects error_code and never this.
-  // That separation is the whole reason the column exists.
+  // error_code is one of src/lib/pipeline/error-codes.ts's closed set;
+  // error_params carries only real business values ({itemCode, project,
+  // version}) that the projexa dictionary interpolates into its sentence.
+  // Deliberately text, not an enum: the vocabulary is owned by application
+  // code that both repos version independently, and a migration per new code
+  // would guarantee the two drift.
   //
-  // NOTE ON 'failed_system': C-13's own wording asks for a task STATUS of that
+  // R67 FIX PASS, decision D-11 -- lane C (C-13) proposed a THIRD column here,
+  // `error_details`, holding the raw driver text for us. It is deliberately NOT
+  // added. Lane B's posture above is the stronger one and it is already on
+  // main: the raw message is logged server-side and never persisted at all, so
+  // there is no column for a future route to select by accident and the R66
+  // leak cannot recur through this table. C-13's split survives in code --
+  // failure-classification.ts still separates the sentence a person may read
+  // from the raw text -- and the raw half now ends at run-submission.ts's
+  // console.error instead of in a column. C-13's own 0533 migration was
+  // dropped in the same commit; lane B's 0533 already adds error_code.
+  //
+  // NOTE ON 'failed_system': C-13's wording asks for a task STATUS of that
   // name. pipeline_task_status is closed at five values by an explicit,
   // documented M24 decision recorded above, which extending needs owner
   // sign-off this lane does not have -- so the classification lives on the
-  // ExecutionOutcome and on error_code (INFRA_UNAVAILABLE), which is what
-  // every behaviour the item asks for actually keys off.
+  // ExecutionOutcome and on error_code (BACKEND_UNAVAILABLE / UPSTREAM_TIMEOUT),
+  // which is what every behaviour the item asks for actually keys off.
   errorCode: text('error_code'),
-  errorDetails: text('error_details'),
+  errorParams: jsonb('error_params'),
+  error: text('error'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

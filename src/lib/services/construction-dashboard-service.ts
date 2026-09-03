@@ -30,6 +30,12 @@ import { ServiceError } from "./compliance-service"
 // earnedValueReport above (call-time only, never module-evaluation time).
 import { computeEarnedValue, type EvLineItem } from "./construction-reports-service"
 import { isConstructionEnabledForOrg } from "./construction-enablement-service"
+// R67 F-27 (R-243): a 60 s per-project cache, busted by the write paths through
+// one helper. It lives in its own dependency-free module because the writers
+// that must bust it (progress, BOQ, expense) would otherwise have to import
+// THIS file, which already sits in a deliberate cycle with
+// construction-reports-service.ts -- see project-dashboard-cache.ts's header.
+import { readDashboardCache, writeDashboardCache } from "./project-dashboard-cache"
 export { ServiceError }
 
 // Lists the org's active Products (business lines a new Project nests
@@ -122,157 +128,328 @@ export type ProjectDashboard = {
   earnedValue: number | null
   percentByValue: number | null
   contractValue: number | null
+  // R67 F-27 (R-243): the "Permits Expiring" KPI's own figures. PROJEXA used
+  // to fetch /api/permits?withinDays=30 as a SEPARATE request from the
+  // dashboard purely to count these two numbers for one tile.
+  permitsExpiringCount: number
+  permitsExpiredCount: number
 }
 
-export async function getProjectDashboard(ctx: { orgId: string }, projectId: string): Promise<ProjectDashboard> {
+// R67 F-27 (audit recommendation R-243) -- THE PER-PROJECT DASHBOARD IN ONE
+// ROUND TRIP.
+//
+// WHAT THIS REPLACES. getProjectDashboard() ran about ten sequential
+// aggregates against a remote pooler -- budget, revenue, expenses, the
+// activity list, a DISTINCT ON over progress, task counts, photos, the PO sum,
+// the active BOQ, its line items, and two more progress aggregates for earned
+// value -- one awaited after another, each paying the full round-trip latency
+// to ap-south-1. LCP on the per-project dashboard was 5.3 s warm.
+//
+// They are now ONE statement. Every figure is a CTE, they are computed
+// concurrently by Postgres, and the result is one row per project. The earned
+// value is deliberately NOT computed in SQL: computeEarnedValue()
+// (construction-reports-service.ts) is the ONE summation path this codebase
+// has for it (D-3), and reimplementing that formula in SQL would create the
+// second one. The statement instead returns the same aggregates that function
+// takes -- the active BOQ's line items with their summed DELTA quantity and
+// their latest percentComplete -- as a JSON array, and the pure function runs
+// over them in memory, unchanged, so the figure is byte-for-byte what
+// earnedValueReport() would produce.
+//
+// A batch is the same statement with more ids: id = ANY(ARRAY[...]) and one
+// row per project, which is what GET /api/v1/projexa/dashboard?projectIds=
+// serves. getProjectDashboard() is that batch with one id, so the single-project
+// path and the portfolio path can never drift.
+type EvItemRow = {
+  id: string
+  boqId: string
+  parentLineItemId: string | null
+  rate: string | number
+  amount: string | number
+  breakdownPercentage: string | number | null
+  qty: number | null
+  percent: number | null
+}
+
+type DashboardSqlRow = {
+  project_id: string
+  project_name: string
+  budget: number
+  revenue: number
+  expenses: number
+  progress_percent: number | null
+  task_count: number
+  delayed_task_count: number
+  photo_count: number
+  permits_expiring: number
+  permits_expired: number
+  project_value: string | number | null
+  po_total: string | number | null
+  ev_items: EvItemRow[] | null
+}
+
+/**
+ * Turns one SQL row into a ProjectDashboard, running the SHARED
+ * computeEarnedValue() over the aggregates the statement returned.
+ *
+ * Pure and exported so the earned-value wiring is unit-testable without a DB --
+ * the same convention computeHierarchicalAmount/diffLineItems follow in
+ * construction-boq-service.ts.
+ */
+/** A SQL numeric/int that may be absent, as a number -- with 0 as the answer
+ *  only when the aggregate really returned nothing to count. */
+function num(value: string | number | null | undefined): number {
+  return value === null || value === undefined ? 0 : Number(value)
+}
+
+/**
+ * Point 121: the user-entered value WINS when set -- a human overriding a
+ * derived figure is always deliberate. Falls back to the SUM of linked POs.
+ * null (never 0) when NEITHER exists, because a zero project value on a
+ * dashboard reads as a real figure.
+ */
+function resolveProjectValue(row: Pick<DashboardSqlRow, "project_value" | "po_total">): number | null {
+  if (row.project_value !== null && row.project_value !== undefined) return Number(row.project_value)
+  if (row.po_total !== null && row.po_total !== undefined) return Number(row.po_total)
+  return null
+}
+
+type EarnedValueFigures = { earnedValue: number | null; percentByValue: number | null; contractValue: number | null }
+const NO_EARNED_VALUE: EarnedValueFigures = { earnedValue: null, percentByValue: null, contractValue: null }
+
+/** The SHARED computeEarnedValue(), run over the aggregates the statement
+ *  returned. One summation path -- never a second one in SQL. */
+function resolveEarnedValue(items: EvItemRow[], constructionEnabled: boolean): EarnedValueFigures {
+  if (!constructionEnabled || items.length === 0) return NO_EARNED_VALUE
+  const qtyByItem = new Map<string, number>()
+  const latestPercentByItem = new Map<string, number>()
+  for (const item of items) {
+    if (item.qty !== null && item.qty !== undefined) qtyByItem.set(item.id, Number(item.qty))
+    if (item.percent !== null && item.percent !== undefined) latestPercentByItem.set(item.id, Number(item.percent))
+  }
+  const ev = computeEarnedValue(items as EvLineItem[], qtyByItem, latestPercentByItem)
+  // contractValue 0 means "no scope priced yet", a real not-applicable state --
+  // null, never a fabricated 0. Same convention getOrgDashboard uses.
+  if (ev.contractValue <= 0) return NO_EARNED_VALUE
+  return { earnedValue: ev.earnedValue, percentByValue: ev.percentByValue, contractValue: ev.contractValue }
+}
+
+export function toProjectDashboard(row: DashboardSqlRow, constructionEnabled: boolean): ProjectDashboard {
+  return {
+    projectId: row.project_id,
+    projectName: row.project_name,
+    budget: num(row.budget),
+    revenue: num(row.revenue),
+    expenses: num(row.expenses),
+    progressPercent: Math.round(num(row.progress_percent)),
+    delayedTaskCount: num(row.delayed_task_count),
+    photoCount: num(row.photo_count),
+    taskCount: num(row.task_count),
+    projectValue: resolveProjectValue(row),
+    ...resolveEarnedValue(row.ev_items ?? [], constructionEnabled),
+    permitsExpiringCount: num(row.permits_expiring),
+    permitsExpiredCount: num(row.permits_expired),
+  }
+}
+
+
+/**
+ * The dashboard figures for one or more projects, in ONE statement.
+ *
+ * Returns a row per project that EXISTS in this org -- a projectId that does
+ * not resolve is simply absent, so a caller can tell "not yours / not there"
+ * from "yours, with zeros", which is the distinction a fabricated all-zero row
+ * would destroy.
+ */
+export async function getProjectDashboards(ctx: { orgId: string }, projectIds: string[]): Promise<ProjectDashboard[]> {
+  const ids = [...new Set(projectIds.filter((id) => typeof id === "string" && id.trim().length > 0))]
+  if (ids.length === 0) return []
+
   // R66 audit: the enablement check is itself a withTenantContext transaction
   // (product-branch-service.ts isBranchEnabledForOrg) -- run it BEFORE opening
   // this one so no request ever holds two pooled connections at once.
   const constructionEnabled = await isConstructionEnabledForOrg(ctx.orgId).catch(() => false)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
-    if (!project) throw new ServiceError("Project not found", 404)
 
-    const [budgetRow] = await db.select({ total: sql<number>`coalesce(sum(${erpBudgetLineItems.annualAmount}), 0)::float` })
-      .from(erpBudgetLineItems)
-      .innerJoin(erpBudgets, eq(erpBudgetLineItems.budgetId, erpBudgets.id))
-      .innerJoin(erpCostCenters, eq(erpBudgets.costCenterId, erpCostCenters.id))
-      .where(and(eq(erpCostCenters.projectId, projectId), eq(erpBudgets.orgId, ctx.orgId)))
+  const cached: ProjectDashboard[] = []
+  const missing: string[] = []
+  for (const id of ids) {
+    const hit = readDashboardCache<ProjectDashboard>(ctx.orgId, id)
+    if (hit) cached.push(hit)
+    else missing.push(id)
+  }
+  if (missing.length === 0) return ids.map((id) => cached.find((d) => d.projectId === id)).filter((d): d is ProjectDashboard => d !== undefined)
 
-    const [revenueRow] = await db.select({ total: sql<number>`coalesce(sum(${erpSalesInvoices.grandTotal}), 0)::float` })
-      .from(erpSalesInvoices)
-      .where(and(eq(erpSalesInvoices.orgId, ctx.orgId), eq(erpSalesInvoices.projectId, projectId), sql`${erpSalesInvoices.status} != 'cancelled'`))
+  const today = new Date().toISOString().slice(0, 10)
+  // sql.join building a real ARRAY[...] literal, each element still its own
+  // bound parameter: a plain JS array passed as one template parameter does NOT
+  // serialize as a Postgres array (postgres.js binds it as a scalar and
+  // `= ANY($1)` then fails with "malformed array literal"). Same construction
+  // getOrgDashboard uses below -- see its comment for the full history.
+  const idsSql = sql.join(missing.map((id) => sql`${id}`), sql`, `)
 
-    const [expenseRow] = await db.select({ total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float` })
-      .from(constructionExpenseEntries)
-      .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), eq(constructionExpenseEntries.projectId, projectId)))
+  const rows = await withTenantContext({ orgId: ctx.orgId }, async (db) =>
+    (await db.execute(sql`
+      WITH p AS (
+        SELECT id, name, project_value
+        FROM compliance.projects
+        WHERE org_id = ${ctx.orgId} AND id = ANY(ARRAY[${idsSql}])
+      ),
+      budget AS (
+        SELECT cc.project_id AS project_id, coalesce(sum(bli.annual_amount), 0)::float AS total
+        FROM compliance.erp_budget_line_items bli
+        JOIN compliance.erp_budgets b ON b.id = bli.budget_id
+        JOIN compliance.erp_cost_centers cc ON cc.id = b.cost_center_id
+        WHERE b.org_id = ${ctx.orgId} AND cc.project_id IN (SELECT id FROM p)
+        GROUP BY cc.project_id
+      ),
+      revenue AS (
+        SELECT project_id, coalesce(sum(grand_total), 0)::float AS total
+        FROM compliance.erp_sales_invoices
+        WHERE org_id = ${ctx.orgId} AND project_id IN (SELECT id FROM p) AND status != 'cancelled'
+        GROUP BY project_id
+      ),
+      expense AS (
+        SELECT project_id, coalesce(sum(amount), 0)::float AS total
+        FROM compliance.construction_expense_entries
+        WHERE org_id = ${ctx.orgId} AND project_id IN (SELECT id FROM p)
+        GROUP BY project_id
+      ),
+      po AS (
+        SELECT project_id, sum(grand_total)::float AS total
+        FROM compliance.erp_purchase_orders
+        WHERE org_id = ${ctx.orgId} AND project_id IN (SELECT id FROM p)
+        GROUP BY project_id
+      ),
+      task AS (
+        SELECT project_id,
+               count(*)::int AS total,
+               count(*) FILTER (WHERE due_date < ${today})::int AS delayed
+        FROM compliance.pms_issues
+        WHERE org_id = ${ctx.orgId} AND project_id IN (SELECT id FROM p) AND is_archived = false
+        GROUP BY project_id
+      ),
+      photo AS (
+        SELECT linked_entity_id AS project_id, count(*)::int AS total
+        FROM compliance.documents
+        WHERE org_id = ${ctx.orgId} AND category = 'site_photo' AND linked_entity_type = 'project'
+          AND linked_entity_id IN (SELECT id FROM p)
+        GROUP BY linked_entity_id
+      ),
+      -- The "Permits Expiring" tile, on the same rules document-service.ts's
+      -- listExpiringDocuments applies: latest version only, a real expiry
+      -- date, within 30 days. "expired" is the subset already past.
+      permit AS (
+        SELECT linked_entity_id AS project_id,
+               count(*)::int AS expiring,
+               count(*) FILTER (WHERE expiry_date < now())::int AS expired
+        FROM compliance.documents
+        WHERE org_id = ${ctx.orgId} AND category = 'permit' AND linked_entity_type = 'project'
+          AND linked_entity_id IN (SELECT id FROM p)
+          AND is_latest_version = true
+          AND expiry_date IS NOT NULL
+          AND expiry_date <= now() + interval '30 days'
+        GROUP BY linked_entity_id
+      ),
+      -- Latest logged entry per activity, then averaged: a daily-log table
+      -- must not weight every historical entry equally.
+      activity_latest AS (
+        SELECT DISTINCT ON (e.activity_id) a.project_id, e.activity_id, e.percent_complete
+        FROM compliance.construction_work_progress_entries e
+        JOIN compliance.construction_activities a ON a.id = e.activity_id
+        WHERE a.org_id = ${ctx.orgId} AND a.project_id IN (SELECT id FROM p)
+        ORDER BY e.activity_id, e.entry_date DESC
+      ),
+      progress AS (
+        SELECT project_id, avg(percent_complete)::float AS pct FROM activity_latest GROUP BY project_id
+      ),
+      -- "Active" = latest non-superseded BOQ, version DESC then created_at
+      -- DESC: the identical tiebreaker listBoqs()/scopeReport() use, kept
+      -- consistent on purpose.
+      active_boq AS (
+        SELECT DISTINCT ON (project_id) project_id, id AS boq_id
+        FROM compliance.construction_boqs
+        WHERE org_id = ${ctx.orgId} AND project_id IN (SELECT id FROM p) AND status != 'superseded'
+        ORDER BY project_id, version DESC, created_at DESC
+      ),
+      ev_line AS (
+        SELECT ab.project_id, li.id, li.boq_id, li.parent_line_item_id, li.rate, li.amount, li.breakdown_percentage
+        FROM active_boq ab
+        JOIN compliance.construction_boq_line_items li ON li.boq_id = ab.boq_id
+        WHERE li.org_id = ${ctx.orgId}
+      ),
+      -- Both progress aggregates are JOINED to ev_line, so neither ever scans
+      -- more of the progress table than the active BOQs' own lines.
+      ev_qty AS (
+        SELECT e.boq_line_item_id AS boq_line_item_id, coalesce(sum(e.quantity_done), 0)::float AS total_qty
+        FROM compliance.construction_work_progress_entries e
+        JOIN ev_line l ON l.id = e.boq_line_item_id
+        WHERE e.entry_basis = 'DELTA'
+        GROUP BY e.boq_line_item_id
+      ),
+      ev_pct AS (
+        SELECT DISTINCT ON (e.boq_line_item_id) e.boq_line_item_id AS boq_line_item_id, e.percent_complete
+        FROM compliance.construction_work_progress_entries e
+        JOIN ev_line l ON l.id = e.boq_line_item_id
+        ORDER BY e.boq_line_item_id, e.entry_date DESC
+      ),
+      ev AS (
+        SELECT l.project_id,
+               json_agg(json_build_object(
+                 'id', l.id,
+                 'boqId', l.boq_id,
+                 'parentLineItemId', l.parent_line_item_id,
+                 'rate', l.rate,
+                 'amount', l.amount,
+                 'breakdownPercentage', l.breakdown_percentage,
+                 'qty', coalesce(q.total_qty, 0),
+                 'percent', pc.percent_complete
+               )) AS items
+        FROM ev_line l
+        LEFT JOIN ev_qty q ON q.boq_line_item_id = l.id
+        LEFT JOIN ev_pct pc ON pc.boq_line_item_id = l.id
+        GROUP BY l.project_id
+      )
+      SELECT p.id AS project_id,
+             p.name AS project_name,
+             coalesce(budget.total, 0)::float AS budget,
+             coalesce(revenue.total, 0)::float AS revenue,
+             coalesce(expense.total, 0)::float AS expenses,
+             progress.pct AS progress_percent,
+             coalesce(task.total, 0)::int AS task_count,
+             coalesce(task.delayed, 0)::int AS delayed_task_count,
+             coalesce(photo.total, 0)::int AS photo_count,
+             coalesce(permit.expiring, 0)::int AS permits_expiring,
+             coalesce(permit.expired, 0)::int AS permits_expired,
+             p.project_value AS project_value,
+             po.total AS po_total,
+             ev.items AS ev_items
+      FROM p
+      LEFT JOIN budget ON budget.project_id = p.id
+      LEFT JOIN revenue ON revenue.project_id = p.id
+      LEFT JOIN expense ON expense.project_id = p.id
+      LEFT JOIN po ON po.project_id = p.id
+      LEFT JOIN task ON task.project_id = p.id
+      LEFT JOIN photo ON photo.project_id = p.id
+      LEFT JOIN permit ON permit.project_id = p.id
+      LEFT JOIN progress ON progress.project_id = p.id
+      LEFT JOIN ev ON ev.project_id = p.id
+    `)) as DashboardSqlRow[]
+  )
 
-    const activityIds = (await db.query.constructionActivities.findMany({
-      where: and(eq(constructionActivities.orgId, ctx.orgId), eq(constructionActivities.projectId, projectId)),
-      columns: { id: true },
-    })).map((a) => a.id)
+  const fresh = rows.map((row) => toProjectDashboard(row, constructionEnabled))
+  for (const dashboard of fresh) writeDashboardCache(ctx.orgId, dashboard.projectId, dashboard)
 
-    let progressPercent = 0
-    if (activityIds.length > 0) {
-      // Latest logged entry per activity, then averaged -- a daily-log table
-      // shouldn't have every historical entry weighted equally.
-      //
-      // Bug fix (verified live in production 2026-07-08): passing a plain JS
-      // array as a single sql`` template parameter does NOT serialize it as
-      // a Postgres array -- postgres.js binds it as a scalar, and
-      // `= ANY($1)` then fails with "malformed array literal" trying to
-      // parse the first element's string value as array syntax. sql.join()
-      // building a real ARRAY[...] literal (each element still its own
-      // bound parameter, so no injection risk) is the correct fix.
-      const idsSql = sql.join(activityIds.map((id) => sql`${id}`), sql`, `)
-      const rows = (await db.execute(sql`
-        SELECT DISTINCT ON (activity_id) percent_complete
-        FROM compliance.construction_work_progress_entries
-        WHERE activity_id = ANY(ARRAY[${idsSql}])
-        ORDER BY activity_id, entry_date DESC
-      `)) as { percent_complete: number }[]
-      if (rows.length > 0) progressPercent = rows.reduce((sum, r) => sum + Number(r.percent_complete), 0) / rows.length
-    }
+  // Original request order, so a caller can zip the result against its own ids.
+  const byId = new Map([...cached, ...fresh].map((d) => [d.projectId, d]))
+  return ids.map((id) => byId.get(id)).filter((d): d is ProjectDashboard => d !== undefined)
+}
 
-    const today = new Date().toISOString().slice(0, 10)
-    const [taskStats] = await db.select({
-      total: sql<number>`count(*)`,
-      delayed: sql<number>`count(*) filter (where ${pmsIssues.dueDate} < ${today})`,
-    }).from(pmsIssues).where(and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId), eq(pmsIssues.isArchived, false)))
-
-    const [photoRow] = await db.select({ total: sql<number>`count(*)` })
-      .from(documents)
-      .where(and(eq(documents.orgId, ctx.orgId), eq(documents.category, "site_photo"), eq(documents.linkedEntityType, "project"), eq(documents.linkedEntityId, projectId)))
-
-    // Point 121: user-entered value WINS when set -- a human overriding a
-    // derived figure is always deliberate. Falls back to the SUM of linked
-    // POs' grand_total. null (never 0) when neither exists.
-    let projectValue: number | null = project.projectValue !== null ? Number(project.projectValue) : null
-    if (projectValue === null) {
-      const [poRow] = await db.select({ total: sql<number | null>`sum(${erpPurchaseOrders.grandTotal})` })
-        .from(erpPurchaseOrders)
-        .where(and(eq(erpPurchaseOrders.orgId, ctx.orgId), eq(erpPurchaseOrders.projectId, projectId)))
-      projectValue = poRow?.total !== null && poRow?.total !== undefined ? Number(poRow.total) : null
-    }
-
-    // R42 seq24 (M28 DASHBOARD.PROJECT, D-3): the SAME earnedValueReport()
-    // getOrgDashboard already calls -- ONE summation path, never a second,
-    // so the project dashboard and the org dashboard/WPR report can never
-    // disagree. contractValue is parent-lines-only by that function's own
-    // contract (v5 D-3) -- this is what TC-11 checks (5,000 not 10,000).
-    // R66 audit (2026-09-02, LOCAL DEV PATCH that validates the recommended
-    // fix): earnedValueReport() opens TWO nested transactions
-    // (requireConstructionEnabled() + its own withTenantContext) while THIS
-    // transaction already holds one of tenant-scoped.ts's 5 pooled
-    // connections -- the same self-deadlock R43_MGR_01 removed from
-    // getOrgDashboard on 2026-08-27, still live here. Reproduced live: all 5
-    // app_runtime sessions "idle in transaction" for 25 minutes, parked on the
-    // PO-sum query above. Same batched pattern as getOrgDashboard: read the
-    // active BOQ's items + progress on the already-open `db` and run the pure
-    // computeEarnedValue() in memory -- zero extra pool connections.
-    let earnedValue: number | null = null
-    let percentByValue: number | null = null
-    let contractValue: number | null = null
-    try {
-      if (constructionEnabled) {
-        const activeBoq = await db.query.constructionBoqs.findFirst({
-          where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId), sql`${constructionBoqs.status} != 'superseded'`),
-          orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)],
-          columns: { id: true },
-        })
-        if (activeBoq) {
-          const items = await db.query.constructionBoqLineItems.findMany({
-            where: eq(constructionBoqLineItems.boqId, activeBoq.id),
-            columns: { id: true, boqId: true, parentLineItemId: true, rate: true, amount: true, breakdownPercentage: true },
-          })
-          let qtyByItem = new Map<string, number>()
-          let latestPercentByItem = new Map<string, number>()
-          if (items.length > 0) {
-            const evIdsSql = sql.join(items.map((i) => sql`${i.id}`), sql`, `)
-            const qtyRows = (await db.execute(sql`
-              SELECT boq_line_item_id, coalesce(sum(quantity_done), 0)::float AS total_qty
-              FROM compliance.construction_work_progress_entries
-              WHERE boq_line_item_id = ANY(ARRAY[${evIdsSql}]) AND entry_basis = 'DELTA'
-              GROUP BY boq_line_item_id
-            `)) as { boq_line_item_id: string; total_qty: number }[]
-            qtyByItem = new Map(qtyRows.map((r) => [r.boq_line_item_id, Number(r.total_qty)]))
-            const percentRows = (await db.execute(sql`
-              SELECT DISTINCT ON (boq_line_item_id) boq_line_item_id, percent_complete
-              FROM compliance.construction_work_progress_entries
-              WHERE boq_line_item_id = ANY(ARRAY[${evIdsSql}])
-              ORDER BY boq_line_item_id, entry_date DESC
-            `)) as { boq_line_item_id: string; percent_complete: number }[]
-            latestPercentByItem = new Map(percentRows.map((r) => [r.boq_line_item_id, Number(r.percent_complete)]))
-          }
-          const ev = computeEarnedValue(items, qtyByItem, latestPercentByItem)
-          if (ev.contractValue > 0) {
-            earnedValue = ev.earnedValue
-            percentByValue = ev.percentByValue
-            contractValue = ev.contractValue
-          }
-        }
-      }
-    } catch {
-      // null (not 0) is the correct "no data" signal, same convention
-      // getOrgDashboard already uses for this exact case.
-    }
-
-    return {
-      projectId: project.id,
-      projectName: project.name,
-      budget: Number(budgetRow?.total ?? 0),
-      revenue: Number(revenueRow?.total ?? 0),
-      expenses: Number(expenseRow?.total ?? 0),
-      progressPercent: Math.round(progressPercent),
-      delayedTaskCount: Number(taskStats?.delayed ?? 0),
-      photoCount: Number(photoRow?.total ?? 0),
-      taskCount: Number(taskStats?.total ?? 0),
-      projectValue,
-      earnedValue,
-      percentByValue,
-      contractValue,
-    }
-  })
+export async function getProjectDashboard(ctx: { orgId: string }, projectId: string): Promise<ProjectDashboard> {
+  const [dashboard] = await getProjectDashboards(ctx, [projectId])
+  // A project that is not this org's is absent from the result, and 404 is the
+  // answer it has always given -- never a fabricated all-zero dashboard.
+  if (!dashboard) throw new ServiceError("Project not found", 404)
+  return dashboard
 }
 
 export type OrgDashboardFilters = { departmentId?: string }

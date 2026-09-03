@@ -11,44 +11,68 @@
 // function id. They are DIFFERENT KINDS OF THING and the product treated them
 // identically: same list, same badge, same silence about what to do next.
 //
-// This file draws that line, once, in one place:
+// ---------------------------------------------------------------------------
+// FIX PASS, decision D-11 -- WHAT CHANGED AND WHY.
 //
-//   USER-FIXABLE -> status 'failed', a closed-vocabulary code naming the slot,
-//                   and the row stays in "needs you" with a verb button.
-//   SYSTEM       -> status 'failed_system', code INFRA_UNAVAILABLE, a retry
-//                   token, the raw text kept for US in error_details and never
-//                   sent to a browser, and the row OUT of the needs-you list.
+// Lane B's src/lib/pipeline/error-codes.ts merged to main while this file was
+// being written, and the two declared the SAME two exported symbols --
+// PIPELINE_ERROR_CODES and PipelineErrorCode -- over two different closed
+// vocabularies. Two competing error vocabularies in one repo is the exact
+// drift D-03 was raised to remove, so under D-11 ("the version already merged
+// to main is canonical; the arriving lane folds its distinct capability into
+// it") error-codes.ts is now THE vocabulary and this file no longer declares
+// one at all. It keeps only the two things error-codes.ts does not do:
+//
+//   1. THE SYSTEM / USER SPLIT. Which codes mean "nobody on site can act on
+//      this", so those rows can leave the needs-you list and its badge.
+//   2. A RETRY TOKEN, so a retry can be correlated in the logs with the
+//      failure that caused it.
+//
+// It no longer re-implements classification of a thrown driver error: that is
+// normaliseThrownError()'s job and it does it. What is left of classifyFailure
+// is a thin adapter that calls it and adds those two facts.
+//
+// Lane C's original file also carried a USER_PATTERNS table mapping legacy
+// English ("no BOQ found for project") back to a code. That is DELIBERATELY
+// GONE: lane B put the one legacy prose mapping in projexa's task-errors.ts
+// (legacyToCode) precisely so the programme has ONE such mapping rather than
+// two that drift, and a second copy here would have been that second copy.
 //
 // WHY 'failed_system' IS NOT A NEW pipeline_task_status VALUE. schema.ts's own
 // comment closes that enum at five ("M24's closed 5-status set, verbatim -- no
 // sixth value") and records that extending it needs owner sign-off this lane
-// does not have. So 'failed_system' is a classification of the OUTCOME --
-// carried on the ExecutionOutcome, returned to the caller, and persisted as
-// `blocked` + error_code = 'INFRA_UNAVAILABLE'. Every behaviour C-13 asks for
-// (out of needs-you, retryable, raw text kept separately) keys off the CODE,
-// which is a column, rather than off a sixth status the schema forbids.
+// does not have. So 'failed_system' is a classification of the OUTCOME, and
+// the row itself is persisted the way lane B's B-06 already persists a
+// transport failure: status 'waiting' with a retryable error_code, which the
+// tasks route groups without the blocked styling.
 //
 // PURE. No DB, no I/O -- asserted in failure-classification.test.ts.
 
-import { SLOT_ERROR_CODES, type SlotErrorCode } from "./function-slots";
-
-/**
- * Every code this pipeline may put on a failed task. The slot codes are
- * function-slots.ts's (D-03's vocabulary, which PROJEXA's task-errors.ts turns
- * into sentences), plus the two this file adds.
- */
-export const PIPELINE_ERROR_CODES = [...SLOT_ERROR_CODES, "INFRA_UNAVAILABLE", "UNKNOWN"] as const;
-export type PipelineErrorCode = SlotErrorCode | "INFRA_UNAVAILABLE" | "UNKNOWN";
+import {
+  isStatementTimeoutMessage,
+  isTransportErrorMessage,
+  normaliseThrownError,
+  type PipelineErrorCode,
+  type PipelineFailure,
+} from "./error-codes";
 
 /**
  * The codes NOBODY ON SITE CAN ACT ON. Excluded from the needs-you query and
  * from its count, so "3 needs you" means three decisions a person can actually
  * make -- a number that can be worked down to zero.
  *
- * BACKEND_UNAVAILABLE is here as well as INFRA_UNAVAILABLE because it is the
- * same fact under D-03's older name and rows already carry it.
+ * INTERNAL_ERROR is here with the two transport codes: an unclassifiable
+ * exception is still not something a foreman can fix by picking a different
+ * BOQ line. INFRA_UNAVAILABLE is accepted as an alias because rows written by
+ * lane C's own earlier build carry it, and a code this build does not know
+ * must not silently become a user-fixable row.
  */
-export const SYSTEM_ERROR_CODES: ReadonlySet<string> = new Set(["INFRA_UNAVAILABLE", "BACKEND_UNAVAILABLE"]);
+export const SYSTEM_ERROR_CODES: ReadonlySet<string> = new Set([
+  "BACKEND_UNAVAILABLE",
+  "UPSTREAM_TIMEOUT",
+  "INTERNAL_ERROR",
+  "INFRA_UNAVAILABLE",
+]);
 
 export function isSystemErrorCode(code: string | null | undefined): boolean {
   return !!code && SYSTEM_ERROR_CODES.has(code);
@@ -58,13 +82,26 @@ export function isSystemErrorCode(code: string | null | undefined): boolean {
 // MASKING -- the server's own last line of defence
 // ---------------------------------------------------------------------------
 
-/** An IPv4 address with an optional port: "3.109.171.244:6543" (the real row). */
-const IP_PORT = /\b\d{1,3}(?:\.\d{1,3}){3}(?::\d{1,5})?\b/g;
+/**
+ * An IPv4 address WITH A PORT: "3.109.171.244:6543" (the real R66 row).
+ *
+ * FIX PASS -- THE PORT IS MANDATORY, and that is the whole fix. It used to be
+ * optional (`(?::\d{1,5})?`), which made this pattern match a four-segment
+ * dotted BOQ ITEM CODE: maskInfrastructure("record 50% on 1.01.1.2") returned
+ * "record 50% on the service". This repo's own fixtures use exactly that shape
+ * (work-progress-report-pdf.test.ts itemCode "1.01.1"), so it was not a
+ * hypothetical. The captured defect was always an IP:PORT pair, and a bare
+ * dotted quad is far more likely to be a BOQ code than a leaked host.
+ */
+const IP_PORT = /\b\d{1,3}(?:\.\d{1,3}){3}:\d{1,5}\b/g;
 /** A host with a port: "db.abcdefgh.supabase.co:5432", "localhost:5432". */
 const HOST_PORT = /\b(?:[a-z0-9-]+\.)*[a-z0-9-]+:\d{2,5}\b/gi;
 /** Transport codes that mean exactly one thing to a person: nothing. */
 const TRANSPORT_CODE =
   /\b(?:ECONN[A-Z]+|ETIMEDOUT|ENOTFOUND|EPIPE|EAI_AGAIN|CONNECT_TIMEOUT|POOL_TIMEOUT|SASL|SSL)\b/g;
+
+const SERVICE = "the service";
+const UNAVAILABLE = "unavailable";
 
 /**
  * Replace anything identifying infrastructure with words.
@@ -73,14 +110,23 @@ const TRANSPORT_CODE =
  * that is deliberate, not duplication: this endpoint has other consumers --
  * the MCP surface, the assistant route, any future client -- and "the browser
  * will clean it up" is not a property the server may rely on.
+ *
+ * FIX PASS -- THE STUTTER COLLAPSE NO LONGER EATS THE SEPARATOR. It was
+ * /(?:the service[\s,]*)+/g, whose trailing `[\s,]*` consumed the space AFTER
+ * the last replacement, so "write CONNECT_TIMEOUT 3.109.171.244:6543 while
+ * saving" came out as "write unavailable the service while saving" with words
+ * run together elsewhere. The collapse now matches only the repeats
+ * themselves, so exactly one separator survives where one was.
  */
 export function maskInfrastructure(text: string): string {
   if (!text) return text;
   return text
-    .replace(IP_PORT, "the service")
-    .replace(TRANSPORT_CODE, "unavailable")
-    .replace(HOST_PORT, "the service")
-    .replace(/\s{2,}/g, " ")
+    .replace(IP_PORT, SERVICE)
+    .replace(TRANSPORT_CODE, UNAVAILABLE)
+    .replace(HOST_PORT, SERVICE)
+    .replace(/(?:the service)(?:[ ,]+the service)+/g, SERVICE)
+    .replace(/(?:unavailable)(?:[ ,]+unavailable)+/g, UNAVAILABLE)
+    .replace(/ {2,}/g, " ")
     .trim();
 }
 
@@ -88,77 +134,27 @@ export function maskInfrastructure(text: string): string {
 // THE CLASSIFICATION
 // ---------------------------------------------------------------------------
 
-/**
- * The patterns that make a failure SYSTEM. Every one of them is a real string
- * this stack produces -- a postgres driver timeout, a pool exhaustion, an
- * upstream 5xx -- not a guess at what an error might say.
- */
-const SYSTEM_PATTERNS: readonly RegExp[] = [
-  /\b(?:ECONN[A-Z]+|ETIMEDOUT|ENOTFOUND|EPIPE|EAI_AGAIN)\b/,
-  /\bCONNECT_TIMEOUT\b/,
-  /\bPOOL_TIMEOUT\b/i,
-  /\bconnection (?:terminated|timed out|refused|closed)\b/i,
-  /\btimeout exceeded when trying to connect\b/i,
-  /\bstatement timeout\b/i,
-  /\bcanceling statement due to statement timeout\b/i,
-  /\bfetch failed\b/i,
-  /\bsocket hang up\b/i,
-  /\b(?:502|503|504)\b/,
-  /\bupstream (?:error|timeout|unavailable)\b/i,
-  /\bservice unavailable\b/i,
-];
-
-/**
- * The patterns that make a failure the USER'S, with the slot it is about. The
- * executors' own wording, cited so this is a translation of real strings
- * rather than an invention.
- */
-const USER_PATTERNS: readonly [RegExp, SlotErrorCode, string[]][] = [
-  // executor.ts executeRecordWorkProgress: `itemCode is required`
-  [/\bitem\s*code is required\b/i, "BOQ_LINE_REQUIRED", ["itemCode"]],
-  [/\bboq[_ ]?line[_ ]?item[_ ]?id\b[^.]*\brequired\b/i, "BOQ_LINE_REQUIRED", ["itemCode"]],
-  // executor.ts: `item code "01" not found in this project's BOQ`
-  [/\bnot found in this project'?s boq\b/i, "BOQ_LINE_NOT_FOUND", ["itemCode"]],
-  // validate.ts: `boq_line_item_id "x" does not exist in this BOQ`
-  [/\bdoes not exist in this boq\b/i, "BOQ_LINE_NOT_FOUND", ["boqLineItemId"]],
-  // executor.ts: `no BOQ found for project "x"`
-  [/\bno boq found for project\b/i, "BOQ_LINE_NOT_FOUND", ["itemCode"]],
-  // executor.ts: `no project resolved for this task`
-  [/\bno project resolved\b/i, "PROJECT_REQUIRED", ["projectId"]],
-  [/\bproject\b[^.]*\bis not reachable\b/i, "PROJECT_REQUIRED", ["projectId"]],
-  // executor.ts executeRecordTimesheet: the task fuzzy match
-  [/\bno task on this project matches\b/i, "TASK_REQUIRED", ["task"]],
-  [/\bmatches \d+ tasks on this project\b/i, "TASK_REQUIRED", ["task"]],
-  [/\bwhich task\b/i, "TASK_REQUIRED", ["task"]],
-  // executor.ts / validate.ts: the value checks
-  [/\b(?:percent|quantity|hours) is required\b/i, "VALUE_REQUIRED", []],
-  [/\bmust be a number between 0 and 100\b/i, "VALUE_REQUIRED", ["percent"]],
-  [/\bmust be a non-empty string\b/i, "VALUE_REQUIRED", []],
-  // run-submission.ts / validate.ts: the function itself
-  [/\bno executor is registered\b/i, "FUNCTION_NOT_AVAILABLE", []],
-  [/\bis not in this module's candidate set\b/i, "FUNCTION_NOT_AVAILABLE", []],
-  [/\bis not permitted to execute\b/i, "FUNCTION_NOT_AVAILABLE", []],
-];
-
 export type ClassifiedFailure = {
   /**
    * 'failed' -- a person can fix it, and the row stays in "needs you".
    * 'failed_system' -- nobody on site can, and the row leaves that list.
    */
   status: "failed" | "failed_system";
+  /** The closed-vocabulary failure, from error-codes.ts. */
+  failure: PipelineFailure;
   code: PipelineErrorCode;
   /** The slots the user has to supply, when the failure names any. */
   missing: string[];
   /**
-   * The sentence a CLIENT may render. Masked, and for a system failure
-   * replaced outright -- there is nothing in a driver's own words a user can
-   * use, and the parts that are useful to us go to error_details.
+   * The sentence a CLIENT may render. For a system failure it is replaced
+   * outright -- there is nothing in a driver's own words a user can use.
    */
   message: string;
   /**
-   * The raw text, for error_details and the server log. NEVER returned to a
-   * browser by any route in this repo -- the whole point of splitting it out
-   * of `error` is that one column is safe to render and one is not.
+   * The raw text, for the SERVER LOG ONLY. It is deliberately not persisted
+   * anywhere: pipeline_tasks has no column for it (see the schema.ts note on
+   * pipelineTasks), which is what makes the R66 leak impossible to repeat
+   * through that table.
    */
   details: string;
   /**
@@ -173,47 +169,59 @@ export const SYSTEM_FAILURE_MESSAGE =
   "The construction data service didn't answer — nothing was saved";
 
 /**
- * Classify one failure.
+ * Classify one thrown error.
  *
  * ORDER MATTERS AND SYSTEM WINS. A pool timeout that happens to mention a BOQ
  * line is still a pool timeout, and telling a foreman to "pick a BOQ line"
  * when the database did not answer would send them round a loop they cannot
  * get out of.
+ *
+ * The transport predicates are error-codes.ts's own -- this file no longer
+ * keeps a second set. That is also what closes the FIX PASS finding that
+ * lane C's own SYSTEM_PATTERNS carried a bare /\b(?:502|503|504)\b/, which
+ * reclassified an ordinary refusal whose text contained a three-digit number
+ * ("item code \"502\" not found in this project's BOQ") as an outage --
+ * excluding it from the needs-you list AND its count, and telling the user to
+ * wait for a service that was fine. error-codes.ts branches on ServiceError's
+ * own status before it ever reaches a regex, for exactly that reason.
  */
 export function classifyFailure(error: unknown, now: number = Date.now()): ClassifiedFailure {
-  const raw = errorText(error);
-
-  if (SYSTEM_PATTERNS.some((p) => p.test(raw))) {
-    return {
-      status: "failed_system",
-      code: "INFRA_UNAVAILABLE",
-      missing: [],
-      message: SYSTEM_FAILURE_MESSAGE,
-      details: raw,
-      retryToken: `retry_${now.toString(36)}`,
-    };
-  }
-
-  for (const [pattern, code, missing] of USER_PATTERNS) {
-    if (pattern.test(raw)) {
-      return { status: "failed", code, missing: [...missing], message: maskInfrastructure(raw), details: raw };
-    }
-  }
-
-  // UNKNOWN IS NOT SYSTEM. A failure we cannot classify is still shown to the
-  // user with its own (masked) words, because the executors' deliberate,
-  // human-authored refusals -- "this BOQ has no line 3.04" -- all land here,
-  // and hiding those behind "something went wrong" would lose the one sentence
-  // that says what to do.
-  return { status: "failed", code: "UNKNOWN", missing: [], message: maskInfrastructure(raw), details: raw };
+  const { failure, debug } = normaliseThrownError(error);
+  return fromFailure(failure, debug, now);
 }
 
-function errorText(error: unknown): string {
-  if (error instanceof Error) return error.message || error.name;
-  if (typeof error === "string") return error;
-  if (error && typeof error === "object" && "message" in error) {
-    const m = (error as { message: unknown }).message;
-    if (typeof m === "string") return m;
-  }
-  return String(error ?? "");
+/**
+ * The same classification for a failure that was RETURNED rather than thrown
+ * -- an executor's own deliberate refusal, already carrying a code. Nothing is
+ * re-read out of its wording; the code it chose is the authority.
+ */
+export function classifyPipelineFailure(
+  failure: PipelineFailure,
+  debug = "",
+  now: number = Date.now()
+): ClassifiedFailure {
+  return fromFailure(failure, debug, now);
+}
+
+function fromFailure(failure: PipelineFailure, debug: string, now: number): ClassifiedFailure {
+  const system = isSystemErrorCode(failure.code);
+  return {
+    status: system ? "failed_system" : "failed",
+    failure,
+    code: failure.code,
+    missing: [...failure.missing],
+    message: system ? SYSTEM_FAILURE_MESSAGE : maskInfrastructure(debug),
+    details: debug,
+    ...(system ? { retryToken: `retry_${now.toString(36)}` } : {}),
+  };
+}
+
+/**
+ * "Would this text have been classified as ours?" -- exported because the
+ * needs-you exclusion has to be able to answer that for a LEGACY row whose
+ * only record of the failure is the prose in `error`, and because a test that
+ * pins the 502 regression needs to name the predicate it is pinning.
+ */
+export function looksLikeSystemText(text: string): boolean {
+  return isStatementTimeoutMessage(text) || isTransportErrorMessage(text);
 }

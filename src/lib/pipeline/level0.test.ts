@@ -239,10 +239,32 @@ describe("tryTimesheetMatch -- deterministic, no model, and the verb is required
     expect(tryTimesheetMatch("delivery is 2 hours late", NOW)).toBeNull();
   });
 
-  test("a missing task is a QUESTION to ask, not a task that can only fail", () => {
-    const m = tryTimesheetMatch("log 3 hours today", NOW);
+  // *** FIX PASS -- A DURATION AND A VERB, WITH NOTHING LOGGED AGAINST, IS
+  // NOT A TIMESHEET ENTRY EITHER. ***
+  //
+  // This tier used to return a proposal with `task` missing whenever a verb
+  // and a duration appeared, and the verb list is broad ("spent", "worked",
+  // "booked"). So a plain observation -- "we spent 3 hrs waiting for the
+  // crane" -- resolved at Level 0 to record_timesheet with a hole in it: a
+  // chat sentence promoted to a WRITE PROPOSAL, ahead of last-action recall.
+  // The task clause is what makes the sentence an entry, so without one there
+  // is nothing to propose and it falls through to Level 1.
+  test("*** A LOGGING VERB WITH NOTHING LOGGED AGAINST IT IS NOT A MATCH ***", () => {
+    expect(tryTimesheetMatch("log 3 hours today", NOW)).toBeNull();
+    expect(tryTimesheetMatch("we spent 3 hrs waiting for the crane", NOW)).toBeNull();
+    // " on " present but empty after the pattern's own tokens are cut out.
+    expect(tryTimesheetMatch("logged 3 hours on today", NOW)).toBeNull();
+  });
+
+  test("the sentence that IS an entry still matches, and reports nothing missing", () => {
+    const m = tryTimesheetMatch("spent 3 hrs on the crane platform", NOW);
+    expect(m).not.toBeNull();
     expect(m!.params.hours).toBe(3);
-    expect(m!.missingParams).toEqual(["task"]);
+    expect(m!.params.task).toBe("the crane platform");
+    // projectId is a declared required param of record_timesheet, but Level 0
+    // has no project context -- the composer's top rail supplies it -- so it
+    // is deliberately not reported as a question here.
+    expect(m!.missingParams).toEqual([]);
   });
 
   test("yesterday, an explicit ISO date, and no day at all", () => {

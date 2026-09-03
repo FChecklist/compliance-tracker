@@ -81,10 +81,54 @@ active:
         M24Shell,Composer,ControlStrip}.tsx, src/components/ReportsClient.tsx,
         src/app/api/{tasks,classify,chain-options}/route.ts (all + their .test.ts).
 
-      NOT touching: drizzle/** (until C-13), src/lib/services/** apart from
+      NOT touching: drizzle/**, src/lib/services/** apart from
       construction-labour-service.ts (see above), the ui-kit (D-09: fork into
       projexa instead), any guardrail script's strictness (AGENTS.md Rule 9), or any file
       another lane's entry claims.
+    fix_pass_amendment_2026_09_03: |
+      RECONCILED WITH origin/main AFTER LANES A, B, D0 AND F2 MERGED. Four
+      corrections to the scope above, recorded rather than left to be found in
+      review. Nothing was deleted silently; each is named in the commit that
+      made it (decision D-11: "the version already merged to main is canonical;
+      the arriving lane folds its distinct capability into it and keeps both
+      sets of tests").
+
+      1. *** DECISION D-12 IS NAMED HERE, WHICH IT WAS NOT BEFORE. ***
+         recordAttendanceBatch in src/lib/services/construction-labour-service.ts
+         AND the `entries` branch of src/app/api/v1/construction/attendance/
+         route.ts are LANE D3'S under D-12 ("Lane D3 owns recordAttendanceBatch
+         and the bulk attendance route ... Lane C keeps the composer half of
+         C-08 ... It must CALL D3's function, not define its own"). The earlier
+         claim text checked only this file and concluded nothing claimed the
+         service -- true of ACTIVE-CLAIMS, and not true of the decision. D3's
+         version is not on main today, so there was nothing to call and lane C
+         carries the implementation in the meantime. ON MERGE-SECOND: delete the
+         service function and the route branch in favour of D3's, KEEP lane C's
+         caller in projexa's M24Shell and KEEP both lanes' tests (D-12 clause 3).
+
+      2. drizzle/0533_r67_c13_pipeline_task_error_shape.sql IS DELETED, and this
+         lane now claims NO migration at all. Lane B shipped
+         drizzle/0533_r67_pipeline_task_error_codes.sql to main first, adding the
+         same error_code column; main is at 0535. C-13's third column
+         (error_details, the raw driver text) is deliberately NOT re-added at a
+         new number: lane B's posture -- the raw message is logged and never
+         persisted -- is the stronger one, because a column no route selects is
+         still a payload somebody can read.
+
+      3. src/lib/pipeline/function-slots.ts IS DELETED. Lane B's
+         function-registry.ts declares the same facts (required params, their
+         D-03 code, their vocabulary key, their aliases) for every function
+         rather than two, and two declarations of what a write cannot run
+         without is the drift D-03 exists to remove. record_timesheet's slots
+         are folded into that registry; level0.ts reads them from there.
+
+      4. src/lib/pipeline/failure-classification.ts NO LONGER DECLARES A
+         VOCABULARY. It and lane B's error-codes.ts exported the same two symbol
+         names (PIPELINE_ERROR_CODES, PipelineErrorCode) over different closed
+         sets. error-codes.ts is canonical; this file keeps only the system/user
+         split and the retry token, and its legacy-prose table is dropped
+         because lane B put the programme's one legacy mapping in projexa's
+         task-errors.ts on purpose.
   - session_label: "claude-code (subagent, r67-lane-I) -- PROGRAMME R67 workstream WS-I (data-migrations), items I-01..I-05"
     claimed_at: "2026-09-02T (this session)"
     claim: |
@@ -138,6 +182,202 @@ active:
       ui-kit (D-09: fork into projexa instead), platform.* tables, or any guardrail script's
       strictness (AGENTS.md Rule 9). No other active entry in this file claims drizzle/**,
       construction-boq-service.ts, construction-reports-service.ts or screen_definitions.
+  - session_label: "claude-code (subagent, r67/a-composer-shell) -- PROGRAMME R67 lane A (WS-A composer shell), items A-01..A-22"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC (programme R67, implementing the owner-approved R66 UX/product-design
+      audit; binding decisions D-01..D-10 in the programme's decisions record,
+      notably D-09 "no veridian-ui-kit release -- fork the shell components into
+      projexa" and D-10 "pill demotion approved for PROJEXA only").
+
+      Lane A is the COMPOSER SHELL lane and is almost entirely in the OTHER repo
+      (FChecklist/projexa, worktree C:/ct/projexa-worktrees/r67-A, branch
+      r67/a-composer-shell): the M24 composer's control strip, pill strip,
+      chain root/project resolution and instruction strings. This entry is
+      registered here because two later items in the lane (A-07, A-08) also
+      touch THIS repo.
+    scope_note: >-
+      compliance-tracker file scope claimed by this lane (later items only, not
+      yet started at claim time): src/app/api/v1/projexa/pill-usage/route.ts
+      (A-07: accept/return leaf card ids in the existing free-text
+      compliance.pill_usage.pillKey column + return a label per ranked entry;
+      A-08: return the top three leaf chains of the last seven days) and
+      src/app/api/v1/projexa/tasks/route.ts (A-08: insert a
+      compliance.chain_history row on every confirmed submission). Both tables
+      already exist (schema.ts:13096 pill_usage, :13112 chain_history) so NO
+      migration and no schema.ts change is claimed. Nothing else in this repo is
+      touched by lane A -- in particular not src/lib/pipeline/* (that is lane
+      WS-B's executor-registration and error-dictionary work, which this lane
+      only consumes as a contract).
+    scope_amendment_2026_09_02: >-
+      As BUILT for A-07/A-08, two corrections to the scope note above, recorded
+      rather than left to be discovered in review. (1) TWO FILES WERE ADDED that
+      the note did not anticipate: src/lib/services/projexa-pill-usage-service.ts
+      and its sibling test. The ranking, the new label derivation and the recent-
+      chain selection are pure and were put in a service so they could be unit
+      tested without a database, which is also what the "New Test Coverage
+      Check" gate requires of any added src/lib/services/*.ts; consequently
+      docs/master/TEST_COVERAGE_GAP.md was regenerated (126/245 -> 127/246) by
+      importing the exported functions of scripts/report-test-coverage-gap.mjs,
+      whose isMain guard no-ops on Windows. (2) src/app/api/v1/projexa/tasks/
+      route.ts WAS NOT TOUCHED and its claim is released: A-08's chain_history
+      write already exists and is already correct -- run-submission.ts:369-370
+      and :543-544 record one row per task on both the typed and the pill path,
+      with outcome ok/failed. Verified by reading it, not assumed.
+    scope_amendment_3_2026_09_03: >-
+      Lane A's last two items, A-21 (the composer strip names the RECORD on an
+      object page) and A-22 (the deleted mode tabs stay deleted), touched NO
+      file in this repo -- both are repo "projexa" and their whole change is in
+      the forked shell there. Recorded so a reviewer seeing no compliance-
+      tracker diff for them knows it is deliberate rather than forgotten. A-22
+      did however make a finding ABOUT this repo that its own item contradicts:
+      the item says to drop `mode` from the /api/tasks POST body because "the
+      server ignores it", and it does not -- src/app/api/v1/projexa/tasks/
+      route.ts:49 reads it, and it reaches submissions.mode (run-submission.ts:
+      196/446, selected back by that route's GET at :140), deriveChain's root
+      for a project-less chain (run-submission.ts:291 -> derive-chain.ts:170,
+      `All ${mode.toLowerCase()}`) and chain_history.mode (:631). The field is
+      therefore still sent, derived from the chain rather than from a control,
+      and nothing in this repo changed.
+  - session_label: "claude-code (subagent, r67/f2-performance-2) -- R67 programme, lane F2 (performance-2): the 17 WS-F latency items from the owner-approved R66 UX/product-design audit"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC (R67 programme brief, lane_F2.items.json items F-18..F-34; binding decision
+      D-04 "server-component fetch in the Next.js route, streamed with Suspense, with the
+      VERIDIAN API key kept server-side"). Group 1 (F-18, F-19, F-20, F-21, F-22) is
+      PROJEXA-ONLY and touches NO compliance-tracker file; this entry is registered ahead
+      of the later groups, which do (AGENTS.md Rule 11 -- register before picking work).
+      COMPLIANCE-TRACKER FILE SCOPE claimed for the remaining groups:
+        src/lib/services/construction-boq-service.ts (+ .test.ts)        -- F-23, F-29
+        src/lib/services/construction-progress-service.ts (+ .test.ts)   -- F-24
+        src/lib/services/construction-labour-service.ts (+ .test.ts)     -- F-25
+        src/lib/services/construction-dashboard-service.ts (+ .test.ts)  -- F-27
+        src/lib/services/schedule-service.ts (+ .test.ts)                -- F-33
+        src/app/api/v1/construction/boq/route.ts, .../progress/route.ts,
+        src/app/api/v1/projexa/{tasks,scope,labour,attendance,dashboard,schedule/tasks}/*
+        src/app/api/construction/labour-roster/route.ts
+        vercel.json (regions: bom1, F-32), drizzle/0534_r67_f23_boq_list_indexes.sql
+        and drizzle/0535_r67_f25_attendance_project_date_index.sql (journal idx 356/357;
+        RENUMBERED 2026-09-03 from 0528/0529 after lane I landed 0528-0532 on main, and
+        AGAIN from 0533/0534 after lane B (#1578) landed drizzle/0533 on main. Neither
+        file has ever been applied to a database, so renumbering is correct; an APPLIED
+        migration is never renumbered),
+        docs/master/TEST_COVERAGE_GAP.md (regenerated by the guardrail script).
+      EXTENDED 2026-09-03 for group 3 (F-28 Server-Timing), which needs a wider but
+      SHALLOWER route scope than the list above anticipated -- each of these files gains
+      only a four-line delegating wrapper around its existing, untouched handler body,
+      and its exported `export async function GET/POST` declaration is deliberately
+      preserved so scripts/check-route-error-handling.mjs and check-route-auth-guard.mjs
+      still see it (AGENTS.md Rule 9 -- no guardrail weakened):
+        src/lib/route-timing.ts (+ .test.ts)  -- new, no other file depends on it
+        src/app/api/v1/documents/route.ts
+        src/app/api/v1/projexa/{veri-meetings,drawings,permits,timesheets,materials}/route.ts
+        src/app/api/v1/projexa/reports/catalog/route.ts
+        src/app/api/v1/projexa/schedule/{,gantt/,sprints/}route.ts
+        src/app/api/v1/construction/{labour-roster,attendance}/route.ts
+        src/lib/vercel-region.test.ts (+ new, F-32)
+      Re-verified at extension time: no other active entry in this file names any of
+      these routes, /api/v1/documents, veri-meetings, or Server-Timing/latency work.
+      CORRECTED 2026-09-03 for group 4 (F-33, "POST schedule task under 1 s"). The scope
+      above named src/lib/services/schedule-service.ts on the item's own wording; reading
+      the code first showed that file is the READ-ONLY Gantt layer (calculateCriticalPath,
+      getGanttData, baselines, workload) and contains no create path at all. PROJEXA's
+      "New Task" really lands on POST /api/v1/projexa/schedule -> pms-issue-service.ts's
+      createIssue(). schedule-service.ts is therefore NOT touched, and the real scope is:
+        src/lib/query-timing.ts (+ .test.ts)                -- new, imports nothing
+        src/lib/services/schedule-lookup-cache.ts (+ .test.ts) -- new, imports nothing
+        src/lib/services/pms-issue-service.ts (+ .test.ts)  -- createIssue() only
+        src/lib/services/pms-taxonomy-service.ts (+ .test.ts) -- two cached resolvers
+        src/lib/supabase/api-key-auth.ts (+ .test.ts)       -- the two usage-log writes
+                                                               move into after()
+        src/app/api/v1/projexa/schedule/route.ts            -- cached type resolution
+      Verified before extending: the only entry in this file naming pms-issue-service.ts is
+      the Task #47 claim of 2026-07-31, which its own rebase_note records as merged on
+      2026-09-01, not active; grep for "pms-taxonomy", "api-key-auth", "api_key_request_log"
+      and "query-timing" returns nothing at all. No pms_issues COLUMN or schema change is
+      made here, so Task #47's own "explicitly not touching pms_issues columns/schema"
+      boundary is respected from this side too.
+      Does NOT touch: the pipeline (classify/executor/validate/derive-chain), billing_*
+      or platform-billing (the r65-parte lane above), ai_cost_reconciliations, auth-guard,
+      tenant-scoped.ts's own contract, or any platform.* table.
+      Verified before claiming: no other active entry in this file names any
+      construction-* service, projexa route or WS-F/R67 work (grepped for "R67", "WS-F",
+      "construction-boq", "construction-progress", "construction-labour",
+      "construction-dashboard", "schedule-service" -- zero matches).
+  - session_label: "claude-code (subagent, r67/b-backend-chain) -- PROGRAMME R67 lane B (backend-chain), items B-01..B-11"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implementation brief
+      scratchpad/impl/ws/lane_B.items.json (items B-01..B-11) + binding decisions D-03
+      (closed-vocabulary {code, missing} error contract, sentences live in projexa),
+      D-06 (no nested withTenantContext), D-09 (no veridian-ui-kit release).
+      Worktree C:/ct/ct-worktrees/r67-B on branch r67/b-backend-chain, cut from
+      origin/main at 5a64aaee.
+
+      SCOPE AMENDED 2026-09-03 (fix pass): the original row said "B-01..B-05" and
+      "does NOT touch drizzle/". Both were stale by the time B-08 landed. This is
+      the real, complete scope of the branch.
+
+      File scope claimed in compliance-tracker (this repo):
+        src/lib/pipeline/error-codes.ts (new) + .test.ts
+        src/lib/pipeline/function-registry.ts (new) + .test.ts
+        src/lib/pipeline/dry-run.ts (new) + .test.ts
+        src/lib/pipeline/verdict.ts (new) + .test.ts
+        src/lib/pipeline/validate.ts + validate.test.ts
+        src/lib/pipeline/executor.ts + executor.test.ts
+        src/lib/pipeline/run-submission.ts + run-submission.test.ts
+        src/lib/pipeline/derive-chain.ts (verb-family/kind derivation only)
+        src/app/api/v1/projexa/tasks/route.ts (dry-run + structured failure in GET)
+        src/app/api/v1/projexa/chain-options/route.ts (new) + route.test.ts (new)
+        src/app/api/v1/construction/progress/route.ts (B-09 coded refusal)
+        src/app/api/mcp/[token]/route.ts (the 'ask' tool renders `failures`)
+        src/lib/services/chain-options-service.ts (new) + .test.ts
+        src/lib/services/construction-progress-service.ts + .test.ts (B-09 BOQ rule)
+        src/lib/ai/adapter.ts (the AiProviderRefusalError sentence only)
+        src/lib/ai/refusal.ts (new) + .test.ts
+        src/lib/db/schema.ts (pipelineTasks.errorCode / errorParams only)
+        drizzle/0533_r67_pipeline_task_error_codes.sql (new, hand-written)
+        drizzle/meta/_journal.json (one appended entry, idx 355)
+        docs/master/TEST_COVERAGE_GAP.md (regenerated)
+      Does NOT touch: platform.* migrations (0533 is compliance.*, two nullable
+      columns), construction-labour/boq/pms-meeting/document-service.ts themselves
+      (the new write executors CALL them unchanged), phrase_map/analyse.ts, the
+      billing/* files claimed below.
+
+      DEPLOY ORDER: drizzle/0533 must be applied BEFORE this code is deployed --
+      GET /api/v1/projexa/tasks selects error_code/error_params by name. The
+      migration is additive and safe to apply to a database still running the
+      previous build. See the migration's own header.
+
+      Companion worktree (separate repo, separate PR): C:/ct/projexa-worktrees/r67-B,
+      same branch name. Files claimed there:
+        src/lib/task-errors.ts (new) + .test.ts          -- the D-03 dictionary
+        src/lib/work-progress-form-fields.ts (new) + .test.ts
+        src/lib/module-catalogue.ts + .test.ts             -- B-02's two prompts
+        src/lib/work-progress-report.ts + .test.ts         -- unlinked-entry count
+        src/lib/veridian-client.ts                         -- {code, missing} forwarding
+        src/components/shell/M24Shell.tsx                  -- verdict + row renderer
+        src/components/WorkProgressFormClient.tsx
+        src/components/WorkProgressReportClient.tsx
+        src/app/api/work-progress/route.ts
+        src/app/api/work-progress/report/route.ts
+      CLAIM RELEASED 2026-09-03: src/lib/composer-placeholders.ts (+ .test.ts) was
+      claimed and built, and is now DELETED rather than shipped. Lane A (#231) landed
+      module-catalogue.ts, which the programme designates (C-12/D-09) as the ONE place
+      a route's example prompts are written down. Keeping lane B's own placeholder
+      module would have been a second, competing source for the same string. B-02's
+      two quoted prompts were moved into lane A's catalogue instead; the file no
+      longer exists on this branch and no other lane should expect it.
+
+      NOTE for lanes A and G: M24Shell.tsx is touched by three lanes now. Lane B's
+      edits are in toTaskRow (detailFor/codeFor + the fix route), onSubmit (the
+      verdict) and the Composer's `conversation` prop; lane A's (#231) are the
+      screen-module system, the pill/card strips and band 3; lane G's (2dc2e44) are
+      the top rail and the status pills. Band 2 is now SHARED by A-12 and B-07 and
+      the merge rule is written at the `conversation` prop: a live verdict takes the
+      band, the picked module's verbs hold it otherwise, and picking a module clears
+      the verdict.
+
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |
@@ -1894,6 +2134,62 @@ active:
       code change -- the closest safe approximation of "fast, before the
       real work" available under Rule 6, and disclosed as such rather than
       silently deviating from this file's own stated protocol.
+  - session_label: "claude-code (subagent, r67/d0-shared-screen-infrastructure) -- R67 programme, lane D0 (shared screen infrastructure), group 1: decisions D-01, D-02, D-03, D-04, D-07"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implemented as programme R67.
+      Binding decisions D-01..D-09 live in the programme's decisions.md; this lane's group 1
+      is D-01 (Create Project becomes a real /projects/new route), D-02 (one Work Progress
+      Report, parameters in the URL, run on arrival), D-03 (Task Master error dictionary),
+      D-04 (module pages fetch server-side, per-request AbortSignal + 8 s budget) and D-07
+      (Design Studio timesheet layout). MOST OF THE LANE IS IN THE PROJEXA REPO
+      (FChecklist/projexa, branch r67/d0-shared-screen-infrastructure) and touches nothing
+      here.
+      COMPLIANCE-TRACKER FILE SCOPE, the whole of it, for D-03's server half only:
+      src/lib/pipeline/task-error-codes.ts (new) + .test.ts (new) -- the closed five-code set
+      (PROJECT_REQUIRED, BOQ_LINE_REQUIRED, BOQ_LINE_NOT_FOUND, VALUE_REQUIRED,
+      BACKEND_UNAVAILABLE), the structured failure persisted on a blocked row, and the
+      classifier for rows written before it; src/lib/pipeline/executor.ts (ExecutionOutcome
+      gains an optional `failure`, every existing error STRING unchanged);
+      src/lib/pipeline/validate.ts (ValidationResult gains an optional `failure`, `reason`
+      unchanged); src/lib/pipeline/run-submission.ts (two blocked-path updateTask calls now
+      persist that failure into pipeline_tasks.result, which was null on a blocked row);
+      src/app/api/v1/projexa/tasks/route.ts (GET returns additive code/missing/errorContext
+      per row and does NOT expose the raw result).
+      DELIBERATELY NOT CLAIMED: no migration and no schema.ts change (the code rides in the
+      existing pipeline_tasks.result jsonb column); no src/lib/services/* file, so the New
+      Test Coverage gate and docs/master/TEST_COVERAGE_GAP.md are untouched; nothing in
+      src/lib/db/tenant-scoped.ts (decision D-06 belongs to another lane); no classify.ts,
+      segment.ts, level0/level1 or AI-router/model-selection file; no platform.* table.
+  - session_label: "claude-code (subagent, r67/d0-shared-screen-infrastructure) -- R67 programme, lane D0 (shared screen infrastructure), group 2: lane items D-16 and D-20"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implemented as programme R67,
+      lane D0's own items file (D-16 "MoM list: honest states plus the list archetype",
+      D-20 "Stop the silent wrong-project fallback"). Same branch as this lane's group 1
+      claim directly above, continued -- not a second worktree.
+      MOST OF THIS GROUP IS IN THE PROJEXA REPO (FChecklist/projexa, branch
+      r67/d0-shared-screen-infrastructure) and touches nothing here.
+      COMPLIANCE-TRACKER FILE SCOPE, the whole of it, for D-16's server half only:
+      src/lib/services/veri-meeting-service.ts -- listVeriMeetings() gains two ADDITIVE
+      per-row aggregate fields (attendeesCount, openActionItems) computed in ONE grouped
+      query over veri_meeting_action_items JOIN tasks inside the same withTenantContext
+      transaction, plus two newly-exported pure helpers (countAttendees,
+      attachMeetingListAggregates) so the arithmetic is unit-testable without a live DB;
+      src/lib/services/veri-meeting-service.test.ts (NEW -- this file had no sibling test,
+      so the "New Test Coverage Check" gate requires one in the same commit);
+      docs/master/TEST_COVERAGE_GAP.md (regenerated by importing
+      scripts/report-test-coverage-gap.mjs's exported buildStats/renderReport, since that
+      script's isMain guard no-ops on Windows).
+      NOTE: the item's own `files` list names src/lib/services/pms-meeting-service.ts. That
+      is the WRONG file -- /api/v1/projexa/veri-meetings (the route PROJEXA's MoM screen
+      actually calls) is wired to veri-meeting-service.ts, verified by reading the route.
+      pms-meeting-service.ts is NOT touched.
+      DELIBERATELY NOT CLAIMED: no migration, no schema.ts change (both new fields are
+      derived at read time from columns that already exist -- veri_meetings.attendees jsonb
+      and the veri_meeting_action_items -> tasks join); no route file (the existing GET
+      already returns the service's rows verbatim); nothing in src/lib/db/tenant-scoped.ts;
+      no pipeline file (that was group 1's scope); no platform.* table.
 recently_completed:
   - session_label: "claude-code (interactive, r65-parte-billing-contracts) -- R65 Part E Billing Engine, Phase 2: billing_contracts schema + wiring into resolveActiveBillingRate's Sec14 priority resolution [DONE, merged as PR #1568 -- relocated here from active: by the Phase 3 session (r65-parte-phase3-formula-edge-cases), which found this entry never moved after its own real merge; per this file's own documented convention of appending just the one relevant entry under a fresh recently_completed: section when main has been pruned back to just its active: list, same precedent as the Task #47 rebase note elsewhere in this file's own history]"
     claimed_at: "2026-09-02T00:00Z"

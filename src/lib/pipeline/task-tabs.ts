@@ -5,18 +5,39 @@
 // pipeline_task_status values, and PROJEXA's five tabs are not raw statuses --
 // "Approval Pending" is to_do + waiting + blocked, "In Queue" is in_progress.
 // So the pane asked for fifty rows of everything on every navigation and did
-// the filtering in the browser, which is why the counts were computed over a
-// PAGE (`rows.filter(...).length` on a list capped at 50) and quietly stopped
-// being true the moment an org had more than fifty tasks.
+// the filtering in the browser.
 //
-// Two facts live here, both pure so both are asserted in task-tabs.test.ts:
-//   1. the tab vocabulary -> the statuses it selects
-//   2. a grouped count -> the per-tab numbers
+// ---------------------------------------------------------------------------
+// FIX PASS, decision D-11 -- WHAT THIS FILE NO LONGER CLAIMS.
 //
-// The counts are deliberately NOT derived from the returned page. A count and
-// a page are different questions: "how many are there" and "which ones am I
-// looking at now". Answering the first with the second is the defect.
+// Lane C wrote this against a route that returned the whole set and counted
+// `rows.filter(...).length`. Lanes B and F2 have since merged to main and
+// between them fixed the count independently: the route now runs a grouped
+// aggregate over the whole predicate and pages the ROWS with a keyset cursor.
+// That half of C-11 is therefore already true on main and is not re-done here.
+//
+// What lane C still adds, and all this file now holds:
+//   1. THE TAB VOCABULARY -- needs_you|waiting|approval|queued|done -- which
+//      the raw five statuses cannot express, so a tab can ask the server for
+//      its own rows instead of filtering fifty in the browser;
+//   2. `counts.tabs`, keyed by that same vocabulary, so the number on a tab
+//      and the rows that tab asks for are derived from ONE table below and
+//      cannot drift apart.
+//
+// TWO THINGS LANE C DELIBERATELY DROPPED HERE, both because main decided them
+// the other way and D-11 makes main canonical:
+//   * needs-you no longer EXCLUDES infrastructure failures. Lane B's B-06
+//     records a transport failure as `waiting` rather than `blocked` and keeps
+//     it in "needs you" with a [Retry] -- a deliberate, documented product
+//     call. `systemBlocked` is still REPORTED below (it is a real fact, and a
+//     number that only ever disappears is a number nobody can audit) but
+//     nothing is subtracted with it, because a count that disagreed with the
+//     list it labels is the exact defect C-11 exists to remove.
+//   * the four legacy count names keep main's meanings, verbatim.
+//
+// PURE. Both facts are asserted in task-tabs.test.ts.
 
+/** Codes that mean "nobody on site can act on this". */
 import { isSystemErrorCode } from "./failure-classification";
 
 /** compliance.pipeline_task_status -- M24's closed five, verbatim. */
@@ -38,6 +59,12 @@ export type TaskTabKey = (typeof TASK_TAB_KEYS)[number];
  * called "Approval Pending" and M24's group is called "needs you", and they
  * are one list under two names. Giving them two different answers here is how
  * a product ends up with two lists that disagree about the same rows.
+ *
+ * They include `blocked` where main's own `counts.needsYou` does not, and that
+ * is not a disagreement: main's four numbers answer "how many are in each
+ * STATUS group", these answer "how many rows does this TAB show", and the
+ * PROJEXA tab genuinely shows a blocked row -- it is the one a person most has
+ * to act on.
  */
 const TAB_STATUSES: Readonly<Record<TaskTabKey, readonly PipelineStatus[]>> = {
   needs_you: ["to_do", "waiting", "blocked"],
@@ -90,22 +117,26 @@ export function resolveStatusFilter(statusParam: string | null | undefined): Sta
   return { statuses: [...statuses], tab, unknown };
 }
 
+/** The words a 400 names when a filter matched nothing this server knows. */
+export function validFilterKeys(): string[] {
+  return [...TASK_TAB_KEYS, ...PIPELINE_STATUSES];
+}
+
 /**
  * One row of the grouped `SELECT status, error_code, count(*) ... GROUP BY 1,2`.
  *
- * R67 C-13: the code is part of the grouping because a blocked row that is a
- * SYSTEM failure does not belong in the needs-you number -- a badge saying "3"
- * that a person cannot work down to zero is not a badge.
+ * R67 C-13: the code is part of the grouping because "how many of these are
+ * infrastructure" is a question the product may want to answer, and it cannot
+ * be answered later from a count that already threw the code away.
  */
 export type StatusCountRow = { status: string | null; errorCode?: string | null; n: number };
 
 export type TaskCounts = {
   /**
-   * The four names this route has returned since R53. UNCHANGED MEANING --
-   * `needsYou` is still to_do + waiting and `blocked` is still its own number,
-   * because a caller reading them today must not silently start getting a
-   * different total. What IS different is where they come from: a grouped
-   * count over the whole scope rather than over the returned page.
+   * The four names this route has returned since R53, with MAIN'S MEANINGS --
+   * `needsYou` is to_do + waiting and `blocked` is its own number -- because a
+   * caller reading them today must not silently start getting a different
+   * total.
    */
   needsYou: number;
   running: number;
@@ -121,10 +152,8 @@ export type TaskCounts = {
   /** Per raw status, so a caller can build a tab this file has not heard of. */
   byStatus: Record<PipelineStatus, number>;
   /**
-   * R67 C-13: how many blocked rows are infrastructure failures. Reported
-   * rather than merely subtracted -- "3 things went wrong on our side" is a
-   * fact the product may want to say, and a number that only ever disappears
-   * is a number nobody can audit.
+   * R67 C-13: how many BLOCKED rows carry an infrastructure code. Reported,
+   * never subtracted -- see this file's header for why.
    */
   systemBlocked: number;
 };
@@ -136,8 +165,6 @@ export type TaskCounts = {
 export function tabCountsFrom(rows: readonly StatusCountRow[]): TaskCounts {
   const byStatus = { to_do: 0, in_progress: 0, waiting: 0, done: 0, blocked: 0 } as Record<PipelineStatus, number>;
   let total = 0;
-  // R67 C-13: blocked rows nobody on site can act on, counted separately so
-  // they can be taken out of the needs-you tabs without being lost.
   let systemBlocked = 0;
   for (const row of rows) {
     const n = Number.isFinite(row.n) ? Math.max(0, Math.trunc(row.n)) : 0;
@@ -150,10 +177,7 @@ export function tabCountsFrom(rows: readonly StatusCountRow[]): TaskCounts {
 
   const tabs = {} as Record<TaskTabKey, number>;
   for (const key of TASK_TAB_KEYS) {
-    const raw = TAB_STATUSES[key].reduce((sum, s) => sum + byStatus[s], 0);
-    // The two tabs that mean "your move" exclude the system failures their own
-    // query excludes, so the number and the list can never disagree.
-    tabs[key] = key === "needs_you" || key === "approval" ? Math.max(0, raw - systemBlocked) : raw;
+    tabs[key] = TAB_STATUSES[key].reduce((sum, s) => sum + byStatus[s], 0);
   }
 
   return {

@@ -5,10 +5,10 @@
 // withTenantContext/a live DB from a .test.ts file" convention as
 // esignature-service.test.ts.
 /// <reference types="bun-types" />
-import { describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import {
   computeHierarchicalAmount, deriveLineItemQuantityAndRate, diffLineItems, computeTotalVariation, findScopeReductionViolations,
-  resolveProgressByLineItem, toLineItemInput,
+  resolveProgressByLineItem, toLineItemInput, parseBoqInclude,
   ServiceError, type BoqLineItemInput, type BoqLineItemRow, type ChangedLineItem,
 } from "./construction-boq-service"
 
@@ -418,6 +418,386 @@ describe("toLineItemInput -- copy-forward round-trip for create-with-reference",
     const mapped = persisted.map((item) => toLineItemInput(item, new Map()))
     expect(mapped).toHaveLength(153)
     expect(mapped.every((i) => i.quantity === 10 && i.rate === 5)).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 F-23 (audit recommendation R-239) -- listBoqs in ONE transaction, with
+// the per-revision variation figure computed server-side.
+// ---------------------------------------------------------------------------
+//
+// WHAT THIS PROVES, AND WHAT IT DELIBERATELY DOES NOT. It exercises the real
+// listBoqs() with only withTenantContext mocked -- the same "don't touch a live
+// DB from a .test.ts file" pattern construction-progress-service.test.ts and
+// projexa-records-tenant-isolation.test.ts already use in this directory. So:
+//
+//   PROVEN -- exactly ONE tenant transaction is opened no matter how many
+//             revisions the project has (the N+1 this item removes), exactly
+//             ONE statement answers the variation, that statement really does
+//             group construction_boq_line_items by boq_id and join the
+//             revision chain's parent_boq_id (asserted against the SQL text
+//             drizzle builds, not against a stub's return value), and each
+//             revision is mapped onto its own figure with null -- never 0 --
+//             on a baseline.
+//   NOT PROVEN -- that Postgres executes that SQL correctly. No unit test in
+//             this repo can prove that; the fake executor below computes the
+//             expected numbers from the fixture using the formula written out
+//             longhand in the test itself, independently of the service.
+
+const F23_ORG = "org-r67-f23"
+const F23_PROJECT = "project-r67-f23"
+const BOQ_V1 = "boq-v1"
+const BOQ_V2 = "boq-v2"
+
+type F23Line = { id: string; boqId: string; quantity: string; rate: string }
+
+// v1: 100x50 + 10x2       = 5,020 over 2 lines
+// v2: 120x50 + 10x2 + 1x5 = 6,025 over 3 lines
+// => v2.variationVsPrior = 1,005 and v2.lineDelta = 1; v1 has no parent at all.
+const f23Lines: F23Line[] = [
+  { id: "v1-a", boqId: BOQ_V1, quantity: "100", rate: "50" },
+  { id: "v1-b", boqId: BOQ_V1, quantity: "10", rate: "2" },
+  { id: "v2-a", boqId: BOQ_V2, quantity: "120", rate: "50" },
+  { id: "v2-b", boqId: BOQ_V2, quantity: "10", rate: "2" },
+  { id: "v2-c", boqId: BOQ_V2, quantity: "1", rate: "5" },
+]
+
+const f23Boqs = [
+  { id: BOQ_V2, orgId: F23_ORG, projectId: F23_PROJECT, version: 2, title: "Rev 1", status: "draft", parentBoqId: BOQ_V1, createdAt: new Date("2026-09-02T00:00:00Z") },
+  { id: BOQ_V1, orgId: F23_ORG, projectId: F23_PROJECT, version: 1, title: "Baseline", status: "superseded", parentBoqId: null, createdAt: new Date("2026-09-01T00:00:00Z") },
+]
+
+/** The formula the CTE implements, written out here so the expectation is not
+ *  read back out of the code under test. */
+function f23Total(boqId: string): number {
+  return f23Lines.filter((l) => l.boqId === boqId).reduce((sum, l) => sum + Number(l.quantity) * Number(l.rate), 0)
+}
+function f23LineCount(boqId: string): number {
+  return f23Lines.filter((l) => l.boqId === boqId).length
+}
+
+/** Flattens the literal text drizzle assembled, so the SHAPE of the statement
+ *  can be asserted (bound parameters are not part of it). */
+function f23SqlText(node: unknown): string {
+  if (!node || typeof node !== "object") return ""
+  const chunks = (node as { queryChunks?: unknown[] }).queryChunks
+  if (!Array.isArray(chunks)) return ""
+  let out = ""
+  for (const chunk of chunks) {
+    if (chunk && typeof chunk === "object") {
+      const value = (chunk as { value?: unknown }).value
+      if (Array.isArray(value)) out += value.join("")
+      else out += f23SqlText(chunk)
+    }
+  }
+  return out
+}
+
+let f23TransactionCount = 0
+let f23ExecutedSql: string[] = []
+let f23LineItemReads = 0
+
+const f23Db = {
+  query: {
+    constructionBoqs: {
+      findMany: async () => f23Boqs,
+    },
+    constructionBoqLineItems: {
+      findMany: async () => {
+        f23LineItemReads += 1
+        return f23Lines.map((l) => ({
+          ...l,
+          orgId: F23_ORG,
+          activityId: null,
+          itemCode: null,
+          parentLineItemId: null,
+          breakdownPercentage: null,
+          description: "line",
+          unit: "nos",
+          amount: String(Number(l.quantity) * Number(l.rate)),
+          budgetPercentage: "25",
+          materialCost: null,
+          labourCost: null,
+          equipmentCost: null,
+          overheadPercent: null,
+          profitPercent: null,
+          vendorId: null,
+          vendorAmount: null,
+          createdAt: new Date("2026-09-01T00:00:00Z"),
+        }))
+      },
+    },
+  },
+  execute: async (statement: unknown) => {
+    f23ExecutedSql.push(f23SqlText(statement))
+    // Stands in for Postgres, computing the same thing the CTE describes from
+    // the fixture -- longhand, so a wrong service-side mapping still fails.
+    return f23Boqs.map((b) => ({
+      boq_id: b.id,
+      variation_vs_prior: b.parentBoqId === null ? null : f23Total(b.id) - f23Total(b.parentBoqId),
+      line_delta: b.parentBoqId === null ? null : f23LineCount(b.id) - f23LineCount(b.parentBoqId),
+    }))
+  },
+}
+
+const f23WithTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
+  f23TransactionCount += 1
+  return fn(f23Db as unknown as never)
+})
+
+const f23RealTenantScoped = await import("@/lib/db/tenant-scoped")
+
+describe("listBoqs -- R67 F-23: one transaction, one grouped statement, variation in the list payload", () => {
+  beforeEach(() => {
+    f23TransactionCount = 0
+    f23ExecutedSql = []
+    f23LineItemReads = 0
+    f23WithTenantContext.mockClear()
+  })
+
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => f23RealTenantScoped)
+  })
+
+  test("include 'variation' opens exactly ONE tenant transaction for a two-revision project (the getBoq() N+1 is gone)", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f23WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    await listBoqs({ orgId: F23_ORG }, F23_PROJECT, { include: "lineItems,variation" })
+
+    expect(f23TransactionCount).toBe(1)
+    // ONE batched read of every revision's line items, not one per revision.
+    expect(f23LineItemReads).toBe(1)
+    // ONE statement answers the variation for every revision at once.
+    expect(f23ExecutedSql).toHaveLength(1)
+  })
+
+  test("variationVsPrior is sum(child qty*rate) - sum(parent qty*rate), and null (never 0) on the baseline", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f23WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    const rows = await listBoqs({ orgId: F23_ORG }, F23_PROJECT, { include: "variation" })
+    const child = rows.find((r) => r.id === BOQ_V2)!
+    const baseline = rows.find((r) => r.id === BOQ_V1)!
+
+    expect(child.variationVsPrior).toBe(6025 - 5020)
+    expect(child.variationVsPrior).toBe(f23Total(BOQ_V2) - f23Total(BOQ_V1))
+    expect(child.lineDelta).toBe(1)
+    expect(baseline.variationVsPrior).toBeNull()
+    expect(baseline.lineDelta).toBeNull()
+  })
+
+  test("the variation statement really groups the line items by boq_id and joins the revision chain's parent", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f23WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    await listBoqs({ orgId: F23_ORG }, F23_PROJECT, { include: "variation" })
+
+    const text = f23ExecutedSql[0].replace(/\s+/g, " ").toLowerCase()
+    expect(text).toContain("compliance.construction_boq_line_items")
+    expect(text).toContain("group by li.boq_id")
+    expect(text).toContain("p.boq_id = r.parent_boq_id")
+  })
+
+  test("no options at all -- every pre-F-23 caller still gets plain headers, with neither the line-item read nor the variation statement", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f23WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    const rows = await listBoqs({ orgId: F23_ORG }, F23_PROJECT)
+
+    expect(f23TransactionCount).toBe(1)
+    expect(f23LineItemReads).toBe(0)
+    expect(f23ExecutedSql).toHaveLength(0)
+    expect(rows).toHaveLength(2)
+    expect(rows[0].lineItems).toBeUndefined()
+    expect(rows[0].variationVsPrior).toBeUndefined()
+  })
+})
+
+describe("parseBoqInclude -- the route's ?include= contract", () => {
+  test("recognises both values, in either order, with whitespace", () => {
+    expect(parseBoqInclude("variation, lineItems")).toEqual({ lineItems: true, variation: true, compare: false })
+  })
+
+  test("an unknown include is ignored rather than failing a list the caller can otherwise read", () => {
+    expect(parseBoqInclude("nonsense")).toEqual({ lineItems: false, variation: false, compare: false })
+    expect(parseBoqInclude(null)).toEqual({ lineItems: false, variation: false, compare: false })
+    expect(parseBoqInclude(undefined)).toEqual({ lineItems: false, variation: false, compare: false })
+  })
+
+  // R67 F-29 (R-273)
+  test("recognises 'compare' alongside the other two", () => {
+    expect(parseBoqInclude("lineItems,variation,compare")).toEqual({ lineItems: true, variation: true, compare: true })
+    expect(parseBoqInclude("compare")).toEqual({ lineItems: false, variation: false, compare: true })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 F-29 (audit recommendation R-273) -- the per-revision COMPARE summary
+// rides on the list, in the same one statement F-23 established.
+// ---------------------------------------------------------------------------
+//
+// The /scope screen wants more than "the variation was +1,005": it wants how
+// big each revision is (line count and total) and how far it moved in PERCENT,
+// because +1,005 says nothing about whether that is a rounding error or a
+// doubling of the contract. R-273's requirement is that all of it arrives with
+// the list -- ONE round trip for TWENTY revisions, not one per row -- so that
+// is what this block asserts, with a twenty-revision fixture rather than the
+// two-revision one above, because "one query" is only interesting at scale.
+
+const F29_ORG = "org-r67-f29"
+const F29_PROJECT = "project-r67-f29"
+const F29_REVISIONS = 20
+
+/** rev N has N line items, each 10 x (N+1) -> total = N * 10 * (N + 1). */
+function f29Total(index: number): number {
+  return index * 10 * (index + 1)
+}
+function f29LineCount(index: number): number {
+  return index
+}
+function f29Id(index: number): string {
+  return `boq-f29-${index}`
+}
+
+// Newest first, mirroring listBoqs' own version DESC ordering.
+const f29Boqs = Array.from({ length: F29_REVISIONS }, (_, i) => {
+  const index = F29_REVISIONS - i // 20 .. 1
+  return {
+    id: f29Id(index),
+    orgId: F29_ORG,
+    projectId: F29_PROJECT,
+    version: index,
+    title: index === 1 ? "Baseline" : `Rev ${index - 1}`,
+    status: index === F29_REVISIONS ? "draft" : "superseded",
+    parentBoqId: index === 1 ? null : f29Id(index - 1),
+    createdAt: new Date(`2026-09-${String(index).padStart(2, "0")}T00:00:00Z`),
+  }
+})
+
+let f29TransactionCount = 0
+let f29ExecutedSql: string[] = []
+
+const f29Db = {
+  query: {
+    constructionBoqs: { findMany: async () => f29Boqs },
+    constructionBoqLineItems: { findMany: async () => [] },
+  },
+  execute: async (statement: unknown) => {
+    f29ExecutedSql.push(f23SqlText(statement))
+    // Stands in for Postgres. Every figure is computed here from the fixture
+    // with the formula written out longhand, so a wrong mapping in the service
+    // still fails rather than being read back out of the code under test.
+    return f29Boqs.map((b) => {
+      const index = b.version
+      const parentIndex = b.parentBoqId === null ? null : index - 1
+      const total = f29Total(index)
+      const parentTotal = parentIndex === null ? null : f29Total(parentIndex)
+      return {
+        boq_id: b.id,
+        total,
+        line_count: f29LineCount(index),
+        variation_vs_prior: parentTotal === null ? null : total - parentTotal,
+        line_delta: parentIndex === null ? null : f29LineCount(index) - f29LineCount(parentIndex),
+        delta_pct: parentTotal === null || parentTotal === 0 ? null : ((total - parentTotal) / parentTotal) * 100,
+      }
+    })
+  },
+}
+
+const f29WithTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
+  f29TransactionCount += 1
+  return fn(f29Db as unknown as never)
+})
+
+describe("listBoqs -- R67 F-29: the compare summary for TWENTY revisions in one round trip", () => {
+  beforeEach(() => {
+    f29TransactionCount = 0
+    f29ExecutedSql = []
+    f29WithTenantContext.mockClear()
+  })
+
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => f23RealTenantScoped)
+  })
+
+  test("twenty revisions cost ONE transaction and ONE statement -- the acceptance condition of R-273", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    const rows = await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "compare" })
+
+    expect(rows).toHaveLength(F29_REVISIONS)
+    expect(f29TransactionCount).toBe(1)
+    expect(f29ExecutedSql).toHaveLength(1)
+  })
+
+  test("compare.deltaAmount on the second revision is total(rev2) - total(rev1)", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    const rows = await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "compare" })
+    const second = rows.find((r) => r.id === f29Id(2))!
+
+    expect(second.compare!.deltaAmount).toBe(f29Total(2) - f29Total(1))
+    // 60 - 20 = 40, and 40 / 20 = 200 %.
+    expect(second.compare!.deltaAmount).toBe(40)
+    expect(second.compare!.deltaPct).toBeCloseTo(200, 6)
+    expect(second.compare!.total).toBe(f29Total(2))
+    expect(second.compare!.lineCount).toBe(f29LineCount(2))
+  })
+
+  test("the baseline reports its own size but NULL for every comparison -- there is nothing to compare it to", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    const baseline = (await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "compare" })).find(
+      (r) => r.id === f29Id(1)
+    )!
+
+    expect(baseline.compare!.lineCount).toBe(1)
+    expect(baseline.compare!.total).toBe(f29Total(1))
+    // Null, NOT zero: "no prior revision" and "no change from the prior
+    // revision" are different facts and must not render the same.
+    expect(baseline.compare!.deltaAmount).toBeNull()
+    expect(baseline.compare!.deltaPct).toBeNull()
+  })
+
+  test("asking for variation AND compare together is still ONE statement, and the two agree", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    const rows = await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "variation,compare" })
+
+    expect(f29ExecutedSql).toHaveLength(1)
+    for (const row of rows) {
+      // They are two projections of the same aggregate; if they could disagree
+      // the screen could show two different variations for one revision.
+      expect(row.compare!.deltaAmount).toBe(row.variationVsPrior ?? null)
+    }
+  })
+
+  test("the statement computes the percentage with NULLIF, so a zero-total parent can never divide by zero", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "compare" })
+
+    const text = f29ExecutedSql[0].replace(/\s+/g, " ").toLowerCase()
+    expect(text).toContain("nullif(coalesce(p.total, 0), 0)")
+    expect(text).toContain("group by li.boq_id")
+  })
+
+  test("a caller that asks for neither gets no compare object at all -- the payload does not grow for nothing", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: f29WithTenantContext }))
+    const { listBoqs } = await import("./construction-boq-service")
+
+    const rows = await listBoqs({ orgId: F29_ORG }, F29_PROJECT, { include: "lineItems" })
+
+    expect(f29ExecutedSql).toHaveLength(0)
+    expect(rows[0].compare).toBeUndefined()
   })
 })
 

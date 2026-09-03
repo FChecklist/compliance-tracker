@@ -8,56 +8,31 @@
 // honest reason, never a fabricated success).
 import { and, eq, desc } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import {
-  constructionBoqLineItems,
-  constructionBoqs,
-  constructionActivities,
-  pmsIssues,
-  users,
-} from "@/lib/db/schema";
+import { constructionBoqLineItems, constructionBoqs, constructionActivities, pmsIssues, users } from "@/lib/db/schema";
 import { createProgressEntry } from "@/lib/services/construction-progress-service";
-import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
 import { logTime } from "@/lib/services/pms-time-service";
+import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
+import { createRosterEntry, recordAttendance } from "@/lib/services/construction-labour-service";
+import { createBoqRevision } from "@/lib/services/construction-boq-service";
+import { createMeeting } from "@/lib/services/pms-meeting-service";
+import { createDocumentRecord } from "@/lib/services/document-service";
 import { dispatchTool } from "@/lib/task-execution-engine";
+import { ServiceError } from "@/lib/services/compliance-service";
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
-import { missingSlots } from "./function-slots";
-// R67 C-13: the one place that decides whether a failure is the user's to fix
-// or ours, and the only place a raw driver message is turned into words.
-import { classifyFailure } from "./failure-classification";
+import { codeForServiceError, normaliseThrownError, pipelineFailure, type PipelineFailure } from "./error-codes";
+import { functionSpec, requiredParamSatisfied, WRITE_FUNCTION_IDS as REGISTERED_WRITES } from "./function-registry";
 
 /**
- * R67 C-13 -- A FAILURE NOW CARRIES ITS OWN CLASSIFICATION.
- *
- * `error` is unchanged in meaning: the sentence a client may render. What is
- * new is everything beside it, and it is what lets Task Master stop showing a
- * pooler IP to a site engineer:
- *
- *   status  -- 'failed' (a person can fix it) | 'failed_system' (nobody on
- *              site can). The needs-you list keys off this.
- *   code    -- D-03's closed vocabulary, so PROJEXA chooses the sentence
- *              rather than rendering ours.
- *   missing -- the slots to ask for, so the client can open the right picker.
- *   details -- THE RAW TEXT, FOR US. Persisted to pipeline_tasks.error_details
- *              and never returned by any route. The whole point of splitting
- *              it from `error` is that one column is safe to render and the
- *              other is not.
- *
- * All four are OPTIONAL so that every executor above can keep returning
- * `{ success: false, error }` unchanged: executeTask() fills them in from
- * failure-classification.ts, in one place, for every failure -- including the
- * ones an executor authored itself.
+ * R67 lane B (B-01, decision D-03). `error: string` is gone: a failure is a
+ * CODE plus the parameters that are missing, and the sentence a human reads
+ * is composed in projexa's src/lib/task-errors.ts. `debug` is the raw driver
+ * text -- it is logged server-side and is NEVER persisted and NEVER returned
+ * by GET /api/v1/projexa/tasks, which is how "write CONNECT_TIMEOUT
+ * 3.109.171.244:6543" reached an end user's screen in the R66 walkthrough.
  */
-export type ExecutionFailure = {
-  success: false;
-  error: string;
-  status?: "failed" | "failed_system";
-  code?: string;
-  missing?: string[];
-  details?: string;
-  retryToken?: string;
-};
-
-export type ExecutionOutcome = { success: true; result: unknown } | ExecutionFailure;
+export type ExecutionOutcome =
+  | { success: true; result: unknown }
+  | { success: false; failure: PipelineFailure; debug?: string };
 
 export type ExecutableTask = {
   orgId: string;
@@ -82,6 +57,22 @@ export type ExecutableTask = {
    */
   role?: string | null;
   /**
+   * R67 FIX PASS -- the project's HUMAN NAME, for the failure context only.
+   *
+   * D-03's BOQ_LINE_NOT_FOUND sentence is "There is no line {code} on
+   * {project} {version} - pick a line". validate() fills {project} from
+   * ValidationContext.projectLabel, but the executor's own copy of the same
+   * failure had no project at all, so the identical code rendered as "There
+   * is no line EX-01 on 1 - pick a line" -- with the BOQ's bare version
+   * number standing where the project name belongs. Both run paths in
+   * run-submission.ts already resolve this label (resolveRootLabel, for the
+   * derived chain), so passing it costs no extra read.
+   *
+   * Optional: a caller that has no label yields a sentence with the clause
+   * omitted, never one with a hole in it.
+   */
+  projectLabel?: string | null;
+  /**
    * R67 C-03 (decision D-05, the identity bridge) -- the REAL compliance.users
    * id of the person this task is attributed to, resolved by the route.
    *
@@ -96,13 +87,73 @@ export type ExecutableTask = {
   actorUserId?: string | null;
 };
 
+/**
+ * R67 B-04 -- THE SERVER-SIDE RE-CHECK.
+ *
+ * validate() already refuses a task whose declared required params are
+ * missing, and chain-options only ever offers real records. This checks the
+ * same list again anyway, at the last moment before a real write, because
+ * "the client only offered valid options" is not a security property: a
+ * caller can POST {functionId, params} straight at tasks/route.ts. Same
+ * closed vocabulary, so the user sees the same sentence either way, and the
+ * service is never reached with a missing field (which would surface as its
+ * own English "attendanceDate is required" through the catch block).
+ */
+function missingRequiredParam(task: ExecutableTask): PipelineFailure | null {
+  const spec = functionSpec(task.functionId);
+  if (!spec) return null;
+  for (const required of spec.requiredParams) {
+    const fallback = required.name === "projectId" ? task.projectId : undefined;
+    // R67 B-09/B-10: the D-03 vocabulary key, same as validate() reports.
+    if (!requiredParamSatisfied(required, task.params, fallback)) {
+      return pipelineFailure(required.code, [required.field ?? required.name]);
+    }
+  }
+  return null;
+}
+
+function str(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+/**
+ * R67 FIX PASS -- the BOQ version as the client's sentence wants it ("v2"),
+ * matching what validate() puts in the same context key. A bare number here
+ * used to land in the {project} slot of "There is no line {code} on {project}
+ * {version} - pick a line", so the row read "... on 1 - pick a line".
+ */
+function versionLabel(version: number | null | undefined): string | null {
+  return version === null || version === undefined ? null : `v${version}`;
+}
+
+function num(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
+  return undefined;
+}
+
 async function executeRecordWorkProgress(task: ExecutableTask): Promise<ExecutionOutcome> {
-  const itemCode = task.params.itemCode;
+  const itemCode = str(task.params.itemCode);
+  // R67 B-07: the verdict offers the project's real BOQ lines as chips, so
+  // what comes back on confirm is a LINE ITEM ID, not a code the user
+  // retyped. Both are accepted; the id wins when both are present, because
+  // it is the one that cannot be ambiguous.
+  const boqLineItemId = str(task.params.boqLineItemId);
   const percent = task.params.percent;
-  const projectId = task.projectId;
-  if (typeof itemCode !== "string" || !itemCode) return { success: false, error: "itemCode is required" };
-  if (typeof percent !== "number") return { success: false, error: "percent is required" };
-  if (!projectId) return { success: false, error: "no project resolved for this task" };
+  // R67 B-11: "record 2 nos done today" is how a site engineer says it, and
+  // it is the value chip chain-options offers next to "40 %" -- so a QUANTITY
+  // in the line's own unit is a real answer to "how much is done", not a
+  // second-class one. Both arrive here; the percent wins when both are given,
+  // because it is the column the roll-up actually reads. A quantity is
+  // converted below, once the line (and therefore its total quantity) is
+  // known -- it cannot be converted before the read.
+  const quantityDone = num(task.params.quantityDone);
+  const projectId = task.projectId ?? str(task.params.projectId) ?? null;
+  if (!itemCode && !boqLineItemId) return { success: false, failure: pipelineFailure("BOQ_LINE_REQUIRED", ["boqLine"]) };
+  if (typeof percent !== "number" && quantityDone === undefined) {
+    return { success: false, failure: pipelineFailure("VALUE_REQUIRED", ["value"]) };
+  }
+  if (!projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
 
   return withTenantContext({ orgId: task.orgId, userId: task.userId }, async (db) => {
     // Real data-model quirk found while wiring this (not invented): the most
@@ -113,12 +164,64 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
       where: and(eq(constructionBoqs.orgId, task.orgId), eq(constructionBoqs.projectId, projectId)),
       orderBy: [desc(constructionBoqs.version), desc(constructionBoqs.createdAt)],
     });
-    if (!boq) return { success: false, error: `no BOQ found for project "${projectId}"` };
+    // R67 B-01: a project with no BOQ at all and a project whose BOQ has no
+    // such line are the SAME fact to the person typing -- the line they named
+    // is not there to record against -- so both carry BOQ_LINE_NOT_FOUND and
+    // the client's one sentence ("There is no line {code} on {project}
+    // {version} -- pick a line") is true in both cases. `version` is null
+    // when there is no BOQ, and the dictionary drops an empty slot.
+    if (!boq) {
+      return {
+        success: false,
+        // R67 FIX PASS: the SAME context shape validate() supplies -- the
+        // project's name under `project`, the version as "v3" rather than a
+        // bare 3 -- so one code has one sentence whichever stage produced it.
+        failure: pipelineFailure("BOQ_LINE_NOT_FOUND", ["itemCode"], {
+          itemCode: itemCode ?? null,
+          project: task.projectLabel ?? null,
+          version: null,
+        }),
+      };
+    }
 
+    // Scoped to THIS project's BOQ either way, so a line item id posted from
+    // another project's chips resolves to nothing rather than to a write on
+    // the wrong project.
     const lineItem = await db.query.constructionBoqLineItems.findFirst({
-      where: and(eq(constructionBoqLineItems.boqId, boq.id), eq(constructionBoqLineItems.itemCode, itemCode)),
+      where: boqLineItemId
+        ? and(eq(constructionBoqLineItems.boqId, boq.id), eq(constructionBoqLineItems.id, boqLineItemId))
+        : and(eq(constructionBoqLineItems.boqId, boq.id), eq(constructionBoqLineItems.itemCode, itemCode!)),
     });
-    if (!lineItem) return { success: false, error: `item code "${itemCode}" not found in this project's BOQ` };
+    if (!lineItem) {
+      return {
+        success: false,
+        failure: pipelineFailure("BOQ_LINE_NOT_FOUND", [boqLineItemId ? "boqLineItemId" : "itemCode"], {
+          itemCode: itemCode ?? null,
+          project: task.projectLabel ?? null,
+          version: versionLabel(boq.version),
+        }),
+      };
+    }
+
+    // T-WPR-15-1's invariant, checked BEFORE the write instead of letting
+    // createProgressEntry throw its own English sentence through the catch
+    // block below: a parent line's percent is derived from its children and
+    // must never be stored directly.
+    const child = await db.query.constructionBoqLineItems.findFirst({
+      where: eq(constructionBoqLineItems.parentLineItemId, lineItem.id),
+    });
+    if (child) {
+      // The line's own code, whichever way the caller addressed it, so the
+      // client's sentence can name it ("EX-00 is a parent line ...").
+      return {
+        success: false,
+        failure: pipelineFailure("BOQ_LINE_IS_PARENT", ["boqLine"], {
+          itemCode: lineItem.itemCode ?? itemCode ?? null,
+          project: task.projectLabel ?? null,
+          version: versionLabel(boq.version),
+        }),
+      };
+    }
 
     // construction_work_progress_entries.activity_id is NOT NULL, but this
     // org's real BOQ line items carry no activity_id link of their own
@@ -134,7 +237,25 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     const activity = await db.query.constructionActivities.findFirst({
       where: and(eq(constructionActivities.orgId, task.orgId), eq(constructionActivities.projectId, projectId)),
     });
-    if (!activity) return { success: false, error: `no construction activity exists yet for project "${projectId}" -- create one before recording progress` };
+    if (!activity) return { success: false, failure: pipelineFailure("ACTIVITY_REQUIRED", ["activityId"]) };
+
+    // R67 B-11: the quantity -> percent conversion, done HERE because the
+    // line's own total quantity is the only honest denominator and it is not
+    // knowable before this read. A line whose quantity is 0 (or absent) has
+    // no denominator, so a quantity answer cannot be interpreted at all --
+    // that is VALUE_REQUIRED, not a silent 0 %. The stored percent is
+    // clamped to the column's own 0..100 rule that createProgressEntry
+    // enforces one line later, so an over-recorded quantity is capped rather
+    // than rejected after the fact.
+    const lineQuantity = Number(lineItem.quantity ?? 0);
+    let percentComplete: number;
+    if (typeof percent === "number") {
+      percentComplete = percent;
+    } else if (Number.isFinite(lineQuantity) && lineQuantity > 0) {
+      percentComplete = Math.min(100, Math.max(0, Math.round(((quantityDone as number) / lineQuantity) * 100)));
+    } else {
+      return { success: false, failure: pipelineFailure("VALUE_REQUIRED", ["value"]) };
+    }
 
     const row = await createProgressEntry(
       { orgId: task.orgId, userId: task.userId },
@@ -143,146 +264,19 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
         activityId: activity.id,
         boqLineItemId: lineItem.id,
         entryDate: new Date().toISOString().slice(0, 10),
-        quantityDone: 0,
-        percentComplete: percent,
+        // Was hard-coded 0 before B-11, so the quantity column of every
+        // pipeline-written entry was a lie by omission. It now carries what
+        // the user actually said when they said it in units.
+        quantityDone: quantityDone ?? 0,
+        percentComplete,
       }
     );
     return { success: true, result: row };
   });
 }
 
-// R67 C-03 -- THE SECOND WRITE THIS PIPELINE CAN RUN.
-//
-// Before this, WRITE_FUNCTION_IDS was exactly {record_work_progress}: the
-// whole composer could record progress and nothing else, so "log 3 hours on
-// joinery shop drawings today" had nowhere to land. Design Studio's real
-// screen (/schedule/log-time in PROJEXA) already posts to the same service
-// this calls -- pms-time-service.logTime -- so this registers a path to
-// existing, working code rather than a second way to write a timesheet.
-//
-// THE TASK SLOT IS FUZZY-MATCHED, AND AMBIGUITY IS A REFUSAL. A person says
-// "joinery drawings"; pms_issues holds "#12 Joinery shop drawings". One
-// unambiguous match runs; none or several is an honest failure naming what
-// was searched, never a guess -- picking the first of three would log real
-// hours against the wrong task.
-async function executeRecordTimesheet(task: ExecutableTask): Promise<ExecutionOutcome> {
-  const missing = missingSlots("record_timesheet", task.params);
-  if (missing.length > 0) {
-    return { success: false, error: `${missing[0]} is required` };
-  }
-  if (!task.projectId) return { success: false, error: "no project resolved for this task" };
-
-  const hours = Number(task.params.hours);
-  if (!Number.isFinite(hours) || hours <= 0) return { success: false, error: "hours is required" };
-
-  // *** ATTRIBUTION IS A PERSON, NEVER AN API KEY. *** See ExecutableTask's
-  // actorUserId comment for why falling back to task.userId here would be a
-  // real FK bug, not a convenience.
-  const actorId = task.actorUserId;
-  if (!actorId) {
-    return {
-      success: false,
-      error:
-        "a time entry has to belong to a named person, and this request did not identify one -- sign in, or send actorEmail with the request",
-    };
-  }
-
-  const resolved = await withTenantContext({ orgId: task.orgId }, async (db) => {
-    const actor = await db.query.users.findFirst({
-      where: and(eq(users.id, actorId), eq(users.orgId, task.orgId)),
-    });
-    if (!actor) return { ok: false as const, error: "the person this time entry would belong to is not a user of this organisation" };
-    if (!actor.isActive) return { ok: false as const, error: "the person this time entry would belong to is deactivated" };
-
-    const explicitIssueId = typeof task.params.issueId === "string" ? task.params.issueId.trim() : "";
-    if (explicitIssueId) {
-      const issue = await db.query.pmsIssues.findFirst({
-        where: and(eq(pmsIssues.id, explicitIssueId), eq(pmsIssues.orgId, task.orgId)),
-        columns: { id: true, number: true, title: true },
-      });
-      if (!issue) return { ok: false as const, error: "that task does not exist on this project" };
-      return { ok: true as const, actor, issue };
-    }
-
-    const wanted = String(task.params.task ?? "").trim();
-    const issues = await db.query.pmsIssues.findMany({
-      where: and(eq(pmsIssues.orgId, task.orgId), eq(pmsIssues.projectId, task.projectId!)),
-      columns: { id: true, number: true, title: true },
-    });
-    if (issues.length === 0) return { ok: false as const, error: "this project has no tasks to log time against yet" };
-
-    const matches = matchIssues(issues, wanted);
-    if (matches.length === 0) return { ok: false as const, error: `no task on this project matches "${wanted}"` };
-    if (matches.length > 1) {
-      return {
-        ok: false as const,
-        error: `"${wanted}" matches ${matches.length} tasks on this project -- name one of them`,
-      };
-    }
-    return { ok: true as const, actor, issue: matches[0] };
-  });
-
-  // A DISCRIMINATED union, not an `in` check: both branches of the resolver
-  // widen to the same optional-property shape, so `"error" in resolved` does
-  // not narrow and the error would type as string | undefined.
-  if (!resolved.ok) return { success: false, error: resolved.error };
-
-  const spentOn =
-    typeof task.params.spentOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(task.params.spentOn)
-      ? task.params.spentOn
-      : new Date().toISOString().slice(0, 10);
-
-  const entry = await logTime(
-    { orgId: task.orgId, userId: resolved.actor.id, dbUser: resolved.actor },
-    {
-      issueId: resolved.issue.id,
-      hours: hours.toFixed(2),
-      spentOn,
-      activityType: typeof task.params.activityType === "string" ? task.params.activityType : undefined,
-      comments: typeof task.params.comments === "string" ? task.params.comments : undefined,
-    }
-  );
-
-  return { success: true, result: { ...entry, issue: resolved.issue } };
-}
-
-type IssueLite = { id: string; number: number | null; title: string | null };
-
-/**
- * The fuzzy match, in one place so it is testable and so "how did it pick
- * that task?" has an answer. Tried in order, and the FIRST tier that produces
- * any match wins -- an exact issue number is never diluted by a title that
- * happens to contain the same digits.
- */
-export function matchIssues(issues: readonly IssueLite[], wanted: string): IssueLite[] {
-  const needle = wanted.trim().toLowerCase();
-  if (!needle) return [];
-
-  // "#12" or "12" -- the issue number, exactly.
-  const asNumber = Number(needle.replace(/^#/, ""));
-  if (Number.isInteger(asNumber) && asNumber > 0 && /^#?\d+$/.test(needle)) {
-    return issues.filter((i) => i.number === asNumber);
-  }
-
-  const titled = issues.filter((i) => (i.title ?? "").trim().length > 0);
-  const exact = titled.filter((i) => i.title!.toLowerCase() === needle);
-  if (exact.length > 0) return exact;
-
-  const contains = titled.filter((i) => i.title!.toLowerCase().includes(needle));
-  if (contains.length > 0) return contains;
-
-  // Every word the person said appears in the title, in any order:
-  // "joinery drawings" finds "Joinery shop drawings".
-  const words = needle.split(/\s+/).filter((w) => w.length > 2);
-  if (words.length === 0) return [];
-  return titled.filter((i) => {
-    const title = i.title!.toLowerCase();
-    return words.every((w) => title.includes(w));
-  });
-}
-
 async function executeGetProjectDashboard(task: ExecutableTask): Promise<ExecutionOutcome> {
-  if (!task.projectId) return { success: false, error: "no project resolved for this task" };
+  if (!task.projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
   const dashboard = await getProjectDashboard({ orgId: task.orgId }, task.projectId);
   // F089/F059: same redaction the API route applies, for the same reason --
   // see this file's ExecutableTask.role comment. `task.role` undefined
@@ -330,9 +324,13 @@ function makeDispatchExecutor(codeReference: string): (task: ExecutableTask) => 
     // dispatchTool if one was not resolved. Checked here so the user gets
     // the honest reason rather than a raw engine error.
     const needsProject = codeReference !== "list_over_budget_projects" && codeReference !== "list_delayed_activities";
-    if (needsProject && !task.projectId) return { success: false, error: "no project resolved for this task" };
+    // R67 B-02: the project may have arrived on the task's own params
+    // (validate() fills it from the submission's projectId) even when the
+    // top-level projectId was not threaded through by this caller.
+    const projectId = task.projectId ?? (typeof task.params.projectId === "string" ? task.params.projectId : null);
+    if (needsProject && !projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
     const result = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
-      dispatchTool(db, task.orgId, task.userId, codeReference, { inputs: { projectId: task.projectId ?? undefined } })
+      dispatchTool(db, task.orgId, task.userId, codeReference, { inputs: { projectId: projectId ?? undefined } })
     );
     return { success: true, result };
   };
@@ -373,12 +371,277 @@ function makeOrgScopedExecutor(codeReference: string): (task: ExecutableTask) =>
   };
 }
 
+// ── R67 B-04: Sumeet's daily writes, through the existing services ────────
+//
+// Each executor below calls THE SAME service function the PROJEXA create
+// route already calls, with no new SQL and no second validation path. Every
+// one of them:
+//   - re-checks its declared required params server-side (missingRequiredParam);
+//   - lets the service open its own withTenantContext, and opens NONE of its
+//     own -- D-06 forbids a nested tenant transaction, and every service
+//     below already runs its project/record existence checks inside that one;
+//   - returns the created row's id and the route its object lives at, so the
+//     client can print a receipt line and land the right pane on the real
+//     record.
+type WriteResult = { id: string; route: string; record: unknown };
+
+function created(id: string, route: string, record: unknown): ExecutionOutcome {
+  return { success: true, result: { id, route, record } satisfies WriteResult };
+}
+
+async function executeRecordAttendance(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return { success: false, failure: missing };
+  const projectId = (task.projectId ?? str(task.params.projectId))!;
+  const row = await recordAttendance(
+    { orgId: task.orgId },
+    {
+      projectId,
+      rosterId: str(task.params.rosterId)!,
+      // The pipeline's own parameter vocabulary is `date`; the service's
+      // column is attendanceDate. Adapted here, once.
+      attendanceDate: str(task.params.date)!,
+      status: str(task.params.status) ?? "present",
+      hoursWorked: num(task.params.hours),
+    }
+  );
+  return created(row.id, `/labour?tab=attendance`, row);
+}
+
+async function executeAddRosterEntry(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return { success: false, failure: missing };
+  const projectId = (task.projectId ?? str(task.params.projectId))!;
+  const row = await createRosterEntry(
+    { orgId: task.orgId },
+    {
+      projectId,
+      name: str(task.params.name)!,
+      dailyRate: num(task.params.dailyRate) ?? 0,
+      trade: str(task.params.trade),
+      employeeCode: str(task.params.employeeCode),
+      skillLevel: str(task.params.skillLevel),
+      vendorId: str(task.params.vendorId),
+    }
+  );
+  return created(row.id, `/labour/${row.id}`, row);
+}
+
+async function executeCreateMeeting(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return { success: false, failure: missing };
+  const projectId = (task.projectId ?? str(task.params.projectId))!;
+  const agenda = Array.isArray(task.params.agendaItems)
+    ? (task.params.agendaItems as unknown[]).filter((a): a is string => typeof a === "string" && a.trim().length > 0)
+    : undefined;
+  const row = await createMeeting({ orgId: task.orgId, userId: task.userId }, projectId, {
+    title: str(task.params.title)!,
+    scheduledAt: str(task.params.scheduledAt)!,
+    durationMinutes: num(task.params.durationMinutes),
+    agendaItems: agenda,
+  });
+  return created(row.id, `/moms/${row.id}`, row);
+}
+
+async function executeCreateBoqRevision(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return { success: false, failure: missing };
+  const row = await createBoqRevision({ orgId: task.orgId, userId: task.userId }, str(task.params.boqId)!, {
+    title: str(task.params.title),
+  });
+  return created(row.id, `/scope/${row.id}`, row);
+}
+
+async function executeCreateDocument(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return { success: false, failure: missing };
+  // LINK-ONLY, deliberately. createDocumentRecord's other branch takes a
+  // File, and a chat submission carries JSON params -- it cannot carry
+  // bytes. Uploading a file stays on /documents/upload, which is the real
+  // path for it; this covers the link-only record the service already
+  // supports (a drawing set, a 3D walkthrough URL).
+  const row = await createDocumentRecord(
+    { orgId: task.orgId, userId: task.userId },
+    {
+      name: str(task.params.name)!,
+      category: str(task.params.category)!,
+      externalUrl: str(task.params.externalUrl)!,
+      expiryDate: str(task.params.expiryDate) ?? null,
+      linkedEntityType: task.projectId ? "project" : null,
+      linkedEntityId: task.projectId ?? null,
+    }
+  );
+  return created(row.id, `/documents/${row.id}`, row);
+}
+
+// R67 C-03 -- THE TIMESHEET WRITE.
+//
+// "log 3 hours on joinery shop drawings today" is the sentence Design
+// Studio's own users type, and it had nowhere to land. PROJEXA's real screen
+// (/schedule/log-time) already posts to the same service this calls --
+// pms-time-service.logTime -- so this registers a path to existing, working
+// code rather than a second way to write a timesheet.
+//
+// FIX PASS, decision D-11: re-expressed in lane B's PipelineFailure shape.
+// Every hand-written English refusal below became a code from the closed
+// vocabulary, which is the whole point of B-01 -- the strings this executor
+// used to return ("hours is required", "no task on this project matches ...")
+// were exactly the prose D-03 removes from the Task Master pane.
+//
+// THE TASK SLOT IS FUZZY-MATCHED, AND AMBIGUITY IS A REFUSAL. A person says
+// "joinery drawings"; pms_issues holds "#12 Joinery shop drawings". One
+// unambiguous match runs; none or several is an honest failure naming what
+// was searched, never a guess -- picking the first of three would log real
+// hours against the wrong task.
+async function executeRecordTimesheet(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return { success: false, failure: missing };
+  const projectId = task.projectId ?? str(task.params.projectId) ?? null;
+  if (!projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
+
+  const hours = num(task.params.hours);
+  if (hours === undefined || hours <= 0 || hours > 24) {
+    return { success: false, failure: pipelineFailure("HOURS_REQUIRED", ["value"]) };
+  }
+
+  // *** ATTRIBUTION IS A PERSON, NEVER AN API KEY. *** See ExecutableTask's
+  // actorUserId comment for why falling back to task.userId here would be a
+  // real FK bug, not a convenience. NOT_PERMITTED rather than a missing-slot
+  // code: there is no field the user can fill in to fix this -- the request
+  // has to arrive identified.
+  const actorId = task.actorUserId;
+  if (!actorId) {
+    return { success: false, failure: pipelineFailure("NOT_PERMITTED", [], { reason: "unidentified_actor" }) };
+  }
+
+  const resolved = await withTenantContext({ orgId: task.orgId }, async (db) => {
+    const actor = await db.query.users.findFirst({
+      where: and(eq(users.id, actorId), eq(users.orgId, task.orgId)),
+    });
+    if (!actor || !actor.isActive) {
+      return { ok: false as const, failure: pipelineFailure("NOT_PERMITTED", [], { reason: "unknown_actor" }) };
+    }
+
+    const explicitIssueId = str(task.params.issueId);
+    if (explicitIssueId) {
+      const issue = await db.query.pmsIssues.findFirst({
+        where: and(eq(pmsIssues.id, explicitIssueId), eq(pmsIssues.orgId, task.orgId)),
+        columns: { id: true, number: true, title: true },
+      });
+      if (!issue) return { ok: false as const, failure: pipelineFailure("RECORD_NOT_FOUND", ["task"]) };
+      return { ok: true as const, actor, issue };
+    }
+
+    const wanted = String(task.params.task ?? "").trim();
+    const issues = await db.query.pmsIssues.findMany({
+      where: and(eq(pmsIssues.orgId, task.orgId), eq(pmsIssues.projectId, projectId)),
+      columns: { id: true, number: true, title: true },
+    });
+    if (issues.length === 0) {
+      return { ok: false as const, failure: pipelineFailure("TASK_REQUIRED", ["task"], { matches: 0 }) };
+    }
+
+    const matches = matchIssues(issues, wanted);
+    // NONE and SEVERAL are the same answer to the user -- "name the task" --
+    // and the same code. `matches` travels as context so the client can say
+    // which of the two happened without this repo composing the sentence.
+    if (matches.length !== 1) {
+      return {
+        ok: false as const,
+        failure: pipelineFailure("TASK_REQUIRED", ["task"], { task: wanted, matches: matches.length }),
+      };
+    }
+    return { ok: true as const, actor, issue: matches[0] };
+  });
+
+  // A DISCRIMINATED union, not an `in` check: both branches of the resolver
+  // widen to the same optional-property shape, so `"failure" in resolved`
+  // does not narrow.
+  if (!resolved.ok) return { success: false, failure: resolved.failure };
+
+  const spentOnParam = str(task.params.spentOn);
+  const spentOn =
+    spentOnParam && /^\d{4}-\d{2}-\d{2}$/.test(spentOnParam) ? spentOnParam : new Date().toISOString().slice(0, 10);
+
+  const entry = await logTime(
+    { orgId: task.orgId, userId: resolved.actor.id, dbUser: resolved.actor },
+    {
+      issueId: resolved.issue.id,
+      hours: hours.toFixed(2),
+      spentOn,
+      activityType: str(task.params.activityType),
+      comments: str(task.params.comments),
+    }
+  );
+
+  return created(entry.id, `/schedule/timesheet`, { ...entry, issue: resolved.issue });
+}
+
+type IssueLite = { id: string; number: number | null; title: string | null };
+
+/**
+ * The fuzzy match, in one place so it is testable and so "how did it pick
+ * that task?" has an answer. Tried in order, and the FIRST tier that produces
+ * any match wins -- an exact issue number is never diluted by a title that
+ * happens to contain the same digits.
+ */
+export function matchIssues(issues: readonly IssueLite[], wanted: string): IssueLite[] {
+  const needle = wanted.trim().toLowerCase();
+  if (!needle) return [];
+
+  // "#12" or "12" -- the issue number, exactly.
+  const asNumber = Number(needle.replace(/^#/, ""));
+  if (Number.isInteger(asNumber) && asNumber > 0 && /^#?\d+$/.test(needle)) {
+    return issues.filter((i) => i.number === asNumber);
+  }
+
+  const titled = issues.filter((i) => (i.title ?? "").trim().length > 0);
+  const exact = titled.filter((i) => i.title!.toLowerCase() === needle);
+  if (exact.length > 0) return exact;
+
+  const contains = titled.filter((i) => i.title!.toLowerCase().includes(needle));
+  if (contains.length > 0) return contains;
+
+  // Every word the person said appears in the title, in any order:
+  // "joinery drawings" finds "Joinery shop drawings".
+  const words = needle.split(/\s+/).filter((w) => w.length > 2);
+  if (words.length === 0) return [];
+  return titled.filter((i) => {
+    const title = i.title!.toLowerCase();
+    return words.every((w) => title.includes(w));
+  });
+}
+
+/**
+ * R67 B-02 -- CATALOGUE IDS THAT RESOLVE TO AN EXISTING READ.
+ *
+ * Every budget screenshot in the R66 walkthrough showed the left pane
+ * repeating "Review Budget -- blocked -- no project resolved for this task"
+ * while the right pane was already scoped to that project. Two separate
+ * defects produced that line: the submission's projectId never reached the
+ * candidate's params (fixed in validate.ts), and `review_budget` -- the id
+ * PROJEXA's Budget card carries -- had no executor at all.
+ *
+ * It is registered as an ALIAS of a real read, not as a second
+ * implementation, and deliberately NOT in WRITE_FUNCTION_IDS: reviewing a
+ * budget records nothing.
+ */
+const READ_ONLY_ALIASES: Readonly<Record<string, string>> = {
+  review_budget: "get_construction_budget_status",
+};
+
 const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutcome>> = {
   record_work_progress: executeRecordWorkProgress,
-  // R67 C-03: the second entry, and the second write.
+  // R67 C-03: the timesheet write, wrapping pms-time-service.logTime.
   record_timesheet: executeRecordTimesheet,
+  record_attendance: executeRecordAttendance,
+  add_roster_entry: executeAddRosterEntry,
+  create_meeting: executeCreateMeeting,
+  create_boq_revision: executeCreateBoqRevision,
+  create_document: executeCreateDocument,
   get_construction_project_dashboard: executeGetProjectDashboard,
   ...Object.fromEntries(READ_ONLY_DISPATCH_FUNCTION_IDS.map((ref) => [ref, makeDispatchExecutor(ref)])),
+  ...Object.fromEntries(Object.entries(READ_ONLY_ALIASES).map(([id, ref]) => [id, makeDispatchExecutor(ref)])),
   ...Object.fromEntries(READ_ONLY_ORG_SCOPED_FUNCTION_IDS.map((ref) => [ref, makeOrgScopedExecutor(ref)])),
 };
 
@@ -390,8 +653,14 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
  * treated as a read, which is the safe direction to be wrong in: mistaking
  * a write for a read blocks it with an honest reason, while mistaking a
  * read for a write would let a question record a real row.
+ *
+ * R67 B-04: the list is now DERIVED from function-registry.ts's own `writes`
+ * flag rather than repeated here, so a write registered in the catalogue can
+ * never be missing from this set (which would let classify.ts call it a
+ * CHAT and run a write off a question). Filtered to what actually has an
+ * executor, so the set stays a statement about what this file can run.
  */
-const WRITE_FUNCTION_IDS: ReadonlySet<string> = new Set(["record_work_progress", "record_timesheet"]);
+const WRITE_FUNCTION_IDS: ReadonlySet<string> = new Set([...REGISTERED_WRITES].filter((id) => id in EXECUTORS));
 
 export function functionWrites(functionId: string): boolean {
   return WRITE_FUNCTION_IDS.has(functionId);
@@ -405,51 +674,21 @@ export function hasExecutor(functionId: string): boolean {
 }
 
 /**
- * R67 C-13 -- every failure leaves here CLASSIFIED, whoever produced it.
- *
- * An executor's own returned failure is classified too, not just a thrown one:
- * "itemCode is required" is a real question for the user and it should reach
- * PROJEXA as BOQ_LINE_REQUIRED + ["itemCode"], not as a camelCase string the
- * client has to pattern-match its way back out of.
- *
- * A failure that ALREADY carries a code is left alone -- an executor that
- * knows better than a regex is the authority on its own failure.
+ * `executors` is injectable for tests ONLY -- every production caller uses
+ * the default registry. It exists because B-01's whole point is what happens
+ * when an executor THROWS a transport error, and there is no honest way to
+ * make a real Postgres connection time out inside a unit test.
  */
-function classified(outcome: ExecutionOutcome): ExecutionOutcome {
-  if (outcome.success || outcome.code) return outcome;
-  const f = classifyFailure(outcome.error);
-  return {
-    success: false,
-    // The classifier's message for a system failure (the raw text is useless
-    // to a person); the executor's own sentence otherwise, masked.
-    error: f.message,
-    status: f.status,
-    code: f.code,
-    missing: f.missing,
-    details: f.details,
-    retryToken: f.retryToken,
-  };
-}
-
 export async function executeTask(
   task: ExecutableTask,
-  /**
-   * TEST SEAM ONLY, and deliberately the last parameter with a default, so no
-   * production call site passes it: every executor in the real registry does
-   * real DB work, and C-13's own acceptance is about what executeTask does
-   * with a THROWN driver error -- which cannot be reached without one.
-   */
   executors: Record<string, (task: ExecutableTask) => Promise<ExecutionOutcome>> = EXECUTORS
 ): Promise<ExecutionOutcome> {
   const executor = executors[task.functionId];
   if (!executor) {
-    return classified({
-      success: false,
-      error: `no executor is registered for function_id "${task.functionId}" yet`,
-    });
+    return { success: false, failure: pipelineFailure("FUNCTION_NOT_AVAILABLE", [], { functionId: task.functionId }) };
   }
   try {
-    return classified(await executor(task));
+    return await executor(task);
   } catch (error) {
     // R66 visual QA (2026-09-02): this used to return error.message straight
     // through. Every executor ABOVE already returns its own clean, honest
@@ -465,22 +704,40 @@ export async function executeTask(
     // the end user, leaking an internal IP:port. Log the real error
     // server-side; return a safe, honest-but-generic message for display.
     //
-    // R67 C-13: the generic sentence is no longer the whole answer. The same
-    // exception now also produces a CODE, a status and the raw text kept
-    // separately -- so a pool timeout can leave the needs-you list (nobody on
-    // site can fix it) and carry a Retry, while an unexpected error that is
-    // really a user's missing slot still asks its question. The message a
-    // client renders is the classifier's, never `error.message`.
+    // R67 B-01 replaces that generic sentence with a CODE. The raw text is
+    // still logged here in full, and travels no further than `debug` --
+    // which run-submission.ts logs and deliberately does not persist, so
+    // GET /api/v1/projexa/tasks cannot select it.
+    // R67 FIX PASS -- A SERVICE'S 4xx IS NOT AN INTERNAL ERROR.
+    //
+    // normaliseThrownError() only recognises TRANSPORT shapes, so before this
+    // branch every expected business condition a service raises collapsed to
+    // INTERNAL_ERROR and the client rendered "Something went wrong on our
+    // side -- nothing was saved [Retry]". That is wrong twice over for four
+    // of the five writes B-04 registered: it blames us for the user's
+    // request, and it offers a Retry for a duplicate ("Attendance already
+    // recorded for this worker on this date", 409) that can never succeed.
+    // ServiceError carries the status the service deliberately chose, so
+    // branch on it FIRST -- which also removes normaliseThrownError's
+    // \b5\d\d\b false positive for an ordinary business message that happens
+    // to contain a three-digit number ("line 512 not found").
+    //
+    // >=500 deliberately falls through: a service that raises a 5xx is
+    // reporting a system failure, which belongs with the transport shapes.
+    if (error instanceof ServiceError && error.status < 500) {
+      console.error(`executeTask: "${task.functionId}" refused with ${error.status}`, error.message);
+      return {
+        success: false,
+        // functionId is carried for the CLIENT'S BRANCHING, never for its
+        // wording: "already recorded" means something different for
+        // attendance than for a BOQ revision, and projexa's dictionary picks
+        // the true sentence from it without ever printing it.
+        failure: pipelineFailure(codeForServiceError(error.status), [], { status: error.status, functionId: task.functionId }),
+        debug: `${error.name}(${error.status}): ${error.message}`,
+      };
+    }
     console.error(`executeTask: unexpected error running "${task.functionId}"`, error);
-    const f = classifyFailure(error);
-    return {
-      success: false,
-      error: f.message,
-      status: f.status,
-      code: f.code,
-      missing: f.missing,
-      details: f.details,
-      retryToken: f.retryToken,
-    };
+    const { failure, debug } = normaliseThrownError(error);
+    return { success: false, failure, debug };
   }
 }

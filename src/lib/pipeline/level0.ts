@@ -13,7 +13,11 @@
 // `dbBackedL0Repo` (below) in production, tests wire a fake.
 
 import { isAcknowledgement, normaliseForMatch } from "./classify";
-import { missingSlots } from "./function-slots";
+// R67 C-03, FIX PASS (decision D-11): the required-parameter facts come from
+// lane B's function-registry, which is the one place in this repo that says
+// what a function cannot run without. Lane C's own function-slots.ts declared
+// the same facts a second time and has been deleted.
+import { functionSpec, requiredParamSatisfied } from "./function-registry";
 
 export type L0Repo = {
   /** EXACT match only (M26) -- normalisedPhrase must already be normalised by the caller. */
@@ -136,6 +140,16 @@ function tryStructuralMatch(text: string): { functionId: string; params: Record<
 // a duration and is not a timesheet entry; demanding one of a closed list of
 // logging verbs is what keeps this tier from writing hours nobody asked to
 // log. Same posture as the rest of this file: match exactly, or do not match.
+//
+// FIX PASS -- THE TASK CLAUSE IS REQUIRED TOO, and this is the change that
+// makes the tier safe. The verb list alone is broad enough that a plain
+// observation trips it: "we spent 3 hrs waiting for the crane" has a duration
+// and the verb "spent", so before this it resolved to record_timesheet with
+// missingParams ["task"] -- a chat sentence promoted to a WRITE PROPOSAL at
+// Level 0, ahead of last-action recall, with a hole in it. A timesheet entry
+// is hours ON something; without the "on" clause naming that something there
+// is no entry to propose, so the sentence falls through to Level 1 where a
+// model can decide whether it was a question.
 const HOURS_TOKEN = /(\d{1,2}(?:\.\d{1,2})?)\s*(?:h|hr|hrs|hour|hours)\b/i;
 const TIME_LOG_VERB = /\b(log|logged|logging|spent|spend|worked|working|book|booked|booking)\b/i;
 const ISO_DATE_TOKEN = /\b(\d{4}-\d{2}-\d{2})\b/;
@@ -170,21 +184,37 @@ export function tryTimesheetMatch(
   // The task is what follows "on". Everything the pattern already consumed --
   // the duration, the day word, an explicit date -- is cut out first, so the
   // remainder is the words a person would use to name the task and nothing
-  // else. No "on" means no task, which is a QUESTION to ask, not a guess.
+  // else. NO "on" CLAUSE MEANS NO MATCH AT ALL -- see the header. Returning a
+  // proposal with `task` missing is what turned "we spent 3 hrs waiting for
+  // the crane" into a write proposal.
   const onIndex = text.toLowerCase().indexOf(" on ");
-  if (onIndex >= 0) {
-    const task = text
-      .slice(onIndex + 4)
-      .replace(HOURS_TOKEN, " ")
-      .replace(ISO_DATE_TOKEN, " ")
-      .replace(/\b(today|yesterday)\b/gi, " ")
-      .replace(/[.,;]+\s*$/, "")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (task.length > 0) params.task = task;
-  }
+  if (onIndex < 0) return null;
+  const task = text
+    .slice(onIndex + 4)
+    .replace(HOURS_TOKEN, " ")
+    .replace(ISO_DATE_TOKEN, " ")
+    .replace(/\b(today|yesterday)\b/gi, " ")
+    .replace(/[.,;]+\s*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (task.length === 0) return null;
+  params.task = task;
 
-  return { functionId: TIMESHEET_FUNCTION_ID, params, missingParams: missingSlots(TIMESHEET_FUNCTION_ID, params) };
+  return { functionId: TIMESHEET_FUNCTION_ID, params, missingParams: timesheetMissingParams(params) };
+}
+
+/**
+ * The declared required parameters this params object does not satisfy, minus
+ * `projectId` -- Level 0 has no project context at all (the composer's top
+ * rail supplies it downstream), so reporting it as missing here would ask the
+ * user a question the screen has already answered.
+ */
+function timesheetMissingParams(params: Record<string, unknown>): string[] {
+  const spec = functionSpec(TIMESHEET_FUNCTION_ID);
+  if (!spec) return [];
+  return spec.requiredParams
+    .filter((p) => p.name !== "projectId" && !requiredParamSatisfied(p, params))
+    .map((p) => p.name);
 }
 
 // Tier 4: last-action recall -- a bare follow-up ("60% now", "same but 70")

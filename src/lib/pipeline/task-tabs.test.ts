@@ -125,10 +125,24 @@ describe("tabCountsFrom -- the numbers come from a grouped count, not a page", (
 });
 
 // ---------------------------------------------------------------------------
-// R67 C-13 -- a failure nobody on site can fix is not "needs you".
+// R67 C-13 -- infrastructure failures are COUNTED SEPARATELY, not subtracted.
+//
+// FIX PASS, decision D-11: lane C originally subtracted `systemBlocked` from
+// the needs-you tabs, on the reading that a failure nobody on site can fix is
+// not that person's move. Lane B's B-06 has since merged to main and decided
+// it the other way, deliberately and with its reasons on the record: a
+// transport failure is recorded as `waiting` rather than `blocked` and STAYS
+// in "needs you" with a [Retry], because the only sensible next move really is
+// to send it again. Main is canonical, so the subtraction is gone.
+//
+// The number itself is kept, because it is a real fact the product may want to
+// say ("3 things went wrong on our side") and because a number that only ever
+// disappears is a number nobody can audit. What is NOT kept is a tab count
+// that disagrees with the list it labels -- which is the exact defect C-11
+// exists to remove, and which is what the subtraction would now produce.
 // ---------------------------------------------------------------------------
 
-describe("system failures leave the needs-you number", () => {
+describe("infrastructure failures are counted, and the count matches the list", () => {
   const rows: StatusCountRow[] = [
     { status: "to_do", n: 3 },
     { status: "blocked", errorCode: "BOQ_LINE_REQUIRED", n: 2 },
@@ -136,41 +150,53 @@ describe("system failures leave the needs-you number", () => {
     { status: "done", n: 10 },
   ];
 
-  test("needs_you counts the decisions, not the outages", () => {
+  test("a tab counts exactly the statuses it asks for -- nothing is quietly removed", () => {
     const c = tabCountsFrom(rows);
-    // 3 to_do + 2 fixable blocked; the 4 infrastructure rows are not the
-    // foreman's move.
-    expect(c.tabs.needs_you).toBe(5);
-    expect(c.tabs.approval).toBe(5);
+    // 3 to_do + 6 blocked. The needs_you TAB asks for to_do/waiting/blocked,
+    // so its number is what that query returns; anything less would label a
+    // list with a number the list does not have.
+    expect(c.tabs.needs_you).toBe(9);
+    expect(c.tabs.approval).toBe(9);
   });
 
-  test("they are REPORTED, not merely subtracted -- a number that only disappears cannot be audited", () => {
+  test("they are REPORTED as their own number", () => {
     const c = tabCountsFrom(rows);
     expect(c.systemBlocked).toBe(4);
     expect(c.blocked).toBe(6);
     expect(c.total).toBe(19);
   });
 
-  test("BACKEND_UNAVAILABLE is the same fact under D-03's older name", () => {
-    const c = tabCountsFrom([{ status: "blocked", errorCode: "BACKEND_UNAVAILABLE", n: 2 }]);
-    expect(c.systemBlocked).toBe(2);
-    expect(c.tabs.needs_you).toBe(0);
+  test("BACKEND_UNAVAILABLE and INFRA_UNAVAILABLE are the same fact under two names", () => {
+    expect(tabCountsFrom([{ status: "blocked", errorCode: "BACKEND_UNAVAILABLE", n: 2 }]).systemBlocked).toBe(2);
+    expect(tabCountsFrom([{ status: "blocked", errorCode: "INFRA_UNAVAILABLE", n: 5 }]).systemBlocked).toBe(5);
+    expect(tabCountsFrom([{ status: "blocked", errorCode: "UPSTREAM_TIMEOUT", n: 1 }]).systemBlocked).toBe(1);
   });
 
-  test("a blocked row with no code at all still needs someone -- it is not assumed to be an outage", () => {
+  test("a blocked row with no code at all is not assumed to be an outage", () => {
     const c = tabCountsFrom([{ status: "blocked", errorCode: null, n: 2 }]);
     expect(c.systemBlocked).toBe(0);
     expect(c.tabs.needs_you).toBe(2);
   });
 
-  test("the other tabs are untouched by the split", () => {
+  test("only BLOCKED rows can be system-blocked -- a done row's stale code is not counted", () => {
+    const c = tabCountsFrom([{ status: "done", errorCode: "BACKEND_UNAVAILABLE", n: 3 }]);
+    expect(c.systemBlocked).toBe(0);
+    expect(c.tabs.done).toBe(3);
+  });
+
+  test("the four legacy count names keep MAIN's meanings, verbatim", () => {
+    const c = tabCountsFrom(rows);
+    // needsYou is to_do + waiting and blocked is its own number -- a caller
+    // reading these today must not silently start getting a different total.
+    expect(c.needsYou).toBe(3);
+    expect(c.blocked).toBe(6);
+    expect(c.running).toBe(0);
+    expect(c.done).toBe(10);
+  });
+
+  test("the other tabs are untouched", () => {
     const c = tabCountsFrom(rows);
     expect(c.tabs.done).toBe(10);
     expect(c.tabs.queued).toBe(0);
-  });
-
-  test("a tab count can never go negative, whatever the grouping says", () => {
-    const c = tabCountsFrom([{ status: "blocked", errorCode: "INFRA_UNAVAILABLE", n: 5 }]);
-    expect(c.tabs.needs_you).toBe(0);
   });
 });

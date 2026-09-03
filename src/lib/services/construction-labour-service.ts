@@ -3,8 +3,8 @@
 // roster.dailyRate (half_day = half rate), not a DB generated column,
 // matching this codebase's convention elsewhere (e.g. documents.isLatestVersion).
 import { constructionLabourRoster, constructionAttendance, projects } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray } from "drizzle-orm"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { and, eq, gte, inArray, lte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -24,6 +24,101 @@ export async function listRoster(ctx: { orgId: string }, projectId: string) {
       where: and(eq(constructionLabourRoster.orgId, ctx.orgId), eq(constructionLabourRoster.projectId, projectId)),
     })
   )
+}
+
+// R67 F-30 (audit recommendation R-274) -- THE MANPOWER LANDING, IN ONE HOP.
+//
+// THE MEASURED PROBLEM. /labour took about 6 s to a usable screen for SQL the
+// audit measured as trivial. F-18 removed the serial /dashboard +
+// /screen-definitions chain in front of it and F-25 stopped the screen
+// fetching the whole undated attendance log it was not showing. What was left
+// is the shape of the landing itself: the page wants the roster AND the "how
+// did today go" summary, and asking for them one after the other is two
+// network hops to VERIDIAN and two transactions on a five-connection pool for
+// one screen.
+//
+// So a single call answers both, inside ONE withTenantContext. The summary is
+// a grouped aggregate over ONE DAY -- not the whole log -- so it uses the
+// (project_id, attendance_date) index migration 0529 added and stays a
+// constant-size answer however long the project runs.
+
+export type AttendanceSummary = {
+  /** The day this summary is about, YYYY-MM-DD. */
+  date: string
+  /** How many attendance rows exist for that day. */
+  recorded: number
+  present: number
+  halfDay: number
+  absent: number
+  /** Σ daily_cost for that day. */
+  totalCost: number
+}
+
+const EMPTY_STATUS_COUNTS = { present: 0, halfDay: 0, absent: 0 }
+
+/**
+ * One day's attendance, grouped by status, in ONE statement.
+ *
+ * A day with no rows is a real answer -- "nobody has marked attendance yet" --
+ * and returns zeroes, never null, so the caller does not have to decide
+ * whether an absent object means "none" or "we could not find out". The
+ * failure case is a thrown error, which is a different thing entirely.
+ */
+async function loadAttendanceSummary(
+  db: TenantDb,
+  orgId: string,
+  projectId: string,
+  date: string
+): Promise<AttendanceSummary> {
+  const rows = (await db.execute(sql`
+    SELECT status,
+           count(*)::int AS entries,
+           coalesce(sum(daily_cost), 0)::float AS cost
+    FROM compliance.construction_attendance
+    WHERE org_id = ${orgId} AND project_id = ${projectId} AND attendance_date = ${date}
+    GROUP BY status
+  `)) as { status: string; entries: number; cost: number }[]
+
+  const counts = { ...EMPTY_STATUS_COUNTS }
+  let recorded = 0
+  let totalCost = 0
+  for (const row of rows) {
+    const entries = Number(row.entries ?? 0)
+    recorded += entries
+    totalCost += Number(row.cost ?? 0)
+    if (row.status === "present") counts.present += entries
+    else if (row.status === "half_day") counts.halfDay += entries
+    else if (row.status === "absent") counts.absent += entries
+    // An unrecognised status still counts toward `recorded` and the cost --
+    // silently dropping a row would understate the day.
+  }
+  return { date, recorded, ...counts, totalCost }
+}
+
+/**
+ * The whole /labour landing: the roster, and one day's attendance summary,
+ * in ONE transaction and ONE round trip.
+ *
+ * `date` is the day the summary is about. The caller supplies it -- the
+ * server's own "today" is not the site's today, and a foreman in Mumbai
+ * looking at a summary computed in UTC would be looking at the wrong day for
+ * five and a half hours of every one of them.
+ */
+export async function getLabourLanding(
+  ctx: { orgId: string },
+  projectId: string,
+  options: { attendanceDate?: string } = {}
+): Promise<{ roster: (typeof constructionLabourRoster.$inferSelect)[]; attendanceSummary: AttendanceSummary | null }> {
+  if (!projectId) throw new ServiceError("projectId is required", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const roster = await db.query.constructionLabourRoster.findMany({
+      where: and(eq(constructionLabourRoster.orgId, ctx.orgId), eq(constructionLabourRoster.projectId, projectId)),
+    })
+    const attendanceSummary = options.attendanceDate
+      ? await loadAttendanceSummary(db, ctx.orgId, projectId, options.attendanceDate)
+      : null
+    return { roster, attendanceSummary }
+  })
 }
 
 export async function createRosterEntry(ctx: { orgId: string }, input: RosterInput) {
@@ -74,13 +169,48 @@ export async function updateRosterEntry(
   })
 }
 
-export async function listAttendance(ctx: { orgId: string }, filters: { projectId?: string; rosterId?: string; attendanceDate?: string }) {
+// R67 F-25 (audit recommendation R-241) -- ATTENDANCE IS A DATED QUESTION.
+//
+// THE MEASURED PROBLEM. PROJEXA's Manpower screen fetched THE WHOLE ATTENDANCE
+// LOG on every landing, with no date filter at all, even though the screen
+// opens on the Roster tab and never shows a row of it until the user switches.
+// A site with 40 workers produces 40 rows a day, so the payload grows without
+// bound for a table nobody has asked to see, and the one date a foreman
+// actually wants -- today -- is buried in it.
+//
+// `date` (one day) and `from`/`to` (a range, both inclusive, entryDate is a
+// plain date column) are the filters that were missing. `attendanceDate` is
+// KEPT as an alias for `date` so every existing caller and every existing
+// ?attendanceDate= query string keeps working unchanged; passing both is not
+// an error, they mean the same thing and `date` wins.
+export type AttendanceFilters = {
+  projectId?: string
+  rosterId?: string
+  /** One exact day, YYYY-MM-DD. */
+  date?: string
+  /** Back-compat alias for `date` -- the original parameter name. */
+  attendanceDate?: string
+  /** Inclusive range start, YYYY-MM-DD. Ignored when `date` is set. */
+  from?: string
+  /** Inclusive range end, YYYY-MM-DD. Ignored when `date` is set. */
+  to?: string
+}
+
+export async function listAttendance(ctx: { orgId: string }, filters: AttendanceFilters) {
   if (!filters.projectId && !filters.rosterId) throw new ServiceError("projectId or rosterId is required", 400)
+  const exactDate = filters.date ?? filters.attendanceDate
   return withTenantContext({ orgId: ctx.orgId }, (db) => {
     const conditions = [eq(constructionAttendance.orgId, ctx.orgId)]
     if (filters.projectId) conditions.push(eq(constructionAttendance.projectId, filters.projectId))
     if (filters.rosterId) conditions.push(eq(constructionAttendance.rosterId, filters.rosterId))
-    if (filters.attendanceDate) conditions.push(eq(constructionAttendance.attendanceDate, filters.attendanceDate))
+    // A single day is an equality, not a degenerate range -- it can use the
+    // (project_id, attendance_date) index directly.
+    if (exactDate) {
+      conditions.push(eq(constructionAttendance.attendanceDate, exactDate))
+    } else {
+      if (filters.from) conditions.push(gte(constructionAttendance.attendanceDate, filters.from))
+      if (filters.to) conditions.push(lte(constructionAttendance.attendanceDate, filters.to))
+    }
     return db.query.constructionAttendance.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.attendanceDate) })
   })
 }
