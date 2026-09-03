@@ -305,6 +305,80 @@ active:
       `All ${mode.toLowerCase()}`) and chain_history.mode (:631). The field is
       therefore still sent, derived from the chain rather than from a control,
       and nothing in this repo changed.
+  - session_label: "claude-code (subagent, r67/b-backend-chain) -- PROGRAMME R67 lane B (backend-chain), items B-01..B-11"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implementation brief
+      scratchpad/impl/ws/lane_B.items.json (items B-01..B-11) + binding decisions D-03
+      (closed-vocabulary {code, missing} error contract, sentences live in projexa),
+      D-06 (no nested withTenantContext), D-09 (no veridian-ui-kit release).
+      Worktree C:/ct/ct-worktrees/r67-B on branch r67/b-backend-chain, cut from
+      origin/main at 5a64aaee.
+
+      SCOPE AMENDED 2026-09-03 (fix pass): the original row said "B-01..B-05" and
+      "does NOT touch drizzle/". Both were stale by the time B-08 landed. This is
+      the real, complete scope of the branch.
+
+      File scope claimed in compliance-tracker (this repo):
+        src/lib/pipeline/error-codes.ts (new) + .test.ts
+        src/lib/pipeline/function-registry.ts (new) + .test.ts
+        src/lib/pipeline/dry-run.ts (new) + .test.ts
+        src/lib/pipeline/verdict.ts (new) + .test.ts
+        src/lib/pipeline/validate.ts + validate.test.ts
+        src/lib/pipeline/executor.ts + executor.test.ts
+        src/lib/pipeline/run-submission.ts + run-submission.test.ts
+        src/lib/pipeline/derive-chain.ts (verb-family/kind derivation only)
+        src/app/api/v1/projexa/tasks/route.ts (dry-run + structured failure in GET)
+        src/app/api/v1/projexa/chain-options/route.ts (new) + route.test.ts (new)
+        src/app/api/v1/construction/progress/route.ts (B-09 coded refusal)
+        src/app/api/mcp/[token]/route.ts (the 'ask' tool renders `failures`)
+        src/lib/services/chain-options-service.ts (new) + .test.ts
+        src/lib/services/construction-progress-service.ts + .test.ts (B-09 BOQ rule)
+        src/lib/ai/adapter.ts (the AiProviderRefusalError sentence only)
+        src/lib/ai/refusal.ts (new) + .test.ts
+        src/lib/db/schema.ts (pipelineTasks.errorCode / errorParams only)
+        drizzle/0533_r67_pipeline_task_error_codes.sql (new, hand-written)
+        drizzle/meta/_journal.json (one appended entry, idx 355)
+        docs/master/TEST_COVERAGE_GAP.md (regenerated)
+      Does NOT touch: platform.* migrations (0533 is compliance.*, two nullable
+      columns), construction-labour/boq/pms-meeting/document-service.ts themselves
+      (the new write executors CALL them unchanged), phrase_map/analyse.ts, the
+      billing/* files claimed below.
+
+      DEPLOY ORDER: drizzle/0533 must be applied BEFORE this code is deployed --
+      GET /api/v1/projexa/tasks selects error_code/error_params by name. The
+      migration is additive and safe to apply to a database still running the
+      previous build. See the migration's own header.
+
+      Companion worktree (separate repo, separate PR): C:/ct/projexa-worktrees/r67-B,
+      same branch name. Files claimed there:
+        src/lib/task-errors.ts (new) + .test.ts          -- the D-03 dictionary
+        src/lib/work-progress-form-fields.ts (new) + .test.ts
+        src/lib/module-catalogue.ts + .test.ts             -- B-02's two prompts
+        src/lib/work-progress-report.ts + .test.ts         -- unlinked-entry count
+        src/lib/veridian-client.ts                         -- {code, missing} forwarding
+        src/components/shell/M24Shell.tsx                  -- verdict + row renderer
+        src/components/WorkProgressFormClient.tsx
+        src/components/WorkProgressReportClient.tsx
+        src/app/api/work-progress/route.ts
+        src/app/api/work-progress/report/route.ts
+      CLAIM RELEASED 2026-09-03: src/lib/composer-placeholders.ts (+ .test.ts) was
+      claimed and built, and is now DELETED rather than shipped. Lane A (#231) landed
+      module-catalogue.ts, which the programme designates (C-12/D-09) as the ONE place
+      a route's example prompts are written down. Keeping lane B's own placeholder
+      module would have been a second, competing source for the same string. B-02's
+      two quoted prompts were moved into lane A's catalogue instead; the file no
+      longer exists on this branch and no other lane should expect it.
+
+      NOTE for lanes A and G: M24Shell.tsx is touched by three lanes now. Lane B's
+      edits are in toTaskRow (detailFor/codeFor + the fix route), onSubmit (the
+      verdict) and the Composer's `conversation` prop; lane A's (#231) are the
+      screen-module system, the pill/card strips and band 3; lane G's (2dc2e44) are
+      the top rail and the status pills. Band 2 is now SHARED by A-12 and B-07 and
+      the merge rule is written at the `conversation` prop: a live verdict takes the
+      band, the picked module's verbs hold it otherwise, and picking a module clears
+      the verdict.
+
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |
