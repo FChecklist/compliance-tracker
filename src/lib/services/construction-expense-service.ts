@@ -259,7 +259,7 @@ export async function createExpenseEntry(ctx: { orgId: string; userId: string },
         if (budgetExceeded(dashboard.budget, dashboard.expenses)) {
           void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
             evaluateAndRunRules({ orgId: ctx.orgId }, "construction_expense.budget_exceeded", {
-              projectId: row.projectId, budget, expenses: dashboard.expenses,
+              projectId: row.projectId, budget: dashboard.budget, expenses: dashboard.expenses,
             })
           )
         }

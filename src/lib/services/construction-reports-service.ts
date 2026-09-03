@@ -2651,7 +2651,18 @@ const REPORT_TABLE_BUILDERS: { [K in ReportName]: (payload: Payload<K>) => Built
       amount: l.amount, budgetPercentage: l.budgetPercentage, budget: l.budget,
       vendorName: l.vendorName, vendorAmount: l.vendorAmount, variance: l.variance,
     })),
-    totals: { budget: p.totalBudget, vendorAmount: p.totalVendorAmount, variance: p.totalVariance },
+    // R67 E-26 x D-26: totalVariance is `number | null` -- null when NOT ONE
+    // line carries a committed cost, which is a real "nothing has been costed
+    // yet" state and not a variance of zero. `totals` is a map of numbers whose
+    // own contract is "present only where summing that column is a real
+    // statement", so it is omitted rather than written as a 0 that would read
+    // as "exactly on budget". The renderer prints an en dash for an absent
+    // total. Budget and vendor amount are always real sums over the root lines.
+    totals: {
+      budget: p.totalBudget,
+      vendorAmount: p.totalVendorAmount,
+      ...(p.totalVariance !== null ? { variance: p.totalVariance } : {}),
+    },
     note: p.note,
   }),
 }
