@@ -17,6 +17,38 @@ import { listDocuments } from "./document-service"
 import { bustProjectDashboardCache } from "./project-dashboard-cache"
 export { ServiceError }
 
+/**
+ * R67 lane B (B-09) -- ONE RULE FOR A PROGRESS ENTRY, IN ONE PLACE.
+ *
+ * Before this, the form and the composer disagreed about whether a BOQ line
+ * was required: PROJEXA's Daily Entry form marked it OPTIONAL and buried it
+ * below the derived fields, while the chat pipeline refused without one and
+ * said "itemCode is required". Two answers to one question, and neither of
+ * them was the product's.
+ *
+ * The rule adopted is the recommended one, and it lives HERE -- in the
+ * service both callers already go through -- rather than in either caller:
+ *
+ *   the project has at least one BOQ  -> a BOQ line is REQUIRED
+ *   the project has no BOQ at all     -> the entry is accepted, unlinked,
+ *                                        and the Work Progress Report says
+ *                                        so instead of silently dropping it
+ *
+ * It is raised as a CODE, never a sentence (decision D-03): the wording lives
+ * in projexa's src/lib/task-errors.ts, so the form and the composer print the
+ * same words because they read the same dictionary -- not because someone
+ * kept two strings in step by hand.
+ */
+export class ProgressRuleError extends ServiceError {
+  readonly missing: string[]
+  constructor(code: string, missing: string[]) {
+    // The MESSAGE is a code line, not prose. There is deliberately no English
+    // here for a route to leak into a UI by accident.
+    super(`${code} missing=${missing.join(",")}`, 400, { code })
+    this.missing = missing
+  }
+}
+
 // R48 gap-closure (2026-08-29, F039: "Daily progress report with photos" --
 // genuinely missing, confirmed by searching the whole repo for any file
 // with "daily" in its name before writing this: none existed). Composed
@@ -225,6 +257,20 @@ export async function createProgressEntry(
     const activity = await db.query.constructionActivities.findFirst({ where: and(eq(constructionActivities.id, input.activityId), eq(constructionActivities.orgId, ctx.orgId), eq(constructionActivities.projectId, input.projectId)) })
     if (!activity) throw new ServiceError("Activity not found", 404)
 
+    // R67 B-09 -- THE ONE RULE, checked here so both callers get one answer.
+    // A project that has a BOQ is a project whose progress is measured
+    // against it: an entry with no line cannot be rolled up, cannot be
+    // valued, and disappears from the Work Progress Report. So it is refused
+    // -- with a code, before anything is written. A project with NO BOQ has
+    // nothing to link to, and refusing there would make the module unusable
+    // for a job that is not billed off a bill of quantities at all.
+    const projectHasBoq = await db.query.constructionBoqs.findFirst({
+      where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, input.projectId)),
+    })
+    if (projectHasBoq && !input.boqLineItemId) {
+      throw new ProgressRuleError("BOQ_LINE_REQUIRED", ["boqLine"])
+    }
+
     // R12 point 7 (Option B): the direct BOQ-line link -- optional, so
     // every existing (activity-only) caller keeps working unchanged. When
     // supplied, must resolve to a real line item this org owns (line items
@@ -272,7 +318,10 @@ export async function createProgressEntry(
       entryDate: input.entryDate, quantityDone: input.quantityDone !== undefined ? String(input.quantityDone) : undefined, percentComplete: String(input.percentComplete),
       entryBasis, remarks: input.remarks || null, recordedById: ctx.userId,
     }).returning()
-    return row
+    // R67 B-09: the caller is told, on the row itself, whether this entry is
+    // counted by the Work Progress Report. Derived from what was actually
+    // stored, never from what was asked for.
+    return { ...row, linkedToBoq: boqLineItemId !== null }
   }).then((row) => {
     // R67 F-27: this row moved % complete, earned value and the progress bar
     // on the project dashboard. Bust BEFORE anything async below, so the very

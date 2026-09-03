@@ -1,0 +1,80 @@
+-- R67 lane B, B-08 -- typed failure codes on compliance.pipeline_tasks
+-- (2026-09-02). Programme decision D-03.
+--
+-- RENUMBERED 0528 -> 0533 (2026-09-03). Lane B authored this as 0528 when
+-- 0527_r65_parte_billing_contracts was the highest migration on origin/main.
+-- Lane I (r67 WS-I, PR #1576) then merged 0528..0532, so this branch was
+-- rebased onto that main and the file takes the next free number, 0533,
+-- with journal idx 355. Nothing about the DDL changed.
+--
+-- WHAT THIS CLOSES. Until R67 this table recorded a failure as free-text
+-- English composed in compliance-tracker and rendered verbatim by PROJEXA's
+-- Task Master. The R66 walkthrough captured what that produced on a real
+-- site engineer's screen, in the left pane, eleven rows at a time:
+--   "itemCode is required"                      -- a camelCase parameter
+--   "no project resolved for this task"         -- a sentence about internals
+--   "write CONNECT_TIMEOUT 3.109.171.244:6543"  -- a driver string with an
+--                                                  internal address and port
+-- D-03 splits that: the server returns a CODE, the client owns the wording.
+-- src/lib/pipeline/error-codes.ts holds the closed vocabulary and
+-- projexa's src/lib/task-errors.ts is the only place a sentence exists.
+--
+-- B-01 already changed this column's CONTENT to a serialised {code, missing,
+-- context} object. These two columns give that object real, queryable homes,
+-- so "how often did the construction data service fail this week" is a
+-- GROUP BY rather than JSON parsing over a text column.
+--
+--   error_code   -- one value of the closed set (BOQ_LINE_REQUIRED,
+--                   BOQ_LINE_NOT_FOUND, PROJECT_REQUIRED, VALUE_REQUIRED,
+--                   BOQ_LINE_IS_PARENT, BACKEND_UNAVAILABLE,
+--                   UPSTREAM_TIMEOUT, ...).
+--   error_params -- ONLY real business values ({itemCode, project, version})
+--                   that the client interpolates into its sentence. It is
+--                   NOT a place for a driver message: the raw text is logged
+--                   server-side (executor.ts -> run-submission.ts's
+--                   console.error) and deliberately never persisted, which
+--                   is the whole point of B-01 and the reason the R66 leak
+--                   cannot recur through this table.
+--
+-- `error` is deliberately LEFT IN PLACE and keeps holding the same
+-- serialised failure object B-01 writes. Rows written before this migration
+-- still read (GET /api/v1/projexa/tasks parses that column when the new one
+-- is null), and rows written before B-01 -- which hold real English --
+-- are mapped by the client's own legacyToCode() fallback, so the programme
+-- has exactly ONE legacy mapping rather than two that drift.
+--
+-- error_code is TEXT, not an enum, on purpose: the vocabulary is owned by
+-- application code in two repos that version independently, and requiring a
+-- migration per new code would guarantee the code set and the column drift
+-- apart. The closed-ness is enforced where it can be tested -- error-codes.ts
+-- and its unit tests -- not by a type that only one of the two repos can see.
+--
+-- HAND-WRITTEN, not `bun run db:generate` output -- disclosed, not silent,
+-- and the same posture drizzle/0525_r65_partd_submission_classification.sql
+-- and drizzle/0524 already take in this directory. Running db:generate for
+-- this change produced a ~0350-numbered file trying to re-CREATE dozens of
+-- enums and tables that already exist in every real environment: the local
+-- meta snapshot chain has drifted from this repo's real committed migration
+-- history. That is a pre-existing condition, not caused by this change. The
+-- DDL below was verified by hand against the real current
+-- `compliance.pipeline_tasks` shape in src/lib/db/schema.ts.
+--
+-- ADDITIVE AND REVERSIBLE. Two nullable columns, no default, no backfill, no
+-- constraint: applying it cannot fail on existing data and cannot change the
+-- behaviour of any code that has not been deployed yet.
+--
+-- *** DEPLOY ORDER: APPLY THIS MIGRATION BEFORE THE CODE, NOT AFTER. ***
+-- GET /api/v1/projexa/tasks SELECTs pipeline_tasks.error_code and
+-- error_params by name. Those columns do not exist until this file has run,
+-- so a build that reaches an environment ahead of the migration makes the
+-- Task Master list 500 for every user of BOTH products -- an outage, not a
+-- degradation. The migration is additive and safe to apply to a database
+-- still running the previous build, so the safe order is always:
+--   1. apply 0528 (Supabase MCP: apply_migration)
+--   2. verify: select column_name from information_schema.columns
+--        where table_schema='compliance' and table_name='pipeline_tasks'
+--          and column_name in ('error_code','error_params');   -- expect 2 rows
+--   3. deploy the code
+-- There is no window in which step 1 alone breaks anything.
+ALTER TABLE "compliance"."pipeline_tasks" ADD COLUMN IF NOT EXISTS "error_code" text;--> statement-breakpoint
+ALTER TABLE "compliance"."pipeline_tasks" ADD COLUMN IF NOT EXISTS "error_params" jsonb;

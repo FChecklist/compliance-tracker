@@ -24,7 +24,15 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
-import { runSubmission, runDirectTask } from "@/lib/pipeline/run-submission"
+import { runSubmission, runDirectTask, proposeSubmission, submitForVerdict, confirmSubmission } from "@/lib/pipeline/run-submission"
+import {
+  failureFromRow,
+  isStatementTimeoutMessage,
+  parseFailure,
+  pipelineFailure,
+  revealsInternals,
+} from "@/lib/pipeline/error-codes"
+import { functionLabel } from "@/lib/pipeline/function-registry"
 import { NEEDS_YOU_STATUSES, nextTaskCursor, parseTaskCursor } from "@/lib/pipeline/task-cursor"
 import { withRouteTiming } from "@/lib/route-timing"
 
@@ -69,6 +77,59 @@ async function POST_impl(request: NextRequest) {
   const projectId = typeof body.projectId === "string" ? body.projectId : null
 
   try {
+    // R67 B-05 -- STEP ONE: PROPOSE. {rawInput, dryRun:true} classifies,
+    // derives the chain, works out what is still missing and offers the real
+    // choices for it, WITHOUT minting a task. A parameter the classifier
+    // could not fill used to become a pipeline_tasks row with status
+    // 'blocked'; now it is a question, answered before anything is recorded,
+    // and it is counted in no badge because no row exists. Step two is the
+    // existing {functionId, params} path below, unchanged.
+    if (body.dryRun === true) {
+      const rawInput = typeof body.rawInput === "string" ? body.rawInput : ""
+      if (rawInput.trim().length === 0) {
+        return NextResponse.json({ error: "dryRun needs rawInput" }, { status: 400 })
+      }
+      const proposal = await proposeSubmission({
+        orgId: ctx.orgId,
+        userId: actorId,
+        mode,
+        projectId,
+        rawInput,
+        role: ctx.dbUser?.role ?? null,
+      })
+      // 200, not 201: nothing was created.
+      return NextResponse.json(proposal, { status: 200 })
+    }
+
+    // R67 B-07 -- STEP TWO: CONFIRM. Only this branch executes a write that
+    // came from typed input. The server re-derives the proposal from the
+    // submission's own stored rawInput and refuses a functionId it did not
+    // itself derive, so a submission id is a reference to what the user
+    // actually said -- not a licence to run anything.
+    if (body.confirm === true) {
+      const submissionId = typeof body.submissionId === "string" ? body.submissionId.trim() : ""
+      if (!submissionId) {
+        return NextResponse.json({ error: "confirm needs submissionId" }, { status: 400 })
+      }
+      const outcome = await confirmSubmission({
+        orgId: ctx.orgId,
+        userId: actorId,
+        submissionId,
+        functionId: typeof body.functionId === "string" ? body.functionId.trim() : undefined,
+        params: (body.params as Record<string, unknown>) ?? {},
+        role: ctx.dbUser?.role ?? null,
+      })
+      if (outcome.ok) return NextResponse.json(outcome.result, { status: 201 })
+      if (outcome.reason === "not_found") {
+        return NextResponse.json({ error: "That submission is not on this account" }, { status: 404 })
+      }
+      if (outcome.reason === "needs_input") {
+        // 200, not an error: the answer is a question, and nothing was minted.
+        return NextResponse.json(outcome.verdict, { status: 200 })
+      }
+      return NextResponse.json({ failure: outcome.failure }, { status: 409 })
+    }
+
     if (typeof body.functionId === "string" && body.functionId.trim().length > 0) {
       const result = await runDirectTask({
         orgId: ctx.orgId,
@@ -91,7 +152,31 @@ async function POST_impl(request: NextRequest) {
       )
     }
 
-    const result = await runSubmission({
+    // R67 B-07 -- STEP ONE: THE VERDICT. The typed path no longer resolves
+    // and executes in one shot. It answers with what was understood, what is
+    // still missing (with real choices for it) and a submissionId to confirm
+    // against -- and it mints NO pipeline_tasks row, which is what stops an
+    // unanswered question being recorded as blocked work and counted in the
+    // Home badge.
+    //
+    // The old resolve-all-then-execute-all behaviour is still reachable, and
+    // still the right answer for the two callers that are not a person
+    // watching a composer: {execute:true} here, and the assistant/submissions
+    // routes, which call runSubmission() directly and are untouched.
+    if (body.execute === true) {
+      const result = await runSubmission({
+        orgId: ctx.orgId,
+        userId: actorId,
+        mode,
+        projectId,
+        selectedChain: body.selectedChain,
+        rawInput,
+        role: ctx.dbUser?.role ?? null,
+      })
+      return NextResponse.json(result, { status: 201 })
+    }
+
+    const verdict = await submitForVerdict({
       orgId: ctx.orgId,
       userId: actorId,
       mode,
@@ -100,7 +185,8 @@ async function POST_impl(request: NextRequest) {
       rawInput,
       role: ctx.dbUser?.role ?? null,
     })
-    return NextResponse.json(result, { status: 201 })
+    // 200, not 201: a verdict creates no task.
+    return NextResponse.json(verdict, { status: 200 })
   } catch (error) {
     console.error("v1 projexa tasks POST error:", error)
     const message = error instanceof Error ? error.message : "Failed to create a task"
@@ -116,8 +202,8 @@ async function POST_impl(request: NextRequest) {
  * needsYou   -- to_do / waiting: nothing will move without a person
  * running    -- in_progress
  * done       -- done
- * blocked    -- blocked, with the backend's own error text on each row,
- *               never an empty list and never a generic failure
+ * blocked    -- blocked, carrying the STRUCTURED failure (B-01/B-08) on each
+ *               row, never an empty list and never a generic failure
  */
 // R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
 // route guards read it with a regex -- and delegates to its original body so
@@ -183,6 +269,9 @@ async function GET_impl(request: NextRequest) {
           params: pipelineTasks.params,
           status: pipelineTasks.status,
           error: pipelineTasks.error,
+          // R67 B-08 (drizzle/0533): the typed failure, in its own columns.
+          errorCode: pipelineTasks.errorCode,
+          errorParams: pipelineTasks.errorParams,
           createdAt: pipelineTasks.createdAt,
           updatedAt: pipelineTasks.updatedAt,
           rawInput: submissions.rawInput,
@@ -214,18 +303,83 @@ async function GET_impl(request: NextRequest) {
       return { rows: page, statusTotals: totals }
     })
 
-    const group = (statuses: TaskStatus[]) => rows.filter((r) => statuses.includes(r.status as TaskStatus))
+    // R67 B-01 (D-03): every row gains the STRUCTURED failure and the
+    // function's HUMAN LABEL, so the client can render a sentence and a Fix
+    // chain without parsing prose and without ever printing a function id.
+    //   failure -- {code, missing, context, picker}, parsed from the column
+    //              run-submission.ts now writes as JSON. null for a row
+    //              written before this change (the client's own
+    //              legacyToCode() covers those, so there is one legacy
+    //              mapping in the programme, not two).
+    //   label   -- "Record progress", never "record_work_progress".
+    //
+    // R67 FIX PASS -- `error` IS NO LONGER RETURNED. It used to be spread
+    // through verbatim "for backward compatibility", which meant every row
+    // written before B-01 still shipped its original prose to every browser,
+    // the R66 driver string "write CONNECT_TIMEOUT 3.109.171.244:6543"
+    // included. B-01's own rule is that the raw text lives only in a `debug`
+    // field this route never selects, and a column nothing renders is still a
+    // payload somebody can read. What replaces it:
+    //   * a legacy string that DISCLOSES INTERNALS (a driver errno or a
+    //     host:port) is converted here into a real closed-vocabulary failure
+    //     -- the same two predicates normaliseThrownError() uses, so there is
+    //     no second classifier -- and the text itself is dropped;
+    //   * any other legacy string travels as `legacyError`, which projexa's
+    //     own legacyToCode() maps back into the dictionary. That keeps ONE
+    //     legacy prose mapping in the programme, in the repo that owns the
+    //     wording, exactly as B-10 decided.
+    //
+    // R67 B-08: the typed columns win when they are populated; the serialised
+    // `error` object is the fallback for a row written between B-01 and the
+    // 0528 migration. A row older than B-01 holds real English and yields
+    // null here -- the client's own legacyToCode() maps those, so the
+    // programme has ONE legacy mapping rather than two that drift.
+    // `missing` has no column of its own -- it is a Fix-chain hint, not
+    // something anyone groups by -- so it is taken from the serialised object
+    // and merged onto the typed code, which is the authority.
+    //
+    // R67 MERGE (lane B x lane F2): this decoration runs over the PAGE, which
+    // is now a keyset page rather than the whole set. That is deliberate --
+    // decorating rows nobody is rendering would be wasted work, and the
+    // header counts below no longer come from these rows at all.
+    const decorated = rows.map(({ error, ...row }) => {
+      const parsed = parseFailure(error)
+      const typed = failureFromRow(row.errorCode, row.errorParams)
+      const structured = typed ? { ...typed, missing: parsed?.missing ?? [] } : parsed
+      const legacy = !structured && typeof error === "string" && error.trim().length > 0 ? error.trim() : null
+      const legacyFailure =
+        legacy && isStatementTimeoutMessage(legacy)
+          ? pipelineFailure("UPSTREAM_TIMEOUT")
+          : legacy && revealsInternals(legacy)
+            ? pipelineFailure("BACKEND_UNAVAILABLE")
+            : null
+      return {
+        ...row,
+        label: row.functionId ? functionLabel(row.functionId) : null,
+        failure: structured ?? legacyFailure,
+        /** Safe legacy prose only -- null once the row has any structured failure. */
+        legacyError: legacyFailure ? null : legacy,
+      }
+    })
+
+    const group = (statuses: TaskStatus[]) => decorated.filter((r) => statuses.includes(r.status as TaskStatus))
     const total = (statuses: TaskStatus[]) =>
       statusTotals.reduce((sum, t) => (statuses.includes(t.status as TaskStatus) ? sum + Number(t.n) : sum), 0)
 
     return NextResponse.json({
-      tasks: rows,
+      tasks: decorated,
       // null when this page is the last one -- so the UI never renders a
       // "Show 20 more" control that would load nothing.
       nextCursor: nextTaskCursor(rows, limit),
       // LIVE COUNTS over the whole set (M24's header tabs), independent of how
       // many pages the client has pulled. `groups` below stays page-scoped --
       // it carries the rows actually being rendered.
+      //
+      // R67 MERGE: lane B computed these from the page (`group(...).length`),
+      // which was exact while the route returned the entire set in one read.
+      // Lane F2's paging made that untrue, and F2's grouped aggregate is how
+      // B's stated intent -- "so the user knows before clicking" -- survives
+      // paging. Same numbers as B for an unpaged read; correct ones after.
       counts: {
         needsYou: total(["to_do", "waiting"]),
         running: total(["in_progress"]),
