@@ -32,6 +32,10 @@ async function GET_impl(request: NextRequest) {
       category: searchParams.get("category") ?? undefined,
       linkedEntityType: searchParams.get("linkedEntityType") ?? undefined,
       linkedEntityId: searchParams.get("linkedEntityId") ?? undefined,
+      // R67 D-14: "everything that belongs to this project", including the rows
+      // filed against one of its permits, RFIs or meetings. PROJEXA's Documents
+      // list sends this instead of linkedEntityType=project.
+      projectScopeId: searchParams.get("projectScopeId") ?? undefined,
     })
     return NextResponse.json({ documents: docs })
   } catch (error) {
@@ -85,8 +89,20 @@ async function POST_impl(request: NextRequest) {
       return NextResponse.json({ error: "Either a file or externalUrl is required" }, { status: 400 })
     }
 
+    // R67 D-14. `projectId` is the project the document belongs to, which is no
+    // longer the same question as what it is RELATED to (linkedEntityType is now
+    // one of PROJEXA_DOCUMENT_LINK_TYPES, chosen in the "Relates to" combobox).
+    // The three email fields are only ever sent for category 'email'; the
+    // service drops the empty ones rather than storing blanks.
+    const projectId = (formData.get("projectId") as string | null) || null
+    const email = {
+      from: (formData.get("emailFrom") as string | null) || null,
+      receivedOn: (formData.get("emailReceivedOn") as string | null) || null,
+      subject: (formData.get("emailSubject") as string | null) || null,
+    }
+
     const doc = await createDocumentRecord({ orgId: ctx.orgId, userId: actorId }, {
-      name, category, expiryDate, linkedEntityType, linkedEntityId, metadata,
+      name, category, expiryDate, linkedEntityType, linkedEntityId, projectId, email, metadata,
       ...(file instanceof File ? { file } : { externalUrl: externalUrl! }),
     })
 

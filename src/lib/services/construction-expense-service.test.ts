@@ -305,3 +305,29 @@ describe("createExpenseEntry -> GL posting (F_020)", () => {
     expect(grandTotal).toBe(420000)
   })
 })
+
+// R67 D-02 (audit R-004/R-009). getProjectDashboard().budget became
+// `number | null` -- null meaning "no budget row exists for this project",
+// which is NOT a budget of zero. The fire-and-forget
+// construction_expense.budget_exceeded trigger above used to read
+// `dashboard.budget > 0 && expenses > budget`; with the wider type that
+// decision now lives in one pure, named function so it can be proven here
+// without a live DB or the fake-db harness above.
+describe("budgetExceeded (R67 D-02: a null budget is not a zero budget)", () => {
+  test("never fires when no budget has been set, however large the spend", async () => {
+    const { budgetExceeded } = await import("./construction-expense-service")
+    expect(budgetExceeded(null, 1_250_000)).toBe(false)
+  })
+
+  test("never fires on a zero budget either -- the pre-existing > 0 guard is kept", async () => {
+    const { budgetExceeded } = await import("./construction-expense-service")
+    expect(budgetExceeded(0, 185_000)).toBe(false)
+  })
+
+  test("fires only when a real budget exists and spend is over it", async () => {
+    const { budgetExceeded } = await import("./construction-expense-service")
+    expect(budgetExceeded(400_000, 420_000)).toBe(true)
+    expect(budgetExceeded(400_000, 400_000)).toBe(false)
+    expect(budgetExceeded(400_000, 399_999)).toBe(false)
+  })
+})

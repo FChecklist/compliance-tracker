@@ -2514,6 +2514,13 @@
       "when": 1788289300000,
       "tag": "0536_r67_d36_material_receipt_reference",
       "breakpoints": true
+    },
+    {
+      "idx": 359,
+      "version": "7",
+      "when": 1788289400000,
+      "tag": "0537_r67_drawings_list_columns",
+      "breakpoints": true
     }
   ]
 }
