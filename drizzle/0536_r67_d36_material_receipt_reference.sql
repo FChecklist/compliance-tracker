@@ -1,0 +1,56 @@
+-- R67 lane D3, item D-36 -- the delivery-note / PO number a material receipt
+-- is matched to its invoice by.
+--
+-- WHY THIS FILE EXISTS AT ALL. D-36 declared four additive columns on
+-- compliance.construction_material_receipts and lane I's I-02 was expected to
+-- carry all four. It carried three: 0529_r67_i02_manpower_material_org_format
+-- .sql section (4) adds voided_at, void_reason and voided_by_id, and stops
+-- there. `reference` is not in it, is not in any of the 357 migrations on
+-- origin/main, and lane I has already merged -- so no other lane is going to
+-- add it.
+--
+-- WHAT BREAKS WITHOUT IT, which is more than "the first save fails". The
+-- column IS declared in src/lib/db/schema.ts, and drizzle's relational query
+-- builder names every declared column in the SELECT it generates. So it is not
+-- only createMaterialReceipt()'s INSERT that fails: listMaterialReceipts() and
+-- getMaterialReceipt() fail too, which is GET /api/v1/construction/materials
+-- and GET .../materials/receipts/[id] -- i.e. the whole Materials > Inbound
+-- Receipts tab, the receipt object page, the Void action and the Line total
+-- column, all 500ing on read.
+--
+-- WHY A SEPARATE COLUMN RATHER THAN `notes`. `notes` is free commentary and
+-- was already being used as such before this item. A delivery-note or PO
+-- number is the join key between a site receipt and the invoice that arrives
+-- for it later; putting it in a prose field makes that match unreliable by
+-- construction. The same reasoning is recorded beside the declaration in
+-- schema.ts.
+--
+-- Numbered 0536, the next free number after 0535_r67_f25_attendance_project
+-- _date_index.sql on origin/main. Hand-written with a matching
+-- drizzle/meta/_journal.json entry rather than `bun run db:generate` output,
+-- because drizzle.config.ts's schemaFilter is compliance-only for the platform
+-- tables and 0529 set the precedent for this lane group. The column IS
+-- declared in schema.ts (constructionMaterialReceipts.reference), so the
+-- Migration Schema Drift gate sees it once this is applied and db:generate
+-- emits no further diff afterwards.
+--
+-- APPLY COST. ADD COLUMN with no default and no NOT NULL is a catalogue-only
+-- change in PostgreSQL 11+: no table rewrite, no scan, an ACCESS EXCLUSIVE
+-- lock held for microseconds. Safe to run at any time. Existing rows get NULL,
+-- which is the correct reading -- those receipts were recorded before there
+-- was a field to type a delivery note into, and NULL says "not recorded"
+-- rather than "recorded as blank".
+--
+-- POST-APPLY VERIFICATION -- run this and expect exactly one row,
+-- (reference, text, YES):
+--
+--   SELECT column_name, data_type, is_nullable
+--     FROM information_schema.columns
+--    WHERE table_schema = 'compliance'
+--      AND table_name   = 'construction_material_receipts'
+--      AND column_name  = 'reference';
+--
+-- IF IT RETURNS NOTHING, the Inbound Receipts tab is down -- this migration
+-- did not apply.
+ALTER TABLE compliance.construction_material_receipts
+  ADD COLUMN IF NOT EXISTS reference text;

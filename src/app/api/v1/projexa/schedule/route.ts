@@ -11,10 +11,20 @@
 // separately-purchased PMS product branch.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
-import { listIssues, createIssue, ServiceError, type IssueInput } from "@/lib/services/pms-issue-service"
-import { listIssueTypes } from "@/lib/services/pms-taxonomy-service"
+import { listIssues, ServiceError } from "@/lib/services/pms-issue-service"
+import { createScheduleActivity, type ScheduleActivityInput } from "@/lib/services/schedule-service"
+import { resolveDefaultIssueTypeId } from "@/lib/services/pms-taxonomy-service"
+import { withRouteTiming } from "@/lib/route-timing"
 
-export async function GET(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function GET(...args: Parameters<typeof GET_impl>) {
+  return withRouteTiming("GET", () => GET_impl(...args))
+}
+
+async function GET_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return requireOrg(ctx)!
@@ -35,7 +45,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function POST(...args: Parameters<typeof POST_impl>) {
+  return withRouteTiming("POST", () => POST_impl(...args))
+}
+
+async function POST_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")
@@ -53,10 +71,16 @@ export async function POST(request: NextRequest) {
     // an ad-hoc task) -- default to the org's default type (seeded "Task"
     // type, see pms-enablement-service.ts) or its first type when a
     // specific typeId isn't supplied.
+    //
+    // R67 F-33 (R-278): this used to call listIssueTypes(), which opens its own
+    // withTenantContext -- a whole extra transaction on the critical path of
+    // every POST, to read a configuration row that only changes when an admin
+    // edits it. resolveDefaultIssueTypeId() answers it from a 60 s org-level
+    // cache that createIssueType() busts. A MISS is never cached, so the
+    // refusal below still clears the moment an admin configures a type.
     let typeId = body.typeId as string | undefined
     if (!typeId) {
-      const types = await listIssueTypes({ orgId: ctx.orgId })
-      typeId = types.find((t) => t.isDefault)?.id ?? types[0]?.id
+      typeId = (await resolveDefaultIssueTypeId({ orgId: ctx.orgId })) ?? undefined
       if (!typeId) {
         return NextResponse.json(
           { error: "No issue types configured for this organisation -- ask an admin to set one up in VERIDIAN AI PMS" },
@@ -65,7 +89,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const input: IssueInput = {
+    // R67 D-47: a programme activity, not just an issue. startDate is now
+    // required by createScheduleActivity (a bar with no start cannot be drawn),
+    // durationDays derives the finish when no explicit one is given, and
+    // predecessorId / boqLineItemId are validated and written as the two edges
+    // the Timeline and the BOQ rollup read. Every one of these is optional on
+    // the wire except startDate, so an existing caller that sends only
+    // projectId + title now gets a 400 naming the field it is missing rather
+    // than an activity nothing can place.
+    const input: ScheduleActivityInput = {
       projectId: body.projectId,
       typeId,
       title: body.title,
@@ -74,9 +106,12 @@ export async function POST(request: NextRequest) {
       statusId: body.statusId,
       dueDate: body.dueDate,
       startDate: body.startDate,
+      durationDays: body.durationDays === undefined || body.durationDays === null ? undefined : Number(body.durationDays),
+      predecessorId: body.predecessorId || undefined,
+      boqLineItemId: body.boqLineItemId || undefined,
       assigneeIds: body.assigneeIds,
     }
-    const task = await createIssue({ orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }, input)
+    const task = await createScheduleActivity({ orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }, input)
     return NextResponse.json(task, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

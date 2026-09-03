@@ -15,7 +15,7 @@
 // before deciding which to merge, and merging a segment that had ALREADY
 // EXECUTED would run its write a second time. Resolve everything, then
 // execute everything. ***
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { submissions, pipelineTasks, pillUsage, chainHistory } from "@/lib/db/schema";
 import { segment, rejoinCandidate, type Segment } from "./segment";
@@ -26,6 +26,11 @@ import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
+import { codeForParam, failureLogLine, isRetryableFailure, pipelineFailure, serialiseFailure, type PipelineFailure } from "./error-codes";
+import { dryRunSubmission as dryRun, missingParamsFor, type DryRunDeps, type DryRunResult } from "./dry-run";
+import { toVerdictResult, type SubmissionVerdictResult } from "./verdict";
+import { makeChainOptionsRepo } from "@/lib/services/chain-options-service";
+import { assertAiProviderAllowed } from "@/lib/ai/adapter";
 import { createMemoryRecord } from "@/lib/services/memory-service";
 
 // M26: "Pass the module's 5-15 functions ... NEVER 400 unbound functions --
@@ -34,6 +39,116 @@ import { createMemoryRecord } from "@/lib/services/memory-service";
 // adapter's candidate list, validate()'s candidate-set check and the
 // executor registry can never silently drift apart.
 const CANDIDATE_FUNCTION_IDS = EXECUTABLE_FUNCTION_IDS;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R67 B-11 -- THE VALIDATION CONTEXT, BUILT IN ONE PLACE.
+//
+// FOUND WHILE WIRING B-11's `done` PAYLOAD TO POST /api/v1/projexa/tasks, and
+// it is a real break, not a tidy-up: GET /api/v1/projexa/chain-options hands
+// the client `params` containing the BOQ line's RECORD ID (that is the whole
+// point of offering chips instead of asking the user to retype a code), and
+// B-07's verdict does the same. Both call sites below then built a
+// ValidationContext with `boqLineItemIds: new Set()`, and validate() refuses
+// ANY boqLineItemId that is not in that set -- so every chain the server
+// itself offered came back BOQ_LINE_NOT_FOUND on submit, for ever. The
+// comment that justified the empty set ("the executor re-checks it anyway")
+// is true of the EXECUTOR, but validate() runs first and never got that far.
+//
+// So the facts are resolved for real, from THE SAME read chain-options uses
+// (chain-options-service's latestBoqLines -- one place that knows what "this
+// project's latest BOQ" means, with the same version DESC / createdAt DESC
+// tiebreaker executor.ts applies inside its own transaction). The executor's
+// re-check is untouched: this makes the user's answer legible BEFORE a task
+// is minted, it does not become the authority.
+export type BoqValidationFacts = {
+  /** boq_line_item ids that exist in THIS project's latest BOQ. */
+  lineItemIds: ReadonlySet<string>;
+  /** item codes ("EX-01") in that same BOQ. */
+  itemCodes: ReadonlySet<string>;
+  /** the version label the client's sentence names ("v2"), null when there is no BOQ. */
+  version: string | null;
+};
+
+/**
+ * Does this candidate name a BOQ line at all? Only then is the read below
+ * worth a round trip -- "show me the dashboard" must not pay for a BOQ query.
+ */
+export function referencesBoqLine(params: Record<string, unknown>): boolean {
+  for (const key of ["boqLineItemId", "itemCode"]) {
+    const value = params[key];
+    if (typeof value === "string" && value.trim().length > 0) return true;
+  }
+  return false;
+}
+
+/**
+ * ONE definition of the context every validate() call in this file gets.
+ * `boq` is null when this submission never named a line, and the two BOQ
+ * checks in validate.ts are then skipped exactly as they were before -- an
+ * absent fact is not a failed check.
+ */
+export function buildValidationContext(args: {
+  projectId: string | null;
+  projectLabel: string | null;
+  boq: BoqValidationFacts | null;
+  /**
+   * R67 FIX PASS: the candidate's own params, so a projectId the REQUEST
+   * carried is seeded into the reachable set beside the rail's.
+   *
+   * Without this, chain-options' new project level was a trap of exactly the
+   * kind the "the chain the server itself offered must be executable" commit
+   * fixed for BOQ lines: that level returns real project ids as option
+   * values, and a client that posted one back in params without also
+   * switching the top rail had its OWN offered choice refused with
+   * PROJECT_NOT_REACHABLE, for ever.
+   *
+   * This is not a weakened boundary, because it was never the boundary.
+   * `reachableProjectIds` is a HALLUCINATION GUARD -- it catches a project id
+   * the classifier invented, which is never in the request -- and real
+   * reachability is enforced two layers down, by withTenantContext's org
+   * scoping and by each service's own lookup (a project outside this org
+   * comes back as ServiceError 404 -> RECORD_NOT_FOUND).
+   */
+  params?: Record<string, unknown>;
+}): ValidationContext {
+  const requestedProjectIds = [args.projectId, args.params?.projectId].filter(
+    (id): id is string => typeof id === "string" && id.trim().length > 0
+  );
+  return {
+    candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
+    boqLineItemIds: args.boq?.lineItemIds ?? new Set<string>(),
+    ...(args.boq ? { boqItemCodes: args.boq.itemCodes, boqVersion: args.boq.version } : {}),
+    userPermittedFunctionIds: new Set(CANDIDATE_FUNCTION_IDS),
+    reachableProjectIds: new Set(requestedProjectIds),
+    // R67 B-02: the project the composer's top rail already had.
+    submissionProjectId: args.projectId ?? null,
+    projectLabel: args.projectLabel,
+  };
+}
+
+/**
+ * The read, memoised per run: a submission with three progress segments asks
+ * the database once, not three times (the /scope N+1 lesson).
+ */
+function makeBoqFactsResolver(orgId: string, userId: string, projectId: string | null) {
+  let pending: Promise<BoqValidationFacts> | null = null;
+  return async (params: Record<string, unknown>): Promise<BoqValidationFacts | null> => {
+    if (!projectId || !referencesBoqLine(params)) return null;
+    pending ??= (async () => {
+      const boq = await makeChainOptionsRepo({ orgId, userId }).latestBoqLines(projectId);
+      // A project with NO BOQ still returns facts, with empty sets: "the line
+      // you named is not there" is true either way, and it is the same answer
+      // executeRecordWorkProgress gives when it finds no BOQ.
+      if (!boq) return { lineItemIds: new Set<string>(), itemCodes: new Set<string>(), version: null };
+      return {
+        lineItemIds: new Set(boq.lines.map((l) => l.id)),
+        itemCodes: new Set(boq.lines.map((l) => l.itemCode).filter((c): c is string => typeof c === "string" && c.length > 0)),
+        version: `v${boq.version}`,
+      };
+    })();
+    return pending;
+  };
+}
 
 export type RunSubmissionInput = {
   orgId: string;
@@ -54,7 +169,13 @@ export type TaskOutcome = {
   status: "to_do" | "in_progress" | "waiting" | "done" | "blocked";
   segmentText: string;
   result?: unknown;
-  error?: string;
+  /**
+   * R67 B-01 (D-03): the structured failure, never a sentence. `error:
+   * string` is gone from this shape on purpose -- there is now no field a
+   * caller could render verbatim and accidentally show a user a driver
+   * message or a camelCase parameter name.
+   */
+  failure?: PipelineFailure;
 };
 
 export type RunSubmissionResult = {
@@ -72,6 +193,12 @@ export type RunSubmissionResult = {
   classification: SubmissionClassification;
   chatMessages: string[];
   tasks: TaskOutcome[];
+  /**
+   * R67 B-01: every segment that could not be run, with the closed-vocabulary
+   * code that says why. This is what the client turns into a sentence and a
+   * Fix chain; `chatMessages` now carries only real conversational replies.
+   */
+  failures: ({ segmentText: string } & PipelineFailure)[];
   /** segments that resolved to nothing -- one gap_log row each. */
   gaps: { text: string; reason: string }[];
   flagged: boolean; // MAX_SEGMENTS truncation, surfaced so the caller can ask the user to split their message
@@ -83,6 +210,28 @@ export type RunSubmissionResult = {
 
 function normalisePhrase(text: string): string {
   return normaliseForMatch(text);
+}
+
+/**
+ * R67 B-06 -- WHICH ROW STATUS A FAILURE DESERVES.
+ *
+ * `blocked` is M24's loud state and it means a person has to decide or
+ * correct something. A transport failure is not that: the request was fine,
+ * nothing was saved, and the next move is simply to send it again. Recording
+ * it as blocked is what put "write CONNECT_TIMEOUT 3.109.171.244:6543" into
+ * the red half of Task Master in the R66 walkthrough and told a site engineer
+ * they had made a mistake.
+ *
+ * `waiting` is the honest in-set answer -- M24's five statuses are closed (see
+ * pipelineTaskStatusEnum's own comment in schema.ts, which explicitly refuses
+ * a sixth value) and GET /api/v1/projexa/tasks already groups `waiting` under
+ * "needs you" WITHOUT the blocked styling, which is exactly where a
+ * retryable row belongs.
+ *
+ * Exported so this rule is provable without a database.
+ */
+export function statusForFailure(failure: PipelineFailure): TaskOutcome["status"] {
+  return isRetryableFailure(failure.code) ? "waiting" : "blocked";
 }
 
 // ─── R65 Part C Phase 3: task memory (directive §23/Phase 5) ──────────────
@@ -184,7 +333,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     // to persist classification onto -- returned for shape-consistency only.
     // Zero segments means zero task-verdicts, i.e. CHAT_ONLY by the same
     // rule classifySubmission() applies everywhere else.
-    return { submissionId: null, status: "chat", classification: "CHAT_ONLY", chatMessages: [], tasks: [], gaps: [], flagged: false, l0HitRate: 1, modelCalls: 0 };
+    return { submissionId: null, status: "chat", classification: "CHAT_ONLY", chatMessages: [], tasks: [], failures: [], gaps: [], flagged: false, l0HitRate: 1, modelCalls: 0 };
   }
 
   const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
@@ -206,6 +355,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   const reuseRepo = makeReuseCacheRepo(input.orgId, input.userId);
   const chainRepo = makeChainRepo(input.orgId);
   const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
+  const boqFacts = makeBoqFactsResolver(input.orgId, input.userId, input.projectId ?? null);
   let l0Hits = 0;
   let resolvedCount = 0;
 
@@ -222,6 +372,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   const chatMessages: string[] = [];
   const gaps: { text: string; reason: string }[] = [];
   const tasks: TaskOutcome[] = [];
+  const failures: ({ segmentText: string } & PipelineFailure)[] = [];
 
   // A segment carrying an explicit orderingHint runs as a dependency chain:
   // each depends on the previous ORDERED segment's task. R53 Phase 6:
@@ -255,32 +406,47 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       continue;
     }
 
-    const validationCtx: ValidationContext = {
-      candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
-      // boqLineItemId existence is re-checked for real inside executor.ts's
-      // own DB query regardless, so nothing here trusts an unverified id
-      // through to a write.
-      boqLineItemIds: new Set(),
-      userPermittedFunctionIds: new Set(CANDIDATE_FUNCTION_IDS),
-      reachableProjectIds: input.projectId ? new Set([input.projectId]) : new Set(),
-    };
+    // M26 PARTIAL: a valid function with a missing value is a FORM FIELD,
+    // not a gap. ASK THE USER. Do NOT escalate, do NOT log a gap, and do
+    // NOT mint a task that would run with a guessed value.
+    //
+    // R67 B-01 moved this ABOVE validate(): validate() now enforces each
+    // function's declared required params itself, so leaving the order as it
+    // was would have turned every M26-PARTIAL "ask the user" into a gap.
+    // The answer is a structured failure carrying the same field names --
+    // the client renders "Pick a BOQ line", never "I need itemCode".
+    if (c.missingParams.length > 0) {
+      for (const name of c.missingParams) {
+        failures.push({ segmentText: seg.text, ...pipelineFailure(codeForParam(name), [name]) });
+      }
+      continue;
+    }
+
+    // R67 B-11: the real BOQ facts, read once per submission and only when a
+    // segment actually names a line. boqLineItemId existence is still
+    // re-checked inside executor.ts's own transaction; this only lets the
+    // user be told before a task is minted.
+    const validationCtx: ValidationContext = buildValidationContext({
+      projectId: input.projectId ?? null,
+      projectLabel: rootLabel,
+      boq: await boqFacts(c.params),
+      params: c.params,
+    });
 
     const v = validate({ functionId: c.functionId, params: c.params }, validationCtx);
     if (!v.valid) {
       // M26: "a candidate that fails validation is a FAIL, not a suggestion."
-      await logGap(input, submissionId, seg.text, c.functionId, v.reason);
-      gaps.push({ text: seg.text, reason: v.reason });
-      chatMessages.push(`I can't do that yet: "${seg.text}" (${v.reason})`);
+      // The gap_log row keeps a CODE LINE for engineers; the caller gets the
+      // structured failure and composes the sentence itself.
+      const line = failureLogLine(v);
+      await logGap(input, submissionId, seg.text, c.functionId, line);
+      gaps.push({ text: seg.text, reason: line });
+      failures.push({ segmentText: seg.text, code: v.code, missing: v.missing, context: v.context, picker: v.picker });
       continue;
     }
-
-    // M26 PARTIAL: a valid function with a missing value is a FORM FIELD,
-    // not a gap. ASK THE USER. Do NOT escalate, do NOT log a gap, and do
-    // NOT mint a task that would run with a guessed value.
-    if (c.missingParams.length > 0) {
-      chatMessages.push(c.message ?? `I need ${c.missingParams.join(", ")} for "${seg.text}".`);
-      continue;
-    }
+    // B-02: the params validate() resolved, not the ones the classifier
+    // produced -- projectId may have just been filled in from the submission.
+    const resolvedParams = v.params;
 
     // R53 PHASE 5: PHRASE -> FUNCTION -> CHAIN, never the reverse. The chain
     // is derived from the function the PHRASE resolved to, and from the mode
@@ -291,12 +457,12 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       mode: input.mode,
       rootLabel,
       functionId: c.functionId,
-      params: c.params,
+      params: resolvedParams,
     });
     if (!firstDerivedChain) firstDerivedChain = derived;
 
     const dependsOn = seg.orderingHint !== undefined ? previousOrderedTaskId : null;
-    const taskId = await mintTask(input, submissionId, tasks.length, dependsOn, c.functionId, c.params, derived);
+    const taskId = await mintTask(input, submissionId, tasks.length, dependsOn, c.functionId, resolvedParams, derived);
     chainByTaskId.set(taskId, derived);
 
     const advance = (failed: boolean) => {
@@ -311,26 +477,29 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     // a task, and this refuses to execute it anyway. Blocked with the
     // honest reason rather than silently skipped.
     if (c.verdict === "chat" && functionWrites(c.functionId)) {
-      const reason = `read as a question, so "${c.functionId}" was not run -- say it as an instruction to record it`;
-      await updateTask(input.orgId, taskId, "blocked", undefined, reason);
-      tasks.push({ taskId, functionId: c.functionId, verdict: "chat", status: "blocked", segmentText: seg.text, error: reason });
+      const f = pipelineFailure("READ_AS_QUESTION", [], { functionId: c.functionId });
+      await updateTask(input.orgId, taskId, "blocked", undefined, f);
+      tasks.push({ taskId, functionId: c.functionId, verdict: "chat", status: "blocked", segmentText: seg.text, failure: f });
+      failures.push({ segmentText: seg.text, ...f });
       if (c.message) chatMessages.push(c.message);
       advance(true);
       continue;
     }
 
     if (seg.orderingHint !== undefined && previousOrderedFailed) {
-      const reason = `blocked: dependency task ${previousOrderedTaskId} did not complete`;
-      await updateTask(input.orgId, taskId, "blocked", undefined, reason);
-      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, error: reason });
+      const f = pipelineFailure("DEPENDENCY_FAILED");
+      await updateTask(input.orgId, taskId, "blocked", undefined, f);
+      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, failure: f });
+      failures.push({ segmentText: seg.text, ...f });
       advance(true);
       continue;
     }
 
     if (!hasExecutor(c.functionId)) {
-      const reason = `no executor is registered for function_id "${c.functionId}" yet`;
-      await updateTask(input.orgId, taskId, "blocked", undefined, reason);
-      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, error: reason });
+      const f = pipelineFailure("FUNCTION_NOT_AVAILABLE", [], { functionId: c.functionId });
+      await updateTask(input.orgId, taskId, "blocked", undefined, f);
+      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, failure: f });
+      failures.push({ segmentText: seg.text, ...f });
       advance(true);
       continue;
     }
@@ -339,10 +508,15 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     const outcome = await executeTask({
       orgId: input.orgId,
       userId: input.userId,
-      projectId: input.projectId ?? null,
+      projectId: (typeof resolvedParams.projectId === "string" ? resolvedParams.projectId : null) ?? input.projectId ?? null,
       functionId: c.functionId,
-      params: c.params,
+      params: resolvedParams,
       role: input.role,
+      // R67 FIX PASS: the project's name, already resolved above for the
+      // derived chain, so the executor's BOQ_LINE_NOT_FOUND carries the same
+      // {project} validate()'s does and the one sentence reads the same way
+      // whichever stage refused the line.
+      projectLabel: rootLabel,
     });
     if (outcome.success) {
       await updateTask(input.orgId, taskId, "done", outcome.result, undefined);
@@ -351,11 +525,17 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       // file's own captureTaskResultMemory()/buildTaskResultMemoryContent()
       // header for why.
       if (functionWrites(c.functionId)) {
-        await captureTaskResultMemory(input, c.functionId, seg.text, c.params);
+        await captureTaskResultMemory(input, c.functionId, seg.text, resolvedParams);
       }
     } else {
-      await updateTask(input.orgId, taskId, "blocked", undefined, outcome.error);
-      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, error: outcome.error });
+      // R67 B-01: the raw driver text goes to the LOG, the code goes to the
+      // row. Nothing that reaches the client has ever seen `debug`.
+      if (outcome.debug) console.error(`[pipeline] task=${taskId} ${outcome.failure.code} raw=${outcome.debug}`);
+      // R67 B-06: a transport failure is a RETRY, not a blocked task.
+      const failedStatus = statusForFailure(outcome.failure);
+      await updateTask(input.orgId, taskId, failedStatus, undefined, outcome.failure);
+      tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: failedStatus, segmentText: seg.text, failure: outcome.failure });
+      failures.push({ segmentText: seg.text, ...outcome.failure });
     }
     advance(!outcome.success);
   }
@@ -404,6 +584,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     classification,
     chatMessages,
     tasks,
+    failures,
     gaps,
     flagged,
     l0HitRate,
@@ -436,6 +617,13 @@ export type RunDirectTaskInput = {
   note?: string;
   /** R48 gap-closure (2026-08-30, F089) -- see RunSubmissionInput.role. */
   role?: string | null;
+  /**
+   * R67 B-07: the confirm step runs against the submission the VERDICT was
+   * already recorded on, so one message leaves one row in
+   * compliance.submissions rather than a proposal row and a second execution
+   * row that look like two things the user asked for.
+   */
+  existingSubmissionId?: string;
 };
 
 export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmissionResult> {
@@ -449,19 +637,21 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     role: input.role,
   };
 
-  const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
-    const [row] = await db
-      .insert(submissions)
-      .values({
-        orgId: input.orgId,
-        projectId: input.projectId ?? null,
-        mode: input.mode,
-        rawInput: base.rawInput,
-        userId: input.userId,
-      })
-      .returning({ id: submissions.id });
-    return row.id;
-  });
+  const submissionId =
+    input.existingSubmissionId ??
+    (await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
+      const [row] = await db
+        .insert(submissions)
+        .values({
+          orgId: input.orgId,
+          projectId: input.projectId ?? null,
+          mode: input.mode,
+          rawInput: base.rawInput,
+          userId: input.userId,
+        })
+        .returning({ id: submissions.id });
+      return row.id;
+    }));
 
   // R65 Part D Phase 4 -- computed up front (functionWrites() doesn't depend
   // on validation success) so both the validation-failure return below and
@@ -475,15 +665,27 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
   const verdict = functionWrites(input.functionId) ? ("task" as const) : ("chat" as const);
   const classification = classifySubmission([verdict]);
 
-  const validationCtx: ValidationContext = {
-    candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
-    boqLineItemIds: new Set(),
-    userPermittedFunctionIds: new Set(CANDIDATE_FUNCTION_IDS),
-    reachableProjectIds: input.projectId ? new Set([input.projectId]) : new Set(),
-  };
+  const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
+
+  // R67 B-02: THE PILL PATH IS WHERE "Review Budget -- blocked -- no project
+  // resolved for this task" was reproduced in every budget screenshot. The
+  // rail's project is in the POST body; buildValidationContext is where it
+  // finally reaches the candidate's params.
+  //
+  // R67 B-11: it is ALSO the path a finished chain-options chain posts back
+  // to ({functionId, params} with the BOQ line addressed by its record id),
+  // so the BOQ facts below are what stop the server refusing the very chips
+  // it offered.
+  const validationCtx: ValidationContext = buildValidationContext({
+    projectId: input.projectId ?? null,
+    projectLabel: rootLabel,
+    boq: await makeBoqFactsResolver(input.orgId, input.userId, input.projectId ?? null)(params),
+    params,
+  });
   const v = validate({ functionId: input.functionId, params }, validationCtx);
   if (!v.valid) {
-    await logGap(base, submissionId, base.rawInput, input.functionId, v.reason);
+    const line = failureLogLine(v);
+    await logGap(base, submissionId, base.rawInput, input.functionId, line);
     await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
       db.update(submissions).set({ status: "failed", classification }).where(eq(submissions.id, submissionId))
     );
@@ -491,28 +693,29 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
       submissionId,
       status: "failed",
       classification,
-      chatMessages: [`I can't do that yet: ${v.reason}`],
+      chatMessages: [],
       tasks: [],
-      gaps: [{ text: base.rawInput, reason: v.reason }],
+      failures: [{ segmentText: base.rawInput, code: v.code, missing: v.missing, context: v.context, picker: v.picker }],
+      gaps: [{ text: base.rawInput, reason: line }],
       flagged: false,
       l0HitRate: 1,
       modelCalls: 0,
     };
   }
+  const resolvedParams = v.params;
 
-  const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
   const derived = await deriveChain(makeChainRepo(input.orgId), {
     mode: input.mode,
     rootLabel,
     functionId: input.functionId,
-    params,
+    params: resolvedParams,
   });
 
-  const taskId = await mintTask(base, submissionId, 0, null, input.functionId, params, derived);
+  const taskId = await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived);
 
-  let outcome: { success: boolean; result?: unknown; error?: string };
+  let outcome: { success: true; result: unknown } | { success: false; failure: PipelineFailure; debug?: string };
   if (!hasExecutor(input.functionId)) {
-    outcome = { success: false, error: `no executor is registered for function_id "${input.functionId}" yet` };
+    outcome = { success: false, failure: pipelineFailure("FUNCTION_NOT_AVAILABLE", [], { functionId: input.functionId }) };
   } else {
     // R65 Part D Phase 3 -- see markInProgress()'s own header comment. Only
     // reached once hasExecutor() has already confirmed this task will
@@ -522,10 +725,12 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     outcome = await executeTask({
       orgId: input.orgId,
       userId: input.userId,
-      projectId: input.projectId ?? null,
+      projectId: (typeof resolvedParams.projectId === "string" ? resolvedParams.projectId : null) ?? input.projectId ?? null,
       functionId: input.functionId,
-      params,
+      params: resolvedParams,
       role: input.role,
+      // R67 FIX PASS -- see the same line in runSubmission()'s loop.
+      projectLabel: rootLabel,
     });
   }
 
@@ -534,10 +739,11 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     // R65 Part C Phase 3: task memory, same as runSubmission()'s own
     // execution loop above -- WRITE tasks only.
     if (functionWrites(input.functionId)) {
-      await captureTaskResultMemory(base, input.functionId, base.rawInput, params);
+      await captureTaskResultMemory(base, input.functionId, base.rawInput, resolvedParams);
     }
   } else {
-    await updateTask(input.orgId, taskId, "blocked", undefined, outcome.error);
+    if (outcome.debug) console.error(`[pipeline] task=${taskId} ${outcome.failure.code} raw=${outcome.debug}`);
+    await updateTask(input.orgId, taskId, statusForFailure(outcome.failure), undefined, outcome.failure);
   }
 
   await recordPillUse(base, input.functionId, derived);
@@ -556,18 +762,19 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     submissionId,
     status,
     classification,
-    chatMessages: outcome.success ? [] : [outcome.error ?? "That did not run."],
+    chatMessages: [],
     tasks: [
       {
         taskId,
         functionId: input.functionId,
         verdict,
-        status: outcome.success ? "done" : "blocked",
+        status: outcome.success ? "done" : statusForFailure(outcome.failure),
         segmentText: base.rawInput,
-        result: outcome.result,
-        error: outcome.error,
+        result: outcome.success ? outcome.result : undefined,
+        failure: outcome.success ? undefined : outcome.failure,
       },
     ],
+    failures: outcome.success ? [] : [{ segmentText: base.rawInput, ...outcome.failure }],
     gaps: [],
     flagged: false,
     l0HitRate: 1, // a pill is Level 0 by definition -- the user supplied the function
@@ -792,11 +999,29 @@ async function mintTask(
   });
 }
 
-async function updateTask(orgId: string, taskId: string, status: TaskOutcome["status"], result: unknown, error: string | undefined) {
+/**
+ * R67 B-01: `error` is now the SERIALISED CLOSED-VOCABULARY FAILURE
+ * ({"code":...,"missing":[...],"context":{...}}), never prose and never the
+ * driver's own text -- serialiseFailure() has no way to write `debug`, so
+ * this column cannot leak an internal address the way it did in R66.
+ */
+async function updateTask(orgId: string, taskId: string, status: TaskOutcome["status"], result: unknown, failure: PipelineFailure | undefined) {
   await withTenantContext({ orgId }, (db) =>
     db
       .update(pipelineTasks)
-      .set({ status, result: (result as object | undefined) ?? null, error: error ?? null, updatedAt: new Date() })
+      .set({
+        status,
+        result: (result as object | undefined) ?? null,
+        error: failure ? serialiseFailure(failure) : null,
+        // R67 B-08 (drizzle/0533): the code and its parameters get real
+        // columns, so a failure can be counted and grouped in SQL instead of
+        // by parsing JSON out of a text column. `error_params` carries ONLY
+        // the business values a sentence interpolates -- never `debug`,
+        // which has no field on PipelineFailure at all.
+        errorCode: failure?.code ?? null,
+        errorParams: (failure?.context as object | undefined) ?? null,
+        updatedAt: new Date(),
+      })
       .where(eq(pipelineTasks.id, taskId))
   );
 }
@@ -841,3 +1066,213 @@ async function logGap(
 }
 
 export { normalisePhrase };
+
+// ─── R67 B-05: THE DRY RUN ────────────────────────────────────────────────
+// The proposal step lives in dry-run.ts (pure apart from its injected deps);
+// this is where its real, DB- and provider-backed deps are built, because
+// this file already owns every one of those wires. Re-exported from here so
+// callers keep one import path for "the pipeline".
+export { dryRunSubmission, NO_COMMENTARY_SENTENCE, type DryRunResult, type DryRunProposal } from "./dry-run";
+
+/**
+ * The live deps. `providerAvailable` asks the adapter the same question the
+ * assistant route asks -- and answers it WITHOUT throwing, because "the model
+ * will refuse" is a fact the ASK path must be able to route around, not an
+ * error to propagate. That is the whole of B-05's determinism promise: the
+ * records answer the question, the model only ever added commentary.
+ */
+export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunDeps> {
+  const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
+  const boqRepo = makeChainOptionsRepo({ orgId: input.orgId, userId: input.userId });
+  return {
+    l0Repo: makeL0Repo(input.orgId, input.userId),
+    reuseRepo: makeReuseCacheRepo(input.orgId, input.userId),
+    chainRepo: makeChainRepo(input.orgId),
+    rootLabel,
+    boqLineOptions: async (projectId: string) => {
+      const boq = await boqRepo.latestBoqLines(projectId);
+      if (!boq) return [];
+      return boq.lines
+        .filter((l) => l.childCount === 0)
+        .map((l) => ({
+          id: l.itemCode ?? l.id,
+          label: l.itemCode ? `${l.itemCode} ${l.description}` : l.description,
+          // R67 B-07: the same line, addressed by its real id, so the verdict
+          // can offer chips the confirm step posts straight back as
+          // boqLineItemId -- no retyped code, no second lookup.
+          lineItemId: l.id,
+        }));
+    },
+    runRead: (task) => executeTask(task),
+    providerAvailable: () => {
+      try {
+        assertAiProviderAllowed(input.userId);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
+/** The one call a route makes: build the real deps, then propose. */
+export async function proposeSubmission(input: RunSubmissionInput): Promise<DryRunResult> {
+  const deps = await makeDryRunDeps(input);
+  return dryRun({ ...input, candidateFunctionIds: CANDIDATE_FUNCTION_IDS }, deps);
+}
+
+// ─── R67 B-07: THE VERDICT, AND THE CONFIRM THAT FOLLOWS IT ───────────────
+//
+// POST {rawInput} answers with what the server UNDERSTOOD and what it still
+// needs. It mints NO compliance.pipeline_tasks row -- which is the whole
+// point: the eleven "Needs you" rows the R66 walkthrough found were not
+// tasks, they were unanswered questions that had been recorded as blocked
+// work and counted in the Home badge.
+//
+// It DOES record the submission itself. That row is the audit trail of what
+// a person actually typed, it is what /api/v1/projexa/submissions has always
+// written, and it is what the confirm step reads back so that the server
+// never executes a function id a client simply asserted.
+
+export type SubmitVerdictResult = SubmissionVerdictResult & { submissionId: string };
+
+/**
+ * Which submission status a verdict leaves behind. `in_progress` means the
+ * ball is with the user (a proposal they have not confirmed); `chat` means
+ * the message is closed -- a question already answered, an acknowledgement,
+ * or a capability that is not wired.
+ */
+function submissionStatusForVerdict(v: SubmissionVerdictResult): "chat" | "in_progress" {
+  return v.verdicts.some((x) => x.status === "ready" || x.status === "needs_input") ? "in_progress" : "chat";
+}
+
+export async function submitForVerdict(input: RunSubmissionInput): Promise<SubmitVerdictResult> {
+  const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
+    const [row] = await db
+      .insert(submissions)
+      .values({
+        orgId: input.orgId,
+        projectId: input.projectId ?? null,
+        mode: input.mode,
+        selectedChain: (input.selectedChain as object | undefined) ?? null,
+        rawInput: input.rawInput,
+        userId: input.userId,
+      })
+      .returning({ id: submissions.id });
+    return row.id;
+  });
+
+  const proposal = await proposeSubmission(input);
+  const verdict = toVerdictResult(proposal, submissionId);
+  const classification = classifySubmission(verdict.verdicts.map((v) => v.verdict));
+
+  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+    db
+      .update(submissions)
+      .set({ status: submissionStatusForVerdict(verdict), classification })
+      .where(eq(submissions.id, submissionId))
+  );
+
+  console.info(
+    `[pipeline] submission=${submissionId} verdict=${verdict.verdict} status=${verdict.status} ` +
+      `missing=${verdict.missing.map((m) => m.field).join(",") || "-"} minted=0`
+  );
+
+  return { ...verdict, submissionId };
+}
+
+export type ConfirmSubmissionInput = {
+  orgId: string;
+  userId: string;
+  submissionId: string;
+  /** the function the client was shown. Checked against what the server re-derives. */
+  functionId?: string;
+  /** the answers to whatever the verdict said was missing. */
+  params?: Record<string, unknown>;
+  role?: string | null;
+};
+
+export type ConfirmSubmissionOutcome =
+  | { ok: true; result: RunSubmissionResult }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: "not_proposed"; failure: PipelineFailure }
+  | { ok: false; reason: "needs_input"; verdict: SubmissionVerdictResult };
+
+/**
+ * STEP TWO. The client posts {confirm:true, submissionId} and only now is
+ * anything executed.
+ *
+ * *** THE SERVER NEVER TRUSTS THE CLIENT'S FUNCTION ID. *** It re-derives the
+ * proposal from the submission's own stored rawInput -- the words the user
+ * actually typed -- and refuses if what the client echoes back does not
+ * match. Re-deriving costs nothing on the common path: a Level 0 phrase-map
+ * hit is deterministic and makes no model call, and a Level 1 resolution was
+ * already written to compliance.reuse_cache by the proposal, so the second
+ * pass is a cache hit (see reuse-cache.ts). What it buys is that a caller
+ * cannot smuggle an arbitrary write in behind a submission id that was
+ * proposed for something else.
+ *
+ * The client's `params` are merged OVER the proposal's -- they are the
+ * answers to what was missing -- and then re-checked, so a confirm that is
+ * still incomplete comes back as needs_input instead of failing inside a
+ * service.
+ */
+export async function confirmSubmission(input: ConfirmSubmissionInput): Promise<ConfirmSubmissionOutcome> {
+  const row = await withTenantContext({ orgId: input.orgId }, async (db) => {
+    const [found] = await db
+      .select({
+        id: submissions.id,
+        rawInput: submissions.rawInput,
+        mode: submissions.mode,
+        projectId: submissions.projectId,
+      })
+      .from(submissions)
+      .where(and(eq(submissions.id, input.submissionId), eq(submissions.orgId, input.orgId)))
+      .limit(1);
+    return found ?? null;
+  });
+  if (!row) return { ok: false, reason: "not_found" };
+
+  const base: RunSubmissionInput = {
+    orgId: input.orgId,
+    userId: input.userId,
+    mode: row.mode,
+    projectId: row.projectId,
+    rawInput: row.rawInput,
+    role: input.role,
+  };
+
+  const proposal = await proposeSubmission(base);
+  const first = proposal.proposals.find((p) => p.functionId) ?? null;
+  if (!first || !first.functionId) {
+    return { ok: false, reason: "not_proposed", failure: pipelineFailure("FUNCTION_NOT_AVAILABLE") };
+  }
+  if (input.functionId && input.functionId !== first.functionId) {
+    // The words no longer resolve to what the client was shown. Refuse
+    // rather than run the newer answer silently.
+    return { ok: false, reason: "not_proposed", failure: pipelineFailure("FUNCTION_NOT_AVAILABLE", [], { functionId: input.functionId }) };
+  }
+
+  const params: Record<string, unknown> = { ...first.params, ...(input.params ?? {}) };
+  const stillMissing = missingParamsFor(first.functionId, params, row.projectId);
+  if (stillMissing.length > 0) {
+    return {
+      ok: false,
+      reason: "needs_input",
+      verdict: toVerdictResult({ ...proposal, proposals: proposal.proposals.map((p) => (p === first ? { ...p, status: "needs_input", params, missing: stillMissing } : p)) }, row.id),
+    };
+  }
+
+  const result = await runDirectTask({
+    orgId: input.orgId,
+    userId: input.userId,
+    mode: row.mode,
+    projectId: (typeof params.projectId === "string" ? params.projectId : null) ?? row.projectId,
+    functionId: first.functionId,
+    params,
+    note: row.rawInput,
+    role: input.role,
+    existingSubmissionId: row.id,
+  });
+  return { ok: true, result };
+}

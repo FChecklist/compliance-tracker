@@ -47,6 +47,8 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
+// R67 F-27 (R-243): the one cache-bust helper -- see project-dashboard-cache.ts.
+import { bustProjectDashboardCache } from "./project-dashboard-cache"
 import { findControlAccount } from "./erp-invoicing-service"
 import { isErpEnabledForOrg } from "./erp-enablement-service"
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
@@ -219,6 +221,12 @@ export async function createExpenseEntry(ctx: { orgId: string; userId: string },
       .returning()
     return posted
   }).then((row) => {
+    // R67 F-27 (R-243): an expense moves "Budget vs Actual" on the project
+    // dashboard, which now holds a 60 s cache. Busted BEFORE the automation
+    // trigger below, which itself reads getProjectDashboard -- without this
+    // the over-budget check could be evaluated against the figures from
+    // before this very expense.
+    bustProjectDashboardCache(ctx.orgId, row.projectId)
     // Wave 126: fire-and-forget automation trigger. Threshold check
     // (actual > budget) happens here in the calling service, not in the
     // generic automation-rule-service.ts engine, since TriggerCondition

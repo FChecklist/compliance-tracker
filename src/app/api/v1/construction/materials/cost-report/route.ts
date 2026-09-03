@@ -18,7 +18,9 @@ export async function GET(request: NextRequest) {
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })
 
   try {
-    // R67 E-05 (R-103): the report now takes a period and a grouping. All
+    // R67 D-57: the Cost Report's own From/To parameter bar. Both optional
+    // and both inclusive; omitting them keeps the all-time report.
+    // R67 E-05 (R-103) adds the grouping on top of that same window. All
     // three are optional, so the pre-existing caller shape
     // (?projectId=... alone) still answers -- with every receipt, grouped by
     // material, exactly as before.

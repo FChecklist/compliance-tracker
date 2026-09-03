@@ -168,7 +168,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const branding = org ?? { name: "VERIDIAN AI", address: null, gstin: null }
 
       // budget-variance keeps its own generator: it prints the weighted
-      // sub-task count and the "positive variance is over budget" note, which
+      // sub-task count and the note saying which way the variance sign reads
+      // (D-26: budget remaining, so a negative figure is the overrun), which
       // are facts about THAT report rather than about documents in general.
       // Every other schema is rendered by the shared template.
       const pdf =

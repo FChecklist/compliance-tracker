@@ -13,6 +13,14 @@
 // describe block below mocks only the DB layer (withTenantContext +
 // requireConstructionEnabled), matching this repo's tenant-isolation.test.ts
 // pattern -- no live DB, but the real designerTimesheetReport() code path.
+//
+// R67 merge note (D-11, lane D3 x lane D21): both lanes appended a new describe
+// block to the end of this file, so git saw an append/append conflict where the
+// merge base had neither. NOTHING WAS DROPPED -- D3's
+// `aggregateManpowerDailySummary` (D-53) block and D21's
+// `computeBudgetVarianceLine`/attendance-summary (D-26) blocks both survive, in
+// that order. They share no symbols: D21's UNSPECIFIED_TRADE_LABEL and D3's
+// UNCATEGORISED_TRADE_LABEL are distinct exports covering distinct aggregators.
 /// <reference types="bun-types" />
 import { describe, expect, test, mock, afterEach } from "bun:test"
 import {
@@ -21,6 +29,14 @@ import {
   aggregateWorkAnalysis,
   computeCertifiedPayroll,
   computeEarnedValue,
+  computeBudgetVarianceLine,
+  isLineOverBudget,
+  buildAttendanceSummaryRows,
+  totalAttendanceSummary,
+  reconcileAttendanceSummary,
+  headcountOnSite,
+  UNSPECIFIED_TRADE_LABEL,
+  WORKER_DAY_WEIGHT,
   WH347_DAY_LABELS,
   type DesignerTimesheetBudgetLine,
   type DesignerTimesheetEntry,
@@ -34,6 +50,7 @@ import {
   mergeCategoryProgressWithAmounts,
   sumRootLineBudgets,
   aggregateRevenueBudgetActual,
+  isLineOverBudget,
   UNCATEGORIZED_LABEL,
 } from "./construction-reports-service"
 
@@ -946,11 +963,26 @@ describe("aggregateRevenueBudgetActual (R67 E-08)", () => {
     expect(rows[2].actual).toBeNull()      // nothing costed yet -- null, not 0
   })
 
-  test("variance is actual - budget, positive meaning over budget, and null while nothing is costed", () => {
+  // R67 merge (2026-09-03): lane D's item D-26 flipped what `variance` means on
+  // the per-line budget report -- budget MINUS committed, so a positive figure
+  // is budget remaining and a negative one is the overrun -- and landed on main
+  // first. E-08's fold follows that convention rather than shipping the
+  // opposite reading of the same word on the same screen. Line 0 is over
+  // budget (1500 spent against 1350) and now reads -150, not +150.
+  test("variance is budget - actual, POSITIVE meaning budget remaining, and null while nothing is costed", () => {
     const { rows } = aggregateRevenueBudgetActual(LINES, "scope")
-    expect(rows[0].variance).toBe(150)
-    expect(rows[1].variance).toBe(-243.75)
+    expect(rows[0].variance).toBe(-150)     // 1350 budget, 1500 committed -- over
+    expect(rows[1].variance).toBe(243.75)   // 843.75 budget, 600 committed -- under
     expect(rows[2].variance).toBeNull()
+  })
+
+  // The one predicate that answers "is this over budget", so no screen has to
+  // re-derive it from the sign by hand and get it backwards.
+  test("isLineOverBudget agrees with the sign, and a line nobody has costed is neither over nor under", () => {
+    const { rows } = aggregateRevenueBudgetActual(LINES, "scope")
+    expect(isLineOverBudget(rows[0].variance)).toBe(true)
+    expect(isLineOverBudget(rows[1].variance)).toBe(false)
+    expect(isLineOverBudget(rows[2].variance)).toBe(false)
   })
 
   test("percentUsed is one decimal", () => {
@@ -1034,7 +1066,46 @@ function fakeDbFor(lines: ReturnType<typeof boqLine>[], hasBoq: boolean) {
       constructionBoqLineItems: { findMany: async () => lines },
     },
     select: () => chain,
-    execute: async () => [],
+    // R67 merge (2026-09-03): getProjectDashboard no longer runs its own
+    // per-project reads -- lane F2 moved them into getProjectDashboards, ONE
+    // statement whose result this execute() stands in for. Serving it from the
+    // SAME `lines` the BOQ reads above use is the point: E-06's acceptance is
+    // that the dashboard and the budget-variance report state one number, so
+    // both sides of that claim have to come from one set of line items. A row
+    // is returned only when the project really has a BOQ, because that is what
+    // the real statement does (LEFT JOIN ev, null items) and it is what makes
+    // the "no BOQ -> budget null" case below a real assertion rather than a
+    // 404 dressed up as one.
+    execute: async () => [{
+      project_id: "proj-e06",
+      project_name: "Cedar Heights Villa - Phase 1",
+      // The ERP annual ledger sum -- 0 here, which is exactly the figure that
+      // used to be printed as "TOTAL BUDGET AED 0" and is why E-06 exists.
+      budget: 0,
+      revenue: 0,
+      expenses: 0,
+      progress_percent: null,
+      task_count: 0,
+      delayed_task_count: 0,
+      photo_count: 0,
+      permits_expiring: 0,
+      permits_expired: 0,
+      project_value: null,
+      po_total: null,
+      ev_items: hasBoq
+        ? lines.map((l) => ({
+            id: l.id,
+            boqId: l.boqId,
+            parentLineItemId: l.parentLineItemId,
+            rate: l.rate,
+            amount: l.amount,
+            breakdownPercentage: l.breakdownPercentage,
+            budgetPercentage: l.budgetPercentage,
+            qty: null,
+            percent: null,
+          }))
+        : null,
+    }],
   }
 }
 
@@ -1046,6 +1117,12 @@ describe("R67 E-06: the Project Status report and the budget-variance report sta
   })
 
   async function withFakeDb(lines: ReturnType<typeof boqLine>[], hasBoq: boolean) {
+    // R67 F-27 added a 60 s per-project dashboard cache keyed on org+project.
+    // Every test here uses the SAME org and project id, so without this reset
+    // the "no BOQ" case would be served the previous test's "has BOQ" answer
+    // and would pass for the wrong reason.
+    const { resetDashboardCache } = await import("./project-dashboard-cache")
+    resetDashboardCache()
     const fakeDb = fakeDbFor(lines, hasBoq)
     await mock.module("@/lib/db/tenant-scoped", () => ({
       ...realTenantScoped,
@@ -1129,5 +1206,248 @@ describe("R67 E-06: the Project Status report and the budget-variance report sta
     expect(scope.revenueBudgetActual.totals.revenue).toBe(5400 + 3375)
     expect(byCategory.revenueBudgetActual.rows.map((r) => r.item)).toEqual(["Civil", UNCATEGORIZED_LABEL])
     expect(byCategory.revenueBudgetActual.totals).toEqual(scope.revenueBudgetActual.totals)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 D-53: the Manpower Daily Summary aggregator.
+//
+// aggregateManpowerDailySummary() is the whole arithmetic of the tab -- the DB
+// half around it is one joined SELECT and one vendor-name lookup -- so the row
+// oracle the item states ("the totals row Daily cost equals the sum of the two
+// trade rows" and "expanding a trade lists the same headcount as its Present +
+// Absent + Half-day") is asserted here directly.
+// ---------------------------------------------------------------------------
+import {
+  aggregateManpowerDailySummary,
+  UNCATEGORISED_TRADE_LABEL,
+  type ManpowerDailyPerson,
+} from "./construction-reports-service"
+
+function person(over: Partial<ManpowerDailyPerson> & Pick<ManpowerDailyPerson, "id" | "name" | "status">): ManpowerDailyPerson {
+  return {
+    employeeCode: null,
+    trade: null,
+    company: null,
+    dailyRate: 100,
+    cost: 0,
+    ...over,
+  }
+}
+
+describe("aggregateManpowerDailySummary", () => {
+  // Two trades on one date, exactly the acceptance fixture.
+  const people: ManpowerDailyPerson[] = [
+    person({ id: "r1", name: "Ali Hassan", trade: "Civil", status: "present", dailyRate: 120, cost: 120 }),
+    person({ id: "r2", name: "Bilal Khan", trade: "Civil", status: "half_day", dailyRate: 120, cost: 60 }),
+    person({ id: "r3", name: "Chandra Rao", trade: "Civil", status: "absent", dailyRate: 120, cost: 0 }),
+    person({ id: "r4", name: "Dinesh Kumar", trade: "Paint", status: "present", dailyRate: 90, cost: 90 }),
+    person({ id: "r5", name: "Ehsan Ali", trade: "Paint", status: "present", dailyRate: 90, cost: 90 }),
+  ]
+
+  const { rows, totals } = aggregateManpowerDailySummary(people)
+
+  test("one row per trade with the present/absent/half-day split", () => {
+    expect(rows).toEqual([
+      { trade: "Civil", present: 1, absent: 1, halfDay: 1, headcount: 3, cost: 180 },
+      { trade: "Paint", present: 2, absent: 0, halfDay: 0, headcount: 2, cost: 180 },
+    ])
+  })
+
+  test("headcount is exactly present + absent + half-day, so an expanded trade lists that many people", () => {
+    for (const row of rows) {
+      expect(row.headcount).toBe(row.present + row.absent + row.halfDay)
+      expect(people.filter((p) => p.trade === row.trade)).toHaveLength(row.headcount)
+    }
+  })
+
+  test("the totals row Daily cost equals the sum of the trade rows", () => {
+    expect(totals.cost).toBe(360)
+    expect(totals.cost).toBe(rows.reduce((sum, row) => sum + row.cost, 0))
+    expect(totals.headcount).toBe(5)
+  })
+
+  test("a worker with no trade groups under 'Uncategorised trade', and it sorts LAST", () => {
+    const { rows: mixed } = aggregateManpowerDailySummary([
+      person({ id: "r6", name: "Zia", trade: null, status: "present", cost: 100 }),
+      person({ id: "r7", name: "Adnan", trade: "  ", status: "present", cost: 100 }),
+      person({ id: "r8", name: "Yusuf", trade: "Civil", status: "present", cost: 100 }),
+    ])
+    expect(mixed.map((r) => r.trade)).toEqual(["Civil", UNCATEGORISED_TRADE_LABEL])
+    expect(mixed[1]).toMatchObject({ present: 2, headcount: 2, cost: 200 })
+  })
+
+  test("an unmarked day aggregates to no rows and a zeroed totals row, never to NaN", () => {
+    const { rows: none, totals: zero } = aggregateManpowerDailySummary([])
+    expect(none).toEqual([])
+    expect(zero).toEqual({ trade: "Total", present: 0, absent: 0, halfDay: 0, headcount: 0, cost: 0 })
+  })
+
+  test("money adds without binary-float drift (0.1 + 0.2 must not become 0.30000000000000004)", () => {
+    const { totals: drift } = aggregateManpowerDailySummary([
+      person({ id: "r9", name: "A", trade: "Civil", status: "present", cost: 0.1 }),
+      person({ id: "r10", name: "B", trade: "Civil", status: "present", cost: 0.2 }),
+    ])
+    expect(drift.cost).toBe(0.3)
+  })
+})
+
+// R67 D-26 (R-066) -- the Cost Variance tab's real arithmetic. Sumeet's budget
+// model against a scope line is vendor, MATERIAL and MANPOWER; only vendor
+// existed, so "committed" could never be more than the subcontract. The sign
+// also changed: variance now reads as HOW MUCH BUDGET IS LEFT
+// (budget - vendor - material - manpower), so positive is under budget.
+describe("computeBudgetVarianceLine (D-26)", () => {
+  const line = (over: Partial<Parameters<typeof computeBudgetVarianceLine>[0]> = {}) => ({
+    amount: 100, budgetPercentage: 100, vendorAmount: null, materialAmount: null, manpowerAmount: null, ...over,
+  })
+
+  // The item's own acceptance, both halves.
+  test("budget 100 with null vendor, material AND manpower returns variance null -- never a fabricated 0", () => {
+    const result = computeBudgetVarianceLine(line())
+    expect(result.budget).toBe(100)
+    expect(result.committed).toBeNull()
+    expect(result.variance).toBeNull()
+  })
+
+  test("the same line with material 30 and manpower 20 returns variance 50", () => {
+    const result = computeBudgetVarianceLine(line({ materialAmount: 30, manpowerAmount: 20 }))
+    expect(result.committed).toBe(50)
+    expect(result.variance).toBe(50)
+  })
+
+  test("all three components are counted, not just the vendor", () => {
+    const result = computeBudgetVarianceLine(line({ vendorAmount: 40, materialAmount: 30, manpowerAmount: 20 }))
+    expect(result.committed).toBe(90)
+    expect(result.variance).toBe(10)
+  })
+
+  test("a REAL zero on one component is not the same as no data -- variance becomes a real number", () => {
+    const result = computeBudgetVarianceLine(line({ materialAmount: 0 }))
+    expect(result.committed).toBe(0)
+    expect(result.variance).toBe(100)
+  })
+
+  test("committed cost above budget gives a NEGATIVE variance -- that is what 'over budget' now means", () => {
+    expect(computeBudgetVarianceLine(line({ vendorAmount: 130 })).variance).toBe(-30)
+  })
+
+  test("budget is still amount x budgetPercentage / 100, unchanged from Point 154", () => {
+    expect(computeBudgetVarianceLine(line({ amount: 400, budgetPercentage: 25 })).budget).toBe(100)
+  })
+})
+
+describe("isLineOverBudget (D-26)", () => {
+  test("a negative variance is over budget", () => {
+    expect(isLineOverBudget(-0.01)).toBe(true)
+  })
+
+  test("exactly on budget is NOT over budget", () => {
+    expect(isLineOverBudget(0)).toBe(false)
+  })
+
+  test("a line with no committed cost is neither over nor under -- it is uncosted", () => {
+    expect(isLineOverBudget(null)).toBe(false)
+  })
+})
+
+// R67 D-31 (R-090): the trade-wise attendance summary the Manpower screen
+// renders. These test the pure builders that turn the two EXISTING aggregates
+// (attendanceReport's (trade, status) grouping and manpowerCostReport's
+// per-trade one) into the rows, the grand total and the honesty check the
+// screen shows -- no new SQL grouping exists to test.
+describe("attendance summary builders (R67 D-31)", () => {
+  const STATUS_ROWS = [
+    { trade: "Mason", status: "present", count: 12, cost: 1440 },
+    { trade: "Mason", status: "absent", count: 1, cost: 0 },
+    { trade: "Electrician", status: "present", count: 4, cost: 600 },
+    { trade: "Electrician", status: "half_day", count: 2, cost: 150 },
+    { trade: null, status: "present", count: 1, cost: 90 },
+  ]
+
+  test("folds (trade, status) rows into one row per trade, alphabetically, with the unnamed trade last", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    expect(rows.map((r) => r.trade)).toEqual(["Electrician", "Mason", UNSPECIFIED_TRADE_LABEL])
+  })
+
+  test("a blank trade is NAMED, never dropped -- dropping it would break the totals", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    const unspecified = rows.find((r) => r.trade === UNSPECIFIED_TRADE_LABEL)!
+    expect(unspecified.present).toBe(1)
+    expect(unspecified.cost).toBe(90)
+  })
+
+  test("worker-days weight a half day as half and an absence as none", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    const mason = rows.find((r) => r.trade === "Mason")!
+    const electrician = rows.find((r) => r.trade === "Electrician")!
+    expect(mason.workerDays).toBe(12) // 12 present, 1 absent -> the absence adds nothing
+    expect(electrician.workerDays).toBe(5) // 4 present + 2 half days
+    expect(WORKER_DAY_WEIGHT.half_day).toBe(0.5)
+    expect(WORKER_DAY_WEIGHT.absent).toBe(0)
+  })
+
+  test("counts come back split by status, so 'Absent 1' is visible rather than folded into a single number", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    const mason = rows.find((r) => r.trade === "Mason")!
+    expect(mason).toMatchObject({ present: 12, halfDay: 0, absent: 1, cost: 1440 })
+  })
+
+  test("the grand total is the sum of the rows on screen, in every column", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    expect(totalAttendanceSummary(rows)).toEqual({ present: 17, halfDay: 2, absent: 1, workerDays: 18, cost: 2280 })
+  })
+
+  test("the headline count is bodies on site -- present plus half day, never absences", () => {
+    expect(headcountOnSite(buildAttendanceSummaryRows(STATUS_ROWS))).toBe(19)
+  })
+
+  test("numeric strings from the driver are read as numbers, not concatenated", () => {
+    const rows = buildAttendanceSummaryRows([{ trade: "Mason", status: "present", count: "3", cost: "360.50" }])
+    expect(rows[0].present).toBe(3)
+    expect(rows[0].cost).toBe(360.5)
+  })
+
+  test("the reconciliation TIES when both aggregates saw the same attendance rows and money", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    // manpowerCostReport counts every attendance row, absences included:
+    // Mason 13, Electrician 6, unnamed 1 = 20.
+    const byTrade = [
+      { totalCost: 1440, workerDays: 13 },
+      { totalCost: 750, workerDays: 6 },
+      { totalCost: 90, workerDays: 1 },
+    ]
+    const result = reconcileAttendanceSummary(rows, byTrade)
+    expect(result.ties).toBe(true)
+    expect(result.rowCountFromStatuses).toBe(20)
+    expect(result.rowCountFromTrades).toBe(20)
+  })
+
+  test("the reconciliation FAILS when the second aggregate saw rows the first did not -- the screen must not print a total nobody can reproduce", () => {
+    const rows = buildAttendanceSummaryRows(STATUS_ROWS)
+    const byTrade = [
+      { totalCost: 1440, workerDays: 13 },
+      { totalCost: 750, workerDays: 6 },
+      // the unnamed-trade row is missing here
+    ]
+    expect(reconcileAttendanceSummary(rows, byTrade).ties).toBe(false)
+  })
+
+  test("a sub-cent float difference in money is NOT reported as a disagreement", () => {
+    const rows = buildAttendanceSummaryRows([{ trade: "Mason", status: "present", count: 1, cost: 100.001 }])
+    expect(reconcileAttendanceSummary(rows, [{ totalCost: 100, workerDays: 1 }]).ties).toBe(true)
+  })
+
+  test("a real money difference IS reported", () => {
+    const rows = buildAttendanceSummaryRows([{ trade: "Mason", status: "present", count: 1, cost: 100 }])
+    expect(reconcileAttendanceSummary(rows, [{ totalCost: 120, workerDays: 1 }]).ties).toBe(false)
+  })
+
+  test("no attendance at all is an empty summary, not a crash", () => {
+    const rows = buildAttendanceSummaryRows([])
+    expect(rows).toEqual([])
+    expect(totalAttendanceSummary(rows)).toEqual({ present: 0, halfDay: 0, absent: 0, workerDays: 0, cost: 0 })
+    expect(headcountOnSite(rows)).toBe(0)
+    expect(reconcileAttendanceSummary(rows, []).ties).toBe(true)
   })
 })

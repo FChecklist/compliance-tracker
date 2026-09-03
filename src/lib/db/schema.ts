@@ -6266,7 +6266,15 @@ export const veriMeetings = complianceSchemaDB.table('veri_meetings', {
   minutes: text('minutes'),
   minutesHistory: jsonb('minutes_history').notNull().default([]), // { date, amendedBy, text }[]
   systemId: text('system_id').unique(), // e.g. MOM-2026-4821 -- nullable, pre-existing rows never get one retroactively
-  status: text('status').notNull().default('draft'), // 'draft' | 'published' -- once published, meeting-level fields lock
+  // 'draft' | 'published' | 'deleted'. Once published, meeting-level fields
+  // lock. R67 D-21 added the third value as a DRAFT-ONLY soft delete (a
+  // published meeting is audit-relevant and is refused outright) -- see
+  // MEETING_DELETED_STATUS below, which is the one place that spells it, and
+  // veri-meeting-service.ts, which owns the transition. EVERY reader of this
+  // table must exclude it: veri-meeting-service's own three read paths,
+  // adoption-metrics-service's meetingsManaged count, and TABLE_REGISTRY's
+  // veri_meetings entry in report-engine-service all do.
+  status: text('status').notNull().default('draft'),
   publishedAt: timestamp('published_at'),
   publishedById: text('published_by_id'),
   // Wave 74 (Meeting Intelligence, AI_OS_CERTIFICATION.md §3.2 NOT_BUILT):
@@ -6291,6 +6299,14 @@ export const veriMeetings = complianceSchemaDB.table('veri_meetings', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// R67 D-21: the third value of veriMeetings.status, declared HERE rather than
+// only in veri-meeting-service.ts so the table's other readers
+// (adoption-metrics-service, report-engine-service's TABLE_REGISTRY) can
+// exclude a soft-deleted draft without importing that whole service and the
+// LLM/task-execution graph behind it. veri-meeting-service re-exports it under
+// the same name it has always had.
+export const MEETING_DELETED_STATUS = 'deleted'
 
 // Wave 44: mirrors conversationShareLinks (Wave 36) exactly -- tokenized,
 // time-limited, individually revocable. Deliberately NOT meettrack-v2's own
@@ -11182,6 +11198,9 @@ export const constructionMaterials = complianceSchemaDB.table('construction_mate
   // this material should be re-ordered. Nullable = no reorder alerting for this
   // material at all, which is every pre-existing row's real state -- opt-in, not
   // a silent 0 that would make every material look permanently "in stock".
+  // Read by R67 D-40: below this level the master row is flagged "Low" (glyph
+  // AND word, never colour alone), and 0 is a real threshold ("flag me the
+  // moment it runs out") that stays distinct from null.
   reorderLevel: numeric('reorder_level'),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -11197,38 +11216,63 @@ export const constructionMaterialReceipts = complianceSchemaDB.table('constructi
   unitCost: numeric('unit_cost'),
   vendorId: text('vendor_id'),
   notes: text('notes'),
-  createdById: text('created_by_id').notNull(),
-  // R67 lane I (WS-I item I-02, for C03-09): a receipt is VOIDED, never
-  // deleted. A goods-receipt note is an accounting document -- the audit trail
-  // ("this delivery was recorded and then cancelled, by whom, why, when") is
-  // the whole point, and a DELETE destroys it. Every consumer that totals
-  // stock or cost must filter `voided_at IS NULL`; a voided row stays
-  // queryable for the history it carries. All three nullable together: a
-  // voided receipt has all three set, a live one has none.
+  // R67 D-36. `reference` is the supplier's own delivery-note / PO number --
+  // the only thing that lets a site receipt be matched to the invoice that
+  // later arrives for it; `notes` is free commentary and was already used as
+  // such, so overloading it would have made the match unreliable.
+  reference: text('reference'),
+  // Soft void, never a delete: a mis-keyed quantity has to be reversible, but
+  // a received-goods ledger row that simply disappears is unauditable. A
+  // voided row stays in the list (struck through, reason on hover) and is
+  // excluded from every total -- see voidMaterialReceipt() and
+  // getMaterialCostReport() in construction-materials-service.ts. Same
+  // posture as constructionLabourRoster.isActive being a deactivate rather
+  // than a delete.
   voidedAt: timestamp('voided_at'),
   voidReason: text('void_reason'),
-  voidedById: text('voided_by_id'),
+  // The COLUMN is `voided_by_id`, not `voided_by`: that is the name the
+  // migration which actually creates it uses
+  // (drizzle/0529_r67_i02_manpower_material_org_format.sql, lane I, merged
+  // 2026-09-03), and it matches created_by_id beside it. This declaration was
+  // written against the expected name before that migration landed and is
+  // corrected here -- a mismatch would 500 on the first void.
+  voidedBy: text('voided_by_id'),
+  createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-// R67 lane I (WS-I item I-02, for C03-13): the outbound half of the material
-// ledger. constructionMaterials/constructionMaterialReceipts (Point 33)
-// deliberately modelled inbound ONLY -- its own comment above says "No
-// outbound/consumption/stock-on-hand -- not requested" -- so "what is actually
-// left on site" was unanswerable. This is the smallest table that answers it:
-// issues out, optionally attributed to the BOQ line the material was consumed
-// against, so consumption can be read per scope item and not just per project.
+// R67 D-40 (Sumeet's item 8, "material database -- spec, cost, qty"). The
+// module had receipts but no issues, so it could say what arrived on site and
+// never what left the store: "qty" was unanswerable and the master carried no
+// quantity column at all.
 //
-// Deliberately NOT erp_stock_ledger_entries: that is a full valuation layer
-// (warehouses, valuation rates, moving-average costing) against erp_items, a
-// different master from construction_materials -- wiring site consumption into
-// it would mean either duplicating every material as an erp_item or teaching
-// the valuation engine a second master. Same reasoning Point 33 used when it
-// chose not to build on erp_stock_* in the first place.
+// This is the OUT side of the same ledger, deliberately shaped like
+// construction_material_receipts (same org/project/material scoping, same
+// numeric-as-string quantity, same createdById) so onHand is one subtraction of
+// two grouped sums over two tables that agree on their columns -- not a
+// denormalised stock balance that can drift from the movements that produced
+// it. There is no separate valuation layer here: erp_stock_* exists for that
+// and is heavier than what was asked for.
 //
-// boqLineItemId is nullable and carries no DB-level FK, matching
-// constructionWorkProgressEntries.boqLineItemId's own posture on the same
-// link (a deleted BOQ line must not block or orphan a real issue record).
+// An issue has no unitCost of its own. What material left the store is a
+// quantity question; what it COST is answered by the receipts it came from,
+// which is where the Cost Report already computes it.
+//
+// Deliberately NOT erp_stock_ledger_entries (lane I's item I-02, which creates
+// this table in drizzle/0529, reached the same conclusion independently): that
+// is a full valuation layer -- warehouses, valuation rates, moving-average
+// costing -- against erp_items, a different master from construction_materials,
+// so wiring site consumption into it would mean either duplicating every
+// material as an erp_item or teaching the valuation engine a second master.
+//
+// MERGE NOTE (2026-09-03): lane I declared this same table, and `git merge`
+// produced BOTH declarations plus a mis-spliced copy of the RECEIPT void
+// columns (voided_at / void_reason / voided_by_id) inside this one -- the
+// surrounding created_by_id/created_at lines matched, so the hunk landed in the
+// wrong table. Reconciled to one declaration matching
+// drizzle/0529_r67_i02_manpower_material_org_format.sql column for column;
+// construction_material_issues has no void columns there and must not have any
+// here.
 export const constructionMaterialIssues = complianceSchemaDB.table('construction_material_issues', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
@@ -11236,8 +11280,18 @@ export const constructionMaterialIssues = complianceSchemaDB.table('construction
   materialId: text('material_id').notNull().references(() => constructionMaterials.id),
   issuedDate: date('issued_date', { mode: 'string' }).notNull(),
   quantity: numeric('quantity').notNull(),
+  // Which BOQ line this material was consumed against, when the storekeeper
+  // knows. Nullable and un-referenced on purpose: site staff issue material
+  // long before anyone has decided which line it belongs to, and a hard FK
+  // would make the honest answer ("not yet") unrecordable.
+  //
+  // The column is `boq_line_item_id`, matching the migration that creates this
+  // table (drizzle/0529_r67_i02_manpower_material_org_format.sql, lane I) and
+  // the name construction_boq_line_items uses everywhere else in this schema.
   boqLineItemId: text('boq_line_item_id'),
-  issuedTo: text('issued_to'), // free text -- a gang/foreman/subcontractor name, the same advisory posture as constructionLabourRoster.trade (site labour rarely has a login account to link to)
+  // The gang, subcontractor or person who took it -- free text, because on a
+  // real site this is "Falcon gang 3" as often as it is a named user.
+  issuedTo: text('issued_to'),
   note: text('note'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -13327,6 +13381,30 @@ export const pipelineTasks = complianceSchemaDB.table('pipeline_tasks', {
   executor: pipelineTaskExecutorEnum('executor').notNull().default('software'),
   status: pipelineTaskStatusEnum('status').notNull().default('to_do'),
   result: jsonb('result'),
+  // R67 B-01/B-08 (decision D-03) -- THE FAILURE, TYPED.
+  //
+  // `error` used to hold a free-text English sentence composed in this repo
+  // and rendered verbatim by PROJEXA's Task Master. The R66 walkthrough
+  // captured what that produced on a real screen: "itemCode is required",
+  // "no project resolved for this task", and a Postgres driver string
+  // carrying an internal address ("write CONNECT_TIMEOUT 3.109.171.244:6543").
+  //
+  // B-01 changed the column's CONTENT to a serialised {code, missing,
+  // context} object; these two columns give that object real, queryable
+  // homes so a failure can be counted and grouped in SQL instead of by
+  // parsing JSON out of a text column. `error` is kept as the same
+  // serialised object (NOT the driver's text -- the raw message is logged
+  // server-side and deliberately never persisted, which is the whole point
+  // of B-01) so that rows written between the two changes still read.
+  //
+  // error_code is one of src/lib/pipeline/error-codes.ts's closed set;
+  // error_params carries only real business values ({itemCode, project,
+  // version}) that the projexa dictionary interpolates into its sentence.
+  // Deliberately text, not an enum: the vocabulary is owned by application
+  // code that both repos version independently, and a migration per new code
+  // would guarantee the two drift.
+  errorCode: text('error_code'),
+  errorParams: jsonb('error_params'),
   error: text('error'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

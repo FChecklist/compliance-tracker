@@ -231,9 +231,19 @@ export async function projectStatusReport(ctx: { orgId: string }, projectId: str
 }
 
 // 4. Attendance Report -- present/absent/half_day counts + cost, by trade.
-export async function attendanceReport(ctx: { orgId: string }, projectId: string) {
+//
+// R67 D-31: dateFrom/dateTo are additive and optional. Omitting both keeps the
+// existing all-time behaviour byte for byte, which is what the report registry
+// (and therefore every existing caller) does -- the dispatcher passes only
+// (ctx, projectId). They exist so the Manpower screen's "Today / This week /
+// This month" panel can reuse THIS aggregate rather than a second, parallel
+// grouping written for the screen.
+export async function attendanceReport(ctx: { orgId: string }, projectId: string, dateFrom?: string, dateTo?: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId)]
+    if (dateFrom) conditions.push(gte(constructionAttendance.attendanceDate, dateFrom))
+    if (dateTo) conditions.push(lte(constructionAttendance.attendanceDate, dateTo))
     const rows = await db.select({
       trade: constructionLabourRoster.trade,
       status: constructionAttendance.status,
@@ -241,10 +251,160 @@ export async function attendanceReport(ctx: { orgId: string }, projectId: string
       cost: sql<number>`coalesce(sum(${constructionAttendance.dailyCost}), 0)::float`,
     }).from(constructionAttendance)
       .innerJoin(constructionLabourRoster, eq(constructionAttendance.rosterId, constructionLabourRoster.id))
-      .where(and(eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId)))
+      .where(and(...conditions))
       .groupBy(constructionLabourRoster.trade, constructionAttendance.status)
     return { rows }
   })
+}
+
+// ---------------------------------------------------------------------------
+// R67 D-31 (R-090): the trade-wise attendance summary the Manpower screen shows.
+//
+// Sumeet asked for "how many people are on site today, by trade, and what they
+// cost". Both halves of that answer already existed as aggregates in this file
+// -- attendanceReport() groups by (trade, status) with cost, manpowerCostReport()
+// groups by trade with an attendance-row count and cost -- and neither was
+// reachable from the screen where the work happens. So no new SQL grouping is
+// written here: the summary COMPOSES those two, and because they are two
+// independently-issued aggregates over the same window, comparing them is a
+// real reconciliation rather than a tautology (see reconcileAttendanceSummary).
+export const UNSPECIFIED_TRADE_LABEL = "Unspecified"
+
+/**
+ * Worker-days per attendance status. Identical to construction-labour-service's
+ * COST_MULTIPLIER, and for the same reason: a half day is half a worker-day
+ * exactly as it is half a day's pay, and an absence is neither. Kept here as
+ * its own named constant rather than imported, because that one is about MONEY
+ * and this one is about PEOPLE -- they agree today, and a future change to
+ * either must be a deliberate decision about the other.
+ */
+export const WORKER_DAY_WEIGHT: Record<string, number> = { present: 1, half_day: 0.5, absent: 0 }
+
+export type AttendanceStatusRow = { trade: string | null; status: string; count: number | string; cost: number | string }
+export type AttendanceSummaryRow = {
+  trade: string
+  present: number
+  halfDay: number
+  absent: number
+  workerDays: number
+  cost: number
+}
+
+function toNumber(value: number | string | null | undefined): number {
+  if (value === null || value === undefined) return 0
+  const n = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Pure. Folds attendanceReport()'s (trade, status) rows into one row per trade. */
+export function buildAttendanceSummaryRows(statusRows: AttendanceStatusRow[]): AttendanceSummaryRow[] {
+  const byTrade = new Map<string, AttendanceSummaryRow>()
+  for (const row of statusRows) {
+    // A blank trade is a real roster row with no trade recorded, not a missing
+    // group -- it is named, never dropped, or the totals stop adding up.
+    const trade = row.trade?.trim() || UNSPECIFIED_TRADE_LABEL
+    const current = byTrade.get(trade) ?? { trade, present: 0, halfDay: 0, absent: 0, workerDays: 0, cost: 0 }
+    const count = toNumber(row.count)
+    if (row.status === "present") current.present += count
+    else if (row.status === "half_day") current.halfDay += count
+    else if (row.status === "absent") current.absent += count
+    current.workerDays += count * (WORKER_DAY_WEIGHT[row.status] ?? 0)
+    current.cost += toNumber(row.cost)
+    byTrade.set(trade, current)
+  }
+  // Alphabetical, with the unnamed group last: a stable order the screen and
+  // the PDF share, so a printed sheet matches what was on screen.
+  return [...byTrade.values()].sort((a, b) => {
+    if (a.trade === UNSPECIFIED_TRADE_LABEL) return 1
+    if (b.trade === UNSPECIFIED_TRADE_LABEL) return -1
+    return a.trade.localeCompare(b.trade)
+  })
+}
+
+/** Pure. The bold grand-total row. */
+export function totalAttendanceSummary(rows: AttendanceSummaryRow[]): Omit<AttendanceSummaryRow, "trade"> {
+  return rows.reduce(
+    (total, row) => ({
+      present: total.present + row.present,
+      halfDay: total.halfDay + row.halfDay,
+      absent: total.absent + row.absent,
+      workerDays: total.workerDays + row.workerDays,
+      cost: total.cost + row.cost,
+    }),
+    { present: 0, halfDay: 0, absent: 0, workerDays: 0, cost: 0 }
+  )
+}
+
+export type AttendanceReconciliation = {
+  ties: boolean
+  /** Attendance rows counted by the (trade, status) aggregate vs by the per-trade one. */
+  rowCountFromStatuses: number
+  rowCountFromTrades: number
+  costFromStatuses: number
+  costFromTrades: number
+}
+
+/**
+ * Pure. Compares the two aggregates against each other. This is NOT a
+ * tautology: `rows` come from attendanceReport()'s (trade, status) grouping and
+ * `byTrade` from manpowerCostReport()'s own separate query, so a difference
+ * means one of them saw rows the other did not -- a join that dropped a roster
+ * row, a write that landed between the two reads -- and the screen must say so
+ * rather than print a total nobody can reproduce.
+ *
+ * Compared on ATTENDANCE-ROW COUNT, not worker-days: manpowerCostReport counts
+ * every attendance row including absences, while worker-days weight them. The
+ * comparable quantity is present + halfDay + absent.
+ */
+export function reconcileAttendanceSummary(
+  rows: AttendanceSummaryRow[],
+  byTrade: { totalCost: number | string; workerDays: number | string }[]
+): AttendanceReconciliation {
+  const rowCountFromStatuses = rows.reduce((s, r) => s + r.present + r.halfDay + r.absent, 0)
+  const rowCountFromTrades = byTrade.reduce((s, r) => s + toNumber(r.workerDays), 0)
+  const costFromStatuses = rows.reduce((s, r) => s + r.cost, 0)
+  const costFromTrades = byTrade.reduce((s, r) => s + toNumber(r.totalCost), 0)
+  // Money is summed as floats on both sides; a sub-cent difference is the
+  // float, not a disagreement about the data.
+  const ties = rowCountFromStatuses === rowCountFromTrades && Math.abs(costFromStatuses - costFromTrades) < 0.005
+  return { ties, rowCountFromStatuses, rowCountFromTrades, costFromStatuses, costFromTrades }
+}
+
+/** Pure. "12 people on site" -- the headline count, which is bodies present at all, half-day included. */
+export function headcountOnSite(rows: AttendanceSummaryRow[]): number {
+  return rows.reduce((s, r) => s + r.present + r.halfDay, 0)
+}
+
+export type AttendanceSummary = {
+  projectId: string
+  from: string | null
+  to: string | null
+  rows: AttendanceSummaryRow[]
+  totals: Omit<AttendanceSummaryRow, "trade">
+  headcount: number
+  reconciliation: AttendanceReconciliation
+}
+
+export async function attendanceSummary(
+  ctx: { orgId: string },
+  projectId: string,
+  from?: string,
+  to?: string
+): Promise<AttendanceSummary> {
+  const [statuses, byTrade] = await Promise.all([
+    attendanceReport(ctx, projectId, from, to),
+    manpowerCostReport(ctx, projectId, undefined, undefined, from, to),
+  ])
+  const rows = buildAttendanceSummaryRows(statuses.rows)
+  return {
+    projectId,
+    from: from ?? null,
+    to: to ?? null,
+    rows,
+    totals: totalAttendanceSummary(rows),
+    headcount: headcountOnSite(rows),
+    reconciliation: reconcileAttendanceSummary(rows, byTrade.byTrade),
+  }
 }
 
 // 5. Site Picture Report -- documents(category='site_photo') grouped by date.
@@ -495,9 +655,20 @@ export function sumRootLineBudgets(lines: RootBudgetLine[]): number | null {
 //           the material and manpower split the QS entered. Nulls are ABSENT,
 //           not zero -- a line nobody has costed returns actual null, so
 //           "not costed yet" and "costed at nothing" stay distinguishable.
-//  variance actual - budget, POSITIVE MEANS OVER BUDGET -- the same sign
-//           convention the per-line variance below already uses, so the two
-//           views on one screen never flip signs on the reader.
+//  variance budget - actual, POSITIVE MEANS UNDER BUDGET (i.e. "how much
+//           budget is left"), NEGATIVE means over -- the same sign convention
+//           computeBudgetVarianceLine below uses, so the two views on one
+//           screen never flip signs on the reader.
+//
+//           MERGE NOTE (2026-09-03): E-08 was first written against the older
+//           `vendorAmount - budget` reading, where positive meant OVER. Lane
+//           D's item D-26 (R-066) deliberately flipped that convention for the
+//           per-line report and landed on main first, so this fold was flipped
+//           to follow it rather than leaving one screen stating two opposite
+//           meanings for the same word. D-26's reading is the one the whole
+//           product now uses; isLineOverBudget() below is the single predicate
+//           that answers "is this over budget", and nothing re-derives it from
+//           the sign by hand.
 export type RevenueBudgetActualLine = {
   lineItemId: string
   code: string | null
@@ -572,7 +743,7 @@ export function aggregateRevenueBudgetActual(
         key: category, item: category,
         description: `${group.length} ${group.length === 1 ? "line" : "lines"}`,
         category, revenue, budget, actual,
-        variance: actual === null ? null : round2(actual - budget),
+        variance: actual === null ? null : round2(budget - actual),
         percentUsed: percentUsedOf(actual, budget),
         lineItemId: null, lineCount: group.length,
       })
@@ -589,7 +760,7 @@ export function aggregateRevenueBudgetActual(
         revenue: round2(line.revenue),
         budget: round2(line.budget),
         actual,
-        variance: actual === null ? null : round2(actual - line.budget),
+        variance: actual === null ? null : round2(line.budget - actual),
         percentUsed: percentUsedOf(actual, line.budget),
         lineItemId: line.lineItemId, lineCount: 1,
       })
@@ -606,20 +777,60 @@ export function aggregateRevenueBudgetActual(
     groupBy, rows,
     totals: {
       revenue, budget, actual,
-      variance: actual === null ? null : round2(actual - budget),
+      variance: actual === null ? null : round2(budget - actual),
       percentUsed: percentUsedOf(actual, budget),
     },
   }
 }
 
-// R39/R-C09 (Point 154 follow-on): per-line budget vs actual-vendor-cost
-// variance, over the latest (non-superseded) BOQ's line items -- reuses the
-// SAME budgetPercentage/vendorId/vendorAmount columns Point 154 already
-// shipped and computedBudget()'s exact formula (imported indirectly via the
-// same amount*pct/100 arithmetic, kept in one place per D-3 -- see that
-// function's own comment for why it's not stored). variance = vendorAmount -
-// budget; null (not 0) when no vendor amount has been entered yet for a
-// line, a real "not yet quoted" state, not a fabricated zero variance.
+/**
+ * R67 D-26 (R-066) -- the pure heart of boqBudgetVarianceReport, extracted so
+ * the rule can be tested without a live DB (this file's own convention; see
+ * computeEarnedValue / aggregateDesignerTimesheetCosts).
+ *
+ * TWO REAL CHANGES from the R39/R-C09 version this replaces:
+ *
+ *  1. COMMITTED COST IS ALL THREE. Sumeet's budget model against a scope line
+ *     is vendor, MATERIAL and MANPOWER; only vendor existed, so "committed"
+ *     could never be more than the subcontract.
+ *  2. THE SIGN IS NOW "HOW MUCH BUDGET IS LEFT". variance = budget - vendor -
+ *     material - manpower, so a POSITIVE variance means under budget and a
+ *     NEGATIVE one means over. (The previous formula was vendorAmount - budget,
+ *     the opposite reading. Every caller of this report is updated in the same
+ *     change; there is exactly one, PROJEXA's Cost Variance tab.)
+ *
+ * `null` remains load-bearing and is the reason this is not just arithmetic: a
+ * line with NO vendor, material or manpower has no variance at all, and must
+ * not be reported as 0 -- a fabricated zero reads as "on budget" when the truth
+ * is "nothing has been costed yet".
+ */
+export type BudgetVarianceInput = {
+  amount: number
+  budgetPercentage: number
+  vendorAmount: number | null
+  materialAmount: number | null
+  manpowerAmount: number | null
+}
+
+export function computeBudgetVarianceLine(input: BudgetVarianceInput): { budget: number; committed: number | null; variance: number | null } {
+  const budget = input.amount * (input.budgetPercentage / 100)
+  const nothingCosted = input.vendorAmount === null && input.materialAmount === null && input.manpowerAmount === null
+  if (nothingCosted) return { budget, committed: null, variance: null }
+  const committed = (input.vendorAmount ?? 0) + (input.materialAmount ?? 0) + (input.manpowerAmount ?? 0)
+  return { budget, committed, variance: budget - committed }
+}
+
+/** A line is over budget when its committed cost exceeds its budget -- i.e. a NEGATIVE variance. A line with no committed cost is neither over nor under. */
+export function isLineOverBudget(variance: number | null): boolean {
+  return variance !== null && variance < 0
+}
+
+// R39/R-C09 (Point 154 follow-on), rewritten by R67 D-26: per-line budget vs
+// committed cost, over the latest (non-superseded) BOQ's line items -- reuses
+// the SAME budgetPercentage/vendorId/vendorAmount columns Point 154 shipped,
+// plus material_amount/manpower_amount (drizzle/0529), and computedBudget()'s
+// exact amount*pct/100 formula (kept in one place per D-3 -- see that
+// function's own comment for why it's not stored).
 //
 // R67 E-07 (R-114): Cost Variance hard-coded both of its header actions to
 // "(Not yet available)" -- a deliberate stub, not a data condition -- while
@@ -650,17 +861,30 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
     const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
-    // R67 lane I (I-03): the empty-project shape must carry the SAME keys as
-    // the populated one, or a caller that reads totalMaterialAmount gets
-    // undefined on a project with no BOQ and renders "NaN".
+    // R67 lane I (I-03) + D-26 + E-06: the empty-project shape must carry the
+    // SAME keys as the populated one, or a caller that reads
+    // totalMaterialAmount or totalCommitted gets undefined on a project with
+    // no BOQ and renders "NaN". The keys below are the UNION of all three
+    // items' shapes, and the populated return further down carries the same
+    // set -- that is the whole point of this branch existing.
     //
-    // R67 E-06: totalBudget is null (not 0) here -- "no BOQ" is not "a budget
-    // of nothing", and the dashboard KPI reading this renders an en dash and
-    // the words "No BOQ yet" for exactly that state.
+    // Which absences are null and which are 0, deliberately:
+    //   * totalBudget   NULL (E-06). "No BOQ" is not "a budget of nothing";
+    //     the dashboard KPI reading this renders an en dash and the words
+    //     "No BOQ yet" for exactly this state, and a 0 here is what made three
+    //     screens disagree in the first place.
+    //   * totalCommitted / totalVariance / budgetRemaining  NULL (D-26).
+    //     Nothing has been costed, so there is no variance -- a fabricated 0
+    //     reads as "on budget" when the truth is "nothing costed yet".
+    //   * counts (linesOverBudget, lineCount, subTaskLineCount)  0. These are
+    //     genuine counts of an empty set, not missing measurements.
     if (!latest) {
       return {
         boqId: null, boqTitle: null, lines: [], subTaskLineCount: 0,
-        totalBudget: null, totalVendorAmount: 0, totalVariance: 0, totalMaterialAmount: 0, totalManpowerAmount: 0,
+        totalBudget: null, totalVendorAmount: 0,
+        totalMaterialAmount: 0, totalManpowerAmount: 0,
+        totalCommitted: null, totalVariance: null, budgetRemaining: null,
+        linesOverBudget: 0, lineCount: 0,
         availableCategories: [], availableVendors: [],
         filters: { categories: categoryFilter, vendorId: vendorFilter, groupBy },
         revenueBudgetActual: emptyFold,
@@ -712,34 +936,57 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     // reconcile exactly to a raw SQL sum over the same rows.
     let sNo = 0
     const lines = lineItems.map((item) => {
-      const rawBudget = Number(item.amount) * (Number(item.budgetPercentage) / 100)
       const vendorAmount = item.vendorAmount !== null ? Number(item.vendorAmount) : null
-      const rawVariance = vendorAmount !== null ? vendorAmount - rawBudget : null
+      const materialAmount = item.materialAmount !== null ? Number(item.materialAmount) : null
+      const manpowerAmount = item.manpowerAmount !== null ? Number(item.manpowerAmount) : null
+      // D-26's pure rule is the ONE place the per-line arithmetic lives, so the
+      // report and computeBudgetVarianceLine's own test can never diverge.
+      const { budget: rawBudget, committed: rawCommitted, variance: rawVariance } = computeBudgetVarianceLine({
+        amount: Number(item.amount),
+        budgetPercentage: Number(item.budgetPercentage),
+        vendorAmount, materialAmount, manpowerAmount,
+      })
       const isRootLine = item.parentLineItemId === null
+      // ONE serial number, not two. D-26 numbered every row (index + 1) and
+      // E-07 numbered the CONTRACT lines only; shipping both would print two
+      // different "S.No" claims for the same row -- a weighted sub-task would
+      // carry a serial of its own in one column and a blank in the next.
+      // E-07's definition wins because a sub-task is part of the line above it
+      // rather than a line of its own (it is also the definition every
+      // consumer in this repo already reads: report-export.ts's two schemas and
+      // budget-variance-report-pdf.ts). `serialNumber` is kept as an exact
+      // alias so D-26's PROJEXA consumer keeps working and renders the SAME
+      // number, and is the one to drop once that screen reads sNo.
+      const rowSNo = isRootLine ? ++sNo : null
       return {
+        // R67 D-26: S.No, Category, Qty and Rate join the row so the Cost
+        // Variance table can match Sumeet's own Budget Report shape.
+        // R67 E-07 (R-114): Sumeet 6.png II(iii)'s first column, numbered over
+        // the CONTRACT lines only -- see rowSNo above for why there is one
+        // number here and not two.
+        serialNumber: rowSNo,
         lineItemId: item.id,
         boqId: item.boqId,
-        // R67 E-07 (R-114): Sumeet 6.png II(iii)'s first column. Numbered over
-        // the CONTRACT lines only -- a weighted sub-task is part of the line
-        // above it, not a line of its own, so it carries no serial number.
-        sNo: isRootLine ? ++sNo : null,
+        sNo: rowSNo,
         isRootLine,
         parentLineItemId: item.parentLineItemId,
         code: item.itemCode,
-        description: item.description,
-        // R67 E-07: the quantity, rate and amount Sumeet's column list asks
-        // for. They were on the row all along and this report never projected
-        // them, so the screen could show a budget it could not show the
-        // arithmetic behind.
-        quantity: Number(item.quantity),
-        rate: Number(item.rate),
-        unit: item.unit,
         // R67 lane I (WS-I item I-05, R-177): the line's own category, so the
         // Budget table can show a Category column and group by a real value
         // instead of re-deriving it through activityId -> activity -> category.
         // null (never "") -- normalizeCategory in construction-boq-service.ts
         // is the single writer, so "no category" is one value here.
+        //
+        // R67 E-07: the quantity, rate and amount Sumeet's column list asks
+        // for. They were on the row all along and this report never projected
+        // them, so the screen could show a budget it could not show the
+        // arithmetic behind. D-26 projected the same four fields in the same
+        // change, so they are listed once below rather than twice here.
         category: item.category,
+        description: item.description,
+        unit: item.unit,
+        quantity: Number(item.quantity),
+        rate: Number(item.rate),
         amount: Number(item.amount),
         budgetPercentage: Number(item.budgetPercentage),
         budget: Math.round(rawBudget * 100) / 100,
@@ -747,14 +994,25 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
         // alongside the budget it belongs to. null (not 0) when the QS has not
         // split this line -- "unsplit" and "split as zero" are different facts
         // and a report that conflated them would read as if every line had
-        // been costed.
-        materialAmount: item.materialAmount !== null ? Number(item.materialAmount) : null,
-        manpowerAmount: item.manpowerAmount !== null ? Number(item.manpowerAmount) : null,
+        // been costed. (Both already narrowed to number | null above, for
+        // computeBudgetVarianceLine's input -- reused here so the row and the
+        // arithmetic can never read the column two different ways.)
+        materialAmount,
+        manpowerAmount,
         vendorId: item.vendorId,
         vendorName: item.vendorId ? (supplierNameById.get(item.vendorId) ?? null) : null,
         vendorAmount,
+        committed: rawCommitted !== null ? Math.round(rawCommitted * 100) / 100 : null,
+        // *** CONTRACT CHANGE, R67 D-26. `variance` USED TO MEAN OVERSPEND
+        // (vendorAmount - budget); it now means BUDGET REMAINING
+        // (budget - vendor - material - manpower). Same name, opposite sign.
+        // `budgetRemaining` below is the name that says what the number is;
+        // `variance` is kept as its alias so the shipped /reports/budget-variance
+        // consumers keep working, and is the one to drop once they have moved.
         variance: rawVariance !== null ? Math.round(rawVariance * 100) / 100 : null,
+        budgetRemaining: rawVariance !== null ? Math.round(rawVariance * 100) / 100 : null,
         _rawBudget: rawBudget,
+        _rawCommitted: rawCommitted,
         _rawVariance: rawVariance,
       }
     })
@@ -773,7 +1031,16 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     }))
     const totalBudget = sumRootLineBudgets(rootLines.map((l) => ({ parentLineItemId: null, amount: l.amount, budgetPercentage: l.budgetPercentage })))
     const totalVendorAmount = Math.round(rootLines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100
-    const totalVariance = Math.round(rootLines.reduce((s, l) => s + (l._rawVariance ?? 0), 0) * 100) / 100
+    // R67 D-26: null, not 0, when NO line carries any committed cost -- the
+    // tiles then read "Committed AED –" rather than a zero that looks like a
+    // measured figure. One costed line is enough to make the total real.
+    //
+    // Counted over ROOT lines only, per E-06 above: a weighted sub-task's
+    // committed cost is already inside its parent's, so folding both in would
+    // overstate the total exactly as it overstated the budget.
+    const costedLines = rootLines.filter((l) => l._rawCommitted !== null)
+    const totalCommitted = costedLines.length === 0 ? null : Math.round(costedLines.reduce((s, l) => s + (l._rawCommitted ?? 0), 0) * 100) / 100
+    const totalVariance = costedLines.length === 0 ? null : Math.round(costedLines.reduce((s, l) => s + (l._rawVariance ?? 0), 0) * 100) / 100
     // R67 lane I (WS-I item I-03): totalled once, at the end, over the raw
     // per-line values -- the same single-rounding rule the R48 gap-closure
     // note above established for totalBudget/totalVariance, so these totals
@@ -784,14 +1051,16 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     return {
       boqId: latest.id,
       boqTitle: latest.title,
-      lines: lines.map(({ _rawBudget, _rawVariance, ...line }) => line),
+      lines: lines.map(({ _rawBudget, _rawCommitted, _rawVariance, ...line }) => line),
       /** How many of `lines` are weighted sub-tasks folded into their parent for every total above. */
       subTaskLineCount: lines.length - rootLines.length,
       // null (not 0) when the BOQ has no lines at all: same "no scope defined"
       // signal the empty-project branch above returns.
       totalBudget,
       totalVendorAmount,
+      totalCommitted,
       totalVariance,
+      budgetRemaining: totalVariance,
       totalMaterialAmount,
       totalManpowerAmount,
       availableCategories,
@@ -805,6 +1074,13 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
       // they come from the same fold as the category-wise view, so a subtotal
       // and a category row can never disagree.
       categorySubtotals: aggregateRevenueBudgetActual(rbaLines, "category").rows,
+      // R67 D-26. Both counts describe `lines` as returned above -- which is
+      // still EVERY line, root and weighted sub-task alike -- so they remain
+      // exact descriptions of the array a caller receives. (The money totals
+      // above are root-only, per E-06, because adding a sub-task's amount to
+      // its parent's double-counts money; counting rows does not.)
+      linesOverBudget: lines.filter((l) => isLineOverBudget(l.variance)).length,
+      lineCount: lines.length,
     }
   })
 }
@@ -913,11 +1189,17 @@ export async function vendorCostReport(ctx: { orgId: string }, projectId: string
 // filter is exactly "how many people worked"), and totalCost is that same
 // day's real labour cost -- the row's own oracle ("trade-wise summary
 // returns correct headcount and cost for that date").
-export async function manpowerCostReport(ctx: { orgId: string }, projectId: string, date?: string, trade?: string) {
+// R67 D-31: dateFrom/dateTo added after date/trade so every existing positional
+// caller (the report dispatcher passes date and trade only) is untouched. `date`
+// stays the exact-day filter it has always been; the range is for the Manpower
+// panel's Today / This week / This month presets.
+export async function manpowerCostReport(ctx: { orgId: string }, projectId: string, date?: string, trade?: string, dateFrom?: string, dateTo?: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const conditions = [eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId)]
     if (date) conditions.push(eq(constructionAttendance.attendanceDate, date))
+    if (dateFrom) conditions.push(gte(constructionAttendance.attendanceDate, dateFrom))
+    if (dateTo) conditions.push(lte(constructionAttendance.attendanceDate, dateTo))
     if (trade) conditions.push(eq(constructionLabourRoster.trade, trade))
     const rows = await db.select({
       trade: constructionLabourRoster.trade,
@@ -1801,6 +2083,143 @@ export async function certifiedPayrollReport(ctx: { orgId: string }, projectId: 
   })
 }
 
+// R67 D-53 (audit R-181). Sumeet's report 4 is a DAILY manpower sheet:
+// trade-wise present/absent/half-day with that day's labour cost, and the
+// people behind each trade row. Neither existing report answers it:
+// attendanceReport() has no date filter at all (it aggregates a project's
+// whole history), and manpowerCostReport() is date-aware but returns only
+// cost and a worker-day count per trade -- no status split and no people.
+//
+// It is ONE function rather than a caller that awaits both, because both of
+// those open their own withTenantContext transaction and the app_runtime pool
+// is 5 connections wide (tenant-scoped.ts:31-38); chaining them would double
+// the transaction cost of the screen /labour already renders slowly. Nesting
+// them inside a third transaction is forbidden outright (programme decision
+// D-06). So: one transaction, one joined read of the day's marked rows, and
+// one vendor-name lookup for the companies that read mentions -- the grouping
+// itself is done by the pure aggregator below, which is what the unit test
+// exercises.
+export const UNCATEGORISED_TRADE_LABEL = "Uncategorised trade"
+
+export type ManpowerDailyPerson = {
+  /** The roster entry's id -- the person, not the attendance row. */
+  id: string
+  employeeCode: string | null
+  name: string
+  trade: string | null
+  company: string | null
+  dailyRate: number
+  status: string
+  /**
+   * What this person cost on this date. This is the attendance row's STORED
+   * dailyCost, which construction-labour-service.ts computed from the roster
+   * rate at the moment the day was marked (present x rate, half_day x rate/2,
+   * absent 0 -- ATTENDANCE_COST_MULTIPLIER). Re-deriving it here from today's
+   * dailyRate would retro-price a past day whenever a worker's rate changes,
+   * which is exactly the bug a stored cost exists to prevent.
+   */
+  cost: number
+}
+
+export type ManpowerDailyTradeRow = {
+  trade: string
+  present: number
+  absent: number
+  halfDay: number
+  headcount: number
+  cost: number
+}
+
+/**
+ * Pure: the day's marked people -> one row per trade plus the totals row.
+ *
+ * headcount is present + absent + halfDay, i.e. every person marked on the
+ * date, so an expanded trade always lists exactly `headcount` people. Trades
+ * sort alphabetically with the un-traded bucket LAST, never interleaved
+ * alphabetically as "U" -- it is not a trade, it is the absence of one.
+ */
+export function aggregateManpowerDailySummary(people: readonly ManpowerDailyPerson[]): {
+  rows: ManpowerDailyTradeRow[]
+  totals: ManpowerDailyTradeRow
+} {
+  const byTrade = new Map<string, ManpowerDailyTradeRow>()
+  for (const person of people) {
+    const trade = person.trade && person.trade.trim() !== "" ? person.trade.trim() : UNCATEGORISED_TRADE_LABEL
+    const row = byTrade.get(trade) ?? { trade, present: 0, absent: 0, halfDay: 0, headcount: 0, cost: 0 }
+    if (person.status === "present") row.present++
+    else if (person.status === "half_day") row.halfDay++
+    else if (person.status === "absent") row.absent++
+    row.headcount = row.present + row.absent + row.halfDay
+    row.cost = Math.round((row.cost + (Number.isFinite(person.cost) ? person.cost : 0)) * 100) / 100
+    byTrade.set(trade, row)
+  }
+
+  const rows = [...byTrade.values()].sort((a, b) => {
+    if (a.trade === UNCATEGORISED_TRADE_LABEL) return 1
+    if (b.trade === UNCATEGORISED_TRADE_LABEL) return -1
+    return a.trade.localeCompare(b.trade)
+  })
+
+  const totals = rows.reduce<ManpowerDailyTradeRow>(
+    (acc, row) => ({
+      trade: "Total",
+      present: acc.present + row.present,
+      absent: acc.absent + row.absent,
+      halfDay: acc.halfDay + row.halfDay,
+      headcount: acc.headcount + row.headcount,
+      cost: Math.round((acc.cost + row.cost) * 100) / 100,
+    }),
+    { trade: "Total", present: 0, absent: 0, halfDay: 0, headcount: 0, cost: 0 }
+  )
+
+  return { rows, totals }
+}
+
+export async function manpowerDailySummary(ctx: { orgId: string }, projectId: string, date?: string) {
+  await requireConstructionEnabled(ctx.orgId)
+  const attendanceDate = date ?? new Date().toISOString().slice(0, 10)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const marked = await db.select({
+      rosterId: constructionLabourRoster.id,
+      employeeCode: constructionLabourRoster.employeeCode,
+      name: constructionLabourRoster.name,
+      trade: constructionLabourRoster.trade,
+      vendorId: constructionLabourRoster.vendorId,
+      dailyRate: constructionLabourRoster.dailyRate,
+      status: constructionAttendance.status,
+      dailyCost: constructionAttendance.dailyCost,
+    }).from(constructionAttendance)
+      .innerJoin(constructionLabourRoster, eq(constructionAttendance.rosterId, constructionLabourRoster.id))
+      .where(and(
+        eq(constructionAttendance.orgId, ctx.orgId),
+        eq(constructionAttendance.projectId, projectId),
+        eq(constructionAttendance.attendanceDate, attendanceDate)
+      ))
+
+    // One lookup for every company mentioned, not one per worker.
+    const vendorIds = [...new Set(marked.map((row) => row.vendorId).filter((id): id is string => !!id))]
+    const vendorRows = vendorIds.length > 0
+      ? await db.select({ id: erpSuppliers.id, name: erpSuppliers.supplierName })
+        .from(erpSuppliers)
+        .where(and(eq(erpSuppliers.orgId, ctx.orgId), inArray(erpSuppliers.id, vendorIds)))
+      : []
+    const vendorName = new Map(vendorRows.map((v) => [v.id, v.name]))
+
+    const people: ManpowerDailyPerson[] = marked.map((row) => ({
+      id: row.rosterId,
+      employeeCode: row.employeeCode,
+      name: row.name,
+      trade: row.trade,
+      company: row.vendorId ? vendorName.get(row.vendorId) ?? null : null,
+      dailyRate: Number(row.dailyRate ?? 0),
+      status: row.status,
+      cost: Math.round(Number(row.dailyCost ?? 0) * 100) / 100,
+    })).sort((a, b) => a.name.localeCompare(b.name))
+
+    return { date: attendanceDate, ...aggregateManpowerDailySummary(people), people }
+  })
+}
+
 export const REPORT_REGISTRY = {
   "work-progress": workProgressReport,
   "weekly-project": weeklyProjectReport,
@@ -1813,6 +2232,9 @@ export const REPORT_REGISTRY = {
   "material-consumption": materialConsumptionReport,
   "vendor-cost": vendorCostReport,
   "manpower-cost": manpowerCostReport,
+  // R67 D-53: registered here so the Reports picker's "Attendance"/"Manpower
+  // Cost" entries and /labour?tab=summary reach the SAME function by name.
+  "manpower-daily-summary": manpowerDailySummary,
   "designer-timesheet": designerTimesheetReport,
   "designer-approval-status": designerApprovalStatusReport,
   "work-analysis": workAnalysisReport,
