@@ -6,7 +6,7 @@
 // construction-labour-service.ts's dailyCost-computed-at-write-time posture.
 import { constructionMaterials, constructionMaterialIssues, constructionMaterialReceipts, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, isNull, sql } from "drizzle-orm"
+import { and, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -286,7 +286,22 @@ export async function voidMaterialReceipt(
 // columns stored as strings (see createMaterialReceipt above) -- summed in
 // SQL, not fetched row-by-row and reduced in JS, so this scales the same way
 // that precedent does.
-export async function getMaterialCostReport(ctx: { orgId: string }, projectId: string) {
+/**
+ * R67 D-57 (audit R-186): `from`/`to` narrow the report to a received-date
+ * window, INCLUSIVE on both bounds (received_date is a date column, not a
+ * timestamp, so a `to` of today includes today's deliveries).
+ *
+ * The filter is applied in the same grouped aggregate, not by summing the
+ * whole ledger and subtracting: a Cost Report over a month must not get slower
+ * as a project's history grows, and the browser must never receive receipts it
+ * is only going to discard. Omitting both keeps the previous all-time
+ * behaviour exactly, so every existing caller is unaffected.
+ */
+export async function getMaterialCostReport(
+  ctx: { orgId: string },
+  projectId: string,
+  filters: { from?: string; to?: string } = {}
+) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const totals = await db.select({
       materialId: constructionMaterialReceipts.materialId,
@@ -298,10 +313,14 @@ export async function getMaterialCostReport(ctx: { orgId: string }, projectId: s
       // the one place the totals are produced -- so the Cost Report, the
       // master's "Received to date" and anything else reading this aggregate
       // can never disagree about whether a voided delivery counts.
+      // R67 D-57: the From/To window composes with that exclusion in the same
+      // predicate, so a windowed report still cannot count a voided delivery.
       .where(and(
         eq(constructionMaterialReceipts.orgId, ctx.orgId),
         eq(constructionMaterialReceipts.projectId, projectId),
-        isNull(constructionMaterialReceipts.voidedAt)
+        isNull(constructionMaterialReceipts.voidedAt),
+        ...(filters.from ? [gte(constructionMaterialReceipts.receivedDate, filters.from)] : []),
+        ...(filters.to ? [lte(constructionMaterialReceipts.receivedDate, filters.to)] : [])
       ))
       .groupBy(constructionMaterialReceipts.materialId)
 

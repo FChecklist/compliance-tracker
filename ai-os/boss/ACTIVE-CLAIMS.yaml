@@ -101,6 +101,24 @@ active:
         - src/app/api/v1/projexa/reports/[reportName]/route.ts (D-53) -- one extra
           `else if` branch forwarding ?date= for that report. No other report's
           behaviour changes.
+        - src/lib/services/schedule-service.ts (D-56) -- getGanttData() now stamps each
+          task with the BOQ line that owns its progress (attachBoqLinks(), pure and
+          tested), read INSIDE the transaction it already opens for the relations query,
+          never as a fourth parallel one. Additive field; every existing consumer is
+          unaffected.
+        - src/lib/services/construction-materials-service.ts (D-57) -- getMaterialCostReport()
+          takes an optional inclusive {from,to} received-date window, applied in the SAME
+          grouped aggregate as the existing void exclusion. Both omitted keeps the exact
+          previous all-time behaviour, so report-engine-service.ts's caller is unaffected.
+        - src/app/api/v1/construction/materials/cost-report/route.ts (D-57) -- forwards
+          ?from and ?to.
+
+      D-57 DEVIATION, declared: the item names erp-inventory-service.ts for the material
+      master DTO. That is the wrong service for this screen -- PROJEXA's
+      /api/materials/master proxies to /api/v1/construction/materials, i.e.
+      construction-materials-service.ts, which is where D-40 already put
+      receivedToDate/issuedToDate/onHand. Nothing was added to erp-inventory-service.ts;
+      an unused DTO field on a service this path never calls would be dead code.
 
       DECLARED OVERLAP, read before merging: the DDL for all of the above belongs to R67
       item I-02 ("Migrations: attendance batch key, roster codes and trades, material

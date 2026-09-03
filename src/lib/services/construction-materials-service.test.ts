@@ -554,3 +554,66 @@ describe("reorderLevel -- R67 D-40", () => {
     expect(cleared.reorderLevel).toBeNull()
   })
 })
+
+// ─────────────────────────── R67 D-57 (audit R-186) ─────────────────────────
+// The Cost Report's From/To window. Filtered in the same grouped aggregate, so
+// a month's report does not get slower as the project's history grows and the
+// browser never receives receipts it is only going to discard.
+describe("getMaterialCostReport From/To window -- R67 D-57", () => {
+  const AUGUST = receipt({ id: "rec-aug", receivedDate: "2026-08-10", quantity: "100", unitCost: "400" })
+  const SEPT_1 = receipt({ id: "rec-sep1", receivedDate: "2026-09-01", quantity: "50", unitCost: "435" })
+  const SEPT_30 = receipt({ id: "rec-sep30", receivedDate: "2026-09-30", quantity: "20", unitCost: "450" })
+
+  test("both bounds are INCLUSIVE -- a `to` of the last day includes that day's delivery", async () => {
+    await useMocks()
+    receiptRows = [AUGUST, SEPT_1, SEPT_30]
+    const { getMaterialCostReport } = await import("./construction-materials-service")
+
+    const september = await getMaterialCostReport({ orgId: ORG }, PROJECT, { from: "2026-09-01", to: "2026-09-30" })
+    const cement = september.find((r) => r.materialId === CEMENT.id)!
+    // 50 + 20, i.e. both September receipts and neither of August's.
+    expect(cement.totalQuantityReceived).toBe(70)
+    expect(cement.totalCost).toBe(50 * 435 + 20 * 450)
+  })
+
+  test("omitting both bounds keeps the previous all-time report exactly", async () => {
+    await useMocks()
+    receiptRows = [AUGUST, SEPT_1, SEPT_30]
+    const { getMaterialCostReport } = await import("./construction-materials-service")
+
+    const allTime = await getMaterialCostReport({ orgId: ORG }, PROJECT)
+    expect(allTime.find((r) => r.materialId === CEMENT.id)!.totalQuantityReceived).toBe(170)
+  })
+
+  test("one bound alone works: `from` is an open-ended window forward", async () => {
+    await useMocks()
+    receiptRows = [AUGUST, SEPT_1, SEPT_30]
+    const { getMaterialCostReport } = await import("./construction-materials-service")
+
+    const since = await getMaterialCostReport({ orgId: ORG }, PROJECT, { from: "2026-09-01" })
+    expect(since.find((r) => r.materialId === CEMENT.id)!.totalQuantityReceived).toBe(70)
+
+    const until = await getMaterialCostReport({ orgId: ORG }, PROJECT, { to: "2026-08-31" })
+    expect(until.find((r) => r.materialId === CEMENT.id)!.totalQuantityReceived).toBe(100)
+  })
+
+  test("a window that excludes everything returns NO rows, never rows of zero", async () => {
+    await useMocks()
+    receiptRows = [AUGUST, SEPT_1, SEPT_30]
+    const { getMaterialCostReport } = await import("./construction-materials-service")
+
+    expect(await getMaterialCostReport({ orgId: ORG }, PROJECT, { from: "2027-01-01", to: "2027-01-31" })).toEqual([])
+  })
+
+  test("the void exclusion still applies INSIDE the window -- the two filters compose", async () => {
+    await useMocks()
+    receiptRows = [
+      SEPT_1,
+      receipt({ id: "rec-sep2", receivedDate: "2026-09-02", quantity: "999", unitCost: "1", voidedAt: new Date("2026-09-03T00:00:00Z"), voidReason: "mis-keyed" }),
+    ]
+    const { getMaterialCostReport } = await import("./construction-materials-service")
+
+    const september = await getMaterialCostReport({ orgId: ORG }, PROJECT, { from: "2026-09-01", to: "2026-09-30" })
+    expect(september.find((r) => r.materialId === CEMENT.id)!.totalQuantityReceived).toBe(50)
+  })
+})
