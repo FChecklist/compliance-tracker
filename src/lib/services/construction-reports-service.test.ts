@@ -917,6 +917,192 @@ describe("workProgressReport with categoryFilter (R67 I-05, real code path)", ()
   })
 })
 
+// R67 lane D22 (item D-41): the Budget screen PROJEXA now renders at /budgets
+// prints Sumeet's own columns -- S.No | Category | Code | Description | Qty |
+// Rate | Amount | Budget % | Budget | Vendor | Vendor Amt | Material |
+// Manpower -- and deep-links each row back to /scope/{boqId}#line-{id}. Qty,
+// Rate, Unit and the BOQ's own identity were the parts this report could not
+// answer, so the screen would have had to load the whole BOQ a second time.
+// Exercised through the real boqBudgetVarianceReport() code path with only the
+// DB layer and the construction-enablement gate mocked, the same convention
+// the workProgressReport block above uses.
+describe("boqBudgetVarianceReport widened for the project Budget screen (R67 D-41)", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+    await mock.module("./construction-enablement-service", () => realEnablementService)
+  })
+
+  const BOQ = { id: "boq-9", projectId: "proj-1", title: "Fit-out BOQ", version: 2, status: "approved", createdAt: new Date("2026-08-01") }
+  const LINE_ITEMS = [
+    {
+      id: "li-1", itemCode: "R60SK", description: "R60 skiphop sub", category: "Civil",
+      quantity: "10", unit: "m2", rate: "650", amount: "6500", parentLineItemId: null,
+      budgetPercentage: "25", materialAmount: "900", manpowerAmount: "600",
+      vendorId: "sup-1", vendorAmount: "1700",
+    },
+    {
+      id: "li-2", itemCode: "GYP-1", description: "Ceiling grid", category: "Gypsum",
+      quantity: "4", unit: "m2", rate: "100", amount: "400", parentLineItemId: null,
+      budgetPercentage: "25", materialAmount: null, manpowerAmount: null,
+      vendorId: null, vendorAmount: null,
+    },
+  ]
+
+  // R67 lane D22 (item D-54): boqBudgetVarianceReport now runs TWO db.select()
+  // chains -- the supplier-name lookup (.from().where()) and the interim-bill
+  // revenue rollup (.from().innerJoin().where().groupBy()). One thenable
+  // builder answers both shapes, handing back the next queued result set in
+  // call order, so a test can say what each query returns without pretending
+  // to be Drizzle.
+  function selectStub(resultsInCallOrder: unknown[][]) {
+    let call = -1
+    return () => {
+      call += 1
+      const rows = resultsInCallOrder[call] ?? []
+      const builder: Record<string, unknown> = {}
+      const step = () => builder
+      builder.from = step
+      builder.innerJoin = step
+      builder.where = step
+      builder.groupBy = step
+      builder.then = (onOk: (v: unknown) => unknown, onErr?: (e: unknown) => unknown) => Promise.resolve(rows).then(onOk, onErr)
+      return builder
+    }
+  }
+
+  async function runBudgetVariance(boqs: unknown[] = [BOQ], lineItems: unknown[] = LINE_ITEMS, billedRows: unknown[] = []) {
+    const fakeDb = {
+      query: {
+        constructionBoqs: { findMany: mock(async () => boqs) },
+        constructionBoqLineItems: { findMany: mock(async () => lineItems) },
+      },
+      select: selectStub([[{ id: "sup-1", name: "Skiphop Interiors" }], billedRows]),
+    }
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablementService,
+      requireConstructionEnabled: mock(async () => {}),
+    }))
+    const { boqBudgetVarianceReport } = await import("./construction-reports-service")
+    return boqBudgetVarianceReport({ orgId: "org-budget-test" }, "proj-1")
+  }
+
+  test("every line carries the Sumeet columns the Budget screen prints -- quantity, unit, rate, category and the material/manpower split", async () => {
+    const result = await runBudgetVariance()
+    expect(result.lines[0]).toMatchObject({
+      lineItemId: "li-1", code: "R60SK", description: "R60 skiphop sub", category: "Civil",
+      quantity: 10, unit: "m2", rate: 650, amount: 6500,
+      budgetPercentage: 25, budget: 1625,
+      materialAmount: 900, manpowerAmount: 600,
+      // R67 integration: `variance` follows D-26's contract change -- it is
+      // BUDGET REMAINING (budget 1625 - committed 3200), not the original
+      // overspend figure (vendorAmount - budget) this lane was written against.
+      vendorName: "Skiphop Interiors", vendorAmount: 1700, variance: -1575,
+    })
+    // Numbers, not the numeric-as-string Drizzle hands back -- a screen that
+    // does arithmetic on these must never get "10" + "4" = "104".
+    expect(typeof result.lines[0].quantity).toBe("number")
+    expect(typeof result.lines[0].rate).toBe("number")
+  })
+
+  test("a line the QS has not split reads null for material/manpower, never a fabricated 0", async () => {
+    const result = await runBudgetVariance()
+    expect(result.lines[1].materialAmount).toBeNull()
+    expect(result.lines[1].manpowerAmount).toBeNull()
+  })
+
+  test("the report names the BOQ its lines came from, so each row can deep-link to /scope/{boqId}#line-{id}", async () => {
+    const result = await runBudgetVariance()
+    expect(result.boqId).toBe("boq-9")
+    expect(result.boqTitle).toBe("Fit-out BOQ")
+    expect(result.boqVersion).toBe(2)
+  })
+
+  test("a project with no BOQ answers the SAME keys, so the screen renders zeroes rather than NaN", async () => {
+    const result = await runBudgetVariance([], [])
+    // R67 integration: the empty shape is the union of what both lanes' screens
+    // read. Listed exactly rather than as a subset, because the whole point of
+    // this test is that a key present in the populated shape and missing here
+    // renders "NaN" on a project that has no BOQ yet.
+    expect(Object.keys(result).sort()).toEqual(
+      [
+        "boqId", "boqTitle", "boqVersion", "lines",
+        "totalBudget", "totalVendorAmount", "totalMaterialAmount", "totalManpowerAmount",
+        "totalCommitted", "totalVariance", "budgetRemaining",
+        "totalActual", "totalRevenue", "linesOverBudget", "lineCount", "note",
+      ].sort()
+    )
+    expect(result.boqId).toBeNull()
+    expect(result.lines).toEqual([])
+    expect(result.totalBudget).toBe(0)
+  })
+
+  test("the grand total ties to the per-line budgets, and moving one line's Budget % moves it by exactly that line's delta", async () => {
+    const before = await runBudgetVariance()
+    expect(before.totalBudget).toBe(1625 + 100)
+    expect(before.totalBudget).toBe(before.lines.reduce((s, l) => s + l.budget, 0))
+
+    mock.restore()
+    const at30 = await runBudgetVariance([BOQ], [{ ...LINE_ITEMS[0], budgetPercentage: "30" }, LINE_ITEMS[1]])
+    expect(at30.lines[0].budget).toBe(1950)
+    expect(at30.totalBudget - before.totalBudget).toBe(325)
+  })
+
+  // R67 lane D22 (item D-54, rec R-183): the Scope > Budget tab prints
+  // ... | Vendor Amt | Material | Manpower | Actual | Revenue | Variance, and
+  // Actual/Revenue are the two the report could not answer. Actual is the
+  // vendor+material+manpower sum; Revenue is what the interim/RA bills raised
+  // on this BOQ have already billed against the line.
+  test("Actual is vendor + material + manpower, per line and in the total", async () => {
+    const result = await runBudgetVariance()
+    expect(result.lines[0].actual).toBe(1700 + 900 + 600)
+    expect(result.totalActual).toBe(3200)
+  })
+
+  test("a line nobody has costed reads Actual null, never a fabricated 0", async () => {
+    const result = await runBudgetVariance()
+    expect(result.lines[1].actual).toBeNull()
+    // ...and an uncosted line contributes nothing to the total rather than
+    // dragging it toward zero.
+    expect(result.totalActual).toBe(result.lines[0].actual)
+  })
+
+  test("Revenue is what the interim bills have billed against the line, summed across every bill", async () => {
+    const result = await runBudgetVariance([BOQ], LINE_ITEMS, [
+      { boqLineItemId: "li-1", total: "1200.50" },
+    ])
+    expect(result.lines[0].revenue).toBe(1200.5)
+    expect(result.totalRevenue).toBe(1200.5)
+  })
+
+  test("a line that has never been billed reads Revenue null -- 'not yet billed' is not 'billed nothing'", async () => {
+    const result = await runBudgetVariance([BOQ], LINE_ITEMS, [{ boqLineItemId: "li-1", total: "1200" }])
+    expect(result.lines[1].revenue).toBeNull()
+  })
+
+  // R67 integration, replacing this lane's "the original vendor-vs-budget
+  // `variance` is unchanged" test. It is NOT unchanged: D-26 (already on main)
+  // redefined `variance` as BUDGET REMAINING -- same name, opposite sign. The
+  // assertion is corrected to the merged contract rather than deleted, and the
+  // alias relationship both lanes' screens depend on is pinned with it.
+  test("`variance` is budget remaining (D-26's contract), and `actual` is exactly `committed` under Sumeet's name", async () => {
+    const result = await runBudgetVariance()
+    // budget 1625 - committed (1700 + 900 + 600) = -1575
+    expect(result.lines[0].variance).toBe(-1575)
+    expect(result.lines[0].budgetRemaining).toBe(result.lines[0].variance)
+    expect(result.lines[0].actual).toBe(result.lines[0].committed)
+    expect(result.totalActual).toBe(result.totalCommitted)
+    // A line nobody has costed is neither over nor under budget, on every name.
+    expect(result.lines[1].variance).toBeNull()
+    expect(result.lines[1].committed).toBeNull()
+    expect(result.lines[1].actual).toBeNull()
+  })
+})
+
 // R67 D-02 (audit R-004/R-009). budgetVsActual() reads
 // getProjectDashboard().budget, which is now `number | null` -- null when no
 // erp_budget_line_items row exists for the project's scope. `budget - actual`

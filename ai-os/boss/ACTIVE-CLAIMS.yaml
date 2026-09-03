@@ -40,6 +40,117 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (subagent, r67-lane-D22) -- PROGRAMME R67 workstream WS-D lane D22 (screens-work-progress), items D-41/D-48/D-49/D-52/D-54/D-58/D-60/D-63/D-64/D-68/D-75/D-76/D-77"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implementation programme R67,
+      lane D22 ("screens-work-progress"). Branch r67/d22-screens-work-progress, worktree
+      C:/ct/ct-worktrees/r67-D22 (compliance-tracker) + C:/ct/projexa-worktrees/r67-D22
+      (projexa).
+
+      DEPENDENCY, DISCLOSED: items D-41/D-49/D-54 declare dependsOn I-03/I-04/I-05, all of
+      which are already built on branch r67/i-data-migrations (the WS-I lane above) and not
+      yet merged to main. This branch therefore MERGES r67/i-data-migrations rather than
+      re-implementing any part of it -- material_amount/manpower_amount, the BOQ line
+      `category` column, pms_issue_boq_links and pms_issues.completion_source are consumed
+      here, never re-declared. No migration in drizzle/ is authored by this lane; if WS-I
+      merges first this branch's diff against main collapses to lane D22's own files only.
+
+      File scope in compliance-tracker (this lane's own changes only):
+        src/lib/services/construction-reports-service.ts (+ .test.ts) -- boqBudgetVarianceReport
+          widened with unit/quantity/rate/boqId/boqTitle and the material/revenue actuals
+        src/lib/services/construction-progress-service.ts (+ .test.ts) -- linked-issue
+          completion roll-up from BOQ work-progress entries (D-49)
+        src/lib/services/schedule-import-service.ts (new, + .test.ts) -- programme xlsx/csv
+          import parser (D-48)
+        src/lib/services/schedule-service.ts -- getGanttData projects completionSource/
+          lastProgressAt (D-49)
+        src/app/api/v1/projexa/schedule/import/route.ts (new)
+        src/app/api/v1/projexa/scope/import/route.ts -- dryRun preview flag (D-52/D-60)
+        src/lib/services/veri-meeting-service.ts (+ new .test.ts) -- live minutes and the
+          action items agreed in the room, carried on the create DTO (D-58)
+        src/lib/services/org-directory-service.ts (new, + .test.ts) -- the org directory
+          behind every people picker; ends "paste a known VERIDIAN user ID" (D-58)
+        src/lib/services/construction-boq-service.ts (+ .test.ts) -- searchable BOQ line
+          lookup by code/description with remaining quantity (D-64)
+        src/lib/services/construction-roster-import-service.ts (new, + .test.ts) -- labour
+          roster xlsx/csv import parser (D-68)
+        src/lib/pdf/meeting-minutes-pdf.ts (+ .test.ts) -- project name, the real agreed
+          action items, page numbers (D-58)
+        src/app/api/v1/projexa/org-users/route.ts (new), scope/lines/route.ts (new),
+          labour/import/route.ts (new), veri-meetings/route.ts and veri-meetings/[id]/pdf/
+          route.ts (D-58/D-64/D-68)
+        src/lib/services/org-directory-service.ts -- filterDirectoryRows(), the unit-provable
+          third layer of "only ever this org's own people", plus `ids` resolution so a screen
+          holding an id can print a name (D-75/D-77)
+        src/lib/services/construction-progress-service.ts (+ .test.ts) -- getProgressEntry()
+          and updateProgressEntry(): one entry, readable and correctable, with the linked
+          schedule activities rolled up on the same transaction (D-77)
+        src/app/api/v1/construction/progress/[id]/route.ts (new) and its
+          v1/projexa/work-progress/[id] alias (new) -- the endpoint the work-progress object
+          page needs; nothing single-entry was reachable from PROJEXA before (D-77)
+        docs/master/TEST_COVERAGE_GAP.md (regenerated; verified still current after D-75/D-77,
+          which added no new service file)
+        .gitattributes -- `*.ts`/`*.tsx text eol=lf` beside the existing drizzle/*.sql rule
+          (review fix: seven of this lane's files had been committed with CRLF from a Windows
+          worktree, five of them flipped from LF, producing ~2,300 lines of phantom diff; all
+          seven are renormalised and the attribute stops the class recurring)
+        src/lib/services/construction-progress-service.ts (+ .test.ts) -- deleteProgressEntry()
+          now rolls the linked activity back down on the same transaction and clears
+          completed_from_entry_id, so D-77's Delete button cannot leave the schedule asserting a
+          percentage derived from a deleted row (review fix)
+        src/lib/services/org-directory-service.ts (+ .test.ts) -- the search, the id resolution
+          and the cap moved INTO the query; the picker was reading the org's whole user table
+          per keystroke on a 5-connection pool (review fix)
+        src/lib/services/veri-meeting-service.ts (+ .test.ts) -- assertAssigneesInOrg() on both
+          action-item write paths, so tasks.userId cannot be handed an id from another org
+          (review fix)
+
+      File scope in projexa: src/app/(app)/budgets/**, src/app/(app)/accounting/annual-budgets/**,
+        src/app/(app)/scope/import/**, src/app/(app)/schedule/import/**,
+        src/components/BudgetProjectClient.tsx, ScopeImportClient.tsx, ScheduleImportClient.tsx,
+        CostVarianceAnalyticalClient.tsx, ScopeClient.tsx, ScopeObjectClient.tsx,
+        ScheduleTaskObjectClient.tsx, MoM*Client.tsx, WorkProgress*Client.tsx,
+        ScopeCreateClient.tsx, src/app/(app)/labour/import/**,
+        src/components/{SearchSelect,ShareSheet,AttendeesField,OrgUserPicker,ImportScreen}.tsx
+        (+ their .test.ts), src/components/screens/{ScreenFrame,ObjectScreen}.tsx (the D-09
+        fork -- the ui-kit source is not on this machine and must not be edited in
+        node_modules), src/lib/{mom-draft,boq-line-options,boq-list,mom-format}.ts (+ tests),
+        src/app/api/{org/users,scope/lines,labour/import,work-progress/[id]}/route.ts,
+        src/app/(app)/work-progress/[id]/page.tsx and
+        src/components/WorkProgressEntryObjectClient.tsx (+ .test.ts) (D-77),
+        src/components/{ScheduleBoardClient,ScheduleSprintsClient,ScheduleTimesheetClient}.tsx
+        (only the ?from= tab a task's Back returns to, D-77),
+        src/lib/authz/api-write-policy.ts (the /work-progress/[id] tier, D-77),
+        src/lib/nav-routes.ts (+ .test.ts), src/components/AppSidebar.tsx, messages/*.json.
+
+      Review fixes in projexa (same lane, same branch): src/lib/money.ts + money.test.ts
+        DELETED and their four callers moved onto lane G's merged src/lib/format-money.ts /
+        use-org-money.ts; boqStatusPill() removed from src/lib/boq-list.ts in favour of WS-G's
+        src/components/ui/status-pill.tsx, leaving only BOQ_SEMANTIC_STATUS (this backend's own
+        status words); the four raw NUL bytes taken out of MoMObjectClient.tsx (they made the
+        file invisible to grep and one paragraph away from git treating it as binary);
+        ImportScreen gained mappingDisabledReason so /schedule/import stops offering a dropdown
+        its parser cannot honour; and three new sibling tests -- screens/ObjectScreen.test.tsx
+        and screens/ScreenFrame.test.tsx (BOTH halves of the D-09 fork now pin their own
+        contract: the header-actions slot and the suppressed footer Edit on one side, the three
+        built-in list actions, the replace-not-join rule and the never-vanishing footer on the
+        other) and BudgetLineCells.test.tsx (the inline-save state machine three screens share).
+        Also src/lib/{module-catalogue,card-catalogue}.ts, whose "New budget" leaf pointed at
+        /budgets/new -- a route D-41 removed; and src/lib/footer-message.test.ts, which passed
+        alone and failed all 8 of its tests in the full suite, because `bun test` shares one
+        process across files unless --isolate is passed and a sibling installs a DOM whose
+        sessionStorage is a READONLY accessor -- installed with Object.defineProperty now, and
+        the original descriptor restored as a descriptor.
+
+      This branch MERGES projexa origin/main at a4e2f6d (#229 lane G, #230 WS-I, #231 lane A).
+        projexa #232 and compliance-tracker #1578 (both lane B) landed after that resolution was
+        made and verified and are NOT included; integration handles them.
+
+      NOT touching: drizzle/** (no migration authored by this lane), platform.* tables, the
+      ui-kit (D-09: fork into projexa instead), src/lib/pipeline/**, or any guardrail
+      script's strictness (AGENTS.md Rule 9). AGENTS.md Rule 12: the six ai-os/memory/
+      indexes were checked before broad search (the programme's own repo_map.md, produced by
   - session_label: "claude-code (subagent, r67/f1-performance-1) -- PROGRAMME R67 lane F1 (WS-F performance), items F-01..F-17: the compliance-tracker half of PROJEXA's latency work"
     claimed_at: "2026-09-02T (this session)"
     claim: |

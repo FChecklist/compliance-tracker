@@ -13,3 +13,15 @@
 # scripts/check-migration-integrity.mjs for the CI-side enforcement this
 # pairs with.
 drizzle/*.sql text eol=lf
+
+# R67 lane D22 review finding: seven TypeScript files were committed with CRLF
+# from a Windows worktree (this repo sets core.autocrlf=false, so the bytes an
+# editor writes are the bytes that land in the object store). Five of them had
+# been LF before, so every untouched line read as a delete plus an add -- ~2,300
+# lines of phantom diff that hid the real change from review and turned three
+# hot services into whole-file conflicts git cannot 3-way merge for any parallel
+# lane. Forcing LF for source files makes the checkout convention of whoever
+# authored a change irrelevant, exactly as the drizzle rule above does for
+# migrations.
+*.ts text eol=lf
+*.tsx text eol=lf
