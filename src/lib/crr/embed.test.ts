@@ -47,9 +47,10 @@ const realEmbed: EmbedFn = async (text: string) => ({
   // a real, non-degenerate 4-dim numeric array so assertions on shape/values
   // are meaningful rather than checking a hardcoded constant.
   vector: [text.length, text.charCodeAt(0) || 0, 0.5, -0.25],
+  model: "openai/text-embedding-3-small",
 })
 
-const hashPseudoEmbed: EmbedFn = async () => ({ isReal: false, vector: [0, 0, 0] })
+const hashPseudoEmbed: EmbedFn = async () => ({ isReal: false, vector: [0, 0, 0], model: "hash-pseudo-vector" })
 
 describe("storeChunkEmbedding", () => {
   test("persists a real chunk row: is_real=true, embedding cast to ::vector, content/offsets passed through", async () => {
@@ -69,8 +70,9 @@ describe("storeChunkEmbedding", () => {
     expect(strings.join("")).toContain("::vector")
     // Positional values, in the exact order the INSERT's ${...} interpolations
     // appear: source_object_id, org_id, seq, char_start, char_end, content,
-    // content_hash, token_estimate, embedding literal (is_real is a literal
-    // `true` in the SQL text itself, not interpolated -- see embed.ts).
+    // content_hash, token_estimate, embedding literal, embedding_model, dim
+    // (is_real is a literal `true` in the SQL text itself, not interpolated
+    // -- see embed.ts).
     expect(values[0]).toBe("so_1")
     expect(values[1]).toBe("org_embed_1")
     expect(values[2]).toBe(3)
@@ -81,6 +83,10 @@ describe("storeChunkEmbedding", () => {
     expect((values[6] as string).length).toBe(64)
     expect(values[7]).toBeGreaterThan(0) // token_estimate
     expect(values[8]).toBe("[11,104,0.5,-0.25]") // the vector literal
+    // R68 Phase 5: embedding_model/dim, derived from the embed() result
+    // itself, not a caller-supplied argument.
+    expect(values[9]).toBe("openai/text-embedding-3-small")
+    expect(values[10]).toBe(4)
   })
 
   test("D-1: refuses to persist a hash pseudo-vector -- throws, and the sql client is never called", async () => {
@@ -149,7 +155,7 @@ describe("storeChunkEmbeddingsBatch", () => {
     const batchCalls: string[][] = []
     const embedBatch: BatchEmbedFn = async (texts) => {
       batchCalls.push(texts)
-      return texts.map((t) => ({ isReal: true, vector: [t.length, 0, 0] }))
+      return texts.map((t) => ({ isReal: true, vector: [t.length, 0, 0], model: "openai/text-embedding-3-small" }))
     }
 
     const result = await storeChunkEmbeddingsBatch(
@@ -172,7 +178,7 @@ describe("storeChunkEmbeddingsBatch", () => {
     const embedBatch: BatchEmbedFn = async (texts) => {
       // Content is "chunk content number N" -- record which N's were embedded.
       for (const t of texts) embeddedSeqs.push(Number(t.split(" ").pop()))
-      return texts.map(() => ({ isReal: true, vector: [1, 2, 3] }))
+      return texts.map(() => ({ isReal: true, vector: [1, 2, 3], model: "openai/text-embedding-3-small" }))
     }
 
     // Simulate a prior attempt that got 5 of 10 chunks (seq 0-4) written
@@ -192,7 +198,7 @@ describe("storeChunkEmbeddingsBatch", () => {
     let embedBatchCalls = 0
     const embedBatch: BatchEmbedFn = async (texts) => {
       embedBatchCalls++
-      return texts.map(() => ({ isReal: true, vector: [1] }))
+      return texts.map(() => ({ isReal: true, vector: [1], model: "openai/text-embedding-3-small" }))
     }
 
     const result = await storeChunkEmbeddingsBatch(
@@ -208,7 +214,7 @@ describe("storeChunkEmbeddingsBatch", () => {
   test("D-1 still applies per-item inside a batch: a hash pseudo-vector in the results throws and stops further writes in that batch", async () => {
     const { client, calls } = makeFakeSqlClient()
     const embedBatch: BatchEmbedFn = async (texts) =>
-      texts.map((_, i) => (i === 1 ? { isReal: false, vector: [0] } : { isReal: true, vector: [1, 2] }))
+      texts.map((_, i) => (i === 1 ? { isReal: false, vector: [0], model: "hash-pseudo-vector" } : { isReal: true, vector: [1, 2], model: "openai/text-embedding-3-small" }))
 
     await expect(
       storeChunkEmbeddingsBatch(
@@ -222,7 +228,7 @@ describe("storeChunkEmbeddingsBatch", () => {
 
   test("throws when the provider returns a different number of vectors than chunks in the batch", async () => {
     const { client } = makeFakeSqlClient()
-    const embedBatch: BatchEmbedFn = async () => [{ isReal: true, vector: [1] }] // 1 result for 3 chunks
+    const embedBatch: BatchEmbedFn = async () => [{ isReal: true, vector: [1], model: "openai/text-embedding-3-small" }] // 1 result for 3 chunks
 
     await expect(
       storeChunkEmbeddingsBatch(

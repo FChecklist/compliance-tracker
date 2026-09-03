@@ -36,6 +36,29 @@ function getRawClient() {
 // `vector(1536)` column with zero schema change). Tried first now, ahead of
 // the Groq path, which is kept only for the case a BYOK caller explicitly
 // passes a Groq key.
+//
+// CORRECTION, R68 Phase 5 (2026-09-04): the paragraph above is STALE and
+// WRONG about GROQ_API_KEY. Verified live via `vercel env ls production` on
+// veridian-compliance-ai: GROQ_API_KEY has in fact been set on
+// Production/Preview/Development for 56 days as of this correction --
+// matching this repo's own veridian_app_secrets memory note (key added
+// 2026-07-10, closing exactly the gap this comment claims was never closed).
+// Practical effect: the Groq fallback below has been a live, reachable
+// code path (not dead code) for essentially this whole table's history,
+// firing whenever OpenRouter's call failed or was unreachable. Written here
+// because this phase's own embedding_model backfill (see drizzle/0545)
+// needed to determine real provenance for existing is_real=true rows and
+// found this contradiction -- with no column/log recording which provider
+// actually produced any given historical row, that provenance is NOT
+// recoverable after the fact, and 0545 backfills those rows as
+// 'unknown-legacy' rather than guessing OpenRouter from this comment's
+// (incorrect) claim that Groq could never have run.
+const OPENROUTER_EMBEDDING_MODEL = "openai/text-embedding-3-small";
+const GROQ_EMBEDDING_MODEL = "groq/nomic-embed-text";
+// R68 Phase 5: exported so storeEmbedding/storeChunkEmbedding's backfill-era
+// rows (drizzle/0545) and any future write agree on the exact same label for
+// "not a real embedding at all" -- never guessed as a provider/model name.
+export const HASH_PSEUDO_VECTOR_MODEL = "hash-pseudo-vector";
 async function tryOpenRouterEmbedding(text: string): Promise<number[] | null> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) return null;
@@ -117,12 +140,19 @@ export async function generateEmbedding(
 // compliance.document_chunk rows, instead of forking a second copy of this
 // same provider-selection logic. Was previously module-private -- this is
 // the first cross-module consumer.
+//
+// R68 Phase 5: `model` is a new field on the return shape (was
+// `{ vector, isReal }` only) -- the caller-facing label persisted verbatim
+// into compliance.embeddings.embedding_model / document_chunk.embedding_model
+// by storeEmbedding/storeChunkEmbedding, and the value findSimilar() compares
+// its own query vector's model against so it never scores a query vector
+// against a stored vector from a different embedding space.
 export async function generateEmbeddingUncached(
   text: string,
   apiKey?: string
-): Promise<{ vector: number[]; isReal: boolean }> {
+): Promise<{ vector: number[]; isReal: boolean; model: string }> {
   const openRouterResult = await tryOpenRouterEmbedding(text);
-  if (openRouterResult) return { vector: openRouterResult, isReal: true };
+  if (openRouterResult) return { vector: openRouterResult, isReal: true, model: OPENROUTER_EMBEDDING_MODEL };
 
   const key = apiKey || process.env.GROQ_API_KEY;
   if (key) {
@@ -141,7 +171,7 @@ export async function generateEmbeddingUncached(
 
       if (res.ok) {
         const data = await res.json();
-        return { vector: data.data[0].embedding as number[], isReal: true };
+        return { vector: data.data[0].embedding as number[], isReal: true, model: GROQ_EMBEDDING_MODEL };
       }
       console.warn("Groq embedding API returned", res.status, "— using fallback");
     } catch (err) {
@@ -151,7 +181,7 @@ export async function generateEmbeddingUncached(
 
   // Last resort: deterministic hash-based pseudo-embedding (1536 dimensions)
   console.warn("No real embedding provider available (OpenRouter and Groq both unavailable) — using hash-based pseudo-vector. Semantic search quality will be degraded.");
-  return { vector: hashToVector(text, 1536), isReal: false };
+  return { vector: hashToVector(text, 1536), isReal: false, model: HASH_PSEUDO_VECTOR_MODEL };
 }
 
 // CRR-081 (P3-BRIDGE): batches N texts into ONE HTTP call to the embeddings
@@ -172,11 +202,11 @@ export async function generateEmbeddingUncached(
 export async function generateEmbeddingsBatchUncached(
   texts: string[],
   apiKey?: string
-): Promise<{ vector: number[]; isReal: boolean }[]> {
+): Promise<{ vector: number[]; isReal: boolean; model: string }[]> {
   if (texts.length === 0) return [];
 
   const openRouterResult = await tryOpenRouterEmbeddingBatch(texts);
-  if (openRouterResult) return openRouterResult.map((vector) => ({ vector, isReal: true }));
+  if (openRouterResult) return openRouterResult.map((vector) => ({ vector, isReal: true, model: OPENROUTER_EMBEDDING_MODEL }));
 
   const key = apiKey || process.env.GROQ_API_KEY;
   if (key) {
@@ -197,7 +227,7 @@ export async function generateEmbeddingsBatchUncached(
         const data = await res.json();
         const rows = [...data.data].sort((a: { index: number }, b: { index: number }) => a.index - b.index);
         if (rows.length === texts.length) {
-          return rows.map((r: { embedding: number[] }) => ({ vector: r.embedding, isReal: true }));
+          return rows.map((r: { embedding: number[] }) => ({ vector: r.embedding, isReal: true, model: GROQ_EMBEDDING_MODEL }));
         }
         console.warn(`Groq batch embedding API returned ${rows.length} vectors for ${texts.length} inputs — using fallback`);
       } else {
@@ -210,7 +240,7 @@ export async function generateEmbeddingsBatchUncached(
 
   // Last resort: deterministic hash-based pseudo-embedding, one per text.
   console.warn(`No real embedding provider available for a batch of ${texts.length} texts (OpenRouter and Groq both unavailable) — using hash-based pseudo-vectors. Semantic search quality will be degraded.`);
-  return texts.map((text) => ({ vector: hashToVector(text, 1536), isReal: false }));
+  return texts.map((text) => ({ vector: hashToVector(text, 1536), isReal: false, model: HASH_PSEUDO_VECTOR_MODEL }));
 }
 
 async function tryOpenRouterEmbeddingBatch(texts: string[]): Promise<number[][] | null> {
@@ -351,8 +381,12 @@ export async function storeEmbedding(
     // lives in the `extensions` schema (verified live) and app_runtime has
     // no search_path override, so a bare cast does not resolve on a fresh
     // connection/transaction.
+    // R68 Phase 5: embedding_model/dim derived from generateEmbeddingUncached's
+    // own return (which branch of the provider chain actually ran, per this
+    // file's isReal logic just above) -- never a new required parameter, so
+    // every existing caller of storeEmbedding keeps working unchanged.
     await tx`
-      INSERT INTO compliance.embeddings (id, entity_type, entity_id, content_hash, content, org_id, embedding, is_real, is_platform_scope, created_at)
+      INSERT INTO compliance.embeddings (id, entity_type, entity_id, content_hash, content, org_id, embedding, is_real, is_platform_scope, embedding_model, dim, created_at)
       VALUES (
         gen_random_uuid()::text,
         ${entityType},
@@ -363,10 +397,46 @@ export async function storeEmbedding(
         ${vectorStr}::extensions.vector,
         ${result.isReal},
         ${isPlatformScope},
+        ${result.model},
+        ${result.vector.length},
         NOW()
       )
     `;
   });
+}
+
+// R68 Phase 5: the row shape findSimilar's own SQL returns, and the
+// injectable-client boundary a test can fake against real, filtered fixture
+// data instead of a live Postgres connection -- same DI style
+// src/lib/crr/embed.ts already established for its own raw-SQL writes
+// (deps.embed / deps.sqlClient), not mock.module().
+export type FindSimilarRow = { entity_type: string; entity_id: string; content: string; score: number };
+export type FindSimilarClient = (args: { vectorStr: string; orgId: string; model: string; limit: number }) => Promise<FindSimilarRow[]>;
+
+async function defaultFindSimilarClient({ vectorStr, orgId, model, limit }: { vectorStr: string; orgId: string; model: string; limit: number }): Promise<FindSimilarRow[]> {
+  const client = getRawClient();
+  // Wave 43 (Capability Registry): also match is_platform_scope rows -- e.g.
+  // moduleRegistry entries are platform-wide, not org-scoped, and were
+  // previously silently excluded from every org-scoped search. Zero
+  // behavior change for the existing compliance-item caller (compliance
+  // items are always org-scoped already, never platform-scope).
+  //
+  // R68 Phase 5: `e.embedding_model = ${model}` is the new clause -- without
+  // it, a query vector from one embedding space (e.g. OpenRouter's
+  // text-embedding-3-small) was compared via pgvector's <=> operator against
+  // EVERY is_real row regardless of which model produced it. pgvector never
+  // errors on that -- it happily returns a numeric cosine distance for two
+  // same-length vectors from unrelated spaces -- so this was a silent
+  // architectural bug (meaningless scores ranked as if comparable), not a
+  // crash. Restricting to the query's own model closes it.
+  return client`
+    SELECT e.entity_type, e.entity_id, e.content,
+           1 - (e.embedding <=> ${vectorStr}::vector) as score
+    FROM compliance.embeddings e
+    WHERE (e.org_id = ${orgId} OR e.is_platform_scope = true) AND e.is_real = true AND e.embedding_model = ${model}
+    ORDER BY e.embedding <=> ${vectorStr}::vector
+    LIMIT ${limit}
+  ` as unknown as Promise<FindSimilarRow[]>;
 }
 
 /**
@@ -380,11 +450,26 @@ export async function storeEmbedding(
  * registry etc.) surface for every org is replaced by the explicit
  * is_platform_scope flag (CRR-019), which only true intent -- not a leak
  * path -- can set.
+ *
+ * R68 Phase 5: calls generateEmbeddingUncached directly (deps.embedQuery),
+ * NOT the cached generateEmbedding() -- the exact-match cache
+ * (compliance.embedding_cache) is keyed on content_hash alone and does not
+ * record which provider/model produced a cached vector, so a cache hit here
+ * would leave findSimilar unable to know which embedding_model its own query
+ * vector belongs to (the exact thing this function now needs to filter
+ * correctly, see defaultFindSimilarClient above). This trades away the
+ * cache's round-trip savings specifically for findSimilar's own query
+ * embedding -- storeEmbedding/storeChunkEmbedding writes and every other
+ * generateEmbedding() caller are unaffected.
  */
 export async function findSimilar(
   query: string,
   orgId: string,
-  limit: number = 10
+  limit: number = 10,
+  deps: {
+    embedQuery?: (text: string) => Promise<{ vector: number[]; model: string }>;
+    searchClient?: FindSimilarClient;
+  } = {}
 ): Promise<{
   entityType: string;
   entityId: string;
@@ -394,29 +479,17 @@ export async function findSimilar(
   if (!orgId) {
     throw new Error("findSimilar: orgId is required -- an unscoped vector search is a cross-tenant leak, not a feature");
   }
-  const queryVector = await generateEmbedding(query);
-  const vectorStr = `[${queryVector.join(",")}]`;
+  const embedQuery = deps.embedQuery ?? ((text: string) => generateEmbeddingUncached(text));
+  const queryResult = await embedQuery(query);
+  const vectorStr = `[${queryResult.vector.join(",")}]`;
 
-  const client = getRawClient();
-
-  // Wave 43 (Capability Registry): also match is_platform_scope rows -- e.g.
-  // moduleRegistry entries are platform-wide, not org-scoped, and were
-  // previously silently excluded from every org-scoped search. Zero
-  // behavior change for the existing compliance-item caller (compliance
-  // items are always org-scoped already, never platform-scope).
-  const rows = await client`
-    SELECT e.entity_type, e.entity_id, e.content,
-           1 - (e.embedding <=> ${vectorStr}::vector) as score
-    FROM compliance.embeddings e
-    WHERE (e.org_id = ${orgId} OR e.is_platform_scope = true) AND e.is_real = true
-    ORDER BY e.embedding <=> ${vectorStr}::vector
-    LIMIT ${limit}
-  `;
+  const searchClient = deps.searchClient ?? defaultFindSimilarClient;
+  const rows = await searchClient({ vectorStr, orgId, model: queryResult.model, limit });
   return rows.map((r) => ({
-    entityType: r.entity_type as string,
-    entityId: r.entity_id as string,
+    entityType: r.entity_type,
+    entityId: r.entity_id,
     score: Number(r.score),
-    content: r.content as string,
+    content: r.content,
   }));
 }
 
