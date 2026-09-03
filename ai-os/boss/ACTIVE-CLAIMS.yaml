@@ -131,10 +131,17 @@ active:
         status words); the four raw NUL bytes taken out of MoMObjectClient.tsx (they made the
         file invisible to grep and one paragraph away from git treating it as binary);
         ImportScreen gained mappingDisabledReason so /schedule/import stops offering a dropdown
-        its parser cannot honour; and two new sibling tests -- screens/ObjectScreen.test.tsx
-        (the D-09 fork's own contract) and BudgetLineCells.test.tsx (the inline-save state
-        machine three screens share). Also src/lib/{module-catalogue,card-catalogue}.ts, whose
-        "New budget" leaf pointed at /budgets/new -- a route D-41 removed.
+        its parser cannot honour; and three new sibling tests -- screens/ObjectScreen.test.tsx
+        and screens/ScreenFrame.test.tsx (BOTH halves of the D-09 fork now pin their own
+        contract: the header-actions slot and the suppressed footer Edit on one side, the three
+        built-in list actions, the replace-not-join rule and the never-vanishing footer on the
+        other) and BudgetLineCells.test.tsx (the inline-save state machine three screens share).
+        Also src/lib/{module-catalogue,card-catalogue}.ts, whose "New budget" leaf pointed at
+        /budgets/new -- a route D-41 removed; and src/lib/footer-message.test.ts, which passed
+        alone and failed all 8 of its tests in the full suite, because `bun test` shares one
+        process across files unless --isolate is passed and a sibling installs a DOM whose
+        sessionStorage is a READONLY accessor -- installed with Object.defineProperty now, and
+        the original descriptor restored as a descriptor.
 
       This branch MERGES projexa origin/main at a4e2f6d (#229 lane G, #230 WS-I, #231 lane A).
         projexa #232 and compliance-tracker #1578 (both lane B) landed after that resolution was
