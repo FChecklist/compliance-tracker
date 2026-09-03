@@ -249,6 +249,14 @@ export async function createExpenseEntry(ctx: { orgId: string; userId: string },
     // avoids extending that shared engine's condition grammar.
     void import("./construction-dashboard-service").then(({ getProjectDashboard }) =>
       getProjectDashboard({ orgId: ctx.orgId }, row.projectId).then((dashboard) => {
+        // R67 E-06 (R-108): dashboard.budget is now the BOQ-derived budget and
+        // is null (not 0) when the project has no BOQ. The threshold is
+        // unchanged -- "there is a budget, and spend has passed it" -- but it
+        // is now measured against the figure a QS actually maintains, instead
+        // of an ERP ledger row a construction org typically never fills in,
+        // which is why this alert could not fire before. budgetExceeded() is
+        // D-02's own extraction of this exact predicate (kept: it is the same
+        // rule, unit-tested independently of the DB).
         if (budgetExceeded(dashboard.budget, dashboard.expenses)) {
           void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
             evaluateAndRunRules({ orgId: ctx.orgId }, "construction_expense.budget_exceeded", {

@@ -84,18 +84,60 @@ const CONSTRUCTION_REPORT_META: { id: string; name: string; description: string;
 
 const CONSTRUCTION_ROUTE_NOTE = "Real, auth-required API endpoint (GET /api/construction/reports/<reportName>?projectId=<id>, also aliased at /api/v1/projexa/reports/<reportName> for API-key callers) -- returns real DB-backed JSON. No dedicated UI page renders it yet, so there is nothing to navigate straight to without already knowing a projectId (and, for weekly-project and certified-payroll, a weekStart)."
 
+// R67 E-04 (R-079). CONSTRUCTION_ROUTE_NOTE's "No dedicated UI page renders it
+// yet" stopped being true for the Work Progress Report: PROJEXA renders it at
+// /work-progress?tab=report in 2.7 s with exports, and per binding decision
+// D-02 that is now its ONE destination. Leaving the note as it was is what
+// made the Full Catalog card say "Not yet viewable here" about a report the
+// user had just run -- the third of the three contradicting answers R-079
+// records. This map is the catalog's own statement of where a report runs, so
+// the correction belongs here rather than only in PROJEXA's badge.
+//
+// VERIFIED, not assumed: `SELECT id, status FROM compliance.report_definitions
+// WHERE name ILIKE '%work progress%'` returned ZERO rows on the live database
+// (pcrjmlpuqsbocqfwoxod, 2026-09-03). The construction catalog entries are
+// STATIC rows built here in code, not report_definitions data, so this
+// correction is a code change and there is no data migration to ship. Site
+// Picture keeps the generic note deliberately -- it has no PROJEXA view yet,
+// and claiming one would recreate the same lie in the other direction.
+const PROJEXA_HOSTED_REPORTS: Record<string, { route: string; routeNote: string }> = {
+  "work-progress": {
+    route: "/work-progress?tab=report",
+    routeNote:
+      "Runs in PROJEXA: Work Progress > Report. Reads projectId/from/to/view from the URL and runs on arrival, with PDF, XLSX, CSV and an expiring share link. The API endpoint GET /api/construction/reports/work-progress?projectId=<id> stays available for API callers.",
+  },
+  // R67 E-16 (R-150). The four Budget-vs-Actual breakdowns designerTimesheetReport
+  // has computed since PR #597 -- by category, by designer, by project, by
+  // designer status -- were reachable only by calling the API by hand: no PROJEXA
+  // screen rendered any of them, and this catalog said so. Design Studio > Cost
+  // Analysis renders all four, so the catalog now names that screen. Its own
+  // period (from/to, defaulting to the current month) is part of the route.
+  "designer-timesheet": {
+    // Tab-shaped, like the Work Progress entry above and for the same reason:
+    // the screen is a TAB on a real module route, so this is the URL that
+    // actually opens it. A "/design-studio/cost-analysis" path would name a
+    // route that does not exist.
+    route: "/design-studio?tab=cost-analysis",
+    routeNote:
+      "Runs in PROJEXA: Design Studio > Cost Analysis. Reads projectId/from/to from the URL and runs on arrival, rendering Budget vs Actual by category, by designer, by project and by designer status, with server-rendered PDF/XLSX/CSV export. The API endpoint GET /api/construction/reports/designer-timesheet?projectId=<id>[&from&to] stays available for API callers.",
+  },
+}
+
 const CONSTRUCTION_ENTRIES: ReportCatalogEntry[] = CONSTRUCTION_REPORT_META.map(({ id, name, description, classifications }) => {
   const reportName = id.replace(/^construction-/, "")
+  const hosted = PROJEXA_HOSTED_REPORTS[reportName]
   return {
     id,
     name,
     description,
     domain: "construction",
     sourceService: `src/lib/services/construction-reports-service.ts#REPORT_REGISTRY["${reportName}"]`,
-    outputFormats: ["JSON (API only, no dedicated UI page yet)"],
-    route: `/api/construction/reports/${reportName}`,
-    routeNote: CONSTRUCTION_ROUTE_NOTE,
-    directlyNavigable: false,
+    outputFormats: hosted ? ["on-screen table", "PDF", "XLSX", "CSV"] : ["JSON (API only, no dedicated UI page yet)"],
+    route: hosted?.route ?? `/api/construction/reports/${reportName}`,
+    routeNote: hosted?.routeNote ?? CONSTRUCTION_ROUTE_NOTE,
+    // Navigable means "a user can go straight there and get the report" --
+    // true for the PROJEXA-hosted one, still false for the API-only rest.
+    directlyNavigable: Boolean(hosted),
     category: "software_report" as ReportCategory,
     classifications,
     periodicity: "on_demand",

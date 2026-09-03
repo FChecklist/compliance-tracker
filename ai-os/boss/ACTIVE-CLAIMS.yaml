@@ -40,6 +40,153 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (subagent, r67-lane-E1) -- PROGRAMME R67 workstream WS-E (reports-charts-1), items E-01..E-20"
+    claimed_at: "2026-09-03T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implementation programme R67,
+      lane E1 ("reports-charts-1"), items E-01..E-20 (all 20). Branch r67/e1-reports-charts-1,
+      worktree C:/ct/ct-worktrees/r67-E1 (compliance-tracker) +
+      C:/ct/projexa-worktrees/r67-E1 (projexa).
+
+      Rule 12 memory-index check performed before starting: read
+      C:/Users/Dell/.claude/.../memory/MEMORY.md (R67 programme entry, R66 audit handout,
+      PROJEXA-is-a-separate-app correction) plus the programme's own repo_map.md and
+      decisions.md (D-01..D-12) rather than a broad repo search.
+
+      Migration numbering verified live on this branch immediately before writing:
+      highest is drizzle/0532_r67_i05_boq_line_category.sql, journal idx 354 (lane I's
+      range).
+
+      THIS LANE SHIPS NO MIGRATION, and 0533 stays free for whoever needs it next.
+      Item E-04 was flagged needsMigration:true on the premise that the Work Progress
+      Report's row in compliance.report_definitions had to be updated. That premise is
+      false: SELECT id, status FROM compliance.report_definitions WHERE name ILIKE
+      '%work progress%' returns ZERO rows live on pcrjmlpuqsbocqfwoxod (verified
+      2026-09-03, recorded at report-catalog-service.ts:96-99). The construction report
+      catalog is static code in that service, so E-04 is a code change with nothing to
+      migrate -- writing a 0533 would have reserved a number for an UPDATE against a row
+      that does not exist.
+
+      File scope in compliance-tracker:
+        src/lib/services/construction-dashboard-service.ts (+ .test.ts)
+        src/lib/services/construction-reports-service.ts (+ .test.ts)
+        src/lib/services/construction-materials-service.ts (+ NEW .test.ts)
+        src/app/api/v1/projexa/dashboard/route.ts
+        src/app/api/v1/construction/materials/cost-report/route.ts
+        src/app/api/v1/construction/materials/cost-report/export/route.ts (NEW)
+        (no drizzle/ file -- see the migration note above; 0533 is NOT taken by this lane)
+        docs/master/TEST_COVERAGE_GAP.md (regenerated)
+        --- added for items E-06..E-10 (2026-09-03) ---
+        src/app/api/v1/projexa/reports/[reportName]/route.ts (budget-variance params)
+        src/app/api/v1/projexa/reports/[reportName]/export/route.ts (NEW)
+        src/lib/pdf/budget-variance-report-pdf.ts (+ NEW .test.ts)
+        src/app/api/construction/dashboard/route.ts, .../dashboard/[projectId]/route.ts,
+        src/app/api/v1/projexa/dashboard/[projectId]/route.ts (budget redaction shape)
+        src/app/(app)/construction-dashboard/page.tsx (Total Budget tile)
+        src/lib/services/construction-expense-service.ts, construction-ai-service.ts,
+        report-engine-service.ts, src/lib/task-execution/construction-tools.ts
+        (all four only where they read ProjectDashboard.budget, which is now nullable)
+        --- added for items E-11..E-15 (2026-09-03) ---
+        src/lib/services/report-export.ts (NEW, + NEW .test.ts) -- the ReportExportSchema
+        src/lib/services/report-share-service.ts (+ NEW .test.ts) -- second shareable type
+        src/lib/pdf/report-document-pdf.ts (NEW, + NEW .test.ts)
+        src/lib/services/report-catalog-service.ts (+ .test.ts) -- catalog entries agree
+        src/app/api/v1/projexa/reports/[reportName]/export/route.ts (schema-driven)
+        --- added for items E-16..E-20 (2026-09-03) ---
+        src/lib/services/construction-reports-service.ts (+ .test.ts) -- designerTimesheetReport
+        gains an optional from/to period (E-16)
+        src/lib/services/report-catalog-service.ts (+ .test.ts) -- the Designer Timesheet
+        entry names Design Studio > Cost Analysis (E-16)
+        src/app/api/v1/projexa/reports/[reportName]/route.ts -- forwards from/to for
+        designer-timesheet (E-16)
+        src/lib/services/report-export.ts (+ .test.ts) -- the Work Progress Report's own
+        export schema and rows (E-18/E-20)
+        src/lib/pdf/work-progress-report-pdf.ts -- ComputedRow carries poQty and unit, so
+        the PDF and the XLSX describe the same columns (E-18/E-20)
+        src/app/api/v1/projexa/work-progress/report/xlsx/route.ts (NEW) -- the XLSX relay
+        src/lib/services/construction-dashboard-service.ts (+ .test.ts) -- per-project
+        lastProgressAt, read out of the query that already runs (E-19)
+        --- added in the review fix pass (2026-09-03) ---
+        src/app/api/construction/dashboard/route.ts (+ NEW route.test.ts) -- the non-manager
+        branch now redacts spendOverValue too; it had drifted from its v1 sibling
+        src/app/api/v1/projexa/dashboard/route.test.ts -- the mirrored redaction assertion,
+        so the two routes cannot drift apart again
+        src/lib/services/construction-dashboard-service.ts (+ .test.ts) -- the permit
+        window gains its missing LOWER bound (an already-expired permit was counted as
+        "expiring in 30 days")
+        --- merge of origin/main before the PR (2026-09-03) ---
+        Lanes A, B, D0, D3, D21, F2 and H landed while this lane was in flight and
+        rewrote three of the same services. origin/main was MERGED into this branch
+        (not rebased -- 12 + 21 commits would each have had to be replayed against a
+        moved base, resolving cross-lane semantic conflicts against intermediate
+        states that cannot be typechecked; one merge resolves them once, against the
+        final state of both sides, and is verifiable). The reconciliations that
+        changed behaviour, all of them declared in the PR body:
+          * D-26's variance SIGN (budget - committed, POSITIVE = UNDER budget) is now
+            the whole product's convention. E-08's aggregateRevenueBudgetActual was
+            flipped to match; nothing re-derives "over budget" from the sign by hand,
+            isLineOverBudget() is the one predicate.
+          * ONE serial number on the budget-variance row. D-26 numbered every line,
+            E-07 numbered contract lines only; E-07's definition won (it is what
+            report-export.ts and budget-variance-report-pdf.ts already read) and
+            `serialNumber` is kept as an exact alias of `sNo` for D-26's consumer.
+          * getMaterialCostReport returns { rows, totals, params } (E-05) rather than a
+            row array; D-57/D-36's assertions were adapted container-only, 10 lines,
+            every claim unchanged.
+          * F2 moved getProjectDashboard into the batched getProjectDashboards; E-06's
+            BOQ-derived budget was PORTED into that batch (resolveBoqBudget) instead of
+            being kept as a second read.
+          * SHAREABLE_REPORT_TYPES is the union of E-12's project_status and D-31's
+            attendance_summary -- both resolvers kept.
+        Two add/add test files were split rather than concatenated, because main's
+        halves mock.module their dependencies and a static import from this lane's
+        pure half would load the real module first:
+          src/lib/services/construction-materials-service.cost-report.test.ts (NEW)
+          src/lib/services/report-share-service.shareable-types.test.ts (NEW)
+        Both follow the existing construction-labour-service.batch.test.ts /
+        document-service.filters.test.ts naming convention, and the canonical
+        <service>.test.ts sibling each CI gate looks for is still present.
+        NOTE: drizzle/0533 was taken by lane B (0533_r67_pipeline_task_error_codes.sql)
+        while this lane was in flight. That is fine and expected -- this lane never
+        wrote a migration; the sentence above about 0533 being free is superseded.
+
+      File scope in projexa: DashboardHomeView, ProjectRow (new), GroupedBarChart (new),
+      CategoryDistributionCharts, DashboardProjectClient, WorkProgressReportClient,
+      ReportsClient, ReportCatalogSection, MaterialsClient, AppSidebar (two OVERVIEW nav
+      entries removed), dashboard/overview + dashboard/hierarchy pages (redirects),
+      api/construction-materials/cost-report(+/export).
+      --- added for items E-06..E-10 (2026-09-03) ---
+      CostVarianceAnalyticalClient, BudgetActualClient (new), BudgetCreateClient,
+      budgets/new/page.tsx, scope/page.tsx (third tab), reports/page.tsx, ReportsClient,
+      shell/M24Shell + shell/shell-messages.tsx (new), ui/dashboard-card.tsx,
+      lib/budget-variance-report.ts, lib/report-run.ts, lib/task-errors.ts (all new),
+      api/reports/budget-variance/export (new relay), api/construction-budget/summary
+      (DELETED -- it proxied /construction/budget/summary, which does not exist in
+      compliance-tracker, and had no caller).
+      --- added for items E-11..E-15 (2026-09-03) ---
+      lib/report-parameters.ts, lib/report-schema.ts, lib/report-document-actions.ts,
+      components/reports/ReportDocument.tsx, components/report-format.ts (all new, each
+      with a sibling test), ReportOutput.tsx (omitKeys), ReportCatalogSection.tsx,
+      app/share/report/[token]/page.tsx (renders the second shareable report),
+      api/reports/[reportName]/export + .../share (new relays).
+      --- added for items E-16..E-20 (2026-09-03) ---
+      lib/report-registry.ts, lib/dashboard-kpis.ts (new, each with a sibling test),
+      components/ExportShareActions.tsx, DesignStudioCostAnalysisClient, design-studio
+      page, dashboard/loading.tsx, MoMObjectClient, PermitsListClient,
+      WorkProgressListClient, WorkProgressAnalyticalClient,
+      api/work-progress/report/xlsx (new relay).
+      --- added in the review fix pass (2026-09-03) ---
+      api/reports/[reportName]/export/route.ts (+ NEW route.test.ts) -- the relay now
+      forwards the report's from/to period; without it every Design Studio Cost Analysis
+      export silently described the whole project instead of the selected month
+      components/reports/ProjectStatusCard.test.tsx (NEW),
+      components/dashboard/DashboardFilterDrawer.test.tsx (NEW) -- the two components
+      this lane shipped with no sibling test
+
+      NOT touching: the pipeline (classify/executor/validate), platform.* tables,
+      construction-labour-service.ts (lane D3 owns recordAttendanceBatch per D-12), or
+      any file outside the list above.
+
   - session_label: "claude-code (subagent, r67-lane-C) -- PROGRAMME R67 workstream WS-C (composer-band2), items C-01..C-16"
     claimed_at: "2026-09-03T (this session)"
     claim: |

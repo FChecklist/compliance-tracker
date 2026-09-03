@@ -675,6 +675,186 @@ export async function earnedValueReport(ctx: { orgId: string }, projectId: strin
   })
 }
 
+// R67 E-06 (R-108). THE ONE BUDGET NUMBER.
+//
+// Three screens disagreed about a project's budget: the dashboard tile read
+// "TOTAL BUDGET AED 0" (the ERP ledger sum, which a fit-out contractor never
+// fills in), the Project Status report read "Budget 0" (the same figure), and
+// Cost Variance read 2,193.75 (the BOQ-derived one). A QS who notices stops
+// trusting every other figure on the screen.
+//
+// This is the one definition all three now read: the sum of computedBudget
+// (amount x budgetPercentage / 100, construction-boq-service.ts's formula, D-3
+// "one place") over the BOQ's ROOT lines.
+//
+// ROOT LINES ONLY, and this is a CORRECTION to what this file used to total.
+// A weighted sub-task's amount is derived from its root ancestor's qty x rate
+// x breakdown %, so the root row already carries the full value -- summing
+// roots AND children double-counts, which is the rule rootBoqLineItemsOnly()
+// above already states for every other BOQ money roll-up (scopeReport,
+// categoryBoqAmountsReport, getOrgDashboard's per-project value). Only
+// boqBudgetVarianceReport's own totals were still summing every line, so on
+// any BOQ with weighted sub-tasks its "Total budget" read up to twice the
+// real figure. Fixing it is what lets the dashboard tile, the Project Status
+// report and Cost Variance state ONE number.
+//
+// null (never 0) for an empty line list: "this project has no BOQ" is not
+// "this project's budget is zero", and the dashboard rule this product follows
+// treats a fabricated 0 as a failed card.
+export type RootBudgetLine = { parentLineItemId: string | null; amount: number; budgetPercentage: number }
+
+export function sumRootLineBudgets(lines: RootBudgetLine[]): number | null {
+  const roots = lines.filter((l) => l.parentLineItemId === null)
+  if (roots.length === 0) return null
+  // Rounded ONCE at the end, over the raw per-line values -- the same
+  // single-rounding discipline the R48 gap-closure established below, so this
+  // reconciles exactly to a raw SQL SUM over the same rows.
+  return Math.round(roots.reduce((sum, l) => sum + l.amount * (l.budgetPercentage / 100), 0) * 100) / 100
+}
+
+// R67 E-08 (R-115). "Revenue, Budget, Actual -- scope wise, category wise"
+// (Sumeet item 9). Today those three words only ever meet in the Project
+// Status key-value card, with no breakdown and (until E-06 above) the wrong
+// budget source.
+//
+// ONE pure fold, two groupings, so a category row can never disagree with the
+// scope rows it is made of -- the same discipline aggregateMaterialCostReport
+// applies to the Material Cost Report's two groupings.
+//
+//  revenue  the BOQ line's own amount (what the client is billed for it)
+//  budget   computedBudget, the cost ceiling (see sumRootLineBudgets above)
+//  actual   what has actually been committed against it: the vendor quote plus
+//           the material and manpower split the QS entered. Nulls are ABSENT,
+//           not zero -- a line nobody has costed returns actual null, so
+//           "not costed yet" and "costed at nothing" stay distinguishable.
+//  variance budget - actual, POSITIVE MEANS UNDER BUDGET (i.e. "how much
+//           budget is left"), NEGATIVE means over -- the same sign convention
+//           computeBudgetVarianceLine below uses, so the two views on one
+//           screen never flip signs on the reader.
+//
+//           MERGE NOTE (2026-09-03): E-08 was first written against the older
+//           `vendorAmount - budget` reading, where positive meant OVER. Lane
+//           D's item D-26 (R-066) deliberately flipped that convention for the
+//           per-line report and landed on main first, so this fold was flipped
+//           to follow it rather than leaving one screen stating two opposite
+//           meanings for the same word. D-26's reading is the one the whole
+//           product now uses; isLineOverBudget() below is the single predicate
+//           that answers "is this over budget", and nothing re-derives it from
+//           the sign by hand.
+export type RevenueBudgetActualLine = {
+  lineItemId: string
+  code: string | null
+  description: string
+  category: string | null
+  revenue: number
+  budget: number
+  vendorAmount: number | null
+  materialAmount: number | null
+  manpowerAmount: number | null
+}
+
+export type RevenueBudgetActualRow = {
+  /** Stable key: the line item id (scope-wise) or the category name (category-wise). */
+  key: string
+  /** What the Item column prints: the line's code, or the category name. */
+  item: string
+  description: string
+  category: string
+  revenue: number
+  budget: number
+  actual: number | null
+  variance: number | null
+  /** actual / budget, one decimal. null when budget is 0 or nothing has been costed -- NEVER a divide-by-zero 0 %. */
+  percentUsed: number | null
+  /** Scope-wise only, so a row can link to its BOQ line. */
+  lineItemId: string | null
+  lineCount: number
+}
+
+export type RevenueBudgetActualTotals = {
+  revenue: number
+  budget: number
+  actual: number | null
+  variance: number | null
+  percentUsed: number | null
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+/** actual = the committed figures that exist. null when NONE of the three has been entered. */
+function actualOf(line: { vendorAmount: number | null; materialAmount: number | null; manpowerAmount: number | null }): number | null {
+  const parts = [line.vendorAmount, line.materialAmount, line.manpowerAmount].filter((v): v is number => v !== null)
+  return parts.length === 0 ? null : round2(parts.reduce((s, v) => s + v, 0))
+}
+
+function percentUsedOf(actual: number | null, budget: number): number | null {
+  if (actual === null || budget === 0) return null
+  return Math.round((actual / budget) * 1000) / 10
+}
+
+export function aggregateRevenueBudgetActual(
+  lines: RevenueBudgetActualLine[],
+  groupBy: "scope" | "category"
+): { groupBy: "scope" | "category"; rows: RevenueBudgetActualRow[]; totals: RevenueBudgetActualTotals } {
+  const rows: RevenueBudgetActualRow[] = []
+
+  if (groupBy === "category") {
+    const buckets = new Map<string, RevenueBudgetActualLine[]>()
+    for (const line of lines) {
+      const key = line.category ?? UNCATEGORIZED_LABEL
+      const list = buckets.get(key) ?? []
+      list.push(line)
+      buckets.set(key, list)
+    }
+    for (const [category, group] of buckets) {
+      const revenue = round2(group.reduce((s, l) => s + l.revenue, 0))
+      const budget = round2(group.reduce((s, l) => s + l.budget, 0))
+      const actuals = group.map(actualOf).filter((v): v is number => v !== null)
+      const actual = actuals.length === 0 ? null : round2(actuals.reduce((s, v) => s + v, 0))
+      rows.push({
+        key: category, item: category,
+        description: `${group.length} ${group.length === 1 ? "line" : "lines"}`,
+        category, revenue, budget, actual,
+        variance: actual === null ? null : round2(budget - actual),
+        percentUsed: percentUsedOf(actual, budget),
+        lineItemId: null, lineCount: group.length,
+      })
+    }
+    rows.sort((a, b) => a.item.localeCompare(b.item))
+  } else {
+    for (const line of lines) {
+      const actual = actualOf(line)
+      rows.push({
+        key: line.lineItemId,
+        item: line.code ?? line.description,
+        description: line.description,
+        category: line.category ?? UNCATEGORIZED_LABEL,
+        revenue: round2(line.revenue),
+        budget: round2(line.budget),
+        actual,
+        variance: actual === null ? null : round2(line.budget - actual),
+        percentUsed: percentUsedOf(actual, line.budget),
+        lineItemId: line.lineItemId, lineCount: 1,
+      })
+    }
+  }
+
+  // Totalled from the RAW lines, not by re-adding the rounded rows, so the
+  // scope-wise and category-wise totals are identical to the last unit.
+  const revenue = round2(lines.reduce((s, l) => s + l.revenue, 0))
+  const budget = round2(lines.reduce((s, l) => s + l.budget, 0))
+  const actuals = lines.map(actualOf).filter((v): v is number => v !== null)
+  const actual = actuals.length === 0 ? null : round2(actuals.reduce((s, v) => s + v, 0))
+  return {
+    groupBy, rows,
+    totals: {
+      revenue, budget, actual,
+      variance: actual === null ? null : round2(budget - actual),
+      percentUsed: percentUsedOf(actual, budget),
+    },
+  }
+}
+
 /**
  * R67 D-26 (R-066) -- the pure heart of boqBudgetVarianceReport, extracted so
  * the rule can be tested without a live DB (this file's own convention; see
@@ -782,6 +962,8 @@ export function isLineOverBudget(variance: number | null): boolean {
  */
 export type BudgetLineInput = {
   id: string
+  /** Optional -- pure fixtures need not restate the parent BOQ's own id. */
+  boqId?: string
   itemCode: string | null
   description: string
   unit?: string | null
@@ -801,7 +983,14 @@ export type BudgetLineInput = {
 export function toBudgetLine(
   item: BudgetLineInput,
   supplierNameById: Map<string, string>,
-  index = 0,
+  // R67 E-07 (R-114) x D-26, second-merge reconciliation: this used to be a
+  // plain array `index`, numbering every row (root and weighted sub-task
+  // alike). Sumeet's spec numbers the CONTRACT lines only -- a sub-task is
+  // part of the line above it, not a line of its own -- so the caller now
+  // precomputes the root-only running number (or null, for a sub-task) and
+  // hands it in. `serialNumber` is kept as an exact alias of `sNo` so D-26's
+  // PROJEXA consumer keeps reading the same number.
+  sNo: number | null = null,
   // R67 lane D22 (D-54): what the interim/RA bills have already billed against
   // each line. Passed in rather than read here so this stays pure and DB-free,
   // the same discipline the rest of this extraction follows.
@@ -817,11 +1006,19 @@ export function toBudgetLine(
     materialAmount,
     manpowerAmount,
   })
+  // R67 E-07: a line with no parentLineItemId is a root/contract line. The
+  // field is optional (pure fixtures need not restate it), and an absent
+  // parent reads as root -- the same "root unless stated otherwise" rule the
+  // caller's own filtering already uses.
+  const isRootLine = item.parentLineItemId === null || item.parentLineItemId === undefined
   return {
     // R67 D-26: S.No, Category, Qty and Rate join the row so the Cost Variance
     // table can match Sumeet's own Budget Report shape.
-    serialNumber: index + 1,
+    serialNumber: sNo,
     lineItemId: item.id,
+    boqId: item.boqId ?? null,
+    sNo,
+    isRootLine,
     code: item.itemCode,
     // R67 lane I (WS-I item I-05, R-177): the line's own category, so the
     // Budget table can show a Category column and group by a real value.
@@ -892,37 +1089,104 @@ export function toBudgetLine(
 // plus material_amount/manpower_amount (drizzle/0529), and computedBudget()'s
 // exact amount*pct/100 formula (kept in one place per D-3 -- see that
 // function's own comment for why it's not stored).
-export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId: string) {
+//
+// R67 E-07 (R-114): Cost Variance hard-coded both of its header actions to
+// "(Not yet available)" -- a deliberate stub, not a data condition -- while
+// Sumeet 6.png II(iii) asks for S.No | Category | Code | Desc | Qty | Rate |
+// Amt | Vendor | Vendor Amt with filters on Category and Vendor. The columns
+// and the two filters are added here, at the one place the figures are
+// computed, so the screen, the export and the Reports picker all read the
+// same filtered rows.
+//
+// R67 E-08 (R-115): and the same rows, folded by aggregateRevenueBudgetActual
+// above, are the Revenue / Budget / Actual view -- not a second query and not
+// a second arithmetic.
+export type BudgetVarianceOptions = {
+  /** Repeatable, from the filter drawer's category chips. Empty/omitted = every category. */
+  categories?: string[]
+  /** From the Vendor select. Omitted = every vendor, INCLUDING lines with no vendor at all. */
+  vendorId?: string
+  /** Which fold the Revenue/Budget/Actual view returns. Defaults to scope-wise. */
+  groupBy?: "scope" | "category"
+}
+
+export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId: string, options: BudgetVarianceOptions = {}) {
+  // R67 F-10: the memoised check, not requireConstructionEnabled() directly --
+  // matches every other reader in this file (D-02's second-merge fix).
   await ensureConstructionEnabled(ctx.orgId)
+  const categoryFilter = (options.categories ?? []).map((c) => c.trim()).filter((c) => c !== "")
+  const vendorFilter = options.vendorId?.trim() || null
+  const groupBy: "scope" | "category" = options.groupBy === "category" ? "category" : "scope"
+  const emptyFold = aggregateRevenueBudgetActual([], groupBy)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
     const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
-    // R67 lane I (I-03) + D-26 + lane D22 (D-41/D-54): the empty-project shape
-    // must carry the SAME keys as the populated one, or a caller that reads
-    // totalMaterialAmount, totalCommitted or totalRevenue gets undefined on a
-    // project with no BOQ and renders "NaN".
+    // R67 lane I (I-03) + D-26 + E-06 + lane D22 (D-41/D-54): the empty-project
+    // shape must carry the SAME keys as the populated one, or a caller that
+    // reads totalMaterialAmount, totalCommitted or totalRevenue gets undefined
+    // on a project with no BOQ and renders "NaN". The keys below are the UNION
+    // of every lane's shape, and the populated return further down carries the
+    // same set -- that is the whole point of this branch existing.
     //
-    // totalActual is null rather than 0 for the same reason totalCommitted is:
-    // it is that figure's alias, and "nothing has been costed" must stay
-    // distinguishable from "costed at zero". totalRevenue IS 0, because a sum
-    // of what has been billed genuinely is zero when nothing has.
+    // Which absences are null and which are 0, deliberately:
+    //   * totalBudget   NULL (E-06). "No BOQ" is not "a budget of nothing";
+    //     the dashboard KPI reading this renders an en dash and the words
+    //     "No BOQ yet" for exactly this state, and a 0 here is what made three
+    //     screens disagree in the first place.
+    //   * totalCommitted / totalVariance / budgetRemaining  NULL (D-26).
+    //     Nothing has been costed, so there is no variance -- a fabricated 0
+    //     reads as "on budget" when the truth is "nothing costed yet".
+    //   * totalActual is null for the same reason totalCommitted is: it is
+    //     that figure's alias (D22, D-54). totalRevenue IS 0, because a sum of
+    //     what has been billed genuinely is zero when nothing has.
+    //   * counts (linesOverBudget, lineCount, subTaskLineCount)  0. These are
+    //     genuine counts of an empty set, not missing measurements.
     if (!latest) {
       return {
-        boqId: null, boqTitle: null, boqVersion: null,
-        lines: [], totalBudget: 0, totalVendorAmount: 0,
+        boqId: null, boqTitle: null, boqVersion: null, lines: [], subTaskLineCount: 0,
+        totalBudget: null, totalVendorAmount: 0,
         totalMaterialAmount: 0, totalManpowerAmount: 0,
         totalCommitted: null, totalVariance: null, budgetRemaining: null,
         totalActual: null, totalRevenue: 0,
         linesOverBudget: 0, lineCount: 0,
+        availableCategories: [], availableVendors: [],
+        filters: { categories: categoryFilter, vendorId: vendorFilter, groupBy },
+        revenueBudgetActual: emptyFold,
+        categorySubtotals: [],
       }
     }
 
-    const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id) })
-    const vendorIds = [...new Set(lineItems.map((i) => i.vendorId).filter((id): id is string => !!id))]
+    // Deterministic order: this report prints an S.No column, and a serial
+    // number that reshuffles between two loads of the same BOQ is worse than
+    // none. The table has no sort column of its own, so creation order is the
+    // order the QS entered the lines in.
+    const allLineItems = await db.query.constructionBoqLineItems.findMany({
+      where: eq(constructionBoqLineItems.boqId, latest.id),
+      orderBy: (t, { asc }) => [asc(t.createdAt), asc(t.id)],
+    })
+
+    // The chips and the select offer what this BOQ actually contains -- never
+    // a category nobody used, and never a vendor with no line.
+    const availableCategories = [...new Set(allLineItems.map((i) => i.category).filter((c): c is string => !!c && c.trim() !== ""))].sort((a, b) => a.localeCompare(b))
+
+    // Filters apply to ROOT lines; a surviving root keeps its weighted
+    // sub-tasks, and a filtered-out root takes them with it. Filtering a child
+    // away from its parent would leave a breakdown that no longer adds up.
+    const keptRootIds = new Set(
+      allLineItems
+        .filter((i) => i.parentLineItemId === null)
+        .filter((i) => categoryFilter.length === 0 || categoryFilter.includes(i.category ?? UNCATEGORIZED_LABEL))
+        .filter((i) => vendorFilter === null || i.vendorId === vendorFilter)
+        .map((i) => i.id)
+    )
+    const lineItems = allLineItems.filter((i) => (i.parentLineItemId === null ? keptRootIds.has(i.id) : keptRootIds.has(i.parentLineItemId)))
+
+    const vendorIds = [...new Set(allLineItems.map((i) => i.vendorId).filter((id): id is string => !!id))]
     const suppliers = vendorIds.length > 0
       ? await db.select({ id: erpSuppliers.id, name: erpSuppliers.supplierName }).from(erpSuppliers).where(inArray(erpSuppliers.id, vendorIds))
       : []
     const supplierNameById = new Map(suppliers.map((s) => [s.id, s.name]))
+    const availableVendors = vendorIds.map((id) => ({ id, name: supplierNameById.get(id) ?? id })).sort((a, b) => a.name.localeCompare(b.name))
 
     // R67 lane D22 (item D-54, rec R-183): the REVENUE column of Sumeet's
     // budget sheet -- what has actually been billed to the client against each
@@ -964,28 +1228,56 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     // budget/variance alongside the rounded display value, and total from
     // the RAW figures, rounding only once at the very end -- the totals now
     // reconcile exactly to a raw SQL sum over the same rows.
-    // R67 merge (D-11, lane D1 x lane D21 x lane D22): the row is built by
-    // toBudgetLine() above -- D1's pure extraction, now computing through D21's
-    // computeBudgetVarianceLine so the projection and the arithmetic cannot
-    // drift apart, and carrying lane D22's Actual/Revenue/parentLineItemId in
-    // the same one place. `index` feeds D-26's serialNumber; the revenue map is
-    // passed in so the builder stays pure.
-    const lines = lineItems.map((item, index) => toBudgetLine(item, supplierNameById, index, revenueByLineItemId))
+    // R67 merge (D-11, lane D1 x lane D21 x lane D22 x lane E1): the row is
+    // built by toBudgetLine() above -- D1's pure extraction, computing through
+    // D21's computeBudgetVarianceLine so the projection and the arithmetic
+    // cannot drift apart, carrying D22's Actual/Revenue/parentLineItemId, and
+    // now E-07's root-only S.No/isRootLine (see toBudgetLine's own comment on
+    // its `sNo` parameter for why this is no longer a plain array index: a
+    // sub-task is part of the line above it, not a line of its own, so only
+    // root lines get a number and the rest read null).
+    let sNoCounter = 0
+    const lines = lineItems.map((item) => {
+      const isRootLine = item.parentLineItemId === null
+      const sNo = isRootLine ? ++sNoCounter : null
+      return toBudgetLine(item, supplierNameById, sNo, revenueByLineItemId)
+    })
 
-    const totalBudget = Math.round(lines.reduce((s, l) => s + l._rawBudget, 0) * 100) / 100
-    const totalVendorAmount = Math.round(lines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100
+    // R67 E-06: ROOT LINES ONLY, for every total -- see sumRootLineBudgets'
+    // own header for why summing the weighted sub-tasks too double-counts, and
+    // why this file was the last BOQ money roll-up still doing it. The totals
+    // therefore tie exactly to the rows the screen prints (which are the root
+    // lines), and subTaskLineCount below says in numbers how many rows are
+    // folded into their parent rather than dropping them silently.
+    const rootLines = lines.filter((l) => l.isRootLine)
+    const rbaLines = rootLines.map((l) => ({
+      lineItemId: l.lineItemId, code: l.code, description: l.description, category: l.category,
+      revenue: l.amount, budget: l._rawBudget,
+      vendorAmount: l.vendorAmount, materialAmount: l.materialAmount, manpowerAmount: l.manpowerAmount,
+    }))
+    const totalBudget = sumRootLineBudgets(rootLines.map((l) => ({ parentLineItemId: null, amount: l.amount, budgetPercentage: l.budgetPercentage })))
+    const totalVendorAmount = Math.round(rootLines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100
     // R67 D-26: null, not 0, when NO line carries any committed cost -- the
     // tiles then read "Committed AED –" rather than a zero that looks like a
     // measured figure. One costed line is enough to make the total real.
-    const costedLines = lines.filter((l) => l._rawCommitted !== null)
+    //
+    // Counted over ROOT lines only, per E-06 above: a weighted sub-task's
+    // committed cost is already inside its parent's, so folding both in would
+    // overstate the total exactly as it overstated the budget.
+    const costedLines = rootLines.filter((l) => l._rawCommitted !== null)
     const totalCommitted = costedLines.length === 0 ? null : Math.round(costedLines.reduce((s, l) => s + (l._rawCommitted ?? 0), 0) * 100) / 100
     const totalVariance = costedLines.length === 0 ? null : Math.round(costedLines.reduce((s, l) => s + (l._rawVariance ?? 0), 0) * 100) / 100
     // R67 lane I (WS-I item I-03): totalled once, at the end, over the raw
     // per-line values -- the same single-rounding rule the R48 gap-closure
     // note above established for totalBudget/totalVariance, so these totals
     // reconcile exactly to a raw SQL SUM over the same rows.
-    const totalMaterialAmount = Math.round(lines.reduce((s, l) => s + (l.materialAmount ?? 0), 0) * 100) / 100
-    const totalManpowerAmount = Math.round(lines.reduce((s, l) => s + (l.manpowerAmount ?? 0), 0) * 100) / 100
+    // R67 E-06 second-merge fix: ROOT LINES ONLY, same as every other total
+    // above -- a weighted sub-task's material/manpower amount is already
+    // inside its parent's (D-3's no-double-counting rule), so summing over
+    // `lines` (every row, root and sub-task alike) overstated both totals by
+    // exactly the sub-tasks' own share.
+    const totalMaterialAmount = Math.round(rootLines.reduce((s, l) => s + (l.materialAmount ?? 0), 0) * 100) / 100
+    const totalManpowerAmount = Math.round(rootLines.reduce((s, l) => s + (l.manpowerAmount ?? 0), 0) * 100) / 100
     // R67 lane D22 (item D-54): the same single-rounding rule again. "Actual"
     // needs no total of its own -- it is `committed` under Sumeet's name, and
     // totalCommitted above already sums the RAW per-line figures once, so
@@ -1001,6 +1293,10 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
       boqTitle: latest.title,
       boqVersion: latest.version,
       lines: lines.map(({ _rawBudget, _rawCommitted, _rawVariance, ...line }) => line),
+      /** How many of `lines` are weighted sub-tasks folded into their parent for every total above. */
+      subTaskLineCount: lines.length - rootLines.length,
+      // null (not 0) when the BOQ has no lines at all: same "no scope defined"
+      // signal the empty-project branch above returns.
       totalBudget,
       totalVendorAmount,
       totalCommitted,
@@ -1008,11 +1304,27 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
       budgetRemaining: totalVariance,
       totalMaterialAmount,
       totalManpowerAmount,
+      availableCategories,
+      availableVendors,
+      filters: { categories: categoryFilter, vendorId: vendorFilter, groupBy },
+      // R67 E-08: the same root lines, folded the way the reader asked for.
+      revenueBudgetActual: aggregateRevenueBudgetActual(rbaLines, groupBy),
+      // R67 E-07: the per-category subtotals the Cost Variance table prints
+      // under its rows. ALWAYS the category fold, whatever groupBy asked for,
+      // because a scope-wise table still owes the reader its subtotals -- and
+      // they come from the same fold as the category-wise view, so a subtotal
+      // and a category row can never disagree.
+      categorySubtotals: aggregateRevenueBudgetActual(rbaLines, "category").rows,
       // R67 lane D22 (item D-54): `actual` is the SAME three components
       // D-26's `committed` already sums (vendor + material + manpower), so it
       // is an ALIAS of it, not a fourth figure that could drift.
       totalActual: totalCommitted,
       totalRevenue,
+      // R67 D-26. Both counts describe `lines` as returned above -- which is
+      // still EVERY line, root and weighted sub-task alike -- so they remain
+      // exact descriptions of the array a caller receives. (The money totals
+      // above are root-only, per E-06, because adding a sub-task's amount to
+      // its parent's double-counts money; counting rows does not.)
       linesOverBudget: lines.filter((l) => isLineOverBudget(l.variance)).length,
       lineCount: lines.length,
     }
@@ -1078,7 +1390,16 @@ export async function budgetVsActual(ctx: { orgId: string }, projectId: string) 
     getExpenseSummaryByHead(ctx, projectId),
   ])
   const actual = expenseByHead.reduce((s, r) => s + Number(r.total), 0)
-  return { budget: dashboard.budget, actual, variance: budgetVariance(dashboard.budget, actual), byHead: expenseByHead }
+  // R67 E-06 (R-108): `budget` follows getProjectDashboard's one definition --
+  // the BOQ-derived figure, null (not 0) when the project has no BOQ. variance
+  // is computed through budgetVariance() (D-02), the one shared null-safe rule.
+  return {
+    budget: dashboard.budget,
+    ledgerBudget: dashboard.ledgerBudget,
+    actual,
+    variance: budgetVariance(dashboard.budget, actual),
+    byHead: expenseByHead,
+  }
 }
 
 // 9. Material Consumption Report -- net stock movement per item for this project (negative = consumed).
@@ -1280,7 +1601,32 @@ export function aggregateDesignerTimesheetCosts(
 // into showing org-wide totals as if they belonged to the requested
 // project), the two scopes are returned under explicit `projectScoped`/
 // `orgWide` keys.
+/**
+ * R67 E-16 (R-150). THE PERIOD THIS REPORT COVERS.
+ *
+ * designerTimesheetReport had no period at all: it summed every approved hour
+ * ever logged, so "Budget vs Actual" compared a month's budget against a
+ * project's whole history. The Cost Analysis screen defaults to the current
+ * month, so the report has to be able to answer for one.
+ *
+ * ONE RULE, stated once. The bounds below are pushed into SQL (so the
+ * transaction does not read years of rows it will discard) AND applied to the
+ * fetched entries by this same predicate, so the figure the fold produces and
+ * the rows the query returns can never describe different windows. Both ends
+ * are INCLUSIVE, which is what "01 to 30 September" means to the person who
+ * typed it.
+ */
+export function isWithinPeriod(day: string, from?: string | null, to?: string | null): boolean {
+  if (from && day < from) return false
+  if (to && day > to) return false
+  return true
+}
+
+export type DesignerTimesheetPeriod = { from: string | null; to: string | null }
+
 export type DesignerTimesheetReport = {
+  /** Echoed back, so the screen captions the window it really got rather than the one it asked for. */
+  period: DesignerTimesheetPeriod
   projectScoped: {
     byUser: { userId: string; userName: string; totalHours: number }[]
     byCategory: ReturnType<typeof aggregateDesignerTimesheetCosts>["byCategory"]
@@ -1295,12 +1641,22 @@ export type DesignerTimesheetReport = {
   }
 }
 
-export async function designerTimesheetReport(ctx: { orgId: string }, projectId: string): Promise<DesignerTimesheetReport> {
+export async function designerTimesheetReport(
+  ctx: { orgId: string },
+  projectId: string,
+  // R67 E-16: optional, and omitting it keeps the previous whole-history
+  // behaviour byte for byte -- an existing API caller sees no change.
+  options: { from?: string | null; to?: string | null } = {}
+): Promise<DesignerTimesheetReport> {
+  // R67 F-10: the memoised check (D-02's second-merge fix), not
+  // requireConstructionEnabled() directly.
   await ensureConstructionEnabled(ctx.orgId)
+  const period: DesignerTimesheetPeriod = { from: options.from ?? null, to: options.to ?? null }
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const issueIds = (await db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)), columns: { id: true } })).map((i) => i.id)
     if (issueIds.length === 0) {
       return {
+        period,
         projectScoped: { byUser: [], byCategory: [], byDesignerStatus: [], overallBudget: 0, overallActual: 0, overallVariance: 0 },
         orgWide: { byDesigner: [], byProject: [] },
       }
@@ -1318,7 +1674,15 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
       totalHours: sql<number>`coalesce(sum(${pmsTimeEntries.hours}), 0)::float`,
     }).from(pmsTimeEntries)
       .innerJoin(users, eq(pmsTimeEntries.userId, users.id))
-      .where(and(eq(pmsTimeEntries.orgId, ctx.orgId), inArray(pmsTimeEntries.issueId, issueIds), eq(pmsTimeEntries.approvalStatus, "approved")))
+      .where(and(
+        eq(pmsTimeEntries.orgId, ctx.orgId),
+        inArray(pmsTimeEntries.issueId, issueIds),
+        eq(pmsTimeEntries.approvalStatus, "approved"),
+        // R67 E-16: the same inclusive bounds isWithinPeriod states, pushed
+        // into SQL. Omitted entirely when the caller named no period.
+        ...(period.from ? [gte(pmsTimeEntries.spentOn, period.from)] : []),
+        ...(period.to ? [lte(pmsTimeEntries.spentOn, period.to)] : []),
+      ))
       .groupBy(pmsTimeEntries.userId, users.name)
 
     // Budget-vs-Actual breakdown: Category/Designer-status/overall are
@@ -1331,7 +1695,12 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
     const allProjects = await db.query.projects.findMany({ where: eq(projects.orgId, ctx.orgId), columns: { id: true, name: true } })
     const allIssues = await db.query.pmsIssues.findMany({ where: eq(pmsIssues.orgId, ctx.orgId), columns: { id: true, projectId: true } })
     const allUsers = await db.query.users.findMany({ where: eq(users.orgId, ctx.orgId), columns: { id: true, name: true, isActive: true } })
-    const allTimeEntries = await db.query.pmsTimeEntries.findMany({ where: and(eq(pmsTimeEntries.orgId, ctx.orgId), eq(pmsTimeEntries.approvalStatus, "approved")) })
+    const allTimeEntries = await db.query.pmsTimeEntries.findMany({ where: and(
+      eq(pmsTimeEntries.orgId, ctx.orgId),
+      eq(pmsTimeEntries.approvalStatus, "approved"),
+      ...(period.from ? [gte(pmsTimeEntries.spentOn, period.from)] : []),
+      ...(period.to ? [lte(pmsTimeEntries.spentOn, period.to)] : []),
+    ) })
     // Fetched once upfront (not once per time entry, see resolvePmsBillableRatePure
     // below) -- same pattern pms-invoice-service.ts's buildInvoiceLinesFromTimeEntries
     // already uses to avoid the equivalent N+1 on this same table.
@@ -1344,6 +1713,10 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
 
     const priced: DesignerTimesheetEntry[] = []
     for (const entry of allTimeEntries) {
+      // R67 E-16: the period rule, applied where the answer is computed. The
+      // SQL bounds above narrow what is READ; this decides what is COUNTED, so
+      // the two can never describe different windows.
+      if (!isWithinPeriod(entry.spentOn, period.from, period.to)) continue
       const entryProjectId = projectIdByIssue.get(entry.issueId)
       if (!entryProjectId) continue
       const user = userById.get(entry.userId)
@@ -1379,6 +1752,7 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
     const scoped = aggregateDesignerTimesheetCosts(pricedThisProject, thisProjectBudgetLines, roster)
 
     return {
+      period,
       projectScoped: {
         byUser: rows,
         byCategory: scoped.byCategory,
@@ -1553,6 +1927,64 @@ export async function expenseReport(ctx: { orgId: string }, projectId: string) {
   return { byHead, total: byHead.reduce((s, r) => s + Number(r.total), 0) }
 }
 
+// R67 second-merge note: renamed from `CategoryProgressRow` to
+// `CategoryProgressMoneyRow` -- lane F1 (landed after this lane's own first
+// merge) exports a DIFFERENT, minimal `CategoryProgressRow` below (categoryId
+// / name / percentComplete only, from computeCategoryProgress) that
+// construction-dashboard-service.ts's ProjectDashboard.categories already
+// reads. Two exported types sharing one name in one file is the exact defect
+// class this programme has already found once (two implementations of one
+// exported function); keeping F1's name for its own external consumer and
+// giving this richer, money-carrying row its own name is the fix. Nothing
+// about the shape or the rule changed, only the name.
+export type CategoryProgressMoneyRow = {
+  categoryId: string
+  name: string
+  percentComplete: number
+  /** R67 E-02: this category's share of the latest BOQ, in money. */
+  totalAmount: number
+  /** R67 E-02: totalAmount x percentComplete, so a bar can read "Completed AED n / Total AED n". */
+  completedAmount: number
+  /** R67 E-02: totalAmount as a percentage of the BOQ total -- the pie's slice size. */
+  sharePercent: number
+}
+
+/**
+ * R67 E-02 (R-012). The project dashboard's category panel used to be a
+ * percent-only bar: "Civil 40%" with no idea whether Civil is a tenth of the
+ * job or nine tenths. This joins the percentage (which comes from the ACTIVITY
+ * hierarchy) to the money (which comes from the BOQ LINES), keyed on the same
+ * bucket ids attributeBoqAmountsByCategory produces.
+ *
+ * Pure, and deliberately total: a bucket that exists only in the amounts (a
+ * text category with no progress hierarchy behind it) is returned at 0%, and a
+ * bucket that exists only in the progress side is returned with 0 money. A row
+ * is never silently dropped, because a dropped row is money that stops adding
+ * up.
+ */
+export function mergeCategoryProgressWithAmounts(
+  progressByCategoryId: Map<string, number>,
+  amounts: CategoryAmountRollup,
+  namesByCategoryId: Map<string, string>
+): CategoryProgressMoneyRow[] {
+  const bucketIds = new Set<string>([...amounts.categories.map((c) => c.categoryId), ...progressByCategoryId.keys()])
+  const amountById = new Map(amounts.categories.map((c) => [c.categoryId, c]))
+  return [...bucketIds].map((id) => {
+    const bucket = amountById.get(id)
+    const totalAmount = bucket?.totalAmount ?? 0
+    const percentComplete = progressByCategoryId.get(id) ?? 0
+    return {
+      categoryId: id,
+      name: bucket?.name ?? namesByCategoryId.get(id) ?? id,
+      percentComplete,
+      totalAmount,
+      completedAmount: Math.round(totalAmount * percentComplete) / 100,
+      // A zero-value BOQ has no shares to speak of -- 0, never NaN.
+      sharePercent: amounts.totalAmount > 0 ? Math.round((totalAmount / amounts.totalAmount) * 1000) / 10 : 0,
+    }
+  })
+}
+
 // R67 F-14 (R-215): the pure half of categoryProgressReport, extracted so the
 // project dashboard can fold the same breakdown into the transaction it already
 // holds instead of the browser making a second call for it. Exported for the
@@ -1578,12 +2010,40 @@ export function computeCategoryProgress(
 }
 
 // 16. Category Progress Report -- latest % complete averaged per category (via its activities).
+//
+// R67 E-02 (R-012): additively extended with the MONEY behind each category
+// (totalAmount / completedAmount / sharePercent), so PROJEXA's project
+// dashboard can render the real category-distribution charts against this one
+// project-scoped report instead of the org-wide hierarchy endpoint it used to
+// need. `categories[].percentComplete` keeps its exact previous meaning and
+// value for every existing caller.
 export async function categoryProgressReport(ctx: { orgId: string }, projectId: string) {
   await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const categories = await db.query.constructionCategories.findMany({ where: and(eq(constructionCategories.orgId, ctx.orgId), eq(constructionCategories.projectId, projectId)) })
     const activities = await activityIdsForProject(db, ctx.orgId, projectId)
-    if (activities.length === 0) return { categories: categories.map((c) => ({ categoryId: c.id, name: c.name, percentComplete: 0 })) }
+
+    // The BOQ half. Same "latest non-superseded revision" pick and same root-
+    // lines-only discipline as categoryBoqAmountsReport -- read in this SAME
+    // transaction rather than by calling that function, which would open a
+    // second one (the nested-transaction pool deadlock fixed in
+    // construction-dashboard-service.ts on 2026-09-02).
+    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
+    const latestBoq = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
+    const boqLines = latestBoq
+      ? await db.query.constructionBoqLineItems.findMany({ where: rootBoqLineItemsOnly(latestBoq.id), columns: { activityId: true, amount: true, category: true } })
+      : []
+    const amounts = attributeBoqAmountsByCategory(boqLines, categories, activities)
+    const namesByCategoryId = new Map(categories.map((c) => [c.id, c.name]))
+
+    if (activities.length === 0) {
+      return {
+        categories: mergeCategoryProgressWithAmounts(new Map(), amounts, namesByCategoryId),
+        uncategorizedAmount: amounts.uncategorizedAmount,
+        totalAmount: amounts.totalAmount,
+        boqId: latestBoq?.id ?? null,
+      }
+    }
     const ids = activities.map((a) => a.id)
     // Same fix as construction-dashboard-service.ts's getProjectDashboard()
     // (verified live in production 2026-07-08) -- a plain JS array as a
@@ -1598,7 +2058,20 @@ export async function categoryProgressReport(ctx: { orgId: string }, projectId: 
       ORDER BY activity_id, entry_date DESC
     `)) as { activity_id: string; percent_complete: number }[]
     const percentByActivity = new Map(rows.map((r) => [r.activity_id, Number(r.percent_complete)]))
-    return { categories: computeCategoryProgress(categories, activities, percentByActivity) }
+    // R67 second-merge fix: the per-category average is now computeCategoryProgress()
+    // (F1's own extraction) rather than a second inline copy of the same
+    // averaging loop -- ONE arithmetic path, so this report and
+    // construction-dashboard-service.ts's categories tile can never disagree.
+    // Reshaped into a Map because mergeCategoryProgressWithAmounts (E-02) folds
+    // on category id, not an array.
+    const progressRows = computeCategoryProgress(categories, activities, percentByActivity)
+    const progressByCategoryId = new Map(progressRows.map((r) => [r.categoryId, r.percentComplete]))
+    return {
+      categories: mergeCategoryProgressWithAmounts(progressByCategoryId, amounts, namesByCategoryId),
+      uncategorizedAmount: amounts.uncategorizedAmount,
+      totalAmount: amounts.totalAmount,
+      boqId: latestBoq?.id ?? null,
+    }
   })
 }
 
@@ -1637,6 +2110,59 @@ export async function projectCompletionReport(ctx: { orgId: string }, projectId:
 // gets the stable synthetic id "text:<lowercased name>" -- distinguishable,
 // never colliding with a real cuid, and honestly resolving to 0% in the
 // completion lookup (there is no per-category progress row behind it).
+export type CategoryAmountLine = { activityId: string | null; amount: number | string; category: string | null }
+export type CategoryAmountBucket = { categoryId: string; name: string; totalAmount: number }
+export type CategoryAmountRollup = { categories: CategoryAmountBucket[]; uncategorizedAmount: number; totalAmount: number }
+
+/**
+ * R67 E-02 (R-012): the attribution rule above, extracted verbatim into a pure
+ * function so categoryProgressReport can label its bars "Completed AED n /
+ * Total AED n" from the SAME buckets categoryBoqAmountsReport already
+ * produces. Two independent copies of this three-step fallback would be two
+ * different pies for one BOQ -- exactly the "three screens disagree about one
+ * number" defect the audit is closing.
+ *
+ * No DB access: the caller fetches, this decides. Same DB-free pure-aggregation
+ * convention as aggregateDesignerTimesheetCosts / computeEarnedValue above.
+ */
+export function attributeBoqAmountsByCategory(
+  lineItems: CategoryAmountLine[],
+  categories: { id: string; name: string }[],
+  activities: { id: string; categoryId: string | null }[]
+): CategoryAmountRollup {
+  const categoryIdByActivity = new Map(activities.map((a) => [a.id, a.categoryId]))
+  // A direct category TEXT that names an existing project category resolves
+  // to that same row, so the two attribution paths converge on ONE bucket
+  // instead of showing "Civil" twice in the pie.
+  const categoryIdByLowerName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c.id]))
+  const amountByCategory = new Map<string, number>()
+  // Buckets that came from the text column and match no project category row.
+  const syntheticNameById = new Map<string, string>()
+  let uncategorizedAmount = 0
+
+  for (const item of lineItems) {
+    const amount = Number(item.amount)
+    const directName = typeof item.category === "string" ? item.category.trim() : ""
+    if (directName !== "") {
+      const matchedId = categoryIdByLowerName.get(directName.toLowerCase())
+      const bucketId = matchedId ?? `text:${directName.toLowerCase()}`
+      if (!matchedId) syntheticNameById.set(bucketId, directName)
+      amountByCategory.set(bucketId, (amountByCategory.get(bucketId) ?? 0) + amount)
+      continue
+    }
+    const categoryId = item.activityId ? categoryIdByActivity.get(item.activityId) : undefined
+    if (!categoryId) { uncategorizedAmount += amount; continue }
+    amountByCategory.set(categoryId, (amountByCategory.get(categoryId) ?? 0) + amount)
+  }
+
+  const byCategory = [
+    ...categories.map((c) => ({ categoryId: c.id, name: c.name, totalAmount: amountByCategory.get(c.id) ?? 0 })),
+    ...[...syntheticNameById.entries()].map(([id, name]) => ({ categoryId: id, name, totalAmount: amountByCategory.get(id) ?? 0 })),
+  ]
+  const totalAmount = byCategory.reduce((s, c) => s + c.totalAmount, 0) + uncategorizedAmount
+  return { categories: byCategory, uncategorizedAmount, totalAmount }
+}
+
 export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId: string) {
   await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -1651,37 +2177,7 @@ export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId
       db.query.constructionCategories.findMany({ where: and(eq(constructionCategories.orgId, ctx.orgId), eq(constructionCategories.projectId, projectId)) }),
       activityIdsForProject(db, ctx.orgId, projectId),
     ])
-    const categoryIdByActivity = new Map(activities.map((a) => [a.id, a.categoryId]))
-    // A direct category TEXT that names an existing project category resolves
-    // to that same row, so the two attribution paths converge on ONE bucket
-    // instead of showing "Civil" twice in the pie.
-    const categoryIdByLowerName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c.id]))
-    const amountByCategory = new Map<string, number>()
-    // Buckets that came from the text column and match no project category row.
-    const syntheticNameById = new Map<string, string>()
-    let uncategorizedAmount = 0
-
-    for (const item of lineItems) {
-      const amount = Number(item.amount)
-      const directName = typeof item.category === "string" ? item.category.trim() : ""
-      if (directName !== "") {
-        const matchedId = categoryIdByLowerName.get(directName.toLowerCase())
-        const bucketId = matchedId ?? `text:${directName.toLowerCase()}`
-        if (!matchedId) syntheticNameById.set(bucketId, directName)
-        amountByCategory.set(bucketId, (amountByCategory.get(bucketId) ?? 0) + amount)
-        continue
-      }
-      const categoryId = item.activityId ? categoryIdByActivity.get(item.activityId) : undefined
-      if (!categoryId) { uncategorizedAmount += amount; continue }
-      amountByCategory.set(categoryId, (amountByCategory.get(categoryId) ?? 0) + amount)
-    }
-
-    const byCategory = [
-      ...categories.map((c) => ({ categoryId: c.id, name: c.name, totalAmount: amountByCategory.get(c.id) ?? 0 })),
-      ...[...syntheticNameById.entries()].map(([id, name]) => ({ categoryId: id, name, totalAmount: amountByCategory.get(id) ?? 0 })),
-    ]
-    const totalAmount = byCategory.reduce((s, c) => s + c.totalAmount, 0) + uncategorizedAmount
-    return { categories: byCategory, uncategorizedAmount, totalAmount }
+    return attributeBoqAmountsByCategory(lineItems, categories, activities)
   })
 }
 

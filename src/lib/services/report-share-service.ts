@@ -11,17 +11,52 @@ import { createId } from "@paralleldrive/cuid2"
 import { ServiceError } from "./compliance-service"
 import { listBoqs, getBoq } from "./construction-boq-service"
 import { listActivities, listCategories, listProgressEntries } from "./construction-progress-service"
-import { attendanceSummary } from "./construction-reports-service"
+import { getProjectDashboard } from "./construction-dashboard-service"
+import { attendanceSummary, boqBudgetVarianceReport } from "./construction-reports-service"
 export { ServiceError }
 
 export type ReportRef = { projectId: string; from: string; to: string }
 
-// R67 D-31 (R-090): the Manpower screen's "Share" reuses THIS mechanism rather
-// than growing a second one -- same table, same token, same expiry and
-// revocation rules, same public resolve route. Adding a member here is the only
-// change the mechanism needed.
-export const SHAREABLE_REPORT_TYPES = ["work_progress", "attendance_summary"] as const
+/**
+ * R67 E-12 (R-136). The report types a public, expiring link can be minted for.
+ *
+ * This list is the WHOLE contract: a token may only be minted for a type that
+ * resolveReportShareLink() below can really render, because a link that 404s
+ * for whoever received it is worse than no link at all. Item E-09 deliberately
+ * left Share on the Reports screen copying its in-app URL for exactly that
+ * reason -- project_status had no public renderer. It has one now
+ * (projexa src/app/share/report/[token]/page.tsx), so the type is added here
+ * and in the same change, never before it.
+ *
+ * R67 D-31 (R-090): the Manpower screen's "Share" reuses THIS mechanism rather
+ * than growing a second one -- same table, same token, same expiry and
+ * revocation rules, same public resolve route. Adding a member here is the only
+ * change the mechanism needed, which is why both items could add one
+ * independently and the merge is a union rather than a choice.
+ */
+export const SHAREABLE_REPORT_TYPES = ["work_progress", "project_status", "attendance_summary"] as const
 export type ShareableReportType = (typeof SHAREABLE_REPORT_TYPES)[number]
+
+/**
+ * Pure. Refuses anything this service cannot actually resolve, and names what
+ * it CAN do rather than saying only "unsupported" -- a caller that guessed a
+ * type is told the real vocabulary.
+ */
+export function assertShareableReportType(value: unknown): ShareableReportType {
+  if (typeof value === "string" && (SHAREABLE_REPORT_TYPES as readonly string[]).includes(value)) {
+    return value as ShareableReportType
+  }
+  throw new ServiceError(`Unsupported report type. Shareable reports: ${SHAREABLE_REPORT_TYPES.join(", ")}`, 400)
+}
+
+/** Pure. The reference every shareable report needs, checked before a row is written. */
+export function assertReportRef(ref: unknown): ReportRef {
+  const r = ref as ReportRef | undefined
+  if (!r?.projectId || !r?.from || !r?.to) {
+    throw new ServiceError("reportRef.projectId, from and to are required", 400)
+  }
+  return { projectId: r.projectId, from: r.from, to: r.to }
+}
 
 /** Pure. Whether a link row may still be resolved. Expired, revoked and unknown are deliberately indistinguishable to a visitor. */
 export function isShareLinkUsable(link: { revokedAt: Date | null; expiresAt: Date } | null | undefined, now: Date): boolean {
@@ -37,10 +72,8 @@ export async function createReportShareLink(
   ctx: { orgId: string; userId: string | null },
   input: { reportType: ShareableReportType; reportRef: ReportRef; expiresInHours?: number }
 ) {
-  if (!SHAREABLE_REPORT_TYPES.includes(input.reportType)) throw new ServiceError("Unsupported report type", 400)
-  if (!input.reportRef?.projectId || !input.reportRef?.from || !input.reportRef?.to) {
-    throw new ServiceError("reportRef.projectId, from and to are required", 400)
-  }
+  assertShareableReportType(input.reportType)
+  assertReportRef(input.reportRef)
   const expiresInHours = input.expiresInHours ?? 168 // 7 days, matching veri_meeting_share_links' default
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (tx) => {
     const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000)
@@ -90,10 +123,30 @@ export async function resolveReportShareLink(token: string) {
   }
   const link = found
 
-  if (!SHAREABLE_REPORT_TYPES.includes(link.reportType as ShareableReportType)) {
+  if (!(SHAREABLE_REPORT_TYPES as readonly string[]).includes(link.reportType)) {
     throw new ServiceError("This share link is invalid or has expired", 404)
   }
   const ref: ReportRef = JSON.parse(link.reportRef)
+
+  // R67 E-12 (R-136): the Project Status document, publicly. The SAME two
+  // reads the authenticated screen uses -- the dashboard figures and the BOQ
+  // budget line by line -- so a shared link and the screen it was shared from
+  // state the same facts. Both are called with the link's OWN stored orgId,
+  // never one derived from the request, so RLS still bounds every byte.
+  if (link.reportType === "project_status") {
+    const [dashboard, variance] = await Promise.all([
+      getProjectDashboard({ orgId: link.orgId }, ref.projectId),
+      boqBudgetVarianceReport({ orgId: link.orgId }, ref.projectId, {}),
+    ])
+    return {
+      reportType: link.reportType,
+      projectId: ref.projectId, from: ref.from, to: ref.to,
+      boqTitle: variance.boqTitle,
+      dashboard,
+      lines: variance.lines.filter((l) => l.isRootLine),
+      totals: { budget: variance.totalBudget, vendorAmount: variance.totalVendorAmount },
+    }
+  }
 
   // R67 D-31: the attendance summary resolves through the SAME rule the work
   // progress report does -- the link's OWN stored orgId, never one derived from

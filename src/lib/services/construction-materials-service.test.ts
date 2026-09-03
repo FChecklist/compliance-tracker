@@ -21,6 +21,20 @@
 // excluded -- not that Postgres can add up. A regression that dropped the
 // isNull(voidedAt) predicate fails here; a regression inside Postgres's SUM
 // would not, and is not what this file claims to cover.
+//
+// R67 E-05 MERGE NOTE (2026-09-03). Lane E1 turned getMaterialCostReport into
+// a parameterised report, so it now returns { rows, totals, params } instead
+// of a bare row array -- the Grand Total has to come from the same grouped
+// read as the rows, or the two can describe different sets, which is the
+// defect R-103 records. Every assertion below is D-36's and D-57's, unchanged
+// in what it claims; the only edit was `result.find(...)` ->
+// `result.rows.find(...)` (ten lines) to reach through the new container. The
+// behaviour these tests pin -- the inclusive From/To window, the all-time
+// default, and the voided-receipt exclusion composing with the window -- is
+// carried over intact and is documented on the function itself.
+// E-05's own pure arithmetic tests live in the sibling
+// construction-materials-service.cost-report.test.ts rather than here, so this
+// file's mock.module setup is not loaded before them.
 /// <reference types="bun-types" />
 import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test"
 import { getTableName, type SQL, type Table } from "drizzle-orm"
@@ -172,22 +186,36 @@ const fakeDb = {
             // An ungrouped aggregate: Postgres returns exactly one row.
             return resolve([{ total: String(matching().reduce((s, r) => s + Number(r.quantity), 0)) }])
           },
-          groupBy: (column: { name: string }) => {
-            selectedGroupColumn = column.name
+          // VARIADIC since R67 E-05: getMaterialCostReport now groups at
+          // (material, vendor) grain -- the finest grain both of its groupings
+          // fold from -- so this stands in for a GROUP BY over N columns, not
+          // one. selectedGroupColumn keeps naming the FIRST column, which is
+          // what the two assertions on it are about (that the cost aggregate
+          // is grouped per material and not globally).
+          groupBy: (...columns: { name: string }[]) => {
+            selectedGroupColumn = columns[0]?.name ?? null
+            const keyOf = (r: Row) => columns.map((c) => String(r[snakeToCamel(c.name)] ?? "")).join(" ")
             const groups = new Map<string, Row[]>()
             for (const r of matching()) {
-              const key = String(r[snakeToCamel(column.name)])
-              groups.set(key, [...(groups.get(key) ?? []), r])
+              groups.set(keyOf(r), [...(groups.get(keyOf(r)) ?? []), r])
             }
-            return Promise.resolve([...groups.entries()].map(([materialId, rows]) => {
+            return Promise.resolve([...groups.values()].map((rows) => {
               const totalQuantity = rows.reduce((s, r) => s + Number(r.quantity), 0)
-              return "totalQuantityReceived" in shape
-                ? {
-                    materialId,
-                    totalQuantityReceived: String(totalQuantity),
-                    totalCost: String(rows.reduce((s, r) => s + Number(r.quantity) * Number(r.unitCost), 0)),
-                  }
-                : { materialId, total: String(totalQuantity) }
+              const totalCost = rows.reduce((s, r) => s + Number(r.quantity) * Number(r.unitCost), 0)
+              // Every grouped column comes back on the row, exactly as Postgres
+              // returns it -- so a two-column grouping carries vendorId too.
+              const grouped: Row = {}
+              for (const c of columns) {
+                const field = snakeToCamel(c.name)
+                grouped[field] = rows[0][field] ?? null
+              }
+              // The projection's own shape decides the aggregate names, which
+              // is how one fake serves three different callers.
+              if ("cost" in shape) return { ...grouped, quantity: String(totalQuantity), cost: String(totalCost) }
+              if ("totalQuantityReceived" in shape) {
+                return { ...grouped, totalQuantityReceived: String(totalQuantity), totalCost: String(totalCost) }
+              }
+              return { ...grouped, total: String(totalQuantity) }
             }))
           },
         }
@@ -256,7 +284,7 @@ describe("voidMaterialReceipt + getMaterialCostReport -- R67 D-36 acceptance", (
     ]
 
     const before = await getMaterialCostReport({ orgId: ORG }, PROJECT)
-    const beforeCement = before.find((r) => r.materialId === CEMENT.id)!
+    const beforeCement = before.rows.find((r) => r.materialId === CEMENT.id)!
     expect(beforeCement.totalQuantityReceived).toBe(130)
     expect(beforeCement.totalCost).toBe(80 * 420 + 50 * 435)
 
@@ -266,7 +294,7 @@ describe("voidMaterialReceipt + getMaterialCostReport -- R67 D-36 acceptance", (
     expect(voided.voidedBy).toBe("user-9")
 
     const after = await getMaterialCostReport({ orgId: ORG }, PROJECT)
-    const afterCement = after.find((r) => r.materialId === CEMENT.id)!
+    const afterCement = after.rows.find((r) => r.materialId === CEMENT.id)!
     expect(afterCement.totalQuantityReceived).toBe(beforeCement.totalQuantityReceived - 50)
     expect(afterCement.totalCost).toBe(beforeCement.totalCost - 50 * 435)
 
@@ -286,7 +314,7 @@ describe("voidMaterialReceipt + getMaterialCostReport -- R67 D-36 acceptance", (
     await voidMaterialReceipt({ orgId: ORG }, "rec-only", { voidReason: "Duplicate entry", voidedBy: "user-9" })
 
     const report = await getMaterialCostReport({ orgId: ORG }, PROJECT)
-    expect(report.find((r) => r.materialId === STEEL.id)).toBeUndefined()
+    expect(report.rows.find((r) => r.materialId === STEEL.id)).toBeUndefined()
   })
 
   test("averageUnitCost is recomputed from the surviving receipts, not from the voided ones", async () => {
@@ -299,7 +327,7 @@ describe("voidMaterialReceipt + getMaterialCostReport -- R67 D-36 acceptance", (
     ]
     await voidMaterialReceipt({ orgId: ORG }, "rec-b", { voidReason: "Wrong supplier", voidedBy: "user-9" })
 
-    const cement = (await getMaterialCostReport({ orgId: ORG }, PROJECT)).find((r) => r.materialId === CEMENT.id)!
+    const cement = (await getMaterialCostReport({ orgId: ORG }, PROJECT)).rows.find((r) => r.materialId === CEMENT.id)!
     expect(cement.averageUnitCost).toBe(400)
   })
 })
@@ -624,7 +652,7 @@ describe("getMaterialCostReport From/To window -- R67 D-57", () => {
     const { getMaterialCostReport } = await import("./construction-materials-service")
 
     const september = await getMaterialCostReport({ orgId: ORG }, PROJECT, { from: "2026-09-01", to: "2026-09-30" })
-    const cement = september.find((r) => r.materialId === CEMENT.id)!
+    const cement = september.rows.find((r) => r.materialId === CEMENT.id)!
     // 50 + 20, i.e. both September receipts and neither of August's.
     expect(cement.totalQuantityReceived).toBe(70)
     expect(cement.totalCost).toBe(50 * 435 + 20 * 450)
@@ -636,7 +664,7 @@ describe("getMaterialCostReport From/To window -- R67 D-57", () => {
     const { getMaterialCostReport } = await import("./construction-materials-service")
 
     const allTime = await getMaterialCostReport({ orgId: ORG }, PROJECT)
-    expect(allTime.find((r) => r.materialId === CEMENT.id)!.totalQuantityReceived).toBe(170)
+    expect(allTime.rows.find((r) => r.materialId === CEMENT.id)!.totalQuantityReceived).toBe(170)
   })
 
   test("one bound alone works: `from` is an open-ended window forward", async () => {
@@ -645,10 +673,10 @@ describe("getMaterialCostReport From/To window -- R67 D-57", () => {
     const { getMaterialCostReport } = await import("./construction-materials-service")
 
     const since = await getMaterialCostReport({ orgId: ORG }, PROJECT, { from: "2026-09-01" })
-    expect(since.find((r) => r.materialId === CEMENT.id)!.totalQuantityReceived).toBe(70)
+    expect(since.rows.find((r) => r.materialId === CEMENT.id)!.totalQuantityReceived).toBe(70)
 
     const until = await getMaterialCostReport({ orgId: ORG }, PROJECT, { to: "2026-08-31" })
-    expect(until.find((r) => r.materialId === CEMENT.id)!.totalQuantityReceived).toBe(100)
+    expect(until.rows.find((r) => r.materialId === CEMENT.id)!.totalQuantityReceived).toBe(100)
   })
 
   test("a window that excludes everything returns NO rows, never rows of zero", async () => {
@@ -656,7 +684,7 @@ describe("getMaterialCostReport From/To window -- R67 D-57", () => {
     receiptRows = [AUGUST, SEPT_1, SEPT_30]
     const { getMaterialCostReport } = await import("./construction-materials-service")
 
-    expect(await getMaterialCostReport({ orgId: ORG }, PROJECT, { from: "2027-01-01", to: "2027-01-31" })).toEqual([])
+    expect((await getMaterialCostReport({ orgId: ORG }, PROJECT, { from: "2027-01-01", to: "2027-01-31" })).rows).toEqual([])
   })
 
   test("the void exclusion still applies INSIDE the window -- the two filters compose", async () => {
@@ -668,6 +696,6 @@ describe("getMaterialCostReport From/To window -- R67 D-57", () => {
     const { getMaterialCostReport } = await import("./construction-materials-service")
 
     const september = await getMaterialCostReport({ orgId: ORG }, PROJECT, { from: "2026-09-01", to: "2026-09-30" })
-    expect(september.find((r) => r.materialId === CEMENT.id)!.totalQuantityReceived).toBe(50)
+    expect(september.rows.find((r) => r.materialId === CEMENT.id)!.totalQuantityReceived).toBe(50)
   })
 })

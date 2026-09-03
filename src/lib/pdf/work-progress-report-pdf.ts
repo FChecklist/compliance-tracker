@@ -96,6 +96,15 @@ export type ComputedRow = {
   description: string
   categoryName: string
   isChild: boolean // WPR-06: a hierarchical BoQ sub-task -- percent cells render blank
+  /**
+   * R67 E-18/E-20: the BOQ's own quantity -- the "PO Qty" column the screen
+   * gained in E-03/E-15. It was already computed here (qtyTotalBoq) and thrown
+   * away; the XLSX export reads the SAME rows the PDF is drawn from, so the two
+   * files cannot describe different columns.
+   */
+  poQty: number
+  /** The BOQ's unit of measure, carried through so the export can print it beside the quantity. */
+  unit: string
   rate: number
   contractAmt: number // R46/CONS-03: this line's own contracted value (qty x rate) -- see generateWorkProgressReportPdf's Grand Total note below
   prevQty: number; currentQty: number; thirdQty: number
@@ -159,6 +168,8 @@ export function computeRows(data: WorkProgressReportPdfData, mode: "total" | "ba
       description: line.description,
       categoryName: category?.name ?? "Uncategorized",
       isChild: !!line.parentLineItemId,
+      poQty: qtyTotalBoq,
+      unit: line.unit,
       rate, contractAmt: amtTotalBoq,
       prevQty, currentQty, thirdQty: mode === "balance" ? balanceQty : totalQty,
       prevAmt, currentAmt, thirdAmt: mode === "balance" ? balanceAmt : totalAmt,

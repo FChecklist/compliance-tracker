@@ -501,9 +501,12 @@ async function computeCpi(ctx: { orgId: string }, params: Record<string, unknown
   const projectId = String(params.projectId ?? "")
   if (!projectId) throw new ServiceError("projectId is required for the CPI formula", 400)
   const [budget, completion] = await Promise.all([budgetVsActual(ctx, projectId), projectCompletionReport(ctx, projectId)])
+  // R67 E-06 (R-108): budgetVsActual().budget is the BOQ-derived budget now,
+  // and null (not 0) when the project has no BOQ -- usableBudget() (D-02) is
+  // the one shared null-or-non-positive guard, reused rather than restated.
   const bac = usableBudget(budget.budget)
   if (bac === null) {
-    return { columns: ["Metric", "Value"], rows: [{ Metric: "CPI", Value: "N/A" }], note: "Project has no budget set (via its cost centre) -- cannot compute Earned Value." }
+    return { columns: ["Metric", "Value"], rows: [{ Metric: "CPI", Value: "N/A" }], note: "Project has no BOQ budget set -- cannot compute Earned Value." }
   }
   const earnedValue = bac * (completion.overallPercentComplete / 100)
   const cpi = budget.actual > 0 ? earnedValue / budget.actual : earnedValue > 0 ? Infinity : 1
@@ -592,9 +595,10 @@ async function computeEarnedValueAnalysis(ctx: { orgId: string }, params: Record
       return { columns: ["Metric", "Value"], rows: [{ Metric: "Earned Value Analysis", Value: "N/A" }], note: "Project has no startDate/targetDate set -- cannot compute a time-linear Planned Value baseline." }
     }
     const [budget, completion] = await Promise.all([budgetVsActual(ctx, projectId), projectCompletionReport(ctx, projectId)])
+    // R67 E-06: same null-or-zero guard as computeCpi above, via usableBudget() (D-02).
     const bac = usableBudget(budget.budget)
     if (bac === null) {
-      return { columns: ["Metric", "Value"], rows: [{ Metric: "Earned Value Analysis", Value: "N/A" }], note: "Project has no budget set (via its cost centre) -- cannot compute Planned/Earned Value in cost terms." }
+      return { columns: ["Metric", "Value"], rows: [{ Metric: "Earned Value Analysis", Value: "N/A" }], note: "Project has no BOQ budget set -- cannot compute Planned/Earned Value in cost terms." }
     }
     const start = new Date(project.startDate).getTime()
     const target = new Date(project.targetDate).getTime()
@@ -1185,10 +1189,11 @@ async function computeCostOverrunReport(ctx: { orgId: string }): Promise<ReportD
     const results: { name: string; budget: number; actual: number; overrun: number }[] = []
     for (const p of activeProjects) {
       const bva = await budgetVsActual(ctx, p.id)
+      // R67 E-06: a project with no BOQ has no budget to overrun -- usableBudget()
+      // (D-02) is the shared null-or-non-positive guard, reused rather than
+      // restated. variance < 0 = over budget, D-26's canonical sign convention
+      // (variance = budget minus committed; budgetVsActual() states it once).
       const bac = usableBudget(bva.budget)
-      // R67 D-02: a project with NO budget cannot be a cost overrun. Before,
-      // a null budget would have arrived here as 0 and been filtered out by
-      // `> 0` -- the same outcome, but now it is stated rather than relied on.
       if (bac !== null && bva.variance !== null && bva.variance < 0) {
         results.push({ name: p.name, budget: bac, actual: bva.actual, overrun: Math.abs(bva.variance) })
       }
@@ -1965,24 +1970,41 @@ function rowsToResult(rows: Record<string, string | number>[], emptyNote?: strin
 async function computeMaterialCostReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
   const projectId = String(params.projectId ?? "")
   if (!projectId) throw new ServiceError("projectId is required for the Cost Report by Material", 400)
-  const rows = await getMaterialCostReport(ctx, projectId)
+  // R67 E-05 (R-103): getMaterialCostReport now returns {rows, totals, params}
+  // rather than a bare array, and accepts an optional period/grouping. This
+  // wrapper forwards from/to when the definition was run with them and keeps
+  // the default (every receipt, grouped by material) otherwise, so the
+  // engine's own output is unchanged for a caller that passes neither. Vendor
+  // is now a real column here too -- it was always on the receipt row and
+  // this report never showed it.
+  const { rows, totals } = await getMaterialCostReport(ctx, projectId, {
+    from: typeof params.from === "string" ? params.from : undefined,
+    to: typeof params.to === "string" ? params.to : undefined,
+    groupBy: params.groupBy === "vendor" ? "vendor" : "material",
+  })
   if (rows.length === 0) {
     return {
-      columns: ["Material", "Spec", "Unit", "Qty Received", "Total Cost", "Avg Unit Cost"],
+      columns: ["Material", "Spec", "Vendor", "Unit", "Qty Received", "Total Cost", "Avg Unit Cost"],
       rows: [],
-      note: "No material receipts logged yet for this project -- log inbound receipts against a material (Materials module) before this report has anything to aggregate. A material with a master list price but zero receipts does not appear here.",
+      note: "No material receipts logged yet for this project -- log inbound receipts against a material (Materials module) before this report has anything to aggregate. A material with a master list price but zero receipts does not appear here. Voided receipts are excluded.",
     }
   }
   return {
-    columns: ["Material", "Spec", "Unit", "Qty Received", "Total Cost", "Avg Unit Cost"],
-    rows: rows.map((r) => ({
-      Material: r.name,
-      Spec: r.spec ?? "",
-      Unit: r.unit,
-      "Qty Received": r.totalQuantityReceived,
-      "Total Cost": r.totalCost,
-      "Avg Unit Cost": r.averageUnitCost,
-    })),
+    columns: ["Material", "Spec", "Vendor", "Unit", "Qty Received", "Total Cost", "Avg Unit Cost"],
+    rows: [
+      ...rows.map((r) => ({
+        Material: r.name,
+        Spec: r.spec ?? "",
+        Vendor: r.vendorName ?? "",
+        Unit: r.unit ?? "",
+        "Qty Received": r.totalQuantityReceived,
+        "Total Cost": r.totalCost,
+        "Avg Unit Cost": r.averageUnitCost,
+      })),
+      // The grand total ships WITH the rows it totals, from the same read --
+      // a reader must never have to re-add the column to find out.
+      { Material: "Grand Total", Spec: "", Vendor: "", Unit: "", "Qty Received": totals.quantity, "Total Cost": totals.cost, "Avg Unit Cost": "" },
+    ],
     note: "Total Cost/Avg Unit Cost are computed from real inbound receipts (construction_material_receipts), not the material master's list unitCost -- a material with a master price but zero receipts logged does not appear here (see construction-materials-service.ts#getMaterialCostReport).",
   }
 }

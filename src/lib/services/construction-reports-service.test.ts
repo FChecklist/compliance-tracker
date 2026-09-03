@@ -57,6 +57,11 @@ import {
   type CertifiedPayrollAttendanceRow,
   type CertifiedPayrollWageRate,
   type EvLineItem,
+  attributeBoqAmountsByCategory,
+  mergeCategoryProgressWithAmounts,
+  sumRootLineBudgets,
+  aggregateRevenueBudgetActual,
+  UNCATEGORIZED_LABEL,
 } from "./construction-reports-service"
 
 // Fixture: 3 designers across 2 projects and 3 categories.
@@ -336,11 +341,74 @@ describe("designerTimesheetReport: N+1 fix + scope-labeled response (PR #597 aud
 
     // Scope-mixing fix: project-scoped and org-wide breakdowns are returned
     // under explicit, separate keys -- not merged into one flat object.
-    expect(Object.keys(result).sort()).toEqual(["orgWide", "projectScoped"])
+    // R67 E-16 adds `period` -- the window the report really covered, echoed
+    // back so the Cost Analysis screen captions what it got rather than what it
+    // asked for. Null/null here, because this call named no period.
+    expect(Object.keys(result).sort()).toEqual(["orgWide", "period", "projectScoped"])
+    expect(result.period).toEqual({ from: null, to: null })
     expect(Object.keys(result.projectScoped).sort()).toEqual(
       ["byCategory", "byDesignerStatus", "byUser", "overallActual", "overallBudget", "overallVariance"].sort()
     )
     expect(Object.keys(result.orgWide).sort()).toEqual(["byDesigner", "byProject"])
+  })
+
+  // R67 E-16 (R-150): the period. The fake db below deliberately IGNORES the
+  // where clause (it is a canned findMany), which is exactly why this test is
+  // worth having: it proves the fold itself honours the window, so a period
+  // that the SQL bounds somehow failed to narrow still cannot be counted. The
+  // 30 fixture entries are all on 2026-01-15.
+  test("a period excludes entries outside it, and is echoed back on the response", async () => {
+    const ORG_ID = "org-designer-timesheet-period"
+    const PROJECT_ID = "proj-1"
+    const timeEntries = Array.from({ length: 30 }, (_, i) => ({
+      id: `entry-${i}`, orgId: ORG_ID, issueId: "issue-1", userId: "u1",
+      hours: "2", spentOn: "2026-01-15", activityType: "Design Development",
+    }))
+
+    const fakeDb = {
+      query: {
+        pmsIssues: { findMany: mock(async () => [{ id: "issue-1", projectId: PROJECT_ID }]) },
+        projects: { findMany: mock(async () => [{ id: PROJECT_ID, name: "Project One" }]) },
+        users: { findMany: mock(async () => [{ id: "u1", name: "Alice", isActive: true }]) },
+        pmsTimeEntries: { findMany: mock(async () => timeEntries) },
+        pmsBillableRates: { findMany: mock(async () => [{ userId: null, hourlyRate: "50", validFrom: "2020-01-01" }]) },
+        pmsBudgets: { findMany: mock(async () => [{ id: "budget-1", projectId: PROJECT_ID }]) },
+        pmsBudgetLineItems: { findMany: mock(async () => [{ budgetId: "budget-1", userId: "u1", amount: "1000" }]) },
+      },
+      select: () => ({ from: () => ({ innerJoin: () => ({ where: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }),
+    }
+
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablementService,
+      requireConstructionEnabled: mock(async () => {}),
+    }))
+
+    const { designerTimesheetReport, isWithinPeriod } = await import("./construction-reports-service")
+
+    // Both ends inclusive -- "01 to 31 January" includes the 15th and both ends.
+    expect(isWithinPeriod("2026-01-15", "2026-01-01", "2026-01-31")).toBe(true)
+    expect(isWithinPeriod("2026-01-01", "2026-01-01", "2026-01-31")).toBe(true)
+    expect(isWithinPeriod("2026-01-31", "2026-01-01", "2026-01-31")).toBe(true)
+    expect(isWithinPeriod("2026-02-01", "2026-01-01", "2026-01-31")).toBe(false)
+    expect(isWithinPeriod("2026-01-15", null, null)).toBe(true)
+
+    const inside = await designerTimesheetReport({ orgId: ORG_ID }, PROJECT_ID, { from: "2026-01-01", to: "2026-01-31" })
+    expect(inside.period).toEqual({ from: "2026-01-01", to: "2026-01-31" })
+    // 30 entries x 2 h x AED 50 = 3000, all inside the window.
+    expect(inside.projectScoped.overallActual).toBe(3000)
+
+    const outside = await designerTimesheetReport({ orgId: ORG_ID }, PROJECT_ID, { from: "2026-02-01", to: "2026-02-28" })
+    expect(outside.period).toEqual({ from: "2026-02-01", to: "2026-02-28" })
+    // Not one hour falls in February: actual is 0, and the budget is STILL
+    // 1000 -- a month with no logged hours has a budget nobody spent, which is
+    // the whole point of a Budget-vs-Actual view.
+    expect(outside.projectScoped.overallActual).toBe(0)
+    expect(outside.projectScoped.overallBudget).toBe(1000)
+    expect(outside.projectScoped.byCategory).toEqual([])
   })
 })
 
@@ -904,6 +972,472 @@ describe("workProgressReport with categoryFilter (R67 I-05, real code path)", ()
   })
 })
 
+// R67 E-02 (R-012). The project dashboard's category panel becomes
+// "Completed AED n / Total AED n" instead of a bare percentage, which means
+// the percentage (from the ACTIVITY hierarchy) and the money (from the BOQ
+// LINES) must meet on one set of buckets. These two pure functions are that
+// join; both are DB-free, tested here directly per this file's own convention.
+describe("attributeBoqAmountsByCategory (R67 E-02)", () => {
+  const CATEGORIES = [{ id: "cat-civil", name: "Civil" }, { id: "cat-mep", name: "MEP" }]
+  const ACTIVITIES = [{ id: "act-1", categoryId: "cat-mep" }]
+
+  test("the line's own category TEXT wins, and matches an existing project category case-insensitively", () => {
+    const out = attributeBoqAmountsByCategory(
+      [{ activityId: null, amount: 1000, category: "civil" }],
+      CATEGORIES,
+      ACTIVITIES
+    )
+    expect(out.categories.find((c) => c.categoryId === "cat-civil")?.totalAmount).toBe(1000)
+    // NOT a second "civil" bucket beside the real "Civil" one -- that is the
+    // duplicate-slice defect this convergence rule exists to prevent.
+    expect(out.categories.filter((c) => c.totalAmount > 0)).toHaveLength(1)
+  })
+
+  test("no category text falls back to the activity's category, exactly as before", () => {
+    const out = attributeBoqAmountsByCategory(
+      [{ activityId: "act-1", amount: 500, category: null }],
+      CATEGORIES,
+      ACTIVITIES
+    )
+    expect(out.categories.find((c) => c.categoryId === "cat-mep")?.totalAmount).toBe(500)
+    expect(out.uncategorizedAmount).toBe(0)
+  })
+
+  test("a category text matching no project row gets a stable synthetic id, never a collision with a real cuid", () => {
+    const out = attributeBoqAmountsByCategory(
+      [{ activityId: null, amount: 250, category: "Joinery" }],
+      CATEGORIES,
+      ACTIVITIES
+    )
+    const synthetic = out.categories.find((c) => c.name === "Joinery")
+    expect(synthetic?.categoryId).toBe("text:joinery")
+    expect(synthetic?.totalAmount).toBe(250)
+  })
+
+  test("neither path resolves: the amount lands in uncategorized, and the totals still tie", () => {
+    const out = attributeBoqAmountsByCategory(
+      [
+        { activityId: null, amount: 1000, category: "Civil" },
+        { activityId: null, amount: 300, category: null },
+      ],
+      CATEGORIES,
+      ACTIVITIES
+    )
+    expect(out.uncategorizedAmount).toBe(300)
+    // The identity the pie depends on: every line's amount is in the total
+    // exactly once, whichever bucket it landed in.
+    expect(out.totalAmount).toBe(1300)
+    expect(out.categories.reduce((s, c) => s + c.totalAmount, 0) + out.uncategorizedAmount).toBe(out.totalAmount)
+  })
+
+  test("drizzle numeric columns arrive as strings and are summed as numbers, not concatenated", () => {
+    const out = attributeBoqAmountsByCategory(
+      [
+        { activityId: null, amount: "1000.50", category: "Civil" },
+        { activityId: null, amount: "2000.25", category: "Civil" },
+      ],
+      CATEGORIES,
+      ACTIVITIES
+    )
+    expect(out.categories.find((c) => c.categoryId === "cat-civil")?.totalAmount).toBe(3000.75)
+  })
+})
+
+describe("mergeCategoryProgressWithAmounts (R67 E-02)", () => {
+  const AMOUNTS = {
+    categories: [
+      { categoryId: "cat-civil", name: "Civil", totalAmount: 750 },
+      { categoryId: "cat-mep", name: "MEP", totalAmount: 250 },
+    ],
+    uncategorizedAmount: 0,
+    totalAmount: 1000,
+  }
+  const NAMES = new Map([["cat-civil", "Civil"], ["cat-mep", "MEP"]])
+
+  test("completedAmount is the category's own money times its own percentage", () => {
+    const rows = mergeCategoryProgressWithAmounts(new Map([["cat-civil", 40]]), AMOUNTS, NAMES)
+    const civil = rows.find((r) => r.categoryId === "cat-civil")!
+    expect(civil.totalAmount).toBe(750)
+    expect(civil.percentComplete).toBe(40)
+    expect(civil.completedAmount).toBe(300)
+  })
+
+  test("sharePercent is the slice of the BOQ, to one decimal, and the slices sum to 100", () => {
+    const rows = mergeCategoryProgressWithAmounts(new Map(), AMOUNTS, NAMES)
+    expect(rows.find((r) => r.categoryId === "cat-civil")!.sharePercent).toBe(75)
+    expect(rows.find((r) => r.categoryId === "cat-mep")!.sharePercent).toBe(25)
+    expect(rows.reduce((s, r) => s + r.sharePercent, 0)).toBe(100)
+  })
+
+  test("a money bucket with no progress hierarchy behind it is 0%, not dropped", () => {
+    const withText = { ...AMOUNTS, categories: [...AMOUNTS.categories, { categoryId: "text:joinery", name: "Joinery", totalAmount: 0 }] }
+    const rows = mergeCategoryProgressWithAmounts(new Map([["cat-civil", 40]]), withText, NAMES)
+    const joinery = rows.find((r) => r.categoryId === "text:joinery")!
+    expect(joinery.percentComplete).toBe(0)
+    expect(rows).toHaveLength(3)
+  })
+
+  test("a progress bucket with no BOQ money behind it keeps its NAME and reports 0 money", () => {
+    const rows = mergeCategoryProgressWithAmounts(new Map([["cat-finishes", 20]]), AMOUNTS, new Map([["cat-finishes", "Finishes"]]))
+    const finishes = rows.find((r) => r.categoryId === "cat-finishes")!
+    expect(finishes.name).toBe("Finishes")
+    expect(finishes.totalAmount).toBe(0)
+    expect(finishes.completedAmount).toBe(0)
+  })
+
+  test("a BOQ worth nothing produces 0 shares, never NaN", () => {
+    const empty = { categories: [{ categoryId: "cat-civil", name: "Civil", totalAmount: 0 }], uncategorizedAmount: 0, totalAmount: 0 }
+    const rows = mergeCategoryProgressWithAmounts(new Map([["cat-civil", 50]]), empty, NAMES)
+    expect(rows[0].sharePercent).toBe(0)
+    expect(Number.isNaN(rows[0].sharePercent)).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 E-06 (R-108) -- ONE BUDGET NUMBER
+//
+// Three screens disagreed: the dashboard tile read "TOTAL BUDGET AED 0", the
+// Project Status report read "Budget 0", and Cost Variance read 2,193.75. The
+// acceptance for this item is precisely that they now agree, so the fixture
+// below is the item's own 2,193.75 and the assertions compare the three
+// figures to each other rather than to three separately-typed constants.
+// ---------------------------------------------------------------------------
+describe("sumRootLineBudgets (R67 E-06)", () => {
+  test("sums amount x budgetPercentage / 100 over the ROOT lines -- the item's own 2,193.75", () => {
+    expect(sumRootLineBudgets([
+      { parentLineItemId: null, amount: 5400, budgetPercentage: 25 },  // 1350
+      { parentLineItemId: null, amount: 3375, budgetPercentage: 25 },  //  843.75
+    ])).toBe(2193.75)
+  })
+
+  test("a weighted sub-task is NOT added again -- its amount is already inside its parent's", () => {
+    const withChildren = sumRootLineBudgets([
+      { parentLineItemId: null, amount: 5400, budgetPercentage: 25 },
+      { parentLineItemId: "root-1", amount: 2700, budgetPercentage: 25 },
+      { parentLineItemId: "root-1", amount: 2700, budgetPercentage: 25 },
+    ])
+    expect(withChildren).toBe(1350)
+  })
+
+  test("no lines at all is null, NEVER 0 -- 'no BOQ' is not 'a budget of nothing'", () => {
+    expect(sumRootLineBudgets([])).toBeNull()
+    expect(sumRootLineBudgets([{ parentLineItemId: "root-1", amount: 100, budgetPercentage: 25 }])).toBeNull()
+  })
+
+  test("a real BOQ worth zero still reports 0 -- absent and zero stay distinguishable in both directions", () => {
+    expect(sumRootLineBudgets([{ parentLineItemId: null, amount: 0, budgetPercentage: 25 }])).toBe(0)
+  })
+
+  test("rounds ONCE at the end, so the total reconciles to a raw SQL sum over the same rows", () => {
+    // Three lines whose individual budgets are 33.333..., summed then rounded.
+    expect(sumRootLineBudgets([
+      { parentLineItemId: null, amount: 100, budgetPercentage: 33.3333 },
+      { parentLineItemId: null, amount: 100, budgetPercentage: 33.3333 },
+      { parentLineItemId: null, amount: 100, budgetPercentage: 33.3334 },
+    ])).toBe(100)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 E-08 (R-115) -- Revenue / Budget / Actual, scope-wise and category-wise
+// ---------------------------------------------------------------------------
+describe("aggregateRevenueBudgetActual (R67 E-08)", () => {
+  const LINES = [
+    { lineItemId: "l1", code: "C-01", description: "Blockwork", category: "Civil", revenue: 5400, budget: 1350, vendorAmount: 1500, materialAmount: null, manpowerAmount: null },
+    { lineItemId: "l2", code: "C-02", description: "Plaster", category: "Civil", revenue: 3375, budget: 843.75, vendorAmount: null, materialAmount: 400, manpowerAmount: 200 },
+    { lineItemId: "l3", code: "J-01", description: "Wardrobes", category: "Joinery", revenue: 2000, budget: 500, vendorAmount: null, materialAmount: null, manpowerAmount: null },
+  ]
+
+  test("scope-wise returns one row per BOQ line, keyed so a row can link back to it", () => {
+    const { rows } = aggregateRevenueBudgetActual(LINES, "scope")
+    expect(rows.map((r) => r.item)).toEqual(["C-01", "C-02", "J-01"])
+    expect(rows[0].lineItemId).toBe("l1")
+  })
+
+  test("ACCEPTANCE: the category-wise rows' budget sums to the scope-wise total budget", () => {
+    const scope = aggregateRevenueBudgetActual(LINES, "scope")
+    const category = aggregateRevenueBudgetActual(LINES, "category")
+    expect(category.rows.reduce((s, r) => s + r.budget, 0)).toBe(scope.totals.budget)
+  })
+
+  test("ACCEPTANCE: the category-wise rows' revenue sums to the BOQ contract total", () => {
+    const category = aggregateRevenueBudgetActual(LINES, "category")
+    expect(category.rows.reduce((s, r) => s + r.revenue, 0)).toBe(5400 + 3375 + 2000)
+  })
+
+  test("ACCEPTANCE: a row with budget 0 returns percentUsed null -- never a divide-by-zero 0%", () => {
+    const { rows } = aggregateRevenueBudgetActual(
+      [{ lineItemId: "l9", code: "X", description: "Provisional sum", category: null, revenue: 1000, budget: 0, vendorAmount: 250, materialAmount: null, manpowerAmount: null }],
+      "scope"
+    )
+    expect(rows[0].budget).toBe(0)
+    expect(rows[0].percentUsed).toBeNull()
+  })
+
+  test("actual is vendor + material + manpower, counting only the figures that exist", () => {
+    const { rows } = aggregateRevenueBudgetActual(LINES, "scope")
+    expect(rows[0].actual).toBe(1500)      // vendor only
+    expect(rows[1].actual).toBe(600)       // material + manpower
+    expect(rows[2].actual).toBeNull()      // nothing costed yet -- null, not 0
+  })
+
+  // R67 merge (2026-09-03): lane D's item D-26 flipped what `variance` means on
+  // the per-line budget report -- budget MINUS committed, so a positive figure
+  // is budget remaining and a negative one is the overrun -- and landed on main
+  // first. E-08's fold follows that convention rather than shipping the
+  // opposite reading of the same word on the same screen. Line 0 is over
+  // budget (1500 spent against 1350) and now reads -150, not +150.
+  test("variance is budget - actual, POSITIVE meaning budget remaining, and null while nothing is costed", () => {
+    const { rows } = aggregateRevenueBudgetActual(LINES, "scope")
+    expect(rows[0].variance).toBe(-150)     // 1350 budget, 1500 committed -- over
+    expect(rows[1].variance).toBe(243.75)   // 843.75 budget, 600 committed -- under
+    expect(rows[2].variance).toBeNull()
+  })
+
+  // The one predicate that answers "is this over budget", so no screen has to
+  // re-derive it from the sign by hand and get it backwards.
+  test("isLineOverBudget agrees with the sign, and a line nobody has costed is neither over nor under", () => {
+    const { rows } = aggregateRevenueBudgetActual(LINES, "scope")
+    expect(isLineOverBudget(rows[0].variance)).toBe(true)
+    expect(isLineOverBudget(rows[1].variance)).toBe(false)
+    expect(isLineOverBudget(rows[2].variance)).toBe(false)
+  })
+
+  test("percentUsed is one decimal", () => {
+    const { rows } = aggregateRevenueBudgetActual(LINES, "scope")
+    expect(rows[0].percentUsed).toBe(111.1)
+  })
+
+  test("an uncategorised line falls into ONE named bucket, not an empty label", () => {
+    const { rows } = aggregateRevenueBudgetActual(
+      [{ lineItemId: "l4", code: "Z", description: "Misc", category: null, revenue: 100, budget: 25, vendorAmount: null, materialAmount: null, manpowerAmount: null }],
+      "category"
+    )
+    expect(rows[0].item).toBe(UNCATEGORIZED_LABEL)
+    expect(rows[0].lineCount).toBe(1)
+  })
+
+  test("both foldings report the SAME totals -- one fold, two views", () => {
+    const scope = aggregateRevenueBudgetActual(LINES, "scope")
+    const category = aggregateRevenueBudgetActual(LINES, "category")
+    expect(category.totals).toEqual(scope.totals)
+  })
+
+  test("no lines produces empty rows and null actual/variance, never a crash or a zero", () => {
+    const empty = aggregateRevenueBudgetActual([], "category")
+    expect(empty.rows).toEqual([])
+    expect(empty.totals.budget).toBe(0)
+    expect(empty.totals.actual).toBeNull()
+    expect(empty.totals.percentUsed).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 E-06 ACCEPTANCE, run for real against the actual service functions with
+// only the DB layer mocked -- the same "capture real modules, restore in
+// afterEach" pattern as the designerTimesheetReport block above.
+//
+// This is the assertion the item is written around: the Project Status
+// report's budget field and the budget-variance report's totalBudget are ONE
+// number, and a project with no BOQ reports null rather than 0.
+// ---------------------------------------------------------------------------
+const BOQ_ROW = { id: "boq-1", orgId: "org-e06", projectId: "proj-e06", version: 2, status: "draft", title: "Main BOQ", createdAt: new Date("2026-01-05") }
+
+function boqLine(over: Record<string, unknown>) {
+  return {
+    id: "l?", orgId: "org-e06", boqId: "boq-1", activityId: null, itemCode: null, description: "line",
+    unit: "m2", quantity: "1", rate: "1", amount: "0", parentLineItemId: null, breakdownPercentage: null,
+    materialCost: null, labourCost: null, equipmentCost: null, overheadPercent: null, profitPercent: null,
+    budgetPercentage: "25", vendorId: null, vendorAmount: null, materialAmount: null, manpowerAmount: null,
+    category: null, createdAt: new Date("2026-01-06"),
+    ...over,
+  }
+}
+
+// 5400 x 25% = 1350, 3375 x 25% = 843.75 -> 2193.75, the item's own figure.
+// The child line would add another 675 if this code ever went back to summing
+// every line instead of the root lines.
+const E06_LINES = [
+  boqLine({ id: "l1", itemCode: "C-01", description: "Blockwork", quantity: "120", rate: "45", amount: "5400", category: "Civil", vendorId: "sup-1", vendorAmount: "1500" }),
+  boqLine({ id: "l2", itemCode: "C-02", description: "Site clearance", quantity: "1", rate: "3375", amount: "3375" }),
+  boqLine({ id: "l3", itemCode: "C-01.1", description: "Blockwork - first lift", parentLineItemId: "l1", quantity: "60", rate: "45", amount: "2700", category: "Civil" }),
+]
+
+function fakeDbFor(lines: ReturnType<typeof boqLine>[], hasBoq: boolean) {
+  // One canned row satisfies every aggregate this pair of functions runs
+  // (ledger budget / revenue / expenses / task counts / photos / PO sum) and
+  // the supplier-name lookup, because each reads only the keys it asked for.
+  const ROW = { total: 0, count: 0, delayed: 0, id: "sup-1", name: "Alpha Contracting LLC" }
+  const chain: Record<string, unknown> = {}
+  chain.from = () => chain
+  chain.innerJoin = () => chain
+  // R67 lane D22 (D-54, second-merge fold-in): boqBudgetVarianceReport's
+  // interim-bill revenue rollup chains .where(...).groupBy(...) rather than
+  // awaiting .where() directly (every other reader here does). where() has to
+  // be BOTH awaitable (the aggregates that end there) and chainable into
+  // groupBy() (this one) -- a promise carrying the extra method is the
+  // smallest fake that is honest about both, same pattern the D-41 describe
+  // block's own selectStub below already uses.
+  chain.where = () => Object.assign(Promise.resolve([ROW]), { groupBy: async () => [ROW] })
+  chain.groupBy = async () => [ROW]
+  return {
+    query: {
+      projects: { findFirst: async () => ({ id: "proj-e06", name: "Cedar Heights Villa - Phase 1", projectValue: null }) },
+      constructionActivities: { findMany: async () => [] },
+      constructionBoqs: {
+        findMany: async () => (hasBoq ? [BOQ_ROW] : []),
+        findFirst: async () => (hasBoq ? BOQ_ROW : undefined),
+      },
+      constructionBoqLineItems: { findMany: async () => lines },
+    },
+    select: () => chain,
+    // R67 merge (2026-09-03): getProjectDashboard no longer runs its own
+    // per-project reads -- lane F2 moved them into getProjectDashboards, ONE
+    // statement whose result this execute() stands in for. Serving it from the
+    // SAME `lines` the BOQ reads above use is the point: E-06's acceptance is
+    // that the dashboard and the budget-variance report state one number, so
+    // both sides of that claim have to come from one set of line items. A row
+    // is returned only when the project really has a BOQ, because that is what
+    // the real statement does (LEFT JOIN ev, null items) and it is what makes
+    // the "no BOQ -> budget null" case below a real assertion rather than a
+    // 404 dressed up as one.
+    execute: async () => [{
+      project_id: "proj-e06",
+      project_name: "Cedar Heights Villa - Phase 1",
+      // The ERP annual ledger sum -- 0 here, which is exactly the figure that
+      // used to be printed as "TOTAL BUDGET AED 0" and is why E-06 exists.
+      budget: 0,
+      // R67 D-02 (second-merge fold-in): how many erp_budget_line_items rows
+      // the budget CTE matched -- a REAL row that happens to sum to zero, so
+      // ledgerBudget reads 0 (not null, which would mean "no row at all").
+      budget_lines: 1,
+      revenue: 0,
+      expenses: 0,
+      progress_percent: null,
+      task_count: 0,
+      delayed_task_count: 0,
+      photo_count: 0,
+      permits_expiring: 0,
+      permits_expired: 0,
+      project_value: null,
+      po_total: null,
+      ev_items: hasBoq
+        ? lines.map((l) => ({
+            id: l.id,
+            boqId: l.boqId,
+            parentLineItemId: l.parentLineItemId,
+            rate: l.rate,
+            amount: l.amount,
+            breakdownPercentage: l.breakdownPercentage,
+            budgetPercentage: l.budgetPercentage,
+            qty: null,
+            percent: null,
+          }))
+        : null,
+    }],
+  }
+}
+
+describe("R67 E-06: the Project Status report and the budget-variance report state ONE budget", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+    await mock.module("./construction-enablement-service", () => realEnablementService)
+  })
+
+  async function withFakeDb(lines: ReturnType<typeof boqLine>[], hasBoq: boolean) {
+    // R67 F-27 added a 60 s per-project dashboard cache keyed on org+project.
+    // Every test here uses the SAME org and project id, so without this reset
+    // the "no BOQ" case would be served the previous test's "has BOQ" answer
+    // and would pass for the wrong reason.
+    const { resetDashboardCache } = await import("./project-dashboard-cache")
+    resetDashboardCache()
+    const fakeDb = fakeDbFor(lines, hasBoq)
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablementService,
+      requireConstructionEnabled: mock(async () => {}),
+      isConstructionEnabledForOrg: mock(async () => true),
+    }))
+    return import("./construction-reports-service")
+  }
+
+  test("ACCEPTANCE: a BOQ whose root lines carry computedBudget totalling 2193.75 gives the project-status report that figure, and the budget-variance report the same one", async () => {
+    const { projectStatusReport, boqBudgetVarianceReport } = await withFakeDb(E06_LINES, true)
+    const status = await projectStatusReport({ orgId: "org-e06" }, "proj-e06")
+    const variance = await boqBudgetVarianceReport({ orgId: "org-e06" }, "proj-e06")
+
+    expect(status.budget).toBe(2193.75)
+    expect(variance.totalBudget).toBe(2193.75)
+    expect(status.budget).toBe(variance.totalBudget)
+  })
+
+  test("the ERP annual ledger figure is still returned, under its own name, so nothing that wants it has lost it", async () => {
+    const { projectStatusReport } = await withFakeDb(E06_LINES, true)
+    const status = await projectStatusReport({ orgId: "org-e06" }, "proj-e06")
+    expect(status.ledgerBudget).toBe(0)
+    expect(status.budget).not.toBe(status.ledgerBudget)
+  })
+
+  test("ACCEPTANCE: a project with no BOQ reports budget null -- rendered as an en dash, never 0", async () => {
+    const { projectStatusReport, boqBudgetVarianceReport } = await withFakeDb([], false)
+    const status = await projectStatusReport({ orgId: "org-e06" }, "proj-e06")
+    const variance = await boqBudgetVarianceReport({ orgId: "org-e06" }, "proj-e06")
+
+    expect(status.budget).toBeNull()
+    expect(variance.totalBudget).toBeNull()
+  })
+
+  test("R67 E-07: the report carries the S.No / Qty / Rate columns Sumeet's spec asks for, numbered over the contract lines only", async () => {
+    const { boqBudgetVarianceReport } = await withFakeDb(E06_LINES, true)
+    const report = await boqBudgetVarianceReport({ orgId: "org-e06" }, "proj-e06")
+    const roots = report.lines.filter((l) => l.isRootLine)
+    expect(roots.map((l) => l.sNo)).toEqual([1, 2])
+    expect(report.lines.find((l) => !l.isRootLine)!.sNo).toBeNull()
+    expect(roots[0].quantity).toBe(120)
+    expect(roots[0].rate).toBe(45)
+    expect(report.subTaskLineCount).toBe(1)
+  })
+
+  test("R67 E-07: a Category filter narrows the report to that category AND takes its weighted sub-tasks with it", async () => {
+    const { boqBudgetVarianceReport } = await withFakeDb(E06_LINES, true)
+    const report = await boqBudgetVarianceReport({ orgId: "org-e06" }, "proj-e06", { categories: ["Civil"] })
+    expect(report.lines.map((l) => l.lineItemId)).toEqual(["l1", "l3"])
+    expect(report.totalBudget).toBe(1350)
+    expect(report.availableCategories).toEqual(["Civil"])
+  })
+
+  test("R67 E-07: a Vendor filter narrows to that vendor's lines, and the vendor list offers only vendors this BOQ actually uses", async () => {
+    const { boqBudgetVarianceReport } = await withFakeDb(E06_LINES, true)
+    const report = await boqBudgetVarianceReport({ orgId: "org-e06" }, "proj-e06", { vendorId: "sup-1" })
+    expect(report.lines.filter((l) => l.isRootLine).map((l) => l.lineItemId)).toEqual(["l1"])
+    expect(report.availableVendors).toEqual([{ id: "sup-1", name: "Alpha Contracting LLC" }])
+  })
+
+  test("R67 E-07: a filter that matches nothing returns no lines and a null budget, not a crash", async () => {
+    const { boqBudgetVarianceReport } = await withFakeDb(E06_LINES, true)
+    const report = await boqBudgetVarianceReport({ orgId: "org-e06" }, "proj-e06", { categories: ["Joinery"] })
+    expect(report.lines).toEqual([])
+    expect(report.totalBudget).toBeNull()
+    expect(report.revenueBudgetActual.rows).toEqual([])
+  })
+
+  test("R67 E-08: the Revenue/Budget/Actual fold rides on the same read, and its scope-wise total budget is the report's own total", async () => {
+    const { boqBudgetVarianceReport } = await withFakeDb(E06_LINES, true)
+    const scope = await boqBudgetVarianceReport({ orgId: "org-e06" }, "proj-e06")
+    const byCategory = await boqBudgetVarianceReport({ orgId: "org-e06" }, "proj-e06", { groupBy: "category" })
+
+    expect(scope.revenueBudgetActual.groupBy).toBe("scope")
+    expect(scope.revenueBudgetActual.totals.budget).toBe(scope.totalBudget)
+    expect(scope.revenueBudgetActual.totals.revenue).toBe(5400 + 3375)
+    expect(byCategory.revenueBudgetActual.rows.map((r) => r.item)).toEqual(["Civil", UNCATEGORIZED_LABEL])
+    expect(byCategory.revenueBudgetActual.totals).toEqual(scope.revenueBudgetActual.totals)
+  })
+})
+
 // R67 lane D22 (item D-41): the Budget screen PROJEXA now renders at /budgets
 // prints Sumeet's own columns -- S.No | Category | Code | Description | Qty |
 // Rate | Amount | Budget % | Budget | Vendor | Vendor Amt | Material |
@@ -1009,23 +1543,32 @@ describe("boqBudgetVarianceReport widened for the project Budget screen (R67 D-4
     expect(result.boqVersion).toBe(2)
   })
 
+  // R67 second-merge fix: restated against the actual merged empty shape.
+  // This lane's own key list predates E-06/E-07/E-08 landing on the same
+  // function (subTaskLineCount, availableCategories, availableVendors,
+  // filters, revenueBudgetActual, categorySubtotals) -- those are real keys
+  // the populated branch also returns (see boqBudgetVarianceReport's own
+  // comment on why every key must match), so the exact list here now
+  // includes them too, and totalBudget is null (E-06's "no BOQ is not a
+  // budget of nothing" rule), not the 0 this test predates.
   test("a project with no BOQ answers the SAME keys, so the screen renders zeroes rather than NaN", async () => {
     const result = await runBudgetVariance([], [])
-    // R67 integration: the empty shape is the union of what both lanes' screens
-    // read. Listed exactly rather than as a subset, because the whole point of
-    // this test is that a key present in the populated shape and missing here
-    // renders "NaN" on a project that has no BOQ yet.
+    // R67 integration: the empty shape is the union of what every lane's
+    // screen reads. Listed exactly rather than as a subset, because the whole
+    // point of this test is that a key present in the populated shape and
+    // missing here renders "NaN" on a project that has no BOQ yet.
     expect(Object.keys(result).sort()).toEqual(
       [
-        "boqId", "boqTitle", "boqVersion", "lines",
+        "boqId", "boqTitle", "boqVersion", "lines", "subTaskLineCount",
         "totalBudget", "totalVendorAmount", "totalMaterialAmount", "totalManpowerAmount",
         "totalCommitted", "totalVariance", "budgetRemaining",
         "totalActual", "totalRevenue", "linesOverBudget", "lineCount",
+        "availableCategories", "availableVendors", "filters", "revenueBudgetActual", "categorySubtotals",
       ].sort()
     )
     expect(result.boqId).toBeNull()
     expect(result.lines).toEqual([])
-    expect(result.totalBudget).toBe(0)
+    expect(result.totalBudget).toBeNull()
   })
 
   test("the grand total ties to the per-line budgets, and moving one line's Budget % moves it by exactly that line's delta", async () => {

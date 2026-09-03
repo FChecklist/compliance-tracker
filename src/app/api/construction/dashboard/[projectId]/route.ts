@@ -23,8 +23,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
     if (!hasRole(dbUser, "manager")) {
       return NextResponse.json({
         ...dashboard,
-        budget: null, revenue: null, expenses: null,
+        budget: null, ledgerBudget: null, revenue: null, expenses: null,
         projectValue: null, earnedValue: null, percentByValue: null, contractValue: null,
+        financialsRedacted: true,
       })
     }
     return NextResponse.json(dashboard)

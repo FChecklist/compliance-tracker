@@ -49,6 +49,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // keeps the previous every-category behaviour.
       const categoryFilter = request.nextUrl.searchParams.getAll("category").filter((c) => c.trim() !== "")
       result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId, { categoryFilter })
+    } else if (reportName === "budget-variance") {
+      // R67 E-07 (R-114) + E-08 (R-115): the Cost Variance screen's real
+      // Category and Vendor filters, and the Revenue/Budget/Actual view's
+      // scope|category fold. Repeatable `category` params for the same reason
+      // the work-progress report above uses them -- a real category name may
+      // contain a comma, and splitting on one would filter for a category
+      // nobody has. Omitting every param keeps the previous whole-BOQ,
+      // scope-wise behaviour byte for byte.
+      const categories = request.nextUrl.searchParams.getAll("category").filter((c) => c.trim() !== "")
+      const vendorId = request.nextUrl.searchParams.get("vendorId") ?? undefined
+      const groupBy = request.nextUrl.searchParams.get("groupBy") === "category" ? "category" : "scope"
+      result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId, { categories, vendorId, groupBy })
+    } else if (reportName === "designer-timesheet") {
+      // R67 E-16 (R-150): the Design Studio Cost Analysis screen defaults to
+      // the current month, so this report finally takes one. Omitting both
+      // keeps the previous whole-history behaviour for existing API callers.
+      const from = request.nextUrl.searchParams.get("from") ?? undefined
+      const to = request.nextUrl.searchParams.get("to") ?? undefined
+      result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId, { from, to })
     } else if (reportName === "manpower-cost") {
       // R39/R-C07: both optional -- omitted keeps the existing all-time,
       // all-trade behavior.
