@@ -21,7 +21,18 @@ export async function GET(request: NextRequest) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
-    const summary = await getOrgDashboard({ orgId: ctx.orgId }, { departmentId: request.nextUrl.searchParams.get("departmentId") ?? undefined })
+    // R67 E-02: the home's Filter drawer -- which absorbs the retired
+    // /dashboard/hierarchy screen's own selects -- passes departmentId and an
+    // optional from/to window. The window narrows revenue and spend only; the
+    // service's own type comment says why the BOQ-derived figures are left
+    // alone, and the response carries dateRangeApplied so the screen can
+    // caption exactly what it filtered.
+    const { searchParams } = request.nextUrl
+    const summary = await getOrgDashboard({ orgId: ctx.orgId }, {
+      departmentId: searchParams.get("departmentId") ?? undefined,
+      from: searchParams.get("from") ?? undefined,
+      to: searchParams.get("to") ?? undefined,
+    })
     // R48 gap-closure (2026-08-30, F059: "MEMBER cannot see budget or
     // margin"). This is the REAL route the (app)/construction-dashboard
     // page calls (confirmed live: it fetches /api/v1/projexa/dashboard, not

@@ -13,7 +13,7 @@
 // documented here rather than silently treated as exact.
 import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users, erpPurchaseOrders, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, sql, isNull, isNotNull, lte } from "drizzle-orm"
+import { and, eq, inArray, sql, isNull, isNotNull, gte, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 // R39/R-51 (D-3): reuses the SAME earnedValueReport construction-reports-
 // service.ts exposes as the "earned-value" named report -- NOT a second
@@ -275,7 +275,19 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
   })
 }
 
-export type OrgDashboardFilters = { departmentId?: string }
+/**
+ * R67 E-02 (R-012): the home dashboard's Filter drawer -- which absorbs the
+ * retired /dashboard/hierarchy screen's Company and Department selects -- also
+ * carries a date range. `from`/`to` (YYYY-MM-DD, inclusive) narrow REVENUE and
+ * SPEND only, and the screen says so in words.
+ *
+ * They deliberately do NOT narrow contract value, earned value or the
+ * percentages: those are point-in-time facts about the current BOQ, not sums
+ * over a window, and pretending a date range applies to them would make the
+ * bar disagree with itself. `dateRangeApplied` comes back so the screen can
+ * caption the figures it really did filter.
+ */
+export type OrgDashboardFilters = { departmentId?: string; from?: string; to?: string }
 
 /**
  * R67 E-01 (R-007): the home dashboard's project row needs a SECOND percentage
@@ -328,6 +340,8 @@ export type OrgDashboardSummary = {
   totalRevenue: number
   totalExpenses: number
   projects: OrgDashboardProjectSummary[]
+  /** True when `from`/`to` narrowed the revenue and spend figures -- so the screen can caption them honestly. */
+  dateRangeApplied: boolean
 }
 
 /** Permit-expiry horizon the home row and the project dashboard both use. */
@@ -338,6 +352,9 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
   // R66 audit: same hoist as getProjectDashboard -- R43_MGR_01 removed the
   // per-project nesting but left this one nested transaction inside.
   const constructionEnabled = await isConstructionEnabledForOrg(ctx.orgId).catch(() => false)
+  const from = filters.from?.trim() || null
+  const to = filters.to?.trim() || null
+  const dateRangeApplied = Boolean(from || to)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     let projectIds: string[] | undefined
     if (filters.departmentId) {
@@ -347,23 +364,32 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         ? await db.query.projects.findMany({ where: and(eq(projects.orgId, ctx.orgId), inArray(projects.leadUserId, leadIds)), columns: { id: true } })
         : []
       projectIds = scoped.map((p) => p.id)
-      if (projectIds.length === 0) return { totalProjects: 0, totalBudget: 0, totalRevenue: 0, totalExpenses: 0, projects: [] }
+      if (projectIds.length === 0) return { totalProjects: 0, totalBudget: 0, totalRevenue: 0, totalExpenses: 0, projects: [], dateRangeApplied }
     }
 
     const projectConditions = [eq(projects.orgId, ctx.orgId), eq(projects.isActive, true)]
     if (projectIds) projectConditions.push(inArray(projects.id, projectIds))
     const projectRows = await db.query.projects.findMany({ where: and(...projectConditions), columns: { id: true, name: true } })
     const ids = projectRows.map((p) => p.id)
-    if (ids.length === 0) return { totalProjects: 0, totalBudget: 0, totalRevenue: 0, totalExpenses: 0, projects: [] }
+    if (ids.length === 0) return { totalProjects: 0, totalBudget: 0, totalRevenue: 0, totalExpenses: 0, projects: [], dateRangeApplied }
 
+    // R67 E-02: the optional window narrows these two sums and nothing else --
+    // see OrgDashboardFilters' own comment for why the BOQ-derived figures are
+    // deliberately left alone.
+    const revenueConditions = [eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.projectId, ids), sql`${erpSalesInvoices.status} != 'cancelled'`]
+    if (from) revenueConditions.push(gte(erpSalesInvoices.postingDate, from))
+    if (to) revenueConditions.push(lte(erpSalesInvoices.postingDate, to))
     const revenueByProject = await db.select({ projectId: erpSalesInvoices.projectId, total: sql<number>`coalesce(sum(${erpSalesInvoices.grandTotal}), 0)::float` })
       .from(erpSalesInvoices)
-      .where(and(eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.projectId, ids), sql`${erpSalesInvoices.status} != 'cancelled'`))
+      .where(and(...revenueConditions))
       .groupBy(erpSalesInvoices.projectId)
 
+    const expenseConditions = [eq(constructionExpenseEntries.orgId, ctx.orgId), inArray(constructionExpenseEntries.projectId, ids)]
+    if (from) expenseConditions.push(gte(constructionExpenseEntries.expenseDate, from))
+    if (to) expenseConditions.push(lte(constructionExpenseEntries.expenseDate, to))
     const expensesByProject = await db.select({ projectId: constructionExpenseEntries.projectId, total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float` })
       .from(constructionExpenseEntries)
-      .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), inArray(constructionExpenseEntries.projectId, ids)))
+      .where(and(...expenseConditions))
       .groupBy(constructionExpenseEntries.projectId)
 
     const today = new Date().toISOString().slice(0, 10)
@@ -604,6 +630,7 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
       totalRevenue: projectSummaries.reduce((s, p) => s + p.revenue, 0),
       totalExpenses: projectSummaries.reduce((s, p) => s + p.expenses, 0),
       projects: projectSummaries,
+      dateRangeApplied,
     }
   })
 }

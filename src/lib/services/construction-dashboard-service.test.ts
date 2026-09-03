@@ -120,3 +120,37 @@ describe("getOrgDashboard: the R67 E-01 additions are batched, not per-project",
     expect(body).toMatch(/spendOverValue:\s*value !== null && expenses > value/)
   })
 })
+
+// R67 E-02 (R-012): the home's Filter drawer absorbs the retired
+// /dashboard/hierarchy screen's selects and adds a date range. The rule these
+// pin is the one that keeps the screen honest: the window narrows the two SUMS
+// and nothing else, because contract value, earned value and the percentages
+// are point-in-time facts about the current BOQ rather than sums over a
+// window. Filtering them would make the bar disagree with itself.
+describe("getOrgDashboard: the date range narrows revenue and spend ONLY (R67 E-02)", () => {
+  const body = functionBody("getOrgDashboard")
+
+  test("revenue is filtered on the invoice's own posting date", () => {
+    expect(body).toMatch(/gte\(erpSalesInvoices\.postingDate, from\)/)
+    expect(body).toMatch(/lte\(erpSalesInvoices\.postingDate, to\)/)
+  })
+
+  test("spend is filtered on the expense entry's own date", () => {
+    expect(body).toMatch(/gte\(constructionExpenseEntries\.expenseDate, from\)/)
+    expect(body).toMatch(/lte\(constructionExpenseEntries\.expenseDate, to\)/)
+  })
+
+  test("the BOQ reads carry no date bound at all -- they are not sums over a window", () => {
+    const boqRead = body.slice(body.indexOf("latestBoqPerProject"), body.indexOf("const revenueMap"))
+    // The two date bounds are only ever applied through gte(..., from) /
+    // lte(..., to); neither appears anywhere in the BOQ value read. (A bare
+    // /\bfrom\b/ would match drizzle's own .from(table), which is why this
+    // asserts the comparators rather than the word.)
+    expect(boqRead).not.toMatch(/gte\(/)
+    expect(boqRead).not.toMatch(/lte\(/)
+  })
+
+  test("the response says whether a range was applied, so the screen can caption it", () => {
+    expect(body).toMatch(/dateRangeApplied,/)
+  })
+})
