@@ -16,9 +16,9 @@
 // "action items" were never real cross-module rows.
 import { createId } from "@paralleldrive/cuid2"
 import { after } from "next/server"
-import { veriMeetings, veriMeetingActionItems, veriMeetingShareLinks, tasks, auditLogs, projects, db } from "@/lib/db"
+import { veriMeetings, veriMeetingActionItems, veriMeetingShareLinks, tasks, auditLogs, projects, users as usersTable, db } from "@/lib/db"
 import { MEETING_DELETED_STATUS } from "@/lib/db/schema"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { logActivity } from "@/lib/audit"
 import { eq, and, desc, inArray, ne, notInArray, sql } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
@@ -203,26 +203,133 @@ export async function getVeriMeeting(ctx: { orgId: string }, meetingId: string) 
   })
 }
 
+// ─── R67 lane D22 (item D-58, rec R-187) ──────────────────────────────────
+// A meeting is minuted WHILE it happens, so the create screen has to be able
+// to carry minutes and the action items agreed in the room. Before this, this
+// DTO took title/type/when/attendees/agenda only: a user who typed minutes on
+// the create screen had to save an empty meeting, open it, and type them
+// again. Both new fields are optional -- every existing caller is unchanged.
+export type MeetingActionItemInput = { title: string; assigneeUserId?: string | null; dueDate?: string | null }
+
+/**
+ * Pure: the action-item rows a create call really means.
+ *
+ * Blank descriptions are dropped rather than rejected, because the create
+ * screen keeps one empty repeating row on screen at all times -- a trailing
+ * empty row is the UI's resting state, not a user error to fail the whole
+ * save over. Everything else is trimmed and normalised to null so an empty
+ * string never lands in a FK column.
+ */
+export function normalizeMeetingActionItems(items: MeetingActionItemInput[] | undefined): MeetingActionItemInput[] {
+  if (!Array.isArray(items)) return []
+  return items
+    .map((item) => ({
+      title: typeof item?.title === "string" ? item.title.trim() : "",
+      assigneeUserId: typeof item?.assigneeUserId === "string" && item.assigneeUserId.trim() ? item.assigneeUserId.trim() : null,
+      dueDate: typeof item?.dueDate === "string" && item.dueDate.trim() ? item.dueDate.trim() : null,
+    }))
+    .filter((item) => item.title.length > 0)
+}
+
+/**
+ * Pure: the distinct assignee ids a set of action items really names.
+ *
+ * Split out so the "who is being assigned work here" question has one answer
+ * both write paths ask, and so the de-duplication is testable without a db.
+ */
+export function collectAssigneeUserIds(items: { assigneeUserId?: string | null }[]): string[] {
+  return [...new Set(items.map((i) => i.assigneeUserId).filter((id): id is string => typeof id === "string" && id.length > 0))]
+}
+
+/**
+ * R67 lane D22 (review finding on D-58/D-75): an action item's owner must be a
+ * person in the CALLING org.
+ *
+ * `tasks.userId` is a plain FK to compliance.users with no org predicate of its
+ * own, and both write paths below took the caller's id on trust. RLS keeps the
+ * created row inside the caller's own org, so this was never a cross-tenant
+ * leak -- but an id belonging to another org produced a task in your org
+ * assigned to somebody your own directory cannot resolve, which then prints as
+ * a blank owner on the MoM PDF (the pdf route already falls back to null for an
+ * unresolvable owner) and can never be reassigned from a picker that will not
+ * show them. D-58 and D-75 make org-scoped people the headline of these
+ * screens; this is the same rule enforced on the way in.
+ *
+ * Runs on the CALLER'S transaction (D-06: never a nested withTenantContext).
+ */
+export async function assertAssigneesInOrg(
+  db: TenantDb,
+  orgId: string,
+  assigneeUserIds: string[]
+): Promise<void> {
+  if (assigneeUserIds.length === 0) return
+  const found = await db.query.users.findMany({
+    where: and(eq(usersTable.orgId, orgId), eq(usersTable.isActive, true), inArray(usersTable.id, assigneeUserIds)),
+    columns: { id: true },
+  })
+  const known = new Set(found.map((u) => u.id))
+  if (assigneeUserIds.some((id) => !known.has(id))) {
+    // Deliberately does not echo the id back: it is either a typo or a probe,
+    // and neither deserves confirmation that some other org's id exists.
+    throw new ServiceError("That person is not in your organisation", 400)
+  }
+}
+
 export async function createVeriMeeting(
   ctx: VeriMeetingContext,
-  input: { title: string; meetingType?: string; scheduledAt: string; attendees?: string[]; agenda?: string[]; contextEntityType?: string; contextEntityId?: string }
+  input: {
+    title: string; meetingType?: string; scheduledAt: string; attendees?: string[]; agenda?: string[]
+    contextEntityType?: string; contextEntityId?: string
+    minutes?: string | null
+    actionItems?: MeetingActionItemInput[]
+  }
 ) {
   const title = input.title?.trim()
   if (!title) throw new ServiceError("title is required", 400)
   if (!input.scheduledAt) throw new ServiceError("scheduledAt is required", 400)
+  const minutes = typeof input.minutes === "string" && input.minutes.trim() ? input.minutes : null
+  const actionItems = normalizeMeetingActionItems(input.actionItems)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
+    // Before anything is written, so a foreign assignee fails the whole save
+    // rather than leaving a meeting behind with some of its actions missing.
+    await assertAssigneesInOrg(db, ctx.orgId, collectAssigneeUserIds(actionItems))
+
     const [meeting] = await db.insert(veriMeetings).values({
       orgId: ctx.orgId, title, meetingType: input.meetingType || "team", scheduledAt: new Date(input.scheduledAt),
       attendees: input.attendees || [], agenda: input.agenda || [],
       contextEntityType: input.contextEntityType || null, contextEntityId: input.contextEntityId || null,
       systemId: generateSystemId(),
       createdById: ctx.userId,
+      minutes,
+      // The amend-don't-overwrite history starts with what was typed live, so
+      // the first version of the minutes is as auditable as every later edit.
+      minutesHistory: minutes ? [{ date: new Date().toISOString(), amendedBy: ctx.userId, text: minutes }] : [],
     }).returning()
+
+    // Real `tasks` rows, same table addMeetingActionItem() writes to and the
+    // same one VERI To Do / "Needs you" already reads -- not a parallel
+    // tracking list. Written on THIS transaction so a meeting is never saved
+    // with half its agreed actions missing.
+    for (const item of actionItems) {
+      const [task] = await db.insert(tasks).values({
+        orgId: ctx.orgId,
+        userId: item.assigneeUserId ?? ctx.userId,
+        assignedById: ctx.userId,
+        title: item.title,
+        description: `Action item from meeting: ${title}`,
+        status: "in_progress",
+        dueDate: item.dueDate ? new Date(item.dueDate) : null,
+      }).returning()
+      await db.insert(veriMeetingActionItems).values({ meetingId: meeting!.id, taskId: task!.id })
+    }
 
     await logActivity({
       tx: db, action: "veri_meeting.created", entityType: "veri_meeting", entityId: meeting!.id,
-      details: `Created meeting "${title}"`, orgId: ctx.orgId, ...actorOf(ctx),
+      details: actionItems.length
+        ? `Created meeting "${title}" with ${actionItems.length} action item(s)`
+        : `Created meeting "${title}"`,
+      orgId: ctx.orgId, ...actorOf(ctx),
     })
     return meeting
   })
@@ -476,6 +583,9 @@ export async function addMeetingActionItem(
   const created = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
     if (!meeting) throw new ServiceError("Meeting not found", 404)
+    // Same three lines as createVeriMeeting, so the two write paths into
+    // `tasks.userId` cannot disagree about who may be assigned work.
+    await assertAssigneesInOrg(db, ctx.orgId, collectAssigneeUserIds([{ assigneeUserId: input.assigneeUserId ?? null }]))
 
     const dedupeWindowStart = new Date(Date.now() - DEDUPE_WINDOW_MS)
     const recentItems = await db.query.veriMeetingActionItems.findMany({

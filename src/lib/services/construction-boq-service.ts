@@ -800,6 +800,166 @@ function computeChainVariation<B extends { id: string; parentBoqId: string | nul
   )
 }
 
+// ─── R67 lane D22 (item D-64, rec R-230) ──────────────────────────────────
+// ONE LINE VOCABULARY. A BOQ line is a code plus a description ("R60SK-A --
+// R60 skiphop sub"); everywhere it appeared as a 25-character cuid the screen
+// was unusable -- the Work Progress list printed the id in its "BOQ line"
+// column, and the Daily Entry form offered a flat native <select> of every
+// line in the BOQ with no way to search it. These helpers give the form, the
+// chat's record step and the reports one lookup to share, so all three name a
+// line the same way.
+
+export type BoqLineOption = {
+  /** Kept for React keys and for the write payload -- never printed on screen. */
+  id: string
+  boqId: string
+  boqTitle: string
+  boqVersion: number
+  code: string | null
+  description: string
+  unit: string
+  /** The line's rate, so a consumer that shows a derived rate does not need a second fetch of the whole BOQ. */
+  rate: number
+  quantity: number
+  quantityDone: number
+  /** quantity - quantityDone, floored at 0: over-recording must not read as negative work left. */
+  remainingQuantity: number
+  /** A parent line's quantity is delivered through its children, so it cannot be recorded against directly. */
+  isParent: boolean
+}
+
+/**
+ * Pure: does a line match what was typed?
+ *
+ * Matched against BOTH code and description, case-insensitively, as a
+ * substring -- a QS types "R60SK", a site engineer types "skiphop", and both
+ * have to find the same line. An empty query matches everything, so the picker
+ * is usable before a key is pressed.
+ */
+export function matchesBoqLineQuery(line: { itemCode: string | null; description: string }, q?: string): boolean {
+  const needle = (q ?? "").trim().toLowerCase()
+  if (!needle) return true
+  return (line.itemCode ?? "").toLowerCase().includes(needle) || line.description.toLowerCase().includes(needle)
+}
+
+/**
+ * Pure: assembles the option list from persisted rows plus the quantity
+ * recorded against each.
+ *
+ * Ordered by code when there is one, then by description, so the list reads in
+ * the same order as the BOQ itself rather than in insertion order.
+ */
+export function toBoqLineOptions(
+  boq: { id: string; title: string; version: number },
+  rows: BoqLineItemRow[],
+  quantityDoneById: Map<string, number>
+): BoqLineOption[] {
+  const parentIds = new Set(rows.map((r) => r.parentLineItemId).filter((v): v is string => !!v))
+  return rows
+    .map((r) => {
+      const quantity = Number(r.quantity) || 0
+      const quantityDone = quantityDoneById.get(r.id) ?? 0
+      return {
+        id: r.id,
+        boqId: boq.id,
+        boqTitle: boq.title,
+        boqVersion: boq.version,
+        code: r.itemCode,
+        description: r.description,
+        unit: r.unit,
+        // computedRate() is the same read-time derivation getBoq() applies to
+        // a rate-analysis line (material+labour+equipment with overhead and
+        // profit); it returns null when the line has no cost buildup, in which
+        // case the stored rate IS the rate.
+        rate: computedRate(r) ?? Number(r.rate) ?? 0,
+        quantity,
+        quantityDone,
+        remainingQuantity: Math.max(0, quantity - quantityDone),
+        isParent: parentIds.has(r.id),
+      }
+    })
+    .sort((a, b) => (a.code ?? "￿").localeCompare(b.code ?? "￿") || a.description.localeCompare(b.description))
+}
+
+/**
+ * Pure: which BOQ of a project a line lookup should read when the caller names
+ * none -- approved, else submitted, else the highest version.
+ *
+ * This is the SAME resolution the Work Progress form has always applied
+ * client-side; naming it here means the form, the chat and the reports cannot
+ * end up looking at three different revisions.
+ */
+export function resolveCurrentBoq<T extends { status: string; version: number; createdAt: Date }>(boqs: T[]): T | null {
+  if (boqs.length === 0) return null
+  return (
+    boqs.find((b) => b.status === "approved") ??
+    boqs.find((b) => b.status === "submitted") ??
+    [...boqs].sort((a, b) => b.version - a.version || b.createdAt.getTime() - a.createdAt.getTime())[0]!
+  )
+}
+
+/**
+ * The searchable BOQ line list behind the Daily Entry picker, the chat's record
+ * step and the work-progress list's own link targets.
+ *
+ * ONE transaction, and one grouped aggregate for the quantity recorded -- not
+ * one query per line. /scope's own 8-second load is caused by exactly that
+ * mistake (a withTenantContext per BOQ on a 5-connection pool), and a picker
+ * that fires on every keystroke cannot afford to repeat it.
+ */
+export async function listBoqLineOptions(
+  ctx: { orgId: string },
+  filters: { projectId: string; q?: string; boqId?: string; limit?: number }
+): Promise<{ boq: { id: string; title: string; version: number; status: string } | null; lines: BoqLineOption[] }> {
+  if (!filters.projectId) throw new ServiceError("projectId is required", 400)
+  const limit = Math.min(200, Math.max(1, filters.limit ?? 50))
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boqs = await db.query.constructionBoqs.findMany({
+      where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, filters.projectId)),
+    })
+    const boq = filters.boqId ? boqs.find((b) => b.id === filters.boqId) ?? null : resolveCurrentBoq(boqs)
+    // A project with no BOQ yet is the normal first-week state, not an error:
+    // the picker simply has nothing to offer and says so.
+    if (!boq) return { boq: null, lines: [] }
+
+    const rows = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boq.id) })
+    const matching = rows.filter((r) => matchesBoqLineQuery(r, filters.q))
+    // The quantity aggregate is only worth fetching for the lines that survived
+    // the filter -- a one-character query on a 900-line BOQ otherwise sums the
+    // whole project to render ten options.
+    const ids = matching.map((r) => r.id).slice(0, limit)
+    const quantityDoneById = ids.length ? await loadDeltaQuantityByLineItem(db, ctx.orgId, ids) : new Map<string, number>()
+    const lines = toBoqLineOptions(boq, matching.filter((r) => ids.includes(r.id)), quantityDoneById)
+    return { boq: { id: boq.id, title: boq.title, version: boq.version, status: boq.status }, lines }
+  })
+}
+
+/**
+ * Sum of DELTA quantity_done per BOQ line -- one grouped query.
+ *
+ * DELTA only, deliberately: a SNAPSHOT entry replaces the running total rather
+ * than adding to it (see constructionWorkProgressEntries.entryBasis), so
+ * summing both together would double-count. This is the same rule
+ * construction-progress-service.ts's roll-up already applies.
+ */
+export async function loadDeltaQuantityByLineItem(db: TenantDb, orgId: string, lineItemIds: string[]): Promise<Map<string, number>> {
+  if (lineItemIds.length === 0) return new Map()
+  const rows = await db
+    .select({
+      boqLineItemId: constructionWorkProgressEntries.boqLineItemId,
+      total: sql<number>`coalesce(sum(${constructionWorkProgressEntries.quantityDone}), 0)::float`,
+    })
+    .from(constructionWorkProgressEntries)
+    .where(and(
+      eq(constructionWorkProgressEntries.orgId, orgId),
+      inArray(constructionWorkProgressEntries.boqLineItemId, lineItemIds),
+      eq(constructionWorkProgressEntries.entryBasis, "DELTA")
+    ))
+    .groupBy(constructionWorkProgressEntries.boqLineItemId)
+  return new Map(rows.filter((r) => !!r.boqLineItemId).map((r) => [r.boqLineItemId!, Number(r.total)]))
+}
+
 /**
  * The pure, DB-free half of listBoqs() -- grouping + the two chain variation
  * figures -- extracted so it is independently unit-testable without a live

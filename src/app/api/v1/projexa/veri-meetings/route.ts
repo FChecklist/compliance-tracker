@@ -62,6 +62,10 @@ async function POST_impl(request: NextRequest) {
         title: body.title, meetingType: body.meetingType, scheduledAt: body.scheduledAt,
         attendees: body.attendees, agenda: body.agenda,
         contextEntityType: projectId ? "project" : undefined, contextEntityId: projectId,
+        // R67 lane D22 (item D-58): minutes are typed live on the create
+        // screen and the actions agreed in the room are saved with the
+        // meeting, in one transaction -- see createVeriMeeting's own comment.
+        minutes: body.minutes, actionItems: body.actionItems,
       }
     )
     return NextResponse.json(meeting, { status: 201 })

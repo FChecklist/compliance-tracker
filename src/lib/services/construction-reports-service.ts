@@ -6,7 +6,8 @@
 // so the dynamic route dispatcher (Wave 122 route) can stay a simple switch.
 import {
   constructionCategories, constructionActivities, constructionWorkProgressEntries, constructionSiteDiaries,
-  constructionBoqs, constructionBoqLineItems, constructionAttendance, constructionLabourRoster, constructionPrevailingWageRates,
+  constructionBoqs, constructionBoqLineItems, constructionInterimBills, constructionInterimBillLineItems,
+  constructionAttendance, constructionLabourRoster, constructionPrevailingWageRates,
   constructionKpiDefinitions, constructionKpiEntries, constructionExpenseEntries, erpStockLedgerEntries, erpItems, erpSalesInvoices,
   documents, pmsIssues, pmsTimeEntries, pmsBillableRates, users, erpBudgetLineItems, erpBudgets, erpCostCenters,
   pmsBudgets, pmsBudgetLineItems, projects, erpSuppliers,
@@ -793,9 +794,19 @@ export type BudgetLineInput = {
   vendorId: string | null
   vendorAmount: string | number | null
   category: string | null
+  /** R67 lane D22 (D-41): a child line's Qty/Rate are DERIVED, so the screen must render them as derived rather than as independently editable. Optional -- the pure tests build rows without it. */
+  parentLineItemId?: string | null
 }
 
-export function toBudgetLine(item: BudgetLineInput, supplierNameById: Map<string, string>, index = 0) {
+export function toBudgetLine(
+  item: BudgetLineInput,
+  supplierNameById: Map<string, string>,
+  index = 0,
+  // R67 lane D22 (D-54): what the interim/RA bills have already billed against
+  // each line. Passed in rather than read here so this stays pure and DB-free,
+  // the same discipline the rest of this extraction follows.
+  revenueByLineItemId: Map<string, number> = new Map()
+) {
   const vendorAmount = item.vendorAmount !== null ? Number(item.vendorAmount) : null
   const materialAmount = item.materialAmount !== null ? Number(item.materialAmount) : null
   const manpowerAmount = item.manpowerAmount !== null ? Number(item.manpowerAmount) : null
@@ -823,6 +834,10 @@ export function toBudgetLine(item: BudgetLineInput, supplierNameById: Map<string
     unit: item.unit ?? null,
     quantity: item.quantity != null ? Number(item.quantity) : null,
     rate: item.rate != null ? Number(item.rate) : null,
+    // R67 lane D22 (item D-41): a child line's Qty/Rate are DERIVED (schema.ts's
+    // canonical child-rate rule), so the Budget screen has to know which rows
+    // are children before it decides what is editable.
+    parentLineItemId: item.parentLineItemId ?? null,
     amount: Number(item.amount),
     budgetPercentage: Number(item.budgetPercentage),
     budget: Math.round(rawBudget * 100) / 100,
@@ -847,6 +862,24 @@ export function toBudgetLine(item: BudgetLineInput, supplierNameById: Map<string
     // consumers keep working, and is the one to drop once they have moved.
     variance: rawVariance !== null ? Math.round(rawVariance * 100) / 100 : null,
     budgetRemaining: rawVariance !== null ? Math.round(rawVariance * 100) / 100 : null,
+    // R67 lane D22 (item D-54). `actual` is an ALIAS of `committed` above:
+    // Sumeet's "Actual" column is vendor + material + manpower, which is exactly
+    // what computeBudgetVarianceLine() already sums. Kept as its own name
+    // because the Scope > Budget tab is written against it, and NOT recomputed,
+    // so the two can never disagree.
+    //
+    // NOTE the contract change D-26 records above: `variance` now means BUDGET
+    // REMAINING (budget - committed), not the original overspend figure
+    // (vendorAmount - budget) lane D22 was written against. The Scope > Budget
+    // tab derives its own "Variance = Budget - Actual" on the client in one
+    // tested pure helper (projexa's src/lib/budget-lines.ts), so it is
+    // unaffected; the project Budget screen (D-41) reads the same sign this
+    // service now publishes.
+    actual: rawCommitted !== null ? Math.round(rawCommitted * 100) / 100 : null,
+    // R67 lane D22 (item D-54, rec R-183): what the interim/RA bills raised on
+    // this BOQ have already billed against the line. null when the line has
+    // never appeared on one -- "not yet billed" is not "billed nothing".
+    revenue: revenueByLineItemId.get(item.id) ?? null,
     _rawBudget: rawBudget,
     _rawCommitted: rawCommitted,
     _rawVariance: rawVariance,
@@ -864,14 +897,22 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
     const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
-    // R67 lane I (I-03) + D-26: the empty-project shape must carry the SAME
-    // keys as the populated one, or a caller that reads totalMaterialAmount or
-    // totalCommitted gets undefined on a project with no BOQ and renders "NaN".
+    // R67 lane I (I-03) + D-26 + lane D22 (D-41/D-54): the empty-project shape
+    // must carry the SAME keys as the populated one, or a caller that reads
+    // totalMaterialAmount, totalCommitted or totalRevenue gets undefined on a
+    // project with no BOQ and renders "NaN".
+    //
+    // totalActual is null rather than 0 for the same reason totalCommitted is:
+    // it is that figure's alias, and "nothing has been costed" must stay
+    // distinguishable from "costed at zero". totalRevenue IS 0, because a sum
+    // of what has been billed genuinely is zero when nothing has.
     if (!latest) {
       return {
-        boqId: null, lines: [], totalBudget: 0, totalVendorAmount: 0,
+        boqId: null, boqTitle: null, boqVersion: null,
+        lines: [], totalBudget: 0, totalVendorAmount: 0,
         totalMaterialAmount: 0, totalManpowerAmount: 0,
         totalCommitted: null, totalVariance: null, budgetRemaining: null,
+        totalActual: null, totalRevenue: 0,
         linesOverBudget: 0, lineCount: 0,
       }
     }
@@ -882,6 +923,29 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
       ? await db.select({ id: erpSuppliers.id, name: erpSuppliers.supplierName }).from(erpSuppliers).where(inArray(erpSuppliers.id, vendorIds))
       : []
     const supplierNameById = new Map(suppliers.map((s) => [s.id, s.name]))
+
+    // R67 lane D22 (item D-54, rec R-183): the REVENUE column of Sumeet's
+    // budget sheet -- what has actually been billed to the client against each
+    // BOQ line, summed over every interim/RA bill raised on THIS BOQ. Same
+    // aggregate construction-valuation-service.ts's own
+    // previousBilledAmountsByLineItem() computes when it works out what is
+    // still left to bill, so the Budget screen and the next interim bill can
+    // never disagree about how much of a line is already earned.
+    //
+    // Kept as an inline duplicate of that query rather than a cross-module
+    // call for the reason scopeReport() states below: the other service opens
+    // its own withTenantContext, and calling it from inside this one would
+    // nest a second transaction on a 5-connection pool (programme decision
+    // D-06, and the pool deadlock #1575 already fixed once).
+    const billedRows = await db.select({
+      boqLineItemId: constructionInterimBillLineItems.boqLineItemId,
+      total: sql<string>`coalesce(sum(${constructionInterimBillLineItems.currentBillAmount}), 0)`,
+    })
+      .from(constructionInterimBillLineItems)
+      .innerJoin(constructionInterimBills, eq(constructionInterimBills.id, constructionInterimBillLineItems.interimBillId))
+      .where(eq(constructionInterimBills.boqId, latest.id))
+      .groupBy(constructionInterimBillLineItems.boqLineItemId)
+    const revenueByLineItemId = new Map(billedRows.map((r) => [r.boqLineItemId, Number(r.total)]))
 
     // R67 D-62's Budget Report Category filter reads each line's own `category`
     // column (lane I, I-05) inside toBudgetLine below. D-62's first draft
@@ -900,11 +964,13 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     // budget/variance alongside the rounded display value, and total from
     // the RAW figures, rounding only once at the very end -- the totals now
     // reconcile exactly to a raw SQL sum over the same rows.
-    // R67 merge (D-11, lane D1 x lane D21): the row is built by toBudgetLine()
-    // above -- D1's pure extraction, now computing through D21's
+    // R67 merge (D-11, lane D1 x lane D21 x lane D22): the row is built by
+    // toBudgetLine() above -- D1's pure extraction, now computing through D21's
     // computeBudgetVarianceLine so the projection and the arithmetic cannot
-    // drift apart. `index` feeds D-26's serialNumber.
-    const lines = lineItems.map((item, index) => toBudgetLine(item, supplierNameById, index))
+    // drift apart, and carrying lane D22's Actual/Revenue/parentLineItemId in
+    // the same one place. `index` feeds D-26's serialNumber; the revenue map is
+    // passed in so the builder stays pure.
+    const lines = lineItems.map((item, index) => toBudgetLine(item, supplierNameById, index, revenueByLineItemId))
 
     const totalBudget = Math.round(lines.reduce((s, l) => s + l._rawBudget, 0) * 100) / 100
     const totalVendorAmount = Math.round(lines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100
@@ -920,9 +986,20 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     // reconcile exactly to a raw SQL SUM over the same rows.
     const totalMaterialAmount = Math.round(lines.reduce((s, l) => s + (l.materialAmount ?? 0), 0) * 100) / 100
     const totalManpowerAmount = Math.round(lines.reduce((s, l) => s + (l.manpowerAmount ?? 0), 0) * 100) / 100
+    // R67 lane D22 (item D-54): the same single-rounding rule again. "Actual"
+    // needs no total of its own -- it is `committed` under Sumeet's name, and
+    // totalCommitted above already sums the RAW per-line figures once, so
+    // re-summing it here would be a second implementation of one number and the
+    // only thing it could ever do is disagree.
+    const totalRevenue = Math.round(lines.reduce((s, l) => s + (l.revenue ?? 0), 0) * 100) / 100
 
     return {
       boqId: latest.id,
+      // R67 lane D22 (item D-41): WHICH revision these lines came from, so the
+      // Budget screen can deep-link a row to /scope/{boqId}#line-{id} without a
+      // second round trip to find the latest BOQ.
+      boqTitle: latest.title,
+      boqVersion: latest.version,
       lines: lines.map(({ _rawBudget, _rawCommitted, _rawVariance, ...line }) => line),
       totalBudget,
       totalVendorAmount,
@@ -931,6 +1008,11 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
       budgetRemaining: totalVariance,
       totalMaterialAmount,
       totalManpowerAmount,
+      // R67 lane D22 (item D-54): `actual` is the SAME three components
+      // D-26's `committed` already sums (vendor + material + manpower), so it
+      // is an ALIAS of it, not a fourth figure that could drift.
+      totalActual: totalCommitted,
+      totalRevenue,
       linesOverBudget: lines.filter((l) => isLineOverBudget(l.variance)).length,
       lineCount: lines.length,
     }
