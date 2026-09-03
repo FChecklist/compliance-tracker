@@ -184,8 +184,15 @@ export async function detectBudgetScheduleRisk(ctx: { orgId: string; userId: str
     getProjectDashboard({ orgId: ctx.orgId }, projectId),
     budgetVsActual({ orgId: ctx.orgId }, projectId),
   ])
+  // R67 E-06 (R-108): budgetVsActual's budget/variance are null when the
+  // project has no BOQ to derive a budget from. 0 is the right input for the
+  // classifier in exactly that case -- classifyBudgetScheduleRisk() already
+  // treats budget 0 as "no overspend signal available" and falls back to the
+  // delay ratio alone (see its overspendRatio guard) -- so this coalesce
+  // preserves the previous behaviour for a project with no budget, rather
+  // than inventing one.
   const factors: BudgetScheduleRiskFactors = {
-    budget: budgetActual.budget, actual: budgetActual.actual, variance: budgetActual.variance,
+    budget: budgetActual.budget ?? 0, actual: budgetActual.actual, variance: budgetActual.variance ?? 0,
     delayedTaskCount: dashboard.delayedTaskCount, totalTaskCount: dashboard.taskCount,
   }
   const riskLevel = classifyBudgetScheduleRisk(factors)

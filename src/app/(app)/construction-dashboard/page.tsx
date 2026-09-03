@@ -35,7 +35,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 
 type OrgDashboard = {
-  totalProjects: number; totalBudget: number | null; totalRevenue: number | null; totalExpenses: number | null;
+  // R67 E-06 (R-108): totalBudget is the BOQ-derived budget across the
+  // portfolio; totalLedgerBudget is the ERP annual ledger figure this tile
+  // used to show, which is a different concept and now says so. Both are null
+  // when redacted -- financialsRedacted is what tells the two nulls apart, so
+  // "you may not see this" never renders as "there is no BOQ".
+  totalProjects: number; totalBudget: number | null; totalLedgerBudget: number | null;
+  totalRevenue: number | null; totalExpenses: number | null; financialsRedacted?: boolean;
   projects: { id: string; name: string; revenue: number | null; expenses: number | null; taskCount: number; delayedTaskCount: number }[];
 };
 type Department = { id: string; name: string };
@@ -116,7 +122,21 @@ export default function ConstructionDashboardPage() {
             </Card>
             <Card className="rounded-xl shadow-card bg-white">
               <CardContent className="pt-4 flex items-center justify-between">
-                <div><p className="text-xs text-ct-muted">Total Budget</p><p className="text-2xl font-heading text-ct-navy">{money(data.totalBudget)}</p></div>
+                <div>
+                  <p className="text-xs text-ct-muted">Total Budget</p>
+                  {/* R67 E-06: an en dash and the reason, never "0" -- a
+                      fabricated zero is what made a QS distrust the screen. */}
+                  <p className="text-2xl font-heading text-ct-navy">
+                    {data.financialsRedacted ? "Restricted" : data.totalBudget === null ? "–" : money(data.totalBudget)}
+                  </p>
+                  <p className="text-[11px] text-ct-muted">
+                    {data.financialsRedacted
+                      ? "Needs manager role"
+                      : data.totalBudget === null
+                        ? "No BOQ yet"
+                        : `Annual ledger budget ${money(data.totalLedgerBudget)}`}
+                  </p>
+                </div>
                 <Wallet className="size-6 text-ct-saffron-text" />
               </CardContent>
             </Card>

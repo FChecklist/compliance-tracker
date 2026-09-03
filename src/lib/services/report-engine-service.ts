@@ -473,8 +473,11 @@ async function computeCpi(ctx: { orgId: string }, params: Record<string, unknown
   const projectId = String(params.projectId ?? "")
   if (!projectId) throw new ServiceError("projectId is required for the CPI formula", 400)
   const [budget, completion] = await Promise.all([budgetVsActual(ctx, projectId), projectCompletionReport(ctx, projectId)])
-  if (budget.budget <= 0) {
-    return { columns: ["Metric", "Value"], rows: [{ Metric: "CPI", Value: "N/A" }], note: "Project has no budget set (via its cost centre) -- cannot compute Earned Value." }
+  // R67 E-06 (R-108): budgetVsActual().budget is the BOQ-derived budget now,
+  // and null (not 0) when the project has no BOQ -- the same "cannot compute"
+  // branch this guard already had, reached for the honest reason.
+  if (budget.budget === null || budget.budget <= 0) {
+    return { columns: ["Metric", "Value"], rows: [{ Metric: "CPI", Value: "N/A" }], note: "Project has no BOQ budget set -- cannot compute Earned Value." }
   }
   const earnedValue = budget.budget * (completion.overallPercentComplete / 100)
   const cpi = budget.actual > 0 ? earnedValue / budget.actual : earnedValue > 0 ? Infinity : 1
@@ -563,8 +566,9 @@ async function computeEarnedValueAnalysis(ctx: { orgId: string }, params: Record
       return { columns: ["Metric", "Value"], rows: [{ Metric: "Earned Value Analysis", Value: "N/A" }], note: "Project has no startDate/targetDate set -- cannot compute a time-linear Planned Value baseline." }
     }
     const [budget, completion] = await Promise.all([budgetVsActual(ctx, projectId), projectCompletionReport(ctx, projectId)])
-    if (budget.budget <= 0) {
-      return { columns: ["Metric", "Value"], rows: [{ Metric: "Earned Value Analysis", Value: "N/A" }], note: "Project has no budget set (via its cost centre) -- cannot compute Planned/Earned Value in cost terms." }
+    // R67 E-06: same null-or-zero guard as computeCpi above.
+    if (budget.budget === null || budget.budget <= 0) {
+      return { columns: ["Metric", "Value"], rows: [{ Metric: "Earned Value Analysis", Value: "N/A" }], note: "Project has no BOQ budget set -- cannot compute Planned/Earned Value in cost terms." }
     }
     const start = new Date(project.startDate).getTime()
     const target = new Date(project.targetDate).getTime()
@@ -1155,7 +1159,12 @@ async function computeCostOverrunReport(ctx: { orgId: string }): Promise<ReportD
     const results: { name: string; budget: number; actual: number; overrun: number }[] = []
     for (const p of activeProjects) {
       const bva = await budgetVsActual(ctx, p.id)
-      if (bva.budget > 0 && bva.variance < 0) results.push({ name: p.name, budget: bva.budget, actual: bva.actual, overrun: Math.abs(bva.variance) })
+      // R67 E-06: a project with no BOQ has no budget to overrun -- null is
+      // skipped rather than compared, which would have reported every
+      // unbudgeted project as an overrun the moment budget stopped being 0.
+      if (bva.budget !== null && bva.variance !== null && bva.budget > 0 && bva.variance < 0) {
+        results.push({ name: p.name, budget: bva.budget, actual: bva.actual, overrun: Math.abs(bva.variance) })
+      }
     }
     results.sort((a, b) => b.overrun - a.overrun)
     return {

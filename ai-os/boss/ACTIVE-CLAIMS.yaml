@@ -44,7 +44,7 @@ active:
     claimed_at: "2026-09-03T (this session)"
     claim: |
       SPEC: the owner-approved R66 UX/product-design audit, implementation programme R67,
-      lane E1 ("reports-charts-1"), items E-01..E-05 of 20. Branch r67/e1-reports-charts-1,
+      lane E1 ("reports-charts-1"), items E-01..E-10 of 20. Branch r67/e1-reports-charts-1,
       worktree C:/ct/ct-worktrees/r67-E1 (compliance-tracker) +
       C:/ct/projexa-worktrees/r67-E1 (projexa).
 
@@ -66,12 +66,30 @@ active:
         src/app/api/v1/construction/materials/cost-report/export/route.ts (NEW)
         drizzle/0533_r67_e04_work_progress_report_definition_status.sql (NEW) + meta/_journal.json
         docs/master/TEST_COVERAGE_GAP.md (regenerated)
+        --- added for items E-06..E-10 (2026-09-03) ---
+        src/app/api/v1/projexa/reports/[reportName]/route.ts (budget-variance params)
+        src/app/api/v1/projexa/reports/[reportName]/export/route.ts (NEW)
+        src/lib/pdf/budget-variance-report-pdf.ts (+ NEW .test.ts)
+        src/app/api/construction/dashboard/route.ts, .../dashboard/[projectId]/route.ts,
+        src/app/api/v1/projexa/dashboard/[projectId]/route.ts (budget redaction shape)
+        src/app/(app)/construction-dashboard/page.tsx (Total Budget tile)
+        src/lib/services/construction-expense-service.ts, construction-ai-service.ts,
+        report-engine-service.ts, src/lib/task-execution/construction-tools.ts
+        (all four only where they read ProjectDashboard.budget, which is now nullable)
 
       File scope in projexa: DashboardHomeView, ProjectRow (new), GroupedBarChart (new),
       CategoryDistributionCharts, DashboardProjectClient, WorkProgressReportClient,
       ReportsClient, ReportCatalogSection, MaterialsClient, AppSidebar (two OVERVIEW nav
       entries removed), dashboard/overview + dashboard/hierarchy pages (redirects),
       api/construction-materials/cost-report(+/export).
+      --- added for items E-06..E-10 (2026-09-03) ---
+      CostVarianceAnalyticalClient, BudgetActualClient (new), BudgetCreateClient,
+      budgets/new/page.tsx, scope/page.tsx (third tab), reports/page.tsx, ReportsClient,
+      shell/M24Shell + shell/shell-messages.tsx (new), ui/dashboard-card.tsx,
+      lib/budget-variance-report.ts, lib/report-run.ts, lib/task-errors.ts (all new),
+      api/reports/budget-variance/export (new relay), api/construction-budget/summary
+      (DELETED -- it proxied /construction/budget/summary, which does not exist in
+      compliance-tracker, and had no caller).
 
       NOT touching: the pipeline (classify/executor/validate), platform.* tables,
       construction-labour-service.ts (lane D3 owns recordAttendanceBatch per D-12), or

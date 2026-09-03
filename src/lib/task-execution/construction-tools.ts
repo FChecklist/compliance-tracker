@@ -78,12 +78,17 @@ export async function dispatchConstructionTool(
     const { getOrgDashboard, getProjectDashboard } = await import("@/lib/services/construction-dashboard-service")
     const orgDashboard = await getOrgDashboard({ orgId })
     // N+1, capped -- matches buildComplianceItemNodes()'s "quick-action
-    // list, not a browse view" posture (see capability-tree-service.ts),
-    // since getOrgDashboard()'s per-project summary doesn't carry budget.
+    // list, not a browse view" posture (see capability-tree-service.ts).
+    // R67 E-06 (R-108) CORRECTION: getOrgDashboard()'s per-project summary
+    // now DOES carry the same BOQ-derived budget, so this fan-out is no
+    // longer necessary -- collapsing it belongs to the item that owns
+    // removing per-project fan-outs (C01-10), not to this budget change.
     const results = await Promise.all(
       orgDashboard.projects.slice(0, 20).map((p) => getProjectDashboard({ orgId }, p.id))
     )
-    return results.filter((p) => p.budget > 0 && p.expenses > p.budget)
+    // R67 E-06: budget is null (not 0) for a project with no BOQ -- "we do
+    // not know this project's budget" is not "this project is over budget".
+    return results.filter((p) => p.budget !== null && p.budget > 0 && p.expenses > p.budget)
   }
 
   if (codeReference === "get_construction_kpi_status") {

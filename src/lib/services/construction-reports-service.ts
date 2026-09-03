@@ -443,6 +443,175 @@ export async function earnedValueReport(ctx: { orgId: string }, projectId: strin
   })
 }
 
+// R67 E-06 (R-108). THE ONE BUDGET NUMBER.
+//
+// Three screens disagreed about a project's budget: the dashboard tile read
+// "TOTAL BUDGET AED 0" (the ERP ledger sum, which a fit-out contractor never
+// fills in), the Project Status report read "Budget 0" (the same figure), and
+// Cost Variance read 2,193.75 (the BOQ-derived one). A QS who notices stops
+// trusting every other figure on the screen.
+//
+// This is the one definition all three now read: the sum of computedBudget
+// (amount x budgetPercentage / 100, construction-boq-service.ts's formula, D-3
+// "one place") over the BOQ's ROOT lines.
+//
+// ROOT LINES ONLY, and this is a CORRECTION to what this file used to total.
+// A weighted sub-task's amount is derived from its root ancestor's qty x rate
+// x breakdown %, so the root row already carries the full value -- summing
+// roots AND children double-counts, which is the rule rootBoqLineItemsOnly()
+// above already states for every other BOQ money roll-up (scopeReport,
+// categoryBoqAmountsReport, getOrgDashboard's per-project value). Only
+// boqBudgetVarianceReport's own totals were still summing every line, so on
+// any BOQ with weighted sub-tasks its "Total budget" read up to twice the
+// real figure. Fixing it is what lets the dashboard tile, the Project Status
+// report and Cost Variance state ONE number.
+//
+// null (never 0) for an empty line list: "this project has no BOQ" is not
+// "this project's budget is zero", and the dashboard rule this product follows
+// treats a fabricated 0 as a failed card.
+export type RootBudgetLine = { parentLineItemId: string | null; amount: number; budgetPercentage: number }
+
+export function sumRootLineBudgets(lines: RootBudgetLine[]): number | null {
+  const roots = lines.filter((l) => l.parentLineItemId === null)
+  if (roots.length === 0) return null
+  // Rounded ONCE at the end, over the raw per-line values -- the same
+  // single-rounding discipline the R48 gap-closure established below, so this
+  // reconciles exactly to a raw SQL SUM over the same rows.
+  return Math.round(roots.reduce((sum, l) => sum + l.amount * (l.budgetPercentage / 100), 0) * 100) / 100
+}
+
+// R67 E-08 (R-115). "Revenue, Budget, Actual -- scope wise, category wise"
+// (Sumeet item 9). Today those three words only ever meet in the Project
+// Status key-value card, with no breakdown and (until E-06 above) the wrong
+// budget source.
+//
+// ONE pure fold, two groupings, so a category row can never disagree with the
+// scope rows it is made of -- the same discipline aggregateMaterialCostReport
+// applies to the Material Cost Report's two groupings.
+//
+//  revenue  the BOQ line's own amount (what the client is billed for it)
+//  budget   computedBudget, the cost ceiling (see sumRootLineBudgets above)
+//  actual   what has actually been committed against it: the vendor quote plus
+//           the material and manpower split the QS entered. Nulls are ABSENT,
+//           not zero -- a line nobody has costed returns actual null, so
+//           "not costed yet" and "costed at nothing" stay distinguishable.
+//  variance actual - budget, POSITIVE MEANS OVER BUDGET -- the same sign
+//           convention the per-line variance below already uses, so the two
+//           views on one screen never flip signs on the reader.
+export type RevenueBudgetActualLine = {
+  lineItemId: string
+  code: string | null
+  description: string
+  category: string | null
+  revenue: number
+  budget: number
+  vendorAmount: number | null
+  materialAmount: number | null
+  manpowerAmount: number | null
+}
+
+export type RevenueBudgetActualRow = {
+  /** Stable key: the line item id (scope-wise) or the category name (category-wise). */
+  key: string
+  /** What the Item column prints: the line's code, or the category name. */
+  item: string
+  description: string
+  category: string
+  revenue: number
+  budget: number
+  actual: number | null
+  variance: number | null
+  /** actual / budget, one decimal. null when budget is 0 or nothing has been costed -- NEVER a divide-by-zero 0 %. */
+  percentUsed: number | null
+  /** Scope-wise only, so a row can link to its BOQ line. */
+  lineItemId: string | null
+  lineCount: number
+}
+
+export type RevenueBudgetActualTotals = {
+  revenue: number
+  budget: number
+  actual: number | null
+  variance: number | null
+  percentUsed: number | null
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+/** actual = the committed figures that exist. null when NONE of the three has been entered. */
+function actualOf(line: { vendorAmount: number | null; materialAmount: number | null; manpowerAmount: number | null }): number | null {
+  const parts = [line.vendorAmount, line.materialAmount, line.manpowerAmount].filter((v): v is number => v !== null)
+  return parts.length === 0 ? null : round2(parts.reduce((s, v) => s + v, 0))
+}
+
+function percentUsedOf(actual: number | null, budget: number): number | null {
+  if (actual === null || budget === 0) return null
+  return Math.round((actual / budget) * 1000) / 10
+}
+
+export function aggregateRevenueBudgetActual(
+  lines: RevenueBudgetActualLine[],
+  groupBy: "scope" | "category"
+): { groupBy: "scope" | "category"; rows: RevenueBudgetActualRow[]; totals: RevenueBudgetActualTotals } {
+  const rows: RevenueBudgetActualRow[] = []
+
+  if (groupBy === "category") {
+    const buckets = new Map<string, RevenueBudgetActualLine[]>()
+    for (const line of lines) {
+      const key = line.category ?? UNCATEGORIZED_LABEL
+      const list = buckets.get(key) ?? []
+      list.push(line)
+      buckets.set(key, list)
+    }
+    for (const [category, group] of buckets) {
+      const revenue = round2(group.reduce((s, l) => s + l.revenue, 0))
+      const budget = round2(group.reduce((s, l) => s + l.budget, 0))
+      const actuals = group.map(actualOf).filter((v): v is number => v !== null)
+      const actual = actuals.length === 0 ? null : round2(actuals.reduce((s, v) => s + v, 0))
+      rows.push({
+        key: category, item: category,
+        description: `${group.length} ${group.length === 1 ? "line" : "lines"}`,
+        category, revenue, budget, actual,
+        variance: actual === null ? null : round2(actual - budget),
+        percentUsed: percentUsedOf(actual, budget),
+        lineItemId: null, lineCount: group.length,
+      })
+    }
+    rows.sort((a, b) => a.item.localeCompare(b.item))
+  } else {
+    for (const line of lines) {
+      const actual = actualOf(line)
+      rows.push({
+        key: line.lineItemId,
+        item: line.code ?? line.description,
+        description: line.description,
+        category: line.category ?? UNCATEGORIZED_LABEL,
+        revenue: round2(line.revenue),
+        budget: round2(line.budget),
+        actual,
+        variance: actual === null ? null : round2(actual - line.budget),
+        percentUsed: percentUsedOf(actual, line.budget),
+        lineItemId: line.lineItemId, lineCount: 1,
+      })
+    }
+  }
+
+  // Totalled from the RAW lines, not by re-adding the rounded rows, so the
+  // scope-wise and category-wise totals are identical to the last unit.
+  const revenue = round2(lines.reduce((s, l) => s + l.revenue, 0))
+  const budget = round2(lines.reduce((s, l) => s + l.budget, 0))
+  const actuals = lines.map(actualOf).filter((v): v is number => v !== null)
+  const actual = actuals.length === 0 ? null : round2(actuals.reduce((s, v) => s + v, 0))
+  return {
+    groupBy, rows,
+    totals: {
+      revenue, budget, actual,
+      variance: actual === null ? null : round2(actual - budget),
+      percentUsed: percentUsedOf(actual, budget),
+    },
+  }
+}
+
 // R39/R-C09 (Point 154 follow-on): per-line budget vs actual-vendor-cost
 // variance, over the latest (non-superseded) BOQ's line items -- reuses the
 // SAME budgetPercentage/vendorId/vendorAmount columns Point 154 already
@@ -451,22 +620,85 @@ export async function earnedValueReport(ctx: { orgId: string }, projectId: strin
 // function's own comment for why it's not stored). variance = vendorAmount -
 // budget; null (not 0) when no vendor amount has been entered yet for a
 // line, a real "not yet quoted" state, not a fabricated zero variance.
-export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId: string) {
+//
+// R67 E-07 (R-114): Cost Variance hard-coded both of its header actions to
+// "(Not yet available)" -- a deliberate stub, not a data condition -- while
+// Sumeet 6.png II(iii) asks for S.No | Category | Code | Desc | Qty | Rate |
+// Amt | Vendor | Vendor Amt with filters on Category and Vendor. The columns
+// and the two filters are added here, at the one place the figures are
+// computed, so the screen, the export and the Reports picker all read the
+// same filtered rows.
+//
+// R67 E-08 (R-115): and the same rows, folded by aggregateRevenueBudgetActual
+// above, are the Revenue / Budget / Actual view -- not a second query and not
+// a second arithmetic.
+export type BudgetVarianceOptions = {
+  /** Repeatable, from the filter drawer's category chips. Empty/omitted = every category. */
+  categories?: string[]
+  /** From the Vendor select. Omitted = every vendor, INCLUDING lines with no vendor at all. */
+  vendorId?: string
+  /** Which fold the Revenue/Budget/Actual view returns. Defaults to scope-wise. */
+  groupBy?: "scope" | "category"
+}
+
+export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId: string, options: BudgetVarianceOptions = {}) {
   await requireConstructionEnabled(ctx.orgId)
+  const categoryFilter = (options.categories ?? []).map((c) => c.trim()).filter((c) => c !== "")
+  const vendorFilter = options.vendorId?.trim() || null
+  const groupBy: "scope" | "category" = options.groupBy === "category" ? "category" : "scope"
+  const emptyFold = aggregateRevenueBudgetActual([], groupBy)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
     const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
     // R67 lane I (I-03): the empty-project shape must carry the SAME keys as
     // the populated one, or a caller that reads totalMaterialAmount gets
     // undefined on a project with no BOQ and renders "NaN".
-    if (!latest) return { lines: [], totalBudget: 0, totalVendorAmount: 0, totalVariance: 0, totalMaterialAmount: 0, totalManpowerAmount: 0 }
+    //
+    // R67 E-06: totalBudget is null (not 0) here -- "no BOQ" is not "a budget
+    // of nothing", and the dashboard KPI reading this renders an en dash and
+    // the words "No BOQ yet" for exactly that state.
+    if (!latest) {
+      return {
+        boqId: null, boqTitle: null, lines: [], subTaskLineCount: 0,
+        totalBudget: null, totalVendorAmount: 0, totalVariance: 0, totalMaterialAmount: 0, totalManpowerAmount: 0,
+        availableCategories: [], availableVendors: [],
+        filters: { categories: categoryFilter, vendorId: vendorFilter, groupBy },
+        revenueBudgetActual: emptyFold,
+        categorySubtotals: [],
+      }
+    }
 
-    const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id) })
-    const vendorIds = [...new Set(lineItems.map((i) => i.vendorId).filter((id): id is string => !!id))]
+    // Deterministic order: this report prints an S.No column, and a serial
+    // number that reshuffles between two loads of the same BOQ is worse than
+    // none. The table has no sort column of its own, so creation order is the
+    // order the QS entered the lines in.
+    const allLineItems = await db.query.constructionBoqLineItems.findMany({
+      where: eq(constructionBoqLineItems.boqId, latest.id),
+      orderBy: (t, { asc }) => [asc(t.createdAt), asc(t.id)],
+    })
+
+    // The chips and the select offer what this BOQ actually contains -- never
+    // a category nobody used, and never a vendor with no line.
+    const availableCategories = [...new Set(allLineItems.map((i) => i.category).filter((c): c is string => !!c && c.trim() !== ""))].sort((a, b) => a.localeCompare(b))
+
+    // Filters apply to ROOT lines; a surviving root keeps its weighted
+    // sub-tasks, and a filtered-out root takes them with it. Filtering a child
+    // away from its parent would leave a breakdown that no longer adds up.
+    const keptRootIds = new Set(
+      allLineItems
+        .filter((i) => i.parentLineItemId === null)
+        .filter((i) => categoryFilter.length === 0 || categoryFilter.includes(i.category ?? UNCATEGORIZED_LABEL))
+        .filter((i) => vendorFilter === null || i.vendorId === vendorFilter)
+        .map((i) => i.id)
+    )
+    const lineItems = allLineItems.filter((i) => (i.parentLineItemId === null ? keptRootIds.has(i.id) : keptRootIds.has(i.parentLineItemId)))
+
+    const vendorIds = [...new Set(allLineItems.map((i) => i.vendorId).filter((id): id is string => !!id))]
     const suppliers = vendorIds.length > 0
       ? await db.select({ id: erpSuppliers.id, name: erpSuppliers.supplierName }).from(erpSuppliers).where(inArray(erpSuppliers.id, vendorIds))
       : []
     const supplierNameById = new Map(suppliers.map((s) => [s.id, s.name]))
+    const availableVendors = vendorIds.map((id) => ({ id, name: supplierNameById.get(id) ?? id })).sort((a, b) => a.name.localeCompare(b.name))
 
     // R48 gap-closure (2026-08-30, F088: "Report figures reconcile to the
     // database exactly"). Real, confirmed bug: totals below used to sum the
@@ -478,14 +710,30 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     // budget/variance alongside the rounded display value, and total from
     // the RAW figures, rounding only once at the very end -- the totals now
     // reconcile exactly to a raw SQL sum over the same rows.
+    let sNo = 0
     const lines = lineItems.map((item) => {
       const rawBudget = Number(item.amount) * (Number(item.budgetPercentage) / 100)
       const vendorAmount = item.vendorAmount !== null ? Number(item.vendorAmount) : null
       const rawVariance = vendorAmount !== null ? vendorAmount - rawBudget : null
+      const isRootLine = item.parentLineItemId === null
       return {
         lineItemId: item.id,
+        boqId: item.boqId,
+        // R67 E-07 (R-114): Sumeet 6.png II(iii)'s first column. Numbered over
+        // the CONTRACT lines only -- a weighted sub-task is part of the line
+        // above it, not a line of its own, so it carries no serial number.
+        sNo: isRootLine ? ++sNo : null,
+        isRootLine,
+        parentLineItemId: item.parentLineItemId,
         code: item.itemCode,
         description: item.description,
+        // R67 E-07: the quantity, rate and amount Sumeet's column list asks
+        // for. They were on the row all along and this report never projected
+        // them, so the screen could show a budget it could not show the
+        // arithmetic behind.
+        quantity: Number(item.quantity),
+        rate: Number(item.rate),
+        unit: item.unit,
         // R67 lane I (WS-I item I-05, R-177): the line's own category, so the
         // Budget table can show a Category column and group by a real value
         // instead of re-deriving it through activityId -> activity -> category.
@@ -511,23 +759,52 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
       }
     })
 
-    const totalBudget = Math.round(lines.reduce((s, l) => s + l._rawBudget, 0) * 100) / 100
-    const totalVendorAmount = Math.round(lines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100
-    const totalVariance = Math.round(lines.reduce((s, l) => s + (l._rawVariance ?? 0), 0) * 100) / 100
+    // R67 E-06: ROOT LINES ONLY, for every total -- see sumRootLineBudgets'
+    // own header for why summing the weighted sub-tasks too double-counts, and
+    // why this file was the last BOQ money roll-up still doing it. The totals
+    // therefore tie exactly to the rows the screen prints (which are the root
+    // lines), and subTaskLineCount below says in numbers how many rows are
+    // folded into their parent rather than dropping them silently.
+    const rootLines = lines.filter((l) => l.isRootLine)
+    const rbaLines = rootLines.map((l) => ({
+      lineItemId: l.lineItemId, code: l.code, description: l.description, category: l.category,
+      revenue: l.amount, budget: l._rawBudget,
+      vendorAmount: l.vendorAmount, materialAmount: l.materialAmount, manpowerAmount: l.manpowerAmount,
+    }))
+    const totalBudget = sumRootLineBudgets(rootLines.map((l) => ({ parentLineItemId: null, amount: l.amount, budgetPercentage: l.budgetPercentage })))
+    const totalVendorAmount = Math.round(rootLines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100
+    const totalVariance = Math.round(rootLines.reduce((s, l) => s + (l._rawVariance ?? 0), 0) * 100) / 100
     // R67 lane I (WS-I item I-03): totalled once, at the end, over the raw
     // per-line values -- the same single-rounding rule the R48 gap-closure
     // note above established for totalBudget/totalVariance, so these totals
     // reconcile exactly to a raw SQL SUM over the same rows.
-    const totalMaterialAmount = Math.round(lines.reduce((s, l) => s + (l.materialAmount ?? 0), 0) * 100) / 100
-    const totalManpowerAmount = Math.round(lines.reduce((s, l) => s + (l.manpowerAmount ?? 0), 0) * 100) / 100
+    const totalMaterialAmount = Math.round(rootLines.reduce((s, l) => s + (l.materialAmount ?? 0), 0) * 100) / 100
+    const totalManpowerAmount = Math.round(rootLines.reduce((s, l) => s + (l.manpowerAmount ?? 0), 0) * 100) / 100
 
     return {
+      boqId: latest.id,
+      boqTitle: latest.title,
       lines: lines.map(({ _rawBudget, _rawVariance, ...line }) => line),
+      /** How many of `lines` are weighted sub-tasks folded into their parent for every total above. */
+      subTaskLineCount: lines.length - rootLines.length,
+      // null (not 0) when the BOQ has no lines at all: same "no scope defined"
+      // signal the empty-project branch above returns.
       totalBudget,
       totalVendorAmount,
       totalVariance,
       totalMaterialAmount,
       totalManpowerAmount,
+      availableCategories,
+      availableVendors,
+      filters: { categories: categoryFilter, vendorId: vendorFilter, groupBy },
+      // R67 E-08: the same root lines, folded the way the reader asked for.
+      revenueBudgetActual: aggregateRevenueBudgetActual(rbaLines, groupBy),
+      // R67 E-07: the per-category subtotals the Cost Variance table prints
+      // under its rows. ALWAYS the category fold, whatever groupBy asked for,
+      // because a scope-wise table still owes the reader its subtotals -- and
+      // they come from the same fold as the category-wise view, so a subtotal
+      // and a category row can never disagree.
+      categorySubtotals: aggregateRevenueBudgetActual(rbaLines, "category").rows,
     }
   })
 }
@@ -579,7 +856,17 @@ export async function budgetVsActual(ctx: { orgId: string }, projectId: string) 
     getExpenseSummaryByHead(ctx, projectId),
   ])
   const actual = expenseByHead.reduce((s, r) => s + Number(r.total), 0)
-  return { budget: dashboard.budget, actual, variance: dashboard.budget - actual, byHead: expenseByHead }
+  // R67 E-06 (R-108): `budget` follows getProjectDashboard's one definition --
+  // the BOQ-derived figure, null (not 0) when the project has no BOQ. A
+  // variance against a budget nobody has set is not zero, it is unknown, so it
+  // is null too rather than reporting the whole spend as an overrun.
+  return {
+    budget: dashboard.budget,
+    ledgerBudget: dashboard.ledgerBudget,
+    actual,
+    variance: dashboard.budget === null ? null : dashboard.budget - actual,
+    byHead: expenseByHead,
+  }
 }
 
 // 9. Material Consumption Report -- net stock movement per item for this project (negative = consumed).

@@ -28,7 +28,11 @@ import { ServiceError } from "./compliance-service"
 // BOQ/progress reads and calls this directly (see below) instead of calling
 // earnedValueReport() once per project. Same circular-import safety as
 // earnedValueReport above (call-time only, never module-evaluation time).
-import { computeEarnedValue, type EvLineItem } from "./construction-reports-service"
+// R67 E-06 (R-108): sumRootLineBudgets is the ONE definition of "this
+// project's budget" -- the dashboard tile, the Project Status report and the
+// Cost Variance screen all read it, so the three can no longer disagree. Same
+// call-time-only circular-import safety as computeEarnedValue above.
+import { computeEarnedValue, sumRootLineBudgets, type EvLineItem } from "./construction-reports-service"
 import { isConstructionEnabledForOrg } from "./construction-enablement-service"
 export { ServiceError }
 
@@ -104,7 +108,27 @@ export async function updateProjectValue(ctx: { orgId: string }, projectId: stri
 export type ProjectDashboard = {
   projectId: string
   projectName: string
-  budget: number
+  /**
+   * R67 E-06 (R-108): THE BOQ-DERIVED BUDGET -- the sum of computedBudget over
+   * the latest non-superseded BOQ's root lines (construction-reports-service
+   * .ts#sumRootLineBudgets), which is exactly what the budget-variance report
+   * totals and what the Cost Variance screen prints.
+   *
+   * It used to be the ERP ledger figure below, which a construction org
+   * typically never fills in -- so the dashboard tile said "TOTAL BUDGET AED 0"
+   * and the Project Status report said "Budget 0" while Cost Variance said
+   * 2,193.75, and a QS who notices stops trusting every other figure.
+   *
+   * null (NEVER 0) when there is no BOQ: the screens render an en dash and the
+   * words "No BOQ yet", because a fabricated zero is a failed card.
+   */
+  budget: number | null
+  /**
+   * The ERP annual ledger budget (erp_budget_line_items via the project's cost
+   * centre) -- a real, different concept, kept and labelled "Annual ledger
+   * budget" wherever it still appears so the two can never be confused again.
+   */
+  ledgerBudget: number
   revenue: number
   expenses: number
   progressPercent: number // average of each activity's latest logged percentComplete
@@ -213,6 +237,12 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
     let earnedValue: number | null = null
     let percentByValue: number | null = null
     let contractValue: number | null = null
+    // R67 E-06: read off the SAME active-BOQ line items the earned value is
+    // computed from -- one read, two figures, so the budget and the contract
+    // value on one card can never come from two different BOQs. Stays null if
+    // the read below fails, exactly like earnedValue: null is "we do not have
+    // this", which is what the tile then says in words.
+    let boqBudget: number | null = null
     try {
       if (constructionEnabled) {
         const activeBoq = await db.query.constructionBoqs.findFirst({
@@ -223,8 +253,13 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
         if (activeBoq) {
           const items = await db.query.constructionBoqLineItems.findMany({
             where: eq(constructionBoqLineItems.boqId, activeBoq.id),
-            columns: { id: true, boqId: true, parentLineItemId: true, rate: true, amount: true, breakdownPercentage: true },
+            columns: { id: true, boqId: true, parentLineItemId: true, rate: true, amount: true, breakdownPercentage: true, budgetPercentage: true },
           })
+          boqBudget = sumRootLineBudgets(items.map((i) => ({
+            parentLineItemId: i.parentLineItemId,
+            amount: Number(i.amount),
+            budgetPercentage: Number(i.budgetPercentage),
+          })))
           let qtyByItem = new Map<string, number>()
           let latestPercentByItem = new Map<string, number>()
           if (items.length > 0) {
@@ -260,7 +295,10 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
     return {
       projectId: project.id,
       projectName: project.name,
-      budget: Number(budgetRow?.total ?? 0),
+      // R67 E-06: the BOQ-derived budget IS `budget` now; the ledger sum keeps
+      // its own name so nothing that legitimately wants it has lost it.
+      budget: boqBudget,
+      ledgerBudget: Number(budgetRow?.total ?? 0),
       revenue: Number(revenueRow?.total ?? 0),
       expenses: Number(expenseRow?.total ?? 0),
       progressPercent: Math.round(progressPercent),
@@ -318,6 +356,12 @@ export type OrgDashboardProjectSummary = {
   delayedTaskCount: number
   /** Latest non-superseded BOQ's root-line total. null (not 0) = no BOQ at all. */
   value: number | null
+  /**
+   * R67 E-06 (R-108): the BOQ-derived budget for this project -- the same
+   * sum(computedBudget over root lines) the budget-variance report totals and
+   * the Project Status report now prints. null (not 0) = no BOQ at all.
+   */
+  budget: number | null
   earnedValue: number | null
   percentByValue: number | null
   /** R67 E-01: the activity-log average, deliberately distinct from percentByValue. */
@@ -336,7 +380,15 @@ export type OrgDashboardProjectSummary = {
 
 export type OrgDashboardSummary = {
   totalProjects: number
-  totalBudget: number
+  /**
+   * R67 E-06 (R-108): the BOQ-derived budget across the portfolio -- the sum of
+   * every project's own BOQ budget. null (NEVER 0) when not one project has a
+   * BOQ; the tile then reads an en dash and "No BOQ yet" rather than the
+   * "TOTAL BUDGET AED 0" that made a QS distrust the whole screen.
+   */
+  totalBudget: number | null
+  /** The ERP annual ledger sum this tile used to show, kept under its own name and labelled "Annual ledger budget". */
+  totalLedgerBudget: number
   totalRevenue: number
   totalExpenses: number
   projects: OrgDashboardProjectSummary[]
@@ -364,14 +416,14 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         ? await db.query.projects.findMany({ where: and(eq(projects.orgId, ctx.orgId), inArray(projects.leadUserId, leadIds)), columns: { id: true } })
         : []
       projectIds = scoped.map((p) => p.id)
-      if (projectIds.length === 0) return { totalProjects: 0, totalBudget: 0, totalRevenue: 0, totalExpenses: 0, projects: [], dateRangeApplied }
+      if (projectIds.length === 0) return { totalProjects: 0, totalBudget: null, totalLedgerBudget: 0, totalRevenue: 0, totalExpenses: 0, projects: [], dateRangeApplied }
     }
 
     const projectConditions = [eq(projects.orgId, ctx.orgId), eq(projects.isActive, true)]
     if (projectIds) projectConditions.push(inArray(projects.id, projectIds))
     const projectRows = await db.query.projects.findMany({ where: and(...projectConditions), columns: { id: true, name: true } })
     const ids = projectRows.map((p) => p.id)
-    if (ids.length === 0) return { totalProjects: 0, totalBudget: 0, totalRevenue: 0, totalExpenses: 0, projects: [], dateRangeApplied }
+    if (ids.length === 0) return { totalProjects: 0, totalBudget: null, totalLedgerBudget: 0, totalRevenue: 0, totalExpenses: 0, projects: [], dateRangeApplied }
 
     // R67 E-02: the optional window narrows these two sums and nothing else --
     // see OrgDashboardFilters' own comment for why the BOQ-derived figures are
@@ -425,13 +477,25 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
     `)) as { project_id: string; boq_id: string }[]
     const boqIdByProject = new Map(latestBoqPerProject.map((r) => [r.project_id, r.boq_id]))
     const activeBoqIds = Array.from(boqIdByProject.values())
+    //
+    // R67 E-06 (R-108): the SAME grouped read now also returns the BOQ-derived
+    // BUDGET -- sum(amount x budget_percentage / 100) over the same root lines,
+    // the arithmetic sumRootLineBudgets() states once for the whole product.
+    // An extra projected column on a query that was already running, never a
+    // second query and never a per-project fan-out (the shape R43_MGR_01
+    // removed from this function after it deadlocked the 5-connection pool).
     const valueByBoq = activeBoqIds.length > 0
-      ? await db.select({ boqId: constructionBoqLineItems.boqId, total: sql<number>`coalesce(sum(${constructionBoqLineItems.amount}), 0)::float` })
+      ? await db.select({
+          boqId: constructionBoqLineItems.boqId,
+          total: sql<number>`coalesce(sum(${constructionBoqLineItems.amount}), 0)::float`,
+          budget: sql<number>`coalesce(sum(${constructionBoqLineItems.amount} * ${constructionBoqLineItems.budgetPercentage} / 100), 0)::float`,
+        })
           .from(constructionBoqLineItems)
           .where(and(inArray(constructionBoqLineItems.boqId, activeBoqIds), isNull(constructionBoqLineItems.parentLineItemId)))
           .groupBy(constructionBoqLineItems.boqId)
       : []
     const valueByBoqMap = new Map(valueByBoq.map((v) => [v.boqId, Number(v.total)]))
+    const budgetByBoqMap = new Map(valueByBoq.map((v) => [v.boqId, Math.round(Number(v.budget) * 100) / 100]))
 
     const revenueMap = new Map(revenueByProject.map((r) => [r.projectId, Number(r.total)]))
     const expenseMap = new Map(expensesByProject.map((r) => [r.projectId, Number(r.total)]))
@@ -614,6 +678,9 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         taskCount: taskMap.get(p.id)?.total ?? 0,
         delayedTaskCount: taskMap.get(p.id)?.delayed ?? 0,
         value,
+        // Same "no BOQ at all" rule as `value` directly above -- one active
+        // BOQ produces both figures or neither.
+        budget: activeBoqId ? (budgetByBoqMap.get(activeBoqId) ?? 0) : null,
         earnedValue: ev?.earnedValue ?? null,
         percentByValue: ev?.percentByValue ?? null,
         percentByActivity: averageLatestPercent(percentsByProject.get(p.id) ?? []),
@@ -624,9 +691,17 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
       }
     })
 
+    // R67 E-06: the portfolio budget is the sum of the project budgets the
+    // rows themselves show -- so the tile and the list state the same thing.
+    // null when NOT ONE project has a BOQ; a project without one contributes
+    // nothing rather than a zero that would drag the total into a lie.
+    const projectsWithBoqBudget = projectSummaries.filter((p) => p.budget !== null)
     return {
       totalProjects: projectRows.length,
-      totalBudget: Number(budgetTotal?.total ?? 0),
+      totalBudget: projectsWithBoqBudget.length === 0
+        ? null
+        : Math.round(projectsWithBoqBudget.reduce((s, p) => s + (p.budget ?? 0), 0) * 100) / 100,
+      totalLedgerBudget: Number(budgetTotal?.total ?? 0),
       totalRevenue: projectSummaries.reduce((s, p) => s + p.revenue, 0),
       totalExpenses: projectSummaries.reduce((s, p) => s + p.expenses, 0),
       projects: projectSummaries,

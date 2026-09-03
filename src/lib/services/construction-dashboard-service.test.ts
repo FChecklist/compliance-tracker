@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, mock, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { averageLatestPercent } from "./construction-dashboard-service"
@@ -152,5 +152,125 @@ describe("getOrgDashboard: the date range narrows revenue and spend ONLY (R67 E-
 
   test("the response says whether a range was applied, so the screen can caption it", () => {
     expect(body).toMatch(/dateRangeApplied,/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 E-06 (R-108). The home dashboard's "TOTAL BUDGET AED 0" tile.
+//
+// getOrgDashboard is a DB read, so this mocks only the DB layer and runs the
+// real function -- same "capture real modules, restore in afterEach" pattern
+// as construction-reports-service.test.ts's own mocked-DB block. What is being
+// proved is the thing the item exists for: the portfolio budget is the sum of
+// the projects' BOQ budgets, the ERP ledger figure is still returned under its
+// own name, and an org with no BOQ anywhere reports null rather than 0.
+// ---------------------------------------------------------------------------
+const realTenantScoped = await import("@/lib/db/tenant-scoped")
+const realEnablement = await import("./construction-enablement-service")
+
+/**
+ * A drizzle-shaped fake whose select() answers by the SHAPE of the projection
+ * it was handed -- which is how each of getOrgDashboard's aggregates is told
+ * apart without depending on the order they happen to run in.
+ */
+function fakeOrgDb(opts: { projects: { id: string; name: string }[]; boqByProject: Record<string, string>; valueByBoq: Record<string, { total: number; budget: number }>; ledgerTotal: number; boqLineItems?: unknown[] }) {
+  const answerFor = (fields: Record<string, unknown>): unknown[] => {
+    const keys = Object.keys(fields).sort().join(",")
+    // The ERP annual ledger sum (erp_budget_line_items via the cost centre).
+    if (keys === "total") return [{ total: opts.ledgerTotal }]
+    // The per-BOQ root-line value AND budget -- one query, two figures.
+    if (keys === "boqId,budget,total") {
+      return Object.entries(opts.valueByBoq).map(([boqId, v]) => ({ boqId, total: v.total, budget: v.budget }))
+    }
+    // revenue / expenses / permits / task counts: none in this fixture, which
+    // is deliberate -- this test is about the budget and nothing else.
+    return []
+  }
+  return {
+    query: {
+      projects: { findMany: async () => opts.projects },
+      constructionActivities: { findMany: async () => [] },
+      constructionBoqLineItems: { findMany: async () => opts.boqLineItems ?? [] },
+      users: { findMany: async () => [] },
+    },
+    select: (fields: Record<string, unknown>) => {
+      const rows = answerFor(fields)
+      // where() has to be BOTH awaitable (the aggregates that end there) and
+      // chainable into groupBy() (the per-project ones) -- a promise carrying
+      // the extra method is the smallest fake that is honest about both.
+      const terminal = () => Object.assign(Promise.resolve(rows), { groupBy: async () => rows })
+      const chain: Record<string, unknown> = {}
+      chain.from = () => chain
+      chain.innerJoin = () => chain
+      chain.where = terminal
+      chain.groupBy = async () => rows
+      return chain
+    },
+    execute: async () => Object.entries(opts.boqByProject).map(([project_id, boq_id]) => ({ project_id, boq_id })),
+  }
+}
+
+describe("getOrgDashboard: one budget number (R67 E-06)", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+    await mock.module("./construction-enablement-service", () => realEnablement)
+  })
+
+  async function run(db: unknown) {
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (d: unknown) => Promise<unknown>) => fn(db)),
+    }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablement,
+      isConstructionEnabledForOrg: mock(async () => true),
+    }))
+    const { getOrgDashboard } = await import("./construction-dashboard-service")
+    return getOrgDashboard({ orgId: "org-e06" })
+  }
+
+  test("the portfolio budget is the sum of the projects' BOQ budgets, NOT the ERP ledger sum", async () => {
+    const summary = await run(fakeOrgDb({
+      projects: [{ id: "p1", name: "Cedar Heights" }, { id: "p2", name: "Riverside" }],
+      boqByProject: { p1: "boq-1", p2: "boq-2" },
+      valueByBoq: { "boq-1": { total: 8775, budget: 2193.75 }, "boq-2": { total: 4000, budget: 1000 } },
+      ledgerTotal: 0,
+    }))
+    expect(summary.totalBudget).toBe(3193.75)
+    expect(summary.projects.map((p) => p.budget)).toEqual([2193.75, 1000])
+  })
+
+  test("the ERP annual ledger figure is still returned, under its own name", async () => {
+    const summary = await run(fakeOrgDb({
+      projects: [{ id: "p1", name: "Cedar Heights" }],
+      boqByProject: { p1: "boq-1" },
+      valueByBoq: { "boq-1": { total: 8775, budget: 2193.75 } },
+      ledgerTotal: 750000,
+    }))
+    expect(summary.totalLedgerBudget).toBe(750000)
+    expect(summary.totalBudget).toBe(2193.75)
+  })
+
+  test("a project with no BOQ contributes nothing and reports budget null -- never a 0 that drags the total into a lie", async () => {
+    const summary = await run(fakeOrgDb({
+      projects: [{ id: "p1", name: "Cedar Heights" }, { id: "p2", name: "Unscoped" }],
+      boqByProject: { p1: "boq-1" },
+      valueByBoq: { "boq-1": { total: 8775, budget: 2193.75 } },
+      ledgerTotal: 0,
+    }))
+    expect(summary.projects.find((p) => p.id === "p2")!.budget).toBeNull()
+    expect(summary.totalBudget).toBe(2193.75)
+  })
+
+  test("an org where NOT ONE project has a BOQ reports totalBudget null, so the tile can say 'No BOQ yet'", async () => {
+    const summary = await run(fakeOrgDb({
+      projects: [{ id: "p1", name: "Cedar Heights" }],
+      boqByProject: {},
+      valueByBoq: {},
+      ledgerTotal: 12000,
+    }))
+    expect(summary.totalBudget).toBeNull()
+    expect(summary.totalLedgerBudget).toBe(12000)
   })
 })

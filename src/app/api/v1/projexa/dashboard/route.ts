@@ -46,7 +46,13 @@ export async function GET(request: NextRequest) {
     if (ctx.dbUser && !hasRole(ctx.dbUser, "manager")) {
       return NextResponse.json({
         ...summary,
-        totalBudget: null, totalRevenue: null, totalExpenses: null,
+        // R67 E-06: the ledger sum is a financial figure too, and so is the
+        // per-project BOQ budget the rows carry -- both redacted alongside the
+        // tile they now sit beside. financialsRedacted says WHY they are null,
+        // so a screen can tell "you may not see this" from "there is no BOQ",
+        // which are now two different reasons for the same absent figure.
+        totalBudget: null, totalLedgerBudget: null, totalRevenue: null, totalExpenses: null,
+        financialsRedacted: true,
         // R67 E-01: spendOverValue is DERIVED from expenses against the
         // contract value, so leaving it in would hand a member the very
         // comparison the two redacted figures exist to withhold -- redacted
@@ -54,7 +60,7 @@ export async function GET(request: NextRequest) {
         // not passed the contract value" are different statements.
         // percentByActivity and permitsExpiring30d stay: neither is financial,
         // and a site engineer's whole job depends on both.
-        projects: summary.projects.map((p) => ({ ...p, revenue: null, expenses: null, earnedValue: null, percentByValue: null, spendOverValue: null })),
+        projects: summary.projects.map((p) => ({ ...p, revenue: null, expenses: null, earnedValue: null, percentByValue: null, spendOverValue: null, budget: null })),
       })
     }
     return NextResponse.json(summary)
