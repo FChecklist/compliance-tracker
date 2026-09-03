@@ -67,6 +67,8 @@ active:
           construction-boq*/reports/screen-definitions services only), so the "NOT touching
           src/lib/services/**" line below is narrowed to "except this one file, which C-08
           names".
+        src/lib/pipeline/task-tabs.ts (new, + .test.ts) -- C-11's tab vocabulary and the
+          grouped per-tab counts on GET /api/v1/projexa/tasks, added 2026-09-03.
       Later items in this lane additionally take src/lib/pipeline/classify.ts and a
       compliance.pipeline_tasks error_code/error_details migration (C-13).
 

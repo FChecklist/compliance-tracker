@@ -15,7 +15,7 @@ import { classifyL0, type L0Repo } from "./level0";
 import { classifySegment, normaliseForMatch, type ResolvedFunction } from "./classify";
 import { runLevel1 } from "./level1";
 import { deriveChain, type ChainRepo, type DerivedChain } from "./derive-chain";
-import { functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
+import { functionWrites, hasExecutor, EXECUTABLE_FUNCTION_IDS } from "./executor";
 import { makeL0Repo, makeChainRepo, resolveRootLabel, logGapRow } from "./repos";
 
 export type ClassifyOnlyInput = {
@@ -38,6 +38,25 @@ export type ClassifiedSegmentDto = {
   level: 0 | 1 | null;
   message: string | null;
   reason: string | null;
+  /**
+   * R67 C-12 -- WOULD SUBMITTING THIS WRITE ANYTHING, AND CAN THIS PIPELINE
+   * RUN IT AT ALL?
+   *
+   * PROJEXA's composer offers a "Record" button on a preview, and C-12 rules
+   * that it may only do so "for registered writes; every other leaf loads the
+   * chain and stops". Both facts already exist in executor.ts
+   * (WRITE_FUNCTION_IDS, EXECUTORS) and neither reached the client, so the
+   * only way for the composer to know was to hard-code a copy of the registry
+   * and go stale the day a write was added. They are computed here, from the
+   * registry itself, on the endpoint whose whole job is answering "what would
+   * happen if I submitted this".
+   *
+   * `writes:false, executable:true` is a read -- it runs, and it changes
+   * nothing. `executable:false` is the honest gap: the product cannot do this
+   * yet, which is a sentence the user is owed rather than a disabled button.
+   */
+  writes: boolean;
+  executable: boolean;
 };
 
 export type ClassifyOnlyResult = {
@@ -137,6 +156,8 @@ export async function classifyOnly(input: ClassifyOnlyInput): Promise<ClassifyOn
       level: c.level,
       message: c.message,
       reason: c.gapReason ?? (c.verdict === "gap" ? level1Reason : null),
+      writes: c.functionId ? functionWrites(c.functionId) : false,
+      executable: c.functionId ? hasExecutor(c.functionId) : false,
     });
   }
 

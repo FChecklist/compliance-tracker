@@ -20,14 +20,15 @@
 //                                  function, so no classifier and NO MODEL
 //                                  CALL EVER
 import { NextRequest, NextResponse } from "next/server"
-import { and, desc, eq, inArray } from "drizzle-orm"
+import { and, count, desc, eq, inArray } from "drizzle-orm"
 import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
 import { runSubmission, runDirectTask } from "@/lib/pipeline/run-submission"
+import { missingSlots } from "@/lib/pipeline/function-slots"
+import { resolveStatusFilter, tabCountsFrom, type PipelineStatus } from "@/lib/pipeline/task-tabs"
 
-const TASK_STATUSES = ["to_do", "in_progress", "waiting", "done", "blocked"] as const
-type TaskStatus = (typeof TASK_STATUSES)[number]
+type TaskStatus = PipelineStatus
 
 /**
  * The POST body's own fields, narrowed once. Kept out of the handler so the
@@ -145,6 +146,20 @@ export async function POST(request: NextRequest) {
  * done       -- done
  * blocked    -- blocked, with the backend's own error text on each row,
  *               never an empty list and never a generic failure
+ *
+ * R67 C-11 -- TWO CHANGES, BOTH ABOUT THE NUMBER ON A TAB.
+ *
+ * 1. `status` now also accepts the TAB vocabulary (needs_you | waiting |
+ *    approval | queued | done), resolved in src/lib/pipeline/task-tabs.ts, so
+ *    the pane can ask for one tab's rows instead of pulling fifty rows of
+ *    everything on every navigation and filtering them in the browser. The raw
+ *    statuses every existing caller sends still work, unchanged.
+ *
+ * 2. `counts` comes from a GROUPED COUNT over the whole scope, not from
+ *    `rows.filter(...).length` over a page capped at `limit`. The old numbers
+ *    were true only while an org had fewer than fifty tasks, and silently
+ *    wrong after that -- and "Completed (50)" beside a list of 50 rows looks
+ *    exactly like a correct answer.
  */
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
@@ -156,19 +171,32 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url)
   const projectId = url.searchParams.get("projectId")
-  const statusParam = url.searchParams.get("status")
-  const requested = (statusParam ? statusParam.split(",") : [])
-    .map((s) => s.trim())
-    .filter((s): s is TaskStatus => (TASK_STATUSES as readonly string[]).includes(s))
+  const filter = resolveStatusFilter(url.searchParams.get("status"))
   const limitRaw = Number(url.searchParams.get("limit") ?? "50")
   const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.trunc(limitRaw), 1), 200) : 50
 
+  // A FILTER THAT MATCHED NOTHING IS A 400, NOT AN EMPTY LIST. Returning every
+  // row for `?status=needs-you` (a real misspelling of a real key) would look
+  // like the filter worked and be impossible to notice.
+  if (filter.unknown.length > 0 && filter.statuses.length === 0) {
+    return NextResponse.json(
+      { error: `Unknown status filter: ${filter.unknown.join(", ")}. Use needs_you, waiting, approval, queued or done.` },
+      { status: 400 }
+    )
+  }
+
   try {
-    const rows = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
-      const conditions = [eq(pipelineTasks.orgId, ctx.orgId!)]
-      if (projectId) conditions.push(eq(pipelineTasks.projectId, projectId))
-      if (requested.length > 0) conditions.push(inArray(pipelineTasks.status, requested))
-      return db
+    const { rows, countRows } = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
+      // The SCOPE both queries share. The status filter narrows the page only:
+      // the counts must be over every status or a tab could never show the
+      // number for a tab that is not open.
+      const scope = [eq(pipelineTasks.orgId, ctx.orgId!)]
+      if (projectId) scope.push(eq(pipelineTasks.projectId, projectId))
+
+      const conditions = [...scope]
+      if (filter.statuses.length > 0) conditions.push(inArray(pipelineTasks.status, filter.statuses))
+
+      const page = await db
         .select({
           id: pipelineTasks.id,
           submissionId: pipelineTasks.submissionId,
@@ -178,6 +206,7 @@ export async function GET(request: NextRequest) {
           derivedChain: pipelineTasks.derivedChain,
           functionId: pipelineTasks.functionId,
           params: pipelineTasks.params,
+          result: pipelineTasks.result,
           status: pipelineTasks.status,
           error: pipelineTasks.error,
           createdAt: pipelineTasks.createdAt,
@@ -190,19 +219,43 @@ export async function GET(request: NextRequest) {
         .where(and(...conditions))
         .orderBy(desc(pipelineTasks.createdAt))
         .limit(limit)
+
+      // ONE grouped count, five rows back at most -- not a second full read.
+      const grouped = await db
+        .select({ status: pipelineTasks.status, n: count() })
+        .from(pipelineTasks)
+        .where(and(...scope))
+        .groupBy(pipelineTasks.status)
+
+      return { rows: page, countRows: grouped }
     })
 
-    const group = (statuses: TaskStatus[]) => rows.filter((r) => statuses.includes(r.status as TaskStatus))
+    // R67 C-11 / D-03: the SLOTS a blocked row is short, computed from the
+    // function's own declaration rather than parsed out of its error string.
+    // This is the `missing` half of the { code, missing } payload PROJEXA's
+    // task-errors.ts already reads; before it, the client had to infer the
+    // question from the backend's wording.
+    const tasks = rows.map((r) => ({
+      ...r,
+      missing: r.functionId ? missingSlots(r.functionId, (r.params ?? {}) as Record<string, unknown>) : [],
+    }))
+
+    const group = (statuses: TaskStatus[]) => tasks.filter((r) => statuses.includes(r.status as TaskStatus))
+    const counts = tabCountsFrom(countRows)
 
     return NextResponse.json({
-      tasks: rows,
-      // LIVE COUNTS, so the user knows before clicking (M24's header tabs).
-      counts: {
-        needsYou: group(["to_do", "waiting"]).length,
-        running: group(["in_progress"]).length,
-        done: group(["done"]).length,
-        blocked: group(["blocked"]).length,
-        total: rows.length,
+      tasks,
+      // LIVE COUNTS, so the user knows before clicking (M24's header tabs) --
+      // over the whole scope, so they stay true past the page limit.
+      counts,
+      // Whether this page is all of what the filter matched. A client that
+      // prints a count beside a list needs to know which of the two it is
+      // showing; guessing from `rows.length === limit` is a guess.
+      page: {
+        limit,
+        returned: tasks.length,
+        truncated: tasks.length >= limit,
+        status: filter.tab ?? (filter.statuses.length > 0 ? filter.statuses.join(",") : null),
       },
       groups: {
         needsYou: group(["to_do", "waiting"]),
