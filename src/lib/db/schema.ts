@@ -13403,6 +13403,24 @@ export const pipelineTasks = complianceSchemaDB.table('pipeline_tasks', {
   // Deliberately text, not an enum: the vocabulary is owned by application
   // code that both repos version independently, and a migration per new code
   // would guarantee the two drift.
+  //
+  // R67 FIX PASS, decision D-11 -- lane C (C-13) proposed a THIRD column here,
+  // `error_details`, holding the raw driver text for us. It is deliberately NOT
+  // added. Lane B's posture above is the stronger one and it is already on
+  // main: the raw message is logged server-side and never persisted at all, so
+  // there is no column for a future route to select by accident and the R66
+  // leak cannot recur through this table. C-13's split survives in code --
+  // failure-classification.ts still separates the sentence a person may read
+  // from the raw text -- and the raw half now ends at run-submission.ts's
+  // console.error instead of in a column. C-13's own 0533 migration was
+  // dropped in the same commit; lane B's 0533 already adds error_code.
+  //
+  // NOTE ON 'failed_system': C-13's wording asks for a task STATUS of that
+  // name. pipeline_task_status is closed at five values by an explicit,
+  // documented M24 decision recorded above, which extending needs owner
+  // sign-off this lane does not have -- so the classification lives on the
+  // ExecutionOutcome and on error_code (BACKEND_UNAVAILABLE / UPSTREAM_TIMEOUT),
+  // which is what every behaviour the item asks for actually keys off.
   errorCode: text('error_code'),
   errorParams: jsonb('error_params'),
   error: text('error'),

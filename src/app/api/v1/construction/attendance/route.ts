@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { listAttendance, recordAttendance, ServiceError } from "@/lib/services/construction-labour-service"
+import {
+  listAttendance,
+  recordAttendance,
+  ServiceError,
+} from "@/lib/services/construction-labour-service"
 import { withRouteTiming } from "@/lib/route-timing"
 
 // R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
@@ -62,10 +66,29 @@ async function POST_impl(request: NextRequest) {
 
   try {
     const body = await request.json()
+    // R67 WS-C (C-08) / DECISION D-12, MERGE-SECOND: this route originally
+    // carried a second `entries`-shaped branch calling recordAttendanceBatch
+    // directly, added while lane D3's own batch write (POST
+    // /api/v1/construction/attendance/bulk, `rows`-shaped) was not yet on
+    // main. D3's version has since landed and is canonical; that branch and
+    // lane C's own recordAttendanceBatch have been removed in its favour (the
+    // batch write now lives only at the /bulk route). Every single-row caller
+    // below is unchanged.
     const result = await recordAttendance({ orgId: ctx.orgId }, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
-    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof ServiceError) {
+      // R67 C-08: THE CODE TRAVELS WITH THE REFUSAL, so the client can tell
+      // "already saved -- replace it?" apart from every other 409 without
+      // matching on the wording of a sentence. Without this the only signal
+      // was the prose, and PROJEXA's shell branched on a `code` that never
+      // arrived -- so a foreman re-marking a crew got the raw sentence and no
+      // Replace control at all.
+      return NextResponse.json(
+        error.code ? { error: error.message, code: error.code } : { error: error.message },
+        { status: error.status }
+      )
+    }
     console.error("v1 construction attendance record error:", error)
     return NextResponse.json({ error: "Failed to record attendance" }, { status: 500 })
   }

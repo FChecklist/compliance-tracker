@@ -267,7 +267,95 @@ describe("GET /api/v1/projexa/tasks -- header counts (R67 F-26 fix)", () => {
     const res = await GET(listRequest())
     const body = (await res.json()) as { counts: Record<string, number>; nextCursor: string | null }
 
-    expect(body.counts).toEqual({ needsYou: 0, running: 0, done: 0, blocked: 0, total: 0 })
+    // R67 C-11 (fix pass) folded `tabs` and `systemBlocked` in beside F-26's
+    // four numbers. The assertion stays EXACT rather than relaxing to
+    // toMatchObject: what this test is really pinning is that every badge is a
+    // real zero rather than absent, and that is now true of seven numbers, not
+    // four.
+    expect(body.counts).toEqual({
+      needsYou: 0,
+      running: 0,
+      done: 0,
+      blocked: 0,
+      total: 0,
+      systemBlocked: 0,
+      tabs: { needs_you: 0, waiting: 0, approval: 0, queued: 0, done: 0 },
+    })
     expect(body.nextCursor).toBeNull()
+  })
+
+  // -------------------------------------------------------------------------
+  // R67 C-11 -- a tab asks the server for its own rows.
+  // -------------------------------------------------------------------------
+
+  test("a tab key resolves to statuses, and is echoed back so the pane can check it", async () => {
+    mockAuth({ orgId: "org-1" })
+    mockListDb(PAGE, TOTALS)
+
+    const { GET } = await import("../route")
+    const res = await GET(listRequest("?limit=20&status=approval"))
+    const body = (await res.json()) as { filter: { tab: string | null; statuses: string[] } }
+
+    expect(res.status).toBe(200)
+    expect(body.filter.tab).toBe("approval")
+    expect(body.filter.statuses.sort()).toEqual(["blocked", "to_do", "waiting"])
+  })
+
+  test("*** SELECTING A TAB DOES NOT BLANK EVERY OTHER TAB'S BADGE ***", async () => {
+    mockAuth({ orgId: "org-1" })
+    mockListDb(PAGE, TOTALS)
+
+    const { GET } = await import("../route")
+    const res = await GET(listRequest("?limit=20&status=done"))
+    const body = (await res.json()) as { counts: { tabs: Record<string, number>; needsYou: number } }
+
+    // The aggregate counts the org/project scope, not the filtered set, so the
+    // number on a tab you have not clicked is still the number behind it.
+    expect(body.counts.tabs.done).toBe(6)
+    expect(body.counts.tabs.needs_you).toBe(14) // 9 to_do + 3 waiting + 2 blocked
+    expect(body.counts.needsYou).toBe(12)
+  })
+
+  test("a raw status still works, unchanged -- every pre-C-11 caller sends those", async () => {
+    mockAuth({ orgId: "org-1" })
+    mockListDb(PAGE, TOTALS)
+
+    const { GET } = await import("../route")
+    const res = await GET(listRequest("?limit=20&status=to_do,in_progress"))
+    const body = (await res.json()) as { filter: { tab: string | null; statuses: string[] } }
+
+    expect(body.filter.tab).toBeNull()
+    expect(body.filter.statuses.sort()).toEqual(["in_progress", "to_do"])
+  })
+
+  test("'waiting' is both a raw status and a tab key, and both readings select the same rows", async () => {
+    mockAuth({ orgId: "org-1" })
+    mockListDb(PAGE, TOTALS)
+
+    const { GET } = await import("../route")
+    const res = await GET(listRequest("?limit=20&status=waiting"))
+    const body = (await res.json()) as { filter: { tab: string | null; statuses: string[] } }
+
+    // It resolves as the TAB, so `filter.tab` names it -- but the tab's own
+    // status set is exactly ["waiting"], so no caller can tell the difference
+    // in the rows it gets back. Pinned because the overlap is real and a
+    // future tab that widened this key would break a pre-C-11 caller silently.
+    expect(body.filter.tab).toBe("waiting")
+    expect(body.filter.statuses).toEqual(["waiting"])
+  })
+
+  test("a filter that matches nothing is a 400 naming the valid keys, not an unfiltered list", async () => {
+    mockAuth({ orgId: "org-1" })
+    mockListDb(PAGE, TOTALS)
+
+    const { GET } = await import("../route")
+    const res = await GET(listRequest("?limit=20&status=needsyou"))
+    const body = (await res.json()) as { error: string }
+
+    // Returning every row for a misspelled tab looks like it worked, and is
+    // how a filter bug hides for a release.
+    expect(res.status).toBe(400)
+    expect(body.error).toContain("needsyou")
+    expect(body.error).toContain("needs_you")
   })
 })

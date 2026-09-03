@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
-import { classifyL0, type L0Repo } from "./level0";
+import { classifyL0, tryTimesheetMatch, type L0Repo } from "./level0";
 
 function fakeRepo(overrides: Partial<L0Repo> = {}): L0Repo {
   return {
@@ -208,5 +208,110 @@ describe("classifyL0 -- last-action recall reuses only a WRITE action", () => {
       async findLastPillUse() { return null; },
     };
     expect((await classifyL0("60% now", ctx, repo)).kind).toBe("miss");
+  });
+});
+
+// R67 C-03 -- Tier 3b, the timesheet pattern. `now` is pinned in every case:
+// a tier that resolves "today" by reading the clock is a tier whose test
+// passes at 09:00 and fails at 23:59 UTC.
+const NOW = new Date("2026-09-02T14:00:00.000Z");
+
+describe("tryTimesheetMatch -- deterministic, no model, and the verb is required", () => {
+  test("C-03's own sentence resolves with every slot filled", () => {
+    const m = tryTimesheetMatch("log 3 hours on joinery drawings today", NOW);
+    expect(m).not.toBeNull();
+    expect(m!.functionId).toBe("record_timesheet");
+    expect(m!.params.hours).toBe(3);
+    expect(m!.params.spentOn).toBe("2026-09-02");
+    expect(m!.params.task).toBe("joinery drawings");
+    expect(m!.missingParams).toEqual([]);
+  });
+
+  test("the composer's own placeholder sentence resolves too", () => {
+    const m = tryTimesheetMatch("3 hours on #12 joinery shop drawings today", NOW);
+    expect(m).toBeNull(); // no logging verb: see the next test for why
+    const withVerb = tryTimesheetMatch("logged 3 hours on #12 joinery shop drawings today", NOW);
+    expect(withVerb!.params.task).toBe("#12 joinery shop drawings");
+  });
+
+  test("*** A DURATION WITHOUT A LOGGING VERB IS NEVER A TIMESHEET ENTRY ***", () => {
+    expect(tryTimesheetMatch("the slab took 3 hours to cure", NOW)).toBeNull();
+    expect(tryTimesheetMatch("delivery is 2 hours late", NOW)).toBeNull();
+  });
+
+  // *** FIX PASS -- A DURATION AND A VERB, WITH NOTHING LOGGED AGAINST, IS
+  // NOT A TIMESHEET ENTRY EITHER. ***
+  //
+  // This tier used to return a proposal with `task` missing whenever a verb
+  // and a duration appeared, and the verb list is broad ("spent", "worked",
+  // "booked"). So a plain observation -- "we spent 3 hrs waiting for the
+  // crane" -- resolved at Level 0 to record_timesheet with a hole in it: a
+  // chat sentence promoted to a WRITE PROPOSAL, ahead of last-action recall.
+  // The task clause is what makes the sentence an entry, so without one there
+  // is nothing to propose and it falls through to Level 1.
+  test("*** A LOGGING VERB WITH NOTHING LOGGED AGAINST IT IS NOT A MATCH ***", () => {
+    expect(tryTimesheetMatch("log 3 hours today", NOW)).toBeNull();
+    expect(tryTimesheetMatch("we spent 3 hrs waiting for the crane", NOW)).toBeNull();
+    // " on " present but empty after the pattern's own tokens are cut out.
+    expect(tryTimesheetMatch("logged 3 hours on today", NOW)).toBeNull();
+  });
+
+  test("the sentence that IS an entry still matches, and reports nothing missing", () => {
+    const m = tryTimesheetMatch("spent 3 hrs on the crane platform", NOW);
+    expect(m).not.toBeNull();
+    expect(m!.params.hours).toBe(3);
+    expect(m!.params.task).toBe("the crane platform");
+    // projectId is a declared required param of record_timesheet, but Level 0
+    // has no project context -- the composer's top rail supplies it -- so it
+    // is deliberately not reported as a question here.
+    expect(m!.missingParams).toEqual([]);
+  });
+
+  test("yesterday, an explicit ISO date, and no day at all", () => {
+    expect(tryTimesheetMatch("logged 2 hours on cladding yesterday", NOW)!.params.spentOn).toBe("2026-09-01");
+    expect(tryTimesheetMatch("logged 2 hours on cladding 2026-08-14", NOW)!.params.spentOn).toBe("2026-08-14");
+    // No day word: the executor defaults it to today rather than this tier
+    // guessing, so the param is simply absent here.
+    expect(tryTimesheetMatch("logged 2 hours on cladding", NOW)!.params.spentOn).toBeUndefined();
+  });
+
+  test("fractional and short forms of the duration", () => {
+    expect(tryTimesheetMatch("spent 2.5 hrs on cladding", NOW)!.params.hours).toBe(2.5);
+    expect(tryTimesheetMatch("worked 8h on cladding", NOW)!.params.hours).toBe(8);
+  });
+
+  test("an impossible duration is not a match at all", () => {
+    expect(tryTimesheetMatch("logged 0 hours on cladding", NOW)).toBeNull();
+    expect(tryTimesheetMatch("logged 99 hours on cladding", NOW)).toBeNull();
+  });
+});
+
+describe("classifyL0 -- the timesheet tier sits after progress and before recall", () => {
+  const ctx = { orgId: "org1", userId: "u1", now: NOW };
+
+  test("a timesheet sentence resolves at Level 0, so it costs no model call", async () => {
+    const r = await classifyL0("log 3 hours on joinery drawings today", ctx, fakeRepo());
+    expect(r.kind).toBe("match");
+    if (r.kind !== "match") return;
+    expect(r.functionId).toBe("record_timesheet");
+    expect(r.source).toBe("structural");
+    expect(r.missingParams).toEqual([]);
+  });
+
+  test("progress still wins when the sentence is a progress sentence", async () => {
+    const r = await classifyL0("PP1 is 50% done", ctx, fakeRepo());
+    expect(r.kind).toBe("match");
+    if (r.kind !== "match") return;
+    expect(r.functionId).toBe("record_work_progress");
+  });
+
+  test("a timesheet sentence never falls through to last-action recall", async () => {
+    const repo = fakeRepo({
+      findLastPillUse: async () => ({ functionId: "record_work_progress", params: { itemCode: "CDR-001" } }),
+    });
+    const r = await classifyL0("log 3 hours on joinery drawings today", ctx, repo);
+    expect(r.kind).toBe("match");
+    if (r.kind !== "match") return;
+    expect(r.functionId).toBe("record_timesheet");
   });
 });
