@@ -15,6 +15,38 @@ import { logActivity } from "@/lib/audit"
 import { users as usersTable } from "@/lib/db"
 export { ServiceError }
 
+/**
+ * R67 lane B (B-09) -- ONE RULE FOR A PROGRESS ENTRY, IN ONE PLACE.
+ *
+ * Before this, the form and the composer disagreed about whether a BOQ line
+ * was required: PROJEXA's Daily Entry form marked it OPTIONAL and buried it
+ * below the derived fields, while the chat pipeline refused without one and
+ * said "itemCode is required". Two answers to one question, and neither of
+ * them was the product's.
+ *
+ * The rule adopted is the recommended one, and it lives HERE -- in the
+ * service both callers already go through -- rather than in either caller:
+ *
+ *   the project has at least one BOQ  -> a BOQ line is REQUIRED
+ *   the project has no BOQ at all     -> the entry is accepted, unlinked,
+ *                                        and the Work Progress Report says
+ *                                        so instead of silently dropping it
+ *
+ * It is raised as a CODE, never a sentence (decision D-03): the wording lives
+ * in projexa's src/lib/task-errors.ts, so the form and the composer print the
+ * same words because they read the same dictionary -- not because someone
+ * kept two strings in step by hand.
+ */
+export class ProgressRuleError extends ServiceError {
+  readonly missing: string[]
+  constructor(code: string, missing: string[]) {
+    // The MESSAGE is a code line, not prose. There is deliberately no English
+    // here for a route to leak into a UI by accident.
+    super(`${code} missing=${missing.join(",")}`, 400, { code })
+    this.missing = missing
+  }
+}
+
 // R48 gap-closure (2026-08-29, F039: "Daily progress report with photos" --
 // genuinely missing, confirmed by searching the whole repo for any file
 // with "daily" in its name before writing this: none existed). Composed
@@ -516,6 +548,20 @@ export async function createProgressEntry(
     const activity = await db.query.constructionActivities.findFirst({ where: and(eq(constructionActivities.id, input.activityId), eq(constructionActivities.orgId, ctx.orgId), eq(constructionActivities.projectId, input.projectId)) })
     if (!activity) throw new ServiceError("Activity not found", 404)
 
+    // R67 B-09 -- THE ONE RULE, checked here so both callers get one answer.
+    // A project that has a BOQ is a project whose progress is measured
+    // against it: an entry with no line cannot be rolled up, cannot be
+    // valued, and disappears from the Work Progress Report. So it is refused
+    // -- with a code, before anything is written. A project with NO BOQ has
+    // nothing to link to, and refusing there would make the module unusable
+    // for a job that is not billed off a bill of quantities at all.
+    const projectHasBoq = await db.query.constructionBoqs.findFirst({
+      where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, input.projectId)),
+    })
+    if (projectHasBoq && !input.boqLineItemId) {
+      throw new ProgressRuleError("BOQ_LINE_REQUIRED", ["boqLine"])
+    }
+
     // R12 point 7 (Option B): the direct BOQ-line link -- optional, so
     // every existing (activity-only) caller keeps working unchanged. When
     // supplied, must resolve to a real line item this org owns (line items
@@ -570,7 +616,14 @@ export async function createProgressEntry(
     // records disagree with nobody knowing which is right.
     if (boqLineItemId) await rollUpLinkedIssueCompletion(db, ctx.orgId, boqLineItemId, row.id)
 
-    return row
+    // R67 B-09: the caller is told, on the row itself, whether this entry is
+    // counted by the Work Progress Report. Derived from what was actually
+    // stored, never from what was asked for.
+    //
+    // Merge note (D22 with lane B): both intents are kept and the ORDER
+    // matters -- the roll-up runs first, inside the transaction, and the flag
+    // then describes the row that was really written.
+    return { ...row, linkedToBoq: boqLineItemId !== null }
   }).then((row) => {
     // Wave 126: fire-and-forget automation trigger, matching
     // pms-issue-service.ts's updateIssue() status-change trigger posture

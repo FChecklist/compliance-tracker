@@ -4,14 +4,20 @@
 //
 // THE REAL INCIDENT: compliance.screen_definitions is the M28 screen registry
 // PROJEXA renders its list/dashboard column headers from. Two rows shipped
-// with a debugging label baked into their `columns` jsonb -- the dashboard KPI
-// row a018f269-8375-44a5-a9ed-1060bf4d3efc, whose org_id is NULL (the GLOBAL
-// row, so it leaked into every tenant), and the schedule.timeline row whose
-// first column read "Activity (HARD-STOP TEST)". Nothing checked for it, so it
-// was served to real customers until a human read it on a screenshot.
-// drizzle/0528_r67_i01_screen_definition_labels.sql and
-// drizzle/0531_r67_i04_schedule_boq_link_and_label_fix.sql correct the data;
-// this job stops it recurring.
+// with a debugging label baked into their `columns` jsonb, and BOTH have
+// org_id NULL -- they are the GLOBAL rows, so both leaked into every tenant:
+//
+//   a018f269-8375-44a5-a9ed-1060bf4d3efc  'schedule.timeline',
+//     columns[0].label "Activity (HARD-STOP TEST)"
+//     -> corrected by drizzle/0531_r67_i04_schedule_boq_link_and_label_fix.sql
+//   4b1ff3d4-6877-4a10-89cc-ceb4d6f90ca1  'dashboard.dashboard',
+//     columns[0].label "Active Projects (HARD-STOP TEST)"
+//     -> corrected by drizzle/0528_r67_i01_screen_definition_labels.sql
+//
+// (Both verified against pcrjmlpuqsbocqfwoxod by read-only SELECT -- a018f269
+// is the SCHEDULE row, not the dashboard one.) Nothing checked for it, so it
+// was served to real customers until a human read it on a screenshot. Those
+// two migrations correct the data; this job stops it recurring.
 //
 // THE RULE lives in src/lib/services/screen-definitions-labels.ts (unit-tested,
 // imported by app code). This script cannot import that module -- it runs under

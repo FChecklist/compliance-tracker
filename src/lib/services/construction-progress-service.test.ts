@@ -120,6 +120,17 @@ const fakeDb = {
     constructionBoqs: {
       findFirst: async ({ where }: { where: SQL }) => boqRows.find((r) => matches(r, where)),
     },
+    // Merge note (D22 with lane B): createProgressEntry() now finishes by
+    // rolling the linked schedule activities up (item D-49), so this fixture
+    // has to answer that query too. NO activity in this fixture is linked to a
+    // BOQ line -- which is the honest state for lane B's own projects -- so the
+    // roll-up short-circuits on its first lookup and changes nothing these
+    // B-09 tests assert. The D-49 tests further down exercise the roll-up
+    // itself against their own db, whose where-matcher understands the
+    // inArray() this one deliberately does not.
+    pmsIssueBoqLinks: {
+      findMany: async () => [],
+    },
   },
   insert: () => ({
     values: (v: Record<string, unknown>) => ({
@@ -171,9 +182,14 @@ describe("createProgressEntry -- R48_PROGRESS_ENTRY_NO_PROJECT_MEMBERSHIP_CHECK_
     await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
     const { createProgressEntry } = await import("./construction-progress-service")
 
+    // R67 B-09 added `boqLineItemId: "LINE-B"` here. PROJECT_B genuinely has
+    // a BOQ (BOQ-B), and the new rule requires a line for a project that has
+    // one -- so this call, which is about the ACTIVITY's project membership,
+    // now supplies the line that project's own BOQ really holds. Without it
+    // the test would be asserting the old, contradictory behaviour.
     const row = await createProgressEntry(
       { orgId: ORG, userId: "user-1" },
-      { projectId: PROJECT_B, activityId: "ACT-B", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
+      { projectId: PROJECT_B, activityId: "ACT-B", boqLineItemId: "LINE-B", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
     )
 
     expect(row).toBeDefined()
@@ -199,6 +215,66 @@ describe("createProgressEntry -- R48_PROGRESS_ENTRY_NO_PROJECT_MEMBERSHIP_CHECK_
     ).rejects.toThrow(ServiceError)
 
     expect(insertedRows).toHaveLength(0)
+  })
+})
+
+// ── R67 B-09: ONE RULE FOR A PROGRESS ENTRY, BOTH PROJECT STATES ──────────
+// The fixture already contains exactly the two projects this rule needs:
+// PROJECT_B has a BOQ (BOQ-B), PROJECT_A has none. So both branches are
+// exercised against the SAME real service function, with the same fake db
+// that re-evaluates the real drizzle predicates rather than returning canned
+// rows.
+describe("createProgressEntry -- R67 B-09: the BOQ-line rule", () => {
+  test("a project WITH a BOQ rejects an entry that names no line, with code BOQ_LINE_REQUIRED and missing ['boqLine']", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { createProgressEntry, ProgressRuleError } = await import("./construction-progress-service")
+
+    let thrown: unknown = null
+    try {
+      await createProgressEntry(
+        { orgId: ORG, userId: "user-1" },
+        { projectId: PROJECT_B, activityId: "ACT-B", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
+      )
+    } catch (err) {
+      thrown = err
+    }
+
+    expect(thrown).toBeInstanceOf(ProgressRuleError)
+    const e = thrown as InstanceType<typeof ProgressRuleError>
+    expect(e.code).toBe("BOQ_LINE_REQUIRED")
+    expect(e.missing).toEqual(["boqLine"])
+    expect(e.status).toBe(400)
+    // D-03: the server raises a code, never a sentence a client could print.
+    expect(e.message).not.toContain("itemCode")
+    // and NOTHING was written
+    expect(insertedRows).toHaveLength(0)
+  })
+
+  test("a project WITHOUT a BOQ accepts the entry and reports linkedToBoq false", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { createProgressEntry } = await import("./construction-progress-service")
+
+    const row = await createProgressEntry(
+      { orgId: ORG, userId: "user-1" },
+      { projectId: PROJECT_A, activityId: "ACT-A", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
+    )
+
+    expect(row.linkedToBoq).toBe(false)
+    expect(insertedRows).toHaveLength(1)
+    expect(insertedRows[0].boqLineItemId).toBeNull()
+  })
+
+  test("a project WITH a BOQ and a real line succeeds and reports linkedToBoq true", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { createProgressEntry } = await import("./construction-progress-service")
+
+    const row = await createProgressEntry(
+      { orgId: ORG, userId: "user-1" },
+      { projectId: PROJECT_B, activityId: "ACT-B", boqLineItemId: "LINE-B", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
+    )
+
+    expect(row.linkedToBoq).toBe(true)
+    expect(insertedRows[0].boqLineItemId).toBe("LINE-B")
   })
 })
 

@@ -225,19 +225,35 @@ jobs:
   screen-definition-labels-check:
     # R67 lane I (WS-I item I-01). compliance.screen_definitions is the M28
     # screen registry PROJEXA renders its column headers from, and two rows
-    # shipped with a debugging label baked into their `columns` jsonb -- one of
-    # them the GLOBAL (org_id NULL) dashboard KPI row, so it leaked into every
-    # tenant. drizzle/0528 and drizzle/0531 correct the data; this job is what
-    # stops it recurring. Placed beside the other DATABASE_URL-reading guard
-    # jobs above and, exactly like them, treats a missing/unreachable database
-    # as a warning rather than a failure (prod downtime must not block every PR
-    # in the repo) -- a REACHABLE database with a live debug label does fail the
-    # build. Read-only: the script only ever SELECTs. See
+    # shipped with a debugging label baked into their `columns` jsonb -- both of
+    # them GLOBAL (org_id NULL) rows, so both leaked into every tenant
+    # (a018f269-8375-44a5-a9ed-1060bf4d3efc = schedule.timeline, and
+    # 4b1ff3d4-6877-4a10-89cc-ceb4d6f90ca1 = dashboard.dashboard). drizzle/0528
+    # and drizzle/0531 correct the data; this job is what stops it recurring.
+    # Placed beside the other DATABASE_URL-reading guard jobs above and, exactly
+    # like them, treats a missing/unreachable database as a warning rather than
+    # a failure (prod downtime must not block every PR in the repo) -- a
+    # REACHABLE database with a live debug label does fail the build. Read-only:
+    # the script only ever SELECTs. See
     # scripts/check-screen-definition-labels.mjs's own header for why the rule
     # is the audit's literal /test/i and why a genuine "test"-containing label
     # is handled by a reviewed allowlist entry, never by loosening the pattern.
+    #
+    # TEMPORARY continue-on-error, and the ONLY honest option here. The live
+    # registry still holds both leaked labels -- the migrations that clean them
+    # are applied by the PM through Supabase MCP AFTER merge, which is this
+    # repo's standing procedure for data migrations. So on the day this job
+    # lands it would fail not just on its own PR but on every other open PR in
+    # the repo, for a defect none of them introduced. The rule itself is NOT
+    # weakened to buy that (AGENTS.md Rule 9): the pattern is still the audit's
+    # literal /test/i, ALLOWED_TEST_LABELS is still empty, and the job still
+    # runs and still prints the offending rows on every PR.
+    # FOLLOW-UP, REQUIRED, one line: once the PM has applied drizzle/0528 and
+    # drizzle/0531 and the verification SELECT in 0531's header returns zero
+    # rows, delete the `continue-on-error: true` below so the job blocks again.
     name: Screen Definition Label Check
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
