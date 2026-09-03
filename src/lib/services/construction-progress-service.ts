@@ -197,6 +197,19 @@ export async function listProgressEntries(
 // no status gate like deleteBoq's "draft only" -- a progress entry has no
 // lifecycle states to protect (it is itself the raw, atomic record; deleting
 // a wrong one is the correction mechanism, not a state-machine violation).
+//
+// R67 lane D22 (review finding, D-49 follow-through): the comment above was
+// true when it was written -- every cumulative figure was derived at READ time,
+// so deleting the row was the whole recalculation. D-49 changed that: an
+// activity's completion_percentage is now a PERSISTED derivation of the site
+// records (completion_source='site_records', completed_from_entry_id pointing
+// at the entry that produced it), and D-77 gave PROJEXA a Delete button that
+// reaches this function. Without the roll-up below, deleting the only entry on
+// a line left the schedule asserting a percentage derived from a row that no
+// longer exists, and a completed_from_entry_id that resolves to nothing (the
+// column carries no DB-level FK -- schema.ts:4477 says so explicitly, so the
+// database will not catch it either). That is precisely the double truth
+// between the schedule and the site records that D-49 exists to close.
 export async function deleteProgressEntry(ctx: { orgId: string }, entryId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const entry = await db.query.constructionWorkProgressEntries.findFirst({
@@ -204,6 +217,12 @@ export async function deleteProgressEntry(ctx: { orgId: string }, entryId: strin
     })
     if (!entry) throw new ServiceError("Progress entry not found", 404)
     await db.delete(constructionWorkProgressEntries).where(eq(constructionWorkProgressEntries.id, entryId))
+    // On the SAME transaction as the delete (D-06: never a nested
+    // withTenantContext), and AFTER it, so the recompute reads a world the row
+    // has already left. With no entries remaining on the line, qtyByLine and
+    // percentByLine simply have no row for it, lineProgressFraction returns 0
+    // and the activity correctly reads 0 rather than a stale figure.
+    if (entry.boqLineItemId) await rollUpLinkedIssueCompletion(db, ctx.orgId, entry.boqLineItemId, null)
     return { deleted: true, id: entryId, activityId: entry.activityId, projectId: entry.projectId }
   })
 }
@@ -389,12 +408,18 @@ export function computeLinkedIssueCompletion(lines: LinkedBoqLine[]): number | n
  * withTenantContext callback), never opening one of its own -- programme
  * decision D-06 forbids a nested withTenantContext, and the roll-up must
  * commit or roll back with the entry that caused it, never separately.
+ *
+ * `fromEntryId` is the entry whose write triggered this, and is written to
+ * pms_issues.completed_from_entry_id as the provenance the activity page
+ * prints. It is NULL when the trigger was a DELETE: the figure is still derived
+ * from the site records, but there is no longer a single entry to point at, and
+ * leaving the old id there would be a reference to a row that no longer exists.
  */
 export async function rollUpLinkedIssueCompletion(
   db: TenantDb,
   orgId: string,
   boqLineItemId: string,
-  fromEntryId: string
+  fromEntryId: string | null
 ): Promise<{ issueId: string; completionPercentage: number }[]> {
   const directLinks = await db.query.pmsIssueBoqLinks.findMany({
     where: and(eq(pmsIssueBoqLinks.orgId, orgId), eq(pmsIssueBoqLinks.boqLineItemId, boqLineItemId)),

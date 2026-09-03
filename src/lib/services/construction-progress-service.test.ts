@@ -354,6 +354,81 @@ describe("createProgressEntry rolls the site records up onto the linked schedule
   })
 })
 
+// ─── R67 lane D22 (review finding on D-49 + D-77) ─────────────────────────
+// DELETING an entry has to roll the activity back down. createProgressEntry
+// and updateProgressEntry both call rollUpLinkedIssueCompletion; delete did
+// not, so removing the only entry on a line left the schedule asserting a
+// percentage derived from a row that no longer exists, plus a
+// completed_from_entry_id pointing at it (a column with no DB-level FK, so
+// nothing else would catch it either).
+//
+// Fake db again rather than the module-level eq()-only matcher, for the same
+// reason the block above gives: the roll-up reads use inArray() and raw
+// db.execute() aggregates that matcher cannot represent. The aggregate fakes
+// below return NOTHING for the line -- which is exactly what Postgres returns
+// once the last entry on it is gone -- so the 0 this asserts is computed by
+// the real lineProgressFraction/computeLinkedIssueCompletion, not stubbed.
+describe("deleteProgressEntry rolls the linked schedule activity back down", () => {
+  const ORG_ID = "org-d49-del"
+
+  async function remove(over: { boqLineItemId?: string | null } = {}) {
+    const updates: { set: Record<string, unknown> }[] = []
+    const deletes: unknown[] = []
+    const withTenantContextCalls: unknown[] = []
+    const boqLineItemId = over.boqLineItemId === undefined ? "LINE-1" : over.boqLineItemId
+
+    const fakeDb = {
+      query: {
+        constructionWorkProgressEntries: {
+          findFirst: async () => ({ id: "entry-9", orgId: ORG_ID, projectId: "proj-1", activityId: "ACT-1", boqLineItemId }),
+        },
+        pmsIssueBoqLinks: {
+          findMany: async () => [{ id: "lnk-1", orgId: ORG_ID, issueId: "issue-1", boqLineItemId: "LINE-1", weight: "1" }],
+        },
+        constructionBoqLineItems: { findMany: async () => [{ id: "LINE-1", quantity: "10" }] },
+      },
+      delete: () => ({ where: async (w: unknown) => { deletes.push(w) } }),
+      update: () => ({ set: (set: Record<string, unknown>) => ({ where: async () => { updates.push({ set }) } }) }),
+      // The row is gone, so both aggregates come back empty for the line.
+      execute: async () => [],
+    }
+
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (ctx: unknown, fn: (db: unknown) => Promise<unknown>) => {
+        withTenantContextCalls.push(ctx)
+        return fn(fakeDb)
+      }),
+    }))
+    const { deleteProgressEntry } = await import("./construction-progress-service")
+    const result = await deleteProgressEntry({ orgId: ORG_ID }, "entry-9")
+    return { result, updates, deletes, withTenantContextCalls }
+  }
+
+  test("deleting the only entry recorded against a linked line leaves the activity reading 0, not the percentage the deleted row produced", async () => {
+    const { updates } = await remove()
+    expect(updates).toHaveLength(1)
+    expect(updates[0].set).toMatchObject({ completionPercentage: 0, completionSource: "site_records" })
+  })
+
+  test("completed_from_entry_id is cleared -- it must not point at a row that no longer exists", async () => {
+    const { updates } = await remove()
+    expect(updates[0].set.completedFromEntryId).toBeNull()
+  })
+
+  test("the roll-back runs on the SAME transaction as the delete (programme decision D-06)", async () => {
+    const { withTenantContextCalls, deletes } = await remove()
+    expect(withTenantContextCalls).toHaveLength(1)
+    expect(deletes).toHaveLength(1)
+  })
+
+  test("an entry recorded against no BOQ line touches no activity at all", async () => {
+    const { updates, result } = await remove({ boqLineItemId: null })
+    expect(updates).toEqual([])
+    expect(result).toMatchObject({ deleted: true, id: "entry-9" })
+  })
+})
+
 // ─── R67 lane D22 (item D-49): the activity's side of the link ────────────
 // Provenance ("where did this 62% come from") and the explicit manual
 // override. Own fake db again, for the same reason as the block above: these
