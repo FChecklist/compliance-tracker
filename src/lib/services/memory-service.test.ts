@@ -1031,3 +1031,201 @@ describe("resolveMemoryScope", () => {
     expect(JSON.stringify(calls[0])).not.toContain("NOT IN ('ARCHIVED', 'SUPERSEDED')")
   })
 })
+
+// R68 (Institutional Memory Graph) Phase 1: getMemoryRecordAsOf() /
+// redactMemoryRecordLineage(). DB-level enforcement (the append-only
+// trigger + SUPERSEDED-requires-pointer CHECK) is proved live against the
+// real migrated schema separately -- see this PR's own description for
+// that proof (both cannot be exercised from this mocked-DB test file, same
+// reasoning this file's own header gives for every other test in it: no
+// live Postgres connection is available in this sandbox/CI). What CAN be
+// unit-tested here, and is: the real branching/query-shape logic of the
+// two new TypeScript functions themselves -- lineage walking (both
+// directions, not-found, cycle detection), the as-of window clause, and
+// which connection (tx vs the bypass `db`) each one actually uses.
+describe("getMemoryRecordAsOf (R68 Phase 1 item 3)", () => {
+  test("returns null when the id does not exist (lineage walk finds nothing)", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { getMemoryRecordAsOf } = await import("./memory-service")
+    // [0] backward-walk SELECT (no predecessor) -> []; [1] forward-walk SELECT (cursor not found) -> []
+    const { tx, calls } = makeQueueTx([[], []])
+
+    const result = await getMemoryRecordAsOf(tx, "missing-id", new Date("2026-01-01"))
+
+    expect(result).toBeNull()
+    expect(calls.length).toBe(2) // never reaches the as-of SELECT itself
+  })
+
+  test("single-row lineage (never superseded): resolves root=self and returns the row when asOf falls in its open window", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { getMemoryRecordAsOf } = await import("./memory-service")
+    // [0] backward walk: no predecessor -> []
+    // [1] forward walk: cursor=mem-1, superseded_by_id null -> stop after 1
+    // [2] as-of SELECT -> the row
+    const { tx, calls } = makeQueueTx([[], [{ id: "mem-1", superseded_by_id: null }], [rawRow()]])
+
+    const result = await getMemoryRecordAsOf(tx, "mem-1", new Date("2026-01-01"))
+
+    expect(result?.id).toBe("mem-1")
+    expect(calls.length).toBe(3)
+    const asOfSql = JSON.stringify(calls[2])
+    expect(asOfSql).toContain("effective_from <=")
+    expect(asOfSql).toContain("effective_to IS NULL OR effective_to >")
+  })
+
+  test("walks backward to the lineage root when given a NEWER row's id, then queries the full lineage", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { getMemoryRecordAsOf } = await import("./memory-service")
+    // Lineage: mem-1 (root) -> mem-2 (given id). Backward walk from mem-2
+    // finds mem-1 (whose superseded_by_id = mem-2), then finds nothing
+    // predecessor to mem-1 -> root = mem-1. Forward walk: mem-1 (-> mem-2),
+    // mem-2 (-> null).
+    const { tx, calls } = makeQueueTx([
+      [{ id: "mem-1" }], // backward: who points to mem-2? -> mem-1
+      [], // backward: who points to mem-1? -> nobody, root = mem-1
+      [{ id: "mem-1", superseded_by_id: "mem-2" }], // forward: mem-1
+      [{ id: "mem-2", superseded_by_id: null }], // forward: mem-2
+      [rawRow({ id: "mem-2", version: 2 })], // as-of SELECT
+    ])
+
+    const result = await getMemoryRecordAsOf(tx, "mem-2", new Date("2026-06-01"))
+
+    expect(result?.id).toBe("mem-2")
+    expect(calls.length).toBe(5)
+    // The as-of query's lineage array must contain BOTH ids, not just the one passed in.
+    const asOfSql = JSON.stringify(calls[4])
+    expect(asOfSql).toContain("mem-1")
+    expect(asOfSql).toContain("mem-2")
+  })
+
+  test("returns null when no row in the lineage was effective at asOf (query legitimately matches nothing)", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { getMemoryRecordAsOf } = await import("./memory-service")
+    const { tx } = makeQueueTx([[], [{ id: "mem-1", superseded_by_id: null }], []])
+
+    const result = await getMemoryRecordAsOf(tx, "mem-1", new Date("2020-01-01"))
+    expect(result).toBeNull()
+  })
+
+  test("throws a clear, bounded error on a cyclic superseded_by_id chain rather than looping forever", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { getMemoryRecordAsOf } = await import("./memory-service")
+    // Backward walk: mem-1's predecessor is mem-2, mem-2's predecessor is
+    // mem-1 again -- a cycle. makeQueueTx cycles its response queue via
+    // `responses[i] ?? []` once exhausted, so without cycle detection this
+    // would need MAX_MEMORY_LINEAGE_DEPTH real iterations before this test
+    // could even observe a difference; the explicit throw makes the
+    // guard's effect immediately observable instead.
+    let call = 0
+    const responses = [[{ id: "mem-2" }], [{ id: "mem-1" }]]
+    const execute = mock(async () => responses[call++ % 2])
+    const tx = { execute } as unknown as TenantDb
+
+    await expect(getMemoryRecordAsOf(tx, "mem-1", new Date("2026-01-01"))).rejects.toThrow(/cyclic superseded_by_id chain/)
+  })
+})
+
+describe("redactMemoryRecordLineage (R68 Phase 1 item 5)", () => {
+  test("uses the bypass-RLS `db` connection, never the caller's own tx (required to get past the append-only trigger)", async () => {
+    mockEmbeddingsModule({})
+    // db.execute queue: [0] backward walk -> []; [1] forward walk -> single row;
+    // [2] UPDATE memory_records RETURNING id -> 1 row; [3] UPDATE memory_versions RETURNING id -> 1 row
+    const dbExecute = mock(async () => {
+      const n = dbExecute.mock.calls.length
+      if (n === 1) return []
+      if (n === 2) return [{ id: "mem-1", superseded_by_id: null }]
+      if (n === 3) return [{ id: "mem-1" }]
+      return [{ id: "v1" }]
+    })
+    mockDbModule(dbExecute)
+    const { redactMemoryRecordLineage } = await import("./memory-service")
+
+    const result = await redactMemoryRecordLineage("mem-1", { type: "USER", reason: "DPDP erasure request" })
+
+    expect(result).toEqual({ recordsRedacted: 1, versionsRedacted: 1 })
+    expect(dbExecute).toHaveBeenCalledTimes(4)
+  })
+
+  test("redacts EVERY row in the lineage, not just the one id passed in", async () => {
+    mockEmbeddingsModule({})
+    const { redactMemoryRecordLineage } = await import("./memory-service")
+
+    // Explicit lineage fake: id mem-2 (current) whose predecessor is mem-1 (root).
+    let call = 0
+    const responses: unknown[][] = [
+      [{ id: "mem-1" }], // backward: who points to mem-2? mem-1
+      [], // backward: who points to mem-1? nobody -> root = mem-1
+      [{ id: "mem-1", superseded_by_id: "mem-2" }], // forward: mem-1
+      [{ id: "mem-2", superseded_by_id: null }], // forward: mem-2
+      [{ id: "mem-1" }, { id: "mem-2" }], // UPDATE memory_records RETURNING id -- both rows
+      [{ id: "v1" }, { id: "v2" }], // UPDATE memory_versions RETURNING id -- both snapshots
+    ]
+    const execute = mock(async () => responses[call++] ?? [])
+    mock.module("@/lib/db", () => ({ db: { execute } }))
+
+    const result = await redactMemoryRecordLineage("mem-2", { type: "SYSTEM" })
+
+    expect(result).toEqual({ recordsRedacted: 2, versionsRedacted: 2 })
+    // The UPDATE statements must reference BOTH lineage ids, not just "mem-2".
+    const updateRecordsSql = JSON.stringify(execute.mock.calls[4]?.[0])
+    expect(updateRecordsSql).toContain("mem-1")
+    expect(updateRecordsSql).toContain("mem-2")
+  })
+
+  test("throws when the id does not exist, writing nothing", async () => {
+    mockEmbeddingsModule({})
+    const dbExecute = mock(async () => [])
+    mockDbModule(dbExecute)
+    const { redactMemoryRecordLineage } = await import("./memory-service")
+
+    await expect(redactMemoryRecordLineage("missing-id", { type: "USER" })).rejects.toThrow(/not found/)
+    // Only the 2 lineage-walk SELECTs should have run -- no UPDATE.
+    expect(dbExecute).toHaveBeenCalledTimes(2)
+  })
+
+  test("expectedOrgId guard: throws and writes nothing when a lineage row belongs to a different org", async () => {
+    mockEmbeddingsModule({})
+    let call = 0
+    const responses: unknown[][] = [
+      [], // backward: no predecessor
+      [{ id: "mem-1", superseded_by_id: null }], // forward: mem-1
+      [{ org_id: "org-other" }], // org-check SELECT DISTINCT org_id
+    ]
+    const execute = mock(async () => responses[call++] ?? [])
+    mock.module("@/lib/db", () => ({ db: { execute } }))
+    const { redactMemoryRecordLineage } = await import("./memory-service")
+
+    await expect(redactMemoryRecordLineage("mem-1", { type: "USER" }, "org-expected")).rejects.toThrow(
+      /not the expected org-expected/
+    )
+    expect(execute).toHaveBeenCalledTimes(3) // never reaches the UPDATEs
+  })
+
+  test("redaction placeholder replaces content on every UPDATE, never merely closing effective_to", async () => {
+    mockEmbeddingsModule({})
+    let call = 0
+    const responses: unknown[][] = [
+      [],
+      [{ id: "mem-1", superseded_by_id: null }],
+      [{ id: "mem-1" }],
+      [],
+    ]
+    const execute = mock(async () => responses[call++] ?? [])
+    mock.module("@/lib/db", () => ({ db: { execute } }))
+    const { redactMemoryRecordLineage } = await import("./memory-service")
+
+    await redactMemoryRecordLineage("mem-1", { type: "AI", id: "model-x", reason: "erasure request #42" })
+
+    const updateRecordsSql = JSON.stringify(execute.mock.calls[2]?.[0])
+    expect(updateRecordsSql).toContain("REDACTED")
+    expect(updateRecordsSql).toContain("erasure request #42")
+    // Must be a real content rewrite, not an effective_to close -- the
+    // whole point of R-IMG-05's obligation this function exists to satisfy.
+    expect(updateRecordsSql).toContain("content")
+  })
+})

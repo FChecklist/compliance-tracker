@@ -14064,5 +14064,12 @@ export const memoryVersions = complianceSchemaDB.table('memory_versions', {
   changedByType: text('changed_by_type').notNull(), // 'USER'|'SYSTEM'|'AI'
   changedById: text('changed_by_id'),
   changeReason: text('change_reason'),
+  // R68 Phase 1 (drizzle/0541_r68_phase1_bitemporal_enforcement.sql):
+  // nullable, additive -- matches this table's own already-established
+  // per-version attribution shape above. Populated by supersedeMemoryRecord()
+  // (memory-service.ts) only when the caller supplies them -- a USER or
+  // SYSTEM-originated change legitimately has neither.
+  modelId: text('model_id'),
+  promptHash: text('prompt_hash'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })

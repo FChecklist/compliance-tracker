@@ -92,6 +92,20 @@ export type PolicyEnforcementContext = {
   domain?: string // defaults to DEFAULT_DOMAIN if omitted
   layerKey: string // which orchestra layer this request is destined for, for logging
   eventType: string // e.g. "chat.ai_thread_reply", "fde.evaluate_request" -- for logging
+  // R67 Part B gap-closure (2026-09-03, PHASE3_RESULTS.md "the finding that
+  // matters for the AI usage ledger"): the ONLY field this type was missing.
+  // Every denial this function logs went to orchestra_executions with a
+  // hardcoded-absent task_id, even from call sites (task-execution-engine.ts's
+  // package-dispatch and free-text-planning gates) that have a real taskId
+  // in scope one line below the enforcePolicy() call -- the two places a
+  // denial can happen mid-task, i.e. exactly where "all 17 recorded
+  // failures have a NULL task_id" traces back to. Optional and threaded
+  // through unchanged for every other call site (CRM/ticket/email/meeting/
+  // report/asset-routing/orchestrate-event gates): none of those have a
+  // task in scope at policy-check time -- they check policy before a task
+  // exists, if one ever gets created from the AI's output at all -- so they
+  // correctly keep logging task_id: null, not a fabricated value.
+  taskId?: string
 }
 
 /**
@@ -115,7 +129,7 @@ export function enforcePolicy(ctx: PolicyEnforcementContext, userMessage: string
 
   if (!decision.allowed) {
     recordOrchestraExecution({
-      orgId: ctx.orgId, userId: ctx.userId, clientId: ctx.clientId,
+      orgId: ctx.orgId, userId: ctx.userId, clientId: ctx.clientId, taskId: ctx.taskId,
       layerKey: ctx.layerKey, eventType: ctx.eventType,
       input: { userMessage: userMessage.slice(0, 500) },
       output: { policyDenied: true, category: decision.category, reason: decision.reason },
