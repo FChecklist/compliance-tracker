@@ -61,6 +61,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const vendorId = request.nextUrl.searchParams.get("vendorId") ?? undefined
       const groupBy = request.nextUrl.searchParams.get("groupBy") === "category" ? "category" : "scope"
       result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId, { categories, vendorId, groupBy })
+    } else if (reportName === "designer-timesheet") {
+      // R67 E-16 (R-150): the Design Studio Cost Analysis screen defaults to
+      // the current month, so this report finally takes one. Omitting both
+      // keeps the previous whole-history behaviour for existing API callers.
+      const from = request.nextUrl.searchParams.get("from") ?? undefined
+      const to = request.nextUrl.searchParams.get("to") ?? undefined
+      result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId, { from, to })
     } else if (reportName === "manpower-cost") {
       // R39/R-C07: both optional -- omitted keeps the existing all-time,
       // all-trade behavior.

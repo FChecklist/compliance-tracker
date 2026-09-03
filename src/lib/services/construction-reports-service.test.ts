@@ -314,11 +314,74 @@ describe("designerTimesheetReport: N+1 fix + scope-labeled response (PR #597 aud
 
     // Scope-mixing fix: project-scoped and org-wide breakdowns are returned
     // under explicit, separate keys -- not merged into one flat object.
-    expect(Object.keys(result).sort()).toEqual(["orgWide", "projectScoped"])
+    // R67 E-16 adds `period` -- the window the report really covered, echoed
+    // back so the Cost Analysis screen captions what it got rather than what it
+    // asked for. Null/null here, because this call named no period.
+    expect(Object.keys(result).sort()).toEqual(["orgWide", "period", "projectScoped"])
+    expect(result.period).toEqual({ from: null, to: null })
     expect(Object.keys(result.projectScoped).sort()).toEqual(
       ["byCategory", "byDesignerStatus", "byUser", "overallActual", "overallBudget", "overallVariance"].sort()
     )
     expect(Object.keys(result.orgWide).sort()).toEqual(["byDesigner", "byProject"])
+  })
+
+  // R67 E-16 (R-150): the period. The fake db below deliberately IGNORES the
+  // where clause (it is a canned findMany), which is exactly why this test is
+  // worth having: it proves the fold itself honours the window, so a period
+  // that the SQL bounds somehow failed to narrow still cannot be counted. The
+  // 30 fixture entries are all on 2026-01-15.
+  test("a period excludes entries outside it, and is echoed back on the response", async () => {
+    const ORG_ID = "org-designer-timesheet-period"
+    const PROJECT_ID = "proj-1"
+    const timeEntries = Array.from({ length: 30 }, (_, i) => ({
+      id: `entry-${i}`, orgId: ORG_ID, issueId: "issue-1", userId: "u1",
+      hours: "2", spentOn: "2026-01-15", activityType: "Design Development",
+    }))
+
+    const fakeDb = {
+      query: {
+        pmsIssues: { findMany: mock(async () => [{ id: "issue-1", projectId: PROJECT_ID }]) },
+        projects: { findMany: mock(async () => [{ id: PROJECT_ID, name: "Project One" }]) },
+        users: { findMany: mock(async () => [{ id: "u1", name: "Alice", isActive: true }]) },
+        pmsTimeEntries: { findMany: mock(async () => timeEntries) },
+        pmsBillableRates: { findMany: mock(async () => [{ userId: null, hourlyRate: "50", validFrom: "2020-01-01" }]) },
+        pmsBudgets: { findMany: mock(async () => [{ id: "budget-1", projectId: PROJECT_ID }]) },
+        pmsBudgetLineItems: { findMany: mock(async () => [{ budgetId: "budget-1", userId: "u1", amount: "1000" }]) },
+      },
+      select: () => ({ from: () => ({ innerJoin: () => ({ where: () => ({ groupBy: () => Promise.resolve([]) }) }) }) }),
+    }
+
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablementService,
+      requireConstructionEnabled: mock(async () => {}),
+    }))
+
+    const { designerTimesheetReport, isWithinPeriod } = await import("./construction-reports-service")
+
+    // Both ends inclusive -- "01 to 31 January" includes the 15th and both ends.
+    expect(isWithinPeriod("2026-01-15", "2026-01-01", "2026-01-31")).toBe(true)
+    expect(isWithinPeriod("2026-01-01", "2026-01-01", "2026-01-31")).toBe(true)
+    expect(isWithinPeriod("2026-01-31", "2026-01-01", "2026-01-31")).toBe(true)
+    expect(isWithinPeriod("2026-02-01", "2026-01-01", "2026-01-31")).toBe(false)
+    expect(isWithinPeriod("2026-01-15", null, null)).toBe(true)
+
+    const inside = await designerTimesheetReport({ orgId: ORG_ID }, PROJECT_ID, { from: "2026-01-01", to: "2026-01-31" })
+    expect(inside.period).toEqual({ from: "2026-01-01", to: "2026-01-31" })
+    // 30 entries x 2 h x AED 50 = 3000, all inside the window.
+    expect(inside.projectScoped.overallActual).toBe(3000)
+
+    const outside = await designerTimesheetReport({ orgId: ORG_ID }, PROJECT_ID, { from: "2026-02-01", to: "2026-02-28" })
+    expect(outside.period).toEqual({ from: "2026-02-01", to: "2026-02-28" })
+    // Not one hour falls in February: actual is 0, and the budget is STILL
+    // 1000 -- a month with no logged hours has a budget nobody spent, which is
+    // the whole point of a Budget-vs-Actual view.
+    expect(outside.projectScoped.overallActual).toBe(0)
+    expect(outside.projectScoped.overallBudget).toBe(1000)
+    expect(outside.projectScoped.byCategory).toEqual([])
   })
 })
 

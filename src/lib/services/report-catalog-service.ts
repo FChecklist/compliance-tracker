@@ -106,6 +106,21 @@ const PROJEXA_HOSTED_REPORTS: Record<string, { route: string; routeNote: string 
     routeNote:
       "Runs in PROJEXA: Work Progress > Report. Reads projectId/from/to/view from the URL and runs on arrival, with PDF, XLSX, CSV and an expiring share link. The API endpoint GET /api/construction/reports/work-progress?projectId=<id> stays available for API callers.",
   },
+  // R67 E-16 (R-150). The four Budget-vs-Actual breakdowns designerTimesheetReport
+  // has computed since PR #597 -- by category, by designer, by project, by
+  // designer status -- were reachable only by calling the API by hand: no PROJEXA
+  // screen rendered any of them, and this catalog said so. Design Studio > Cost
+  // Analysis renders all four, so the catalog now names that screen. Its own
+  // period (from/to, defaulting to the current month) is part of the route.
+  "designer-timesheet": {
+    // Tab-shaped, like the Work Progress entry above and for the same reason:
+    // the screen is a TAB on a real module route, so this is the URL that
+    // actually opens it. A "/design-studio/cost-analysis" path would name a
+    // route that does not exist.
+    route: "/design-studio?tab=cost-analysis",
+    routeNote:
+      "Runs in PROJEXA: Design Studio > Cost Analysis. Reads projectId/from/to from the URL and runs on arrival, rendering Budget vs Actual by category, by designer, by project and by designer status, with server-rendered PDF/XLSX/CSV export. The API endpoint GET /api/construction/reports/designer-timesheet?projectId=<id>[&from&to] stays available for API callers.",
+  },
 }
 
 const CONSTRUCTION_ENTRIES: ReportCatalogEntry[] = CONSTRUCTION_REPORT_META.map(({ id, name, description, classifications }) => {

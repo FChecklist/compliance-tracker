@@ -82,6 +82,20 @@ active:
         src/lib/pdf/report-document-pdf.ts (NEW, + NEW .test.ts)
         src/lib/services/report-catalog-service.ts (+ .test.ts) -- catalog entries agree
         src/app/api/v1/projexa/reports/[reportName]/export/route.ts (schema-driven)
+        --- added for items E-16..E-20 (2026-09-03) ---
+        src/lib/services/construction-reports-service.ts (+ .test.ts) -- designerTimesheetReport
+        gains an optional from/to period (E-16)
+        src/lib/services/report-catalog-service.ts (+ .test.ts) -- the Designer Timesheet
+        entry names Design Studio > Cost Analysis (E-16)
+        src/app/api/v1/projexa/reports/[reportName]/route.ts -- forwards from/to for
+        designer-timesheet (E-16)
+        src/lib/services/report-export.ts (+ .test.ts) -- the Work Progress Report's own
+        export schema and rows (E-18/E-20)
+        src/lib/pdf/work-progress-report-pdf.ts -- ComputedRow carries poQty and unit, so
+        the PDF and the XLSX describe the same columns (E-18/E-20)
+        src/app/api/v1/projexa/work-progress/report/xlsx/route.ts (NEW) -- the XLSX relay
+        src/lib/services/construction-dashboard-service.ts (+ .test.ts) -- per-project
+        lastProgressAt, read out of the query that already runs (E-19)
 
       File scope in projexa: DashboardHomeView, ProjectRow (new), GroupedBarChart (new),
       CategoryDistributionCharts, DashboardProjectClient, WorkProgressReportClient,

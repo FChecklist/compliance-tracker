@@ -1061,7 +1061,32 @@ export function aggregateDesignerTimesheetCosts(
 // into showing org-wide totals as if they belonged to the requested
 // project), the two scopes are returned under explicit `projectScoped`/
 // `orgWide` keys.
+/**
+ * R67 E-16 (R-150). THE PERIOD THIS REPORT COVERS.
+ *
+ * designerTimesheetReport had no period at all: it summed every approved hour
+ * ever logged, so "Budget vs Actual" compared a month's budget against a
+ * project's whole history. The Cost Analysis screen defaults to the current
+ * month, so the report has to be able to answer for one.
+ *
+ * ONE RULE, stated once. The bounds below are pushed into SQL (so the
+ * transaction does not read years of rows it will discard) AND applied to the
+ * fetched entries by this same predicate, so the figure the fold produces and
+ * the rows the query returns can never describe different windows. Both ends
+ * are INCLUSIVE, which is what "01 to 30 September" means to the person who
+ * typed it.
+ */
+export function isWithinPeriod(day: string, from?: string | null, to?: string | null): boolean {
+  if (from && day < from) return false
+  if (to && day > to) return false
+  return true
+}
+
+export type DesignerTimesheetPeriod = { from: string | null; to: string | null }
+
 export type DesignerTimesheetReport = {
+  /** Echoed back, so the screen captions the window it really got rather than the one it asked for. */
+  period: DesignerTimesheetPeriod
   projectScoped: {
     byUser: { userId: string; userName: string; totalHours: number }[]
     byCategory: ReturnType<typeof aggregateDesignerTimesheetCosts>["byCategory"]
@@ -1076,12 +1101,20 @@ export type DesignerTimesheetReport = {
   }
 }
 
-export async function designerTimesheetReport(ctx: { orgId: string }, projectId: string): Promise<DesignerTimesheetReport> {
+export async function designerTimesheetReport(
+  ctx: { orgId: string },
+  projectId: string,
+  // R67 E-16: optional, and omitting it keeps the previous whole-history
+  // behaviour byte for byte -- an existing API caller sees no change.
+  options: { from?: string | null; to?: string | null } = {}
+): Promise<DesignerTimesheetReport> {
   await requireConstructionEnabled(ctx.orgId)
+  const period: DesignerTimesheetPeriod = { from: options.from ?? null, to: options.to ?? null }
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const issueIds = (await db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)), columns: { id: true } })).map((i) => i.id)
     if (issueIds.length === 0) {
       return {
+        period,
         projectScoped: { byUser: [], byCategory: [], byDesignerStatus: [], overallBudget: 0, overallActual: 0, overallVariance: 0 },
         orgWide: { byDesigner: [], byProject: [] },
       }
@@ -1099,7 +1132,15 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
       totalHours: sql<number>`coalesce(sum(${pmsTimeEntries.hours}), 0)::float`,
     }).from(pmsTimeEntries)
       .innerJoin(users, eq(pmsTimeEntries.userId, users.id))
-      .where(and(eq(pmsTimeEntries.orgId, ctx.orgId), inArray(pmsTimeEntries.issueId, issueIds), eq(pmsTimeEntries.approvalStatus, "approved")))
+      .where(and(
+        eq(pmsTimeEntries.orgId, ctx.orgId),
+        inArray(pmsTimeEntries.issueId, issueIds),
+        eq(pmsTimeEntries.approvalStatus, "approved"),
+        // R67 E-16: the same inclusive bounds isWithinPeriod states, pushed
+        // into SQL. Omitted entirely when the caller named no period.
+        ...(period.from ? [gte(pmsTimeEntries.spentOn, period.from)] : []),
+        ...(period.to ? [lte(pmsTimeEntries.spentOn, period.to)] : []),
+      ))
       .groupBy(pmsTimeEntries.userId, users.name)
 
     // Budget-vs-Actual breakdown: Category/Designer-status/overall are
@@ -1112,7 +1153,12 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
     const allProjects = await db.query.projects.findMany({ where: eq(projects.orgId, ctx.orgId), columns: { id: true, name: true } })
     const allIssues = await db.query.pmsIssues.findMany({ where: eq(pmsIssues.orgId, ctx.orgId), columns: { id: true, projectId: true } })
     const allUsers = await db.query.users.findMany({ where: eq(users.orgId, ctx.orgId), columns: { id: true, name: true, isActive: true } })
-    const allTimeEntries = await db.query.pmsTimeEntries.findMany({ where: and(eq(pmsTimeEntries.orgId, ctx.orgId), eq(pmsTimeEntries.approvalStatus, "approved")) })
+    const allTimeEntries = await db.query.pmsTimeEntries.findMany({ where: and(
+      eq(pmsTimeEntries.orgId, ctx.orgId),
+      eq(pmsTimeEntries.approvalStatus, "approved"),
+      ...(period.from ? [gte(pmsTimeEntries.spentOn, period.from)] : []),
+      ...(period.to ? [lte(pmsTimeEntries.spentOn, period.to)] : []),
+    ) })
     // Fetched once upfront (not once per time entry, see resolvePmsBillableRatePure
     // below) -- same pattern pms-invoice-service.ts's buildInvoiceLinesFromTimeEntries
     // already uses to avoid the equivalent N+1 on this same table.
@@ -1125,6 +1171,10 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
 
     const priced: DesignerTimesheetEntry[] = []
     for (const entry of allTimeEntries) {
+      // R67 E-16: the period rule, applied where the answer is computed. The
+      // SQL bounds above narrow what is READ; this decides what is COUNTED, so
+      // the two can never describe different windows.
+      if (!isWithinPeriod(entry.spentOn, period.from, period.to)) continue
       const entryProjectId = projectIdByIssue.get(entry.issueId)
       if (!entryProjectId) continue
       const user = userById.get(entry.userId)
@@ -1160,6 +1210,7 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
     const scoped = aggregateDesignerTimesheetCosts(pricedThisProject, thisProjectBudgetLines, roster)
 
     return {
+      period,
       projectScoped: {
         byUser: rows,
         byCategory: scoped.byCategory,

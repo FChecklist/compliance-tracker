@@ -49,8 +49,42 @@ describe("REPORT_CATALOG: the Work Progress Report names its one real destinatio
   })
 })
 
+// R67 E-16 (R-150): the same correction, for the second construction report
+// that now has a real PROJEXA screen. designerTimesheetReport has computed four
+// Budget-vs-Actual breakdowns since PR #597 and no screen showed any of them;
+// Design Studio > Cost Analysis does, so the catalog says so.
+const designerTimesheet = construction.find((e) => e.id === "construction-designer-timesheet")
+
+describe("REPORT_CATALOG: the Designer Timesheet Report names the Cost Analysis screen (R67 E-16)", () => {
+  test("its route is the PROJEXA screen that renders it -- the TAB, not a path that does not exist", () => {
+    expect(designerTimesheet!.route).toBe("/design-studio?tab=cost-analysis")
+  })
+
+  test("it is marked directly navigable", () => {
+    expect(designerTimesheet!.directlyNavigable).toBe(true)
+  })
+
+  test("the note names the screen and the four breakdowns, and stops claiming no UI renders it", () => {
+    expect(designerTimesheet!.routeNote).not.toContain("No dedicated UI page renders it yet")
+    expect(designerTimesheet!.routeNote).toContain("Design Studio > Cost Analysis")
+    expect(designerTimesheet!.routeNote).toContain("by designer status")
+  })
+
+  test("the API endpoint stays advertised, with the period it now accepts", () => {
+    expect(designerTimesheet!.routeNote).toContain("/api/construction/reports/designer-timesheet")
+    expect(designerTimesheet!.routeNote).toContain("from&to")
+  })
+
+  test("its output formats list the exports that really exist on that screen", () => {
+    expect(designerTimesheet!.outputFormats).toContain("PDF")
+    expect(designerTimesheet!.outputFormats).toContain("XLSX")
+  })
+})
+
 describe("REPORT_CATALOG: every other construction entry stays honest about having no UI yet", () => {
-  const others = construction.filter((e) => e.id !== "construction-work-progress")
+  const others = construction.filter(
+    (e) => e.id !== "construction-work-progress" && e.id !== "construction-designer-timesheet"
+  )
 
   test("the construction domain is still fully catalogued (the map did not drop entries)", () => {
     expect(construction).toHaveLength(18)
