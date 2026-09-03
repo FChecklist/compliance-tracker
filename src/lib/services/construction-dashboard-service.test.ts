@@ -807,6 +807,17 @@ describe("construction-dashboard-service: getOrgDashboard row shape (E-21)", () 
     expect(CODE).toMatch(/export const EARNED_VALUE_BASELINE_DAYS = 7/)
   })
 
+  test("E-23: from/to narrow revenue and expenses ONLY -- never the BOQ-derived budget", () => {
+    // A budget percentage is a property of a BOQ line, not of a period.
+    // Applying the range to it would report a full-BOQ budget beside a
+    // three-week revenue figure and call the comparison meaningful.
+    expect(body).toMatch(/revenueConditions\.push\(gte\(erpSalesInvoices\.postingDate/)
+    expect(body).toMatch(/expenseConditions\.push\(gte\(constructionExpenseEntries\.expenseDate/)
+    const boqBudgetQuery = body.slice(body.indexOf("const valueByBoq ="), body.indexOf("const valueByBoqMap"))
+    expect(boqBudgetQuery).not.toMatch(/filters\.(from|to)/)
+    expect(boqBudgetQuery).toMatch(/budgetPercentage/)
+  })
+
   test("budget is null-not-zero when the project has no budget rows, and progressPercent is F-01's 0", () => {
     // budget: `?? null`, never `?? 0` -- "no budget rows" and "a budget of
     // zero" are different facts and the launchpad renders them differently.

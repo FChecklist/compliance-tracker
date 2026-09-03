@@ -13,7 +13,7 @@
 // documented here rather than silently treated as exact.
 import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users, erpPurchaseOrders, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, sql, isNull } from "drizzle-orm"
+import { and, eq, gte, inArray, lte, sql, isNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 // R39/R-51 (D-3): reuses the SAME earnedValueReport construction-reports-
 // service.ts exposes as the "earned-value" named report -- NOT a second
@@ -690,7 +690,16 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
   return dashboard
 }
 
-export type OrgDashboardFilters = { departmentId?: string }
+/**
+ * R67 E-23 (R-206): `from`/`to` narrow the two TRANSACTIONAL figures only --
+ * revenue (invoice posting date) and expenses (expense date). They do NOT
+ * narrow the BOQ-derived budget or the contract value, because a budget
+ * percentage is a property of a BOQ line, not of a period; the chart says so
+ * above itself rather than silently reporting a full-BOQ budget beside a
+ * three-week revenue figure. Inclusive at both ends: a reader who types the
+ * 31st means the 31st.
+ */
+export type OrgDashboardFilters = { departmentId?: string; from?: string; to?: string }
 
 /**
  * R67 E-21 (R-195/R-204/R-205/R-222): one row per project, carrying every
@@ -795,14 +804,24 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
     const ids = projectRows.map((p) => p.id)
     if (ids.length === 0) return { totalProjects: 0, totalBudget: null, totalRevenue: 0, totalExpenses: 0, projects: [] }
 
+    // R67 E-23: the date range applies to these two, and only these two --
+    // see OrgDashboardFilters. Built as conditional predicates rather than a
+    // second query pair so there is one code path whether or not a range is
+    // set.
+    const revenueConditions = [eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.projectId, ids), sql`${erpSalesInvoices.status} != 'cancelled'`]
+    if (filters.from) revenueConditions.push(gte(erpSalesInvoices.postingDate, filters.from))
+    if (filters.to) revenueConditions.push(lte(erpSalesInvoices.postingDate, filters.to))
     const revenueByProject = await db.select({ projectId: erpSalesInvoices.projectId, total: sql<number>`coalesce(sum(${erpSalesInvoices.grandTotal}), 0)::float` })
       .from(erpSalesInvoices)
-      .where(and(eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.projectId, ids), sql`${erpSalesInvoices.status} != 'cancelled'`))
+      .where(and(...revenueConditions))
       .groupBy(erpSalesInvoices.projectId)
 
+    const expenseConditions = [eq(constructionExpenseEntries.orgId, ctx.orgId), inArray(constructionExpenseEntries.projectId, ids)]
+    if (filters.from) expenseConditions.push(gte(constructionExpenseEntries.expenseDate, filters.from))
+    if (filters.to) expenseConditions.push(lte(constructionExpenseEntries.expenseDate, filters.to))
     const expensesByProject = await db.select({ projectId: constructionExpenseEntries.projectId, total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float` })
       .from(constructionExpenseEntries)
-      .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), inArray(constructionExpenseEntries.projectId, ids)))
+      .where(and(...expenseConditions))
       .groupBy(constructionExpenseEntries.projectId)
 
     const today = new Date().toISOString().slice(0, 10)

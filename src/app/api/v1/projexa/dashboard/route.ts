@@ -73,7 +73,15 @@ async function GET_impl(request: NextRequest) {
   }
 
   try {
-    const summary = await getOrgDashboard({ orgId: ctx.orgId }, { departmentId: request.nextUrl.searchParams.get("departmentId") ?? undefined })
+    // R67 E-23: from/to narrow revenue and expenses only -- the BOQ-derived
+    // budget is a property of the BOQ line, not of a period. See
+    // OrgDashboardFilters' own comment; the chart states the same thing to
+    // the reader.
+    const summary = await getOrgDashboard({ orgId: ctx.orgId }, {
+      departmentId: request.nextUrl.searchParams.get("departmentId") ?? undefined,
+      from: request.nextUrl.searchParams.get("from") ?? undefined,
+      to: request.nextUrl.searchParams.get("to") ?? undefined,
+    })
     // R48 gap-closure (2026-08-30, F059: "MEMBER cannot see budget or
     // margin"). This is the REAL route the (app)/construction-dashboard
     // page calls (confirmed live: it fetches /api/v1/projexa/dashboard, not
