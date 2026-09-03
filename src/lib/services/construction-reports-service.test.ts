@@ -36,6 +36,7 @@ import {
   aggregateDesignerTimesheetCosts,
   aggregateDesignerApprovalStatus,
   aggregateWorkAnalysis,
+  buildPeriodDays,
   computeCategoryProgress,
   computeCertifiedPayroll,
   computeEarnedValue,
@@ -46,9 +47,11 @@ import {
   totalAttendanceSummary,
   reconcileAttendanceSummary,
   headcountOnSite,
+  rollUpAttendanceByTrade,
   UNSPECIFIED_TRADE_LABEL,
   WORKER_DAY_WEIGHT,
   WH347_DAY_LABELS,
+  type AttendanceWorkerRow,
   type DesignerTimesheetBudgetLine,
   type DesignerTimesheetEntry,
   type DesignerTimesheetRosterUser,
@@ -1277,5 +1280,89 @@ describe("attendance summary builders (R67 D-31)", () => {
     expect(totalAttendanceSummary(rows)).toEqual({ present: 0, halfDay: 0, absent: 0, workerDays: 0, cost: 0 })
     expect(headcountOnSite(rows)).toBe(0)
     expect(reconcileAttendanceSummary(rows, []).ties).toBe(true)
+  })
+})
+
+// R67 E-22 (R-199 / R-207). Sumeet's two named sheets that the previous
+// report shapes could not produce: Weekly Project is day columns over
+// category rows, and Attendance is one row per worker with a trade subtotal.
+describe("buildPeriodDays -- Weekly Project's day columns (E-22)", () => {
+  const EMPTY = { attendance: [], expenses: [], progress: [], diaries: [] }
+
+  test("emits one row per calendar day in the window, including the empty ones", () => {
+    const days = buildPeriodDays("2026-08-24", "2026-08-31", EMPTY)
+    expect(days).toHaveLength(7)
+    expect(days.map((d) => d.date)).toEqual([
+      "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30",
+    ])
+    // A day with nothing on it is a fact, and it reads 0 -- not a missing column.
+    expect(days.every((d) => d.labourCost === 0 && d.expenseTotal === 0 && d.progressEntriesLogged === 0 && d.diaryEntries === 0)).toBe(true)
+  })
+
+  test("the end of the window is exclusive, matching the >= / < predicates the queries use", () => {
+    const days = buildPeriodDays("2026-08-24", "2026-08-25", EMPTY)
+    expect(days.map((d) => d.date)).toEqual(["2026-08-24"])
+  })
+
+  test("each measure lands on its own day, and the week total is the sum of the days", () => {
+    const days = buildPeriodDays("2026-08-24", "2026-08-27", {
+      attendance: [
+        { date: "2026-08-24", cost: 1200, presentCount: 4 },
+        { date: "2026-08-26", cost: 900, presentCount: 3 },
+      ],
+      expenses: [{ date: "2026-08-25", total: 4500 }],
+      progress: [{ date: "2026-08-26", count: 2 }],
+      diaries: [{ date: "2026-08-24" }, { date: "2026-08-24" }],
+    })
+    expect(days.map((d) => d.labourCost)).toEqual([1200, 0, 900])
+    expect(days.map((d) => d.expenseTotal)).toEqual([0, 4500, 0])
+    expect(days.map((d) => d.progressEntriesLogged)).toEqual([0, 0, 2])
+    expect(days.map((d) => d.diaryEntries)).toEqual([2, 0, 0])
+    expect(days.reduce((s, d) => s + d.labourCost, 0)).toBe(2100)
+    expect(days.reduce((s, d) => s + d.workersPresent, 0)).toBe(7)
+  })
+
+  test("an unparseable window yields no rows rather than looping", () => {
+    expect(buildPeriodDays("not-a-date", "2026-08-27", EMPTY)).toEqual([])
+    expect(buildPeriodDays("2026-08-27", "2026-08-24", EMPTY)).toEqual([])
+  })
+})
+
+describe("rollUpAttendanceByTrade -- Sumeet's trade subtotals (E-22)", () => {
+  function worker(over: Partial<AttendanceWorkerRow> = {}): AttendanceWorkerRow {
+    return {
+      rosterId: "r1", employeeCode: "W-0001", name: "Ravi", company: null, trade: "Civil",
+      daysPresent: 5, daysHalf: 0, daysAbsent: 0, salary: 1500, ...over,
+    }
+  }
+
+  test("one subtotal per trade, summing workers, days present and salary", () => {
+    const subtotals = rollUpAttendanceByTrade([
+      worker({ rosterId: "r1", trade: "Civil", daysPresent: 5, salary: 1500 }),
+      worker({ rosterId: "r2", trade: "Civil", daysPresent: 4, salary: 1200 }),
+      worker({ rosterId: "r3", trade: "Electrical", daysPresent: 6, salary: 2100 }),
+    ])
+    expect(subtotals).toEqual([
+      { trade: "Civil", workers: 2, daysPresent: 9, salary: 2700 },
+      { trade: "Electrical", workers: 1, daysPresent: 6, salary: 2100 },
+    ])
+  })
+
+  test("a worker with no trade is bucketed under a named subtotal, never dropped", () => {
+    const subtotals = rollUpAttendanceByTrade([
+      worker({ rosterId: "r1", trade: null, salary: 800, daysPresent: 2 }),
+      worker({ rosterId: "r2", trade: "   ", salary: 700, daysPresent: 1 }),
+    ])
+    expect(subtotals).toEqual([{ trade: "Not set", workers: 2, daysPresent: 3, salary: 1500 }])
+  })
+
+  test("the subtotals add up to the table -- that is the only reason they are on it", () => {
+    const workers = [
+      worker({ rosterId: "r1", trade: "Civil", salary: 1500 }),
+      worker({ rosterId: "r2", trade: "Paint", salary: 900 }),
+      worker({ rosterId: "r3", trade: null, salary: 400 }),
+    ]
+    const subtotalSalary = rollUpAttendanceByTrade(workers).reduce((s, r) => s + r.salary, 0)
+    expect(subtotalSalary).toBe(workers.reduce((s, w) => s + w.salary, 0))
   })
 })

@@ -267,6 +267,20 @@ export async function workProgressReport(
 // real behavior/return shape as before for every existing caller, zero
 // duplication for the new monthly variant (report-engine-service.ts's
 // computeMonthlyProjectReport formula).
+// R67 E-22 (R-199/R-207): Sumeet's Weekly Project report is a table with DAY
+// COLUMNS and CATEGORY ROWS, not four week-total scalars. The four measures
+// this function already computes are exactly the rows; this is the same
+// window, grouped by date instead of collapsed, so a day column and the
+// week total can never disagree -- the total is the sum of the days.
+export type ProjectPeriodDay = {
+  date: string
+  labourCost: number
+  workersPresent: number
+  expenseTotal: number
+  progressEntriesLogged: number
+  diaryEntries: number
+}
+
 export async function projectPeriodReport(ctx: { orgId: string }, projectId: string, periodStart: string, periodEnd: string) {
   await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -277,6 +291,40 @@ export async function projectPeriodReport(ctx: { orgId: string }, projectId: str
     const diaryEntries = await db.query.constructionSiteDiaries.findMany({ where: and(eq(constructionSiteDiaries.orgId, ctx.orgId), eq(constructionSiteDiaries.projectId, projectId), gte(constructionSiteDiaries.diaryDate, periodStart), lt(constructionSiteDiaries.diaryDate, periodEnd)) })
     const [expenseTotal] = await db.select({ total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float` }).from(constructionExpenseEntries)
       .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), eq(constructionExpenseEntries.projectId, projectId), gte(constructionExpenseEntries.expenseDate, periodStart), lt(constructionExpenseEntries.expenseDate, periodEnd)))
+
+    // R67 E-22: the same four measures, per day. Three grouped reads on the
+    // transaction already open -- no extra pool connection (C06-21), and the
+    // day rows are built from the SAME predicates as the totals above, so a
+    // column and the total cannot drift apart.
+    const attendanceByDay = await db.select({
+      date: constructionAttendance.attendanceDate,
+      cost: sql<number>`coalesce(sum(${constructionAttendance.dailyCost}), 0)::float`,
+      presentCount: sql<number>`count(*) filter (where ${constructionAttendance.status} = 'present')`,
+    }).from(constructionAttendance)
+      .where(and(eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId), gte(constructionAttendance.attendanceDate, periodStart), lt(constructionAttendance.attendanceDate, periodEnd)))
+      .groupBy(constructionAttendance.attendanceDate)
+
+    const expensesByDay = await db.select({
+      date: constructionExpenseEntries.expenseDate,
+      total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float`,
+    }).from(constructionExpenseEntries)
+      .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), eq(constructionExpenseEntries.projectId, projectId), gte(constructionExpenseEntries.expenseDate, periodStart), lt(constructionExpenseEntries.expenseDate, periodEnd)))
+      .groupBy(constructionExpenseEntries.expenseDate)
+
+    const progressByDay = await db.select({
+      date: constructionWorkProgressEntries.entryDate,
+      count: sql<number>`count(*)`,
+    }).from(constructionWorkProgressEntries)
+      .where(and(eq(constructionWorkProgressEntries.orgId, ctx.orgId), eq(constructionWorkProgressEntries.projectId, projectId), gte(constructionWorkProgressEntries.entryDate, periodStart), lt(constructionWorkProgressEntries.entryDate, periodEnd)))
+      .groupBy(constructionWorkProgressEntries.entryDate)
+
+    const byDay = buildPeriodDays(periodStart, periodEnd, {
+      attendance: attendanceByDay.map((r) => ({ date: String(r.date), cost: Number(r.cost), presentCount: Number(r.presentCount) })),
+      expenses: expensesByDay.map((r) => ({ date: String(r.date), total: Number(r.total) })),
+      progress: progressByDay.map((r) => ({ date: String(r.date), count: Number(r.count) })),
+      diaries: diaryEntries.map((d) => ({ date: String(d.diaryDate) })),
+    })
+
     return {
       periodStart, periodEnd,
       progressEntriesLogged: Number(progressCount?.count ?? 0),
@@ -284,14 +332,59 @@ export async function projectPeriodReport(ctx: { orgId: string }, projectId: str
       workersPresent: Number(attendanceCost?.presentCount ?? 0),
       diaryEntries: diaryEntries.length,
       expenseTotal: Number(expenseTotal?.total ?? 0),
+      byDay,
     }
   })
+}
+
+/**
+ * R67 E-22. Turns four grouped-by-date reads into ONE row per calendar day in
+ * [periodStart, periodEnd) -- including the days with nothing on them, which
+ * is the whole point of a day-column report: a blank Thursday is a fact, and
+ * a table that silently omits Thursday makes the week look shorter than it is.
+ *
+ * Pure, so the day-filling rule is unit-testable without a database.
+ */
+export function buildPeriodDays(
+  periodStart: string,
+  periodEnd: string,
+  data: {
+    attendance: { date: string; cost: number; presentCount: number }[]
+    expenses: { date: string; total: number }[]
+    progress: { date: string; count: number }[]
+    diaries: { date: string }[]
+  }
+): ProjectPeriodDay[] {
+  const attendanceByDate = new Map(data.attendance.map((r) => [r.date, r]))
+  const expenseByDate = new Map(data.expenses.map((r) => [r.date, r.total]))
+  const progressByDate = new Map(data.progress.map((r) => [r.date, r.count]))
+  const diaryByDate = new Map<string, number>()
+  for (const d of data.diaries) diaryByDate.set(d.date, (diaryByDate.get(d.date) ?? 0) + 1)
+
+  const days: ProjectPeriodDay[] = []
+  // Iterate on UTC midnights so a DST boundary cannot drop or duplicate a day.
+  const end = Date.parse(`${periodEnd}T00:00:00Z`)
+  for (let t = Date.parse(`${periodStart}T00:00:00Z`); Number.isFinite(t) && Number.isFinite(end) && t < end; t += 86400000) {
+    const date = new Date(t).toISOString().slice(0, 10)
+    const attendance = attendanceByDate.get(date)
+    days.push({
+      date,
+      labourCost: attendance?.cost ?? 0,
+      workersPresent: attendance?.presentCount ?? 0,
+      expenseTotal: expenseByDate.get(date) ?? 0,
+      progressEntriesLogged: progressByDate.get(date) ?? 0,
+      diaryEntries: diaryByDate.get(date) ?? 0,
+    })
+  }
+  return days
 }
 
 export async function weeklyProjectReport(ctx: { orgId: string }, projectId: string, weekStart: string) {
   const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 86400000).toISOString().slice(0, 10)
   const result = await projectPeriodReport(ctx, projectId, weekStart, weekEnd)
-  return { weekStart, weekEnd, progressEntriesLogged: result.progressEntriesLogged, labourCost: result.labourCost, workersPresent: result.workersPresent, diaryEntries: result.diaryEntries, expenseTotal: result.expenseTotal }
+  // R67 E-22: byDay is passed straight through -- Sumeet's Weekly Project
+  // sheet is day columns over category rows, and this is those columns.
+  return { weekStart, weekEnd, progressEntriesLogged: result.progressEntriesLogged, labourCost: result.labourCost, workersPresent: result.workersPresent, diaryEntries: result.diaryEntries, expenseTotal: result.expenseTotal, byDay: result.byDay }
 }
 
 // 3. Project Status Report -- reuses the project dashboard verbatim.
@@ -302,12 +395,54 @@ export async function projectStatusReport(ctx: { orgId: string }, projectId: str
 
 // 4. Attendance Report -- present/absent/half_day counts + cost, by trade.
 //
+// R67 E-22 (R-199): Sumeet's Attendance sheet is ONE ROW PER WORKER --
+// S.No | ID | Name | Company | Trade | Salary -- with a subtotal per trade.
+// The trade x status roll-up this function already returned cannot produce
+// that sheet (it has no worker identity in it at all), so `workers` and
+// `tradeSubtotals` are added alongside it. `rows` is untouched, because the
+// existing consumers (report-engine-service's definition rows, the projexa
+// generic renderer) read it.
+export type AttendanceWorkerRow = {
+  rosterId: string
+  /** The customer's own free-text worker label -- his "ID" column. null when never set. */
+  employeeCode: string | null
+  name: string
+  /** The subcontractor the worker belongs to -- his "Company" column. null for direct labour. */
+  company: string | null
+  trade: string | null
+  daysPresent: number
+  daysHalf: number
+  daysAbsent: number
+  /** Summed daily_cost over the period -- his "Salary" column. */
+  salary: number
+}
+
+export type AttendanceTradeSubtotal = { trade: string; workers: number; daysPresent: number; salary: number }
+
+/** Pure: the trade subtotal rows under Sumeet's worker table, in the same trade order the rows appear in. */
+export function rollUpAttendanceByTrade(workers: AttendanceWorkerRow[]): AttendanceTradeSubtotal[] {
+  const byTrade = new Map<string, AttendanceTradeSubtotal>()
+  for (const w of workers) {
+    // A worker with no trade recorded is still a real worker with a real
+    // wage -- bucketed under a named "Not set" subtotal rather than dropped,
+    // so the subtotals still add up to the table.
+    const trade = w.trade?.trim() || "Not set"
+    const row = byTrade.get(trade) ?? { trade, workers: 0, daysPresent: 0, salary: 0 }
+    row.workers += 1
+    row.daysPresent += w.daysPresent
+    row.salary += w.salary
+    byTrade.set(trade, row)
+  }
+  return Array.from(byTrade.values())
+}
+
 // R67 D-31: dateFrom/dateTo are additive and optional. Omitting both keeps the
 // existing all-time behaviour byte for byte, which is what the report registry
 // (and therefore every existing caller) does -- the dispatcher passes only
 // (ctx, projectId). They exist so the Manpower screen's "Today / This week /
 // This month" panel can reuse THIS aggregate rather than a second, parallel
-// grouping written for the screen.
+// grouping written for the screen. E-22's worker rows below are built from the
+// SAME date-filtered read, so the sheet and the roll-up cover one period.
 export async function attendanceReport(ctx: { orgId: string }, projectId: string, dateFrom?: string, dateTo?: string) {
   // R67 F-10: the memoised check, not requireConstructionEnabled() directly.
   await ensureConstructionEnabled(ctx.orgId)
@@ -324,7 +459,47 @@ export async function attendanceReport(ctx: { orgId: string }, projectId: string
       .innerJoin(constructionLabourRoster, eq(constructionAttendance.rosterId, constructionLabourRoster.id))
       .where(and(...conditions))
       .groupBy(constructionLabourRoster.trade, constructionAttendance.status)
-    return { rows }
+
+    // One grouped read on the SAME transaction -- the vendor join is a LEFT
+    // join because direct (non-subcontracted) labour has no vendorId, and an
+    // inner join would silently drop exactly the workers a main contractor
+    // employs itself.
+    const workerRows = await db.select({
+      rosterId: constructionLabourRoster.id,
+      employeeCode: constructionLabourRoster.employeeCode,
+      name: constructionLabourRoster.name,
+      company: erpSuppliers.supplierName,
+      trade: constructionLabourRoster.trade,
+      daysPresent: sql<number>`count(*) filter (where ${constructionAttendance.status} = 'present')`,
+      daysHalf: sql<number>`count(*) filter (where ${constructionAttendance.status} = 'half_day')`,
+      daysAbsent: sql<number>`count(*) filter (where ${constructionAttendance.status} = 'absent')`,
+      salary: sql<number>`coalesce(sum(${constructionAttendance.dailyCost}), 0)::float`,
+    }).from(constructionAttendance)
+      .innerJoin(constructionLabourRoster, eq(constructionAttendance.rosterId, constructionLabourRoster.id))
+      .leftJoin(erpSuppliers, eq(constructionLabourRoster.vendorId, erpSuppliers.id))
+      // R67 E-22 x D-31 (resolved on rebase): the SAME `conditions` the trade
+      // roll-up above uses, date filter included. E-22 wrote this query before
+      // D-31 added dateFrom/dateTo, so it carried its own org+project where
+      // clause; left that way, a caller passing a range would get a trade
+      // roll-up for the range and a worker sheet for all time, on one sheet,
+      // with subtotals that do not reconcile.
+      .where(and(...conditions))
+      .groupBy(constructionLabourRoster.id, constructionLabourRoster.employeeCode, constructionLabourRoster.name, erpSuppliers.supplierName, constructionLabourRoster.trade)
+      .orderBy(constructionLabourRoster.trade, constructionLabourRoster.name)
+
+    const workers: AttendanceWorkerRow[] = workerRows.map((r) => ({
+      rosterId: r.rosterId,
+      employeeCode: r.employeeCode,
+      name: r.name,
+      company: r.company,
+      trade: r.trade,
+      daysPresent: Number(r.daysPresent),
+      daysHalf: Number(r.daysHalf),
+      daysAbsent: Number(r.daysAbsent),
+      salary: Number(r.salary),
+    }))
+
+    return { rows, workers, tradeSubtotals: rollUpAttendanceByTrade(workers) }
   })
 }
 
