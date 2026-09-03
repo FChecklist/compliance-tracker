@@ -13,7 +13,7 @@
 // documented here rather than silently treated as exact.
 import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users, erpPurchaseOrders, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, sql, isNull } from "drizzle-orm"
+import { and, eq, inArray, sql, isNull, isNotNull, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 // R39/R-51 (D-3): reuses the SAME earnedValueReport construction-reports-
 // service.ts exposes as the "earned-value" named report -- NOT a second
@@ -277,13 +277,61 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
 
 export type OrgDashboardFilters = { departmentId?: string }
 
+/**
+ * R67 E-01 (R-007): the home dashboard's project row needs a SECOND percentage
+ * beside percentByValue -- the activity-log average -- because the two
+ * genuinely disagree (activity logs are not weighted by BOQ value) and the row
+ * prints the value-weighted one large with this one as small grey secondary
+ * text. Pure so it can be tested without a database: it is the same
+ * "latest logged entry per activity, then averaged" rule getProjectDashboard
+ * has always used, lifted out so BOTH functions read from one definition
+ * instead of two copies that could drift.
+ *
+ * null (never 0) when a project has no activities, or has activities but
+ * nothing has ever been logged against any of them -- "nobody has recorded
+ * progress" is not "progress is zero percent", and the dashboard rule treats a
+ * fabricated 0 as a failed card.
+ */
+export function averageLatestPercent(percents: number[]): number | null {
+  if (percents.length === 0) return null
+  return Math.round(percents.reduce((sum, p) => sum + p, 0) / percents.length)
+}
+
+export type OrgDashboardProjectSummary = {
+  id: string
+  name: string
+  revenue: number
+  expenses: number
+  taskCount: number
+  delayedTaskCount: number
+  /** Latest non-superseded BOQ's root-line total. null (not 0) = no BOQ at all. */
+  value: number | null
+  earnedValue: number | null
+  percentByValue: number | null
+  /** R67 E-01: the activity-log average, deliberately distinct from percentByValue. */
+  percentByActivity: number | null
+  /**
+   * R67 E-01: expenses have passed the contract value. Computed here, not in
+   * the browser, so the "needs you" state on the home row and any other
+   * consumer can never disagree about the threshold. false (not null) when
+   * there is no BOQ to compare against -- an unknown contract value is not an
+   * overspend claim.
+   */
+  spendOverValue: boolean
+  /** R67 E-01: permits (documents category='permit') expiring within 30 days, this project only. */
+  permitsExpiring30d: number
+}
+
 export type OrgDashboardSummary = {
   totalProjects: number
   totalBudget: number
   totalRevenue: number
   totalExpenses: number
-  projects: { id: string; name: string; revenue: number; expenses: number; taskCount: number; delayedTaskCount: number; earnedValue: number | null; percentByValue: number | null }[]
+  projects: OrgDashboardProjectSummary[]
 }
+
+/** Permit-expiry horizon the home row and the project dashboard both use. */
+export const PERMIT_EXPIRY_HORIZON_DAYS = 30
 
 /** Company -> [Department] -> Project drill-down. departmentId filters by the project LEAD's department (projects has no direct departmentId column -- see file header). */
 export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashboardFilters = {}): Promise<OrgDashboardSummary> {
@@ -362,6 +410,63 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
     const revenueMap = new Map(revenueByProject.map((r) => [r.projectId, Number(r.total)]))
     const expenseMap = new Map(expensesByProject.map((r) => [r.projectId, Number(r.total)]))
     const taskMap = new Map(tasksByProject.map((r) => [r.projectId, { total: Number(r.total), delayed: Number(r.delayed) }]))
+
+    // R67 E-01 (R-007). The home dashboard's project row prints THREE things
+    // the org payload did not carry: the activity-log percentage (small grey
+    // secondary text under the value-weighted bar), whether spend has passed
+    // the contract value, and how many permits expire inside 30 days. All
+    // three are computed HERE, in the transaction this function already holds,
+    // in two extra queries total -- never one round trip per project. A
+    // per-project fan-out is the exact shape R43_MGR_01 removed from this
+    // function (see the long note below), and re-adding it for a row's status
+    // word would put the pool deadlock straight back.
+    const activityRows = await db.query.constructionActivities.findMany({
+      where: and(eq(constructionActivities.orgId, ctx.orgId), inArray(constructionActivities.projectId, ids)),
+      columns: { id: true, projectId: true },
+    })
+    const percentsByProject = new Map<string, number[]>()
+    if (activityRows.length > 0) {
+      // Same ARRAY[...] construction, and for the same postgres.js reason, as
+      // latestBoqPerProject above and getProjectDashboard's own equivalent
+      // query -- one DISTINCT ON for every activity across every project.
+      const activityIdsSql = sql.join(activityRows.map((a) => sql`${a.id}`), sql`, `)
+      const latestRows = (await db.execute(sql`
+        SELECT DISTINCT ON (activity_id) activity_id, percent_complete
+        FROM compliance.construction_work_progress_entries
+        WHERE activity_id = ANY(ARRAY[${activityIdsSql}])
+        ORDER BY activity_id, entry_date DESC
+      `)) as { activity_id: string; percent_complete: number }[]
+      const percentByActivityId = new Map(latestRows.map((r) => [r.activity_id, Number(r.percent_complete)]))
+      for (const activity of activityRows) {
+        const percent = percentByActivityId.get(activity.id)
+        // Only activities that have actually been logged against contribute --
+        // an activity nobody has touched is "not recorded", not "0% done", and
+        // averaging a zero in for it would drag every real figure down.
+        if (percent === undefined) continue
+        const list = percentsByProject.get(activity.projectId) ?? []
+        list.push(percent)
+        percentsByProject.set(activity.projectId, list)
+      }
+    }
+
+    // Permits are documents with category='permit' linked to a project -- the
+    // same shape document-service.ts#listExpiringDocuments reads, grouped in
+    // one pass here instead of one call per project.
+    const permitCutoff = new Date()
+    permitCutoff.setDate(permitCutoff.getDate() + PERMIT_EXPIRY_HORIZON_DAYS)
+    const permitsByProject = await db.select({ projectId: documents.linkedEntityId, total: sql<number>`count(*)` })
+      .from(documents)
+      .where(and(
+        eq(documents.orgId, ctx.orgId),
+        eq(documents.category, "permit"),
+        eq(documents.linkedEntityType, "project"),
+        inArray(documents.linkedEntityId, ids),
+        eq(documents.isLatestVersion, true),
+        isNotNull(documents.expiryDate),
+        lte(documents.expiryDate, permitCutoff),
+      ))
+      .groupBy(documents.linkedEntityId)
+    const permitMap = new Map(permitsByProject.map((r) => [r.projectId, Number(r.total)]))
 
     // R39/R-51: null (not 0) when construction isn't enabled for this org, or
     // the project has no BOQ yet -- both real "not applicable yet" states,
@@ -469,20 +574,27 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
       // below), never a fabricated 0 and never a failed dashboard.
     }
 
-    const projectSummaries = projectRows.map((p) => {
+    const projectSummaries: OrgDashboardProjectSummary[] = projectRows.map((p) => {
       const activeBoqId = boqIdByProject.get(p.id)
       const ev = evByProject.get(p.id) ?? null
+      const expenses = expenseMap.get(p.id) ?? 0
+      // null (not 0) when the project has no BOQ at all yet -- a real "no
+      // scope defined" state, distinct from a real BOQ worth zero.
+      const value = activeBoqId ? (valueByBoqMap.get(activeBoqId) ?? 0) : null
       return {
         id: p.id, name: p.name,
         revenue: revenueMap.get(p.id) ?? 0,
-        expenses: expenseMap.get(p.id) ?? 0,
+        expenses,
         taskCount: taskMap.get(p.id)?.total ?? 0,
         delayedTaskCount: taskMap.get(p.id)?.delayed ?? 0,
-        // null (not 0) when the project has no BOQ at all yet -- a real "no
-        // scope defined" state, distinct from a real BOQ worth zero.
-        value: activeBoqId ? (valueByBoqMap.get(activeBoqId) ?? 0) : null,
+        value,
         earnedValue: ev?.earnedValue ?? null,
         percentByValue: ev?.percentByValue ?? null,
+        percentByActivity: averageLatestPercent(percentsByProject.get(p.id) ?? []),
+        // A null contract value cannot be exceeded -- "we do not know the
+        // contract value" must not read as "you are overspent".
+        spendOverValue: value !== null && expenses > value,
+        permitsExpiring30d: permitMap.get(p.id) ?? 0,
       }
     })
 

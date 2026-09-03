@@ -36,7 +36,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         ...summary,
         totalBudget: null, totalRevenue: null, totalExpenses: null,
-        projects: summary.projects.map((p) => ({ ...p, revenue: null, expenses: null, earnedValue: null, percentByValue: null })),
+        // R67 E-01: spendOverValue is DERIVED from expenses against the
+        // contract value, so leaving it in would hand a member the very
+        // comparison the two redacted figures exist to withhold -- redacted
+        // to null (not false), because "you may not see this" and "spend has
+        // not passed the contract value" are different statements.
+        // percentByActivity and permitsExpiring30d stay: neither is financial,
+        // and a site engineer's whole job depends on both.
+        projects: summary.projects.map((p) => ({ ...p, revenue: null, expenses: null, earnedValue: null, percentByValue: null, spendOverValue: null })),
       })
     }
     return NextResponse.json(summary)

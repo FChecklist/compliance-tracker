@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import path from "node:path"
+import { averageLatestPercent } from "./construction-dashboard-service"
 
 // Regression guard for the app_runtime pool deadlock fixed 2026-09-02
 // (R66 UX audit; compliance-tracker PR "fix(dashboard): nested-transaction
@@ -62,5 +63,60 @@ describe("construction-dashboard-service: no nested withTenantContext transactio
       const body = functionBody(fn)
       expect(body.match(/withTenantContext\(/g)?.length).toBe(1)
     }
+  })
+})
+
+// R67 E-01 (R-007). The home dashboard row needs the activity-log percentage
+// beside the value-weighted one. This is the pure half of that rule, lifted
+// out of getProjectDashboard so both dashboards read one definition.
+describe("averageLatestPercent (R67 E-01)", () => {
+  test("averages the latest logged percentage of every activity that HAS one", () => {
+    expect(averageLatestPercent([100, 50, 0])).toBe(50)
+  })
+
+  test("rounds to a whole percent, the way the row renders it", () => {
+    // 31.79 + 14.3 + 46.08 = 92.17 / 3 = 30.72 -> 31
+    expect(averageLatestPercent([31.79, 14.3, 46.08])).toBe(31)
+  })
+
+  test("NO activity logged at all is null, never 0 -- 'not recorded' is not 'zero percent'", () => {
+    // The dashboard rule treats a fabricated 0 as a failed card; the row
+    // renders a hatched "No BOQ yet"/"—" state off this null instead.
+    expect(averageLatestPercent([])).toBeNull()
+  })
+
+  test("a genuine, logged zero is still zero -- distinguishable from the empty case", () => {
+    expect(averageLatestPercent([0, 0])).toBe(0)
+  })
+})
+
+// The regression this guards is the SAME one the deadlock block above guards,
+// in its newest shape: E-01 added three per-project figures (activity
+// percentage, spend-over-value, permits expiring) and the obvious way to write
+// them is one query per project inside the map. That is exactly the fan-out
+// R43_MGR_01 removed. These assertions pin the batched shape.
+describe("getOrgDashboard: the R67 E-01 additions are batched, not per-project", () => {
+  const body = functionBody("getOrgDashboard")
+
+  test("the per-project map callback issues no awaits of its own", () => {
+    // Anchored on the ROW-BUILDING map specifically -- `projectRows.map` also
+    // appears far earlier, where it is only collecting ids.
+    const mapStart = body.indexOf("const projectSummaries")
+    expect(mapStart).toBeGreaterThan(-1)
+    // Everything from the map onwards is the row-building block plus the
+    // return; a db call there would be the fan-out.
+    const tail = body.slice(mapStart)
+    expect(tail).not.toMatch(/\bawait\b/)
+    expect(tail).not.toMatch(/\bdb\./)
+  })
+
+  test("permits and activity percentages are each read once, for every project at once", () => {
+    // inArray(..., ids) is what makes it one query rather than N.
+    expect(body).toMatch(/inArray\(constructionActivities\.projectId, ids\)/)
+    expect(body).toMatch(/inArray\(documents\.linkedEntityId, ids\)/)
+  })
+
+  test("spendOverValue is false, never a claim, when there is no contract value to exceed", () => {
+    expect(body).toMatch(/spendOverValue:\s*value !== null && expenses > value/)
   })
 })
