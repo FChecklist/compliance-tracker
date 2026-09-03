@@ -13,11 +13,20 @@ export async function GET(request: NextRequest) {
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return requireOrg(ctx)!
 
-  const projectId = request.nextUrl.searchParams.get("projectId")
+  const { searchParams } = request.nextUrl
+  const projectId = searchParams.get("projectId")
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })
 
   try {
-    const report = await getMaterialCostReport({ orgId: ctx.orgId }, projectId)
+    // R67 E-05 (R-103): the report now takes a period and a grouping. All
+    // three are optional, so the pre-existing caller shape
+    // (?projectId=... alone) still answers -- with every receipt, grouped by
+    // material, exactly as before.
+    const report = await getMaterialCostReport({ orgId: ctx.orgId }, projectId, {
+      from: searchParams.get("from") ?? undefined,
+      to: searchParams.get("to") ?? undefined,
+      groupBy: searchParams.get("groupBy") === "vendor" ? "vendor" : "material",
+    })
     return NextResponse.json({ report })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

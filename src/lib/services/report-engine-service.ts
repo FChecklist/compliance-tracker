@@ -1929,24 +1929,41 @@ function rowsToResult(rows: Record<string, string | number>[], emptyNote?: strin
 async function computeMaterialCostReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
   const projectId = String(params.projectId ?? "")
   if (!projectId) throw new ServiceError("projectId is required for the Cost Report by Material", 400)
-  const rows = await getMaterialCostReport(ctx, projectId)
+  // R67 E-05 (R-103): getMaterialCostReport now returns {rows, totals, params}
+  // rather than a bare array, and accepts an optional period/grouping. This
+  // wrapper forwards from/to when the definition was run with them and keeps
+  // the default (every receipt, grouped by material) otherwise, so the
+  // engine's own output is unchanged for a caller that passes neither. Vendor
+  // is now a real column here too -- it was always on the receipt row and
+  // this report never showed it.
+  const { rows, totals } = await getMaterialCostReport(ctx, projectId, {
+    from: typeof params.from === "string" ? params.from : undefined,
+    to: typeof params.to === "string" ? params.to : undefined,
+    groupBy: params.groupBy === "vendor" ? "vendor" : "material",
+  })
   if (rows.length === 0) {
     return {
-      columns: ["Material", "Spec", "Unit", "Qty Received", "Total Cost", "Avg Unit Cost"],
+      columns: ["Material", "Spec", "Vendor", "Unit", "Qty Received", "Total Cost", "Avg Unit Cost"],
       rows: [],
-      note: "No material receipts logged yet for this project -- log inbound receipts against a material (Materials module) before this report has anything to aggregate. A material with a master list price but zero receipts does not appear here.",
+      note: "No material receipts logged yet for this project -- log inbound receipts against a material (Materials module) before this report has anything to aggregate. A material with a master list price but zero receipts does not appear here. Voided receipts are excluded.",
     }
   }
   return {
-    columns: ["Material", "Spec", "Unit", "Qty Received", "Total Cost", "Avg Unit Cost"],
-    rows: rows.map((r) => ({
-      Material: r.name,
-      Spec: r.spec ?? "",
-      Unit: r.unit,
-      "Qty Received": r.totalQuantityReceived,
-      "Total Cost": r.totalCost,
-      "Avg Unit Cost": r.averageUnitCost,
-    })),
+    columns: ["Material", "Spec", "Vendor", "Unit", "Qty Received", "Total Cost", "Avg Unit Cost"],
+    rows: [
+      ...rows.map((r) => ({
+        Material: r.name,
+        Spec: r.spec ?? "",
+        Vendor: r.vendorName ?? "",
+        Unit: r.unit ?? "",
+        "Qty Received": r.totalQuantityReceived,
+        "Total Cost": r.totalCost,
+        "Avg Unit Cost": r.averageUnitCost,
+      })),
+      // The grand total ships WITH the rows it totals, from the same read --
+      // a reader must never have to re-add the column to find out.
+      { Material: "Grand Total", Spec: "", Vendor: "", Unit: "", "Qty Received": totals.quantity, "Total Cost": totals.cost, "Avg Unit Cost": "" },
+    ],
     note: "Total Cost/Avg Unit Cost are computed from real inbound receipts (construction_material_receipts), not the material master's list unitCost -- a material with a master price but zero receipts logged does not appear here (see construction-materials-service.ts#getMaterialCostReport).",
   }
 }
