@@ -216,7 +216,7 @@ shape. That is a change to what this surface returns, so it is recorded here
 with the label it deserves.
 
 - **Breaking — `GET /api/v1/projexa/reports/{reportName}` now answers with a
-  table** (`3e757683`, R67 E-32). The default response body changed from each
+  table** (`3f609ad8`, R67 E-32). The default response body changed from each
   report handler's own payload to a generic
   `{ columns, rows, totals?, currency, note? }` contract: `columns` carry a
   `key`, a `label`, a `unit` (`currency` | `percent` | `number` | `date` |
@@ -241,13 +241,13 @@ with the label it deserves.
     cuid where a company name belongs). `vendorId` and every existing total are
     untouched.
 - **Added `GET /api/v1/projexa/reports/portfolio/budget-vs-actual`**
-  (`76f2dbfc`, R67 E-33) — revenue, budget and earned value per project across
+  (`c79713d7`, R67 E-33) — revenue, budget and earned value per project across
   the portfolio, in the same table contract, with optional `departmentId`,
   `from` and `to`. Manager role or higher, the same gate the per-project
   `budget-vs-actual` report already carries. Deliberately two segments deep: a
   static `budget-vs-actual` sibling of `{reportName}` would have shadowed the
   per-project report of that name.
-- **Added `GET /api/v1/projexa/work-progress/report/xlsx`** (`a3e90713`,
+- **Added `GET /api/v1/projexa/work-progress/report/xlsx`** (`ea6c2923`,
   R67 E-28) — the Work Progress Report as a real `.xlsx` workbook
   (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`), built
   from the same service reads and the same `computeRows` arithmetic as the
@@ -255,7 +255,7 @@ with the label it deserves.
   parameters as the PDF route, including `?mode=total|balance`.
   `Content-Disposition` names the file after the project and the period.
 - **Changed — `GET /api/v1/projexa/dashboard/{projectId}`: `budget` is now
-  `null`, not `0`, when no ERP budget exists** (`c09adab5`, R67 E-39). The
+  `null`, not `0`, when no ERP budget exists** (`d5242aef`, R67 E-39). The
   service wrapped its sum in `coalesce(..., 0)`, so a project with no budget
   reported a budget of zero and every consumer drew it as "over budget"
   against a target that was never set. The field's type widens from `number`
