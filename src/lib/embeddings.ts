@@ -1,5 +1,3 @@
-import { db, embeddings } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import postgres from "postgres";
 import { createHash } from "crypto";
 import { getConnectionString } from "@/lib/db/connection-string";
@@ -297,18 +295,40 @@ export async function storeEmbedding(
   }
   const isPlatformScope = orgId === PLATFORM_SCOPE_ORG_ID;
   const contentHash = createHash("sha256").update(content).digest("hex");
+  const client = getRawClient();
 
-  // Check if we already have an embedding for this exact content
-  const existing = await db.query.embeddings.findFirst({
-    where: (e, { and, eq }) =>
-      and(
-        eq(e.entityType, entityType),
-        eq(e.entityId, entityId),
-        eq(e.contentHash, contentHash)
-      ),
+  // R67B (2026-09-03): this whole function previously ran with NO tenant
+  // context on either its dedup read (via the plain, unscoped `db` import)
+  // or its write (via getRawClient(), also unscoped). Under
+  // compliance.embeddings' real RLS -- org_id = current_org_id() on every
+  // command -- an org-scoped caller's dedup check always reported "not
+  // found" (re-embedding every time) and its write was silently rejected;
+  // even a platform-scope write (org_id IS NULL) failed with no context set,
+  // since NULL = NULL is never TRUE in Postgres. Root-caused while building
+  // the GraphRAG embeddings backfill script, independently re-confirmed by
+  // the R68 IMG study. Fixed on both sides: drizzle/0538 adds an
+  // is_platform_scope OR-branch to the RLS policy (mirrors
+  // platform.graph_node/graph_edge's already-working pattern), and every
+  // statement below now runs inside a real transaction with
+  // app.current_org_id set via set_config (not `SET LOCAL x = $1`, which is
+  // invalid Postgres syntax for a bind parameter -- same reasoning as
+  // tenant-scoped.ts's withTenantContext) for any non-platform-scope write.
+  // The dedup check and the write are two SEPARATE transactions (not one)
+  // so the slow external embedding-provider HTTP call in between never
+  // holds a DB connection open -- this raw client's own pool is capped at
+  // max:2, and this file already documents that as deliberately small.
+
+  const existing = await client.begin(async (tx) => {
+    if (!isPlatformScope) {
+      await tx`SELECT set_config('app.current_org_id', ${orgId}, true)`;
+    }
+    return tx`
+      SELECT id FROM compliance.embeddings
+      WHERE entity_type = ${entityType} AND entity_id = ${entityId} AND content_hash = ${contentHash}
+      LIMIT 1
+    `;
   });
-
-  if (existing) return; // Already embedded with same content
+  if (existing.length > 0) return; // Already embedded with same content
 
   const result = await generateEmbeddingUncached(content);
   if (!result.isReal) {
@@ -320,27 +340,33 @@ export async function storeEmbedding(
   }
   const vectorStr = `[${result.vector.join(",")}]`;
 
-  const client = getRawClient();
-
-  // Delete old embedding for this entity if content changed
-  await client`DELETE FROM compliance.embeddings WHERE entity_type = ${entityType} AND entity_id = ${entityId}`;
-
-  // Insert new embedding with raw SQL (Drizzle can't handle vector type)
-  await client`
-    INSERT INTO compliance.embeddings (id, entity_type, entity_id, content_hash, content, org_id, embedding, is_real, is_platform_scope, created_at)
-    VALUES (
-      gen_random_uuid()::text,
-      ${entityType},
-      ${entityId},
-      ${contentHash},
-      ${content},
-      ${isPlatformScope ? null : orgId},
-      ${vectorStr}::vector,
-      ${result.isReal},
-      ${isPlatformScope},
-      NOW()
-    )
-  `;
+  await client.begin(async (tx) => {
+    if (!isPlatformScope) {
+      await tx`SELECT set_config('app.current_org_id', ${orgId}, true)`;
+    }
+    // Delete old embedding for this entity if content changed
+    await tx`DELETE FROM compliance.embeddings WHERE entity_type = ${entityType} AND entity_id = ${entityId}`;
+    // Insert new embedding with raw SQL (Drizzle can't handle vector type).
+    // Cast qualified as extensions.vector, not bare ::vector -- pgvector
+    // lives in the `extensions` schema (verified live) and app_runtime has
+    // no search_path override, so a bare cast does not resolve on a fresh
+    // connection/transaction.
+    await tx`
+      INSERT INTO compliance.embeddings (id, entity_type, entity_id, content_hash, content, org_id, embedding, is_real, is_platform_scope, created_at)
+      VALUES (
+        gen_random_uuid()::text,
+        ${entityType},
+        ${entityId},
+        ${contentHash},
+        ${content},
+        ${isPlatformScope ? null : orgId},
+        ${vectorStr}::extensions.vector,
+        ${result.isReal},
+        ${isPlatformScope},
+        NOW()
+      )
+    `;
+  });
 }
 
 /**

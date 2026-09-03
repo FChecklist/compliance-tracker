@@ -2521,6 +2521,27 @@
       "when": 1788289400000,
       "tag": "0537_r67_drawings_list_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 360,
+      "version": "7",
+      "when": 1788289500000,
+      "tag": "0538_embeddings_rls_platform_scope_branch",
+      "breakpoints": true
+    },
+    {
+      "idx": 361,
+      "version": "7",
+      "when": 1788289600000,
+      "tag": "0539_grant_app_runtime_extensions_usage",
+      "breakpoints": true
+    },
+    {
+      "idx": 362,
+      "version": "7",
+      "when": 1788289700000,
+      "tag": "0540_embeddings_content_hash_scoped_per_entity",
+      "breakpoints": true
     }
   ]
 }

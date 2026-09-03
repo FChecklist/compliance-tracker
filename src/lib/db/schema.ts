@@ -1029,6 +1029,16 @@ export const embeddings = complianceSchemaDB.table('embeddings', {
   contentHash: text('content_hash').notNull(),
   content: text('content'), // the text that was embedded
   orgId: text('org_id'),
+  // CRR-017/019: real live columns, previously undeclared here -- the same
+  // class of drift documented for `orgId` on constructionBoqLineItems (R31,
+  // PR #1317): a real column that Drizzle silently drops from any select
+  // through this declaration because it doesn't know about it. Found
+  // 2026-09-03 fixing compliance.embeddings' RLS policy (drizzle/0538) --
+  // storeEmbedding() itself only ever wrote these via raw SQL, so the drift
+  // was dormant for the write path, but any Drizzle-query-style reader
+  // (db.query.embeddings...) would have silently seen neither field.
+  isReal: boolean('is_real').notNull().default(false),
+  isPlatformScope: boolean('is_platform_scope').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
