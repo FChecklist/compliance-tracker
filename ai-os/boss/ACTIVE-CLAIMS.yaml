@@ -40,6 +40,35 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (subagent, r67-lane-H) -- PROGRAMME R67 workstream WS-H (design-studio-identity), items H-01..H-04"
+    claimed_at: "2026-09-03T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implementation programme R67,
+      lane H ("design-studio-identity"), items H-01 (Design Studio day grid / object page /
+      create route), H-02 (timesheet status + Submit/Approve/Reject + Task Master approvals),
+      H-03 (Design Studio three tabs + identity bridge), H-04 (review + cost analysis).
+      Branch r67/h-design-studio-identity, worktree C:/ct/ct-worktrees/r67-H
+      (compliance-tracker) + C:/ct/projexa-worktrees/r67-H (projexa).
+
+      compliance-tracker file scope (this repo): src/lib/supabase/auth-guard.ts +
+      auth-guard.test.ts (resolveActingUser gains the D-05 X-Acting-User id path and the
+      USER_NOT_LINKED code -- additive, the existing actorEmail path is unchanged and stays
+      as the documented fallback), src/lib/services/pms-time-service.ts + .test.ts
+      (listTimeEntriesForProject enrichment, getTimeEntry, updateTimeEntry, submitDayForReview
+      -- all additive; the existing submit/approve/reject state machine is NOT rewritten),
+      src/lib/services/timesheet-review-task-service.ts + .test.ts (NEW -- mints/closes the
+      Task Master row for a submitted entry over the existing submissions + pipeline_tasks
+      tables), src/app/api/v1/projexa/timesheets/** (GET filters, [id] GET/PATCH, submit-day),
+      src/app/api/v1/construction/progress/route.ts (reads the same header at its existing
+      resolveActingUser call site, one line), docs/master/TEST_COVERAGE_GAP.md (regenerated).
+
+      NOT touched, deliberately: no new migration (drizzle/0268_pms_time_entry_approval_flow.sql
+      already ships every approval column H-04 asks for, and pms_billable_rates already exists
+      -- verified in this worktree, not assumed); src/lib/services/construction-labour-service.ts
+      and src/app/api/v1/construction/attendance/route.ts are left entirely alone because
+      D-12 gives the attendance write to lane D3; src/lib/services/construction-reports-service.ts
+      is read-only for this lane (designerTimesheetReport / designerApprovalStatusReport already
+      exist and are reached through the existing /v1/projexa/reports/[reportName] route).
   - session_label: "claude-code (subagent, r67-lane-I) -- PROGRAMME R67 workstream WS-I (data-migrations), items I-01..I-05"
     claimed_at: "2026-09-02T (this session)"
     claim: |
