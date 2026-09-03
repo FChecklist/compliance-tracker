@@ -68,6 +68,10 @@ const NAV_PATH_BY_FUNCTION: Readonly<Record<string, string>> = {
   get_construction_project_dashboard: "Project > Dashboard",
   // F069 / R-C09 "Budget percent defaults to 25 and is changeable per scope item"
   get_construction_budget_status: "Project > Budget",
+  // R67 B-02: the same catalogue row (F069), reached by PROJEXA's Budget card
+  // id. Sharing the row rather than inventing a nav_path keeps R53 Phase 7's
+  // rule -- no function outside the 70 gets a chain invented for it.
+  review_budget: "Project > Budget",
   // F094 / R-C08 "Material cost flows into the budget figure"
   list_over_budget_projects: "Project > Budget",
   // F071 / R-C11 "Revenue / Budget / Actual report scope-wise"

@@ -294,3 +294,117 @@ describe("validateApiKey: orgId comes only from the key-hash match (R43_EXEC_01 
     }
   })
 })
+
+// ---------------------------------------------------------------------------
+// R67 F-33 (audit recommendation R-278, latency_backend_evidence.md item 6):
+// the usage bookkeeping runs AFTER the response.
+//
+// Both writes were already un-awaited, which is not the same as being off the
+// critical path -- they still queue on the same five-connection pool the
+// request's own queries use, and a bare promise can be killed the moment the
+// response is sent. What is asserted here is what a unit test honestly can:
+// the writes are still ISSUED (a "fast" auth that quietly stopped logging is a
+// regression, not a fix), they are scheduled through next/server's after() when
+// a request scope exists, and a failing write is LOGGED rather than left as an
+// unhandled rejection that silently stops the request log being written.
+// ---------------------------------------------------------------------------
+describe("validateApiKey: usage bookkeeping is deferred, and never silently lost", () => {
+  function mockDbRecording(writes: string[], failWith?: Error) {
+    mock.module("@/lib/db", () => ({
+      db: {
+        update: () => ({ set: () => ({ where: () => { writes.push("last_used_at"); return failWith ? Promise.reject(failWith) : Promise.resolve() } }) }),
+        insert: () => ({ values: () => { writes.push("request_log"); return failWith ? Promise.reject(failWith) : Promise.resolve() } }),
+        select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: 0 }]) }) }),
+      },
+      apiKeys: {}, apiKeyRequestLog: {},
+    }))
+    mock.module("@/lib/api-keys", () => ({ hashSHA256: mock(async () => "hash") }))
+    mock.module("@/lib/db/preauth-lookups", () => ({
+      lookupApiKeyByHash: mock(async () => ({
+        id: "key-real", orgId: "org-real", name: "Real key", scopes: "read,write", rateLimitPerMinute: null, isActive: true,
+      })),
+    }))
+  }
+
+  /** Stands in for the Next runtime's after(): `mode` picks which of the two
+   *  situations validateApiKey() has to survive. */
+  function mockAfter(mode: "runs" | "captures" | "no-request-scope", captured: Array<() => unknown> = []) {
+    mock.module("next/server", () => ({
+      after: (fn: () => unknown) => {
+        if (mode === "captures") { captured.push(fn); return }
+        if (mode === "no-request-scope") throw new Error("`after` was called outside a request scope")
+        void fn()
+      },
+    }))
+    return captured
+  }
+
+  test("both writes are still issued on a successful auth -- nothing stopped being recorded", async () => {
+    mockAfter("runs")
+    const writes: string[] = []
+    mockDbRecording(writes)
+    const { validateApiKey } = await import("./api-key-auth")
+
+    const result = await validateApiKey(new Request("https://example.com/api/v1/projexa/schedule", {
+      method: "POST", headers: { authorization: "Bearer vk_real" },
+    }))
+
+    expect(result.status).toBe("ok")
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(writes.sort()).toEqual(["last_used_at", "request_log"])
+  })
+
+  test("they are scheduled through next/server's after(), so the runtime keeps the invocation alive for them", async () => {
+    const scheduled = mockAfter("captures")
+    const writes: string[] = []
+    mockDbRecording(writes)
+    const { validateApiKey } = await import("./api-key-auth")
+
+    await validateApiKey(new Request("https://example.com/api/v1/projexa/schedule", {
+      method: "POST", headers: { authorization: "Bearer vk_real" },
+    }))
+
+    // Handed to after(), NOT run beside the request.
+    expect(scheduled).toHaveLength(2)
+    expect(writes).toHaveLength(0)
+    for (const run of scheduled) await run()
+    expect(writes.sort()).toEqual(["last_used_at", "request_log"])
+  })
+
+  test("with no request scope at all (a script, a test) the writes still happen -- the deferral degrades, it does not drop them", async () => {
+    mockAfter("no-request-scope")
+    const writes: string[] = []
+    mockDbRecording(writes)
+    const { validateApiKey } = await import("./api-key-auth")
+
+    const result = await validateApiKey(new Request("https://example.com/api/v1/projexa/schedule", {
+      method: "POST", headers: { authorization: "Bearer vk_real" },
+    }))
+
+    expect(result.status).toBe("ok")
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(writes.sort()).toEqual(["last_used_at", "request_log"])
+  })
+
+  test("a failing write is logged with its reason, and never rejects the request that had already been answered", async () => {
+    mockAfter("runs")
+    const writes: string[] = []
+    mockDbRecording(writes, new Error("remaining connection slots are reserved"))
+    const errors: unknown[][] = []
+    const originalError = console.error
+    console.error = (...args: unknown[]) => { errors.push(args) }
+    try {
+      const { validateApiKey } = await import("./api-key-auth")
+      const result = await validateApiKey(new Request("https://example.com/api/v1/projexa/schedule", {
+        method: "POST", headers: { authorization: "Bearer vk_real" },
+      }))
+      expect(result.status).toBe("ok")
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    } finally {
+      console.error = originalError
+    }
+
+    const messages = errors.map((args) => args.map(String).join(" "))
+    expect(messages.some((m) => m.includes("[api-key-auth]") && m.includes("remaining connection slots are reserved"))).toBe(true)
+  })
+})

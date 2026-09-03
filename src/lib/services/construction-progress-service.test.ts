@@ -171,9 +171,14 @@ describe("createProgressEntry -- R48_PROGRESS_ENTRY_NO_PROJECT_MEMBERSHIP_CHECK_
     await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
     const { createProgressEntry } = await import("./construction-progress-service")
 
+    // R67 B-09 added `boqLineItemId: "LINE-B"` here. PROJECT_B genuinely has
+    // a BOQ (BOQ-B), and the new rule requires a line for a project that has
+    // one -- so this call, which is about the ACTIVITY's project membership,
+    // now supplies the line that project's own BOQ really holds. Without it
+    // the test would be asserting the old, contradictory behaviour.
     const row = await createProgressEntry(
       { orgId: ORG, userId: "user-1" },
-      { projectId: PROJECT_B, activityId: "ACT-B", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
+      { projectId: PROJECT_B, activityId: "ACT-B", boqLineItemId: "LINE-B", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
     )
 
     expect(row).toBeDefined()
@@ -199,5 +204,216 @@ describe("createProgressEntry -- R48_PROGRESS_ENTRY_NO_PROJECT_MEMBERSHIP_CHECK_
     ).rejects.toThrow(ServiceError)
 
     expect(insertedRows).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 F-24 (audit recommendation R-240) -- the activity and BOQ-line NAMES come
+// back with the entries, in ONE statement.
+// ---------------------------------------------------------------------------
+//
+// Before this, PROJEXA's /work-progress screen answered "what does the BOQ
+// column say?" with a serial client chain -- entries, then activities, then
+// /api/scope, then one /api/scope/{id} per revision -- and still rendered a raw
+// id in the cell. The service now LEFT JOINs both, so the names arrive with the
+// rows and that whole chain is deleted client-side.
+//
+// The fake `select()` below is not a canned-row stub: it reads the projection
+// the service actually built and resolves each column against the fixture by
+// the column's real DB name, so selecting the wrong column (or forgetting one)
+// produces an undefined value and fails here rather than passing silently.
+const WP_ORG = "org-r67-f24"
+const WP_PROJECT = "project-r67-f24"
+
+// One entry, one activity, one BOQ line -- the acceptance fixture.
+const wpFixtureRow: Record<string, unknown> = {
+  // construction_work_progress_entries
+  id: "entry-1",
+  org_id: WP_ORG,
+  project_id: WP_PROJECT,
+  activity_id: "ACT-1",
+  boq_line_item_id: "LINE-1",
+  entry_date: "2026-09-02",
+  quantity_done: "12",
+  percent_complete: "40",
+  entry_basis: "DELTA",
+  remarks: null,
+  recorded_by_id: "user-1",
+  created_at: new Date("2026-09-02T06:00:00Z"),
+  // construction_activities (only `name` is projected from here)
+  name: "Excavation",
+  // construction_boq_line_items
+  item_code: "R60SK",
+  description: "R60 skiphop root",
+}
+
+let wpSelectCalls = 0
+let wpJoinCount = 0
+let wpProjection: Record<string, unknown> = {}
+
+function wpColumnName(column: unknown): string | null {
+  if (column && typeof column === "object" && typeof (column as { name?: unknown }).name === "string") {
+    return (column as { name: string }).name
+  }
+  return null
+}
+
+const wpSelectDb = {
+  select(projection: Record<string, unknown>) {
+    wpSelectCalls += 1
+    wpJoinCount = 0
+    wpProjection = projection
+    const rows = () => [
+      Object.fromEntries(
+        Object.entries(projection).map(([field, column]) => {
+          const name = wpColumnName(column)
+          return [field, name === null ? undefined : wpFixtureRow[name]]
+        })
+      ),
+    ]
+    const chain = {
+      from: () => chain,
+      leftJoin: () => {
+        wpJoinCount += 1
+        return chain
+      },
+      where: () => chain,
+      orderBy: () => chain,
+      then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+        Promise.resolve(rows()).then(resolve, reject),
+    }
+    return chain
+  },
+}
+
+const wpWithTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) =>
+  fn(wpSelectDb as unknown as never)
+)
+
+describe("listProgressEntries -- R67 F-24: resolved names in the payload, one statement", () => {
+  beforeEach(() => {
+    wpSelectCalls = 0
+    wpJoinCount = 0
+    wpProjection = {}
+    wpWithTenantContext.mockClear()
+  })
+
+  afterEach(async () => {
+    mock.restore()
+    await restoreRealModules()
+  })
+
+  test("rows carry activityName and boqItemCode, and the list is exactly ONE SQL statement", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: wpWithTenantContext }))
+    const { listProgressEntries } = await import("./construction-progress-service")
+
+    const rows = await listProgressEntries({ orgId: WP_ORG }, { projectId: WP_PROJECT })
+
+    expect(wpSelectCalls).toBe(1)
+    // The two LEFT JOINs that replaced the client's /api/scope fan-out.
+    expect(wpJoinCount).toBe(2)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].activityName).toBe("Excavation")
+    expect(rows[0].boqItemCode).toBe("R60SK")
+    expect(rows[0].boqDescription).toBe("R60 skiphop root")
+  })
+
+  test("the entry's own fields are untouched -- every existing reader (WPR, the daily report, the PDF) keeps working", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: wpWithTenantContext }))
+    const { listProgressEntries } = await import("./construction-progress-service")
+
+    const [row] = await listProgressEntries({ orgId: WP_ORG }, { projectId: WP_PROJECT })
+
+    expect(row.id).toBe("entry-1")
+    expect(row.projectId).toBe(WP_PROJECT)
+    expect(row.activityId).toBe("ACT-1")
+    expect(row.boqLineItemId).toBe("LINE-1")
+    expect(row.entryDate).toBe("2026-09-02")
+    expect(row.quantityDone).toBe("12")
+    expect(row.percentComplete).toBe("40")
+    expect(row.entryBasis).toBe("DELTA")
+    expect(row.recordedById).toBe("user-1")
+  })
+
+  test("the payload stays SMALL: three resolved strings, never a BOQ's line items", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: wpWithTenantContext }))
+    const { listProgressEntries } = await import("./construction-progress-service")
+
+    await listProgressEntries({ orgId: WP_ORG }, { projectId: WP_PROJECT })
+
+    const joined = Object.keys(wpProjection).filter((k) => ["activityName", "boqItemCode", "boqDescription"].includes(k))
+    expect(joined.sort()).toEqual(["activityName", "boqDescription", "boqItemCode"])
+    // Nothing priced or quantified from the BOQ crosses the wire -- the
+    // recommendation's own "no full BOQ" constraint.
+    expect(Object.keys(wpProjection)).not.toContain("rate")
+    expect(Object.keys(wpProjection)).not.toContain("amount")
+  })
+
+  test("neither projectId nor activityId is still rejected -- the pre-existing guard is unchanged", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: wpWithTenantContext }))
+    const { listProgressEntries, ServiceError: SvcError } = await import("./construction-progress-service")
+
+    await expect(listProgressEntries({ orgId: WP_ORG }, {})).rejects.toThrow(SvcError)
+    expect(wpSelectCalls).toBe(0)
+  })
+})
+
+// ── R67 B-09: ONE RULE FOR A PROGRESS ENTRY, BOTH PROJECT STATES ──────────
+// The fixture already contains exactly the two projects this rule needs:
+// PROJECT_B has a BOQ (BOQ-B), PROJECT_A has none. So both branches are
+// exercised against the SAME real service function, with the same fake db
+// that re-evaluates the real drizzle predicates rather than returning canned
+// rows.
+describe("createProgressEntry -- R67 B-09: the BOQ-line rule", () => {
+  test("a project WITH a BOQ rejects an entry that names no line, with code BOQ_LINE_REQUIRED and missing ['boqLine']", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { createProgressEntry, ProgressRuleError } = await import("./construction-progress-service")
+
+    let thrown: unknown = null
+    try {
+      await createProgressEntry(
+        { orgId: ORG, userId: "user-1" },
+        { projectId: PROJECT_B, activityId: "ACT-B", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
+      )
+    } catch (err) {
+      thrown = err
+    }
+
+    expect(thrown).toBeInstanceOf(ProgressRuleError)
+    const e = thrown as InstanceType<typeof ProgressRuleError>
+    expect(e.code).toBe("BOQ_LINE_REQUIRED")
+    expect(e.missing).toEqual(["boqLine"])
+    expect(e.status).toBe(400)
+    // D-03: the server raises a code, never a sentence a client could print.
+    expect(e.message).not.toContain("itemCode")
+    // and NOTHING was written
+    expect(insertedRows).toHaveLength(0)
+  })
+
+  test("a project WITHOUT a BOQ accepts the entry and reports linkedToBoq false", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { createProgressEntry } = await import("./construction-progress-service")
+
+    const row = await createProgressEntry(
+      { orgId: ORG, userId: "user-1" },
+      { projectId: PROJECT_A, activityId: "ACT-A", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
+    )
+
+    expect(row.linkedToBoq).toBe(false)
+    expect(insertedRows).toHaveLength(1)
+    expect(insertedRows[0].boqLineItemId).toBeNull()
+  })
+
+  test("a project WITH a BOQ and a real line succeeds and reports linkedToBoq true", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { createProgressEntry } = await import("./construction-progress-service")
+
+    const row = await createProgressEntry(
+      { orgId: ORG, userId: "user-1" },
+      { projectId: PROJECT_B, activityId: "ACT-B", boqLineItemId: "LINE-B", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
+    )
+
+    expect(row.linkedToBoq).toBe(true)
+    expect(insertedRows[0].boqLineItemId).toBe("LINE-B")
   })
 })

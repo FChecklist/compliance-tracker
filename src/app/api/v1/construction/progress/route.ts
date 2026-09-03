@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId } from "@/lib/supabase/auth-guard"
-import { listProgressEntries, createProgressEntry, ServiceError } from "@/lib/services/construction-progress-service"
+import { listProgressEntries, createProgressEntry, ProgressRuleError, ServiceError } from "@/lib/services/construction-progress-service"
+import { withRouteTiming } from "@/lib/route-timing"
 
-export async function GET(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function GET(...args: Parameters<typeof GET_impl>) {
+  return withRouteTiming("GET", () => GET_impl(...args))
+}
+
+async function GET_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
@@ -20,7 +29,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function POST(...args: Parameters<typeof POST_impl>) {
+  return withRouteTiming("POST", () => POST_impl(...args))
+}
+
+async function POST_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")
@@ -45,6 +62,13 @@ export async function POST(request: NextRequest) {
     const result = await createProgressEntry({ orgId: ctx.orgId, userId: actingUser!.id }, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
+    // R67 B-09 (D-03): the one rule that governs BOTH the Daily Entry form
+    // and the composer answers with a CODE, not a sentence. Both clients
+    // render it through projexa's src/lib/task-errors.ts, which is why they
+    // produce the same words -- "Pick a BOQ line", never "itemCode".
+    if (error instanceof ProgressRuleError) {
+      return NextResponse.json({ code: error.code, missing: error.missing }, { status: 400 })
+    }
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 construction progress entry create error:", error)
     return NextResponse.json({ error: "Failed to create progress entry" }, { status: 500 })

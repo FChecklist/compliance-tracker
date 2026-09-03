@@ -1,8 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, hasRole } from "@/lib/supabase/auth-guard"
-import { getOrgDashboard, ServiceError } from "@/lib/services/construction-dashboard-service"
+import { getOrgDashboard, getProjectDashboards, ServiceError } from "@/lib/services/construction-dashboard-service"
+import { withRouteTiming } from "@/lib/route-timing"
 
-export async function GET(request: NextRequest) {
+/** Cap on ?projectIds= -- a portfolio view, not an unbounded fan-out. */
+const MAX_BATCH_PROJECTS = 50
+
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function GET(...args: Parameters<typeof GET_impl>) {
+  return withRouteTiming("GET", () => GET_impl(...args))
+}
+
+async function GET_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   // API_READ_WITHOUT_ROLE_CHECK (found via R43_EXEC_01 investigation, 2026-08-27):
@@ -19,6 +31,46 @@ export async function GET(request: NextRequest) {
   // exact class of silent-empty-200 that produced the dashboard currency
   // bug (E-11). Every sibling v1 GET with this guard now returns 400.
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  // R67 F-27 (audit recommendation R-243): ?projectIds=a,b,c answers a
+  // PORTFOLIO in ONE call. The per-project dashboard used to be one request per
+  // project, each of which was itself about ten sequential aggregates -- so a
+  // ten-project portfolio was a hundred round trips to a remote pooler. The
+  // service answers every id in one statement (see getProjectDashboards).
+  //
+  // The org-level summary below is untouched: it answers a different question
+  // (totals across every active project) and every existing caller of this
+  // route keeps getting exactly it.
+  const projectIdsParam = request.nextUrl.searchParams.get("projectIds")
+  if (projectIdsParam !== null) {
+    const ids = projectIdsParam.split(",").map((s) => s.trim()).filter(Boolean)
+    if (ids.length === 0) return NextResponse.json({ error: "projectIds was empty" }, { status: 400 })
+    if (ids.length > MAX_BATCH_PROJECTS) {
+      return NextResponse.json(
+        { error: `Too many projects in one request: ${ids.length}. The maximum is ${MAX_BATCH_PROJECTS}.` },
+        { status: 400 }
+      )
+    }
+    try {
+      const dashboards = await getProjectDashboards({ orgId: ctx.orgId }, ids)
+      // Same redaction rule the org summary and the single-project route
+      // already apply (R48 F059): a member sees task counts, not money.
+      if (ctx.dbUser && !hasRole(ctx.dbUser, "manager")) {
+        return NextResponse.json({
+          dashboards: dashboards.map((d) => ({
+            ...d,
+            budget: null, revenue: null, expenses: null,
+            projectValue: null, earnedValue: null, percentByValue: null, contractValue: null,
+          })),
+        })
+      }
+      return NextResponse.json({ dashboards })
+    } catch (error) {
+      if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+      console.error("v1 projexa dashboard batch error:", error)
+      return NextResponse.json({ error: "Failed to fetch the project dashboards" }, { status: 500 })
+    }
+  }
 
   try {
     const summary = await getOrgDashboard({ orgId: ctx.orgId }, { departmentId: request.nextUrl.searchParams.get("departmentId") ?? undefined })
