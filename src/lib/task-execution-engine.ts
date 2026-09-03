@@ -1814,8 +1814,14 @@ async function executePackageDispatch(
       // even a narrow, pre-approved script's rendered steps pass through
       // it before any provider call, so a package can never become a
       // silent bypass of the Policy Enforcement Engine.
+      // R67 Part B gap-closure (2026-09-03): taskId is this function's own
+      // parameter, already used two lines below (throw path) and by the
+      // recordOrchestraExecution() call further down this same try block --
+      // enforcePolicy() just wasn't told about it, so a denial here (a real
+      // "failed" AI-spend event: policy blocked it) used to be unattributable
+      // to the task it blocked.
       const policyDecision = enforcePolicy(
-        { orgId, userId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "task_execution.package_dispatch" },
+        { orgId, userId, taskId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "task_execution.package_dispatch" },
         JSON.stringify(pkg.steps).slice(0, 4000)
       );
       if (!policyDecision.allowed) throw new Error(refusalMessageFor(policyDecision));
@@ -2037,8 +2043,15 @@ export async function executeTask(
     // Constitution's Policy Enforcement Engine (Wave 46) exists to guard --
     // had never actually been wired to it. Checked before resolveModelConfig
     // so a denied request never reaches a provider or costs a token.
+    // R67 Part B gap-closure (2026-09-03): same taskId-not-threaded-through
+    // gap as executePackageDispatch() above -- taskId is already this
+    // function's own parameter (used by markTaskOutcome() four lines below
+    // and by the "completed"/"failed" recordOrchestraExecution() calls
+    // further down), just never handed to enforcePolicy(), so a planning-
+    // stage policy denial produced an orchestra_executions row that could
+    // never be attributed back to the task it blocked.
     const policyDecision = enforcePolicy(
-      { orgId, userId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "task_execution.planning" },
+      { orgId, userId, taskId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "task_execution.planning" },
       `${title}\n${description ?? ""}`
     );
     if (!policyDecision.allowed) {
