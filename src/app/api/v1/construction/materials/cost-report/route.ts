@@ -17,7 +17,12 @@ export async function GET(request: NextRequest) {
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })
 
   try {
-    const report = await getMaterialCostReport({ orgId: ctx.orgId }, projectId)
+    // R67 D-57: the Cost Report's own From/To parameter bar. Both optional
+    // and both inclusive; omitting them keeps the all-time report.
+    const report = await getMaterialCostReport({ orgId: ctx.orgId }, projectId, {
+      from: request.nextUrl.searchParams.get("from") ?? undefined,
+      to: request.nextUrl.searchParams.get("to") ?? undefined,
+    })
     return NextResponse.json({ report })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

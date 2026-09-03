@@ -432,102 +432,23 @@ describe("getLabourLanding -- R67 F-30: roster and the day's summary, one transa
 })
 
 // ---------------------------------------------------------------------------
-// R67 WS-C (C-08) -- THE BATCH ATTENDANCE WRITE.
+// R67 WS-C (C-08) -- was the batch attendance write's composer-half describe
+// block, folded in during the FIX PASS under decision D-11, then reconciled a
+// SECOND time here now that lane D3's own recordAttendanceBatch (decision
+// D-12) has actually landed on main.
 //
-// FIX PASS, decision D-11: this block was a whole SEPARATE file at this path
-// on lane C's branch, written before lane F's F-25/F-30 suite above existed.
-// Taking either file whole would have deleted the other lane's coverage, so
-// the two are folded: lane F's harness and its describes are untouched above,
-// and lane C's batch tests keep their own locally-scoped fake below (main's
-// `fakeDb` inserts ONE object and has no delete(), which is precisely what
-// these tests exist to disprove about the batch path).
-//
-// DISCLOSURE, decision D-12: recordAttendanceBatch and the bulk branch of
-// /api/v1/construction/attendance are LANE D3'S under D-12. D3's version is
-// not on main yet, so there was nothing for lane C's composer half to call and
-// the implementation is carried here in the meantime. On merge-second the
-// service function and the route branch are deleted in favour of D3's; THESE
-// TESTS AND THE COMPOSER CALLER ARE KEPT, because D-12 clause 3 says both
-// lanes' tests survive -- they assert different things.
-//
-// The three facts worth asserting cannot be read off the code:
-//   1. N rows land in ONE transaction, from ONE insert -- and the loop is
-//      INSIDE that transaction, never a transaction per worker (D-06 forbids
-//      a nested withTenantContext, and a loop over recordAttendance would be
-//      exactly that);
-//   2. a second save for the same date is REFUSED with code REPLACE_REQUIRED
-//      and the count in the sentence -- never a silent double and never a
-//      silent overwrite;
-//   3. `replace: true` really replaces: the old rows for those workers on
-//      that date are deleted inside the same transaction.
+// Everything the removed block asserted about "refuse with REPLACE_REQUIRED"
+// pinned lane C's own placeholder implementation, which D-12 always intended
+// to be provisional -- "there was nothing for lane C's composer half to call
+// and the implementation is carried here in the meantime... on merge-second
+// the service function and the route branch are deleted in favour of D3's."
+// D3's version answers a second save differently on purpose (an upsert that
+// corrects the row, not a refusal), so those assertions do not carry over --
+// keeping them would pin behaviour the canonical function deliberately does
+// not have. D3's own coverage for its recordAttendanceBatch lives in the
+// D-34/F-06/F-13 sections below and is unchanged. Only the one assertion that
+// is still true of BOTH shapes survives, next to the vocabulary it pins.
 // ---------------------------------------------------------------------------
-
-const BATCH_ORG = "org-labour-batch"
-const BATCH_PROJECT = "proj-batch-1"
-const BATCH_DATE = "2026-09-03"
-
-type BatchRoster = { id: string; orgId: string; projectId: string; name: string; dailyRate: string }
-type BatchAttendance = { id: string; rosterId: string; attendanceDate: string; status: string }
-
-function buildBatchDb(options: { roster: BatchRoster[]; existing?: BatchAttendance[] }) {
-  const calls = {
-    /** One entry per db.insert(...).values(...) -- so "one insert" is testable. */
-    inserts: [] as unknown[][],
-    deletes: 0,
-    /** How many times a transaction was opened. Must be exactly one. */
-    transactions: 0,
-  }
-  const db = {
-    query: {
-      constructionLabourRoster: {
-        findMany: mock(async () => options.roster),
-        findFirst: mock(async () => options.roster[0]),
-      },
-      constructionAttendance: {
-        findMany: mock(async () => options.existing ?? []),
-        findFirst: mock(async () => (options.existing ?? [])[0]),
-      },
-    },
-    insert: () => ({
-      values: (rows: unknown[]) => ({
-        returning: async () => {
-          calls.inserts.push(rows as unknown[])
-          return (rows as Record<string, unknown>[]).map((r, i) => ({ ...r, id: `att-${i}` }))
-        },
-      }),
-    }),
-    delete: () => ({
-      where: async () => {
-        calls.deletes += 1
-        return []
-      },
-    }),
-  }
-  return { db, calls }
-}
-
-async function withBatchDb<T>(fake: ReturnType<typeof buildBatchDb>, run: () => Promise<T>): Promise<T> {
-  await mock.module("@/lib/db/tenant-scoped", () => ({
-    ...realTenantScoped,
-    withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
-      fake.calls.transactions += 1
-      return fn(fake.db)
-    }),
-  }))
-  return run()
-}
-
-const BATCH_ROSTER: BatchRoster[] = Array.from({ length: 12 }, (_, i) => ({
-  id: `w${i + 1}`,
-  orgId: BATCH_ORG,
-  projectId: BATCH_PROJECT,
-  name: `Worker ${i + 1}`,
-  dailyRate: "200",
-}))
-
-function batchCrew(status: string = "present") {
-  return BATCH_ROSTER.map((r) => ({ rosterId: r.id, status }))
-}
 
 describe("ATTENDANCE_STATUSES", () => {
   test("is the closed set the UI's three chips map to", async () => {
@@ -536,154 +457,425 @@ describe("ATTENDANCE_STATUSES", () => {
   })
 })
 
-describe("recordAttendanceBatch -- R67 C-08: a whole crew in one write", () => {
-  test("writes N rows in ONE transaction, from ONE insert", async () => {
-    const fake = buildBatchDb({ roster: BATCH_ROSTER })
-    await withBatchDb(fake, async () => {
-      const { recordAttendanceBatch } = await import("./construction-labour-service")
-      const result = await recordAttendanceBatch(
-        { orgId: BATCH_ORG },
-        { projectId: BATCH_PROJECT, attendanceDate: BATCH_DATE, entries: batchCrew() }
-      )
-      expect(result.written).toBe(12)
-      expect(result.present).toBe(12)
-      expect(result.absent).toBe(0)
-      // ONE transaction for the whole crew, not one per worker -- which is
-      // also what keeps this off the nested-withTenantContext path D-06
-      // forbids.
-      expect(fake.calls.transactions).toBe(1)
-      expect(fake.calls.inserts.length).toBe(1)
-      expect(fake.calls.inserts[0].length).toBe(12)
+// ---------------------------------------------------------------------------
+// R67 D-34 (R-085/R-091) -- MERGED IN BY THE INTEGRATION TRAIN.
+//
+// Lane D-34 and lane F-25 both wrote this file from scratch (it had none
+// before either), so this was an add/add conflict, not a textual one. Both
+// halves are kept in full: F-25's dated-query and landing tests are above,
+// D-34's roster-write tests are below. The fixtures are namespaced `d34*`
+// rather than merged, because the two halves fake DIFFERENT things -- F-25's
+// fake PARSES the drizzle condition tree, D-34's stands in for the
+// employee-code counter row that drizzle/0529_r67_i02 defines -- and folding
+// them into one fake would have weakened both.
+//
+// THE FAULT D-34 PINS: the roster is where every trade-wise number in this
+// product comes from, and it was the least defended write in it. employee_code
+// was blank on most rows (the form marked it optional and nothing generated
+// one), so workers landed on the list with an ID cell reading an em-dash;
+// trade was free text, so the same job arrived as "Mason", "mason" and "MASON"
+// and split every trade-wise total; and a daily rate that was not a number was
+// stringified straight into a numeric column.
+// ---------------------------------------------------------------------------
+import {
+  formatEmployeeCode,
+  mergeTrades,
+  SEED_TRADES,
+  EMPLOYEE_CODE_PREFIX,
+} from "./construction-labour-service"
+
+const D34_ORG = "org-d34"
+const D34_PROJECT = "project-d34"
+
+let d34InsertedRows: Record<string, unknown>[] = []
+// Stands in for the counter ROW, not for a max() query: null until the first
+// claim, which seeds it (as 0529 does) from the highest generated code already
+// stored and then increments. `d34ExecuteCalls` proves the service claims the
+// number with ONE statement rather than reading and writing.
+let d34CounterLastNumber: number | null = null
+let d34ExecuteCalls = 0
+
+const d34ProjectRows = [{ id: D34_PROJECT, orgId: D34_ORG }]
+
+const d34FakeDb = {
+  query: {
+    projects: {
+      findFirst: async () => d34ProjectRows[0],
+    },
+  },
+  execute: async () => {
+    d34ExecuteCalls += 1
+    if (d34CounterLastNumber === null) {
+      d34CounterLastNumber = d34InsertedRows.reduce((max, row) => {
+        const match = String(row.employeeCode ?? "").match(/^W-(\d+)$/)
+        return match ? Math.max(max, Number.parseInt(match[1], 10)) : max
+      }, 0)
+    }
+    d34CounterLastNumber += 1
+    return [{ last_number: d34CounterLastNumber }]
+  },
+  insert: () => ({
+    values: (v: Record<string, unknown>) => ({
+      returning: async () => {
+        const row = { ...v, id: `roster-${d34InsertedRows.length + 1}` }
+        d34InsertedRows.push(row)
+        return [row]
+      },
+    }),
+  }),
+}
+
+const d34WithTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) =>
+  fn(d34FakeDb as unknown as never)
+)
+
+async function loadD34Service() {
+  await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: d34WithTenantContext }))
+  return import("./construction-labour-service")
+}
+
+describe("R67 D-34 -- the roster write", () => {
+  beforeEach(() => {
+    d34InsertedRows = []
+    d34CounterLastNumber = null
+    d34ExecuteCalls = 0
+    d34WithTenantContext.mockClear()
+  })
+
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  describe("employee-code generation (pure)", () => {
+    test("formats a sequence as a zero-padded W- code", () => {
+      expect(formatEmployeeCode(1)).toBe("W-0001")
+      expect(formatEmployeeCode(42)).toBe("W-0042")
+    })
+
+    test("a sequence past four digits gets longer rather than wrapping", () => {
+      expect(formatEmployeeCode(12345)).toBe("W-12345")
     })
   })
 
-  test("dailyCost follows the status: full, half, nothing", async () => {
-    const fake = buildBatchDb({ roster: BATCH_ROSTER.slice(0, 3) })
-    await withBatchDb(fake, async () => {
-      const { recordAttendanceBatch } = await import("./construction-labour-service")
-      await recordAttendanceBatch(
-        { orgId: BATCH_ORG },
-        {
-          projectId: BATCH_PROJECT,
-          attendanceDate: BATCH_DATE,
-          entries: [
-            { rosterId: "w1", status: "present" },
-            { rosterId: "w2", status: "half_day" },
-            { rosterId: "w3", status: "absent" },
-          ],
-        }
-      )
-      const written = fake.calls.inserts[0] as Record<string, unknown>[]
-      expect(written.map((r) => r.dailyCost)).toEqual(["200", "100", "0"])
+  describe("createRosterEntry -- R67 D-34 auto ID", () => {
+    test("a create with no employeeCode returns one matching /^W-\\d{4}$/, and a second call returns the next number", async () => {
+      const { createRosterEntry } = await loadD34Service()
+
+      const first = await createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "Ali", dailyRate: 120 })
+      expect(first.employeeCode).toMatch(/^W-\d{4}$/)
+
+      const second = await createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "Bilal", dailyRate: 130 })
+      expect(second.employeeCode).toMatch(/^W-\d{4}$/)
+
+      const firstNumber = Number.parseInt(first.employeeCode!.slice(EMPLOYEE_CODE_PREFIX.length), 10)
+      const secondNumber = Number.parseInt(second.employeeCode!.slice(EMPLOYEE_CODE_PREFIX.length), 10)
+      expect(secondNumber).toBe(firstNumber + 1)
+    })
+
+    test("no worker can land on the list with a blank ID any more", async () => {
+      const { createRosterEntry } = await loadD34Service()
+
+      await createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "Ali", dailyRate: 120 })
+      expect(d34InsertedRows[0].employeeCode).toBeTruthy()
+    })
+
+    test("a caller's OWN employee code is stored verbatim -- this generates, it never overrides", async () => {
+      const { createRosterEntry } = await loadD34Service()
+
+      const row = await createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "Ali", employeeCode: "EMP-001", dailyRate: 120 })
+      expect(row.employeeCode).toBe("EMP-001")
+    })
+
+    test("a whitespace-only employee code counts as blank and is generated, not stored as spaces", async () => {
+      const { createRosterEntry } = await loadD34Service()
+
+      const row = await createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "Ali", employeeCode: "   ", dailyRate: 120 })
+      expect(row.employeeCode).toMatch(/^W-\d{4}$/)
+    })
+
+    // The reason the read-then-write max(employee_code) this function used to
+    // do is gone: lane I's drizzle/0529_r67_i02 put a partial UNIQUE index on
+    // (org_id, employee_code), so two creates that read the same max would make
+    // the second INSERT raise a unique violation. The number is claimed with
+    // ONE statement against the counter table instead.
+    test("the number is claimed with a SINGLE statement -- never a read followed by a write", async () => {
+      const { createRosterEntry } = await loadD34Service()
+
+      await createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "Ali", dailyRate: 120 })
+      expect(d34ExecuteCalls).toBe(1)
+    })
+
+    test("a caller's own code costs no counter number at all -- the sequence is not burned by a verbatim code", async () => {
+      const { createRosterEntry } = await loadD34Service()
+
+      await createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "Ali", employeeCode: "EMP-001", dailyRate: 120 })
+      expect(d34ExecuteCalls).toBe(0)
+
+      const generated = await createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "Bilal", dailyRate: 130 })
+      expect(generated.employeeCode).toBe("W-0001")
+    })
+
+    test("the counter is seeded from the highest generated code already on the roster, so it cannot collide with one", async () => {
+      const { createRosterEntry } = await loadD34Service()
+
+      await createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "Legacy", employeeCode: "W-0007", dailyRate: 100 })
+      const next = await createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "Ali", dailyRate: 120 })
+      expect(next.employeeCode).toBe("W-0008")
     })
   })
 
-  test("a second save for the same date is refused with REPLACE_REQUIRED, naming the count", async () => {
-    const fake = buildBatchDb({
-      roster: BATCH_ROSTER,
-      existing: [
-        { id: "a1", rosterId: "w1", attendanceDate: BATCH_DATE, status: "present" },
-        { id: "a2", rosterId: "w2", attendanceDate: BATCH_DATE, status: "present" },
+  describe("createRosterEntry -- rate validation", () => {
+    test("a non-numeric daily rate is refused BY NAME, and nothing is written", async () => {
+      const { createRosterEntry } = await loadD34Service()
+
+      await expect(
+        createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "Ali", dailyRate: Number.NaN })
+      ).rejects.toThrow("dailyRate must be a number of 0 or more")
+      expect(d34InsertedRows).toHaveLength(0)
+    })
+
+    test("a negative daily rate is refused -- it would corrupt every trade-wise cost downstream", async () => {
+      const { createRosterEntry } = await loadD34Service()
+
+      await expect(
+        createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "Ali", dailyRate: -5 })
+      ).rejects.toThrow("dailyRate must be a number of 0 or more")
+      expect(d34InsertedRows).toHaveLength(0)
+    })
+
+    test("a rate of exactly 0 is legitimate and still writes", async () => {
+      const { createRosterEntry } = await loadD34Service()
+
+      const row = await createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "Ali", dailyRate: 0 })
+      expect(row.dailyRate).toBe("0")
+    })
+
+    test("an empty name is still refused before anything else happens", async () => {
+      const { createRosterEntry } = await loadD34Service()
+
+      await expect(createRosterEntry({ orgId: D34_ORG }, { projectId: D34_PROJECT, name: "   ", dailyRate: 120 })).rejects.toThrow("name is required")
+      expect(d34InsertedRows).toHaveLength(0)
+    })
+  })
+
+  describe("mergeTrades", () => {
+    test("a brand-new org still gets a vocabulary", () => {
+      expect(mergeTrades([])).toEqual([...SEED_TRADES])
+    })
+
+    test("a trade the org has actually used is kept, appended after the seeds", () => {
+      expect(mergeTrades(["Tiler"])).toEqual([...SEED_TRADES, "Tiler"])
+    })
+
+    test("a case variant of a seed is NOT offered twice -- that is exactly what split the totals", () => {
+      expect(mergeTrades(["mason", "MASON", "Mason"])).toEqual([...SEED_TRADES])
+    })
+
+    test("blank and null trades are dropped from the picklist rather than offered as an empty option", () => {
+      expect(mergeTrades([null, undefined, "", "  "])).toEqual([...SEED_TRADES])
+    })
+
+    test("extra trades come back in a stable alphabetical order", () => {
+      expect(mergeTrades(["Welder", "Tiler", "Rigger"])).toEqual([...SEED_TRADES, "Rigger", "Tiler", "Welder"])
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 F-06 (R-088/R-094) and F-13 (R-193/R-217) -- lane F1's half of this
+// service, kept in full beside lane F2's F-25 suite above.
+//
+// Both lanes independently gave listAttendance() a [from, to] window. F-25's
+// filter shape is the one on main and is canonical (decision D-11); F-06's
+// contribution that survives is normaliseAttendanceRange(), which rejects a
+// malformed or inverted bound with a 400 BEFORE a pool connection is taken.
+// Nothing here was weakened for the merge -- the only edit is that the fixtures
+// below now travel through the merged filter shape.
+// ---------------------------------------------------------------------------
+// R67 F-06 (R-088/R-094) -- sibling test for construction-labour-service.ts.
+//
+// What this file exists to prove: the attendance log is now WINDOWABLE, and
+// the window is validated before a connection is taken from the 5-slot
+// app_runtime pool. `attendance_date` is a Postgres DATE compared against text
+// bounds, so an unvalidated malformed bound would not raise an error -- it
+// would match nothing and be rendered as "this worker was never on site".
+// A confidently empty log is worse than a 400.
+//
+// Follows this repo's convention for service tests: the pure validator is
+// exercised directly, and the one DB-touching path is exercised for real with
+// only @/lib/db/tenant-scoped mocked (same "capture the real module, restore
+// it in afterEach" shape as construction-reports-service.test.ts and
+// tenant-isolation.test.ts, so mock.module() cannot leak into other test files
+// sharing this bun process).
+import { normaliseAttendanceRange, ServiceError } from "./construction-labour-service"
+
+describe("normaliseAttendanceRange", () => {
+  test("no bounds at all is the unbounded case -- both undefined, never an error", () => {
+    expect(normaliseAttendanceRange({})).toEqual({ from: undefined, to: undefined })
+  })
+
+  test("a real 30-day window passes through unchanged", () => {
+    expect(normaliseAttendanceRange({ from: "2026-08-03", to: "2026-09-02" })).toEqual({
+      from: "2026-08-03",
+      to: "2026-09-02",
+    })
+  })
+
+  test("one-sided windows are legitimate -- 'everything since' and 'everything up to'", () => {
+    expect(normaliseAttendanceRange({ from: "2026-08-03" })).toEqual({ from: "2026-08-03", to: undefined })
+    expect(normaliseAttendanceRange({ to: "2026-09-02" })).toEqual({ from: undefined, to: "2026-09-02" })
+  })
+
+  test("an empty or whitespace bound means 'no bound', not a bound of ''", () => {
+    expect(normaliseAttendanceRange({ from: "", to: "   " })).toEqual({ from: undefined, to: undefined })
+  })
+
+  test("a malformed date is a 400, not a silently empty result set", () => {
+    expect(() => normaliseAttendanceRange({ from: "03-08-2026" })).toThrow(ServiceError)
+    expect(() => normaliseAttendanceRange({ from: "2026-8-3" })).toThrow(/YYYY-MM-DD/)
+    expect(() => normaliseAttendanceRange({ to: "yesterday" })).toThrow(/YYYY-MM-DD/)
+  })
+
+  test("an inverted window is a 400 -- it can only ever return nothing", () => {
+    expect(() => normaliseAttendanceRange({ from: "2026-09-02", to: "2026-08-03" })).toThrow(
+      /from must not be later than to/
+    )
+  })
+
+  test("a single-day window (from === to) is valid, not inverted", () => {
+    expect(normaliseAttendanceRange({ from: "2026-09-02", to: "2026-09-02" })).toEqual({
+      from: "2026-09-02",
+      to: "2026-09-02",
+    })
+  })
+})
+
+// realTenantScoped is already captured above, at the top of lane F2's suite.
+
+describe("listAttendance: validates the window before opening a transaction", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  test("a malformed `from` rejects with a 400 and never opens a tenant transaction", async () => {
+    const withTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) =>
+      fn({ query: { constructionAttendance: { findMany: async () => [] } } })
+    )
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext }))
+
+    const { listAttendance } = await import("./construction-labour-service")
+    await expect(
+      listAttendance({ orgId: "org-1" }, { projectId: "p1", from: "not-a-date" })
+    ).rejects.toThrow(/YYYY-MM-DD/)
+
+    // The whole point: a 5-connection pool is never asked for a slot to run a
+    // query that could not have matched anything.
+    expect(withTenantContext.mock.calls.length).toBe(0)
+  })
+
+  test("a valid window reaches the query layer exactly once", async () => {
+    const findMany = mock(async () => [{ id: "a1", attendanceDate: "2026-08-20" }])
+    const withTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) =>
+      fn({ query: { constructionAttendance: { findMany } } })
+    )
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext }))
+
+    const { listAttendance } = await import("./construction-labour-service")
+    const rows = await listAttendance({ orgId: "org-1" }, { projectId: "p1", from: "2026-08-03", to: "2026-09-02" })
+
+    expect(rows).toEqual([{ id: "a1", attendanceDate: "2026-08-20" }])
+    expect(withTenantContext.mock.calls.length).toBe(1)
+    expect(findMany.mock.calls.length).toBe(1)
+  })
+
+  test("neither projectId nor rosterId is still a 400 -- unchanged by the window work", async () => {
+    const withTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn({}))
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext }))
+
+    const { listAttendance } = await import("./construction-labour-service")
+    await expect(listAttendance({ orgId: "org-1" }, {})).rejects.toThrow(/projectId or rosterId is required/)
+    expect(withTenantContext.mock.calls.length).toBe(0)
+  })
+})
+
+// R67 F-13 (R-193/R-217) -- listRoster returns each worker's vendor NAME.
+//
+// THE FAULT. Every consumer that wanted to show "who this worker belongs to"
+// had to fetch the org's whole vendor master separately and join it itself.
+// PROJEXA's Work Progress Report did exactly that as one of its six VERIDIAN
+// calls, purely to turn a handful of vendorIds into names.
+//
+// The three ways the fix could be silently wrong, each pinned below: reading
+// the vendor master once per ROW (the N+1 this repo keeps removing), reading it
+// at all when nobody is subcontracted, and rendering a deleted vendor's raw id
+// as if it were a name.
+describe("listRoster: vendor names, batched", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  async function loadWith(roster: unknown[], vendors: unknown[]) {
+    const vendorFindMany = mock(async () => vendors)
+    const withTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) =>
+      fn({
+        query: {
+          constructionLabourRoster: { findMany: async () => roster },
+          erpSuppliers: { findMany: vendorFindMany },
+        },
+      })
+    )
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext }))
+    const { listRoster } = await import("./construction-labour-service")
+    const rows = await listRoster({ orgId: "org-1" }, "p1")
+    return { rows, vendorFindMany, withTenantContext }
+  }
+
+  test("every row carries its vendor's name, from ONE vendor read for the whole list", async () => {
+    const { rows, vendorFindMany, withTenantContext } = await loadWith(
+      [
+        { id: "r1", name: "Ramesh", vendorId: "v1" },
+        { id: "r2", name: "Suresh", vendorId: "v1" },
+        { id: "r3", name: "Imran", vendorId: "v2" },
       ],
-    })
-    await withBatchDb(fake, async () => {
-      const { recordAttendanceBatch, REPLACE_REQUIRED, ServiceError } = await import("./construction-labour-service")
-      let thrown: unknown
-      try {
-        await recordAttendanceBatch(
-          { orgId: BATCH_ORG },
-          { projectId: BATCH_PROJECT, attendanceDate: BATCH_DATE, entries: batchCrew() }
-        )
-      } catch (err) {
-        thrown = err
-      }
-      expect(thrown).toBeInstanceOf(ServiceError)
-      expect((thrown as { code?: string }).code).toBe(REPLACE_REQUIRED)
-      expect((thrown as { status: number }).status).toBe(409)
-      expect((thrown as Error).message).toBe(
-        "Attendance for " + BATCH_DATE + " is already saved for 2 of these workers"
-      )
-      // THE REFUSAL WROTE NOTHING. A 409 that had already inserted half the
-      // crew would be worse than the duplicate it was refusing.
-      expect(fake.calls.inserts).toEqual([])
-      expect(fake.calls.deletes).toBe(0)
-    })
-  })
-
-  test("replace:true deletes the day's existing rows and re-writes, in the same transaction", async () => {
-    const fake = buildBatchDb({
-      roster: BATCH_ROSTER,
-      existing: [{ id: "a1", rosterId: "w1", attendanceDate: BATCH_DATE, status: "present" }],
-    })
-    await withBatchDb(fake, async () => {
-      const { recordAttendanceBatch } = await import("./construction-labour-service")
-      const result = await recordAttendanceBatch(
-        { orgId: BATCH_ORG },
-        { projectId: BATCH_PROJECT, attendanceDate: BATCH_DATE, entries: batchCrew("absent"), replace: true }
-      )
-      expect(result.replaced).toBe(true)
-      expect(result.absent).toBe(12)
-      expect(fake.calls.deletes).toBe(1)
-      expect(fake.calls.inserts.length).toBe(1)
-      expect(fake.calls.transactions).toBe(1)
-    })
-  })
-
-  test("a worker who is not on this project's roster stops the whole batch", async () => {
-    const fake = buildBatchDb({ roster: BATCH_ROSTER.slice(0, 10) })
-    await withBatchDb(fake, async () => {
-      const { recordAttendanceBatch } = await import("./construction-labour-service")
-      let thrown: unknown
-      try {
-        await recordAttendanceBatch(
-          { orgId: BATCH_ORG },
-          { projectId: BATCH_PROJECT, attendanceDate: BATCH_DATE, entries: batchCrew() }
-        )
-      } catch (err) {
-        thrown = err
-      }
-      expect((thrown as Error).message).toBe("2 of these workers are not on this project's roster")
-      expect((thrown as { status: number }).status).toBe(404)
-      expect(fake.calls.inserts).toEqual([])
-    })
-  })
-
-  test("the bad-input refusals happen before any transaction is opened", async () => {
-    const fake = buildBatchDb({ roster: BATCH_ROSTER })
-    await withBatchDb(fake, async () => {
-      const { recordAttendanceBatch } = await import("./construction-labour-service")
-      const cases: [Parameters<typeof recordAttendanceBatch>[1], string][] = [
-        [{ projectId: "", attendanceDate: BATCH_DATE, entries: batchCrew() }, "projectId is required"],
-        [{ projectId: BATCH_PROJECT, attendanceDate: "", entries: batchCrew() }, "attendanceDate is required"],
-        [{ projectId: BATCH_PROJECT, attendanceDate: BATCH_DATE, entries: [] }, "entries is required"],
-        [
-          { projectId: BATCH_PROJECT, attendanceDate: BATCH_DATE, entries: [{ rosterId: "" }] },
-          "every entry needs a rosterId",
-        ],
-        [
-          {
-            projectId: BATCH_PROJECT,
-            attendanceDate: BATCH_DATE,
-            entries: [{ rosterId: "w1" }, { rosterId: "w1" }],
-          },
-          "the same worker appears twice in this batch",
-        ],
-        [
-          { projectId: BATCH_PROJECT, attendanceDate: BATCH_DATE, entries: [{ rosterId: "w1", status: "maybe" }] },
-          "status must be one of present, absent, half_day",
-        ],
+      [
+        { id: "v1", supplierName: "ABC Contractors" },
+        { id: "v2", supplierName: "XYZ Electricals" },
       ]
-      for (const [input, message] of cases) {
-        let thrown: unknown
-        try {
-          await recordAttendanceBatch({ orgId: BATCH_ORG }, input)
-        } catch (err) {
-          thrown = err
-        }
-        expect((thrown as Error).message).toBe(message)
-      }
-      expect(fake.calls.transactions).toBe(0)
-      expect(fake.calls.inserts).toEqual([])
-    })
+    )
+
+    expect(rows.map((r) => r.vendorName)).toEqual(["ABC Contractors", "ABC Contractors", "XYZ Electricals"])
+    // One read for three rows and two vendors -- never one per row.
+    expect(vendorFindMany.mock.calls.length).toBe(1)
+    // And all of it inside the transaction listRoster already opens.
+    expect(withTenantContext.mock.calls.length).toBe(1)
+  })
+
+  test("direct labour reports a null vendor name, and costs no vendor read at all", async () => {
+    const { rows, vendorFindMany } = await loadWith(
+      [{ id: "r1", name: "Ramesh", vendorId: null }],
+      []
+    )
+
+    expect(rows[0].vendorName).toBeNull()
+    expect(vendorFindMany.mock.calls.length).toBe(0)
+  })
+
+  test("a deleted vendor reports null, NEVER the raw id -- the caller decides how to say 'unknown'", async () => {
+    const { rows } = await loadWith([{ id: "r1", name: "Ramesh", vendorId: "v-gone" }], [])
+
+    expect(rows[0].vendorName).toBeNull()
+    expect(rows[0].vendorId).toBe("v-gone")
+  })
+
+  test("the existing row fields are untouched -- this is additive", async () => {
+    const { rows } = await loadWith(
+      [{ id: "r1", name: "Ramesh", trade: "Mason", dailyRate: "800", vendorId: "v1" }],
+      [{ id: "v1", supplierName: "ABC Contractors" }]
+    )
+
+    expect(rows[0]).toEqual({ id: "r1", name: "Ramesh", trade: "Mason", dailyRate: "800", vendorId: "v1", vendorName: "ABC Contractors" })
   })
 })

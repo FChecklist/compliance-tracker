@@ -68,7 +68,8 @@ import {
   interiorFurniturePlacements, interiorMaterials, users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, or, isNull, isNotNull, inArray, sql, gte, lt, lte, ilike, type SQL } from "drizzle-orm"
+import { and, eq, ne, or, isNull, isNotNull, inArray, sql, gte, lt, lte, ilike, type SQL } from "drizzle-orm"
+import { MEETING_DELETED_STATUS } from "@/lib/db/schema"
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson, stripJsonFence } from "@/lib/llm-client"
@@ -107,6 +108,21 @@ export function deriveReportDomainFromClassifications(classifications: string[])
   if (classifications.includes("financial") || classifications.includes("revenue")) return "ERP"
   if (classifications.includes("construction") || classifications.includes("project")) return "construction"
   return "custom"
+}
+
+/**
+ * R67 D-02. budgetVsActual().budget is now `number | null` -- null when the
+ * project has NO erp_budget_line_items row at all, which is a different fact
+ * from a budget of zero (see construction-dashboard-service.ts's own note).
+ *
+ * Every cost formula in this file needs the same thing from it: a budget it
+ * can actually divide by. This returns that budget, or null when there is
+ * none to divide by -- so the three formulas below make one decision, in one
+ * place, and each says "no budget set" in its own note rather than dividing
+ * by zero or reporting an unbudgeted project as infinitely overspent.
+ */
+export function usableBudget(budget: number | null): number | null {
+  return budget !== null && budget > 0 ? budget : null
 }
 
 export type ExecutionType = "deterministic_aggregation" | "deterministic_formula" | "ai_recipe" | "external_service"
@@ -218,7 +234,13 @@ export async function runAggregation(
 // at the end, never rename/remove an existing key (report_definitions rows
 // reference these keys by string in their jsonb execution_config, so a
 // rename silently breaks every row that used the old key).
-export type TableRegistryEntry = { table: PgTable; orgIdColumn: AnyPgColumn; columns: Record<string, AnyPgColumn> }
+// `baseWhere` (R67 D-21) is a predicate ANDed into EVERY aggregation over the
+// entry's table, alongside the org filter and independent of anything a
+// report_definitions row asks for. It exists for rows a table holds but that no
+// report should ever count -- today only veri_meetings' soft-deleted drafts. It
+// is deliberately not expressible from a definition's JSON config: it is a
+// property of the table, decided in code, not a filter a report may opt out of.
+export type TableRegistryEntry = { table: PgTable; orgIdColumn: AnyPgColumn; columns: Record<string, AnyPgColumn>; baseWhere?: SQL }
 
 export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
   compliance_items: { table: complianceItems, orgIdColumn: complianceItems.orgId, columns: { status: complianceItems.status, priority: complianceItems.priority, complianceType: complianceItems.complianceType, departmentId: complianceItems.departmentId } },
@@ -301,7 +323,10 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
   // meeting" -- veri_meetings has no dedicated sales/pre-sales flag, so any
   // report reading this table documents that limitation in its own
   // dataGapNote/description rather than silently overclaiming precision.
-  veri_meetings: { table: veriMeetings, orgIdColumn: veriMeetings.orgId, columns: { meetingType: veriMeetings.meetingType, contextEntityType: veriMeetings.contextEntityType } },
+  // R67 D-21: baseWhere excludes soft-deleted DRAFTS (status 'deleted'). The
+  // product stops showing them the moment they are deleted, so a report that
+  // still counted them would disagree with every screen the reader can open.
+  veri_meetings: { table: veriMeetings, orgIdColumn: veriMeetings.orgId, columns: { meetingType: veriMeetings.meetingType, contextEntityType: veriMeetings.contextEntityType }, baseWhere: ne(veriMeetings.status, MEETING_DELETED_STATUS) },
   // -- 2026-08-22 (Sumeet 8-report closure pass) --
   // construction_boq_line_items had NO org_id column at all until migration
   // add_org_id_to_construction_boq_line_items (this pass) added one,
@@ -391,6 +416,9 @@ export function buildAggregationNote(
 export async function runAggregationFromConfig(ctx: { orgId: string }, config: AggregationConfig, runtimeScope?: { companyId?: string }): Promise<ReportDefinitionResult> {
   const { entry, groupByColumn, aggregationColumn, filterColumn } = resolveAggregationTarget(config)
   const whereClauses: SQL[] = []
+  // The table's own base predicate first, so no definition can be written that
+  // reads rows the table says are not reportable (R67 D-21).
+  if (entry.baseWhere) whereClauses.push(entry.baseWhere)
   if (filterColumn && config.filterEquals) whereClauses.push(eq(filterColumn, config.filterEquals.value))
   if (runtimeScope?.companyId && entry.columns.companyId) whereClauses.push(eq(entry.columns.companyId, runtimeScope.companyId))
   const extraWhere = whereClauses.length > 0 ? and(...whereClauses) : undefined
@@ -473,15 +501,16 @@ async function computeCpi(ctx: { orgId: string }, params: Record<string, unknown
   const projectId = String(params.projectId ?? "")
   if (!projectId) throw new ServiceError("projectId is required for the CPI formula", 400)
   const [budget, completion] = await Promise.all([budgetVsActual(ctx, projectId), projectCompletionReport(ctx, projectId)])
-  if (budget.budget <= 0) {
+  const bac = usableBudget(budget.budget)
+  if (bac === null) {
     return { columns: ["Metric", "Value"], rows: [{ Metric: "CPI", Value: "N/A" }], note: "Project has no budget set (via its cost centre) -- cannot compute Earned Value." }
   }
-  const earnedValue = budget.budget * (completion.overallPercentComplete / 100)
+  const earnedValue = bac * (completion.overallPercentComplete / 100)
   const cpi = budget.actual > 0 ? earnedValue / budget.actual : earnedValue > 0 ? Infinity : 1
   return {
     columns: ["Metric", "Value"],
     rows: [
-      { Metric: "Budget (BAC)", Value: Math.round(budget.budget) },
+      { Metric: "Budget (BAC)", Value: Math.round(bac) },
       { Metric: "Actual Cost", Value: Math.round(budget.actual) },
       { Metric: "Earned Value (Budget x % Complete)", Value: Math.round(earnedValue) },
       { Metric: "CPI", Value: Number.isFinite(cpi) ? Math.round(cpi * 100) / 100 : 99 },
@@ -563,15 +592,16 @@ async function computeEarnedValueAnalysis(ctx: { orgId: string }, params: Record
       return { columns: ["Metric", "Value"], rows: [{ Metric: "Earned Value Analysis", Value: "N/A" }], note: "Project has no startDate/targetDate set -- cannot compute a time-linear Planned Value baseline." }
     }
     const [budget, completion] = await Promise.all([budgetVsActual(ctx, projectId), projectCompletionReport(ctx, projectId)])
-    if (budget.budget <= 0) {
+    const bac = usableBudget(budget.budget)
+    if (bac === null) {
       return { columns: ["Metric", "Value"], rows: [{ Metric: "Earned Value Analysis", Value: "N/A" }], note: "Project has no budget set (via its cost centre) -- cannot compute Planned/Earned Value in cost terms." }
     }
     const start = new Date(project.startDate).getTime()
     const target = new Date(project.targetDate).getTime()
     const totalMs = target - start
     const plannedPercent = totalMs <= 0 ? 100 : Math.max(0, Math.min(100, ((Date.now() - start) / totalMs) * 100))
-    const pv = budget.budget * (plannedPercent / 100)
-    const ev = budget.budget * (completion.overallPercentComplete / 100)
+    const pv = bac * (plannedPercent / 100)
+    const ev = bac * (completion.overallPercentComplete / 100)
     const ac = budget.actual
     return {
       columns: ["Metric", "Value"],
@@ -1155,7 +1185,13 @@ async function computeCostOverrunReport(ctx: { orgId: string }): Promise<ReportD
     const results: { name: string; budget: number; actual: number; overrun: number }[] = []
     for (const p of activeProjects) {
       const bva = await budgetVsActual(ctx, p.id)
-      if (bva.budget > 0 && bva.variance < 0) results.push({ name: p.name, budget: bva.budget, actual: bva.actual, overrun: Math.abs(bva.variance) })
+      const bac = usableBudget(bva.budget)
+      // R67 D-02: a project with NO budget cannot be a cost overrun. Before,
+      // a null budget would have arrived here as 0 and been filtered out by
+      // `> 0` -- the same outcome, but now it is stated rather than relied on.
+      if (bac !== null && bva.variance !== null && bva.variance < 0) {
+        results.push({ name: p.name, budget: bac, actual: bva.actual, overrun: Math.abs(bva.variance) })
+      }
     }
     results.sort((a, b) => b.overrun - a.overrun)
     return {

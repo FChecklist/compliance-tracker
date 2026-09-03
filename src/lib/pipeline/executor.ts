@@ -155,7 +155,36 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
   }
   if (!projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
 
-  return withTenantContext({ orgId: task.orgId, userId: task.userId }, async (db) => {
+  // R67 F-15 (R-232/R-251) -- THE PIPELINE'S ONE WRITE PATH WAS NESTING.
+  //
+  // This used to hold a tenant transaction open for its three lookups AND for
+  // createProgressEntry(), which opens its OWN -- two of tenant-scoped.ts's
+  // five app_runtime connections held by one task, on the exact path M24's
+  // Task Master uses to record work progress. The D-06 guard added in F-12 now
+  // makes that an error rather than a slow success.
+  //
+  // Split, not threaded: the lookups resolve in their own transaction, which
+  // CLOSES, and then createProgressEntry opens its own. Nothing is lost by
+  // that, because createProgressEntry re-validates every one of these
+  // references itself, scoped to the same project (see its own comments): the
+  // resolution here is a lookup for the user's shorthand ("item 1.01"), not an
+  // invariant that has to hold across the write. If a row disappears between
+  // the two, the write refuses with its own 404 -- which is the correct answer,
+  // not a lost guarantee.
+  // Explicitly typed so the two arms stay a real discriminated union: without
+  // it the inferred shape carries optional keys on both arms and the narrowing
+  // below is not a narrowing at all.
+  //
+  // MERGE NOTE (R67 F-15 x R67 B-01/B-11). The resolution below returns B's
+  // structured PipelineFailure values rather than F-15's original free-text
+  // `{ error }` -- ExecutionOutcome no longer carries a free-text arm, and a
+  // code is what gives the client its one sentence and its picker. The
+  // discriminant is `ok`, not `success`, so this internal union is never
+  // mistaken for an ExecutionOutcome: only the WRITE below produces one.
+  type ResolvedTarget =
+    | { ok: false; failure: PipelineFailure }
+    | { ok: true; activityId: string; boqLineItemId: string; percentComplete: number; quantityDone: number };
+  const resolved = await withTenantContext<ResolvedTarget>({ orgId: task.orgId, userId: task.userId }, async (db): Promise<ResolvedTarget> => {
     // Real data-model quirk found while wiring this (not invented): the most
     // recent BOQ for the project is used deterministically -- version DESC
     // then createdAt DESC, the same tiebreaker fix as R-33/PR compliance-
@@ -172,7 +201,7 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     // when there is no BOQ, and the dictionary drops an empty slot.
     if (!boq) {
       return {
-        success: false,
+        ok: false,
         // R67 FIX PASS: the SAME context shape validate() supplies -- the
         // project's name under `project`, the version as "v3" rather than a
         // bare 3 -- so one code has one sentence whichever stage produced it.
@@ -194,7 +223,7 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     });
     if (!lineItem) {
       return {
-        success: false,
+        ok: false,
         failure: pipelineFailure("BOQ_LINE_NOT_FOUND", [boqLineItemId ? "boqLineItemId" : "itemCode"], {
           itemCode: itemCode ?? null,
           project: task.projectLabel ?? null,
@@ -214,7 +243,7 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
       // The line's own code, whichever way the caller addressed it, so the
       // client's sentence can name it ("EX-00 is a parent line ...").
       return {
-        success: false,
+        ok: false,
         failure: pipelineFailure("BOQ_LINE_IS_PARENT", ["boqLine"], {
           itemCode: lineItem.itemCode ?? itemCode ?? null,
           project: task.projectLabel ?? null,
@@ -237,7 +266,7 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     const activity = await db.query.constructionActivities.findFirst({
       where: and(eq(constructionActivities.orgId, task.orgId), eq(constructionActivities.projectId, projectId)),
     });
-    if (!activity) return { success: false, failure: pipelineFailure("ACTIVITY_REQUIRED", ["activityId"]) };
+    if (!activity) return { ok: false, failure: pipelineFailure("ACTIVITY_REQUIRED", ["activityId"]) };
 
     // R67 B-11: the quantity -> percent conversion, done HERE because the
     // line's own total quantity is the only honest denominator and it is not
@@ -254,25 +283,35 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
     } else if (Number.isFinite(lineQuantity) && lineQuantity > 0) {
       percentComplete = Math.min(100, Math.max(0, Math.round(((quantityDone as number) / lineQuantity) * 100)));
     } else {
-      return { success: false, failure: pipelineFailure("VALUE_REQUIRED", ["value"]) };
+      return { ok: false, failure: pipelineFailure("VALUE_REQUIRED", ["value"]) };
     }
 
-    const row = await createProgressEntry(
-      { orgId: task.orgId, userId: task.userId },
-      {
-        projectId,
-        activityId: activity.id,
-        boqLineItemId: lineItem.id,
-        entryDate: new Date().toISOString().slice(0, 10),
-        // Was hard-coded 0 before B-11, so the quantity column of every
-        // pipeline-written entry was a lie by omission. It now carries what
-        // the user actually said when they said it in units.
-        quantityDone: quantityDone ?? 0,
-        percentComplete,
-      }
-    );
-    return { success: true, result: row };
+    // The transaction ENDS here (F-15): everything below this point is the
+    // write, and it opens its own. B-11's conversion stays on this side of the
+    // boundary because the line's total quantity is the only honest
+    // denominator and it is only knowable from the read above.
+    return { ok: true, activityId: activity.id, boqLineItemId: lineItem.id, percentComplete, quantityDone: quantityDone ?? 0 };
   });
+
+  if (!resolved.ok) return { success: false, failure: resolved.failure };
+
+  const row = await createProgressEntry(
+    { orgId: task.orgId, userId: task.userId },
+    {
+      projectId,
+      activityId: resolved.activityId,
+      boqLineItemId: resolved.boqLineItemId,
+      entryDate: new Date().toISOString().slice(0, 10),
+      // Was hard-coded 0 before B-11, so the quantity column of every
+      // pipeline-written entry was a lie by omission. It now carries what the
+      // user actually said when they said it in units, and the percent is the
+      // converted one -- not the raw `percent` param, which is undefined
+      // whenever the user answered in quantity.
+      quantityDone: resolved.quantityDone,
+      percentComplete: resolved.percentComplete,
+    }
+  );
+  return { success: true, result: row };
 }
 
 async function executeGetProjectDashboard(task: ExecutableTask): Promise<ExecutionOutcome> {

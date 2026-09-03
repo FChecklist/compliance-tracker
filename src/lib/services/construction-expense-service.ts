@@ -67,6 +67,21 @@ export type ExpenseEntryInput = {
 
 const VALID_HEADS = ["material", "labour", "transport", "subcontractor", "equipment", "misc"]
 
+/**
+ * R67 D-02. The "actual > budget" decision behind the
+ * `construction_expense.budget_exceeded` automation trigger, extracted so it
+ * is unit-testable without a live DB (this repo's convention for pure logic).
+ *
+ * getProjectDashboard().budget is now `number | null`: null means NO budget
+ * has been set for the project, which is not the same as a budget of zero. A
+ * project with no budget can never be "over" one, so a null budget must never
+ * fire the trigger -- otherwise the first expense on every unbudgeted project
+ * would raise a budget-exceeded alert about a budget nobody ever set.
+ */
+export function budgetExceeded(budget: number | null, expenses: number): boolean {
+  return budget !== null && budget > 0 && expenses > budget
+}
+
 // The chart-of-accounts side of the mapping below. Each construction
 // expense_head gets its own dedicated expense account, auto-provisioned
 // (expand-only -- INSERTs a new erp_accounts row, never touches an existing
@@ -234,7 +249,7 @@ export async function createExpenseEntry(ctx: { orgId: string; userId: string },
     // avoids extending that shared engine's condition grammar.
     void import("./construction-dashboard-service").then(({ getProjectDashboard }) =>
       getProjectDashboard({ orgId: ctx.orgId }, row.projectId).then((dashboard) => {
-        if (dashboard.budget > 0 && dashboard.expenses > dashboard.budget) {
+        if (budgetExceeded(dashboard.budget, dashboard.expenses)) {
           void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
             evaluateAndRunRules({ orgId: ctx.orgId }, "construction_expense.budget_exceeded", {
               projectId: row.projectId, budget: dashboard.budget, expenses: dashboard.expenses,

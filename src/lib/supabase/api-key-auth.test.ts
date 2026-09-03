@@ -197,6 +197,115 @@ describe("validateApiKey: demo-key sandbox rate-limit ceiling", () => {
 // `x-org-id` header override patched into validateApiKey() locally, and
 // passing again once that patch was reverted -- see PR description for the
 // stash/restore output.
+// R67 F-17 (R-234): the two audit writes -- the api_key_request_log INSERT and
+// the api_keys.last_used_at UPDATE -- used to be issued per request on the
+// shared max:5 `db` pool (see src/lib/db/index.ts's own R43_EXEC_02 comment,
+// which names them as part of what serialised that pool into 504s). They now go
+// through the batching queue in src/lib/auth/api-key-audit.ts. These two tests
+// cover the CALL SITE: that validateApiKey stopped issuing them per request,
+// and that batching them did not quietly widen the rate-limit window.
+describe("validateApiKey: the audit writes are batched, and the rate limit still counts them (R67 F-17)", () => {
+  const originalEnv = process.env.DEMO_API_KEY_IDS
+
+  afterEach(() => {
+    if (originalEnv === undefined) delete process.env.DEMO_API_KEY_IDS
+    else process.env.DEMO_API_KEY_IDS = originalEnv
+  })
+
+  /**
+   * A db stub whose rate-limit count reflects the rows it has actually been
+   * given -- i.e. it models the database honestly rather than returning a fixed
+   * number. That makes the assertions below independent of exactly when the
+   * queue chooses to flush: a request is counted once, whether it is still in
+   * the queue or already written.
+   */
+  function mockDbCountingItsOwnWrites(row: Record<string, unknown>, baseCount: number) {
+    const state = { batches: 0, rowsWritten: 0, lastUsedUpdates: 0 }
+    mock.module("@/lib/db", () => ({
+      db: {
+        update: () => ({ set: () => ({ where: () => { state.lastUsedUpdates += 1; return Promise.resolve() } }) }),
+        insert: () => ({
+          values: (rows: unknown) => {
+            const list = Array.isArray(rows) ? rows : [rows]
+            state.batches += 1
+            state.rowsWritten += list.length
+            return Promise.resolve()
+          },
+        }),
+        select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: baseCount + state.rowsWritten }]) }) }),
+      },
+      apiKeys: { id: "id" }, apiKeyRequestLog: {},
+    }))
+    mock.module("@/lib/db/preauth-lookups", () => ({ lookupApiKeyByHash: mock(async () => row) }))
+    mock.module("@/lib/api-keys", () => ({ hashSHA256: mock(async () => "hash-doesnt-matter") }))
+    return state
+  }
+
+  /** Drains anything earlier tests in this file queued, so deltas are ours. */
+  async function drainAuditQueue() {
+    const { flushApiKeyAuditNow } = await import("@/lib/auth/api-key-audit")
+    await flushApiKeyAuditNow()
+    // Let any previously scheduled deferral (after()/setImmediate) run to
+    // completion before measuring.
+    await new Promise<void>((resolve) => { setImmediate(resolve) })
+    await flushApiKeyAuditNow()
+  }
+
+  test("ten requests issue ZERO writes while they run, then one INSERT and one last_used_at UPDATE", async () => {
+    const state = mockDbCountingItsOwnWrites({
+      id: "f17-real-key", orgId: "org-f17", name: "Real customer key",
+      scopes: "read", rateLimitPerMinute: null, isActive: true,
+    }, 0)
+
+    const { validateApiKey } = await import("./api-key-auth")
+    const { flushApiKeyAuditNow } = await import("@/lib/auth/api-key-audit")
+    await drainAuditQueue()
+
+    const before = { batches: state.batches, rows: state.rowsWritten, updates: state.lastUsedUpdates }
+
+    for (let i = 0; i < 10; i += 1) {
+      const result = await validateApiKey(request())
+      expect(result.status).toBe("ok")
+    }
+
+    // The point of the item: a PROJEXA page's worth of API-key calls no longer
+    // puts two statements each on a five-connection pool.
+    expect(state.batches - before.batches).toBe(0)
+    expect(state.lastUsedUpdates - before.updates).toBe(0)
+
+    await flushApiKeyAuditNow()
+
+    expect(state.batches - before.batches).toBe(1)
+    expect(state.rowsWritten - before.rows).toBe(10)
+    // Ten requests, one "last used" date. The column's only readers are the
+    // settings screen's "Last used <date>" line and the stale-key audit loop.
+    expect(state.lastUsedUpdates - before.updates).toBe(1)
+  })
+
+  test("a key at its limit is still rate-limited on requests that are only in the queue, not yet in the database", async () => {
+    process.env.DEMO_API_KEY_IDS = "projexa_demo_key"
+    // Limit 2/minute, and the database starts empty -- so anything that stops
+    // the third request can only have come from the queue's pending count.
+    const state = mockDbCountingItsOwnWrites(demoKeyRow({ rateLimitPerMinute: 2 }), 0)
+
+    const { validateApiKey } = await import("./api-key-auth")
+    await drainAuditQueue()
+    const rowsBefore = state.rowsWritten
+
+    expect((await validateApiKey(request())).status).toBe("ok")
+    expect((await validateApiKey(request())).status).toBe("ok")
+
+    // Nothing has reached the database yet...
+    expect(state.rowsWritten - rowsBefore).toBe(0)
+    // ...and the limit holds anyway.
+    const third = await validateApiKey(request())
+    expect(third.status).toBe("rate_limited")
+    if (third.status === "rate_limited") {
+      expect(third.retryAfterSeconds).toBe(60)
+    }
+  })
+})
+
 describe("validateApiKey: orgId comes only from the key-hash match (R43_EXEC_01 regression guard)", () => {
   test("an x-org-id header claiming a different tenant is ignored -- orgId still comes from the key's own row", async () => {
     mockDbFor({
@@ -302,14 +411,24 @@ describe("validateApiKey: orgId comes only from the key-hash match (R43_EXEC_01 
 // Both writes were already un-awaited, which is not the same as being off the
 // critical path -- they still queue on the same five-connection pool the
 // request's own queries use, and a bare promise can be killed the moment the
-// response is sent. What is asserted here is what a unit test honestly can:
+// response is sent.
+//
+// CORRECTED BY THE R67 INTEGRATION MERGE (F-33 x F-17, decision D-11). These
+// four tests were written against F-33's own afterResponse() helper, which
+// called next/server's after() twice per request -- once per write. That helper
+// is gone: lane F1's batching queue (src/lib/auth/api-key-audit.ts) now owns
+// both writes and SUBSUMES the deferral, scheduling ONE flush through after()
+// rather than two writes. Every guarantee these tests were protecting is still
+// asserted here, against the merged mechanism instead of the deleted one:
 // the writes are still ISSUED (a "fast" auth that quietly stopped logging is a
-// regression, not a fix), they are scheduled through next/server's after() when
-// a request scope exists, and a failing write is LOGGED rather than left as an
-// unhandled rejection that silently stops the request log being written.
+// regression, not a fix), the flush is scheduled through next/server's after()
+// when a request scope exists, it degrades rather than drops when there is
+// none, and a failing write is LOGGED rather than left as an unhandled
+// rejection. Two assertions necessarily changed with the mechanism: the after()
+// count is 1, not 2, and the log prefix is the queue's own [api-key-audit].
 // ---------------------------------------------------------------------------
 describe("validateApiKey: usage bookkeeping is deferred, and never silently lost", () => {
-  function mockDbRecording(writes: string[], failWith?: Error) {
+  function mockDbRecording(writes: string[], keyId: string, failWith?: Error) {
     mock.module("@/lib/db", () => ({
       db: {
         update: () => ({ set: () => ({ where: () => { writes.push("last_used_at"); return failWith ? Promise.reject(failWith) : Promise.resolve() } }) }),
@@ -321,13 +440,16 @@ describe("validateApiKey: usage bookkeeping is deferred, and never silently lost
     mock.module("@/lib/api-keys", () => ({ hashSHA256: mock(async () => "hash") }))
     mock.module("@/lib/db/preauth-lookups", () => ({
       lookupApiKeyByHash: mock(async () => ({
-        id: "key-real", orgId: "org-real", name: "Real key", scopes: "read,write", rateLimitPerMinute: null, isActive: true,
+        // A key id of its own per test: the queue writes last_used_at at most
+        // once per key per minute, so a shared id would make the second test in
+        // this block assert a write the throttle had correctly suppressed.
+        id: keyId, orgId: "org-real", name: "Real key", scopes: "read,write", rateLimitPerMinute: null, isActive: true,
       })),
     }))
   }
 
   /** Stands in for the Next runtime's after(): `mode` picks which of the two
-   *  situations validateApiKey() has to survive. */
+   *  situations the audit queue has to survive. */
   function mockAfter(mode: "runs" | "captures" | "no-request-scope", captured: Array<() => unknown> = []) {
     mock.module("next/server", () => ({
       after: (fn: () => unknown) => {
@@ -339,72 +461,100 @@ describe("validateApiKey: usage bookkeeping is deferred, and never silently lost
     return captured
   }
 
+  const authRequest = () => new Request("https://example.com/api/v1/projexa/schedule", {
+    method: "POST", headers: { authorization: "Bearer vk_real" },
+  })
+
+  /** Empties anything earlier tests in this file left queued, so the writes
+   *  recorded below are only the ones this test caused. */
+  async function drainInto(writes: string[]) {
+    const { flushApiKeyAuditNow } = await import("@/lib/auth/api-key-audit")
+    await flushApiKeyAuditNow()
+    await new Promise<void>((resolve) => { setImmediate(resolve) })
+    await flushApiKeyAuditNow()
+    writes.length = 0
+  }
+
   test("both writes are still issued on a successful auth -- nothing stopped being recorded", async () => {
     mockAfter("runs")
     const writes: string[] = []
-    mockDbRecording(writes)
+    mockDbRecording(writes, "key-real-issued")
     const { validateApiKey } = await import("./api-key-auth")
+    const { flushApiKeyAuditNow } = await import("@/lib/auth/api-key-audit")
+    await drainInto(writes)
 
-    const result = await validateApiKey(new Request("https://example.com/api/v1/projexa/schedule", {
-      method: "POST", headers: { authorization: "Bearer vk_real" },
-    }))
+    const result = await validateApiKey(authRequest())
 
     expect(result.status).toBe("ok")
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await flushApiKeyAuditNow()
     expect(writes.sort()).toEqual(["last_used_at", "request_log"])
   })
 
-  test("they are scheduled through next/server's after(), so the runtime keeps the invocation alive for them", async () => {
-    const scheduled = mockAfter("captures")
+  test("the flush is scheduled through next/server's after(), so the runtime keeps the invocation alive for it", async () => {
     const writes: string[] = []
-    mockDbRecording(writes)
+    mockDbRecording(writes, "key-real-deferred")
     const { validateApiKey } = await import("./api-key-auth")
+    const { MAX_BUFFERED_ROWS, flushApiKeyAuditNow } = await import("@/lib/auth/api-key-audit")
+    await drainInto(writes)
 
-    await validateApiKey(new Request("https://example.com/api/v1/projexa/schedule", {
-      method: "POST", headers: { authorization: "Bearer vk_real" },
-    }))
+    // Captured, not run -- and armed deterministically by filling the buffer,
+    // rather than depending on whether an earlier test in this file already
+    // consumed the queue's one immediate first-request flush.
+    const scheduled = mockAfter("captures")
+    for (let i = 0; i < MAX_BUFFERED_ROWS; i += 1) {
+      expect((await validateApiKey(authRequest())).status).toBe("ok")
+    }
 
-    // Handed to after(), NOT run beside the request.
-    expect(scheduled).toHaveLength(2)
+    // Handed to after(), NOT run beside the request. ONE flush for the lot --
+    // that is F-17's contribution on top of F-33's deferral.
+    expect(scheduled).toHaveLength(1)
     expect(writes).toHaveLength(0)
     for (const run of scheduled) await run()
+    // The scheduled callback starts the flush without returning it (nothing may
+    // block on an audit write), so wait for the flush chain itself.
+    await flushApiKeyAuditNow()
     expect(writes.sort()).toEqual(["last_used_at", "request_log"])
   })
 
   test("with no request scope at all (a script, a test) the writes still happen -- the deferral degrades, it does not drop them", async () => {
-    mockAfter("no-request-scope")
     const writes: string[] = []
-    mockDbRecording(writes)
+    mockDbRecording(writes, "key-real-no-scope")
     const { validateApiKey } = await import("./api-key-auth")
+    const { MAX_BUFFERED_ROWS } = await import("@/lib/auth/api-key-audit")
+    await drainInto(writes)
 
-    const result = await validateApiKey(new Request("https://example.com/api/v1/projexa/schedule", {
-      method: "POST", headers: { authorization: "Bearer vk_real" },
-    }))
+    mockAfter("no-request-scope")
+    for (let i = 0; i < MAX_BUFFERED_ROWS; i += 1) {
+      expect((await validateApiKey(authRequest())).status).toBe("ok")
+    }
 
-    expect(result.status).toBe("ok")
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    // after() threw; the queue falls back to setImmediate rather than losing
+    // the batch.
+    await new Promise<void>((resolve) => { setImmediate(resolve) })
+    await new Promise<void>((resolve) => { setImmediate(resolve) })
     expect(writes.sort()).toEqual(["last_used_at", "request_log"])
   })
 
   test("a failing write is logged with its reason, and never rejects the request that had already been answered", async () => {
     mockAfter("runs")
     const writes: string[] = []
-    mockDbRecording(writes, new Error("remaining connection slots are reserved"))
+    mockDbRecording(writes, "key-real-failing", new Error("remaining connection slots are reserved"))
+    const { validateApiKey } = await import("./api-key-auth")
+    const { flushApiKeyAuditNow } = await import("@/lib/auth/api-key-audit")
+    await drainInto(writes)
+
     const errors: unknown[][] = []
     const originalError = console.error
     console.error = (...args: unknown[]) => { errors.push(args) }
     try {
-      const { validateApiKey } = await import("./api-key-auth")
-      const result = await validateApiKey(new Request("https://example.com/api/v1/projexa/schedule", {
-        method: "POST", headers: { authorization: "Bearer vk_real" },
-      }))
+      const result = await validateApiKey(authRequest())
       expect(result.status).toBe("ok")
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await flushApiKeyAuditNow()
     } finally {
       console.error = originalError
     }
 
     const messages = errors.map((args) => args.map(String).join(" "))
-    expect(messages.some((m) => m.includes("[api-key-auth]") && m.includes("remaining connection slots are reserved"))).toBe(true)
+    expect(messages.some((m) => m.includes("[api-key-audit]") && m.includes("remaining connection slots are reserved"))).toBe(true)
   })
 })

@@ -7,8 +7,10 @@
 /// <reference types="bun-types" />
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import {
+  buildBoqListRows,
   computeHierarchicalAmount, deriveLineItemQuantityAndRate, diffLineItems, computeTotalVariation, findScopeReductionViolations,
-  resolveProgressByLineItem, toLineItemInput, parseBoqInclude,
+  resolveProgressByLineItem, resolveProgressDetailByLineItem, toLineItemInput, parseBoqInclude,
+  buildScopeReductionConflicts, type LineItemProgress,
   ServiceError, type BoqLineItemInput, type BoqLineItemRow, type ChangedLineItem,
 } from "./construction-boq-service"
 
@@ -418,6 +420,118 @@ describe("toLineItemInput -- copy-forward round-trip for create-with-reference",
     const mapped = persisted.map((item) => toLineItemInput(item, new Map()))
     expect(mapped).toHaveLength(153)
     expect(mapped.every((i) => i.quantity === 10 && i.rate === 5)).toBe(true)
+  })
+})
+
+
+// R67 F-04 (R-060/R-063). buildBoqListRows is the pure half of listBoqs(): it
+// turns "every BOQ in the project" + "every line item across all of them"
+// into the list rows, WITH the two variation figures the /scope table shows.
+//
+// What it replaces: the route ran Promise.all(boqs.map(getBoq)) -- one
+// withTenantContext TRANSACTION per revision against a five-connection pool --
+// and the browser then fired one GET /api/scope/{id}/compare per revision on
+// top (eight calls at 0.58-1.44 s for an eight-revision project). The figures
+// are computed here with the SAME diffLineItems + computeTotalVariation pair
+// compareBoq() uses, so a list cell and the compare screen cannot disagree.
+function boq(id: string, parentBoqId: string | null = null) {
+  return { id, parentBoqId }
+}
+
+function itemAt(boqId: string, itemCode: string, amount: number, extras: Partial<BoqLineItemRow> = {}): BoqLineItemRow {
+  return row({ id: `${boqId}-${itemCode}`, boqId, itemCode, amount: String(amount), ...extras })
+}
+
+describe("buildBoqListRows -- variation per revision, computed in one pass", () => {
+  test("a baseline BOQ (no parent) reports null for BOTH figures, never 0", () => {
+    const rows = buildBoqListRows([boq("rev0")], [itemAt("rev0", "A", 1000)])
+
+    expect(rows).toHaveLength(1)
+    // "no baseline to differ from" is not "no change" -- a zero here would be
+    // rendered as a real, confirmed figure.
+    expect(rows[0].totalVariation).toBeNull()
+    expect(rows[0].totalVariationVsOriginal).toBeNull()
+  })
+
+  test("each row carries its own line items, grouped from the single flat query", () => {
+    const rows = buildBoqListRows(
+      [boq("rev1", "rev0"), boq("rev0")],
+      [itemAt("rev0", "A", 1000), itemAt("rev1", "A", 1200), itemAt("rev1", "B", 300)]
+    )
+
+    const byId = new Map(rows.map((r) => [r.id, r]))
+    expect(byId.get("rev0")!.lineItems.map((i) => i.itemCode)).toEqual(["A"])
+    expect(byId.get("rev1")!.lineItems.map((i) => i.itemCode)).toEqual(["A", "B"])
+    // withComputedRate is still applied, same as getBoq()'s own shape
+    expect(byId.get("rev1")!.lineItems[0]).toHaveProperty("computedBudget")
+  })
+
+  test("totalVariation is the change against the IMMEDIATE parent", () => {
+    // rev1 raises A by 200 and adds B worth 300 => +500 vs rev0
+    const rows = buildBoqListRows(
+      [boq("rev1", "rev0"), boq("rev0")],
+      [
+        itemAt("rev0", "A", 1000, { quantity: "10", rate: "100" }),
+        itemAt("rev1", "A", 1200, { quantity: "10", rate: "120" }),
+        itemAt("rev1", "B", 300, { quantity: "3", rate: "100" }),
+      ]
+    )
+
+    expect(rows.find((r) => r.id === "rev1")!.totalVariation).toBe(500)
+  })
+
+  test("totalVariationVsOriginal walks the chain back to Rev0, not just one hop", () => {
+    // rev0 A=1000 -> rev1 A=1200 (+200) -> rev2 A=1500 (+300)
+    const rows = buildBoqListRows(
+      [boq("rev2", "rev1"), boq("rev1", "rev0"), boq("rev0")],
+      [
+        itemAt("rev0", "A", 1000, { quantity: "10", rate: "100" }),
+        itemAt("rev1", "A", 1200, { quantity: "10", rate: "120" }),
+        itemAt("rev2", "A", 1500, { quantity: "10", rate: "150" }),
+      ]
+    )
+
+    const rev2 = rows.find((r) => r.id === "rev2")!
+    expect(rev2.totalVariation).toBe(300) // vs rev1
+    expect(rev2.totalVariationVsOriginal).toBe(500) // vs rev0
+  })
+
+  test("the figure equals what compareBoq() would return for the same pair", () => {
+    const previous = [itemAt("rev0", "A", 1000, { quantity: "10", rate: "100" })]
+    const current = [itemAt("rev1", "A", 800, { quantity: "8", rate: "100" })]
+
+    const rows = buildBoqListRows([boq("rev1", "rev0"), boq("rev0")], [...previous, ...current])
+    const viaCompare = computeTotalVariation(diffLineItems(previous, current))
+
+    expect(rows.find((r) => r.id === "rev1")!.totalVariation).toBe(viaCompare)
+    expect(viaCompare).toBe(-200)
+  })
+
+  test("a parent outside this project's list degrades to null instead of guessing", () => {
+    const rows = buildBoqListRows([boq("rev1", "not-in-this-project")], [itemAt("rev1", "A", 1200)])
+
+    expect(rows[0].totalVariation).toBeNull()
+    expect(rows[0].totalVariationVsOriginal).toBeNull()
+  })
+
+  test("a cyclic parent chain terminates instead of hanging the list", () => {
+    // parentBoqId is plain data; a loop must not spin forever.
+    const rows = buildBoqListRows(
+      [boq("a", "b"), boq("b", "a")],
+      [itemAt("a", "A", 100), itemAt("b", "A", 100)]
+    )
+
+    expect(rows).toHaveLength(2)
+    for (const r of rows) expect(typeof r.totalVariation === "number" || r.totalVariation === null).toBe(true)
+  })
+
+  test("a revision with no line items at all still produces a row", () => {
+    const rows = buildBoqListRows([boq("rev1", "rev0"), boq("rev0")], [itemAt("rev0", "A", 1000)])
+
+    const rev1 = rows.find((r) => r.id === "rev1")!
+    expect(rev1.lineItems).toEqual([])
+    // every rev0 line removed => the full baseline amount, negative
+    expect(rev1.totalVariation).toBe(-1000)
   })
 })
 
@@ -910,5 +1024,221 @@ describe("updateLineItemBudget -- material/manpower amounts and category (R67 I-
     expect((thrown as Error).message).toBe("manpowerAmount must be a non-negative number, got -1")
     expect((thrown as { status: number }).status).toBe(400)
     expect(setCalls).toEqual([])
+  })
+})
+
+// ─── R67 lane D22 (item D-64, rec R-230) ──────────────────────────────────
+// The searchable BOQ line lookup's pure half: what a typed query matches, what
+// an option carries, and which revision "the current BOQ" means when no caller
+// names one.
+import { matchesBoqLineQuery, resolveCurrentBoq, toBoqLineOptions } from "./construction-boq-service"
+
+describe("matchesBoqLineQuery", () => {
+  const line = { itemCode: "R60SK-A", description: "R60 skiphop sub" }
+
+  test("matches a code, case-insensitively, on a prefix or a fragment", () => {
+    expect(matchesBoqLineQuery(line, "R60SK")).toBe(true)
+    expect(matchesBoqLineQuery(line, "r60sk-a")).toBe(true)
+    expect(matchesBoqLineQuery(line, "SK-A")).toBe(true)
+  })
+
+  test("matches a word from the description, because that is what a site engineer knows", () => {
+    expect(matchesBoqLineQuery(line, "skiphop")).toBe(true)
+    expect(matchesBoqLineQuery(line, "Skiphop")).toBe(true)
+  })
+
+  test("an empty query matches everything, so the picker works before a key is pressed", () => {
+    expect(matchesBoqLineQuery(line, "")).toBe(true)
+    expect(matchesBoqLineQuery(line, "   ")).toBe(true)
+    expect(matchesBoqLineQuery(line, undefined)).toBe(true)
+  })
+
+  test("a line with no code is still findable by its description", () => {
+    expect(matchesBoqLineQuery({ itemCode: null, description: "Blockwork" }, "block")).toBe(true)
+    expect(matchesBoqLineQuery({ itemCode: null, description: "Blockwork" }, "R60")).toBe(false)
+  })
+})
+
+describe("toBoqLineOptions", () => {
+  const boq = { id: "boq-1", title: "Fit-out", version: 2 }
+  const parent = row({ id: "p", itemCode: "A", description: "Concrete works", unit: "m3", quantity: "120" })
+  const child = row({ id: "c", itemCode: "A-1", description: "Pour podium slab", unit: "m3", quantity: "120", parentLineItemId: "p" })
+
+  test("reports how much of a line is left, from what has been recorded against it", () => {
+    const [option] = toBoqLineOptions(boq, [parent], new Map([["p", 40]]))
+    expect(option!.quantity).toBe(120)
+    expect(option!.quantityDone).toBe(40)
+    expect(option!.remainingQuantity).toBe(80)
+  })
+
+  test("over-recording reads as nothing left, never as negative work remaining", () => {
+    const [option] = toBoqLineOptions(boq, [parent], new Map([["p", 200]]))
+    expect(option!.remainingQuantity).toBe(0)
+  })
+
+  test("a line nothing has been recorded against has its whole quantity remaining", () => {
+    const [option] = toBoqLineOptions(boq, [parent], new Map())
+    expect(option!.quantityDone).toBe(0)
+    expect(option!.remainingQuantity).toBe(120)
+  })
+
+  test("flags the parent, so the picker can say 'parent - pick a child' instead of accepting it", () => {
+    const options = toBoqLineOptions(boq, [parent, child], new Map())
+    expect(options.find((o) => o.id === "p")!.isParent).toBe(true)
+    expect(options.find((o) => o.id === "c")!.isParent).toBe(false)
+  })
+
+  test("carries the BOQ it belongs to, so a row can deep-link to the right revision", () => {
+    const [option] = toBoqLineOptions(boq, [parent], new Map())
+    expect(option!.boqId).toBe("boq-1")
+    expect(option!.boqVersion).toBe(2)
+  })
+
+  test("orders by code, with uncoded lines last rather than first", () => {
+    const b = row({ id: "b", itemCode: "B", description: "Blockwork" })
+    const uncoded = row({ id: "u", itemCode: null, description: "Aardvark" })
+    const options = toBoqLineOptions(boq, [uncoded, b, parent], new Map())
+    expect(options.map((o) => o.id)).toEqual(["p", "b", "u"])
+  })
+})
+
+describe("resolveCurrentBoq", () => {
+  const at = (iso: string) => new Date(iso)
+
+  test("prefers an approved BOQ over everything else", () => {
+    const boqs = [
+      { status: "draft", version: 5, createdAt: at("2026-08-01T00:00:00Z") },
+      { status: "approved", version: 1, createdAt: at("2026-07-01T00:00:00Z") },
+    ]
+    expect(resolveCurrentBoq(boqs)!.status).toBe("approved")
+  })
+
+  test("falls back to submitted, then to the highest version", () => {
+    expect(resolveCurrentBoq([
+      { status: "draft", version: 5, createdAt: at("2026-08-01T00:00:00Z") },
+      { status: "submitted", version: 1, createdAt: at("2026-07-01T00:00:00Z") },
+    ])!.status).toBe("submitted")
+
+    expect(resolveCurrentBoq([
+      { status: "draft", version: 1, createdAt: at("2026-08-01T00:00:00Z") },
+      { status: "draft", version: 3, createdAt: at("2026-07-01T00:00:00Z") },
+    ])!.version).toBe(3)
+  })
+
+  test("breaks a version tie on createdAt, so the order is deterministic across engines", () => {
+    const newer = { status: "draft", version: 2, createdAt: at("2026-08-02T00:00:00Z") }
+    const older = { status: "draft", version: 2, createdAt: at("2026-08-01T00:00:00Z") }
+    expect(resolveCurrentBoq([older, newer])).toBe(newer)
+  })
+
+  test("a project with no BOQ yet resolves to null, which is a normal first-week state", () => {
+    expect(resolveCurrentBoq([])).toBeNull()
+  })
+})
+
+describe("toLineItemInput -- category carries forward into a revision", () => {
+  test("a categorised line keeps its category when a revision copies it forward", () => {
+    const persisted = row({ id: "p1", itemCode: "C001", description: "Gypsum partition", unit: "sqm", quantity: "10", rate: "5", category: "Gypsum" })
+    expect(toLineItemInput(persisted, new Map()).category).toBe("Gypsum")
+  })
+
+  test("an uncategorised line stays undefined (not null) -- BoqLineItemInput's fields are optional, never nullable", () => {
+    const persisted = row({ id: "p2", description: "Plain item", unit: "nos", quantity: "1", rate: "1" })
+    expect(toLineItemInput(persisted, new Map()).category).toBeUndefined()
+  })
+})
+
+// R67 D-27 (R-068) -- the 409 that blocks a revision reducing already-completed
+// scope used to name the violating lines only inside a prose sentence, which a
+// UI can print but cannot render as a table, count, or act on. These pin the
+// structured form, which shares findScopeReductionViolations' own rule for what
+// counts as a violation so the block and the table can never disagree.
+describe("buildScopeReductionConflicts (D-27)", () => {
+  const progress = (over: Partial<LineItemProgress> = {}): LineItemProgress =>
+    ({ percentComplete: 40, quantityDone: 12, entryDate: "2026-08-28", ...over })
+
+  test("a REMOVED line with recorded progress becomes one row carrying code, quantity, unit and date", () => {
+    const removed = row({ id: "li-1", itemCode: "R60SK-A", description: "R60 skiphop sub", unit: "m2" })
+    const conflicts = buildScopeReductionConflicts(
+      { removed: [removed], changed: [] },
+      new Map([["li-1", progress()]])
+    )
+    expect(conflicts).toEqual([
+      { itemCode: "R60SK-A", description: "R60 skiphop sub", recordedQty: 12, unit: "m2", lastRecordedAt: "2026-08-28" },
+    ])
+  })
+
+  test("a REDUCED line (negative netVariation) with recorded progress is a conflict too", () => {
+    const previous = row({ id: "prev", itemCode: "A1", description: "Blockwork", unit: "sqm", amount: "1000" })
+    const current = row({ id: "curr", itemCode: "A1", description: "Blockwork", unit: "sqm", amount: "600" })
+    const changed: ChangedLineItem[] = [{
+      key: "A1", previous, current, quantityChange: -4, rateChange: 0, breakdownPercentageChange: 0,
+      netVariation: -400, isSubItem: false,
+    }]
+    const conflicts = buildScopeReductionConflicts({ removed: [], changed }, new Map([["curr", progress({ quantityDone: 5 })]]))
+    expect(conflicts).toHaveLength(1)
+    expect(conflicts[0].recordedQty).toBe(5)
+  })
+
+  test("an INCREASED line is never a conflict, however much progress it has", () => {
+    const previous = row({ id: "prev", itemCode: "A1", description: "Blockwork", unit: "sqm", amount: "600" })
+    const current = row({ id: "curr", itemCode: "A1", description: "Blockwork", unit: "sqm", amount: "1000" })
+    const changed: ChangedLineItem[] = [{
+      key: "A1", previous, current, quantityChange: 4, rateChange: 0, breakdownPercentageChange: 0,
+      netVariation: 400, isSubItem: false,
+    }]
+    expect(buildScopeReductionConflicts({ removed: [], changed }, new Map([["curr", progress()]]))).toEqual([])
+  })
+
+  test("a removed line with NO recorded progress is not a conflict -- removing unstarted scope is legitimate", () => {
+    const removed = row({ id: "li-1", itemCode: "A1", description: "Blockwork", unit: "sqm" })
+    expect(buildScopeReductionConflicts({ removed: [removed], changed: [] }, new Map())).toEqual([])
+  })
+
+  test("0% recorded is not progress -- an entry that logged nothing does not block a descope", () => {
+    const removed = row({ id: "li-1", itemCode: "A1", description: "Blockwork", unit: "sqm" })
+    const conflicts = buildScopeReductionConflicts(
+      { removed: [removed], changed: [] },
+      new Map([["li-1", progress({ percentComplete: 0, quantityDone: 0 })]])
+    )
+    expect(conflicts).toEqual([])
+  })
+
+  test("a line with no item code reports null rather than an invented one -- the UI falls back to the description", () => {
+    const removed = row({ id: "li-1", itemCode: null, description: "Unnumbered extra", unit: "nos" })
+    const [conflict] = buildScopeReductionConflicts({ removed: [removed], changed: [] }, new Map([["li-1", progress()]]))
+    expect(conflict.itemCode).toBeNull()
+    expect(conflict.description).toBe("Unnumbered extra")
+  })
+
+  test("it agrees with findScopeReductionViolations about WHICH lines are in conflict", () => {
+    const removedBlocked = row({ id: "a", itemCode: "A", description: "Started", unit: "m2" })
+    const removedClean = row({ id: "b", itemCode: "B", description: "Untouched", unit: "m2" })
+    const detail = new Map([["a", progress()]])
+    const percents = new Map([...detail].map(([id, p]) => [id, p.percentComplete] as const))
+    const diff = { removed: [removedBlocked, removedClean], changed: [] as ChangedLineItem[] }
+
+    expect(findScopeReductionViolations(diff, new Map(percents))).toHaveLength(1)
+    expect(buildScopeReductionConflicts(diff, detail).map((c) => c.itemCode)).toEqual(["A"])
+  })
+})
+
+describe("resolveProgressDetailByLineItem (D-27)", () => {
+  const progress = (pct: number): LineItemProgress => ({ percentComplete: pct, quantityDone: pct / 10, entryDate: "2026-08-28" })
+
+  test("a direct boq_line_item_id link still wins over the activity_id fallback, now carrying the whole entry", () => {
+    const item = row({ id: "li-1", activityId: "act-1" })
+    const resolved = resolveProgressDetailByLineItem([item], new Map([["li-1", progress(70)]]), new Map([["act-1", progress(10)]]))
+    expect(resolved.get("li-1")).toEqual(progress(70))
+  })
+
+  test("a legacy activity-only entry is still found", () => {
+    const item = row({ id: "li-1", activityId: "act-1" })
+    const resolved = resolveProgressDetailByLineItem([item], new Map(), new Map([["act-1", progress(10)]]))
+    expect(resolved.get("li-1")?.percentComplete).toBe(10)
+  })
+
+  test("an item with neither link resolves to nothing at all", () => {
+    expect(resolveProgressDetailByLineItem([row({ id: "li-1" })], new Map(), new Map()).size).toBe(0)
   })
 })

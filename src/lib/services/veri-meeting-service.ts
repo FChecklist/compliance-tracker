@@ -16,10 +16,11 @@
 // "action items" were never real cross-module rows.
 import { createId } from "@paralleldrive/cuid2"
 import { after } from "next/server"
-import { veriMeetings, veriMeetingActionItems, veriMeetingShareLinks, tasks, auditLogs, db } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { veriMeetings, veriMeetingActionItems, veriMeetingShareLinks, tasks, auditLogs, projects, users as usersTable, db } from "@/lib/db"
+import { MEETING_DELETED_STATUS } from "@/lib/db/schema"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { logActivity } from "@/lib/audit"
-import { eq, and, desc, inArray, notInArray, sql } from "drizzle-orm"
+import { eq, and, desc, inArray, ne, notInArray, sql } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
@@ -64,6 +65,38 @@ function assertEditable(meeting: { status: string }) {
   if (meeting.status === "published") {
     throw new ServiceError("This meeting is published and locked -- its details cannot be edited", 409)
   }
+}
+
+// ─── Soft delete (R67 D-17) ───────────────────────────────────────────────
+// Deliberately a THIRD value of the existing free-text `status` column rather
+// than a new deleted_at column: veri_meetings.status was already a checked-in
+// string convention ('draft' | 'published', see schema.ts), every read path in
+// this file already goes through the two functions below, and a soft delete
+// that only ever applies to a DRAFT (never to a published, audit-relevant
+// record) carries no information a timestamp column would add. That keeps this
+// item migration-free, which is what the programme item asserts.
+//
+// The literal lives in schema.ts, beside the column it is a value of, so the
+// table's OTHER readers (adoption-metrics-service, report-engine-service's
+// TABLE_REGISTRY) can filter it out without importing this service and the
+// LLM/task-execution graph behind it. Re-exported here under the name every
+// caller in this file and its routes already uses.
+export { MEETING_DELETED_STATUS }
+
+// The exact sentence the PROJEXA UI renders beside a disabled Delete, kept
+// here so the server's refusal and the client's disabled-reason cannot drift.
+export const MEETING_DELETE_BLOCKED_REASON = "Published meetings cannot be deleted"
+
+/**
+ * Pure -- no DB access -- so it is unit-tested directly, matching this
+ * codebase's convention of not exercising withTenantContext from a .test.ts
+ * (see hr-service.ts's validateEmployeeProfileInput and its own note).
+ * Only a draft is deletable; a published meeting is the locked, shareable
+ * record publishVeriMeeting() exists to protect, and an already-deleted row
+ * is not deletable twice.
+ */
+export function canDeleteMeeting(status: string): boolean {
+  return status === "draft"
 }
 
 // ─── R67 D-16: the two aggregates the MoM LIST screen needs ──────────────
@@ -128,11 +161,15 @@ export function attachMeetingListAggregates<T extends { id: string; attendees: u
 // ONE extra grouped query for the whole page, inside the same tenant
 // transaction, not one per row.
 export async function listVeriMeetings(ctx: { orgId: string }, contextEntityId?: string) {
+  // R67 D-17: soft-deleted drafts never appear in a list again -- the row is
+  // kept only so the audit_logs entry deleteVeriMeeting() writes still points
+  // at something real.
+  const notDeleted = ne(veriMeetings.status, MEETING_DELETED_STATUS)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const meetings = await db.query.veriMeetings.findMany({
       where: contextEntityId
-        ? and(eq(veriMeetings.orgId, ctx.orgId), eq(veriMeetings.contextEntityId, contextEntityId))
-        : eq(veriMeetings.orgId, ctx.orgId),
+        ? and(eq(veriMeetings.orgId, ctx.orgId), eq(veriMeetings.contextEntityId, contextEntityId), notDeleted)
+        : and(eq(veriMeetings.orgId, ctx.orgId), notDeleted),
       orderBy: desc(veriMeetings.scheduledAt),
     })
     if (meetings.length === 0) return attachMeetingListAggregates(meetings, [])
@@ -155,7 +192,9 @@ export async function listVeriMeetings(ctx: { orgId: string }, contextEntityId?:
 export async function getVeriMeeting(ctx: { orgId: string }, meetingId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
-    if (!meeting) throw new ServiceError("Meeting not found", 404)
+    // R67 D-17: a soft-deleted meeting is indistinguishable from one that
+    // never existed, so a stale bookmark 404s rather than rendering a ghost.
+    if (!meeting || meeting.status === MEETING_DELETED_STATUS) throw new ServiceError("Meeting not found", 404)
     const actionItems = await db.query.veriMeetingActionItems.findMany({
       where: eq(veriMeetingActionItems.meetingId, meetingId),
       with: { task: true },
@@ -164,26 +203,133 @@ export async function getVeriMeeting(ctx: { orgId: string }, meetingId: string) 
   })
 }
 
+// ─── R67 lane D22 (item D-58, rec R-187) ──────────────────────────────────
+// A meeting is minuted WHILE it happens, so the create screen has to be able
+// to carry minutes and the action items agreed in the room. Before this, this
+// DTO took title/type/when/attendees/agenda only: a user who typed minutes on
+// the create screen had to save an empty meeting, open it, and type them
+// again. Both new fields are optional -- every existing caller is unchanged.
+export type MeetingActionItemInput = { title: string; assigneeUserId?: string | null; dueDate?: string | null }
+
+/**
+ * Pure: the action-item rows a create call really means.
+ *
+ * Blank descriptions are dropped rather than rejected, because the create
+ * screen keeps one empty repeating row on screen at all times -- a trailing
+ * empty row is the UI's resting state, not a user error to fail the whole
+ * save over. Everything else is trimmed and normalised to null so an empty
+ * string never lands in a FK column.
+ */
+export function normalizeMeetingActionItems(items: MeetingActionItemInput[] | undefined): MeetingActionItemInput[] {
+  if (!Array.isArray(items)) return []
+  return items
+    .map((item) => ({
+      title: typeof item?.title === "string" ? item.title.trim() : "",
+      assigneeUserId: typeof item?.assigneeUserId === "string" && item.assigneeUserId.trim() ? item.assigneeUserId.trim() : null,
+      dueDate: typeof item?.dueDate === "string" && item.dueDate.trim() ? item.dueDate.trim() : null,
+    }))
+    .filter((item) => item.title.length > 0)
+}
+
+/**
+ * Pure: the distinct assignee ids a set of action items really names.
+ *
+ * Split out so the "who is being assigned work here" question has one answer
+ * both write paths ask, and so the de-duplication is testable without a db.
+ */
+export function collectAssigneeUserIds(items: { assigneeUserId?: string | null }[]): string[] {
+  return [...new Set(items.map((i) => i.assigneeUserId).filter((id): id is string => typeof id === "string" && id.length > 0))]
+}
+
+/**
+ * R67 lane D22 (review finding on D-58/D-75): an action item's owner must be a
+ * person in the CALLING org.
+ *
+ * `tasks.userId` is a plain FK to compliance.users with no org predicate of its
+ * own, and both write paths below took the caller's id on trust. RLS keeps the
+ * created row inside the caller's own org, so this was never a cross-tenant
+ * leak -- but an id belonging to another org produced a task in your org
+ * assigned to somebody your own directory cannot resolve, which then prints as
+ * a blank owner on the MoM PDF (the pdf route already falls back to null for an
+ * unresolvable owner) and can never be reassigned from a picker that will not
+ * show them. D-58 and D-75 make org-scoped people the headline of these
+ * screens; this is the same rule enforced on the way in.
+ *
+ * Runs on the CALLER'S transaction (D-06: never a nested withTenantContext).
+ */
+export async function assertAssigneesInOrg(
+  db: TenantDb,
+  orgId: string,
+  assigneeUserIds: string[]
+): Promise<void> {
+  if (assigneeUserIds.length === 0) return
+  const found = await db.query.users.findMany({
+    where: and(eq(usersTable.orgId, orgId), eq(usersTable.isActive, true), inArray(usersTable.id, assigneeUserIds)),
+    columns: { id: true },
+  })
+  const known = new Set(found.map((u) => u.id))
+  if (assigneeUserIds.some((id) => !known.has(id))) {
+    // Deliberately does not echo the id back: it is either a typo or a probe,
+    // and neither deserves confirmation that some other org's id exists.
+    throw new ServiceError("That person is not in your organisation", 400)
+  }
+}
+
 export async function createVeriMeeting(
   ctx: VeriMeetingContext,
-  input: { title: string; meetingType?: string; scheduledAt: string; attendees?: string[]; agenda?: string[]; contextEntityType?: string; contextEntityId?: string }
+  input: {
+    title: string; meetingType?: string; scheduledAt: string; attendees?: string[]; agenda?: string[]
+    contextEntityType?: string; contextEntityId?: string
+    minutes?: string | null
+    actionItems?: MeetingActionItemInput[]
+  }
 ) {
   const title = input.title?.trim()
   if (!title) throw new ServiceError("title is required", 400)
   if (!input.scheduledAt) throw new ServiceError("scheduledAt is required", 400)
+  const minutes = typeof input.minutes === "string" && input.minutes.trim() ? input.minutes : null
+  const actionItems = normalizeMeetingActionItems(input.actionItems)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
+    // Before anything is written, so a foreign assignee fails the whole save
+    // rather than leaving a meeting behind with some of its actions missing.
+    await assertAssigneesInOrg(db, ctx.orgId, collectAssigneeUserIds(actionItems))
+
     const [meeting] = await db.insert(veriMeetings).values({
       orgId: ctx.orgId, title, meetingType: input.meetingType || "team", scheduledAt: new Date(input.scheduledAt),
       attendees: input.attendees || [], agenda: input.agenda || [],
       contextEntityType: input.contextEntityType || null, contextEntityId: input.contextEntityId || null,
       systemId: generateSystemId(),
       createdById: ctx.userId,
+      minutes,
+      // The amend-don't-overwrite history starts with what was typed live, so
+      // the first version of the minutes is as auditable as every later edit.
+      minutesHistory: minutes ? [{ date: new Date().toISOString(), amendedBy: ctx.userId, text: minutes }] : [],
     }).returning()
+
+    // Real `tasks` rows, same table addMeetingActionItem() writes to and the
+    // same one VERI To Do / "Needs you" already reads -- not a parallel
+    // tracking list. Written on THIS transaction so a meeting is never saved
+    // with half its agreed actions missing.
+    for (const item of actionItems) {
+      const [task] = await db.insert(tasks).values({
+        orgId: ctx.orgId,
+        userId: item.assigneeUserId ?? ctx.userId,
+        assignedById: ctx.userId,
+        title: item.title,
+        description: `Action item from meeting: ${title}`,
+        status: "in_progress",
+        dueDate: item.dueDate ? new Date(item.dueDate) : null,
+      }).returning()
+      await db.insert(veriMeetingActionItems).values({ meetingId: meeting!.id, taskId: task!.id })
+    }
 
     await logActivity({
       tx: db, action: "veri_meeting.created", entityType: "veri_meeting", entityId: meeting!.id,
-      details: `Created meeting "${title}"`, orgId: ctx.orgId, ...actorOf(ctx),
+      details: actionItems.length
+        ? `Created meeting "${title}" with ${actionItems.length} action item(s)`
+        : `Created meeting "${title}"`,
+      orgId: ctx.orgId, ...actorOf(ctx),
     })
     return meeting
   })
@@ -278,6 +424,29 @@ export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: str
   }
 
   return updated
+}
+
+// R67 D-17: Delete, gated on the SAME rule the UI renders as a disabled
+// reason. Soft (status -> 'deleted'), draft-only, and audit-logged like every
+// other state transition in this file -- a published meeting is the locked
+// record the whole publish/lock workflow exists to protect, so it refuses with
+// the exact sentence the button shows rather than 500ing after the click.
+export async function deleteVeriMeeting(ctx: VeriMeetingContext, meetingId: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
+    const existing = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
+    if (!existing || existing.status === MEETING_DELETED_STATUS) throw new ServiceError("Meeting not found", 404)
+    if (!canDeleteMeeting(existing.status)) throw new ServiceError(MEETING_DELETE_BLOCKED_REASON, 409)
+
+    const [updated] = await db.update(veriMeetings)
+      .set({ status: MEETING_DELETED_STATUS, updatedAt: new Date() })
+      .where(eq(veriMeetings.id, meetingId)).returning()
+
+    await logActivity({
+      tx: db, action: "veri_meeting.deleted", entityType: "veri_meeting", entityId: meetingId,
+      details: `Deleted meeting "${existing.title}"`, orgId: ctx.orgId, ...actorOf(ctx),
+    })
+    return updated
+  })
 }
 
 // Wave 74 (Meeting Intelligence, AI_OS_CERTIFICATION.md §3.2 NOT_BUILT).
@@ -414,6 +583,9 @@ export async function addMeetingActionItem(
   const created = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
     if (!meeting) throw new ServiceError("Meeting not found", 404)
+    // Same three lines as createVeriMeeting, so the two write paths into
+    // `tasks.userId` cannot disagree about who may be assigned work.
+    await assertAssigneesInOrg(db, ctx.orgId, collectAssigneeUserIds([{ assigneeUserId: input.assigneeUserId ?? null }]))
 
     const dedupeWindowStart = new Date(Date.now() - DEDUPE_WINDOW_MS)
     const recentItems = await db.query.veriMeetingActionItems.findMany({
@@ -505,8 +677,124 @@ export async function createMeetingShareLink(ctx: VeriMeetingContext, meetingId:
       tx: db, action: "veri_meeting.share_link_created", entityType: "veri_meeting", entityId: meetingId,
       details: "Share link created", orgId: ctx.orgId, ...actorOf(ctx),
     })
-    return link
+
+    // R67 D-21: the route composes a per-brand message that names the meeting,
+    // its date and its project, so those three facts travel back with the
+    // token rather than costing the route a second round trip. Additive keys
+    // only -- every pre-existing caller reads `token`/`expiresAt` off the same
+    // object exactly as before.
+    const project = meeting.contextEntityType === "project" && meeting.contextEntityId
+      ? await db.query.projects.findFirst({
+          where: and(eq(projects.id, meeting.contextEntityId), eq(projects.orgId, ctx.orgId)),
+          columns: { name: true },
+        })
+      : null
+
+    return {
+      ...link!,
+      meetingTitle: meeting.title,
+      meetingScheduledAt: meeting.scheduledAt,
+      projectName: project?.name ?? null,
+    }
   })
+}
+
+// ─── Share-link addressing + message (R67 D-21) ───────────────────────────
+// The share POST route used to compose its own link and text inline:
+//   `${request.nextUrl.origin}/shared/meeting/${token}` and
+//   "View these VERIDIAN AI meeting minutes: <link>".
+// Both were wrong for a PROJEXA customer. The ORIGIN was whichever host the
+// caller happened to reach (PROJEXA's own server calls this API server-to-
+// server, so nextUrl.origin is VERIDIAN's deployment host, not the product
+// domain the recipient must open); the BRAND named a product the recipient
+// has never heard of. This is now one pure function so the composed link and
+// the composed sentence can be asserted in a unit test instead of only being
+// observable by sending a real WhatsApp message.
+export type ShareBrand = "veridian" | "projexa"
+
+// Per brand: where the public read-only page lives, and how the message reads.
+const SHARE_PATH_PREFIX: Record<ShareBrand, string> = {
+  veridian: "/shared/meeting",
+  projexa: "/shared/mom",
+}
+
+export function normaliseShareBrand(brand: unknown): ShareBrand {
+  return brand === "projexa" ? "projexa" : "veridian"
+}
+
+/**
+ * Pure. Returns the origin to build the share URL from: the caller-supplied
+ * shareOrigin when it is a real absolute http(s) origin, otherwise the
+ * fallback (the request's own origin, i.e. the pre-D-21 behaviour) so a caller
+ * that sends nothing is no worse off than before.
+ */
+export function resolveShareOrigin(shareOrigin: unknown, fallbackOrigin: string): string {
+  if (typeof shareOrigin === "string" && shareOrigin.trim()) {
+    try {
+      const url = new URL(shareOrigin.trim())
+      if (url.protocol === "http:" || url.protocol === "https:") return url.origin
+    } catch {
+      // fall through to the fallback -- never throw on a caller's bad env var
+    }
+  }
+  return fallbackOrigin
+}
+
+/** Pure. The date as the recipient reads it, pinned to UTC so it is stable. */
+export function formatShareDate(scheduledAt: Date | string, locale = "en-GB"): string {
+  const date = scheduledAt instanceof Date ? scheduledAt : new Date(scheduledAt)
+  if (Number.isNaN(date.getTime())) return ""
+  try {
+    return new Intl.DateTimeFormat(locale, { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(date)
+  } catch {
+    return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(date)
+  }
+}
+
+export type MeetingShareTargetInput = {
+  token: string
+  title: string
+  scheduledAt: Date | string
+  projectName?: string | null
+  brand?: unknown
+  shareOrigin?: unknown
+  fallbackOrigin: string
+  locale?: string
+}
+
+export type MeetingShareTarget = {
+  brand: ShareBrand
+  shareUrl: string
+  message: string
+  whatsappHref: string
+  telegramHref: string
+}
+
+/** Pure. Everything the share-link route returns to the client, composed. */
+export function composeMeetingShareTarget(input: MeetingShareTargetInput): MeetingShareTarget {
+  const brand = normaliseShareBrand(input.brand)
+  const origin = resolveShareOrigin(input.shareOrigin, input.fallbackOrigin)
+  const shareUrl = `${origin}${SHARE_PATH_PREFIX[brand]}/${encodeURIComponent(input.token)}`
+
+  let message: string
+  if (brand === "projexa") {
+    // The item's exact template: "Minutes of Meeting - <title>, <date in org
+    // locale>, <project name>: <link>". The project clause is dropped rather
+    // than filled with a placeholder when the meeting is not project-scoped.
+    const parts = [input.title, formatShareDate(input.scheduledAt, input.locale)].filter(Boolean)
+    if (input.projectName?.trim()) parts.push(input.projectName.trim())
+    message = `Minutes of Meeting - ${parts.join(", ")}: ${shareUrl}`
+  } else {
+    message = `View these VERIDIAN AI meeting minutes: ${shareUrl}`
+  }
+
+  return {
+    brand,
+    shareUrl,
+    message,
+    whatsappHref: `https://wa.me/?text=${encodeURIComponent(message)}`,
+    telegramHref: `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(message)}`,
+  }
 }
 
 export async function listMeetingShareLinks(ctx: { orgId: string }, meetingId: string) {
@@ -540,11 +828,21 @@ export async function getMeetingByShareToken(token: string) {
   if (!link || link.revokedAt || link.expiresAt < new Date()) throw new ServiceError("This share link is invalid or has expired", 404)
 
   const meeting = await db.query.veriMeetings.findFirst({ where: eq(veriMeetings.id, link.meetingId) })
-  if (!meeting) throw new ServiceError("This share link is invalid or has expired", 404)
+  // R67 D-17/D-21: a soft-deleted meeting behind a live token is treated
+  // exactly like an expired one -- same 404, same public copy.
+  if (!meeting || meeting.status === MEETING_DELETED_STATUS) throw new ServiceError("This share link is invalid or has expired", 404)
 
   const actionItems = await db.query.veriMeetingActionItems.findMany({
     where: eq(veriMeetingActionItems.meetingId, meeting.id),
     with: { task: true },
   })
-  return { ...meeting, actionItems }
+  // R67 D-21: the public PROJEXA page heads with the project, so resolve it
+  // here rather than making the unauthenticated page guess or omit it.
+  const project = meeting.contextEntityType === "project" && meeting.contextEntityId
+    ? await db.query.projects.findFirst({
+        where: and(eq(projects.id, meeting.contextEntityId), eq(projects.orgId, meeting.orgId)),
+        columns: { name: true },
+      })
+    : null
+  return { ...meeting, actionItems, projectName: project?.name ?? null, expiresAt: link.expiresAt }
 }

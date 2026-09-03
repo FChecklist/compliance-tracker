@@ -21,6 +21,21 @@ export { ServiceError }
 
 export type BoqFieldKey = "itemCode" | "parentItemCode" | "description" | "subTask" | "unit" | "quantity" | "rate" | "breakdownPercentage" | "amount" | "category"
 
+/**
+ * R67 D-25: one parsed row's problem, addressed to a human by ROW NUMBER.
+ * `warnings` (below, unchanged) is the free-text log this service has always
+ * returned; `issues` is the same information in a shape the new import PREVIEW
+ * screen can render per row and can count -- and, critically, can tell apart:
+ * a `blocking` issue must stop the import, a non-blocking one is a row that was
+ * legitimately skipped (a category header) or a figure that was recomputed.
+ *
+ * Row numbers are 1-based over the SHEET, header included -- the first data row
+ * is "Row 2" -- matching the numbering the existing `warnings` strings have
+ * always used, so the two can never disagree about which line a user is
+ * looking at.
+ */
+export type BoqRowIssue = { row: number; message: string; blocking: boolean }
+
 // Alias order within each field is a PRIORITY order, not just a membership
 // list: mapBoqHeaders resolves a field by trying its aliases in order and
 // taking the first one that matches an unused header, rather than just
@@ -111,24 +126,33 @@ export function mapBoqHeaders(headers: string[]): BoqColumnMapping {
  * from a dot-delimited itemCode (e.g. "2.1" under "2") when no explicit
  * parent-code column was mapped.
  */
-export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: BoqColumnMapping): { lineItems: BoqLineItemInput[]; warnings: string[] } {
+export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: BoqColumnMapping): { lineItems: BoqLineItemInput[]; warnings: string[]; issues: BoqRowIssue[] } {
   if (!mapping.description && !mapping.subTask) throw new ServiceError("Could not find a Description column in this spreadsheet", 400)
   if (!mapping.quantity) throw new ServiceError("Could not find a Quantity column in this spreadsheet", 400)
   if (!mapping.rate) throw new ServiceError("Could not find a Rate column in this spreadsheet", 400)
 
   const warnings: string[] = []
+  // R67 D-25: the same findings as `warnings`, per row and classified, for the
+  // preview screen. `warnings` keeps its existing free-text strings verbatim --
+  // every existing caller and test reads those.
+  const issues: BoqRowIssue[] = []
   // isUnlabeledSubTask marks a row whose description came from the Sub Task
   // column, not the Description column -- the real signature (real prospect
   // BoQ exports) of a sub-task row that has no itemCode of its own and needs
   // its parentItemCode inferred positionally, from the nearest preceding row
   // that did have an itemCode (see the positional-fallback comment below).
-  const rawItems: { itemCode?: string; explicitParentCode?: string; description: string; unit: string; quantity: number; rate: number; breakdownPercentage?: number; isUnlabeledSubTask: boolean; category?: string }[] = []
+  const rawItems: { itemCode?: string; explicitParentCode?: string; description: string; unit: string; quantity: number; rate: number; breakdownPercentage?: number; isUnlabeledSubTask: boolean; category?: string; sheetRow: number }[] = []
 
   rows.forEach((row, idx) => {
+    const sheetRow = idx + 2
     const descriptionRaw = mapping.description ? String(row[mapping.description] ?? "").trim() : ""
     const subTaskRaw = mapping.subTask ? String(row[mapping.subTask] ?? "").trim() : ""
     const description = descriptionRaw || subTaskRaw
-    if (!description) { warnings.push(`Row ${idx + 2}: skipped (no description)`); return }
+    if (!description) {
+      warnings.push(`Row ${idx + 2}: skipped (no description)`)
+      issues.push({ row: sheetRow, message: `Row ${sheetRow}: skipped (no description)`, blocking: false })
+      return
+    }
 
     // Category-header rows (e.g. Sl No "1.00", Description (Task) "PARTITION
     // AND LINING" in caps, QTY/RATE blank) carry their own description, so
@@ -144,6 +168,7 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     const rateRaw = mapping.rate ? String(row[mapping.rate] ?? "").trim() : ""
     if (descriptionRaw && !subTaskRaw && quantityRaw === "" && rateRaw === "") {
       warnings.push(`Row ${idx + 2}: skipped (category header: "${descriptionRaw}")`)
+      issues.push({ row: sheetRow, message: `Row ${sheetRow}: skipped (category header: "${descriptionRaw}")`, blocking: false })
       return
     }
 
@@ -154,11 +179,45 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     // unchecked here.
     if (isMalformedNumericCell(quantityRaw)) {
       warnings.push(`Row ${idx + 2}: skipped (Quantity "${quantityRaw}" is not a number)`)
+      // R67 D-25: the preview's own wording, short enough to sit in a table
+      // row and BLOCKING -- a sheet with a garbage quantity must not import
+      // that line as a silent zero.
+      issues.push({ row: sheetRow, message: `Row ${sheetRow}: Qty is not a number`, blocking: true })
       return
     }
     if (isMalformedNumericCell(rateRaw)) {
       warnings.push(`Row ${idx + 2}: skipped (Rate "${rateRaw}" is not a number)`)
+      issues.push({ row: sheetRow, message: `Row ${sheetRow}: Rate is not a number`, blocking: true })
       return
+    }
+
+    // R67 lane D22 (item D-68, rec R-258): a ROOT row with a real description
+    // and a real quantity but a BLANK rate used to import silently at rate 0 --
+    // a priced BOQ line worth nothing, indistinguishable from a line whose rate
+    // genuinely is 0 (a typed "0" is non-blank and still imports, unchanged).
+    // The two branches above already reject a rate cell that is present but
+    // unreadable; an absent one is the same data gap and gets the same
+    // treatment, in the words the item specifies.
+    //
+    // SUB-TASKS ARE EXEMPT, and must be: the canonical child-rate rule
+    // (schema.ts F2/F3) DERIVES a sub-task's quantity and rate from its root
+    // ancestor, so a real prospect export leaves those cells blank on every
+    // child row. Flagging them would reject the very sheets this importer was
+    // built for. A row is a sub-task when it carries a Sub Task value or an
+    // explicit Parent code -- the same two signals the hierarchy resolution
+    // below uses. The category-header branch above already catches a row where
+    // BOTH cells are blank and neither signal is present.
+    const parentCodeRaw = mapping.parentItemCode ? String(row[mapping.parentItemCode] ?? "").trim() : ""
+    const isSubTaskRow = !!subTaskRaw || !!parentCodeRaw
+    if (!isSubTaskRow) {
+      if (rateRaw === "") {
+        warnings.push(`Row ${idx + 2}: Rate is blank`)
+        return
+      }
+      if (quantityRaw === "") {
+        warnings.push(`Row ${idx + 2}: Qty is blank`)
+        return
+      }
     }
 
     const itemCode = mapping.itemCode ? String(row[mapping.itemCode] ?? "").trim() || undefined : undefined
@@ -204,6 +263,7 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
       const recomputedAmount = quantity * rate
       if (Math.abs(recomputedAmount - printedAmount) > 1e-6) {
         warnings.push(`Row ${idx + 2}: printed amount ${printedAmount} does not match quantity x rate (${recomputedAmount}) -- the recomputed value was used`)
+        issues.push({ row: sheetRow, message: `Row ${sheetRow}: printed amount ${printedAmount} does not match quantity x rate (${recomputedAmount}) -- the recomputed value was used`, blocking: false })
       }
     }
 
@@ -213,8 +273,21 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     // normalizeCategory enforces the same rule on the write path).
     const category = mapping.category ? String(row[mapping.category] ?? "").trim() || undefined : undefined
 
-    rawItems.push({ itemCode, explicitParentCode, description, unit, quantity, rate, breakdownPercentage: breakdownPercentage || undefined, isUnlabeledSubTask, category })
+    rawItems.push({ itemCode, explicitParentCode, description, unit, quantity, rate, breakdownPercentage: breakdownPercentage || undefined, isUnlabeledSubTask, category, sheetRow })
   })
+
+  // R67 D-25: "Flag duplicate Item Codes before import." createBoq() already
+  // REJECTS a duplicate itemCode outright (validateLineItemInputs), so without
+  // this the user only found out after uploading, from a 400 naming one row.
+  // Reported here, per row, against the preview.
+  const firstRowByCode = new Map<string, number>()
+  for (const item of rawItems) {
+    const code = item.itemCode?.trim()
+    if (!code) continue
+    const first = firstRowByCode.get(code)
+    if (first === undefined) { firstRowByCode.set(code, item.sheetRow); continue }
+    issues.push({ row: item.sheetRow, message: `Row ${item.sheetRow}: duplicate Item Code "${code}" (first used on row ${first})`, blocking: true })
+  }
 
   // Built from rawItems ONLY, which -- thanks to the header skip above --
   // never contains a category header's itemCode, whatever cell format that
@@ -289,13 +362,216 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     }
   })
 
-  return { lineItems, warnings }
+  return { lineItems, warnings, issues }
 }
 
-/** Parses an uploaded BoQ spreadsheet (xlsx/xls/csv) into hierarchical BoqLineItemInput[], ready for createBoq/createBoqRevision. */
-export async function parseBoqSpreadsheet(buffer: Buffer, fileName: string, mimeType: string): Promise<{ lineItems: BoqLineItemInput[]; warnings: string[]; mapping: BoqColumnMapping; totalRows: number }> {
+/**
+ * R67 D-25: the preview row shape the import screen renders, derived from the
+ * SAME parse the real import runs -- there is no second, browser-side parser
+ * that could disagree with it (and PROJEXA must not gain an XLSX library).
+ * `amount` is the RECOMPUTED quantity x rate, which is what actually gets
+ * stored, not whatever the sheet printed.
+ */
+export type BoqImportPreviewRow = {
+  category: string | null
+  code: string | null
+  description: string
+  unit: string
+  quantity: number
+  rate: number
+  amount: number
+  parentItemCode: string | null
+  breakdownPercentage: number | null
+}
+
+export function toPreviewRows(lineItems: BoqLineItemInput[]): BoqImportPreviewRow[] {
+  const byItemCode = new Map(lineItems.filter((i) => i.itemCode).map((i) => [i.itemCode!, i]))
+
+  // The canonical child-rate rule (construction-boq-service.ts's
+  // deriveLineItemQuantityAndRate, F2/F3): a sub-task's own qty/rate cells are
+  // NOT what gets stored -- they are derived from the ROOT ancestor. Repeated
+  // here rather than imported so this module stays free of the DB layer the
+  // service pulls in; the preview must show what will actually be SAVED, not
+  // the blank 0/0 a real sub-task row carries in the sheet.
+  const rootOf = (item: BoqLineItemInput): BoqLineItemInput => {
+    let current = item
+    const seen = new Set<string>()
+    while (current.parentItemCode) {
+      if (current.itemCode) {
+        if (seen.has(current.itemCode)) return current
+        seen.add(current.itemCode)
+      }
+      const parent = byItemCode.get(current.parentItemCode)
+      if (!parent) return current
+      current = parent
+    }
+    return current
+  }
+
+  return lineItems.map((i) => {
+    const root = i.parentItemCode ? rootOf(i) : i
+    const quantity = i.parentItemCode ? root.quantity : i.quantity
+    const rate = i.parentItemCode && i.breakdownPercentage != null ? root.rate * (i.breakdownPercentage / 100) : i.rate
+    return {
+      category: i.category ?? null,
+      code: i.itemCode ?? null,
+      description: i.description,
+      unit: i.unit,
+      quantity,
+      rate,
+      amount: quantity * rate,
+      parentItemCode: i.parentItemCode ?? null,
+      breakdownPercentage: i.breakdownPercentage ?? null,
+    }
+  })
+}
+
+/**
+ * Parses an uploaded BoQ spreadsheet (xlsx/xls/csv) into hierarchical
+ * BoqLineItemInput[], ready for createBoq/createBoqRevision.
+ *
+ * R67 lane D22 (item D-52): `mappingOverride` lets the import screen's
+ * "Map columns" step correct a header the auto-matcher got wrong -- a real
+ * customer sheet with a "Ref" column the aliases do not know, say. It is
+ * MERGED OVER the auto-detected mapping rather than replacing it, so a caller
+ * that corrects one field does not have to restate the other eight; a field
+ * explicitly set to undefined/"" unmaps it. The `headers` are returned so the
+ * screen can offer the sheet's real column names as the choices, instead of
+ * asking a human to type one.
+ *
+ * `issues` is the per-row verdict list that arrived on main with the same
+ * importer -- kept alongside `warnings`, not folded into it, because the two
+ * answer different questions (see mapRowsToLineItems).
+ */
+export async function parseBoqSpreadsheet(
+  buffer: Buffer,
+  fileName: string,
+  mimeType: string,
+  options: { mappingOverride?: BoqColumnMapping } = {}
+): Promise<{ lineItems: BoqLineItemInput[]; warnings: string[]; issues: BoqRowIssue[]; mapping: BoqColumnMapping; headers: string[]; totalRows: number }> {
   const parsed = await parseFile(buffer, fileName, mimeType)
-  const mapping = mapBoqHeaders(parsed.headers)
-  const { lineItems, warnings } = mapRowsToLineItems(parsed.rows as Record<string, unknown>[], mapping)
-  return { lineItems, warnings, mapping, totalRows: parsed.totalRows }
+  const mapping = applyMappingOverride(mapBoqHeaders(parsed.headers), options.mappingOverride, parsed.headers)
+  const { lineItems, warnings, issues } = mapRowsToLineItems(parsed.rows as Record<string, unknown>[], mapping)
+  return { lineItems, warnings, issues, mapping, headers: parsed.headers, totalRows: parsed.totalRows }
+}
+
+/**
+ * Merges a caller's column corrections over the auto-detected mapping.
+ *
+ * A correction naming a column that is not in the sheet is IGNORED rather than
+ * stored: mapRowsToLineItems would then read `row[undefined]` for every row and
+ * silently produce blank descriptions, which is a far worse failure than
+ * keeping the auto-detected column. An explicit empty string unmaps the field,
+ * which is a real thing a user can mean ("this column is not the Rate").
+ */
+export function applyMappingOverride(
+  auto: BoqColumnMapping,
+  override: BoqColumnMapping | undefined,
+  headers: string[]
+): BoqColumnMapping {
+  if (!override) return auto
+  const known = new Set(headers)
+  const merged: BoqColumnMapping = { ...auto }
+  for (const [field, header] of Object.entries(override) as [BoqFieldKey, string | undefined][]) {
+    if (header === undefined || header === "") { delete merged[field]; continue }
+    if (!known.has(header)) continue
+    merged[field] = header
+  }
+  return merged
+}
+
+// ─── R67 lane D22 (item D-52, rec R-176) ──────────────────────────────────
+// THE PREVIEW STEP. The importer above has been shipped end to end for a
+// while and has never had a screen; the screen's middle step is a per-row
+// preview with a Status column, so this is the per-row verdict behind it.
+//
+// Pure, and deliberately separate from mapRowsToLineItems(): that function's
+// warnings are about rows it could not read at all (no description, a
+// non-numeric Qty). These three are about rows it read perfectly well but
+// that a human should still look at before committing -- which is a different
+// question, asked at a different moment, and answered per row rather than as
+// a flat list of sentences.
+
+export type BoqPreviewStatus = "ok" | "warning"
+
+export type BoqPreviewRow = {
+  /** Position within the parsed line items, 1-based -- the S.No the preview prints. */
+  index: number
+  itemCode?: string
+  description: string
+  unit: string
+  quantity: number
+  rate: number
+  amount: number
+  category?: string
+  parentItemCode?: string
+  breakdownPercentage?: number
+  status: BoqPreviewStatus
+  messages: string[]
+}
+
+export type BoqPreview = {
+  rows: BoqPreviewRow[]
+  /** How many of the parsed lines will actually import. Nothing here blocks, so this is every row. */
+  willImport: number
+  totalParsed: number
+}
+
+export function analyseBoqPreview(lineItems: BoqLineItemInput[]): BoqPreview {
+  const codeCounts = new Map<string, number>()
+  for (const item of lineItems) {
+    const code = item.itemCode?.trim().toLowerCase()
+    if (code) codeCounts.set(code, (codeCounts.get(code) ?? 0) + 1)
+  }
+
+  // "A parent code appearing after its child" is ACCEPTED, not rejected: a
+  // real sheet is often ordered by trade rather than by hierarchy, and
+  // createBoq resolves parents across the whole submission at once (see
+  // BoqLineItemInput's own comment). The preview says so rather than leaving
+  // the reader to guess whether their file is broken.
+  const seenCodes = new Set<string>()
+
+  const rows = lineItems.map((item, i) => {
+    const messages: string[] = []
+    const code = item.itemCode?.trim().toLowerCase()
+
+    if (code && (codeCounts.get(code) ?? 0) > 1) {
+      // BOTH occurrences are flagged, not just the second: with only the
+      // later one marked, a reader cannot see which two rows collided.
+      messages.push(`Duplicate code ${item.itemCode} — appears ${codeCounts.get(code)} times`)
+    }
+
+    const parent = item.parentItemCode?.trim().toLowerCase()
+    if (parent && !seenCodes.has(parent)) {
+      messages.push(`Parent code ${item.parentItemCode} appears later in the file — accepted, resolved after load`)
+    }
+
+    if (!item.category || !item.category.trim()) {
+      messages.push("Category empty - WPR will show Uncategorized")
+    }
+
+    if (code) seenCodes.add(code)
+
+    return {
+      index: i + 1,
+      itemCode: item.itemCode,
+      description: item.description,
+      unit: item.unit,
+      quantity: item.quantity,
+      rate: item.rate,
+      amount: Math.round(item.quantity * item.rate * 100) / 100,
+      category: item.category,
+      parentItemCode: item.parentItemCode,
+      breakdownPercentage: item.breakdownPercentage,
+      status: (messages.length > 0 ? "warning" : "ok") as BoqPreviewStatus,
+      messages,
+    }
+  })
+
+  // Every parsed row imports: none of the three messages above is a blocking
+  // condition, and a row that could NOT be imported was already dropped by
+  // mapRowsToLineItems with its own warning. Reported explicitly so the
+  // screen's "N of M rows will import" line is a real number rather than a
+  // hardcoded equality.
+  return { rows, willImport: rows.length, totalParsed: rows.length }
 }

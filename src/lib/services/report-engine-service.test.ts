@@ -6,7 +6,8 @@
 import { describe, expect, test } from "bun:test"
 import {
   validateReportDefinitionInput, deriveReportDomainFromClassifications, buildAggregationNote, isBillingScheduleDue,
-  aggregateSalesByMaterialServiceType, type SalesByServiceTypeLine, type CreateReportDefinitionInput,
+  aggregateSalesByMaterialServiceType, usableBudget, TABLE_REGISTRY,
+  type SalesByServiceTypeLine, type CreateReportDefinitionInput,
 } from "./report-engine-service"
 
 const BASE: CreateReportDefinitionInput = {
@@ -252,5 +253,49 @@ describe("aggregateSalesByMaterialServiceType", () => {
 
   test("empty input returns an empty array, not an error", () => {
     expect(aggregateSalesByMaterialServiceType([], { groupBy: "item", includeCost: false })).toEqual([])
+  })
+})
+
+// R67 D-02 (audit R-004/R-009). compliance's getProjectDashboard()/
+// budgetVsActual() now return `budget` as `number | null` -- null meaning the
+// project has NO budget rows at all, which is a different fact from a budget
+// of zero. Three cost formulas here (CPI, Earned Value Analysis, Cost
+// Overrun) each need a budget they can divide by and each used to test
+// `budget <= 0` against a value that could not be null. usableBudget() is the
+// single decision they now share; this block is what stops it drifting back
+// into three separate inline comparisons.
+describe("usableBudget", () => {
+  test("no budget set returns null, so a formula reports 'no budget set' instead of dividing", () => {
+    expect(usableBudget(null)).toBeNull()
+  })
+
+  test("a zero budget is equally undividable and returns null", () => {
+    expect(usableBudget(0)).toBeNull()
+  })
+
+  test("a negative budget is not a budget either", () => {
+    expect(usableBudget(-1)).toBeNull()
+  })
+
+  test("a real budget comes back unchanged, so CPI/EVA keep computing on the real figure", () => {
+    expect(usableBudget(900000)).toBe(900000)
+    expect(usableBudget(0.5)).toBe(0.5)
+  })
+})
+
+// R67 D-21: veri_meetings gained a third status, 'deleted' -- a soft-deleted
+// DRAFT. This generic report engine is one of the two readers OUTSIDE
+// veri-meeting-service, so without a table-level predicate every definition
+// over that table would keep counting rows the product has stopped showing.
+// baseWhere is not expressible from a definition's JSON config on purpose: it
+// is a property of the table, not a filter a report may opt out of.
+describe("TABLE_REGISTRY baseWhere (R67 D-21)", () => {
+  test("veri_meetings carries a base predicate, so soft-deleted drafts are excluded from every definition over it", () => {
+    expect(TABLE_REGISTRY.veri_meetings.baseWhere).toBeDefined()
+  })
+
+  test("a table with nothing to hide carries none -- baseWhere is the exception, not a default every entry pays for", () => {
+    expect(TABLE_REGISTRY.compliance_items.baseWhere).toBeUndefined()
+    expect(TABLE_REGISTRY.notices.baseWhere).toBeUndefined()
   })
 })

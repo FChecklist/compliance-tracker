@@ -58,3 +58,30 @@ describe("classifyBudgetScheduleRisk -- Cognitive Architecture: Deterministic-Fi
     expect(classifyBudgetScheduleRisk(factors({ delayedTaskCount: 0, totalTaskCount: 0 }))).toBe("low")
   })
 })
+
+// R67 D-02 (audit R-004/R-009). budgetVsActual().budget became
+// `number | null` -- null when the project has NO budget rows at all, which
+// is not a budget of zero. Coercing that null to 0 would have made every
+// unbudgeted project look infinitely overspent (variance = -all spend), so
+// the overspend ratio is now computed by one named function that returns 0
+// when there is nothing to measure against.
+describe("overspendRatioOf (R67 D-02: an unset budget is not an overrun)", () => {
+  test("no budget set is not risk -- it is unassessable, and scores 0", async () => {
+    const { overspendRatioOf } = await import("./construction-ai-service")
+    expect(overspendRatioOf(factors({ budget: null, actual: 250_000, variance: null }))).toBe(0)
+  })
+
+  test("a project with no budget never classifies as budget risk, however large the spend", async () => {
+    expect(classifyBudgetScheduleRisk(factors({ budget: null, actual: 5_000_000, variance: null }))).toBe("low")
+  })
+
+  test("a real overspend still produces the real ratio", async () => {
+    const { overspendRatioOf } = await import("./construction-ai-service")
+    expect(overspendRatioOf(factors({ budget: 100_000, actual: 120_000, variance: -20_000 }))).toBeCloseTo(0.2, 10)
+  })
+
+  test("being under budget is 0, not a negative ratio", async () => {
+    const { overspendRatioOf } = await import("./construction-ai-service")
+    expect(overspendRatioOf(factors({ budget: 100_000, actual: 50_000, variance: 50_000 }))).toBe(0)
+  })
+})

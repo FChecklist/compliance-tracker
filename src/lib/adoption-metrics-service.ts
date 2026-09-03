@@ -22,7 +22,8 @@
 // estimation methodology (e.g. minutes-per-task-type assumptions) would
 // need to exist first.
 import { db, users, veriMeetings, tasks, conversations, savedReports, departments, tokenUsageLedger } from "@/lib/db"
-import { eq, and, count, countDistinct, sql } from "drizzle-orm"
+import { MEETING_DELETED_STATUS } from "@/lib/db/schema"
+import { eq, ne, and, count, countDistinct, sql } from "drizzle-orm"
 
 export type DepartmentAdoption = {
   departmentId: string
@@ -103,7 +104,10 @@ export async function computeOrgAdoptionMetrics(orgId: string): Promise<Adoption
       activeUsers: sql<number>`count(*) filter (where ${users.isActive} = true)::int`,
       onboardedUsers: sql<number>`count(*) filter (where ${users.onboardingCompleted} = true)::int`,
     }).from(users).where(eq(users.orgId, orgId)),
-    db.select({ meetingsManaged: count() }).from(veriMeetings).where(eq(veriMeetings.orgId, orgId)),
+    // R67 D-21: a soft-deleted DRAFT is not a meeting anybody managed. Without
+    // the ne() an adoption figure keeps counting rows the product itself has
+    // stopped showing, and the number only ever grows as people tidy up.
+    db.select({ meetingsManaged: count() }).from(veriMeetings).where(and(eq(veriMeetings.orgId, orgId), ne(veriMeetings.status, MEETING_DELETED_STATUS))),
     db.select({
       tasksCompleted: sql<number>`count(*) filter (where ${tasks.status} = 'completed')::int`,
     }).from(tasks).where(eq(tasks.orgId, orgId)),

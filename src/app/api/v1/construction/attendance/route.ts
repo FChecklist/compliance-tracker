@@ -3,7 +3,6 @@ import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-gua
 import {
   listAttendance,
   recordAttendance,
-  recordAttendanceBatch,
   ServiceError,
 } from "@/lib/services/construction-labour-service"
 import { withRouteTiming } from "@/lib/route-timing"
@@ -24,6 +23,16 @@ async function GET_impl(request: NextRequest) {
   try {
     // R67 F-25 (R-241): ?date= for one day, ?from=/?to= for a range.
     // ?attendanceDate= is the original name and still works.
+    // R67 F-06: `from`/`to` bound the log to a window (PROJEXA's /labour asks
+    // for a window ending on the chosen day). Both optional -- omitting them
+    // keeps the previous unbounded behaviour for every existing caller.
+    //
+    // R67 D-30/D-33 read the same window: the daily sheet asks for one date,
+    // the worker object page's month history and the daily summary ask for a
+    // range, and all three filter in SQL instead of pulling a project's whole
+    // attendance ledger to the browser. Two lanes arrived at the same filter
+    // set from opposite ends -- one to bound a list, one to ask a dated
+    // question -- which is why the parameters below serve both unchanged.
     const attendance = await listAttendance({ orgId: ctx.orgId }, {
       projectId: request.nextUrl.searchParams.get("projectId") ?? undefined,
       rosterId: request.nextUrl.searchParams.get("rosterId") ?? undefined,
@@ -57,20 +66,14 @@ async function POST_impl(request: NextRequest) {
 
   try {
     const body = await request.json()
-    // R67 WS-C (C-08): TWO BODIES, ONE ROUTE. A body carrying `entries` marks
-    // a whole crew in ONE transaction; every existing single-row caller
-    // (AttendanceCreateClient's form, and any integration already pointed
-    // here) keeps working untouched, because the branch is on the presence of
-    // the new field and nothing about the old shape moved.
-    //
-    // DISCLOSURE, decision D-12: this branch and recordAttendanceBatch are
-    // LANE D3'S. D3's version is not on main yet, so lane C carries them until
-    // it lands; on merge-second this branch and the service function are
-    // deleted in favour of D3's, and lane C keeps only its caller and tests.
-    if (Array.isArray((body as { entries?: unknown })?.entries)) {
-      const result = await recordAttendanceBatch({ orgId: ctx.orgId }, body)
-      return NextResponse.json(result, { status: 201 })
-    }
+    // R67 WS-C (C-08) / DECISION D-12, MERGE-SECOND: this route originally
+    // carried a second `entries`-shaped branch calling recordAttendanceBatch
+    // directly, added while lane D3's own batch write (POST
+    // /api/v1/construction/attendance/bulk, `rows`-shaped) was not yet on
+    // main. D3's version has since landed and is canonical; that branch and
+    // lane C's own recordAttendanceBatch have been removed in its favour (the
+    // batch write now lives only at the /bulk route). Every single-row caller
+    // below is unchanged.
     const result = await recordAttendance({ orgId: ctx.orgId }, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
