@@ -98,11 +98,11 @@ active:
       drizzle/0528_r67_i01_screen_definition_labels.sql section (3) appends Drawing No. /
       Rev / Status to every drawings.list registry row using the field names
       `drawingNumber` / `revision`. Lane D1's API and PROJEXA client emit `drawingNo` /
-      `rev`, so lane D1's own drizzle/0533_r67_drawings_list_columns.sql renames those two
+      `rev`, so lane D1's own drizzle/0534_r67_drawings_list_columns.sql renames those two
       fields on EVERY drawings.list row (including org overrides) and then writes the
-      canonical column order on the global row. 0533 must be applied AFTER 0528; applying
+      canonical column order on the global row. 0534 must be applied AFTER 0528; applying
       0528 again afterwards is a no-op (its NOT EXISTS guard keys on the 'Drawing No.'
-      label, which 0533 preserves).
+      label, which 0534 preserves).
 
   - session_label: "claude-code (subagent, r67/a-composer-shell) -- PROGRAMME R67 lane A (WS-A composer shell), items A-01..A-22"
     claimed_at: "2026-09-02T (this session)"
@@ -267,12 +267,15 @@ active:
           and construction-reports-service.ts's boqBudgetVarianceReport() budget columns.
         - D-78 (storage probe): src/lib/storage-config.ts (+ .test.ts),
           src/app/api/health/route.ts, src/app/api/v1/projexa/storage-status/route.ts.
-        - drizzle/0533_r67_drawings_list_columns.sql + its meta/_journal.json entry
-          (idx 355) -- DATA only, no DDL. It renames lane I's 0528 section (3) fields
+        - drizzle/0534_r67_drawings_list_columns.sql + its meta/_journal.json entry
+          (idx 356) -- DATA only, no DDL. It renames lane I's 0528 section (3) fields
           `drawingNumber`/`revision` to `drawingNo`/`rev` on every drawings.list row and
           writes the canonical column order on the global row; it must be applied AFTER
           0528. Numbered by reading `git ls-tree origin/main -- drizzle/` at rebase time
-          (origin/main 22167d02, highest 0532, highest journal idx 354).
+          (origin/main 41391e87, highest 0533 = lane B's, highest journal idx 355).
+          RENUMBERED TWICE by merging lanes -- drafted 0528 (collided with lane I),
+          then 0533 (collided with lane B) -- so re-read that listing before merging
+          rather than trusting this number.
         - docs/master/TEST_COVERAGE_GAP.md (regenerated against the rebased tree).
       No schema.ts change and no route contract break (dashboard `budget` keeps its name and
       is now nullable; getOrgDashboard's per-project `value` survives as a deprecated alias
