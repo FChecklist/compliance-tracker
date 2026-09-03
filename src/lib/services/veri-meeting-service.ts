@@ -16,10 +16,11 @@
 // "action items" were never real cross-module rows.
 import { createId } from "@paralleldrive/cuid2"
 import { after } from "next/server"
-import { veriMeetings, veriMeetingActionItems, veriMeetingShareLinks, tasks, auditLogs, db } from "@/lib/db"
+import { veriMeetings, veriMeetingActionItems, veriMeetingShareLinks, tasks, auditLogs, projects, db } from "@/lib/db"
+import { MEETING_DELETED_STATUS } from "@/lib/db/schema"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { logActivity } from "@/lib/audit"
-import { eq, and, desc } from "drizzle-orm"
+import { eq, and, desc, inArray, ne, notInArray, sql } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
@@ -66,25 +67,134 @@ function assertEditable(meeting: { status: string }) {
   }
 }
 
+// ─── Soft delete (R67 D-17) ───────────────────────────────────────────────
+// Deliberately a THIRD value of the existing free-text `status` column rather
+// than a new deleted_at column: veri_meetings.status was already a checked-in
+// string convention ('draft' | 'published', see schema.ts), every read path in
+// this file already goes through the two functions below, and a soft delete
+// that only ever applies to a DRAFT (never to a published, audit-relevant
+// record) carries no information a timestamp column would add. That keeps this
+// item migration-free, which is what the programme item asserts.
+//
+// The literal lives in schema.ts, beside the column it is a value of, so the
+// table's OTHER readers (adoption-metrics-service, report-engine-service's
+// TABLE_REGISTRY) can filter it out without importing this service and the
+// LLM/task-execution graph behind it. Re-exported here under the name every
+// caller in this file and its routes already uses.
+export { MEETING_DELETED_STATUS }
+
+// The exact sentence the PROJEXA UI renders beside a disabled Delete, kept
+// here so the server's refusal and the client's disabled-reason cannot drift.
+export const MEETING_DELETE_BLOCKED_REASON = "Published meetings cannot be deleted"
+
+/**
+ * Pure -- no DB access -- so it is unit-tested directly, matching this
+ * codebase's convention of not exercising withTenantContext from a .test.ts
+ * (see hr-service.ts's validateEmployeeProfileInput and its own note).
+ * Only a draft is deletable; a published meeting is the locked, shareable
+ * record publishVeriMeeting() exists to protect, and an already-deleted row
+ * is not deletable twice.
+ */
+export function canDeleteMeeting(status: string): boolean {
+  return status === "draft"
+}
+
+// ─── R67 D-16: the two aggregates the MoM LIST screen needs ──────────────
+// PROJEXA's MoM list renders Meeting | Date & time | Attendees | Open
+// actions | Status | Action. "Attendees" and "Open actions" were the two
+// columns it could not draw: the list DTO carried neither, and the only way
+// to get them was one GET /api/moms/{id} per row (getVeriMeeting loads the
+// action items) -- an N+1 the list would have paid on every render. Both are
+// therefore computed here, in the list, and returned as additive fields.
+//
+// "Open" is defined exactly as listMyMeetingActionItems() below already
+// defines it -- a linked `tasks` row whose status is neither completed nor
+// cancelled -- rather than a second, drifting definition.
+export const CLOSED_ACTION_ITEM_STATUSES = ["completed", "cancelled"] as const
+
+/**
+ * Pure: how many attendees a meeting row carries.
+ *
+ * `veri_meetings.attendees` is jsonb, declared `string[]` (names, not FKs --
+ * external attendees may not be app users) and defaulted to `[]`, so the
+ * Drizzle-inferred type is `unknown`. Anything that is not an array is 0 --
+ * a malformed row must not crash a list of 50 meetings. Blank strings are
+ * not attendees; a non-string entry is counted because it is still a real
+ * element the object page would render, and silently reporting fewer
+ * attendees than the meeting has would be the same "confident wrong number"
+ * this programme exists to remove.
+ */
+export function countAttendees(attendees: unknown): number {
+  if (!Array.isArray(attendees)) return 0
+  return attendees.filter((a) => (typeof a === "string" ? a.trim().length > 0 : a !== null && a !== undefined)).length
+}
+
+/**
+ * Pure: joins the grouped open-action-item counts onto the meeting rows and
+ * computes attendeesCount. A meeting with no matching group row has zero
+ * open action items -- the grouped query returns no row at all for it, which
+ * is not the same as "unknown", because the query covered every id in the
+ * list.
+ */
+export function attachMeetingListAggregates<T extends { id: string; attendees: unknown }>(
+  meetings: T[],
+  openActionItemCounts: { meetingId: string; openCount: number }[]
+): (T & { attendeesCount: number; openActionItems: number })[] {
+  const openByMeeting = new Map(openActionItemCounts.map((r) => [r.meetingId, Number(r.openCount) || 0]))
+  return meetings.map((m) => ({
+    ...m,
+    attendeesCount: countAttendees(m.attendees),
+    openActionItems: openByMeeting.get(m.id) ?? 0,
+  }))
+}
+
 // Wave 143: contextEntityId scoping added -- PROJEXA's MoM screen is
 // per-project, so it needs "meetings for this project" rather than the
 // full org-wide feed every existing internal caller (VeriChatPanel's
 // Meetings tab) wants.
+//
+// R67 D-20: the org-wide branch (contextEntityId omitted) is what PROJEXA's
+// new "All projects" list mode queries -- it already existed and needed no
+// change, so the client can stop pretending a project was chosen.
+//
+// R67 D-16: every row now also carries attendeesCount and openActionItems.
+// ONE extra grouped query for the whole page, inside the same tenant
+// transaction, not one per row.
 export async function listVeriMeetings(ctx: { orgId: string }, contextEntityId?: string) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.veriMeetings.findMany({
+  // R67 D-17: soft-deleted drafts never appear in a list again -- the row is
+  // kept only so the audit_logs entry deleteVeriMeeting() writes still points
+  // at something real.
+  const notDeleted = ne(veriMeetings.status, MEETING_DELETED_STATUS)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const meetings = await db.query.veriMeetings.findMany({
       where: contextEntityId
-        ? and(eq(veriMeetings.orgId, ctx.orgId), eq(veriMeetings.contextEntityId, contextEntityId))
-        : eq(veriMeetings.orgId, ctx.orgId),
+        ? and(eq(veriMeetings.orgId, ctx.orgId), eq(veriMeetings.contextEntityId, contextEntityId), notDeleted)
+        : and(eq(veriMeetings.orgId, ctx.orgId), notDeleted),
       orderBy: desc(veriMeetings.scheduledAt),
     })
-  )
+    if (meetings.length === 0) return attachMeetingListAggregates(meetings, [])
+
+    const openActionItemCounts = await db
+      .select({ meetingId: veriMeetingActionItems.meetingId, openCount: sql<number>`count(*)::int` })
+      .from(veriMeetingActionItems)
+      .innerJoin(tasks, eq(tasks.id, veriMeetingActionItems.taskId))
+      .where(and(
+        inArray(veriMeetingActionItems.meetingId, meetings.map((m) => m.id)),
+        eq(tasks.orgId, ctx.orgId),
+        notInArray(tasks.status, [...CLOSED_ACTION_ITEM_STATUSES]),
+      ))
+      .groupBy(veriMeetingActionItems.meetingId)
+
+    return attachMeetingListAggregates(meetings, openActionItemCounts)
+  })
 }
 
 export async function getVeriMeeting(ctx: { orgId: string }, meetingId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
-    if (!meeting) throw new ServiceError("Meeting not found", 404)
+    // R67 D-17: a soft-deleted meeting is indistinguishable from one that
+    // never existed, so a stale bookmark 404s rather than rendering a ghost.
+    if (!meeting || meeting.status === MEETING_DELETED_STATUS) throw new ServiceError("Meeting not found", 404)
     const actionItems = await db.query.veriMeetingActionItems.findMany({
       where: eq(veriMeetingActionItems.meetingId, meetingId),
       with: { task: true },
@@ -207,6 +317,29 @@ export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: str
   }
 
   return updated
+}
+
+// R67 D-17: Delete, gated on the SAME rule the UI renders as a disabled
+// reason. Soft (status -> 'deleted'), draft-only, and audit-logged like every
+// other state transition in this file -- a published meeting is the locked
+// record the whole publish/lock workflow exists to protect, so it refuses with
+// the exact sentence the button shows rather than 500ing after the click.
+export async function deleteVeriMeeting(ctx: VeriMeetingContext, meetingId: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
+    const existing = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
+    if (!existing || existing.status === MEETING_DELETED_STATUS) throw new ServiceError("Meeting not found", 404)
+    if (!canDeleteMeeting(existing.status)) throw new ServiceError(MEETING_DELETE_BLOCKED_REASON, 409)
+
+    const [updated] = await db.update(veriMeetings)
+      .set({ status: MEETING_DELETED_STATUS, updatedAt: new Date() })
+      .where(eq(veriMeetings.id, meetingId)).returning()
+
+    await logActivity({
+      tx: db, action: "veri_meeting.deleted", entityType: "veri_meeting", entityId: meetingId,
+      details: `Deleted meeting "${existing.title}"`, orgId: ctx.orgId, ...actorOf(ctx),
+    })
+    return updated
+  })
 }
 
 // Wave 74 (Meeting Intelligence, AI_OS_CERTIFICATION.md §3.2 NOT_BUILT).
@@ -434,8 +567,124 @@ export async function createMeetingShareLink(ctx: VeriMeetingContext, meetingId:
       tx: db, action: "veri_meeting.share_link_created", entityType: "veri_meeting", entityId: meetingId,
       details: "Share link created", orgId: ctx.orgId, ...actorOf(ctx),
     })
-    return link
+
+    // R67 D-21: the route composes a per-brand message that names the meeting,
+    // its date and its project, so those three facts travel back with the
+    // token rather than costing the route a second round trip. Additive keys
+    // only -- every pre-existing caller reads `token`/`expiresAt` off the same
+    // object exactly as before.
+    const project = meeting.contextEntityType === "project" && meeting.contextEntityId
+      ? await db.query.projects.findFirst({
+          where: and(eq(projects.id, meeting.contextEntityId), eq(projects.orgId, ctx.orgId)),
+          columns: { name: true },
+        })
+      : null
+
+    return {
+      ...link!,
+      meetingTitle: meeting.title,
+      meetingScheduledAt: meeting.scheduledAt,
+      projectName: project?.name ?? null,
+    }
   })
+}
+
+// ─── Share-link addressing + message (R67 D-21) ───────────────────────────
+// The share POST route used to compose its own link and text inline:
+//   `${request.nextUrl.origin}/shared/meeting/${token}` and
+//   "View these VERIDIAN AI meeting minutes: <link>".
+// Both were wrong for a PROJEXA customer. The ORIGIN was whichever host the
+// caller happened to reach (PROJEXA's own server calls this API server-to-
+// server, so nextUrl.origin is VERIDIAN's deployment host, not the product
+// domain the recipient must open); the BRAND named a product the recipient
+// has never heard of. This is now one pure function so the composed link and
+// the composed sentence can be asserted in a unit test instead of only being
+// observable by sending a real WhatsApp message.
+export type ShareBrand = "veridian" | "projexa"
+
+// Per brand: where the public read-only page lives, and how the message reads.
+const SHARE_PATH_PREFIX: Record<ShareBrand, string> = {
+  veridian: "/shared/meeting",
+  projexa: "/shared/mom",
+}
+
+export function normaliseShareBrand(brand: unknown): ShareBrand {
+  return brand === "projexa" ? "projexa" : "veridian"
+}
+
+/**
+ * Pure. Returns the origin to build the share URL from: the caller-supplied
+ * shareOrigin when it is a real absolute http(s) origin, otherwise the
+ * fallback (the request's own origin, i.e. the pre-D-21 behaviour) so a caller
+ * that sends nothing is no worse off than before.
+ */
+export function resolveShareOrigin(shareOrigin: unknown, fallbackOrigin: string): string {
+  if (typeof shareOrigin === "string" && shareOrigin.trim()) {
+    try {
+      const url = new URL(shareOrigin.trim())
+      if (url.protocol === "http:" || url.protocol === "https:") return url.origin
+    } catch {
+      // fall through to the fallback -- never throw on a caller's bad env var
+    }
+  }
+  return fallbackOrigin
+}
+
+/** Pure. The date as the recipient reads it, pinned to UTC so it is stable. */
+export function formatShareDate(scheduledAt: Date | string, locale = "en-GB"): string {
+  const date = scheduledAt instanceof Date ? scheduledAt : new Date(scheduledAt)
+  if (Number.isNaN(date.getTime())) return ""
+  try {
+    return new Intl.DateTimeFormat(locale, { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(date)
+  } catch {
+    return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(date)
+  }
+}
+
+export type MeetingShareTargetInput = {
+  token: string
+  title: string
+  scheduledAt: Date | string
+  projectName?: string | null
+  brand?: unknown
+  shareOrigin?: unknown
+  fallbackOrigin: string
+  locale?: string
+}
+
+export type MeetingShareTarget = {
+  brand: ShareBrand
+  shareUrl: string
+  message: string
+  whatsappHref: string
+  telegramHref: string
+}
+
+/** Pure. Everything the share-link route returns to the client, composed. */
+export function composeMeetingShareTarget(input: MeetingShareTargetInput): MeetingShareTarget {
+  const brand = normaliseShareBrand(input.brand)
+  const origin = resolveShareOrigin(input.shareOrigin, input.fallbackOrigin)
+  const shareUrl = `${origin}${SHARE_PATH_PREFIX[brand]}/${encodeURIComponent(input.token)}`
+
+  let message: string
+  if (brand === "projexa") {
+    // The item's exact template: "Minutes of Meeting - <title>, <date in org
+    // locale>, <project name>: <link>". The project clause is dropped rather
+    // than filled with a placeholder when the meeting is not project-scoped.
+    const parts = [input.title, formatShareDate(input.scheduledAt, input.locale)].filter(Boolean)
+    if (input.projectName?.trim()) parts.push(input.projectName.trim())
+    message = `Minutes of Meeting - ${parts.join(", ")}: ${shareUrl}`
+  } else {
+    message = `View these VERIDIAN AI meeting minutes: ${shareUrl}`
+  }
+
+  return {
+    brand,
+    shareUrl,
+    message,
+    whatsappHref: `https://wa.me/?text=${encodeURIComponent(message)}`,
+    telegramHref: `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(message)}`,
+  }
 }
 
 export async function listMeetingShareLinks(ctx: { orgId: string }, meetingId: string) {
@@ -469,11 +718,21 @@ export async function getMeetingByShareToken(token: string) {
   if (!link || link.revokedAt || link.expiresAt < new Date()) throw new ServiceError("This share link is invalid or has expired", 404)
 
   const meeting = await db.query.veriMeetings.findFirst({ where: eq(veriMeetings.id, link.meetingId) })
-  if (!meeting) throw new ServiceError("This share link is invalid or has expired", 404)
+  // R67 D-17/D-21: a soft-deleted meeting behind a live token is treated
+  // exactly like an expired one -- same 404, same public copy.
+  if (!meeting || meeting.status === MEETING_DELETED_STATUS) throw new ServiceError("This share link is invalid or has expired", 404)
 
   const actionItems = await db.query.veriMeetingActionItems.findMany({
     where: eq(veriMeetingActionItems.meetingId, meeting.id),
     with: { task: true },
   })
-  return { ...meeting, actionItems }
+  // R67 D-21: the public PROJEXA page heads with the project, so resolve it
+  // here rather than making the unauthenticated page guess or omit it.
+  const project = meeting.contextEntityType === "project" && meeting.contextEntityId
+    ? await db.query.projects.findFirst({
+        where: and(eq(projects.id, meeting.contextEntityId), eq(projects.orgId, meeting.orgId)),
+        columns: { name: true },
+      })
+    : null
+  return { ...meeting, actionItems, projectName: project?.name ?? null, expiresAt: link.expiresAt }
 }

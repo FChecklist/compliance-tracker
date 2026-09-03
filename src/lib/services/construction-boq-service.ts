@@ -19,9 +19,14 @@ import {
   constructionBoqs, constructionBoqLineItems, constructionWorkProgressEntries, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, or, type SQL } from "drizzle-orm"
+import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { isSelfApproval } from "./approval-workflow-service"
+// R67 F-27 (R-243): a BOQ write moves contract value, earned value and
+// "% Complete by BOQ Value" on the project dashboard, which now holds a 60 s
+// cache. ONE helper, in a dependency-free module -- see its own header for why
+// it does not live in construction-dashboard-service.ts.
+import { bustProjectDashboardCache } from "./project-dashboard-cache"
 export { ServiceError }
 
 export type BoqContext = { orgId: string; userId: string }
@@ -441,38 +446,225 @@ function withComputedRate(item: typeof constructionBoqLineItems.$inferSelect) {
   return { ...item, computedRate: computedRate(item), computedBudget: computedBudget(item) }
 }
 
+// R67 F-04 (R-060/R-063) was the SAME fix arriving from lane F1, and lands
+// here under D-11: F-23's version below is canonical, and F-04's distinct
+// capability -- the chain-walked "vs the ORIGINAL revision" figure, which the
+// grouped CTE cannot answer because it only ever joins ONE hop to the parent
+// -- is folded in as computeChainVariation(), computed in memory over line
+// items this transaction has already read. Both lanes' tests are kept.
+// R67 F-23 (audit recommendation R-239) -- THE /scope FAN-OUT, CLOSED.
+//
+// THE MEASURED PROBLEM. /api/v1/construction/boq's GET handler ran
+// `Promise.all(boqs.map(getBoq))`, and every getBoq() opens its OWN
+// withTenantContext transaction (see that function, unchanged below). A
+// five-revision project therefore asked tenant-scoped.ts's FIVE-connection
+// pool for five concurrent transactions at once, on top of listBoqs' own --
+// the same pool-starvation shape R43_MGR_01 removed from getOrgDashboard.
+// PROJEXA then fired one more request per revision (/api/scope/{id}/compare)
+// purely to fill the green "Variation vs. prior" cell, so /scope made 22 API
+// calls and reached idle at 7.6 s.
+//
+// WHAT REPLACES IT. ONE transaction, and inside it at most three statements
+// regardless of how many revisions the project has:
+//   1. the revision headers (as before),
+//   2. `include=lineItems` -- every revision's line items in ONE inArray read
+//      instead of one getBoq() transaction per revision,
+//   3. `include=variation` -- one CTE over construction_boq_line_items grouped
+//      by boq_id, joined to each revision's parent through the existing
+//      parent_boq_id chain, so the per-row variation figure PROJEXA used to
+//      fetch one-request-per-row now arrives with the list.
+//
+// WHY variationVsPrior IS THE SAME NUMBER THE COMPARE SCREEN SHOWS. The CTE
+// computes Σ(quantity × rate) for the child revision minus the same for its
+// parent. computeTotalVariation() (below) computes addedTotal − removedTotal +
+// Σ changed netVariation over diffLineItems()' key-matched diff. Unchanged
+// items contribute 0 to both, added items contribute their full amount to
+// both, removed items subtract their full amount in both, and a changed item
+// contributes curr.amount − prev.amount in both -- so the two are algebraically
+// identical, and `amount` is stored as quantity × rate by insertLineItems().
+// The list figure and the compare screen's total can therefore never disagree.
+// (The one divergence is pathological: two line items in ONE revision sharing a
+// diff key -- same itemCode is already rejected by validateLineItemInputs, same
+// description with no itemCode is not -- where diffLineItems' Map keeps the last
+// and the sum keeps both. The sum is the correct answer in that case.)
+// R67 F-29 (audit recommendation R-273) -- THE COMPARE SUMMARY JOINS THE LIST.
+//
+// F-23 above put each revision's variation-vs-prior into the list payload and
+// deleted the one /api/scope/{id}/compare request PER ROW the /scope screen
+// was making to fill a single cell. R-273 finishes the job: the screen also
+// wants to show, per revision, HOW BIG that revision is (its line count and
+// its total) and how far it moved from the previous one in PERCENT, not only
+// in currency -- "+1,005" says nothing about whether that is a rounding error
+// or a doubling of the contract.
+//
+// All five figures come out of the SAME statement the variation already used,
+// so `?include=compare` costs no extra round trip over `?include=variation`,
+// and asking for both costs one statement, not two. That is the whole point:
+// the alternative -- a second endpoint, or a second query -- would reintroduce
+// the fan-out this pair of items exists to remove.
+//
+// deltaPct is NULL, never 0 and never Infinity, when there is no parent or the
+// parent totalled zero. A percentage change from nothing is not a number, and
+// printing "∞%" or "0%" beside a real increase would be a false statement
+// about the project's money.
+export type BoqListOptions = {
+  /**
+   * Comma-separated, mirroring the route's own `?include=`. Recognised values:
+   * `lineItems` (every revision's line items, batched), `variation`
+   * (variationVsPrior + lineDelta per revision) and `compare` (the
+   * lineCount / total / deltaAmount / deltaPct summary). Anything else is
+   * ignored -- an unknown include must never fail a list a caller can
+   * otherwise read.
+   */
+  include?: string | null
+}
+
+export type BoqRevisionVariation = {
+  /** Σ(quantity × rate) here minus Σ(quantity × rate) on the parent revision. null on a baseline (no parent). */
+  variationVsPrior: number | null
+  /** line-item count here minus line-item count on the parent revision. null on a baseline. */
+  lineDelta: number | null
+}
+
+export type BoqRevisionCompare = {
+  /** How many line items this revision has. */
+  lineCount: number
+  /** Σ(quantity × rate) over this revision's own line items. */
+  total: number
+  /** total(this) − total(parent). null on a baseline -- the same number as variationVsPrior. */
+  deltaAmount: number | null
+  /** That delta as a percentage of the parent's total. null on a baseline OR when the parent totalled zero. */
+  deltaPct: number | null
+}
+
 /**
- * R67 F-04 (R-060/R-063). Every BOQ in a project, WITH its line items and its
- * two variation figures, in ONE transaction and one grouped line-item query.
- *
- * What this replaces, on both sides of the wire:
- *
- *  - Server: v1/construction/boq/route.ts used to run
- *    `Promise.all(boqs.map(getBoq))`, and getBoq() opens its OWN
- *    withTenantContext transaction -- an N+1 of TRANSACTIONS, all concurrent,
- *    against tenant-scoped.ts's five-connection app_runtime pool. A project
- *    with eight revisions asked for eight simultaneous connections on top of
- *    the one this request already held.
- *  - Client: ScopeClient then fired GET /api/scope/{id}/compare once per
- *    revision to fill the "Variation vs. prior" column -- eight more calls at
- *    0.58-1.44 s each, 22 requests and 7.7 s to network idle, for a screen the
- *    backend itself answers in 652-781 ms.
- *
- * The variation arithmetic is NOT reimplemented here: it reuses the exact
- * `diffLineItems` + `computeTotalVariation` pair compareBoq() uses, run in
- * memory over line items already loaded, so a row's figure and the compare
- * screen's figure cannot disagree. /compare stays as-is for the detail screen,
- * which also needs added/removed/changed and the scope-reduction warnings --
- * that is a genuinely bigger answer than a list row needs.
- *
- * Both figures are null (never 0) when they do not apply: Rev0 has no prior
- * and no original to differ from, and "no baseline" is not "no change".
- * totalVariationVsOriginal walks the parentBoqId chain to the root of THIS
- * project's revision chain, and is cycle-guarded -- parentBoqId is plain
- * data, and a self-referencing or looped chain must degrade to a null cell,
- * never hang the list.
+ * R67 F-04 (R-060/R-063). The variation figures that CANNOT come out of F-23's
+ * grouped CTE, because that statement joins exactly one hop (parent_boq_id) and
+ * this pair has to walk the whole revision chain back to its root.
  */
-export async function listBoqs(ctx: { orgId: string }, projectId: string) {
+export type ChainVariation = {
+  /** Change against the IMMEDIATE parent revision. null (never 0) on a baseline. */
+  totalVariation: number | null
+  /** Change against the ROOT of this revision chain. null on the root itself. */
+  totalVariationVsOriginal: number | null
+}
+
+export type BoqListRow = typeof constructionBoqs.$inferSelect &
+  Partial<BoqRevisionVariation> &
+  Partial<ChainVariation> & {
+    lineItems?: ReturnType<typeof withComputedRate>[]
+    compare?: BoqRevisionCompare
+  }
+
+export function parseBoqInclude(include: string | null | undefined): {
+  lineItems: boolean
+  variation: boolean
+  compare: boolean
+} {
+  const parts = new Set(
+    (include ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+  )
+  return { lineItems: parts.has("lineItems"), variation: parts.has("variation"), compare: parts.has("compare") }
+}
+
+type RevisionSummary = BoqRevisionVariation & BoqRevisionCompare
+
+/**
+ * The per-revision summary, in ONE statement, however many revisions there are.
+ *
+ * `revision` is this project's whole chain, so a parent is always resolvable
+ * inside the same CTE -- createBoqRevision() always writes the child with its
+ * parent's projectId, so a chain never crosses projects.
+ *
+ * R67 F-29 widened this from two columns to five. It is deliberately still one
+ * statement and one pass: `variation` and `compare` are two views of the same
+ * grouped aggregate, and computing them separately would put back exactly the
+ * per-revision fan-out F-23 removed.
+ */
+async function loadRevisionSummaries(
+  db: TenantDb,
+  orgId: string,
+  projectId: string
+): Promise<Map<string, RevisionSummary>> {
+  const rows = (await db.execute(sql`
+    WITH revision AS (
+      SELECT id, parent_boq_id
+      FROM compliance.construction_boqs
+      WHERE org_id = ${orgId} AND project_id = ${projectId}
+    ),
+    totals AS (
+      SELECT li.boq_id AS boq_id,
+             coalesce(sum(li.quantity * li.rate), 0)::float AS total,
+             count(*)::int AS line_count
+      FROM compliance.construction_boq_line_items li
+      JOIN revision r ON r.id = li.boq_id
+      GROUP BY li.boq_id
+    )
+    SELECT r.id AS boq_id,
+           coalesce(c.total, 0)::float AS total,
+           coalesce(c.line_count, 0)::int AS line_count,
+           CASE WHEN r.parent_boq_id IS NULL THEN NULL
+                ELSE (coalesce(c.total, 0) - coalesce(p.total, 0))::float END AS variation_vs_prior,
+           CASE WHEN r.parent_boq_id IS NULL THEN NULL
+                ELSE (coalesce(c.line_count, 0) - coalesce(p.line_count, 0))::int END AS line_delta,
+           -- NULLIF, not a division: a percentage change from a parent that
+           -- totalled nothing is not a number, and "∞%" or "0%" beside a real
+           -- increase would be a false statement about the project's money.
+           CASE WHEN r.parent_boq_id IS NULL THEN NULL
+                ELSE ((coalesce(c.total, 0) - coalesce(p.total, 0))
+                      / NULLIF(coalesce(p.total, 0), 0) * 100)::float END AS delta_pct
+    FROM revision r
+    LEFT JOIN totals c ON c.boq_id = r.id
+    LEFT JOIN totals p ON p.boq_id = r.parent_boq_id
+  `)) as {
+    boq_id: string
+    total: number | null
+    line_count: number | null
+    variation_vs_prior: number | null
+    line_delta: number | null
+    delta_pct: number | null
+  }[]
+
+  return new Map(
+    rows.map((r) => {
+      const deltaAmount = r.variation_vs_prior === null ? null : Number(r.variation_vs_prior)
+      return [
+        r.boq_id,
+        {
+          variationVsPrior: deltaAmount,
+          lineDelta: r.line_delta === null ? null : Number(r.line_delta),
+          lineCount: Number(r.line_count ?? 0),
+          total: Number(r.total ?? 0),
+          deltaAmount,
+          deltaPct: r.delta_pct === null ? null : Number(r.delta_pct),
+        },
+      ]
+    })
+  )
+}
+
+/** A revision with no rows in the summary at all -- a chain member the CTE
+ *  could not see. Zeroes for its own size (it genuinely has no line items) and
+ *  nulls for every comparison, which is the honest answer to "how far did it
+ *  move" when we do not know. */
+const EMPTY_REVISION_SUMMARY: RevisionSummary = {
+  variationVsPrior: null,
+  lineDelta: null,
+  lineCount: 0,
+  total: 0,
+  deltaAmount: null,
+  deltaPct: null,
+}
+
+export async function listBoqs(
+  ctx: { orgId: string },
+  projectId: string,
+  options: BoqListOptions = {}
+): Promise<BoqListRow[]> {
+  const include = parseBoqInclude(options.include)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const boqs = await db.query.constructionBoqs.findMany({
       where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
@@ -486,35 +678,88 @@ export async function listBoqs(ctx: { orgId: string }, projectId: string) {
       // and matches the intuitive meaning of "latest" when versions tie.
       orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)],
     })
-    if (boqs.length === 0) return []
+    // Every existing caller passes no options and keeps getting exactly the
+    // headers it got before -- one statement, one transaction.
+    if (boqs.length === 0 || (!include.lineItems && !include.variation && !include.compare)) return boqs
 
-    // ONE query for every revision's lines, then grouped in memory -- not one
-    // query (nor one transaction) per revision.
-    const allLineItems = await db.query.constructionBoqLineItems.findMany({
-      where: inArray(constructionBoqLineItems.boqId, boqs.map((b) => b.id)),
+    const boqIds = boqs.map((b) => b.id)
+    const lineItemsByBoq = new Map<string, ReturnType<typeof withComputedRate>[]>()
+    // R67 F-04: the RAW rows are kept beside the computed ones so the
+    // chain-walked figures below cost no second read and no second statement.
+    const rawLineItemsByBoq = new Map<string, BoqLineItemRow[]>()
+    if (include.lineItems) {
+      const rows = await db.query.constructionBoqLineItems.findMany({
+        where: inArray(constructionBoqLineItems.boqId, boqIds),
+      })
+      for (const row of rows) {
+        const list = lineItemsByBoq.get(row.boqId) ?? []
+        list.push(withComputedRate(row))
+        lineItemsByBoq.set(row.boqId, list)
+        const raw = rawLineItemsByBoq.get(row.boqId) ?? []
+        raw.push(row)
+        rawLineItemsByBoq.set(row.boqId, raw)
+      }
+    }
+
+    // R67 F-29: ONE statement serves both `variation` and `compare` -- they are
+    // two projections of the same grouped aggregate, so asking for both costs
+    // exactly what asking for either costs.
+    const summaryByBoq =
+      include.variation || include.compare
+        ? await loadRevisionSummaries(db, ctx.orgId, projectId)
+        : new Map<string, RevisionSummary>()
+
+    // R67 F-04 (R-060/R-063), folded onto F-23's one-statement list under D-11.
+    // `variationVsPrior` above is the SQL aggregate against the IMMEDIATE
+    // parent; these two walk the parentBoqId chain in memory, which is the only
+    // way to answer "how far has this revision moved from the ORIGINAL?"
+    // without a second query. Computed only when the line items are already in
+    // hand AND variation was asked for, so no caller pays for a figure it did
+    // not request and F-23's statement count is unchanged.
+    const chainVariationByBoq =
+      include.lineItems && include.variation
+        ? computeChainVariation(boqs, rawLineItemsByBoq)
+        : new Map<string, ChainVariation>()
+
+    return boqs.map((boq) => {
+      const summary = summaryByBoq.get(boq.id) ?? EMPTY_REVISION_SUMMARY
+      return {
+        ...boq,
+        ...(include.lineItems ? { lineItems: lineItemsByBoq.get(boq.id) ?? [] } : {}),
+        ...(include.variation
+          ? { variationVsPrior: summary.variationVsPrior, lineDelta: summary.lineDelta }
+          : {}),
+        ...(chainVariationByBoq.get(boq.id) ?? {}),
+        ...(include.compare
+          ? {
+              compare: {
+                lineCount: summary.lineCount,
+                total: summary.total,
+                deltaAmount: summary.deltaAmount,
+                deltaPct: summary.deltaPct,
+              },
+            }
+          : {}),
+      }
     })
-
-    return buildBoqListRows(boqs, allLineItems)
   })
 }
 
 /**
- * The pure, DB-free half of listBoqs() -- grouping + the two variation
- * figures -- extracted so it is independently unit-testable without a live
- * database, exactly as diffLineItems/computeHierarchicalAmount/
- * resolveProgressByLineItem already are in this file.
+ * R67 F-04 (R-060/R-063). The chain-walked variation figures, over line items
+ * the caller has already loaded -- no query of its own, by construction.
+ *
+ * The arithmetic is NOT reimplemented: it reuses the exact `diffLineItems` +
+ * `computeTotalVariation` pair compareBoq() uses, so a list row's figure and
+ * the compare screen's figure cannot disagree.
+ *
+ * Both are null (never 0) when they do not apply: a baseline revision has no
+ * prior and no original to differ from, and "no baseline" is not "no change".
  */
-export function buildBoqListRows<B extends { id: string; parentBoqId: string | null }>(
+function computeChainVariation<B extends { id: string; parentBoqId: string | null }>(
   boqs: B[],
-  allLineItems: BoqLineItemRow[]
-) {
-  const itemsByBoqId = new Map<string, BoqLineItemRow[]>()
-  for (const item of allLineItems) {
-    const list = itemsByBoqId.get(item.boqId)
-    if (list) list.push(item)
-    else itemsByBoqId.set(item.boqId, [item])
-  }
-
+  itemsByBoqId: Map<string, BoqLineItemRow[]>
+): Map<string, ChainVariation> {
   const boqById = new Map(boqs.map((b) => [b.id, b]))
 
   function originalBoqId(startId: string): string {
@@ -537,20 +782,50 @@ export function buildBoqListRows<B extends { id: string; parentBoqId: string | n
     return computeTotalVariation(diffLineItems(itemsByBoqId.get(baselineBoqId) ?? [], currentItems))
   }
 
-  return boqs.map((boq) => {
-    const lineItems = itemsByBoqId.get(boq.id) ?? []
-    const rootId = originalBoqId(boq.id)
-    return {
-      ...boq,
-      lineItems: lineItems.map(withComputedRate),
-      totalVariation: variationBetween(
-        boq.parentBoqId && boqById.has(boq.parentBoqId) ? boq.parentBoqId : undefined,
-        lineItems
-      ),
-      totalVariationVsOriginal: rootId === boq.id ? null : variationBetween(rootId, lineItems),
-    }
-  })
+  return new Map<string, ChainVariation>(
+    boqs.map((boq) => {
+      const lineItems = itemsByBoqId.get(boq.id) ?? []
+      const rootId = originalBoqId(boq.id)
+      return [
+        boq.id,
+        {
+          totalVariation: variationBetween(
+            boq.parentBoqId && boqById.has(boq.parentBoqId) ? boq.parentBoqId : undefined,
+            lineItems
+          ),
+          totalVariationVsOriginal: rootId === boq.id ? null : variationBetween(rootId, lineItems),
+        },
+      ]
+    })
+  )
 }
+
+/**
+ * The pure, DB-free half of listBoqs() -- grouping + the two chain variation
+ * figures -- extracted so it is independently unit-testable without a live
+ * database, exactly as diffLineItems/computeHierarchicalAmount/
+ * resolveProgressByLineItem already are in this file.
+ */
+export function buildBoqListRows<B extends { id: string; parentBoqId: string | null }>(
+  boqs: B[],
+  allLineItems: BoqLineItemRow[]
+) {
+  const itemsByBoqId = new Map<string, BoqLineItemRow[]>()
+  for (const item of allLineItems) {
+    const list = itemsByBoqId.get(item.boqId)
+    if (list) list.push(item)
+    else itemsByBoqId.set(item.boqId, [item])
+  }
+
+  const chainVariationByBoq = computeChainVariation(boqs, itemsByBoqId)
+
+  return boqs.map((boq) => ({
+    ...boq,
+    lineItems: (itemsByBoqId.get(boq.id) ?? []).map(withComputedRate),
+    ...chainVariationByBoq.get(boq.id)!,
+  }))
+}
+
 
 export async function getBoq(ctx: { orgId: string }, boqId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -642,6 +917,9 @@ export async function createBoq(ctx: BoqContext, input: BoqInput) {
     await insertLineItems(db, ctx.orgId, boq.id, lineItems)
     await assertLineItemsPersisted(db, boq.id, lineItems.length)
     return getBoqRow(db, boq.id)
+  }).then((row) => {
+    bustProjectDashboardCache(ctx.orgId, row.projectId)
+    return row
   })
 }
 
@@ -726,24 +1004,32 @@ export async function createBoqRevision(
     // item's result onto its CURRENT id, since findScopeReductionViolations
     // looks progress up by change.current.id. Removed items are unaffected
     // (their "id" IS the previous/only id, already correct).
-    const progressByPreviousId = await loadLatestProgressByLineItem(db, ctx.orgId, [...removed, ...changed.map((c) => c.previous)])
-    const progressByLineItem = new Map(progressByPreviousId)
+    const progressByPreviousId = await loadLatestProgressDetailByLineItem(db, ctx.orgId, [...removed, ...changed.map((c) => c.previous)])
+    const progressDetailByLineItem = new Map(progressByPreviousId)
     for (const c of changed) {
-      const pct = progressByPreviousId.get(c.previous.id)
-      if (pct !== undefined) progressByLineItem.set(c.current.id, pct)
+      const progress = progressByPreviousId.get(c.previous.id)
+      if (progress !== undefined) progressDetailByLineItem.set(c.current.id, progress)
     }
+    const progressByLineItem = new Map([...progressDetailByLineItem].map(([id, p]) => [id, p.percentComplete]))
     const violations = findScopeReductionViolations({ removed, changed }, progressByLineItem)
     if (violations.length > 0 && !input.allowScopeReductionOverride) {
-      throw new ServiceError(
+      // R67 D-27: the same block, now carrying the violating lines as
+      // STRUCTURED rows as well as inside the sentence, so the revise screen
+      // can render "R60SK-A - 12 m2 recorded on 28 Aug 2026" in a table above
+      // the override instead of printing a paragraph.
+      throw new ScopeReductionError(
         `Scope reduction blocked -- this revision would remove or reduce work already completed on site: ${violations.join("; ")}. ` +
           `Pass allowScopeReductionOverride: true to proceed anyway.`,
-        409
+        buildScopeReductionConflicts({ removed, changed }, progressDetailByLineItem)
       )
     }
 
     await db.update(constructionBoqs).set({ status: "superseded", updatedAt: new Date() }).where(eq(constructionBoqs.id, parent.id))
 
     return getBoqRow(db, boq.id)
+  }).then((row) => {
+    bustProjectDashboardCache(ctx.orgId, row.projectId)
+    return row
   })
 }
 
@@ -843,12 +1129,91 @@ export function resolveProgressByLineItem(
   byLineItemId: Map<string, number>,
   byActivityId: Map<string, number>
 ): Map<string, number> {
-  const progressByLineItem = new Map<string, number>()
+  return resolveByLineItem(items, byLineItemId, byActivityId)
+}
+
+/**
+ * R67 D-27: the same resolution rule, carrying the WHOLE most-recent progress
+ * entry rather than only its percentage -- because "R60SK-A - 12 m2 recorded on
+ * 28 Aug 2026" needs the quantity and the date as well. Generic so the two
+ * cannot drift: resolveProgressByLineItem above is this function at T = number.
+ */
+export type LineItemProgress = { percentComplete: number; quantityDone: number; entryDate: string }
+
+function resolveByLineItem<T>(items: BoqLineItemRow[], byLineItemId: Map<string, T>, byActivityId: Map<string, T>): Map<string, T> {
+  const resolved = new Map<string, T>()
   for (const item of items) {
-    if (byLineItemId.has(item.id)) { progressByLineItem.set(item.id, byLineItemId.get(item.id)!); continue }
-    if (item.activityId && byActivityId.has(item.activityId)) progressByLineItem.set(item.id, byActivityId.get(item.activityId)!)
+    if (byLineItemId.has(item.id)) { resolved.set(item.id, byLineItemId.get(item.id)!); continue }
+    if (item.activityId && byActivityId.has(item.activityId)) resolved.set(item.id, byActivityId.get(item.activityId)!)
   }
-  return progressByLineItem
+  return resolved
+}
+
+export function resolveProgressDetailByLineItem(
+  items: BoqLineItemRow[],
+  byLineItemId: Map<string, LineItemProgress>,
+  byActivityId: Map<string, LineItemProgress>
+): Map<string, LineItemProgress> {
+  return resolveByLineItem(items, byLineItemId, byActivityId)
+}
+
+/**
+ * R67 D-27 (R-068). The 409 this service already threw named the violating
+ * lines only inside a prose sentence -- '"Blockwork" is 40% complete on site
+ * and would be removed entirely' -- which a UI can print but cannot render as a
+ * table, sort, count, or link to the line. This turns the SAME violations into
+ * structured rows carrying what a site engineer needs to judge the override:
+ * the item code, the quantity actually recorded, its unit, and when it was last
+ * recorded.
+ *
+ * Pure and DB-free, sharing findScopeReductionViolations' own rule for what
+ * counts as a violation (a removed line, or a changed line whose netVariation
+ * is negative, that has ANY recorded progress) so the block and the table can
+ * never disagree about which lines they are talking about.
+ */
+export type ScopeReductionConflict = {
+  itemCode: string | null
+  description: string
+  recordedQty: number
+  unit: string
+  lastRecordedAt: string
+}
+
+export function buildScopeReductionConflicts(
+  diff: { removed: BoqLineItemRow[]; changed: ChangedLineItem[] },
+  progressByLineItem: Map<string, LineItemProgress>
+): ScopeReductionConflict[] {
+  const conflicts: ScopeReductionConflict[] = []
+  const push = (item: BoqLineItemRow, progress: LineItemProgress | undefined) => {
+    if (!progress || !(progress.percentComplete > 0)) return
+    conflicts.push({
+      itemCode: item.itemCode,
+      description: item.description,
+      recordedQty: progress.quantityDone,
+      unit: item.unit,
+      lastRecordedAt: progress.entryDate,
+    })
+  }
+
+  for (const item of diff.removed) push(item, progressByLineItem.get(item.id))
+  for (const change of diff.changed) {
+    if (change.netVariation >= 0) continue
+    push(change.current, progressByLineItem.get(change.current.id))
+  }
+  return conflicts
+}
+
+/**
+ * R67 D-27: the 409 createBoqRevision raises when a revision would reduce or
+ * remove scope already completed on site. A ServiceError, so every existing
+ * `catch (error instanceof ServiceError)` in the route layer keeps working
+ * unchanged and still answers 409 with this message; a route that WANTS the
+ * structured rows checks for this subclass and adds `conflicts` to the body.
+ */
+export class ScopeReductionError extends ServiceError {
+  constructor(message: string, public readonly conflicts: ScopeReductionConflict[]) {
+    super(message, 409)
+  }
 }
 
 /**
@@ -866,6 +1231,18 @@ export function resolveProgressByLineItem(
  * from the pure merge/violation logic above.
  */
 export async function loadLatestProgressByLineItem(db: TenantDb, orgId: string, items: BoqLineItemRow[]): Promise<Map<string, number>> {
+  const detail = await loadLatestProgressDetailByLineItem(db, orgId, items)
+  return new Map([...detail].map(([id, p]) => [id, p.percentComplete]))
+}
+
+/**
+ * R67 D-27: the DB half of the conflict table -- the same read
+ * loadLatestProgressByLineItem has always done, keeping the WHOLE most-recent
+ * entry (percentage, quantity done, date) instead of discarding all but the
+ * percentage. loadLatestProgressByLineItem above is now a projection of this,
+ * so there is still exactly ONE query and one resolution rule (arch rule AR-01).
+ */
+export async function loadLatestProgressDetailByLineItem(db: TenantDb, orgId: string, items: BoqLineItemRow[]): Promise<Map<string, LineItemProgress>> {
   const lineItemIds = items.map((i) => i.id)
   const activityIds = [...new Set(items.map((i) => i.activityId).filter((id): id is string => !!id))]
 
@@ -882,14 +1259,19 @@ export async function loadLatestProgressByLineItem(db: TenantDb, orgId: string, 
   // Most-recent entry per direct link (boq_line_item_id) and per fallback
   // link (activity_id) -- kept as two separate maps because a single row
   // can satisfy either lookup and "most recent" is per-key, not per-row.
-  const byLineItemId = new Map<string, number>()
-  const byActivityId = new Map<string, number>()
+  const byLineItemId = new Map<string, LineItemProgress>()
+  const byActivityId = new Map<string, LineItemProgress>()
+  const toProgress = (row: typeof rows[number]): LineItemProgress => ({
+    percentComplete: Number(row.percentComplete),
+    quantityDone: Number(row.quantityDone),
+    entryDate: String(row.entryDate),
+  })
   for (const row of rows) {
-    if (row.boqLineItemId && !byLineItemId.has(row.boqLineItemId)) byLineItemId.set(row.boqLineItemId, Number(row.percentComplete))
-    if (row.activityId && !byActivityId.has(row.activityId)) byActivityId.set(row.activityId, Number(row.percentComplete))
+    if (row.boqLineItemId && !byLineItemId.has(row.boqLineItemId)) byLineItemId.set(row.boqLineItemId, toProgress(row))
+    if (row.activityId && !byActivityId.has(row.activityId)) byActivityId.set(row.activityId, toProgress(row))
   }
 
-  return resolveProgressByLineItem(items, byLineItemId, byActivityId)
+  return resolveProgressDetailByLineItem(items, byLineItemId, byActivityId)
 }
 
 /**
@@ -1020,7 +1402,10 @@ export async function deleteBoq(ctx: { orgId: string }, boqId: string) {
       await db.delete(constructionBoqLineItems).where(eq(constructionBoqLineItems.boqId, boqId))
     }
     await db.delete(constructionBoqs).where(eq(constructionBoqs.id, boqId))
-    return { deleted: true, id: boqId, lineItemsDeleted: lineItemIds.length }
+    return { deleted: true, id: boqId, projectId: boq.projectId, lineItemsDeleted: lineItemIds.length }
+  }).then((result) => {
+    bustProjectDashboardCache(ctx.orgId, result.projectId)
+    return result
   })
 }
 

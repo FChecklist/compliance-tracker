@@ -28,6 +28,12 @@ import type { SQL } from "drizzle-orm"
 const ORG = "org-r62b7"
 const PROJECT_A = "project-a"
 const PROJECT_B = "project-b"
+// R67 B-09 needs a project that genuinely has NO BOQ, to exercise the other
+// half of its rule. PROJECT_A cannot be it: R67 D-28 gave PROJECT_A its own BOQ
+// (BOQ-A) so LINE-PARENT/LINE-CHILD could exercise the parent-line rule on the
+// new PATCH path. Rather than weaken either fixture, the no-BOQ case gets its
+// own project.
+const PROJECT_NO_BOQ = "project-no-boq"
 
 // Walks a drizzle eq()/and() SQL condition tree and pulls out every
 // {columnName: value} equality predicate it contains, regardless of AND
@@ -92,37 +98,76 @@ const mockWithTenantContext = mock(async (ctx: { orgId: string }, fn: (db: unkno
 const projectRows = [
   { id: PROJECT_A, orgId: ORG },
   { id: PROJECT_B, orgId: ORG },
+  { id: PROJECT_NO_BOQ, orgId: ORG },
 ]
 const activityRows = [
   { id: "ACT-B", orgId: ORG, projectId: PROJECT_B },
   { id: "ACT-A", orgId: ORG, projectId: PROJECT_A },
+  { id: "ACT-NO-BOQ", orgId: ORG, projectId: PROJECT_NO_BOQ },
 ]
 const boqRows = [
   { id: "BOQ-B", orgId: ORG, projectId: PROJECT_B },
+  { id: "BOQ-A", orgId: ORG, projectId: PROJECT_A },
 ]
+// R67 D-28: LINE-PARENT is a real line of PROJECT_A's own BOQ (BOQ-A) that HAS
+// a child (LINE-CHILD points at it), so it clears every ownership check and is
+// refused ONLY by the parent-line rule -- for the new PATCH path as well as the
+// original POST path.
 const lineItemRows = [
   { id: "LINE-B", orgId: ORG, boqId: "BOQ-B", parentLineItemId: null },
+  { id: "LINE-PARENT", orgId: ORG, boqId: "BOQ-A", parentLineItemId: null },
+  { id: "LINE-CHILD", orgId: ORG, boqId: "BOQ-A", parentLineItemId: "LINE-PARENT" },
 ]
 
 let insertedRows: Record<string, unknown>[] = []
+// R67 D-28: every `set()` the service issues on an update, so a test can prove
+// BOTH that a rejected edit wrote nothing and that an accepted edit wrote only
+// the fields the caller actually sent.
+let updatedSets: Record<string, unknown>[] = []
 
-// R67 F-05 fixtures. listProgressEntries() now resolves each row's display
-// labels itself, so the fake needs the three findMany() reads it makes: the
-// entries, then ONE batched activity read and ONE batched line-item read.
-// Deliberately labelled differently from each other so a row that picked up
-// the wrong activity's name, or a BOQ line's unit where the activity's was
-// expected, is visible in the assertion rather than plausible.
-const labelActivityRows = [
-  { id: "ACT-A", orgId: ORG, name: "Blockwork", unit: "sqm" },
-  { id: "ACT-B", orgId: ORG, name: "Plastering", unit: "sqm" },
+const progressEntryRows: Record<string, unknown>[] = [
+  {
+    id: "entry-existing", orgId: ORG, projectId: PROJECT_A, activityId: "ACT-A", boqLineItemId: null,
+    entryDate: "2026-08-28", quantityDone: "5", percentComplete: "50", entryBasis: "DELTA",
+    remarks: null, recordedById: "user-1", createdAt: new Date("2026-08-28T00:00:00Z"),
+  },
 ]
-const labelLineItemRows = [
-  { id: "LINE-A", orgId: ORG, itemCode: "A-102", description: "230mm blockwork to walls", unit: "cum" },
+
+// The enriched (LEFT-JOINed) shape selectEnrichedEntries() returns. Keyed by
+// the same entry ids as progressEntryRows so a read-back after an update
+// resolves to a real row.
+const enrichedRows: Record<string, unknown>[] = [
+  {
+    ...progressEntryRows[0],
+    activityName: "Blockwork", activityUnit: "m2",
+    // R67 integration: the joined description field is F-24's `boqDescription`
+    // (already on main and read by PROJEXA's merged list client), not D-28's
+    // original `boqLineDescription` -- one name for one column.
+    boqItemCode: null, boqDescription: null, boqLineUnit: null,
+    boqLineQuantity: null, boqLineRate: null, boqLineAmount: null,
+  },
 ]
-let progressEntryRows: Record<string, unknown>[] = []
-// Every findMany() the service issues, in order, so a test can prove it made
-// three reads and not one-per-row.
-let findManyCalls: string[] = []
+
+/** Awaitable AND chainable, because selectEnrichedEntries() awaits `.where(...)` directly for a single row and calls `.orderBy(...)` on it for a list. */
+type SelectResult = {
+  then: (resolve: (value: Record<string, unknown>[]) => unknown, reject?: (reason: unknown) => unknown) => Promise<unknown>
+  orderBy: () => Promise<Record<string, unknown>[]>
+}
+function selectResult(rows: Record<string, unknown>[]): SelectResult {
+  return {
+    then: (resolve, reject) => Promise.resolve(rows).then(resolve, reject),
+    orderBy: async () => rows,
+  }
+}
+
+type JoinChain = { leftJoin: () => JoinChain; where: () => SelectResult }
+const joinChain: JoinChain = { leftJoin: () => joinChain, where: () => selectResult(enrichedRows) }
+
+// R67 integration note: lane F1's F-05 fixtures (labelActivityRows,
+// labelLineItemRows, findManyCalls) and its own `let progressEntryRows` are
+// gone. They stubbed the batched-ORM-read mechanism F-24 replaced with two LEFT
+// JOINs, and the second `progressEntryRows` shadowed main's real fixture of the
+// same name. The list's joined labels are covered by the F-24 suite below.
 
 const fakeDb = {
   query: {
@@ -131,23 +176,12 @@ const fakeDb = {
     },
     constructionActivities: {
       findFirst: async ({ where }: { where: SQL }) => activityRows.find((r) => matches(r, where)),
-      findMany: async () => {
-        findManyCalls.push("constructionActivities")
-        return labelActivityRows
-      },
     },
     constructionBoqLineItems: {
       findFirst: async ({ where }: { where: SQL }) => lineItemRows.find((r) => matches(r, where)),
-      findMany: async () => {
-        findManyCalls.push("constructionBoqLineItems")
-        return labelLineItemRows
-      },
     },
     constructionWorkProgressEntries: {
-      findMany: async () => {
-        findManyCalls.push("constructionWorkProgressEntries")
-        return progressEntryRows
-      },
+      findFirst: async ({ where }: { where: SQL }) => progressEntryRows.find((r) => matches(r, where)),
     },
     constructionBoqs: {
       findFirst: async ({ where }: { where: SQL }) => boqRows.find((r) => matches(r, where)),
@@ -162,6 +196,15 @@ const fakeDb = {
       },
     }),
   }),
+  select: () => ({ from: () => joinChain }),
+  update: () => ({
+    set: (v: Record<string, unknown>) => ({
+      where: async () => {
+        updatedSets.push(v)
+        return []
+      },
+    }),
+  }),
 }
 
 const realTenantScoped = await import("@/lib/db/tenant-scoped")
@@ -172,8 +215,7 @@ async function restoreRealModules(): Promise<void> {
 beforeEach(() => {
   capturedOrgIds = []
   insertedRows = []
-  progressEntryRows = []
-  findManyCalls = []
+  updatedSets = []
   mockWithTenantContext.mockClear()
 })
 
@@ -241,87 +283,220 @@ describe("createProgressEntry -- R48_PROGRESS_ENTRY_NO_PROJECT_MEMBERSHIP_CHECK_
   })
 })
 
-// R67 F-05 (R-075). The Work Progress list needs a readable activity name and
-// BOQ line on every row. It used to get them by fetching GET /api/scope (the
-// whole BOQ list, 1.5-4.4 s) and then GET /api/scope/{id} from the BROWSER,
-// after the entries had already arrived -- three serial hops per screen, and
-// the Analytics tab repeated the whole chain on switch. listProgressEntries()
-// now returns those labels itself, from the transaction it already holds.
-describe("listProgressEntries -- R67 F-05 joined display labels", () => {
-  async function callList() {
-    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
-    const { listProgressEntries } = await import("./construction-progress-service")
-    return listProgressEntries({ orgId: ORG }, { projectId: PROJECT_A })
+// ---------------------------------------------------------------------------
+// R67 F-05 (R-075) x F-24 (R-240), reconciled by the integration train.
+//
+// Both lanes fixed the SAME fault: the Work Progress list used to answer "what
+// does the BOQ column say?" with a serial client chain -- entries, then
+// GET /api/scope (the whole BOQ list, 1.5-4.4 s), then GET /api/scope/{id} --
+// and still rendered a raw id in the cell. F-05 resolved the labels with two
+// batched ORM reads inside the transaction; F-24 resolved them with two LEFT
+// JOINs in one statement. F-24 is on main, so under decision D-11 it is
+// canonical, and F-05's suite below was written against a mechanism that no
+// longer exists (three findMany() calls, and the field name
+// `boqLineDescription`, which F-24 calls `boqDescription` -- the name PROJEXA's
+// merged list client already reads).
+//
+// Nothing was dropped without checking where it landed:
+//   * labels on the row, one read not N per row  -> F-24's suite below
+//   * the entry's own fields untouched            -> F-24's suite below
+//   * the unit precedence rule                    -> resolveProgressUnit's own
+//                                                    tests further down
+//   * "a gone reference reports null, never the raw id" -> NOT covered by
+//     F-24's fixture, so it is carried over here, rewritten against the join.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// R67 F-24 (audit recommendation R-240) -- the activity and BOQ-line NAMES come
+// back with the entries, in ONE statement.
+// ---------------------------------------------------------------------------
+//
+// Before this, PROJEXA's /work-progress screen answered "what does the BOQ
+// column say?" with a serial client chain -- entries, then activities, then
+// /api/scope, then one /api/scope/{id} per revision -- and still rendered a raw
+// id in the cell. The service now LEFT JOINs both, so the names arrive with the
+// rows and that whole chain is deleted client-side.
+//
+// The fake `select()` below is not a canned-row stub: it reads the projection
+// the service actually built and resolves each column against the fixture by
+// the column's real DB name, so selecting the wrong column (or forgetting one)
+// produces an undefined value and fails here rather than passing silently.
+const WP_ORG = "org-r67-f24"
+const WP_PROJECT = "project-r67-f24"
+
+// One entry, one activity, one BOQ line -- the acceptance fixture.
+const wpFixtureRow: Record<string, unknown> = {
+  // construction_work_progress_entries
+  id: "entry-1",
+  org_id: WP_ORG,
+  project_id: WP_PROJECT,
+  activity_id: "ACT-1",
+  boq_line_item_id: "LINE-1",
+  entry_date: "2026-09-02",
+  quantity_done: "12",
+  percent_complete: "40",
+  entry_basis: "DELTA",
+  remarks: null,
+  recorded_by_id: "user-1",
+  created_at: new Date("2026-09-02T06:00:00Z"),
+  // construction_activities (only `name` is projected from here)
+  name: "Excavation",
+  // construction_boq_line_items
+  item_code: "R60SK",
+  description: "R60 skiphop root",
+}
+
+let wpSelectCalls = 0
+let wpJoinCount = 0
+let wpProjection: Record<string, unknown> = {}
+
+function wpColumnName(column: unknown): string | null {
+  if (column && typeof column === "object" && typeof (column as { name?: unknown }).name === "string") {
+    return (column as { name: string }).name
   }
+  return null
+}
 
-  test("a BOQ-linked entry carries activityName, boqItemCode, boqLineDescription and the BOQ line's unit", async () => {
-    progressEntryRows = [
-      { id: "e1", orgId: ORG, projectId: PROJECT_A, activityId: "ACT-A", boqLineItemId: "LINE-A", entryDate: "2026-09-01", quantityDone: "5", percentComplete: "40" },
+const wpSelectDb = {
+  select(projection: Record<string, unknown>) {
+    wpSelectCalls += 1
+    wpJoinCount = 0
+    wpProjection = projection
+    const rows = () => [
+      Object.fromEntries(
+        Object.entries(projection).map(([field, column]) => {
+          const name = wpColumnName(column)
+          return [field, name === null ? undefined : wpFixtureRow[name]]
+        })
+      ),
     ]
+    const chain = {
+      from: () => chain,
+      leftJoin: () => {
+        wpJoinCount += 1
+        return chain
+      },
+      where: () => chain,
+      orderBy: () => chain,
+      then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+        Promise.resolve(rows()).then(resolve, reject),
+    }
+    return chain
+  },
+}
 
-    const [entry] = await callList()
+const wpWithTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) =>
+  fn(wpSelectDb as unknown as never)
+)
 
-    expect(entry.activityName).toBe("Blockwork")
-    expect(entry.boqItemCode).toBe("A-102")
-    expect(entry.boqLineDescription).toBe("230mm blockwork to walls")
-    // the BOQ line's unit wins over the activity's -- it is the unit the
-    // quantity was actually measured in
-    expect(entry.unit).toBe("cum")
-    // the original row is preserved, not replaced by a projection
-    expect(entry.id).toBe("e1")
-    expect(entry.percentComplete).toBe("40")
+describe("listProgressEntries -- R67 F-24: resolved names in the payload, one statement", () => {
+  beforeEach(() => {
+    wpSelectCalls = 0
+    wpJoinCount = 0
+    wpProjection = {}
+    wpWithTenantContext.mockClear()
   })
 
-  test("a legacy activity-only entry falls back to the activity's unit and reports null BOQ fields", async () => {
-    progressEntryRows = [
-      { id: "e2", orgId: ORG, projectId: PROJECT_A, activityId: "ACT-B", boqLineItemId: null, entryDate: "2026-09-01", quantityDone: "2", percentComplete: "10" },
-    ]
-
-    const [entry] = await callList()
-
-    expect(entry.activityName).toBe("Plastering")
-    expect(entry.boqItemCode).toBeNull()
-    expect(entry.boqLineDescription).toBeNull()
-    expect(entry.unit).toBe("sqm")
+  afterEach(async () => {
+    mock.restore()
+    await restoreRealModules()
   })
 
-  test("a reference that no longer resolves reports null, never the raw id dressed up as a name", async () => {
-    progressEntryRows = [
-      { id: "e3", orgId: ORG, projectId: PROJECT_A, activityId: "ACT-DELETED", boqLineItemId: "LINE-DELETED", entryDate: "2026-09-01", quantityDone: "1", percentComplete: "5" },
-    ]
+  test("rows carry activityName and boqItemCode, and the list is exactly ONE SQL statement", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: wpWithTenantContext }))
+    const { listProgressEntries } = await import("./construction-progress-service")
 
-    const [entry] = await callList()
+    const rows = await listProgressEntries({ orgId: WP_ORG }, { projectId: WP_PROJECT })
 
-    expect(entry.activityName).toBeNull()
-    expect(entry.boqItemCode).toBeNull()
-    expect(entry.boqLineDescription).toBeNull()
-    expect(entry.unit).toBeNull()
+    expect(wpSelectCalls).toBe(1)
+    // The two LEFT JOINs that replaced the client's /api/scope fan-out.
+    expect(wpJoinCount).toBe(2)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].activityName).toBe("Excavation")
+    expect(rows[0].boqItemCode).toBe("R60SK")
+    expect(rows[0].boqDescription).toBe("R60 skiphop root")
   })
 
-  test("N entries cost exactly ONE activity read and ONE line-item read, not one per row", async () => {
-    progressEntryRows = Array.from({ length: 25 }, (_, i) => ({
-      id: `e${i}`, orgId: ORG, projectId: PROJECT_A, activityId: i % 2 ? "ACT-A" : "ACT-B",
-      boqLineItemId: "LINE-A", entryDate: "2026-09-01", quantityDone: "1", percentComplete: "1",
-    }))
+  test("the entry's own fields are untouched -- every existing reader (WPR, the daily report, the PDF) keeps working", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: wpWithTenantContext }))
+    const { listProgressEntries } = await import("./construction-progress-service")
 
-    const rows = await callList()
+    const [row] = await listProgressEntries({ orgId: WP_ORG }, { projectId: WP_PROJECT })
 
-    expect(rows).toHaveLength(25)
-    expect(findManyCalls).toEqual(["constructionWorkProgressEntries", "constructionActivities", "constructionBoqLineItems"])
-    // and all of it on ONE tenant transaction
-    expect(mockWithTenantContext).toHaveBeenCalledTimes(1)
+    expect(row.id).toBe("entry-1")
+    expect(row.projectId).toBe(WP_PROJECT)
+    expect(row.activityId).toBe("ACT-1")
+    expect(row.boqLineItemId).toBe("LINE-1")
+    expect(row.entryDate).toBe("2026-09-02")
+    expect(row.quantityDone).toBe("12")
+    expect(row.percentComplete).toBe("40")
+    expect(row.entryBasis).toBe("DELTA")
+    expect(row.recordedById).toBe("user-1")
   })
 
-  test("an empty result set makes no label reads at all", async () => {
-    progressEntryRows = []
+  test("the payload stays SMALL: three resolved strings, never a BOQ's line items", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: wpWithTenantContext }))
+    const { listProgressEntries } = await import("./construction-progress-service")
 
-    const rows = await callList()
+    await listProgressEntries({ orgId: WP_ORG }, { projectId: WP_PROJECT })
 
-    expect(rows).toEqual([])
-    expect(findManyCalls).toEqual(["constructionWorkProgressEntries"])
+    const joined = Object.keys(wpProjection).filter((k) => ["activityName", "boqItemCode", "boqDescription"].includes(k))
+    expect(joined.sort()).toEqual(["activityName", "boqDescription", "boqItemCode"])
+    // Nothing priced or quantified from the BOQ crosses the wire -- the
+    // recommendation's own "no full BOQ" constraint.
+    expect(Object.keys(wpProjection)).not.toContain("rate")
+    expect(Object.keys(wpProjection)).not.toContain("amount")
+  })
+
+  test("neither projectId nor activityId is still rejected -- the pre-existing guard is unchanged", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: wpWithTenantContext }))
+    const { listProgressEntries, ServiceError: SvcError } = await import("./construction-progress-service")
+
+    await expect(listProgressEntries({ orgId: WP_ORG }, {})).rejects.toThrow(SvcError)
+    expect(wpSelectCalls).toBe(0)
   })
 })
 
+
+// R67 F-05, carried over: the case F-24's own fixture does not cover.
+describe("listProgressEntries -- a reference that no longer resolves", () => {
+  beforeEach(() => {
+    wpSelectCalls = 0
+    wpJoinCount = 0
+    wpProjection = {}
+    wpWithTenantContext.mockClear()
+  })
+
+  afterEach(async () => {
+    mock.restore()
+    await restoreRealModules()
+  })
+
+  test("reports null, never the raw id dressed up as a name", async () => {
+    // boq_line_item_id is ON DELETE SET NULL and the joins are LEFT, so a row
+    // whose activity or BOQ line is gone must still LIST -- with nulls, which
+    // the client renders as an em-dash. A raw id in a name cell is the defect
+    // the audit photographed.
+    const previous = { name: wpFixtureRow.name, item_code: wpFixtureRow.item_code, description: wpFixtureRow.description }
+    wpFixtureRow.name = null
+    wpFixtureRow.item_code = null
+    wpFixtureRow.description = null
+    try {
+      await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: wpWithTenantContext }))
+      const { listProgressEntries } = await import("./construction-progress-service")
+
+      const [row] = await listProgressEntries({ orgId: WP_ORG }, { projectId: WP_PROJECT })
+
+      expect(row.id).toBe("entry-1")
+      expect(row.activityName).toBeNull()
+      expect(row.boqItemCode).toBeNull()
+      expect(row.boqDescription).toBeNull()
+      expect(row.unit).toBeNull()
+    } finally {
+      Object.assign(wpFixtureRow, previous)
+    }
+  })
+})
 // ── R67 B-09: ONE RULE FOR A PROGRESS ENTRY, BOTH PROJECT STATES ──────────
 // The fixture already contains exactly the two projects this rule needs:
 // PROJECT_B has a BOQ (BOQ-B), PROJECT_A has none. So both branches are
@@ -358,9 +533,11 @@ describe("createProgressEntry -- R67 B-09: the BOQ-line rule", () => {
     await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
     const { createProgressEntry } = await import("./construction-progress-service")
 
+    // PROJECT_NO_BOQ, not PROJECT_A: PROJECT_A has held a BOQ since D-28, and
+    // this test is about the branch where there is nothing to link to at all.
     const row = await createProgressEntry(
       { orgId: ORG, userId: "user-1" },
-      { projectId: PROJECT_A, activityId: "ACT-A", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
+      { projectId: PROJECT_NO_BOQ, activityId: "ACT-NO-BOQ", entryDate: "2026-08-28", quantityDone: 5, percentComplete: 50 }
     )
 
     expect(row.linkedToBoq).toBe(false)
@@ -379,5 +556,129 @@ describe("createProgressEntry -- R67 B-09: the BOQ-line rule", () => {
 
     expect(row.linkedToBoq).toBe(true)
     expect(insertedRows[0].boqLineItemId).toBe("LINE-B")
+  })
+})
+
+// R67 D-28 (R-069/R-071). Work Progress was create-only: no read of one entry,
+// no correction, no delete route. The two rules that matter when an edit
+// becomes possible are that it must run the SAME validation the create path
+// runs -- the item's own words -- and that a rejected edit must write nothing.
+// Both are asserted here against the real service with only withTenantContext
+// mocked, the same harness the tests above use.
+describe("R67 D-28 -- pure rules shared by create and update", () => {
+  test("normaliseEntryBasis defaults to DELTA, accepts SNAPSHOT, and refuses anything else", async () => {
+    const { normaliseEntryBasis, ServiceError } = await import("./construction-progress-service")
+    expect(normaliseEntryBasis(undefined)).toBe("DELTA")
+    expect(normaliseEntryBasis(null)).toBe("DELTA")
+    expect(normaliseEntryBasis("SNAPSHOT")).toBe("SNAPSHOT")
+    expect(() => normaliseEntryBasis("CUMULATIVE")).toThrow(ServiceError)
+  })
+
+  test("assertPercentComplete accepts 0 and 100 and refuses outside, NaN included", async () => {
+    const { assertPercentComplete, PERCENT_COMPLETE_RANGE_MESSAGE } = await import("./construction-progress-service")
+    expect(() => assertPercentComplete(0)).not.toThrow()
+    expect(() => assertPercentComplete(100)).not.toThrow()
+    expect(() => assertPercentComplete(100.01)).toThrow(PERCENT_COMPLETE_RANGE_MESSAGE)
+    expect(() => assertPercentComplete(-1)).toThrow(PERCENT_COMPLETE_RANGE_MESSAGE)
+    expect(() => assertPercentComplete(Number.NaN)).toThrow(PERCENT_COMPLETE_RANGE_MESSAGE)
+  })
+
+  test("resolveProgressUnit prefers the BOQ line's unit and falls back to the activity's", async () => {
+    const { resolveProgressUnit } = await import("./construction-progress-service")
+    expect(resolveProgressUnit({ boqLineUnit: "m2", activityUnit: "nos" })).toBe("m2")
+    expect(resolveProgressUnit({ boqLineUnit: null, activityUnit: "nos" })).toBe("nos")
+    expect(resolveProgressUnit({ boqLineUnit: null, activityUnit: null })).toBeNull()
+  })
+})
+
+describe("updateProgressEntry -- R67 D-28", () => {
+  // A patch naming no field used to reach db.update().set({}), where
+  // drizzle's mapUpdateSet filters every undefined and throws a plain
+  // Error("No values to set") -- not a ServiceError, so the route's generic
+  // catch answered 500 for what is plainly a 400. PATCH {} is a request a real
+  // Bearer-key integration will send.
+  test("an EMPTY patch is a 400 by name, not a 500, and nothing is written", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { updateProgressEntry, ServiceError } = await import("./construction-progress-service")
+
+    let thrown: unknown
+    try {
+      await updateProgressEntry({ orgId: ORG }, "entry-existing", {})
+    } catch (err) {
+      thrown = err
+    }
+    expect(thrown).toBeInstanceOf(ServiceError)
+    expect((thrown as Error).message).toBe("No fields to update")
+    expect((thrown as { status: number }).status).toBe(400)
+    expect(updatedSets).toHaveLength(0)
+  })
+
+  test("a percent outside 0-100 is refused with the same message create uses, and NOTHING is written", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { updateProgressEntry, PERCENT_COMPLETE_RANGE_MESSAGE } = await import("./construction-progress-service")
+
+    await expect(
+      updateProgressEntry({ orgId: ORG }, "entry-existing", { percentComplete: 140 })
+    ).rejects.toThrow(PERCENT_COMPLETE_RANGE_MESSAGE)
+
+    expect(updatedSets).toHaveLength(0)
+  })
+
+  test("re-pointing an entry at a PARENT BOQ line is refused with the create path's verbatim message", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { updateProgressEntry, PARENT_LINE_PROGRESS_MESSAGE } = await import("./construction-progress-service")
+
+    // LINE-PARENT belongs to BOQ-A, which belongs to PROJECT_A -- the entry's
+    // own project -- so it passes every ownership check and is refused ONLY by
+    // the parent-line rule, which is the rule under test.
+    await expect(
+      updateProgressEntry({ orgId: ORG }, "entry-existing", { boqLineItemId: "LINE-PARENT" })
+    ).rejects.toThrow(PARENT_LINE_PROGRESS_MESSAGE)
+
+    expect(updatedSets).toHaveLength(0)
+  })
+
+  test("a BOQ line from ANOTHER project is refused 404, even though it exists in this org", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { updateProgressEntry } = await import("./construction-progress-service")
+
+    // LINE-B is real and in this org, but its BOQ belongs to PROJECT_B while
+    // the entry belongs to PROJECT_A. An edit must never move an entry across
+    // that boundary.
+    await expect(
+      updateProgressEntry({ orgId: ORG }, "entry-existing", { boqLineItemId: "LINE-B" })
+    ).rejects.toThrow("BOQ line item not found")
+
+    expect(updatedSets).toHaveLength(0)
+  })
+
+  test("an accepted edit writes only the fields the caller sent, and reads back the enriched row", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { updateProgressEntry } = await import("./construction-progress-service")
+
+    const row = await updateProgressEntry({ orgId: ORG }, "entry-existing", { quantityDone: 5 })
+
+    expect(updatedSets).toHaveLength(1)
+    expect(updatedSets[0].quantityDone).toBe("5")
+    // Everything the caller did not send is `undefined`, which drizzle omits
+    // from the UPDATE -- an absent field must never be read as "clear it".
+    expect(updatedSets[0].percentComplete).toBeUndefined()
+    expect(updatedSets[0].activityId).toBeUndefined()
+    expect(updatedSets[0].boqLineItemId).toBeUndefined()
+    expect(updatedSets[0].remarks).toBeUndefined()
+    // The read-back is the SAME enriched shape the list returns -- names
+    // resolved, unit derived -- so the object page never re-resolves them.
+    expect(row.activityName).toBe("Blockwork")
+    expect(row.unit).toBe("m2")
+  })
+
+  test("an unknown entry id is a 404, not a silent no-op", async () => {
+    await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+    const { updateProgressEntry } = await import("./construction-progress-service")
+
+    await expect(
+      updateProgressEntry({ orgId: ORG }, "entry-does-not-exist", { quantityDone: 1 })
+    ).rejects.toThrow("Progress entry not found")
+    expect(updatedSets).toHaveLength(0)
   })
 })

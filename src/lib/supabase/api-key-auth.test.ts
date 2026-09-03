@@ -403,3 +403,158 @@ describe("validateApiKey: orgId comes only from the key-hash match (R43_EXEC_01 
     }
   })
 })
+
+// ---------------------------------------------------------------------------
+// R67 F-33 (audit recommendation R-278, latency_backend_evidence.md item 6):
+// the usage bookkeeping runs AFTER the response.
+//
+// Both writes were already un-awaited, which is not the same as being off the
+// critical path -- they still queue on the same five-connection pool the
+// request's own queries use, and a bare promise can be killed the moment the
+// response is sent.
+//
+// CORRECTED BY THE R67 INTEGRATION MERGE (F-33 x F-17, decision D-11). These
+// four tests were written against F-33's own afterResponse() helper, which
+// called next/server's after() twice per request -- once per write. That helper
+// is gone: lane F1's batching queue (src/lib/auth/api-key-audit.ts) now owns
+// both writes and SUBSUMES the deferral, scheduling ONE flush through after()
+// rather than two writes. Every guarantee these tests were protecting is still
+// asserted here, against the merged mechanism instead of the deleted one:
+// the writes are still ISSUED (a "fast" auth that quietly stopped logging is a
+// regression, not a fix), the flush is scheduled through next/server's after()
+// when a request scope exists, it degrades rather than drops when there is
+// none, and a failing write is LOGGED rather than left as an unhandled
+// rejection. Two assertions necessarily changed with the mechanism: the after()
+// count is 1, not 2, and the log prefix is the queue's own [api-key-audit].
+// ---------------------------------------------------------------------------
+describe("validateApiKey: usage bookkeeping is deferred, and never silently lost", () => {
+  function mockDbRecording(writes: string[], keyId: string, failWith?: Error) {
+    mock.module("@/lib/db", () => ({
+      db: {
+        update: () => ({ set: () => ({ where: () => { writes.push("last_used_at"); return failWith ? Promise.reject(failWith) : Promise.resolve() } }) }),
+        insert: () => ({ values: () => { writes.push("request_log"); return failWith ? Promise.reject(failWith) : Promise.resolve() } }),
+        select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: 0 }]) }) }),
+      },
+      apiKeys: {}, apiKeyRequestLog: {},
+    }))
+    mock.module("@/lib/api-keys", () => ({ hashSHA256: mock(async () => "hash") }))
+    mock.module("@/lib/db/preauth-lookups", () => ({
+      lookupApiKeyByHash: mock(async () => ({
+        // A key id of its own per test: the queue writes last_used_at at most
+        // once per key per minute, so a shared id would make the second test in
+        // this block assert a write the throttle had correctly suppressed.
+        id: keyId, orgId: "org-real", name: "Real key", scopes: "read,write", rateLimitPerMinute: null, isActive: true,
+      })),
+    }))
+  }
+
+  /** Stands in for the Next runtime's after(): `mode` picks which of the two
+   *  situations the audit queue has to survive. */
+  function mockAfter(mode: "runs" | "captures" | "no-request-scope", captured: Array<() => unknown> = []) {
+    mock.module("next/server", () => ({
+      after: (fn: () => unknown) => {
+        if (mode === "captures") { captured.push(fn); return }
+        if (mode === "no-request-scope") throw new Error("`after` was called outside a request scope")
+        void fn()
+      },
+    }))
+    return captured
+  }
+
+  const authRequest = () => new Request("https://example.com/api/v1/projexa/schedule", {
+    method: "POST", headers: { authorization: "Bearer vk_real" },
+  })
+
+  /** Empties anything earlier tests in this file left queued, so the writes
+   *  recorded below are only the ones this test caused. */
+  async function drainInto(writes: string[]) {
+    const { flushApiKeyAuditNow } = await import("@/lib/auth/api-key-audit")
+    await flushApiKeyAuditNow()
+    await new Promise<void>((resolve) => { setImmediate(resolve) })
+    await flushApiKeyAuditNow()
+    writes.length = 0
+  }
+
+  test("both writes are still issued on a successful auth -- nothing stopped being recorded", async () => {
+    mockAfter("runs")
+    const writes: string[] = []
+    mockDbRecording(writes, "key-real-issued")
+    const { validateApiKey } = await import("./api-key-auth")
+    const { flushApiKeyAuditNow } = await import("@/lib/auth/api-key-audit")
+    await drainInto(writes)
+
+    const result = await validateApiKey(authRequest())
+
+    expect(result.status).toBe("ok")
+    await flushApiKeyAuditNow()
+    expect(writes.sort()).toEqual(["last_used_at", "request_log"])
+  })
+
+  test("the flush is scheduled through next/server's after(), so the runtime keeps the invocation alive for it", async () => {
+    const writes: string[] = []
+    mockDbRecording(writes, "key-real-deferred")
+    const { validateApiKey } = await import("./api-key-auth")
+    const { MAX_BUFFERED_ROWS, flushApiKeyAuditNow } = await import("@/lib/auth/api-key-audit")
+    await drainInto(writes)
+
+    // Captured, not run -- and armed deterministically by filling the buffer,
+    // rather than depending on whether an earlier test in this file already
+    // consumed the queue's one immediate first-request flush.
+    const scheduled = mockAfter("captures")
+    for (let i = 0; i < MAX_BUFFERED_ROWS; i += 1) {
+      expect((await validateApiKey(authRequest())).status).toBe("ok")
+    }
+
+    // Handed to after(), NOT run beside the request. ONE flush for the lot --
+    // that is F-17's contribution on top of F-33's deferral.
+    expect(scheduled).toHaveLength(1)
+    expect(writes).toHaveLength(0)
+    for (const run of scheduled) await run()
+    // The scheduled callback starts the flush without returning it (nothing may
+    // block on an audit write), so wait for the flush chain itself.
+    await flushApiKeyAuditNow()
+    expect(writes.sort()).toEqual(["last_used_at", "request_log"])
+  })
+
+  test("with no request scope at all (a script, a test) the writes still happen -- the deferral degrades, it does not drop them", async () => {
+    const writes: string[] = []
+    mockDbRecording(writes, "key-real-no-scope")
+    const { validateApiKey } = await import("./api-key-auth")
+    const { MAX_BUFFERED_ROWS } = await import("@/lib/auth/api-key-audit")
+    await drainInto(writes)
+
+    mockAfter("no-request-scope")
+    for (let i = 0; i < MAX_BUFFERED_ROWS; i += 1) {
+      expect((await validateApiKey(authRequest())).status).toBe("ok")
+    }
+
+    // after() threw; the queue falls back to setImmediate rather than losing
+    // the batch.
+    await new Promise<void>((resolve) => { setImmediate(resolve) })
+    await new Promise<void>((resolve) => { setImmediate(resolve) })
+    expect(writes.sort()).toEqual(["last_used_at", "request_log"])
+  })
+
+  test("a failing write is logged with its reason, and never rejects the request that had already been answered", async () => {
+    mockAfter("runs")
+    const writes: string[] = []
+    mockDbRecording(writes, "key-real-failing", new Error("remaining connection slots are reserved"))
+    const { validateApiKey } = await import("./api-key-auth")
+    const { flushApiKeyAuditNow } = await import("@/lib/auth/api-key-audit")
+    await drainInto(writes)
+
+    const errors: unknown[][] = []
+    const originalError = console.error
+    console.error = (...args: unknown[]) => { errors.push(args) }
+    try {
+      const result = await validateApiKey(authRequest())
+      expect(result.status).toBe("ok")
+      await flushApiKeyAuditNow()
+    } finally {
+      console.error = originalError
+    }
+
+    const messages = errors.map((args) => args.map(String).join(" "))
+    expect(messages.some((m) => m.includes("[api-key-audit]") && m.includes("remaining connection slots are reserved"))).toBe(true)
+  })
+})

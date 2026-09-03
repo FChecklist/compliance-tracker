@@ -11,6 +11,16 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listDocuments, createDocumentRecord, ServiceError } from "@/lib/services/document-service"
 import { signDocumentUrl } from "@/lib/storage/signed-document-url"
+import { withRouteTiming } from "@/lib/route-timing"
+
+// R67 F-02 x F-28, reconciled by the integration train. The local
+// getStorageAdminClient()/BUCKET/SIGNED_URL_TTL_SECONDS trio is GONE, not
+// merged: F-02 moved every signing call in this file onto the shared
+// signDocumentUrl() helper (which is also what the on-click
+// /drawings/{id}/document-url endpoint uses, so one register row and its own
+// detail request cannot disagree about how a URL is signed), and nothing in
+// this route constructs a Storage client directly any more. F-28's
+// Server-Timing wrapper is untouched by that and is kept as it is on main.
 
 const DRAWING_CATEGORIES = ["drawing", "drawing_3d"] as const
 type DrawingCategory = (typeof DRAWING_CATEGORIES)[number]
@@ -54,7 +64,15 @@ async function signOneDrawing(doc: DrawingDocRow): Promise<string | null> {
   return signDocumentUrl(doc.fileUrl, "v1 projexa drawings create")
 }
 
-export async function GET(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function GET(...args: Parameters<typeof GET_impl>) {
+  return withRouteTiming("GET", () => GET_impl(...args))
+}
+
+async function GET_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return requireOrg(ctx)!
@@ -80,7 +98,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function POST(...args: Parameters<typeof POST_impl>) {
+  return withRouteTiming("POST", () => POST_impl(...args))
+}
+
+async function POST_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")

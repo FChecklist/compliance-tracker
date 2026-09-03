@@ -37,20 +37,30 @@ function mockAuth(ctx: { orgId: string | null; response?: Response | null; roleE
   }))
 }
 
-function mockService(implOverride?: () => Promise<unknown>) {
+// R67 F-27 (R-243): the route now also serves ?projectIds=a,b,c from
+// getProjectDashboards, so the module mock has to carry it -- a partial mock of
+// a module the route imports is a SyntaxError at import time, not a soft miss.
+let getProjectDashboards = mock(async (_ctx: { orgId: string }, _ids: string[]): Promise<unknown[]> => [])
+
+function mockService(implOverride?: () => Promise<unknown>, batchImpl?: (ctx: { orgId: string }, ids: string[]) => Promise<unknown[]>) {
   const getOrgDashboard = mock(
     implOverride ?? (async () => ({ totalProjects: 0, totalBudget: 0, totalRevenue: 0, totalExpenses: 0, projects: [] }))
   )
-  mock.module("@/lib/services/construction-dashboard-service", () => ({ getOrgDashboard, ServiceError }))
+  getProjectDashboards = mock(batchImpl ?? (async () => []))
+  mock.module("@/lib/services/construction-dashboard-service", () => ({
+    getOrgDashboard,
+    getProjectDashboards,
+    ServiceError,
+  }))
   return getOrgDashboard
 }
 
-function getRequest() {
+function getRequest(search = "") {
   // Plain Request has no .nextUrl (that's a Next.js-specific NextRequest
   // extension) -- requireAuthOrApiKey is mocked above and never inspects
   // the request object itself, so a minimal stand-in carrying just the
   // .nextUrl the route body actually reads is enough here.
-  return { nextUrl: new URL("http://localhost/api/v1/projexa/dashboard") }
+  return { nextUrl: new URL(`http://localhost/api/v1/projexa/dashboard${search}`) }
 }
 
 describe("GET /api/v1/projexa/dashboard", () => {
@@ -100,5 +110,98 @@ describe("GET /api/v1/projexa/dashboard", () => {
 
     expect(res.status).toBe(403)
     expect(getOrgDashboard).not.toHaveBeenCalled()
+  })
+})
+
+// R67 F-27 (audit recommendation R-243) -- ?projectIds= answers a portfolio in
+// ONE call. The per-project dashboard used to be one request per project, each
+// of which was itself about ten sequential aggregates.
+describe("GET /api/v1/projexa/dashboard?projectIds=", () => {
+  const DASHBOARD = {
+    projectId: "p-1",
+    projectName: "Oakwood",
+    budget: 100,
+    revenue: 200,
+    expenses: 50,
+    projectValue: 300,
+    earnedValue: 40,
+    percentByValue: 20,
+    contractValue: 200,
+    taskCount: 4,
+    delayedTaskCount: 1,
+  }
+
+  test("passes every id to the batch service in ONE call and returns them under `dashboards`", async () => {
+    mockAuth({ orgId: "org-1" })
+    const getOrgDashboard = mockService(undefined, async () => [DASHBOARD])
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest("?projectIds=p-1,p-2,p-3") as any)
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ dashboards: [DASHBOARD] })
+    expect(getProjectDashboards).toHaveBeenCalledTimes(1)
+    expect(getProjectDashboards.mock.calls[0][0]).toEqual({ orgId: "org-1" })
+    expect(getProjectDashboards.mock.calls[0][1]).toEqual(["p-1", "p-2", "p-3"])
+    // The org-level summary is a different question and must not also run.
+    expect(getOrgDashboard).not.toHaveBeenCalled()
+  })
+
+  test("whitespace and empty segments are trimmed rather than sent through as ids", async () => {
+    mockAuth({ orgId: "org-1" })
+    mockService(undefined, async () => [])
+
+    const { GET } = await import("./route")
+    await GET(getRequest("?projectIds=%20p-1%20,,%20p-2") as any)
+
+    expect(getProjectDashboards.mock.calls[0][1]).toEqual(["p-1", "p-2"])
+  })
+
+  test("an empty projectIds is a 400, never a silent org-wide answer to a per-project question", async () => {
+    mockAuth({ orgId: "org-1" })
+    const getOrgDashboard = mockService()
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest("?projectIds=") as any)
+
+    expect(res.status).toBe(400)
+    expect(getOrgDashboard).not.toHaveBeenCalled()
+    expect(getProjectDashboards).not.toHaveBeenCalled()
+  })
+
+  test("more than 50 ids is refused by name and number, not truncated silently", async () => {
+    mockAuth({ orgId: "org-1" })
+    mockService()
+
+    const { GET } = await import("./route")
+    const ids = Array.from({ length: 51 }, (_, i) => `p-${i}`).join(",")
+    const res = await GET(getRequest(`?projectIds=${ids}`) as any)
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toContain("51")
+    expect(getProjectDashboards).not.toHaveBeenCalled()
+  })
+
+  test("a below-manager caller gets task counts but no money -- the same F059 redaction the other two shapes apply", async () => {
+    mockAuth({ orgId: "org-1" })
+    mock.module("@/lib/supabase/auth-guard", () => ({
+      requireAuthOrApiKey: mock(async () => ({ orgId: "org-1", dbUser: { id: "user-1" }, apiKey: null, response: null })),
+      requireRoleOrScope: mock(() => null),
+      hasRole: mock(() => false),
+    }))
+    mockService(undefined, async () => [DASHBOARD])
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest("?projectIds=p-1") as any)
+
+    const body = await res.json()
+    expect(body.dashboards[0].budget).toBeNull()
+    expect(body.dashboards[0].revenue).toBeNull()
+    expect(body.dashboards[0].expenses).toBeNull()
+    expect(body.dashboards[0].earnedValue).toBeNull()
+    expect(body.dashboards[0].contractValue).toBeNull()
+    // ...but the operational figures a site engineer needs are still there.
+    expect(body.dashboards[0].taskCount).toBe(4)
+    expect(body.dashboards[0].delayedTaskCount).toBe(1)
   })
 })

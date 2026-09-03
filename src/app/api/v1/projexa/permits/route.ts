@@ -29,6 +29,20 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listExpiringDocuments, listDocuments, createDocumentRecord, ServiceError } from "@/lib/services/document-service"
 import { signDocumentUrl } from "@/lib/storage/signed-document-url"
+// R67 F-27 (R-243): a new permit moves the "Permits Expiring" tile on the
+// project dashboard, which now holds a 60 s cache. Busted here rather than
+// inside createDocumentRecord: that function is the generic document writer for
+// every module, and only a PERMIT linked to a project changes this figure.
+import { bustProjectDashboardCache } from "@/lib/services/project-dashboard-cache"
+import { withRouteTiming } from "@/lib/route-timing"
+
+// R67 F-02 x F-27/F-28, reconciled by the integration train. `createClient`
+// and the local getStorageAdminClient()/toPermitDto() pair are GONE, not
+// merged: F-02 removed per-row signing from this register entirely and moved
+// the one remaining single-row signature onto the shared signDocumentUrl()
+// helper, which the on-click GET /permits/{id} endpoint also uses. F-27's
+// cache bust and F-28's Server-Timing wrapper are orthogonal to that and are
+// kept exactly as they are on main.
 
 type PermitDocRow = { id: string; name: string; metadata: unknown; expiryDate: Date | string | null; fileUrl: string }
 
@@ -70,7 +84,15 @@ function toPermitListDto(doc: PermitDocRow) {
 // able to open it. signDocumentUrl() degrades this one field to null on a
 // Storage failure rather than failing a write that already committed.
 
-export async function GET(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function GET(...args: Parameters<typeof GET_impl>) {
+  return withRouteTiming("GET", () => GET_impl(...args))
+}
+
+async function GET_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return requireOrg(ctx)!
@@ -97,7 +119,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+// R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
+// route guards read it with a regex -- and delegates to its original body so
+// the response carries Server-Timing: app;dur=<ms> measured HERE. See
+// src/lib/route-timing.ts for why the export is not rewritten instead.
+export async function POST(...args: Parameters<typeof POST_impl>) {
+  return withRouteTiming("POST", () => POST_impl(...args))
+}
+
+async function POST_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")
@@ -128,6 +158,10 @@ export async function POST(request: NextRequest) {
       linkedEntityType: "project", linkedEntityId: projectId,
       metadata: { permitAuthority, permitNumber, issueDate },
     })
+
+    // R67 F-27: the dashboard tile this permit just moved must not serve a
+    // 60 s stale count back to the person who created it.
+    bustProjectDashboardCache(ctx.orgId, projectId)
 
     return NextResponse.json(
       { ...toPermitListDto(doc), documentUrl: await signDocumentUrl(doc.fileUrl, "v1 projexa permits create") },
