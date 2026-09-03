@@ -529,9 +529,30 @@ export async function requireAuthOrApiKey(request: Request): Promise<CombinedAut
 // (setting auth_user_id) upgrades it to the id path with no code change.
 export const ACTING_USER_HEADER = "x-acting-user"
 
+/**
+ * The acting user's EMAIL, carried the same way the id is.
+ *
+ * R67 WS-H fix pass: the first cut of this bridge let PROJEXA put the acting
+ * user's email in the query string (`?actorEmail=`) so that a GET could
+ * identify its caller. That contradicted the reason the id is a header in the
+ * first place -- a query string is written to access logs and leaks through
+ * the Referer header -- and an email address is MORE identifying than an
+ * opaque Supabase id, not less. The email now travels beside the id, in a
+ * header, on every method including GET; `actorEmail` in a JSON body is still
+ * read for the existing server-to-server callers that send it that way.
+ */
+export const ACTING_USER_EMAIL_HEADER = "x-acting-user-email"
+
 /** D-05: the acting-user id PROJEXA sends on a write, or null when absent/blank. */
 export function readActingUserId(request: { headers: Headers }): string | null {
   const raw = request.headers.get(ACTING_USER_HEADER)
+  const trimmed = raw?.trim()
+  return trimmed ? trimmed : null
+}
+
+/** D-05: the acting user's email as a header, or null when absent/blank. */
+export function readActingUserEmail(request: { headers: Headers }): string | null {
+  const raw = request.headers.get(ACTING_USER_EMAIL_HEADER)
   const trimmed = raw?.trim()
   return trimmed ? trimmed : null
 }

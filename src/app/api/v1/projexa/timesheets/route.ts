@@ -21,7 +21,7 @@
 // silent-empty-200 fault this repo has an org-guard sweep test for. It now
 // resolves the real acting user and surfaces the real reason when it can't.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, requireOrg, readActingUserId } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, requireOrg, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import { listTimeEntriesForProject, listTimeEntriesForIssue, logTime, ServiceError } from "@/lib/services/pms-time-service"
 import { withRouteTiming } from "@/lib/route-timing"
 
@@ -80,9 +80,13 @@ async function GET_impl(request: NextRequest) {
   try {
     let selfId: string | undefined
     if (mine) {
+      // Both halves of the acting user's identity arrive as HEADERS, never as
+      // query parameters: an email in a query string is written to access logs
+      // and rides the Referer header off-site, which is the exact reason the
+      // id is a header too. See ACTING_USER_EMAIL_HEADER in auth-guard.ts.
       const { user: actingUser, error: actingUserErr } = await resolveActingUser(
         ctx,
-        request.nextUrl.searchParams.get("actorEmail"),
+        readActingUserEmail(request),
         readActingUserId(request)
       )
       if (actingUserErr) return actingUserErr
@@ -134,7 +138,11 @@ async function POST_impl(request: NextRequest) {
   // key, never a per-user identity). Same resolveActingUser() fix.
   try {
     const body = await readJsonBody(request)
-    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail, readActingUserId(request))
+    const { user: actingUser, error: actingUserErr } = await resolveActingUser(
+      ctx,
+      body?.actorEmail ?? readActingUserEmail(request),
+      readActingUserId(request)
+    )
     if (actingUserErr) return actingUserErr
 
     const result = await logTime({ orgId: ctx.orgId, userId: actingUser!.id, dbUser: actingUser! }, body)

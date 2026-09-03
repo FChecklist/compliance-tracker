@@ -15,7 +15,7 @@
 // the response carries how many rows were minted and the real reason if
 // fewer than expected.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import { submitDayForReview, ServiceError } from "@/lib/services/pms-time-service"
 import { openTimesheetReviewTask, closeTimesheetReturnedTask } from "@/lib/services/timesheet-review-task-service"
 
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}))
-    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail, readActingUserId(request))
+    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail ?? readActingUserEmail(request), readActingUserId(request))
     if (actingUserErr) return actingUserErr
 
     const result = await submitDayForReview(

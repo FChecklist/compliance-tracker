@@ -27,6 +27,7 @@ import {
   hasRole,
   hasScope,
   readActingUserId,
+  readActingUserEmail,
   requireRole,
   requireReportsReadAccess,
   requireRoleOrScope,
@@ -336,5 +337,66 @@ describe("readActingUserId -- D-05 header read", () => {
   test("a missing or blank header is null, never an empty-string id that would match nothing loudly", () => {
     expect(readActingUserId({ headers: new Headers() })).toBeNull()
     expect(readActingUserId({ headers: new Headers({ "X-Acting-User": "   " }) })).toBeNull()
+  })
+})
+
+// R67 WS-H fix pass. The email travels as a HEADER, never as `?actorEmail=`.
+// The first cut of the bridge put it in the query string so a GET could
+// identify its caller, which contradicted the reason the id is a header at all:
+// a query string is written to access logs and rides the Referer header
+// off-site, and an email is MORE identifying than an opaque Supabase id.
+describe("readActingUserEmail -- D-05 header read, never a query parameter", () => {
+  test("reads and trims the X-Acting-User-Email header", () => {
+    expect(readActingUserEmail({ headers: new Headers({ "X-Acting-User-Email": "  priya@example.test  " }) })).toBe("priya@example.test")
+  })
+
+  test("a missing or blank header is null", () => {
+    expect(readActingUserEmail({ headers: new Headers() })).toBeNull()
+    expect(readActingUserEmail({ headers: new Headers({ "X-Acting-User-Email": "  " }) })).toBeNull()
+  })
+})
+
+// R67 WS-H fix pass -- KNOWN LIMITATION, pinned by a test rather than left as
+// a comment. Nothing writes a PROJEXA Supabase user id into
+// compliance.users.auth_user_id today (PROJEXA authenticates against its OWN
+// Supabase project, evpckeuxgvahguwsaeul; compliance.users.auth_user_id links
+// to VERIDIAN's, pcrjmlpuqsbocqfwoxod). So for every real account the id
+// lookup misses and the EMAIL is what actually resolves the person. That
+// precedence is deliberate -- see resolveActingUser's own comment -- but it
+// means USER_NOT_LINKED effectively never fires while both are sent. Linking
+// an account (populating auth_user_id) upgrades it to the id path with no code
+// change; until then this test says out loud which binding is load-bearing.
+describe("resolveActingUser -- which binding is actually load-bearing today", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db", () => realDbModule)
+  })
+
+  test("with auth_user_id unpopulated (today's reality) the EMAIL resolves the person, not the id", async () => {
+    const { resolveActingUser } = await loadAuthGuardWithUserLookups([
+      undefined, // the id lookup: no compliance.users row carries a PROJEXA Supabase id
+      { id: "veridian-user-by-email", orgId: "org-1", isActive: true },
+    ])
+    const { user, error } = await resolveActingUser(
+      PROJEXA_ORG_KEY_CTX as never,
+      "priya@skylinebuilders-demo.veridianai.dev",
+      "projexa-supabase-id-that-is-in-no-veridian-row"
+    )
+    expect(error).toBeNull()
+    expect(user!.id).toBe("veridian-user-by-email")
+  })
+
+  test("once an account IS linked, the id wins and the email lookup is never reached", async () => {
+    const { resolveActingUser } = await loadAuthGuardWithUserLookups([
+      { id: "veridian-user-linked", orgId: "org-1", isActive: true },
+      { id: "veridian-user-by-email", orgId: "org-1", isActive: true },
+    ])
+    const { user, error } = await resolveActingUser(
+      PROJEXA_ORG_KEY_CTX as never,
+      "priya@skylinebuilders-demo.veridianai.dev",
+      "projexa-supabase-id-now-linked"
+    )
+    expect(error).toBeNull()
+    expect(user!.id).toBe("veridian-user-linked")
   })
 })

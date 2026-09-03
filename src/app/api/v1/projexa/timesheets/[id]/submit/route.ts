@@ -21,7 +21,7 @@
 // was not created, with the real reason, so the designer is never told
 // "nothing happened" about a write that did happen.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, resolveActingUser, readActingUserId } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import { submitTimeEntry, getTimeEntry, ServiceError } from "@/lib/services/pms-time-service"
 import { openTimesheetReviewTask, closeTimesheetReturnedTask } from "@/lib/services/timesheet-review-task-service"
 
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   try {
     const body = await readJsonBody(request)
-    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail, readActingUserId(request))
+    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail ?? readActingUserEmail(request), readActingUserId(request))
     if (actingUserErr) return actingUserErr
 
     const { id } = await params

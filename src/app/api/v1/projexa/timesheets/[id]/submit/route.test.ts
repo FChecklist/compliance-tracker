@@ -32,6 +32,7 @@ function mockAuth(ctx: { orgId: string | null; response?: Response | null; dbUse
     // this helper now, so the module mock must export it or the dynamic
     // import("./route") below fails at load time.
     readActingUserId: mock(() => null),
+    readActingUserEmail: mock(() => null),
   }))
 }
 

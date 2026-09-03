@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import { listProgressEntries, createProgressEntry, ProgressRuleError, ServiceError } from "@/lib/services/construction-progress-service"
 import { withRouteTiming } from "@/lib/route-timing"
 
@@ -57,7 +57,11 @@ async function POST_impl(request: NextRequest) {
     // PROJEXA sends, so a work-progress entry is attributed by the stronger
     // id binding where the account is linked, falling back to actorEmail
     // exactly as before where it is not.
-    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail, readActingUserId(request))
+    const { user: actingUser, error: actingUserErr } = await resolveActingUser(
+      ctx,
+      body?.actorEmail ?? readActingUserEmail(request),
+      readActingUserId(request)
+    )
     if (actingUserErr) return actingUserErr
     const result = await createProgressEntry({ orgId: ctx.orgId, userId: actingUser!.id }, body)
     return NextResponse.json(result, { status: 201 })

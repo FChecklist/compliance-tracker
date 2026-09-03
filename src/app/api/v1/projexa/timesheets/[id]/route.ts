@@ -18,7 +18,7 @@
 //            so the service's "only the logging user may delete" check runs
 //            against a real person rather than never running at all.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import { deleteTimeEntry, getTimeEntry, updateTimeEntry, ServiceError } from "@/lib/services/pms-time-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -48,7 +48,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   try {
     const body = await request.json().catch(() => ({}))
-    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail, readActingUserId(request))
+    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail ?? readActingUserEmail(request), readActingUserId(request))
     if (actingUserErr) return actingUserErr
 
     const { id } = await params
@@ -70,7 +70,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
 
   try {
     const body = await request.json().catch(() => ({}))
-    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail, readActingUserId(request))
+    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail ?? readActingUserEmail(request), readActingUserId(request))
     if (actingUserErr) return actingUserErr
 
     const { id } = await params

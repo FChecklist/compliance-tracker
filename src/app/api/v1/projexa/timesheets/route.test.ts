@@ -49,6 +49,7 @@ function mockAuth(ctx: { orgId: string | null; response?: Response | null; roleE
     // dynamic import below fails at load time -- the same reason requireOrg
     // is listed here (see the comment below).
     readActingUserId: mock(() => null),
+    readActingUserEmail: mock(() => null),
     // PR #1438's requireOrg() sweep added this to the GET handler in this
     // same file -- the module mock must export it too or the dynamic
     // `import("./route")` below fails at load time with "Export named
