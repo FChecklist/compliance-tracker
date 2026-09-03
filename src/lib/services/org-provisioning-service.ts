@@ -16,6 +16,7 @@ import { db, organisations, departments, productBranches, orgProductBranchEnable
 import { eq } from "drizzle-orm"
 import { getProvisioningDb } from "@/lib/db/provisioning"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { provisionFiscalYearAndAccounts } from "./org-fiscal-year-provisioning"
 
 export function slugify(name: string): string {
   return name
@@ -222,6 +223,21 @@ export async function provisionOrganisation(input: ProvisionOrganisationInput): 
     }
   } catch (err) {
     console.warn("VERI Chat v2 auto-enablement failed (non-fatal):", err)
+  }
+
+  // R67 lane I (WS-I item I-03): give the org the current fiscal year and a
+  // minimal chart of accounts. Without these, PROJEXA's Annual Budget create
+  // screen is correctly-but-permanently disabled-with-reason on a brand-new
+  // tenant -- create -> object -> edit -> submit cannot be started at all, on
+  // the demo org included (correction C-15). Non-fatal and insert-only, the
+  // same posture as the base-currency and product-branch blocks above: a
+  // failure here must not strand a tenant that is otherwise fully created, and
+  // the Budget screen already degrades honestly when the rows are missing.
+  // Idempotent, so re-running provisioning never duplicates either.
+  try {
+    await provisionFiscalYearAndAccounts(org.id)
+  } catch (err) {
+    console.warn(`Fiscal-year/chart-of-accounts seeding failed for org ${org.id} (non-fatal):`, err)
   }
 
   const [dept] = await withTenantContext({ orgId: org.id }, (tx) =>

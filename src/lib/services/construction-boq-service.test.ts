@@ -30,6 +30,12 @@ function row(overrides: Partial<BoqLineItemRow>): BoqLineItemRow {
     equipmentCost: null,
     overheadPercent: null,
     profitPercent: null,
+    // R67 lane I (I-03/I-05): present-and-null here because that is what a real
+    // DB row looks like -- leaving them off the fixture would let a
+    // Number(undefined) -> NaN bug pass unnoticed.
+    materialAmount: null,
+    manpowerAmount: null,
+    category: null,
     createdAt: new Date("2026-07-27T00:00:00Z"),
     ...overrides,
   }
@@ -378,12 +384,16 @@ describe("toLineItemInput -- copy-forward round-trip for create-with-reference",
       id: "p1", activityId: "act-1", itemCode: "C001", description: "Excavation", unit: "cum",
       quantity: "100", rate: "50", amount: "5000",
       materialCost: "10", labourCost: "20", equipmentCost: "5", overheadPercent: "8", profitPercent: "12",
+      // R67 lane I (I-03/I-05): copy-forward must carry these too, or the first
+      // revision of a BOQ silently uncategorises it and drops its budget split.
+      materialAmount: "500", manpowerAmount: "300", category: "Civil",
     })
     const input = toLineItemInput(persisted, new Map())
     expect(input).toEqual({
       activityId: "act-1", itemCode: "C001", parentItemCode: undefined, breakdownPercentage: undefined,
       description: "Excavation", unit: "cum", quantity: 100, rate: 50,
       materialCost: 10, labourCost: 20, equipmentCost: 5, overheadPercent: 8, profitPercent: 12,
+      materialAmount: 500, manpowerAmount: 300, category: "Civil",
     })
   })
 
@@ -408,5 +418,117 @@ describe("toLineItemInput -- copy-forward round-trip for create-with-reference",
     const mapped = persisted.map((item) => toLineItemInput(item, new Map()))
     expect(mapped).toHaveLength(153)
     expect(mapped.every((i) => i.quantity === 10 && i.rate === 5)).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 lane I (WS-I items I-03 and I-05). normalizeCategory is pure and tested
+// directly; updateLineItemBudget is a withTenantContext() write, so the
+// round-trip below runs the REAL function with only the DB layer mocked (the
+// same convention construction-reports-service.test.ts uses for
+// designerTimesheetReport) -- the acceptance is that a PATCH of materialAmount
+// 500 and manpowerAmount 300 comes back on the line item, which a test of a
+// pure helper could not show.
+import { mock, afterEach } from "bun:test"
+import * as realTenantScopedForBoq from "@/lib/db/tenant-scoped"
+import { normalizeCategory } from "./construction-boq-service"
+
+describe("normalizeCategory (R67 I-05)", () => {
+  test("trims a real value", () => {
+    expect(normalizeCategory("  Civil  ")).toBe("Civil")
+  })
+
+  test('"", whitespace, null and undefined all collapse to ONE null -- so "no category" is a single value in the column', () => {
+    expect(normalizeCategory("")).toBeNull()
+    expect(normalizeCategory("   ")).toBeNull()
+    expect(normalizeCategory(null)).toBeNull()
+    expect(normalizeCategory(undefined)).toBeNull()
+  })
+
+  test("never case-folds and never collapses inner spacing -- the wording stays the customer's own", () => {
+    expect(normalizeCategory("gypsum  BOARD")).toBe("gypsum  BOARD")
+  })
+})
+
+describe("updateLineItemBudget -- material/manpower amounts and category (R67 I-03/I-05)", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScopedForBoq)
+  })
+
+  function mountFakeDb() {
+    const setCalls: Record<string, unknown>[] = []
+    const stored = row({ id: "line-1", amount: "1000", budgetPercentage: "25" }) as unknown as Record<string, unknown>
+    const fakeDb = {
+      query: {
+        constructionBoqLineItems: { findFirst: mock(async () => ({ ...stored, boqId: "boq-1" })) },
+        constructionBoqs: { findFirst: mock(async () => ({ id: "boq-1", orgId: "org-1" })) },
+      },
+      update: () => ({
+        set: (values: Record<string, unknown>) => ({
+          where: () => ({
+            returning: async () => {
+              setCalls.push(values)
+              return [{ ...stored, ...values }]
+            },
+          }),
+        }),
+      }),
+    }
+    return { fakeDb, setCalls }
+  }
+
+  async function patch(input: Record<string, unknown>) {
+    const { fakeDb, setCalls } = mountFakeDb()
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScopedForBoq,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    const { updateLineItemBudget } = await import("./construction-boq-service")
+    const updated = await updateLineItemBudget({ orgId: "org-1" }, "line-1", input)
+    return { updated, setCalls }
+  }
+
+  test("a PATCH of materialAmount 500 and manpowerAmount 300 round-trips on the line item", async () => {
+    const { updated, setCalls } = await patch({ materialAmount: 500, manpowerAmount: 300 })
+    expect(setCalls[0]).toEqual({ materialAmount: "500", manpowerAmount: "300" })
+    expect(updated.materialAmount).toBe("500")
+    expect(updated.manpowerAmount).toBe("300")
+  })
+
+  test("null clears an amount, and undefined leaves it completely alone", async () => {
+    const cleared = await patch({ materialAmount: null })
+    expect(cleared.setCalls[0]).toEqual({ materialAmount: null })
+
+    const untouched = await patch({ budgetPercentage: 40 })
+    expect(untouched.setCalls[0]).toEqual({ budgetPercentage: "40" })
+    expect("materialAmount" in untouched.setCalls[0]).toBe(false)
+    expect("manpowerAmount" in untouched.setCalls[0]).toBe(false)
+    expect("category" in untouched.setCalls[0]).toBe(false)
+  })
+
+  test("category is normalised on the way in -- a blank becomes null, not an empty string", async () => {
+    expect((await patch({ category: "  Civil " })).setCalls[0]).toEqual({ category: "Civil" })
+    expect((await patch({ category: "   " })).setCalls[0]).toEqual({ category: null })
+    expect((await patch({ category: null })).setCalls[0]).toEqual({ category: null })
+  })
+
+  test("a negative amount is refused with a 400 and nothing is written", async () => {
+    const { fakeDb, setCalls } = mountFakeDb()
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScopedForBoq,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    const { updateLineItemBudget } = await import("./construction-boq-service")
+    let thrown: unknown
+    try {
+      await updateLineItemBudget({ orgId: "org-1" }, "line-1", { manpowerAmount: -1 })
+    } catch (err) {
+      thrown = err
+    }
+    expect(thrown).toBeInstanceOf(ServiceError)
+    expect((thrown as Error).message).toBe("manpowerAmount must be a non-negative number, got -1")
+    expect((thrown as { status: number }).status).toBe(400)
+    expect(setCalls).toEqual([])
   })
 })

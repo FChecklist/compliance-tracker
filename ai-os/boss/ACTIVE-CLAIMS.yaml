@@ -97,6 +97,116 @@ active:
       Not touching: the pipeline (classify/executor/validate/run-submission), any AI
       router/escalation file, billing_*, construction-progress-service.ts,
       construction-boq-service.ts, erp-inventory-service.ts, or any migration file.
+  - session_label: "claude-code (subagent, r67-lane-I) -- PROGRAMME R67 workstream WS-I (data-migrations), items I-01..I-05"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implementation programme R67,
+      lane I ("data-migrations"). Branch r67/i-data-migrations, worktree
+      C:/ct/ct-worktrees/r67-I (compliance-tracker) + C:/ct/projexa-worktrees/r67-I (projexa).
+
+      Verified live before starting (not assumed): the highest migration on this branch's
+      origin/main base is drizzle/0527_r65_parte_billing_contracts.sql with journal idx 349
+      (counted with PowerShell Get-ChildItem, NOT Git Bash `ls` -- that under-reported the
+      directory as 0325 on this laptop, a known local tooling fault). This lane therefore
+      takes 0528-0532 and re-checks for collision against origin/main immediately before merge.
+
+      File scope in compliance-tracker:
+        drizzle/0528_r67_i01_screen_definition_labels.sql
+        drizzle/0529_r67_i02_manpower_material_org_format.sql
+        drizzle/0530_r67_i03_boq_amounts_demo_fiscal_year.sql
+        drizzle/0531_r67_i04_schedule_boq_link_and_label_fix.sql
+        drizzle/0532_r67_i05_boq_line_category.sql
+        drizzle/meta/_journal.json (five appended entries)
+        src/lib/db/schema.ts (constructionAttendance/constructionLabourRoster/
+          constructionMaterials/constructionMaterialReceipts/constructionBoqLineItems/
+          organisations/pmsIssues column additions + constructionMaterialIssues,
+          constructionEmployeeCodeCounters, constructionBoqCategories, pmsIssueBoqLinks tables)
+        src/lib/services/screen-definitions-labels.ts (+ .test.ts)
+        src/lib/services/construction-boq-service.ts (+ .test.ts)
+        src/lib/services/construction-boq-import-service.ts (+ .test.ts)
+        src/lib/services/construction-reports-service.ts (+ .test.ts)
+        src/lib/services/construction-boq-category-service.ts (+ .test.ts)
+        src/lib/services/org-fiscal-year-provisioning.ts (+ .test.ts)
+        src/lib/services/org-provisioning-service.ts (calls the fiscal-year provisioner)
+        src/app/api/v1/construction/boq/line-items/[id]/route.ts
+        src/app/api/v1/construction/boq/categories/route.ts (+ [id]/route.ts)
+        src/app/api/v1/projexa/scope/categories/route.ts (+ [id]/route.ts)
+        src/app/api/v1/projexa/reports/[reportName]/route.ts (repeatable ?category= params)
+        scripts/check-screen-definition-labels.mjs (+ .test.ts), .github/workflows/ci.yml (one new job)
+        docs/master/TEST_COVERAGE_GAP.md (regenerated)
+
+      File scope in projexa: src/lib/boq-helpers.ts (+ .test.ts),
+        src/lib/work-progress-report.ts (+ .test.ts), src/components/ScopeCreateClient.tsx,
+        ScopeReviseClient.tsx, ScopeObjectClient.tsx, WorkProgressReportClient.tsx (+ .test.tsx),
+        BoqCategorySelect.tsx (new, + .test.tsx), BoqCategoriesCard.tsx (new, + .test.tsx),
+        SettingsClient.tsx, src/lib/authz/api-write-policy.ts (two /scope/categories entries),
+        src/app/api/work-progress/report/route.ts, src/app/api/scope/categories/**,
+        src/components/CategoryDistributionCharts.test.tsx (one line: its
+          happy-dom GlobalRegistrator.register() was the repo's only UNGUARDED
+          one and survived purely on alphabetical luck -- BoqCategoriesCard.test.tsx
+          now sorts ahead of it, so it needed the same guard the other ten suites use).
+
+      NOT touching: any other lane's files, the pipeline (src/lib/pipeline/**), the
+      ui-kit (D-09: fork into projexa instead), platform.* tables, or any guardrail script's
+      strictness (AGENTS.md Rule 9). No other active entry in this file claims drizzle/**,
+      construction-boq-service.ts, construction-reports-service.ts or screen_definitions.
+  - session_label: "claude-code (subagent, r67/a-composer-shell) -- PROGRAMME R67 lane A (WS-A composer shell), items A-01..A-22"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC (programme R67, implementing the owner-approved R66 UX/product-design
+      audit; binding decisions D-01..D-10 in the programme's decisions record,
+      notably D-09 "no veridian-ui-kit release -- fork the shell components into
+      projexa" and D-10 "pill demotion approved for PROJEXA only").
+
+      Lane A is the COMPOSER SHELL lane and is almost entirely in the OTHER repo
+      (FChecklist/projexa, worktree C:/ct/projexa-worktrees/r67-A, branch
+      r67/a-composer-shell): the M24 composer's control strip, pill strip,
+      chain root/project resolution and instruction strings. This entry is
+      registered here because two later items in the lane (A-07, A-08) also
+      touch THIS repo.
+    scope_note: >-
+      compliance-tracker file scope claimed by this lane (later items only, not
+      yet started at claim time): src/app/api/v1/projexa/pill-usage/route.ts
+      (A-07: accept/return leaf card ids in the existing free-text
+      compliance.pill_usage.pillKey column + return a label per ranked entry;
+      A-08: return the top three leaf chains of the last seven days) and
+      src/app/api/v1/projexa/tasks/route.ts (A-08: insert a
+      compliance.chain_history row on every confirmed submission). Both tables
+      already exist (schema.ts:13096 pill_usage, :13112 chain_history) so NO
+      migration and no schema.ts change is claimed. Nothing else in this repo is
+      touched by lane A -- in particular not src/lib/pipeline/* (that is lane
+      WS-B's executor-registration and error-dictionary work, which this lane
+      only consumes as a contract).
+    scope_amendment_2026_09_02: >-
+      As BUILT for A-07/A-08, two corrections to the scope note above, recorded
+      rather than left to be discovered in review. (1) TWO FILES WERE ADDED that
+      the note did not anticipate: src/lib/services/projexa-pill-usage-service.ts
+      and its sibling test. The ranking, the new label derivation and the recent-
+      chain selection are pure and were put in a service so they could be unit
+      tested without a database, which is also what the "New Test Coverage
+      Check" gate requires of any added src/lib/services/*.ts; consequently
+      docs/master/TEST_COVERAGE_GAP.md was regenerated (126/245 -> 127/246) by
+      importing the exported functions of scripts/report-test-coverage-gap.mjs,
+      whose isMain guard no-ops on Windows. (2) src/app/api/v1/projexa/tasks/
+      route.ts WAS NOT TOUCHED and its claim is released: A-08's chain_history
+      write already exists and is already correct -- run-submission.ts:369-370
+      and :543-544 record one row per task on both the typed and the pill path,
+      with outcome ok/failed. Verified by reading it, not assumed.
+    scope_amendment_3_2026_09_03: >-
+      Lane A's last two items, A-21 (the composer strip names the RECORD on an
+      object page) and A-22 (the deleted mode tabs stay deleted), touched NO
+      file in this repo -- both are repo "projexa" and their whole change is in
+      the forked shell there. Recorded so a reviewer seeing no compliance-
+      tracker diff for them knows it is deliberate rather than forgotten. A-22
+      did however make a finding ABOUT this repo that its own item contradicts:
+      the item says to drop `mode` from the /api/tasks POST body because "the
+      server ignores it", and it does not -- src/app/api/v1/projexa/tasks/
+      route.ts:49 reads it, and it reaches submissions.mode (run-submission.ts:
+      196/446, selected back by that route's GET at :140), deriveChain's root
+      for a project-less chain (run-submission.ts:291 -> derive-chain.ts:170,
+      `All ${mode.toLowerCase()}`) and chain_history.mode (:631). The field is
+      therefore still sent, derived from the chain rather than from a control,
+      and nothing in this repo changed.
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |
