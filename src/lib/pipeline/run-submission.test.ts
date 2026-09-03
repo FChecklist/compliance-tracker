@@ -56,6 +56,7 @@ describe("buildTaskResultMemoryContent -- R65 Part C Phase 3 task memory", () =>
 // route imports. Every dependency is injected, so each branch is proven with
 // no database and no model call.
 import { readFileSync } from "node:fs"
+import nodePath from "node:path"
 import { dryRunSubmission, NO_COMMENTARY_SENTENCE } from "./run-submission"
 import { gapAnswer, type DryRunDeps } from "./dry-run"
 import type { L0Repo } from "./level0"
@@ -133,7 +134,10 @@ describe("B-05 -- a WRITE proposal asks for what is missing and mints nothing", 
     expect(JSON.stringify(r)).not.toContain("taskId")
     // Structural proof, not a spy: dry-run.ts imports neither the tasks table
     // nor a transaction, so there is no code path that could insert one.
-    const source = readFileSync(new URL("./dry-run.ts", import.meta.url).pathname.replace(/^\//, ""), "utf8")
+    // import.meta.dir, not new URL(...).pathname: on Linux (CI) pathname is
+    // already absolute, so stripping its leading slash made the path relative
+    // and the read failed there while passing on Windows.
+    const source = readFileSync(nodePath.join(import.meta.dir, "dry-run.ts"), "utf8")
     expect(source).not.toContain("pipelineTasks")
     expect(source).not.toContain("withTenantContext")
   })

@@ -1,5 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
+import path from "node:path";
 import { NO_COMMENTARY_SENTENCE } from "./refusal";
 
 // R67 FIX PASS -- a sibling test for the one-constant leaf module B-05 added.
@@ -29,7 +30,10 @@ describe("NO_COMMENTARY_SENTENCE -- what a model refusal is allowed to say", () 
   });
 
   test("the module is a leaf -- it imports nothing, so neither layer gains a cycle", async () => {
-    const source = await Bun.file(new URL("./refusal.ts", import.meta.url).pathname.replace(/^\//, "")).text();
+    // import.meta.dir, not new URL(...).pathname: on Linux (CI) pathname is
+    // already absolute, so stripping its leading slash made the path relative
+    // and the read failed there while passing on Windows.
+    const source = await Bun.file(path.join(import.meta.dir, "refusal.ts")).text();
     expect(source).not.toMatch(/^\s*import\s/m);
   });
 });
