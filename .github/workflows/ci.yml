@@ -261,6 +261,37 @@ jobs:
       - run: node scripts/check-screen-definition-labels.mjs
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  graph-drift-check:
+    # R67 Part B, item 1.7 (PART_B_STATUS.md "1.7 remaining" section) -- CI
+    # wrapper around the self-healing SQL pair applied and proven live in
+    # migration r67b_phase1_7_reconciling_rebuild:
+    # platform.graph_reconcile_platform_tier() + platform.graph_full_resync().
+    # Same class of check as Migration Schema Drift Check just above (a
+    # committed derivation vs. the live schema can silently drift apart) but
+    # for the schema/type-tier knowledge graph (graph_node/graph_edge)
+    # instead of Drizzle migrations: graph_full_resync() reconciles (deletes
+    # platform-tier rows whose source -- a table, an FK constraint, an
+    # asset_registration_config entry -- no longer exists) THEN rebuilds
+    # (re-adds anything missing), and on a system with no real drift every
+    # step must return row_count=0. A non-zero row_count means the committed
+    # graph-builder SQL and the live schema have drifted apart, or
+    # graph_node/graph_edge were hand-edited outside the builders. See
+    # scripts/verify-graph-drift.mjs's own header for the full design and
+    # its honest limitations. graph_full_resync() is SECURITY DEFINER and
+    # only ever touches tier='platform' rows (never tenant tier='instance'
+    # data) -- app_runtime was granted EXECUTE on it specifically for this
+    # check (migration r67b_phase1_7_grant_graph_resync_ci). Same
+    # DATABASE_URL secret Migration Schema Drift Check already uses; same
+    # unreachable-DB-warns-not-fails convention.
+    name: Graph Drift Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: node scripts/verify-graph-drift.mjs
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
   new-test-coverage:
     name: New Test Coverage Check
     runs-on: ubuntu-latest
