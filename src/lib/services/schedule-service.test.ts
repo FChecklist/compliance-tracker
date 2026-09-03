@@ -105,6 +105,7 @@ mock.module("./pms-taxonomy-service", () => ({
 
 const {
   ServiceError,
+  attachBoqLinks,
   createScheduleActivity,
   deriveDueDate,
   deriveDurationDays,
@@ -321,5 +322,49 @@ describe("detectResourceConflicts -- cross-project over-allocation, distinct fro
     const allocations = [{ userId: "user_1", projectId: "project_a", allocatedHoursPerDay: "5", startDate: "2026-07-01", endDate: "2026-07-01" }]
     expect(detectResourceConflicts(allocations, 4)).toHaveLength(1)
     expect(detectResourceConflicts(allocations, 8)).toEqual([])
+  })
+})
+
+// ── R67 D-56 (audit R-185) ───────────────────────────────────────────────────
+// getGanttData() now tells the Timeline which activities have their progress
+// owned by a BOQ line, so D-56's inline "% complete" editor can be offered on
+// the rows nobody else writes and refused (with the reason) on the rows Work
+// Progress owns. The DB half is two statements inside the transaction that was
+// already open; the decision itself is this pure function, tested here.
+describe("attachBoqLinks (D-56)", () => {
+  const tasks = [{ id: "t1", title: "Slab" }, { id: "t2", title: "Joinery" }, { id: "t3", title: "Snagging" }]
+
+  test("an unlinked activity gets null, not an empty string -- 'nobody owns this' is a fact, not a blank", () => {
+    expect(attachBoqLinks(tasks, [])).toEqual([
+      { id: "t1", title: "Slab", boqLineItemId: null },
+      { id: "t2", title: "Joinery", boqLineItemId: null },
+      { id: "t3", title: "Snagging", boqLineItemId: null },
+    ])
+  })
+
+  test("a linked activity names its line, and unlinked siblings stay null", () => {
+    const result = attachBoqLinks(tasks, [{ issueId: "t2", boqLineItemId: "boq-line-7" }])
+    expect(result.map((t) => t.boqLineItemId)).toEqual([null, "boq-line-7", null])
+  })
+
+  test("two links on one activity resolve to the FIRST, never to a crash or a silent drop of the row", () => {
+    const result = attachBoqLinks(tasks, [
+      { issueId: "t1", boqLineItemId: "boq-line-1" },
+      { issueId: "t1", boqLineItemId: "boq-line-2" },
+    ])
+    expect(result).toHaveLength(3)
+    expect(result[0].boqLineItemId).toBe("boq-line-1")
+  })
+
+  test("a link pointing at an activity that is not on this Gantt is ignored, not appended as a phantom row", () => {
+    const result = attachBoqLinks(tasks, [{ issueId: "t-deleted", boqLineItemId: "boq-line-9" }])
+    expect(result).toHaveLength(3)
+    expect(result.every((t) => t.boqLineItemId === null)).toBe(true)
+  })
+
+  test("the task's own fields survive untouched -- this stamps, it does not reshape", () => {
+    const [first] = attachBoqLinks([{ id: "t1", title: "Slab", isCritical: true }], [])
+    expect(first.title).toBe("Slab")
+    expect(first.isCritical).toBe(true)
   })
 })

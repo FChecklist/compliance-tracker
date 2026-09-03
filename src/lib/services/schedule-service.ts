@@ -164,17 +164,62 @@ export async function calculateCriticalPath(ctx: { orgId: string }, projectId: s
 }
 
 export async function getGanttData(ctx: { orgId: string }, projectId: string) {
-  const [tasks, relationsRaw, milestones] = await Promise.all([
+  const [tasks, edgesAndLinks, milestones] = await Promise.all([
     calculateCriticalPath(ctx, projectId),
-    withTenantContext({ orgId: ctx.orgId }, (db) =>
-      db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)), columns: { id: true } })
-        .then((issues) => db.query.pmsIssueRelations.findMany({ where: and(eq(pmsIssueRelations.orgId, ctx.orgId), inArray(pmsIssueRelations.issueId, issues.map((i) => i.id))) }))
-    ),
+    // R67 D-56: the BOQ links are read INSIDE this same transaction, off the
+    // issue-id list it already had to build for the relations query. A fourth
+    // parallel withTenantContext would be a fourth connection out of five for
+    // one screen, and a nested one is forbidden outright (programme decision
+    // D-06). Two statements, one transaction, no extra round trip to the pool.
+    withTenantContext({ orgId: ctx.orgId }, async (db) => {
+      const issues = await db.query.pmsIssues.findMany({
+        where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)),
+        columns: { id: true },
+      })
+      const issueIds = issues.map((i) => i.id)
+      const relations = await db.query.pmsIssueRelations.findMany({
+        where: and(eq(pmsIssueRelations.orgId, ctx.orgId), inArray(pmsIssueRelations.issueId, issueIds)),
+      })
+      const boqLinks = issueIds.length
+        ? await db.query.pmsIssueBoqLinks.findMany({
+          where: and(eq(pmsIssueBoqLinks.orgId, ctx.orgId), inArray(pmsIssueBoqLinks.issueId, issueIds)),
+          columns: { issueId: true, boqLineItemId: true },
+        })
+        : []
+      return { relations, boqLinks }
+    }),
     listMilestones({ orgId: ctx.orgId }, projectId),
   ])
   const taskIds = new Set(tasks.map((t) => t.id))
-  const dependencies = normalizeEdges(relationsRaw).filter((e) => taskIds.has(e.predecessorId) && taskIds.has(e.successorId))
-  return { tasks, dependencies, milestones }
+  const dependencies = normalizeEdges(edgesAndLinks.relations).filter((e) => taskIds.has(e.predecessorId) && taskIds.has(e.successorId))
+  return { tasks: attachBoqLinks(tasks, edgesAndLinks.boqLinks), dependencies, milestones }
+}
+
+/**
+ * R67 D-56. Pure: stamps each Gantt task with the BOQ line its progress is
+ * owned by, or null when nothing owns it.
+ *
+ * WHY THE UI NEEDS THIS. D-56 makes '% complete' inline-editable on the
+ * Timeline, but only for activities NOBODY ELSE is writing. An activity linked
+ * to a BOQ line takes its progress from the Work Progress report; letting the
+ * Timeline overwrite it there would give one number two authors and no way to
+ * tell which one you are looking at. So the linked rows are read-only and say
+ * why, and this is the flag that decides which is which.
+ *
+ * An activity may legitimately be linked to more than one BOQ line (a weight
+ * column exists for exactly that). The Timeline only needs to know WHETHER its
+ * progress is owned elsewhere, so the first link is the one it names; the full
+ * set stays readable through pms_issue_boq_links for anything that needs it.
+ */
+export function attachBoqLinks<T extends { id: string }>(
+  tasks: readonly T[],
+  links: readonly { issueId: string; boqLineItemId: string }[]
+): (T & { boqLineItemId: string | null })[] {
+  const byIssue = new Map<string, string>()
+  for (const link of links) {
+    if (!byIssue.has(link.issueId)) byIssue.set(link.issueId, link.boqLineItemId)
+  }
+  return tasks.map((t) => ({ ...t, boqLineItemId: byIssue.get(t.id) ?? null }))
 }
 
 // ─── R67 D-47 (audit R-121) -- creating an ACTIVITY, not just an issue ──────
