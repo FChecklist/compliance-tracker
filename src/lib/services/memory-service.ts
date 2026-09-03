@@ -442,6 +442,15 @@ export type SupersedeMemoryRecordChangedBy = {
   type: ChangedByType
   id?: string | null
   reason?: string | null
+  // R68 Phase 1 (drizzle/0541_r68_phase1_bitemporal_enforcement.sql):
+  // optional, persisted onto the memory_versions snapshot row this
+  // function writes for the OLD content -- nullable/additive on that
+  // table, so omitting both here is exactly the pre-R68 behavior (both
+  // columns stay NULL). Only meaningful when the revision was itself
+  // AI/LLM-driven; a USER or SYSTEM-originated change legitimately has
+  // neither and should omit them.
+  modelId?: string | null
+  promptHash?: string | null
 }
 
 export type SupersedeMemoryRecordResult = {
@@ -532,10 +541,10 @@ export async function supersedeMemoryRecord(
 
   await tx.execute(sql`
     INSERT INTO compliance.memory_versions
-      (id, memory_record_id, version_number, content_snapshot, content_hash, changed_by_type, changed_by_id, change_reason)
+      (id, memory_record_id, version_number, content_snapshot, content_hash, changed_by_type, changed_by_id, change_reason, model_id, prompt_hash)
     VALUES
       (${createId()}, ${oldId}, ${previous.version}, ${previous.content}, ${previous.contentHash},
-       ${changedBy.type}, ${changedBy.id ?? null}, ${changedBy.reason ?? null})
+       ${changedBy.type}, ${changedBy.id ?? null}, ${changedBy.reason ?? null}, ${changedBy.modelId ?? null}, ${changedBy.promptHash ?? null})
   `)
 
   const newId = createId()
@@ -761,4 +770,246 @@ export async function archiveMemoryRecord(tx: TenantDb, id: string, changedBy: M
   `)) as RawMemoryRecordRow[]
 
   return mapMemoryRecordRow(updatedRows[0])
+}
+
+// ─── R68 (Institutional Memory Graph) Phase 1: bitemporal enforcement ───
+//
+// DB-level enforcement (append-only guard trigger, SUPERSEDED-requires-
+// pointer CHECK) lives entirely in drizzle/0541_r68_phase1_bitemporal_
+// enforcement.sql -- see that migration's own header for the full design
+// rationale, including the disclosed metadata-column deviation and the
+// role-scoping (app_runtime only) that makes redactMemoryRecordLineage()
+// below legal. Everything below is the two items that migration's own
+// header says belong in TypeScript, not SQL: as-of recall (item 3) and
+// erasure-as-redaction (item 5).
+
+// A memory's full "lineage" is every compliance.memory_records row ever
+// produced for the same logical fact by repeated supersedeMemoryRecord()
+// calls -- NOT rows sharing this table's own `id` (each row has a
+// distinct, permanent id), but the chain linked by superseded_by_id:
+// root (v1) -> superseded_by_id -> v2 -> superseded_by_id -> v3 -> ...
+// -> current (superseded_by_id IS NULL). Shared by getMemoryRecordAsOf()
+// (item 3) and redactMemoryRecordLineage() (item 5) so lineage-walking
+// logic exists in exactly one place.
+//
+// Deliberately generic over the executor (a bare `{ execute }` shape both
+// TenantDb and the bypass-RLS `Db` type satisfy) rather than typed to
+// TenantDb specifically: getMemoryRecordAsOf() walks via the caller's own
+// RLS-governed `tx` (a read, same as searchMemories()), while
+// redactMemoryRecordLineage() below walks via the bypass `db` connection
+// (a write to `content`, which the append-only trigger blocks for
+// app_runtime -- see that function's own header for why it cannot use
+// `tx`). One walk implementation, two legitimately different connections.
+type MemoryLineageExecutor = { execute: (query: unknown) => Promise<unknown> }
+
+// Defends against a pathological/cyclic superseded_by_id chain (should be
+// structurally impossible -- supersedeMemoryRecord() only ever points an
+// OLD row forward to a brand-new id it just inserted -- but a walk with no
+// bound is the wrong failure mode for a corrupted or adversarially-crafted
+// chain to hit, an infinite loop, rather than a bounded, clearly-labeled
+// error).
+const MAX_MEMORY_LINEAGE_DEPTH = 1000
+
+async function walkMemoryLineageIds(executor: MemoryLineageExecutor, id: string): Promise<string[]> {
+  // Phase 1: walk backward to find the root (the row nothing else claims
+  // to have superseded FROM, i.e. no other row's superseded_by_id points
+  // at it).
+  let rootId = id
+  const backwardSeen = new Set<string>([id])
+  for (let i = 0; i < MAX_MEMORY_LINEAGE_DEPTH; i++) {
+    const rows = (await executor.execute(sql`
+      SELECT id FROM compliance.memory_records WHERE superseded_by_id = ${rootId} LIMIT 1
+    `)) as { id: string }[]
+    if (rows.length === 0) break
+    if (backwardSeen.has(rows[0].id)) {
+      throw new Error(`walkMemoryLineageIds: cyclic superseded_by_id chain detected walking backward from ${id}`)
+    }
+    backwardSeen.add(rows[0].id)
+    rootId = rows[0].id
+  }
+
+  // Phase 2: walk forward from the root, collecting every id in order.
+  const ids: string[] = []
+  const forwardSeen = new Set<string>()
+  let cursor: string | null = rootId
+  for (let i = 0; i < MAX_MEMORY_LINEAGE_DEPTH && cursor; i++) {
+    if (forwardSeen.has(cursor)) {
+      throw new Error(`walkMemoryLineageIds: cyclic superseded_by_id chain detected walking forward from ${rootId}`)
+    }
+    forwardSeen.add(cursor)
+    const rows = (await executor.execute(sql`
+      SELECT id, superseded_by_id FROM compliance.memory_records WHERE id = ${cursor}
+    `)) as { id: string; superseded_by_id: string | null }[]
+    if (rows.length === 0) break // cursor not found (or RLS-filtered, for the tx case) -- stop, do not fabricate a row
+    ids.push(rows[0].id)
+    cursor = rows[0].superseded_by_id
+  }
+  return ids
+}
+
+/**
+ * The as-of recall function (R68 Phase 1 item 3): given any memory_records
+ * row id belonging to a lineage and an instant in time, returns whichever
+ * row in that lineage was the CURRENT/valid one at that instant --
+ * `effective_from <= asOf AND (effective_to IS NULL OR effective_to > asOf)`
+ * -- or null if the id doesn't exist (under RLS) or no row in the lineage
+ * was effective at that instant (e.g. asOf predates the lineage's root
+ * effective_from).
+ *
+ * Implemented as a TypeScript function over `tx` (real RLS, same as every
+ * other read in this file), not a SQL function in the compliance schema --
+ * this file's own established convention for memory_records reads is raw
+ * sql``/tx.execute() wrapped in a named TS function (searchMemories(),
+ * fetchOwnOrgMemoryRecordOrThrow()), never a stored SQL function; see
+ * drizzle/0541's own header for this same reasoning.
+ *
+ * `id` may be ANY row in the lineage, not just its current head or its
+ * original root -- callers naturally have "a" memory_records id (e.g. from
+ * a prior search or a UI reference), not necessarily the newest or oldest
+ * one, and the lineage walk above resolves whichever id is passed back to
+ * the full chain either way.
+ */
+export async function getMemoryRecordAsOf(tx: TenantDb, id: string, asOf: Date): Promise<MemoryRecord | null> {
+  const lineageIds = await walkMemoryLineageIds(tx as unknown as MemoryLineageExecutor, id)
+  if (lineageIds.length === 0) return null
+
+  const rows = (await tx.execute(sql`
+    SELECT * FROM compliance.memory_records
+    WHERE id = ANY(${lineageIds}::text[])
+      AND effective_from <= ${asOf}
+      AND (effective_to IS NULL OR effective_to > ${asOf})
+    LIMIT 1
+  `)) as RawMemoryRecordRow[]
+
+  return rows[0] ? mapMemoryRecordRow(rows[0]) : null
+}
+
+// ─── redactMemoryRecordLineage (R68 Phase 1 item 5: erasure-as-redaction) ─
+
+export type RedactMemoryLineageChangedBy = {
+  type: ChangedByType
+  id?: string | null
+  reason?: string | null
+}
+
+export type RedactMemoryLineageResult = {
+  recordsRedacted: number
+  versionsRedacted: number
+}
+
+const MEMORY_REDACTION_PLACEHOLDER = "[REDACTED — content erased per right-to-erasure request]"
+const MEMORY_REDACTION_CONTENT_HASH = createHash("sha256").update(MEMORY_REDACTION_PLACEHOLDER).digest("hex")
+
+/**
+ * Right-to-erasure redaction across an ENTIRE memory lineage (R68 Phase 1
+ * item 5, R-IMG-05's explicit additional obligation for the Institutional
+ * Memory Graph specifically): because compliance.memory_records/
+ * memory_versions are append-only, an erasure request must redact content
+ * on EVERY historical row -- every superseded compliance.memory_records
+ * row in the lineage (walked via walkMemoryLineageIds(), both directions)
+ * AND every compliance.memory_versions snapshot recorded for any of them
+ * -- never just close the CURRENT row via effective_to. Closing a row
+ * would leave the personal data fully intact in every already-superseded
+ * memory_records row and every memory_versions snapshot, defeating the
+ * erasure while appearing to satisfy it.
+ *
+ * Does not delete any row (doc_uid-style permanence, not GDPR/DPDP-style
+ * hard delete) -- every matched row keeps its id/scope/timestamps/version
+ * lineage intact, only `content`/`content_snapshot` and their matching
+ * `content_hash` are replaced with a fixed redaction placeholder. This is
+ * this codebase's own nearest existing precedent for a right-to-erasure
+ * write: compliance.source_object's CRR-226 tombstone design (content
+ * nulled, doc_uid/row survive -- content_erased_at/erased_by_id/
+ * erasure_authority, see docs/CRR_SCHEMA.md) applied to memory_records'
+ * own shape (which has no separate tombstone-timestamp columns of its own
+ * -- the redaction is instead recorded into `metadata.erasure`, this
+ * table's own existing append-only-respecting audit-trail slot, the same
+ * one appendLifecycleHistory() above already uses for lifecycle changes).
+ *
+ * Disclosed gap against the originating directive: the directive describes
+ * this as wiring into "CRR-201's existing erasure cascade" for that
+ * function to call. No such function exists anywhere in this codebase --
+ * searched for "CRR-201", "erasure cascade", "P10-DPDP", "eraseSubject"/
+ * "runErasure"/"performErasure" and every plausible variant; the only real
+ * erasure-shaped code in the whole repo is CRR-226's own tombstone COLUMNS
+ * (source_object/document_chunk) plus recall.ts's read-time exclusion of
+ * already-erased chunks -- there is no dispatcher/cascade function today
+ * that this function could extend without forking a parallel structure
+ * this codebase doesn't already have. This function is therefore written
+ * standalone, following CRR-226's own tombstone-not-delete shape exactly, ready for a
+ * future erasure-cascade dispatcher (whenever one is built) to call rather
+ * than reimplementing memory_records-specific redaction itself -- see this
+ * PR's own description for the same disclosure.
+ *
+ * Runs on the bypass-RLS `db` connection (src/lib/db/index.ts, the
+ * `postgres` table-owner role), NOT the caller's own `tx` -- required
+ * because drizzle/0541's append-only guard trigger blocks app_runtime from
+ * ever changing `content`/`content_hash` on an existing memory_records row
+ * (exactly the columns this function must rewrite), and because
+ * memory_versions has no UPDATE grant to app_runtime at all (R65 Part C
+ * Phase 1's own RLS: SELECT+INSERT only). Same "two connections, two
+ * privilege levels, one narrow documented exception" shape embedAndMirror()
+ * already established in this file for a different column, for the same
+ * underlying reason -- app_runtime's own RLS/trigger surface was never
+ * designed to permit this specific write, by design, and this function is
+ * the one sanctioned channel around that for a genuine erasure request.
+ *
+ * `expectedOrgId`, when supplied, is a defense-in-depth check (this
+ * function does not run inside a tenant `tx`, so it cannot lean on RLS the
+ * way every other write in this file does): every row in the resolved
+ * lineage must belong to that org, or this throws without writing
+ * anything, rather than silently redacting a lineage that turned out to
+ * belong to someone else's tenant.
+ *
+ * Throws if `id` cannot be found (no RLS involved on this bypass
+ * connection -- "not found" here means the row genuinely does not exist).
+ */
+export async function redactMemoryRecordLineage(
+  id: string,
+  redactedBy: RedactMemoryLineageChangedBy,
+  expectedOrgId?: string | null
+): Promise<RedactMemoryLineageResult> {
+  const lineageIds = await walkMemoryLineageIds(db as unknown as MemoryLineageExecutor, id)
+  if (lineageIds.length === 0) {
+    throw new Error(`redactMemoryRecordLineage: memory_records row ${id} not found`)
+  }
+
+  if (expectedOrgId) {
+    const orgRows = (await db.execute(sql`
+      SELECT DISTINCT org_id FROM compliance.memory_records WHERE id = ANY(${lineageIds}::text[])
+    `)) as { org_id: string | null }[]
+    const foreignOrgRow = orgRows.find((r) => r.org_id !== expectedOrgId)
+    if (foreignOrgRow) {
+      throw new Error(
+        `redactMemoryRecordLineage: lineage rooted at ${id} contains a row with org_id ${foreignOrgRow.org_id}, not the expected ${expectedOrgId} -- refusing to redact`
+      )
+    }
+  }
+
+  const erasureEntryJson = JSON.stringify({
+    erasedAt: new Date().toISOString(),
+    erasedByType: redactedBy.type,
+    erasedById: redactedBy.id ?? null,
+    erasureReason: redactedBy.reason ?? null,
+  })
+
+  const updatedRecords = (await db.execute(sql`
+    UPDATE compliance.memory_records
+    SET content = ${MEMORY_REDACTION_PLACEHOLDER},
+        content_hash = ${MEMORY_REDACTION_CONTENT_HASH},
+        metadata = metadata || jsonb_build_object('erasure', ${erasureEntryJson}::jsonb),
+        updated_at = now()
+    WHERE id = ANY(${lineageIds}::text[])
+    RETURNING id
+  `)) as { id: string }[]
+
+  const updatedVersions = (await db.execute(sql`
+    UPDATE compliance.memory_versions
+    SET content_snapshot = ${MEMORY_REDACTION_PLACEHOLDER},
+        content_hash = ${MEMORY_REDACTION_CONTENT_HASH}
+    WHERE memory_record_id = ANY(${lineageIds}::text[])
+    RETURNING id
+  `)) as { id: string }[]
+
+  return { recordsRedacted: updatedRecords.length, versionsRedacted: updatedVersions.length }
 }
