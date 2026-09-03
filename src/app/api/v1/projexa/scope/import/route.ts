@@ -34,6 +34,79 @@ import { createBoq, createBoqRevision } from "@/lib/services/construction-boq-se
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
+/**
+ * The preview payload, assembled from ONE parse.
+ *
+ * Extracted rather than left inline in POST(): merging the two lanes' dry runs
+ * pushed the handler's cyclomatic complexity past this repo's threshold of 20,
+ * and a preview builder is a genuinely separate job from "authenticate, read
+ * the upload, decide whether to write".
+ */
+function buildDryRunResponse(
+  fileName: string,
+  parsed: Awaited<ReturnType<typeof parseBoqSpreadsheet>>
+) {
+  const { lineItems, warnings, issues, totalRows, mapping, headers } = parsed
+  const blocking = issues.filter((i) => i.blocking)
+  // The two lanes produced two per-row verdicts: D-25's toPreviewRows says what
+  // will be SAVED (the canonical child-rate derivation applied), and D22's
+  // analyseBoqPreview says what a human should LOOK AT (duplicate codes, a
+  // forward parent reference, a missing category). They are merged onto ONE row
+  // list by index rather than returned as two, so the screen cannot show a row's
+  // figures from one list and its status from another.
+  const preview = analyseBoqPreview(lineItems)
+  const statusByIndex = new Map(preview.rows.map((r) => [r.index, r]))
+  // Capped at 50: the preview is for a human to scan, and a 2,000-line BOQ's
+  // full row list is a payload nobody reads. The summary below still describes
+  // the WHOLE file, so "50 of 128 rows will import" can never come from this cap.
+  const rows = toPreviewRows(lineItems).slice(0, 50).map((row, i) => ({
+    ...row,
+    status: statusByIndex.get(i + 1)?.status ?? "ok",
+    messages: statusByIndex.get(i + 1)?.messages ?? [],
+  }))
+  return {
+    dryRun: true,
+    fileName,
+    // The sheet's real column names, and what each field was matched to, so the
+    // "Map columns" step can offer choices instead of asking a human to type one.
+    mapping,
+    headers,
+    rows,
+    issues,
+    warnings,
+    summary: {
+      totalRows,
+      readyLines: lineItems.length,
+      rowsWithErrors: new Set(blocking.map((i) => i.row)).size,
+      willImport: preview.willImport,
+      totalParsed: preview.totalParsed,
+    },
+  }
+}
+
+/**
+ * The upload's non-file fields. Extracted for the same reason
+ * buildDryRunResponse() is: reading five optional form fields is five branch
+ * points, and POST() has to stay under this repo's complexity threshold.
+ */
+function readImportFields(formData: FormData, file: File, dryRunQuery: boolean) {
+  // The "Map columns" step's corrections, as {field: header}. Malformed JSON is
+  // ignored rather than 400ing the whole upload -- the auto-detected mapping is
+  // still a usable answer, and the preview shows what was used.
+  let mappingOverride: BoqColumnMapping | undefined
+  const mappingRaw = formData.get("mapping")
+  if (mappingRaw) {
+    try { mappingOverride = JSON.parse(String(mappingRaw)) as BoqColumnMapping } catch { mappingOverride = undefined }
+  }
+  return {
+    dryRun: dryRunQuery || String(formData.get("dryRun") || "") === "true",
+    projectId: String(formData.get("projectId") || ""),
+    parentBoqId: formData.get("parentBoqId") ? String(formData.get("parentBoqId")) : null,
+    title: formData.get("title") ? String(formData.get("title")) : file.name.replace(/\.[^.]+$/, ""),
+    mappingOverride,
+  }
+}
+
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
@@ -55,70 +128,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `File too large. Maximum size is 10 MB. Your file: ${(file.size / 1024 / 1024).toFixed(1)} MB` }, { status: 400 })
     }
 
-    const dryRun = dryRunQuery || String(formData.get("dryRun") || "") === "true"
-
-    const projectId = String(formData.get("projectId") || "")
+    const { dryRun, projectId, parentBoqId, title, mappingOverride } = readImportFields(formData, file, dryRunQuery)
     // A dry run has nothing to attach the parse to, so it does not need a
     // project -- the preview is about the FILE.
     if (!projectId && !dryRun) return NextResponse.json({ error: "projectId is required" }, { status: 400 })
-    const parentBoqId = formData.get("parentBoqId") ? String(formData.get("parentBoqId")) : null
-    const title = formData.get("title") ? String(formData.get("title")) : file.name.replace(/\.[^.]+$/, "")
-
-    // The "Map columns" step's corrections, as {field: header}. Malformed JSON
-    // is ignored rather than 400ing the whole upload -- the auto-detected
-    // mapping is still a usable answer, and the preview shows what was used.
-    let mappingOverride: BoqColumnMapping | undefined
-    const mappingRaw = formData.get("mapping")
-    if (mappingRaw) {
-      try { mappingOverride = JSON.parse(String(mappingRaw)) as BoqColumnMapping } catch { mappingOverride = undefined }
-    }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const { lineItems, warnings, issues, totalRows, mapping, headers } =
-      await parseBoqSpreadsheet(buffer, file.name, file.type, { mappingOverride })
+    const parsed = await parseBoqSpreadsheet(buffer, file.name, file.type, { mappingOverride })
+    const { lineItems, warnings, totalRows } = parsed
 
     // BEFORE the empty-file 400 deliberately: a preview of a file that yielded
     // nothing must still be able to SAY so, with its issues attached, rather
     // than answering an error the screen has to translate.
-    if (dryRun) {
-      const blocking = issues.filter((i) => i.blocking)
-      // The two lanes produced two per-row verdicts: D-25's toPreviewRows says
-      // what will be SAVED (the canonical child-rate derivation applied), and
-      // D22's analyseBoqPreview says what a human should LOOK AT (duplicate
-      // codes, a forward parent reference, a missing category). They are merged
-      // onto ONE row list by index rather than returned as two, so the screen
-      // cannot show a row's figures from one list and its status from another.
-      const preview = analyseBoqPreview(lineItems)
-      const statusByIndex = new Map(preview.rows.map((r) => [r.index, r]))
-      // Capped at 50: the preview is for a human to scan, and a 2,000-line
-      // BOQ's full row list is a payload nobody reads. The summary below still
-      // describes the WHOLE file, so "50 of 128 rows will import" can never be
-      // produced by this cap.
-      const rows = toPreviewRows(lineItems).slice(0, 50).map((row, i) => ({
-        ...row,
-        status: statusByIndex.get(i + 1)?.status ?? "ok",
-        messages: statusByIndex.get(i + 1)?.messages ?? [],
-      }))
-      return NextResponse.json({
-        dryRun: true,
-        fileName: file.name,
-        // The sheet's real column names, and what each field was matched to, so
-        // the "Map columns" step can offer choices instead of asking a human to
-        // type one.
-        mapping,
-        headers,
-        rows,
-        issues,
-        warnings,
-        summary: {
-          totalRows,
-          readyLines: lineItems.length,
-          rowsWithErrors: new Set(blocking.map((i) => i.row)).size,
-          willImport: preview.willImport,
-          totalParsed: preview.totalParsed,
-        },
-      })
-    }
+    if (dryRun) return NextResponse.json(buildDryRunResponse(file.name, parsed))
 
     if (lineItems.length === 0) {
       return NextResponse.json({ error: "No usable line items found in this spreadsheet", warnings }, { status: 400 })
