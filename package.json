@@ -20,6 +20,7 @@
     "spike:litert-embeddings-setup": "node scripts/spike-litert-embeddings-setup.mjs",
     "dep-index": "bun scripts/dependency-index.ts",
     "check:migration-reversibility": "node scripts/check-migration-reversibility.mjs",
+    "check:migration-replay": "node scripts/replay-migrations-from-empty.mjs",
     "check:dead-code": "node scripts/check-dead-code.mjs",
     "check:duplicate-code": "node scripts/check-duplicate-code.mjs",
     "debt:score": "node scripts/compute-technical-debt-score.mjs",
@@ -123,6 +124,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
+    "@electric-sql/pglite": "^0.5.8",
     "@playwright/test": "^1.48.0",
     "@tailwindcss/postcss": "^4",
     "@types/react": "^19",

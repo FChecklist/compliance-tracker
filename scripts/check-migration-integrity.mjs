@@ -58,6 +58,34 @@ const KNOWN_PRE_EXISTING_HASH_MISMATCHES = new Set([
 //   pre-existing journal-less orphans (0294/0295/0296) -- adding a hard
 //   parity gate here would make this brand-new CI job fail on its very first
 //   run for an unrelated, already-tracked issue. Out of scope for E-102.
+//
+// R67B ADDITION (2026-09-03) -- E-74 coverage
+// -------------------------------------------
+// The version of this script that shipped with E-102 folded every journal
+// entry without an applied row into one bucket called "not yet applied" and
+// printed it as "expected for recently-added migrations, not a failure".
+// That bucket was hiding E-74. It conflates two states that look identical
+// in the ledger and could not be more different in consequence:
+//
+//   pending  -- `when` is above the ledger watermark. The next db:migrate
+//               applies it. Genuinely not a failure.
+//   orphaned -- `when` is at or below the watermark. drizzle-kit migrate
+//               will never apply it, will never mention it, and will exit 0
+//               every time. The migration is dead.
+//
+// Live proof that the distinction mattered: on 2026-09-03 this repo had 43
+// journal entries with no applied row. 40 were pending. 3 were orphaned
+// (0323_construction_boq_parent_unique, 0328_erp_customers_active_name_unique,
+// 0344_force_rls_crm_leads_stage_history) and had been dead for weeks while
+// this check reported them as expected.
+//
+// Two gates are added below:
+//   1. DB-free: no NEW backward `when` step may enter the journal. This is
+//      the preventive half and runs on every PR, with no database, catching
+//      the defect on the branch that introduces it.
+//   2. DB-backed: zero orphaned entries. This is the detective half and
+//      needs the live ledger, so it degrades to a warning exactly like the
+//      hash leg does when DATABASE_URL is absent or the DB is unreachable.
 // - Does not run without a live DB connection. AR-12's "applied row" leg is,
 //   by definition, a fact about the live database -- there is no way to
 //   verify it from the repo alone. If DATABASE_URL is not provided (e.g. a
@@ -78,6 +106,7 @@ const KNOWN_PRE_EXISTING_HASH_MISMATCHES = new Set([
 import { readFileSync } from "fs"
 import { createHash } from "crypto"
 import { pathToFileURL, fileURLToPath } from "url"
+import { classifyJournalAgainstLedger, newBackwardWhenSteps } from "./migration-ledger.mjs"
 
 const drizzleDir = fileURLToPath(new URL("../drizzle", import.meta.url))
 
@@ -196,6 +225,36 @@ async function main() {
   const journal = readJournal()
   const readFile = (tag) => readFileSync(`${drizzleDir}/${tag}.sql`, "utf8")
 
+  // Gate 1 (E-74, preventive, DB-free). A migration whose `when` is at or
+  // below the maximum `when` of any entry ahead of it in the journal array
+  // is a latent orphan: once anything that overtakes it has been applied to
+  // a database, drizzle's watermark can never reach back down for it. This
+  // is the only check that can catch the defect while it is still cheap to
+  // fix -- before merge, before the file has been applied anywhere, when
+  // giving it a fresh timestamp costs nothing.
+  const backwardSteps = newBackwardWhenSteps(journal.entries)
+  if (backwardSteps.length > 0) {
+    console.error("ERROR: E-74 violation -- new migration(s) carry a `when` timestamp at or below")
+    console.error("an entry that already precedes them in drizzle/meta/_journal.json:")
+    for (const s of backwardSteps) {
+      console.error(
+        `  - ${s.tag} (when=${s.when}) sits after ${s.precededByTag} (when=${s.precededByWhen})`,
+      )
+    }
+    console.error("")
+    console.error("drizzle-kit migrate applies an entry only when the single max(created_at) in")
+    console.error("drizzle.__drizzle_migrations is strictly LESS than the entry's `when`. Once the")
+    console.error("entry above it has been applied anywhere, this migration is unreachable on that")
+    console.error("database forever -- skipped silently, exit code 0, no warning.")
+    console.error("")
+    console.error("Fix: give this migration a `when` above the current maximum in the journal")
+    console.error("(regenerate it with `bun run db:generate`, or edit the journal entry directly --")
+    console.error("safe precisely because it has not been applied anywhere yet). Do NOT add it to")
+    console.error("KNOWN_PRE_EXISTING_BACKWARD_WHEN_STEPS in scripts/migration-ledger.mjs; that list")
+    console.error("is grandfathered history, not an escape hatch for new work.")
+    process.exit(1)
+  }
+
   if (!process.env.DATABASE_URL) {
     console.warn("WARNING: DATABASE_URL not set -- skipping the journal<->applied-row leg of AR-12")
     console.warn("(file<->journal parity is a separate, already-tracked check -- see this file's header).")
@@ -212,14 +271,37 @@ async function main() {
 
     const { ok, notYetApplied, mismatched, knownExceptionsSeen } = reconcile(journal.entries, appliedByCreatedAt, readFile)
 
+    // Gate 2 (E-74, detective). Split the old undifferentiated
+    // "not yet applied" bucket into the two states that actually matter.
+    const { pending, orphaned, watermark } = classifyJournalAgainstLedger(
+      journal.entries,
+      rows.map((r) => r.created_at),
+    )
+
     console.log(`AR-12 journal<->applied-row check: ${ok.length} agree, ${notYetApplied.length} not yet applied, ${knownExceptionsSeen.length} known pre-existing exception(s), ${mismatched.length} unexplained mismatch(es).`)
-    if (notYetApplied.length > 0) {
-      console.log("Not yet applied (expected for recently-added migrations, not a failure):")
-      for (const tag of notYetApplied) console.log(`  - ${tag}`)
+    console.log(`E-74 watermark check: ledger watermark ${watermark ?? "none"}, ${pending.length} pending, ${orphaned.length} orphaned.`)
+    if (pending.length > 0) {
+      console.log("Pending -- `when` is above the watermark, next db:migrate applies these (not a failure):")
+      for (const e of pending) console.log(`  - ${e.tag}`)
     }
     if (knownExceptionsSeen.length > 0) {
       console.log("Known, documented pre-existing exceptions (ai-os/MIGRATION_DRIFT_AUDIT_2026-07-26.yaml):")
       for (const tag of knownExceptionsSeen) console.log(`  - ${tag}`)
+    }
+
+    if (orphaned.length > 0) {
+      console.error("\nERROR: E-74 violation -- the following migration(s) have NO applied row and a `when`")
+      console.error(`at or below the ledger watermark (${watermark}). drizzle-kit migrate will never apply`)
+      console.error("them, will never report them, and will exit 0 on every future run:")
+      for (const e of orphaned) console.error(`  - drizzle/${e.tag}.sql (when=${e.when})`)
+      console.error("")
+      console.error("Resolve by determining, for each one, whether its DDL is already present in the")
+      console.error("database (applied out-of-band by hand -- then backfill its drizzle.__drizzle_migrations")
+      console.error("row so the ledger tells the truth) or genuinely missing (then apply it via")
+      console.error("`bun run db:migrate`, whose set-difference runner does apply orphans -- see")
+      console.error("scripts/apply-migrations.mjs). Never resolve it by deleting the migration.")
+      await sql.end({ timeout: 5 })
+      process.exit(1)
     }
 
     if (mismatched.length > 0) {
