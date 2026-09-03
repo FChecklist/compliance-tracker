@@ -15,7 +15,7 @@
 // nothing HR-specific and must not start depending on employee_profiles.
 import { users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq } from "drizzle-orm"
+import { and, eq, ilike, inArray, or } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -85,24 +85,59 @@ export function filterDirectoryRows<T extends { id: string; orgId: string | null
 }
 
 /**
+ * Pure: the LIKE pattern for a typed query, with the wildcards a human typed
+ * treated as the characters they typed.
+ *
+ * `%`, `_` and `\` are SQL LIKE metacharacters; matchesDirectoryQuery() treats
+ * them as ordinary text (String.includes has no wildcards). Escaping them here
+ * is what makes the SQL predicate and the in-memory predicate agree exactly --
+ * without it a needle containing `_` would match extra rows in SQL, and with a
+ * LIMIT in play those extras can push a genuine match out of the page before
+ * filterDirectoryRows() ever sees it.
+ */
+export function directoryLikePattern(q: string): string {
+  return `%${q.replace(/([\\%_])/g, "\\$1")}%`
+}
+
+/**
  * The calling org's active users, filtered by `q` and capped.
  *
  * Org scoping is BOTH the withTenantContext org and an explicit
  * users.orgId equality, and then filterDirectoryRows() once more -- see its
  * comment for why this one is checked three times.
+ *
+ * R67 lane D22 (review finding): the search and the cap are applied IN THE
+ * QUERY, not only afterwards in JS. This runs from a picker on every keystroke
+ * (OrgUserPicker, AttendeesField) and, since D-77, on every task object page
+ * load to resolve ids to names; loading a 2,000-user org's whole user table per
+ * character on a 5-connection pool is the same class of problem the repo
+ * already has on /scope. filterDirectoryRows() stays exactly as it was -- it is
+ * the provable third layer of the org guarantee (D-75's acceptance clause), now
+ * applied over an already-narrow row set rather than over the whole table.
  */
 export async function listOrgDirectory(
   ctx: { orgId: string },
   options: { q?: string; limit?: number; ids?: string[] } = {}
 ): Promise<OrgDirectoryUser[]> {
   if (!ctx.orgId) throw new ServiceError("An organisation is required to read the directory", 400)
+  const limit = resolveDirectoryLimit(options.limit)
+  const needle = (options.q ?? "").trim()
+  const ids = options.ids && options.ids.length ? options.ids : null
+  // `ids` wins over `q` in exactly the order filterDirectoryRows() applies
+  // them, so the two layers can never disagree about which predicate is live.
+  const narrowing = ids
+    ? inArray(users.id, ids)
+    : needle
+      ? or(ilike(users.name, directoryLikePattern(needle)), ilike(users.email, directoryLikePattern(needle)))
+      : undefined
   const rows = await withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.users.findMany({
-      where: and(eq(users.orgId, ctx.orgId), eq(users.isActive, true)),
+      where: and(eq(users.orgId, ctx.orgId), eq(users.isActive, true), narrowing),
       columns: { id: true, orgId: true, name: true, email: true, role: true, isActive: true },
       orderBy: (t, { asc }) => asc(t.name),
+      limit,
     })
   )
-  return filterDirectoryRows(rows, { orgId: ctx.orgId, q: options.q, limit: options.limit, ids: options.ids })
+  return filterDirectoryRows(rows, { orgId: ctx.orgId, q: options.q, limit, ids: options.ids })
     .map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role }))
 }

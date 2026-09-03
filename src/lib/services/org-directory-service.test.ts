@@ -4,7 +4,7 @@
 // limit is clamped. listOrgDirectory() itself is one withTenantContext read
 // and is exercised through the API surface, not by mocking drizzle.
 import { describe, expect, test } from "bun:test"
-import { matchesDirectoryQuery, resolveDirectoryLimit, filterDirectoryRows, ORG_DIRECTORY_MAX_LIMIT } from "./org-directory-service"
+import { matchesDirectoryQuery, resolveDirectoryLimit, filterDirectoryRows, directoryLikePattern, ORG_DIRECTORY_MAX_LIMIT } from "./org-directory-service"
 
 const arjun = { name: "Arjun Mehta", email: "arjun.mehta@skylinebuilders-demo.veridianai.dev" }
 const priya = { name: "Priya Nair", email: "priya@example.test" }
@@ -44,6 +44,30 @@ describe("resolveDirectoryLimit", () => {
     expect(resolveDirectoryLimit(0)).toBe(1)
     expect(resolveDirectoryLimit(-3)).toBe(1)
     expect(resolveDirectoryLimit(5000)).toBe(ORG_DIRECTORY_MAX_LIMIT)
+  })
+})
+
+// R67 lane D22 (review finding): the search now runs IN the query, so the SQL
+// predicate and matchesDirectoryQuery() have to agree on what a typed character
+// means. LIKE's metacharacters are the only place they can diverge.
+describe("directoryLikePattern", () => {
+  test("wraps the needle so a substring anywhere in the value matches", () => {
+    expect(directoryLikePattern("arj")).toBe("%arj%")
+  })
+
+  test("escapes LIKE wildcards, so a typed _ or % is the character the searcher typed", () => {
+    // Without this, "a_b" would match "axb" in SQL but not in
+    // matchesDirectoryQuery, and with a LIMIT those extra rows can push a real
+    // match off the page.
+    expect(directoryLikePattern("a_b")).toBe("%a\\_b%")
+    expect(directoryLikePattern("50%")).toBe("%50\\%%")
+    expect(directoryLikePattern("a\\b")).toBe("%a\\\\b%")
+  })
+
+  test("the escaped pattern still matches exactly what matchesDirectoryQuery matches", () => {
+    // Same rule, both layers: a literal underscore is required in both.
+    expect(matchesDirectoryQuery({ name: "a_b", email: "x@y.test" }, "a_b")).toBe(true)
+    expect(matchesDirectoryQuery({ name: "axb", email: "x@y.test" }, "a_b")).toBe(false)
   })
 })
 
