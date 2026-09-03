@@ -37,8 +37,11 @@ import {
   aggregateDesignerApprovalStatus,
   aggregateWorkAnalysis,
   buildPeriodDays,
+  buildReportTable,
   computeCategoryProgress,
   summariseBudgetLines,
+  REPORT_REGISTRY,
+  REPORT_TABLE_BUILDER_NAMES,
   computeCertifiedPayroll,
   computeEarnedValue,
   toBudgetLine,
@@ -54,6 +57,8 @@ import {
   WORKER_DAY_WEIGHT,
   WH347_DAY_LABELS,
   type AttendanceWorkerRow,
+  type ReportName,
+  type ReportTable,
   type BudgetLineInput,
   type DesignerTimesheetBudgetLine,
   type DesignerTimesheetEntry,
@@ -1493,5 +1498,390 @@ describe("summariseBudgetLines -- roots only, children kept (E-26)", () => {
     expect(line.budget).toBe(Math.round(direct.budget * 100) / 100)
     expect(line.variance).toBe(Math.round(direct.variance! * 100) / 100)
     expect(summariseBudgetLines([line]).totalBudget).toBe(line.budget)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R67 E-32 (R-265): every report is a table
+// ---------------------------------------------------------------------------
+//
+// One test per registry entry, asserting THE COLUMN LIST AND ONE ROW -- the
+// item's own words. These are pure: buildReportTable takes a payload the
+// handler already produced and turns it into the shape PROJEXA renders, so the
+// column set, the units, and which columns legitimately total are all testable
+// without a database. A wrong unit here is a currency printed as a percentage
+// on a customer's report, which is precisely the class of defect that has no
+// other cheap test.
+describe("R67 E-32: buildReportTable -- the {columns, rows} contract", () => {
+  const labels = (t: ReportTable) => t.columns.map((c) => c.label)
+  const unitOf = (t: ReportTable, key: string) => t.columns.find((c) => c.key === key)?.unit
+
+  test("project-status: one row, the project NAME first, money typed as currency, and no fabricated total", () => {
+    const table = buildReportTable("project-status", {
+      projectId: "g555imnoq4wihavpwc7t64um",
+      projectName: "Cedar Heights Villa - Phase 1",
+      budget: 0, revenue: 0, expenses: 185_000,
+      progressPercent: 60, delayedTaskCount: 1, photoCount: 0, taskCount: 4,
+      projectValue: null, earnedValue: 118_750, percentByValue: 25, contractValue: 475_000,
+    }, "AED")
+
+    expect(labels(table)).toEqual([
+      "Project", "Contract value", "Earned value", "% complete by value", "% logged",
+      "Revenue", "Budget", "Expenses", "Tasks", "Late",
+    ])
+    expect(table.rows).toHaveLength(1)
+    expect(table.rows[0].projectName).toBe("Cedar Heights Villa - Phase 1")
+    // The raw cuid never becomes a cell.
+    expect(Object.values(table.rows[0])).not.toContain("g555imnoq4wihavpwc7t64um")
+    expect(table.currency).toBe("AED")
+    expect(unitOf(table, "contractValue")).toBe("currency")
+    expect(unitOf(table, "percentByValue")).toBe("percent")
+    // Summing a revenue, a budget and an expense is not a statement about
+    // anything -- so there is no totals row to print one.
+    expect(table.totals).toBeUndefined()
+  })
+
+  test("project-status: the acceptance's own shape -- at least one currency column and a row", () => {
+    const table = buildReportTable("project-status", {
+      projectId: "p1", projectName: "Cedar Heights Villa - Phase 1",
+      budget: 6500, revenue: 0, expenses: 0, progressPercent: 0, delayedTaskCount: 0,
+      photoCount: 0, taskCount: 0, projectValue: null, earnedValue: null,
+      percentByValue: null, contractValue: null,
+    }, "AED")
+    expect(table.columns.some((c) => c.unit === "currency")).toBe(true)
+    expect(table.rows.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test("attendance: one row per WORKER, with a real salary total", () => {
+    const table = buildReportTable("attendance", {
+      rows: [],
+      workers: [
+        { rosterId: "r1", employeeCode: "W-01", name: "Ravi", company: "Al Noor", trade: "Mason", daysPresent: 20, daysHalf: 1, daysAbsent: 0, salary: 6500 },
+        { rosterId: "r2", employeeCode: null, name: "Suresh", company: null, trade: "Mason", daysPresent: 18, daysHalf: 0, daysAbsent: 2, salary: 5400 },
+      ],
+      tradeSubtotals: [],
+    }, "AED")
+
+    expect(labels(table)).toEqual(["ID", "Name", "Company", "Trade", "Present", "Half day", "Absent", "Salary"])
+    expect(table.rows).toHaveLength(2)
+    expect(table.rows[0]).toEqual({
+      employeeCode: "W-01", name: "Ravi", company: "Al Noor", trade: "Mason",
+      daysPresent: 20, daysHalf: 1, daysAbsent: 0, salary: 6500,
+    })
+    expect(table.totals?.salary).toBe(11_900)
+    // A worker with no employee code and no company keeps his row; the two
+    // unknown cells are null, which the screen renders as an en-dash.
+    expect(table.rows[1].employeeCode).toBeNull()
+    expect(table.rows[1].company).toBeNull()
+  })
+
+  test("scope: the live BOQ, one row, contract value as currency", () => {
+    const table = buildReportTable("scope", {
+      boq: { id: "b1", title: "Main BOQ", version: 3, status: "approved" },
+      totalValue: 475_000, lineItemCount: 42,
+      revisions: [{ id: "b1", version: 3, status: "approved" }, { id: "b0", version: 2, status: "superseded" }],
+    }, "AED")
+
+    expect(labels(table)).toEqual(["BOQ", "Version", "Status", "Line items", "Contract value"])
+    expect(table.rows).toHaveLength(1)
+    expect(table.rows[0]).toEqual({ title: "Main BOQ", version: 3, status: "approved", lineItemCount: 42, totalValue: 475_000 })
+  })
+
+  test("scope: a project with no BOQ is ZERO rows, not one row of zeros", () => {
+    const table = buildReportTable("scope", { boq: null, totalValue: 0, lineItemCount: 0, revisions: [] }, "AED")
+    expect(table.rows).toEqual([])
+  })
+
+  test("budget-vs-actual: a per-head budget is NULL, and the real comparison is the total row", () => {
+    const table = buildReportTable("budget-vs-actual", {
+      budget: 200_000, actual: 185_000, variance: 15_000,
+      byHead: [{ expenseHead: "Material", total: 120_000 }, { expenseHead: "Labour", total: 65_000 }],
+    }, "AED")
+
+    expect(labels(table)).toEqual(["Expense head", "Budget", "Actual", "Variance"])
+    expect(table.rows[0]).toEqual({ head: "Material", budget: null, actual: 120_000, variance: null })
+    // Not 0: there IS no per-head budget in the ERP model, and a zero there
+    // would read as "this head was allocated nothing".
+    expect(table.rows[0].budget).toBeNull()
+    expect(table.totals).toEqual({ budget: 200_000, actual: 185_000, variance: 15_000 })
+  })
+
+  test("vendor-cost: the vendor's NAME, never the raw id, and the id only as a last resort", () => {
+    const table = buildReportTable("vendor-cost", {
+      labourVendorCosts: [
+        { vendorId: "v1", vendorName: "Al Noor Contracting", total: 3600 },
+        { vendorId: "v2", vendorName: null, total: 1600 },
+      ],
+      note: "Purchase-invoice-based vendor cost not included -- erp_purchase_invoices has no project_id yet.",
+    }, "AED")
+
+    expect(labels(table)).toEqual(["Vendor", "Labour cost"])
+    expect(table.rows[0].vendorName).toBe("Al Noor Contracting")
+    // A supplier row that has since been removed still shows its cost.
+    expect(table.rows[1].vendorName).toBe("v2")
+    expect(table.totals?.total).toBe(5200)
+    expect(table.note).toContain("erp_purchase_invoices")
+  })
+
+  test("work-progress: a sub-task's amount is shown on its row and NOT counted in the total", () => {
+    const table = buildReportTable("work-progress", {
+      activities: [], boqId: "b1",
+      lines: [
+        { lineItemId: "l1", code: "1.1", description: "Blockwork", category: "Civil", amount: 6500, parentLineItemId: null },
+        { lineItemId: "l2", code: "1.1.1", description: "Frame", category: "Civil", amount: 4000, parentLineItemId: "l1" },
+        { lineItemId: "l3", code: "2.1", description: "Painting", category: null, amount: 250, parentLineItemId: null },
+      ],
+      byCategory: [{ category: "Civil", subtotal: 6500, lineCount: 2 }, { category: "Uncategorized", subtotal: 250, lineCount: 1 }],
+      grandTotal: 6750,
+    }, "AED")
+
+    expect(labels(table)).toEqual(["Code", "Description", "Category", "Amount"])
+    expect(table.rows).toHaveLength(3)
+    expect(table.rows[0].amount).toBe(6500)
+    // The child keeps its row -- a QS needs to see it -- with no money on it.
+    expect(table.rows[1].amount).toBeNull()
+    expect(table.rows[2].category).toBe("Uncategorized")
+    expect(table.totals?.amount).toBe(6750)
+    expect(table.note).toBe(DERIVED_BUDGET_NOTE)
+  })
+
+  test("weekly-project: one row per DAY, and the week total is the sum of the days", () => {
+    const table = buildReportTable("weekly-project", {
+      weekStart: "2026-09-01", weekEnd: "2026-09-08",
+      progressEntriesLogged: 5, labourCost: 9000, workersPresent: 24, diaryEntries: 2, expenseTotal: 1200,
+      byDay: [
+        { date: "2026-09-01", labourCost: 5000, workersPresent: 14, expenseTotal: 700, progressEntriesLogged: 3, diaryEntries: 1 },
+        { date: "2026-09-02", labourCost: 4000, workersPresent: 10, expenseTotal: 500, progressEntriesLogged: 2, diaryEntries: 1 },
+      ],
+    }, "AED")
+
+    expect(labels(table)).toEqual(["Date", "Labour cost", "Workers", "Expenses", "Progress entries", "Diary entries"])
+    expect(table.rows).toHaveLength(2)
+    expect(table.rows[0].date).toBe("2026-09-01")
+    expect(unitOf(table, "date")).toBe("date")
+    expect(table.totals?.labourCost).toBe(9000)
+    expect((table.rows[0].labourCost as number) + (table.rows[1].labourCost as number)).toBe(table.totals?.labourCost)
+  })
+
+  test("budget-variance: the E-26 roots-only totals survive into the table", () => {
+    const table = buildReportTable("budget-variance", {
+      lines: [
+        { lineItemId: "l1", code: "1.1", description: "Blockwork", category: "Civil", amount: 6500, budgetPercentage: 25, budget: 1625, materialAmount: null, manpowerAmount: null, vendorId: "v1", vendorName: "Al Noor", vendorAmount: 1800, variance: 175, parentLineItemId: null, budgetIsDerived: false, percentOfParent: null },
+        { lineItemId: "l2", code: "1.1.1", description: "Frame", category: "Civil", amount: 4000, budgetPercentage: 25, budget: 1000, materialAmount: null, manpowerAmount: null, vendorId: null, vendorName: null, vendorAmount: null, variance: null, parentLineItemId: "l1", budgetIsDerived: true, percentOfParent: 61.54 },
+      ],
+      totalBudget: 1625, totalVendorAmount: 1800, totalVariance: 175,
+      totalMaterialAmount: 0, totalManpowerAmount: 0, note: DERIVED_BUDGET_NOTE,
+    }, "AED")
+
+    expect(labels(table)).toEqual([
+      "Code", "Description", "Category", "BOQ amount", "Budget %", "Budget", "Vendor", "Vendor amount", "Variance",
+    ])
+    // The root's 1625, not root + derived child.
+    expect(table.totals).toEqual({ budget: 1625, vendorAmount: 1800, variance: 175 })
+    // A line with no vendor amount yet reads as missing, never as a zero variance.
+    expect(table.rows[1].vendorAmount).toBeNull()
+    expect(table.rows[1].variance).toBeNull()
+  })
+
+  test("revenue: invoices, with the invoice total as the table total", () => {
+    const table = buildReportTable("revenue", {
+      invoices: [
+        { invoiceNumber: "INV-001", postingDate: "2026-08-01", status: "posted", grandTotal: "120000" },
+        { invoiceNumber: "INV-002", postingDate: "2026-08-20", status: "draft", grandTotal: "65000" },
+      ],
+      total: 185_000,
+    }, "AED")
+    expect(labels(table)).toEqual(["Invoice", "Posted", "Status", "Amount"])
+    expect(table.rows[0]).toEqual({ invoiceNumber: "INV-001", postingDate: "2026-08-01", status: "posted", grandTotal: 120_000 })
+    expect(table.totals?.grandTotal).toBe(185_000)
+  })
+
+  test("expense: expense heads and their total", () => {
+    const table = buildReportTable("expense", {
+      byHead: [{ expenseHead: "Material", total: 120_000 }],
+      total: 120_000,
+    }, "AED")
+    expect(labels(table)).toEqual(["Expense head", "Amount"])
+    expect(table.rows[0]).toEqual({ expenseHead: "Material", total: 120_000 })
+    expect(table.totals?.total).toBe(120_000)
+  })
+
+  test("budget-summary: accounts and their budget total", () => {
+    const table = buildReportTable("budget-summary", {
+      byAccount: [{ accountId: "a1", total: 200_000 }], total: 200_000,
+    }, "AED")
+    expect(labels(table)).toEqual(["Account", "Budget"])
+    expect(table.totals?.total).toBe(200_000)
+  })
+
+  test("material-consumption: items, quantity and value", () => {
+    const table = buildReportTable("material-consumption", {
+      items: [{ itemId: "i1", itemName: "Cement", uom: "Bag", netQuantity: -120, totalValue: -2400 }],
+    }, "AED")
+    expect(labels(table)).toEqual(["Item", "UoM", "Net quantity", "Value"])
+    expect(table.rows[0]).toEqual({ itemName: "Cement", uom: "Bag", netQuantity: -120, totalValue: -2400 })
+    expect(table.totals?.totalValue).toBe(-2400)
+  })
+
+  test("manpower-cost: one row per trade, worker-days and cost both totalled", () => {
+    const table = buildReportTable("manpower-cost", {
+      byTrade: [{ trade: "Mason", totalCost: 3600, workerDays: 12 }, { trade: "Carpenter", totalCost: 1600, workerDays: 4 }],
+      date: null,
+    }, "AED")
+    expect(labels(table)).toEqual(["Trade", "Worker-days", "Cost"])
+    expect(table.totals).toEqual({ workerDays: 16, totalCost: 5200 })
+  })
+
+  test("category-progress: percentages of different categories are NOT totalled", () => {
+    const table = buildReportTable("category-progress", {
+      categories: [{ categoryId: "c1", name: "Civil", percentComplete: 40 }, { categoryId: "c2", name: "Paint", percentComplete: 100 }],
+    }, "AED")
+    expect(labels(table)).toEqual(["Category", "% complete"])
+    expect(unitOf(table, "percentComplete")).toBe("percent")
+    expect(table.totals).toBeUndefined()
+  })
+
+  test("project-completion: the overall figure is the note, the categories are the rows", () => {
+    const table = buildReportTable("project-completion", {
+      overallPercentComplete: 60,
+      byCategory: [{ categoryId: "c1", name: "Civil", percentComplete: 40 }],
+    }, "AED")
+    expect(table.rows[0]).toEqual({ name: "Civil", percentComplete: 40 })
+    expect(table.note).toContain("60%")
+  })
+
+  test("category-boq-amounts: amounts total, percentages do not", () => {
+    const table = buildReportTable("category-boq-amounts", {
+      categories: [
+        { categoryId: "c1", name: "Civil", totalAmount: 4_000_000, completedPercent: 40 },
+        { categoryId: "text:paint", name: "Paint", totalAmount: 4000, completedPercent: 100 },
+      ],
+      uncategorizedAmount: 0, totalAmount: 4_004_000,
+    }, "AED")
+    expect(labels(table)).toEqual(["Category", "BOQ amount", "% complete"])
+    expect(table.totals).toEqual({ totalAmount: 4_004_000 })
+  })
+
+  test("earned-value: one row, three typed figures", () => {
+    const table = buildReportTable("earned-value", { earnedValue: 118_750, contractValue: 475_000, percentByValue: 25 }, "AED")
+    expect(labels(table)).toEqual(["Contract value", "Earned value", "% by value"])
+    expect(table.rows).toHaveLength(1)
+    expect(table.rows[0].percentByValue).toBe(25)
+  })
+
+  test("site-picture: photos by name and upload date, no money at all", () => {
+    const table = buildReportTable("site-picture", {
+      photos: [{ id: "d1", name: "Level 3 slab.jpg", createdAt: "2026-08-25T09:00:00.000Z", metadata: null }],
+    }, "AED")
+    expect(labels(table)).toEqual(["Photo", "Uploaded"])
+    expect(table.rows[0]).toEqual({ name: "Level 3 slab.jpg", createdAt: "2026-08-25" })
+    expect(table.columns.some((c) => c.unit === "currency")).toBe(false)
+  })
+
+  test("kpi: one row per definition, carrying how many readings it has", () => {
+    const table = buildReportTable("kpi", {
+      definitions: [{ id: "k1", name: "Safety incidents", unit: "count" }, { id: "k2", name: "Rework", unit: null }],
+      entries: [{ id: "e1", kpiDefinitionId: "k1" }, { id: "e2", kpiDefinitionId: "k1" }],
+    }, "AED")
+    expect(labels(table)).toEqual(["KPI", "Unit", "Readings"])
+    expect(table.rows[0]).toEqual({ name: "Safety incidents", unit: "count", entryCount: 2 })
+    expect(table.rows[1]).toEqual({ name: "Rework", unit: null, entryCount: 0 })
+  })
+
+  test("designer-timesheet: project-scoped hours per designer, and it says where the rest is", () => {
+    const table = buildReportTable("designer-timesheet", {
+      projectScoped: {
+        byUser: [{ userId: "u1", userName: "Asha", totalHours: 12 }, { userId: "u2", userName: "Bilal", totalHours: 7.5 }],
+        byCategory: [], byDesignerStatus: [], overallBudget: 0, overallActual: 0, overallVariance: 0,
+      },
+      orgWide: { byDesigner: [], byProject: [] },
+    }, "AED")
+    expect(labels(table)).toEqual(["Designer", "Hours"])
+    expect(table.totals?.totalHours).toBe(19.5)
+    expect(table.note).toContain("format=legacy")
+  })
+
+  test("designer-approval-status: one column per approval state, each totalled", () => {
+    const table = buildReportTable("designer-approval-status", {
+      byUser: [{
+        userId: "u1", userName: "Asha",
+        draft: { hours: 2, entries: 1 }, submitted: { hours: 4, entries: 2 },
+        approved: { hours: 6, entries: 3 }, sent_back: { hours: 0, entries: 0 },
+      }],
+    }, "AED")
+    expect(labels(table)).toEqual(["Designer", "Draft (h)", "Submitted (h)", "Approved (h)", "Sent back (h)"])
+    expect(table.totals).toEqual({ draft: 2, submitted: 4, approved: 6, sent_back: 0 })
+  })
+
+  test("work-analysis: hours and how many tasks each person touched", () => {
+    const table = buildReportTable("work-analysis", {
+      byUser: [{
+        userId: "u1", userName: "Asha", totalHours: 12,
+        byTask: [{ taskId: "t1", taskName: "Layout", hours: 8 }, { taskId: "t2", taskName: "Detailing", hours: 4 }],
+        byCategory: [],
+      }],
+    }, "AED")
+    expect(labels(table)).toEqual(["Person", "Hours", "Tasks worked"])
+    expect(table.rows[0]).toEqual({ userName: "Asha", totalHours: 12, taskCount: 2 })
+  })
+
+  test("certified-payroll: one row per worker, and the disclosed data gap travels with it", () => {
+    const table = buildReportTable("certified-payroll", {
+      projectId: "p1", projectName: "Cedar", weekStart: "2026-09-01", weekEnd: "2026-09-07",
+      workers: [{
+        rosterId: "r1", workerName: "Ravi", trade: "Mason", dailyHours: [8, 8, 8, 8, 8, 0, 0], totalHours: 40,
+        ratePaid: 25, prevailingHourlyRate: 28, fringeBenefitRateRequired: null,
+        grossWages: 1000, totalDeductions: 0, netWages: 1000, complianceStatus: "rate_below_prevailing",
+      }],
+      workerCount: 1, totalHours: 40, totalGrossWages: 1000,
+      statementOfCompliance: { allWorkersCompliant: false, exceptions: [] },
+      dataGapNotes: ["Deductions are not tracked for this site-labour workforce."],
+    }, "AED")
+    expect(labels(table)).toEqual(["Worker", "Trade", "Hours", "Rate paid", "Prevailing rate", "Gross wages", "Status"])
+    expect(table.totals).toEqual({ totalHours: 40, grossWages: 1000 })
+    expect(table.note).toContain("Deductions are not tracked")
+  })
+
+  test("manpower-daily-summary totals come from the handler, not a second summation", () => {
+    // Added on rebase with the builder itself: manpowerDailySummary reached main
+    // from lane D3 after E-32's map was written, and the guard below caught the
+    // gap. The point of interest is the footer -- it must be the handler's own
+    // `totals`, because re-summing the rows here is how a footer starts
+    // disagreeing with the column above it.
+    const table = buildReportTable("manpower-daily-summary", {
+      date: "2026-09-03",
+      rows: [
+        { trade: "Carpenter", present: 3, absent: 1, halfDay: 0, headcount: 4, cost: 900 },
+        { trade: "Mason", present: 2, absent: 0, halfDay: 1, headcount: 3, cost: 610.5 },
+      ],
+      totals: { trade: "Total", present: 5, absent: 1, halfDay: 1, headcount: 7, cost: 1510.5 },
+      people: [],
+    }, "AED")
+
+    expect(labels(table)).toEqual(["Trade", "Present", "Absent", "Half day", "Headcount", "Cost"])
+    expect(unitOf(table, "cost")).toBe("currency")
+    expect(unitOf(table, "present")).toBe("number")
+    expect(table.rows).toHaveLength(2)
+    expect(table.totals).toEqual({ present: 5, absent: 1, halfDay: 1, headcount: 7, cost: 1510.5 })
+    // `date` describes the table, not a cell -- it must not become a column.
+    expect(labels(table)).not.toContain("Date")
+    expect(table.currency).toBe("AED")
+    expect(table.note).toContain("marked on this date")
+  })
+
+  test("every registry report has a builder, so no report can fall back to a JSON dump", () => {
+    // The builder map is typed against ReportName, so this is a runtime
+    // restatement of a compile-time promise -- kept because "nothing renders as
+    // key-value JSON any more" is the whole point of E-32 and deserves an
+    // assertion that survives a refactor of the types.
+    for (const name of Object.keys(REPORT_REGISTRY) as ReportName[]) {
+      expect(REPORT_TABLE_BUILDER_NAMES).toContain(name)
+    }
+    expect(REPORT_TABLE_BUILDER_NAMES).toHaveLength(Object.keys(REPORT_REGISTRY).length)
+  })
+
+  test("a null org currency is REPORTED, never guessed into AED", () => {
+    const table = buildReportTable("expense", { byHead: [{ expenseHead: "Material", total: 1 }], total: 1 }, null)
+    expect(table.currency).toBeNull()
   })
 })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, hasRole } from "@/lib/supabase/auth-guard"
-import { REPORT_REGISTRY, ServiceError, type ReportName } from "@/lib/services/construction-reports-service"
+import { REPORT_REGISTRY, ServiceError, buildReportTable, type ReportName } from "@/lib/services/construction-reports-service"
+import { getBaseCurrency } from "@/lib/services/erp-accounting-service"
 
 function isValidReportName(value: string): value is ReportName {
   return value in REPORT_REGISTRY
@@ -64,7 +65,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     } else {
       result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId)
     }
-    return NextResponse.json(result)
+
+    // R67 E-32 (R-265). THE DEFAULT IS NOW A TABLE.
+    //
+    // Every report answers as { columns, rows, totals?, currency } so PROJEXA
+    // has one renderer instead of five bespoke ones and a JSON key-value dump
+    // for the other eighteen. `?format=legacy` serves the handler's own payload
+    // unchanged for one release, for callers that read specific fields -- the
+    // WPR exports and the dashboards read the SERVICES directly and are
+    // untouched either way.
+    //
+    // The currency is fetched only for the table shape, and only after the
+    // report itself succeeded: getBaseCurrency opens its own transaction, and
+    // this route must never hold two pooled connections at once (the R66
+    // pool-deadlock rule).
+    if (request.nextUrl.searchParams.get("format") === "legacy") {
+      return NextResponse.json(result)
+    }
+    // A missing base currency is a real org-setup state, not a failure of the
+    // report -- the table says the currency is unset and still shows the
+    // numbers, so one unconfigured setting never blanks a whole report.
+    const currency = await getBaseCurrency({ orgId: ctx.orgId })
+      .then((c) => c.baseCurrency?.code ?? null)
+      .catch(() => null)
+    return NextResponse.json(buildReportTable(reportName, result, currency))
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error(`v1 projexa report "${reportName}" error:`, error)

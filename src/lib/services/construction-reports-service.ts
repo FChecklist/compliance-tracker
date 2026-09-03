@@ -1279,13 +1279,22 @@ export async function materialConsumptionReport(ctx: { orgId: string }, projectI
 export async function vendorCostReport(ctx: { orgId: string }, projectId: string) {
   await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    // R67 E-32 (R-265): the vendor's NAME joins here. This returned a bare
+    // vendorId, so every consumer that rendered these rows -- the generic
+    // report renderer included -- put a raw cuid where a company name belongs.
+    // A LEFT join, and vendorName stays nullable, because a roster row can
+    // legitimately point at a supplier that has since been removed and a
+    // missing name must read as missing, not drop the cost off the report.
+    // Additive: `vendorId` and `total` are untouched for every existing caller.
     const rows = await db.select({
       vendorId: constructionLabourRoster.vendorId,
+      vendorName: erpSuppliers.supplierName,
       total: sql<number>`coalesce(sum(${constructionAttendance.dailyCost}), 0)::float`,
     }).from(constructionAttendance)
       .innerJoin(constructionLabourRoster, eq(constructionAttendance.rosterId, constructionLabourRoster.id))
+      .leftJoin(erpSuppliers, eq(constructionLabourRoster.vendorId, erpSuppliers.id))
       .where(and(eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId), sql`${constructionLabourRoster.vendorId} is not null`))
-      .groupBy(constructionLabourRoster.vendorId)
+      .groupBy(constructionLabourRoster.vendorId, erpSuppliers.supplierName)
     return { labourVendorCosts: rows, note: "Purchase-invoice-based vendor cost not included -- erp_purchase_invoices has no project_id yet." }
   })
 }
@@ -2222,3 +2231,398 @@ export const REPORT_REGISTRY = {
 } as const
 
 export type ReportName = keyof typeof REPORT_REGISTRY
+
+// ---------------------------------------------------------------------------
+// R67 E-32 (R-265): EVERY REPORT IS A TABLE
+// ---------------------------------------------------------------------------
+//
+// WHAT WAS WRONG. Each of the 23 handlers above answers in its own shape --
+// some an array of rows, some an object of scalars, some a composite of four
+// aggregates. PROJEXA's Reports module therefore had a per-report renderer for
+// five of them (report-documents.ts, shipped by E-22) and, for the other
+// eighteen, ReportOutput's generic renderer: a grid of the payload's own JSON
+// KEY NAMES against their raw values. `percentByValue: 25` beside
+// `progressPercent: 60`, `contractValue: 475000` with no currency, a cuid where
+// a project name belongs. That is a debug view, not a report.
+//
+// WHAT THIS IS. One shape every report can be READ in -- columns that declare
+// their own unit and alignment, rows keyed by those columns, an optional totals
+// row, and the ORG'S currency stated ONCE for the whole table rather than
+// guessed per cell. The screen then has exactly one renderer and one place
+// where money, dates and blanks are formatted.
+//
+// WHY IT IS A TABULATOR AND NOT A REWRITE OF THE 23 HANDLERS. Three reasons,
+// in order of weight:
+//   1. `?format=legacy` has to keep working for a release. A handler that no
+//      longer produces the old shape cannot serve it.
+//   2. The handlers have in-process consumers that are not this screen -- the
+//      WPR PDF and XLSX writers, the dashboards, report-engine-service. They
+//      read the payloads directly and must not be broken to change a UI.
+//   3. It is pure. Every column list and every total below is unit-testable
+//      without a database, which is what makes "one row per vendor" a test
+//      rather than a screenshot.
+//
+// TOTALS ARE NOT DECORATION. A totals entry appears only where adding that
+// column up is a real arithmetic statement. Project Status has none: summing a
+// revenue, a budget and an expense produces a number that means nothing, and
+// putting it under a "Total" label would be a fabricated figure on a money
+// report -- exactly what REPORT.GLOBAL exists to prevent.
+
+/** What a column HOLDS, so the screen formats it once instead of sniffing each cell. */
+export type ReportColumnUnit = "currency" | "percent" | "number" | "date" | "text"
+
+export type ReportColumn = {
+  key: string
+  label: string
+  unit: ReportColumnUnit
+  align: "left" | "right"
+}
+
+/** A cell. `null` means "there is no value here", which renders as an en-dash -- never as 0. */
+export type ReportCell = string | number | null
+
+export type ReportTable = {
+  columns: ReportColumn[]
+  rows: Record<string, ReportCell>[]
+  /** Keyed by column key. Present only where summing that column is a real statement. */
+  totals?: Record<string, number>
+  /** The org's base currency code, or null when the org has not set one. Never guessed. */
+  currency: string | null
+  /** A sentence about the table's own rules (e.g. what the totals do and do not include). */
+  note?: string
+}
+
+const textCol = (key: string, label: string): ReportColumn => ({ key, label, unit: "text", align: "left" })
+const dateCol = (key: string, label: string): ReportColumn => ({ key, label, unit: "date", align: "left" })
+const moneyCol = (key: string, label: string): ReportColumn => ({ key, label, unit: "currency", align: "right" })
+const numCol = (key: string, label: string): ReportColumn => ({ key, label, unit: "number", align: "right" })
+const pctCol = (key: string, label: string): ReportColumn => ({ key, label, unit: "percent", align: "right" })
+
+type BuiltTable = Omit<ReportTable, "currency">
+
+type Payload<K extends ReportName> = Awaited<ReturnType<(typeof REPORT_REGISTRY)[K]>>
+
+/**
+ * Sums one numeric key over rows, ignoring nulls -- an unpriced line is not a
+ * zero. Named sumColumn, not sumBy: this module already has a sumColumn() with a
+ * completely different signature (items, keyFn, valueFn -> Map) that the
+ * designer-timesheet aggregator uses, and a second definition of that name
+ * silently shadows it for everything declared after this point.
+ */
+function sumColumn<T>(rows: T[], pick: (row: T) => number | null | undefined): number {
+  const total = rows.reduce((s, r) => s + (pick(r) ?? 0), 0)
+  return Math.round(total * 100) / 100
+}
+
+/**
+ * One builder per registry entry. Typed against each handler's OWN return type
+ * (`Payload<"scope">` and friends), so a handler that changes shape breaks this
+ * file at compile time instead of quietly emitting a table of undefineds.
+ */
+const REPORT_TABLE_BUILDERS: { [K in ReportName]: (payload: Payload<K>) => BuiltTable } = {
+  // The BOQ lines behind the progress, with the money rule the roll-up follows
+  // printed on the table -- a child line is shown and never added up.
+  "work-progress": (p) => ({
+    columns: [textCol("code", "Code"), textCol("description", "Description"), textCol("category", "Category"), moneyCol("amount", "Amount")],
+    rows: p.lines.map((l) => ({
+      code: l.code,
+      description: l.description,
+      category: l.category ?? UNCATEGORIZED_LABEL,
+      // A sub-task's amount is derived from its parent, so it is shown as a
+      // detail on its own row and contributes nothing to the total.
+      amount: l.parentLineItemId === null ? l.amount : null,
+    })),
+    totals: { amount: p.grandTotal },
+    note: DERIVED_BUDGET_NOTE,
+  }),
+
+  // Sumeet's Weekly Project sheet: one row per DAY, and a week total that is
+  // the sum of the days by construction rather than a second aggregate.
+  "weekly-project": (p) => ({
+    columns: [
+      dateCol("date", "Date"), moneyCol("labourCost", "Labour cost"), numCol("workersPresent", "Workers"),
+      moneyCol("expenseTotal", "Expenses"), numCol("progressEntriesLogged", "Progress entries"), numCol("diaryEntries", "Diary entries"),
+    ],
+    rows: p.byDay.map((d) => ({
+      date: d.date, labourCost: d.labourCost, workersPresent: d.workersPresent,
+      expenseTotal: d.expenseTotal, progressEntriesLogged: d.progressEntriesLogged, diaryEntries: d.diaryEntries,
+    })),
+    totals: {
+      labourCost: p.labourCost, workersPresent: p.workersPresent, expenseTotal: p.expenseTotal,
+      progressEntriesLogged: p.progressEntriesLogged, diaryEntries: p.diaryEntries,
+    },
+  }),
+
+  // ONE row, because this report describes ONE project. Deliberately no totals:
+  // see this section's header. The project NAME is the first cell, so the raw
+  // cuid never reaches a reader.
+  "project-status": (p) => ({
+    columns: [
+      textCol("projectName", "Project"), moneyCol("contractValue", "Contract value"), moneyCol("earnedValue", "Earned value"),
+      pctCol("percentByValue", "% complete by value"), pctCol("progressPercent", "% logged"),
+      moneyCol("revenue", "Revenue"), moneyCol("budget", "Budget"), moneyCol("expenses", "Expenses"),
+      numCol("taskCount", "Tasks"), numCol("delayedTaskCount", "Late"),
+    ],
+    rows: [{
+      projectName: p.projectName, contractValue: p.contractValue, earnedValue: p.earnedValue,
+      percentByValue: p.percentByValue, progressPercent: p.progressPercent,
+      revenue: p.revenue, budget: p.budget, expenses: p.expenses,
+      taskCount: p.taskCount, delayedTaskCount: p.delayedTaskCount,
+    }],
+    note: "One project, one row. Revenue, budget and expenses are three different measures and are deliberately not totalled.",
+  }),
+
+  // Sumeet's Attendance sheet: one row per WORKER. `rows` (the trade x status
+  // roll-up) has no worker identity in it and cannot make this sheet.
+  attendance: (p) => ({
+    columns: [
+      textCol("employeeCode", "ID"), textCol("name", "Name"), textCol("company", "Company"), textCol("trade", "Trade"),
+      numCol("daysPresent", "Present"), numCol("daysHalf", "Half day"), numCol("daysAbsent", "Absent"), moneyCol("salary", "Salary"),
+    ],
+    rows: p.workers.map((w) => ({
+      employeeCode: w.employeeCode, name: w.name, company: w.company, trade: w.trade,
+      daysPresent: w.daysPresent, daysHalf: w.daysHalf, daysAbsent: w.daysAbsent, salary: w.salary,
+    })),
+    totals: {
+      salary: sumColumn(p.workers, (w) => w.salary),
+      daysPresent: sumColumn(p.workers, (w) => w.daysPresent),
+      daysHalf: sumColumn(p.workers, (w) => w.daysHalf),
+      daysAbsent: sumColumn(p.workers, (w) => w.daysAbsent),
+    },
+  }),
+
+  "site-picture": (p) => ({
+    columns: [textCol("name", "Photo"), dateCol("createdAt", "Uploaded")],
+    rows: p.photos.map((d) => ({ name: d.name, createdAt: d.createdAt ? new Date(d.createdAt).toISOString().slice(0, 10) : null })),
+  }),
+
+  // The BOQ this project is currently reporting against -- one row, because
+  // exactly one revision is the live one. Older revisions are in the legacy
+  // payload; listing them here with blank money would read as five BOQs.
+  scope: (p) => ({
+    columns: [
+      textCol("title", "BOQ"), numCol("version", "Version"), textCol("status", "Status"),
+      numCol("lineItemCount", "Line items"), moneyCol("totalValue", "Contract value"),
+    ],
+    rows: p.boq
+      ? [{ title: p.boq.title, version: p.boq.version, status: p.boq.status, lineItemCount: p.lineItemCount, totalValue: p.totalValue }]
+      : [],
+    note: "Contract value sums root BOQ lines only, matching the Work Progress grand total.",
+  }),
+
+  "budget-summary": (p) => ({
+    columns: [textCol("accountId", "Account"), moneyCol("total", "Budget")],
+    rows: p.byAccount.map((r) => ({ accountId: r.accountId, total: Number(r.total) })),
+    totals: { total: p.total },
+  }),
+
+  // Budget is a single undivided project-wide figure in the ERP model
+  // (erp_budget_line_items has no expense-head dimension), so a per-head budget
+  // is a null -- a real "there is no such number" -- and never a zero. The
+  // comparison the report is FOR lives in the totals row, where all three
+  // figures are real.
+  "budget-vs-actual": (p) => ({
+    columns: [textCol("head", "Expense head"), moneyCol("budget", "Budget"), moneyCol("actual", "Actual"), moneyCol("variance", "Variance")],
+    rows: p.byHead.map((r) => ({ head: r.expenseHead, budget: null, actual: Number(r.total), variance: null })),
+    totals: { budget: p.budget, actual: p.actual, variance: p.variance },
+    note: "The ERP budget is a single project-wide figure, so there is no per-head budget to compare against; the comparison is the total row.",
+  }),
+
+  "material-consumption": (p) => ({
+    columns: [textCol("itemName", "Item"), textCol("uom", "UoM"), numCol("netQuantity", "Net quantity"), moneyCol("totalValue", "Value")],
+    rows: p.items.map((r) => ({ itemName: r.itemName, uom: r.uom, netQuantity: Number(r.netQuantity), totalValue: Number(r.totalValue) })),
+    totals: { totalValue: sumColumn(p.items, (r) => Number(r.totalValue)) },
+  }),
+
+  "vendor-cost": (p) => ({
+    columns: [textCol("vendorName", "Vendor"), moneyCol("total", "Labour cost")],
+    rows: p.labourVendorCosts.map((r) => ({ vendorName: r.vendorName ?? r.vendorId, total: Number(r.total) })),
+    totals: { total: sumColumn(p.labourVendorCosts, (r) => Number(r.total)) },
+    note: p.note,
+  }),
+
+  "manpower-cost": (p) => ({
+    columns: [textCol("trade", "Trade"), numCol("workerDays", "Worker-days"), moneyCol("totalCost", "Cost")],
+    rows: p.byTrade.map((r) => ({ trade: r.trade, workerDays: Number(r.workerDays), totalCost: Number(r.totalCost) })),
+    totals: {
+      workerDays: sumColumn(p.byTrade, (r) => Number(r.workerDays)),
+      totalCost: sumColumn(p.byTrade, (r) => Number(r.totalCost)),
+    },
+  }),
+  // R67 E-32, added on rebase: manpowerDailySummary reached main from lane D3
+  // AFTER this builder map was written, so the map was one report short and the
+  // "every registry report has a builder" guard caught it -- which is what that
+  // guard is for. One row per trade for the chosen day.
+  //
+  // The totals row is taken from the handler's OWN `totals` rather than re-summed
+  // here: aggregateManpowerDailySummary already computes it (and rounds the cost
+  // once), and a second summation is how a footer starts disagreeing with the
+  // column above it. `date` is not a column -- it describes the whole table, not
+  // a cell, and it is already on the report header.
+  "manpower-daily-summary": (p) => ({
+    columns: [
+      textCol("trade", "Trade"),
+      numCol("present", "Present"),
+      numCol("absent", "Absent"),
+      numCol("halfDay", "Half day"),
+      numCol("headcount", "Headcount"),
+      moneyCol("cost", "Cost"),
+    ],
+    rows: p.rows.map((r) => ({
+      trade: r.trade,
+      present: r.present,
+      absent: r.absent,
+      halfDay: r.halfDay,
+      headcount: r.headcount,
+      cost: r.cost,
+    })),
+    totals: {
+      present: p.totals.present,
+      absent: p.totals.absent,
+      halfDay: p.totals.halfDay,
+      headcount: p.totals.headcount,
+      cost: p.totals.cost,
+    },
+    note: "Counts only workers marked on this date. A worker with no attendance row is absent from the day, not marked absent.",
+  }),
+
+  // The project-scoped hours per designer. The org-wide and budget breakdowns
+  // this report also computes are a different grain and would not be rows of
+  // this table; the note says where they are.
+  "designer-timesheet": (p) => ({
+    columns: [textCol("userName", "Designer"), numCol("totalHours", "Hours")],
+    rows: p.projectScoped.byUser.map((u) => ({ userName: u.userName, totalHours: u.totalHours })),
+    totals: { totalHours: sumColumn(p.projectScoped.byUser, (u) => u.totalHours) },
+    note: "Hours logged on this project, per designer. The budget-vs-actual and org-wide breakdowns are a different grain and are served by ?format=legacy.",
+  }),
+
+  "designer-approval-status": (p) => ({
+    columns: [
+      textCol("userName", "Designer"), numCol("draft", "Draft (h)"), numCol("submitted", "Submitted (h)"),
+      numCol("approved", "Approved (h)"), numCol("sent_back", "Sent back (h)"),
+    ],
+    rows: p.byUser.map((u) => ({
+      userName: u.userName,
+      draft: u.draft.hours, submitted: u.submitted.hours, approved: u.approved.hours, sent_back: u.sent_back.hours,
+    })),
+    totals: {
+      draft: sumColumn(p.byUser, (u) => u.draft.hours),
+      submitted: sumColumn(p.byUser, (u) => u.submitted.hours),
+      approved: sumColumn(p.byUser, (u) => u.approved.hours),
+      sent_back: sumColumn(p.byUser, (u) => u.sent_back.hours),
+    },
+  }),
+
+  "work-analysis": (p) => ({
+    columns: [textCol("userName", "Person"), numCol("totalHours", "Hours"), numCol("taskCount", "Tasks worked")],
+    rows: p.byUser.map((u) => ({ userName: u.userName, totalHours: u.totalHours, taskCount: u.byTask.length })),
+    totals: { totalHours: sumColumn(p.byUser, (u) => u.totalHours), taskCount: sumColumn(p.byUser, (u) => u.byTask.length) },
+  }),
+
+  kpi: (p) => ({
+    columns: [textCol("name", "KPI"), textCol("unit", "Unit"), numCol("entryCount", "Readings")],
+    rows: p.definitions.map((d) => ({
+      name: d.name,
+      unit: d.unit ?? null,
+      entryCount: p.entries.filter((e) => e.kpiDefinitionId === d.id).length,
+    })),
+  }),
+
+  revenue: (p) => ({
+    columns: [textCol("invoiceNumber", "Invoice"), dateCol("postingDate", "Posted"), textCol("status", "Status"), moneyCol("grandTotal", "Amount")],
+    rows: p.invoices.map((i) => ({
+      invoiceNumber: i.invoiceNumber, postingDate: i.postingDate, status: i.status, grandTotal: Number(i.grandTotal),
+    })),
+    totals: { grandTotal: p.total },
+  }),
+
+  expense: (p) => ({
+    columns: [textCol("expenseHead", "Expense head"), moneyCol("total", "Amount")],
+    rows: p.byHead.map((r) => ({ expenseHead: r.expenseHead, total: Number(r.total) })),
+    totals: { total: p.total },
+  }),
+
+  // Percentages of different categories do not add up to anything, so there is
+  // no total here on purpose.
+  "category-progress": (p) => ({
+    columns: [textCol("name", "Category"), pctCol("percentComplete", "% complete")],
+    rows: p.categories.map((c) => ({ name: c.name, percentComplete: c.percentComplete })),
+  }),
+
+  "project-completion": (p) => ({
+    columns: [textCol("name", "Category"), pctCol("percentComplete", "% complete")],
+    rows: p.byCategory.map((c) => ({ name: c.name, percentComplete: c.percentComplete })),
+    note: `Overall ${p.overallPercentComplete}% complete, averaged over the categories below.`,
+  }),
+
+  "category-boq-amounts": (p) => ({
+    columns: [textCol("name", "Category"), moneyCol("totalAmount", "BOQ amount"), pctCol("completedPercent", "% complete")],
+    rows: p.categories.map((c) => ({ name: c.name, totalAmount: c.totalAmount, completedPercent: c.completedPercent })),
+    totals: { totalAmount: p.totalAmount },
+  }),
+
+  "certified-payroll": (p) => ({
+    columns: [
+      textCol("workerName", "Worker"), textCol("trade", "Trade"), numCol("totalHours", "Hours"),
+      moneyCol("ratePaid", "Rate paid"), moneyCol("prevailingHourlyRate", "Prevailing rate"),
+      moneyCol("grossWages", "Gross wages"), textCol("complianceStatus", "Status"),
+    ],
+    rows: p.workers.map((w) => ({
+      workerName: w.workerName, trade: w.trade, totalHours: w.totalHours,
+      ratePaid: w.ratePaid, prevailingHourlyRate: w.prevailingHourlyRate,
+      grossWages: w.grossWages, complianceStatus: w.complianceStatus,
+    })),
+    totals: { totalHours: p.totalHours, grossWages: p.totalGrossWages },
+    note: p.dataGapNotes.join(" "),
+  }),
+
+  // One row: earned value is a single figure about one BOQ.
+  "earned-value": (p) => ({
+    columns: [moneyCol("contractValue", "Contract value"), moneyCol("earnedValue", "Earned value"), pctCol("percentByValue", "% by value")],
+    rows: [{ contractValue: p.contractValue, earnedValue: p.earnedValue, percentByValue: p.percentByValue }],
+  }),
+
+  "budget-variance": (p) => ({
+    columns: [
+      textCol("code", "Code"), textCol("description", "Description"), textCol("category", "Category"),
+      moneyCol("amount", "BOQ amount"), pctCol("budgetPercentage", "Budget %"), moneyCol("budget", "Budget"),
+      textCol("vendorName", "Vendor"), moneyCol("vendorAmount", "Vendor amount"), moneyCol("variance", "Variance"),
+    ],
+    rows: p.lines.map((l) => ({
+      code: l.code, description: l.description, category: l.category ?? UNCATEGORIZED_LABEL,
+      // A derived (sub-task) budget is shown for detail and never counted, the
+      // same rule E-26 put on the totals -- so its money cells stay real
+      // numbers but the totals below come from the roots-only computation.
+      amount: l.amount, budgetPercentage: l.budgetPercentage, budget: l.budget,
+      vendorName: l.vendorName, vendorAmount: l.vendorAmount, variance: l.variance,
+    })),
+    totals: { budget: p.totalBudget, vendorAmount: p.totalVendorAmount, variance: p.totalVariance },
+    note: p.note,
+  }),
+}
+
+/**
+ * Every report that has a table builder. The map above is typed against
+ * ReportName so this is always the whole registry -- exported so a test can
+ * restate that promise at runtime, because "no report falls back to a JSON
+ * dump" is the entire point of E-32 and deserves an assertion, not just a type.
+ */
+export const REPORT_TABLE_BUILDER_NAMES = Object.keys(REPORT_TABLE_BUILDERS) as ReportName[]
+
+/**
+ * R67 E-32 (R-265): a report's payload, as the table PROJEXA renders.
+ *
+ * `currency` is the ORG's base currency code, or null when the org has not set
+ * one -- reported, never guessed, exactly as getBaseCurrency() reports it. A
+ * screen with a null currency shows the numbers and says the currency is unset;
+ * it must not invent AED.
+ */
+export function buildReportTable(reportName: ReportName, payload: unknown, currency: string | null): ReportTable {
+  // The one cast in this file, and it is contained: the builders above are each
+  // typed against their own handler's return, and REPORT_TABLE_BUILDERS is keyed
+  // by the same union the caller's `reportName` comes from, so the pairing is
+  // checked at every definition site. What TypeScript cannot do is correlate the
+  // two at a single dynamic lookup.
+  const build = REPORT_TABLE_BUILDERS[reportName] as (p: unknown) => BuiltTable
+  return { ...build(payload), currency }
+}
