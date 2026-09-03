@@ -9,9 +9,21 @@
 // resolveActingUser()'s own doc comment in auth-guard.ts for the full
 // evidence trail. Now resolves the real acting user via body.actorEmail for
 // an API-key caller, exactly as a session caller's own ctx.dbUser would.
+//
+// R67 WS-H (item H-02): on submit, mint the reviewer's Task Master row.
+// SEQUENCED, NOT NESTED: submitTimeEntry() and openTimesheetReviewTask()
+// each open their own withTenantContext transaction, and D-06 forbids
+// nesting one inside the other (the 5-connection app_runtime pool turns a
+// nested transaction into a deadlock, which is the fault PR #1575 fixed).
+// So the submit lands first and the mint follows; if the mint fails, the
+// submit is NOT rolled back and is NOT reported as a failure either --
+// the response says plainly that the entry was submitted and the review row
+// was not created, with the real reason, so the designer is never told
+// "nothing happened" about a write that did happen.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, resolveActingUser } from "@/lib/supabase/auth-guard"
-import { submitTimeEntry, ServiceError } from "@/lib/services/pms-time-service"
+import { requireAuthOrApiKey, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
+import { submitTimeEntry, getTimeEntry, ServiceError } from "@/lib/services/pms-time-service"
+import { openTimesheetReviewTask, closeTimesheetReturnedTask } from "@/lib/services/timesheet-review-task-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -54,12 +66,39 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   try {
     const body = await readJsonBody(request)
-    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail)
+    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail ?? readActingUserEmail(request), readActingUserId(request))
     if (actingUserErr) return actingUserErr
 
     const { id } = await params
     const entry = await submitTimeEntry({ orgId: ctx.orgId, userId: actingUser!.id }, id)
-    return NextResponse.json(entry)
+
+    // Read back the enriched entry (task number/title, project) purely to
+    // build the reviewer's row -- submitTimeEntry returns the bare row.
+    let reviewTaskCreated = false
+    let reviewTaskError: string | null = null
+    try {
+      // A re-submit after a return closes the designer's own "Needs you"
+      // row first -- leaving it open would keep telling them to fix
+      // something they have already fixed.
+      await closeTimesheetReturnedTask({ orgId: ctx.orgId, userId: actingUser!.id }, id)
+      const detail = await getTimeEntry({ orgId: ctx.orgId }, id)
+      const result = await openTimesheetReviewTask({ orgId: ctx.orgId }, {
+        timeEntryId: id,
+        projectId: detail.projectId,
+        designerId: actingUser!.id,
+        designerName: actingUser!.name,
+        hours: entry.hours,
+        issueNumber: detail.issue?.number ?? null,
+        issueTitle: detail.issue?.title ?? null,
+        spentOn: entry.spentOn,
+      })
+      reviewTaskCreated = result.created
+    } catch (taskError) {
+      reviewTaskError = taskError instanceof Error ? taskError.message : "Could not create the review task"
+      console.error("v1 projexa timesheet submit -- review task mint failed (the entry IS submitted):", taskError)
+    }
+
+    return NextResponse.json({ ...entry, reviewTaskCreated, reviewTaskError })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa timesheet submit error:", error)
