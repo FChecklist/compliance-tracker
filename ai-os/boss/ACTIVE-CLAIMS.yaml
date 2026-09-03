@@ -92,19 +92,30 @@ active:
       item I-02 ("Migrations: attendance batch key, roster codes and trades, material
       issues/void, org number format"), which is a DIFFERENT lane's file scope, so this
       branch adds NO drizzle/*.sql file and NO drizzle/meta/_journal.json entry -- only
-      the drizzle table declarations the service code needs to compile. I-02 must carry
-      those four receipt columns (its own brief lists voided_at/void_reason/voided_by but
-      NOT `reference`, which D-36 requires), the unique index on construction_attendance
-      (org_id, roster_id, attendance_date), AND -- added by D-40 --
-      compliance.construction_materials.reorder_level (numeric, nullable) plus the whole
-      compliance.construction_material_issues table (id text pk, org_id, project_id,
-      material_id -> construction_materials.id, issued_date date, quantity numeric,
-      boq_item_id text null, issued_to text null, note text null, created_by_id,
-      created_at, with the same RLS pattern as construction_material_receipts).
-      recordAttendanceBatch() is deliberately written to be correct WITH OR WITHOUT that
-      index (read-then-update/insert inside the one transaction, not ON CONFLICT), so
-      nothing here is blocked on I-02 landing first; the receipts columns, reorder_level
-      and the issues table genuinely are.
+      the drizzle table declarations the service code needs to compile.
+
+      STATUS after merging origin/main on 2026-09-03: I-02 landed as
+      drizzle/0529_r67_i02_manpower_material_org_format.sql and supplies
+      construction_material_receipts.voided_at / void_reason / voided_by_id,
+      construction_materials.reorder_level, the whole construction_material_issues
+      table, and the attendance uniqueness work. I-04 (drizzle/0531) supplies
+      pms_issue_boq_links, which D-47 writes to. So only ONE gap is left, and it is a
+      hard runtime failure, not a nicety:
+
+        *** compliance.construction_material_receipts.`reference` STILL DOES NOT EXIST
+        *** in any migration. 0529 adds the three void columns but not this one. D-36's
+        *** Record Receipt form, the Inbound table's Reference column and
+        *** createMaterialReceipt() all write and read it, so the first receipt save
+        *** 500s until someone runs:
+        ***   ALTER TABLE compliance.construction_material_receipts
+        ***     ADD COLUMN IF NOT EXISTS reference text;
+        *** This branch deliberately does NOT add it as a migration of its own: the
+        *** migration set is lane I's declared file scope and another lane may already
+        *** hold the next free number. It needs a PM decision before merge.
+
+      recordAttendanceBatch() is deliberately written to be correct WITH OR WITHOUT the
+      attendance unique index (read-then-update/insert inside the one transaction, not
+      ON CONFLICT), so nothing here was ever blocked on I-02 landing first.
 
       MERGE RECONCILIATION, 2026-09-03: origin/main was merged into this branch to pick
       up lane I's drizzle/0528-0532 (I-02's material columns and issues table, and
