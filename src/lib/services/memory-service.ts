@@ -46,6 +46,7 @@ import { createId } from "@paralleldrive/cuid2"
 import { createHash } from "crypto"
 import { db } from "@/lib/db"
 import { storeEmbedding, generateEmbedding } from "@/lib/embeddings"
+import type { ActorCtx } from "@/lib/services/actor-context"
 
 // ─── Types (mirrors the CHECK constraints in drizzle/0520's memory_records/
 // memory_sources/memory_versions -- kept as plain string unions, not a
@@ -61,8 +62,15 @@ import { storeEmbedding, generateEmbedding } from "@/lib/embeddings"
 // path Phase 1's migration header describes, not that admin path, and
 // guard against it explicitly rather than let it fail with an opaque RLS
 // error deep inside a transaction.
+// DEPARTMENT (R68 Phase 3, drizzle/0542) joins this list for the same
+// reason ORGANIZATION/USER/etc do -- an ordinary org-scoped write, org_id
+// NOT NULL, no admin/service_role path involved. It carries no dedicated
+// column: scopeId is the department's compliance.departments id, the same
+// polymorphic-pointer convention PROJECT/TASK/CONVERSATION/DOCUMENT already
+// use (see schema.ts's own comment on memoryRecords.scopeId).
 export type OrgScopedMemoryScopeType =
   | "ORGANIZATION"
+  | "DEPARTMENT"
   | "USER"
   | "PROJECT"
   | "TASK"
@@ -71,6 +79,7 @@ export type OrgScopedMemoryScopeType =
 
 export const ORG_SCOPED_MEMORY_SCOPE_TYPES: readonly OrgScopedMemoryScopeType[] = [
   "ORGANIZATION",
+  "DEPARTMENT",
   "USER",
   "PROJECT",
   "TASK",
@@ -129,6 +138,11 @@ export type MemoryRecord = {
   metadata: Record<string, unknown>
   version: number
   supersededById: string | null
+  // R68 Phase 3 (drizzle/0542): true only for a USER-scoped row marked
+  // private to its owning user -- see this file's resolveMemoryScope()
+  // section for the full CRR-234-derived reasoning. False for every
+  // pre-existing row and every non-USER scope_type.
+  isPersonal: boolean
   effectiveFrom: Date
   effectiveTo: Date | null
   createdAt: Date
@@ -156,6 +170,7 @@ type RawMemoryRecordRow = {
   metadata: Record<string, unknown>
   version: number
   superseded_by_id: string | null
+  is_personal: boolean
   effective_from: Date
   effective_to: Date | null
   created_at: Date
@@ -184,6 +199,7 @@ function mapMemoryRecordRow(row: RawMemoryRecordRow): MemoryRecord {
     metadata: row.metadata ?? {},
     version: Number(row.version),
     supersededById: row.superseded_by_id,
+    isPersonal: Boolean(row.is_personal),
     effectiveFrom: row.effective_from,
     effectiveTo: row.effective_to,
     createdAt: row.created_at,
@@ -266,6 +282,11 @@ export type CreateMemoryRecordInput = {
   sourceId?: string | null
   registryRef?: string | null
   metadata?: Record<string, unknown>
+  // R68 Phase 3: only legal when scopeType is 'USER' -- see the
+  // memory_records_personal_requires_user_scope_check CHECK constraint
+  // (drizzle/0542) this input-level guard mirrors. Defaults to false
+  // (org-visible, today's exact pre-existing behavior).
+  isPersonal?: boolean
   // Optional provenance detail row (compliance.memory_sources) -- written
   // in the same tx as the memory_records row when supplied.
   source?: {
@@ -288,6 +309,32 @@ export type CreateMemoryRecordInput = {
  * (WITH CHECK org_id = compliance.current_org_id()) is what actually
  * enforces that the two agree, not this function.
  */
+/**
+ * R68 Phase 3 (drizzle/0542) input-level guards, split out of
+ * createMemoryRecord() itself (and returning the resolved isPersonal
+ * default, rather than leaving that `?? false` inline in the INSERT
+ * below) so createMemoryRecord()'s own cyclomatic complexity stays under
+ * this repo's ESLint budget:
+ *  - a DEPARTMENT-scoped row is meaningless without knowing WHICH
+ *    department -- scopeId is the polymorphic pointer that carries it
+ *    (see OrgScopedMemoryScopeType's own comment), so this requires it
+ *    rather than let a caller silently write an unaddressable department
+ *    row that resolveMemoryScope() below can never match against any real
+ *    department.
+ *  - isPersonal mirrors the memory_records_personal_requires_user_scope_check
+ *    CHECK constraint -- a clear application-level error instead of an
+ *    opaque RLS/CHECK-violation deep inside the INSERT.
+ */
+function assertR68ScopeInputIsLegal(input: CreateMemoryRecordInput): boolean {
+  if (input.scopeType === "DEPARTMENT" && !input.scopeId) {
+    throw new Error("createMemoryRecord: DEPARTMENT-scoped memory requires scopeId (a compliance.departments id)")
+  }
+  if (input.isPersonal && (input.scopeType !== "USER" || !input.userId)) {
+    throw new Error("createMemoryRecord: isPersonal is only legal for a USER-scoped memory with a userId")
+  }
+  return input.isPersonal ?? false
+}
+
 export async function createMemoryRecord(
   tx: TenantDb,
   orgId: string,
@@ -306,6 +353,7 @@ export async function createMemoryRecord(
       `createMemoryRecord: scopeType ${String(input.scopeType)} is not an ordinary org-scoped memory (GLOBAL/INDUSTRY memories are an admin/service_role-only path per Phase 1's RLS design, not supported by this function)`
     )
   }
+  const isPersonal = assertR68ScopeInputIsLegal(input)
   const trimmedContent = input.content.trim()
   if (!trimmedContent) {
     throw new Error("createMemoryRecord: content must not be empty")
@@ -319,13 +367,13 @@ export async function createMemoryRecord(
     INSERT INTO compliance.memory_records
       (id, scope_type, scope_id, org_id, user_id, industry_id, project_id, task_id,
        memory_type, content, content_hash, confidence, provenance_type, lifecycle_state,
-       source_type, source_id, registry_ref, metadata, version)
+       source_type, source_id, registry_ref, metadata, version, is_personal)
     VALUES
       (${id}, ${input.scopeType}, ${input.scopeId ?? null}, ${orgId}, ${input.userId ?? null},
        ${input.industryId ?? null}, ${input.projectId ?? null}, ${input.taskId ?? null},
        ${input.memoryType}, ${trimmedContent}, ${contentHash}, ${input.confidence ?? null}::numeric,
        ${input.provenanceType}, ${input.lifecycleState ?? "CANDIDATE"}, ${input.sourceType ?? null},
-       ${input.sourceId ?? null}, ${input.registryRef ?? null}, ${metadataJson}::jsonb, 1)
+       ${input.sourceId ?? null}, ${input.registryRef ?? null}, ${metadataJson}::jsonb, 1, ${isPersonal})
     RETURNING *
   `)) as RawMemoryRecordRow[]
 
@@ -420,7 +468,7 @@ export async function searchMemories(
   const rows = (await tx.execute(sql`
     SELECT id, scope_type, scope_id, org_id, user_id, industry_id, project_id, task_id,
            memory_type, content, content_hash, confidence, provenance_type, lifecycle_state,
-           source_type, source_id, registry_ref, metadata, version, superseded_by_id,
+           source_type, source_id, registry_ref, metadata, version, superseded_by_id, is_personal,
            effective_from, effective_to, created_at, updated_at,
            1 - (embedding <=> ${vectorStr}::vector) AS score
     FROM compliance.memory_records
@@ -545,13 +593,13 @@ export async function supersedeMemoryRecord(
     INSERT INTO compliance.memory_records
       (id, scope_type, scope_id, org_id, user_id, industry_id, project_id, task_id,
        memory_type, content, content_hash, confidence, provenance_type, lifecycle_state,
-       source_type, source_id, registry_ref, metadata, version)
+       source_type, source_id, registry_ref, metadata, version, is_personal)
     VALUES
       (${newId}, ${previous.scopeType}, ${previous.scopeId}, ${previous.orgId}, ${previous.userId},
        ${previous.industryId}, ${previous.projectId}, ${previous.taskId},
        ${previous.memoryType}, ${trimmedContent}, ${newContentHash}, ${previous.confidence}::numeric,
        ${previous.provenanceType}, 'ACTIVE', ${previous.sourceType},
-       ${previous.sourceId}, ${previous.registryRef}, ${metadataJson}::jsonb, ${previous.version + 1})
+       ${previous.sourceId}, ${previous.registryRef}, ${metadataJson}::jsonb, ${previous.version + 1}, ${previous.isPersonal})
     RETURNING *
   `)) as RawMemoryRecordRow[]
   // As in createMemoryRecord(): treat the DB's own RETURNING echo as
@@ -761,4 +809,155 @@ export async function archiveMemoryRecord(tx: TenantDb, id: string, changedBy: M
   `)) as RawMemoryRecordRow[]
 
   return mapMemoryRecordRow(updatedRows[0])
+}
+
+// ─── resolveMemoryScope (R68 Phase 3, IMG-013) ──────────────────────────
+//
+// THE ONE scope resolver. Zero memory/recall/scope DB routines existed
+// before this (verified live via information_schema.routines against
+// pcrjmlpuqsbocqfwoxod immediately before this migration/PR was written),
+// so this is plain server-side TypeScript -- an application-server
+// function, never a client -- not a Postgres routine; "server-side only"
+// in the R68 directive means the former, not the latter (matches every
+// other resolution/authorization function in this codebase, e.g.
+// resolveActingUser()/requireRole(), which are also TS, not SQL).
+//
+// Precedence order, most specific wins: GLOBAL -> ORGANIZATION ->
+// DEPARTMENT -> USER. This is the owner's 2026-09-03 v1 decision (exactly
+// these four of the five img_spec levels; PRODUCT deferred, see
+// drizzle/0542's own header) -- not a fifth, independently-invented
+// resolution mechanism: it reuses memory_records.scope_type/scope_id (R-
+// IMG-03's binding rule) and this codebase's own existing RBAC (ActorCtx)
+// for "who is asking", exactly as directed. INDUSTRY/PROJECT/TASK/
+// CONVERSATION/DOCUMENT scope_type rows are untouched by this resolver --
+// they are a different axis (a specific project/task/conversation/
+// document a memory was captured under, not an org-hierarchy tier) and
+// were never part of the five-level v1 scope-level decision to begin with.
+//
+// AUTHORIZATION IS SERVER-SIDE ONLY: `actor` must be a real ActorCtx
+// (resolveActingUser()'s own output, never a client-supplied org/
+// department/user triple) -- this function reads the department id off
+// `actor.dbUser.departmentId`, the DB-backed users row, not off any
+// request body. Every row this function fetches is additionally governed
+// by Phase 1's own RLS (own org or global; is_personal exclusion, drizzle/
+// 0542) -- this function only ever NARROWS what RLS would return, it
+// cannot widen it (CRR-234's rule: authorization lives in RLS, not here).
+
+/** The four v1 scope levels, ordered least -> most specific. */
+export const MEMORY_SCOPE_PRECEDENCE = ["GLOBAL", "ORGANIZATION", "DEPARTMENT", "USER"] as const
+export type ResolvableMemoryScopeType = (typeof MEMORY_SCOPE_PRECEDENCE)[number]
+
+const MEMORY_SCOPE_RANK: Record<ResolvableMemoryScopeType, number> = {
+  GLOBAL: 0,
+  ORGANIZATION: 1,
+  DEPARTMENT: 2,
+  USER: 3,
+}
+
+function isResolvableMemoryScopeType(scopeType: string): scopeType is ResolvableMemoryScopeType {
+  return Object.prototype.hasOwnProperty.call(MEMORY_SCOPE_RANK, scopeType)
+}
+
+export type ResolvedMemoryRecord = MemoryRecord & { scopeRank: number }
+
+export type ResolveMemoryScopeOptions = {
+  memoryType?: MemoryType
+  // Narrows to one specific registryRef's candidates across all four
+  // levels -- omit to resolve every logical key the actor can see.
+  registryRef?: string
+  // Same default as searchMemories(): excludes ARCHIVED/SUPERSEDED rows
+  // unless explicitly asked for.
+  includeArchivedAndSuperseded?: boolean
+}
+
+/**
+ * Groups already-fetched candidates by logical key (registryRef when set,
+ * else `memoryType:<type>` -- registryRef is this schema's own closest
+ * thing to a stable "what is this memory about" identifier, see
+ * schema.ts's comment on memoryRecords.registryRef) and keeps, per key,
+ * only the candidate with the highest scopeRank (ties broken by the most
+ * recently updated row, so two rows written at the same scope level never
+ * pick an arbitrary winner). Exported separately from resolveMemoryScope()
+ * so the real most-specific-wins precedence logic is directly unit-
+ * testable against a plain in-memory fixture, without needing a live
+ * Postgres connection this sandbox/CI does not have (same reasoning as
+ * every other DB-independent test in this repo).
+ */
+export function resolveMostSpecific(candidates: ResolvedMemoryRecord[]): ResolvedMemoryRecord[] {
+  const byKey = new Map<string, ResolvedMemoryRecord>()
+  for (const candidate of candidates) {
+    const key = candidate.registryRef ?? `memoryType:${candidate.memoryType}`
+    const existing = byKey.get(key)
+    if (
+      !existing ||
+      candidate.scopeRank > existing.scopeRank ||
+      (candidate.scopeRank === existing.scopeRank && candidate.updatedAt > existing.updatedAt)
+    ) {
+      byKey.set(key, candidate)
+    }
+  }
+  return Array.from(byKey.values()).sort((a, b) => b.scopeRank - a.scopeRank)
+}
+
+/**
+ * Fetches every memory_records candidate visible to `actor` at the four
+ * v1 scope levels and returns the most-specific-wins result per logical
+ * key (resolveMostSpecific() above).
+ *
+ * The WHERE clause below is a narrowing filter on top of RLS, not a
+ * substitute for it: even if this function's own org/department/user
+ * matching had a bug, Phase 1's real SELECT policy (org_id = current org
+ * or NULL, AND NOT is_personal OR user_id = current user) is what a live
+ * Postgres would still enforce underneath it. `tx` must already be inside
+ * a withTenantContext({ orgId: actor.orgId, userId: actor.userId }, ...)
+ * block for that RLS to see the right session GUCs at all -- same
+ * contract every other function in this file already has.
+ */
+export async function resolveMemoryScope(
+  tx: TenantDb,
+  actor: ActorCtx,
+  options: ResolveMemoryScopeOptions = {}
+): Promise<ResolvedMemoryRecord[]> {
+  // Only a real signed-in dashboard user carries a department (see
+  // actor-context.ts: departmentId lives on `users`, not on the api-key
+  // branch) -- a server-to-server (apiKey) caller resolves GLOBAL/
+  // ORGANIZATION/USER only, which is the correct, conservative behavior:
+  // there is no department to prefer for a caller that isn't a specific
+  // department's member.
+  const departmentId = actor.dbUser?.departmentId ?? null
+
+  const memoryTypeFilter = options.memoryType ? sql`AND memory_type = ${options.memoryType}` : sql``
+  const registryRefFilter = options.registryRef ? sql`AND registry_ref = ${options.registryRef}` : sql``
+  const lifecycleFilter = options.includeArchivedAndSuperseded
+    ? sql``
+    : sql`AND lifecycle_state NOT IN ('ARCHIVED', 'SUPERSEDED')`
+
+  const rows = (await tx.execute(sql`
+    SELECT id, scope_type, scope_id, org_id, user_id, industry_id, project_id, task_id,
+           memory_type, content, content_hash, confidence, provenance_type, lifecycle_state,
+           source_type, source_id, registry_ref, metadata, version, superseded_by_id, is_personal,
+           effective_from, effective_to, created_at, updated_at
+    FROM compliance.memory_records
+    WHERE (
+      scope_type = 'GLOBAL'
+      OR (scope_type = 'ORGANIZATION' AND org_id = ${actor.orgId})
+      OR (scope_type = 'DEPARTMENT' AND org_id = ${actor.orgId} AND scope_id = ${departmentId})
+      OR (scope_type = 'USER' AND org_id = ${actor.orgId} AND user_id = ${actor.userId})
+    )
+    ${memoryTypeFilter}
+    ${registryRefFilter}
+    ${lifecycleFilter}
+  `)) as RawMemoryRecordRow[]
+
+  const candidates: ResolvedMemoryRecord[] = rows.map(mapMemoryRecordRow).flatMap((record) => {
+    // Defensive, not load-bearing: every branch of the WHERE clause above
+    // only ever matches one of the four resolvable scope_types, so this
+    // should never filter anything out in practice. Guards against a
+    // future WHERE-clause edit widening the query without updating this
+    // ranking table in lockstep.
+    if (!isResolvableMemoryScopeType(record.scopeType)) return []
+    return [{ ...record, scopeRank: MEMORY_SCOPE_RANK[record.scopeType] }]
+  })
+
+  return resolveMostSpecific(candidates)
 }

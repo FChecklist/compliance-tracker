@@ -13986,9 +13986,18 @@ export const postCommentsRelations = relations(postComments, ({ one }) => ({
 // schema.ts file has no CHECK-constraint helper usage anywhere else
 // either -- every CHECK in this codebase lives in the hand-written
 // migration SQL, e.g. asset_registration_config_asset_type_check).
+// R68 Phase 3 (drizzle/0542): DEPARTMENT joined the scope_type CHECK --
+// owner decision 2026-09-03, v1 ships GLOBAL/ORGANIZATION/DEPARTMENT/USER
+// (PRODUCT deferred). No new column for it: scopeId already carries "which
+// department" the same polymorphic way it carries "which project"/"which
+// task" for those scope types. is_personal (also 0542) is new: true only
+// for a USER-scoped row private to its owning user, enforced in RLS (see
+// the migration's own header) -- see resolveMemoryScope() in
+// memory-service.ts for the real GLOBAL->ORGANIZATION->DEPARTMENT->USER
+// resolver this scope model now supports.
 export const memoryRecords = complianceSchemaDB.table('memory_records', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
-  scopeType: text('scope_type').notNull(), // 'GLOBAL'|'INDUSTRY'|'ORGANIZATION'|'USER'|'PROJECT'|'TASK'|'CONVERSATION'|'DOCUMENT'
+  scopeType: text('scope_type').notNull(), // 'GLOBAL'|'INDUSTRY'|'ORGANIZATION'|'USER'|'PROJECT'|'TASK'|'CONVERSATION'|'DOCUMENT'|'DEPARTMENT'
   scopeId: text('scope_id'), // the scoped entity's own id, meaning depends on scopeType -- polymorphic, no single FK target (same shape as platformAssets.sourceTable/sourceId)
   orgId: text('org_id'), // NULL for GLOBAL/INDUSTRY, NOT NULL otherwise (DB-enforced, see migration)
   userId: text('user_id'),
@@ -14015,6 +14024,11 @@ export const memoryRecords = complianceSchemaDB.table('memory_records', {
   // require the AnyPgColumn self-ref workaround this codebase doesn't
   // otherwise use), but genuinely enforced at the DB level.
   supersededById: text('superseded_by_id'),
+  // R68 Phase 3 (drizzle/0542): private-to-owner flag, USER scope_type
+  // only (memory_records_personal_requires_user_scope_check CHECK
+  // enforces this). Default false keeps every pre-existing row's
+  // visibility unchanged.
+  isPersonal: boolean('is_personal').notNull().default(false),
   effectiveFrom: timestamp('effective_from').notNull().defaultNow(),
   effectiveTo: timestamp('effective_to'),
   createdAt: timestamp('created_at').notNull().defaultNow(),

@@ -52,6 +52,7 @@ function rawRow(overrides: Record<string, unknown> = {}) {
     metadata: {},
     version: 1,
     superseded_by_id: null,
+    is_personal: false,
     effective_from: NOW,
     effective_to: null,
     created_at: NOW,
@@ -230,6 +231,125 @@ describe("createMemoryRecord", () => {
         provenanceType: "SYSTEM_DERIVED",
       })
     ).rejects.toThrow(/no matching row was found in compliance\.embeddings/)
+  })
+
+  // R68 Phase 3 (IMG-012): DEPARTMENT is an ordinary org-scoped write, same
+  // as ORGANIZATION/USER/etc -- not an admin/service_role-only path.
+  test("supports DEPARTMENT scopeType when a scopeId (department id) is given", async () => {
+    const storeEmbedding = mock(async () => {})
+    mockEmbeddingsModule({ storeEmbedding })
+    mockDbModule()
+    const { createMemoryRecord } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([[rawRow({ scope_type: "DEPARTMENT", scope_id: "dept-1" })], []])
+
+    const result = await createMemoryRecord(tx, "org-1", {
+      scopeType: "DEPARTMENT",
+      scopeId: "dept-1",
+      memoryType: "ORGANIZATION_INSTRUCTION",
+      content: "engineering standup is at 10am",
+      provenanceType: "USER_CONFIRMED",
+    })
+
+    expect(result.scopeType).toBe("DEPARTMENT")
+    expect(result.scopeId).toBe("dept-1")
+    expect(calls.length).toBe(2)
+  })
+
+  test("rejects DEPARTMENT scopeType without a scopeId, without touching the database", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { createMemoryRecord } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([])
+
+    await expect(
+      createMemoryRecord(tx, "org-1", {
+        scopeType: "DEPARTMENT",
+        memoryType: "ORGANIZATION_INSTRUCTION",
+        content: "engineering standup is at 10am",
+        provenanceType: "USER_CONFIRMED",
+      })
+    ).rejects.toThrow(/DEPARTMENT-scoped memory requires scopeId/)
+    expect(calls.length).toBe(0)
+  })
+
+  // R68 Phase 3 (IMG-014 / CRR-234): the input-level mirror of
+  // memory_records_personal_requires_user_scope_check.
+  test("rejects isPersonal on a non-USER scopeType, without touching the database", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { createMemoryRecord } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([])
+
+    await expect(
+      createMemoryRecord(tx, "org-1", {
+        scopeType: "ORGANIZATION",
+        memoryType: "FACT",
+        content: "org-wide fact",
+        provenanceType: "USER_CONFIRMED",
+        isPersonal: true,
+      })
+    ).rejects.toThrow(/isPersonal is only legal for a USER-scoped memory with a userId/)
+    expect(calls.length).toBe(0)
+  })
+
+  test("rejects isPersonal on USER scopeType without a userId", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { createMemoryRecord } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([])
+
+    await expect(
+      createMemoryRecord(tx, "org-1", {
+        scopeType: "USER",
+        memoryType: "PREFERENCE",
+        content: "prefers dark mode",
+        provenanceType: "USER_CONFIRMED",
+        isPersonal: true,
+      })
+    ).rejects.toThrow(/isPersonal is only legal for a USER-scoped memory with a userId/)
+    expect(calls.length).toBe(0)
+  })
+
+  test("accepts isPersonal on a USER-scoped record with a userId, and persists it in the INSERT", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { createMemoryRecord } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([[rawRow({ scope_type: "USER", user_id: "user-9", is_personal: true })], []])
+
+    const result = await createMemoryRecord(tx, "org-1", {
+      scopeType: "USER",
+      userId: "user-9",
+      memoryType: "PREFERENCE",
+      content: "please always address me as ma'am",
+      provenanceType: "USER_CONFIRMED",
+      isPersonal: true,
+    })
+
+    expect(result.isPersonal).toBe(true)
+    // The real INSERT text must actually carry the true value through as a
+    // bound parameter -- a passing input-level guard with no matching
+    // column write would be a guard that lies about what it protects.
+    // drizzle-orm's sql`` tag interleaves literal StringChunks with bound
+    // parameter values in `queryChunks`; a bound boolean parameter shows up
+    // as the raw JS value `true`, not a chunk object.
+    const insertCall = calls[0] as { queryChunks: unknown[] }
+    expect(insertCall.queryChunks).toContain(true)
+  })
+
+  test("defaults isPersonal to false when omitted (exact pre-R68 behavior)", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { createMemoryRecord } = await import("./memory-service")
+    const { tx } = makeQueueTx([[rawRow()], []])
+
+    const result = await createMemoryRecord(tx, "org-1", {
+      scopeType: "ORGANIZATION",
+      memoryType: "FACT",
+      content: "some fact",
+      provenanceType: "SYSTEM_DERIVED",
+    })
+
+    expect(result.isPersonal).toBe(false)
   })
 })
 
@@ -655,5 +775,259 @@ describe("archiveMemoryRecord", () => {
 
     const result = await archiveMemoryRecord(tx, "mem-1", { type: "SYSTEM" })
     expect(result.lifecycleState).toBe("ARCHIVED")
+  })
+})
+
+// R68 Phase 3 (IMG-013): the ONE scope resolver's precedence order,
+// GLOBAL -> ORGANIZATION -> DEPARTMENT -> USER, most specific wins.
+// resolveMostSpecific() is tested directly against real, hand-built
+// multi-row fixtures (not mocked DB calls) -- it is a pure function over
+// already-fetched candidates, so this proves the actual precedence
+// decision, not just that some SQL WHERE clause was constructed.
+describe("resolveMostSpecific", () => {
+  // resolveMostSpecific() is a pure function (no embeddings/db I/O), but
+  // it lives in the same module as everything else in this file, so it is
+  // imported the same dynamic way every other describe block here uses --
+  // consistent with this file's own "mock the DB layer only" convention
+  // rather than assuming module-load order across describe blocks.
+  let resolveMostSpecific: (typeof import("./memory-service"))["resolveMostSpecific"]
+  beforeEach(async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    ;({ resolveMostSpecific } = await import("./memory-service"))
+  })
+
+  // Builds a candidate directly in ResolvedMemoryRecord shape (mapped +
+  // ranked), the same shape resolveMemoryScope() itself hands to this
+  // function -- a real fixture, not a bare assertion on the ranking table.
+  function candidate(overrides: Partial<import("./memory-service").ResolvedMemoryRecord>): import("./memory-service").ResolvedMemoryRecord {
+    const scopeType = (overrides.scopeType ?? "GLOBAL") as "GLOBAL" | "ORGANIZATION" | "DEPARTMENT" | "USER"
+    const rank = { GLOBAL: 0, ORGANIZATION: 1, DEPARTMENT: 2, USER: 3 }[scopeType]
+    return {
+      id: `mem-${scopeType}`,
+      scopeType,
+      scopeId: null,
+      orgId: "org-1",
+      userId: null,
+      industryId: null,
+      projectId: null,
+      taskId: null,
+      memoryType: "PREFERENCE",
+      content: `${scopeType} content`,
+      contentHash: `hash-${scopeType}`,
+      confidence: null,
+      provenanceType: "USER_CONFIRMED",
+      lifecycleState: "ACTIVE",
+      sourceType: null,
+      sourceId: null,
+      registryRef: "pref:greeting",
+      metadata: {},
+      version: 1,
+      supersededById: null,
+      isPersonal: false,
+      effectiveFrom: NOW,
+      effectiveTo: null,
+      createdAt: NOW,
+      updatedAt: NOW,
+      scopeRank: rank,
+      ...overrides,
+    }
+  }
+
+  test("real multi-row fixture: GLOBAL, ORGANIZATION, DEPARTMENT and USER rows for the SAME key -- USER wins", () => {
+    const global = candidate({ scopeType: "GLOBAL" })
+    const org = candidate({ scopeType: "ORGANIZATION" })
+    const dept = candidate({ scopeType: "DEPARTMENT", scopeId: "dept-1" })
+    const user = candidate({ scopeType: "USER", userId: "user-1" })
+
+    const result = resolveMostSpecific([global, org, dept, user])
+
+    expect(result).toHaveLength(1)
+    expect(result[0].scopeType).toBe("USER")
+    expect(result[0].id).toBe(user.id)
+  })
+
+  test("IMG-013's own gate: a user in a department gets the department row above the org row (no USER row present)", () => {
+    const global = candidate({ scopeType: "GLOBAL" })
+    const org = candidate({ scopeType: "ORGANIZATION" })
+    const dept = candidate({ scopeType: "DEPARTMENT", scopeId: "dept-1" })
+
+    const result = resolveMostSpecific([global, org, dept])
+
+    expect(result).toHaveLength(1)
+    expect(result[0].scopeType).toBe("DEPARTMENT")
+  })
+
+  test("DEPARTMENT row loses to a USER row for the same key (department is below the user's own)", () => {
+    const dept = candidate({ scopeType: "DEPARTMENT", scopeId: "dept-1" })
+    const user = candidate({ scopeType: "USER", userId: "user-1" })
+
+    const result = resolveMostSpecific([dept, user])
+
+    expect(result).toHaveLength(1)
+    expect(result[0].scopeType).toBe("USER")
+  })
+
+  test("ORGANIZATION beats GLOBAL when neither DEPARTMENT nor USER exist for the key", () => {
+    const global = candidate({ scopeType: "GLOBAL" })
+    const org = candidate({ scopeType: "ORGANIZATION" })
+
+    const result = resolveMostSpecific([global, org])
+
+    expect(result).toHaveLength(1)
+    expect(result[0].scopeType).toBe("ORGANIZATION")
+  })
+
+  test("GLOBAL alone is returned when it is the only candidate for the key", () => {
+    const global = candidate({ scopeType: "GLOBAL" })
+    expect(resolveMostSpecific([global])).toEqual([global])
+  })
+
+  test("two different logical keys (registryRef) resolve independently -- each keeps its own winner", () => {
+    const keyA_org = candidate({ scopeType: "ORGANIZATION", registryRef: "pref:greeting" })
+    const keyA_user = candidate({ scopeType: "USER", userId: "user-1", registryRef: "pref:greeting" })
+    const keyB_global = candidate({ scopeType: "GLOBAL", registryRef: "pref:timezone", id: "mem-tz-global" })
+    const keyB_dept = candidate({ scopeType: "DEPARTMENT", scopeId: "dept-1", registryRef: "pref:timezone", id: "mem-tz-dept" })
+
+    const result = resolveMostSpecific([keyA_org, keyA_user, keyB_global, keyB_dept])
+
+    expect(result).toHaveLength(2)
+    const byKey = new Map(result.map((r) => [r.registryRef, r]))
+    expect(byKey.get("pref:greeting")?.scopeType).toBe("USER")
+    expect(byKey.get("pref:timezone")?.scopeType).toBe("DEPARTMENT")
+  })
+
+  test("no registryRef: candidates group by memoryType instead", () => {
+    const org = candidate({ scopeType: "ORGANIZATION", registryRef: null, memoryType: "FACT" })
+    const user = candidate({ scopeType: "USER", userId: "user-1", registryRef: null, memoryType: "FACT" })
+    // A different memoryType is a DIFFERENT logical key even with no registryRef.
+    const unrelated = candidate({ scopeType: "GLOBAL", registryRef: null, memoryType: "RULE", id: "mem-rule" })
+
+    const result = resolveMostSpecific([org, user, unrelated])
+
+    expect(result).toHaveLength(2)
+    const winners = result.map((r) => r.scopeType).sort()
+    expect(winners).toEqual(["GLOBAL", "USER"])
+  })
+
+  test("a tie at the same scope rank breaks by the most recently updated row", () => {
+    const older = candidate({ scopeType: "ORGANIZATION", id: "mem-older", updatedAt: new Date("2026-01-01T00:00:00.000Z") })
+    const newer = candidate({ scopeType: "ORGANIZATION", id: "mem-newer", updatedAt: new Date("2026-06-01T00:00:00.000Z") })
+
+    const result = resolveMostSpecific([older, newer])
+
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe("mem-newer")
+  })
+
+  test("empty input returns empty output", () => {
+    expect(resolveMostSpecific([])).toEqual([])
+  })
+})
+
+describe("resolveMemoryScope", () => {
+  function actorWithDepartment(departmentId: string | null): import("./actor-context").ActorCtx {
+    return {
+      orgId: "org-1",
+      userId: "user-1",
+      dbUser: { id: "user-1", departmentId } as import("./actor-context").ActorCtx["dbUser"],
+    }
+  }
+
+  test("maps DB rows to ranked candidates and applies most-specific-wins end to end", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { resolveMemoryScope } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([
+      [
+        rawRow({ id: "mem-global", scope_type: "GLOBAL", org_id: null, registry_ref: "pref:greeting" }),
+        rawRow({ id: "mem-org", scope_type: "ORGANIZATION", registry_ref: "pref:greeting" }),
+        rawRow({ id: "mem-dept", scope_type: "DEPARTMENT", scope_id: "dept-1", registry_ref: "pref:greeting" }),
+        rawRow({ id: "mem-user", scope_type: "USER", user_id: "user-1", registry_ref: "pref:greeting" }),
+      ],
+    ])
+
+    const result = await resolveMemoryScope(tx, actorWithDepartment("dept-1"))
+
+    expect(calls.length).toBe(1)
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe("mem-user")
+    expect(result[0].scopeRank).toBe(3)
+  })
+
+  test("without a USER row, a department member's result is the DEPARTMENT row, not ORGANIZATION", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { resolveMemoryScope } = await import("./memory-service")
+    const { tx } = makeQueueTx([
+      [
+        rawRow({ id: "mem-org", scope_type: "ORGANIZATION", registry_ref: "policy:standup-time" }),
+        rawRow({ id: "mem-dept", scope_type: "DEPARTMENT", scope_id: "dept-1", registry_ref: "policy:standup-time" }),
+      ],
+    ])
+
+    const result = await resolveMemoryScope(tx, actorWithDepartment("dept-1"))
+
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe("mem-dept")
+  })
+
+  test("an apiKey (server-to-server) actor has no departmentId -- the query is issued with a null department filter value", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { resolveMemoryScope } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([[]])
+
+    const apiKeyActor: import("./actor-context").ActorCtx = { orgId: "org-1", userId: "svc-1", apiKey: { id: "k1", name: "PROJEXA proxy" } }
+    await resolveMemoryScope(tx, apiKeyActor)
+
+    const query = calls[0] as { queryChunks: unknown[] }
+    // actor.orgId ("org-1") is bound 3 times (ORGANIZATION/DEPARTMENT/USER
+    // branches) and the department filter's own bound value is `null` --
+    // real proof the apiKey branch's missing departmentId flows all the way
+    // into the query as NULL (which can never equal a real department's
+    // scope_id), not silently defaulted to the actor's own orgId or dropped.
+    expect(query.queryChunks).toContain("org-1")
+    expect(query.queryChunks).toContain(null)
+  })
+
+  test("defensively drops a candidate whose scope_type is not one of the four resolvable levels", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { resolveMemoryScope } = await import("./memory-service")
+    // Should not happen given the WHERE clause, but proves the resolver
+    // does not crash or misrank a row from a future WHERE-clause bug.
+    const { tx } = makeQueueTx([[rawRow({ id: "mem-project", scope_type: "PROJECT" })]])
+
+    const result = await resolveMemoryScope(tx, actorWithDepartment(null))
+
+    expect(result).toEqual([])
+  })
+
+  test("excludes ARCHIVED/SUPERSEDED rows by default", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { resolveMemoryScope } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([[]])
+
+    await resolveMemoryScope(tx, actorWithDepartment(null))
+
+    // The lifecycle filter is its own nested sql`` fragment (interpolated
+    // into the outer WHERE clause), so its text lives inside a nested
+    // queryChunks array -- JSON.stringify() (same technique this file's
+    // own promoteMemoryRecord tests already use) walks the whole tree
+    // rather than assuming a flat shape.
+    expect(JSON.stringify(calls[0])).toContain("lifecycle_state NOT IN ('ARCHIVED', 'SUPERSEDED')")
+  })
+
+  test("includeArchivedAndSuperseded:true omits that filter entirely", async () => {
+    mockEmbeddingsModule({})
+    mockDbModule()
+    const { resolveMemoryScope } = await import("./memory-service")
+    const { tx, calls } = makeQueueTx([[]])
+
+    await resolveMemoryScope(tx, actorWithDepartment(null), { includeArchivedAndSuperseded: true })
+
+    expect(JSON.stringify(calls[0])).not.toContain("NOT IN ('ARCHIVED', 'SUPERSEDED')")
   })
 })
