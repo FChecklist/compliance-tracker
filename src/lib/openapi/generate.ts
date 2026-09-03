@@ -328,13 +328,58 @@ export function generateOpenApiDocument() {
       "/projexa/dashboard/{projectId}": { get: { tags: ["PROJEXA"], summary: "Project dashboard (budget/revenue/expenses/progress/delay/photos/tasks)", operationId: "projexaProjectDashboard", parameters: [{ name: "projectId", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "OK" } } } },
       "/projexa/reports/{reportName}": {
         get: {
-          tags: ["PROJEXA"], summary: "Run one of the 17 named construction reports", operationId: "projexaReport",
+          tags: ["PROJEXA"],
+          summary: "Run one of the 17 named construction reports",
+          description:
+            "Answers with the generic table contract { columns, rows, totals?, currency, note? }. " +
+            "Before 2026-09-03 this returned each report handler's own payload; that shape is still " +
+            "available for one release via ?format=legacy and is scheduled for removal — migrate to the " +
+            "table columns.",
+          operationId: "projexaReport",
           parameters: [
             { name: "reportName", in: "path", required: true, schema: { type: "string", enum: ["work-progress", "weekly-project", "project-status", "attendance", "site-picture", "scope", "budget-summary", "budget-vs-actual", "material-consumption", "vendor-cost", "manpower-cost", "designer-timesheet", "kpi", "revenue", "expense", "category-progress", "project-completion"] } },
             { name: "projectId", in: "query", required: true, schema: { type: "string" } },
             { name: "weekStart", in: "query", required: false, description: "Required only for the weekly-project report", schema: { type: "string" } },
+            // R67 E-32: the escape hatch has to be VISIBLE on the published
+            // contract, or an external caller has no way to discover that the
+            // shape they were reading still exists.
+            { name: "format", in: "query", required: false, description: "Pass \"legacy\" to receive the pre-2026-09-03 per-report payload instead of the table contract. Deprecated; supported for one release.", schema: { type: "string", enum: ["legacy"] } },
           ],
           responses: { "200": { description: "OK" }, "400": { description: "Unknown report name or missing required param" } },
+        },
+      },
+      // R67 E-33: portfolio-wide, so deliberately two segments deep -- a static
+      // "budget-vs-actual" sibling of {reportName} would shadow the per-project
+      // report of that name.
+      "/projexa/reports/portfolio/budget-vs-actual": {
+        get: {
+          tags: ["PROJEXA"],
+          summary: "Revenue, budget and earned value per project across the portfolio",
+          description: "Answers in the same { columns, rows, totals?, currency } table contract as /projexa/reports/{reportName}. Manager role or higher.",
+          operationId: "projexaPortfolioBudgetVsActual",
+          parameters: [
+            { name: "departmentId", in: "query", required: false, schema: { type: "string" } },
+            { name: "from", in: "query", required: false, description: "Revenue/expense window (YYYY-MM-DD). The BOQ-derived budget is not date-filtered.", schema: { type: "string" } },
+            { name: "to", in: "query", required: false, schema: { type: "string" } },
+          ],
+          responses: { "200": { description: "OK" }, "403": { description: "Requires manager role or higher" } },
+        },
+      },
+      // R67 E-28: binary. PROJEXA relays this rather than gaining a spreadsheet
+      // library of its own.
+      "/projexa/work-progress/report/xlsx": {
+        get: {
+          tags: ["PROJEXA"],
+          summary: "Work Progress Report as an .xlsx workbook",
+          description: "Same rows and same arithmetic as the JSON report and the PDF. Returns application/vnd.openxmlformats-officedocument.spreadsheetml.sheet with a Content-Disposition naming the project and the period.",
+          operationId: "projexaWorkProgressReportXlsx",
+          parameters: [
+            { name: "projectId", in: "query", required: true, schema: { type: "string" } },
+            { name: "from", in: "query", required: true, description: "YYYY-MM-DD", schema: { type: "string" } },
+            { name: "to", in: "query", required: true, description: "YYYY-MM-DD", schema: { type: "string" } },
+            { name: "mode", in: "query", required: false, description: "Third column reading: cumulative total (default) or remaining balance.", schema: { type: "string", enum: ["total", "balance"] } },
+          ],
+          responses: { "200": { description: "OK" }, "400": { description: "Missing projectId, from or to" }, "404": { description: "Project not found" } },
         },
       },
       "/projexa/ai/progress-summary": { get: { tags: ["PROJEXA"], summary: "AI-generated progress summary, grounded in real project numbers", operationId: "projexaAiProgressSummary", parameters: [{ name: "projectId", in: "query", required: true, schema: { type: "string" } }], responses: { "200": { description: "OK" }, "400": { description: "Requires a real user session, not an API key" } } } },

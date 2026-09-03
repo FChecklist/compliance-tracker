@@ -13,7 +13,7 @@
 // documented here rather than silently treated as exact.
 import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users, erpPurchaseOrders, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, sql, isNull, isNotNull, gte, lte } from "drizzle-orm"
+import { and, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 // R39/R-51 (D-3): reuses the SAME earnedValueReport construction-reports-
 // service.ts exposes as the "earned-value" named report -- NOT a second
@@ -243,9 +243,26 @@ export type ProjectDashboard = {
   revenue: number
   expenses: number
   progressPercent: number // average of each activity's latest logged percentComplete
+  /**
+   * R67 E-39: the SAME number as progressPercent, under a name that says what
+   * it measures. Two different progress figures reach this screen and both
+   * were called "progress"; a reader comparing 60% here with 0% there could
+   * not tell they were measuring different things. progressPercent is kept
+   * because other consumers read it -- these two are the names the UI uses.
+   */
+  progressByActivityLogPct: number
+  /** R67 E-39: the SAME number as percentByValue -- earned value over contract value. */
+  progressByBoqValuePct: number | null
   delayedTaskCount: number // open pms_issues past dueDate (approximation -- doesn't check status "completed" group, see comment above)
   photoCount: number
   taskCount: number
+  /**
+   * R67 E-39 (R-293): when these figures were computed, ISO 8601. Every tile
+   * prints "as of ..." from it -- a dashboard whose data is four minutes old
+   * and one whose fetch silently failed twenty minutes ago look identical
+   * without it.
+   */
+  generatedAt: string
   // Point 121: COALESCE(user-entered projects.projectValue, SUM of linked
   // erp_purchase_orders.grandTotal). null (never 0) when NEITHER source
   // exists -- a zero project value on a dashboard reads as a real figure.
@@ -374,8 +391,17 @@ function num(value: string | number | null | undefined): number {
  * in resolveProjectMoney() above, and this only reads the two sources out of the
  * row it is handed.
  */
-function numOrNull(value: string | number | null | undefined): number | null {
-  return value === null || value === undefined ? null : Number(value)
+export function numOrNull(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined) return null
+  // R67 E-39 (R-271), folded in on rebase. E-39 wrote this same rule as its own
+  // exported numberOrNull(); one function, not two, and this is the one that
+  // already had every call site. Its addition is the finite check: a SQL sum()
+  // over zero rows is NULL and postgres.js hands back JavaScript null, but a
+  // column that arrives as a non-numeric string would otherwise become NaN and
+  // be rendered as "NaN" on a tile. "Not a number" is not a figure, so it takes
+  // the same "we have no figure" path as null.
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 type EarnedValueFigures = { earnedValue: number | null; percentByValue: number | null; contractValue: number | null }
@@ -427,6 +453,7 @@ export function toProjectDashboard(row: DashboardSqlRow, constructionEnabled: bo
     boqContractValue: ev.contractValue,
     earnedValue: ev.earnedValue,
   })
+  const roundedProgress = Math.round(num(row.progress_percent))
   return {
     projectId: row.project_id,
     projectName: row.project_name,
@@ -437,7 +464,15 @@ export function toProjectDashboard(row: DashboardSqlRow, constructionEnabled: bo
     ledgerBudget: num(row.budget_lines) > 0 ? num(row.budget) : null,
     revenue: num(row.revenue),
     expenses: num(row.expenses),
-    progressPercent: Math.round(num(row.progress_percent)),
+    progressPercent: roundedProgress,
+    // R67 E-39 (R-297): the same two figures under names that say what they
+    // MEASURE. Both reach the project dashboard and both were called
+    // "progress", so a reader seeing 60% on one tile and 0% on another could
+    // not tell they were different measurements rather than a contradiction.
+    // progressPercent and percentByValue are kept as-is because other
+    // consumers read them; these are the names the tiles render.
+    progressByActivityLogPct: roundedProgress,
+    progressByBoqValuePct: ev.percentByValue,
     delayedTaskCount: num(row.delayed_task_count),
     photoCount: num(row.photo_count),
     taskCount: num(row.task_count),
@@ -448,6 +483,13 @@ export function toProjectDashboard(row: DashboardSqlRow, constructionEnabled: bo
     contractValue: money.contractValue,
     permitsExpiringCount: num(row.permits_expiring),
     permitsExpiredCount: num(row.permits_expired),
+    // R67 E-39 (R-293): when these figures were computed. Every tile prints
+    // "as of ..." from it, because a dashboard four minutes old and one whose
+    // fetch quietly failed twenty minutes ago look identical without it. Set
+    // here, at projection time, so a CACHED dashboard keeps the stamp of the
+    // read it actually came from rather than being restamped on serving --
+    // which would make a cache hit claim to be fresher than it is.
+    generatedAt: new Date().toISOString(),
     // R67 F-14: the same pure function the named report uses, over the rows the
     // one statement already returned. An activity with no logged entry is
     // absent from activity_percents and computeCategoryProgress reads it as 0,
@@ -784,13 +826,33 @@ export function isoDay(value: string | Date | null | undefined): string | null {
   return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : null
 }
 
+/**
+ * R67 E-21 (R-195/R-204/R-205/R-222): one row per project, carrying every
+ * figure PROJEXA's home launchpad renders, so that screen makes exactly ONE
+ * call. Before this, /dashboard/overview fanned out a second
+ * `GET /dashboard/{id}` per project purely to read progressPercent -- N+1
+ * round trips over the API for a number this query already has the rows for.
+ *
+ * Every money/percent field is `number | null` on purpose: null means "we do
+ * not have this figure" (no BOQ, no budget rows, construction disabled) and
+ * is rendered "Not set" by the client, while 0 means a real zero. The two are
+ * different facts and the dashboard must not collapse them.
+ */
 export type OrgDashboardProjectSummary = {
   id: string
   name: string
   revenue: number
   expenses: number
+  /** Alias of `expenses` under the name the launchpad's "spend" column uses. */
+  spent: number
   taskCount: number
   delayedTaskCount: number
+  /** Open, non-archived tasks with a due date that has NOT passed. */
+  tasksDue: number
+  /** Open, non-archived tasks whose due date has passed -- same figure as delayedTaskCount, under the launchpad's own name. */
+  tasksLate: number
+  /** True when at least one task carries a due date, i.e. there is a plan to be on track against. */
+  hasSchedule: boolean
   /**
    * @deprecated R67 D-62 -- kept as an exact alias of contractValue so callers
    * written before the money model was named keep working. New readers use
@@ -803,6 +865,13 @@ export type OrgDashboardProjectSummary = {
    * the Project Status report now prints. null (not 0) = no BOQ at all.
    */
   budget: number | null
+  /**
+   * R67 E-23: the ERP cost-centre (annual ledger) budget for this project,
+   * DISTINCT from the BOQ-derived `budget` above -- same `budget`/`ledgerBudget`
+   * split getProjectDashboard uses (see its own R67 E-06 note). null (not 0)
+   * when this project has no ERP budget rows at all.
+   */
+  ledgerBudget: number | null
   /**
    * R67 F-01: PROJEXA's own overview screen used to fetch this org payload and
    * then call GET /dashboard/{id} once PER PROJECT just to read
@@ -822,6 +891,8 @@ export type OrgDashboardProjectSummary = {
   projectValue: number | null
   projectValueSource: ProjectValueSource
   earnedValue: number | null
+  /** R67 E-21: earned value recomputed over progress logged strictly before the baseline (EARNED_VALUE_BASELINE_DAYS) -- the "vs last week" comparison. */
+  earnedValuePrevWeek: number | null
   percentByValue: number | null
   /** R67 E-01: the activity-log average, deliberately distinct from percentByValue. */
   percentByActivity: number | null
@@ -869,6 +940,9 @@ export type OrgDashboardSummary = {
   dateRangeApplied: boolean
 }
 
+/** The "vs last week" baseline window: progress logged strictly before this date. */
+export const EARNED_VALUE_BASELINE_DAYS = 7
+
 /** Permit-expiry horizon the home row and the project dashboard both use. */
 export const PERMIT_EXPIRY_HORIZON_DAYS = 30
 
@@ -901,9 +975,10 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
     const ids = projectRows.map((p) => p.id)
     if (ids.length === 0) return { totalProjects: 0, totalBudget: null, totalLedgerBudget: null, totalRevenue: 0, totalExpenses: 0, projects: [], dateRangeApplied }
 
-    // R67 E-02: the optional window narrows these two sums and nothing else --
-    // see OrgDashboardFilters' own comment for why the BOQ-derived figures are
-    // deliberately left alone.
+    // R67 E-02/E-23: the optional window narrows these two sums and nothing
+    // else -- see OrgDashboardFilters' own comment for why the BOQ-derived
+    // figures are deliberately left alone. Both lanes built this
+    // independently; `from`/`to` (normalized once above) is the form kept.
     const revenueConditions = [eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.projectId, ids), sql`${erpSalesInvoices.status} != 'cancelled'`]
     if (from) revenueConditions.push(gte(erpSalesInvoices.postingDate, from))
     if (to) revenueConditions.push(lte(erpSalesInvoices.postingDate, to))
@@ -921,15 +996,37 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
       .groupBy(constructionExpenseEntries.projectId)
 
     const today = new Date().toISOString().slice(0, 10)
+    // R67 E-21: the "vs last week" cut-off, as a plain ISO date so the
+    // comparison happens in Postgres against the DATE column, not in JS.
+    const baselineDate = new Date(Date.now() - EARNED_VALUE_BASELINE_DAYS * 86400000).toISOString().slice(0, 10)
+    // R67 E-21: `due` and `withDueDate` are new, computed by the SAME
+    // grouped count this query already ran -- a task with no due date is
+    // neither late nor due, and a project with no dated task at all has no
+    // schedule to be "on track" against (hasSchedule below).
     const tasksByProject = await db.select({
       projectId: pmsIssues.projectId,
       total: sql<number>`count(*)`,
       delayed: sql<number>`count(*) filter (where ${pmsIssues.dueDate} < ${today})`,
+      due: sql<number>`count(*) filter (where ${pmsIssues.dueDate} >= ${today})`,
+      withDueDate: sql<number>`count(*) filter (where ${pmsIssues.dueDate} is not null)`,
     }).from(pmsIssues).where(and(eq(pmsIssues.orgId, ctx.orgId), inArray(pmsIssues.projectId, ids), eq(pmsIssues.isArchived, false)))
       .groupBy(pmsIssues.projectId)
 
-    // R67 D-02: count alongside the sum -- see ProjectDashboard.budget's own note.
-    const [budgetTotal] = await db.select({
+    // R67 E-21/E-23: was a single SUM over the whole org. Grouping it by
+    // cost-centre project gives the per-project ERP-ledger budget the
+    // launchpad's "Budget vs spend" row needs (`ledgerBudget` below), and
+    // totalLedgerBudget is the sum of the SAME rows -- one query instead of
+    // two, and the total can no longer disagree with the parts. Predicate is
+    // byte-for-byte the one the total used.
+    //
+    // R67 D-02 (folded in on rebase): the per-group line COUNT travels with the
+    // sum, so "no budget rows at all" stays distinguishable from "a budget that
+    // sums to zero". coalesce(sum(...), 0) cannot tell those apart on its own,
+    // and D-02's whole point is that totalLedgerBudget is null, never 0, when
+    // nothing matched. Grouping makes the count per project as well, which is
+    // what the per-row `ledgerBudget` field needs for exactly the same reason.
+    const budgetByProject = await db.select({
+      projectId: erpCostCenters.projectId,
       total: sql<number>`coalesce(sum(${erpBudgetLineItems.annualAmount}), 0)::float`,
       lines: sql<number>`count(${erpBudgetLineItems.id})::int`,
     })
@@ -937,6 +1034,7 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
       .innerJoin(erpBudgets, eq(erpBudgetLineItems.budgetId, erpBudgets.id))
       .innerJoin(erpCostCenters, eq(erpBudgets.costCenterId, erpCostCenters.id))
       .where(and(eq(erpBudgets.orgId, ctx.orgId), inArray(erpCostCenters.projectId, ids)))
+      .groupBy(erpCostCenters.projectId)
 
     // R38 (R-50/TC-40): the dashboard's per-project "value" now derives from
     // the project's own active BOQ (root lines only, same rootBoqLineItemsOnly
@@ -968,7 +1066,7 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
       ? await db.select({
           boqId: constructionBoqLineItems.boqId,
           total: sql<number>`coalesce(sum(${constructionBoqLineItems.amount}), 0)::float`,
-          budget: sql<number>`coalesce(sum(${constructionBoqLineItems.amount} * ${constructionBoqLineItems.budgetPercentage} / 100), 0)::float`,
+          budget: sql<number>`coalesce(sum(${constructionBoqLineItems.amount} * coalesce(${constructionBoqLineItems.budgetPercentage}, 0) / 100.0), 0)::float`,
         })
           .from(constructionBoqLineItems)
           .where(and(inArray(constructionBoqLineItems.boqId, activeBoqIds), isNull(constructionBoqLineItems.parentLineItemId)))
@@ -976,6 +1074,15 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
       : []
     const valueByBoqMap = new Map(valueByBoq.map((v) => [v.boqId, Number(v.total)]))
     const budgetByBoqMap = new Map(valueByBoq.map((v) => [v.boqId, Math.round(Number(v.budget) * 100) / 100]))
+
+    // R67 E-21 wrote a SECOND activity-log-percent query here, reading
+    // project_id straight off the entries table. It was deleted on rebase in
+    // favour of F-01's `progressByProject` below, which answers the same
+    // question by joining construction_activities and scoping on the ACTIVITY's
+    // org_id and project_id -- the authoritative parent of an entry. Two
+    // queries for one number is how two screens start disagreeing, and this
+    // lane's own E-21 note ("so the two screens cannot disagree") argued for
+    // exactly one. Per D-11, main's is canonical.
 
     // R67 D-62: the second half of projectValue, grouped in ONE query for every
     // project in scope rather than the per-project read the batched
@@ -997,7 +1104,10 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
 
     const revenueMap = new Map(revenueByProject.map((r) => [r.projectId, Number(r.total)]))
     const expenseMap = new Map(expensesByProject.map((r) => [r.projectId, Number(r.total)]))
-    const taskMap = new Map(tasksByProject.map((r) => [r.projectId, { total: Number(r.total), delayed: Number(r.delayed) }]))
+    const budgetMap = new Map(budgetByProject.map((r) => [r.projectId as string, Number(r.total)]))
+    const taskMap = new Map(tasksByProject.map((r) => [r.projectId, {
+      total: Number(r.total), delayed: Number(r.delayed), due: Number(r.due), withDueDate: Number(r.withDueDate),
+    }]))
 
     // R67 E-01 (R-007). The home dashboard's project row prints THREE things
     // the org payload did not carry: the activity-log percentage (small grey
@@ -1155,7 +1265,7 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
     // that one pre-existing inconsistency for the rare project with zero
     // non-superseded BOQs. getProjectDashboard (single project, still calls
     // earnedValueReport() directly, untouched here) keeps the old fallback.
-    const evByProject = new Map<string, { earnedValue: number; percentByValue: number } | null>()
+    const evByProject = new Map<string, { earnedValue: number; percentByValue: number; contractValue: number; earnedValuePrevWeek: number } | null>()
     try {
       if (activeBoqIds.length > 0 && constructionEnabled) {
         const allLineItems = await db.query.constructionBoqLineItems.findMany({
@@ -1166,6 +1276,8 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
 
         let qtyByItem = new Map<string, number>()
         let latestPercentByItem = new Map<string, number>()
+        let qtyByItemPrev = new Map<string, number>()
+        let latestPercentByItemPrev = new Map<string, number>()
         if (itemIds.length > 0) {
           // Same ARRAY[...] construction as latestBoqPerProject above (and
           // earnedValueReport()'s own equivalent query) -- sql.join, not a
@@ -1189,6 +1301,28 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
             ORDER BY boq_line_item_id, entry_date DESC
           `)) as { boq_line_item_id: string; percent_complete: number }[]
           latestPercentByItem = new Map(percentRows.map((r) => [r.boq_line_item_id, Number(r.percent_complete)]))
+
+          // R67 E-21 (R-204): the "vs last week" baseline. The SAME two
+          // queries, with the window closed at the baseline date, so the
+          // comparison is earned value computed by one formula at two points
+          // in time -- never a second formula, and never a stored snapshot
+          // this codebase does not keep. Two extra reads on the transaction
+          // already open; no additional pool connection (C06-21).
+          const evQtyRowsPrev = (await db.execute(sql`
+            SELECT boq_line_item_id, coalesce(sum(quantity_done), 0)::float AS total_qty
+            FROM compliance.construction_work_progress_entries
+            WHERE boq_line_item_id = ANY(ARRAY[${evItemIdsSql}]) AND entry_basis = 'DELTA' AND entry_date < ${baselineDate}
+            GROUP BY boq_line_item_id
+          `)) as { boq_line_item_id: string; total_qty: number }[]
+          qtyByItemPrev = new Map(evQtyRowsPrev.map((r) => [r.boq_line_item_id, Number(r.total_qty)]))
+
+          const percentRowsPrev = (await db.execute(sql`
+            SELECT DISTINCT ON (boq_line_item_id) boq_line_item_id, percent_complete
+            FROM compliance.construction_work_progress_entries
+            WHERE boq_line_item_id = ANY(ARRAY[${evItemIdsSql}]) AND entry_date < ${baselineDate}
+            ORDER BY boq_line_item_id, entry_date DESC
+          `)) as { boq_line_item_id: string; percent_complete: number }[]
+          latestPercentByItemPrev = new Map(percentRowsPrev.map((r) => [r.boq_line_item_id, Number(r.percent_complete)]))
         }
 
         const itemsByBoq = new Map<string, EvLineItem[]>()
@@ -1199,8 +1333,12 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         }
 
         for (const [projectId, boqId] of boqIdByProject) {
-          const ev = computeEarnedValue(itemsByBoq.get(boqId) ?? [], qtyByItem, latestPercentByItem)
-          evByProject.set(projectId, ev.contractValue > 0 ? { earnedValue: ev.earnedValue, percentByValue: ev.percentByValue } : null)
+          const items = itemsByBoq.get(boqId) ?? []
+          const ev = computeEarnedValue(items, qtyByItem, latestPercentByItem)
+          const evPrev = computeEarnedValue(items, qtyByItemPrev, latestPercentByItemPrev)
+          evByProject.set(projectId, ev.contractValue > 0
+            ? { earnedValue: ev.earnedValue, percentByValue: ev.percentByValue, contractValue: ev.contractValue, earnedValuePrevWeek: evPrev.earnedValue }
+            : null)
         }
       }
     } catch {
@@ -1223,6 +1361,7 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         boqContractValue: activeBoqId ? (valueByBoqMap.get(activeBoqId) ?? 0) : null,
         earnedValue: ev?.earnedValue ?? null,
       })
+      const tasks = taskMap.get(p.id)
       // Exactly what resolveProjectMoney derives as contractValue -- kept
       // under its own name here for spendOverValue below, which predates the
       // money model and reads more clearly against the BOQ-specific term.
@@ -1231,12 +1370,20 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         id: p.id, name: p.name,
         revenue: revenueMap.get(p.id) ?? 0,
         expenses,
-        taskCount: taskMap.get(p.id)?.total ?? 0,
-        delayedTaskCount: taskMap.get(p.id)?.delayed ?? 0,
+        spent: expenses,
+        taskCount: tasks?.total ?? 0,
+        delayedTaskCount: tasks?.delayed ?? 0,
+        tasksDue: tasks?.due ?? 0,
+        tasksLate: tasks?.delayed ?? 0,
+        hasSchedule: (tasks?.withDueDate ?? 0) > 0,
         value,
         // Same "no BOQ at all" rule as `value` directly above -- one active
         // BOQ produces both figures or neither.
         budget: activeBoqId ? (budgetByBoqMap.get(activeBoqId) ?? 0) : null,
+        // R67 E-23: null (not 0) when this project has no ERP budget rows at
+        // all -- "no budget set" is what the launchpad must say, never "AED 0".
+        // Distinct from `budget` above (BOQ-derived) -- see the type's own note.
+        ledgerBudget: budgetMap.get(p.id) ?? null,
         // R67 F-01. 0 (not null) when nothing has been logged yet -- "no
         // progress recorded" IS zero percent complete, unlike earnedValue below
         // where "no BOQ" is a genuinely different state from "a BOQ worth zero".
@@ -1248,6 +1395,7 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         projectValue: money.projectValue,
         projectValueSource: money.projectValueSource,
         earnedValue: money.earnedValue,
+        earnedValuePrevWeek: ev?.earnedValuePrevWeek ?? null,
         percentByValue: ev?.percentByValue ?? null,
         percentByActivity: averageLatestPercent(percentsByProject.get(p.id) ?? []),
         // A null contract value cannot be exceeded -- "we do not know the
@@ -1271,8 +1419,12 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
       totalBudget: projectsWithBoqBudget.length === 0
         ? null
         : Math.round(projectsWithBoqBudget.reduce((s, p) => s + (p.budget ?? 0), 0) * 100) / 100,
-      // R67 D-02: null (never 0) when nothing matched at all.
-      totalLedgerBudget: Number(budgetTotal?.lines ?? 0) > 0 ? Number(budgetTotal!.total) : null,
+      // R67 D-02: null (never 0) when nothing matched at all -- the sum of the
+      // SAME per-project `ledgerBudget` rows the launchpad renders, so the
+      // total and the parts cannot disagree.
+      totalLedgerBudget: budgetByProject.reduce((s, r) => s + Number(r.lines), 0) > 0
+        ? budgetByProject.reduce((s, r) => s + Number(r.total), 0)
+        : null,
       totalRevenue: projectSummaries.reduce((s, p) => s + p.revenue, 0),
       totalExpenses: projectSummaries.reduce((s, p) => s + p.expenses, 0),
       projects: projectSummaries,

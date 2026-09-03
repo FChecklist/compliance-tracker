@@ -79,20 +79,31 @@ history" below, which already flagged this exact gap.
   the same posture this repo already applies to any other hard-to-reverse,
   outward-facing change. No `v1` route has been
   deprecated as of this writing — every entry below is additive.
-- **One breaking change has shipped: 2026-09-03 (R67 F-02).** Everything
-  before it was additive, and the contract version stayed at `1.0.0`
-  throughout. The 2026-09-03 entry below is the first change that removes a
-  response field and changes another's semantics, and it is labelled
-  **Breaking** with a migration note, per the rule above. It ships **under
-  `v1`, not behind a new `/api/v2/projexa/**` prefix**, which this policy
-  otherwise calls for — that deviation was a deliberate decision, is recorded
-  in the entry itself, and is flagged for the Owner rather than settled
-  quietly here. This policy exists so the *next* one has a rule to follow
-  instead of being decided ad hoc.
+- **TWO breaking changes have shipped, both on 2026-09-03**, from two R67
+  lanes that landed independently. Everything before them was additive and the
+  contract version stayed at `1.0.0` throughout.
+  1. **R67 F-02** — the permit and drawing registers stopped returning a
+     per-row signed Storage URL: one response field removed and another's
+     semantics changed.
+  2. **R67 E-32** — `GET /projexa/reports/{reportName}` now answers with the
+     `{columns, rows, totals, currency}` table by default, with `?format=legacy`
+     as the one-release escape hatch back to the old per-handler payload.
+
+  Both are labelled **Breaking** in their dated entries below, each with the
+  migration note this policy requires. Both ship **under `v1`, not behind a new
+  `/api/v2/projexa/**` prefix**, which this policy otherwise calls for — that
+  deviation was deliberate in each case, is recorded in the entry itself, and
+  is flagged for the Owner rather than settled quietly here. This policy exists
+  so the *next* one has a rule to follow instead of being decided ad hoc.
 
 ---
 
 ## 2026-09-03
+
+Two R67 lanes changed this surface on the same day and landed
+independently. Each lane keeps its own section below.
+
+### R67 lane F1 — performance (registers)
 
 R67 workstream F (performance) lane F1 — the register screens stopped paying a
 Supabase Storage round trip per row, and several list endpoints now answer in
@@ -101,7 +112,7 @@ the internal `GET /api/internal/pool-health` added by the same lane is **not**
 part of this surface (it is an `/api/internal/**` operator route, session-gated
 to admins) and is deliberately not listed as a public endpoint.
 
-### Breaking
+#### Breaking
 
 Both changes below exist because the registers used to mint a signed Storage
 URL for **every row on every list request** — a network round trip per permit
@@ -145,7 +156,7 @@ live against either endpoint, this is a real break and the `v2` route is the
 correct answer** — that call belongs to the Owner, and this paragraph exists so
 it is made deliberately rather than discovered.
 
-### Additive
+#### Additive
 
 - **`GET /api/v1/projexa/drawings/{id}/document-url` (new)** — mints one
   signed URL for one drawing, at the moment it is asked for. Scoped
@@ -194,6 +205,67 @@ it is made deliberately rather than discovered.
   already holds, and skipped entirely when nobody on the roster is
   subcontracted. A vendor row that has been deleted reports `null`, never a
   raw id.
+
+### R67 lane E2 — reports & charts
+
+R67 lane E2 (reports & charts). PROJEXA's Reports module rendered eighteen of
+the twenty-three named reports as a grid of their own JSON key names against
+raw values — `percentByValue: 25` beside `progressPercent: 60`, money with no
+currency, a cuid where a project name belongs. The fix gives every report one
+shape. That is a change to what this surface returns, so it is recorded here
+with the label it deserves.
+
+- **Breaking — `GET /api/v1/projexa/reports/{reportName}` now answers with a
+  table** (`3f609ad8`, R67 E-32). The default response body changed from each
+  report handler's own payload to a generic
+  `{ columns, rows, totals?, currency, note? }` contract: `columns` carry a
+  `key`, a `label`, a `unit` (`currency` | `percent` | `number` | `date` |
+  `text`) and an alignment, and the org's base currency is stated once on the
+  response instead of being implied per field. `totals` is present only where
+  summing the column is a real arithmetic statement (Project Status carries
+  none: adding a revenue, a budget and an expense produces a number that means
+  nothing).
+  - **Migration:** pass `?format=legacy` to receive the exact previous body.
+    It is served unchanged for **one release** and is now documented on the
+    published schema as a deprecated parameter. Callers reading specific
+    handler fields should either add that flag now or move to the `rows`.
+  - **Why no `/api/v2`:** the versioning policy above calls for a new prefix.
+    A second prefix for one route's body would have split the namespace and
+    left twenty-two unchanged reports answering on two paths; the escape hatch
+    gives integrators the same continuity a `v1` route beside a `v2` would,
+    on one path, with a removal target. Recorded as a deliberate deviation,
+    not an oversight — if the removal is taken, it needs its own dated entry
+    and the Owner's sign-off, exactly as the deprecation rule requires.
+  - **Additive alongside it:** `vendor-cost` rows now carry the supplier's
+    **name** as well as its `vendorId` (that report previously returned a bare
+    cuid where a company name belongs). `vendorId` and every existing total are
+    untouched.
+- **Added `GET /api/v1/projexa/reports/portfolio/budget-vs-actual`**
+  (`c79713d7`, R67 E-33) — revenue, budget and earned value per project across
+  the portfolio, in the same table contract, with optional `departmentId`,
+  `from` and `to`. Manager role or higher, the same gate the per-project
+  `budget-vs-actual` report already carries. Deliberately two segments deep: a
+  static `budget-vs-actual` sibling of `{reportName}` would have shadowed the
+  per-project report of that name.
+- **Added `GET /api/v1/projexa/work-progress/report/xlsx`** (`ea6c2923`,
+  R67 E-28) — the Work Progress Report as a real `.xlsx` workbook
+  (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`), built
+  from the same service reads and the same `computeRows` arithmetic as the
+  existing PDF route and the JSON report, so the three cannot disagree. Same
+  parameters as the PDF route, including `?mode=total|balance`.
+  `Content-Disposition` names the file after the project and the period.
+- **Changed — `GET /api/v1/projexa/dashboard/{projectId}`: `budget` is now
+  `null`, not `0`, when no ERP budget exists** (`d5242aef`, R67 E-39). The
+  service wrapped its sum in `coalesce(..., 0)`, so a project with no budget
+  reported a budget of zero and every consumer drew it as "over budget"
+  against a target that was never set. The field's type widens from `number`
+  to `number | null`; a caller that treated `0` as "no budget" keeps working,
+  a caller that assumed a number must null-check. Additive on the same
+  response: `progressByBoqValuePct` and `progressByActivityLogPct` (the two
+  progress figures under names that say what each is measured against) and
+  `generatedAt` (an ISO timestamp, so a client can stamp "as of" instead of
+  inventing a browser time). `progressByBoqValuePct` is redacted below manager
+  role, exactly as the `percentByValue` it renames.
 
 ## 2026-07-30
 

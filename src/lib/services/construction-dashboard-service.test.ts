@@ -1,5 +1,8 @@
 /// <reference types="bun-types" />
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
+// R67 E-39 (rebase): E-39's own numOrNull() folded into main's numOrNull(),
+// which already had every call site -- one function, not two. See its comment.
+import { numOrNull } from "./construction-dashboard-service"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { averageLatestPercent, resolveProjectMoney } from "./construction-dashboard-service"
@@ -103,12 +106,22 @@ describe("construction-dashboard-service: getOrgDashboard carries progressPercen
   // R67 second-merge fix: progressPercent lives on the NAMED per-project type
   // OrgDashboardProjectSummary now (E-06's second merge folded F-01's inline
   // `projects: {...}[]` shape into the named type OrgDashboardSummary.projects
-  // already used), not inlined directly under OrgDashboardSummary's own block.
-  test("the per-project summary type declares progressPercent", () => {
-    const typeStart = CODE.indexOf("export type OrgDashboardProjectSummary")
-    expect(typeStart).toBeGreaterThan(-1)
-    const typeBlock = CODE.slice(typeStart, CODE.indexOf("\nexport ", typeStart + 1))
-    expect(typeBlock).toContain("progressPercent: number")
+  // already used), not inlined directly under OrgDashboardSummary's own block,
+  // and E-21/E-23's own rename of the row type (OrgDashboardProject) onto the
+  // same canonical name folded in here too.
+  test("the summary type declares progressPercent per project", () => {
+    const summaryStart = CODE.indexOf("export type OrgDashboardSummary")
+    expect(summaryStart).toBeGreaterThan(-1)
+    const summaryBlock = CODE.slice(summaryStart, CODE.indexOf("\nexport ", summaryStart + 1))
+    expect(summaryBlock).toContain("projects: OrgDashboardProjectSummary[]")
+
+    const rowStart = CODE.indexOf("export type OrgDashboardProjectSummary")
+    expect(rowStart).toBeGreaterThan(-1)
+    const rowBlock = CODE.slice(rowStart, CODE.indexOf("\nexport ", rowStart + 1))
+    expect(rowBlock).toContain("progressPercent: number")
+    // and NOT `number | null` -- F-01's reading, kept over E-21's, so "nothing
+    // logged yet" is 0% rather than "Not set". See the field's own comment.
+    expect(rowBlock).not.toContain("progressPercent: number | null")
   })
 
   test("it is derived from a grouped query, not a per-project call", () => {
@@ -438,14 +451,17 @@ describe("getOrgDashboard: lastProgressAt rides the query that already runs (R67
     // pinned. A per-project fan-out over the progress table would be the
     // regression this guards against.
     const progressReads = body.match(/construction_work_progress_entries/g) ?? []
-    // getOrgDashboard reads that table FOUR times in total, all of them
+    // getOrgDashboard reads that table SIX times in total, all of them
     // grouped/batched, never per-project: once for the activity percentages
     // (which now also carries entry_date), twice inside the earned-value
-    // block (quantities and latest percent per BOQ line), and once more for
-    // F-01's own grouped progressPercent-per-project query (landed on main
-    // after this guard was written; folded in, not fanned out -- see the
-    // "batched, not per-project" describe block above).
-    expect(progressReads.length).toBe(4)
+    // block (quantities and latest percent per BOQ line), twice more for
+    // E-21's own "vs last week" baseline read of that same pair (see
+    // earnedValuePrevWeek's own comment -- same two queries, window closed at
+    // the baseline date), and once more for F-01's own grouped
+    // progressPercent-per-project query (landed on main after this guard was
+    // written; folded in, not fanned out -- see the "batched, not per-project"
+    // describe block above).
+    expect(progressReads.length).toBe(6)
   })
 
   test("it is folded per project by a plain string comparison, so no time zone can reorder it", () => {
@@ -532,11 +548,15 @@ function fakeOrgDb(opts: { projects: { id: string; name: string }[]; boqByProjec
   const answerFor = (fields: Record<string, unknown>): unknown[] => {
     const keys = Object.keys(fields).sort().join(",")
     // The ERP annual ledger sum (erp_budget_line_items via the cost centre).
-    // R67 D-02 (second-merge fold-in): the statement also asks for `lines` --
-    // the row COUNT that tells "no budget set" (0 lines) apart from "a real
-    // budget that sums to zero" (lines > 0). This fixture is never about that
-    // distinction (it always has a real ledger row), so lines is a fixed 1.
-    if (keys === "lines,total") return [{ total: opts.ledgerTotal, lines: 1 }]
+    // R67 D-02/E-23 (second-merge fold-in): GROUPED by project now (E-23's own
+    // per-project `ledgerBudget` field needs the breakdown the portfolio total
+    // used to compute alone), so the statement also asks for `projectId`
+    // alongside the row COUNT (`lines`) that tells "no budget set" (0 lines)
+    // apart from "a real budget that sums to zero" (lines > 0). Every fixture
+    // in this describe block has exactly one project, so one row carries the
+    // whole ledgerTotal. This fixture is never about the lines distinction
+    // (it always has a real ledger row), so lines is a fixed 1.
+    if (keys === "lines,projectId,total") return [{ projectId: opts.projects[0]?.id, total: opts.ledgerTotal, lines: 1 }]
     // The per-BOQ root-line value AND budget -- one query, two figures.
     if (keys === "boqId,budget,total") {
       return Object.entries(opts.valueByBoq).map(([boqId, v]) => ({ boqId, total: v.total, budget: v.budget }))
@@ -678,10 +698,23 @@ describe("construction-dashboard-service: a missing ERP ledger budget is null, n
   })
 
   test("getOrgDashboard returns totalLedgerBudget from the row COUNT, not a coalesced sum", () => {
+    // R67 E-21/E-23 (second merge): the org-wide SUM this rule was written
+    // against became a query GROUPED by cost-centre project, because the
+    // launchpad renders an ERP-ledger budget PER project too (`ledgerBudget`
+    // on the per-project row). D-02's rule is unchanged and is still asserted:
+    // the total is decided by a row COUNT, so "no budget rows anywhere"
+    // reports null and never a coalesced 0. It is now the count summed over
+    // the same groups the per-project figures come from, which additionally
+    // means the total cannot disagree with the parts. The field itself is
+    // `totalLedgerBudget` (E-06's second merge freed `totalBudget` for the
+    // BOQ-derived portfolio sum).
     const body = functionBody("getOrgDashboard")
     expect(body).toMatch(/lines:\s*sql<number>`count\(/)
-    expect(body).toMatch(/totalLedgerBudget:\s*Number\(budgetTotal\?\.lines \?\? 0\) > 0 \? Number\(budgetTotal!\.total\) : null/)
+    expect(body).toMatch(/totalLedgerBudget: budgetByProject\.reduce\(\(s, r\) => s \+ Number\(r\.lines\), 0\) > 0/)
+    expect(body).toMatch(/\?\s*budgetByProject\.reduce\(\(s, r\) => s \+ Number\(r\.total\), 0\)\s*\n\s*:\s*null,/)
+    // the failure this guards: a sum that cannot tell "no rows" from "zero".
     expect(body).not.toMatch(/totalLedgerBudget:\s*Number\(budgetTotal\?\.total \?\? 0\)/)
+    expect(body).not.toMatch(/totalLedgerBudget: budgetByProject\.reduce\(\(s, r\) => s \+ Number\(r\.total\), 0\),/)
   })
 
   test("getOrgDashboard's empty-scope early returns report a null ledger budget too, not 0", () => {
@@ -1025,5 +1058,180 @@ describe("getProjectDashboard: category progress and recent entries ride on the 
 
     expect(enablementSpy.mock.calls.length).toBe(1)
     expect(order).toEqual(["enablement", "transaction"])
+  })
+})
+
+describe("construction-dashboard-service: getOrgDashboard row shape (E-21)", () => {
+  const body = functionBody("getOrgDashboard")
+
+  const LAUNCHPAD_FIELDS = [
+    "contractValue",
+    "earnedValue",
+    "earnedValuePrevWeek",
+    "percentByValue",
+    "progressPercent",
+    // R67 E-06/E-23 (second merge): `budget` is the BOQ-derived figure Sumeet's
+    // company chart plots -- E-23's own separate `boqBudget` field was folded
+    // into this one, the name E-06's reconciled version already used.
+    "budget",
+    "spent",
+    "tasksDue",
+    "tasksLate",
+    "hasSchedule",
+    // R67 E-23: the ERP cost-centre (annual ledger) figure, kept under its own
+    // name distinct from the BOQ-derived `budget` above.
+    "ledgerBudget",
+  ]
+
+  for (const field of LAUNCHPAD_FIELDS) {
+    test(`every project row carries ${field}`, () => {
+      // Declared on the exported row type...
+      expect(CODE).toMatch(new RegExp(`export type OrgDashboardProjectSummary = \\{[\\s\\S]*?\\b${field}\\b[\\s\\S]*?\\n\\}`))
+      // ...and actually populated by the mapping, not just typed.
+      expect(body).toMatch(new RegExp(`\\n\\s*${field}:`))
+    })
+  }
+
+  test("the row type is what getOrgDashboard's summary promises", () => {
+    expect(CODE).toMatch(/projects: OrgDashboardProjectSummary\[\]/)
+  })
+
+  test("no per-project fan-out: nothing is awaited inside a .map() over the project rows", () => {
+    // The R43_MGR_01 regression shape -- `Promise.all(projectRows.map(async ...))`
+    // is what put 2N nested transactions on a 5-connection pool.
+    expect(body).not.toMatch(/\.map\(\s*async/)
+    expect(body).not.toMatch(/Promise\.all\(/)
+  })
+
+  test("progressPercent is a grouped query, not one read per project", () => {
+    // R67 E-21 (rebase): asserted against F-01's query, which is the one that
+    // survived. E-21 had written a second query reading project_id off the
+    // ENTRIES table; F-01's joins construction_activities and scopes on the
+    // activity's own org_id/project_id, and two queries for one number is how
+    // two screens start disagreeing. See the deletion note in the source.
+    expect(body).toMatch(/DISTINCT ON \(e\.activity_id\)/)
+    expect(body).toMatch(/GROUP BY latest\.project_id/)
+    // exactly ONE activity-log-percent query in this function.
+    expect(body.match(/avg\([a-z.]*percent_complete\)/g)?.length).toBe(1)
+  })
+
+  test("ledgerBudget is grouped per cost-centre project and the org total is the sum of those same rows", () => {
+    expect(body).toMatch(/groupBy\(erpCostCenters\.projectId\)/)
+    expect(body).toMatch(/totalLedgerBudget: budgetByProject\.reduce\(/)
+  })
+
+  test("earnedValuePrevWeek reuses computeEarnedValue over a date-windowed read, never a second formula", () => {
+    expect(body).toMatch(/entry_date < \$\{baselineDate\}/)
+    // computeEarnedValue is called twice in this function: now, and at the baseline.
+    expect(body.match(/computeEarnedValue\(/g)?.length).toBe(2)
+  })
+
+  test("EARNED_VALUE_BASELINE_DAYS is exported so the client can name the window it is comparing against", () => {
+    expect(CODE).toMatch(/export const EARNED_VALUE_BASELINE_DAYS = 7/)
+  })
+
+  test("E-23: from/to narrow revenue and expenses ONLY -- never the BOQ-derived budget", () => {
+    // A budget percentage is a property of a BOQ line, not of a period.
+    // Applying the range to it would report a full-BOQ budget beside a
+    // three-week revenue figure and call the comparison meaningful.
+    expect(body).toMatch(/revenueConditions\.push\(gte\(erpSalesInvoices\.postingDate/)
+    expect(body).toMatch(/expenseConditions\.push\(gte\(constructionExpenseEntries\.expenseDate/)
+    const boqBudgetQuery = body.slice(body.indexOf("const valueByBoq ="), body.indexOf("const valueByBoqMap"))
+    expect(boqBudgetQuery).not.toMatch(/filters\.(from|to)/)
+    expect(boqBudgetQuery).toMatch(/budgetPercentage/)
+  })
+
+  test("ledgerBudget is null-not-zero when the project has no budget rows, and progressPercent is F-01's 0", () => {
+    // ledgerBudget: `?? null`, never `?? 0` -- "no budget rows" and "a budget
+    // of zero" are different facts and the launchpad renders them differently.
+    expect(body).toMatch(/ledgerBudget: budgetMap\.get\(p\.id\) \?\? null/)
+    // progressPercent: E-21 sent null here and F-01 sends 0. F-01 reached main
+    // first and its reading is the one kept, because "no progress recorded" IS
+    // zero percent complete -- unlike a missing BOQ or a missing budget, where
+    // there is no figure at all. Pinned so the two lanes cannot re-diverge.
+    expect(body).toContain("progressPercent: Math.round(progressMap.get(p.id) ?? 0)")
+    expect(body).not.toMatch(/progressPercent:.*\?\? null/)
+  })
+})
+// R67 E-39 (R-271 / R-297 / R-293). THE PROJECT DASHBOARD PAYLOAD.
+//
+// The defect was one `coalesce(..., 0)`: a project with no ERP cost-centre
+// budget reported a budget of ZERO, and the Budget vs Actual card then drew a
+// full bar with an up arrow and the words "over budget" against a target of
+// zero -- permanently, for every project that does not run VERIDIAN's ERP
+// budgets, which is most of them.
+//
+// numOrNull is the rule itself and is tested for real below. The rest are
+// source-shape guards, in the same spirit (and with the same stated limits) as
+// the pool-deadlock guards at the top of this file: they catch the exact
+// regression -- re-adding the coalesce, or dropping one of the named fields --
+// not every possible way to get this wrong. A live-database assertion is NOT
+// run here; this lane has no database.
+describe("construction-dashboard-service: numOrNull (E-39)", () => {
+  test("SQL NULL becomes null, never 0 -- the whole point", () => {
+    // postgres.js hands a sum() over zero rows back as null, and Number(null)
+    // is 0. That silent coercion is the bug.
+    expect(numOrNull(null)).toBe(null)
+    expect(numOrNull(undefined)).toBe(null)
+  })
+
+  test("a real zero stays a real zero", () => {
+    expect(numOrNull(0)).toBe(0)
+    expect(numOrNull("0")).toBe(0)
+  })
+
+  test("numeric strings (what postgres returns for numeric columns) are parsed", () => {
+    expect(numOrNull("1625.5")).toBe(1625.5)
+  })
+
+  test("a value that is not a number is null, not NaN -- NaN renders as a figure", () => {
+    expect(numOrNull("not a number")).toBe(null)
+  })
+})
+
+describe("construction-dashboard-service: getProjectDashboard payload (E-39)", () => {
+  // R67 E-39 MERGE NOTE (rebase onto main, 2026-09-03). This block was written
+  // as source-shape guards over getProjectDashboard's own body: it asserted the
+  // budget query was not coalesced, and that the named fields were returned
+  // from the literal in that function. While the lane sat on the branch, F-27
+  // replaced ALL of that with ONE SQL statement plus the pure, exported
+  // toProjectDashboard(), so there is no longer a per-project budget query in
+  // that function to inspect.
+  //
+  // The RULES under test are unchanged, so they are restated against the code
+  // that now decides them -- and restated as BEHAVIOUR rather than source text,
+  // which is a stronger test than the one it replaces. The budget rule itself
+  // ("no rows" is null, "a budget of zero" is 0) is already covered
+  // behaviourally by the "a missing budget is null, never 0" suite above, via
+  // the row COUNT that F-27's statement returns; it is not duplicated here.
+  test("both progress bases are returned under names that say what they measure", async () => {
+    const { toProjectDashboard } = await loadService()
+    // Two different progress figures reach this screen and both were called
+    // "progress"; a reader comparing 60% with 0% could not tell they measure
+    // different things rather than contradicting each other.
+    const d = toProjectDashboard(SQL_ROW, true)
+    expect(d.progressByActivityLogPct).toBe(Math.round(SQL_ROW.progress_percent))
+    expect(d.progressByBoqValuePct).toBe(d.percentByValue)
+    // The originals stay -- other consumers read them.
+    expect(d.progressPercent).toBe(d.progressByActivityLogPct)
+  })
+
+  test("the BOQ-value base is null, not 0, when there is no BOQ to measure against", async () => {
+    const { toProjectDashboard } = await loadService()
+    // The distinction the two names exist to make: "nothing logged" is 0% on
+    // the activity log, while "no BOQ at all" is not a percentage of anything.
+    const d = toProjectDashboard({ ...SQL_ROW, ev_items: [], progress_percent: 0 }, true)
+    expect(d.progressByActivityLogPct).toBe(0)
+    expect(d.progressByBoqValuePct).toBeNull()
+  })
+
+  test("generatedAt travels with the figures, so every tile can say 'as of'", async () => {
+    const { toProjectDashboard } = await loadService()
+    const before = Date.now()
+    const d = toProjectDashboard(SQL_ROW, true)
+    expect(typeof d.generatedAt).toBe("string")
+    const stamped = Date.parse(d.generatedAt)
+    expect(Number.isNaN(stamped)).toBe(false)
+    expect(stamped).toBeGreaterThanOrEqual(before - 1000)
   })
 })

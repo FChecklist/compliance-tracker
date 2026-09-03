@@ -268,6 +268,20 @@ export async function workProgressReport(
 // real behavior/return shape as before for every existing caller, zero
 // duplication for the new monthly variant (report-engine-service.ts's
 // computeMonthlyProjectReport formula).
+// R67 E-22 (R-199/R-207): Sumeet's Weekly Project report is a table with DAY
+// COLUMNS and CATEGORY ROWS, not four week-total scalars. The four measures
+// this function already computes are exactly the rows; this is the same
+// window, grouped by date instead of collapsed, so a day column and the
+// week total can never disagree -- the total is the sum of the days.
+export type ProjectPeriodDay = {
+  date: string
+  labourCost: number
+  workersPresent: number
+  expenseTotal: number
+  progressEntriesLogged: number
+  diaryEntries: number
+}
+
 export async function projectPeriodReport(ctx: { orgId: string }, projectId: string, periodStart: string, periodEnd: string) {
   await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -278,6 +292,40 @@ export async function projectPeriodReport(ctx: { orgId: string }, projectId: str
     const diaryEntries = await db.query.constructionSiteDiaries.findMany({ where: and(eq(constructionSiteDiaries.orgId, ctx.orgId), eq(constructionSiteDiaries.projectId, projectId), gte(constructionSiteDiaries.diaryDate, periodStart), lt(constructionSiteDiaries.diaryDate, periodEnd)) })
     const [expenseTotal] = await db.select({ total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float` }).from(constructionExpenseEntries)
       .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), eq(constructionExpenseEntries.projectId, projectId), gte(constructionExpenseEntries.expenseDate, periodStart), lt(constructionExpenseEntries.expenseDate, periodEnd)))
+
+    // R67 E-22: the same four measures, per day. Three grouped reads on the
+    // transaction already open -- no extra pool connection (C06-21), and the
+    // day rows are built from the SAME predicates as the totals above, so a
+    // column and the total cannot drift apart.
+    const attendanceByDay = await db.select({
+      date: constructionAttendance.attendanceDate,
+      cost: sql<number>`coalesce(sum(${constructionAttendance.dailyCost}), 0)::float`,
+      presentCount: sql<number>`count(*) filter (where ${constructionAttendance.status} = 'present')`,
+    }).from(constructionAttendance)
+      .where(and(eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId), gte(constructionAttendance.attendanceDate, periodStart), lt(constructionAttendance.attendanceDate, periodEnd)))
+      .groupBy(constructionAttendance.attendanceDate)
+
+    const expensesByDay = await db.select({
+      date: constructionExpenseEntries.expenseDate,
+      total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float`,
+    }).from(constructionExpenseEntries)
+      .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), eq(constructionExpenseEntries.projectId, projectId), gte(constructionExpenseEntries.expenseDate, periodStart), lt(constructionExpenseEntries.expenseDate, periodEnd)))
+      .groupBy(constructionExpenseEntries.expenseDate)
+
+    const progressByDay = await db.select({
+      date: constructionWorkProgressEntries.entryDate,
+      count: sql<number>`count(*)`,
+    }).from(constructionWorkProgressEntries)
+      .where(and(eq(constructionWorkProgressEntries.orgId, ctx.orgId), eq(constructionWorkProgressEntries.projectId, projectId), gte(constructionWorkProgressEntries.entryDate, periodStart), lt(constructionWorkProgressEntries.entryDate, periodEnd)))
+      .groupBy(constructionWorkProgressEntries.entryDate)
+
+    const byDay = buildPeriodDays(periodStart, periodEnd, {
+      attendance: attendanceByDay.map((r) => ({ date: String(r.date), cost: Number(r.cost), presentCount: Number(r.presentCount) })),
+      expenses: expensesByDay.map((r) => ({ date: String(r.date), total: Number(r.total) })),
+      progress: progressByDay.map((r) => ({ date: String(r.date), count: Number(r.count) })),
+      diaries: diaryEntries.map((d) => ({ date: String(d.diaryDate) })),
+    })
+
     return {
       periodStart, periodEnd,
       progressEntriesLogged: Number(progressCount?.count ?? 0),
@@ -285,14 +333,59 @@ export async function projectPeriodReport(ctx: { orgId: string }, projectId: str
       workersPresent: Number(attendanceCost?.presentCount ?? 0),
       diaryEntries: diaryEntries.length,
       expenseTotal: Number(expenseTotal?.total ?? 0),
+      byDay,
     }
   })
+}
+
+/**
+ * R67 E-22. Turns four grouped-by-date reads into ONE row per calendar day in
+ * [periodStart, periodEnd) -- including the days with nothing on them, which
+ * is the whole point of a day-column report: a blank Thursday is a fact, and
+ * a table that silently omits Thursday makes the week look shorter than it is.
+ *
+ * Pure, so the day-filling rule is unit-testable without a database.
+ */
+export function buildPeriodDays(
+  periodStart: string,
+  periodEnd: string,
+  data: {
+    attendance: { date: string; cost: number; presentCount: number }[]
+    expenses: { date: string; total: number }[]
+    progress: { date: string; count: number }[]
+    diaries: { date: string }[]
+  }
+): ProjectPeriodDay[] {
+  const attendanceByDate = new Map(data.attendance.map((r) => [r.date, r]))
+  const expenseByDate = new Map(data.expenses.map((r) => [r.date, r.total]))
+  const progressByDate = new Map(data.progress.map((r) => [r.date, r.count]))
+  const diaryByDate = new Map<string, number>()
+  for (const d of data.diaries) diaryByDate.set(d.date, (diaryByDate.get(d.date) ?? 0) + 1)
+
+  const days: ProjectPeriodDay[] = []
+  // Iterate on UTC midnights so a DST boundary cannot drop or duplicate a day.
+  const end = Date.parse(`${periodEnd}T00:00:00Z`)
+  for (let t = Date.parse(`${periodStart}T00:00:00Z`); Number.isFinite(t) && Number.isFinite(end) && t < end; t += 86400000) {
+    const date = new Date(t).toISOString().slice(0, 10)
+    const attendance = attendanceByDate.get(date)
+    days.push({
+      date,
+      labourCost: attendance?.cost ?? 0,
+      workersPresent: attendance?.presentCount ?? 0,
+      expenseTotal: expenseByDate.get(date) ?? 0,
+      progressEntriesLogged: progressByDate.get(date) ?? 0,
+      diaryEntries: diaryByDate.get(date) ?? 0,
+    })
+  }
+  return days
 }
 
 export async function weeklyProjectReport(ctx: { orgId: string }, projectId: string, weekStart: string) {
   const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 86400000).toISOString().slice(0, 10)
   const result = await projectPeriodReport(ctx, projectId, weekStart, weekEnd)
-  return { weekStart, weekEnd, progressEntriesLogged: result.progressEntriesLogged, labourCost: result.labourCost, workersPresent: result.workersPresent, diaryEntries: result.diaryEntries, expenseTotal: result.expenseTotal }
+  // R67 E-22: byDay is passed straight through -- Sumeet's Weekly Project
+  // sheet is day columns over category rows, and this is those columns.
+  return { weekStart, weekEnd, progressEntriesLogged: result.progressEntriesLogged, labourCost: result.labourCost, workersPresent: result.workersPresent, diaryEntries: result.diaryEntries, expenseTotal: result.expenseTotal, byDay: result.byDay }
 }
 
 // 3. Project Status Report -- reuses the project dashboard verbatim.
@@ -303,12 +396,54 @@ export async function projectStatusReport(ctx: { orgId: string }, projectId: str
 
 // 4. Attendance Report -- present/absent/half_day counts + cost, by trade.
 //
+// R67 E-22 (R-199): Sumeet's Attendance sheet is ONE ROW PER WORKER --
+// S.No | ID | Name | Company | Trade | Salary -- with a subtotal per trade.
+// The trade x status roll-up this function already returned cannot produce
+// that sheet (it has no worker identity in it at all), so `workers` and
+// `tradeSubtotals` are added alongside it. `rows` is untouched, because the
+// existing consumers (report-engine-service's definition rows, the projexa
+// generic renderer) read it.
+export type AttendanceWorkerRow = {
+  rosterId: string
+  /** The customer's own free-text worker label -- his "ID" column. null when never set. */
+  employeeCode: string | null
+  name: string
+  /** The subcontractor the worker belongs to -- his "Company" column. null for direct labour. */
+  company: string | null
+  trade: string | null
+  daysPresent: number
+  daysHalf: number
+  daysAbsent: number
+  /** Summed daily_cost over the period -- his "Salary" column. */
+  salary: number
+}
+
+export type AttendanceTradeSubtotal = { trade: string; workers: number; daysPresent: number; salary: number }
+
+/** Pure: the trade subtotal rows under Sumeet's worker table, in the same trade order the rows appear in. */
+export function rollUpAttendanceByTrade(workers: AttendanceWorkerRow[]): AttendanceTradeSubtotal[] {
+  const byTrade = new Map<string, AttendanceTradeSubtotal>()
+  for (const w of workers) {
+    // A worker with no trade recorded is still a real worker with a real
+    // wage -- bucketed under a named "Not set" subtotal rather than dropped,
+    // so the subtotals still add up to the table.
+    const trade = w.trade?.trim() || "Not set"
+    const row = byTrade.get(trade) ?? { trade, workers: 0, daysPresent: 0, salary: 0 }
+    row.workers += 1
+    row.daysPresent += w.daysPresent
+    row.salary += w.salary
+    byTrade.set(trade, row)
+  }
+  return Array.from(byTrade.values())
+}
+
 // R67 D-31: dateFrom/dateTo are additive and optional. Omitting both keeps the
 // existing all-time behaviour byte for byte, which is what the report registry
 // (and therefore every existing caller) does -- the dispatcher passes only
 // (ctx, projectId). They exist so the Manpower screen's "Today / This week /
 // This month" panel can reuse THIS aggregate rather than a second, parallel
-// grouping written for the screen.
+// grouping written for the screen. E-22's worker rows below are built from the
+// SAME date-filtered read, so the sheet and the roll-up cover one period.
 export async function attendanceReport(ctx: { orgId: string }, projectId: string, dateFrom?: string, dateTo?: string) {
   // R67 F-10: the memoised check, not requireConstructionEnabled() directly.
   await ensureConstructionEnabled(ctx.orgId)
@@ -325,7 +460,47 @@ export async function attendanceReport(ctx: { orgId: string }, projectId: string
       .innerJoin(constructionLabourRoster, eq(constructionAttendance.rosterId, constructionLabourRoster.id))
       .where(and(...conditions))
       .groupBy(constructionLabourRoster.trade, constructionAttendance.status)
-    return { rows }
+
+    // One grouped read on the SAME transaction -- the vendor join is a LEFT
+    // join because direct (non-subcontracted) labour has no vendorId, and an
+    // inner join would silently drop exactly the workers a main contractor
+    // employs itself.
+    const workerRows = await db.select({
+      rosterId: constructionLabourRoster.id,
+      employeeCode: constructionLabourRoster.employeeCode,
+      name: constructionLabourRoster.name,
+      company: erpSuppliers.supplierName,
+      trade: constructionLabourRoster.trade,
+      daysPresent: sql<number>`count(*) filter (where ${constructionAttendance.status} = 'present')`,
+      daysHalf: sql<number>`count(*) filter (where ${constructionAttendance.status} = 'half_day')`,
+      daysAbsent: sql<number>`count(*) filter (where ${constructionAttendance.status} = 'absent')`,
+      salary: sql<number>`coalesce(sum(${constructionAttendance.dailyCost}), 0)::float`,
+    }).from(constructionAttendance)
+      .innerJoin(constructionLabourRoster, eq(constructionAttendance.rosterId, constructionLabourRoster.id))
+      .leftJoin(erpSuppliers, eq(constructionLabourRoster.vendorId, erpSuppliers.id))
+      // R67 E-22 x D-31 (resolved on rebase): the SAME `conditions` the trade
+      // roll-up above uses, date filter included. E-22 wrote this query before
+      // D-31 added dateFrom/dateTo, so it carried its own org+project where
+      // clause; left that way, a caller passing a range would get a trade
+      // roll-up for the range and a worker sheet for all time, on one sheet,
+      // with subtotals that do not reconcile.
+      .where(and(...conditions))
+      .groupBy(constructionLabourRoster.id, constructionLabourRoster.employeeCode, constructionLabourRoster.name, erpSuppliers.supplierName, constructionLabourRoster.trade)
+      .orderBy(constructionLabourRoster.trade, constructionLabourRoster.name)
+
+    const workers: AttendanceWorkerRow[] = workerRows.map((r) => ({
+      rosterId: r.rosterId,
+      employeeCode: r.employeeCode,
+      name: r.name,
+      company: r.company,
+      trade: r.trade,
+      daysPresent: Number(r.daysPresent),
+      daysHalf: Number(r.daysHalf),
+      daysAbsent: Number(r.daysAbsent),
+      salary: Number(r.salary),
+    }))
+
+    return { rows, workers, tradeSubtotals: rollUpAttendanceByTrade(workers) }
   })
 }
 
@@ -976,9 +1151,22 @@ export type BudgetLineInput = {
   vendorId: string | null
   vendorAmount: string | number | null
   category: string | null
-  /** R67 lane D22 (D-41): a child line's Qty/Rate are DERIVED, so the screen must render them as derived rather than as independently editable. Optional -- the pure tests build rows without it. */
+  /**
+   * R67 E-26 (R-212): null on a root line, the parent's id on a sub-task.
+   * Also drives lane D22 (D-41)'s rule that a child line's Qty/Rate are
+   * DERIVED, so the screen must render them as derived rather than as
+   * independently editable. Optional so the many existing callers that build
+   * a BudgetLineInput by hand keep compiling; absent is read as "root".
+   */
   parentLineItemId?: string | null
 }
+
+/**
+ * R67 E-26 (R-212). THE SENTENCE THIS REPORT NOW OBEYS, printed on the report
+ * itself so a QS reading a printout knows the rule the totals follow.
+ */
+export const DERIVED_BUDGET_NOTE =
+  "Totals sum root BOQ lines only. A sub-task's budget is derived from its parent line, so it is shown for detail and never added into a total."
 
 export function toBudgetLine(
   item: BudgetLineInput,
@@ -1059,6 +1247,17 @@ export function toBudgetLine(
     // consumers keep working, and is the one to drop once they have moved.
     variance: rawVariance !== null ? Math.round(rawVariance * 100) / 100 : null,
     budgetRemaining: rawVariance !== null ? Math.round(rawVariance * 100) / 100 : null,
+    // R67 E-26 (R-212): the two facts the UI needs to show a sub-task without
+    // COUNTING it. A sub-task's amount is AMOUNT_root x breakdownPercentage/100,
+    // so its budget is derived from the root's and the root row already carries
+    // the whole value -- see the roots-only totals in boqBudgetVarianceReport.
+    budgetIsDerived: (item.parentLineItemId ?? null) !== null,
+    /**
+     * Filled in by the caller that can see the whole BOQ (a pure row projection
+     * cannot know its parent's budget). null on a root, and on a child whose
+     * parent is not among the rows being reported.
+     */
+    percentOfParent: null as number | null,
     // R67 lane D22 (item D-54). `actual` is an ALIAS of `committed` above:
     // Sumeet's "Actual" column is vendor + material + manpower, which is exactly
     // what computeBudgetVarianceLine() already sums. Kept as its own name
@@ -1080,6 +1279,101 @@ export function toBudgetLine(
     _rawBudget: rawBudget,
     _rawCommitted: rawCommitted,
     _rawVariance: rawVariance,
+  }
+}
+
+export type BudgetLine = ReturnType<typeof toBudgetLine>
+
+/**
+ * R67 E-26 (R-212). THE FIX, and the reason this report's totals changed.
+ *
+ * THE BUG. The totals summed EVERY line -- roots and their derived sub-tasks
+ * alike. This file's own `rootBoqLineItemsOnly` rule (and scopeReport, and
+ * categoryBoqAmountsReport, and earnedValueReport, and projexa's WPR grand
+ * total) already records why that is wrong: a sub-task's amount is
+ * AMOUNT_root x breakdownPercentage/100, so the root row already carries the
+ * full value and adding the child on top counts the same money twice. The
+ * observed consequence was a QS being shown two budgets for one BOQ that were
+ * 35% apart -- this report's total against the Work Progress Report's.
+ *
+ * WHAT DID NOT CHANGE. Every line is still RETURNED, child rows included: a QS
+ * needs to see the breakdown, and hiding the rows would trade one wrong answer
+ * for a missing one. Each row says which it is (`parentLineItemId`,
+ * `budgetIsDerived`) and what share of its parent it represents
+ * (`percentOfParent`), so the UI can show a child without counting it.
+ *
+ * WHY THIS IS A SEPARATE, PURE FUNCTION. E-26's acceptance is a unit test on
+ * the roots-only rule, and the report around it needs a database. It is NOT a
+ * second implementation of the arithmetic: every figure here is summed from the
+ * `_raw*` values toBudgetLine() already computed through
+ * computeBudgetVarianceLine(), so there remains exactly ONE place that decides
+ * what a line's budget, committed cost and variance are. (Two exported
+ * functions each computing "the variance" is the defect this file's own D-11
+ * merge note records, and it is not repeated here.)
+ *
+ * ROUNDING. Unchanged from the R48 gap-closure rule: totals are summed from the
+ * RAW per-line figures and rounded once at the end, so they reconcile exactly
+ * to a raw SQL SUM over the same rows rather than drifting by accumulated
+ * per-line rounding.
+ */
+export function summariseBudgetLines(lines: BudgetLine[]) {
+  // Each sub-task's share of its parent's budget, so the UI can print "35% of
+  // parent" beside an indented row instead of leaving the reader to work out
+  // why a child's budget is what it is. Done here rather than in toBudgetLine
+  // because only this scope can see the parent row.
+  const rawBudgetById = new Map(lines.map((l) => [l.lineItemId, l._rawBudget]))
+  for (const line of lines) {
+    if (line.parentLineItemId === null) continue
+    const parentBudget = rawBudgetById.get(line.parentLineItemId)
+    if (parentBudget === undefined || parentBudget === 0) continue
+    line.percentOfParent = Math.round((line._rawBudget / parentBudget) * 100 * 100) / 100
+  }
+
+  // Applying the roots-only rule to only SOME of the money totals would just
+  // move the disagreement, so it applies to every one of them.
+  const rootLines = lines.filter((l) => l.parentLineItemId === null)
+
+  const totalBudget = Math.round(rootLines.reduce((s, l) => s + l._rawBudget, 0) * 100) / 100
+  const totalVendorAmount = Math.round(rootLines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100
+  // R67 D-26: null, not 0, when NO line carries any committed cost -- the tiles
+  // then read "Committed AED –" rather than a zero that looks like a measured
+  // figure. One costed line is enough to make the total real.
+  const costedLines = rootLines.filter((l) => l._rawCommitted !== null)
+  const totalCommitted = costedLines.length === 0 ? null : Math.round(costedLines.reduce((s, l) => s + (l._rawCommitted ?? 0), 0) * 100) / 100
+  const totalVariance = costedLines.length === 0 ? null : Math.round(costedLines.reduce((s, l) => s + (l._rawVariance ?? 0), 0) * 100) / 100
+  // R67 lane I (WS-I item I-03): totalled once, at the end, over the raw
+  // per-line values -- the same single-rounding rule as above.
+  const totalMaterialAmount = Math.round(rootLines.reduce((s, l) => s + (l.materialAmount ?? 0), 0) * 100) / 100
+  const totalManpowerAmount = Math.round(rootLines.reduce((s, l) => s + (l.manpowerAmount ?? 0), 0) * 100) / 100
+  // R67 lane D22 (item D-54): `actual` is the SAME three components `committed`
+  // already sums (vendor + material + manpower), so it is an ALIAS of it, not a
+  // fourth figure that could drift.
+  const totalActual = totalCommitted
+  // R67 lane D22 (item D-54, rec R-183): what has been billed against this BOQ,
+  // root lines only for the same reason every other money total here is --
+  // a sub-task's revenue (if it ever carried one) is already inside its
+  // root's figure.
+  const totalRevenue = Math.round(rootLines.reduce((s, l) => s + (l.revenue ?? 0), 0) * 100) / 100
+
+  return {
+    lines: lines.map(({ _rawBudget, _rawCommitted, _rawVariance, ...line }) => line),
+    totalBudget,
+    totalVendorAmount,
+    totalCommitted,
+    totalVariance,
+    budgetRemaining: totalVariance,
+    totalMaterialAmount,
+    totalManpowerAmount,
+    totalActual,
+    totalRevenue,
+    // Counts, not money: these describe the ROWS the table shows, which is
+    // every line including sub-tasks, so they are deliberately NOT filtered to
+    // roots the way the money totals are. `note` states that rule on the report
+    // itself, so a QS reading a printout knows which population each figure
+    // covers.
+    linesOverBudget: lines.filter((l) => isLineOverBudget(l.variance)).length,
+    lineCount: lines.length,
+    note: DERIVED_BUDGET_NOTE,
   }
 }
 
@@ -1153,6 +1447,7 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
         filters: { categories: categoryFilter, vendorId: vendorFilter, groupBy },
         revenueBudgetActual: emptyFold,
         categorySubtotals: [],
+        note: DERIVED_BUDGET_NOTE,
       }
     }
 
@@ -1228,20 +1523,35 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
     // budget/variance alongside the rounded display value, and total from
     // the RAW figures, rounding only once at the very end -- the totals now
     // reconcile exactly to a raw SQL sum over the same rows.
-    // R67 merge (D-11, lane D1 x lane D21 x lane D22 x lane E1): the row is
-    // built by toBudgetLine() above -- D1's pure extraction, computing through
-    // D21's computeBudgetVarianceLine so the projection and the arithmetic
-    // cannot drift apart, carrying D22's Actual/Revenue/parentLineItemId, and
-    // now E-07's root-only S.No/isRootLine (see toBudgetLine's own comment on
-    // its `sNo` parameter for why this is no longer a plain array index: a
-    // sub-task is part of the line above it, not a line of its own, so only
-    // root lines get a number and the rest read null).
+    // R67 merge (D-11, lane D1 x lane D21 x lane D22 x lane E1 x lane E2): the
+    // row is built by toBudgetLine() above -- D1's pure extraction, computing
+    // through D21's computeBudgetVarianceLine so the projection and the
+    // arithmetic cannot drift apart, carrying D22's
+    // Actual/Revenue/parentLineItemId, and now E-07's root-only S.No/isRootLine
+    // (see toBudgetLine's own comment on its `sNo` parameter for why this is no
+    // longer a plain array index: a sub-task is part of the line above it, not
+    // a line of its own, so only root lines get a number and the rest read
+    // null). E2's own E-26 fix (the same double-counting bug, reached
+    // independently) is superseded by this rootLines-only totalling below,
+    // which the empty-BOQ branch above also matches field-for-field.
     let sNoCounter = 0
     const lines = lineItems.map((item) => {
       const isRootLine = item.parentLineItemId === null
       const sNo = isRootLine ? ++sNoCounter : null
       return toBudgetLine(item, supplierNameById, sNo, revenueByLineItemId)
     })
+
+    // R67 E-23/E-26: each sub-task's share of its parent's budget, so the UI
+    // can print "35% of parent" beside an indented row instead of leaving the
+    // reader to work out why a child's budget is what it is. Done here rather
+    // than in toBudgetLine because only this scope can see the parent row.
+    const rawBudgetById = new Map(lines.map((l) => [l.lineItemId, l._rawBudget]))
+    for (const line of lines) {
+      if (line.parentLineItemId === null) continue
+      const parentBudget = rawBudgetById.get(line.parentLineItemId)
+      if (parentBudget === undefined || parentBudget === 0) continue
+      line.percentOfParent = Math.round((line._rawBudget / parentBudget) * 100 * 100) / 100
+    }
 
     // R67 E-06: ROOT LINES ONLY, for every total -- see sumRootLineBudgets'
     // own header for why summing the weighted sub-tasks too double-counts, and
@@ -1327,6 +1637,7 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
       // its parent's double-counts money; counting rows does not.)
       linesOverBudget: lines.filter((l) => isLineOverBudget(l.variance)).length,
       lineCount: lines.length,
+      note: DERIVED_BUDGET_NOTE,
     }
   })
 }
@@ -1427,13 +1738,22 @@ export async function materialConsumptionReport(ctx: { orgId: string }, projectI
 export async function vendorCostReport(ctx: { orgId: string }, projectId: string) {
   await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    // R67 E-32 (R-265): the vendor's NAME joins here. This returned a bare
+    // vendorId, so every consumer that rendered these rows -- the generic
+    // report renderer included -- put a raw cuid where a company name belongs.
+    // A LEFT join, and vendorName stays nullable, because a roster row can
+    // legitimately point at a supplier that has since been removed and a
+    // missing name must read as missing, not drop the cost off the report.
+    // Additive: `vendorId` and `total` are untouched for every existing caller.
     const rows = await db.select({
       vendorId: constructionLabourRoster.vendorId,
+      vendorName: erpSuppliers.supplierName,
       total: sql<number>`coalesce(sum(${constructionAttendance.dailyCost}), 0)::float`,
     }).from(constructionAttendance)
       .innerJoin(constructionLabourRoster, eq(constructionAttendance.rosterId, constructionLabourRoster.id))
+      .leftJoin(erpSuppliers, eq(constructionLabourRoster.vendorId, erpSuppliers.id))
       .where(and(eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId), sql`${constructionLabourRoster.vendorId} is not null`))
-      .groupBy(constructionLabourRoster.vendorId)
+      .groupBy(constructionLabourRoster.vendorId, erpSuppliers.supplierName)
     return { labourVendorCosts: rows, note: "Purchase-invoice-based vendor cost not included -- erp_purchase_invoices has no project_id yet." }
   })
 }
@@ -1784,17 +2104,34 @@ export type TimesheetStatusEntry = {
   hours: number
 }
 
-const APPROVAL_STATUSES = ["draft", "submitted", "approved", "rejected"] as const
+// R67 E-32 follow-up (E-36..E-40 group): typed, not Record<string, ...>.
+// `counts` was a Record with a STRING key, and spreading a string-indexed
+// record into an object literal produces a type with no known properties at
+// all -- so aggregateDesignerApprovalStatus()'s public return type was
+// `{ userId, userName }[]`, the four status buckets were invisible to
+// TypeScript, and E-32's report-table builder for this report referenced
+// `u.draft.hours` against a type that had no `draft`. Runtime values are
+// unchanged; the keys are simply now declared.
+type ApprovalStatusKey = TimesheetStatusEntry["approvalStatus"]
+type ApprovalStatusCount = { hours: number; entries: number }
 
 export function aggregateDesignerApprovalStatus(entries: TimesheetStatusEntry[]) {
-  const byUser = new Map<string, { userId: string; userName: string; counts: Record<string, { hours: number; entries: number }> }>()
+  const byUser = new Map<
+    string,
+    { userId: string; userName: string; counts: Record<ApprovalStatusKey, ApprovalStatusCount> }
+  >()
   for (const e of entries) {
     let bucket = byUser.get(e.userId)
     if (!bucket) {
       bucket = {
         userId: e.userId,
         userName: e.userName,
-        counts: Object.fromEntries(APPROVAL_STATUSES.map((s) => [s, { hours: 0, entries: 0 }])),
+        counts: {
+          draft: { hours: 0, entries: 0 },
+          submitted: { hours: 0, entries: 0 },
+          approved: { hours: 0, entries: 0 },
+          rejected: { hours: 0, entries: 0 },
+        },
       }
       byUser.set(e.userId, bucket)
     }
@@ -2545,3 +2882,542 @@ export const REPORT_REGISTRY = {
 } as const
 
 export type ReportName = keyof typeof REPORT_REGISTRY
+
+// ---------------------------------------------------------------------------
+// R67 E-32 (R-265): EVERY REPORT IS A TABLE
+// ---------------------------------------------------------------------------
+//
+// WHAT WAS WRONG. Each of the 23 handlers above answers in its own shape --
+// some an array of rows, some an object of scalars, some a composite of four
+// aggregates. PROJEXA's Reports module therefore had a per-report renderer for
+// five of them (report-documents.ts, shipped by E-22) and, for the other
+// eighteen, ReportOutput's generic renderer: a grid of the payload's own JSON
+// KEY NAMES against their raw values. `percentByValue: 25` beside
+// `progressPercent: 60`, `contractValue: 475000` with no currency, a cuid where
+// a project name belongs. That is a debug view, not a report.
+//
+// WHAT THIS IS. One shape every report can be READ in -- columns that declare
+// their own unit and alignment, rows keyed by those columns, an optional totals
+// row, and the ORG'S currency stated ONCE for the whole table rather than
+// guessed per cell. The screen then has exactly one renderer and one place
+// where money, dates and blanks are formatted.
+//
+// WHY IT IS A TABULATOR AND NOT A REWRITE OF THE 23 HANDLERS. Three reasons,
+// in order of weight:
+//   1. `?format=legacy` has to keep working for a release. A handler that no
+//      longer produces the old shape cannot serve it.
+//   2. The handlers have in-process consumers that are not this screen -- the
+//      WPR PDF and XLSX writers, the dashboards, report-engine-service. They
+//      read the payloads directly and must not be broken to change a UI.
+//   3. It is pure. Every column list and every total below is unit-testable
+//      without a database, which is what makes "one row per vendor" a test
+//      rather than a screenshot.
+//
+// TOTALS ARE NOT DECORATION. A totals entry appears only where adding that
+// column up is a real arithmetic statement. Project Status has none: summing a
+// revenue, a budget and an expense produces a number that means nothing, and
+// putting it under a "Total" label would be a fabricated figure on a money
+// report -- exactly what REPORT.GLOBAL exists to prevent.
+
+/** What a column HOLDS, so the screen formats it once instead of sniffing each cell. */
+export type ReportColumnUnit = "currency" | "percent" | "number" | "date" | "text"
+
+export type ReportColumn = {
+  key: string
+  label: string
+  unit: ReportColumnUnit
+  align: "left" | "right"
+}
+
+/** A cell. `null` means "there is no value here", which renders as an en-dash -- never as 0. */
+export type ReportCell = string | number | null
+
+export type ReportTable = {
+  columns: ReportColumn[]
+  rows: Record<string, ReportCell>[]
+  /** Keyed by column key. Present only where summing that column is a real statement. */
+  totals?: Record<string, number>
+  /** The org's base currency code, or null when the org has not set one. Never guessed. */
+  currency: string | null
+  /** A sentence about the table's own rules (e.g. what the totals do and do not include). */
+  note?: string
+}
+
+const textCol = (key: string, label: string): ReportColumn => ({ key, label, unit: "text", align: "left" })
+const dateCol = (key: string, label: string): ReportColumn => ({ key, label, unit: "date", align: "left" })
+const moneyCol = (key: string, label: string): ReportColumn => ({ key, label, unit: "currency", align: "right" })
+const numCol = (key: string, label: string): ReportColumn => ({ key, label, unit: "number", align: "right" })
+const pctCol = (key: string, label: string): ReportColumn => ({ key, label, unit: "percent", align: "right" })
+
+type BuiltTable = Omit<ReportTable, "currency">
+
+type Payload<K extends ReportName> = Awaited<ReturnType<(typeof REPORT_REGISTRY)[K]>>
+
+/**
+ * Sums one numeric key over rows, ignoring nulls -- an unpriced line is not a
+ * zero. Named sumColumn, not sumBy: this module already has a sumColumn() with a
+ * completely different signature (items, keyFn, valueFn -> Map) that the
+ * designer-timesheet aggregator uses, and a second definition of that name
+ * silently shadows it for everything declared after this point.
+ */
+function sumColumn<T>(rows: T[], pick: (row: T) => number | null | undefined): number {
+  const total = rows.reduce((s, r) => s + (pick(r) ?? 0), 0)
+  return Math.round(total * 100) / 100
+}
+
+/**
+ * One builder per registry entry. Typed against each handler's OWN return type
+ * (`Payload<"scope">` and friends), so a handler that changes shape breaks this
+ * file at compile time instead of quietly emitting a table of undefineds.
+ */
+const REPORT_TABLE_BUILDERS: { [K in ReportName]: (payload: Payload<K>) => BuiltTable } = {
+  // The BOQ lines behind the progress, with the money rule the roll-up follows
+  // printed on the table -- a child line is shown and never added up.
+  "work-progress": (p) => ({
+    columns: [textCol("code", "Code"), textCol("description", "Description"), textCol("category", "Category"), moneyCol("amount", "Amount")],
+    rows: p.lines.map((l) => ({
+      code: l.code,
+      description: l.description,
+      category: l.category ?? UNCATEGORIZED_LABEL,
+      // A sub-task's amount is derived from its parent, so it is shown as a
+      // detail on its own row and contributes nothing to the total.
+      amount: l.parentLineItemId === null ? l.amount : null,
+    })),
+    totals: { amount: p.grandTotal },
+    note: DERIVED_BUDGET_NOTE,
+  }),
+
+  // Sumeet's Weekly Project sheet: one row per DAY, and a week total that is
+  // the sum of the days by construction rather than a second aggregate.
+  "weekly-project": (p) => ({
+    columns: [
+      dateCol("date", "Date"), moneyCol("labourCost", "Labour cost"), numCol("workersPresent", "Workers"),
+      moneyCol("expenseTotal", "Expenses"), numCol("progressEntriesLogged", "Progress entries"), numCol("diaryEntries", "Diary entries"),
+    ],
+    rows: p.byDay.map((d) => ({
+      date: d.date, labourCost: d.labourCost, workersPresent: d.workersPresent,
+      expenseTotal: d.expenseTotal, progressEntriesLogged: d.progressEntriesLogged, diaryEntries: d.diaryEntries,
+    })),
+    totals: {
+      labourCost: p.labourCost, workersPresent: p.workersPresent, expenseTotal: p.expenseTotal,
+      progressEntriesLogged: p.progressEntriesLogged, diaryEntries: p.diaryEntries,
+    },
+  }),
+
+  // ONE row, because this report describes ONE project. Deliberately no totals:
+  // see this section's header. The project NAME is the first cell, so the raw
+  // cuid never reaches a reader.
+  "project-status": (p) => ({
+    columns: [
+      textCol("projectName", "Project"), moneyCol("contractValue", "Contract value"), moneyCol("earnedValue", "Earned value"),
+      pctCol("percentByValue", "% complete by value"), pctCol("progressPercent", "% logged"),
+      moneyCol("revenue", "Revenue"), moneyCol("budget", "Budget"), moneyCol("expenses", "Expenses"),
+      numCol("taskCount", "Tasks"), numCol("delayedTaskCount", "Late"),
+    ],
+    rows: [{
+      projectName: p.projectName, contractValue: p.contractValue, earnedValue: p.earnedValue,
+      percentByValue: p.percentByValue, progressPercent: p.progressPercent,
+      revenue: p.revenue, budget: p.budget, expenses: p.expenses,
+      taskCount: p.taskCount, delayedTaskCount: p.delayedTaskCount,
+    }],
+    note: "One project, one row. Revenue, budget and expenses are three different measures and are deliberately not totalled.",
+  }),
+
+  // Sumeet's Attendance sheet: one row per WORKER. `rows` (the trade x status
+  // roll-up) has no worker identity in it and cannot make this sheet.
+  attendance: (p) => ({
+    columns: [
+      textCol("employeeCode", "ID"), textCol("name", "Name"), textCol("company", "Company"), textCol("trade", "Trade"),
+      numCol("daysPresent", "Present"), numCol("daysHalf", "Half day"), numCol("daysAbsent", "Absent"), moneyCol("salary", "Salary"),
+    ],
+    rows: p.workers.map((w) => ({
+      employeeCode: w.employeeCode, name: w.name, company: w.company, trade: w.trade,
+      daysPresent: w.daysPresent, daysHalf: w.daysHalf, daysAbsent: w.daysAbsent, salary: w.salary,
+    })),
+    totals: {
+      salary: sumColumn(p.workers, (w) => w.salary),
+      daysPresent: sumColumn(p.workers, (w) => w.daysPresent),
+      daysHalf: sumColumn(p.workers, (w) => w.daysHalf),
+      daysAbsent: sumColumn(p.workers, (w) => w.daysAbsent),
+    },
+  }),
+
+  "site-picture": (p) => ({
+    columns: [textCol("name", "Photo"), dateCol("createdAt", "Uploaded")],
+    rows: p.photos.map((d) => ({ name: d.name, createdAt: d.createdAt ? new Date(d.createdAt).toISOString().slice(0, 10) : null })),
+  }),
+
+  // The BOQ this project is currently reporting against -- one row, because
+  // exactly one revision is the live one. Older revisions are in the legacy
+  // payload; listing them here with blank money would read as five BOQs.
+  scope: (p) => ({
+    columns: [
+      textCol("title", "BOQ"), numCol("version", "Version"), textCol("status", "Status"),
+      numCol("lineItemCount", "Line items"), moneyCol("totalValue", "Contract value"),
+    ],
+    rows: p.boq
+      ? [{ title: p.boq.title, version: p.boq.version, status: p.boq.status, lineItemCount: p.lineItemCount, totalValue: p.totalValue }]
+      : [],
+    note: "Contract value sums root BOQ lines only, matching the Work Progress grand total.",
+  }),
+
+  "budget-summary": (p) => ({
+    columns: [textCol("accountId", "Account"), moneyCol("total", "Budget")],
+    rows: p.byAccount.map((r) => ({ accountId: r.accountId, total: Number(r.total) })),
+    totals: { total: p.total },
+  }),
+
+  // Budget is a single undivided project-wide figure in the ERP model
+  // (erp_budget_line_items has no expense-head dimension), so a per-head budget
+  // is a null -- a real "there is no such number" -- and never a zero. The
+  // comparison the report is FOR lives in the totals row, where all three
+  // figures are real.
+  // R67 E-32 x E-39 x D-02 (resolved on rebase): `budget` and `variance` are
+  // `number | null` on this payload now -- D-02 made getProjectDashboard report
+  // null (never 0) for a project with no ERP budget rows, and budgetVariance()
+  // propagates that. `totals` is a map of NUMBERS, and its own contract is
+  // "present only where summing that column is a real statement", so a budget
+  // nobody has set is omitted rather than written as a 0 that would read as a
+  // measured zero budget and make every unbudgeted project look overspent by
+  // its whole spend. The renderer already prints an en dash for an absent
+  // total, which is the honest cell here.
+  "budget-vs-actual": (p) => ({
+    columns: [textCol("head", "Expense head"), moneyCol("budget", "Budget"), moneyCol("actual", "Actual"), moneyCol("variance", "Variance")],
+    rows: p.byHead.map((r) => ({ head: r.expenseHead, budget: null, actual: Number(r.total), variance: null })),
+    totals: {
+      ...(p.budget !== null ? { budget: p.budget } : {}),
+      actual: p.actual,
+      ...(p.variance !== null ? { variance: p.variance } : {}),
+    },
+    note: p.budget === null
+      ? "No ERP budget is set for this project, so there is nothing to compare the spend against."
+      : "The ERP budget is a single project-wide figure, so there is no per-head budget to compare against; the comparison is the total row.",
+  }),
+
+  "material-consumption": (p) => ({
+    columns: [textCol("itemName", "Item"), textCol("uom", "UoM"), numCol("netQuantity", "Net quantity"), moneyCol("totalValue", "Value")],
+    rows: p.items.map((r) => ({ itemName: r.itemName, uom: r.uom, netQuantity: Number(r.netQuantity), totalValue: Number(r.totalValue) })),
+    totals: { totalValue: sumColumn(p.items, (r) => Number(r.totalValue)) },
+  }),
+
+  "vendor-cost": (p) => ({
+    columns: [textCol("vendorName", "Vendor"), moneyCol("total", "Labour cost")],
+    rows: p.labourVendorCosts.map((r) => ({ vendorName: r.vendorName ?? r.vendorId, total: Number(r.total) })),
+    totals: { total: sumColumn(p.labourVendorCosts, (r) => Number(r.total)) },
+    note: p.note,
+  }),
+
+  "manpower-cost": (p) => ({
+    columns: [textCol("trade", "Trade"), numCol("workerDays", "Worker-days"), moneyCol("totalCost", "Cost")],
+    rows: p.byTrade.map((r) => ({ trade: r.trade, workerDays: Number(r.workerDays), totalCost: Number(r.totalCost) })),
+    totals: {
+      workerDays: sumColumn(p.byTrade, (r) => Number(r.workerDays)),
+      totalCost: sumColumn(p.byTrade, (r) => Number(r.totalCost)),
+    },
+  }),
+  // R67 E-32, added on rebase: manpowerDailySummary reached main from lane D3
+  // AFTER this builder map was written, so the map was one report short and the
+  // "every registry report has a builder" guard caught it -- which is what that
+  // guard is for. One row per trade for the chosen day.
+  //
+  // The totals row is taken from the handler's OWN `totals` rather than re-summed
+  // here: aggregateManpowerDailySummary already computes it (and rounds the cost
+  // once), and a second summation is how a footer starts disagreeing with the
+  // column above it. `date` is not a column -- it describes the whole table, not
+  // a cell, and it is already on the report header.
+  "manpower-daily-summary": (p) => ({
+    columns: [
+      textCol("trade", "Trade"),
+      numCol("present", "Present"),
+      numCol("absent", "Absent"),
+      numCol("halfDay", "Half day"),
+      numCol("headcount", "Headcount"),
+      moneyCol("cost", "Cost"),
+    ],
+    rows: p.rows.map((r) => ({
+      trade: r.trade,
+      present: r.present,
+      absent: r.absent,
+      halfDay: r.halfDay,
+      headcount: r.headcount,
+      cost: r.cost,
+    })),
+    totals: {
+      present: p.totals.present,
+      absent: p.totals.absent,
+      halfDay: p.totals.halfDay,
+      headcount: p.totals.headcount,
+      cost: p.totals.cost,
+    },
+    note: "Counts only workers marked on this date. A worker with no attendance row is absent from the day, not marked absent.",
+  }),
+
+  // The project-scoped hours per designer. The org-wide and budget breakdowns
+  // this report also computes are a different grain and would not be rows of
+  // this table; the note says where they are.
+  "designer-timesheet": (p) => ({
+    columns: [textCol("userName", "Designer"), numCol("totalHours", "Hours")],
+    rows: p.projectScoped.byUser.map((u) => ({ userName: u.userName, totalHours: u.totalHours })),
+    totals: { totalHours: sumColumn(p.projectScoped.byUser, (u) => u.totalHours) },
+    note: "Hours logged on this project, per designer. The budget-vs-actual and org-wide breakdowns are a different grain and are served by ?format=legacy.",
+  }),
+
+  // R67 E-32 follow-up: this read `p.byUser` and a "sent_back" status. The
+  // handler's key is `byDesigner`, and the four real statuses are draft |
+  // submitted | approved | REJECTED (pms_time_entries.approval_status) --
+  // "sent back" is not a value this system stores, so the column was a name
+  // for a number that could never arrive.
+  "designer-approval-status": (p) => ({
+    columns: [
+      textCol("userName", "Designer"), numCol("draft", "Draft (h)"), numCol("submitted", "Submitted (h)"),
+      numCol("approved", "Approved (h)"), numCol("rejected", "Rejected (h)"),
+    ],
+    rows: p.byDesigner.map((u) => ({
+      userName: u.userName,
+      draft: u.draft.hours, submitted: u.submitted.hours, approved: u.approved.hours, rejected: u.rejected.hours,
+    })),
+    totals: {
+      draft: sumColumn(p.byDesigner, (u) => u.draft.hours),
+      submitted: sumColumn(p.byDesigner, (u) => u.submitted.hours),
+      approved: sumColumn(p.byDesigner, (u) => u.approved.hours),
+      rejected: sumColumn(p.byDesigner, (u) => u.rejected.hours),
+    },
+  }),
+
+  // R67 E-32 follow-up: `p.byUser` -> `p.byDesigner`, the handler's own key.
+  "work-analysis": (p) => ({
+    columns: [textCol("userName", "Person"), numCol("totalHours", "Hours"), numCol("taskCount", "Tasks worked")],
+    rows: p.byDesigner.map((u) => ({ userName: u.userName, totalHours: u.totalHours, taskCount: u.byTask.length })),
+    totals: {
+      totalHours: sumColumn(p.byDesigner, (u) => u.totalHours),
+      taskCount: sumColumn(p.byDesigner, (u) => u.byTask.length),
+    },
+  }),
+
+  // R67 E-32 follow-up: the column is `metricName` on the real row -- a KPI
+  // definition has no `name`.
+  kpi: (p) => ({
+    columns: [textCol("metricName", "KPI"), textCol("unit", "Unit"), numCol("entryCount", "Readings")],
+    rows: p.definitions.map((d) => ({
+      metricName: d.metricName,
+      unit: d.unit ?? null,
+      entryCount: p.entries.filter((e) => e.kpiDefinitionId === d.id).length,
+    })),
+  }),
+
+  revenue: (p) => ({
+    columns: [textCol("invoiceNumber", "Invoice"), dateCol("postingDate", "Posted"), textCol("status", "Status"), moneyCol("grandTotal", "Amount")],
+    rows: p.invoices.map((i) => ({
+      invoiceNumber: i.invoiceNumber, postingDate: i.postingDate, status: i.status, grandTotal: Number(i.grandTotal),
+    })),
+    totals: { grandTotal: p.total },
+  }),
+
+  expense: (p) => ({
+    columns: [textCol("expenseHead", "Expense head"), moneyCol("total", "Amount")],
+    rows: p.byHead.map((r) => ({ expenseHead: r.expenseHead, total: Number(r.total) })),
+    totals: { total: p.total },
+  }),
+
+  // Percentages of different categories do not add up to anything, so there is
+  // no total here on purpose.
+  "category-progress": (p) => ({
+    columns: [textCol("name", "Category"), pctCol("percentComplete", "% complete")],
+    rows: p.categories.map((c) => ({ name: c.name, percentComplete: c.percentComplete })),
+  }),
+
+  "project-completion": (p) => ({
+    columns: [textCol("name", "Category"), pctCol("percentComplete", "% complete")],
+    rows: p.byCategory.map((c) => ({ name: c.name, percentComplete: c.percentComplete })),
+    note: `Overall ${p.overallPercentComplete}% complete, averaged over the categories below.`,
+  }),
+
+  // R67 E-32 follow-up: this report has NO completion figure -- it totals BOQ
+  // line amounts per category and nothing else (the completion percentage is
+  // "category-progress", a different report, and the two are combined for the
+  // charts by src/lib/category-distribution.ts in projexa). The "% complete"
+  // column named a field that does not exist on the row, so it could only ever
+  // have rendered an en dash. Money that belongs to no category is real BOQ
+  // money and is stated rather than dropped, which is why the rows can sum to
+  // less than the total.
+  "category-boq-amounts": (p) => ({
+    columns: [textCol("name", "Category"), moneyCol("totalAmount", "BOQ amount")],
+    rows: p.categories.map((c) => ({ name: c.name, totalAmount: c.totalAmount })),
+    totals: { totalAmount: p.totalAmount },
+    note:
+      p.uncategorizedAmount > 0
+        ? `The total includes ${p.uncategorizedAmount} of BOQ value on lines with no category.`
+        : undefined,
+  }),
+
+  "certified-payroll": (p) => ({
+    columns: [
+      textCol("workerName", "Worker"), textCol("trade", "Trade"), numCol("totalHours", "Hours"),
+      moneyCol("ratePaid", "Rate paid"), moneyCol("prevailingHourlyRate", "Prevailing rate"),
+      moneyCol("grossWages", "Gross wages"), textCol("complianceStatus", "Status"),
+    ],
+    rows: p.workers.map((w) => ({
+      workerName: w.workerName, trade: w.trade, totalHours: w.totalHours,
+      ratePaid: w.ratePaid, prevailingHourlyRate: w.prevailingHourlyRate,
+      grossWages: w.grossWages, complianceStatus: w.complianceStatus,
+    })),
+    totals: { totalHours: p.totalHours, grossWages: p.totalGrossWages },
+    note: p.dataGapNotes.join(" "),
+  }),
+
+  // One row: earned value is a single figure about one BOQ.
+  "earned-value": (p) => ({
+    columns: [moneyCol("contractValue", "Contract value"), moneyCol("earnedValue", "Earned value"), pctCol("percentByValue", "% by value")],
+    rows: [{ contractValue: p.contractValue, earnedValue: p.earnedValue, percentByValue: p.percentByValue }],
+  }),
+
+  "budget-variance": (p) => ({
+    columns: [
+      textCol("code", "Code"), textCol("description", "Description"), textCol("category", "Category"),
+      moneyCol("amount", "BOQ amount"), pctCol("budgetPercentage", "Budget %"), moneyCol("budget", "Budget"),
+      textCol("vendorName", "Vendor"), moneyCol("vendorAmount", "Vendor amount"), moneyCol("variance", "Variance"),
+    ],
+    rows: p.lines.map((l) => ({
+      code: l.code, description: l.description, category: l.category ?? UNCATEGORIZED_LABEL,
+      // A derived (sub-task) budget is shown for detail and never counted, the
+      // same rule E-26 put on the totals -- so its money cells stay real
+      // numbers but the totals below come from the roots-only computation.
+      amount: l.amount, budgetPercentage: l.budgetPercentage, budget: l.budget,
+      vendorName: l.vendorName, vendorAmount: l.vendorAmount, variance: l.variance,
+    })),
+    // R67 E-26 x D-26 x E-06 (second-merge fix): totalBudget and totalVariance
+    // are BOTH `number | null` -- totalBudget via sumRootLineBudgets() is null
+    // when not one root line carries an amount (E-06's "no BOQ is not a budget
+    // of nothing" rule), and totalVariance is null when NOT ONE line carries a
+    // committed cost. Neither is a real "nothing measured" state fabricated as
+    // a 0. `totals` is a map of numbers whose own contract is "present only
+    // where summing that column is a real statement", so both are omitted
+    // rather than written as a 0 that would read as "exactly on budget". The
+    // renderer prints an en dash for an absent total. Vendor amount is always
+    // a real sum over the root lines (it has no "no BOQ" state of its own).
+    totals: {
+      ...(p.totalBudget !== null ? { budget: p.totalBudget } : {}),
+      vendorAmount: p.totalVendorAmount,
+      ...(p.totalVariance !== null ? { variance: p.totalVariance } : {}),
+    },
+    note: p.note,
+  }),
+}
+
+// ---------------------------------------------------------------------------
+// R67 E-33 (R-265): the portfolio chart's own row shape
+// ---------------------------------------------------------------------------
+//
+// Sumeet 5.png's first graph is a grouped bar PER PROJECT -- revenue, budget
+// and progress side by side across the portfolio. Every figure it needs is
+// already computed, once, inside getOrgDashboard's single transaction (E-21
+// put them there so PROJEXA's launchpad could make one call instead of an
+// N+1 fan-out). This turns those rows into the same {columns, rows} contract
+// every other report now speaks, so the chart reads a report rather than a
+// dashboard payload it has to reshape by hand.
+//
+// WHY IT IS NOT A NEW REGISTRY REPORT. Every entry in REPORT_REGISTRY is
+// per-project and is dispatched by /reports/[reportName]?projectId=. This one
+// is ACROSS projects and has no projectId at all, so it cannot be dispatched
+// there -- and a static /reports/budget-vs-actual/ route would SHADOW that
+// dynamic segment and silently break the per-project budget-vs-actual report
+// that already exists under exactly that name. It lives at
+// /reports/portfolio/budget-vs-actual instead, two segments deep, where
+// nothing can collide.
+//
+// WHY earnedValue IS HERE ALONGSIDE progressPct. The chart draws three bars on
+// ONE shared money axis, and a percentage cannot share an axis with money.
+// Progress is therefore PLOTTED as earned value and PRINTED as the percentage,
+// which is why both travel.
+
+export type PortfolioProjectRow = {
+  id: string
+  name: string
+  revenue: number
+  /** BOQ-derived budget: root line amount x budget %. Falls back to the ERP cost-centre (`ledgerBudget`) below. */
+  budget: number | null
+  /** ERP cost-centre (annual ledger) budget -- the fallback when the BOQ carries no budget %. Same split OrgDashboardProjectSummary uses (E-06/E-23 second-merge fix). */
+  ledgerBudget: number | null
+  spent: number
+  earnedValue: number | null
+  progressPercent: number | null
+}
+
+/**
+ * R67 E-33: one row per project -- revenue, budget, actual and progress.
+ *
+ * `budget` is the BOQ-derived figure when the BOQ carries percentages and the
+ * ERP cost-centre budget otherwise, matching the rule PROJEXA's own project-bar
+ * chart already applies -- one rule, so the number on the chart and the number
+ * in this table can never disagree. null (never 0) where neither exists: a
+ * project with no budget set and a project budgeted at zero are different facts.
+ */
+export function buildBudgetVsActualByProject(projects: PortfolioProjectRow[], currency: string | null): ReportTable {
+  const rows = projects.map((p) => {
+    const budget = p.budget !== null && p.budget > 0 ? p.budget : p.ledgerBudget
+    return {
+      project: p.name,
+      // Carried but NOT a column: the chart makes each row a link to that
+      // project's dashboard, and it needs the id to build the href. It is a
+      // link target, never a cell -- E-22's rule that a raw cuid must not
+      // reach a reader is about what is RENDERED.
+      projectId: p.id,
+      revenue: p.revenue,
+      budget,
+      // Also carried and not a column: WHICH budget the row landed on. The
+      // chart's caption has to say whether the reader is looking at a BOQ
+      // figure or an ERP cost-centre one, and re-deriving that on the client
+      // from a null check is how the caption comes to disagree with the bar.
+      budgetSource: budget === null ? "none" : p.budget !== null && p.budget > 0 ? "boq" : "erp",
+      actual: p.spent,
+      earnedValue: p.earnedValue,
+      progressPct: p.progressPercent,
+    }
+  })
+  return {
+    columns: [
+      textCol("project", "Project"),
+      moneyCol("revenue", "Revenue"),
+      moneyCol("budget", "Budget"),
+      moneyCol("actual", "Actual"),
+      moneyCol("earnedValue", "Earned value"),
+      pctCol("progressPct", "% logged"),
+    ],
+    rows,
+    totals: {
+      revenue: sumColumn(rows, (r) => r.revenue),
+      budget: sumColumn(rows, (r) => r.budget),
+      actual: sumColumn(rows, (r) => r.actual),
+      earnedValue: sumColumn(rows, (r) => r.earnedValue),
+    },
+    currency,
+    note: "Budget is the BOQ-derived figure (root line amount x budget %) where the BOQ carries percentages, and the ERP cost-centre budget otherwise.",
+  }
+}
+
+
+/**
+ * Every report that has a table builder. The map above is typed against
+ * ReportName so this is always the whole registry -- exported so a test can
+ * restate that promise at runtime, because "no report falls back to a JSON
+ * dump" is the entire point of E-32 and deserves an assertion, not just a type.
+ */
+export const REPORT_TABLE_BUILDER_NAMES = Object.keys(REPORT_TABLE_BUILDERS) as ReportName[]
+
+/**
+ * R67 E-32 (R-265): a report's payload, as the table PROJEXA renders.
+ *
+ * `currency` is the ORG's base currency code, or null when the org has not set
+ * one -- reported, never guessed, exactly as getBaseCurrency() reports it. A
+ * screen with a null currency shows the numbers and says the currency is unset;
+ * it must not invent AED.
+ */
+export function buildReportTable(reportName: ReportName, payload: unknown, currency: string | null): ReportTable {
+  // The one cast in this file, and it is contained: the builders above are each
+  // typed against their own handler's return, and REPORT_TABLE_BUILDERS is keyed
+  // by the same union the caller's `reportName` comes from, so the pairing is
+  // checked at every definition site. What TypeScript cannot do is correlate the
+  // two at a single dynamic lookup.
+  const build = REPORT_TABLE_BUILDERS[reportName] as (p: unknown) => BuiltTable
+  return { ...build(payload), currency }
+}

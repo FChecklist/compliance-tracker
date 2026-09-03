@@ -33,7 +33,7 @@ function mockAuth(ctx: { orgId: string | null; response?: Response | null; roleE
     // redaction feature itself, so the mock defaults to true -- every
     // existing assertion here (checking the full, unredacted
     // getOrgDashboard result is returned) keeps its original meaning.
-    // R67 E-01 fix pass: isManager:false opts one test into the redaction
+    // R67 E-01/E-21 fix pass: isManager:false opts a test into the redaction
     // branch, so this route and its /api/construction/dashboard sibling
     // (which drifted on spendOverValue) are each pinned by a real test.
     hasRole: mock(() => ctx.isManager ?? true),
@@ -156,6 +156,59 @@ describe("GET /api/v1/projexa/dashboard", () => {
 
     expect(res.status).toBe(403)
     expect(getOrgDashboard).not.toHaveBeenCalled()
+  })
+
+  // R67 E-21 (R-195/R-204/R-205), field names as of the E-06/E-23 second
+  // merge: getOrgDashboard's project rows gained contractValue,
+  // earnedValuePrevWeek, ledgerBudget (E-23's ERP-ledger figure, distinct
+  // from the BOQ-derived `budget`) and spent. Every one of those is a
+  // financial figure, and F059 was precisely the case of a money field
+  // reaching a member-rank caller because it was added to the service and
+  // not to this list. This test is the guard: a below-manager caller sees no
+  // money on a project row, and still sees their own schedule.
+  test("below manager rank, EVERY money field on a project row is redacted -- including the ones E-21/E-23 added", async () => {
+    mockAuth({ orgId: "org-1", isManager: false })
+    mockService(async () => ({
+      totalProjects: 1,
+      totalBudget: 900000,
+      totalRevenue: 450000,
+      totalExpenses: 120000,
+      projects: [
+        {
+          id: "p-1", name: "Cedar",
+          revenue: 450000, expenses: 120000, spent: 120000,
+          budget: 90000, ledgerBudget: 80000,
+          value: 475000, contractValue: 475000,
+          earnedValue: 118750, earnedValuePrevWeek: 95000, percentByValue: 25,
+          progressPercent: 60, taskCount: 4, delayedTaskCount: 1,
+          tasksDue: 3, tasksLate: 1, hasSchedule: true,
+        },
+      ],
+    }))
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest() as any)
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.totalBudget).toBeNull()
+    expect(body.totalRevenue).toBeNull()
+    expect(body.totalExpenses).toBeNull()
+
+    const row = body.projects[0]
+    for (const moneyField of [
+      "revenue", "expenses", "spent", "budget", "ledgerBudget",
+      "value", "contractValue", "earnedValue", "earnedValuePrevWeek", "percentByValue",
+    ]) {
+      expect(row[moneyField]).toBeNull()
+    }
+
+    // Not money, and a site engineer still needs it: the schedule stays.
+    expect(row.progressPercent).toBe(60)
+    expect(row.tasksLate).toBe(1)
+    expect(row.tasksDue).toBe(3)
+    expect(row.hasSchedule).toBe(true)
+    expect(row.name).toBe("Cedar")
   })
 })
 

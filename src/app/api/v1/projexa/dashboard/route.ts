@@ -73,12 +73,13 @@ async function GET_impl(request: NextRequest) {
   }
 
   try {
-    // R67 E-02: the home's Filter drawer -- which absorbs the retired
-    // /dashboard/hierarchy screen's own selects -- passes departmentId and an
-    // optional from/to window. The window narrows revenue and spend only; the
-    // service's own type comment says why the BOQ-derived figures are left
-    // alone, and the response carries dateRangeApplied so the screen can
-    // caption exactly what it filtered.
+    // R67 E-02/E-23 (both lanes built this independently): the home's Filter
+    // drawer -- which absorbs the retired /dashboard/hierarchy screen's own
+    // selects -- passes departmentId and an optional from/to window. The
+    // window narrows revenue and spend only; the service's own type comment
+    // says why the BOQ-derived figures are left alone, and the response
+    // carries dateRangeApplied so the screen can caption exactly what it
+    // filtered.
     const { searchParams } = request.nextUrl
     const summary = await getOrgDashboard({ orgId: ctx.orgId }, {
       departmentId: searchParams.get("departmentId") ?? undefined,
@@ -95,6 +96,13 @@ async function GET_impl(request: NextRequest) {
     // rank, so a site engineer received the same budget/revenue/expenses as
     // a manager once the page loaded. Redact server-side instead of gating
     // the whole route -- a member still needs task counts/delayed counts.
+    // R67 E-21: getOrgDashboard's project rows gained contractValue,
+    // earnedValuePrevWeek, budget and spent. Every one of those is a
+    // financial figure, so each is redacted here alongside the four that
+    // already were -- adding a money field to the service without adding it
+    // to this list is exactly how F059 happened the first time.
+    // progressPercent, tasksDue/tasksLate and hasSchedule are NOT money and
+    // stay visible: a site engineer still needs their own schedule.
     if (ctx.dbUser && !hasRole(ctx.dbUser, "manager")) {
       return NextResponse.json({
         ...summary,
@@ -110,9 +118,20 @@ async function GET_impl(request: NextRequest) {
         // comparison the two redacted figures exist to withhold -- redacted
         // to null (not false), because "you may not see this" and "spend has
         // not passed the contract value" are different statements.
-        // percentByActivity and permitsExpiring30d stay: neither is financial,
-        // and a site engineer's whole job depends on both.
-        projects: summary.projects.map((p) => ({ ...p, revenue: null, expenses: null, earnedValue: null, percentByValue: null, spendOverValue: null, budget: null })),
+        // R67 E-21: getOrgDashboard's project rows also gained spent (an alias
+        // of expenses), ledgerBudget, value and earnedValuePrevWeek -- every
+        // one a financial figure, so each is redacted here alongside the ones
+        // above. Adding a money field to the service without adding it to
+        // this list is exactly how F059 happened the first time.
+        // progressPercent, percentByActivity, tasksDue/tasksLate, hasSchedule
+        // and permitsExpiring30d stay: none of them is financial, and a site
+        // engineer's whole job depends on their own schedule.
+        projects: summary.projects.map((p) => ({
+          ...p,
+          revenue: null, expenses: null, spent: null, budget: null, ledgerBudget: null,
+          value: null, contractValue: null,
+          earnedValue: null, earnedValuePrevWeek: null, percentByValue: null, spendOverValue: null,
+        })),
       })
     }
     return NextResponse.json(summary)

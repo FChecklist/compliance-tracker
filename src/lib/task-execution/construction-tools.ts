@@ -90,6 +90,9 @@ export async function dispatchConstructionTool(
     // project with no BOQ -- "we do not know this project's budget" is not
     // "this project is over budget". Reuses the one rule that decides this,
     // rather than restating it -- see construction-expense-service.ts.
+    // (E-39 independently wrote the same `?? 0` guard inline here; D-02's
+    // shared predicate reached main first and is the one kept, so there is one
+    // definition of "over budget" rather than three.)
     const { budgetExceeded } = await import("@/lib/services/construction-expense-service")
     return results.filter((p) => budgetExceeded(p.budget, p.expenses))
   }
