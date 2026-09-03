@@ -10,7 +10,7 @@
 // describe block already uses for this same tenant-scoped-db precedent.
 /// <reference types="bun-types" />
 import { describe, expect, test, mock, afterEach } from "bun:test"
-import { resolvePmsBillableRatePure } from "./pms-time-service"
+import { resolvePmsBillableRatePure, timesheetEntryRef } from "./pms-time-service"
 
 describe("resolvePmsBillableRatePure -- 2-tier rate precedence (per-user > org default)", () => {
   test("returns null when no rates exist at all", () => {
@@ -138,5 +138,112 @@ describe("submitTimeEntry / approveTimeEntry / rejectTimeEntry: designer-entry -
     const result = await rejectTimeEntry({ orgId: "org1", userId: "manager1" }, "e1", "Hours look inflated for this task") as { approvalStatus: string; rejectionReason: string }
     expect(result.approvalStatus).toBe("rejected")
     expect(result.rejectionReason).toBe("Hours look inflated for this task")
+  })
+})
+
+// R67 WS-H (items H-01/H-03): the day grid's own two service additions.
+// Same mocked-tenant-scoped-db pattern as the state-machine block above.
+describe("timesheetEntryRef -- the short, stable reference the object page quotes", () => {
+  test("derives a TS- reference from the row's own id, uppercased", () => {
+    expect(timesheetEntryRef("clx9m2k4a000abcdef")).toBe("TS-ABCDEF")
+  })
+
+  test("is stable for the same id and different for different ids", () => {
+    expect(timesheetEntryRef("entry-000123")).toBe(timesheetEntryRef("entry-000123"))
+    expect(timesheetEntryRef("entry-000123")).not.toBe(timesheetEntryRef("entry-000124"))
+  })
+
+  test("a short id is not padded with anything invented", () => {
+    expect(timesheetEntryRef("ab")).toBe("TS-AB")
+  })
+})
+
+describe("updateTimeEntry -- Edit on the object page is draft-only and owner-only", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  test("the logging designer can edit their own draft entry", async () => {
+    const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "draft", hours: "2" })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { updateTimeEntry } = await import("./pms-time-service")
+    const result = await updateTimeEntry({ orgId: "org1", userId: "designer1" }, "e1", { hours: "3.25" }) as { hours: string }
+    expect(result.hours).toBe("3.25")
+  })
+
+  test("a submitted entry cannot be edited underneath the manager reviewing it", async () => {
+    const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "submitted", hours: "2" })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { updateTimeEntry } = await import("./pms-time-service")
+    await expect(updateTimeEntry({ orgId: "org1", userId: "designer1" }, "e1", { hours: "3" })).rejects.toThrow("Only a draft time entry can be edited")
+  })
+
+  test("someone else's draft entry cannot be edited", async () => {
+    const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "draft", hours: "2" })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { updateTimeEntry } = await import("./pms-time-service")
+    await expect(updateTimeEntry({ orgId: "org1", userId: "someoneElse" }, "e1", { hours: "3" })).rejects.toThrow("Only the logging user may edit this entry")
+  })
+
+  test("zero or negative hours are refused with the exact per-field sentence the grid shows", async () => {
+    const { updateTimeEntry } = await import("./pms-time-service")
+    await expect(updateTimeEntry({ orgId: "org1", userId: "designer1" }, "e1", { hours: "0" })).rejects.toThrow("Hours must be more than 0")
+    await expect(updateTimeEntry({ orgId: "org1", userId: "designer1" }, "e1", { hours: "-2" })).rejects.toThrow("Hours must be more than 0")
+  })
+})
+
+describe("submitDayForReview -- one decision over the whole day, not a loop", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  function makeDayDb(issues: Array<Record<string, unknown>>, drafts: Array<Record<string, unknown>>) {
+    return {
+      query: {
+        pmsIssues: { findMany: mock(async () => issues) },
+        pmsTimeEntries: { findMany: mock(async () => drafts) },
+      },
+      update: () => ({
+        set: (patch: Record<string, unknown>) => ({
+          where: () => ({ returning: async () => drafts.map((d) => ({ ...d, ...patch })) }),
+        }),
+      }),
+    }
+  }
+
+  test("submits every draft row of that day in one write and reports the real count and hours", async () => {
+    const fakeDb = makeDayDb(
+      [{ id: "issue-1", number: 12, title: "Joinery shop drawings" }],
+      [
+        { id: "e1", issueId: "issue-1", hours: "3", approvalStatus: "draft" },
+        { id: "e2", issueId: "issue-1", hours: "4.5", approvalStatus: "draft" },
+      ]
+    )
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { submitDayForReview } = await import("./pms-time-service")
+    const result = await submitDayForReview({ orgId: "org1", userId: "designer1" }, { projectId: "project-1", spentOn: "2026-09-02" })
+
+    expect(result.submitted).toBe(2)
+    expect(result.hours).toBe(7.5)
+    expect(result.entries.map((e) => e.approvalStatus)).toEqual(["submitted", "submitted"])
+    // The caller needs task + ref per entry to mint one review row each.
+    expect(result.entries[0].ref).toBe(timesheetEntryRef("e1"))
+    expect(result.entries[0].issue).toEqual({ id: "issue-1", number: 12, title: "Joinery shop drawings" })
+  })
+
+  test("a day with nothing logged is refused rather than reported as a successful empty submit", async () => {
+    const fakeDb = makeDayDb([{ id: "issue-1", number: 12, title: "Joinery shop drawings" }], [])
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { submitDayForReview } = await import("./pms-time-service")
+    await expect(submitDayForReview({ orgId: "org1", userId: "designer1" }, { projectId: "project-1", spentOn: "2026-09-02" }))
+      .rejects.toThrow("No hours logged for this day")
+  })
+
+  test("projectId and spentOn are both required -- a day submit with no day is meaningless", async () => {
+    const { submitDayForReview } = await import("./pms-time-service")
+    await expect(submitDayForReview({ orgId: "org1", userId: "designer1" }, { projectId: "", spentOn: "2026-09-02" })).rejects.toThrow("projectId is required")
+    await expect(submitDayForReview({ orgId: "org1", userId: "designer1" }, { projectId: "project-1", spentOn: "" })).rejects.toThrow("spentOn is required")
   })
 })
