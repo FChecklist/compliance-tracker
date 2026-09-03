@@ -21,13 +21,58 @@
 //                                  CALL EVER
 import { NextRequest, NextResponse } from "next/server"
 import { and, desc, eq, inArray } from "drizzle-orm"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
 import { runSubmission, runDirectTask } from "@/lib/pipeline/run-submission"
 
 const TASK_STATUSES = ["to_do", "in_progress", "waiting", "done", "blocked"] as const
 type TaskStatus = (typeof TASK_STATUSES)[number]
+
+/**
+ * The POST body's own fields, narrowed once. Kept out of the handler so the
+ * handler reads as the decision it makes -- pill path or typed path -- rather
+ * than as a dozen type guards with a decision buried in them.
+ */
+function readSubmissionBody(body: Record<string, unknown>) {
+  const functionId = typeof body.functionId === "string" ? body.functionId.trim() : ""
+  return {
+    mode: typeof body.mode === "string" ? body.mode : "Projects",
+    projectId: typeof body.projectId === "string" ? body.projectId : null,
+    functionId,
+    params: (body.params as Record<string, unknown> | undefined) ?? {},
+    note: typeof body.rawInput === "string" ? body.rawInput : undefined,
+    rawInput: typeof body.rawInput === "string" ? body.rawInput : "",
+  }
+}
+
+// R67 C-03 (decision D-05) -- THE IDENTITY BRIDGE, RESOLVED ONCE PER
+// SUBMISSION AND NEVER FABRICATED.
+//
+// POST's own `actorId` is `ctx.dbUser?.id ?? ctx.apiKey!.id`, and PROJEXA
+// always calls this with a per-ORG API key -- so for every real PROJEXA
+// request it is an api_keys.id. That is fine for pipeline_tasks (its user_id
+// is not a users FK) and fatally wrong for anything attributing a business
+// row to a PERSON, e.g. pms_time_entries.user_id, whose FK is hard.
+//
+// A session caller's own dbUser always wins. An API-key caller may send
+// actorEmail (the same convention /v1/projexa/timesheets already uses) and it
+// is resolved to a real, active, org-scoped compliance.users row.
+//
+// *** IT RETURNS NULL RATHER THAN REFUSING THE WHOLE REQUEST. *** Every
+// read-only function is unaffected by a missing actor, and the one executor
+// that needs a person refuses in its own words -- 400ing every submission on
+// a field most callers legitimately never send would be the wrong trade.
+async function resolveActorUserId(
+  ctx: Parameters<typeof resolveActingUser>[0],
+  body: Record<string, unknown>
+): Promise<string | null> {
+  if (ctx.dbUser?.id) return ctx.dbUser.id
+  const actorEmail = typeof body.actorEmail === "string" ? body.actorEmail.trim() : ""
+  if (!actorEmail) return null
+  const { user } = await resolveActingUser(ctx, actorEmail)
+  return user?.id ?? null
+}
 
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
@@ -46,25 +91,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Body must be JSON" }, { status: 400 })
   }
 
-  const mode = typeof body.mode === "string" ? body.mode : "Projects"
-  const projectId = typeof body.projectId === "string" ? body.projectId : null
+  const { mode, projectId, functionId, params, note, rawInput } = readSubmissionBody(body)
+  const actorUserId = await resolveActorUserId(ctx, body)
 
   try {
-    if (typeof body.functionId === "string" && body.functionId.trim().length > 0) {
+    if (functionId.length > 0) {
       const result = await runDirectTask({
         orgId: ctx.orgId,
         userId: actorId,
         mode,
         projectId,
-        functionId: body.functionId.trim(),
-        params: (body.params as Record<string, unknown>) ?? {},
-        note: typeof body.rawInput === "string" ? body.rawInput : undefined,
+        functionId,
+        params,
+        note,
         role: ctx.dbUser?.role ?? null,
+        actorUserId,
       })
       return NextResponse.json(result, { status: 201 })
     }
 
-    const rawInput = typeof body.rawInput === "string" ? body.rawInput : ""
     if (rawInput.trim().length === 0) {
       return NextResponse.json(
         { error: "Provide either functionId (the pill path) or rawInput (the typed path)" },
@@ -80,6 +125,7 @@ export async function POST(request: NextRequest) {
       selectedChain: body.selectedChain,
       rawInput,
       role: ctx.dbUser?.role ?? null,
+      actorUserId,
     })
     return NextResponse.json(result, { status: 201 })
   } catch (error) {

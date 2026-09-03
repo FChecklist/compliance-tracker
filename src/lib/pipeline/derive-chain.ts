@@ -64,6 +64,12 @@ export type DerivedChain = {
 const NAV_PATH_BY_FUNCTION: Readonly<Record<string, string>> = {
   // F030 / R-40 "Record partial progress against a weighted sub-task"
   record_work_progress: "Project > Work Progress > New entry",
+  // R67 C-03. Sumeet 8.png / Design Studio's own timesheet screen, which
+  // PROJEXA reaches at /schedule/log-time and /design-studio. Written in the
+  // same grammar as the nav_path rows above rather than copied from one:
+  // uat_function has no row for logging time, and R53 Phase 7 forbids
+  // inventing one there, so this stays in code where it is checkable.
+  record_timesheet: "Project > Timesheet > New entry",
   // F040 / R-50 "Project value matches BOQ total"
   get_construction_project_dashboard: "Project > Dashboard",
   // F069 / R-C09 "Budget percent defaults to 25 and is changeable per scope item"

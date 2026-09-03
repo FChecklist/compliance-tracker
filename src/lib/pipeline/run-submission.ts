@@ -44,6 +44,11 @@ export type RunSubmissionInput = {
   rawInput: string;
   /** R48 gap-closure (2026-08-30, F089) -- see executor.ts's ExecutableTask.role comment. Optional: callers with no role available (e.g. the MCP AI-link route) simply don't get the redaction. */
   role?: string | null;
+  /** R67 C-03 (D-05) -- see executor.ts's ExecutableTask.actorUserId comment.
+   *  The REAL compliance.users id, never an api_keys.id. Undefined when the
+   *  caller could not identify a person, which is a refusal for any executor
+   *  that attributes a row to one, not a licence to fall back to userId. */
+  actorUserId?: string | null;
 };
 
 export type TaskOutcome = {
@@ -173,7 +178,10 @@ type ResolvedSegment = {
 
 function l0ToResolution(r: L0Result): ResolvedFunction | null {
   if (r.kind !== "match") return null;
-  return { functionId: r.functionId, params: r.params, source: r.source, level: 0 };
+  // R67 C-03: missingParams is carried through. M26 PARTIAL -- a Level 0 hit
+  // that is short a slot is a FORM FIELD, and dropping that fact here is what
+  // turned "log 3 hours today" into a task that could only fail.
+  return { functionId: r.functionId, params: r.params, missingParams: r.missingParams, source: r.source, level: 0 };
 }
 
 export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmissionResult> {
@@ -343,6 +351,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       functionId: c.functionId,
       params: c.params,
       role: input.role,
+      actorUserId: input.actorUserId ?? null,
     });
     if (outcome.success) {
       await updateTask(input.orgId, taskId, "done", outcome.result, undefined);
@@ -436,6 +445,8 @@ export type RunDirectTaskInput = {
   note?: string;
   /** R48 gap-closure (2026-08-30, F089) -- see RunSubmissionInput.role. */
   role?: string | null;
+  /** R67 C-03 (D-05) -- see RunSubmissionInput.actorUserId. */
+  actorUserId?: string | null;
 };
 
 export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmissionResult> {
@@ -447,6 +458,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     projectId: input.projectId ?? null,
     rawInput: input.note ?? `[pill] ${input.functionId}`,
     role: input.role,
+    actorUserId: input.actorUserId ?? null,
   };
 
   const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
@@ -526,6 +538,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
       functionId: input.functionId,
       params,
       role: input.role,
+      actorUserId: input.actorUserId ?? null,
     });
   }
 

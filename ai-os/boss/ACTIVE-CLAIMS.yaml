@@ -40,6 +40,37 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (subagent, r67-lane-C) -- PROGRAMME R67 workstream WS-C (composer-band2), items C-01..C-16"
+    claimed_at: "2026-09-03T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implementation programme R67,
+      lane C ("composer-band2"). Branch r67/c-composer-band2, worktree
+      C:/ct/ct-worktrees/r67-C (compliance-tracker) + C:/ct/projexa-worktrees/r67-C (projexa).
+
+      Checked before starting (AGENTS.md Rule 11/12): no other entry under `active:` claims
+      src/lib/pipeline/** -- the r67-lane-I entry below explicitly records "NOT touching:
+      ... the pipeline (src/lib/pipeline/**)". No entry claims
+      src/app/api/v1/projexa/tasks/route.ts either.
+
+      File scope in compliance-tracker:
+        src/lib/pipeline/function-slots.ts (new, + .test.ts)
+        src/lib/pipeline/executor.ts (+ .test.ts) -- record_timesheet, the pipeline's
+          SECOND write; ExecutableTask.actorUserId (D-05 identity bridge)
+        src/lib/pipeline/validate.ts (+ .test.ts) -- additive { code, missing } payload (D-03)
+        src/lib/pipeline/level0.ts (+ .test.ts) -- tier 3b, the timesheet structural pattern
+        src/lib/pipeline/classify-only.ts, run-submission.ts, derive-chain.ts (threading only)
+        src/app/api/v1/projexa/tasks/route.ts (actorEmail -> actorUserId)
+      Later items in this lane additionally take src/lib/pipeline/classify.ts and a
+      compliance.pipeline_tasks error_code/error_details migration (C-13).
+
+      File scope in projexa: src/lib/task-errors.ts, src/lib/card-catalogue.ts,
+        src/components/shell/{task-row,TaskMaster,ChainOptionsPanel,ConfirmCard,AnswerBlock,
+        M24Shell,Composer,ControlStrip}.tsx, src/components/ReportsClient.tsx,
+        src/app/api/{tasks,classify,chain-options}/route.ts (all + their .test.ts).
+
+      NOT touching: drizzle/** (until C-13), src/lib/services/**, the ui-kit (D-09: fork into
+      projexa instead), any guardrail script's strictness (AGENTS.md Rule 9), or any file
+      another lane's entry claims.
   - session_label: "claude-code (subagent, r67-lane-I) -- PROGRAMME R67 workstream WS-I (data-migrations), items I-01..I-05"
     claimed_at: "2026-09-02T (this session)"
     claim: |

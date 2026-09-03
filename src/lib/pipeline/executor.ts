@@ -8,11 +8,19 @@
 // honest reason, never a fabricated success).
 import { and, eq, desc } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { constructionBoqLineItems, constructionBoqs, constructionActivities } from "@/lib/db/schema";
+import {
+  constructionBoqLineItems,
+  constructionBoqs,
+  constructionActivities,
+  pmsIssues,
+  users,
+} from "@/lib/db/schema";
 import { createProgressEntry } from "@/lib/services/construction-progress-service";
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
+import { logTime } from "@/lib/services/pms-time-service";
 import { dispatchTool } from "@/lib/task-execution-engine";
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
+import { missingSlots } from "./function-slots";
 
 export type ExecutionOutcome = { success: true; result: unknown } | { success: false; error: string };
 
@@ -38,6 +46,19 @@ export type ExecutableTask = {
    * NOT yet wired -- see R48_PROGRESS.md's F089 entry for the honest status.
    */
   role?: string | null;
+  /**
+   * R67 C-03 (decision D-05, the identity bridge) -- the REAL compliance.users
+   * id of the person this task is attributed to, resolved by the route.
+   *
+   * `userId` above is `ctx.dbUser?.id ?? ctx.apiKey!.id`, so for PROJEXA --
+   * which always calls with a per-ORG API key -- it is an api_keys.id, not a
+   * users.id. Writing that into a column with a hard FK to compliance.users
+   * is the E-class FK-mismatch bug fixed independently three times elsewhere
+   * in this repo. Any executor that attributes a row to a PERSON
+   * (pms_time_entries.user_id) must use THIS field and must fail honestly
+   * when it is absent, rather than fall back to userId.
+   */
+  actorUserId?: string | null;
 };
 
 async function executeRecordWorkProgress(task: ExecutableTask): Promise<ExecutionOutcome> {
@@ -92,6 +113,136 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
       }
     );
     return { success: true, result: row };
+  });
+}
+
+// R67 C-03 -- THE SECOND WRITE THIS PIPELINE CAN RUN.
+//
+// Before this, WRITE_FUNCTION_IDS was exactly {record_work_progress}: the
+// whole composer could record progress and nothing else, so "log 3 hours on
+// joinery shop drawings today" had nowhere to land. Design Studio's real
+// screen (/schedule/log-time in PROJEXA) already posts to the same service
+// this calls -- pms-time-service.logTime -- so this registers a path to
+// existing, working code rather than a second way to write a timesheet.
+//
+// THE TASK SLOT IS FUZZY-MATCHED, AND AMBIGUITY IS A REFUSAL. A person says
+// "joinery drawings"; pms_issues holds "#12 Joinery shop drawings". One
+// unambiguous match runs; none or several is an honest failure naming what
+// was searched, never a guess -- picking the first of three would log real
+// hours against the wrong task.
+async function executeRecordTimesheet(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingSlots("record_timesheet", task.params);
+  if (missing.length > 0) {
+    return { success: false, error: `${missing[0]} is required` };
+  }
+  if (!task.projectId) return { success: false, error: "no project resolved for this task" };
+
+  const hours = Number(task.params.hours);
+  if (!Number.isFinite(hours) || hours <= 0) return { success: false, error: "hours is required" };
+
+  // *** ATTRIBUTION IS A PERSON, NEVER AN API KEY. *** See ExecutableTask's
+  // actorUserId comment for why falling back to task.userId here would be a
+  // real FK bug, not a convenience.
+  const actorId = task.actorUserId;
+  if (!actorId) {
+    return {
+      success: false,
+      error:
+        "a time entry has to belong to a named person, and this request did not identify one -- sign in, or send actorEmail with the request",
+    };
+  }
+
+  const resolved = await withTenantContext({ orgId: task.orgId }, async (db) => {
+    const actor = await db.query.users.findFirst({
+      where: and(eq(users.id, actorId), eq(users.orgId, task.orgId)),
+    });
+    if (!actor) return { ok: false as const, error: "the person this time entry would belong to is not a user of this organisation" };
+    if (!actor.isActive) return { ok: false as const, error: "the person this time entry would belong to is deactivated" };
+
+    const explicitIssueId = typeof task.params.issueId === "string" ? task.params.issueId.trim() : "";
+    if (explicitIssueId) {
+      const issue = await db.query.pmsIssues.findFirst({
+        where: and(eq(pmsIssues.id, explicitIssueId), eq(pmsIssues.orgId, task.orgId)),
+        columns: { id: true, number: true, title: true },
+      });
+      if (!issue) return { ok: false as const, error: "that task does not exist on this project" };
+      return { ok: true as const, actor, issue };
+    }
+
+    const wanted = String(task.params.task ?? "").trim();
+    const issues = await db.query.pmsIssues.findMany({
+      where: and(eq(pmsIssues.orgId, task.orgId), eq(pmsIssues.projectId, task.projectId!)),
+      columns: { id: true, number: true, title: true },
+    });
+    if (issues.length === 0) return { ok: false as const, error: "this project has no tasks to log time against yet" };
+
+    const matches = matchIssues(issues, wanted);
+    if (matches.length === 0) return { ok: false as const, error: `no task on this project matches "${wanted}"` };
+    if (matches.length > 1) {
+      return {
+        ok: false as const,
+        error: `"${wanted}" matches ${matches.length} tasks on this project -- name one of them`,
+      };
+    }
+    return { ok: true as const, actor, issue: matches[0] };
+  });
+
+  // A DISCRIMINATED union, not an `in` check: both branches of the resolver
+  // widen to the same optional-property shape, so `"error" in resolved` does
+  // not narrow and the error would type as string | undefined.
+  if (!resolved.ok) return { success: false, error: resolved.error };
+
+  const spentOn =
+    typeof task.params.spentOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(task.params.spentOn)
+      ? task.params.spentOn
+      : new Date().toISOString().slice(0, 10);
+
+  const entry = await logTime(
+    { orgId: task.orgId, userId: resolved.actor.id, dbUser: resolved.actor },
+    {
+      issueId: resolved.issue.id,
+      hours: hours.toFixed(2),
+      spentOn,
+      activityType: typeof task.params.activityType === "string" ? task.params.activityType : undefined,
+      comments: typeof task.params.comments === "string" ? task.params.comments : undefined,
+    }
+  );
+
+  return { success: true, result: { ...entry, issue: resolved.issue } };
+}
+
+type IssueLite = { id: string; number: number | null; title: string | null };
+
+/**
+ * The fuzzy match, in one place so it is testable and so "how did it pick
+ * that task?" has an answer. Tried in order, and the FIRST tier that produces
+ * any match wins -- an exact issue number is never diluted by a title that
+ * happens to contain the same digits.
+ */
+export function matchIssues(issues: readonly IssueLite[], wanted: string): IssueLite[] {
+  const needle = wanted.trim().toLowerCase();
+  if (!needle) return [];
+
+  // "#12" or "12" -- the issue number, exactly.
+  const asNumber = Number(needle.replace(/^#/, ""));
+  if (Number.isInteger(asNumber) && asNumber > 0 && /^#?\d+$/.test(needle)) {
+    return issues.filter((i) => i.number === asNumber);
+  }
+
+  const titled = issues.filter((i) => (i.title ?? "").trim().length > 0);
+  const exact = titled.filter((i) => i.title!.toLowerCase() === needle);
+  if (exact.length > 0) return exact;
+
+  const contains = titled.filter((i) => i.title!.toLowerCase().includes(needle));
+  if (contains.length > 0) return contains;
+
+  // Every word the person said appears in the title, in any order:
+  // "joinery drawings" finds "Joinery shop drawings".
+  const words = needle.split(/\s+/).filter((w) => w.length > 2);
+  if (words.length === 0) return [];
+  return titled.filter((i) => {
+    const title = i.title!.toLowerCase();
+    return words.every((w) => title.includes(w));
   });
 }
 
@@ -189,6 +340,8 @@ function makeOrgScopedExecutor(codeReference: string): (task: ExecutableTask) =>
 
 const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutcome>> = {
   record_work_progress: executeRecordWorkProgress,
+  // R67 C-03: the second entry, and the second write.
+  record_timesheet: executeRecordTimesheet,
   get_construction_project_dashboard: executeGetProjectDashboard,
   ...Object.fromEntries(READ_ONLY_DISPATCH_FUNCTION_IDS.map((ref) => [ref, makeDispatchExecutor(ref)])),
   ...Object.fromEntries(READ_ONLY_ORG_SCOPED_FUNCTION_IDS.map((ref) => [ref, makeOrgScopedExecutor(ref)])),
@@ -203,7 +356,7 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
  * a write for a read blocks it with an honest reason, while mistaking a
  * read for a write would let a question record a real row.
  */
-const WRITE_FUNCTION_IDS: ReadonlySet<string> = new Set(["record_work_progress"]);
+const WRITE_FUNCTION_IDS: ReadonlySet<string> = new Set(["record_work_progress", "record_timesheet"]);
 
 export function functionWrites(functionId: string): boolean {
   return WRITE_FUNCTION_IDS.has(functionId);

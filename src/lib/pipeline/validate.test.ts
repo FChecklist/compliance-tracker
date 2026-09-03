@@ -80,3 +80,50 @@ describe("validate() -- every M26 check, first failure wins", () => {
     if (!r.valid) expect(r.reason).toContain("not in this module's candidate set");
   });
 });
+
+// R67 C-03 (decision D-03) -- the failure now carries a CODE and the FIELD,
+// so a product can render a closed-vocabulary sentence instead of `reason`,
+// which is written for an engineer reading a log.
+describe("validate() -- the closed-vocabulary { code, missing } payload", () => {
+  test("reason is unchanged, so every existing caller is unaffected", () => {
+    const r = validate({ functionId: "delete_organisation", params: {} }, BASE_CTX);
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    expect(r.reason).toContain("not in this module's candidate set");
+    expect(r.code).toBe("FUNCTION_NOT_AVAILABLE");
+    expect(r.missing).toEqual([]);
+  });
+
+  test("a BOQ line that is not on this BOQ names the line, not the parameter", () => {
+    const r = validate({ functionId: "record_work_progress", params: { boqLineItemId: "nope" } }, BASE_CTX);
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    expect(r.code).toBe("BOQ_LINE_NOT_FOUND");
+    expect(r.missing).toEqual(["boqLineItemId"]);
+  });
+
+  test("an out-of-range percent is a VALUE the user has to retype", () => {
+    const r = validate({ functionId: "record_work_progress", params: { percent: 999 } }, BASE_CTX);
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    expect(r.code).toBe("VALUE_REQUIRED");
+    expect(r.missing).toEqual(["percent"]);
+  });
+
+  test("an unreachable project asks for a project", () => {
+    const r = validate({ functionId: "record_work_progress", params: { projectId: "other" } }, BASE_CTX);
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    expect(r.code).toBe("PROJECT_REQUIRED");
+    expect(r.missing).toEqual(["projectId"]);
+  });
+
+  test("a permission refusal is never dressed up as a missing value", () => {
+    const ctx: ValidationContext = { ...BASE_CTX, userPermittedFunctionIds: new Set() };
+    const r = validate({ functionId: "record_work_progress", params: {} }, ctx);
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    expect(r.code).toBe("FUNCTION_NOT_AVAILABLE");
+    expect(r.missing).toEqual([]);
+  });
+});

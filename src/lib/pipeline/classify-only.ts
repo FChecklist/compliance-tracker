@@ -79,7 +79,10 @@ export async function classifyOnly(input: ClassifyOnlyInput): Promise<ClassifyOn
     let level1Reason: string | null = null;
 
     if (r.kind === "match") {
-      resolution = { functionId: r.functionId, params: r.params, source: r.source, level: 0 };
+      // R67 C-03: missingParams carried through -- see run-submission.ts's
+      // l0ToResolution(). A preview that drops it cannot ask the one question
+      // the composer exists to ask.
+      resolution = { functionId: r.functionId, params: r.params, missingParams: r.missingParams, source: r.source, level: 0 };
     } else if (r.kind === "miss") {
       const at = missIndices.indexOf(i);
       resolution = level1.resolutions[at] ?? null;

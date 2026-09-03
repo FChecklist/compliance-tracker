@@ -4,6 +4,8 @@
 // failed validate() result the same as a miss (gap_log + honest "cannot do
 // that yet"), never surface it to the user as a lower-confidence option.
 
+import { slotCode, type SlotErrorCode } from "./function-slots";
+
 export type ValidationCandidate = {
   functionId: string;
   params: Record<string, unknown>;
@@ -23,10 +25,28 @@ export type ValidationContext = {
   reachableProjectIds: ReadonlySet<string>;
 };
 
-export type ValidationResult = { valid: true } | { valid: false; reason: string };
+/**
+ * R67 C-03 (decision D-03) -- A FAILURE NOW CARRIES A CODE AND THE FIELD.
+ *
+ * `reason` is unchanged and still the engineer-facing sentence every existing
+ * caller logs; `code` and `missing` are ADDITIVE, and they are what a product
+ * is allowed to render. PROJEXA's src/lib/task-errors.ts turns the code into
+ * the one sentence a person reads ("Pick a BOQ line"), so a camelCase param
+ * name, a function id or a pooler IP can never reach a site engineer's screen
+ * again -- which is exactly how they did reach it before this.
+ */
+export type ValidationFailure = {
+  valid: false;
+  reason: string;
+  code: SlotErrorCode;
+  /** The field the user has to supply or correct, when the failure names one. */
+  missing: string[];
+};
 
-function fail(reason: string): ValidationResult {
-  return { valid: false, reason };
+export type ValidationResult = { valid: true } | ValidationFailure;
+
+function fail(reason: string, code: SlotErrorCode, missing: string[] = []): ValidationFailure {
+  return { valid: false, reason, code, missing };
 }
 
 // Minimal, generic type-checking by param NAME convention rather than a full
@@ -36,16 +56,24 @@ function fail(reason: string): ValidationResult {
 // A param this convention doesn't recognise is passed through unchecked --
 // this gate catches the specific failure MODES M26 calls out (a hallucinated
 // id, an out-of-range percent), not every conceivable type error.
-function checkParamTypes(params: Record<string, unknown>): ValidationResult {
+function checkParamTypes(functionId: string, params: Record<string, unknown>): ValidationResult {
   for (const [key, value] of Object.entries(params)) {
     const lowerKey = key.toLowerCase();
     if (lowerKey === "percent" || lowerKey.endsWith("percent")) {
       if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100) {
-        return fail(`${key} must be a number between 0 and 100, got ${JSON.stringify(value)}`);
+        return fail(
+          `${key} must be a number between 0 and 100, got ${JSON.stringify(value)}`,
+          slotCode(functionId, key) ?? "VALUE_REQUIRED",
+          [key]
+        );
       }
     } else if (lowerKey.endsWith("id") && lowerKey !== "id") {
       if (typeof value !== "string" || value.length === 0) {
-        return fail(`${key} must be a non-empty string, got ${JSON.stringify(value)}`);
+        return fail(
+          `${key} must be a non-empty string, got ${JSON.stringify(value)}`,
+          slotCode(functionId, key) ?? "VALUE_REQUIRED",
+          [key]
+        );
       }
     }
   }
@@ -62,27 +90,32 @@ function checkParamTypes(params: Record<string, unknown>): ValidationResult {
  */
 export function validate(candidate: ValidationCandidate, ctx: ValidationContext): ValidationResult {
   if (!ctx.candidateFunctionIds.includes(candidate.functionId)) {
-    return fail(`function_id "${candidate.functionId}" is not in this module's candidate set`);
+    return fail(
+      `function_id "${candidate.functionId}" is not in this module's candidate set`,
+      "FUNCTION_NOT_AVAILABLE"
+    );
   }
 
   const boqLineItemId = candidate.params.boqLineItemId;
   if (typeof boqLineItemId === "string" && boqLineItemId.length > 0) {
     if (!ctx.boqLineItemIds.has(boqLineItemId)) {
-      return fail(`boq_line_item_id "${boqLineItemId}" does not exist in this BOQ`);
+      return fail(`boq_line_item_id "${boqLineItemId}" does not exist in this BOQ`, "BOQ_LINE_NOT_FOUND", [
+        "boqLineItemId",
+      ]);
     }
   }
 
-  const typeCheck = checkParamTypes(candidate.params);
+  const typeCheck = checkParamTypes(candidate.functionId, candidate.params);
   if (!typeCheck.valid) return typeCheck;
 
   if (!ctx.userPermittedFunctionIds.has(candidate.functionId)) {
-    return fail(`user is not permitted to execute "${candidate.functionId}"`);
+    return fail(`user is not permitted to execute "${candidate.functionId}"`, "FUNCTION_NOT_AVAILABLE");
   }
 
   const projectId = candidate.params.projectId;
   if (typeof projectId === "string" && projectId.length > 0) {
     if (!ctx.reachableProjectIds.has(projectId)) {
-      return fail(`project "${projectId}" is not reachable by this user`);
+      return fail(`project "${projectId}" is not reachable by this user`, "PROJECT_REQUIRED", ["projectId"]);
     }
   }
 
