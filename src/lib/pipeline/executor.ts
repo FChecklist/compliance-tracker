@@ -21,8 +21,43 @@ import { logTime } from "@/lib/services/pms-time-service";
 import { dispatchTool } from "@/lib/task-execution-engine";
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
 import { missingSlots } from "./function-slots";
+// R67 C-13: the one place that decides whether a failure is the user's to fix
+// or ours, and the only place a raw driver message is turned into words.
+import { classifyFailure } from "./failure-classification";
 
-export type ExecutionOutcome = { success: true; result: unknown } | { success: false; error: string };
+/**
+ * R67 C-13 -- A FAILURE NOW CARRIES ITS OWN CLASSIFICATION.
+ *
+ * `error` is unchanged in meaning: the sentence a client may render. What is
+ * new is everything beside it, and it is what lets Task Master stop showing a
+ * pooler IP to a site engineer:
+ *
+ *   status  -- 'failed' (a person can fix it) | 'failed_system' (nobody on
+ *              site can). The needs-you list keys off this.
+ *   code    -- D-03's closed vocabulary, so PROJEXA chooses the sentence
+ *              rather than rendering ours.
+ *   missing -- the slots to ask for, so the client can open the right picker.
+ *   details -- THE RAW TEXT, FOR US. Persisted to pipeline_tasks.error_details
+ *              and never returned by any route. The whole point of splitting
+ *              it from `error` is that one column is safe to render and the
+ *              other is not.
+ *
+ * All four are OPTIONAL so that every executor above can keep returning
+ * `{ success: false, error }` unchanged: executeTask() fills them in from
+ * failure-classification.ts, in one place, for every failure -- including the
+ * ones an executor authored itself.
+ */
+export type ExecutionFailure = {
+  success: false;
+  error: string;
+  status?: "failed" | "failed_system";
+  code?: string;
+  missing?: string[];
+  details?: string;
+  retryToken?: string;
+};
+
+export type ExecutionOutcome = { success: true; result: unknown } | ExecutionFailure;
 
 export type ExecutableTask = {
   orgId: string;
@@ -369,13 +404,52 @@ export function hasExecutor(functionId: string): boolean {
   return functionId in EXECUTORS;
 }
 
-export async function executeTask(task: ExecutableTask): Promise<ExecutionOutcome> {
-  const executor = EXECUTORS[task.functionId];
+/**
+ * R67 C-13 -- every failure leaves here CLASSIFIED, whoever produced it.
+ *
+ * An executor's own returned failure is classified too, not just a thrown one:
+ * "itemCode is required" is a real question for the user and it should reach
+ * PROJEXA as BOQ_LINE_REQUIRED + ["itemCode"], not as a camelCase string the
+ * client has to pattern-match its way back out of.
+ *
+ * A failure that ALREADY carries a code is left alone -- an executor that
+ * knows better than a regex is the authority on its own failure.
+ */
+function classified(outcome: ExecutionOutcome): ExecutionOutcome {
+  if (outcome.success || outcome.code) return outcome;
+  const f = classifyFailure(outcome.error);
+  return {
+    success: false,
+    // The classifier's message for a system failure (the raw text is useless
+    // to a person); the executor's own sentence otherwise, masked.
+    error: f.message,
+    status: f.status,
+    code: f.code,
+    missing: f.missing,
+    details: f.details,
+    retryToken: f.retryToken,
+  };
+}
+
+export async function executeTask(
+  task: ExecutableTask,
+  /**
+   * TEST SEAM ONLY, and deliberately the last parameter with a default, so no
+   * production call site passes it: every executor in the real registry does
+   * real DB work, and C-13's own acceptance is about what executeTask does
+   * with a THROWN driver error -- which cannot be reached without one.
+   */
+  executors: Record<string, (task: ExecutableTask) => Promise<ExecutionOutcome>> = EXECUTORS
+): Promise<ExecutionOutcome> {
+  const executor = executors[task.functionId];
   if (!executor) {
-    return { success: false, error: `no executor is registered for function_id "${task.functionId}" yet` };
+    return classified({
+      success: false,
+      error: `no executor is registered for function_id "${task.functionId}" yet`,
+    });
   }
   try {
-    return await executor(task);
+    return classified(await executor(task));
   } catch (error) {
     // R66 visual QA (2026-09-02): this used to return error.message straight
     // through. Every executor ABOVE already returns its own clean, honest
@@ -390,10 +464,23 @@ export async function executeTask(task: ExecutableTask): Promise<ExecutionOutcom
     // "write CONNECT_TIMEOUT 3.109.171.244:6543" and was rendered verbatim to
     // the end user, leaking an internal IP:port. Log the real error
     // server-side; return a safe, honest-but-generic message for display.
+    //
+    // R67 C-13: the generic sentence is no longer the whole answer. The same
+    // exception now also produces a CODE, a status and the raw text kept
+    // separately -- so a pool timeout can leave the needs-you list (nobody on
+    // site can fix it) and carry a Retry, while an unexpected error that is
+    // really a user's missing slot still asks its question. The message a
+    // client renders is the classifier's, never `error.message`.
     console.error(`executeTask: unexpected error running "${task.functionId}"`, error);
+    const f = classifyFailure(error);
     return {
       success: false,
-      error: "This couldn't be completed right now due to an internal error. Retry shortly, or contact support if it persists.",
+      error: f.message,
+      status: f.status,
+      code: f.code,
+      missing: f.missing,
+      details: f.details,
+      retryToken: f.retryToken,
     };
   }
 }

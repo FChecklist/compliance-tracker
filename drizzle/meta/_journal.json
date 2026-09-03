@@ -2486,6 +2486,13 @@
       "when": 1788288900000,
       "tag": "0532_r67_i05_boq_line_category",
       "breakpoints": true
+    },
+    {
+      "idx": 355,
+      "version": "7",
+      "when": 1788289000000,
+      "tag": "0533_r67_c13_pipeline_task_error_shape",
+      "breakpoints": true
     }
   ]
 }

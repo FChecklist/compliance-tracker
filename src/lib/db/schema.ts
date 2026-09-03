@@ -13327,7 +13327,34 @@ export const pipelineTasks = complianceSchemaDB.table('pipeline_tasks', {
   executor: pipelineTaskExecutorEnum('executor').notNull().default('software'),
   status: pipelineTaskStatusEnum('status').notNull().default('to_do'),
   result: jsonb('result'),
+  // THE SENTENCE A CLIENT MAY RENDER. Masked before it gets here (executor.ts
+  // -> failure-classification.ts). Not the raw exception -- see error_details.
   error: text('error'),
+  // R67 C-13 (drizzle/0533) -- THE FAILURE, SPLIT IN TWO.
+  //
+  // The R66 walkthrough captured `error` being rendered verbatim to a site
+  // engineer as "write CONNECT_TIMEOUT 3.109.171.244:6543": one column held
+  // both the thing a person needs to read and the thing only an engineer can
+  // use, so every consumer had to guess which it had.
+  //
+  // error_code is D-03's closed vocabulary (BOQ_LINE_REQUIRED, PROJECT_REQUIRED,
+  // VALUE_REQUIRED, TASK_REQUIRED, FUNCTION_NOT_AVAILABLE, INFRA_UNAVAILABLE,
+  // UNKNOWN) -- deliberately TEXT, not an enum: the vocabulary is owned by
+  // src/lib/pipeline/failure-classification.ts and a product adding a sentence
+  // must not need a migration to do it.
+  //
+  // error_details is THE RAW TEXT, and it is ours. No route in this repo
+  // returns it; GET /api/v1/projexa/tasks selects error_code and never this.
+  // That separation is the whole reason the column exists.
+  //
+  // NOTE ON 'failed_system': C-13's own wording asks for a task STATUS of that
+  // name. pipeline_task_status is closed at five values by an explicit,
+  // documented M24 decision recorded above, which extending needs owner
+  // sign-off this lane does not have -- so the classification lives on the
+  // ExecutionOutcome and on error_code (INFRA_UNAVAILABLE), which is what
+  // every behaviour the item asks for actually keys off.
+  errorCode: text('error_code'),
+  errorDetails: text('error_details'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

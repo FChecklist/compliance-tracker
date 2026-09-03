@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
-import { functionWrites, hasExecutor, matchIssues } from "./executor";
+import { executeTask, functionWrites, hasExecutor, matchIssues } from "./executor";
 
 // executeTask() itself does real DB access via withTenantContext and is
 // proven live (a real percentComplete write + RE-SELECT, and a real
@@ -81,5 +81,84 @@ describe("matchIssues -- fuzzy over the project's own task titles, and ambiguity
 
   test("a needle of only short words does not fall through to matching everything", () => {
     expect(matchIssues(ISSUES, "an of")).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R67 C-13 -- executeTask() classifies every failure it returns.
+//
+// This is C-13's own acceptance, run literally. The registry is injected
+// through executeTask's last parameter (a test seam with a default, so no
+// production call site passes it): every real executor does real DB work, and
+// what is being asserted here is what executeTask does with a THROWN driver
+// error, which cannot be reached without one.
+// ---------------------------------------------------------------------------
+
+describe("executeTask -- a thrown driver error becomes a system failure, not an IP on a screen", () => {
+  const task = {
+    orgId: "org1",
+    userId: "u1",
+    projectId: "p1",
+    functionId: "boom",
+    params: {},
+  };
+
+  test("C-13's acceptance, verbatim", async () => {
+    const outcome = await executeTask(task, {
+      boom: async () => {
+        throw new Error("write CONNECT_TIMEOUT 3.109.171.244:6543");
+      },
+    });
+    expect(outcome.success).toBe(false);
+    if (outcome.success) return;
+    expect(outcome.status).toBe("failed_system");
+    expect(outcome.code).toBe("INFRA_UNAVAILABLE");
+    // "the user-facing message it returns contains no digits-and-dots IP substring"
+    expect(outcome.error).not.toMatch(/\d+\.\d+\.\d+\.\d+/);
+    expect(outcome.error).not.toContain("CONNECT_TIMEOUT");
+  });
+
+  test("the raw text is kept for us, on `details`, and is not the message", async () => {
+    const outcome = await executeTask(task, {
+      boom: async () => {
+        throw new Error("write CONNECT_TIMEOUT 3.109.171.244:6543");
+      },
+    });
+    if (outcome.success) throw new Error("expected a failure");
+    expect(outcome.details).toBe("write CONNECT_TIMEOUT 3.109.171.244:6543");
+    expect(outcome.retryToken).toBeTruthy();
+  });
+
+  test("an executor's own returned failure is classified too, and keeps its slot", async () => {
+    const outcome = await executeTask(task, {
+      boom: async () => ({ success: false as const, error: "itemCode is required" }),
+    });
+    if (outcome.success) throw new Error("expected a failure");
+    expect(outcome.status).toBe("failed");
+    expect(outcome.code).toBe("BOQ_LINE_REQUIRED");
+    expect(outcome.missing).toEqual(["itemCode"]);
+  });
+
+  test("an unregistered function is a gap with a code, not a mystery", async () => {
+    const outcome = await executeTask({ ...task, functionId: "nope" }, {});
+    if (outcome.success) throw new Error("expected a failure");
+    expect(outcome.code).toBe("FUNCTION_NOT_AVAILABLE");
+    expect(outcome.status).toBe("failed");
+  });
+
+  test("a success is passed straight through, untouched", async () => {
+    const outcome = await executeTask(task, {
+      boom: async () => ({ success: true as const, result: { id: "x" } }),
+    });
+    expect(outcome).toEqual({ success: true, result: { id: "x" } });
+  });
+
+  test("an executor that already knows its own code keeps it", async () => {
+    const outcome = await executeTask(task, {
+      boom: async () => ({ success: false as const, error: "anything", code: "PROJECT_REQUIRED" }),
+    });
+    if (outcome.success) throw new Error("expected a failure");
+    expect(outcome.code).toBe("PROJECT_REQUIRED");
+    expect(outcome.error).toBe("anything");
   });
 });

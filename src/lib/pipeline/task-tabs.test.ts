@@ -123,3 +123,54 @@ describe("tabCountsFrom -- the numbers come from a grouped count, not a page", (
     for (const key of TASK_TAB_KEYS) expect(c.tabs[key]).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// R67 C-13 -- a failure nobody on site can fix is not "needs you".
+// ---------------------------------------------------------------------------
+
+describe("system failures leave the needs-you number", () => {
+  const rows: StatusCountRow[] = [
+    { status: "to_do", n: 3 },
+    { status: "blocked", errorCode: "BOQ_LINE_REQUIRED", n: 2 },
+    { status: "blocked", errorCode: "INFRA_UNAVAILABLE", n: 4 },
+    { status: "done", n: 10 },
+  ];
+
+  test("needs_you counts the decisions, not the outages", () => {
+    const c = tabCountsFrom(rows);
+    // 3 to_do + 2 fixable blocked; the 4 infrastructure rows are not the
+    // foreman's move.
+    expect(c.tabs.needs_you).toBe(5);
+    expect(c.tabs.approval).toBe(5);
+  });
+
+  test("they are REPORTED, not merely subtracted -- a number that only disappears cannot be audited", () => {
+    const c = tabCountsFrom(rows);
+    expect(c.systemBlocked).toBe(4);
+    expect(c.blocked).toBe(6);
+    expect(c.total).toBe(19);
+  });
+
+  test("BACKEND_UNAVAILABLE is the same fact under D-03's older name", () => {
+    const c = tabCountsFrom([{ status: "blocked", errorCode: "BACKEND_UNAVAILABLE", n: 2 }]);
+    expect(c.systemBlocked).toBe(2);
+    expect(c.tabs.needs_you).toBe(0);
+  });
+
+  test("a blocked row with no code at all still needs someone -- it is not assumed to be an outage", () => {
+    const c = tabCountsFrom([{ status: "blocked", errorCode: null, n: 2 }]);
+    expect(c.systemBlocked).toBe(0);
+    expect(c.tabs.needs_you).toBe(2);
+  });
+
+  test("the other tabs are untouched by the split", () => {
+    const c = tabCountsFrom(rows);
+    expect(c.tabs.done).toBe(10);
+    expect(c.tabs.queued).toBe(0);
+  });
+
+  test("a tab count can never go negative, whatever the grouping says", () => {
+    const c = tabCountsFrom([{ status: "blocked", errorCode: "INFRA_UNAVAILABLE", n: 5 }]);
+    expect(c.tabs.needs_you).toBe(0);
+  });
+});

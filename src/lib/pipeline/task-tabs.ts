@@ -17,6 +17,8 @@
 // a page are different questions: "how many are there" and "which ones am I
 // looking at now". Answering the first with the second is the defect.
 
+import { isSystemErrorCode } from "./failure-classification";
+
 /** compliance.pipeline_task_status -- M24's closed five, verbatim. */
 export const PIPELINE_STATUSES = ["to_do", "in_progress", "waiting", "done", "blocked"] as const;
 export type PipelineStatus = (typeof PIPELINE_STATUSES)[number];
@@ -88,8 +90,14 @@ export function resolveStatusFilter(statusParam: string | null | undefined): Sta
   return { statuses: [...statuses], tab, unknown };
 }
 
-/** One row of the grouped `SELECT status, count(*) ... GROUP BY status`. */
-export type StatusCountRow = { status: string | null; n: number };
+/**
+ * One row of the grouped `SELECT status, error_code, count(*) ... GROUP BY 1,2`.
+ *
+ * R67 C-13: the code is part of the grouping because a blocked row that is a
+ * SYSTEM failure does not belong in the needs-you number -- a badge saying "3"
+ * that a person cannot work down to zero is not a badge.
+ */
+export type StatusCountRow = { status: string | null; errorCode?: string | null; n: number };
 
 export type TaskCounts = {
   /**
@@ -112,6 +120,13 @@ export type TaskCounts = {
   tabs: Record<TaskTabKey, number>;
   /** Per raw status, so a caller can build a tab this file has not heard of. */
   byStatus: Record<PipelineStatus, number>;
+  /**
+   * R67 C-13: how many blocked rows are infrastructure failures. Reported
+   * rather than merely subtracted -- "3 things went wrong on our side" is a
+   * fact the product may want to say, and a number that only ever disappears
+   * is a number nobody can audit.
+   */
+  systemBlocked: number;
 };
 
 /**
@@ -121,17 +136,24 @@ export type TaskCounts = {
 export function tabCountsFrom(rows: readonly StatusCountRow[]): TaskCounts {
   const byStatus = { to_do: 0, in_progress: 0, waiting: 0, done: 0, blocked: 0 } as Record<PipelineStatus, number>;
   let total = 0;
+  // R67 C-13: blocked rows nobody on site can act on, counted separately so
+  // they can be taken out of the needs-you tabs without being lost.
+  let systemBlocked = 0;
   for (const row of rows) {
     const n = Number.isFinite(row.n) ? Math.max(0, Math.trunc(row.n)) : 0;
     total += n;
     if (row.status && (PIPELINE_STATUSES as readonly string[]).includes(row.status)) {
       byStatus[row.status as PipelineStatus] += n;
+      if (row.status === "blocked" && isSystemErrorCode(row.errorCode)) systemBlocked += n;
     }
   }
 
   const tabs = {} as Record<TaskTabKey, number>;
   for (const key of TASK_TAB_KEYS) {
-    tabs[key] = TAB_STATUSES[key].reduce((sum, s) => sum + byStatus[s], 0);
+    const raw = TAB_STATUSES[key].reduce((sum, s) => sum + byStatus[s], 0);
+    // The two tabs that mean "your move" exclude the system failures their own
+    // query excludes, so the number and the list can never disagree.
+    tabs[key] = key === "needs_you" || key === "approval" ? Math.max(0, raw - systemBlocked) : raw;
   }
 
   return {
@@ -142,5 +164,6 @@ export function tabCountsFrom(rows: readonly StatusCountRow[]): TaskCounts {
     total,
     tabs,
     byStatus,
+    systemBlocked,
   };
 }

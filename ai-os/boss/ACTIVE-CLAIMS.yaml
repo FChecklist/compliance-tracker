@@ -69,8 +69,12 @@ active:
           names".
         src/lib/pipeline/task-tabs.ts (new, + .test.ts) -- C-11's tab vocabulary and the
           grouped per-tab counts on GET /api/v1/projexa/tasks, added 2026-09-03.
-      Later items in this lane additionally take src/lib/pipeline/classify.ts and a
-      compliance.pipeline_tasks error_code/error_details migration (C-13).
+        src/lib/pipeline/failure-classification.ts (new, + .test.ts) and
+          drizzle/0533_r67_c13_pipeline_task_error_shape.sql -- C-13's error_code /
+          error_details split on compliance.pipeline_tasks, added 2026-09-03. Re-checked
+          at that point: no other entry under `active:` claims drizzle/**; the
+          r67-lane-I entry's own migrations end at 0532, so 0533 is the next free
+          number and collides with nothing on origin/main.
 
       File scope in projexa: src/lib/task-errors.ts, src/lib/card-catalogue.ts,
         src/components/shell/{task-row,TaskMaster,ChainOptionsPanel,ConfirmCard,AnswerBlock,

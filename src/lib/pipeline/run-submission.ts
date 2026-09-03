@@ -337,7 +337,10 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
 
     if (!hasExecutor(c.functionId)) {
       const reason = `no executor is registered for function_id "${c.functionId}" yet`;
-      await updateTask(input.orgId, taskId, "blocked", undefined, reason);
+      // R67 C-13: a gap, not a retryable failure -- the code says so, so
+      // PROJEXA offers "open the screen" rather than a Retry that will fail
+      // in exactly the same way.
+      await updateTask(input.orgId, taskId, "blocked", undefined, reason, { code: "FUNCTION_NOT_AVAILABLE" });
       tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, error: reason });
       advance(true);
       continue;
@@ -363,7 +366,10 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
         await captureTaskResultMemory(input, c.functionId, seg.text, c.params);
       }
     } else {
-      await updateTask(input.orgId, taskId, "blocked", undefined, outcome.error);
+      // R67 C-13: the code and the raw text travel with the row, so Task
+      // Master can tell "pick a BOQ line" from "the pool timed out" without
+      // reading either one's wording.
+      await updateTask(input.orgId, taskId, "blocked", undefined, outcome.error, outcome);
       tasks.push({ taskId, functionId: c.functionId, verdict: c.verdict, status: "blocked", segmentText: seg.text, error: outcome.error });
     }
     advance(!outcome.success);
@@ -522,9 +528,15 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
 
   const taskId = await mintTask(base, submissionId, 0, null, input.functionId, params, derived);
 
-  let outcome: { success: boolean; result?: unknown; error?: string };
+  // R67 C-13: the union carries the classification too (code / details), so
+  // the two new columns can be written from either branch.
+  let outcome: { success: boolean; result?: unknown; error?: string; code?: string; details?: string };
   if (!hasExecutor(input.functionId)) {
-    outcome = { success: false, error: `no executor is registered for function_id "${input.functionId}" yet` };
+    outcome = {
+      success: false,
+      error: `no executor is registered for function_id "${input.functionId}" yet`,
+      code: "FUNCTION_NOT_AVAILABLE",
+    };
   } else {
     // R65 Part D Phase 3 -- see markInProgress()'s own header comment. Only
     // reached once hasExecutor() has already confirmed this task will
@@ -550,7 +562,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
       await captureTaskResultMemory(base, input.functionId, base.rawInput, params);
     }
   } else {
-    await updateTask(input.orgId, taskId, "blocked", undefined, outcome.error);
+    await updateTask(input.orgId, taskId, "blocked", undefined, outcome.error, outcome);
   }
 
   await recordPillUse(base, input.functionId, derived);
@@ -805,11 +817,37 @@ async function mintTask(
   });
 }
 
-async function updateTask(orgId: string, taskId: string, status: TaskOutcome["status"], result: unknown, error: string | undefined) {
+/**
+ * R67 C-13 -- the failure is written in THREE columns now, not one.
+ *
+ *   error         the sentence a client may render (already masked upstream)
+ *   error_code    D-03's closed vocabulary, so PROJEXA chooses the words
+ *   error_details THE RAW TEXT, for us. Never returned by any route -- that
+ *                 separation is the whole reason the column exists.
+ *
+ * `failure` is the ExecutionOutcome's own classification when it has one; a
+ * caller with nothing to say leaves the two new columns null, which is exactly
+ * what every pre-R67 row already holds.
+ */
+async function updateTask(
+  orgId: string,
+  taskId: string,
+  status: TaskOutcome["status"],
+  result: unknown,
+  error: string | undefined,
+  failure?: { code?: string; details?: string }
+) {
   await withTenantContext({ orgId }, (db) =>
     db
       .update(pipelineTasks)
-      .set({ status, result: (result as object | undefined) ?? null, error: error ?? null, updatedAt: new Date() })
+      .set({
+        status,
+        result: (result as object | undefined) ?? null,
+        error: error ?? null,
+        errorCode: failure?.code ?? null,
+        errorDetails: failure?.details ?? null,
+        updatedAt: new Date(),
+      })
       .where(eq(pipelineTasks.id, taskId))
   );
 }

@@ -20,13 +20,14 @@
 //                                  function, so no classifier and NO MODEL
 //                                  CALL EVER
 import { NextRequest, NextResponse } from "next/server"
-import { and, count, desc, eq, inArray } from "drizzle-orm"
+import { and, count, desc, eq, inArray, isNull, notInArray, or } from "drizzle-orm"
 import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
 import { runSubmission, runDirectTask } from "@/lib/pipeline/run-submission"
 import { missingSlots } from "@/lib/pipeline/function-slots"
 import { resolveStatusFilter, tabCountsFrom, type PipelineStatus } from "@/lib/pipeline/task-tabs"
+import { SYSTEM_ERROR_CODES, isSystemErrorCode } from "@/lib/pipeline/failure-classification"
 
 type TaskStatus = PipelineStatus
 
@@ -185,6 +186,10 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  // R67 C-13: only the tabs that mean "your move" hide a system failure.
+  const excludesSystemFailures = filter.tab === "needs_you" || filter.tab === "approval"
+  const includeFixtures = url.searchParams.get("includeFixtures") === "1"
+
   try {
     const { rows, countRows } = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
       // The SCOPE both queries share. The status filter narrows the page only:
@@ -195,6 +200,20 @@ export async function GET(request: NextRequest) {
 
       const conditions = [...scope]
       if (filter.statuses.length > 0) conditions.push(inArray(pipelineTasks.status, filter.statuses))
+      // R67 C-13: "system failures ... are excluded from the needs-you query".
+      // A pool timeout is not a decision waiting on a foreman, and a needs-you
+      // list that contains one is a list that cannot be worked down to zero.
+      // Only the needs-you/approval tabs exclude them -- they are still there
+      // under `status=blocked`, because hiding a failure outright is how a
+      // write is silently lost.
+      if (excludesSystemFailures) {
+        conditions.push(
+          or(
+            isNull(pipelineTasks.errorCode),
+            notInArray(pipelineTasks.errorCode, [...SYSTEM_ERROR_CODES])
+          )!
+        )
+      }
 
       const page = await db
         .select({
@@ -209,6 +228,11 @@ export async function GET(request: NextRequest) {
           result: pipelineTasks.result,
           status: pipelineTasks.status,
           error: pipelineTasks.error,
+          // R67 C-13: the CODE travels, so PROJEXA chooses the sentence.
+          // `error_details` -- the raw driver text -- is deliberately NOT
+          // selected here and must never be: it is the column that exists so
+          // the raw text has somewhere to live OTHER than a browser.
+          errorCode: pipelineTasks.errorCode,
           createdAt: pipelineTasks.createdAt,
           updatedAt: pipelineTasks.updatedAt,
           rawInput: submissions.rawInput,
@@ -222,10 +246,10 @@ export async function GET(request: NextRequest) {
 
       // ONE grouped count, five rows back at most -- not a second full read.
       const grouped = await db
-        .select({ status: pipelineTasks.status, n: count() })
+        .select({ status: pipelineTasks.status, errorCode: pipelineTasks.errorCode, n: count() })
         .from(pipelineTasks)
         .where(and(...scope))
-        .groupBy(pipelineTasks.status)
+        .groupBy(pipelineTasks.status, pipelineTasks.errorCode)
 
       return { rows: page, countRows: grouped }
     })
@@ -235,10 +259,26 @@ export async function GET(request: NextRequest) {
     // This is the `missing` half of the { code, missing } payload PROJEXA's
     // task-errors.ts already reads; before it, the client had to infer the
     // question from the backend's wording.
-    const tasks = rows.map((r) => ({
-      ...r,
-      missing: r.functionId ? missingSlots(r.functionId, (r.params ?? {}) as Record<string, unknown>) : [],
-    }))
+    const tasks = rows
+      // R67 C-13: "seeded audit fixtures ('ZZ-AUDIT1-999R', '(HARD-STOP TEST)')
+      // are hidden by A FLAG ON THE SEED rather than a string match."
+      //
+      // THE FLAG IS IMPLEMENTED; THE STRING MATCH IS DELIBERATELY NOT. A
+      // regex over params or rawInput would hide a REAL row the day a real BOQ
+      // line is called ZZ-AUDIT1-999R, and hiding a real task is a worse
+      // failure than showing a fixture. Note honestly: no seed in either repo
+      // sets `seedFixture` today, so this hides nothing yet -- the fixtures
+      // stay visible until whoever owns the seed marks them, which is the
+      // correct place for that decision and not this route.
+      .filter((r) => includeFixtures || (r.params as Record<string, unknown> | null)?.seedFixture !== true)
+      .map((r) => ({
+        ...r,
+        missing: r.functionId ? missingSlots(r.functionId, (r.params ?? {}) as Record<string, unknown>) : [],
+        // R67 C-13: stated, not inferred. A client should not have to know
+        // which codes mean "nobody on site can fix this" to keep them out of
+        // its needs-you badge.
+        systemFailure: isSystemErrorCode(r.errorCode),
+      }))
 
     const group = (statuses: TaskStatus[]) => tasks.filter((r) => statuses.includes(r.status as TaskStatus))
     const counts = tabCountsFrom(countRows)
