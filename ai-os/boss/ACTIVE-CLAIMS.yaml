@@ -131,19 +131,23 @@ active:
       construction_material_receipts.voided_at / void_reason / voided_by_id,
       construction_materials.reorder_level, the whole construction_material_issues
       table, and the attendance uniqueness work. I-04 (drizzle/0531) supplies
-      pms_issue_boq_links, which D-47 writes to. So only ONE gap is left, and it is a
-      hard runtime failure, not a nicety:
+      pms_issue_boq_links, which D-47 writes to.
 
-        *** compliance.construction_material_receipts.`reference` STILL DOES NOT EXIST
-        *** in any migration. 0529 adds the three void columns but not this one. D-36's
-        *** Record Receipt form, the Inbound table's Reference column and
-        *** createMaterialReceipt() all write and read it, so the first receipt save
-        *** 500s until someone runs:
-        ***   ALTER TABLE compliance.construction_material_receipts
-        ***     ADD COLUMN IF NOT EXISTS reference text;
-        *** This branch deliberately does NOT add it as a migration of its own: the
-        *** migration set is lane I's declared file scope and another lane may already
-        *** hold the next free number. It needs a PM decision before merge.
+      THE ONE REMAINING GAP IS NOW CLOSED IN THIS BRANCH, and the file scope above is
+      amended to say so:
+        - drizzle/0536_r67_d36_material_receipt_reference.sql (NEW, hand-written) and
+          its drizzle/meta/_journal.json entry (idx 358).
+
+      Why this branch now owns a migration after three handoffs saying it would not:
+      compliance.construction_material_receipts.`reference` is declared in schema.ts and
+      is in NO migration -- 0529 adds the three void columns and stops. Lane I has
+      already MERGED (0529-0532 are on origin/main, and 0533-0535 above them), so no
+      other lane is going to add it. It is also worse than "the first save fails":
+      drizzle's relational query builder names every declared column in its SELECT, so
+      listMaterialReceipts() and getMaterialReceipt() 500 too -- the whole Materials >
+      Inbound tab, the receipt object page, the Void action and the Line total column,
+      all on READ. 0536 is the next free number after 0535 on origin/main.
+      Post-apply verification SELECT is stated in the migration's own header.
 
       recordAttendanceBatch() is deliberately written to be correct WITH OR WITHOUT the
       attendance unique index (read-then-update/insert inside the one transaction, not
@@ -160,9 +164,57 @@ active:
       drizzle/0529 column for column. Anyone merging another branch across this region
       should re-check it the same way.
 
+      SECOND MERGE OF origin/main, 2026-09-03 (fix pass): picked up lane B (#1578), lane
+      D0 (#1580) and lane F2 (#1579). Five conflicts, all resolved toward D-11's rule
+      that the version already on main is canonical and the arriving lane folds its
+      capability in:
+        - construction-labour-service.ts listAttendance(): F-25's version (already on
+          main) is kept whole -- `date` + the `attendanceDate` alias + inclusive
+          from/to, with a single day as an equality so it can use 0535's index. D-30's
+          from/to were a strict subset of it, so nothing of D3's was lost.
+        - construction-labour-service.test.ts was an ADD/ADD conflict: both lanes wrote
+          this service's first test file, from no common ancestor. F-25's keeps the
+          shared path; D3's batch/computeDailyCost tests move to the sibling
+          construction-labour-service.batch.test.ts. BOTH suites run (36 tests). They
+          are two files rather than one because each carries its own fake-db condition
+          evaluator with its own helper names, and hand-splicing them would risk
+          silently weakening whichever lost.
+        - /api/v1/projexa/schedule/route.ts: F-33's cached resolveDefaultIssueTypeId()
+          and F-28's withRouteTiming are kept; D-47's createScheduleActivity() call is
+          kept. Both, not either.
+        - /api/v1/construction/attendance/route.ts and docs/master/TEST_COVERAGE_GAP.md:
+          main's version, then regenerated.
+
+      FOR THE PR BODY -- three things that must appear there, not only here:
+
+        1. BREAKING API CHANGE on POST /api/v1/construction/../v1/projexa/schedule.
+           It now routes to createScheduleActivity(), which refuses with 400
+           "startDate is required". A caller that previously created a task with only
+           projectId + title now gets that 400. The only in-repo caller is PROJEXA's own
+           /api/schedule/tasks proxy (which now requires it too), and ct's pipeline
+           WRITE_FUNCTION_IDS is still only ['record_work_progress'] -- but this is a
+           documented public surface for PROJEXA-AI.COM, so the owner needs to say
+           whether an external integration relies on it. If there is any doubt, the
+           cheap fix is to default startDate to today's ISO date IN THE ROUTE and leave
+           the service's own requirement alone; no caller then loses a bar it could draw.
+
+        2. drizzle/0536_r67_d36_material_receipt_reference.sql is new in this PR, with
+           its journal entry. Post-apply verification:
+             SELECT column_name, data_type, is_nullable
+               FROM information_schema.columns
+              WHERE table_schema='compliance'
+                AND table_name='construction_material_receipts'
+                AND column_name='reference';
+           Expect exactly one row: (reference, text, YES). If it returns nothing, the
+           Materials > Inbound tab is down.
+
+        3. The D-57 deviation recorded above (erp-inventory-service.ts is the wrong
+           service for this screen, so nothing was added to it).
+
       Not touching: the pipeline (classify/executor/validate/run-submission), any AI
       router/escalation file, billing_*, construction-progress-service.ts,
-      construction-boq-service.ts, erp-inventory-service.ts, or any migration file.
+      construction-boq-service.ts, or erp-inventory-service.ts. One migration file is
+      added (0536, above); no existing migration is edited.
   - session_label: "claude-code (subagent, r67-lane-I) -- PROGRAMME R67 workstream WS-I (data-migrations), items I-01..I-05"
     claimed_at: "2026-09-02T (this session)"
     claim: |
