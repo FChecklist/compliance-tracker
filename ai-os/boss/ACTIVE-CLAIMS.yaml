@@ -187,6 +187,95 @@ active:
       construction-labour-service.ts (lane D3 owns recordAttendanceBatch per D-12), or
       any file outside the list above.
 
+  - session_label: "claude-code (subagent, r67-lane-C) -- PROGRAMME R67 workstream WS-C (composer-band2), items C-01..C-16"
+    claimed_at: "2026-09-03T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, implementation programme R67,
+      lane C ("composer-band2"). Branch r67/c-composer-band2, worktree
+      C:/ct/ct-worktrees/r67-C (compliance-tracker) + C:/ct/projexa-worktrees/r67-C (projexa).
+
+      Checked before starting (AGENTS.md Rule 11/12): no other entry under `active:` claims
+      src/lib/pipeline/** -- the r67-lane-I entry below explicitly records "NOT touching:
+      ... the pipeline (src/lib/pipeline/**)". No entry claims
+      src/app/api/v1/projexa/tasks/route.ts either.
+
+      File scope in compliance-tracker:
+        src/lib/pipeline/function-slots.ts (new, + .test.ts)
+        src/lib/pipeline/executor.ts (+ .test.ts) -- record_timesheet, the pipeline's
+          SECOND write; ExecutableTask.actorUserId (D-05 identity bridge)
+        src/lib/pipeline/validate.ts (+ .test.ts) -- additive { code, missing } payload (D-03)
+        src/lib/pipeline/level0.ts (+ .test.ts) -- tier 3b, the timesheet structural pattern
+        src/lib/pipeline/classify-only.ts, run-submission.ts, derive-chain.ts (threading only)
+        src/app/api/v1/projexa/tasks/route.ts (actorEmail -> actorUserId)
+        src/lib/services/construction-labour-service.ts (+ .test.ts, new) and
+          src/app/api/v1/construction/attendance/route.ts -- C-08's recordAttendanceBatch,
+          added 2026-09-03. Re-checked at that point: no other entry under `active:` claims
+          construction-labour-service.ts or the attendance route (r67-lane-I claims
+          construction-boq*/reports/screen-definitions services only), so the "NOT touching
+          src/lib/services/**" line below is narrowed to "except this one file, which C-08
+          names".
+        src/lib/pipeline/task-tabs.ts (new, + .test.ts) -- C-11's tab vocabulary and the
+          grouped per-tab counts on GET /api/v1/projexa/tasks, added 2026-09-03.
+        src/lib/pipeline/failure-classification.ts (new, + .test.ts) and
+          drizzle/0533_r67_c13_pipeline_task_error_shape.sql -- C-13's error_code /
+          error_details split on compliance.pipeline_tasks, added 2026-09-03. Re-checked
+          at that point: no other entry under `active:` claims drizzle/**; the
+          r67-lane-I entry's own migrations end at 0532, so 0533 is the next free
+          number and collides with nothing on origin/main.
+
+      File scope in projexa: src/lib/task-errors.ts, src/lib/card-catalogue.ts,
+        src/components/shell/{task-row,TaskMaster,ChainOptionsPanel,ConfirmCard,AnswerBlock,
+        M24Shell,Composer,ControlStrip}.tsx, src/components/ReportsClient.tsx,
+        src/app/api/{tasks,classify,chain-options}/route.ts (all + their .test.ts).
+
+      NOT touching: drizzle/**, src/lib/services/** apart from
+      construction-labour-service.ts (see above), the ui-kit (D-09: fork into
+      projexa instead), any guardrail script's strictness (AGENTS.md Rule 9), or any file
+      another lane's entry claims.
+    fix_pass_amendment_2026_09_03: |
+      RECONCILED WITH origin/main AFTER LANES A, B, D0 AND F2 MERGED. Four
+      corrections to the scope above, recorded rather than left to be found in
+      review. Nothing was deleted silently; each is named in the commit that
+      made it (decision D-11: "the version already merged to main is canonical;
+      the arriving lane folds its distinct capability into it and keeps both
+      sets of tests").
+
+      1. *** DECISION D-12 IS NAMED HERE, WHICH IT WAS NOT BEFORE. ***
+         recordAttendanceBatch in src/lib/services/construction-labour-service.ts
+         AND the `entries` branch of src/app/api/v1/construction/attendance/
+         route.ts are LANE D3'S under D-12 ("Lane D3 owns recordAttendanceBatch
+         and the bulk attendance route ... Lane C keeps the composer half of
+         C-08 ... It must CALL D3's function, not define its own"). The earlier
+         claim text checked only this file and concluded nothing claimed the
+         service -- true of ACTIVE-CLAIMS, and not true of the decision. D3's
+         version is not on main today, so there was nothing to call and lane C
+         carries the implementation in the meantime. ON MERGE-SECOND: delete the
+         service function and the route branch in favour of D3's, KEEP lane C's
+         caller in projexa's M24Shell and KEEP both lanes' tests (D-12 clause 3).
+
+      2. drizzle/0533_r67_c13_pipeline_task_error_shape.sql IS DELETED, and this
+         lane now claims NO migration at all. Lane B shipped
+         drizzle/0533_r67_pipeline_task_error_codes.sql to main first, adding the
+         same error_code column; main is at 0535. C-13's third column
+         (error_details, the raw driver text) is deliberately NOT re-added at a
+         new number: lane B's posture -- the raw message is logged and never
+         persisted -- is the stronger one, because a column no route selects is
+         still a payload somebody can read.
+
+      3. src/lib/pipeline/function-slots.ts IS DELETED. Lane B's
+         function-registry.ts declares the same facts (required params, their
+         D-03 code, their vocabulary key, their aliases) for every function
+         rather than two, and two declarations of what a write cannot run
+         without is the drift D-03 exists to remove. record_timesheet's slots
+         are folded into that registry; level0.ts reads them from there.
+
+      4. src/lib/pipeline/failure-classification.ts NO LONGER DECLARES A
+         VOCABULARY. It and lane B's error-codes.ts exported the same two symbol
+         names (PIPELINE_ERROR_CODES, PipelineErrorCode) over different closed
+         sets. error-codes.ts is canonical; this file keeps only the system/user
+         split and the retry token, and its legacy-prose table is dropped
+         because lane B put the programme's one legacy mapping in projexa's
+         task-errors.ts on purpose.
   - session_label: "claude-code (subagent, r67-lane-D22) -- PROGRAMME R67 workstream WS-D lane D22 (screens-work-progress), items D-41/D-48/D-49/D-52/D-54/D-58/D-60/D-63/D-64/D-68/D-75/D-76/D-77"
     claimed_at: "2026-09-02T (this session)"
     claim: |

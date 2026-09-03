@@ -21,7 +21,7 @@
 //                                  CALL EVER
 import { NextRequest, NextResponse } from "next/server"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
 import { runSubmission, runDirectTask, proposeSubmission, submitForVerdict, confirmSubmission } from "@/lib/pipeline/run-submission"
@@ -34,6 +34,7 @@ import {
 } from "@/lib/pipeline/error-codes"
 import { functionLabel } from "@/lib/pipeline/function-registry"
 import { NEEDS_YOU_STATUSES, nextTaskCursor, parseTaskCursor } from "@/lib/pipeline/task-cursor"
+import { resolveStatusFilter, tabCountsFrom, validFilterKeys } from "@/lib/pipeline/task-tabs"
 import { withRouteTiming } from "@/lib/route-timing"
 
 const TASK_STATUSES = ["to_do", "in_progress", "waiting", "done", "blocked"] as const
@@ -56,6 +57,35 @@ export async function POST(...args: Parameters<typeof POST_impl>) {
   return withRouteTiming("POST", () => POST_impl(...args))
 }
 
+/**
+ * R67 C-03 -- THE IDENTITY BRIDGE (decision D-05).
+ *
+ * `actorId` below is `ctx.dbUser?.id ?? ctx.apiKey!.id`, and PROJEXA always
+ * calls this with a per-ORG API key -- so for every real PROJEXA request it is
+ * an api_keys.id. That is fine for pipeline_tasks (its user_id is not a users
+ * FK) and fatally wrong for anything attributing a business row to a PERSON,
+ * e.g. pms_time_entries.user_id, whose FK is hard.
+ *
+ * A session caller's own dbUser always wins. An API-key caller may send
+ * actorEmail (the same convention /v1/projexa/timesheets already uses) and it
+ * is resolved to a real, active, org-scoped compliance.users row.
+ *
+ * *** IT RETURNS NULL RATHER THAN REFUSING THE WHOLE REQUEST. *** Every
+ * read-only function is unaffected by a missing actor, and the one executor
+ * that needs a person refuses in its own words -- 400ing every submission on
+ * a field most callers legitimately never send would be the wrong trade.
+ */
+async function resolveActorUserId(
+  ctx: Parameters<typeof resolveActingUser>[0],
+  body: Record<string, unknown>
+): Promise<string | null> {
+  if (ctx.dbUser?.id) return ctx.dbUser.id
+  const actorEmail = typeof body.actorEmail === "string" ? body.actorEmail.trim() : ""
+  if (!actorEmail) return null
+  const { user } = await resolveActingUser(ctx, actorEmail)
+  return user?.id ?? null
+}
+
 async function POST_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
@@ -75,6 +105,8 @@ async function POST_impl(request: NextRequest) {
 
   const mode = typeof body.mode === "string" ? body.mode : "Projects"
   const projectId = typeof body.projectId === "string" ? body.projectId : null
+  // R67 C-03 (D-05): the real person, when the caller identified one.
+  const actorUserId = await resolveActorUserId(ctx, body)
 
   try {
     // R67 B-05 -- STEP ONE: PROPOSE. {rawInput, dryRun:true} classifies,
@@ -118,6 +150,7 @@ async function POST_impl(request: NextRequest) {
         functionId: typeof body.functionId === "string" ? body.functionId.trim() : undefined,
         params: (body.params as Record<string, unknown>) ?? {},
         role: ctx.dbUser?.role ?? null,
+        actorUserId,
       })
       if (outcome.ok) return NextResponse.json(outcome.result, { status: 201 })
       if (outcome.reason === "not_found") {
@@ -140,6 +173,7 @@ async function POST_impl(request: NextRequest) {
         params: (body.params as Record<string, unknown>) ?? {},
         note: typeof body.rawInput === "string" ? body.rawInput : undefined,
         role: ctx.dbUser?.role ?? null,
+        actorUserId,
       })
       return NextResponse.json(result, { status: 201 })
     }
@@ -172,6 +206,7 @@ async function POST_impl(request: NextRequest) {
         selectedChain: body.selectedChain,
         rawInput,
         role: ctx.dbUser?.role ?? null,
+        actorUserId,
       })
       return NextResponse.json(result, { status: 201 })
     }
@@ -223,10 +258,26 @@ async function GET_impl(request: NextRequest) {
 
   const url = new URL(request.url)
   const projectId = url.searchParams.get("projectId")
+  // R67 C-11 -- A TAB ASKS FOR ITS OWN ROWS.
+  //
+  // `status` still accepts the raw five (every existing caller sends those and
+  // is unchanged), and now ALSO accepts PROJEXA's own tab vocabulary --
+  // needs_you|waiting|approval|queued|done -- which the raw statuses cannot
+  // express: "Approval Pending" is three of them, "In Queue" is one. Before
+  // this the pane asked for fifty rows of everything on every navigation and
+  // filtered them in the browser.
   const statusParam = url.searchParams.get("status")
-  const requested = (statusParam ? statusParam.split(",") : [])
-    .map((s) => s.trim())
-    .filter((s): s is TaskStatus => (TASK_STATUSES as readonly string[]).includes(s))
+  const filter = resolveStatusFilter(statusParam)
+  // A FILTER THAT MATCHED NOTHING IS A 400, NOT AN UNFILTERED LIST. Returning
+  // every row for a misspelled tab looks like it worked and is how a filter
+  // bug hides for a release.
+  if (statusParam && filter.statuses.length === 0) {
+    return NextResponse.json(
+      { error: `Unknown status filter: ${filter.unknown.join(", ")}. Valid values: ${validFilterKeys().join(", ")}` },
+      { status: 400 }
+    )
+  }
+  const requested = filter.statuses as TaskStatus[]
   const limitRaw = Number(url.searchParams.get("limit") ?? "50")
   const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.trunc(limitRaw), 1), 200) : 50
   // R67 F-26 (R-242): a KEYSET page, not an offset one. Rows are minted while
@@ -241,8 +292,12 @@ async function GET_impl(request: NextRequest) {
       // The predicate that defines the SET the user is looking at (org, and
       // optionally one project and one status filter). The cursor is NOT part
       // of it: a cursor names a position inside this set, not a smaller set.
-      const setConditions = [eq(pipelineTasks.orgId, ctx.orgId!)]
-      if (projectId) setConditions.push(eq(pipelineTasks.projectId, projectId))
+      // R67 C-11: the org/project scope WITHOUT the status filter -- see the
+      // tabTotals aggregate below for why the two are different questions.
+      const scopeConditions = [eq(pipelineTasks.orgId, ctx.orgId!)]
+      if (projectId) scopeConditions.push(eq(pipelineTasks.projectId, projectId))
+
+      const setConditions = [...scopeConditions]
       if (requested.length > 0) setConditions.push(inArray(pipelineTasks.status, requested))
 
       const conditions = [...setConditions]
@@ -292,13 +347,40 @@ async function GET_impl(request: NextRequest) {
       // showed all 50), so counting rows.filter(...) was honest. With
       // limit=20 it is not: a user with 34 open tasks would read "Home 20",
       // and after "Show 20 more" the pane would show 40 rows above tabs still
-      // reading 20. One extra grouped aggregate over the same predicate,
-      // inside the same transaction, keeps the tabs true at any page size.
+      // reading 20. One grouped aggregate, inside the same transaction, keeps
+      // the tabs true at any page size.
+      //
+      // R67 C-11, FIX PASS -- TWO CHANGES TO F-26'S AGGREGATE, BOTH DELIBERATE
+      // AND NEITHER OF THEM A SECOND QUERY.
+      //
+      // (a) IT NOW GROUPS BY error_code AS WELL. "How many of these blocked
+      //     rows are infrastructure" cannot be recovered later from a count
+      //     that already threw the code away, and it is what `systemBlocked`
+      //     reports.
+      //
+      // (b) IT COUNTS THE ORG/PROJECT SCOPE, NOT THE STATUS-FILTERED SET.
+      //     C-11 lets a tab ask the server for its own rows; the moment it
+      //     does, an aggregate over the filtered predicate would report 0 for
+      //     every tab the user is NOT on -- so selecting "Completed" would
+      //     blank the Home badge. A header badge exists precisely to say what
+      //     is behind a tab you have not clicked, which is F-26's own stated
+      //     intent ("so the user knows before clicking").
+      //
+      //     For every request that sends no status filter -- which is every
+      //     caller before C-11, and every F-26 test -- setConditions and
+      //     scopeConditions are the same predicate and the four legacy numbers
+      //     are byte-identical. The change is visible only to a caller that
+      //     filters, and for that caller it is the correct number rather than
+      //     a zero.
       const totals = await db
-        .select({ status: pipelineTasks.status, n: sql<number>`count(*)::int` })
+        .select({
+          status: pipelineTasks.status,
+          errorCode: pipelineTasks.errorCode,
+          n: sql<number>`count(*)::int`,
+        })
         .from(pipelineTasks)
-        .where(and(...setConditions))
-        .groupBy(pipelineTasks.status)
+        .where(and(...scopeConditions))
+        .groupBy(pipelineTasks.status, pipelineTasks.errorCode)
 
       return { rows: page, statusTotals: totals }
     })
@@ -362,6 +444,7 @@ async function GET_impl(request: NextRequest) {
       }
     })
 
+    const tabCounts = tabCountsFrom(statusTotals)
     const group = (statuses: TaskStatus[]) => decorated.filter((r) => statuses.includes(r.status as TaskStatus))
     const total = (statuses: TaskStatus[]) =>
       statusTotals.reduce((sum, t) => (statuses.includes(t.status as TaskStatus) ? sum + Number(t.n) : sum), 0)
@@ -386,7 +469,21 @@ async function GET_impl(request: NextRequest) {
         done: total(["done"]),
         blocked: total(["blocked"]),
         total: statusTotals.reduce((sum, t) => sum + Number(t.n), 0),
+        // R67 C-11: one number per TAB, keyed by the same vocabulary `status`
+        // accepts, from the UNFILTERED scope -- so selecting a tab does not
+        // zero every other tab's badge. `systemBlocked` rides along because it
+        // is the same grouped read.
+        tabs: tabCounts.tabs,
+        systemBlocked: tabCounts.systemBlocked,
       },
+      /**
+       * R67 C-11 -- WHICH FILTER THE SERVER ACTUALLY APPLIED.
+       *
+       * The client sends a tab key; the server resolves it to statuses. Saying
+       * so back is what lets the pane assert that the rows it is rendering are
+       * the rows it asked for, rather than assuming it.
+       */
+      filter: { tab: filter.tab, statuses: requested },
       groups: {
         needsYou: group(["to_do", "waiting"]),
         running: group(["in_progress"]),

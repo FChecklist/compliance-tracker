@@ -13,6 +13,11 @@
 // `dbBackedL0Repo` (below) in production, tests wire a fake.
 
 import { isAcknowledgement, normaliseForMatch } from "./classify";
+// R67 C-03, FIX PASS (decision D-11): the required-parameter facts come from
+// lane B's function-registry, which is the one place in this repo that says
+// what a function cannot run without. Lane C's own function-slots.ts declared
+// the same facts a second time and has been deleted.
+import { functionSpec, requiredParamSatisfied } from "./function-registry";
 
 export type L0Repo = {
   /** EXACT match only (M26) -- normalisedPhrase must already be normalised by the caller. */
@@ -39,7 +44,20 @@ export type L0Repo = {
 
 export type ClassificationResult =
   | { kind: "chat" }
-  | { kind: "match"; functionId: string; params: Record<string, unknown>; source: "phrase_map" | "structural" | "last_action" }
+  | {
+      kind: "match";
+      functionId: string;
+      params: Record<string, unknown>;
+      source: "phrase_map" | "structural" | "last_action";
+      /**
+       * R67 C-03. M26 PARTIAL: "a valid function with a missing value is a
+       * FORM FIELD, not a gap." A structural tier can now resolve a function
+       * and still be short a slot ("log 3 hours today" has the hours and the
+       * date but no task), and the caller must be able to ASK rather than
+       * mint a task that can only fail. Absent means "nothing missing".
+       */
+      missingParams?: string[];
+    }
   | { kind: "miss" };
 
 // Tier 1: acknowledgement list -> CHAT. A message that is ONLY an
@@ -109,6 +127,96 @@ function tryStructuralMatch(text: string): { functionId: string; params: Record<
   };
 }
 
+// R67 C-03 -- Tier 3b: THE TIMESHEET PATTERN. Still no model, still $0.
+//
+// "log 3 hours on joinery drawings today" is the sentence Design Studio's own
+// users type, and before this it had nowhere to land: record_timesheet did not
+// exist, so the whole thing escalated to Level 1 (a paid model call) and came
+// back a gap. The shape is as decidable as the progress pattern above -- a
+// duration, a time-logging verb, and optionally a day -- so it belongs at
+// Level 0 where it costs nothing.
+//
+// THE VERB IS REQUIRED, deliberately. "the slab took 3 hours to cure" contains
+// a duration and is not a timesheet entry; demanding one of a closed list of
+// logging verbs is what keeps this tier from writing hours nobody asked to
+// log. Same posture as the rest of this file: match exactly, or do not match.
+//
+// FIX PASS -- THE TASK CLAUSE IS REQUIRED TOO, and this is the change that
+// makes the tier safe. The verb list alone is broad enough that a plain
+// observation trips it: "we spent 3 hrs waiting for the crane" has a duration
+// and the verb "spent", so before this it resolved to record_timesheet with
+// missingParams ["task"] -- a chat sentence promoted to a WRITE PROPOSAL at
+// Level 0, ahead of last-action recall, with a hole in it. A timesheet entry
+// is hours ON something; without the "on" clause naming that something there
+// is no entry to propose, so the sentence falls through to Level 1 where a
+// model can decide whether it was a question.
+const HOURS_TOKEN = /(\d{1,2}(?:\.\d{1,2})?)\s*(?:h|hr|hrs|hour|hours)\b/i;
+const TIME_LOG_VERB = /\b(log|logged|logging|spent|spend|worked|working|book|booked|booking)\b/i;
+const ISO_DATE_TOKEN = /\b(\d{4}-\d{2}-\d{2})\b/;
+const TIMESHEET_FUNCTION_ID = "record_timesheet";
+
+function isoDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** Exported for its unit test, which pins `now` rather than reading the clock. */
+export function tryTimesheetMatch(
+  text: string,
+  now: Date
+): { functionId: string; params: Record<string, unknown>; missingParams: string[] } | null {
+  const hoursMatch = HOURS_TOKEN.exec(text);
+  if (!hoursMatch) return null;
+  if (!TIME_LOG_VERB.test(text)) return null;
+  const hours = Number(hoursMatch[1]);
+  if (!Number.isFinite(hours) || hours <= 0 || hours > 24) return null;
+
+  const params: Record<string, unknown> = { hours };
+
+  const isoMatch = ISO_DATE_TOKEN.exec(text);
+  if (isoMatch) {
+    params.spentOn = isoMatch[1];
+  } else if (/\byesterday\b/i.test(text)) {
+    params.spentOn = isoDay(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+  } else if (/\btoday\b/i.test(text)) {
+    params.spentOn = isoDay(now);
+  }
+
+  // The task is what follows "on". Everything the pattern already consumed --
+  // the duration, the day word, an explicit date -- is cut out first, so the
+  // remainder is the words a person would use to name the task and nothing
+  // else. NO "on" CLAUSE MEANS NO MATCH AT ALL -- see the header. Returning a
+  // proposal with `task` missing is what turned "we spent 3 hrs waiting for
+  // the crane" into a write proposal.
+  const onIndex = text.toLowerCase().indexOf(" on ");
+  if (onIndex < 0) return null;
+  const task = text
+    .slice(onIndex + 4)
+    .replace(HOURS_TOKEN, " ")
+    .replace(ISO_DATE_TOKEN, " ")
+    .replace(/\b(today|yesterday)\b/gi, " ")
+    .replace(/[.,;]+\s*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (task.length === 0) return null;
+  params.task = task;
+
+  return { functionId: TIMESHEET_FUNCTION_ID, params, missingParams: timesheetMissingParams(params) };
+}
+
+/**
+ * The declared required parameters this params object does not satisfy, minus
+ * `projectId` -- Level 0 has no project context at all (the composer's top
+ * rail supplies it downstream), so reporting it as missing here would ask the
+ * user a question the screen has already answered.
+ */
+function timesheetMissingParams(params: Record<string, unknown>): string[] {
+  const spec = functionSpec(TIMESHEET_FUNCTION_ID);
+  if (!spec) return [];
+  return spec.requiredParams
+    .filter((p) => p.name !== "projectId" && !requiredParamSatisfied(p, params))
+    .map((p) => p.name);
+}
+
 // Tier 4: last-action recall -- a bare follow-up ("60% now", "same but 70")
 // with a percent but NO item code reuses THIS USER'S own most recent pill
 // (its function_id and whatever context it carried, e.g. its itemCode),
@@ -152,12 +260,13 @@ async function tryLastActionRecall(
  *   1. acknowledgement list -> CHAT
  *   2. phrase_map EXACT hit
  *   3. structural pattern (item_code + number%)
+ *   3b. timesheet pattern (logging verb + duration)  [R67 C-03]
  *   4. last-action recall
  *   5. miss -> caller escalates to L1 (never attempted here)
  */
 export async function classifyL0(
   segmentText: string,
-  ctx: { orgId: string; userId: string },
+  ctx: { orgId: string; userId: string; now?: Date },
   repo: L0Repo
 ): Promise<ClassificationResult> {
   if (isAcknowledgement(segmentText)) return { kind: "chat" };
@@ -170,6 +279,17 @@ export async function classifyL0(
   const structural = tryStructuralMatch(segmentText);
   if (structural) {
     return { kind: "match", functionId: structural.functionId, params: structural.params, source: "structural" };
+  }
+
+  const timesheet = tryTimesheetMatch(segmentText, ctx.now ?? new Date());
+  if (timesheet) {
+    return {
+      kind: "match",
+      functionId: timesheet.functionId,
+      params: timesheet.params,
+      source: "structural",
+      missingParams: timesheet.missingParams,
+    };
   }
 
   const recalled = await tryLastActionRecall(segmentText, repo, ctx.orgId, ctx.userId);

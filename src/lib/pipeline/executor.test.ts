@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import { executeTask, functionWrites, hasExecutor, type ExecutableTask, type ExecutionOutcome } from "./executor";
-import { isRetryableFailure, normaliseThrownError, serialiseFailure } from "./error-codes";
+import { executeTask, functionWrites, hasExecutor, matchIssues, type ExecutableTask, type ExecutionOutcome } from "./executor";
+import { isRetryableFailure, normaliseThrownError, pipelineFailure, serialiseFailure } from "./error-codes";
+import { classifyFailure, classifyPipelineFailure } from "./failure-classification";
 import { functionSpec, requiredParamSatisfied } from "./function-registry";
 import { ServiceError } from "@/lib/services/compliance-service";
 
@@ -264,6 +265,184 @@ describe("B-11 -- a quantity answers 'how much is done' as well as a percent", (
     expect(requiredParamSatisfied(percent, { quantityDone: 2 })).toBe(true);
     expect(requiredParamSatisfied(percent, { percent: 40 })).toBe(true);
     expect(requiredParamSatisfied(percent, { itemCode: "EX-01" })).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R67 WS-C (C-03 / C-13), folded in during the FIX PASS under decision D-11.
+//
+// Lane C added these describes to this file before lane B's rewrite reached
+// main. Lane B's version of executor.ts is canonical, so they are re-expressed
+// against ITS shapes -- a failure is a PipelineFailure, not `{ error: string,
+// code, status }` -- and every assertion that still says something true is
+// kept.
+//
+// One assertion is DELIBERATELY NOT KEPT, and it is worth naming rather than
+// quietly dropping: lane C asserted that executeTask CLASSIFIES an executor's
+// own returned prose ("itemCode is required") back into a code. On main there
+// is no prose to classify -- every executor returns pipelineFailure(...)
+// directly, which is strictly better, so the assertion has nothing left to
+// pin. What it was really protecting (a camelCase parameter name must never
+// reach a screen) is asserted below against the real registry instead.
+// ---------------------------------------------------------------------------
+
+describe("C-03 -- record_timesheet is the pipeline's second write", () => {
+  test("it has a real executor and is registered as a WRITE", () => {
+    expect(hasExecutor("record_timesheet")).toBe(true);
+    expect(functionWrites("record_timesheet")).toBe(true);
+  });
+
+  test("the write allowlist stays closed -- a read is never mistaken for a write", () => {
+    expect(functionWrites("record_work_progress")).toBe(true);
+    expect(functionWrites("get_construction_project_dashboard")).toBe(false);
+    expect(functionWrites("list_leads")).toBe(false);
+    expect(functionWrites("anything_unregistered")).toBe(false);
+  });
+
+  test("its required slots are declared in the registry, with D-03 codes and vocabulary keys", () => {
+    const spec = functionSpec("record_timesheet");
+    expect(spec).toBeDefined();
+    const byName = Object.fromEntries((spec?.requiredParams ?? []).map((p) => [p.name, p]));
+    expect(byName.task?.code).toBe("TASK_REQUIRED");
+    expect(byName.hours?.code).toBe("HOURS_REQUIRED");
+    // The client never sees a camelCase parameter name -- `field` is what
+    // `missing` reports.
+    expect(byName.hours?.field).toBe("value");
+    // A task chosen from the composer's own chips arrives as an id, and that
+    // answers the same question as the words a person typed.
+    expect(requiredParamSatisfied(byName.task, { issueId: "i12" })).toBe(true);
+    expect(requiredParamSatisfied(byName.task, {})).toBe(false);
+  });
+});
+
+// R67 C-03. The fuzzy task match is the one part of executeRecordTimesheet()
+// that decides WHICH real row a person's words mean, so it is pure and tested
+// here; the surrounding write is proven against the real service and its own
+// live FK, not mocked.
+describe("matchIssues -- fuzzy over the project's own task titles, and ambiguity is a refusal", () => {
+  const ISSUES = [
+    { id: "i12", number: 12, title: "Joinery shop drawings" },
+    { id: "i13", number: 13, title: "Joinery site survey" },
+    { id: "i14", number: 14, title: "Facade cladding" },
+  ];
+
+  test("an issue number, with or without the hash, is exact", () => {
+    expect(matchIssues(ISSUES, "#12").map((i) => i.id)).toEqual(["i12"]);
+    expect(matchIssues(ISSUES, "12").map((i) => i.id)).toEqual(["i12"]);
+    expect(matchIssues(ISSUES, "#99")).toEqual([]);
+  });
+
+  test("an exact title beats every looser tier", () => {
+    expect(matchIssues(ISSUES, "Facade cladding").map((i) => i.id)).toEqual(["i14"]);
+    expect(matchIssues(ISSUES, "facade CLADDING").map((i) => i.id)).toEqual(["i14"]);
+  });
+
+  test("a substring resolves when exactly one title contains it", () => {
+    expect(matchIssues(ISSUES, "shop drawings").map((i) => i.id)).toEqual(["i12"]);
+  });
+
+  test("words in any order find the real task -- 'joinery drawings' is #12", () => {
+    expect(matchIssues(ISSUES, "joinery drawings").map((i) => i.id)).toEqual(["i12"]);
+  });
+
+  test("*** AMBIGUITY IS NEVER RESOLVED BY PICKING THE FIRST ***", () => {
+    // Two joinery tasks: the caller must get both back so it can refuse,
+    // because logging real hours against the wrong task is unrecoverable.
+    expect(matchIssues(ISSUES, "joinery").map((i) => i.id)).toEqual(["i12", "i13"]);
+  });
+
+  test("nothing matches nothing, and an empty needle never matches everything", () => {
+    expect(matchIssues(ISSUES, "plumbing")).toEqual([]);
+    expect(matchIssues(ISSUES, "")).toEqual([]);
+    expect(matchIssues(ISSUES, "   ")).toEqual([]);
+    expect(matchIssues([], "joinery")).toEqual([]);
+  });
+
+  test("a needle of only short words does not fall through to matching everything", () => {
+    expect(matchIssues(ISSUES, "an of")).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R67 C-13 -- the failure is split into the part a person reads and the part
+// only we can use. C-13's own acceptance, run literally, in lane B's shape.
+// ---------------------------------------------------------------------------
+
+describe("C-13 -- a thrown driver error never puts an IP on a screen", () => {
+  const task: ExecutableTask = {
+    orgId: "org1",
+    userId: "u1",
+    projectId: "p1",
+    functionId: "boom",
+    params: {},
+  };
+
+  async function boomWith(message: string): Promise<ExecutionOutcome> {
+    return executeTask(task, {
+      boom: async () => {
+        throw new Error(message);
+      },
+    });
+  }
+
+  test("C-13's acceptance, verbatim: no digits-and-dots IP anywhere in what a client receives", async () => {
+    const outcome = await boomWith("write CONNECT_TIMEOUT 3.109.171.244:6543");
+    expect(outcome.success).toBe(false);
+    if (outcome.success) return;
+    expect(outcome.failure.code).toBe("BACKEND_UNAVAILABLE");
+    // The WHOLE failure object -- not just one field -- because a client is
+    // handed the object, and a leak in `context` would be just as visible.
+    const shipped = JSON.stringify(outcome.failure);
+    expect(shipped).not.toMatch(/\d+\.\d+\.\d+\.\d+/);
+    expect(shipped).not.toContain("CONNECT_TIMEOUT");
+  });
+
+  test("the raw text is kept for US, on `debug`, and never on the failure", async () => {
+    const outcome = await boomWith("write CONNECT_TIMEOUT 3.109.171.244:6543");
+    if (outcome.success) throw new Error("expected a failure");
+    expect(outcome.debug).toContain("3.109.171.244:6543");
+    // And `debug` is not a field of PipelineFailure, so serialising the
+    // failure into pipeline_tasks.error cannot carry it.
+    expect(serialiseFailure(outcome.failure)).not.toContain("3.109.171.244");
+  });
+
+  test("a transport failure is RETRYABLE and an unclassifiable one is not", async () => {
+    const transport = await boomWith("write CONNECT_TIMEOUT 3.109.171.244:6543");
+    if (transport.success) throw new Error("expected a failure");
+    expect(isRetryableFailure(transport.failure.code)).toBe(true);
+
+    const bug = await boomWith("Cannot read properties of undefined (reading 'id')");
+    if (bug.success) throw new Error("expected a failure");
+    expect(bug.failure.code).toBe("INTERNAL_ERROR");
+    expect(isRetryableFailure(bug.failure.code)).toBe(false);
+  });
+
+  test("classifyFailure turns that same throw into C-13's failed_system + retry token", async () => {
+    const outcome = await boomWith("write CONNECT_TIMEOUT 3.109.171.244:6543");
+    if (outcome.success) throw new Error("expected a failure");
+    const classified = classifyFailure(new Error(outcome.debug ?? ""));
+    expect(classified.status).toBe("failed_system");
+    expect(classified.retryToken).toBeTruthy();
+    expect(classified.message).not.toMatch(/\d+\.\d+\.\d+\.\d+/);
+  });
+
+  test("a user-fixable refusal stays the user's, with its slot and no retry token", async () => {
+    const outcome = await executeTask(task, {
+      boom: async () => ({ success: false as const, failure: pipelineFailure("BOQ_LINE_REQUIRED", ["boqLine"]) }),
+    });
+    if (outcome.success) throw new Error("expected a failure");
+    expect(classifyPipelineFailure(outcome.failure).status).toBe("failed");
+    expect(classifyPipelineFailure(outcome.failure).retryToken).toBeUndefined();
+    // `missing` reports the D-03 vocabulary key, never the parameter name.
+    expect(outcome.failure.missing).toEqual(["boqLine"]);
+    expect(JSON.stringify(outcome.failure)).not.toContain("itemCode");
+  });
+
+  test("a success is passed straight through, untouched", async () => {
+    const outcome = await executeTask(task, {
+      boom: async () => ({ success: true as const, result: { id: "x" } }),
+    });
+    expect(outcome).toEqual({ success: true, result: { id: "x" } });
   });
 });
 
