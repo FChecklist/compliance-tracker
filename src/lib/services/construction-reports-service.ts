@@ -2601,6 +2601,97 @@ const REPORT_TABLE_BUILDERS: { [K in ReportName]: (payload: Payload<K>) => Built
   }),
 }
 
+// ---------------------------------------------------------------------------
+// R67 E-33 (R-265): the portfolio chart's own row shape
+// ---------------------------------------------------------------------------
+//
+// Sumeet 5.png's first graph is a grouped bar PER PROJECT -- revenue, budget
+// and progress side by side across the portfolio. Every figure it needs is
+// already computed, once, inside getOrgDashboard's single transaction (E-21
+// put them there so PROJEXA's launchpad could make one call instead of an
+// N+1 fan-out). This turns those rows into the same {columns, rows} contract
+// every other report now speaks, so the chart reads a report rather than a
+// dashboard payload it has to reshape by hand.
+//
+// WHY IT IS NOT A NEW REGISTRY REPORT. Every entry in REPORT_REGISTRY is
+// per-project and is dispatched by /reports/[reportName]?projectId=. This one
+// is ACROSS projects and has no projectId at all, so it cannot be dispatched
+// there -- and a static /reports/budget-vs-actual/ route would SHADOW that
+// dynamic segment and silently break the per-project budget-vs-actual report
+// that already exists under exactly that name. It lives at
+// /reports/portfolio/budget-vs-actual instead, two segments deep, where
+// nothing can collide.
+//
+// WHY earnedValue IS HERE ALONGSIDE progressPct. The chart draws three bars on
+// ONE shared money axis, and a percentage cannot share an axis with money.
+// Progress is therefore PLOTTED as earned value and PRINTED as the percentage,
+// which is why both travel.
+
+export type PortfolioProjectRow = {
+  id: string
+  name: string
+  revenue: number
+  /** BOQ-derived budget: root line amount x budget %. Falls back to the ERP cost-centre budget. */
+  boqBudget: number | null
+  budget: number | null
+  spent: number
+  earnedValue: number | null
+  progressPercent: number | null
+}
+
+/**
+ * R67 E-33: one row per project -- revenue, budget, actual and progress.
+ *
+ * `budget` is the BOQ-derived figure when the BOQ carries percentages and the
+ * ERP cost-centre budget otherwise, matching the rule PROJEXA's own project-bar
+ * chart already applies -- one rule, so the number on the chart and the number
+ * in this table can never disagree. null (never 0) where neither exists: a
+ * project with no budget set and a project budgeted at zero are different facts.
+ */
+export function buildBudgetVsActualByProject(projects: PortfolioProjectRow[], currency: string | null): ReportTable {
+  const rows = projects.map((p) => {
+    const budget = p.boqBudget !== null && p.boqBudget > 0 ? p.boqBudget : p.budget
+    return {
+      project: p.name,
+      // Carried but NOT a column: the chart makes each row a link to that
+      // project's dashboard, and it needs the id to build the href. It is a
+      // link target, never a cell -- E-22's rule that a raw cuid must not
+      // reach a reader is about what is RENDERED.
+      projectId: p.id,
+      revenue: p.revenue,
+      budget,
+      // Also carried and not a column: WHICH budget the row landed on. The
+      // chart's caption has to say whether the reader is looking at a BOQ
+      // figure or an ERP cost-centre one, and re-deriving that on the client
+      // from a null check is how the caption comes to disagree with the bar.
+      budgetSource: budget === null ? "none" : p.boqBudget !== null && p.boqBudget > 0 ? "boq" : "erp",
+      actual: p.spent,
+      earnedValue: p.earnedValue,
+      progressPct: p.progressPercent,
+    }
+  })
+  return {
+    columns: [
+      textCol("project", "Project"),
+      moneyCol("revenue", "Revenue"),
+      moneyCol("budget", "Budget"),
+      moneyCol("actual", "Actual"),
+      moneyCol("earnedValue", "Earned value"),
+      pctCol("progressPct", "% logged"),
+    ],
+    rows,
+    totals: {
+      revenue: sumColumn(rows, (r) => r.revenue),
+      budget: sumColumn(rows, (r) => r.budget),
+      actual: sumColumn(rows, (r) => r.actual),
+      earnedValue: sumColumn(rows, (r) => r.earnedValue),
+    },
+    currency,
+    note: "Budget is the BOQ-derived figure (root line amount x budget %) where the BOQ carries percentages, and the ERP cost-centre budget otherwise.",
+  }
+}
+
+
 /**
  * Every report that has a table builder. The map above is typed against
  * ReportName so this is always the whole registry -- exported so a test can

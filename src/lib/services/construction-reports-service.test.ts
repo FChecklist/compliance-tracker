@@ -36,6 +36,7 @@ import {
   aggregateDesignerTimesheetCosts,
   aggregateDesignerApprovalStatus,
   aggregateWorkAnalysis,
+  buildBudgetVsActualByProject,
   buildPeriodDays,
   buildReportTable,
   computeCategoryProgress,
@@ -57,6 +58,7 @@ import {
   WORKER_DAY_WEIGHT,
   WH347_DAY_LABELS,
   type AttendanceWorkerRow,
+  type PortfolioProjectRow,
   type ReportName,
   type ReportTable,
   type BudgetLineInput,
@@ -1883,5 +1885,95 @@ describe("R67 E-32: buildReportTable -- the {columns, rows} contract", () => {
   test("a null org currency is REPORTED, never guessed into AED", () => {
     const table = buildReportTable("expense", { byHead: [{ expenseHead: "Material", total: 1 }], total: 1 }, null)
     expect(table.currency).toBeNull()
+  })
+})
+
+// R67 E-33 (R-265): the portfolio chart's own row shape.
+//
+// The item's acceptance is "budget-vs-actual handler returns rows with keys
+// revenue, budget, actual, progressPct". That is asserted here on the pure
+// builder rather than against a live org, because the DB half is one call to
+// getOrgDashboard, which has its own tests -- what this function decides, and
+// what can silently go wrong, is WHICH budget a row shows and whether a
+// missing figure becomes a zero.
+describe("R67 E-33: buildBudgetVsActualByProject", () => {
+  const project = (over: Partial<PortfolioProjectRow> = {}): PortfolioProjectRow => ({
+    id: "p1", name: "Cedar Heights Villa - Phase 1",
+    revenue: 475_000, boqBudget: 200_000, budget: 150_000,
+    spent: 185_000, earnedValue: 118_750, progressPercent: 60,
+    ...over,
+  })
+
+  test("rows carry the keys the chart reads: revenue, budget, actual, progressPct", () => {
+    const table = buildBudgetVsActualByProject([project()], "AED")
+    expect(table.rows).toHaveLength(1)
+    for (const key of ["revenue", "budget", "actual", "progressPct"]) {
+      expect(Object.keys(table.rows[0])).toContain(key)
+    }
+    expect(table.rows[0].revenue).toBe(475_000)
+    expect(table.rows[0].actual).toBe(185_000)
+    expect(table.rows[0].progressPct).toBe(60)
+  })
+
+  test("the BOQ-derived budget wins when the BOQ carries percentages", () => {
+    const table = buildBudgetVsActualByProject([project()], "AED")
+    expect(table.rows[0].budget).toBe(200_000)
+  })
+
+  test("the ERP cost-centre budget stands in when the BOQ carries none", () => {
+    expect(buildBudgetVsActualByProject([project({ boqBudget: null })], "AED").rows[0].budget).toBe(150_000)
+    // A BOQ that exists but budgets nothing is not a budget either.
+    expect(buildBudgetVsActualByProject([project({ boqBudget: 0 })], "AED").rows[0].budget).toBe(150_000)
+  })
+
+  test("no budget anywhere is NULL, never 0 -- 'not set' and 'budgeted at zero' are different facts", () => {
+    const table = buildBudgetVsActualByProject([project({ boqBudget: null, budget: null })], "AED")
+    expect(table.rows[0].budget).toBeNull()
+  })
+
+  test("the row says WHICH budget it landed on, so the caption cannot disagree with the bar", () => {
+    expect(buildBudgetVsActualByProject([project()], "AED").rows[0].budgetSource).toBe("boq")
+    expect(buildBudgetVsActualByProject([project({ boqBudget: null })], "AED").rows[0].budgetSource).toBe("erp")
+    expect(buildBudgetVsActualByProject([project({ boqBudget: null, budget: null })], "AED").rows[0].budgetSource).toBe("none")
+    expect(buildBudgetVsActualByProject([project()], "AED").columns.map((c) => c.key)).not.toContain("budgetSource")
+  })
+
+  test("the project NAME is the cell; the id travels for the link and is not a column", () => {
+    const table = buildBudgetVsActualByProject([project()], "AED")
+    expect(table.rows[0].project).toBe("Cedar Heights Villa - Phase 1")
+    expect(table.rows[0].projectId).toBe("p1")
+    expect(table.columns.map((c) => c.key)).not.toContain("projectId")
+  })
+
+  test("progress is money as well as a percentage, because a % cannot share a money axis", () => {
+    const table = buildBudgetVsActualByProject([project()], "AED")
+    expect(table.rows[0].earnedValue).toBe(118_750)
+    expect(table.columns.find((c) => c.key === "earnedValue")?.unit).toBe("currency")
+    expect(table.columns.find((c) => c.key === "progressPct")?.unit).toBe("percent")
+  })
+
+  test("the money columns total across the portfolio; the percentage does not", () => {
+    const table = buildBudgetVsActualByProject(
+      [project(), project({ id: "p2", name: "Oakwood", revenue: 100_000, boqBudget: 50_000, spent: 25_000, earnedValue: 10_000, progressPercent: 20 })],
+      "AED"
+    )
+    expect(table.totals).toEqual({ revenue: 575_000, budget: 250_000, actual: 210_000, earnedValue: 128_750 })
+    expect(table.totals?.progressPct).toBeUndefined()
+  })
+
+  test("a project with no earned value contributes nothing rather than dragging the total to NaN", () => {
+    const table = buildBudgetVsActualByProject([project({ earnedValue: null })], "AED")
+    expect(table.rows[0].earnedValue).toBeNull()
+    expect(table.totals?.earnedValue).toBe(0)
+  })
+
+  test("no projects at all is an empty table, not a table of zeros", () => {
+    const table = buildBudgetVsActualByProject([], null)
+    expect(table.rows).toEqual([])
+    expect(table.currency).toBeNull()
+  })
+
+  test("the table says which budget it is showing", () => {
+    expect(buildBudgetVsActualByProject([project()], "AED").note).toContain("BOQ-derived")
   })
 })
