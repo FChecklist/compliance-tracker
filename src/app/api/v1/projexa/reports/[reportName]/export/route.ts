@@ -23,8 +23,8 @@
 // narrower schema.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
-import { boqBudgetVarianceReport, ServiceError } from "@/lib/services/construction-reports-service"
-import { reportCsv, reportExportSchema, reportXlsxBuffer } from "@/lib/services/report-export"
+import { boqBudgetVarianceReport, designerTimesheetReport, ServiceError } from "@/lib/services/construction-reports-service"
+import { designerTimesheetExportRows, reportCsv, reportExportSchema, reportXlsxBuffer } from "@/lib/services/report-export"
 import { generateBudgetVarianceReportPdf, filterLabel } from "@/lib/pdf/budget-variance-report-pdf"
 import { generateReportDocumentPdf } from "@/lib/pdf/report-document-pdf"
 import { organisations, projects, erpCurrencies } from "@/lib/db"
@@ -45,7 +45,24 @@ const CONTENT_TYPE: Record<Format, string> = {
  * refused in words, never with a silent empty file. Adding one is adding a
  * schema -- there is no second route shape to write.
  */
-const EXPORTABLE = ["budget-variance", "project-status"] as const
+const EXPORTABLE = ["budget-variance", "project-status", "designer-timesheet"] as const
+
+/**
+ * R67 E-16 (R-150): the branded header every server-rendered document carries.
+ * compliance.projects/organisations/erp_currencies all carry an org-scoped RLS
+ * policy, so a bare read outside a tenant context is silently filtered to zero
+ * rows -- one helper, so neither branch of this route can forget that.
+ */
+async function documentBranding(orgId: string, projectId: string) {
+  return withTenantContext({ orgId }, async (tx) => {
+    const project = await tx.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, orgId)) })
+    const org = await tx.query.organisations.findFirst({ where: eq(organisations.id, orgId), columns: { name: true, address: true, gstin: true } })
+    // Never guess a currency: with no base row the PDF prints bare numbers
+    // rather than labelling them with a code nobody confirmed.
+    const currency = await tx.query.erpCurrencies.findFirst({ where: and(eq(erpCurrencies.orgId, orgId), eq(erpCurrencies.isBaseCurrency, true)), columns: { code: true } })
+    return { project, org, currency }
+  })
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ reportName: string }> }) {
   const ctx = await requireAuthOrApiKey(request)
@@ -77,6 +94,53 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const categories = searchParams.getAll("category").filter((c) => c.trim() !== "")
   const vendorId = searchParams.get("vendorId") ?? undefined
 
+  // R67 E-16 (R-150). The Design Studio document has a different SOURCE (the
+  // designer timesheet report, over a period) but the same shape of answer, so
+  // it branches once here and then goes through the identical schema-driven
+  // renderers below. No grand total: see DESIGNER_TIMESHEET_SCHEMA's own note --
+  // the four cuts are overlapping views of the same hours.
+  if (reportName === "designer-timesheet") {
+    const from = searchParams.get("from") ?? undefined
+    const to = searchParams.get("to") ?? undefined
+    try {
+      const report = await designerTimesheetReport({ orgId }, projectId, { from, to })
+      const rows = designerTimesheetExportRows(report)
+      const window = report.period.from && report.period.to ? `${report.period.from} to ${report.period.to}` : "whole project to date"
+      const filename = `designer-timesheet-${projectId}${report.period.from ? `-${report.period.from}` : ""}`
+
+      if (format === "pdf") {
+        const { project, org, currency } = await documentBranding(orgId, projectId)
+        if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 })
+        const pdf = generateReportDocumentPdf(schema, {
+          org: org ?? { name: "VERIDIAN AI", address: null, gstin: null },
+          projectName: project.name,
+          subtitle: `Approved hours, ${window}`,
+          currency: currency?.code ?? null,
+          rows,
+          totals: {},
+          filterLine: null,
+          emptyMessage: `No approved designer hours for ${window}.`,
+        })
+        return new NextResponse(new Blob([pdf], { type: CONTENT_TYPE.pdf }), {
+          headers: { "Content-Type": CONTENT_TYPE.pdf, "Content-Disposition": `attachment; filename="${filename}.pdf"` },
+        })
+      }
+      if (format === "csv") {
+        return new NextResponse(reportCsv(schema, rows), {
+          headers: { "Content-Type": CONTENT_TYPE.csv, "Content-Disposition": `attachment; filename="${filename}.csv"` },
+        })
+      }
+      const bytes = new Uint8Array(reportXlsxBuffer(schema, rows))
+      return new NextResponse(new Blob([bytes], { type: CONTENT_TYPE.xlsx }), {
+        headers: { "Content-Type": CONTENT_TYPE.xlsx, "Content-Disposition": `attachment; filename="${filename}.xlsx"` },
+      })
+    } catch (error) {
+      if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+      console.error("v1 projexa designer-timesheet export error:", error)
+      return NextResponse.json({ error: "Failed to export the designer-timesheet report" }, { status: 500 })
+    }
+  }
+
   try {
     const report = await boqBudgetVarianceReport({ orgId }, projectId, { categories, vendorId })
     const vendorName = vendorId ? (report.availableVendors.find((v) => v.id === vendorId)?.name ?? vendorId) : null
@@ -96,18 +160,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const filename = `${schema.slug}-${projectId}${categories.length > 0 ? `-${categories.length}cat` : ""}${vendorId ? "-vendor" : ""}`
 
     if (format === "pdf") {
-      // Same withTenantContext-wrapped branded-header lookup the sibling
-      // exports document: compliance.projects/organisations carry an
-      // org-scoped RLS policy, so a bare read outside a tenant context is
-      // silently filtered to zero rows.
-      const { project, org, currency } = await withTenantContext({ orgId }, async (tx) => {
-        const project = await tx.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, orgId)) })
-        const org = await tx.query.organisations.findFirst({ where: eq(organisations.id, orgId), columns: { name: true, address: true, gstin: true } })
-        // Never guess a currency: with no base row the PDF prints bare numbers
-        // rather than labelling them with a code nobody confirmed.
-        const currency = await tx.query.erpCurrencies.findFirst({ where: and(eq(erpCurrencies.orgId, orgId), eq(erpCurrencies.isBaseCurrency, true)), columns: { code: true } })
-        return { project, org, currency }
-      })
+      // Same withTenantContext-wrapped branded-header lookup every document in
+      // this route uses -- see documentBranding above for why it must be inside
+      // a tenant context.
+      const { project, org, currency } = await documentBranding(orgId, projectId)
       if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 })
       const branding = org ?? { name: "VERIDIAN AI", address: null, gstin: null }
 

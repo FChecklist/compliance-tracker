@@ -110,7 +110,198 @@ export const REPORT_EXPORT_SCHEMAS: Record<string, ReportExportSchema> = {
   },
 }
 
+/**
+ * R67 E-18 (R-178) / E-20 (R-208). THE WORK PROGRESS REPORT AS A DOCUMENT.
+ *
+ * The WPR already had a PDF (generateWorkProgressReportPdf, shipped #1314) and
+ * a browser-built CSV, and no XLSX at all -- R-178's own words are that PROJEXA
+ * "must not gain an XLSX library", so the bytes have to be built here. Rather
+ * than a third opinion about the WPR's columns, it is described here like every
+ * other report, from the SAME computed rows the PDF is drawn from.
+ *
+ * The third column is Total or Balance depending on the reader's toggle, so the
+ * schema is a function of the mode -- the label in the file must say which of
+ * the two the numbers under it are.
+ */
+export function workProgressExportSchema(mode: "total" | "balance" = "total"): ReportExportSchema {
+  const third = mode === "balance" ? "Balance" : "Total"
+  return {
+    slug: "work-progress",
+    title: "Work Progress Report",
+    sheetName: "Work Progress",
+    columns: [
+      { key: "sNo", label: "S.No", type: "number", align: "right" },
+      { key: "category", label: "Category", type: "text", align: "left" },
+      { key: "code", label: "Code", type: "text", align: "left" },
+      { key: "description", label: "Description", type: "text", align: "left" },
+      { key: "poQty", label: "PO Qty", type: "number", align: "right" },
+      { key: "unit", label: "Unit", type: "text", align: "left" },
+      { key: "rate", label: "Rate", type: "money", align: "right" },
+      { key: "amount", label: "Amt", type: "money", align: "right" },
+      { key: "percentPrevious", label: "% Previous", type: "percent", align: "right", group: "Percent" },
+      { key: "percentCurrent", label: "% Current", type: "percent", align: "right", group: "Percent" },
+      { key: "percentThird", label: `% ${third}`, type: "percent", align: "right", group: "Percent" },
+      { key: "qtyPrevious", label: "Qty Previous", type: "number", align: "right", group: "Quantity" },
+      { key: "qtyCurrent", label: "Qty Current", type: "number", align: "right", group: "Quantity" },
+      { key: "qtyThird", label: `Qty ${third}`, type: "number", align: "right", group: "Quantity" },
+      { key: "amtPrevious", label: "Amt Previous", type: "money", align: "right", group: "Amount" },
+      { key: "amtCurrent", label: "Amt Current", type: "money", align: "right", group: "Amount" },
+      { key: "amtThird", label: `Amt ${third}`, type: "money", align: "right", group: "Amount" },
+    ],
+    groupBy: "category",
+    totals: ["amount", "amtPrevious", "amtCurrent", "amtThird"],
+    totalLabelColumn: "sNo",
+  }
+}
+
+/** The shape workProgressExportRows reads -- structurally the pdf module's ComputedRow. */
+export type WorkProgressExportSource = {
+  code: string
+  description: string
+  categoryName: string
+  isChild: boolean
+  poQty: number
+  unit: string
+  rate: number
+  contractAmt: number
+  prevQty: number; currentQty: number; thirdQty: number
+  prevAmt: number; currentAmt: number; thirdAmt: number
+  prevPct: number; currentPct: number; thirdPct: number
+}
+
+/**
+ * The rows AND the grand total, computed by the SAME rule the screen's own
+ * grand-total row uses (WorkProgressReportClient#computeGrandTotal): the "Amt"
+ * column totals PARENT lines only, because a weighted sub-task's amount is
+ * derived from its parent and counting both would print a total the table does
+ * not add up to; the three Amount-band columns total every row, because every
+ * row's recorded progress is its own. Returning the totals here rather than
+ * letting buildExportRows re-sum is what keeps the file and the screen equal.
+ */
+export function workProgressExportRows(
+  source: WorkProgressExportSource[],
+  mode: "total" | "balance" = "total"
+): { rows: Record<string, unknown>[]; totals: Record<string, number | null> } {
+  const rows = source.map((r, i) => ({
+    sNo: i + 1,
+    category: r.categoryName,
+    code: r.code || null,
+    description: r.description,
+    poQty: r.poQty,
+    unit: r.unit,
+    rate: r.rate,
+    amount: r.contractAmt,
+    // WPR-06: a child line's percentages are blank, on screen and in the file.
+    percentPrevious: r.isChild ? null : r.prevPct,
+    percentCurrent: r.isChild ? null : r.currentPct,
+    percentThird: r.isChild ? null : r.thirdPct,
+    qtyPrevious: r.prevQty,
+    qtyCurrent: r.currentQty,
+    qtyThird: r.thirdQty,
+    amtPrevious: r.prevAmt,
+    amtCurrent: r.currentAmt,
+    amtThird: r.thirdAmt,
+  }))
+  const round = (n: number) => Math.round(n * 100) / 100
+  return {
+    rows,
+    totals: {
+      amount: round(source.filter((r) => !r.isChild).reduce((s, r) => s + r.contractAmt, 0)),
+      amtPrevious: round(source.reduce((s, r) => s + r.prevAmt, 0)),
+      amtCurrent: round(source.reduce((s, r) => s + r.currentAmt, 0)),
+      amtThird: round(source.reduce((s, r) => s + r.thirdAmt, 0)),
+    },
+  }
+}
+
+/**
+ * R67 E-16 (R-150). THE DESIGN STUDIO COST ANALYSIS AS A DOCUMENT.
+ *
+ * designerTimesheetReport returns FOUR breakdowns of the same approved hours --
+ * by category, by designer, by project and by designer status. A spreadsheet is
+ * one grid, so they are one table with a Section column and a band per cut,
+ * which is exactly how the screen stacks them.
+ *
+ * THERE IS DELIBERATELY NO GRAND TOTAL. The four cuts are overlapping views of
+ * the SAME money: adding a designer's actual to a category's actual to a
+ * project's actual counts the same hour three times. A total row there would be
+ * a number that is not a fact, and this product's own rule is that a printed
+ * total must tie. The per-section subtotals the reader needs are the report's
+ * own overallBudget/overallActual, which the screen prints above the table.
+ */
+export const DESIGNER_TIMESHEET_SECTIONS = [
+  { key: "category", label: "By Category" },
+  { key: "designer", label: "By Designer" },
+  { key: "project", label: "By Project" },
+  { key: "status", label: "Designer Status" },
+] as const
+
+export const DESIGNER_TIMESHEET_SCHEMA: ReportExportSchema = {
+  slug: "designer-timesheet",
+  title: "Design Studio — Cost Analysis",
+  sheetName: "Cost Analysis",
+  columns: [
+    { key: "section", label: "Section", type: "text", align: "left" },
+    { key: "item", label: "Item", type: "text", align: "left" },
+    { key: "budget", label: "Budget", type: "money", align: "right" },
+    { key: "actual", label: "Actual", type: "money", align: "right" },
+    { key: "variance", label: "Variance", type: "money", align: "right" },
+    { key: "hours", label: "Hours", type: "number", align: "right" },
+  ],
+  groupBy: "section",
+}
+
+/** The shape designerTimesheetExportRows reads -- structurally DesignerTimesheetReport. */
+export type DesignerTimesheetExportSource = {
+  projectScoped: {
+    byUser: { userId: string; userName: string; totalHours: number }[]
+    byCategory: { category: string; hours: number; actual: number; budget: number | null }[]
+    byDesignerStatus: { status: string; budget: number; actual: number; variance: number }[]
+  }
+  orgWide: {
+    byDesigner: { userId: string; userName: string; hours: number; budget: number; actual: number; variance: number }[]
+    byProject: { projectId: string; projectName: string; budget: number; actual: number; variance: number }[]
+  }
+}
+
+/**
+ * The four cuts, flattened in the order the screen stacks them. Variance is
+ * ACTUAL minus BUDGET, positive meaning over -- the same sign convention the
+ * Budget-vs-Actual view uses, so a reader moving between them never has to
+ * re-learn which way is bad. A row with no budget carries null, not zero: the
+ * by-category cut genuinely has no budget dimension in the source (budget line
+ * items carry a designer, never a category), and a zero there would read as
+ * "budgeted nothing and spent it all".
+ */
+export function designerTimesheetExportRows(source: DesignerTimesheetExportSource): Record<string, unknown>[] {
+  const hoursHere = new Map(source.projectScoped.byUser.map((u) => [u.userId, u.totalHours]))
+  const variance = (actual: number, budget: number | null) =>
+    budget === null ? null : Math.round((actual - budget) * 100) / 100
+  return [
+    ...source.projectScoped.byCategory.map((c) => ({
+      section: "By Category", item: c.category,
+      budget: c.budget, actual: c.actual, variance: variance(c.actual, c.budget), hours: c.hours,
+    })),
+    ...source.orgWide.byDesigner.map((d) => ({
+      section: "By Designer", item: d.userName,
+      budget: d.budget, actual: d.actual, variance: variance(d.actual, d.budget),
+      hours: hoursHere.get(d.userId) ?? d.hours,
+    })),
+    ...source.orgWide.byProject.map((p) => ({
+      section: "By Project", item: p.projectName,
+      budget: p.budget, actual: p.actual, variance: variance(p.actual, p.budget), hours: null,
+    })),
+    ...source.projectScoped.byDesignerStatus.map((s) => ({
+      section: "Designer Status",
+      item: s.status === "active" ? "Active designers" : "Inactive designers",
+      budget: s.budget, actual: s.actual, variance: variance(s.actual, s.budget), hours: null,
+    })),
+  ]
+}
+
 export function reportExportSchema(slug: string): ReportExportSchema | null {
+  if (slug === "work-progress") return workProgressExportSchema()
+  if (slug === "designer-timesheet") return DESIGNER_TIMESHEET_SCHEMA
   return REPORT_EXPORT_SCHEMAS[slug] ?? null
 }
 
