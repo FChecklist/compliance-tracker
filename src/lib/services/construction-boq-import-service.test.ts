@@ -326,13 +326,41 @@ describe("mapRowsToLineItems / parseBoqSpreadsheet -- Sumeet real-file shape (Sl
   // by that same rule, indistinguishable from a real zero-quantity line
   // item and is intentionally NOT skipped -- it still imports (not silently
   // dropped), just as a real zero-value row would.
-  test("edge case: a header row with a stray literal '0' in Qty is not blank, so it is not skipped by the header test", () => {
+  // R67 lane D22 (item D-68, rec R-258) CHANGED THE OUTCOME OF THIS CASE, on
+  // purpose, and the original point of the test is preserved: the CATEGORY-
+  // HEADER branch still does not fire on a row with a literal typed "0", which
+  // is what this test exists to pin. What changed is what happens next. A root
+  // row with a blank Rate used to import silently as a priced line worth
+  // nothing; R-258 asks for exactly this to be reported per row, in these
+  // words, so the QS fixes the sheet instead of discovering a zero-value BOQ
+  // line later. A typed "0" rate is still non-blank and still imports.
+  test("edge case: a row with a stray literal '0' in Qty is not read as a category header -- its blank Rate is reported instead", () => {
     const rows = [{ code: "1.00", desc: "PARTITION AND LINING", qty: "0", rate: "" }]
     const mapping = { itemCode: "code", description: "desc", quantity: "qty", rate: "rate" } as const
     const { lineItems, warnings } = mapRowsToLineItems(rows, mapping)
     expect(warnings.filter((w) => w.includes("category header"))).toHaveLength(0)
+    expect(warnings).toContain("Row 2: Rate is blank")
+    expect(lineItems).toHaveLength(0)
+  })
+
+  test("a root row with a typed 0 rate still imports -- 0 is a price, blank is a gap", () => {
+    const rows = [{ code: "1.00", desc: "Provisional sum item", qty: "1", rate: "0" }]
+    const mapping = { itemCode: "code", description: "desc", quantity: "qty", rate: "rate" } as const
+    const { lineItems, warnings } = mapRowsToLineItems(rows, mapping)
+    expect(warnings.filter((w) => w.includes("is blank"))).toHaveLength(0)
     expect(lineItems).toHaveLength(1)
-    expect(lineItems[0].description).toBe("PARTITION AND LINING")
+    expect(lineItems[0].rate).toBe(0)
+  })
+
+  test("a SUB-TASK row's blank Qty/Rate is never reported -- they are derived from its root (F2/F3)", () => {
+    const rows = [
+      { code: "1", desc: "Reception Counter", sub: "", qty: "10", rate: "100" },
+      { code: "", desc: "", sub: "Shutter", qty: "", rate: "", pct: "40" },
+    ]
+    const mapping = { itemCode: "code", description: "desc", subTask: "sub", quantity: "qty", rate: "rate", breakdownPercentage: "pct" } as const
+    const { lineItems, warnings } = mapRowsToLineItems(rows, mapping)
+    expect(warnings.filter((w) => w.includes("is blank"))).toHaveLength(0)
+    expect(lineItems).toHaveLength(2)
   })
 
   // Point 3 edge case: "a section with no items under it" -- two headers
@@ -669,6 +697,99 @@ describe("mapRowsToLineItems -- Category header mapping (R67 I-05)", () => {
     const { lineItems, mapping } = await parseBoqSpreadsheet(buffer, "boq.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     expect(mapping.category).toBe("Category")
     expect(lineItems.map((l) => l.category)).toEqual(["Civil", "Paint"])
+  })
+})
+
+// R67 lane D22 (item D-52, rec R-176): the per-row preview the three-step
+// import screen prints between "Choose file" and the commit. Pure, so the
+// three edge cases the item names are provable without a spreadsheet.
+import { analyseBoqPreview } from "./construction-boq-import-service"
+
+describe("analyseBoqPreview (R67 D-52)", () => {
+  const base = { description: "Line", unit: "m2", quantity: 2, rate: 100 }
+
+  test("a clean row is 'ok' with no messages, and its amount is quantity x rate", () => {
+    const { rows } = analyseBoqPreview([{ ...base, itemCode: "A-1", category: "Civil" }])
+    expect(rows[0].status).toBe("ok")
+    expect(rows[0].messages).toEqual([])
+    expect(rows[0].amount).toBe(200)
+  })
+
+  test("a duplicate code flags BOTH occurrences -- one marked row cannot show which two collided", () => {
+    const { rows } = analyseBoqPreview([
+      { ...base, itemCode: "A-1", category: "Civil" },
+      { ...base, itemCode: "B-2", category: "Civil" },
+      { ...base, itemCode: "A-1", category: "Civil" },
+    ])
+    expect(rows.map((r) => r.status)).toEqual(["warning", "ok", "warning"])
+    expect(rows[0].messages[0]).toBe("Duplicate code A-1 — appears 2 times")
+    expect(rows[2].messages[0]).toBe("Duplicate code A-1 — appears 2 times")
+  })
+
+  test("the duplicate check is case-insensitive, so 'a-1' and 'A-1' are one code", () => {
+    const { rows } = analyseBoqPreview([
+      { ...base, itemCode: "A-1", category: "Civil" },
+      { ...base, itemCode: "a-1", category: "Civil" },
+    ])
+    expect(rows.every((r) => r.status === "warning")).toBe(true)
+  })
+
+  test("a parent code appearing after its child is ACCEPTED and said so, not rejected", () => {
+    const { rows, willImport } = analyseBoqPreview([
+      { ...base, itemCode: "1.1", parentItemCode: "1", breakdownPercentage: 40, category: "Civil" },
+      { ...base, itemCode: "1", category: "Civil" },
+    ])
+    expect(rows[0].messages).toEqual(["Parent code 1 appears later in the file — accepted, resolved after load"])
+    expect(willImport).toBe(2)
+  })
+
+  test("a parent that already appeared above its child says nothing at all", () => {
+    const { rows } = analyseBoqPreview([
+      { ...base, itemCode: "1", category: "Civil" },
+      { ...base, itemCode: "1.1", parentItemCode: "1", breakdownPercentage: 40, category: "Civil" },
+    ])
+    expect(rows[1].messages).toEqual([])
+  })
+
+  test("a blank category names the real downstream consequence, not just 'missing'", () => {
+    const { rows } = analyseBoqPreview([{ ...base, itemCode: "A-1" }])
+    expect(rows[0].messages).toEqual(["Category empty - WPR will show Uncategorized"])
+    expect(rows[0].status).toBe("warning")
+  })
+
+  test("none of the three messages blocks -- every parsed row still imports", () => {
+    const { willImport, totalParsed } = analyseBoqPreview([
+      { ...base, itemCode: "A-1" },
+      { ...base, itemCode: "A-1" },
+    ])
+    expect(willImport).toBe(2)
+    expect(totalParsed).toBe(2)
+  })
+})
+
+// R67 lane D22 (item D-52): the "Map columns" step's corrections.
+import { applyMappingOverride } from "./construction-boq-import-service"
+
+describe("applyMappingOverride (R67 D-52)", () => {
+  const headers = ["Ref", "Description", "Qty", "Rate", "Unit"]
+  const auto = { description: "Description", quantity: "Qty", rate: "Rate", unit: "Unit" }
+
+  test("a correction is merged over the auto mapping -- the other fields do not have to be restated", () => {
+    expect(applyMappingOverride(auto, { itemCode: "Ref" }, headers)).toEqual({ ...auto, itemCode: "Ref" })
+  })
+
+  test("an explicit empty string unmaps a field, which is a real thing a user can mean", () => {
+    expect(applyMappingOverride(auto, { rate: "" }, headers)).toEqual({ description: "Description", quantity: "Qty", unit: "Unit" })
+  })
+
+  test("a correction naming a column that is not in the sheet is IGNORED, never stored", () => {
+    // Storing it would make mapRowsToLineItems read row[undefined] for every
+    // row and silently import blank descriptions.
+    expect(applyMappingOverride(auto, { description: "Nope" }, headers)).toEqual(auto)
+  })
+
+  test("no override at all returns the auto mapping unchanged", () => {
+    expect(applyMappingOverride(auto, undefined, headers)).toEqual(auto)
   })
 })
 

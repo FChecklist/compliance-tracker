@@ -2,7 +2,7 @@
 // attendance. dailyCost is computed here at write time from
 // roster.dailyRate (half_day = half rate), not a DB generated column,
 // matching this codebase's convention elsewhere (e.g. documents.isLatestVersion).
-import { constructionLabourRoster, constructionAttendance, projects } from "@/lib/db"
+import { constructionLabourRoster, constructionAttendance, erpSuppliers, projects } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -120,12 +120,34 @@ export async function listRosterTrades(ctx: { orgId: string }): Promise<string[]
   return mergeTrades(used.map((r) => r.trade))
 }
 
+// R67 F-13 (R-193/R-217): each row carries its vendor's NAME, resolved by ONE
+// batched read on the transaction this function already holds (never one per
+// row, and skipped entirely when no row is subcontracted).
+//
+// Why it belongs here: every consumer of this list that wants to show "who the
+// worker belongs to" had to fetch the whole vendor master separately and join
+// it in the browser -- PROJEXA's Work Progress Report did exactly that as one
+// of its six VERIDIAN calls, purely to turn a vendorId into a name. vendorId is
+// kept alongside it, so nothing that keys on the id has to change.
+//
+// A vendor row that has been deleted reports null, never the raw id: the caller
+// decides how to say "unknown", the same convention
+// construction-progress-service.ts uses for its own label resolution.
 export async function listRoster(ctx: { orgId: string }, projectId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.constructionLabourRoster.findMany({
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await db.query.constructionLabourRoster.findMany({
       where: and(eq(constructionLabourRoster.orgId, ctx.orgId), eq(constructionLabourRoster.projectId, projectId)),
     })
-  )
+    const vendorIds = [...new Set(rows.map((r) => r.vendorId).filter((id): id is string => !!id))]
+    const vendors = vendorIds.length === 0
+      ? []
+      : await db.query.erpSuppliers.findMany({
+          where: and(eq(erpSuppliers.orgId, ctx.orgId), inArray(erpSuppliers.id, vendorIds)),
+          columns: { id: true, supplierName: true },
+        })
+    const nameById = new Map(vendors.map((v) => [v.id, v.supplierName]))
+    return rows.map((r) => ({ ...r, vendorName: r.vendorId ? (nameById.get(r.vendorId) ?? null) : null }))
+  })
 }
 
 // R67 F-30 (audit recommendation R-274) -- THE MANPOWER LANDING, IN ONE HOP.
@@ -286,20 +308,23 @@ export async function updateRosterEntry(
   })
 }
 
-// R67 F-25 (audit recommendation R-241) -- ATTENDANCE IS A DATED QUESTION.
+// R67 F-25 (audit recommendation R-241) x F-06 (R-088/R-094) -- ATTENDANCE IS A
+// DATED QUESTION. Two lanes found the same fault and it is folded here under
+// D-11: F-25's filter shape is canonical, F-06's validation is folded in.
 //
 // THE MEASURED PROBLEM. PROJEXA's Manpower screen fetched THE WHOLE ATTENDANCE
 // LOG on every landing, with no date filter at all, even though the screen
 // opens on the Roster tab and never shows a row of it until the user switches.
-// A site with 40 workers produces 40 rows a day, so the payload grows without
-// bound for a table nobody has asked to see, and the one date a foreman
-// actually wants -- today -- is buried in it.
+// A site with 40 workers produces 40 rows a day, so the payload grows as
+// workers x days -- a project a year old answers this call with roughly 10,000
+// rows nobody looks at -- and the one date a foreman actually wants, today, is
+// buried in it.
 //
-// `date` (one day) and `from`/`to` (a range, both inclusive, entryDate is a
-// plain date column) are the filters that were missing. `attendanceDate` is
+// `date` (one day) and `from`/`to` (a range, both inclusive, attendance_date is
+// a plain date column) are the filters that were missing. `attendanceDate` is
 // KEPT as an alias for `date` so every existing caller and every existing
-// ?attendanceDate= query string keeps working unchanged; passing both is not
-// an error, they mean the same thing and `date` wins.
+// ?attendanceDate= query string keeps working unchanged; passing both is not an
+// error, they mean the same thing and `date` wins.
 export type AttendanceFilters = {
   projectId?: string
   rosterId?: string
@@ -313,17 +338,42 @@ export type AttendanceFilters = {
   to?: string
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * R67 F-06. Validates the optional [from, to] attendance window.
+ *
+ * Deliberately strict: `attendance_date` is a Postgres DATE compared as text
+ * here, so a malformed bound would not error, it would silently match nothing
+ * and be read as "this worker was never on site". A caller that sends a bad
+ * date is told so (400) rather than shown a confidently empty log.
+ */
+export function normaliseAttendanceRange(filters: { from?: string; to?: string }): { from?: string; to?: string } {
+  const from = filters.from?.trim() || undefined
+  const to = filters.to?.trim() || undefined
+  if (from && !ISO_DATE.test(from)) throw new ServiceError("from must be a date in YYYY-MM-DD format", 400)
+  if (to && !ISO_DATE.test(to)) throw new ServiceError("to must be a date in YYYY-MM-DD format", 400)
+  if (from && to && from > to) throw new ServiceError("from must not be later than to", 400)
+  return { from, to }
+}
+
 // R67 D-30 folds in here: the daily attendance sheet reads one date, but the
 // worker object page's attendance history reads a month window and the
 // daily-summary tab reads a range. `from`/`to` are what those two need, and
-// F-25 (already on main) is the canonical implementation of them -- doing the
-// windowing client-side would mean pulling every attendance row a project has
-// ever had and filtering in the browser, which is exactly the "fetch
-// everything then reduce in JS" pattern getMaterialCostReport's own header
-// rejects.
+// doing the windowing client-side would mean pulling every attendance row a
+// project has ever had and filtering in the browser, which is exactly the
+// "fetch everything then reduce in JS" pattern getMaterialCostReport's own
+// header rejects.
+//
+// R67 F-06 adds the VALIDATION above rather than passing the two bounds
+// through raw, and D-30's three callers are the reason it matters: they build
+// windows from dates the client computes, so a malformed bound is a real
+// possibility, and an unvalidated one does not error -- it matches nothing and
+// reads as "this worker was never on site".
 export async function listAttendance(ctx: { orgId: string }, filters: AttendanceFilters) {
   if (!filters.projectId && !filters.rosterId) throw new ServiceError("projectId or rosterId is required", 400)
   const exactDate = filters.date ?? filters.attendanceDate
+  const { from, to } = normaliseAttendanceRange(filters)
   return withTenantContext({ orgId: ctx.orgId }, (db) => {
     const conditions = [eq(constructionAttendance.orgId, ctx.orgId)]
     if (filters.projectId) conditions.push(eq(constructionAttendance.projectId, filters.projectId))
@@ -333,8 +383,8 @@ export async function listAttendance(ctx: { orgId: string }, filters: Attendance
     if (exactDate) {
       conditions.push(eq(constructionAttendance.attendanceDate, exactDate))
     } else {
-      if (filters.from) conditions.push(gte(constructionAttendance.attendanceDate, filters.from))
-      if (filters.to) conditions.push(lte(constructionAttendance.attendanceDate, filters.to))
+      if (from) conditions.push(gte(constructionAttendance.attendanceDate, from))
+      if (to) conditions.push(lte(constructionAttendance.attendanceDate, to))
     }
     return db.query.constructionAttendance.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.attendanceDate) })
   })

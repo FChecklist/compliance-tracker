@@ -132,9 +132,15 @@ export type BudgetScheduleRisk = { riskLevel: "low" | "medium" | "high"; budgetR
 // against real incident data (none exists yet) -- same honesty discipline
 // as risk-classification.ts's own thresholds.
 export type BudgetScheduleRiskFactors = {
-  budget: number
+  // R67 D-02: budget (and therefore variance) is null when the project has NO
+  // budget rows at all -- see construction-dashboard-service.ts's own note.
+  // Coercing that to 0 here would have made every unbudgeted project read as
+  // "budget 0, variance -<all spend>", i.e. infinitely overspent, which is a
+  // fabricated risk assessment. The two pure functions below treat null as
+  // "not assessable" and say so.
+  budget: number | null
   actual: number
-  variance: number // budget - actual (construction-reports-service.ts's budgetVsActual) -- negative means over budget
+  variance: number | null // budget - actual (construction-reports-service.ts's budgetVsActual) -- negative means over budget
   delayedTaskCount: number
   totalTaskCount: number
 }
@@ -144,8 +150,19 @@ const MEDIUM_OVERSPEND_RATIO = 0.10 // 10% over budget
 const HIGH_DELAYED_RATIO = 0.40 // 40% of tasks delayed
 const MEDIUM_DELAYED_RATIO = 0.20 // 20% of tasks delayed
 
+/**
+ * R67 D-02. How far over budget the project is, as a fraction of its budget.
+ * 0 when there is nothing to measure against -- no budget set (null), a zero
+ * budget, or no variance figure. A project with no budget is not "0% over
+ * budget"; it is unassessable, and both callers below say so in words.
+ */
+export function overspendRatioOf(factors: BudgetScheduleRiskFactors): number {
+  if (factors.budget === null || factors.budget <= 0 || factors.variance === null) return 0
+  return Math.max(0, -factors.variance) / factors.budget
+}
+
 export function classifyBudgetScheduleRisk(factors: BudgetScheduleRiskFactors): "low" | "medium" | "high" {
-  const overspendRatio = factors.budget > 0 ? Math.max(0, -factors.variance) / factors.budget : 0
+  const overspendRatio = overspendRatioOf(factors)
   const delayedRatio = factors.totalTaskCount > 0 ? factors.delayedTaskCount / factors.totalTaskCount : 0
 
   if (overspendRatio >= HIGH_OVERSPEND_RATIO || delayedRatio >= HIGH_DELAYED_RATIO) return "high"
@@ -157,11 +174,11 @@ export function classifyBudgetScheduleRisk(factors: BudgetScheduleRiskFactors): 
 // configured for the org (see below) -- classification never needed AI in
 // the first place, so "no model configured" no longer means "no answer."
 function templateBudgetScheduleRisk(factors: BudgetScheduleRiskFactors, riskLevel: "low" | "medium" | "high"): BudgetScheduleRisk {
-  const overspendPct = factors.budget > 0 ? Math.round((Math.max(0, -factors.variance) / factors.budget) * 100) : 0
+  const overspendPct = Math.round(overspendRatioOf(factors) * 100)
   const delayedPct = factors.totalTaskCount > 0 ? Math.round((factors.delayedTaskCount / factors.totalTaskCount) * 100) : 0
   return {
     riskLevel,
-    budgetRiskReasoning: factors.budget <= 0
+    budgetRiskReasoning: factors.budget === null || factors.budget <= 0 || factors.variance === null
       ? "No budget is set for this project, so budget risk could not be assessed."
       : factors.variance < 0
         ? `Project is ${overspendPct}% over budget (actual ${factors.actual} vs budget ${factors.budget}).`

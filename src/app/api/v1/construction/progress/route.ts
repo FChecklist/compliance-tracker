@@ -17,9 +17,17 @@ async function GET_impl(request: NextRequest) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    // R67 F-13 (R-193/R-217): dateFrom/dateTo are forwarded. listProgressEntries
+    // has always supported the window; nothing exposed it, so every caller --
+    // including PROJEXA's Work Progress Report, which only ever looks at
+    // entries up to its own `to` date -- had to pull a project's entire logging
+    // history and discard most of it. Both bounds stay optional, so every
+    // existing caller behaves exactly as before.
     const entries = await listProgressEntries({ orgId: ctx.orgId }, {
       projectId: request.nextUrl.searchParams.get("projectId") ?? undefined,
       activityId: request.nextUrl.searchParams.get("activityId") ?? undefined,
+      dateFrom: request.nextUrl.searchParams.get("dateFrom") ?? undefined,
+      dateTo: request.nextUrl.searchParams.get("dateTo") ?? undefined,
     })
     return NextResponse.json({ entries })
   } catch (error) {

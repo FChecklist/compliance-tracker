@@ -7,8 +7,20 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listBudgets, createBudget, ServiceError } from "@/lib/services/erp-budget-service"
 
-function toProjectBudgetShape(b: Awaited<ReturnType<typeof listBudgets>>[number]) {
+type BudgetCore = { id: string; name: string; fiscalYearId: string; companyId: string | null; costCenterId: string | null; status: string; actionIfExceeded: string | null }
+
+function toProjectBudgetShape(b: BudgetCore) {
   return { id: b.id, name: b.name, fiscalYearId: b.fiscalYearId, companyId: b.companyId, costCenterId: b.costCenterId, status: b.status, actionIfExceeded: b.actionIfExceeded }
+}
+
+// R67 F-08 (R-112): the LIST additionally carries fiscalYearName and
+// annualAmount -- the two columns PROJEXA's Budgets screen needs to be
+// readable at all -- resolved by listBudgets inside the transaction it already
+// holds, never by a call per row. Deliberately NOT added to the create
+// response above: a freshly created budget would have to invent them, and a
+// fabricated 0 in a money field is worse than not sending the field.
+function toProjectBudgetListShape(b: Awaited<ReturnType<typeof listBudgets>>[number]) {
+  return { ...toProjectBudgetShape(b), fiscalYearName: b.fiscalYearName, annualAmount: b.annualAmount }
 }
 
 export async function GET(request: NextRequest) {
@@ -19,7 +31,7 @@ export async function GET(request: NextRequest) {
   try {
     const companyId = request.nextUrl.searchParams.get("companyId") ?? undefined
     const budgets = await listBudgets({ orgId: ctx.orgId }, { companyId })
-    return NextResponse.json({ projectBudgets: budgets.map(toProjectBudgetShape) })
+    return NextResponse.json({ projectBudgets: budgets.map(toProjectBudgetListShape) })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa project-budgets list error:", error)

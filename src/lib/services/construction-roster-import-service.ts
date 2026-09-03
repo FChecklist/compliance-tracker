@@ -9,12 +9,33 @@
 //
 // The columns are the ones the customer's own roster sheet carries: ID, Name,
 // Trade, Company, Daily Rate.
+//
+// ── MERGE NOTE (integration train, R67 lane D22 item D-68 onto this) ────────
+// Lane D22 wrote a SECOND roster importer at this same path, with its own
+// route (/v1/projexa/labour/import) and its own PROJEXA screen. Two parsers
+// for one sheet is two sets of rules that can disagree about the same file --
+// the thing both headers were written to prevent -- so this one is kept whole
+// (it is already on main, with its route, its PROJEXA client and their tests)
+// and D-68's distinct rules are folded IN below rather than kept beside it:
+//   * `skillLevel`, a sixth column the roster table has always had
+//     (schema.ts construction_labour_roster.skill_level) and neither importer
+//     could fill;
+//   * duplicates by name PLUS trade are FLAGGED, never merged -- two carpenters
+//     called Mohammed Ali on one site is an ordinary fact, and collapsing them
+//     would lose a man's attendance and his pay.
+// D-68's blank-ID auto-numbering needed no folding: createRosterEntry() already
+// generates the next employee code from the highest one stored, which is why
+// the route writes rows sequentially. Two D-68 capabilities are deliberately
+// NOT folded in and are named in the PR body rather than dropped quietly: the
+// screen-correctable column mapping, and CREATING an unmatched vendor from the
+// import screen (this route already reports `unmatchedCompanies`, so the fact
+// reaches the user; accepting the offer in one click does not exist yet).
 import { parseFile } from "@/lib/ingest/parser"
 import { parseAmount } from "@/lib/gst/column-mapper"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
-export type RosterFieldKey = "employeeCode" | "name" | "trade" | "company" | "dailyRate"
+export type RosterFieldKey = "employeeCode" | "name" | "trade" | "company" | "dailyRate" | "skillLevel"
 
 // Alias order within each field is a PRIORITY order (mapRosterHeaders resolves
 // fields in this record's key order and marks each matched header as used), so
@@ -25,6 +46,9 @@ export const ROSTER_FIELD_ALIASES: Record<RosterFieldKey, string[]> = {
   trade: ["trade", "skill", "category", "designation", "work type"],
   company: ["company", "subcontractor", "vendor", "contractor", "supplier"],
   dailyRate: ["daily rate", "rate", "wage", "daily wage", "rate per day", "per day"],
+  // R67 D-68, folded in: the roster table has carried skill_level since it was
+  // created and no import path could fill it.
+  skillLevel: ["skill level", "grade", "level"],
 }
 
 export type RosterRowIssue = { row: number; message: string; blocking: boolean }
@@ -35,6 +59,8 @@ export type RosterImportRow = {
   name: string
   trade: string | null
   company: string | null
+  /** R67 D-68: the sheet's skill grade, when it has that column. */
+  skillLevel: string | null
   dailyRate: number
   /** 1-based sheet row, header included -- the first data row is row 2. Same numbering the BOQ importer uses, so the two never disagree about which line a user is looking at. */
   sheetRow: number
@@ -96,6 +122,8 @@ export function mapRowsToRosterEntries(
 
   const entries: RosterImportRow[] = []
   const issues: RosterRowIssue[] = []
+  // R67 D-68, folded in: first sheet row seen for each (name, trade) pair.
+  const firstSeenAt = new Map<string, number>()
 
   rows.forEach((row, idx) => {
     const sheetRow = idx + 2
@@ -103,10 +131,30 @@ export function mapRowsToRosterEntries(
 
     // A wholly blank row is padding at the bottom of a real sheet, not an
     // error worth naming.
-    if (!cells.name && !cells.rateRaw && !cells.trade && !cells.company && !cells.employeeCode) return
+    if (!cells.name && !cells.rateRaw && !cells.trade && !cells.company && !cells.employeeCode && !cells.skillLevel) return
 
     const dailyRate = cells.rateRaw === "" ? 0 : parseAmount(row[mapping.dailyRate!])
     const rowIssues = validateRosterRow({ ...cells, dailyRate, sheetRow })
+
+    // R67 D-68, folded in: FLAGGED, never merged. Two carpenters called
+    // Mohammed Ali on one site is an ordinary fact; collapsing them would lose
+    // a man's attendance and his pay. So this is non-blocking and the row is
+    // still written -- it exists to make a real accidental double-paste
+    // visible, not to refuse a real pair of namesakes.
+    if (cells.name) {
+      const key = `${cells.name.toLowerCase()}|${cells.trade.toLowerCase()}`
+      const seenAt = firstSeenAt.get(key)
+      if (seenAt !== undefined) {
+        rowIssues.push({
+          row: sheetRow,
+          message: `Row ${sheetRow}: same name and trade as row ${seenAt} -- imported as a separate worker, not merged`,
+          blocking: false,
+        })
+      } else {
+        firstSeenAt.set(key, sheetRow)
+      }
+    }
+
     issues.push(...rowIssues)
 
     entries.push({
@@ -114,6 +162,7 @@ export function mapRowsToRosterEntries(
       name: cells.name,
       trade: cells.trade || null,
       company: cells.company || null,
+      skillLevel: cells.skillLevel || null,
       dailyRate,
       sheetRow,
       skipped: rowIssues.some((i) => i.blocking),
@@ -123,7 +172,7 @@ export function mapRowsToRosterEntries(
   return { entries, issues }
 }
 
-type RosterCells = { employeeCode: string; name: string; trade: string; company: string; rateRaw: string }
+type RosterCells = { employeeCode: string; name: string; trade: string; company: string; skillLevel: string; rateRaw: string }
 
 function readRosterCells(row: Record<string, unknown>, mapping: RosterColumnMapping): RosterCells {
   const read = (column: string | undefined) => (column ? String(row[column] ?? "").trim() : "")
@@ -132,6 +181,7 @@ function readRosterCells(row: Record<string, unknown>, mapping: RosterColumnMapp
     name: read(mapping.name),
     trade: read(mapping.trade),
     company: read(mapping.company),
+    skillLevel: read(mapping.skillLevel),
     rateRaw: read(mapping.dailyRate),
   }
 }

@@ -47,6 +47,9 @@ async function writeRosterEntries(
         name: entry.name,
         employeeCode: entry.employeeCode ?? undefined,
         trade: entry.trade ?? undefined,
+        // R67 D-68, folded in by the integration merge: the roster table has
+        // always had skill_level and no import could fill it.
+        skillLevel: entry.skillLevel ?? undefined,
         vendorId,
         dailyRate: entry.dailyRate,
       })

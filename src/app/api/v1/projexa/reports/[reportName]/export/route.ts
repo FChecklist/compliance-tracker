@@ -179,7 +179,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
               projectName: project.name,
               boqTitle: report.boqTitle,
               currency: currency?.code ?? null,
-              lines: report.lines,
+              // R67 second-merge fix: toBudgetLine()'s quantity/rate are
+              // `number | null` (BudgetLineInput leaves them optional for pure
+              // test fixtures) -- a real BOQ line item always carries both, so
+              // the fallback below is type-safety for a case that cannot
+              // occur on this route, not a behaviour change.
+              lines: report.lines.map((l) => ({ ...l, quantity: l.quantity ?? 0, rate: l.rate ?? 0 })),
               totals: { budget: totals.budget, vendorAmount: totals.vendorAmount, variance: totals.variance },
               filters: { categories, vendorName },
             })

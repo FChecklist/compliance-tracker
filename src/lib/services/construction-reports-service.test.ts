@@ -21,14 +21,25 @@
 // `computeBudgetVarianceLine`/attendance-summary (D-26) blocks both survive, in
 // that order. They share no symbols: D21's UNSPECIFIED_TRADE_LABEL and D3's
 // UNCATEGORISED_TRADE_LABEL are distinct exports covering distinct aggregators.
+//
+// R67 merge note (D-11, lane D1 x lane D21, 2026-09-03): lane D1's "R67 D-62
+// toBudgetLine" block also survives, in the middle of this file. Its three
+// variance assertions were RESTATED, not deleted -- toBudgetLine now computes
+// through D21's computeBudgetVarianceLine, which defines variance as budget
+// REMAINING rather than overspend, so the same facts carry the opposite sign.
+// The restatement is documented at the assertions themselves, and one new
+// assertion was added there covering the half D1's vendor-only formula could
+// not see (material and manpower are committed cost too).
 /// <reference types="bun-types" />
 import { describe, expect, test, mock, afterEach } from "bun:test"
 import {
   aggregateDesignerTimesheetCosts,
   aggregateDesignerApprovalStatus,
   aggregateWorkAnalysis,
+  computeCategoryProgress,
   computeCertifiedPayroll,
   computeEarnedValue,
+  toBudgetLine,
   computeBudgetVarianceLine,
   isLineOverBudget,
   buildAttendanceSummaryRows,
@@ -50,7 +61,6 @@ import {
   mergeCategoryProgressWithAmounts,
   sumRootLineBudgets,
   aggregateRevenueBudgetActual,
-  isLineOverBudget,
   UNCATEGORIZED_LABEL,
 } from "./construction-reports-service"
 
@@ -616,6 +626,214 @@ describe("computeEarnedValue -- R46/R-51 percent-complete fallback + root-with-c
 })
 
 // ---------------------------------------------------------------------------
+// R67 F-10 (R-134) acceptance test.
+//
+// THE FAULT. requireConstructionEnabled() is the first statement of every one
+// of the ~20 report functions in this service, and it is not a cheap boolean:
+// it goes through isBranchEnabledForOrg(), which opens its OWN
+// withTenantContext transaction and takes one of only five app_runtime
+// connections. A composite report calls several report functions, so one
+// /reports run could spend three or four pooled connections re-answering "does
+// this org have the construction module?" -- a question whose answer is a
+// purchased package and cannot change between two clicks.
+//
+// Two assertions, exactly the item's own:
+//   (a) two consecutive report runs for the same org inside the TTL call
+//       requireConstructionEnabled ONCE;
+//   (b) a spy on withTenantContext records no call made while another is
+//       already open -- i.e. this service opens no nested transaction, which on
+//       a five-connection pool with a 25 s statement timeout is what turns a
+//       two-query report into a deadlock.
+const realReportsTenantScoped = await import("@/lib/db/tenant-scoped")
+const realReportsEnablement = await import("./construction-enablement-service")
+
+// A thenable proxy standing in for drizzle's chainable query builder: any
+// method returns itself, and awaiting it yields rows. Every report under test
+// here reads an empty set, which is a legitimate answer and keeps the fake
+// honest -- what is being measured is the TRANSACTIONS opened, not the SQL.
+function emptyQueryChain(): any {
+  const proxy: any = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === "then") return (resolve: (v: unknown) => void) => resolve([])
+        return () => proxy
+      },
+    }
+  )
+  return proxy
+}
+
+const fakeReportsDb = {
+  query: new Proxy({}, { get: () => ({ findMany: async () => [], findFirst: async () => null }) }),
+  select: () => emptyQueryChain(),
+}
+
+describe("construction-reports-service: enablement memo + no nested transactions (R67 F-10)", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realReportsTenantScoped)
+    await mock.module("./construction-enablement-service", () => realReportsEnablement)
+  })
+
+  async function loadServiceWithSpies() {
+    const requireConstructionEnabledSpy = mock(async () => {})
+    let openDepth = 0
+    let maxOpenDepth = 0
+    const withTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
+      openDepth += 1
+      maxOpenDepth = Math.max(maxOpenDepth, openDepth)
+      try {
+        return await fn(fakeReportsDb)
+      } finally {
+        openDepth -= 1
+      }
+    })
+
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realReportsTenantScoped, withTenantContext }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realReportsEnablement,
+      requireConstructionEnabled: requireConstructionEnabledSpy,
+    }))
+
+    const service = await import("./construction-reports-service")
+    service.__resetConstructionEnablementMemo()
+    return { service, requireConstructionEnabledSpy, withTenantContext, depth: () => maxOpenDepth }
+  }
+
+  test("(a) two consecutive report runs for the same org inside the TTL check enablement ONCE", async () => {
+    const { service, requireConstructionEnabledSpy } = await loadServiceWithSpies()
+
+    await service.attendanceReport({ orgId: "org-memo" }, "p1")
+    await service.attendanceReport({ orgId: "org-memo" }, "p1")
+
+    expect(requireConstructionEnabledSpy.mock.calls.length).toBe(1)
+  })
+
+  test("(a2) different report functions for the same org share the one memoised check", async () => {
+    const { service, requireConstructionEnabledSpy } = await loadServiceWithSpies()
+
+    await service.attendanceReport({ orgId: "org-memo" }, "p1")
+    await service.scopeReport({ orgId: "org-memo" }, "p1")
+    await service.workProgressReport({ orgId: "org-memo" }, "p1")
+
+    expect(requireConstructionEnabledSpy.mock.calls.length).toBe(1)
+  })
+
+  test("(a3) a DIFFERENT org is never served another org's memoised answer", async () => {
+    const { service, requireConstructionEnabledSpy } = await loadServiceWithSpies()
+
+    await service.attendanceReport({ orgId: "org-one" }, "p1")
+    await service.attendanceReport({ orgId: "org-two" }, "p1")
+
+    expect(requireConstructionEnabledSpy.mock.calls.length).toBe(2)
+  })
+
+  test("(a4) a REFUSAL is never memoised -- an org that has just enabled construction is not told 'no' for a minute", async () => {
+    const requireConstructionEnabledSpy = mock(async (_orgId: string) => {
+      throw new (realReportsEnablement.ServiceError as new (m: string, s: number) => Error)("not part of your Module", 403)
+    })
+    const withTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeReportsDb))
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realReportsTenantScoped, withTenantContext }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realReportsEnablement,
+      requireConstructionEnabled: requireConstructionEnabledSpy,
+    }))
+
+    const service = await import("./construction-reports-service")
+    service.__resetConstructionEnablementMemo()
+
+    await expect(service.attendanceReport({ orgId: "org-blocked" }, "p1")).rejects.toThrow(/not part of your Module/)
+    await expect(service.attendanceReport({ orgId: "org-blocked" }, "p1")).rejects.toThrow(/not part of your Module/)
+
+    expect(requireConstructionEnabledSpy.mock.calls.length).toBe(2)
+    // And no transaction was opened for a report that was refused.
+    expect(withTenantContext.mock.calls.length).toBe(0)
+  })
+
+  test("(b) no withTenantContext is ever entered while another is already open", async () => {
+    const { service, withTenantContext, depth } = await loadServiceWithSpies()
+
+    await service.workProgressReport({ orgId: "org-nest" }, "p1")
+    await service.attendanceReport({ orgId: "org-nest" }, "p1")
+    await service.sitePictureReport({ orgId: "org-nest" }, "p1")
+    await service.scopeReport({ orgId: "org-nest" }, "p1")
+    await service.budgetSummary({ orgId: "org-nest" }, "p1")
+    await service.materialConsumptionReport({ orgId: "org-nest" }, "p1")
+    await service.vendorCostReport({ orgId: "org-nest" }, "p1")
+    await service.projectPeriodReport({ orgId: "org-nest" }, "p1", "2026-08-01", "2026-09-01")
+
+    expect(withTenantContext.mock.calls.length).toBeGreaterThan(0)
+    expect(depth()).toBe(1)
+  })
+
+  test("(b2) one report opens exactly ONE transaction -- the enablement check is not a second one", async () => {
+    const { service, withTenantContext } = await loadServiceWithSpies()
+
+    await service.attendanceReport({ orgId: "org-count" }, "p1")
+
+    expect(withTenantContext.mock.calls.length).toBe(1)
+  })
+})
+
+// R67 F-14 (R-215). computeCategoryProgress is the pure half of
+// categoryProgressReport, extracted so getProjectDashboard can fold the same
+// breakdown into the transaction it already holds instead of PROJEXA making a
+// second HTTP call (and a second pooled transaction) for it. Same reason
+// computeEarnedValue was extracted: ONE arithmetic path, so the dashboard chart
+// and the named report cannot disagree.
+describe("computeCategoryProgress (R67 F-14)", () => {
+  const CATEGORIES = [
+    { id: "c1", name: "Substructure" },
+    { id: "c2", name: "Superstructure" },
+  ]
+
+  test("averages the latest percent across a category's activities", () => {
+    const rows = computeCategoryProgress(
+      CATEGORIES,
+      [
+        { id: "a1", categoryId: "c1" },
+        { id: "a2", categoryId: "c1" },
+        { id: "a3", categoryId: "c2" },
+      ],
+      new Map([["a1", 80], ["a2", 20], ["a3", 55]])
+    )
+    expect(rows).toEqual([
+      { categoryId: "c1", name: "Substructure", percentComplete: 50 },
+      { categoryId: "c2", name: "Superstructure", percentComplete: 55 },
+    ])
+  })
+
+  test("an activity nobody has logged against counts as 0, not as absent", () => {
+    // Three activities, one at 60% -> 20%, NOT 60%. Treating the unlogged ones
+    // as absent would report a category as three times more complete than it is.
+    const [row] = computeCategoryProgress(
+      [CATEGORIES[0]],
+      [
+        { id: "a1", categoryId: "c1" },
+        { id: "a2", categoryId: "c1" },
+        { id: "a3", categoryId: "c1" },
+      ],
+      new Map([["a1", 60]])
+    )
+    expect(row.percentComplete).toBe(20)
+  })
+
+  test("a category with no activities is 0, and is still listed", () => {
+    const rows = computeCategoryProgress(CATEGORIES, [{ id: "a1", categoryId: "c1" }], new Map([["a1", 100]]))
+    expect(rows).toEqual([
+      { categoryId: "c1", name: "Substructure", percentComplete: 100 },
+      { categoryId: "c2", name: "Superstructure", percentComplete: 0 },
+    ])
+  })
+
+  test("an activity with no category is not attributed to one", () => {
+    const rows = computeCategoryProgress([CATEGORIES[0]], [{ id: "a1", categoryId: null }], new Map([["a1", 90]]))
+    expect(rows[0].percentComplete).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // R67 lane I (WS-I item I-05, R-177): the Category dimension of the Work
 // Progress Report. rollUpLinesByCategory is pure and tested directly; the real
 // workProgressReport() code path is then exercised with only the DB layer and
@@ -1053,7 +1271,14 @@ function fakeDbFor(lines: ReturnType<typeof boqLine>[], hasBoq: boolean) {
   const chain: Record<string, unknown> = {}
   chain.from = () => chain
   chain.innerJoin = () => chain
-  chain.where = async () => [ROW]
+  // R67 lane D22 (D-54, second-merge fold-in): boqBudgetVarianceReport's
+  // interim-bill revenue rollup chains .where(...).groupBy(...) rather than
+  // awaiting .where() directly (every other reader here does). where() has to
+  // be BOTH awaitable (the aggregates that end there) and chainable into
+  // groupBy() (this one) -- a promise carrying the extra method is the
+  // smallest fake that is honest about both, same pattern the D-41 describe
+  // block's own selectStub below already uses.
+  chain.where = () => Object.assign(Promise.resolve([ROW]), { groupBy: async () => [ROW] })
   chain.groupBy = async () => [ROW]
   return {
     query: {
@@ -1082,6 +1307,10 @@ function fakeDbFor(lines: ReturnType<typeof boqLine>[], hasBoq: boolean) {
       // The ERP annual ledger sum -- 0 here, which is exactly the figure that
       // used to be printed as "TOTAL BUDGET AED 0" and is why E-06 exists.
       budget: 0,
+      // R67 D-02 (second-merge fold-in): how many erp_budget_line_items rows
+      // the budget CTE matched -- a REAL row that happens to sum to zero, so
+      // ledgerBudget reads 0 (not null, which would mean "no row at all").
+      budget_lines: 1,
       revenue: 0,
       expenses: 0,
       progress_percent: null,
@@ -1206,6 +1435,334 @@ describe("R67 E-06: the Project Status report and the budget-variance report sta
     expect(scope.revenueBudgetActual.totals.revenue).toBe(5400 + 3375)
     expect(byCategory.revenueBudgetActual.rows.map((r) => r.item)).toEqual(["Civil", UNCATEGORIZED_LABEL])
     expect(byCategory.revenueBudgetActual.totals).toEqual(scope.revenueBudgetActual.totals)
+  })
+})
+
+// R67 lane D22 (item D-41): the Budget screen PROJEXA now renders at /budgets
+// prints Sumeet's own columns -- S.No | Category | Code | Description | Qty |
+// Rate | Amount | Budget % | Budget | Vendor | Vendor Amt | Material |
+// Manpower -- and deep-links each row back to /scope/{boqId}#line-{id}. Qty,
+// Rate, Unit and the BOQ's own identity were the parts this report could not
+// answer, so the screen would have had to load the whole BOQ a second time.
+// Exercised through the real boqBudgetVarianceReport() code path with only the
+// DB layer and the construction-enablement gate mocked, the same convention
+// the workProgressReport block above uses.
+describe("boqBudgetVarianceReport widened for the project Budget screen (R67 D-41)", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+    await mock.module("./construction-enablement-service", () => realEnablementService)
+  })
+
+  const BOQ = { id: "boq-9", projectId: "proj-1", title: "Fit-out BOQ", version: 2, status: "approved", createdAt: new Date("2026-08-01") }
+  const LINE_ITEMS = [
+    {
+      id: "li-1", itemCode: "R60SK", description: "R60 skiphop sub", category: "Civil",
+      quantity: "10", unit: "m2", rate: "650", amount: "6500", parentLineItemId: null,
+      budgetPercentage: "25", materialAmount: "900", manpowerAmount: "600",
+      vendorId: "sup-1", vendorAmount: "1700",
+    },
+    {
+      id: "li-2", itemCode: "GYP-1", description: "Ceiling grid", category: "Gypsum",
+      quantity: "4", unit: "m2", rate: "100", amount: "400", parentLineItemId: null,
+      budgetPercentage: "25", materialAmount: null, manpowerAmount: null,
+      vendorId: null, vendorAmount: null,
+    },
+  ]
+
+  // R67 lane D22 (item D-54): boqBudgetVarianceReport now runs TWO db.select()
+  // chains -- the supplier-name lookup (.from().where()) and the interim-bill
+  // revenue rollup (.from().innerJoin().where().groupBy()). One thenable
+  // builder answers both shapes, handing back the next queued result set in
+  // call order, so a test can say what each query returns without pretending
+  // to be Drizzle.
+  function selectStub(resultsInCallOrder: unknown[][]) {
+    let call = -1
+    return () => {
+      call += 1
+      const rows = resultsInCallOrder[call] ?? []
+      const builder: Record<string, unknown> = {}
+      const step = () => builder
+      builder.from = step
+      builder.innerJoin = step
+      builder.where = step
+      builder.groupBy = step
+      builder.then = (onOk: (v: unknown) => unknown, onErr?: (e: unknown) => unknown) => Promise.resolve(rows).then(onOk, onErr)
+      return builder
+    }
+  }
+
+  async function runBudgetVariance(boqs: unknown[] = [BOQ], lineItems: unknown[] = LINE_ITEMS, billedRows: unknown[] = []) {
+    const fakeDb = {
+      query: {
+        constructionBoqs: { findMany: mock(async () => boqs) },
+        constructionBoqLineItems: { findMany: mock(async () => lineItems) },
+      },
+      select: selectStub([[{ id: "sup-1", name: "Skiphop Interiors" }], billedRows]),
+    }
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablementService,
+      requireConstructionEnabled: mock(async () => {}),
+    }))
+    const { boqBudgetVarianceReport } = await import("./construction-reports-service")
+    return boqBudgetVarianceReport({ orgId: "org-budget-test" }, "proj-1")
+  }
+
+  test("every line carries the Sumeet columns the Budget screen prints -- quantity, unit, rate, category and the material/manpower split", async () => {
+    const result = await runBudgetVariance()
+    expect(result.lines[0]).toMatchObject({
+      lineItemId: "li-1", code: "R60SK", description: "R60 skiphop sub", category: "Civil",
+      quantity: 10, unit: "m2", rate: 650, amount: 6500,
+      budgetPercentage: 25, budget: 1625,
+      materialAmount: 900, manpowerAmount: 600,
+      // R67 integration: `variance` follows D-26's contract change -- it is
+      // BUDGET REMAINING (budget 1625 - committed 3200), not the original
+      // overspend figure (vendorAmount - budget) this lane was written against.
+      vendorName: "Skiphop Interiors", vendorAmount: 1700, variance: -1575,
+    })
+    // Numbers, not the numeric-as-string Drizzle hands back -- a screen that
+    // does arithmetic on these must never get "10" + "4" = "104".
+    expect(typeof result.lines[0].quantity).toBe("number")
+    expect(typeof result.lines[0].rate).toBe("number")
+  })
+
+  test("a line the QS has not split reads null for material/manpower, never a fabricated 0", async () => {
+    const result = await runBudgetVariance()
+    expect(result.lines[1].materialAmount).toBeNull()
+    expect(result.lines[1].manpowerAmount).toBeNull()
+  })
+
+  test("the report names the BOQ its lines came from, so each row can deep-link to /scope/{boqId}#line-{id}", async () => {
+    const result = await runBudgetVariance()
+    expect(result.boqId).toBe("boq-9")
+    expect(result.boqTitle).toBe("Fit-out BOQ")
+    expect(result.boqVersion).toBe(2)
+  })
+
+  // R67 second-merge fix: restated against the actual merged empty shape.
+  // This lane's own key list predates E-06/E-07/E-08 landing on the same
+  // function (subTaskLineCount, availableCategories, availableVendors,
+  // filters, revenueBudgetActual, categorySubtotals) -- those are real keys
+  // the populated branch also returns (see boqBudgetVarianceReport's own
+  // comment on why every key must match), so the exact list here now
+  // includes them too, and totalBudget is null (E-06's "no BOQ is not a
+  // budget of nothing" rule), not the 0 this test predates.
+  test("a project with no BOQ answers the SAME keys, so the screen renders zeroes rather than NaN", async () => {
+    const result = await runBudgetVariance([], [])
+    // R67 integration: the empty shape is the union of what every lane's
+    // screen reads. Listed exactly rather than as a subset, because the whole
+    // point of this test is that a key present in the populated shape and
+    // missing here renders "NaN" on a project that has no BOQ yet.
+    expect(Object.keys(result).sort()).toEqual(
+      [
+        "boqId", "boqTitle", "boqVersion", "lines", "subTaskLineCount",
+        "totalBudget", "totalVendorAmount", "totalMaterialAmount", "totalManpowerAmount",
+        "totalCommitted", "totalVariance", "budgetRemaining",
+        "totalActual", "totalRevenue", "linesOverBudget", "lineCount",
+        "availableCategories", "availableVendors", "filters", "revenueBudgetActual", "categorySubtotals",
+      ].sort()
+    )
+    expect(result.boqId).toBeNull()
+    expect(result.lines).toEqual([])
+    expect(result.totalBudget).toBeNull()
+  })
+
+  test("the grand total ties to the per-line budgets, and moving one line's Budget % moves it by exactly that line's delta", async () => {
+    const before = await runBudgetVariance()
+    expect(before.totalBudget).toBe(1625 + 100)
+    expect(before.totalBudget).toBe(before.lines.reduce((s, l) => s + l.budget, 0))
+
+    mock.restore()
+    const at30 = await runBudgetVariance([BOQ], [{ ...LINE_ITEMS[0], budgetPercentage: "30" }, LINE_ITEMS[1]])
+    expect(at30.lines[0].budget).toBe(1950)
+    expect(at30.totalBudget - before.totalBudget).toBe(325)
+  })
+
+  // R67 lane D22 (item D-54, rec R-183): the Scope > Budget tab prints
+  // ... | Vendor Amt | Material | Manpower | Actual | Revenue | Variance, and
+  // Actual/Revenue are the two the report could not answer. Actual is the
+  // vendor+material+manpower sum; Revenue is what the interim/RA bills raised
+  // on this BOQ have already billed against the line.
+  test("Actual is vendor + material + manpower, per line and in the total", async () => {
+    const result = await runBudgetVariance()
+    expect(result.lines[0].actual).toBe(1700 + 900 + 600)
+    expect(result.totalActual).toBe(3200)
+  })
+
+  test("a line nobody has costed reads Actual null, never a fabricated 0", async () => {
+    const result = await runBudgetVariance()
+    expect(result.lines[1].actual).toBeNull()
+    // ...and an uncosted line contributes nothing to the total rather than
+    // dragging it toward zero.
+    expect(result.totalActual).toBe(result.lines[0].actual)
+  })
+
+  test("Revenue is what the interim bills have billed against the line, summed across every bill", async () => {
+    const result = await runBudgetVariance([BOQ], LINE_ITEMS, [
+      { boqLineItemId: "li-1", total: "1200.50" },
+    ])
+    expect(result.lines[0].revenue).toBe(1200.5)
+    expect(result.totalRevenue).toBe(1200.5)
+  })
+
+  test("a line that has never been billed reads Revenue null -- 'not yet billed' is not 'billed nothing'", async () => {
+    const result = await runBudgetVariance([BOQ], LINE_ITEMS, [{ boqLineItemId: "li-1", total: "1200" }])
+    expect(result.lines[1].revenue).toBeNull()
+  })
+
+  // R67 integration, replacing this lane's "the original vendor-vs-budget
+  // `variance` is unchanged" test. It is NOT unchanged: D-26 (already on main)
+  // redefined `variance` as BUDGET REMAINING -- same name, opposite sign. The
+  // assertion is corrected to the merged contract rather than deleted, and the
+  // alias relationship both lanes' screens depend on is pinned with it.
+  test("`variance` is budget remaining (D-26's contract), and `actual` is exactly `committed` under Sumeet's name", async () => {
+    const result = await runBudgetVariance()
+    // budget 1625 - committed (1700 + 900 + 600) = -1575
+    expect(result.lines[0].variance).toBe(-1575)
+    expect(result.lines[0].budgetRemaining).toBe(result.lines[0].variance)
+    expect(result.lines[0].actual).toBe(result.lines[0].committed)
+    expect(result.totalActual).toBe(result.totalCommitted)
+    // A line nobody has costed is neither over nor under budget, on every name.
+    expect(result.lines[1].variance).toBeNull()
+    expect(result.lines[1].committed).toBeNull()
+    expect(result.lines[1].actual).toBeNull()
+  })
+})
+
+// R67 D-02 (audit R-004/R-009). budgetVsActual() reads
+// getProjectDashboard().budget, which is now `number | null` -- null when no
+// erp_budget_line_items row exists for the project's scope. `budget - actual`
+// on a null budget would have reported every unbudgeted project as overspent
+// by exactly its own spend; the rule now lives in one pure function.
+describe("budgetVariance (R67 D-02: no budget means no variance)", () => {
+  test("returns null when no budget has been set, rather than 0 - actual", async () => {
+    const { budgetVariance } = await import("./construction-reports-service")
+    expect(budgetVariance(null, 185_000)).toBeNull()
+  })
+
+  test("returns the real signed variance when a budget exists", async () => {
+    const { budgetVariance } = await import("./construction-reports-service")
+    expect(budgetVariance(500_000, 185_000)).toBe(315_000)
+    expect(budgetVariance(100_000, 185_000)).toBe(-85_000)
+  })
+
+  test("a genuine zero budget still produces a real variance, not null", async () => {
+    const { budgetVariance } = await import("./construction-reports-service")
+    expect(budgetVariance(0, 185_000)).toBe(-185_000)
+  })
+})
+
+// --- R67 D-62: the Budget tab's own line -----------------------------------
+//
+// toBudgetLine() is the pure half of boqBudgetVarianceReport(), extracted so the
+// arithmetic and -- more importantly -- the null rules can be checked without a
+// database. Everything it reads is an EXISTING column: budgetPercentage (NOT
+// NULL DEFAULT 25), vendorId, vendorAmount, materialAmount, manpowerAmount and
+// the line's own category. D-62 asks for a migration only if they were missing;
+// they are not.
+//
+// materialAmount/manpowerAmount, NOT materialCost/labourCost: settled at the
+// R67 lane I merge (2026-09-03). The cost pair is Wave 125's PER-UNIT rate
+// analysis; the amount pair is the budget-side split for the whole line, which
+// is what this report projects. schema.ts states the distinction at both
+// columns. The first draft of D-62 read the cost pair, and this test file now
+// asserts the corrected pair so the swap cannot come back unnoticed.
+describe("R67 D-62 toBudgetLine", () => {
+  const vendors = new Map([["sup_1", "Al Noor Trading"]])
+  const base = {
+    id: "li_1",
+    itemCode: "1.2",
+    description: "Blockwork",
+    amount: "100000",
+    budgetPercentage: "25",
+    materialAmount: null,
+    manpowerAmount: null,
+    vendorId: null,
+    vendorAmount: null,
+    category: null,
+  }
+
+  test("the 25% default budget is the column's default, applied per line", () => {
+    expect(toBudgetLine(base, vendors).budget).toBe(25_000)
+    expect(toBudgetLine(base, vendors).budgetPercentage).toBe(25)
+  })
+
+  test("a per-line override recomputes the budget from that line's own percent", () => {
+    expect(toBudgetLine({ ...base, budgetPercentage: "40" }, vendors).budget).toBe(40_000)
+  })
+
+  // R67 MERGE (D-11, lane D1 x lane D21, 2026-09-03). RESTATED, NOT DELETED.
+  // D1 wrote these three assertions against its own sign (variance =
+  // vendorAmount - budget, so 30,000 committed against a 25,000 budget read
+  // +5,000 "overspent"). D21's computeBudgetVarianceLine, which toBudgetLine now
+  // computes through, defines variance as BUDGET REMAINING (budget - committed),
+  // so the same facts read -5,000. The FACTS each assertion pins down are
+  // unchanged and all three still bite:
+  //   - nothing costed at all  -> null, never 0
+  //   - a real quote above the budget -> a real, signed variance
+  //   - a genuine quote of ZERO is a quote, and is not "not yet costed"
+  test("variance is null -- not 0 -- until a cost has actually been entered", () => {
+    expect(toBudgetLine(base, vendors).variance).toBeNull()
+    // 25,000 budget, 30,000 committed -> 5,000 OVER, i.e. -5,000 remaining.
+    expect(toBudgetLine({ ...base, vendorAmount: "30000" }, vendors).variance).toBe(-5_000)
+    // A real quote of zero is a real quote, and does produce a variance:
+    // nothing has been committed, so the whole 25,000 budget remains.
+    expect(toBudgetLine({ ...base, vendorAmount: "0" }, vendors).variance).toBe(25_000)
+  })
+
+  // R67 D-26, asserted from D1's own fixture: "committed" is vendor PLUS
+  // material PLUS manpower, not the subcontract alone. Under D1's original
+  // vendor-only formula a line costed entirely through material and manpower
+  // reported no variance at all.
+  test("material and manpower are committed cost too, not just the vendor amount", () => {
+    const line = toBudgetLine({ ...base, materialAmount: "60000", manpowerAmount: "15000" }, vendors)
+    expect(line.committed).toBe(75_000)
+    expect(line.variance).toBe(-50_000)
+    expect(isLineOverBudget(line.variance)).toBe(true)
+  })
+
+  test("Material and Manpower come from the line's own budget-side columns, null when unset", () => {
+    const line = toBudgetLine({ ...base, materialAmount: "60000", manpowerAmount: "15000" }, vendors)
+    expect(line.materialAmount).toBe(60_000)
+    expect(line.manpowerAmount).toBe(15_000)
+    const bare = toBudgetLine(base, vendors)
+    expect(bare.materialAmount).toBeNull()
+    expect(bare.manpowerAmount).toBeNull()
+  })
+
+  test("a line split as 0/0 stays distinguishable from a line nobody has split", () => {
+    const split = toBudgetLine({ ...base, materialAmount: "0", manpowerAmount: "0" }, vendors)
+    expect(split.materialAmount).toBe(0)
+    expect(split.manpowerAmount).toBe(0)
+    expect(toBudgetLine(base, vendors).materialAmount).toBeNull()
+  })
+
+  test("the vendor is named, not shown as an id, and is null when the line has no vendor", () => {
+    expect(toBudgetLine({ ...base, vendorId: "sup_1" }, vendors).vendorName).toBe("Al Noor Trading")
+    expect(toBudgetLine(base, vendors).vendorName).toBeNull()
+    // A vendor id whose supplier row is gone must not render as the raw id.
+    expect(toBudgetLine({ ...base, vendorId: "sup_missing" }, vendors).vendorName).toBeNull()
+  })
+
+  test("Category is the line's own column and is null -- never \"\" -- when it has none", () => {
+    expect(toBudgetLine({ ...base, category: "Civil" }, vendors).category).toBe("Civil")
+    expect(toBudgetLine(base, vendors).category).toBeNull()
+  })
+
+  test("totals are summed from the RAW figures, so per-line rounding cannot drift them", () => {
+    const items = ["a", "b", "c"].map((id) => ({ ...base, id, amount: "10", budgetPercentage: "33.333" }))
+    const lines = items.map((i) => toBudgetLine(i, vendors))
+    // Each line displays 3.33 (3.3333 rounded); the true total is 9.9999.
+    expect(lines[0].budget).toBe(3.33)
+    const rawTotal = Math.round(lines.reduce((s, l) => s + l._rawBudget, 0) * 100) / 100
+    const roundedTotal = Math.round(lines.reduce((s, l) => s + l.budget, 0) * 100) / 100
+    expect(rawTotal).toBe(10)
+    expect(roundedTotal).toBe(9.99)
+    expect(roundedTotal).not.toBe(rawTotal)
   })
 })
 
