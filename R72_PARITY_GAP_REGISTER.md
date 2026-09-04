@@ -76,12 +76,16 @@ configured was not checked here (would require reading a secret value with no cl
 local no-op state itself is directly confirmed. **Consequence:** a bug that would raise a Sentry alert
 in production produces zero signal in local testing.
 
-## 9. No CI gate exists at all — the only enforcement is manual, ad hoc runs like this one
-Confirmed across this whole R65–R72 series (R71 Phase 4's own title: "the only gate that exists, no
-CI"). There is no automated pipeline that runs `typecheck`/`test`/`lint`/`build` against what actually
-gets deployed; every pass/fail signal in this project's history has come from a human or an AI session
-choosing to run these commands by hand. This is a process-level parity gap, not a runtime one: nothing
-guarantees the same checks run before every real deploy.
+## 9. `.github/workflows/ci.yml` exists but has never run against this series' own commits
+The repo genuinely has CI (`ci.yml` runs lint/typecheck/test/migration-integrity checks;
+`domain-drift-check.yml` polls Vercel every 15 minutes) — but both are PR-triggered, and this
+whole R65–R72 series' established, PM-sanctioned pattern has been pushing directly to `main`,
+never opening a PR. So while CI infrastructure is real, it has never once run against any commit
+in this series (R71 Phase 4's own title: "the only gate that exists, no CI" — accurate for THIS
+series' own commits, not a claim the repo has zero CI anywhere). Every pass/fail signal on this
+series' own work has come from a human or an AI session choosing to run these commands by hand —
+that remains a real process-level parity gap versus what a PR-based contribution would get for
+free, and nothing guarantees the same checks run before every real deploy of this series' work.
 
 ## 10. No local equivalent of Vercel's Runtime Logs / Web Analytics
 Locally, request-level behavior is visible only via console/terminal output. In production, this
@@ -94,3 +98,7 @@ production rather than reproducing issues locally first.
 **Owner decision carried into the R72 Owner Register:** whether to authorize installing Docker
 Desktop + WSL2 (or a native PostgreSQL install) on this laptop, to close gap #1 — the only gap in
 this register that cannot be closed by a config-file fix.
+
+**See also:** `R72_OWNER_SUMMARY.md` (plain-language version of this file and R71/R72 overall),
+`R72_DEPLOY_RITUAL.md` (the deploy procedure item 3/6's Vercel findings feed into), `CLAUDE.md`
+(keeps the current state of every item above up to date for the next session, human or AI).

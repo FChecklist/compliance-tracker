@@ -108,3 +108,11 @@ CI (confirmed repeatedly across R65–R72 — the only enforcement of correctnes
 a human or an AI session choosing to run these checks by hand), so an automatic deploy meant
 zero gate between "commit lands" and "code is live." This ritual is the replacement gate:
 manual, but real, every time.
+
+## See also
+
+- `R72_OWNER_SUMMARY.md` — plain-language version of this file and R71/R72 overall.
+- `R72_PARITY_GAP_REGISTER.md` — the full local-vs-production gap list this ritual's checks
+  (and the NODE_OPTIONS workaround in Step 1) were written to cover.
+- `CLAUDE.md` — keeps the current state of both files above up to date for the next session,
+  human or AI.
