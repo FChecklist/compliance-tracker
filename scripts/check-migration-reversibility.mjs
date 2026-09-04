@@ -46,8 +46,9 @@
 import { readdirSync, existsSync } from "fs"
 import { readFileSync } from "fs"
 import path from "path"
+import { fileURLToPath } from "url"
 
-const REPO_ROOT = new URL("..", import.meta.url).pathname
+const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url))
 const DRIZZLE_DIR = path.join(REPO_ROOT, "drizzle")
 const DOWN_DIR = path.join(DRIZZLE_DIR, "down")
 

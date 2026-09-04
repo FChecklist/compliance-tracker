@@ -82,3 +82,5 @@ server.log
 # HuggingFace at inference time (never written to disk here).
 /public/litert-spike-embeddings/wasm/
 .scratch/
+
+.vercel

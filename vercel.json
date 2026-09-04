@@ -3,6 +3,12 @@
   "framework": "nextjs",
   "regions": ["bom1"],
   "ignoreCommand": "sh -c 'git log -1 --pretty=%s | grep -qE \"^chore:\" && exit 0; git diff --quiet HEAD^ HEAD -- . \":(exclude)*.md\" \":(exclude)docs/**\"'",
+  "git": {
+    "deploymentEnabled": {
+      "*": false,
+      "main": true
+    }
+  },
   "crons": [
     { "path": "/api/internal/fm-ppm/generate-occurrences/run", "schedule": "0 2 * * *" },
     { "path": "/api/internal/loops/run", "schedule": "0 3 * * *" },

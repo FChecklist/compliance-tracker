@@ -30,8 +30,9 @@
 import { readdirSync } from "fs"
 import { basename } from "path"
 import { execSync } from "child_process"
+import { fileURLToPath } from "url"
 
-const drizzleDir = new URL("../drizzle", import.meta.url).pathname
+const drizzleDir = fileURLToPath(new URL("../drizzle", import.meta.url))
 
 function resolveBaseRef() {
   // 1. Explicit --base <ref> CLI flag
