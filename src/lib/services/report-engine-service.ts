@@ -93,7 +93,7 @@ import {
 import { subledgerToGlReconciliation, SUBLEDGER_RECONCILIATION_TOLERANCE } from "./erp-financial-report-service"
 import { calculateCriticalPath } from "./schedule-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
-import { requireReportDomainEnabled, isReportDomainEnabledForOrg } from "./report-domain-enablement-service"
+import { requireReportDomainEnabled, isReportDomainEnabledForOrg, isReportDomainEnabledForOrgWithDb } from "./report-domain-enablement-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -2797,15 +2797,26 @@ function definitionSupportsCompanyScope(executionType: string, executionConfig: 
   return Boolean(entry?.columns.companyId)
 }
 
-export async function getFullReportCatalog(ctx: { orgId: string }): Promise<FullCatalogEntry[]> {
+// R74 Phase 10 fix: `db` is optional and, when supplied, this runs entirely
+// on the CALLER's already-open transaction instead of opening its own --
+// see isBranchEnabledForOrgWithDb's comment in product-branch-service.ts for
+// why. Confirmed live: this function's own withTenantContext call (below,
+// now conditional) was one of two real, direct nested-withTenantContext
+// sites reproducing GET /api/v1/projexa/module-chain's "nested
+// withTenantContext" error on EVERY call (capability-tree-service.ts's
+// buildCapabilityTree() calls this, via buildReportCatalogNodes(), from
+// inside its own already-open transaction). Every existing caller that omits
+// `db` (there were several before this fix) is completely unaffected --
+// same behaviour, own transaction, as before.
+export async function getFullReportCatalog(ctx: { orgId: string }, db?: TenantDb): Promise<FullCatalogEntry[]> {
   const staticEntries: FullCatalogEntry[] = REPORT_CATALOG.map((e) => ({ ...e, source: "static", supportsCompanyScope: false }))
 
-  const definitions = await withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.reportDefinitions.findMany({
+  const fetchDefinitions = (tdb: TenantDb) =>
+    tdb.query.reportDefinitions.findMany({
       where: (t, { and, eq, or, isNull }) => and(or(eq(t.orgId, ctx.orgId), isNull(t.orgId)), eq(t.isActive, true)),
       orderBy: (t, { desc }) => desc(t.createdAt),
     })
-  )
+  const definitions = db ? await fetchDefinitions(db) : await withTenantContext({ orgId: ctx.orgId }, fetchDefinitions)
 
   const definitionEntries: FullCatalogEntry[] = definitions.map((d) => {
     const classifications = Array.isArray(d.classifications) ? (d.classifications as string[]) : []
@@ -2841,14 +2852,28 @@ export async function getFullReportCatalog(ctx: { orgId: string }): Promise<Full
   // without each needing its own branch-aware filter.
   const allEntries = [...staticEntries, ...definitionEntries]
   const domainsPresent = Array.from(new Set(allEntries.map((e) => e.domain)))
-  const enabledByDomain = new Map(
+  // R74 Phase 10 fix: when `db` is shared with an outer transaction, these
+  // per-domain checks must run SEQUENTIALLY, not via Promise.all -- a single
+  // transaction/connection cannot safely serve concurrent queries. Only
+  // matters when `db` is provided; the own-transaction path (no `db`) below
+  // opens a fresh transaction per call, same as before, so concurrency there
+  // was never the issue -- kept as Promise.all for that path, unchanged.
+  const enabledByDomain = db
+    ? new Map(
+        await (async () => {
+          const pairs: (readonly [ReportDomain, boolean])[] = []
+          for (const domain of domainsPresent) pairs.push([domain, await isReportDomainEnabledForOrgWithDb(db, ctx.orgId, domain)])
+          return pairs
+        })()
+      )
+    : new Map(
     await Promise.all(domainsPresent.map(async (domain) => [domain, await isReportDomainEnabledForOrg(ctx.orgId, domain)] as const))
   )
   return allEntries.filter((e) => enabledByDomain.get(e.domain) ?? true)
 }
 
-export async function getFullReportCatalogByDomain(ctx: { orgId: string }): Promise<Record<ReportDomain, FullCatalogEntry[]>> {
-  const all = await getFullReportCatalog(ctx)
+export async function getFullReportCatalogByDomain(ctx: { orgId: string }, db?: TenantDb): Promise<Record<ReportDomain, FullCatalogEntry[]>> {
+  const all = await getFullReportCatalog(ctx, db)
   const byDomain: Record<ReportDomain, FullCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [], CRM: [] }
   for (const entry of all) byDomain[entry.domain].push(entry)
   return byDomain

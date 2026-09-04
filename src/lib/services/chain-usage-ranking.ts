@@ -31,7 +31,7 @@
 // function, matching monitoring-engine.ts's established split in this
 // codebase.
 import { dynamicChains, tasks } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, gte, inArray, isNotNull } from "drizzle-orm"
 import type { CapabilityNode } from "./capability-tree-service"
 
@@ -113,25 +113,38 @@ export function applyUsageRanking(nodes: CapabilityNode[], scores: Map<string, n
  * imply -- that's a distinct, un-requested feature (surfacing what OTHER
  * users do), not built here.
  */
-export async function getUserChainUsageScores(orgId: string, userId: string, days = 90): Promise<Map<string, number>> {
-  return withTenantContext({ orgId, userId }, async (db) => {
-    const cutoff = new Date(Date.now() - days * 86_400_000)
-    const rows = await db.query.tasks.findMany({
-      where: and(eq(tasks.orgId, orgId), eq(tasks.userId, userId), gte(tasks.createdAt, cutoff), isNotNull(tasks.dynamicChainId)),
-      columns: { dynamicChainId: true, createdAt: true },
-    })
-    if (rows.length === 0) return new Map()
-
-    const chainIds = [...new Set(rows.map((r) => r.dynamicChainId!))]
-    const chains = await db.query.dynamicChains.findMany({ where: inArray(dynamicChains.id, chainIds) })
-    const chainById = new Map(chains.map((c) => [c.id, c]))
-
-    const events: ChainUsageEvent[] = rows
-      .map((r) => ({ pathKeys: (chainById.get(r.dynamicChainId!)?.pathKeys as unknown[]) ?? [], createdAt: r.createdAt }))
-      .filter((e) => e.pathKeys.length > 0)
-
-    return computePathUsageScores(events)
+// R74 Phase 10 fix: the actual query logic, pulled out so a caller that
+// ALREADY holds an open withTenantContext transaction (e.g.
+// capability-tree-service.ts's buildCapabilityTree(), which used to call
+// getUserChainUsageScores() as a SEPARATE, sequential top-level call after
+// its own transaction returned) can pass that same `db` handle down instead
+// of opening a second one -- exactly what tenant-scoped.ts's own
+// assertNotNested() error message asks for ("Pass the open transaction's db
+// handle down instead"). Confirmed live: GET /api/v1/projexa/module-chain
+// reproducibly threw "nested withTenantContext" on every call before this
+// split (opened_at timestamp fresh per-call, not a stale leaked connection --
+// this was a real, per-request bug, not residue from an earlier request).
+export async function computeUserChainUsageScoresWithDb(db: TenantDb, orgId: string, userId: string, days = 90): Promise<Map<string, number>> {
+  const cutoff = new Date(Date.now() - days * 86_400_000)
+  const rows = await db.query.tasks.findMany({
+    where: and(eq(tasks.orgId, orgId), eq(tasks.userId, userId), gte(tasks.createdAt, cutoff), isNotNull(tasks.dynamicChainId)),
+    columns: { dynamicChainId: true, createdAt: true },
   })
+  if (rows.length === 0) return new Map()
+
+  const chainIds = [...new Set(rows.map((r) => r.dynamicChainId!))]
+  const chains = await db.query.dynamicChains.findMany({ where: inArray(dynamicChains.id, chainIds) })
+  const chainById = new Map(chains.map((c) => [c.id, c]))
+
+  const events: ChainUsageEvent[] = rows
+    .map((r) => ({ pathKeys: (chainById.get(r.dynamicChainId!)?.pathKeys as unknown[]) ?? [], createdAt: r.createdAt }))
+    .filter((e) => e.pathKeys.length > 0)
+
+  return computePathUsageScores(events)
+}
+
+export async function getUserChainUsageScores(orgId: string, userId: string, days = 90): Promise<Map<string, number>> {
+  return withTenantContext({ orgId, userId }, (db) => computeUserChainUsageScoresWithDb(db, orgId, userId, days))
 }
 
 export type PersonalChainLibraryEntry = {

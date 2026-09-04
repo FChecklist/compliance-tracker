@@ -34,6 +34,7 @@ import {
   enableProductBranchForOrg,
   disableProductBranchForOrg,
   isBranchEnabledForOrg,
+  isBranchEnabledForOrgWithDb,
   getBranchEnablement,
   type BranchEnablementContext,
   ServiceError,
@@ -44,6 +45,11 @@ export type ErpContext = BranchEnablementContext
 
 export async function isErpEnabledForOrg(orgId: string): Promise<boolean> {
   return isBranchEnabledForOrg(orgId, "erp")
+}
+
+/** R74 Phase 10 fix: db-handle-accepting variant -- see isBranchEnabledForOrgWithDb's own comment in product-branch-service.ts. */
+export async function isErpEnabledForOrgWithDb(db: TenantDb, orgId: string): Promise<boolean> {
+  return isBranchEnabledForOrgWithDb(db, orgId, "erp")
 }
 
 // Owner's exact wording (2026-07-13, OPEN-07 decision c): a polite,

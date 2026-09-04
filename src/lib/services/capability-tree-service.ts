@@ -32,7 +32,7 @@ import {
   gstImportBatches, gstCanonicalInvoices, gstReturnPeriods, departments, savedReports, taskCapabilities,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { getUserChainUsageScores, applyUsageRanking } from "./chain-usage-ranking"
+import { computeUserChainUsageScoresWithDb, applyUsageRanking } from "./chain-usage-ranking"
 import { and, eq, inArray, ne, asc, desc, or, isNull } from "drizzle-orm"
 import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "./compliance-service"
 import type { ReportDomain } from "./report-catalog-service"
@@ -1011,8 +1011,13 @@ const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
 // Chain Selector pill automatically, with zero code change here -- the
 // literal "grows automatically as more gets registered" philosophy this
 // file already had for every other branch, now also true for the catalog.
-async function buildReportCatalogNodes(ctx: { orgId: string }): Promise<CapabilityNode[]> {
-  const byDomain = await getFullReportCatalogByDomain(ctx)
+// R74 Phase 10 fix: `db` threads buildCapabilityTree's own already-open
+// transaction down instead of letting getFullReportCatalogByDomain open a
+// second one -- see isBranchEnabledForOrgWithDb's comment in
+// product-branch-service.ts for the full chain and why this was a real,
+// deterministic (every call, not intermittent) nested-transaction bug.
+async function buildReportCatalogNodes(ctx: { orgId: string }, db: TenantDb): Promise<CapabilityNode[]> {
+  const byDomain = await getFullReportCatalogByDomain(ctx, db)
   const domainNodes: CapabilityNode[] = (Object.keys(byDomain) as ReportDomain[])
     .filter((domain) => byDomain[domain].length > 0)
     .map((domain) => ({
@@ -1183,7 +1188,7 @@ function buildErpQuickCreateNodes(): CapabilityNode[] {
 }
 
 export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: string; userId?: string }): Promise<CapabilityNode[]> {
-  const tree = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  const { tree, scores } = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const branchNodes = await buildBranchNodes(db, ctx.orgId)
     const productNodes = await buildProductNodes(db, ctx.orgId)
     const entityNodes = await buildEntityNodes(db, ctx.orgId)
@@ -1192,7 +1197,10 @@ export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: st
     const gstReconciliationNodes = await buildGstReconciliationNodes(db, ctx.orgId)
     const constructionNodes = await buildConstructionNodes(db, ctx.orgId)
     const reportNodes = await buildReportLinkNodes(db, ctx.orgId)
-    const reportCatalogNodes = await buildReportCatalogNodes({ orgId: ctx.orgId })
+    // R74 Phase 10 fix: `db` passed down instead of letting this open its own
+    // transaction -- was a real, deterministic (every call, not
+    // intermittent) nested-withTenantContext bug. See its own comment.
+    const reportCatalogNodes = await buildReportCatalogNodes({ orgId: ctx.orgId }, db)
     const learnedCapabilityNodes = await buildLearnedCapabilityNodes(db, ctx.orgId)
     const crmQuickCreateNodes = buildCrmQuickCreateNodes()
     const erpQuickCreateNodes = buildErpQuickCreateNodes()
@@ -1201,7 +1209,17 @@ export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: st
     const allowedKeys = ctx.moduleScope ? MODULE_SCOPE_TOP_LEVEL_KEYS[ctx.moduleScope] : undefined
     const scopedStaticNodes = allowedKeys ? staticNodes.filter((n) => allowedKeys.includes(n.key)) : staticNodes
 
-    return markDeterministic([...branchNodes, ...scopedStaticNodes])
+    const tree = markDeterministic([...branchNodes, ...scopedStaticNodes])
+
+    // R74 Phase 10 fix: computed HERE, on this same open transaction, instead
+    // of as a separate sequential withTenantContext call after this one
+    // closed -- that second, later call was the OTHER real nested-transaction
+    // site this same route hit (fixed alongside buildReportCatalogNodes
+    // above; see computeUserChainUsageScoresWithDb's own comment in
+    // chain-usage-ranking.ts). Same optional/additive behaviour as before:
+    // no userId means no scores, exactly as this always worked.
+    const scores = ctx.userId ? await computeUserChainUsageScoresWithDb(db, ctx.orgId, ctx.userId) : null
+    return { tree, scores }
   })
 
   // tree4-unified U-D5.B2.S3 ("prioritize frequent chains... recommend
@@ -1211,8 +1229,7 @@ export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: st
   // before this wave) returns the exact same tree/order as before; with no
   // usage history yet (score map empty) applyUsageRanking() is a documented
   // no-op that returns the same array reference.
-  if (!ctx.userId) return tree
-  const scores = await getUserChainUsageScores(ctx.orgId, ctx.userId)
+  if (!scores) return tree
   return applyUsageRanking(tree, scores)
 }
 
