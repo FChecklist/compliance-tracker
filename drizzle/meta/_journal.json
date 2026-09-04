@@ -2605,6 +2605,20 @@
       "when": 1788510300000,
       "tag": "0554_r71_phase7_fix_append_only_guard_search_vector",
       "breakpoints": true
+    },
+    {
+      "idx": 372,
+      "version": "7",
+      "when": 1788510400000,
+      "tag": "0555_r71_phase8_memory_records_dedup_constraint",
+      "breakpoints": true
+    },
+    {
+      "idx": 373,
+      "version": "7",
+      "when": 1788510500000,
+      "tag": "0556_r71_phase8_naive_timestamps_to_timestamptz",
+      "breakpoints": true
     }
   ]
 }
