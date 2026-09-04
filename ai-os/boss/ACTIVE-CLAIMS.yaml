@@ -3371,6 +3371,161 @@ active:
       The PROJEXA half of the same items lands in the projexa repo on the
       matching branch r67/f1-performance-1.
 
+  - session_label: "claude-code (subagent, r67/f1-performance-1) -- PROGRAMME R67 lane F1 (WS-F performance), items F-01..F-17: the compliance-tracker half of PROJEXA's latency work"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC: the owner-approved R66 UX/product-design audit, workstream WS-F
+      (performance), lane F1 items F-01, F-02, F-03, F-04, F-05, and (added
+      2026-09-02, same session/branch) F-06, F-07, F-08, F-09, F-10, and then
+      F-11..F-15, plus binding decisions D-04 (module pages fetch server-side,
+      streamed with Suspense, 8 s budget) and D-06 (the nested-
+      withTenantContext guard, which F-12/F-15 own and which IS implemented on
+      this branch -- see the added scope below).
+
+      Items F-16..F-17 add, in this repo (added 2026-09-03, same session and
+      branch -- the last group of the lane):
+        src/lib/db/tenant-scoped.ts (+ the existing .test.ts)
+          -- F-16: the app_runtime pool now carries
+             `connection.options = '-c idle_in_transaction_session_timeout=30000'`
+             so the safety net travels with the application and not only with
+             the role the owner has already ALTERed on pcrjmlpuqsbocqfwoxod
+             (that ALTER ROLE is NOT re-applied here and is not in this
+             branch). withTenantContext logs SQLSTATE 25P03 at warn level with
+             the in-flight SQL and the route (recovered from the stack it
+             already captures for the D-06 guard) and re-throws unchanged.
+             Adds readAppRuntimePoolHealth(), which reads pg_stat_activity
+             through the raw handle -- NOT through withTenantContext, because
+             opening a transaction to measure transactions would consume one of
+             the five slots it reports on. Pool max stays 5.
+        src/app/api/internal/pool-health/route.ts (NEW)
+          -- F-16: GET, requireAuth + requireRole(dbUser, "admin"), never
+             public, no caching. Unlike its /api/internal/* siblings this is
+             read by a person during an incident, not by a cron job, so it is
+             session-gated rather than CRON_SECRET-gated.
+        src/lib/auth/api-key-audit.ts (NEW, + new .test.ts) -- new directory
+        src/lib/supabase/api-key-auth.ts
+          -- F-17: the per-request api_key_request_log INSERT and the
+             api_keys.last_used_at UPDATE move into an in-process queue (one
+             multi-row INSERT per 5 s or per 100 rows, last_used_at at most
+             once per key per minute), so a PROJEXA page making 7-22 API-key
+             calls stops issuing 2 extra pool operations per call. The
+             rate limiter reads the queue's own pending count alongside the DB
+             count, so buffering cannot widen the 60 s window it enforces.
+
+      Items F-12..F-15 add, in this repo:
+        src/lib/db/tenant-scoped.ts (+ new .test.ts)
+          -- D-06: an AsyncLocalStorage flag marking "inside a tenant
+             transaction". Entering withTenantContext while it is set throws
+             in development and test and logs a warning with both stack traces
+             in production. First use of AsyncLocalStorage in this repo. The
+             pool stays max:5 (D-06's own rule: the pool is re-measured only
+             after the leak is gone), and the production ALTER ROLE
+             idle_in_transaction_session_timeout is NOT in this branch -- the
+             owner has already applied it to pcrjmlpuqsbocqfwoxod directly.
+             KNOWN CONSEQUENCE, deliberately surfaced rather than suppressed:
+             a static audit run while adding this found nesting still live in
+             ERP/CRM/FM code this lane does not own (submitPurchaseReceipt ->
+             recordStockReceipt, isPeriodOpenForDate from inside invoicing,
+             recordOrchestraExecution from inside CRM/FM transactions). Those
+             now throw in local dev. Production is unaffected (warn only).
+             The list is in the file's own comment.
+        src/lib/services/construction-dashboard-service.ts (+ .test.ts)
+          -- F-14: categories and recentEntries folded into
+             getProjectDashboard's existing transaction, so /dashboard/project
+             stops making two extra client calls for them.
+        src/lib/services/construction-labour-service.ts (+ .test.ts)
+          -- F-13: listRoster() returns vendorName per row, resolved by one
+             batched read on the transaction it already holds, so PROJEXA's
+             Work Progress Report stops fetching the org's whole vendor master
+             just to turn a handful of vendorIds into names.
+        src/app/api/v1/construction/progress/route.ts
+          -- F-13: forwards dateFrom/dateTo to listProgressEntries, which has
+             always supported the window but never exposed it.
+        src/lib/pipeline/executor.ts (+ .test.ts)
+          -- F-15: executeRecordWorkProgress (the pipeline's only write) held
+             its lookup transaction open across createProgressEntry's own.
+             Split, so one task holds one connection at a time.
+
+      Items F-06..F-10 add, in this repo:
+        src/lib/services/construction-labour-service.ts (+ new .test.ts)
+          -- listAttendance() gains an optional [from, to] window so PROJEXA's
+             /labour stops asking for a project's whole workers-x-days
+             attendance history on every page load (F-06). The audit's premise
+             that listAttendance was "already date-aware" was wrong: it had
+             an exact-date filter only.
+        src/app/api/v1/construction/attendance/route.ts (forwards from/to)
+        src/lib/services/construction-reports-service.ts (+ .test.ts)
+          -- requireConstructionEnabled() memoised per org, 60 s TTL, so a
+             report run stops paying an extra withTenantContext transaction
+             for a package check that cannot change between two clicks (F-10)
+
+      Verified before starting: origin/main already carries the R66 dashboard
+      pool-deadlock fix (construction-dashboard-service.ts hoists
+      isConstructionEnabledForOrg out of both transactions and computes earned
+      value in-transaction via computeEarnedValue), so that half is NOT redone
+      here. No other active claim in this file touches construction-boq-
+      service.ts, construction-progress-service.ts, construction-dashboard-
+      service.ts or the v1/projexa permits/drawings/projects routes.
+
+      compliance-tracker file scope (this repo):
+        src/lib/services/construction-dashboard-service.ts (+ .test.ts)
+          -- new listProjectsForSelection(); progressPercent per project added
+             to getOrgDashboard's existing transaction via one grouped query
+        src/lib/services/construction-boq-service.ts (+ .test.ts)
+          -- listBoqs() returns line items + totalVariation /
+             totalVariationVsOriginal from ONE transaction (was
+             Promise.all(boqs.map(getBoq)), an N+1 of transactions)
+          -- new exported pure helper buildBoqListRows()
+        src/lib/services/construction-progress-service.ts (+ .test.ts)
+          -- listProgressEntries() returns activityName / boqItemCode /
+             boqLineDescription / unit, batched in the same transaction
+        src/app/api/v1/construction/boq/route.ts (drops the getBoq fan-out)
+        src/app/api/v1/projexa/projects/route.ts (adds GET, 60 s per-org cache)
+        src/app/api/v1/projexa/permits/route.ts (+ new route.test.ts)
+        src/app/api/v1/projexa/drawings/route.ts
+        src/app/api/v1/projexa/drawings/[id]/document-url/route.ts (+ new route.test.ts)
+        src/lib/storage/signed-document-url.ts (+ .test.ts) (new)
+
+      Added by the review fix pass (2026-09-03, same session and branch), all
+      consequences of F-02's DTO change reaching further than the PROJEXA
+      clients it was written for:
+        src/app/(app)/permits/page.tsx (+ new page.test.ts)
+        src/app/(app)/drawings/page.tsx (+ new page.test.ts)
+          -- VERIDIAN's OWN shipped register screens consume the same
+             /api/v1/projexa/permits and /drawings endpoints F-02 changed, and
+             were not migrated with PROJEXA's: every permit's "View" and every
+             uploaded drawing's "Open" had silently become "--". Both now
+             render from hasDocument and sign the URL on click. Source-assertion
+             tests (this repo has no jsdom/@testing-library -- see
+             src/components/AppShell.test.ts's own header).
+        src/app/api/v1/projexa/permits/[id]/route.ts
+          -- F-02 made this the ONLY path to a permit's file, and it still did
+             a bare unguarded createSignedUrl. Moved onto the shared
+             signDocumentUrl() helper, so a Storage outage costs the file link
+             and not the whole object screen.
+        docs/API_CHANGELOG.md
+          -- the first BREAKING entry this contract has recorded (permits
+             documentUrl removed, drawings documentUrl semantics changed),
+             with the migration path and an explicit, flagged note that it
+             shipped under v1 rather than behind a new /api/v2 prefix, which
+             is an open Owner decision.
+        (merge) origin/main was merged into this branch and the conflicts in
+             construction-reports-service.ts (+ .test.ts),
+             construction-boq-service.test.ts, ACTIVE-CLAIMS.yaml and
+             docs/master/TEST_COVERAGE_GAP.md resolved by hand; every report
+             function arriving from main now calls the memoised
+             ensureConstructionEnabled, not requireConstructionEnabled.
+
+      NOT claimed / deliberately untouched: the postgres() pool options in
+      tenant-scoped.ts (F-16 owns the idle_in_transaction connection option and
+      the pool-health probe), src/lib/supabase/auth-guard.ts audit writes
+      (F-17), and any production database setting (the ALTER ROLE
+      idle_in_transaction timeout is owner-applied, not repo work). No
+      migration in this lane.
+
+      The PROJEXA half of the same items lands in the projexa repo on the
+      matching branch r67/f1-performance-1.
+
   - session_label: "claude-code (subagent, r67/d3-screens-manpower-materials-budgets-schedule) -- R67 lane D3: the compliance-tracker half of the Manpower/Materials/Schedule screen items (D-30, D-36, D-40, D-47)"
     claimed_at: "2026-09-03T (this session)"
     claim: |
