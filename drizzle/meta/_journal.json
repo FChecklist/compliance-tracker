@@ -2640,6 +2640,13 @@
       "when": 1788510800000,
       "tag": "0559_r71_phase10_quarantine_legacy_embeddings",
       "breakpoints": true
+    },
+    {
+      "idx": 377,
+      "version": "7",
+      "when": 1788510801000,
+      "tag": "0560_r74_phase1_agent_register",
+      "breakpoints": true
     }
   ]
 }
