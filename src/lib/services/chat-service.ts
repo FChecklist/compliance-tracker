@@ -1198,6 +1198,20 @@ function captureMemorableStatement(ctx: ChatContext, conversationId: string, mes
     try {
       await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
         createMemoryRecord(db, ctx.orgId, {
+          // R68 Phase 6: the authorization identity for this write. Identity
+          // only -- memory-write-authorization.ts re-derives the caller's real
+          // role from compliance.users inside this same transaction. A
+          // `viewer`/`client_viewer`/`external_auditor` chatting here can no
+          // longer cause a memory write; the capture is already best-effort
+          // (the catch below), so a refusal degrades to "nothing remembered",
+          // never to a failed message send.
+          actor: { orgId: ctx.orgId, userId: ctx.userId, actorUserId: ctx.userId },
+          // A human's own statement in their own chat: USER-originated, not
+          // AI-originated, so no model/prompt attribution is required or
+          // fabricated here. detectMemorableStatement() only decides WHETHER
+          // to remember; it does not author the content.
+          originatorType: "USER",
+          originatorId: ctx.userId,
           scopeType: "USER",
           userId: ctx.userId,
           memoryType: memorable.memoryType,

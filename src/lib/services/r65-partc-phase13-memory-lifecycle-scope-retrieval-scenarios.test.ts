@@ -119,8 +119,32 @@ function unescapeQuotes(s: string): string {
   return s.replaceAll('\\"', '"')
 }
 
+// R68 Phase 6: the write functions this file drives now run the three-boolean
+// authorization gate first. Stubbed to a pass here for the same reason
+// memory-service.test.ts stubs it -- these are lifecycle/retrieval scenarios,
+// and letting the gate issue its own DB reads would shift every queue index
+// in this file's fixtures. The gate's real refusal behaviour is tested
+// unmocked in src/lib/services/r68-phase6-write-path.test.ts.
+const ACTOR = { orgId: "org-1", userId: "user-1", actorUserId: "user-1" }
+
+function mockAuthorizationModule() {
+  mock.module("./memory-write-authorization", () => ({
+    assertMemoryWriteAuthorized: mock(async () => ({
+      allowed: true,
+      callerContextResolves: true,
+      inputsResolve: true,
+      roleSufficient: true,
+      chainChecked: false,
+      resolvedRole: "admin",
+      requiredRole: "member",
+      reason: null,
+    })),
+  }))
+}
+
 beforeEach(() => {
   mock.restore()
+  mockAuthorizationModule()
 })
 
 // ─── A. searchMemories: scope-isolation combined with other filters ───────
@@ -427,7 +451,7 @@ describe("promoteMemoryRecord / archiveMemoryRecord: lifecycleHistory accumulati
       [rawRow({ lifecycle_state: "CONFIRMED" })],
     ])
 
-    await promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { type: "USER", id: "user-1", reason: "user confirmed it" })
+    await promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { actor: ACTOR, type: "USER", id: "user-1", reason: "user confirmed it" })
 
     const updateSql = unescapeQuotes(JSON.stringify(calls[1]))
     // The OLD entry must survive verbatim...
@@ -454,7 +478,7 @@ describe("promoteMemoryRecord / archiveMemoryRecord: lifecycleHistory accumulati
       [rawRow({ lifecycle_state: "TRANSIENT", metadata: {} })],
       [rawRow({ lifecycle_state: "CANDIDATE" })],
     ])
-    await promoteMemoryRecord(step1.tx, "mem-1", "CANDIDATE", { type: "SYSTEM", reason: "auto-captured" })
+    await promoteMemoryRecord(step1.tx, "mem-1", "CANDIDATE", { actor: ACTOR, type: "SYSTEM", reason: "auto-captured" })
     const step1Sql = unescapeQuotes(JSON.stringify(step1.calls[1]))
     expect((step1Sql.match(/changedByType/g) ?? []).length).toBe(1)
 
@@ -468,7 +492,7 @@ describe("promoteMemoryRecord / archiveMemoryRecord: lifecycleHistory accumulati
       [rawRow({ lifecycle_state: "CANDIDATE", metadata: { lifecycleHistory: historyAfterStep1 } })],
       [rawRow({ lifecycle_state: "CONFIRMED" })],
     ])
-    await promoteMemoryRecord(step2.tx, "mem-1", "CONFIRMED", { type: "USER", id: "user-1", reason: "user confirmed" })
+    await promoteMemoryRecord(step2.tx, "mem-1", "CONFIRMED", { actor: ACTOR, type: "USER", id: "user-1", reason: "user confirmed" })
     const step2Sql = unescapeQuotes(JSON.stringify(step2.calls[1]))
     expect((step2Sql.match(/changedByType/g) ?? []).length).toBe(2)
     expect(step2Sql).toContain("auto-captured")
@@ -484,7 +508,17 @@ describe("promoteMemoryRecord / archiveMemoryRecord: lifecycleHistory accumulati
       [rawRow({ lifecycle_state: "CONFIRMED", metadata: { lifecycleHistory: historyAfterStep2 } })],
       [rawRow({ lifecycle_state: "ACTIVE" })],
     ])
-    await promoteMemoryRecord(step3.tx, "mem-1", "ACTIVE", { type: "AI", reason: "repeated successful use" })
+    // R68 Phase 6: an AI-originated transition must carry model + prompt
+    // attribution or it is refused before the UPDATE. This step of the
+    // real-world chain genuinely IS the AI one ("repeated successful use"),
+    // so it is attributed rather than relabelled.
+    await promoteMemoryRecord(step3.tx, "mem-1", "ACTIVE", {
+      actor: ACTOR,
+      type: "AI",
+      reason: "repeated successful use",
+      modelId: "anthropic/claude-sonnet-5",
+      promptHash: "sha256:8f14e45fceea167a5a36dedd4bea2543",
+    })
     const step3Sql = unescapeQuotes(JSON.stringify(step3.calls[1]))
     expect((step3Sql.match(/changedByType/g) ?? []).length).toBe(3)
     expect(step3Sql).toContain("repeated successful use")
@@ -499,7 +533,7 @@ describe("promoteMemoryRecord / archiveMemoryRecord: lifecycleHistory accumulati
       [rawRow({ lifecycle_state: "ACTIVE", metadata: { lifecycleHistory: historyAfterStep3 }, effective_to: null })],
       [rawRow({ lifecycle_state: "ARCHIVED" })],
     ])
-    const finalRecord = await archiveMemoryRecord(step4.tx, "mem-1", { type: "USER", id: "user-1", reason: "no longer accurate" })
+    const finalRecord = await archiveMemoryRecord(step4.tx, "mem-1", { actor: ACTOR, type: "USER", id: "user-1", reason: "no longer accurate" })
     const step4Sql = unescapeQuotes(JSON.stringify(step4.calls[1]))
     expect((step4Sql.match(/changedByType/g) ?? []).length).toBe(4)
     expect(step4Sql).toContain('"from":"ACTIVE"')
@@ -517,7 +551,7 @@ describe("promoteMemoryRecord / archiveMemoryRecord: lifecycleHistory accumulati
       [rawRow({ lifecycle_state: "ARCHIVED" })],
     ])
 
-    await archiveMemoryRecord(tx, "mem-1", { type: "SYSTEM", reason: "retention cleanup" })
+    await archiveMemoryRecord(tx, "mem-1", { actor: ACTOR, type: "SYSTEM", reason: "retention cleanup" })
 
     const updateSql = JSON.stringify(calls[1])
     expect(updateSql).toContain("COALESCE")
@@ -533,7 +567,7 @@ describe("promoteMemoryRecord / archiveMemoryRecord: lifecycleHistory accumulati
       [rawRow({ lifecycle_state: "ARCHIVED" })],
     ])
 
-    const result = await archiveMemoryRecord(tx, "mem-1", { type: "SYSTEM", reason: "never confirmed, discarding" })
+    const result = await archiveMemoryRecord(tx, "mem-1", { actor: ACTOR, type: "SYSTEM", reason: "never confirmed, discarding" })
 
     expect(result.lifecycleState).toBe("ARCHIVED")
     const updateSql = unescapeQuotes(JSON.stringify(calls[1]))
@@ -550,7 +584,7 @@ describe("promoteMemoryRecord / archiveMemoryRecord: lifecycleHistory accumulati
       [rawRow({ lifecycle_state: "CANDIDATE" })],
     ])
 
-    await promoteMemoryRecord(tx, "mem-1", "CANDIDATE", { type: "SYSTEM" })
+    await promoteMemoryRecord(tx, "mem-1", "CANDIDATE", { actor: ACTOR, type: "SYSTEM" })
 
     const updateSql = unescapeQuotes(JSON.stringify(calls[1]))
     expect(updateSql).not.toContain("undefined")
@@ -568,7 +602,7 @@ describe("promoteMemoryRecord / archiveMemoryRecord: lifecycleHistory accumulati
       [rawRow({ lifecycle_state: "CONFIRMED" })],
     ])
 
-    await promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { type: "USER", id: "user-42" })
+    await promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { actor: ACTOR, type: "USER", id: "user-42" })
 
     const updateSql = unescapeQuotes(JSON.stringify(calls[1]))
     expect(updateSql).toContain('"changedById":"user-42"')
@@ -588,7 +622,7 @@ describe("promoteMemoryRecord / archiveMemoryRecord: lifecycleHistory accumulati
       [rawRow({ lifecycle_state: "CONFIRMED" })],
     ])
 
-    await promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { type: "USER" })
+    await promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { actor: ACTOR, type: "USER" })
 
     const updateSql = JSON.stringify(calls[1])
     expect(updateSql).toContain("quotation")
@@ -609,7 +643,7 @@ describe("promoteMemoryRecord / archiveMemoryRecord: lifecycleHistory accumulati
         "mem-1",
         // @ts-expect-error -- deliberately passing an illegal state to test the runtime guard
         "SUPERSEDED",
-        { type: "USER" }
+        { actor: ACTOR, type: "USER" }
       )
     ).rejects.toThrow(/only legal next state is CONFIRMED, not SUPERSEDED/)
     expect(calls.length).toBe(1) // SELECT only, no UPDATE issued
@@ -628,21 +662,21 @@ describe("supersedeMemoryRecord / promoteMemoryRecord / archiveMemoryRecord: con
       name: "supersedeMemoryRecord",
       run: async (tx) => {
         const { supersedeMemoryRecord } = await import("./memory-service")
-        return supersedeMemoryRecord(tx, "missing-id", "new content", { type: "USER" })
+        return supersedeMemoryRecord(tx, "missing-id", "new content", { actor: ACTOR, type: "USER" })
       },
     },
     {
       name: "promoteMemoryRecord",
       run: async (tx) => {
         const { promoteMemoryRecord } = await import("./memory-service")
-        return promoteMemoryRecord(tx, "missing-id", "CONFIRMED", { type: "USER" })
+        return promoteMemoryRecord(tx, "missing-id", "CONFIRMED", { actor: ACTOR, type: "USER" })
       },
     },
     {
       name: "archiveMemoryRecord",
       run: async (tx) => {
         const { archiveMemoryRecord } = await import("./memory-service")
-        return archiveMemoryRecord(tx, "missing-id", { type: "USER" })
+        return archiveMemoryRecord(tx, "missing-id", { actor: ACTOR, type: "USER" })
       },
     },
   ]
@@ -661,21 +695,21 @@ describe("supersedeMemoryRecord / promoteMemoryRecord / archiveMemoryRecord: con
       name: "supersedeMemoryRecord",
       run: async (tx) => {
         const { supersedeMemoryRecord } = await import("./memory-service")
-        return supersedeMemoryRecord(tx, "mem-1", "new content", { type: "USER" })
+        return supersedeMemoryRecord(tx, "mem-1", "new content", { actor: ACTOR, type: "USER" })
       },
     },
     {
       name: "promoteMemoryRecord",
       run: async (tx) => {
         const { promoteMemoryRecord } = await import("./memory-service")
-        return promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { type: "USER" })
+        return promoteMemoryRecord(tx, "mem-1", "CONFIRMED", { actor: ACTOR, type: "USER" })
       },
     },
     {
       name: "archiveMemoryRecord",
       run: async (tx) => {
         const { archiveMemoryRecord } = await import("./memory-service")
-        return archiveMemoryRecord(tx, "mem-1", { type: "USER" })
+        return archiveMemoryRecord(tx, "mem-1", { actor: ACTOR, type: "USER" })
       },
     },
   ]
