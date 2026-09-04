@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { listCustomCharts, createCustomChart, getTableRegistryMetadata, ServiceError } from "@/lib/services/custom-chart-service"
 
 // Priority 13 (Self-Serve Ad-Hoc BI / Chart-Builder). ?meta=1 returns the
@@ -28,6 +28,9 @@ export async function POST(request: NextRequest) {
   const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()

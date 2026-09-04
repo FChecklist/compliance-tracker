@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { bulkReassignOpportunities, ServiceError } from "@/lib/services/crm-service"
 
 // VERIDIAN Review Framework gap-closure: Sales Pipeline (2026-08-07),
@@ -12,6 +12,9 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()

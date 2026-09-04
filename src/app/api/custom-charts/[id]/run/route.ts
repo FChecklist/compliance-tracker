@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { runCustomChart, ServiceError } from "@/lib/services/custom-chart-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -8,9 +8,12 @@ type RouteContext = { params: Promise<{ id: string }> }
 // service.ts's runAggregationFromConfig(), the same dispatcher a
 // deterministic_aggregation report_definitions row runs through.
 export async function POST(_request: Request, { params }: RouteContext) {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

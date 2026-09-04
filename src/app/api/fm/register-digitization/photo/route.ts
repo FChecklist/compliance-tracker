@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { parseAndExtractFromPhoto, ServiceError } from "@/lib/services/fm-register-digitization-service"
 
 // VERI FM & CS AI OS -- minimal entry point wiring the previously-orphaned
@@ -13,6 +13,9 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "member")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()

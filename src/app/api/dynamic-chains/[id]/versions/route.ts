@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { createChainVersion, getChainVersionHistory } from "@/lib/services/dynamic-chain-directory-service"
 
 // tree4-unified U-D6.B2.S1's "version control" -- see route.ts's header for
@@ -30,6 +30,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   const { id } = await params
   try {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { setServiceLineForClient, listServiceLinesForClient, ServiceError, type FirmServiceLine } from "@/lib/services/firm-client-service-line-service"
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ clientId: string }> }) {
@@ -22,6 +22,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ clientId: s
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { clientId } = await ctx.params

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { generateFormData, ServiceError } from "@/lib/services/mca-filing-service"
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "senior_professional")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await ctx.params

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { getPmsEnablement, enablePmsForOrg, disablePmsForOrg, ServiceError } from "@/lib/services/pms-enablement-service"
 
 export async function GET() {
@@ -16,6 +16,9 @@ export async function POST() {
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
+  const roleCheck = requireRole(dbUser, "admin")
+  if (roleCheck) return roleCheck
+
   try {
     const result = await enablePmsForOrg({ orgId, userId: dbUser.id, dbUser })
     return NextResponse.json(result)
@@ -30,6 +33,9 @@ export async function DELETE() {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "admin")
+  if (roleCheck) return roleCheck
 
   try {
     const result = await disablePmsForOrg({ orgId, userId: dbUser.id, dbUser })

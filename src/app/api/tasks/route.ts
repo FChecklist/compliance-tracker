@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { listTasks, createTask, ServiceError } from "@/lib/services/task-service"
 
 export async function GET(request: NextRequest) {
@@ -26,6 +26,8 @@ export async function POST(request: NextRequest) {
   // specific person -- requires a real session, not an API key (matches
   // createTask()'s own guard in the service layer).
   if (!ctx.dbUser) return NextResponse.json({ error: "Task creation requires a real user session, not an API key" }, { status: 400 })
+  const roleCheck = requireRoleOrScope(ctx, "member")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()

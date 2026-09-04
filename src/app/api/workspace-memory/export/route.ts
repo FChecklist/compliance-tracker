@@ -4,13 +4,15 @@
 // integration) -- matches requireAuth()-only precedent in this repo's other
 // personal-data export routes (e.g. /api/veri-meetings/[id]/export).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { exportWorkspaceMemory, ServiceError } from "@/lib/services/workspace-memory-service"
 
 export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const result = await exportWorkspaceMemory({ orgId, dbUser }, request)

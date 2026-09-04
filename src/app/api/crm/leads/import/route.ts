@@ -2,13 +2,16 @@
 // Fidelity": no bulk import path existed for leads. Follows
 // /api/compliance/import's own multipart-form-data + CSV-text shape.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { importLeadsCsv, ServiceError } from "@/lib/services/crm-service"
 
 export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "member")
+  if (roleCheck) return roleCheck
 
   try {
     const formData = await request.formData()

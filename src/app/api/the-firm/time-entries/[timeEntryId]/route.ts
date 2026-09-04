@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { updateTimeEntry, ServiceError } from "@/lib/services/firm-time-tracking-service"
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ timeEntryId: string }> }) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  const roleCheck = requireRole(dbUser, "member")
+  if (roleCheck) return roleCheck
 
   try {
     const { timeEntryId } = await ctx.params

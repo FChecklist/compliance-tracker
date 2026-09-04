@@ -5,7 +5,7 @@
  * This is the point of no return — batch moves to 'confirmed'.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/supabase/auth-guard'
+import { requireAuth, requireRole } from '@/lib/supabase/auth-guard'
 import {
   ingestionBatches, ingestionItems,
   complianceItems, departments,
@@ -26,6 +26,9 @@ export async function POST(req: NextRequest, ctx: Context) {
   const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: 'No organisation on this account' }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, 'manager')
+  if (roleCheck) return roleCheck
 
   const { batchId } = await ctx.params
   const body = await req.json().catch(() => ({})) as { force_duplicates?: boolean }

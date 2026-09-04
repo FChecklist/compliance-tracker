@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { upsertEmployeeProfile, ServiceError } from "@/lib/services/hr-service"
 
 type RouteContext = { params: Promise<{ userId: string }> }
@@ -8,6 +8,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "branch_manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { userId } = await params

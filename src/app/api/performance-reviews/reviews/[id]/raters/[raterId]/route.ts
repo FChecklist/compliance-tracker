@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { submitRaterFeedback, ServiceError } from "@/lib/services/performance-service"
 
 type RouteContext = { params: Promise<{ id: string; raterId: string }> }
@@ -15,6 +15,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "member")
+  if (roleCheck) return roleCheck
 
   try {
     const { raterId } = await params
