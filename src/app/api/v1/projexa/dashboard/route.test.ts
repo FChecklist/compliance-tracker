@@ -304,3 +304,96 @@ describe("GET /api/v1/projexa/dashboard?projectIds=", () => {
     expect(body.dashboards[0].delayedTaskCount).toBe(1)
   })
 })
+
+// R67 F-27 (audit recommendation R-243) -- ?projectIds= answers a portfolio in
+// ONE call. The per-project dashboard used to be one request per project, each
+// of which was itself about ten sequential aggregates.
+describe("GET /api/v1/projexa/dashboard?projectIds=", () => {
+  const DASHBOARD = {
+    projectId: "p-1",
+    projectName: "Oakwood",
+    budget: 100,
+    revenue: 200,
+    expenses: 50,
+    projectValue: 300,
+    earnedValue: 40,
+    percentByValue: 20,
+    contractValue: 200,
+    taskCount: 4,
+    delayedTaskCount: 1,
+  }
+
+  test("passes every id to the batch service in ONE call and returns them under `dashboards`", async () => {
+    mockAuth({ orgId: "org-1" })
+    const getOrgDashboard = mockService(undefined, async () => [DASHBOARD])
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest("?projectIds=p-1,p-2,p-3") as any)
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ dashboards: [DASHBOARD] })
+    expect(getProjectDashboards).toHaveBeenCalledTimes(1)
+    expect(getProjectDashboards.mock.calls[0][0]).toEqual({ orgId: "org-1" })
+    expect(getProjectDashboards.mock.calls[0][1]).toEqual(["p-1", "p-2", "p-3"])
+    // The org-level summary is a different question and must not also run.
+    expect(getOrgDashboard).not.toHaveBeenCalled()
+  })
+
+  test("whitespace and empty segments are trimmed rather than sent through as ids", async () => {
+    mockAuth({ orgId: "org-1" })
+    mockService(undefined, async () => [])
+
+    const { GET } = await import("./route")
+    await GET(getRequest("?projectIds=%20p-1%20,,%20p-2") as any)
+
+    expect(getProjectDashboards.mock.calls[0][1]).toEqual(["p-1", "p-2"])
+  })
+
+  test("an empty projectIds is a 400, never a silent org-wide answer to a per-project question", async () => {
+    mockAuth({ orgId: "org-1" })
+    const getOrgDashboard = mockService()
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest("?projectIds=") as any)
+
+    expect(res.status).toBe(400)
+    expect(getOrgDashboard).not.toHaveBeenCalled()
+    expect(getProjectDashboards).not.toHaveBeenCalled()
+  })
+
+  test("more than 50 ids is refused by name and number, not truncated silently", async () => {
+    mockAuth({ orgId: "org-1" })
+    mockService()
+
+    const { GET } = await import("./route")
+    const ids = Array.from({ length: 51 }, (_, i) => `p-${i}`).join(",")
+    const res = await GET(getRequest(`?projectIds=${ids}`) as any)
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toContain("51")
+    expect(getProjectDashboards).not.toHaveBeenCalled()
+  })
+
+  test("a below-manager caller gets task counts but no money -- the same F059 redaction the other two shapes apply", async () => {
+    mockAuth({ orgId: "org-1" })
+    mock.module("@/lib/supabase/auth-guard", () => ({
+      requireAuthOrApiKey: mock(async () => ({ orgId: "org-1", dbUser: { id: "user-1" }, apiKey: null, response: null })),
+      requireRoleOrScope: mock(() => null),
+      hasRole: mock(() => false),
+    }))
+    mockService(undefined, async () => [DASHBOARD])
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest("?projectIds=p-1") as any)
+
+    const body = await res.json()
+    expect(body.dashboards[0].budget).toBeNull()
+    expect(body.dashboards[0].revenue).toBeNull()
+    expect(body.dashboards[0].expenses).toBeNull()
+    expect(body.dashboards[0].earnedValue).toBeNull()
+    expect(body.dashboards[0].contractValue).toBeNull()
+    // ...but the operational figures a site engineer needs are still there.
+    expect(body.dashboards[0].taskCount).toBe(4)
+    expect(body.dashboards[0].delayedTaskCount).toBe(1)
+  })
+})
