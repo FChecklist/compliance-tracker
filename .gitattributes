@@ -25,3 +25,15 @@ drizzle/*.sql text eol=lf
 # migrations.
 *.ts text eol=lf
 *.tsx text eol=lf
+
+# R71 U2-03: ai-os/boss/ACTIVE-CLAIMS.yaml is an append-only, no-formal-schema
+# claims registry (a running log of what parallel sessions/lanes are working
+# on), not executable code or structured config a parser depends on. A prior
+# merge (r67/a-composer-shell) resolved a conflict on this file with a manual
+# PowerShell-scripted union; a later one was about to resolve it with a
+# blanket "keep ours", which silently discards every claim entry recorded on
+# the incoming branch (KU-03, reversed in R71 Phase 2 before it was ever
+# committed). Scoping the union driver to this exact path only -- not a glob
+# -- keeps it from ever touching a code or JSON/YAML-config file, where a
+# textual union would produce a syntactically broken result (XU-08).
+ai-os/boss/ACTIVE-CLAIMS.yaml merge=union-registry
