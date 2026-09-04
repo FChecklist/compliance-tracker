@@ -45,6 +45,7 @@
 
 import { readFileSync, readdirSync, writeFileSync } from "node:fs"
 import path from "node:path"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 export const SERVICES_LABEL = "src/lib/services"
 
@@ -119,9 +120,9 @@ export function renderReport({ total, testedCount, untested }, topN) {
 }
 
 // --- top-level script body (real fs I/O; not exercised by unit tests) ---
-const isMain = process.argv[1] && import.meta.url === new URL(process.argv[1], "file://").href
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
 if (isMain) {
-  const REPO_ROOT = new URL("..", import.meta.url).pathname
+  const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url))
   const SERVICES_DIR = path.join(REPO_ROOT, "src/lib/services")
   const REPORT_PATH = path.join(REPO_ROOT, "docs/master/TEST_COVERAGE_GAP.md")
 

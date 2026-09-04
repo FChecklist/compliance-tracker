@@ -39,6 +39,7 @@
 
 import { execSync } from "node:child_process"
 import path from "node:path"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 /**
  * Pure: given the service files this PR changed and a predicate for
@@ -79,9 +80,9 @@ export function decideGate(previouslyUntested, changedTestFiles) {
 }
 
 // --- top-level script body (real git calls; not exercised by unit tests) ---
-const isMain = process.argv[1] && import.meta.url === new URL(process.argv[1], "file://").href
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
 if (isMain) {
-  const REPO_ROOT = new URL("..", import.meta.url).pathname
+  const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url))
 
   const sh = (cmd) => execSync(cmd, { encoding: "utf8", cwd: REPO_ROOT }).trim()
   const shLines = (cmd) => {
