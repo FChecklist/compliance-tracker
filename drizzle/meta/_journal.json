@@ -2647,6 +2647,13 @@
       "when": 1788510801000,
       "tag": "0560_r74_phase1_agent_register",
       "breakpoints": true
+    },
+    {
+      "idx": 378,
+      "version": "7",
+      "when": 1788510802000,
+      "tag": "0561_r74_phase2_closure_state_and_surface_class",
+      "breakpoints": true
     }
   ]
 }
