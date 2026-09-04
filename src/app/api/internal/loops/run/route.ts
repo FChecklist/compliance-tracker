@@ -16,6 +16,7 @@ import { runCapabilityIndexFreshnessAudit } from "@/lib/loops/capability-index-f
 import { runCostAnomalyAudit } from "@/lib/loops/cost-anomaly-audit";
 import { runModelPricingAudit } from "@/lib/loops/model-pricing-audit";
 import { purgeExpiredLlmResponseCache } from "@/lib/llm-response-cache";
+import { runMemorySheetsProjectionJob } from "@/lib/loops/memory-sheets-projection";
 
 /**
  * Cron-triggered entry point for Wave 5's active self-improvement loops.
@@ -118,6 +119,14 @@ async function runActiveLoops() {
   // cron" reasoning as above: recurring MODEL_PRICING accuracy check, not
   // one of the 15 canonical loops.
   results.modelPricingAudit = await runModelPricingAudit();
+
+  // R68 Phase 7 (Institutional Memory Graph): one-way, write-through
+  // Supabase -> Google Sheets memory projection. Not one of the 15
+  // canonical loops -- same "piggyback the existing daily cron" reasoning
+  // as the audits above. Cron-safe: logs and returns { skipped: true }
+  // rather than throwing when Google Sheets credentials are not
+  // configured (see memory-sheets-projection.ts's own header).
+  results.memorySheetsProjection = await runMemorySheetsProjectionJob();
 
   return results;
 }
