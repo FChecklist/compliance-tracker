@@ -1,4 +1,4 @@
-# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
+﻿# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
 # direct response to the Owner naming 4 parallel Claude sessions working
 # across this codebase at once, with no existing mechanism for one session
@@ -1173,6 +1173,63 @@ active:
       Did NOT touch: the pipeline (classify/validate/executor/run-submission), platform.*
       tables, any billing/Part D/Part E file, any guardrail script's strictness (AGENTS.md
       Rule 9), or any dependency/lockfile/CI/tsconfig/eslint file in either repo.
+  - session_label: "claude-code (subagent, r67/a-composer-shell) -- PROGRAMME R67 lane A (WS-A composer shell), items A-01..A-22"
+    claimed_at: "2026-09-02T (this session)"
+    claim: |
+      SPEC (programme R67, implementing the owner-approved R66 UX/product-design
+      audit; binding decisions D-01..D-10 in the programme's decisions record,
+      notably D-09 "no veridian-ui-kit release -- fork the shell components into
+      projexa" and D-10 "pill demotion approved for PROJEXA only").
+
+      Lane A is the COMPOSER SHELL lane and is almost entirely in the OTHER repo
+      (FChecklist/projexa, worktree C:/ct/projexa-worktrees/r67-A, branch
+      r67/a-composer-shell): the M24 composer's control strip, pill strip,
+      chain root/project resolution and instruction strings. This entry is
+      registered here because two later items in the lane (A-07, A-08) also
+      touch THIS repo.
+    scope_note: >-
+      compliance-tracker file scope claimed by this lane (later items only, not
+      yet started at claim time): src/app/api/v1/projexa/pill-usage/route.ts
+      (A-07: accept/return leaf card ids in the existing free-text
+      compliance.pill_usage.pillKey column + return a label per ranked entry;
+      A-08: return the top three leaf chains of the last seven days) and
+      src/app/api/v1/projexa/tasks/route.ts (A-08: insert a
+      compliance.chain_history row on every confirmed submission). Both tables
+      already exist (schema.ts:13096 pill_usage, :13112 chain_history) so NO
+      migration and no schema.ts change is claimed. Nothing else in this repo is
+      touched by lane A -- in particular not src/lib/pipeline/* (that is lane
+      WS-B's executor-registration and error-dictionary work, which this lane
+      only consumes as a contract).
+    scope_amendment_2026_09_02: >-
+      As BUILT for A-07/A-08, two corrections to the scope note above, recorded
+      rather than left to be discovered in review. (1) TWO FILES WERE ADDED that
+      the note did not anticipate: src/lib/services/projexa-pill-usage-service.ts
+      and its sibling test. The ranking, the new label derivation and the recent-
+      chain selection are pure and were put in a service so they could be unit
+      tested without a database, which is also what the "New Test Coverage
+      Check" gate requires of any added src/lib/services/*.ts; consequently
+      docs/master/TEST_COVERAGE_GAP.md was regenerated (126/245 -> 127/246) by
+      importing the exported functions of scripts/report-test-coverage-gap.mjs,
+      whose isMain guard no-ops on Windows. (2) src/app/api/v1/projexa/tasks/
+      route.ts WAS NOT TOUCHED and its claim is released: A-08's chain_history
+      write already exists and is already correct -- run-submission.ts:369-370
+      and :543-544 record one row per task on both the typed and the pill path,
+      with outcome ok/failed. Verified by reading it, not assumed.
+    scope_amendment_3_2026_09_03: >-
+      Lane A's last two items, A-21 (the composer strip names the RECORD on an
+      object page) and A-22 (the deleted mode tabs stay deleted), touched NO
+      file in this repo -- both are repo "projexa" and their whole change is in
+      the forked shell there. Recorded so a reviewer seeing no compliance-
+      tracker diff for them knows it is deliberate rather than forgotten. A-22
+      did however make a finding ABOUT this repo that its own item contradicts:
+      the item says to drop `mode` from the /api/tasks POST body because "the
+      server ignores it", and it does not -- src/app/api/v1/projexa/tasks/
+      route.ts:49 reads it, and it reaches submissions.mode (run-submission.ts:
+      196/446, selected back by that route's GET at :140), deriveChain's root
+      for a project-less chain (run-submission.ts:291 -> derive-chain.ts:170,
+      `All ${mode.toLowerCase()}`) and chain_history.mode (:631). The field is
+      therefore still sent, derived from the chain rather than from a control,
+      and nothing in this repo changed.
   - session_label: "claude-code (subagent, r65-parte-phase3-formula-edge-cases) -- R65 Part E Billing Engine, Phase 3: effective-window edge-case hardening for rate/contract resolution"
     claimed_at: "2026-09-02T (this session)"
     claim: |
@@ -1186,14 +1243,14 @@ active:
       "R65 Part E"/"billing_"/"formula-engine"/"billing-cost-rollup" -- zero matches).
 
       Scoped increment: neither a new migration nor the deferred discount/credit pipeline
-      (§11-25, still genuinely tangled with real commercial numbers not yet approved). Instead:
+      (Â§11-25, still genuinely tangled with real commercial numbers not yet approved). Instead:
       extracted the "is this row currently effective as of a given instant" boundary decision --
       previously ONLY inline Drizzle `lte(effective_from)/gt(effective_to)` WHERE-clause
       fragments inside resolveActiveContract/resolveActiveBillingRate, untestable without a live
       DB per this file's own pure/DB-touching test-split convention -- into pure, unit-tested
       isEffectiveAsOf()/filterEffectiveAsOf() functions, then refactored both resolvers to use
       them (behavior-preserving, same boundary semantics). Added 30 new tests covering directive
-      §17's mid-period rate-version-change example (generalized, incl. a regression guard),
+      Â§17's mid-period rate-version-change example (generalized, incl. a regression guard),
       multiple-concurrent-effective-rates scenarios, and contract-expiry boundary conditions
       through the full resolution pipeline. Zero real rate/contract numbers invented -- same
       posture as Phase 1/2. No schema/migration change.
@@ -1216,7 +1273,7 @@ active:
       inserts a new compliance.memory_versions row, a new memory_records
       row, and calls embedAndMirror() (a real embedding-provider call) even
       when the caller passes byte-identical content to what the row already
-      has -- tension with directive §16 ("Unchanged content -> do NOT
+      has -- tension with directive Â§16 ("Unchanged content -> do NOT
       re-embed... reduces embedding cost/unnecessary processing"),
       previously disclosed as a known gap by the Phase 13 session but not
       fixed. Fix: short-circuit to a true no-op (return { previous, next:
@@ -1234,7 +1291,7 @@ active:
   - session_label: "claude-code (subagent, R65 Part C) -- memory-service.ts lifecycle/scope-isolation/retrieval-ranking test-scenario batch (directive Phase 13 subset, service-layer only)"
     claimed_at: "2026-09-02T00:00Z"
     claim: |
-      SPEC (R65 Part C directive §29/§34-35/§36 Phase 13): PR #1565 shipped
+      SPEC (R65 Part C directive Â§29/Â§34-35/Â§36 Phase 13): PR #1565 shipped
       promoteMemoryRecord()/archiveMemoryRecord() with 33 unit tests but left two real gaps
       this claim closes: (1) no test exercises appendLifecycleHistory() accumulating onto an
       ALREADY-non-empty metadata.lifecycleHistory array (every existing test's fixture metadata
@@ -1244,7 +1301,7 @@ active:
       requestingUserId scope-isolation guard with its other filters (scopeType/memoryType/
       includeArchivedAndSuperseded/limit) the way real callers (chat-service.ts's
       fetchRelevantMemories()) actually invoke it. NOT re-attempting the promotion-wiring
-      candidate from this task's own dispatch prompt: directive §29's only promotion rule
+      candidate from this task's own dispatch prompt: directive Â§29's only promotion rule
       ("repeated successful use" -> ACTIVE) has no concrete numeric threshold anywhere in the
       40-section directive, and inventing one was explicitly out of bounds -- this is the
       dispatch prompt's own named fallback candidate instead.
@@ -1810,7 +1867,7 @@ active:
       drizzle/0313_sales_pipeline_summary_prompt.sql), Notification/Alert
       (getSalesPipelineTrend(), week-over-week Awarded-value comparison via
       crm_stage_history, alert banner at >=20% down), Localization (6
-      hardcoded ₹ symbols replaced with the existing
+      hardcoded â‚¹ symbols replaced with the existing
       currencyLabel()/useCurrencies() hook already used by sibling CRM
       pages), and Error Handling (added try/catch + toast.error on the
       dashboard's data fetch). Explicitly did NOT merge in
@@ -1828,7 +1885,7 @@ active:
       AppSidebar.tsx/messages/*.json -- the round-1 plan's file list, never
       actually created once round 2 corrected course.
 
-# ── claim registered 2026-07-31 (task-20260731-044019-pm--project-status-access-rollup) ──
+# â”€â”€ claim registered 2026-07-31 (task-20260731-044019-pm--project-status-access-rollup) â”€â”€
   - session_label: "claude-code (task-20260731-044019-pm--project-status-access-rollup) -- Task #47 PM feature-parity gap: projects.status/access/rollupPercentage/customTabs + Private/Public access control"
     claimed_at: "2026-07-31T (this session)"
     claim: |
@@ -1884,7 +1941,7 @@ active:
       highest, 0511) with a matching new _journal.json entry (idx 334), per
       this repo's own migration-collision protocol.
 
-# ── claim registered 2026-07-31 (task-20260731-043735-crm--campaigns-entity) ──
+# â”€â”€ claim registered 2026-07-31 (task-20260731-043735-crm--campaigns-entity) â”€â”€
   - session_label: "claude-code (task-20260731-043735-crm--campaigns-entity) -- Task #46: CRM Campaigns entity"
     claimed_at: "2026-07-31T (this session)"
     claim: |
@@ -2745,7 +2802,7 @@ active:
       stale idx sequence). `src/lib/db/schema.ts` was a clean additive
       conflict -- both sides added new, disjoint tables at/near the same
       insertion point; kept both blocks.
-  - session_label: "claude-code (subagent, R65 Part D Phase 4) -- submission-level classification (CHAT_ONLY|TASK|MULTIPLE_TASKS), per R65 Part D directive §3 and the R65 Part D Phase 0 architecture report's own Phase 4 recommendation (§4.3, §5)"
+  - session_label: "claude-code (subagent, R65 Part D Phase 4) -- submission-level classification (CHAT_ONLY|TASK|MULTIPLE_TASKS), per R65 Part D directive Â§3 and the R65 Part D Phase 0 architecture report's own Phase 4 recommendation (Â§4.3, Â§5)"
     claimed_at: "2026-09-02T (this session)"
     claim: |
       R65 Part D Phase 0 report named submission-level classification as the
@@ -2780,10 +2837,10 @@ active:
       src/lib/pipeline/classify.test.ts additions covering the new
       function. No changes to classify-only.ts, the /classify route, or
       any pipeline_tasks column/enum.
-  - session_label: "claude-code (subagent, R65 Part D Phase 3) -- wire pipeline_task_status's 'in_progress' value, verified-and-revised scope vs. the Phase 0 report's own §3.12/§4.2/Phase 3 recommendation"
+  - session_label: "claude-code (subagent, R65 Part D Phase 3) -- wire pipeline_task_status's 'in_progress' value, verified-and-revised scope vs. the Phase 0 report's own Â§3.12/Â§4.2/Phase 3 recommendation"
     claimed_at: "2026-09-02T (this session)"
     claim: |
-      R65 Part D Phase 0 report (§3.12) found `pipelineTaskStatusEnum`'s
+      R65 Part D Phase 0 report (Â§3.12) found `pipelineTaskStatusEnum`'s
       'in_progress'/'waiting' values and `pipelineTaskExecutorEnum`'s
       'ai'/'person' values declared in the DB enum but never assigned by
       any code path (confirmed again fresh in this session before starting
@@ -2798,7 +2855,7 @@ active:
       wrong on two points before implementation started): (1) schema.ts's
       own comment on pipelineTaskStatusEnum says "M24's closed 5-status
       set, verbatim -- no sixth value" -- this directly contradicts the
-      Phase 0 report's own §4.2 recommendation to extend the enum with
+      Phase 0 report's own Â§4.2 recommendation to extend the enum with
       WAITING_FOR_APPROVAL/ESCALATED, so that extension is NOT done here,
       no migration is added, and this is disclosed as a genuine
       contradiction for the owner rather than silently resolved either
@@ -2812,7 +2869,7 @@ active:
       reversed without sign-off. 'ai'/'person' (executor) have no call
       site at all in this pipeline by design: every minted task is
       executed by executor.ts's software registry, per directive rule
-      §22/#27 itself ("AI must NOT directly perform uncontrolled database
+      Â§22/#27 itself ("AI must NOT directly perform uncontrolled database
       mutation... software validates, authorizes, executes"). Final real
       change: src/lib/pipeline/run-submission.ts's markInProgress() sets
       status='in_progress' immediately before the one call that can take
@@ -2838,7 +2895,7 @@ active:
     claimed_at: "2026-09-02T (this session)"
     claim: |
       Continuing R65 Part D per the Phase 0 report's own remaining-phases list
-      (directive §4/§10/rule #6/#7: "search DB for identical/completed task
+      (directive Â§4/Â§10/rule #6/#7: "search DB for identical/completed task
       before AI", "don't repeat completed work", "don't call AI when software
       can determine the action"). Phase 4 (submission classification) and
       Phase 3 (in_progress wiring) are already merged (see the two claim
@@ -2855,7 +2912,7 @@ active:
       increments, zero model calls." Confirmed via repo-wide grep (before
       starting) that ZERO code anywhere reads or writes it -- the Phase 0
       report's four inspection passes missed this table entirely and
-      instead recommended (§4.5/Phase 5) wiring `pipelineTasks` for this
+      instead recommended (Â§4.5/Phase 5) wiring `pipelineTasks` for this
       same purpose; that table has no per-segment text column at all
       (confirmed fresh), so an exact-repeat-avoidance query against it
       isn't cleanly buildable the way the report assumed. Using the
@@ -2870,7 +2927,7 @@ active:
       project id into the hash prevents a cross-project false-positive
       reuse). A hit skips the model call entirely (source="reuse_cache",
       level=0 -- a real $0 software hit by directive's own L0 definition,
-      §10). A genuine Level 1 success gets written back via upsert
+      Â§10). A genuine Level 1 success gets written back via upsert
       (reuse_count increments). Exactly as safe as any other resolution
       source: validate() (validate.ts) re-checks function_id/params/
       user-permission/project-reachability on EVERY resolution regardless
