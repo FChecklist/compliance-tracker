@@ -62,6 +62,13 @@ import type { ActorCtx } from "@/lib/services/actor-context"
 //     before any row is written, instead of silently persisting NULLs.
 import { assertMemoryWriteAuthorized, type MemoryWriteActor } from "./memory-write-authorization"
 import { assertAttributionComplete, buildAttributionEntry, type ChangedByType } from "./memory-write-attribution"
+// R68 Phase 8 (IMG-031). The WRITE paths in this file are gated one level
+// down, inside authorizeMemoryWrite() -- createMemoryRecord(),
+// supersedeMemoryRecord(), promoteMemoryRecord() and archiveMemoryRecord() all
+// reach it through assertMemoryWriteAuthorized(), so the gate is applied once,
+// at the chokepoint, rather than repeated at four call sites that could drift.
+// The READ paths have no such chokepoint, so each is gated explicitly below.
+import { assertImgEntitled } from "./memory-entitlement"
 
 // ─── Types (mirrors the CHECK constraints in drizzle/0520's memory_records/
 // memory_sources/memory_versions -- kept as plain string unions, not a
@@ -528,6 +535,19 @@ export async function searchMemories(
   query: string,
   options: SearchMemoriesOptions = {}
 ): Promise<MemorySearchMatch[]> {
+  // R68 Phase 8 (IMG-031). searchMemories() is a real production recall path
+  // -- chat-service.ts's fetchRelevantMemories() calls it on every AI reply --
+  // so it is gated like every other one. It takes no orgId parameter at all,
+  // which is precisely why memory-entitlement.ts reads the org from
+  // compliance.current_org_id() rather than from an argument: adding an
+  // OPTIONAL orgId here would have left this path failing open for the caller
+  // that did not pass it.
+  //
+  // Gated BEFORE generateEmbedding() on purpose: that call costs a real
+  // embedding-provider request, and a non-entitled org must not be able to
+  // spend the platform's AI budget on a recall it will then be refused.
+  await assertImgEntitled(tx)
+
   const trimmedQuery = query.trim()
   if (!trimmedQuery) return []
 
@@ -1107,6 +1127,15 @@ export async function resolveMemoryScope(
   // ORGANIZATION/USER only, which is the correct, conservative behavior:
   // there is no department to prefer for a caller that isn't a specific
   // department's member.
+  // R68 Phase 8 (IMG-031). First, before the resolver reads a single memory
+  // row. This is the function recallExact() delegates to for BOTH the fetch
+  // and the GLOBAL->ORGANIZATION->DEPARTMENT->USER precedence, so it is also
+  // the deepest read path IMG has -- gating it here means no caller can reach
+  // memory content by routing around recallMemory(). The check memoizes on the
+  // transaction handle, so the recallMemory() -> recallExact() ->
+  // resolveMemoryScope() chain still costs exactly one entitlement query.
+  await assertImgEntitled(tx, actor.orgId)
+
   const departmentId = actor.dbUser?.departmentId ?? null
 
   const memoryTypeFilter = options.memoryType ? sql`AND memory_type = ${options.memoryType}` : sql``
@@ -1243,6 +1272,15 @@ async function walkMemoryLineageIds(executor: MemoryLineageExecutor, id: string)
  * the full chain either way.
  */
 export async function getMemoryRecordAsOf(tx: TenantDb, id: string, asOf: Date): Promise<MemoryRecord | null> {
+  // R68 Phase 8 (IMG-031). The as-of (valid-time) reader is a recall path like
+  // any other -- "what did we believe on this date" is still recall -- so it
+  // is gated too. Deliberately NOT gated: redactMemoryRecordLineage() below.
+  // That is erasure, not use: an org that has let its IMG entitlement lapse
+  // must still be able to have its own remembered content erased, and gating
+  // erasure behind a live subscription would turn a data-protection right into
+  // something an organisation can be billed for.
+  await assertImgEntitled(tx)
+
   const lineageIds = await walkMemoryLineageIds(tx as unknown as MemoryLineageExecutor, id)
   if (lineageIds.length === 0) return null
 

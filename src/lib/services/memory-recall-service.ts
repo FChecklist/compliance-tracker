@@ -89,6 +89,7 @@ import { db } from "@/lib/db"
 import { findSimilar, generateEmbeddingUncached, HASH_PSEUDO_VECTOR_MODEL } from "@/lib/embeddings"
 import type { ActorCtx } from "./actor-context"
 import { resolveMemoryScope, type MemoryType, type ResolvedMemoryRecord } from "./memory-service"
+import { assertImgEntitled } from "./memory-entitlement"
 
 // ─── Tiers ───────────────────────────────────────────────────────────────
 
@@ -640,6 +641,17 @@ export async function recallMemory(
   options: RecallMemoryOptions = {},
   deps: RecallDeps = {}
 ): Promise<RecallResult> {
+  // R68 Phase 8 (IMG-031) -- THE ENTITLEMENT GATE, ABOVE THE WHOLE LADDER.
+  //
+  // Placed before tier 1 rather than inside each tier, because the honest unit
+  // of refusal is the recall, not the tier. A per-tier check would let a
+  // non-entitled org receive `{ tier: "none", proposals: [], skipped: [...] }`
+  // -- which reads as "we looked and found nothing", and is exactly the silent
+  // partial answer IMG-031's gate_fail ("A non-entitled org can recall")
+  // forbids. Throwing here means a non-entitled org gets a refusal it can act
+  // on, and never a plausible-looking empty result.
+  await assertImgEntitled(tx, actor.orgId)
+
   const skipped: RecallSkip[] = []
   const limit = options.limit ?? 10
   const maxTier = options.maxTier ?? "graph"

@@ -19,6 +19,7 @@
 // pass the first check and fail the second.
 import { describe, expect, test, mock, beforeEach } from "bun:test"
 import type { TenantDb } from "@/lib/db/tenant-scoped"
+import { imgEntitled, isImgEntitlementQuery } from "./__test-helpers__/img-entitlement-fake"
 
 const NOW = new Date("2026-09-04T00:00:00.000Z")
 
@@ -67,6 +68,12 @@ function makeQueueTx(responses: unknown[][]) {
   let i = 0
   const calls: unknown[] = []
   const execute = mock(async (q: unknown) => {
+    // R68 Phase 8: authorizeMemoryWrite() runs the IMG entitlement gate before
+    // any of the three booleans. Answered out of band so this file's fixtures
+    // keep testing exactly what they were written to test -- the three
+    // booleans themselves, for an org that HAS the product. The gate refusing
+    // an org that does NOT is proven in r68-phase8-packaging.test.ts.
+    if (isImgEntitlementQuery(q)) return imgEntitled()
     calls.push(q)
     const r = responses[i] ?? []
     i += 1
