@@ -84,3 +84,4 @@ server.log
 .scratch/
 
 .vercel
+.env*
