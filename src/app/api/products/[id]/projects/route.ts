@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
-  const roleCheck = requireRole(dbUser, "manager")
+  const roleCheck = requireRole(dbUser, "admin")
   if (roleCheck) return roleCheck
 
   try {

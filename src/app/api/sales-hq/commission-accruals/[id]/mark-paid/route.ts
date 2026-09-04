@@ -6,7 +6,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { response, dbUser } = await requireAuth()
   if (response) return response
 
-  const roleCheck = requireRole(dbUser, "branch_manager")
+  const roleCheck = requireRole(dbUser, "veridian_admin")
   if (roleCheck) return roleCheck
 
   try {
