@@ -42,9 +42,21 @@ export function assertValidLayerKey(branchKey: string, layerKey: string): void {
   }
 }
 
-export async function isBranchEnabledForOrg(orgId: string, branchKey: string): Promise<boolean> {
-  return withTenantContext({ orgId }, async (db) => {
-    const branchId = await getBranchId(db, branchKey)
+// R74 Phase 10 fix: the actual check, pulled out so a caller that ALREADY
+// holds an open withTenantContext transaction (e.g. capability-tree-service
+// .ts's buildCapabilityTree(), via getFullReportCatalog's per-domain
+// isReportDomainEnabledForOrg calls) can pass that same `db` handle down
+// instead of opening a second one -- see tenant-scoped.ts's own
+// assertNotNested() error message ("Pass the open transaction's db handle
+// down instead"). Confirmed live: this was the second of two real, direct
+// nested-withTenantContext call sites inside buildCapabilityTree's single
+// synchronous chain (the first was getFullReportCatalog's own transaction,
+// fixed alongside this one) -- both reproduced GET /api/v1/projexa/
+// module-chain's "nested withTenantContext" error on every call, not
+// intermittently, because both are real, deterministic nesting in the
+// source, not a timing-dependent race.
+export async function isBranchEnabledForOrgWithDb(db: TenantDb, orgId: string, branchKey: string): Promise<boolean> {
+  const branchId = await getBranchId(db, branchKey)
     // Wave 7 (CRM+PROJEXA-merge plan, 2026-07-21): an org whose entire
     // brand identity IS this branch (organisations.primaryProductBranchId
     // -- the same field org-branding-service.ts's resolveBranding() reads
@@ -73,7 +85,10 @@ export async function isBranchEnabledForOrg(orgId: string, branchKey: string): P
       where: and(eq(orgProductBranchEnablements.orgId, orgId), eq(orgProductBranchEnablements.productBranchId, branchId)),
     })
     return row?.isEnabled ?? false
-  })
+}
+
+export async function isBranchEnabledForOrg(orgId: string, branchKey: string): Promise<boolean> {
+  return withTenantContext({ orgId }, (db) => isBranchEnabledForOrgWithDb(db, orgId, branchKey))
 }
 
 /** Shared 403 gate every vertical's service/route calls first. */

@@ -18,9 +18,10 @@
 // the DB, so it lives here instead, alongside report-engine-service.ts (the
 // dispatcher that actually calls it) -- already a server-only file.
 import type { ReportDomain } from "./report-catalog-service"
-import { requireErpEnabled, isErpEnabledForOrg } from "./erp-enablement-service"
-import { requireConstructionEnabled, isConstructionEnabledForOrg } from "./construction-enablement-service"
-import { requireSalesEnabled, isSalesEnabledForOrg } from "./crm-enablement-service"
+import type { TenantDb } from "@/lib/db/tenant-scoped"
+import { requireErpEnabled, isErpEnabledForOrg, isErpEnabledForOrgWithDb } from "./erp-enablement-service"
+import { requireConstructionEnabled, isConstructionEnabledForOrg, isConstructionEnabledForOrgWithDb } from "./construction-enablement-service"
+import { requireSalesEnabled, isSalesEnabledForOrg, isSalesEnabledForOrgWithDb } from "./crm-enablement-service"
 
 // Pure branch-mapping table, isolated from the async DB calls so it's
 // independently unit-testable (this repo's own established pattern -- see
@@ -68,5 +69,22 @@ export async function isReportDomainEnabledForOrg(orgId: string, domain: ReportD
   if (gate.branchKey === "erp") return isErpEnabledForOrg(orgId)
   if (gate.branchKey === "construction") return isConstructionEnabledForOrg(orgId)
   if (gate.branchKey === "sales") return isSalesEnabledForOrg(orgId)
+  return true
+}
+
+/**
+ * R74 Phase 10 fix: db-handle-accepting variant, for a caller that already
+ * holds an open withTenantContext transaction -- see
+ * isBranchEnabledForOrgWithDb's own comment in product-branch-service.ts.
+ * getFullReportCatalog() below fans this out per-domain; sharing one `db`
+ * here is also why that fan-out must run sequentially, not via Promise.all
+ * (a single transaction/connection cannot safely run concurrent queries).
+ */
+export async function isReportDomainEnabledForOrgWithDb(db: TenantDb, orgId: string, domain: ReportDomain): Promise<boolean> {
+  const gate = getReportDomainGate(domain)
+  if (!gate) return true
+  if (gate.branchKey === "erp") return isErpEnabledForOrgWithDb(db, orgId)
+  if (gate.branchKey === "construction") return isConstructionEnabledForOrgWithDb(db, orgId)
+  if (gate.branchKey === "sales") return isSalesEnabledForOrgWithDb(db, orgId)
   return true
 }

@@ -12,16 +12,23 @@ import {
   enableProductBranchForOrg,
   disableProductBranchForOrg,
   isBranchEnabledForOrg,
+  isBranchEnabledForOrgWithDb,
   getBranchEnablement,
   type BranchEnablementContext,
   ServiceError,
 } from "./product-branch-service"
+import type { TenantDb } from "@/lib/db/tenant-scoped"
 export { ServiceError }
 
 export type SalesContext = BranchEnablementContext
 
 export async function isSalesEnabledForOrg(orgId: string): Promise<boolean> {
   return isBranchEnabledForOrg(orgId, "sales")
+}
+
+/** R74 Phase 10 fix: db-handle-accepting variant -- see isBranchEnabledForOrgWithDb's own comment in product-branch-service.ts. */
+export async function isSalesEnabledForOrgWithDb(db: TenantDb, orgId: string): Promise<boolean> {
+  return isBranchEnabledForOrgWithDb(db, orgId, "sales")
 }
 
 // Owner's exact wording (2026-07-13, OPEN-07 decision c) -- see
