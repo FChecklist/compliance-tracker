@@ -2,7 +2,7 @@ import { webhooks, webhookDeliveries } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 
 const VALID_EVENTS = [
   "item.created",
@@ -16,9 +16,11 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { response, orgId } = await requireAuth();
+  const { response, orgId, dbUser } = await requireAuth();
   if (response) return response;
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 });
+  const roleCheck = requireRole(dbUser, "admin");
+  if (roleCheck) return roleCheck;
 
   try {
     const { id } = await params;
@@ -87,9 +89,11 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { response, orgId } = await requireAuth();
+  const { response, orgId, dbUser } = await requireAuth();
   if (response) return response;
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 });
+  const roleCheck = requireRole(dbUser, "admin");
+  if (roleCheck) return roleCheck;
 
   try {
     const { id } = await params;

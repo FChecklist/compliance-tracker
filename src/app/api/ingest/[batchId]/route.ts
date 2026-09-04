@@ -3,7 +3,7 @@
  * DELETE /api/ingest/[batchId] — cancel the batch (wipes staging items)
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/supabase/auth-guard'
+import { requireAuth, requireRole } from '@/lib/supabase/auth-guard'
 import { ingestionBatches, ingestionItems } from '@/lib/db'
 import { withTenantContext } from '@/lib/db/tenant-scoped'
 import { eq } from 'drizzle-orm'
@@ -74,9 +74,12 @@ export async function GET(_req: NextRequest, ctx: Context) {
 }
 
 export async function DELETE(_req: NextRequest, ctx: Context) {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: 'No organisation on this account' }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, 'manager')
+  if (roleCheck) return roleCheck
 
   const { batchId } = await ctx.params
 

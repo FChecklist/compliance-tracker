@@ -3,7 +3,7 @@
 // reachable at the internal /api/construction/boq/[id] route. Same service
 // call, same auth pattern as the sibling v1/construction/boq/route.ts.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { getBoq, deleteBoq, ServiceError } from "@/lib/services/construction-boq-service"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -29,6 +29,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  const roleCheck = requireRoleOrScope(ctx, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

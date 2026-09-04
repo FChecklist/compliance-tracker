@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { markCommissionPaid, ServiceError } from "@/lib/services/sales-engine-service"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { response, dbUser } = await requireAuth()
   if (response) return response
+
+  const roleCheck = requireRole(dbUser, "branch_manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

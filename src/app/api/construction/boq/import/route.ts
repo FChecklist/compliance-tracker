@@ -7,7 +7,7 @@
  * just fed from a parsed spreadsheet instead of a hand-built JSON body.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { parseBoqSpreadsheet, ServiceError } from "@/lib/services/construction-boq-import-service"
 import { createBoq, createBoqRevision } from "@/lib/services/construction-boq-service"
 
@@ -17,6 +17,9 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const formData = await request.formData()
