@@ -77,6 +77,11 @@ import type { TenantDb } from "@/lib/db/tenant-scoped"
 // and which a unit test that stubs "@/lib/db" cannot load at all. Same table,
 // one definition, no duplicate rank map. See role-rank.ts's own header.
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/role-rank"
+// R68 Phase 8 (IMG-031). Also a leaf -- see memory-entitlement.ts's own header
+// for why it imports nothing but drizzle's `sql`: this module has to stay
+// loadable by a unit test that stubs "@/lib/db" down to one fake client, and
+// the entitlement gate now runs inside it.
+import { assertImgEntitled } from "./memory-entitlement"
 
 // ─── Actor ──────────────────────────────────────────────────────────────
 
@@ -336,6 +341,24 @@ export async function authorizeMemoryWrite(
   target: MemoryWriteTarget
 ): Promise<MemoryWriteDecision> {
   assertNoClientAuthorityClaim(actor)
+
+  // R68 Phase 8 (IMG-031) -- THE ENTITLEMENT GATE, BEFORE ANY OF THE THREE
+  // BOOLEANS.
+  //
+  // Order matters, and this is deliberately first. The three booleans below
+  // answer "may THIS CALLER perform THIS WRITE in this org" -- a question that
+  // only makes sense once the org has the product at all. Running them first
+  // would leak the answer to a question a non-entitled org is not entitled to
+  // ask: a caller could learn, from the shape of the refusal, whether a given
+  // user exists, whether a department id is real, or what role a user holds.
+  //
+  // It also THROWS rather than returning `allowed: false`. Entitlement is not
+  // a fourth boolean: the three are a per-write authorization verdict, and a
+  // caller (or a future reader of this file) must not be able to read a
+  // "product not purchased" refusal as "this particular write was
+  // unauthorized" and go looking for a role to fix it. Same reason
+  // assertNoClientAuthorityClaim() above throws instead of returning.
+  await assertImgEntitled(tx, actor.orgId)
 
   const requiredRole = requiredRoleForMemoryWrite(actor, target)
   const fail = (patch: Partial<MemoryWriteDecision> & { reason: string }): MemoryWriteDecision => ({

@@ -19,6 +19,7 @@
 import { describe, expect, test, mock, beforeEach } from "bun:test"
 import type { TenantDb } from "@/lib/db/tenant-scoped"
 import { createHash } from "crypto"
+import { imgEntitled, isImgEntitlementQuery } from "./__test-helpers__/img-entitlement-fake"
 
 // Real sha256 of the trimmed content -- matches memory-service.ts's own
 // `createHash("sha256").update(trimmedContent).digest("hex")` exactly, so
@@ -67,6 +68,13 @@ function makeQueueTx(responses: unknown[][]) {
   let i = 0
   const calls: unknown[] = []
   const execute = mock(async (q: unknown) => {
+    // R68 Phase 8: resolveMemoryScope(), searchMemories() and
+    // getMemoryRecordAsOf() now run the IMG entitlement gate first. Answered
+    // out of band so it consumes no queue slot and shifts no index-sensitive
+    // assertion -- same reasoning as this file's own note below on stubbing
+    // the Phase 6 authorization gate. The gate actually REFUSING is proven in
+    // r68-phase8-packaging.test.ts.
+    if (isImgEntitlementQuery(q)) return imgEntitled()
     calls.push(q)
     const r = responses[i] ?? []
     i += 1
@@ -1183,7 +1191,13 @@ describe("getMemoryRecordAsOf (R68 Phase 1 item 3)", () => {
     // guard's effect immediately observable instead.
     let call = 0
     const responses = [[{ id: "mem-2" }], [{ id: "mem-1" }]]
-    const execute = mock(async () => responses[call++ % 2])
+    // R68 Phase 8: getMemoryRecordAsOf() gates on IMG entitlement first.
+    // Answered out of band -- this fake CYCLES its two responses forever, so
+    // letting the gate consume one would permanently invert the cycle and the
+    // test would stop exercising the lineage guard it exists for.
+    const execute = mock(async (q: unknown) =>
+      isImgEntitlementQuery(q) ? imgEntitled() : responses[call++ % 2]
+    )
     const tx = { execute } as unknown as TenantDb
 
     await expect(getMemoryRecordAsOf(tx, "mem-1", new Date("2026-01-01"))).rejects.toThrow(/cyclic superseded_by_id chain/)

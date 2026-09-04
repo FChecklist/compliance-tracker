@@ -75,6 +75,35 @@ export const BYPASS_CLIENT_ALLOWLIST: readonly { file: string; functionName: str
     why:
       "Right-to-erasure redaction (R68 Phase 1 item 5 / R-IMG-05). Must rewrite content + content_hash on already-existing rows, which drizzle/0541's append-only trigger blocks for app_runtime, and must UPDATE memory_versions, on which app_runtime holds no UPDATE grant at all. Carries its own expectedOrgId defence-in-depth check in place of the RLS it cannot use.",
   },
+  // ADDED IN R68 PHASE 8, FOR CODE PHASE 7 SHIPPED. This entry is a
+  // book-keeping correction, not a new permission: Phase 7's projection job
+  // landed on main (PR #1603) already writing memory_sources through the
+  // bypass client, and this allowlist was never updated to match -- so this
+  // test has been RED on main ever since, independently of Phase 8. Verified
+  // by running this file against a clean checkout of origin/main
+  // (209c6ac7), where it fails identically.
+  //
+  // WHY THE WRITE ITSELF IS CORRECT, not merely tolerated:
+  //   - runMemorySheetsProjectionJob() is a PLATFORM cron with no single org
+  //     in context. Its driving SELECT deliberately spans every org
+  //     ("lifecycle_state = 'ACTIVE' AND no SHEET_ROW source yet", no org
+  //     filter), the same cross-org posture listOrgIdsWithBranchEnabled() and
+  //     every other /api/internal/*/run job already uses.
+  //   - compliance.memory_sources has NO org_id column at all (verified live
+  //     against pcrjmlpuqsbocqfwoxod: id, memory_record_id, source_kind,
+  //     conversation_id, task_id, document_id, sheet_row_ref, created_at).
+  //     There is therefore no tenant context that COULD scope this insert --
+  //     it is not a bypass of RLS that exists, it is a table RLS cannot scope.
+  //   - The value written is a locator string the job computed from its own
+  //     Sheets append response, never content read back from Sheets, and it
+  //     is the row that makes the projection idempotent (its absence is what
+  //     the SELECT above uses to find unprojected rows).
+  {
+    file: "lib/loops/memory-sheets-projection.ts",
+    functionName: "runMemorySheetsProjectionJob",
+    why:
+      "R68 Phase 7 one-way Sheets projection join-back. A platform cron with no single org in context (its driving SELECT spans every org by design), inserting into compliance.memory_sources -- a table with no org_id column, so no tenant context could scope the write. Writes only a sheet-row locator the job computed from its own append response, never content, and only for memory_records rows it has already read.",
+  },
 ]
 
 const WRITE_TO_GUARDED_TABLE_RE = new RegExp(
@@ -270,23 +299,30 @@ describe("R68 Phase 6: no bare (non-withTenantContext) client may write to the m
     ).toEqual([])
   })
 
-  test("the allow-list is exactly the one documented erasure exception", () => {
-    // Pinned so a second bypass write cannot be legitimised by quietly
-    // appending to the list -- adding one has to change this assertion too,
-    // which is what puts it in front of a reviewer.
+  test("the allow-list is exactly the two documented exceptions -- erasure, and the Sheets projection join-back", () => {
+    // Pinned so a bypass write cannot be legitimised by quietly appending to
+    // the list -- adding one has to change this assertion too, which is what
+    // puts it in front of a reviewer. It did exactly that in R68 Phase 8: the
+    // projection entry below could not be added without editing this line.
     expect(BYPASS_CLIENT_ALLOWLIST.map((a) => `${a.file}#${a.functionName}`)).toEqual([
       "lib/services/memory-service.ts#redactMemoryRecordLineage",
+      "lib/loops/memory-sheets-projection.ts#runMemorySheetsProjectionJob",
     ])
     for (const entry of BYPASS_CLIENT_ALLOWLIST) {
       expect(entry.why.length).toBeGreaterThan(80) // a real justification, not a TODO
     }
   })
 
-  test("the allow-listed exception is still really there (the list cannot rot into fiction)", () => {
+  test("the allow-listed exceptions are still really there (the list cannot rot into fiction)", () => {
     const source = readFileSync(join(SRC_ROOT, "lib", "services", "memory-service.ts"), "utf8")
     const found = findBareClientMemoryWrites("lib/services/memory-service.ts", source)
     expect(found.length).toBeGreaterThan(0)
     for (const v of found) expect(v.functionName).toBe("redactMemoryRecordLineage")
+
+    const projection = readFileSync(join(SRC_ROOT, "lib", "loops", "memory-sheets-projection.ts"), "utf8")
+    const projectionFound = findBareClientMemoryWrites("lib/loops/memory-sheets-projection.ts", projection)
+    expect(projectionFound.length).toBeGreaterThan(0)
+    for (const v of projectionFound) expect(v.functionName).toBe("runMemorySheetsProjectionJob")
   })
 
   // ── Both directions, against synthetic fixtures, so the scanner itself is

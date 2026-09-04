@@ -46,6 +46,7 @@
 // migration-SQL assertions).
 import { describe, expect, test, mock, beforeEach } from "bun:test"
 import type { TenantDb } from "@/lib/db/tenant-scoped"
+import { imgEntitled, isImgEntitlementQuery } from "./__test-helpers__/img-entitlement-fake"
 
 const NOW = new Date("2026-09-02T00:00:00.000Z")
 
@@ -88,6 +89,10 @@ function makeQueueTx(responses: unknown[][]) {
   let i = 0
   const calls: unknown[] = []
   const execute = mock(async (q: unknown) => {
+    // R68 Phase 8: the lifecycle/scope/retrieval paths this file drives now
+    // gate on IMG entitlement first. Answered out of band so every scenario
+    // below keeps its own queue indices and keeps meaning "an ENTITLED org".
+    if (isImgEntitlementQuery(q)) return imgEntitled()
     calls.push(q)
     const r = responses[i] ?? []
     i += 1

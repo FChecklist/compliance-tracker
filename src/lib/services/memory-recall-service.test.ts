@@ -34,6 +34,7 @@ import {
   type RecallProposal,
   type RecallResult,
 } from "./memory-recall-service"
+import { imgEntitled, isImgEntitlementQuery } from "./__test-helpers__/img-entitlement-fake"
 
 const NOW = new Date("2026-09-04T00:00:00.000Z")
 
@@ -80,6 +81,12 @@ function makeQueueTx(responses: unknown[][]) {
   let i = 0
   const calls: unknown[] = []
   const execute = async (q: unknown) => {
+    // R68 Phase 8: recallMemory() now runs the IMG entitlement gate first.
+    // Answered out of band so it consumes no queue slot and appears in no
+    // `calls` assertion -- every tier fixture below still means exactly what
+    // it meant before, namely "an ENTITLED org recalls this". The gate
+    // actually REFUSING is proven in r68-phase8-packaging.test.ts.
+    if (isImgEntitlementQuery(q)) return imgEntitled(ACTOR.orgId)
     calls.push(q)
     const r = responses[i] ?? []
     i += 1
