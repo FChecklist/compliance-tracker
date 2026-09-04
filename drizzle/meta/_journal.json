@@ -2633,6 +2633,13 @@
       "when": 1788510700000,
       "tag": "0558_r71_phase9_rls_on_new_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 376,
+      "version": "7",
+      "when": 1788510800000,
+      "tag": "0559_r71_phase10_quarantine_legacy_embeddings",
+      "breakpoints": true
     }
   ]
 }
