@@ -63,9 +63,22 @@ export default defineConfig({
   testDir: "./e2e",
   use: {
     baseURL: "http://localhost:3000",
+    // R74 Y4-03: capture on failure only (not every run -- would fill the
+    // git-ignored output dir fast and slow the suite for no benefit on
+    // passing tests). A trace can contain a session token (GY-17) -- the
+    // output directories below are confirmed git-ignored (test-results/,
+    // playwright-report/) BEFORE this config was extended, not after.
+    screenshot: "only-on-failure",
+    trace: "retain-on-failure",
+    video: "retain-on-failure",
   },
   webServer: {
-    command: "bun run dev",
+    // NOT "bun run dev" -- that script pipes through `tee dev.log`, which
+    // bun's Windows script runner does not support (CLAUDE.md's own
+    // documented gotcha, confirmed again by this session directly before
+    // relying on it: see R74 Phase 4 claude_log entry). Runs the same two
+    // underlying steps `bun run dev` would, without the broken pipe.
+    command: "node scripts/generate-protected-routes.mjs && npx next dev -p 3000",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 300_000,
