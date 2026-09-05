@@ -184,6 +184,8 @@ const EXEMPT_ROUTES: Array<{ path: string; category: string; reason: string }> =
   {"path":"src/app/api/webhooks/vercel-deployment/route.ts","category":"INTERNAL_SECRET","reason":"Receives Vercel's deployment webhook and records a deployment event, authenticated via HMAC signature rather than a user session."},
   {"path":"src/app/api/stage0/conversations/[id]/messages/route.ts","category":"TOKEN_SCOPED","reason":"Stage-0 user posts/reads messages in a specific conversation, gated by a real per-resource active-membership DB check, not by requireRole."},
   {"path":"src/app/api/support-sessions/[id]/end/route.ts","category":"TOKEN_SCOPED","reason":"Ends a support/impersonation session early, gated by hasRole() checks for either veridian_admin or the specific target org's own admin."},
+  {"path":"src/app/api/training/enrollments/[id]/start/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G8 ownership-bypass fix: startEnrollment() in training-service.ts checks enrollment.employeeId !== ctx.userId -> 403 before flipping status, matching submitAttempt()'s own no-manager-override convention; the grep's requireRole()/requireRoleOrScope() scan can't see a service-layer ownership check."},
+  {"path":"src/app/api/training/enrollments/[id]/complete/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G8 ownership-bypass fix: markCourseComplete() in training-service.ts checks enrollment.employeeId !== ctx.userId -> 403 before marking complete, same convention as startEnrollment(); not visible to the route-file requireRole() grep."},
   {"path":"src/app/api/connectors/route.ts","category":"SERVICE_LAYER_GATED","reason":"Starts an OAuth connection flow; POST/GET filter to eq(connectorAccounts.userId, dbUser.id), self-scoped to the caller's own connector account (R75P2 W2-01 re-verify)."},
   {"path":"src/app/api/connectors/[toolkit]/sync/route.ts","category":"SERVICE_LAYER_GATED","reason":"Re-checks OAuth connection status; query and update both filter to eq(connectorAccounts.userId, dbUser.id), self-scoped (R75P2 W2-01 re-verify)."},
   {"path":"src/app/api/ai/team/capability-improvements/[id]/route.ts","category":"SERVICE_LAYER_GATED","reason":"POST close/reject actions gated by an inline `dbUser.role !== 'veridian_admin'` check (R75P2 W2-01 re-verify)."},
@@ -308,18 +310,12 @@ const KNOWN_OPEN_GAPS: Array<{ path: string; category: string; reason: string }>
   {"path":"src/app/api/pms/wiki/route.ts","category":"MEDIUM","reason":"Creates a PMS wiki page under a given project, org-scoped, with no role check."},
   {"path":"src/app/api/pms/wiki/[id]/route.ts","category":"MEDIUM","reason":"Updates an existing PMS wiki page with no role check."},
   {"path":"src/app/api/problem-records/[id]/tickets/route.ts","category":"MEDIUM","reason":"Links an existing ticket to a problem record with no role check."},
-  {"path":"src/app/api/prompt-compiler/execute/route.ts","category":"MEDIUM","reason":"Runs the server-side prompt-compiler pipeline for the caller's org with no role check."},
-  {"path":"src/app/api/training/enrollments/[id]/complete/route.ts","category":"LOW","reason":"Lets the authenticated caller mark their own training-course enrollment complete."},
-  {"path":"src/app/api/training/enrollments/[id]/start/route.ts","category":"LOW","reason":"Lets the authenticated caller start their own training-course enrollment."},
   {"path":"src/app/api/v1/projexa/reports/definitions/[id]/run/route.ts","category":"MEDIUM","reason":"Executes a saved report definition and returns its computed result, with no role/permission gate beyond generic auth."},
-  {"path":"src/app/api/v1/tasks/route.ts","category":"MEDIUM","reason":"Creates a new task in the org's Task Master with no role/permission gate beyond generic auth."},
   {"path":"src/app/api/pms/estimate-schemes/route.ts","category":"MEDIUM","reason":"Lets any authenticated org member create a project's estimate-point scheme (config), unlike sibling taxonomy endpoints that are admin-gated."},
   {"path":"src/app/api/pms/issues/[id]/relations/route.ts","category":"MEDIUM","reason":"Lets any authenticated org member link any two project issues together with no role check."},
   {"path":"src/app/api/pms/labels/route.ts","category":"MEDIUM","reason":"Lets any authenticated org member create a project label (low-stakes taxonomy item) with no role check."},
   {"path":"src/app/api/pms/meetings/route.ts","category":"MEDIUM","reason":"Lets any authenticated org member schedule a project meeting with no role check."},
   {"path":"src/app/api/pms/meetings/[id]/outcomes/route.ts","category":"MEDIUM","reason":"Lets any authenticated org member append outcome notes to any project meeting with no role check."},
-  {"path":"src/app/api/metric-alert-rules/route.ts","category":"MEDIUM","reason":"Creates a metric-alert monitoring rule for the org with no role restriction."},
-  {"path":"src/app/api/metric-alert-rules/[id]/route.ts","category":"MEDIUM","reason":"Updates or deletes an org's metric-alert rule with no role restriction."},
   {"path":"src/app/api/ticket-intelligence/[id]/dismiss/route.ts","category":"MEDIUM","reason":"Dismisses an AI-suggested ticket-intelligence item."},
   {"path":"src/app/api/ticket-teams/route.ts","category":"MEDIUM","reason":"Creates a ticket routing team used for SLA policy matching."},
   {"path":"src/app/api/ticket-teams/[id]/route.ts","category":"MEDIUM","reason":"Updates a ticket routing team's configuration."},
@@ -329,16 +325,8 @@ const KNOWN_OPEN_GAPS: Array<{ path: string; category: string; reason: string }>
   {"path":"src/app/api/veri-meetings/[id]/action-items/route.ts","category":"MEDIUM","reason":"Adds and assigns a new action item to a meeting."},
   {"path":"src/app/api/veri-meetings/[id]/generate-intelligence/route.ts","category":"MEDIUM","reason":"Triggers AI-generated intelligence/analysis for a meeting."},
   {"path":"src/app/api/voice-tickets/[id]/action-items/route.ts","category":"MEDIUM","reason":"Promotes a voice-memo suggested item into a real assigned action-item/ticket."},
-  {"path":"src/app/api/worker-agents/route.ts","category":"MEDIUM","reason":"Proposes a new worker agent, which lands as a draft pending separate admin approval/publish."},
-  {"path":"src/app/api/workspace-memory/drive-import/route.ts","category":"MEDIUM","reason":"Downloads the latest workspace-memory capsule from the caller's connected Drive and imports it into the org, additive-only."},
-  {"path":"src/app/api/workspace-memory/import/route.ts","category":"MEDIUM","reason":"Imports a user-uploaded workspace-memory capsule file into the org, additive-only."},
-  {"path":"src/app/api/tasks/[id]/chat/route.ts","category":"MEDIUM","reason":"Posts a chat message onto any task's AI chat thread for any authenticated member of the org, no ownership or role check."},
-  {"path":"src/app/api/tasks/[id]/comments/route.ts","category":"MEDIUM","reason":"Adds a comment (and notifies the task owner) on any task in the org, with no role or ownership gating."},
   {"path":"src/app/api/search/semantic/route.ts","category":"MEDIUM","reason":"Semantic search over an org's compliance items/notices/documents; org-scoped but returns results to any authenticated member regardless of role."},
-  {"path":"src/app/api/settings/webhooks/[id]/redeliver/route.ts","category":"MEDIUM","reason":"Manually replays a past webhook delivery against the org's webhook; no role check at all."},
-  {"path":"src/app/api/social/posts/route.ts","category":"MEDIUM","reason":"Creates a social-feed post; no role check, but writes are low-stakes org social content."},
-  {"path":"src/app/api/social/posts/[id]/comments/route.ts","category":"MEDIUM","reason":"Adds a comment to a social-feed post; no role check at all."},
-  {"path":"src/app/api/social/posts/[id]/reactions/route.ts","category":"MEDIUM","reason":"Adds/changes the caller's reaction on a social-feed post; no role check at all."}
+  {"path":"src/app/api/settings/webhooks/[id]/redeliver/route.ts","category":"MEDIUM","reason":"Manually replays a past webhook delivery against the org's webhook; no role check at all."}
 ]
 
 describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
@@ -386,9 +374,9 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
   test("headline counts match the R75 Phase 2 audit, as of 2026-09-05", () => {
     const protectedCount = mutating.filter((r) => r.protected).length
     expect(mutating.length).toBe(831)
-    expect(protectedCount).toBe(572) // 372 pre-existing + 189 fixed R75 Phase 2 + 11 fixed R75 Part 2 Phase 5 (G1) // 372 pre-existing + 189 fixed this phase
-    expect(EXEMPT_ROUTES.length).toBe(192)
-    expect(KNOWN_OPEN_GAPS.length).toBe(67)
+    expect(protectedCount).toBe(584) // 372 pre-existing + 189 R75P2 + 11 R75P2P5-G1 + 12 R75P2P5-G8 (route-file requireRole gates; 2 more G8 fixes are service-layer ownership checks, counted in EXEMPT_ROUTES instead)
+    expect(EXEMPT_ROUTES.length).toBe(194) // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep
+    expect(KNOWN_OPEN_GAPS.length).toBe(53)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
   })
 })
