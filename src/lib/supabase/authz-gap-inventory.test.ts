@@ -280,20 +280,7 @@ const EXEMPT_ROUTES: Array<{ path: string; category: string; reason: string }> =
   {"path":"src/app/api/crm/opportunities/[id]/analyze/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G2: analyzeOpportunity() calls assertGate(canEditOpportunity(role, opp.ownerId, userId)), owner-or-manager -- not visible to the grep."}
 ]
 
-const KNOWN_OPEN_GAPS: Array<{ path: string; category: string; reason: string }> = [
-  {"path":"src/app/api/problem-records/[id]/tickets/route.ts","category":"MEDIUM","reason":"Links an existing ticket to a problem record with no role check."},
-  {"path":"src/app/api/ticket-intelligence/[id]/dismiss/route.ts","category":"MEDIUM","reason":"Dismisses an AI-suggested ticket-intelligence item."},
-  {"path":"src/app/api/ticket-teams/route.ts","category":"MEDIUM","reason":"Creates a ticket routing team used for SLA policy matching."},
-  {"path":"src/app/api/ticket-teams/[id]/route.ts","category":"MEDIUM","reason":"Updates a ticket routing team's configuration."},
-  {"path":"src/app/api/tickets/[id]/dispatches/route.ts","category":"MEDIUM","reason":"Schedules a field-service technician dispatch for a ticket."},
-  {"path":"src/app/api/tickets/[id]/installed-product/route.ts","category":"MEDIUM","reason":"Links or unlinks an installed product record to a ticket."},
-  {"path":"src/app/api/veri-meetings/share-links/[linkId]/route.ts","category":"MEDIUM","reason":"Revokes a VERI Meetings share link by id, org-scoped but with no role gate on who may revoke."},
-  {"path":"src/app/api/veri-meetings/[id]/action-items/route.ts","category":"MEDIUM","reason":"Adds and assigns a new action item to a meeting."},
-  {"path":"src/app/api/veri-meetings/[id]/generate-intelligence/route.ts","category":"MEDIUM","reason":"Triggers AI-generated intelligence/analysis for a meeting."},
-  {"path":"src/app/api/voice-tickets/[id]/action-items/route.ts","category":"MEDIUM","reason":"Promotes a voice-memo suggested item into a real assigned action-item/ticket."},
-  {"path":"src/app/api/search/semantic/route.ts","category":"MEDIUM","reason":"Semantic search over an org's compliance items/notices/documents; org-scoped but returns results to any authenticated member regardless of role."},
-  {"path":"src/app/api/settings/webhooks/[id]/redeliver/route.ts","category":"MEDIUM","reason":"Manually replays a past webhook delivery against the org's webhook; no role check at all."}
-]
+const KNOWN_OPEN_GAPS: Array<{ path: string; category: string; reason: string }> = []
 
 describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
   const onDisk = routesOnDisk()
@@ -340,9 +327,9 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
   test("headline counts match the R75 Phase 2 audit, as of 2026-09-05", () => {
     const protectedCount = mutating.filter((r) => r.protected).length
     expect(mutating.length).toBe(831)
-    expect(protectedCount).toBe(618) // +7 R75P2P5-G6 real requireRole() gates (pms domain)
+    expect(protectedCount).toBe(630) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain
     expect(EXEMPT_ROUTES.length).toBe(201) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep
-    expect(KNOWN_OPEN_GAPS.length).toBe(12)
+    expect(KNOWN_OPEN_GAPS.length).toBe(0)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
   })
 })
