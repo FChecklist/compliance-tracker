@@ -293,18 +293,9 @@ const KNOWN_OPEN_GAPS: Array<{ path: string; category: string; reason: string }>
   {"path":"src/app/api/glossary/[id]/route.ts","category":"MEDIUM","reason":"Updates or deletes a single glossary term by id, org-scoped, with no role gate."},
   {"path":"src/app/api/gst-reconciliation/returns/[returnPeriodId]/ai-review/route.ts","category":"MEDIUM","reason":"Generates an AI review report over a previously-generated GST return period, org-scoped, with no role gate."},
   {"path":"src/app/api/help/ask/route.ts","category":"MEDIUM","reason":"Answers a free-text in-app help question using an LLM pipeline, gated only by authentication, no per-role restriction."},
-  {"path":"src/app/api/reports/ai-builder/analyze/route.ts","category":"MEDIUM","reason":"Uploads a file and asks the AI report builder to propose a report definition from it, scoped to the caller's org."},
-  {"path":"src/app/api/reports/definitions/route.ts","category":"MEDIUM","reason":"Creates a new report definition (report engine config) scoped to the caller's org."},
-  {"path":"src/app/api/reports/definitions/[id]/route.ts","category":"MEDIUM","reason":"Updates or deletes a report definition scoped to the caller's org."},
-  {"path":"src/app/api/reports/item-actions/route.ts","category":"MEDIUM","reason":"Records that the current user took an action (accept/delegate/todo) on a report row, scoped to the caller's org."},
-  {"path":"src/app/api/reports/saved/route.ts","category":"MEDIUM","reason":"Saves a custom report configuration scoped to the caller's org."},
-  {"path":"src/app/api/reports/saved/[id]/route.ts","category":"MEDIUM","reason":"Updates or deletes a saved custom report scoped to the caller's org."},
-  {"path":"src/app/api/reports/schedules/route.ts","category":"MEDIUM","reason":"Creates a recurring report delivery schedule scoped to the caller's org."},
-  {"path":"src/app/api/reports/schedules/[id]/route.ts","category":"MEDIUM","reason":"Updates or deletes a scheduled report delivery configuration scoped to the caller's org."},
   {"path":"src/app/api/pms/wiki/route.ts","category":"MEDIUM","reason":"Creates a PMS wiki page under a given project, org-scoped, with no role check."},
   {"path":"src/app/api/pms/wiki/[id]/route.ts","category":"MEDIUM","reason":"Updates an existing PMS wiki page with no role check."},
   {"path":"src/app/api/problem-records/[id]/tickets/route.ts","category":"MEDIUM","reason":"Links an existing ticket to a problem record with no role check."},
-  {"path":"src/app/api/v1/projexa/reports/definitions/[id]/run/route.ts","category":"MEDIUM","reason":"Executes a saved report definition and returns its computed result, with no role/permission gate beyond generic auth."},
   {"path":"src/app/api/pms/estimate-schemes/route.ts","category":"MEDIUM","reason":"Lets any authenticated org member create a project's estimate-point scheme (config), unlike sibling taxonomy endpoints that are admin-gated."},
   {"path":"src/app/api/pms/issues/[id]/relations/route.ts","category":"MEDIUM","reason":"Lets any authenticated org member link any two project issues together with no role check."},
   {"path":"src/app/api/pms/labels/route.ts","category":"MEDIUM","reason":"Lets any authenticated org member create a project label (low-stakes taxonomy item) with no role check."},
@@ -368,9 +359,9 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
   test("headline counts match the R75 Phase 2 audit, as of 2026-09-05", () => {
     const protectedCount = mutating.filter((r) => r.protected).length
     expect(mutating.length).toBe(831)
-    expect(protectedCount).toBe(590) // +6 R75P2P5-G3 real requireRole() gates (email-intelligence/conversations/ingest)
+    expect(protectedCount).toBe(599) // +9 R75P2P5-G4 real requireRole()/requireRoleOrScope() gates (reports domain)
     expect(EXEMPT_ROUTES.length).toBe(201) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep
-    expect(KNOWN_OPEN_GAPS.length).toBe(40)
+    expect(KNOWN_OPEN_GAPS.length).toBe(31)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
   })
 })
