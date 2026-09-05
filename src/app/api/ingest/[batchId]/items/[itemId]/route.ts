@@ -5,7 +5,7 @@
  *                  departmentId, assignedToId, description, reviewStatus
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/supabase/auth-guard'
+import { requireAuth, requireRole } from '@/lib/supabase/auth-guard'
 import { ingestionItems, ingestionBatches, departments } from '@/lib/db'
 import { withTenantContext } from '@/lib/db/tenant-scoped'
 import { eq, and, sql } from 'drizzle-orm'
@@ -17,10 +17,24 @@ const VALID_COMPLIANCE_TYPES = ['GST','TDS','MCA','PF','ESIC','INCOME_TAX','ROC'
 const VALID_STATUSES = ['pending','in_progress','completed','overdue','not_applicable','draft'] as const
 const VALID_PRIORITIES = ['low','medium','high','critical'] as const
 
+// R75 Part 2 Phase 5 (G3-email-conv): had NO role check at all beyond
+// requireAuth() -- any authenticated org member could edit or approve/
+// reject a staged, not-yet-imported ingestion item. Matched to this exact
+// flow's own two sibling routes in the same directory tree, both of which
+// already require "manager": DELETE /api/ingest/[batchId] (cancels the
+// whole batch) and POST /api/ingest/[batchId]/confirm (commits approved/
+// edited items into real compliance_items rows). This item-level edit/
+// approve/reject action directly feeds those two -- reviewStatus set here
+// is exactly what confirm's later filter and approvedCount/rejectedCount
+// recompute read -- so it sits inside the same trust boundary as its two
+// already-gated siblings, not a lower one.
 export async function PATCH(req: NextRequest, ctx: Context) {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: 'No organisation on this account' }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, 'manager')
+  if (roleCheck) return roleCheck
 
   const { batchId, itemId } = await ctx.params
   const body = await req.json() as Record<string, unknown>
