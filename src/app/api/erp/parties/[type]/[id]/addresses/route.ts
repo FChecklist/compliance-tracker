@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { listAddresses, addAddress, ServiceError } from "@/lib/services/erp-party-service"
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ type: string; id: string }> }) {
@@ -19,9 +19,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ type: string; id: string }> }) {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  // R75 Part 2 Phase 5 (G5 misc gap-closure, 2026-09-05): this had NO role
+  // gate at all -- matches this exact resource's own sibling DELETE
+  // (./[addressId]/route.ts), which already requires "manager".
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { type, id } = await params
