@@ -272,17 +272,6 @@ const EXEMPT_ROUTES: Array<{ path: string; category: string; reason: string }> =
 ]
 
 const KNOWN_OPEN_GAPS: Array<{ path: string; category: string; reason: string }> = [
-  {"path":"src/app/api/compliance/[id]/comments/route.ts","category":"MEDIUM","reason":"Adds a comment to a compliance item; any org member can comment on any item in the org with no role check."},
-  {"path":"src/app/api/construction/ai/diff-drawings/route.ts","category":"MEDIUM","reason":"Runs an AI vision diff between two drawing-revision documents in the caller's org."},
-  {"path":"src/app/api/construction/ai/estimate-progress/route.ts","category":"MEDIUM","reason":"Runs an AI vision progress estimate from a photo document in the caller's org."},
-  {"path":"src/app/api/construction/categories/route.ts","category":"MEDIUM","reason":"Creates a construction progress-tracking category for a project."},
-  {"path":"src/app/api/construction/kpi-definitions/route.ts","category":"MEDIUM","reason":"Creates a KPI metric definition for a construction project."},
-  {"path":"src/app/api/construction/progress/daily/route.ts","category":"MEDIUM","reason":"Uploads a photo attachment to a project's daily progress report."},
-  {"path":"src/app/api/business-rules/[id]/dry-run/route.ts","category":"MEDIUM","reason":"Dry-runs a business rule against a sample record with no real side effects, no role gate."},
-  {"path":"src/app/api/code-change-requests/route.ts","category":"MEDIUM","reason":"Submits a code-change request for the caller's org, any authenticated user, no role gate."},
-  {"path":"src/app/api/compliance/export-event/route.ts","category":"MEDIUM","reason":"Logs a bulk-export audit event and runs anomaly detection on a caller-supplied count, any authenticated user, no role gate."},
-  {"path":"src/app/api/compliance/overdue/route.ts","category":"MEDIUM","reason":"Recomputes overdue status for all compliance items in the org, any authenticated user or API key, no role/scope gate."},
-  {"path":"src/app/api/ai/orchestrate/route.ts","category":"MEDIUM","reason":"POST triggers an LLM-based 'what should I do next' suggestion for a compliance item or notice, scoped to the caller's own org but open to any authenticated org member."},
   {"path":"src/app/api/crm/opportunities/[id]/follow-up-task/route.ts","category":"MEDIUM","reason":"Creates a follow-up task from a CRM opportunity for the caller's org, with no role gate beyond being an authenticated org member."},
   {"path":"src/app/api/document-correspondents/route.ts","category":"MEDIUM","reason":"Creates an org-wide document correspondent register entry with no role check beyond authentication."},
   {"path":"src/app/api/document-matching-rules/route.ts","category":"MEDIUM","reason":"Creates an org-wide document auto-classification matching rule with no role check beyond authentication."},
@@ -397,9 +386,9 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
   test("headline counts match the R75 Phase 2 audit, as of 2026-09-05", () => {
     const protectedCount = mutating.filter((r) => r.protected).length
     expect(mutating.length).toBe(831)
-    expect(protectedCount).toBe(561) // 372 pre-existing + 189 fixed this phase
+    expect(protectedCount).toBe(572) // 372 pre-existing + 189 fixed R75 Phase 2 + 11 fixed R75 Part 2 Phase 5 (G1) // 372 pre-existing + 189 fixed this phase
     expect(EXEMPT_ROUTES.length).toBe(192)
-    expect(KNOWN_OPEN_GAPS.length).toBe(78)
+    expect(KNOWN_OPEN_GAPS.length).toBe(67)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
   })
 })
