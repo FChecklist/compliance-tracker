@@ -1,0 +1,18 @@
+-- R75 Phase 0 (Z0-03 retry): the FIRST pg_dump (migration 0564/0566) used plain
+-- SQL format, which proved unrestorable via psql -f on this Windows verification
+-- server -- a pg_dump 17.x \restrict/\unrestrict safety sentinel and, separately,
+-- a COPY-block desync once a handful of pgvector-typed tables' CREATE TABLE
+-- statements failed (pgvector is not installed on the local verification
+-- PostgreSQL build) together corrupted psql's line-based parsing for large
+-- stretches of the file, leaving even unrelated healthy tables (e.g.
+-- platform.sumeet_requirements) restored with 0 rows despite their real data
+-- being intact and verified present in the dump file itself.
+--
+-- FIX: re-dump using pg_dump's CUSTOM format (-Fc), restored via pg_restore
+-- (a binary TOC-based archive, not line-parsed SQL text) -- this format has
+-- none of plain-SQL's COPY-framing fragility. Requires the SAME temporary,
+-- fully-reversed BYPASSRLS grant as before (RLS enforcement applies
+-- identically regardless of dump format). Revoked immediately after the one
+-- dump run in the paired migration 0568. Same justification as 0564: zero
+-- real customers, Vercel production paused, no live traffic in this window.
+ALTER ROLE app_runtime BYPASSRLS;
