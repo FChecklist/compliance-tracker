@@ -1363,3 +1363,120 @@ describe("createBoqRevision -- R-C13: a negative variation on a line item with r
     expect((caught as Error).message).toContain("Blockwork - Ground Floor")
   })
 })
+
+// R-20 (Sumeet requirement, R75 Part 4, 2026-09-05): "Revision preserves
+// parent links and breakdown %". Real, end-to-end createBoqRevision() run
+// (same fake-db convention as the R-C13 test above), NOT the pure
+// toLineItemInput()/insertLineItems() unit tests elsewhere in this file --
+// this proves the two pieces actually connect: a revision with NO explicit
+// lineItems (input.lineItems undefined, the create-with-reference default)
+// copy-forwards the parent's root+child rows, and the CHILD's new row
+// really does carry parentLineItemId pointing at the NEW root row (not the
+// old, now-superseded one) and the same breakdownPercentage.
+describe("createBoqRevision -- R-20: a copy-forward revision preserves parent links and breakdown %", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScopedForBoq)
+  })
+
+  test("the child row in the new revision points at the new root, with the same breakdown %", async () => {
+    const orgId = "org-r20"
+    const parentBoq = {
+      id: "parent-r20", orgId, projectId: "proj-r20", version: 1, title: "Original Scope",
+      parentBoqId: null, status: "approved", createdById: "user-r20", createdAt: new Date("2026-08-01T00:00:00Z"),
+    }
+    const rootItem = row({
+      id: "li-root-old", boqId: "parent-r20", itemCode: "R1", description: "Root Item",
+      unit: "sqm", quantity: "100", rate: "50", amount: "5000",
+    })
+    const childItem = row({
+      id: "li-child-old", boqId: "parent-r20", itemCode: "C1", description: "Child Item",
+      parentLineItemId: "li-root-old", breakdownPercentage: "40",
+      unit: "sqm", quantity: "40", rate: "50", amount: "2000",
+    })
+    const insertedChildBoq = {
+      id: "child-r20", orgId, projectId: "proj-r20", version: 2, parentBoqId: "parent-r20",
+      title: "Original Scope", createdById: "user-r20", status: "draft", createdAt: new Date("2026-09-05T00:00:00Z"),
+    }
+
+    let boqsFindFirstCalls = 0
+    let lineItemsFindManyCalls = 0
+    // Captures every row actually passed to db.insert(constructionBoqLineItems)
+    // .values(...) across BOTH waves (root has no parentItemCode so it is
+    // "ready" first; the child depends on the root's itemCode resolving,
+    // matching insertLineItems()'s own dependency-wave loop).
+    const insertedRows: Array<{ itemCode: string | null; parentLineItemId: string | null; breakdownPercentage: string | null }> = []
+
+    const fakeDb = {
+      query: {
+        constructionBoqs: {
+          // 1st call: the parent lookup. 2nd call: "does this parent already
+          // have a revision?" -- none yet. 3rd call: getBoqRow() re-fetching
+          // the newly created revision by its own id, for the return value --
+          // this test completes the happy path (unlike the R-C13 test above,
+          // which throws before ever reaching getBoqRow), so it needs this.
+          findFirst: mock(async () => {
+            boqsFindFirstCalls += 1
+            if (boqsFindFirstCalls === 1) return parentBoq
+            if (boqsFindFirstCalls === 2) return undefined
+            return insertedChildBoq
+          }),
+        },
+        constructionBoqLineItems: {
+          findMany: mock(async () => {
+            lineItemsFindManyCalls += 1
+            if (lineItemsFindManyCalls === 1) return [rootItem, childItem] // previousItems
+            if (lineItemsFindManyCalls === 2) return insertedRows.map((_, i) => ({ id: `li-new-${i + 1}` })) // assertLineItemsPersisted's count check
+            // currentItems (the diff) AND getBoqRow's own line-items read both land here -- ids/itemCode are all either call needs.
+            return insertedRows.map((r, i) => ({ id: `li-new-${i + 1}`, itemCode: r.itemCode, boqId: "child-r20" }))
+          }),
+        },
+        constructionWorkProgressEntries: { findMany: mock(async () => []) }, // no recorded progress -- nothing for this revision to violate
+      },
+      insert: (table: unknown) => {
+        if (table === constructionBoqs) {
+          return { values: (_vals: unknown) => ({ returning: async () => [insertedChildBoq] }) }
+        }
+        if (table === constructionBoqLineItems) {
+          return {
+            values: (vals: Array<{ itemCode: string | null; parentLineItemId: string | null; breakdownPercentage: string | null }>) => ({
+              returning: async () => {
+                insertedRows.push(...vals)
+                return vals.map((v, i) => ({ id: `li-new-${insertedRows.length - vals.length + i + 1}`, itemCode: v.itemCode }))
+              },
+            }),
+          }
+        }
+        throw new Error("R-20 fake db: unexpected insert table")
+      },
+      update: () => ({ set: () => ({ where: async () => {} }) }),
+    }
+
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScopedForBoq,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+
+    const { createBoqRevision } = await import("./construction-boq-service")
+
+    // No `lineItems` key at all -- the create-with-reference default, the
+    // ONLY input shape that actually exercises the copy-forward path this
+    // requirement is about (an explicit lineItems array would be the
+    // caller re-supplying its own data, not "revision preserves" anything).
+    await createBoqRevision({ orgId, userId: "user-r20" }, "parent-r20", {})
+
+    expect(insertedRows).toHaveLength(2)
+    const newRoot = insertedRows.find((r) => r.itemCode === "R1")!
+    const newChild = insertedRows.find((r) => r.itemCode === "C1")!
+    expect(newRoot).toBeTruthy()
+    expect(newChild).toBeTruthy()
+    // The parent link: resolved to whichever id THIS insert gave the new
+    // root row -- never the old, now-superseded "li-root-old".
+    const newRootId = insertedRows.indexOf(newRoot) === 0 ? "li-new-1" : "li-new-2"
+    expect(newChild.parentLineItemId).toBe(newRootId)
+    expect(newChild.parentLineItemId).not.toBe("li-root-old")
+    // The breakdown %: carried forward unchanged.
+    expect(newChild.breakdownPercentage).toBe("40")
+    expect(newRoot.parentLineItemId).toBeNull()
+  })
+})
