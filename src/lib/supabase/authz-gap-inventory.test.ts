@@ -270,22 +270,22 @@ const EXEMPT_ROUTES: Array<{ path: string; category: string; reason: string }> =
   {"path":"src/app/api/settings/org-limits/route.ts","category":"SERVICE_LAYER_GATED","reason":"Inline check requires `dbUser.role === \"admin\" || dbUser.role === \"manager\"` (R75P2 W2-01 re-verify)."},
   {"path":"src/app/api/settings/passcode/route.ts","category":"SERVICE_LAYER_GATED","reason":"setPasscode(dbUser.id, passcode) is self-scoped to the caller's own account (R75P2 W2-01 re-verify)."},
   {"path":"src/app/api/settings/prompts/route.ts","category":"SERVICE_LAYER_GATED","reason":"requirePromptPermissionForUser(ctx.dbUser, 'prompt.version.create') enforces veridian_admin (R75P2 W2-01 re-verify)."},
-  {"path":"src/app/api/settings/subscription-plan/route.ts","category":"SERVICE_LAYER_GATED","reason":"Inline check requires `dbUser.role === \"admin\"` (R75P2 W2-01 re-verify)."}
+  {"path":"src/app/api/settings/subscription-plan/route.ts","category":"SERVICE_LAYER_GATED","reason":"Inline check requires `dbUser.role === \"admin\"` (R75P2 W2-01 re-verify)."},
+  {"path":"src/app/api/crm/opportunities/[id]/follow-up-task/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G2: createFollowUpTaskFromOpportunity() calls assertGate(canEditOpportunity(role, opp.ownerId, userId)), owner-or-manager -- not visible to the requireRole()/requireRoleOrScope() route-file grep."},
+  {"path":"src/app/api/crm/activities/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G2: createActivity() calls assertGate(canCreateCrmRecord(role)), member rank+ -- not visible to the grep."},
+  {"path":"src/app/api/crm/leads/[id]/follow-up-task/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G2: createFollowUpTaskFromLead() calls assertGate(canEditLead(role, lead.ownerId, userId)), owner-or-manager -- not visible to the grep."},
+  {"path":"src/app/api/crm/leads/[id]/score/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G2: scoreLead() calls assertGate(canEditLead(role, lead.ownerId, userId)), owner-or-manager -- not visible to the grep. Falsifiability personally re-verified: disabling the gate line made 2 tests fail, restoring it made all 90 pass."},
+  {"path":"src/app/api/crm/lost-reasons/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G2: POST calls requirePermissionForUser(dbUser, \"crm.lost_reasons.manage\") against a new manager-rank ERP_ACTION_ROLES entry, matching the sibling crm.pipeline_stages.manage mechanism; GET stays ungated by design (read access, matches this table's own convention)."},
+  {"path":"src/app/api/crm/lost-reasons/[id]/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G2: PATCH calls requirePermissionForUser(dbUser, \"crm.lost_reasons.manage\"), same registry entry as crm/lost-reasons above."},
+  {"path":"src/app/api/crm/opportunities/[id]/analyze/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G2: analyzeOpportunity() calls assertGate(canEditOpportunity(role, opp.ownerId, userId)), owner-or-manager -- not visible to the grep."}
 ]
 
 const KNOWN_OPEN_GAPS: Array<{ path: string; category: string; reason: string }> = [
-  {"path":"src/app/api/crm/opportunities/[id]/follow-up-task/route.ts","category":"MEDIUM","reason":"Creates a follow-up task from a CRM opportunity for the caller's org, with no role gate beyond being an authenticated org member."},
   {"path":"src/app/api/document-correspondents/route.ts","category":"MEDIUM","reason":"Creates an org-wide document correspondent register entry with no role check beyond authentication."},
   {"path":"src/app/api/document-matching-rules/route.ts","category":"MEDIUM","reason":"Creates an org-wide document auto-classification matching rule with no role check beyond authentication."},
   {"path":"src/app/api/drafted-communications/route.ts","category":"MEDIUM","reason":"Creates an AI-drafted communication held for later approval, with no role check beyond authentication."},
   {"path":"src/app/api/drafted-communications/[id]/reject/route.ts","category":"MEDIUM","reason":"Rejects an AI-drafted communication (prevents it from being sent), with no role check beyond authentication."},
   {"path":"src/app/api/conversations/route.ts","category":"MEDIUM","reason":"Creates a new chat conversation with specified org participants, with only session auth and no rank check."},
-  {"path":"src/app/api/crm/activities/route.ts","category":"MEDIUM","reason":"Creates a CRM activity/log entry for an entity with only session auth, no role check."},
-  {"path":"src/app/api/crm/leads/[id]/follow-up-task/route.ts","category":"MEDIUM","reason":"Creates a follow-up task from a lead's AI recommendation with no role check."},
-  {"path":"src/app/api/crm/leads/[id]/score/route.ts","category":"MEDIUM","reason":"Triggers an AI lead-scoring LLM call and overwrites the lead's score fields with no role check."},
-  {"path":"src/app/api/crm/lost-reasons/route.ts","category":"MEDIUM","reason":"Creates an org-wide Lost Reason picklist entry with no role check."},
-  {"path":"src/app/api/crm/lost-reasons/[id]/route.ts","category":"MEDIUM","reason":"Deactivates an org-wide Lost Reason picklist entry with no role check."},
-  {"path":"src/app/api/crm/opportunities/[id]/analyze/route.ts","category":"MEDIUM","reason":"Triggers an AI opportunity-analysis LLM call and mutates its AI fields with no role check."},
   {"path":"src/app/api/email-intelligence/route.ts","category":"MEDIUM","reason":"Submits raw email content to be analyzed and stored as a new email-intelligence item for the org."},
   {"path":"src/app/api/email-intelligence/[id]/dismiss/route.ts","category":"MEDIUM","reason":"Dismisses an org's email-intelligence suggested item by id, with no role or ownership check."},
   {"path":"src/app/api/email-intelligence/[id]/promote/route.ts","category":"MEDIUM","reason":"Promotes an email-intelligence suggested item into a real work-item/task, with no role check."},
@@ -374,9 +374,9 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
   test("headline counts match the R75 Phase 2 audit, as of 2026-09-05", () => {
     const protectedCount = mutating.filter((r) => r.protected).length
     expect(mutating.length).toBe(831)
-    expect(protectedCount).toBe(584) // 372 pre-existing + 189 R75P2 + 11 R75P2P5-G1 + 12 R75P2P5-G8 (route-file requireRole gates; 2 more G8 fixes are service-layer ownership checks, counted in EXEMPT_ROUTES instead)
-    expect(EXEMPT_ROUTES.length).toBe(194) // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep
-    expect(KNOWN_OPEN_GAPS.length).toBe(53)
+    expect(protectedCount).toBe(584) // unchanged by G2 -- all 7 G2 fixes are assertGate/requirePermissionForUser, not requireRole()/requireRoleOrScope(), so none register as "protected" to this grep; they move to EXEMPT_ROUTES instead
+    expect(EXEMPT_ROUTES.length).toBe(201) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep
+    expect(KNOWN_OPEN_GAPS.length).toBe(46)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
   })
 })
