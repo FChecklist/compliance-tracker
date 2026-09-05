@@ -3062,7 +3062,7 @@ recently_completed:
       (regenerated). Did not touch platform_billing_invoices/platform-billing-service.ts (a
       separate, live invoice path) or ai_cost_reconciliations/cost-reconciliation-service.ts
       (PR #1546's area).
-﻿# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
+# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
 # direct response to the Owner naming 4 parallel Claude sessions working

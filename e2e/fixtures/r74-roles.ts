@@ -40,6 +40,12 @@ function makeRoleTest(tenant: R74Tenant, role: R74Role) {
   return base.extend<{ loggedInPage: Page }>({
     loggedInPage: async ({ page }, use) => {
       await loginAs(page, tenant, role);
+      // Playwright's own fixture-extend API parameter, literally named
+      // `use`, not React's use() hook -- this file is a Playwright fixture,
+      // not a React component/hook. Known false positive for this exact,
+      // common Playwright pattern, confirmed pre-existing (introduced in
+      // R74 Phase 4, not this session) via `git log --follow` on this file.
+      // eslint-disable-next-line react-hooks/rules-of-hooks
       await use(page);
     },
   });

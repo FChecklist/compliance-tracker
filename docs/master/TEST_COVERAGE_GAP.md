@@ -5,31 +5,31 @@
 
 VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for Module": "No systematic test-generation tooling"). Coverage here means "has a sibling `<name>.test.ts` file", not line-coverage percentage -- see this script's own header for why that's the right proxy for triaging files with ZERO tests. Files are ranked by line count because the largest untested files are both the riskiest to modify/refactor blind ("AI Can Safely Modify/Refactor Module" findings) and the highest-value next target.
 
-**Summary:** 150/263 service files have a sibling test file (57.0%).
+**Summary:** 153/263 service files have a sibling test file (58.2%).
 
 ## Top 20 untested files by size (highest priority first)
 
 | Rank | File | Lines |
 |------|------|-------|
-| 1 | `src/lib/services/erp-accounting-service.ts` | 835 |
-| 2 | `src/lib/services/compliance-service.ts` | 591 |
-| 3 | `src/lib/services/erp-procurement-workflow-service.ts` | 463 |
-| 4 | `src/lib/services/workspace-memory-service.ts` | 446 |
-| 5 | `src/lib/services/risk-register-service.ts` | 407 |
-| 6 | `src/lib/services/sales-engine-service.ts` | 397 |
-| 7 | `src/lib/services/gst-reconciliation-service.ts` | 390 |
-| 8 | `src/lib/services/fm-register-digitization-service.ts` | 310 |
-| 9 | `src/lib/services/erp-goods-receipt-service.ts` | 307 |
-| 10 | `src/lib/services/communication-drafting-service.ts` | 302 |
-| 11 | `src/lib/services/ai-report-builder-service.ts` | 251 |
-| 12 | `src/lib/services/veri-chat-service.ts` | 250 |
-| 13 | `src/lib/services/mdm-quality-service.ts` | 249 |
-| 14 | `src/lib/services/notice-service.ts` | 243 |
-| 15 | `src/lib/services/firm-engagement-service.ts` | 239 |
-| 16 | `src/lib/services/fm-ppm-service.ts` | 239 |
-| 17 | `src/lib/services/interior-floorplan-service.ts` | 238 |
-| 18 | `src/lib/services/erp-returns-service.ts` | 236 |
-| 19 | `src/lib/services/erp-inventory-planning-service.ts` | 233 |
-| 20 | `src/lib/services/erp-inventory-service.ts` | 225 |
+| 1 | `src/lib/services/compliance-service.ts` | 591 |
+| 2 | `src/lib/services/erp-procurement-workflow-service.ts` | 463 |
+| 3 | `src/lib/services/workspace-memory-service.ts` | 446 |
+| 4 | `src/lib/services/risk-register-service.ts` | 407 |
+| 5 | `src/lib/services/sales-engine-service.ts` | 397 |
+| 6 | `src/lib/services/gst-reconciliation-service.ts` | 390 |
+| 7 | `src/lib/services/fm-register-digitization-service.ts` | 310 |
+| 8 | `src/lib/services/erp-goods-receipt-service.ts` | 307 |
+| 9 | `src/lib/services/communication-drafting-service.ts` | 302 |
+| 10 | `src/lib/services/ai-report-builder-service.ts` | 251 |
+| 11 | `src/lib/services/veri-chat-service.ts` | 250 |
+| 12 | `src/lib/services/mdm-quality-service.ts` | 249 |
+| 13 | `src/lib/services/notice-service.ts` | 243 |
+| 14 | `src/lib/services/firm-engagement-service.ts` | 239 |
+| 15 | `src/lib/services/fm-ppm-service.ts` | 239 |
+| 16 | `src/lib/services/interior-floorplan-service.ts` | 238 |
+| 17 | `src/lib/services/erp-returns-service.ts` | 236 |
+| 18 | `src/lib/services/erp-inventory-planning-service.ts` | 233 |
+| 19 | `src/lib/services/erp-inventory-service.ts` | 225 |
+| 20 | `src/lib/services/workspace-memory-drive-sync.ts` | 225 |
 
-_Total untested files (all sizes): 113. Showing top 20._
+_Total untested files (all sizes): 110. Showing top 20._
