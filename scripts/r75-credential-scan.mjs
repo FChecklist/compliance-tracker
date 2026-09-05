@@ -14,9 +14,17 @@
 // run before a commit (wired as a pre-commit hook) AND periodically over
 // every known clone on this machine, so both halves are actually covered.
 //
-// Two modes:
+// Three modes:
 //   --staged        scan currently git-staged file contents (pre-commit use)
 //   --config <path>  scan one specific .git/config file (local-hygiene sweep use)
+//   --range <a>..<b> scan every ADDED line across every commit in the range
+//                    (git log -p, "+" lines only, "+++" file headers excluded)
+//                    -- this is deliberately history-aware, not just a final-
+//                    tree-state diff, so it catches a credential that was
+//                    added and later removed within the same unpushed range;
+//                    once pushed, that string is in the repo's history
+//                    forever even if the final tree state is clean (V8-03,
+//                    pre-push local-only-commit sweep).
 // Prints PASS/FAIL per match, never the matched value itself (redacted).
 // Exit 0 = clean. Exit 1 = at least one credential-shaped string found.
 import { execSync } from "node:child_process"
@@ -73,6 +81,32 @@ function scanConfigFile(path) {
   return scanText(path, content)
 }
 
+function scanRange(range) {
+  // -U0: no context lines, so every returned line is either a real diff
+  // line or a "diff --git"/"+++"/"---" header, never innocent surrounding
+  // context that happens to contain something pattern-shaped from an
+  // unrelated line.
+  let out
+  try {
+    out = execSync(`git log -p -U0 --no-color ${range}`, { encoding: "utf8", maxBuffer: 1024 * 1024 * 200 })
+  } catch (e) {
+    console.error(`git log -p failed for range ${range}: ${e.message}`)
+    process.exit(2)
+  }
+  const all = []
+  let currentFile = "(unknown file)"
+  for (const line of out.split("\n")) {
+    if (line.startsWith("+++ ")) {
+      currentFile = line.slice(4).replace(/^b\//, "")
+      continue
+    }
+    if (!line.startsWith("+") || line.startsWith("+++")) continue
+    const added = line.slice(1)
+    all.push(...scanText(currentFile, added))
+  }
+  return all
+}
+
 const argv = process.argv.slice(2)
 let findings = []
 if (argv.includes("--staged")) {
@@ -80,8 +114,11 @@ if (argv.includes("--staged")) {
 } else if (argv.includes("--config")) {
   const idx = argv.indexOf("--config")
   findings = scanConfigFile(argv[idx + 1])
+} else if (argv.includes("--range")) {
+  const idx = argv.indexOf("--range")
+  findings = scanRange(argv[idx + 1])
 } else {
-  console.error("usage: node scripts/r75-credential-scan.mjs --staged | --config <path>")
+  console.error("usage: node scripts/r75-credential-scan.mjs --staged | --config <path> | --range <a>..<b>")
   process.exit(2)
 }
 
