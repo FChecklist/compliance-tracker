@@ -281,3 +281,79 @@ describe("POST /api/v1/construction/boq -- R74-RULING-03 closure", () => {
     expect(body.lineItems.find((li: any) => li.itemCode === "G-300").rate).not.toBe("150")
   })
 })
+
+// R75 Phase 2 (task w103) -- R-03, R-04, R-14 closure. Reuses this file's
+// existing real-route + fake-transactional-DB harness (see the file header
+// comment) rather than building a second one: these three requirements are
+// about createBoq()'s actual persisted outcome (or lack thereof), which the
+// committed-store assertions above already exist to check honestly.
+describe("POST /api/v1/construction/boq -- R75 P2 W103: R-03/R-04/R-14 closure", () => {
+  test("R-03: a title with an empty lineItems array is created with no validation errors -- a header-only BOQ, zero line items committed", async () => {
+    const { POST } = await import("./route")
+    const res = await POST(
+      makeRequest({
+        title: "R-03 closure test",
+        projectId: PROJECT_ID,
+        lineItems: [],
+      })
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(201)
+    expect(body.error).toBeUndefined()
+    expect(body.lineItems).toEqual([])
+    // R74-RULING-03 style: re-read the fake store's own committed rows, not
+    // just the response body -- a 201 whose body merely echoed `lineItems: []`
+    // back without ever calling insert would look identical from the body alone.
+    expect(store.committedBoqs.length).toBe(1)
+    expect(store.committedLineItems.length).toBe(0)
+  })
+
+  test("R-04: a BOQ creation request that omits title is rejected with 400 naming the title field, and nothing is persisted", async () => {
+    const { POST } = await import("./route")
+    const res = await POST(
+      makeRequest({
+        // title deliberately omitted entirely (not just blank)
+        projectId: PROJECT_ID,
+        lineItems: [],
+      })
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error).toMatch(/title/)
+    expect(store.committedBoqs.length).toBe(0)
+    expect(store.committedLineItems.length).toBe(0)
+  })
+
+  test("R-14: sibling breakdownPercentages that do not sum to 100 (40 + 45 = 85) are accepted with no validation error or warning", async () => {
+    const { POST } = await import("./route")
+    const res = await POST(
+      makeRequest({
+        title: "R-14 closure test",
+        projectId: PROJECT_ID,
+        lineItems: [
+          { itemCode: "R-100", description: "Root", unit: "LS", quantity: 10, rate: 1000 },
+          { itemCode: "C-1", parentItemCode: "R-100", breakdownPercentage: 40, description: "Child 1", unit: "LS" },
+          { itemCode: "C-2", parentItemCode: "R-100", breakdownPercentage: 45, description: "Child 2", unit: "LS" },
+        ],
+      })
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(201)
+    expect(body.error).toBeUndefined()
+    // No warnings field of any kind is ever attached to a create response --
+    // asserting its absence here means a future "warn but still create" patch
+    // for this exact scenario would have to change this test, not slip past it.
+    expect(body.warnings).toBeUndefined()
+    expect(store.committedBoqs.length).toBe(1)
+    expect(store.committedLineItems.length).toBe(3)
+    const c1 = store.committedLineItems.find((li) => li.itemCode === "C-1")
+    const c2 = store.committedLineItems.find((li) => li.itemCode === "C-2")
+    // Each child still prices correctly off the root regardless of the sibling
+    // sum -- F2/F3 apply per-child, independent of what the other children add up to.
+    expect(c1!.rate).toBe("400")
+    expect(c2!.rate).toBe("450")
+  })
+})
