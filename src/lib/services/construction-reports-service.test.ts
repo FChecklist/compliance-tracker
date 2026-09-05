@@ -2902,3 +2902,66 @@ describe("R67 E-33: buildBudgetVsActualByProject", () => {
     expect(buildBudgetVsActualByProject([project()], "AED").note).toContain("BOQ-derived")
   })
 })
+
+// R75 Part 3 (2026-09-05): kpiReportWithDb() is the third construction
+// codeReference (get_construction_kpi_status) fixed for the same class of
+// bug R-80 closed for get_construction_project_dashboard/
+// list_delayed_activities/list_over_budget_projects -- a caller that
+// already holds an open withTenantContext transaction (dispatchConstructionTool,
+// via construction-tools.ts) used to reach kpiReport(), which opened a
+// SECOND, nested one via ensureConstructionEnabled() + its own
+// withTenantContext. Same fix shape: kpiReportWithDb() reuses the caller's
+// db handle for both the enablement check (via the new
+// requireConstructionEnabledWithDb()) and the report queries, opening no
+// transaction of its own.
+describe("kpiReportWithDb -- R75 Part 3: reuses the caller's transaction, never opens its own", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+    await mock.module("./construction-enablement-service", () => realEnablementService)
+  })
+
+  test("kpiReportWithDb never calls withTenantContext, and reuses the exact db handle it was given", async () => {
+    const neverOpen = mock(async () => { throw new Error("kpiReportWithDb must never open its own transaction") })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: neverOpen }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablementService,
+      requireConstructionEnabledWithDb: mock(async () => {}),
+    }))
+    const fakeDb = {
+      query: {
+        constructionKpiDefinitions: { findMany: async () => [{ id: "def-1" }] },
+        constructionKpiEntries: { findMany: async (args: { where: unknown }) => {
+          expect(args).toBeTruthy()
+          return [{ id: "entry-1", kpiDefinitionId: "def-1" }]
+        } },
+      },
+    }
+    const { kpiReportWithDb } = await import("./construction-reports-service")
+    const result = await kpiReportWithDb(fakeDb as unknown as never, { orgId: "org-kpi" }, "proj-kpi")
+    expect(result.definitions).toEqual([{ id: "def-1" }])
+    expect(result.entries).toEqual([{ id: "entry-1", kpiDefinitionId: "def-1" }])
+    expect(neverOpen).not.toHaveBeenCalled()
+  })
+
+  test("kpiReport (the public wrapper) opens exactly one transaction and delegates to kpiReportWithDb", async () => {
+    let opens = 0
+    const fakeDb = {
+      query: {
+        constructionKpiDefinitions: { findMany: async () => [] },
+        constructionKpiEntries: { findMany: async () => [] },
+      },
+    }
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => { opens += 1; return fn(fakeDb) }),
+    }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablementService,
+      isConstructionEnabledForOrg: mock(async () => true),
+    }))
+    const { kpiReport } = await import("./construction-reports-service")
+    await kpiReport({ orgId: "org-kpi" }, "proj-kpi")
+    expect(opens).toBe(1)
+  })
+})

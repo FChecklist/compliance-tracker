@@ -43,6 +43,28 @@ export async function requireConstructionEnabled(orgId: string): Promise<void> {
   }
 }
 
+/**
+ * R75 Part 3 (2026-09-05): db-handle-accepting variant of
+ * requireConstructionEnabled, same pattern as isConstructionEnabledForOrgWithDb
+ * -- for a caller that already holds an open withTenantContext transaction
+ * (e.g. the assistant route's codeReference dispatch, construction-reports-
+ * service.ts's own memoized ensureConstructionEnabled() when threaded a db).
+ * Deliberately does NOT use the memoization cache ensureConstructionEnabled()
+ * has: that cache exists to avoid opening a redundant transaction across
+ * separate top-level calls in a short window, which is not a concern here --
+ * this reuses the caller's already-open connection either way, so a fresh
+ * check every time is the honest, no-more-expensive choice, not a caching
+ * shortcut worth replicating.
+ */
+export async function requireConstructionEnabledWithDb(db: TenantDb, orgId: string): Promise<void> {
+  if (!(await isConstructionEnabledForOrgWithDb(db, orgId))) {
+    throw new ServiceError(
+      "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Construction module.",
+      403
+    )
+  }
+}
+
 export async function getConstructionEnablement(ctx: { orgId: string }) {
   return getBranchEnablement(ctx, "construction")
 }

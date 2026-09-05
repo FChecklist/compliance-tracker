@@ -26,7 +26,7 @@ import { resolvePmsBillableRatePure } from "./pms-time-service"
 // since these are also reached directly via /api/construction/reports/<name>
 // (and its /api/v1/projexa/reports/<name> alias), which never goes through
 // that dispatcher at all.
-import { requireConstructionEnabled } from "./construction-enablement-service"
+import { requireConstructionEnabled, requireConstructionEnabledWithDb } from "./construction-enablement-service"
 export { ServiceError }
 
 // R67 F-10 (R-134). requireConstructionEnabled() is not a cheap boolean: it
@@ -71,6 +71,20 @@ async function ensureConstructionEnabled(orgId: string): Promise<void> {
     enablementMemo.delete(orgId)
     throw err
   }
+}
+
+/**
+ * R75 Part 3 (2026-09-05): db-handle-accepting variant, for a caller that
+ * already holds an open withTenantContext transaction (e.g. the assistant
+ * route's codeReference dispatch via dispatchConstructionTool -- see that
+ * file's own header for the class of bug this closes: without this, a
+ * function like kpiReport() below opens a SECOND, nested transaction from
+ * inside the caller's already-open one). Deliberately bypasses
+ * enablementMemo -- see requireConstructionEnabledWithDb's own comment for
+ * why the memo cache doesn't apply when reusing an already-open connection.
+ */
+async function ensureConstructionEnabledWithDb(db: TenantDb, orgId: string): Promise<void> {
+  await requireConstructionEnabledWithDb(db, orgId)
 }
 
 async function activityIdsForProject(db: TenantDb, orgId: string, projectId: string) {
@@ -2237,12 +2251,23 @@ export async function workAnalysisReport(ctx: { orgId: string }, projectId: stri
 // 13. KPI Report -- approved KPI entries for this project's definitions (or org-wide when projectId is null on the definition).
 export async function kpiReport(ctx: { orgId: string }, projectId: string) {
   await ensureConstructionEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const definitions = await db.query.constructionKpiDefinitions.findMany({ where: and(eq(constructionKpiDefinitions.orgId, ctx.orgId), eq(constructionKpiDefinitions.projectId, projectId)) })
-    const defIds = definitions.map((d) => d.id)
-    const entries = defIds.length > 0 ? await db.query.constructionKpiEntries.findMany({ where: inArray(constructionKpiEntries.kpiDefinitionId, defIds) }) : []
-    return { definitions, entries }
-  })
+  return withTenantContext({ orgId: ctx.orgId }, (db) => kpiReportWithDb(db, ctx, projectId))
+}
+
+/**
+ * R75 Part 3 (2026-09-05): db-handle-accepting variant of kpiReport, same
+ * pattern as construction-dashboard-service.ts's getOrgDashboardWithDb --
+ * for a caller (e.g. dispatchConstructionTool's get_construction_kpi_status
+ * codeReference) that already holds an open withTenantContext transaction.
+ * Reuses that connection for BOTH the enablement check and the queries,
+ * rather than opening a second one from inside it.
+ */
+export async function kpiReportWithDb(db: TenantDb, ctx: { orgId: string }, projectId: string) {
+  await ensureConstructionEnabledWithDb(db, ctx.orgId)
+  const definitions = await db.query.constructionKpiDefinitions.findMany({ where: and(eq(constructionKpiDefinitions.orgId, ctx.orgId), eq(constructionKpiDefinitions.projectId, projectId)) })
+  const defIds = definitions.map((d) => d.id)
+  const entries = defIds.length > 0 ? await db.query.constructionKpiEntries.findMany({ where: inArray(constructionKpiEntries.kpiDefinitionId, defIds) }) : []
+  return { definitions, entries }
 }
 
 // 14. Revenue Report -- erp_sales_invoices for this project.

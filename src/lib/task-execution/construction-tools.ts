@@ -33,13 +33,27 @@
 // second pool connection in production. `db` is now threaded through for
 // those 3 codeReferences (the ones that call getOrgDashboard[WithDb]/
 // getProjectDashboard[s][WithDb]) via the new WithDb service variants.
-// get_construction_budget_status/get_construction_kpi_status/
-// generate_construction_progress_summary/detect_construction_budget_
-// schedule_risk still call functions (budgetVsActual/kpiReport/
-// generateProgressSummary/detectBudgetScheduleRisk, in
+// get_construction_kpi_status is ALSO now fixed (R75 Part 3): kpiReport()
+// gained a kpiReportWithDb() sibling, same pattern as the 3 dashboard
+// codeReferences above -- construction-reports-service.ts's own
+// ensureConstructionEnabled() got a WithDb sibling too
+// (ensureConstructionEnabledWithDb(), which itself calls the new
+// requireConstructionEnabledWithDb() in construction-enablement-service.ts),
+// deliberately bypassing that file's enablementMemo cache since reusing an
+// already-open connection makes the memo's original purpose (avoiding a
+// redundant transaction OPEN) moot for this specific call.
+//
+// get_construction_budget_status/generate_construction_progress_summary/
+// detect_construction_budget_schedule_risk still call functions
+// (budgetVsActual/generateProgressSummary/detectBudgetScheduleRisk, in
 // construction-reports-service.ts/construction-ai-service.ts) that open
 // their OWN transaction and were NOT given WithDb siblings in this pass --
-// they carry the same class of bug, not yet fixed. Not silently claimed
+// budgetVsActual additionally fans out via Promise.all (getProjectDashboard
+// + getExpenseSummaryByHead concurrently) and detectBudgetScheduleRisk
+// depends on BOTH getProjectDashboard AND budgetVsActual via ITS OWN
+// Promise.all, a materially larger and riskier surface than kpiReport's
+// single clean withTenantContext call was. They carry the same class of
+// bug, not yet fixed. Not silently claimed
 // fixed; flagged honestly (see this file's own git history / R-80's
 // sumeet_requirements next_action for the full accounting).
 
@@ -144,8 +158,8 @@ export async function dispatchConstructionTool(
   if (codeReference === "get_construction_kpi_status") {
     const projectId = String(context?.inputs?.projectId ?? "")
     if (!projectId) throw new Error("Missing projectId")
-    const { kpiReport } = await import("@/lib/services/construction-reports-service")
-    return kpiReport({ orgId }, projectId)
+    const { kpiReport, kpiReportWithDb } = await import("@/lib/services/construction-reports-service")
+    return db ? kpiReportWithDb(db, { orgId }, projectId) : kpiReport({ orgId }, projectId)
   }
 
   if (codeReference === "generate_construction_progress_summary") {
