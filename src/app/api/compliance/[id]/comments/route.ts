@@ -2,7 +2,7 @@ import { comments, complianceItems } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
 import { createId } from "@paralleldrive/cuid2"
 import { notifyNewComment } from "@/lib/email"
@@ -12,6 +12,12 @@ type RouteContext = { params: Promise<{ id: string }> }
 export async function POST(request: NextRequest, context: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
+  // Matches the sibling compliance/[id]/costs POST gate: commenting is a
+  // write action on the item and previously had no role floor at all (any
+  // authenticated org member, including viewer-rank, could comment on any
+  // item in the org).
+  const roleErr = requireRole(dbUser, "member")
+  if (roleErr) return roleErr
   if (!dbUser || !orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {

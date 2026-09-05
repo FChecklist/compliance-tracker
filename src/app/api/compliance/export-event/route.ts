@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { logActivity } from "@/lib/audit"
 import { evaluateBulkExportAnomaly } from "@/lib/risk-anomaly-detection"
@@ -16,6 +16,11 @@ import { recordAndEscalateAnomaly } from "@/lib/services/risk-escalation-service
 export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
+  // Matches compliance/route.ts's own POST floor and compliance/[id]/costs's
+  // POST floor -- this writes an audit-log row (and can trigger an anomaly
+  // escalation) and had no role floor at all beyond generic auth.
+  const roleErr = requireRole(dbUser, "member")
+  if (roleErr) return roleErr
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   let body: { count?: unknown }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { submitCodeChangeRequest, listCodeChangeRequests, ServiceError } from "@/lib/services/code-change-request-service"
 
 export async function GET() {
@@ -21,6 +21,13 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  // Matches the general write-action floor used elsewhere (e.g.
+  // business-rules/route.ts, construction/progress/route.ts) -- submitting
+  // a request is a write into the maker-checker approval pipeline and had
+  // no role floor at all beyond generic auth.
+  const roleCheck = requireRole(dbUser, "member")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()
