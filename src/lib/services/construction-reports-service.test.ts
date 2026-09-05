@@ -1451,6 +1451,88 @@ describe("R67 E-06: the Project Status report and the budget-variance report sta
   })
 })
 
+// R75 Phase 3 (R74-RULING-03 closure for R-52 -- "Only the LATEST revision is
+// counted"): R38 (23 Aug, TC-11/TC-43, cited in platform.sumeet_requirements)
+// found and fixed a real bug live -- scopeReport()/categoryBoqAmountsReport()
+// picked "latest" via version DESC with no tiebreaker, so 2+ independent BOQs
+// sharing a version number could resolve to an arbitrary one. The fix added a
+// createdAt DESC tiebreaker to the SQL orderBy (trusted here, not
+// re-verified -- Postgres's own ORDER BY is not this test's concern) AND kept
+// the existing `.find(b => b.status !== "superseded") ?? boqs[0]` fallback,
+// which IS this test's concern: given boqs already in DB-sorted order, does
+// the app correctly skip a superseded row instead of blindly trusting
+// position 0? No existing test constructs a multi-BOQ scenario to check this
+// -- every other scopeReport-adjacent test here uses exactly one BOQ. This is
+// deliberately scoped to SELECTION only (which BOQ counts), not summation
+// (R-33's already-covered concern, sumRootLineBudgets above) -- the fake
+// select-chain returns a fixed canned value regardless of which boqId it was
+// called with, same convention as fakeDbFor's ROW above, so this test's own
+// assertions are on report.boq/report.revisions, never report.totalValue.
+describe("scopeReport (R75 Phase 3 / R-52): the DB-sorted-first-non-superseded BOQ wins, not array position 0 blindly", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+    await mock.module("./construction-enablement-service", () => realEnablementService)
+  })
+
+  const SUPERSEDED_NEWEST = { id: "boq-superseded", orgId: "org-r52", projectId: "proj-r52", version: 2, status: "superseded", title: "Superseded rev", createdAt: new Date("2026-02-01") }
+  const ACTIVE_OLDER = { id: "boq-active", orgId: "org-r52", projectId: "proj-r52", version: 1, status: "approved", title: "Still-active v1", createdAt: new Date("2026-01-01") }
+
+  function fakeDbMultiBoq(boqsInDbSortOrder: typeof SUPERSEDED_NEWEST[]) {
+    const chain: Record<string, unknown> = {}
+    chain.from = () => chain
+    // Canned, boqId-independent -- see this block's own header on why.
+    chain.where = async () => [{ total: 999, count: 1 }]
+    return {
+      query: {
+        constructionBoqs: { findMany: async () => boqsInDbSortOrder },
+        constructionBoqLineItems: { findMany: async () => [] },
+      },
+      select: () => chain,
+    }
+  }
+
+  async function withMultiBoqFakeDb(boqsInDbSortOrder: typeof SUPERSEDED_NEWEST[]) {
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDbMultiBoq(boqsInDbSortOrder))),
+    }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablementService,
+      requireConstructionEnabled: mock(async () => {}),
+      isConstructionEnabledForOrg: mock(async () => true),
+    }))
+    return import("./construction-reports-service")
+  }
+
+  test("a superseded row sorted first (higher version) is skipped -- the older but still-active row is the one that counts", async () => {
+    const { scopeReport } = await withMultiBoqFakeDb([SUPERSEDED_NEWEST, ACTIVE_OLDER])
+    const report = await scopeReport({ orgId: "org-r52" }, "proj-r52")
+
+    expect(report.boq).not.toBeNull()
+    expect(report.boq!.id).toBe(ACTIVE_OLDER.id)
+    expect(report.boq!.id).not.toBe(SUPERSEDED_NEWEST.id)
+    // Both still surface in the revisions list -- R-52 is about what COUNTS,
+    // not about hiding the history.
+    expect(report.revisions.map((r) => r.id).sort()).toEqual([ACTIVE_OLDER.id, SUPERSEDED_NEWEST.id].sort())
+  })
+
+  test("when NEITHER row is superseded, DB sort order (position 0, already version+createdAt DESC) wins -- the app trusts Postgres's own ORDER BY, it does not re-sort", async () => {
+    const bothActive = { ...SUPERSEDED_NEWEST, id: "boq-both-active", status: "approved" }
+    const { scopeReport } = await withMultiBoqFakeDb([bothActive, ACTIVE_OLDER])
+    const report = await scopeReport({ orgId: "org-r52" }, "proj-r52")
+    expect(report.boq!.id).toBe(bothActive.id)
+  })
+
+  test("no BOQ at all reports null, not a crash", async () => {
+    const { scopeReport } = await withMultiBoqFakeDb([])
+    const report = await scopeReport({ orgId: "org-r52" }, "proj-r52")
+    expect(report.boq).toBeNull()
+    expect(report.totalValue).toBe(0)
+    expect(report.revisions).toEqual([])
+  })
+})
+
 // R67 lane D22 (item D-41): the Budget screen PROJEXA now renders at /budgets
 // prints Sumeet's own columns -- S.No | Category | Code | Description | Qty |
 // Rate | Amount | Budget % | Budget | Vendor | Vendor Amt | Material |
