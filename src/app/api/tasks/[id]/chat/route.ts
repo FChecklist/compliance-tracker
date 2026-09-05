@@ -2,7 +2,7 @@ import { tasks, taskChatMessages } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 
 export async function POST(
   request: NextRequest,
@@ -11,6 +11,16 @@ export async function POST(
   const { response, dbUser, orgId } = await requireAuth();
   if (response) return response;
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 });
+  // R75 Part 2 Phase 5 (G8-misc): had no role check at all -- any
+  // authenticated org member could post to ANY task's chat thread. "member"
+  // matches this codebase's general low bar for a baseline authenticated
+  // org action (e.g. POST /api/tasks, /api/social/posts). This is a role
+  // gate only, not an ownership check -- tasks/[id]'s own PATCH route
+  // documents that "any org member can act on any task" is this codebase's
+  // deliberate RLS-backed design for tasks, so no per-task ownership
+  // assertion is added here either.
+  const roleCheck = requireRole(dbUser, "member");
+  if (roleCheck) return roleCheck;
 
   try {
     const { id } = await params;
