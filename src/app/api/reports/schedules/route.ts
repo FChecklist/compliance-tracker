@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { listReportSchedules, createReportSchedule, ServiceError } from "@/lib/services/report-schedule-service"
 
 export async function GET() {
@@ -21,6 +21,15 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  // R75 Part 2 Phase 5 (G4 reports): had no role check at all. Matches
+  // metric-alert-rules's own requireRole(dbUser, "manager") gate (R75 Part 2
+  // Phase 5 G8-misc) -- the most similar sibling feature: an org-wide,
+  // notifying report/alert definition (recipientUserIds get a notification
+  // delivered automatically on the schedule's cadence), same minimum for the
+  // same reason.
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()
