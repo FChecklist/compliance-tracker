@@ -2,7 +2,7 @@ import { comments, tasks, notifications } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
 import { eq, and, asc } from "drizzle-orm"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
 import { createId } from "@paralleldrive/cuid2"
 
@@ -54,6 +54,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!dbUser || !orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  // R75 Part 2 Phase 5 (G8-misc): same gap and same fix as the sibling
+  // tasks/[id]/chat/route.ts (see its comment) -- "member", role gate only,
+  // no per-task ownership check (matches tasks/[id]'s own documented
+  // "any org member can act on any task" design).
+  const roleCheck = requireRole(dbUser, "member")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await context.params

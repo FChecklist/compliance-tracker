@@ -5,13 +5,18 @@
 // never updated; conversations are surfaced read-only, never reinjected
 // into the live conversations/messages tables).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { importWorkspaceMemory, ServiceError } from "@/lib/services/workspace-memory-service"
 
 export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  // R75 Part 2 Phase 5 (G8-misc): same gap and same fix as
+  // drive-import/route.ts (see its comment) -- matches export/route.ts's
+  // requireRole(dbUser, "manager").
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const formData = await request.formData()

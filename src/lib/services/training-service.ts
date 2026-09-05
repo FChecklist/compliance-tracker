@@ -350,11 +350,23 @@ export async function getEnrollment(ctx: { orgId: string }, enrollmentId: string
   })
 }
 
-/** Marks an enrollment in_progress on first real access (opening the course/a lesson). Idempotent no-op once started. */
+/**
+ * Marks an enrollment in_progress on first real access (opening the course/a
+ * lesson). Idempotent no-op once started.
+ *
+ * Ownership bypass fix (R75 Part 2 Phase 5, G8-misc): this previously never
+ * checked who was calling -- any authenticated org member who guessed/
+ * enumerated another employee's enrollmentId could flip it to in_progress on
+ * their behalf. Matches submitAttempt()'s own established convention below
+ * (`enrollment.employeeId !== ctx.userId` -> 403, no manager/admin override):
+ * that is the most similar sibling action in this file (progressing your own
+ * enrollment) and it draws no such exception, so this doesn't invent one.
+ */
 export async function startEnrollment(ctx: { orgId: string; userId: string }, enrollmentId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const enrollment = await db.query.trainingEnrollments.findFirst({ where: and(eq(trainingEnrollments.id, enrollmentId), eq(trainingEnrollments.orgId, ctx.orgId)) })
     if (!enrollment) throw new ServiceError("Enrollment not found", 404)
+    if (enrollment.employeeId !== ctx.userId) throw new ServiceError("Only the enrolled employee can start this course", 403)
     if (enrollment.status !== "not_started") return enrollment
     const [updated] = await db.update(trainingEnrollments).set({ status: "in_progress", startedAt: new Date(), updatedAt: new Date() }).where(eq(trainingEnrollments.id, enrollmentId)).returning()
     return updated
@@ -366,11 +378,16 @@ export async function startEnrollment(ctx: { orgId: string; userId: string }, en
  * file's header note on why per-lesson progress isn't tracked). Blocked if
  * the course DOES have an assessment -- that path completes only via
  * submitAttempt passing, not a self-declared shortcut.
+ *
+ * Ownership bypass fix (R75 Part 2 Phase 5, G8-misc): same gap and same fix
+ * as startEnrollment() above -- see its comment for why this matches
+ * submitAttempt()'s no-manager-override convention rather than inventing one.
  */
 export async function markCourseComplete(ctx: TrainingContext, enrollmentId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const enrollment = await db.query.trainingEnrollments.findFirst({ where: and(eq(trainingEnrollments.id, enrollmentId), eq(trainingEnrollments.orgId, ctx.orgId)) })
     if (!enrollment) throw new ServiceError("Enrollment not found", 404)
+    if (enrollment.employeeId !== ctx.userId) throw new ServiceError("Only the enrolled employee can complete this course", 403)
     if (enrollment.status === "completed") return enrollment
     const assessment = await db.query.trainingAssessments.findFirst({ where: and(eq(trainingAssessments.courseId, enrollment.courseId), eq(trainingAssessments.orgId, ctx.orgId)) })
     if (assessment) throw new ServiceError("This course has an assessment -- complete it by passing the assessment, not a manual mark", 400)

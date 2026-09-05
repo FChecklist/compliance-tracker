@@ -22,7 +22,7 @@
 // by this phase) can decide to actually spend an AI call -- this endpoint's
 // own job stops at the deterministic compiled+verified result.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { db, organisations } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import { runPipeline } from "@/lib/prompt-compiler/pipeline"
@@ -47,6 +47,17 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // R75 Part 2 Phase 5 (G8-misc): this route had no gate at all beyond a
+  // real session -- "member" matches this codebase's established low bar
+  // for a baseline authenticated org action (e.g. POST /api/tasks,
+  // /api/social/posts, /api/audit-points/[id]), and is deliberately not
+  // higher: this endpoint is the deterministic SECOND-pass compile behind
+  // ordinary chat/task-creation typing (see this file's header), something
+  // every real org member does, not a privileged operation. It excludes
+  // only the viewer-tier roles (viewer/client_viewer/external_auditor/
+  // stage_0), which this codebase treats as external/observer-only.
+  const roleCheck = requireRole(dbUser, "member")
+  if (roleCheck) return roleCheck
 
   let body: ExecuteBody
   try {
