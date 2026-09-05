@@ -1214,3 +1214,100 @@ describe("updateProgressEntry -- R67 D-28", () => {
     expect(updatedSets).toHaveLength(0)
   })
 })
+
+// ─── R75 batch (R-46) ──────────────────────────────────────────────────────
+// Two progress entries recorded with the exact same date, activity, BOQ line
+// and values are two distinct, real observations under this schema's own
+// DELTA convention (schema.ts on constructionWorkProgressEntries.entryBasis:
+// "'DELTA' = this-period quantity, additive -- the WPR roll-up sums it") --
+// nothing in createProgressEntry treats "this looks like an earlier entry" as
+// a reason to refuse or merge it (no uniqueness constraint on the table
+// either -- schema.ts's own column list has none beyond the primary key), and
+// rollUpLinkedIssueCompletion's own SQL sums quantity_done with no DISTINCT.
+// This exercises the real createProgressEntry() end to end, own fake db
+// (same pattern as the D-49 block above), and proves both halves of R-46: the
+// second, identical call is not rejected and both rows are kept in history
+// (as two distinct records with identical business fields), and the linked
+// activity's roll-up reflects BOTH quantities summed -- not the single-entry
+// figure a silent de-dup would produce.
+describe("R-46: identical progress entries are both kept in history and summed, not deduplicated", () => {
+  test("recording the same date/activity/BOQ-line/quantityDone/percentComplete twice inserts two separate rows, and the linked activity's roll-up sums both", async () => {
+    const ORG_ID = "org-r46"
+    const PROJECT_ID = "proj-r46"
+    const lineItemRows = [{ id: "LINE-1", orgId: ORG_ID, boqId: "BOQ-1", parentLineItemId: null }]
+    const allInserted: Record<string, unknown>[] = []
+    const updates: { set: Record<string, unknown> }[] = []
+    let nextId = 1
+
+    const input = {
+      projectId: PROJECT_ID, activityId: "ACT-1", boqLineItemId: "LINE-1",
+      entryDate: "2026-09-01", quantityDone: 20, percentComplete: 50,
+    }
+
+    const r46FakeDb = {
+      query: {
+        projects: { findFirst: async () => ({ id: PROJECT_ID, orgId: ORG_ID }) },
+        constructionActivities: { findFirst: async () => ({ id: "ACT-1", orgId: ORG_ID, projectId: PROJECT_ID }) },
+        constructionBoqs: { findFirst: async () => ({ id: "BOQ-1", orgId: ORG_ID, projectId: PROJECT_ID }) },
+        constructionBoqLineItems: {
+          // Answers BOTH resolveBoqLineItemForEntry queries correctly: the
+          // ownership lookup (id + orgId) matches LINE-1, and the "does this
+          // line have a child" guard (parentLineItemId = LINE-1) correctly
+          // finds none, since LINE-1's own parentLineItemId is null.
+          findFirst: async ({ where }: { where: SQL }) => lineItemRows.find((r) => matches(r, where)),
+          findMany: async () => [{ id: "LINE-1", quantity: "100" }],
+        },
+        pmsIssueBoqLinks: { findMany: async () => [{ id: "lnk-1", orgId: ORG_ID, issueId: "issue-1", boqLineItemId: "LINE-1", weight: "1" }] },
+      },
+      insert: () => ({
+        values: (v: Record<string, unknown>) => ({
+          returning: async () => {
+            const row = { ...v, id: `entry-${nextId++}`, percentComplete: String(v.percentComplete ?? "0") }
+            allInserted.push(row)
+            return [row]
+          },
+        }),
+      }),
+      update: () => ({ set: (set: Record<string, unknown>) => ({ where: async () => { updates.push({ set }) } }) }),
+      // A truthful fake: the "sum" is genuinely computed from every row that
+      // has actually been inserted so far (entry_basis DELTA only, the same
+      // filter the real SQL applies), never hardcoded to a single entry's
+      // value -- so if the service ever stopped writing a real second row,
+      // or started reading only the latest one, this would show it.
+      execute: async (query: { queryChunks?: unknown[] }) => {
+        const text = JSON.stringify(query?.queryChunks ?? "")
+        if (text.includes("percent_complete")) return []
+        const totalQty = allInserted
+          .filter((r) => r.boqLineItemId === "LINE-1" && (r.entryBasis ?? "DELTA") === "DELTA")
+          .reduce((sum, r) => sum + Number(r.quantityDone), 0)
+        return [{ boq_line_item_id: "LINE-1", total_qty: totalQty }]
+      },
+    }
+
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(r46FakeDb)),
+    }))
+    const { createProgressEntry } = await import("./construction-progress-service")
+
+    const first = await createProgressEntry({ orgId: ORG_ID, userId: "user-1" }, input)
+    const second = await createProgressEntry({ orgId: ORG_ID, userId: "user-1" }, input)
+
+    // Both calls succeeded -- neither is rejected as a duplicate.
+    expect(first.id).not.toBe(second.id)
+    // Both rows are kept in history, as two distinct records with IDENTICAL
+    // business fields.
+    expect(allInserted).toHaveLength(2)
+    for (const row of allInserted) {
+      expect(row).toMatchObject({
+        entryDate: "2026-09-01", activityId: "ACT-1", boqLineItemId: "LINE-1",
+        quantityDone: "20", percentComplete: "50", entryBasis: "DELTA",
+      })
+    }
+
+    // The roll-up after the SECOND call reflects BOTH entries summed:
+    // 20 + 20 = 40 of a 100-quantity line = 40%. A silent de-dup would leave
+    // this at 20%, the single-entry figure.
+    expect(updates[updates.length - 1].set).toMatchObject({ completionPercentage: 40 })
+  })
+})
