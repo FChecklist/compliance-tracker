@@ -6,7 +6,7 @@
 // this feature (additive-only saved reports, read-only conversation counts),
 // regardless of which of the 3 transport options produced the bytes.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { importWorkspaceMemory, ServiceError } from "@/lib/services/workspace-memory-service"
 import { requireActiveDriveConnection, downloadLatestCapsuleFromDrive } from "@/lib/services/workspace-memory-drive-sync"
 
@@ -14,6 +14,13 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  // R75 Part 2 Phase 5 (G8-misc): had no role check beyond org membership.
+  // Matches this feature's own sibling export routes (drive-export/route.ts,
+  // export/route.ts), which both gate on requireRole(dbUser, "manager") --
+  // same minimum for the same data (workspace memory capsules), just the
+  // opposite direction.
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const connection = await requireActiveDriveConnection({ orgId, userId: dbUser.id })
