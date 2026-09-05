@@ -6,6 +6,9 @@
 // esignature-service.test.ts.
 /// <reference types="bun-types" />
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
+// R-C13: table refs, compared by reference (===), so the fake db's insert()
+// can tell which table a real createBoqRevision() call is writing to.
+import { constructionBoqs, constructionBoqLineItems } from "@/lib/db"
 import {
   buildBoqListRows,
   computeHierarchicalAmount, deriveLineItemQuantityAndRate, diffLineItems, computeTotalVariation, findScopeReductionViolations,
@@ -1027,7 +1030,7 @@ describe("updateLineItemBudget -- material/manpower amounts and category (R67 I-
   })
 })
 
-// ─── R67 lane D22 (item D-64, rec R-230) ──────────────────────────────────
+// ─── R67 lane D22 (item D-64, rec R-230) ──────────────────────────────────────────
 // The searchable BOQ line lookup's pure half: what a typed query matches, what
 // an option carries, and which revision "the current BOQ" means when no caller
 // names one.
@@ -1240,5 +1243,123 @@ describe("resolveProgressDetailByLineItem (D-27)", () => {
 
   test("an item with neither link resolves to nothing at all", () => {
     expect(resolveProgressDetailByLineItem([row({ id: "li-1" })], new Map(), new Map()).size).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R-C13 acceptance test. createBoqRevision() itself needs a live DB
+// (withTenantContext); every other test of the scope-reduction guard in this
+// file exercises only the PURE helpers it is built from (findScopeReduction
+// Violations / resolveProgressByLineItem / buildScopeReductionConflicts).
+// This one runs the REAL createBoqRevision() end-to-end, with only
+// withTenantContext's DB swapped for an in-memory fake (same convention as
+// this file's own f23Db/f29Db and updateLineItemBudget's mountFakeDb()), to
+// prove the acceptance condition as literally stated: "a negative BOQ
+// variation for a line item that already has recorded work progress against
+// it is rejected with HTTP 409" -- not just that the pure helper WOULD flag
+// it, but that the real write path actually throws it.
+describe("createBoqRevision -- R-C13: a negative variation on a line item with recorded work progress is rejected with 409", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScopedForBoq)
+  })
+
+  test("reducing an already-progressed line item's quantity throws a ScopeReductionError (ServiceError, status 409)", async () => {
+    const orgId = "org-c13"
+    const parentBoq = {
+      id: "parent-1", orgId, projectId: "proj-c13", version: 1, title: "Original Scope",
+      parentBoqId: null, status: "approved", createdById: "user-c13", createdAt: new Date("2026-08-01T00:00:00Z"),
+    }
+    // The parent's existing line item, quantity 100 -- 45% of it already
+    // recorded as done on site (see the work-progress-entries fake below).
+    const previousLineItem = row({
+      id: "li-prev-1", boqId: "parent-1", itemCode: "A1", description: "Blockwork - Ground Floor",
+      unit: "sqm", quantity: "100", rate: "50", amount: "5000",
+    })
+    const insertedChildBoq = {
+      id: "child-1", orgId, projectId: "proj-c13", version: 2, parentBoqId: "parent-1",
+      title: "Original Scope", createdById: "user-c13", status: "draft", createdAt: new Date("2026-09-01T00:00:00Z"),
+    }
+    // The revision's resubmitted row for the SAME item, quantity cut to 60 --
+    // a real scope reduction (-40 qty, -2000 amount) on already-completed work.
+    const currentLineItem = row({
+      id: "li-curr-1", boqId: "child-1", itemCode: "A1", description: "Blockwork - Ground Floor",
+      unit: "sqm", quantity: "60", rate: "50", amount: "3000",
+    })
+
+    let boqsFindFirstCalls = 0
+    let lineItemsFindManyCalls = 0
+
+    const fakeDb = {
+      query: {
+        constructionBoqs: {
+          // 1st call: the parent lookup. 2nd call: "does this parent already
+          // have a revision?" -- none yet, so undefined.
+          findFirst: mock(async () => {
+            boqsFindFirstCalls += 1
+            return boqsFindFirstCalls === 1 ? parentBoq : undefined
+          }),
+        },
+        constructionBoqLineItems: {
+          // 1st call: previousItems (the parent's own lines). 2nd call:
+          // assertLineItemsPersisted's post-insert count check. 3rd call:
+          // currentItems (this revision's own lines, for the diff).
+          findMany: mock(async () => {
+            lineItemsFindManyCalls += 1
+            if (lineItemsFindManyCalls === 1) return [previousLineItem]
+            if (lineItemsFindManyCalls === 2) return [{ id: "li-curr-1" }]
+            return [currentLineItem]
+          }),
+        },
+        constructionWorkProgressEntries: {
+          // 45% recorded against the PREVIOUS row's id -- exactly the shape
+          // createBoqRevision's own comment describes ("progress lives on the
+          // PREVIOUS line item's id, not the CURRENT/new one").
+          findMany: mock(async () => [
+            { boqLineItemId: "li-prev-1", activityId: null, percentComplete: "45", quantityDone: "45", entryDate: "2026-08-20" },
+          ]),
+        },
+      },
+      insert: (table: unknown) => {
+        if (table === constructionBoqs) {
+          return { values: (_vals: unknown) => ({ returning: async () => [insertedChildBoq] }) }
+        }
+        if (table === constructionBoqLineItems) {
+          return {
+            values: (vals: Array<{ itemCode: string | null }>) => ({
+              returning: async () => vals.map((v, i) => ({ id: `li-curr-${i + 1}`, itemCode: v.itemCode })),
+            }),
+          }
+        }
+        throw new Error("R-C13 fake db: unexpected insert table")
+      },
+      // Never reached on the (real, blocked) path this test proves -- the
+      // ScopeReductionError throws before createBoqRevision reaches this
+      // status update. Present so a weakened guard that DOES reach it fails
+      // on a real assertion instead of an unrelated crash.
+      update: () => ({ set: () => ({ where: async () => {} }) }),
+    }
+
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScopedForBoq,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+
+    const { createBoqRevision, ScopeReductionError } = await import("./construction-boq-service")
+
+    let caught: unknown
+    try {
+      await createBoqRevision(
+        { orgId, userId: "user-c13" },
+        "parent-1",
+        { lineItems: [{ itemCode: "A1", description: "Blockwork - Ground Floor", unit: "sqm", quantity: 60, rate: 50 }] }
+      )
+    } catch (err) {
+      caught = err
+    }
+
+    expect(caught).toBeInstanceOf(ScopeReductionError)
+    expect((caught as { status: number }).status).toBe(409)
+    expect((caught as Error).message).toContain("Blockwork - Ground Floor")
   })
 })
