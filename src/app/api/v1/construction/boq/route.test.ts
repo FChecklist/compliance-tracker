@@ -1,12 +1,28 @@
 /// <reference types="bun-types" />
-// R74-RULING-03 closure test for R-18 (circular parentItemCode is rejected,
-// nothing persisted) and R-19 (a nested/grandchild sub-task prices off the
-// ROOT ancestor, not its immediate parent). Both were verified live this
-// session (R74 Phase 5, platform.sumeet_uat R74-R18-T1/R74-R19-T1) via
-// ad-hoc scratchpad scripts against a real dev server -- real, valid
-// evidence, but NOT a "named, committed, re-runnable test" per
-// R74-RULING-03's six conditions, so neither could be marked CLOSED on
-// that evidence alone. This file is the actual closing artifact.
+// R74-RULING-03 closure test for R-16, R-17, R-18, R-19: all four were
+// verified live (R74 Phase 5/8, platform.sumeet_uat) via ad-hoc scratchpad
+// scripts against a real dev server -- real, valid evidence, but not a
+// "named, committed, re-runnable test" per R74-RULING-03's six conditions,
+// so none could be marked CLOSED on that evidence alone. This file is the
+// actual closing artifact for all four (R75 Phase 3 added R-16/R-17 to
+// R74's original R-18/R-19 pair, reusing the same fake transactional DB
+// rather than building a second one).
+//
+// R-16 (child with parentItemCode but no breakdownPercentage is rejected)
+// and R-18 (circular parentItemCode is rejected) and R-17 (a parentItemCode
+// matching nothing in the submission is rejected) are three DISTINCT
+// customer-specified requirements that happen to share code: R-16 is caught
+// by validateLineItemInputs() BEFORE any transaction opens
+// (construction-boq-service.ts, "breakdownPercentage is required when
+// parentItemCode is set"); R-17 and R-18 are BOTH caught by the same
+// generic "unresolvable" batch-resolution check inside insertLineItems()
+// ("Unresolvable parentItemCode reference(s) among: ...") -- a true cycle
+// (R-18, neither node ever becomes "ready") and a genuinely dangling
+// reference to a code that exists nowhere in the submission (R-17) are
+// mechanically indistinguishable to that one loop today. Each gets its own
+// test with its own characteristic scenario (R-17's has no cycle at all)
+// rather than reusing R-18's assertion, so a future refactor that DOES
+// split the two error paths apart is still covered correctly by both.
 //
 // Mocks the DB layer only (@/lib/db/tenant-scoped, @/lib/supabase/auth-guard,
 // ./project-dashboard-cache) -- same convention as
@@ -152,6 +168,58 @@ beforeEach(() => {
 })
 
 describe("POST /api/v1/construction/boq -- R74-RULING-03 closure", () => {
+  test("R-16: a child with parentItemCode but no breakdownPercentage is rejected with 400, and NOTHING is persisted", async () => {
+    const { POST } = await import("./route")
+    const res = await POST(
+      makeRequest({
+        title: "R-16 closure test",
+        projectId: PROJECT_ID,
+        lineItems: [
+          { itemCode: "ROOT-1", description: "Root", unit: "LS", quantity: 10, rate: 100 },
+          // Has a parentItemCode but omits breakdownPercentage entirely --
+          // the exact shape validateLineItemInputs() rejects before any
+          // transaction opens (construction-boq-service.ts's own comment:
+          // "Before the transaction: a malformed body should never open one").
+          { itemCode: "CHILD-1", parentItemCode: "ROOT-1", description: "Child, no %", unit: "LS" },
+        ],
+      })
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error).toMatch(/breakdownPercentage is required when parentItemCode is set/)
+    // R74-RULING-03 condition (e): re-read the store, not just the status.
+    // Rejected pre-transaction means the store should never even have been
+    // touched -- a stronger assertion than "rolled back", since this path
+    // never calls withTenantContext at all.
+    expect(store.committedBoqs.length).toBe(0)
+    expect(store.committedLineItems.length).toBe(0)
+  })
+
+  test("R-17: a parentItemCode matching no itemCode anywhere in the submission is rejected with 400, and NOTHING is persisted", async () => {
+    const { POST } = await import("./route")
+    const res = await POST(
+      makeRequest({
+        title: "R-17 closure test",
+        projectId: PROJECT_ID,
+        lineItems: [
+          { itemCode: "ROOT-1", description: "Root", unit: "LS", quantity: 10, rate: 100 },
+          // GHOST-999 does not appear as any item's itemCode in this
+          // submission at all -- no cycle, genuinely dangling. Distinct
+          // scenario from R-18's true 2-node cycle below.
+          { itemCode: "CHILD-1", parentItemCode: "GHOST-999", breakdownPercentage: 50, description: "Orphan child", unit: "LS" },
+        ],
+      })
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error).toMatch(/Unresolvable parentItemCode reference/)
+    expect(body.error).toMatch(/GHOST-999|CHILD-1/)
+    expect(store.committedBoqs.length).toBe(0)
+    expect(store.committedLineItems.length).toBe(0)
+  })
+
   test("R-18: a circular parentItemCode reference (A-10 <-> CHILD-1) is rejected with 400, and NOTHING is persisted", async () => {
     const { POST } = await import("./route")
     const res = await POST(
