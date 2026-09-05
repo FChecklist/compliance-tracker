@@ -281,14 +281,7 @@ const EXEMPT_ROUTES: Array<{ path: string; category: string; reason: string }> =
 ]
 
 const KNOWN_OPEN_GAPS: Array<{ path: string; category: string; reason: string }> = [
-  {"path":"src/app/api/pms/wiki/route.ts","category":"MEDIUM","reason":"Creates a PMS wiki page under a given project, org-scoped, with no role check."},
-  {"path":"src/app/api/pms/wiki/[id]/route.ts","category":"MEDIUM","reason":"Updates an existing PMS wiki page with no role check."},
   {"path":"src/app/api/problem-records/[id]/tickets/route.ts","category":"MEDIUM","reason":"Links an existing ticket to a problem record with no role check."},
-  {"path":"src/app/api/pms/estimate-schemes/route.ts","category":"MEDIUM","reason":"Lets any authenticated org member create a project's estimate-point scheme (config), unlike sibling taxonomy endpoints that are admin-gated."},
-  {"path":"src/app/api/pms/issues/[id]/relations/route.ts","category":"MEDIUM","reason":"Lets any authenticated org member link any two project issues together with no role check."},
-  {"path":"src/app/api/pms/labels/route.ts","category":"MEDIUM","reason":"Lets any authenticated org member create a project label (low-stakes taxonomy item) with no role check."},
-  {"path":"src/app/api/pms/meetings/route.ts","category":"MEDIUM","reason":"Lets any authenticated org member schedule a project meeting with no role check."},
-  {"path":"src/app/api/pms/meetings/[id]/outcomes/route.ts","category":"MEDIUM","reason":"Lets any authenticated org member append outcome notes to any project meeting with no role check."},
   {"path":"src/app/api/ticket-intelligence/[id]/dismiss/route.ts","category":"MEDIUM","reason":"Dismisses an AI-suggested ticket-intelligence item."},
   {"path":"src/app/api/ticket-teams/route.ts","category":"MEDIUM","reason":"Creates a ticket routing team used for SLA policy matching."},
   {"path":"src/app/api/ticket-teams/[id]/route.ts","category":"MEDIUM","reason":"Updates a ticket routing team's configuration."},
@@ -347,9 +340,9 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
   test("headline counts match the R75 Phase 2 audit, as of 2026-09-05", () => {
     const protectedCount = mutating.filter((r) => r.protected).length
     expect(mutating.length).toBe(831)
-    expect(protectedCount).toBe(611) // +12 R75P2P5-G5 real requireRole() gates (misc/documents/erp/gst/help)
+    expect(protectedCount).toBe(618) // +7 R75P2P5-G6 real requireRole() gates (pms domain)
     expect(EXEMPT_ROUTES.length).toBe(201) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep
-    expect(KNOWN_OPEN_GAPS.length).toBe(19)
+    expect(KNOWN_OPEN_GAPS.length).toBe(12)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
   })
 })
