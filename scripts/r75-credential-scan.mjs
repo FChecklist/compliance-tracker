@@ -44,11 +44,39 @@ function redact(match) {
   return match.slice(0, 6) + "…[REDACTED " + (match.length - 10) + " chars]…" + match.slice(-4)
 }
 
+// R75 Part 4 (2026-09-05): the JWT-shaped pattern above is deliberately
+// broad (any three base64url segments joined by dots), which is correct for
+// catching a real Supabase SERVICE-ROLE key -- but a Supabase ANON/
+// publishable key is ALSO a JWT and is, by Supabase's own design,
+// meant to be public and embedded in client-side code (this is the exact
+// key baked into every browser bundle the app ships). Flagging every anon
+// key as a leak would make this scanner impossible to satisfy on any file
+// that legitimately embeds one (e2e/demo-gate-smoke.spec.ts does, on
+// purpose, with its own comment saying so) -- so a JWT match is decoded and
+// exempted ONLY when its own payload claims role:"anon" (or "authenticated",
+// the other publicly-safe self-identifying Supabase role). Any other role
+// (service_role, or a JWT that fails to decode at all) still fails closed --
+// this is a narrow, principled exemption, not a broadening of what counts
+// as safe. Proven on planted fixtures both ways before trusting it.
+function isSafeSupabaseAnonJwt(candidate) {
+  const parts = candidate.split(".")
+  if (parts.length !== 3) return false
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"))
+    return payload.iss === "supabase" && (payload.role === "anon" || payload.role === "authenticated")
+  } catch {
+    return false
+  }
+}
+
 function scanText(label, text) {
   const findings = []
   for (const p of PATTERNS) {
     const hits = [...text.matchAll(p.rx)]
-    for (const h of hits) findings.push({ label, rule: p.name, redacted: redact(h[0]) })
+    for (const h of hits) {
+      if (p.name === "supabase-service-role-jwt-shaped" && isSafeSupabaseAnonJwt(h[0])) continue
+      findings.push({ label, rule: p.name, redacted: redact(h[0]) })
+    }
   }
   return findings
 }

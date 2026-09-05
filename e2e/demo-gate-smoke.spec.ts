@@ -8,9 +8,17 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 // its job is to protect a path already proven, not to re-litigate it.
 //
 // Runs against real production (projexa-ai.com / compliance-tracker's
-// deployed API), the same live system every TC in this session was actually
-// verified against -- not a mock, not a local dev server (which would need
-// its own Supabase credentials wired into CI, a separate and larger task).
+// deployed API) by default, the same live system every TC in this session
+// was actually verified against -- not a mock. R75 Part 4 (2026-09-05):
+// while Vercel stays paused, this can ALSO run against a local PROJEXA dev
+// server (`bun run dev`, port 3100) by setting E2E_PROJEXA_ORIGIN -- the
+// SAME real Supabase project either way (this repo has no separate local
+// database, see CLAUDE.md's R72 state note), so this still exercises real
+// data end-to-end, just through localhost instead of the paused deployment.
+// The env var is the whole reason this was previously "a separate and
+// larger task" for CI specifically (CI would need its own Supabase
+// credentials wired in) -- a LOCAL interactive run already has them via
+// .env.local, so that blocker doesn't apply here.
 //
 // R46/E-126b (real fix, not a known tradeoff any more): each run creates 3
 // real, timestamped BOQs on Oakwood -- previously never deleted, because no
@@ -40,7 +48,13 @@ const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2cGNrZXV4Z3ZhaGd1d3NhZXVsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MjM4MzIsImV4cCI6MjA5OTA5OTgzMn0.3vDtJ-XlsVse2jJ8XNozM-Szyt-Wb6FxX9ZoC2_q8pk";
 const MINT_SECRET = "r33-mint-2026";
 const DEMO_EMAIL = "democeo@projexa-ai.com";
-const PROJEXA_ORIGIN = "https://projexa-ai.com";
+// R75 Part 4: E2E_PROJEXA_ORIGIN overrides both the base URL AND the
+// cookie's domain together -- a cookie scoped to "projexa-ai.com" is never
+// sent on a request to "localhost", so the two must change as a pair, not
+// just the URL alone (an easy, silent way for a "repoint to local" attempt
+// to look like it ran but never actually authenticate).
+const PROJEXA_ORIGIN = process.env.E2E_PROJEXA_ORIGIN || "https://projexa-ai.com";
+const PROJEXA_COOKIE_DOMAIN = new URL(PROJEXA_ORIGIN).hostname;
 
 // R45 seq6 fix (real, verified root cause -- NOT the "PR #1355 creates a
 // stray Rev2 at runtime" theory that motivated this investigation, which is
@@ -167,7 +181,7 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
     {
       name: "sb-evpckeuxgvahguwsaeul-auth-token",
       value: cookieValue,
-      domain: "projexa-ai.com",
+      domain: PROJEXA_COOKIE_DOMAIN,
       path: "/",
     },
   ]);
