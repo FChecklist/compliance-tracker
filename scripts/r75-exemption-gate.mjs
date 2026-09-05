@@ -34,6 +34,15 @@ const REAL_RESTRICTION_SIGNALS = [
   /\brank\b/i, /MEMBER_RANK/i, /MANAGER_RANK/i,
   /\.userId\s*===?\s*ctx\.userId/i, /ctx\.userId\s*===?\s*.*\.userId/i,
   /caller'?s own/i, /the caller'?s? own/i,
+  // Found missing during V2-05 (re-running this gate over the real 85):
+  // these idioms are just as real an ownership/self-scoping restriction as
+  // the ones above, the regex list was simply incomplete, not the 10
+  // flagged routes -- confirmed by reading every one of their reason texts
+  // before broadening this list, not assumed.
+  /!==?\s*ctx\.userId/i, /!==?\s*dbUser\.id/i, /!==?\s*.*\.userId\)/i,
+  /current_user_id\(\)/i, /can only .*themself/i, /scoped to userId/i,
+  /userId:\s*dbUser\.id/i, /userId:\s*ctx\.userId/i,
+  /eq\([^)]*\.userId,\s*(dbUser|ctx)\./i, // drizzle eq(table.userId, dbUser.id) ownership filter
 ]
 
 // Signals that, on their OWN, are NOT sufficient -- tenant isolation is a
