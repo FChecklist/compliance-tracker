@@ -16,9 +16,22 @@ import { eq, and } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError } from "./compliance-service"
 import { requireSalesEnabled } from "./crm-enablement-service"
+// R75 Part 2 G2 gap-closure (2026-09-05): reuses crm-service.ts's own
+// canCreateCrmRecord (member-rank-or-above, no ownership concept since this
+// is always a brand-new record) rather than re-declaring a third copy of
+// the same predicate -- same shape as createLead/createOpportunity/
+// createAccount's own canCreateCrmRecord gate, applied here since logging a
+// CRM activity is exactly a "create a brand-new record" action, same class.
+// No circular import: crm-service.ts only references this file in comments,
+// never imports it.
+import { canCreateCrmRecord, type AccessGateResult } from "./crm-service"
 
-export type CrmActivityContext = { orgId: string; userId: string }
+export type CrmActivityContext = { orgId: string; userId: string; role?: string }
 export type CrmActivityEntityType = "lead" | "opportunity" | "account" | "contact"
+
+function assertGate(gate: AccessGateResult): void {
+  if (!gate.ok) throw new ServiceError(gate.reason, 403)
+}
 
 export type CreateActivityInput = {
   entityType: CrmActivityEntityType
@@ -33,6 +46,14 @@ export type CreateActivityInput = {
 
 export async function createActivity(ctx: CrmActivityContext, input: CreateActivityInput) {
   await requireSalesEnabled(ctx.orgId)
+  // R75 Part 2 G2 gap-closure (2026-09-05): real gap -- any authenticated
+  // org member of any rank, including viewer/client_viewer/external_auditor,
+  // could log a CRM activity (task/meeting/call) against any lead/
+  // opportunity/account/contact, with zero RBAC check at all. `role` stays
+  // optional (same `if (ctx.role !== undefined)` shape as every gate in
+  // crm-service.ts) so any internal/system caller that doesn't carry a role
+  // is unaffected.
+  if (ctx.role !== undefined) assertGate(canCreateCrmRecord(ctx.role))
   const subject = input.subject?.trim()
   if (!subject) throw new ServiceError("subject is required", 400)
   if (!input.entityType || !input.entityId) throw new ServiceError("entityType and entityId are required", 400)

@@ -719,6 +719,248 @@ describe("bulkReassignLeads -- manager-rank RBAC gate (regression test for the u
 // withTenantContext) so isn't unit-testable here per this file's own
 // no-live-DB convention -- this proves the exact function it now calls,
 // against the exact attacker-controllable lead fields the audit named.
+// R75 Part 2 "G2 crm" gap-closure (2026-09-05): scoreLead/analyzeOpportunity/
+// createFollowUpTaskFromLead/createFollowUpTaskFromOpportunity each had NO
+// RBAC check at all -- any authenticated org member of any rank, including
+// viewer/client_viewer/external_auditor, could AI-score any lead/opportunity
+// or chain a follow-up task off one anywhere in the org. Fixed with the
+// SAME owner-or-manager canEditLead/canEditOpportunity gate updateLead/
+// updateOpportunity already use (this is an edit-grade write onto an
+// existing record, not a create or a reassign/delete), checked right after
+// the entity is fetched (real ownerId now known) and, in every one of these
+// 4 functions, strictly BEFORE any AI-provider/task-execution call -- so a
+// denied caller's request never reaches enforcePolicy/resolveModelConfig/
+// callLLMJson/executeTask at all, matching this codebase's "AI Refuses
+// before it ever costs a token" posture.
+//
+// Same "mock @/lib/db/tenant-scoped's withTenantContext + capture/restore
+// real modules in afterEach" precedent as this file's own
+// getSalesRepPerformanceDashboard block above -- extended here to also mock
+// the AI call chain (orchestra-model-resolver/llm-client/prompt-os-resolver/
+// orchestra-execution-logger) and task-execution-engine's executeTask, since
+// these 4 functions (unlike getSalesRepPerformanceDashboard) actually reach
+// that chain on the ALLOWED path. policy-enforcement-engine is deliberately
+// NOT mocked -- enforcePolicy() is a pure, DB-free deterministic keyword
+// classifier (see that file's own header) that genuinely allows an ordinary
+// business name like "Acme Corp" through, so exercising the real function
+// here is more honest than stubbing it.
+const realOrchestraModelResolver = await import("@/lib/orchestra-model-resolver")
+const realLlmClient = await import("@/lib/llm-client")
+const realPromptOsResolver = await import("@/lib/prompt-os-resolver")
+const realOrchestraExecutionLogger = await import("@/lib/orchestra-execution-logger")
+const realTaskExecutionEngine = await import("@/lib/task-execution-engine")
+
+type Row = Record<string, unknown>
+
+function makeGateTestFakeDb(fixtures: { lead?: Row | null; opportunity?: Row | null } = {}) {
+  const updatedRows: Row[] = []
+  const insertedTasks: Row[] = []
+  let nextTaskId = 1
+
+  const db = {
+    query: {
+      crmLeads: { findFirst: mock(async () => fixtures.lead ?? null) },
+      crmOpportunities: { findFirst: mock(async () => fixtures.opportunity ?? null) },
+      tasks: { findFirst: mock(async () => insertedTasks[insertedTasks.length - 1] ?? null) },
+    },
+    update: mock(() => ({
+      set: (patch: Row) => ({
+        where: () => ({
+          returning: async () => {
+            const merged = { ...(fixtures.lead ?? fixtures.opportunity ?? {}), ...patch }
+            updatedRows.push(merged)
+            return [merged]
+          },
+        }),
+      }),
+    })),
+    insert: mock(() => ({
+      values: (v: Row) => {
+        const row = { id: `task-${nextTaskId++}`, ...v }
+        insertedTasks.push(row)
+        return { returning: async () => [row] }
+      },
+    })),
+  }
+  return { db, updatedRows, insertedTasks }
+}
+
+async function loadCrmServiceWithGateTestMocks(fakeDb: ReturnType<typeof makeGateTestFakeDb>["db"]) {
+  await mock.module("@/lib/db/tenant-scoped", () => ({
+    ...realTenantScoped,
+    withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+  }))
+  await mock.module("./crm-enablement-service", () => ({ ...realCrmEnablementService, requireSalesEnabled: mock(async () => undefined) }))
+  await mock.module("@/lib/orchestra-model-resolver", () => ({
+    ...realOrchestraModelResolver,
+    resolveModelConfig: mock(async () => ({ provider: "anthropic", model: "test-model", apiKey: "test-key", isCustomerConfigured: false, fallback: undefined })),
+  }))
+  await mock.module("@/lib/llm-client", () => ({
+    ...realLlmClient,
+    callLLMJson: mock(async () => ({
+      data: { score: 80, winProbability: 70, reasoning: "Strong fit", riskFactors: [], recommendedAction: "Schedule a follow-up call" },
+      usage: { inputTokens: 10, outputTokens: 10 },
+    })),
+  }))
+  await mock.module("@/lib/prompt-os-resolver", () => ({ ...realPromptOsResolver, resolvePromptTemplate: mock(async () => "system prompt") }))
+  await mock.module("@/lib/orchestra-execution-logger", () => ({ ...realOrchestraExecutionLogger, recordOrchestraExecution: mock(() => undefined) }))
+  await mock.module("@/lib/task-execution-engine", () => ({ ...realTaskExecutionEngine, executeTask: mock(async () => undefined) }))
+  return import("./crm-service")
+}
+
+afterEach(async () => {
+  mock.restore()
+  await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  await mock.module("./crm-enablement-service", () => realCrmEnablementService)
+  await mock.module("@/lib/orchestra-model-resolver", () => realOrchestraModelResolver)
+  await mock.module("@/lib/llm-client", () => realLlmClient)
+  await mock.module("@/lib/prompt-os-resolver", () => realPromptOsResolver)
+  await mock.module("@/lib/orchestra-execution-logger", () => realOrchestraExecutionLogger)
+  await mock.module("@/lib/task-execution-engine", () => realTaskExecutionEngine)
+})
+
+describe("scoreLead -- owner-or-manager RBAC gate (R75 Part 2 G2 gap-closure)", () => {
+  const lead = { id: "lead-1", orgId: "org1", ownerId: "owner-1", name: "Acme Corp", source: "referral", status: "new", contactEmail: null, contactPhone: null, createdAt: new Date(), updatedAt: new Date() }
+
+  test("rejects a member who does not own the lead, with a 403, before ever calling the AI provider", async () => {
+    const { db } = makeGateTestFakeDb({ lead })
+    const { scoreLead } = await loadCrmServiceWithGateTestMocks(db)
+
+    await expect(
+      scoreLead({ orgId: "org1", userId: "someone-else", role: "member" }, "lead-1")
+    ).rejects.toMatchObject({ status: 403 })
+    expect(db.update).not.toHaveBeenCalled()
+  })
+
+  test("rejects a viewer outright, even if they somehow owned the lead", async () => {
+    const { db } = makeGateTestFakeDb({ lead: { ...lead, ownerId: "viewer-1" } })
+    const { scoreLead } = await loadCrmServiceWithGateTestMocks(db)
+
+    await expect(
+      scoreLead({ orgId: "org1", userId: "viewer-1", role: "viewer" }, "lead-1")
+    ).rejects.toMatchObject({ status: 403 })
+  })
+
+  test("allows the lead's own owner (member rank) to score it", async () => {
+    const { db, updatedRows } = makeGateTestFakeDb({ lead })
+    const { scoreLead } = await loadCrmServiceWithGateTestMocks(db)
+
+    const result = await scoreLead({ orgId: "org1", userId: "owner-1", role: "member" }, "lead-1") as Row
+    expect(result.aiScore).toBe(80)
+    expect(updatedRows.length).toBe(1)
+  })
+
+  test("allows a manager to score any lead regardless of owner", async () => {
+    const { db } = makeGateTestFakeDb({ lead })
+    const { scoreLead } = await loadCrmServiceWithGateTestMocks(db)
+
+    const result = await scoreLead({ orgId: "org1", userId: "mgr-1", role: "manager" }, "lead-1") as Row
+    expect(result.aiScore).toBe(80)
+  })
+})
+
+describe("analyzeOpportunity -- owner-or-manager RBAC gate (R75 Part 2 G2 gap-closure)", () => {
+  const opp = { id: "opp-1", orgId: "org1", ownerId: "owner-1", name: "Big Deal", stage: "proposal", estimatedValue: "50000", expectedCloseDate: null, createdAt: new Date(), updatedAt: new Date() }
+
+  test("rejects a member who does not own the opportunity, with a 403, before ever calling the AI provider", async () => {
+    const { db } = makeGateTestFakeDb({ opportunity: opp })
+    const { analyzeOpportunity } = await loadCrmServiceWithGateTestMocks(db)
+
+    await expect(
+      analyzeOpportunity({ orgId: "org1", userId: "someone-else", role: "member" }, "opp-1")
+    ).rejects.toMatchObject({ status: 403 })
+    expect(db.update).not.toHaveBeenCalled()
+  })
+
+  test("rejects a client_viewer outright", async () => {
+    const { db } = makeGateTestFakeDb({ opportunity: opp })
+    const { analyzeOpportunity } = await loadCrmServiceWithGateTestMocks(db)
+
+    await expect(
+      analyzeOpportunity({ orgId: "org1", userId: "owner-1", role: "client_viewer" }, "opp-1")
+    ).rejects.toMatchObject({ status: 403 })
+  })
+
+  test("allows the opportunity's own owner (member rank) to analyze it", async () => {
+    const { db, updatedRows } = makeGateTestFakeDb({ opportunity: opp })
+    const { analyzeOpportunity } = await loadCrmServiceWithGateTestMocks(db)
+
+    const result = await analyzeOpportunity({ orgId: "org1", userId: "owner-1", role: "member" }, "opp-1") as Row
+    expect(result.aiWinProbability).toBe(70)
+    expect(updatedRows.length).toBe(1)
+  })
+
+  test("allows a manager to analyze any opportunity regardless of owner", async () => {
+    const { db } = makeGateTestFakeDb({ opportunity: opp })
+    const { analyzeOpportunity } = await loadCrmServiceWithGateTestMocks(db)
+
+    const result = await analyzeOpportunity({ orgId: "org1", userId: "mgr-1", role: "manager" }, "opp-1") as Row
+    expect(result.aiWinProbability).toBe(70)
+  })
+})
+
+describe("createFollowUpTaskFromLead -- owner-or-manager RBAC gate (R75 Part 2 G2 gap-closure)", () => {
+  const scoredLead = { id: "lead-1", orgId: "org1", ownerId: "owner-1", name: "Acme Corp", aiRecommendedAction: "Call them back" }
+
+  test("rejects a member who does not own the lead, with a 403, before ever chaining a task", async () => {
+    const { db, insertedTasks } = makeGateTestFakeDb({ lead: scoredLead })
+    const { createFollowUpTaskFromLead } = await loadCrmServiceWithGateTestMocks(db)
+
+    await expect(
+      createFollowUpTaskFromLead({ orgId: "org1", userId: "someone-else", role: "member" }, "lead-1")
+    ).rejects.toMatchObject({ status: 403 })
+    expect(insertedTasks.length).toBe(0)
+  })
+
+  test("allows the lead's own owner (member rank) to raise the follow-up task", async () => {
+    const { db, insertedTasks } = makeGateTestFakeDb({ lead: scoredLead })
+    const { createFollowUpTaskFromLead } = await loadCrmServiceWithGateTestMocks(db)
+
+    const task = await createFollowUpTaskFromLead({ orgId: "org1", userId: "owner-1", role: "member" }, "lead-1") as Row
+    expect(task.title).toBe("Follow up: Acme Corp")
+    expect(insertedTasks.length).toBe(1)
+  })
+
+  test("allows a manager regardless of owner", async () => {
+    const { db } = makeGateTestFakeDb({ lead: scoredLead })
+    const { createFollowUpTaskFromLead } = await loadCrmServiceWithGateTestMocks(db)
+
+    const task = await createFollowUpTaskFromLead({ orgId: "org1", userId: "mgr-1", role: "manager" }, "lead-1") as Row
+    expect(task.title).toBe("Follow up: Acme Corp")
+  })
+})
+
+describe("createFollowUpTaskFromOpportunity -- owner-or-manager RBAC gate (R75 Part 2 G2 gap-closure)", () => {
+  const analyzedOpp = { id: "opp-1", orgId: "org1", ownerId: "owner-1", name: "Big Deal", aiRecommendedAction: "Send a revised proposal" }
+
+  test("rejects a member who does not own the opportunity, with a 403, before ever chaining a task", async () => {
+    const { db, insertedTasks } = makeGateTestFakeDb({ opportunity: analyzedOpp })
+    const { createFollowUpTaskFromOpportunity } = await loadCrmServiceWithGateTestMocks(db)
+
+    await expect(
+      createFollowUpTaskFromOpportunity({ orgId: "org1", userId: "someone-else", role: "member" }, "opp-1")
+    ).rejects.toMatchObject({ status: 403 })
+    expect(insertedTasks.length).toBe(0)
+  })
+
+  test("allows the opportunity's own owner (member rank) to raise the follow-up task", async () => {
+    const { db, insertedTasks } = makeGateTestFakeDb({ opportunity: analyzedOpp })
+    const { createFollowUpTaskFromOpportunity } = await loadCrmServiceWithGateTestMocks(db)
+
+    const task = await createFollowUpTaskFromOpportunity({ orgId: "org1", userId: "owner-1", role: "member" }, "opp-1") as Row
+    expect(task.title).toBe("Follow up: Big Deal")
+    expect(insertedTasks.length).toBe(1)
+  })
+
+  test("allows a manager regardless of owner", async () => {
+    const { db } = makeGateTestFakeDb({ opportunity: analyzedOpp })
+    const { createFollowUpTaskFromOpportunity } = await loadCrmServiceWithGateTestMocks(db)
+
+    const task = await createFollowUpTaskFromOpportunity({ orgId: "org1", userId: "mgr-1", role: "manager" }, "opp-1") as Row
+    expect(task.title).toBe("Follow up: Big Deal")
+  })
+})
+
 describe("csvEscape (crm-service.ts's exportLeadsCsv now reuses report-export-shared's guarded version)", () => {
   test("escapes a formula-injection-shaped lead name with a leading single quote", () => {
     expect(csvEscape("=cmd|'/C calc'!A0")).toBe("'=cmd|'/C calc'!A0")

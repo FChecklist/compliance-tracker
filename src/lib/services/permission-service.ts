@@ -255,6 +255,18 @@ export const ERP_ACTION_ROLES = {
   // erp.fixed_assets.category_manage/erp.chart_of_accounts.create above,
   // not routine data entry.
   "crm.pipeline_stages.manage": "manager",
+
+  // R75 Part 2 G2 gap-closure (2026-09-05): POST /api/crm/lost-reasons and
+  // PATCH /api/crm/lost-reasons/[id] (deactivate) had NO role/permission
+  // gate at all -- any authenticated org member of any rank could add or
+  // deactivate an entry in this org-wide picklist. Same "master-data
+  // configuration = manager" bar, and the same mechanism (requirePermissionForUser
+  // + this registry, gated inline in the route), as this file's own
+  // crm.pipeline_stages.manage precedent immediately above -- lost reasons
+  // are a sibling org-configurable CRM picklist (crm_opportunities.lost_reason_id),
+  // not routine per-record data entry. Reads (GET, list) stay ungated by
+  // role, same as every other module in this table.
+  "crm.lost_reasons.manage": "manager",
 } as const satisfies Record<string, UserRole>
 
 export type ErpAction = keyof typeof ERP_ACTION_ROLES

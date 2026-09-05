@@ -1371,6 +1371,19 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
     const lead = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
     if (!lead) throw new ServiceError("Lead not found", 404, { code: "NOT_FOUND" })
 
+    // R75 Part 2 G2 gap-closure (2026-09-05): this action AI-scores an
+    // existing lead and writes the result back onto it (aiScore/
+    // aiScoreReasoning/aiRecommendedAction/...), which is exactly the kind
+    // of write updateLead() already gates -- but scoreLead() itself had no
+    // RBAC check at all, so any authenticated org member of any rank,
+    // including viewer/client_viewer/external_auditor, could trigger it on
+    // any lead in the org. Same owner-or-manager bar as canEditLead's other
+    // call sites (updateLead/createFollowUpTaskFromLead), checked here
+    // (post-fetch, ownerId now known) rather than the pre-fetch
+    // manager-only shape bulkReassignLeads uses -- this is an edit-grade
+    // action, not a reassign/delete-grade one.
+    if (ctx.role !== undefined) assertGate(canEditLead(ctx.role, lead.ownerId, ctx.userId))
+
     // VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md §3/#6: lead.name is the one
     // genuinely user-authored field reaching the model here (everything
     // else in userMessage below is system-derived from DB columns) -- a
@@ -1428,6 +1441,12 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const opp = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
     if (!opp) throw new ServiceError("Opportunity not found", 404, { code: "NOT_FOUND" })
+
+    // R75 Part 2 G2 gap-closure (2026-09-05): same real gap as scoreLead()
+    // above, mirrored for opportunities -- see that function's comment.
+    // canEditOpportunity is the existing owner-or-manager predicate this
+    // file already uses for updateOpportunity/createFollowUpTaskFromOpportunity.
+    if (ctx.role !== undefined) assertGate(canEditOpportunity(ctx.role, opp.ownerId, ctx.userId))
 
     // Same reasoning as scoreLead() above -- opp.name is the only
     // user-authored text reaching the model here.
@@ -1527,6 +1546,10 @@ export async function createFollowUpTaskFromLead(ctx: CrmContext, leadId: string
     db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
   )
   if (!lead) throw new ServiceError("Lead not found", 404)
+  // R75 Part 2 G2 gap-closure (2026-09-05): raising a follow-up task off a
+  // lead's AI-recommended action is an edit-grade use of that lead, same
+  // bar as scoreLead()/updateLead() -- this had zero RBAC check before.
+  if (ctx.role !== undefined) assertGate(canEditLead(ctx.role, lead.ownerId, ctx.userId))
   if (!lead.aiRecommendedAction) throw new ServiceError("Score this lead first to get an AI-recommended action", 400)
   return createChainedTask(ctx, `Follow up: ${lead.name}`, lead.aiRecommendedAction, fromTaskId)
 }
@@ -1537,6 +1560,9 @@ export async function createFollowUpTaskFromOpportunity(ctx: CrmContext, opportu
     db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
   )
   if (!opp) throw new ServiceError("Opportunity not found", 404)
+  // R75 Part 2 G2 gap-closure (2026-09-05): same real gap as
+  // createFollowUpTaskFromLead() above, mirrored for opportunities.
+  if (ctx.role !== undefined) assertGate(canEditOpportunity(ctx.role, opp.ownerId, ctx.userId))
   if (!opp.aiRecommendedAction) throw new ServiceError("Analyze this opportunity first to get an AI-recommended action", 400)
   return createChainedTask(ctx, `Follow up: ${opp.name}`, opp.aiRecommendedAction, fromTaskId)
 }

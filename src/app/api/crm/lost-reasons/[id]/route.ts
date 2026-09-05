@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { deactivateLostReason, ServiceError } from "@/lib/services/crm-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -11,9 +12,12 @@ type RouteContext = { params: Promise<{ id: string }> }
 // removing it from future pick-lists, same rationale as isActive flags
 // elsewhere in this schema).
 export async function PATCH(_request: NextRequest, { params }: RouteContext) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // R75 Part 2 G2 gap-closure (2026-09-05): same gate as POST /api/crm/lost-reasons.
+  const permissionDenied = requirePermissionForUser(dbUser, "crm.lost_reasons.manage")
+  if (permissionDenied) return permissionDenied
 
   try {
     const { id } = await params
