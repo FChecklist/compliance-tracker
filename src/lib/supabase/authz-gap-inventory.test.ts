@@ -285,12 +285,6 @@ const KNOWN_OPEN_GAPS: Array<{ path: string; category: string; reason: string }>
   {"path":"src/app/api/document-matching-rules/route.ts","category":"MEDIUM","reason":"Creates an org-wide document auto-classification matching rule with no role check beyond authentication."},
   {"path":"src/app/api/drafted-communications/route.ts","category":"MEDIUM","reason":"Creates an AI-drafted communication held for later approval, with no role check beyond authentication."},
   {"path":"src/app/api/drafted-communications/[id]/reject/route.ts","category":"MEDIUM","reason":"Rejects an AI-drafted communication (prevents it from being sent), with no role check beyond authentication."},
-  {"path":"src/app/api/conversations/route.ts","category":"MEDIUM","reason":"Creates a new chat conversation with specified org participants, with only session auth and no rank check."},
-  {"path":"src/app/api/email-intelligence/route.ts","category":"MEDIUM","reason":"Submits raw email content to be analyzed and stored as a new email-intelligence item for the org."},
-  {"path":"src/app/api/email-intelligence/[id]/dismiss/route.ts","category":"MEDIUM","reason":"Dismisses an org's email-intelligence suggested item by id, with no role or ownership check."},
-  {"path":"src/app/api/email-intelligence/[id]/promote/route.ts","category":"MEDIUM","reason":"Promotes an email-intelligence suggested item into a real work-item/task, with no role check."},
-  {"path":"src/app/api/email-intelligence/[id]/promote-to-ticket/route.ts","category":"MEDIUM","reason":"Converts an org's email-intelligence item into a new helpdesk ticket, with no role check."},
-  {"path":"src/app/api/ingest/[batchId]/items/[itemId]/route.ts","category":"MEDIUM","reason":"Edits or approves/rejects a single staged (not-yet-imported) compliance ingestion item."},
   {"path":"src/app/api/erp/parties/[type]/[id]/addresses/route.ts","category":"MEDIUM","reason":"Adds a new address to a customer/supplier party record with no role check beyond being logged into the org."},
   {"path":"src/app/api/erp/parties/[type]/[id]/contacts/route.ts","category":"MEDIUM","reason":"Adds a new contact to a customer/supplier party record with no role check beyond org membership."},
   {"path":"src/app/api/escalation-rules/route.ts","category":"MEDIUM","reason":"Creates a helpdesk SLA escalation rule with only session auth, no role check despite being intended as admin-only."},
@@ -374,9 +368,9 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
   test("headline counts match the R75 Phase 2 audit, as of 2026-09-05", () => {
     const protectedCount = mutating.filter((r) => r.protected).length
     expect(mutating.length).toBe(831)
-    expect(protectedCount).toBe(584) // unchanged by G2 -- all 7 G2 fixes are assertGate/requirePermissionForUser, not requireRole()/requireRoleOrScope(), so none register as "protected" to this grep; they move to EXEMPT_ROUTES instead
+    expect(protectedCount).toBe(590) // +6 R75P2P5-G3 real requireRole() gates (email-intelligence/conversations/ingest)
     expect(EXEMPT_ROUTES.length).toBe(201) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep
-    expect(KNOWN_OPEN_GAPS.length).toBe(46)
+    expect(KNOWN_OPEN_GAPS.length).toBe(40)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
   })
 })
