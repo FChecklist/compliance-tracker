@@ -189,7 +189,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
               </Button>
             </Link>
             <Link href="/signup">
-              <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron text-sm">
+              <Button className="bg-ct-saffron-button hover:bg-ct-saffron-hover text-white shadow-saffron text-sm">
                 Get Started
               </Button>
             </Link>
@@ -331,7 +331,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                     <Button
                       className={`w-full text-sm font-semibold ${
                         plan.popular
-                          ? "bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
+                          ? "bg-ct-saffron-button hover:bg-ct-saffron-hover text-white shadow-saffron"
                           : "bg-ct-navy hover:bg-ct-navy2 text-white"
                       }`}
                     >
@@ -510,7 +510,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
               <Link href="/signup">
-                <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron text-sm font-semibold px-6">
+                <Button className="bg-ct-saffron-button hover:bg-ct-saffron-hover text-white shadow-saffron text-sm font-semibold px-6">
                   Start Free Trial
                   <ArrowRight className="size-4 ml-2" />
                 </Button>
@@ -530,7 +530,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
 
       {/* ── Footer ── */}
       <footer className="border-t border-ct-border py-8 px-4">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-ct-muted">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-ct-muted-text">
           <p>&copy; {new Date().getFullYear()} {brandLabel}. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <Link href="/" className="hover:text-ct-navy transition-colors">

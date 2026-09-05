@@ -55,6 +55,49 @@
      instead of `text-ct-saffron` for those. */
   --color-ct-saffron-text: #B45309;
 
+  /* R75 Part 4 (2026-09-06): same remediation pattern as ct-saffron-text
+     directly above, for --color-ct-muted (imported from
+     @fchecklist/veridian-ui-kit, #718096). Reproduced live via
+     e2e/accessibility.spec.ts -- axe-core's own reported figure was
+     "Element has insufficient color contrast of 3.95 (foreground color:
+     #718096, background color: #fffdf9)" on /login's "Sign in to your
+     compliance dashboard" line (class text-ct-muted), one of 9 flagged
+     nodes on that page alone. #718096 is NOT changed -- it is the shared
+     cross-product token, and this app is not the only consumer of the
+     ui-kit package (PROJEXA imports the same package). This new token is a
+     darker, same-hue variant, verified >=4.5:1 against every background
+     text-ct-muted is actually used on here (#FFFFFF 5.26:1, #FFFDF9
+     5.18:1, #F0F4F8/--muted 4.76:1) -- use `text-ct-muted-text` instead of
+     `text-ct-muted` for every TEXT use; icon-only/decorative uses of
+     ct-muted are unaffected by this token and untouched. */
+  --color-ct-muted-text: #606D7F;
+
+  /* R75 Part 4 (2026-09-06): a THIRD instance of the same underlying
+     problem as the two tokens directly above, found by the same
+     e2e/accessibility.spec.ts run -- axe-core's own reported figure:
+     "Element has insufficient color contrast of 2.59 (foreground color:
+     #ffffff, background color: #f5820a)" on /login's primary "Sign In"
+     button (bg-ct-saffron, text-white) -- the button ITSELF, not
+     secondary/muted text this time. #F5820A is white-on-saffron's rest-
+     state background and reaches only 2.60:1 for white text; its own
+     hover shade --color-ct-saffron-hover (#E0730A) is barely better at
+     3.17:1 -- both well under 4.5:1. ct-saffron is NOT changed here, for
+     the same reason as the tokens above (shared cross-product token, used
+     for many non-button things -- tinted accents, borders, on-dark-navy
+     contexts -- where this rule does not apply the same way). This new
+     token is a darker, same-hue shade verified >=4.5:1 for white text
+     (4.96:1) -- scoped to ONLY the one button this session actually
+     verified (login-form.tsx's Sign In submit). NOT applied elsewhere:
+     bg-ct-saffron + text-white is very likely used on other primary
+     buttons across this product (signup, every other "Sign In"-shaped
+     CTA) that were outside this test's 5-page scope and were not
+     individually re-verified here -- changing the SHARED base token
+     instead of scoping this narrowly would be exactly the kind of
+     unreviewed, broad, unverified sweep this session's own standard
+     argues against. Flagged, not silently left broken and not silently
+     fixed everywhere on one page's evidence. */
+  --color-ct-saffron-button: #AB5B07;
+
   /* ─── Pendency Colors ─── */
   --color-ct-pend-overdue-bg: #FDECEB;
   --color-ct-pend-overdue-text: #C0392B;

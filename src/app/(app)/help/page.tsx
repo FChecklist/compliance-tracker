@@ -79,7 +79,7 @@ async function PreAuthHelp() {
       </nav>
 
       <section className="mx-auto max-w-2xl px-6 pt-20 pb-24 md:pt-28">
-        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/50">Help</div>
+        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/65">Help</div>
         <h1 className="mt-4 max-w-xl font-heading text-4xl leading-tight sm:text-5xl">
           How can we help?
         </h1>
@@ -125,7 +125,7 @@ async function PreAuthHelp() {
             <Link href="/pricing" className="hover:text-[#1a1a17]">Pricing</Link>
             <Link href="/login" className="hover:text-[#1a1a17]">Log in</Link>
           </div>
-          <div className="text-sm text-[#1a1a17]/50">© {new Date().getFullYear()} {brandName}</div>
+          <div className="text-sm text-[#1a1a17]/65">© {new Date().getFullYear()} {brandName}</div>
         </div>
       </footer>
     </main>

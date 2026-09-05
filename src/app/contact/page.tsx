@@ -34,7 +34,7 @@ export default async function ContactPage({
     <span>{brand.brandName}</span>
   ) : (
     <span>
-      VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span>
+      VERIDIAN <span className="text-[#1a1a17]/65">COGNITIVE AI OS</span>
     </span>
   );
 
@@ -67,7 +67,7 @@ export default async function ContactPage({
       </nav>
 
       <section className="mx-auto max-w-2xl px-6 pt-20 pb-24 md:pt-28">
-        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/50">Get in touch</div>
+        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/65">Get in touch</div>
         <h1 className="mt-4 max-w-xl font-heading text-4xl leading-tight sm:text-5xl">
           Contact Us
         </h1>
@@ -108,7 +108,7 @@ export default async function ContactPage({
             <Link href="/pricing" className="hover:text-[#1a1a17]">Pricing</Link>
             <Link href="/login" className="hover:text-[#1a1a17]">Log in</Link>
           </div>
-          <div className="text-sm text-[#1a1a17]/50">© {new Date().getFullYear()} {brand?.brandName ?? "VERIDIAN AI"}</div>
+          <div className="text-sm text-[#1a1a17]/65">© {new Date().getFullYear()} {brand?.brandName ?? "VERIDIAN AI"}</div>
         </div>
       </footer>
     </main>

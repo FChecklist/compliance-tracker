@@ -153,7 +153,7 @@ export default async function CognitiveRootPage({
           <Link href="/" className="flex items-center gap-2.5 font-heading text-lg tracking-tight">
             <Image src="/logo-mark.svg" alt="VERIDIAN" width={28} height={28} priority />
             <span>
-              VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span>
+              VERIDIAN <span className="text-[#1a1a17]/65">COGNITIVE AI OS</span>
             </span>
           </Link>
           <div className="hidden items-center gap-8 text-sm text-[#1a1a17]/70 md:flex">
@@ -173,7 +173,7 @@ export default async function CognitiveRootPage({
 
       {/* hero — one oversized statement, nothing competing with it */}
       <section className="mx-auto max-w-6xl px-6 pt-24 pb-20 md:pt-32 md:pb-28">
-        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/50">
+        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/65">
           AI Cognitive Research
         </div>
         <h1 className="mt-8 max-w-4xl font-heading text-5xl leading-[1.06] sm:text-6xl md:text-7xl">
@@ -211,7 +211,7 @@ export default async function CognitiveRootPage({
             to systems that operate — bounded by a constitution, accountable to a ledger, and
             humble enough to ask before they act on what matters.
           </p>
-          <p className="mt-8 text-sm text-[#1a1a17]/55">
+          <p className="mt-8 text-sm text-[#1a1a17]/65">
             — The premise behind everything on this page
           </p>
         </div>
@@ -219,14 +219,14 @@ export default async function CognitiveRootPage({
 
       {/* research directions — five real subsystems, presented as research */}
       <section id="research" className="mx-auto max-w-6xl px-6 py-20 md:py-24">
-        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/50">Research directions</div>
+        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/65">Research directions</div>
         <h2 className="mt-4 max-w-2xl font-heading text-3xl sm:text-4xl">
           Five questions we keep answering in production
         </h2>
         <div className="mt-12 grid gap-x-12 gap-y-12 md:grid-cols-2">
           {RESEARCH.map((r, i) => (
             <div key={r.title} className="border-t border-[#1a1a17]/15 pt-6">
-              <div className="text-sm text-[#1a1a17]/40">{String(i + 1).padStart(2, "0")}</div>
+              <div className="text-sm text-[#1a1a17]/65">{String(i + 1).padStart(2, "0")}</div>
               <h3 className="mt-2 font-heading text-xl">{r.title}</h3>
               <p className="mt-3 leading-relaxed text-[#1a1a17]/70">{r.body}</p>
             </div>
@@ -237,7 +237,7 @@ export default async function CognitiveRootPage({
       {/* product index — editorial rows, no cards, no prices */}
       <section id="products" className="border-y border-[#1a1a17]/10 bg-[#F9F7F0]">
         <div className="mx-auto max-w-6xl px-6 py-20 md:py-24">
-          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/50">Products & projects</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/65">Products & projects</div>
           <h2 className="mt-4 max-w-2xl font-heading text-3xl sm:text-4xl">
             Research that ships
           </h2>
@@ -248,20 +248,20 @@ export default async function CognitiveRootPage({
                 href={p.href}
                 className="group grid gap-4 border-t border-[#1a1a17]/15 py-8 last:border-b md:grid-cols-[64px_1fr_96px] md:items-baseline"
               >
-                <div className="font-heading text-lg text-[#1a1a17]/35">{p.n}</div>
+                <div className="font-heading text-lg text-[#1a1a17]/65">{p.n}</div>
                 <div>
                   <div className="flex flex-wrap items-baseline gap-3">
                     <h3 className="font-heading text-2xl group-hover:underline decoration-1 underline-offset-4">
                       {p.name}
                     </h3>
-                    <span className="rounded-full border border-[#1a1a17]/15 px-2.5 py-0.5 text-[11px] uppercase tracking-wider text-[#1a1a17]/55">
+                    <span className="rounded-full border border-[#1a1a17]/15 px-2.5 py-0.5 text-[11px] uppercase tracking-wider text-[#1a1a17]/65">
                       {p.status}
                     </span>
                   </div>
                   <p className="mt-2 max-w-2xl leading-relaxed text-[#1a1a17]/70">{p.thesis}</p>
                 </div>
                 <div className="hidden justify-self-end md:block">
-                  <ArrowUpRight className="size-5 text-[#1a1a17]/40 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[#1a1a17]" />
+                  <ArrowUpRight className="size-5 text-[#1a1a17]/65 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[#1a1a17]" />
                 </div>
               </Link>
             ))}
@@ -271,7 +271,7 @@ export default async function CognitiveRootPage({
 
       {/* on cost — a discussion, deliberately not a price list */}
       <section id="cost" className="mx-auto max-w-6xl px-6 py-20 md:py-24">
-        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/50">On cost</div>
+        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/65">On cost</div>
         <h2 className="mt-4 max-w-2xl font-heading text-3xl sm:text-4xl">
           We discuss cost. We don&apos;t publish price lists.
         </h2>
@@ -301,7 +301,7 @@ export default async function CognitiveRootPage({
             </p>
           </div>
         </div>
-        <p className="mt-10 max-w-2xl text-sm text-[#1a1a17]/55">
+        <p className="mt-10 max-w-2xl text-sm text-[#1a1a17]/65">
           Each product page carries its own commercial details. For anything bespoke, the cost
           conversation starts with your problem, not our rate card.
         </p>
@@ -312,9 +312,9 @@ export default async function CognitiveRootPage({
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2 font-heading">
             <Image src="/logo-mark.svg" alt="VERIDIAN" width={22} height={22} />
-            <span>VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span></span>
+            <span>VERIDIAN <span className="text-[#1a1a17]/65">COGNITIVE AI OS</span></span>
           </div>
-          <div className="flex flex-wrap items-center gap-6 text-sm text-[#1a1a17]/60">
+          <div className="flex flex-wrap items-center gap-6 text-sm text-[#1a1a17]/65">
             <Link href="/office" className="hover:text-[#1a1a17]">Office</Link>
             <Link href="/the-firm" className="hover:text-[#1a1a17]">The Firm</Link>
             <Link href="/veri-fm-cs" className="hover:text-[#1a1a17]">FM & CS</Link>
@@ -322,10 +322,10 @@ export default async function CognitiveRootPage({
             <Link href="/join-us" className="hover:text-[#1a1a17]">Join Us</Link>
             <Link href="/contact" className="hover:text-[#1a1a17]">Contact Us</Link>
           </div>
-          <div className="text-sm text-[#1a1a17]/50">© {new Date().getFullYear()} VERIDIAN AI</div>
+          <div className="text-sm text-[#1a1a17]/65">© {new Date().getFullYear()} VERIDIAN AI</div>
         </div>
         <div className="border-t border-[#1a1a17]/10">
-          <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-5 text-xs text-[#1a1a17]/50 md:flex-row md:items-center md:justify-between">
+          <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-5 text-xs text-[#1a1a17]/65 md:flex-row md:items-center md:justify-between">
             <span>
               VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company
               incorporated in India under the Companies Act.

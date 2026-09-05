@@ -222,7 +222,7 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
               <CardTitle className="text-xl font-semibold text-ct-navy text-center">
                 {t("welcomeBack")}
               </CardTitle>
-              <p className="text-sm text-ct-muted text-center">
+              <p className="text-sm text-ct-muted-text text-center">
                 {t("subtitle")}
               </p>
             </CardHeader>
@@ -260,13 +260,13 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
                   <span className="w-full border-t border-ct-border" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-ct-muted">{t("or")}</span>
+                  <span className="bg-white px-2 text-ct-muted-text">{t("or")}</span>
                 </div>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-xs font-semibold text-ct-muted uppercase">
+                  <Label htmlFor="email" className="text-xs font-semibold text-ct-muted-text uppercase">
                     {t("emailLabel")}
                   </Label>
                   <Input
@@ -283,7 +283,7 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
 
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="password" className="text-xs font-semibold text-ct-muted uppercase">
+                    <Label htmlFor="password" className="text-xs font-semibold text-ct-muted-text uppercase">
                       {t("passwordLabel")}
                     </Label>
                     <button
@@ -308,7 +308,7 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
 
                 <Button
                   type="submit"
-                  className="w-full h-10 bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
+                  className="w-full h-10 bg-ct-saffron-button hover:bg-ct-saffron-hover text-white shadow-saffron"
                   disabled={loading}
                 >
                   {loading ? (
@@ -324,7 +324,7 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
                   <span className="w-full border-t border-ct-border" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-ct-muted">{t("or")}</span>
+                  <span className="bg-white px-2 text-ct-muted-text">{t("or")}</span>
                 </div>
               </div>
 
@@ -334,7 +334,7 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
                   password/magic-link/Google/SSO options above. */}
               {showPasscode ? (
                 <form onSubmit={handlePasscodeLogin} className="space-y-2">
-                  <Label htmlFor="passcode" className="text-xs font-semibold text-ct-muted uppercase">
+                  <Label htmlFor="passcode" className="text-xs font-semibold text-ct-muted-text uppercase">
                     {t("passcodeLabel")}
                   </Label>
                   <div className="flex gap-2">
@@ -355,7 +355,7 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
               ) : (
                 <button
                   type="button"
-                  className="w-full text-center text-sm text-ct-muted hover:text-ct-navy hover:underline"
+                  className="w-full text-center text-sm text-ct-muted-text hover:text-ct-navy hover:underline"
                   onClick={() => setShowPasscode(true)}
                 >
                   {t("signInWithPasscode")}
@@ -365,7 +365,7 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
               {/* SSO entry point */}
               {showSso ? (
                 <form onSubmit={handleSsoLogin} className="space-y-2">
-                  <Label htmlFor="ssoOrgSlug" className="text-xs font-semibold text-ct-muted uppercase">
+                  <Label htmlFor="ssoOrgSlug" className="text-xs font-semibold text-ct-muted-text uppercase">
                     {t("companyIdLabel")}
                   </Label>
                   <div className="flex gap-2">
@@ -382,7 +382,7 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
               ) : (
                 <button
                   type="button"
-                  className="w-full text-center text-sm text-ct-muted hover:text-ct-navy hover:underline"
+                  className="w-full text-center text-sm text-ct-muted-text hover:text-ct-navy hover:underline"
                   onClick={() => setShowSso(true)}
                 >
                   {t("signInWithSso")}
@@ -390,7 +390,7 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
               )}
 
               {/* Signup CTA */}
-              <p className="text-center text-sm text-ct-muted">
+              <p className="text-center text-sm text-ct-muted-text">
                 {t("noAccount")}{" "}
                 <Link
                   href="/signup"

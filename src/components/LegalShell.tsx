@@ -38,10 +38,10 @@ export function LegalShell({ title, updated, brand, children }: { title: string;
             {brand ? (
               <span>{brand.brandName}</span>
             ) : (
-              <span>VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span></span>
+              <span>VERIDIAN <span className="text-[#1a1a17]/65">COGNITIVE AI OS</span></span>
             )}
           </Link>
-          <div className="flex gap-5 text-sm text-[#1a1a17]/60">
+          <div className="flex gap-5 text-sm text-[#1a1a17]/65">
             <Link href="/terms" className="hover:text-[#1a1a17]">Terms</Link>
             <Link href="/privacy" className="hover:text-[#1a1a17]">Privacy</Link>
             <Link href="/data-policy" className="hover:text-[#1a1a17]">Data</Link>
@@ -51,14 +51,14 @@ export function LegalShell({ title, updated, brand, children }: { title: string;
 
       <article className="mx-auto max-w-4xl px-6 py-16">
         <h1 className="font-heading text-4xl">{title}</h1>
-        <p className="mt-2 text-sm text-[#1a1a17]/50">Last updated: {updated}</p>
+        <p className="mt-2 text-sm text-[#1a1a17]/65">Last updated: {updated}</p>
         <div className="legal-prose mt-10 space-y-8 leading-relaxed text-[#1a1a17]/80 [&_h2]:font-heading [&_h2]:text-2xl [&_h2]:text-[#1a1a17] [&_h3]:font-semibold [&_h3]:text-[#1a1a17] [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:space-y-1.5 [&_p+p]:mt-3">
           {children}
         </div>
       </article>
 
       <footer className="border-t border-[#1a1a17]/10">
-        <div className="mx-auto flex max-w-4xl flex-col gap-2 px-6 py-8 text-xs text-[#1a1a17]/50">
+        <div className="mx-auto flex max-w-4xl flex-col gap-2 px-6 py-8 text-xs text-[#1a1a17]/65">
           <span>
             {brandLabel} is owned and operated by {COMPANY.legalName}, a company {COMPANY.incorporation}.
           </span>
