@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { setTicketInstalledProduct, ServiceError } from "@/lib/services/ticket-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
+// R75 Part 2 Phase 5 (G7 final): had NO role gate at all. Matches
+// /api/tickets/[id]'s own PATCH floor ("team_member") -- this sets a plain
+// field on the same ticket record (which unit it's about), the same
+// operational granularity as updating status/priority/assignee there.
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  const roleCheck = requireRole(dbUser, "team_member")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

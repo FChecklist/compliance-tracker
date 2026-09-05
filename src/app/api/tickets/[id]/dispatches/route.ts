@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { listFieldServiceDispatches, createFieldServiceDispatch, ServiceError } from "@/lib/services/ticket-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -24,6 +24,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // R75 Part 2 Phase 5 (G7 final): had NO role gate at all. Matches
+  // /api/tickets/[id]'s own PATCH floor ("team_member") and PATCH
+  // /api/field-service-dispatches/[dispatchId]'s already-established "team_member"
+  // gate on this exact sub-resource -- creating a dispatch is the same
+  // operational granularity as updating one or updating the ticket itself.
+  const roleCheck = requireRole(dbUser, "team_member")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

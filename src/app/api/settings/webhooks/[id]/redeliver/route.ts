@@ -3,7 +3,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { redeliverWebhookDelivery } from "@/lib/webhook-deliver";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 
 // Gap-closure (API Governance: Webhook Reliability, 2026-07-18): automatic
 // delivery is capped at 3 attempts (webhook-deliver.ts's deliverWebhook) --
@@ -13,13 +13,22 @@ import { requireAuth } from "@/lib/supabase/auth-guard";
 // the "Redeliver" button in WebhookSection.tsx was clicked on) against the
 // webhook's *current* URL/secret, using the payload already stored on that
 // row -- no re-fetch of the original trigger data needed.
+// R75 Part 2 Phase 5 (G7 final): had NO role check at all -- matches every
+// sibling handler in this same webhooks module (GET/POST ../route.ts,
+// PATCH/DELETE ../[id]/route.ts, all gated "admin" per R66 gap-closure's own
+// finding that any authenticated org member could otherwise read/manage a
+// webhook's signing secret and destination URL). Redelivering replays a past
+// payload against that same URL/secret, the identical exfiltration surface,
+// so it sits at the same "admin" bar, not a lower one.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { response, orgId } = await requireAuth();
+  const { response, dbUser, orgId } = await requireAuth();
   if (response) return response;
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 });
+  const roleCheck = requireRole(dbUser, "admin");
+  if (roleCheck) return roleCheck;
 
   try {
     const { id } = await params;

@@ -2,13 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { findSimilar } from "@/lib/embeddings";
 import { complianceItems, notices, documents } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 import { eq } from "drizzle-orm";
 
+// R75 Part 2 Phase 5 (G7 final): had NO role check at all beyond being an
+// authenticated org member -- any role, including the lowest read-only tiers
+// (viewer/client_viewer/external_auditor/stage_0), could run a free-text
+// semantic search returning compliance items/notices/documents from anywhere
+// in the org, unscoped by the narrower per-entity access those tiers
+// normally have elsewhere. Gated at "member" -- this is read-only over data
+// the org's real staff already have list/detail access to (don't over-gate a
+// read), but it excludes the rank-1 restricted-view tiers this bypasses.
 export async function POST(request: NextRequest) {
-  const { response, orgId } = await requireAuth();
+  const { response, dbUser, orgId } = await requireAuth();
   if (response) return response;
   if (!orgId) return NextResponse.json({ query: "", total: 0, grouped: {}, results: [] });
+  const roleCheck = requireRole(dbUser, "member");
+  if (roleCheck) return roleCheck;
 
   try {
     const body = await request.json();
