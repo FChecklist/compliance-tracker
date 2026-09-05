@@ -1436,6 +1436,16 @@ describe("R67 E-06: the Project Status report and the budget-variance report sta
       ...realEnablementService,
       requireConstructionEnabled: mock(async () => {}),
       isConstructionEnabledForOrg: mock(async () => true),
+      // R75 Part 2/3 (R-80 fix): construction-dashboard-service.ts's
+      // getProjectDashboard(s)/getOrgDashboard now delegate to a WithDb
+      // sibling that calls isConstructionEnabledForOrgWithDb (reusing the
+      // caller's own db handle) instead of the plain, self-opening
+      // isConstructionEnabledForOrg -- mock both so a real, unmocked call
+      // never slips through to a real DB (self-caught: this exact gap made
+      // CI's Unit Tests job fail for real after the R-80/R-50 pushes,
+      // because this file's own mock predates that refactor and wasn't
+      // updated alongside construction-dashboard-service.test.ts's copy).
+      isConstructionEnabledForOrgWithDb: mock(async () => true),
     }))
     return import("./construction-reports-service")
   }
@@ -1563,6 +1573,16 @@ describe("scopeReport (R75 Phase 3 / R-52): the DB-sorted-first-non-superseded B
       ...realEnablementService,
       requireConstructionEnabled: mock(async () => {}),
       isConstructionEnabledForOrg: mock(async () => true),
+      // R75 Part 2/3 (R-80 fix): construction-dashboard-service.ts's
+      // getProjectDashboard(s)/getOrgDashboard now delegate to a WithDb
+      // sibling that calls isConstructionEnabledForOrgWithDb (reusing the
+      // caller's own db handle) instead of the plain, self-opening
+      // isConstructionEnabledForOrg -- mock both so a real, unmocked call
+      // never slips through to a real DB (self-caught: this exact gap made
+      // CI's Unit Tests job fail for real after the R-80/R-50 pushes,
+      // because this file's own mock predates that refactor and wasn't
+      // updated alongside construction-dashboard-service.test.ts's copy).
+      isConstructionEnabledForOrgWithDb: mock(async () => true),
     }))
     return import("./construction-reports-service")
   }
