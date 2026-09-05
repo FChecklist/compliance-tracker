@@ -1263,6 +1263,35 @@ describe("aggregateRevenueBudgetActual (R67 E-08)", () => {
     expect(rows[0].lineCount).toBe(1)
   })
 
+  // R75 Part 2 Phase 3 (R-C11 gap closure): the "ACCEPTANCE" tests above only
+  // assert that summed figures agree between the two foldings -- a property
+  // that holds true even if "category" grouping were silently broken (e.g. it
+  // fell back to one row per line, exactly like "scope"), because a sum over
+  // ungrouped rows equals the same sum over correctly-grouped rows either way.
+  // Nothing before this test actually proved lines SHARING a category are
+  // merged into one row. LINES has l1+l2 both "Civil" (l3 is the only
+  // "Joinery" line) -- this pins the real merge: row count collapses from 3
+  // lines to 2 categories, and the Civil row's figures are the true sum of
+  // l1+l2, not a coincidental pass-through.
+  test("category-wise MERGES every line sharing a category into ONE row (not one row per line)", () => {
+    const { rows } = aggregateRevenueBudgetActual(LINES, "category")
+
+    expect(rows).toHaveLength(2)
+    const civil = rows.find((r) => r.item === "Civil")!
+    const joinery = rows.find((r) => r.item === "Joinery")!
+
+    expect(civil.lineCount).toBe(2)
+    expect(civil.revenue).toBe(5400 + 3375)
+    expect(civil.budget).toBe(1350 + 843.75)
+    // l1's actual is vendor-only (1500), l2's is material+manpower (600) --
+    // the merged row must carry their real sum, 2100, not just l1's or l2's.
+    expect(civil.actual).toBe(1500 + 600)
+
+    expect(joinery.lineCount).toBe(1)
+    expect(joinery.revenue).toBe(2000)
+    expect(joinery.actual).toBeNull()
+  })
+
   test("both foldings report the SAME totals -- one fold, two views", () => {
     const scope = aggregateRevenueBudgetActual(LINES, "scope")
     const category = aggregateRevenueBudgetActual(LINES, "category")
