@@ -260,7 +260,11 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
   // for the extraction/R48-preservation rationale). `role` is threaded
   // through so dispatchConstructionTool() can apply the same R48 (F089/
   // F059) financial-field redaction gate this used to apply inline.
-  if (CONSTRUCTION_TOOL_CODES.has(codeReference)) return dispatchConstructionTool(orgId, userId, codeReference, context, role);
+  // R75 Part 2 (R-80): `db` (this function's own already-open transaction
+  // handle) is now threaded through too, so dispatchConstructionTool's
+  // dashboard-reading codeReferences reuse it instead of each opening a
+  // second, nested transaction -- see construction-tools.ts's own header.
+  if (CONSTRUCTION_TOOL_CODES.has(codeReference)) return dispatchConstructionTool(orgId, userId, codeReference, context, role, db);
 
   throw new Error(`No dispatcher implemented for ${codeReference}`);
 }

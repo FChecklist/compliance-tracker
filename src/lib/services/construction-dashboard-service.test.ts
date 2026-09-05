@@ -40,7 +40,11 @@ const SOURCE = readFileSync(path.join(import.meta.dir, "construction-dashboard-s
 // forbids (they explain the bug), so assertions run on comment-stripped code.
 const CODE = SOURCE.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "")
 
-function functionBody(name: string): string {
+/** Raw extraction, no delegation-following -- for tests that specifically
+ * need to inspect ONE named function's own body in isolation (e.g. checking
+ * that a thin wrapper opens no transaction of its own). Most tests should
+ * use functionBody() below instead. */
+function rawFunctionBody(name: string): string {
   // R67 integration fix: this only ever looked for `export async function`,
   // which was true of every function it was asked about when it was written.
   // The one-statement rewrite moved the per-project money and budget decisions
@@ -55,6 +59,30 @@ function functionBody(name: string): string {
   expect(start).toBeGreaterThan(-1)
   const next = CODE.indexOf("\nexport ", start + 1)
   return CODE.slice(start, next === -1 ? undefined : next)
+}
+
+/**
+ * R75 Part 2 (R-80 fix, 2026-09-05): getOrgDashboard/getProjectDashboards
+ * became thin one-line wrappers around getOrgDashboardWithDb/
+ * getProjectDashboardsWithDb (same "public wrapper opens the transaction,
+ * WithDb sibling holds the real logic and accepts an already-open db"
+ * pattern this file's own header already established for
+ * getProjectDashboard -> getProjectDashboards). Every EXISTING business-logic
+ * assertion in this file (a SQL fragment, a field mapping, a batching shape)
+ * was written against the body BEFORE this split and still describes real,
+ * unchanged behavior -- it now just lives one level deeper. Rather than
+ * rewrite ~35 call sites individually, this helper follows a single level of
+ * "return withTenantContext(..., (db) => xWithDb(...))" delegation
+ * automatically and returns the WithDb sibling's body instead, so those
+ * assertions keep checking the same real logic without change. A function
+ * that is NOT a thin WithDb delegator (the normal case) behaves exactly as
+ * rawFunctionBody() always did.
+ */
+function functionBody(name: string): string {
+  const body = rawFunctionBody(name)
+  const delegateMatch = body.match(/return withTenantContext\(\{[^}]*\},\s*\(db\)\s*=>\s*(\w+WithDb)\(/)
+  if (delegateMatch) return rawFunctionBody(delegateMatch[1])
+  return body
 }
 
 // R67 F-03. listProjectsForSelection() exists so PROJEXA's 50 project-scoped
@@ -147,21 +175,42 @@ describe("construction-dashboard-service: no nested withTenantContext transactio
     expect(CODE).not.toMatch(/import\s*\{[^}]*\bearnedValueReport\b[^}]*\}/)
   })
 
+  // R75 Part 2 (R-80 fix, 2026-09-05): getProjectDashboards/getOrgDashboard
+  // are now thin wrappers delegating to a WithDb sibling (same split as
+  // getProjectDashboard -> getProjectDashboards below). The invariant these
+  // tests guard -- "this call never holds two of the five pooled
+  // connections at once" -- is now STRUCTURALLY stronger than the original
+  // "enablement check runs before the transaction opens" ordering rule: the
+  // wrapper opens exactly one transaction, and the enablement check happens
+  // INSIDE the WithDb sibling using that SAME connection, so there is only
+  // ever one open transaction for the whole call, not two kept sequential.
+  // rawFunctionBody() is used throughout here (not functionBody()'s
+  // delegation-following) because these tests specifically need to inspect
+  // the wrapper and the WithDb sibling as two SEPARATE bodies to prove that
+  // split, not one merged body.
   for (const fn of ["getProjectDashboards", "getOrgDashboard"]) {
-    test(`${fn}: the construction-enablement check runs BEFORE its withTenantContext transaction, never inside it`, () => {
-      const body = functionBody(fn)
-      const enablement = body.indexOf("isConstructionEnabledForOrg(")
-      const tx = body.indexOf("withTenantContext(")
-      expect(enablement).toBeGreaterThan(-1)
-      expect(tx).toBeGreaterThan(-1)
-      expect(enablement).toBeLessThan(tx)
-      // and it is called exactly once per function -- a second call inside
-      // the transaction would be the regression
-      expect(body.match(/isConstructionEnabledForOrg\(/g)?.length).toBe(1)
+    const withDbFn = `${fn}WithDb`
+
+    test(`${fn}: the public wrapper delegates entirely -- opens exactly one transaction, does not call the enablement check itself`, () => {
+      const wrapperBody = rawFunctionBody(fn)
+      expect(wrapperBody.match(/withTenantContext\(/g)?.length).toBe(1)
+      expect(wrapperBody).not.toMatch(/isConstructionEnabledForOrg/)
+      expect(wrapperBody).toMatch(new RegExp(`\\(db\\)\\s*=>\\s*${withDbFn}\\(`))
     })
 
-    test(`${fn}: only ONE withTenantContext (the outer one)`, () => {
-      expect(functionBody(fn).match(/withTenantContext\(/g)?.length).toBe(1)
+    test(`${withDbFn}: never opens its own transaction -- structurally cannot nest, reuses the caller's db handle`, () => {
+      const withDbBody = rawFunctionBody(withDbFn)
+      expect(withDbBody).not.toMatch(/withTenantContext\(/)
+      // called exactly once, via the WithDb sibling (isConstructionEnabledForOrgWithDb),
+      // never the plain self-opening isConstructionEnabledForOrg (which
+      // would open its own transaction and reintroduce the nesting risk).
+      // These are two textually distinct call sites ("...Org(" vs
+      // "...OrgWithDb(" -- the literal "WithDb" text sits between "Org" and
+      // the paren, so a regex requiring "Org" immediately followed by "("
+      // cannot accidentally match inside the WithDb call), so both must be
+      // checked explicitly rather than inferred from one count.
+      expect(withDbBody.match(/isConstructionEnabledForOrgWithDb\(/g)?.length).toBe(1)
+      expect(withDbBody.match(/isConstructionEnabledForOrg\(/g)?.length ?? 0).toBe(0)
     })
   }
 
@@ -251,8 +300,14 @@ const realEnablement = await import("./construction-enablement-service")
 
 async function loadService(constructionEnabled = true) {
   await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: mockWithTenantContext }))
+  // R75 Part 2 (R-80 fix): getOrgDashboard/getProjectDashboards now delegate
+  // to a WithDb sibling that calls isConstructionEnabledForOrgWithDb (reusing
+  // the already-open transaction's db handle), not the plain
+  // isConstructionEnabledForOrg -- mock both so a real, unmocked call never
+  // slips through and hits a real DB.
   await mock.module("./construction-enablement-service", () => ({
     isConstructionEnabledForOrg: mock(async () => constructionEnabled),
+    isConstructionEnabledForOrgWithDb: mock(async () => constructionEnabled),
   }))
   return import("./construction-dashboard-service")
 }
@@ -603,7 +658,10 @@ describe("getOrgDashboard: one budget number (R67 E-06)", () => {
     }))
     await mock.module("./construction-enablement-service", () => ({
       ...realEnablement,
+      // R75 Part 2 (R-80 fix): see loadService()'s own comment above -- the
+      // WithDb sibling is what getOrgDashboard actually calls now.
       isConstructionEnabledForOrg: mock(async () => true),
+      isConstructionEnabledForOrgWithDb: mock(async () => true),
     }))
     const { getOrgDashboard } = await import("./construction-dashboard-service")
     return getOrgDashboard({ orgId: "org-e06" })
@@ -1034,30 +1092,45 @@ describe("getProjectDashboard: category progress and recent entries ride on the 
     expect(body).toContain("LEFT JOIN compliance.construction_activities a ON a.id = e.activity_id")
   })
 
-  // R67 F-15 (R-232/R-251). The static guard at the top of this file pins the
-  // SHAPE of the source; this pins the BEHAVIOUR, which is what actually cost
-  // production 25 minutes of pool: the construction-enablement check --
-  // itself a withTenantContext transaction, via isBranchEnabledForOrg -- must
-  // resolve BEFORE this function takes a connection of its own, so one request
-  // never holds two of the five app_runtime slots.
-  test("the enablement check runs ONCE, and completes before the transaction opens", async () => {
+  // R67 F-15 (R-232/R-251), UPDATED R75 Part 2 (R-80 fix, 2026-09-05). The
+  // static guard at the top of this file pins the SHAPE of the source; this
+  // pins the BEHAVIOUR, which is what actually cost production 25 minutes of
+  // pool. The ORIGINAL fix (run the enablement check sequentially BEFORE
+  // opening this function's own transaction, so the two never overlap) is
+  // now further strengthened by getOrgDashboardWithDb/getProjectDashboardsWithDb
+  // existing: getProjectDashboard(s) still opens exactly ONE transaction, and
+  // the enablement check (isConstructionEnabledForOrgWithDb) now runs INSIDE
+  // it, reusing that SAME connection/db handle -- not a sequential check
+  // before a second one opens, but structurally impossible to ever hold two,
+  // because there is only ever one open transaction for this whole call,
+  // full stop. A caller that already has an open transaction of its OWN
+  // (e.g. the assistant route's codeReference dispatch) can call
+  // getProjectDashboardsWithDb(db, ...) directly and reuse THAT one instead --
+  // see construction-tools.ts.
+  test("the transaction opens exactly once, and the enablement check reuses that same connection", async () => {
     const order: string[] = []
+    let transactionOpens = 0
     const orderedTransaction = mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
-      order.push("transaction")
+      transactionOpens += 1
+      order.push("transaction-open")
       return fn(fakeDb as unknown as never)
     })
-    const enablementSpy = mock(async () => {
-      order.push("enablement")
+    const enablementSpy = mock(async (db: unknown) => {
+      // The real isConstructionEnabledForOrgWithDb signature is (db, orgId) --
+      // asserting a db argument was actually passed through, not undefined.
+      expect(db).toBe(fakeDb as unknown as never)
+      order.push("enablement-inside-transaction")
       return true
     })
     await mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext: orderedTransaction }))
-    await mock.module("./construction-enablement-service", () => ({ isConstructionEnabledForOrg: enablementSpy }))
+    await mock.module("./construction-enablement-service", () => ({ isConstructionEnabledForOrgWithDb: enablementSpy }))
     const { getProjectDashboard } = await import("./construction-dashboard-service")
 
     await getProjectDashboard({ orgId: ORG }, PROJECT)
 
+    expect(transactionOpens).toBe(1)
     expect(enablementSpy.mock.calls.length).toBe(1)
-    expect(order).toEqual(["enablement", "transaction"])
+    expect(order).toEqual(["transaction-open", "enablement-inside-transaction"])
   })
 })
 

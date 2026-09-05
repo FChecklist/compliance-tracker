@@ -12,7 +12,7 @@
 // (`projects.leadUserId` -> `users.departmentId`), not a direct FK. This is
 // documented here rather than silently treated as exact.
 import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users, erpPurchaseOrders, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 // R39/R-51 (D-3): reuses the SAME earnedValueReport construction-reports-
@@ -33,7 +33,7 @@ import { ServiceError } from "./compliance-service"
 // Cost Variance screen all read it, so the three can no longer disagree. Same
 // call-time-only circular-import safety as computeEarnedValue above.
 import { computeEarnedValue, sumRootLineBudgets, computeCategoryProgress, type EvLineItem, type CategoryProgressRow } from "./construction-reports-service"
-import { isConstructionEnabledForOrg } from "./construction-enablement-service"
+import { isConstructionEnabledForOrgWithDb } from "./construction-enablement-service"
 // R67 F-27 (R-243): a 60 s per-project cache, busted by the write paths through
 // one helper. It lives in its own dependency-free module because the writers
 // that must bust it (progress, BOQ, expense) would otherwise have to import
@@ -513,13 +513,32 @@ export function toProjectDashboard(row: DashboardSqlRow, constructionEnabled: bo
  * would destroy.
  */
 export async function getProjectDashboards(ctx: { orgId: string }, projectIds: string[]): Promise<ProjectDashboard[]> {
+  // R75 Part 2 (R-80 fix): mirrors getProjectDashboardsWithDb's own empty-id
+  // early return, checked here TOO -- before ever opening a transaction --
+  // so an empty projectIds array costs zero pool connections, exactly like
+  // it did before this function was split. (getProjectDashboardsWithDb keeps
+  // its own copy of this check too, for a caller that invokes it directly
+  // with an already-open db and an empty list.)
+  if (projectIds.filter((id) => typeof id === "string" && id.trim().length > 0).length === 0) return []
+  return withTenantContext({ orgId: ctx.orgId }, (db) => getProjectDashboardsWithDb(db, ctx, projectIds))
+}
+
+/**
+ * R75 Part 2 (R-80 investigation, 2026-09-05): db-handle-accepting variant of
+ * getProjectDashboards, same pattern as getOrgDashboardWithDb above -- for a
+ * caller (e.g. the assistant route's codeReference dispatch) that already
+ * holds an open withTenantContext transaction. Mechanical extraction: same
+ * body, `db` is now a parameter instead of a callback argument, and the
+ * enablement check uses the WithDb sibling.
+ */
+export async function getProjectDashboardsWithDb(db: TenantDb, ctx: { orgId: string }, projectIds: string[]): Promise<ProjectDashboard[]> {
   const ids = [...new Set(projectIds.filter((id) => typeof id === "string" && id.trim().length > 0))]
   if (ids.length === 0) return []
 
   // R66 audit: the enablement check is itself a withTenantContext transaction
   // (product-branch-service.ts isBranchEnabledForOrg) -- run it BEFORE opening
   // this one so no request ever holds two pooled connections at once.
-  const constructionEnabled = await isConstructionEnabledForOrg(ctx.orgId).catch(() => false)
+  const constructionEnabled = await isConstructionEnabledForOrgWithDb(db, ctx.orgId).catch(() => false)
 
   const cached: ProjectDashboard[] = []
   const missing: string[] = []
@@ -538,8 +557,7 @@ export async function getProjectDashboards(ctx: { orgId: string }, projectIds: s
   // getOrgDashboard uses below -- see its comment for the full history.
   const idsSql = sql.join(missing.map((id) => sql`${id}`), sql`, `)
 
-  const rows = await withTenantContext({ orgId: ctx.orgId }, async (db) =>
-    (await db.execute(sql`
+  const rows = (await db.execute(sql`
       WITH p AS (
         SELECT id, name, project_value
         FROM compliance.projects
@@ -760,7 +778,6 @@ export async function getProjectDashboards(ctx: { orgId: string }, projectIds: s
       LEFT JOIN act_pct ON act_pct.project_id = p.id
       LEFT JOIN recent ON recent.project_id = p.id
     `)) as DashboardSqlRow[]
-  )
 
   const fresh = rows.map((row) => toProjectDashboard(row, constructionEnabled))
   for (const dashboard of fresh) writeDashboardCache(ctx.orgId, dashboard.projectId, dashboard)
@@ -948,13 +965,30 @@ export const PERMIT_EXPIRY_HORIZON_DAYS = 30
 
 /** Company -> [Department] -> Project drill-down. departmentId filters by the project LEAD's department (projects has no direct departmentId column -- see file header). */
 export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashboardFilters = {}): Promise<OrgDashboardSummary> {
-  // R66 audit: same hoist as getProjectDashboard -- R43_MGR_01 removed the
-  // per-project nesting but left this one nested transaction inside.
-  const constructionEnabled = await isConstructionEnabledForOrg(ctx.orgId).catch(() => false)
+  return withTenantContext({ orgId: ctx.orgId }, (db) => getOrgDashboardWithDb(db, ctx, filters))
+}
+
+/**
+ * R75 Part 2 (R-80 investigation, 2026-09-05): db-handle-accepting variant of
+ * getOrgDashboard, same pattern as isBranchEnabledForOrgWithDb/
+ * isConstructionEnabledForOrgWithDb -- for a caller that already holds an
+ * open withTenantContext transaction (e.g. POST /api/v1/projexa/assistant's
+ * codeReference dispatch: route -> dispatchTool -> dispatchConstructionTool),
+ * calling the plain getOrgDashboard() above would open a SECOND, nested
+ * transaction, which assertNotNested() throws on in dev/test and silently
+ * opens anyway (wasting a pool connection) in production -- verified
+ * empirically against a real DB connection while investigating R-80.
+ * Mechanical extraction: the body below is byte-for-byte what the
+ * withTenantContext callback above used to be, with `db` now a parameter
+ * instead of a callback argument, and the enablement check using the
+ * WithDb sibling instead of opening its own transaction.
+ */
+export async function getOrgDashboardWithDb(db: TenantDb, ctx: { orgId: string }, filters: OrgDashboardFilters = {}): Promise<OrgDashboardSummary> {
+  const constructionEnabled = await isConstructionEnabledForOrgWithDb(db, ctx.orgId).catch(() => false)
   const from = filters.from?.trim() || null
   const to = filters.to?.trim() || null
   const dateRangeApplied = Boolean(from || to)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  {
     let projectIds: string[] | undefined
     if (filters.departmentId) {
       const leads = await db.query.users.findMany({ where: eq(users.departmentId, filters.departmentId), columns: { id: true } })
@@ -1430,5 +1464,5 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
       projects: projectSummaries,
       dateRangeApplied,
     }
-  })
+  }
 }
