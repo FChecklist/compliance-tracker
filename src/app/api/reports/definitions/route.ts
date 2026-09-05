@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { listReportDefinitions, createReportDefinition, ServiceError } from "@/lib/services/report-engine-service"
 
 // GET ?category=<cat>&classification=<cls> -- every definition visible to
@@ -24,9 +24,19 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  // R75 Part 2 Phase 5 (G4 reports): had no role check at all. A report
+  // definition's executionConfig resolves against report-engine-service.ts's
+  // own TABLE_REGISTRY (28+ tables spanning ERP financials, CRM, construction)
+  // -- the SAME registry custom-charts/route.ts's createCustomChart() config
+  // resolves against, and that sibling POST is gated requireRole(dbUser,
+  // "manager"). Matches it: same registry, same "config that can define
+  // access to financial data" stakes, same minimum.
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()
