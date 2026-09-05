@@ -281,18 +281,6 @@ const EXEMPT_ROUTES: Array<{ path: string; category: string; reason: string }> =
 ]
 
 const KNOWN_OPEN_GAPS: Array<{ path: string; category: string; reason: string }> = [
-  {"path":"src/app/api/document-correspondents/route.ts","category":"MEDIUM","reason":"Creates an org-wide document correspondent register entry with no role check beyond authentication."},
-  {"path":"src/app/api/document-matching-rules/route.ts","category":"MEDIUM","reason":"Creates an org-wide document auto-classification matching rule with no role check beyond authentication."},
-  {"path":"src/app/api/drafted-communications/route.ts","category":"MEDIUM","reason":"Creates an AI-drafted communication held for later approval, with no role check beyond authentication."},
-  {"path":"src/app/api/drafted-communications/[id]/reject/route.ts","category":"MEDIUM","reason":"Rejects an AI-drafted communication (prevents it from being sent), with no role check beyond authentication."},
-  {"path":"src/app/api/erp/parties/[type]/[id]/addresses/route.ts","category":"MEDIUM","reason":"Adds a new address to a customer/supplier party record with no role check beyond being logged into the org."},
-  {"path":"src/app/api/erp/parties/[type]/[id]/contacts/route.ts","category":"MEDIUM","reason":"Adds a new contact to a customer/supplier party record with no role check beyond org membership."},
-  {"path":"src/app/api/escalation-rules/route.ts","category":"MEDIUM","reason":"Creates a helpdesk SLA escalation rule with only session auth, no role check despite being intended as admin-only."},
-  {"path":"src/app/api/field-service-dispatches/[dispatchId]/route.ts","category":"MEDIUM","reason":"Updates a field-service dispatch's status/notes for the caller's org with only session auth, no role check."},
-  {"path":"src/app/api/glossary/route.ts","category":"MEDIUM","reason":"Creates a compliance glossary term for the caller's org with no role restriction beyond authentication."},
-  {"path":"src/app/api/glossary/[id]/route.ts","category":"MEDIUM","reason":"Updates or deletes a single glossary term by id, org-scoped, with no role gate."},
-  {"path":"src/app/api/gst-reconciliation/returns/[returnPeriodId]/ai-review/route.ts","category":"MEDIUM","reason":"Generates an AI review report over a previously-generated GST return period, org-scoped, with no role gate."},
-  {"path":"src/app/api/help/ask/route.ts","category":"MEDIUM","reason":"Answers a free-text in-app help question using an LLM pipeline, gated only by authentication, no per-role restriction."},
   {"path":"src/app/api/pms/wiki/route.ts","category":"MEDIUM","reason":"Creates a PMS wiki page under a given project, org-scoped, with no role check."},
   {"path":"src/app/api/pms/wiki/[id]/route.ts","category":"MEDIUM","reason":"Updates an existing PMS wiki page with no role check."},
   {"path":"src/app/api/problem-records/[id]/tickets/route.ts","category":"MEDIUM","reason":"Links an existing ticket to a problem record with no role check."},
@@ -359,9 +347,9 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
   test("headline counts match the R75 Phase 2 audit, as of 2026-09-05", () => {
     const protectedCount = mutating.filter((r) => r.protected).length
     expect(mutating.length).toBe(831)
-    expect(protectedCount).toBe(599) // +9 R75P2P5-G4 real requireRole()/requireRoleOrScope() gates (reports domain)
+    expect(protectedCount).toBe(611) // +12 R75P2P5-G5 real requireRole() gates (misc/documents/erp/gst/help)
     expect(EXEMPT_ROUTES.length).toBe(201) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep
-    expect(KNOWN_OPEN_GAPS.length).toBe(31)
+    expect(KNOWN_OPEN_GAPS.length).toBe(19)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
   })
 })
