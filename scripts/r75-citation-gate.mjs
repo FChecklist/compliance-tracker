@@ -12,22 +12,44 @@
 //   (d) a non-empty, non-placeholder falsifiability record (how_broken) is
 //       present -- a test never seen to fail is unproven (GV-12).
 //
-// This is the exact gate that would have caught R-48's fabricated citation
-// (closure_test_path=src/app/api/work-progress/photos/route.test.ts,
-// closure_commit_sha=2b6bfbb88a30f15e47b9a3e770c05ebceecff8bd -- neither the
-// object nor the path at that object exist).
+// CORRECTION (R75 Part 2 continuation, Phase 2 -> "MAJOR CORRECTION" log
+// entries): this gate's very first real use flagged R-48/R-62's citation
+// (commit 2b6bfbb88a30f15e47b9a3e770c05ebceecff8bd) as fabricated -- the
+// object genuinely does not exist in compliance-tracker. But it DOES exist,
+// really, on origin/main, in the SEPARATE FChecklist/projexa repository
+// (GV-22 -- these are two different repos, a fix in one does not reach the
+// other, and neither does its git history). The citation was real, just
+// missing which repo it belonged to. A commit/path not found in the repo
+// you happened to check is NOT proof of fabrication by itself -- pass
+// --repo-roots with every real candidate repo before concluding a citation
+// is fake. This gate now checks each root in order and reports which one
+// (if any) the citation resolved against.
 //
-// Usage: node scripts/r75-citation-gate.mjs <citation.json> [--repo-root <dir>]
+// Usage: node scripts/r75-citation-gate.mjs <citation.json> [--repo-root <dir>] [--repo-roots <dir1>,<dir2>,...]
 // citation.json shape: { requirement_id, test_path, commit_sha, how_broken }
-// Exit 0 = citation is real and the test passes now. Exit 1 = reject.
+// Exit 0 = citation is real (in at least one checked repo) and the test
+// passes now there. Exit 1 = reject (fails in every checked repo).
+//
+// PATH FORMAT GOTCHA (caught proving the R-48/R-62 correction above): pass
+// Windows-style paths (C:/ct/projexa or C:\ct\projexa), never a Git-Bash
+// MSYS path (/c/ct/projexa). Node's child_process cwd does not understand
+// the /c/... form -- it silently fails to find the directory, every git
+// command then throws, and every check in that root reports FAIL, which
+// looks exactly like "the citation is fake" when the real fault is the path
+// format. Same family as the memory-recorded "PowerShell [id] paths
+// silently match nothing" gotcha -- a Windows/POSIX path confusion that
+// fails silent and plausible instead of loud.
 import fs from "node:fs"
 import { execFileSync, execSync } from "node:child_process"
 
 const PLACEHOLDER_MARKERS = ["SEE_PREVIOUS_CALL", "SEE PREVIOUS", "TODO", "N/A", "n/a", ""]
 
-function repoRoot(argv) {
-  const i = argv.indexOf("--repo-root")
-  return i >= 0 ? argv[i + 1] : process.cwd()
+function repoRoots(argv) {
+  const multi = argv.indexOf("--repo-roots")
+  if (multi >= 0) return argv[multi + 1].split(",").map(s => s.trim()).filter(Boolean)
+  const single = argv.indexOf("--repo-root")
+  if (single >= 0) return [argv[single + 1]]
+  return [process.cwd()]
 }
 
 function objectExists(root, sha) {
@@ -104,10 +126,21 @@ if (!citationPath) {
   console.error("usage: node scripts/r75-citation-gate.mjs <citation.json> [--repo-root <dir>]")
   process.exit(2)
 }
-const root = repoRoot(argv)
+const roots = repoRoots(argv)
 const citation = JSON.parse(fs.readFileSync(citationPath, "utf8"))
-const { requirement_id, findings, anyFail } = runGate(citation, root)
 
-for (const f of findings) console.log(`${f.verdict} | ${f.check} | ${f.detail}`)
-console.log(`--- ${requirement_id}: ${anyFail ? "REJECTED, stays OPEN" : "ACCEPTED, may be written CLOSED"} ---`)
-process.exit(anyFail ? 1 : 0)
+const perRoot = roots.map(root => ({ root, ...runGate(citation, root) }))
+const winner = perRoot.find(r => !r.anyFail)
+
+if (roots.length > 1) console.log(`Checking ${roots.length} repo(s): ${roots.join(", ")}`)
+for (const r of perRoot) {
+  if (roots.length > 1) console.log(`-- in ${r.root} --`)
+  for (const f of r.findings) console.log(`${f.verdict} | ${f.check} | ${f.detail}`)
+}
+if (winner) {
+  console.log(`--- ${citation.requirement_id}: ACCEPTED in ${winner.root}, may be written CLOSED (record which repo in the closure citation) ---`)
+  process.exit(0)
+} else {
+  console.log(`--- ${citation.requirement_id}: REJECTED in every checked repo (${roots.join(", ")}), stays OPEN ---`)
+  process.exit(1)
+}
