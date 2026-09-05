@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import {
   getChangeOrder, submitChangeOrderForApproval, ServiceError,
 } from "@/lib/services/construction-change-order-service"
@@ -26,6 +26,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  const roleCheck = requireRoleOrScope(ctx, "senior_professional")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

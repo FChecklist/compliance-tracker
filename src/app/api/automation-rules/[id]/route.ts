@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { updateAutomationRule, deleteAutomationRule, ServiceError } from "@/lib/services/automation-rule-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -8,6 +8,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "admin")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params
@@ -22,9 +25,12 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "admin")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

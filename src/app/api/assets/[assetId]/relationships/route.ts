@@ -5,7 +5,7 @@
 // getNeighbors); POST is the first production write path
 // entity-graph-service's createRelationship() has ever had.
 import { NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { getRelatedAssets, linkAssetRelationship } from "@/lib/services/asset-relationship-service"
 import { ServiceError } from "@/lib/services/compliance-service"
 
@@ -29,6 +29,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ ass
   const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "member")
+  if (roleCheck) return roleCheck
 
   try {
     const { assetId } = await params

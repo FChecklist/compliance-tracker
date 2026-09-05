@@ -2,7 +2,7 @@ import { documents } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
 import { createClient } from "@supabase/supabase-js"
 import { updateDocumentMetadata, ServiceError } from "@/lib/services/document-service"
@@ -81,6 +81,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "senior_professional")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await context.params
