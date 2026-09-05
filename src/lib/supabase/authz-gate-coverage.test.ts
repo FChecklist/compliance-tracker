@@ -48,6 +48,28 @@
 import { describe, test, expect, mock, beforeEach } from "bun:test"
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/role-rank"
 import { NextResponse } from "next/server"
+import * as RealTenantScoped from "@/lib/db/tenant-scoped"
+
+// This test deliberately never reaches a real DB: on the permit side, a
+// route that passes the role gate goes on to call withTenantContext() for
+// its actual business logic, which in a real environment either connects to
+// APP_RUNTIME_DATABASE_URL or (when that env var is merely unset, as on a
+// plain sandbox) throws synchronously -- but in CI, where DATABASE_URL/
+// APP_RUNTIME_DATABASE_URL point at a real-but-empty Postgres, this instead
+// spends a real TCP connection attempt, which is slow and environment-
+// dependent rather than the fast, deterministic "gate let this caller past"
+// signal this test actually wants. A static top-level import of the real
+// module (safe -- unlike a dynamic re-import from inside its own mock
+// factory, which hangs Bun's resolver per authz-gate-coverage's own header)
+// lets the mock re-export every real, non-DB export unchanged and override
+// only withTenantContext to fail fast and synchronously, everywhere, in
+// every environment.
+mock.module("@/lib/db/tenant-scoped", () => ({
+  ...RealTenantScoped,
+  withTenantContext: async () => {
+    throw new Error("r75-p2-test: withTenantContext blocked -- this test only exercises the role gate, never real business logic/DB access")
+  },
+}))
 
 type FixtureUser = { id: string; role: UserRole; orgId: string; name: string; email: string }
 
