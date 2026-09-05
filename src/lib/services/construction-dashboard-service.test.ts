@@ -710,6 +710,32 @@ describe("getOrgDashboard: one budget number (R67 E-06)", () => {
     expect(summary.totalBudget).toBeNull()
     expect(summary.totalLedgerBudget).toBe(12000)
   })
+
+  // R-50 (Sumeet requirement, R75 Part 2/3, 2026-09-05): "Project value
+  // matches BOQ total". The requirement was previously CLOSED against a
+  // citation (construction-reports-service.test.ts's category-vs-scope
+  // reconciliation test) that does not actually exercise this field at all --
+  // reverted to OPEN because of that mismatch. resolveProjectMoney's own
+  // unit tests (below, ~line 900) already prove `contractValue` is
+  // BOQ-sourced in isolation; what was missing was a DIRECT, end-to-end
+  // behavioral run of getOrgDashboard itself, with a known BOQ total flowing
+  // through the real per-project row -- not just the pure helper it calls.
+  // This is that test: `value` (the launchpad's home-row field, kept as an
+  // exact alias of contractValue -- see the "`value` survives only as an
+  // exact alias" test elsewhere in this file) must equal the fixture's own
+  // BOQ total, with no entered projectValue and no PO total to compete with
+  // it -- the plainest possible case of the requirement as literally stated.
+  test("R-50: a project's value equals its own active BOQ's total, with no other figure to compete with it", async () => {
+    const summary = await run(fakeOrgDb({
+      projects: [{ id: "p1", name: "Cedar Heights" }],
+      boqByProject: { p1: "boq-1" },
+      valueByBoq: { "boq-1": { total: 47_500, budget: 11_875 } },
+      ledgerTotal: 0,
+    }))
+    const row = summary.projects.find((p) => p.id === "p1")!
+    expect(row.value).toBe(47_500)
+    expect(row.contractValue).toBe(47_500)
+  })
 })
 
 // R67 D-02 (audit R-004/R-009): "no budget has been set" and "the budget is
