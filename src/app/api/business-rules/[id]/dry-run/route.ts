@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { testBusinessRule, listBusinessRuleTestRuns, ServiceError } from "@/lib/services/business-rules-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -10,6 +10,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  // Same floor as this file's siblings (business-rules/route.ts's own POST
+  // requires "manager" to actually create a rule) -- dry-run doesn't mutate
+  // the rule itself, but it does persist a businessRuleTestRuns row and had
+  // no role floor at all beyond generic auth.
+  const roleCheck = requireRole(dbUser, "member")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params
