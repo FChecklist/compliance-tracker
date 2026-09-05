@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { createLostReason, listLostReasons, ServiceError } from "@/lib/services/crm-service"
 
 export async function GET(request: NextRequest) {
@@ -22,6 +23,11 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // R75 Part 2 G2 gap-closure (2026-09-05): this org-wide picklist had no
+  // role gate at all -- same mechanism + rank as the sibling
+  // crm.pipeline_stages.manage gate (POST /api/crm/pipeline/stages/route.ts).
+  const permissionDenied = requirePermissionForUser(dbUser, "crm.lost_reasons.manage")
+  if (permissionDenied) return permissionDenied
 
   try {
     const body = await request.json()
