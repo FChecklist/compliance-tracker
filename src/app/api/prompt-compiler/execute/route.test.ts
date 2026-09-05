@@ -8,10 +8,28 @@
 // .test.ts file), so this file proves the route's own wiring: auth gate,
 // real runPipeline() call, and the escalation-flag logic, not a live
 // Postgres round-trip.
+//
+// R75 Part 2 Phase 5 (G8-misc): this route had no role check at all beyond
+// requireAuth() -- added requireRole(dbUser, "member") (see the route's own
+// comment for why "member"). The mock.module("@/lib/supabase/auth-guard")
+// factories below now also provide a real rank-based requireRole -- REPLACES
+// the whole module, so every existing test needs the added import satisfied
+// even where its own scenario returns before the role check runs.
 import { describe, test, expect, mock } from "bun:test"
 
-function dbUser() {
-  return { id: "user-1", role: "member", orgId: "org-1", name: "Test User" } as any
+const RANK: Record<string, number> = { viewer: 1, client_viewer: 1, external_auditor: 1, stage_0: 1, member: 2, team_member: 2, senior_professional: 3, manager: 3, branch_manager: 4, admin: 5, veridian_admin: 6 }
+
+function fakeRequireRole(user: { role: string } | null, minimumRole: string) {
+  const userRank = RANK[user?.role ?? ""] ?? 0
+  const requiredRank = RANK[minimumRole] ?? 99
+  if (userRank < requiredRank) {
+    return new Response(JSON.stringify({ error: `This action requires ${minimumRole} role or higher` }), { status: 403 }) as any
+  }
+  return null
+}
+
+function dbUser(role: string = "member") {
+  return { id: "user-1", role, orgId: "org-1", name: "Test User" } as any
 }
 
 function makeRequest(body: unknown): Request {
@@ -42,9 +60,10 @@ async function mockDb(org: { name: string; country: string | null } | null) {
   }))
 }
 
-async function mockAuthAndDb(org: { name: string; country: string | null } | null = { name: "Acme", country: "IN" }) {
+async function mockAuthAndDb(org: { name: string; country: string | null } | null = { name: "Acme", country: "IN" }, role: string = "member") {
   mock.module("@/lib/supabase/auth-guard", () => ({
-    requireAuth: mock(async () => ({ response: null, dbUser: dbUser(), orgId: "org-1" })),
+    requireAuth: mock(async () => ({ response: null, dbUser: dbUser(role), orgId: "org-1" })),
+    requireRole: fakeRequireRole,
   }))
   await mockDb(org)
 }
@@ -53,6 +72,7 @@ describe("POST /api/prompt-compiler/execute", () => {
   test("unauthenticated -> the requireAuth response is returned as-is", async () => {
     mock.module("@/lib/supabase/auth-guard", () => ({
       requireAuth: mock(async () => ({ response: new Response(null, { status: 401 }), dbUser: null, orgId: null })),
+      requireRole: fakeRequireRole,
     }))
     await mockDb(null)
     const { POST } = await import("./route")
@@ -97,10 +117,29 @@ describe("POST /api/prompt-compiler/execute", () => {
   test("no organisation on the account -> 400, not a crash", async () => {
     mock.module("@/lib/supabase/auth-guard", () => ({
       requireAuth: mock(async () => ({ response: null, dbUser: dbUser(), orgId: null })),
+      requireRole: fakeRequireRole,
     }))
     await mockDb(null)
     const { POST } = await import("./route")
     const res = await POST(makeRequest({ rawText: "hi" }) as any)
     expect(res.status).toBe(400)
+  })
+})
+
+describe("POST /api/prompt-compiler/execute (role gate)", () => {
+  test("a below-minimum role (viewer) is rejected with 403 before the pipeline ever runs", async () => {
+    await mockAuthAndDb(undefined, "viewer")
+    const { POST } = await import("./route")
+    const res = await POST(makeRequest({ rawText: "Fix the login bug" }) as any)
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.error).toBe("This action requires member role or higher")
+  })
+
+  test("an at-minimum role (member) is allowed through and the pipeline runs", async () => {
+    await mockAuthAndDb(undefined, "member")
+    const { POST } = await import("./route")
+    const res = await POST(makeRequest({ rawText: "Fix the login bug" }) as any)
+    expect(res.status).toBe(200)
   })
 })
