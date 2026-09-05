@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { updateMetricAlertRule, deleteMetricAlertRule, ServiceError } from "@/lib/services/metric-alert-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // R75 Part 2 Phase 5 (G8-misc): matches custom-charts/[id]'s own
+  // requireRole(dbUser, "manager") gate on PATCH/DELETE (same sibling
+  // feature -- see POST /api/metric-alert-rules's own comment).
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params
@@ -22,9 +27,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params
