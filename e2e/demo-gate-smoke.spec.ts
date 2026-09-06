@@ -268,7 +268,22 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   let lastTc11Ok = false;
   const scopeReport = await pollUntil(
     async () => {
-      const tc11 = await apiRequest.get(`/api/reports/scope?projectId=${oakwood.id}`);
+      // R75 Part 5 (2026-09-06): &format=legacy added -- a SECOND unrelated
+      // refactor (R67 E-32/R-265, "the default is now a table") changed this
+      // route's default response from the raw {boq, totalValue, lineItemCount,
+      // revisions} shape (which is exactly what this test reads, both here
+      // via .boq.id and at TC-40 via .totalValue) to a generic {columns, rows,
+      // totals, currency} table shape instead -- confirmed directly by reading
+      // the route's own header comment and code
+      // (src/app/api/v1/projexa/reports/[reportName]/route.ts), which
+      // documents `?format=legacy` as the deliberate, intended escape hatch
+      // "for callers that read specific fields" -- exactly this test. Without
+      // it, `report.boq`/`report.totalValue` are both undefined against the
+      // new table shape, which is what actually produced TC-40's "Expected:
+      // undefined, Received: 5000" failure -- not the pre-existing stray-row
+      // condition this block already tolerates, and not a real production
+      // regression.
+      const tc11 = await apiRequest.get(`/api/reports/scope?projectId=${oakwood.id}&format=legacy`);
       lastTc11Ok = tc11.ok();
       return lastTc11Ok ? await tc11.json() : null;
     },
@@ -294,7 +309,24 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   // in a clean environment, or the known stray row otherwise), both must
   // agree on its total -- that agreement IS the R-50 invariant, independent
   // of which BOQ it happens to be.
-  const dashboardProjectsRes = await apiRequest.get("/api/projects");
+  //
+  // R75 Part 5 (2026-09-06): was "/api/projects" -- broken by an unrelated
+  // refactor (R67 D-11, merged 2026-09-03, three days before this was next
+  // actually run) that split the ProjectSwitcher's dropdown feed (id/name/
+  // status only, deliberately cheap -- see that route's own header) from the
+  // rich per-project figures (this test's whole point) into a second route.
+  // Confirmed directly, not guessed: read projexa's own src/app/api/projects/
+  // route.ts (typed return `{id, name, status}[]`, no `value` field at all)
+  // against src/app/api/projects/overview/route.ts (passes VERIDIAN's full
+  // /dashboard rows through whole, which DOES carry `value`), then confirmed
+  // live in a real browser against this exact org: Oakwood's own dashboard
+  // renders "AED 5,000.00" right now, so the app was never broken -- this
+  // test was reading the wrong endpoint's `undefined` field, formatting it as
+  // "AED NaN", and failing to find that string on a real page that correctly
+  // never renders it. Real root cause, not the pre-existing "stray row"
+  // condition documented above (that row is real and separate; it did not
+  // cause this specific failure).
+  const dashboardProjectsRes = await apiRequest.get("/api/projects/overview");
   expect(dashboardProjectsRes.ok()).toBeTruthy();
   const { projects: refreshedProjects } = await dashboardProjectsRes.json();
   const oakwoodRefreshed = refreshedProjects.find((p: { id: string }) => p.id === oakwood.id);
@@ -363,7 +395,19 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   // known stray row (header comment) is currently winning "latest" instead.
   const expectedAedText = `AED ${Number(oakwoodRefreshed.value).toLocaleString("en-US")}`;
   await page.goto("/dashboard");
-  await expect(page.getByText(expectedAedText, { exact: false })).toBeVisible({ timeout: 15_000 });
+  // R75 Part 5 (2026-09-06): scoped by role, not .first()/body -- confirmed
+  // via three real runs that page.getByText matches this text in TWO real
+  // places on this page: an SVG chart's own accessible <title> element
+  // (getByTestId("grouped-bar-chart")'s title -- inside <body>, since SVGs
+  // are inline content, so scoping to <body> alone does not exclude it
+  // either, confirmed by that scoping still hitting the same strict-mode
+  // violation) and the real, visible project-list row's "AED 5,000.00
+  // contract · AED 0.00 spent" span, which sits inside a real link element
+  // (Playwright's own suggested alias: getByRole("link", { name: "Oakwood
+  // Residence - Full" })). An SVG <title> has no accessible "link" role, so
+  // scoping to links excludes it structurally rather than by DOM-order luck
+  // (.first()'s mistake) or containment guessing (<body>'s).
+  await expect(page.getByRole("link").filter({ hasText: expectedAedText })).toBeVisible({ timeout: 15_000 });
 
   // R46/E-126b: context is closed by test.afterEach above, AFTER it uses
   // this same context's authenticated apiRequest to delete the 3 BOQs this
