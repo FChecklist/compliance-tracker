@@ -59,6 +59,16 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
+      # R76 (2026-09-06, Vercel deploy lockdown, A3-03): a file-existence
+      # check that does NOT depend on the guarded file's own content to run
+      # -- src/lib/vercel-lockdown.test.ts's assertions only execute if the
+      # file itself still exists, so deleting it silently drops those
+      # assertions rather than failing anything, unlike a config value being
+      # merely weakened. This step fails the job outright if the file is
+      # gone, independent of whatever `bun test` below would or wouldn't
+      # catch. See platform.crr_ruling R76-RULING-01.
+      - name: Guard against deleting the Vercel-lockdown drift test
+        run: test -f src/lib/vercel-lockdown.test.ts || (echo "::error::src/lib/vercel-lockdown.test.ts is missing -- this is the Layer 3 drift guard for the Vercel deploy lockdown (R76-RULING-01). Restore it, do not just let this fail silently." && exit 1)
       # Wave 79: real test files now exist (src/lib/*.test.ts), so
       # --passWithNoTests is dropped -- a future PR that deletes all tests
       # should fail CI, not pass silently. Placeholder DB env vars mirror
