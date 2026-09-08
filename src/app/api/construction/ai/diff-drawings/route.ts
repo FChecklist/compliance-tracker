@@ -45,7 +45,8 @@ export async function POST(request: Request) {
       ])
       return diffDrawingRevisions(
         { orgId, userId: dbUser.id },
-        { imageBase64A: a.imageBase64, mimeTypeA: a.mimeType, imageBase64B: b.imageBase64, mimeTypeB: b.mimeType }
+        { imageBase64A: a.imageBase64, mimeTypeA: a.mimeType, imageBase64B: b.imageBase64, mimeTypeB: b.mimeType },
+        db
       )
     })
     return NextResponse.json(result)

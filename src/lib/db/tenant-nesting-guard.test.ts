@@ -599,6 +599,25 @@ export function pathToOpen(
   seen.add(key)
   const src = mod.codeNoStrings
   const skip = mode === "threaded" ? handleConditionalSpans(src, fn) : []
+  // A NAMED function declared INSIDE this one is a separate node in this
+  // graph, and it is already walked through the call edge that reaches it. Its
+  // body must not also be scanned as part of the parent, or every call it
+  // makes is attributed to BOTH -- and the parent's handle-parameter names are
+  // the wrong ones to match against, so a correctly threaded inner function
+  // reads as unthreaded. That is not hypothetical: construction-ai-service.ts
+  // diffDrawingRevisions declares describe() inline, threads its handle in,
+  // and the site stayed reported until this span was excluded.
+  //
+  // Only NAMED declarations are excluded. An inline callback -- the `async
+  // (db) => {...}` passed to withTenantContext itself -- is not indexed as its
+  // own function, so its body correctly stays part of the enclosing one, which
+  // is exactly what makes the whole sweep work.
+  for (const other of mod.funcs.values()) {
+    if (other.key === fn.key) continue
+    if (other.bodyStart > fn.bodyStart && other.bodyEnd < fn.bodyEnd) {
+      skip.push([other.bodyStart, other.bodyEnd])
+    }
+  }
   const calls = callsIn(src, fn.bodyStart, fn.bodyEnd).filter((c) => !inSpans(c.start, skip))
 
   const done = (result: string[] | null): string[] | null => {
@@ -772,8 +791,6 @@ const KNOWN_OPEN_NESTING: OpenSite[] = [
   // logger's own .catch() and the audit row is SILENTLY NEVER WRITTEN, while
   // in production it is written in a second transaction. No runtime test
   // anywhere can observe either outcome.
-  { site: "src/app/api/construction/ai/diff-drawings/route.ts#POST -> src/lib/services/construction-ai-service.ts#diffDrawingRevisions", rootCause: "A", reason: "Route opens a transaction to load both drawings, then calls diffDrawingRevisions -> describe() -> recordOrchestraExecution, which opens its own." },
-  { site: "src/lib/services/gst-reconciliation-service.ts#generateReviewReport -> src/lib/services/gst-reconciliation-service.ts#generateReviewReportCore", rootCause: "A", reason: "Core takes the open handle but reaches generateAiReviewReport -> recordOrchestraExecution, which is never given it." },
 
   // --- ROOT CAUSE B: a dispatch table that RECEIVES an open handle and then
   // calls a whole outer service wrapper instead of that wrapper's *Core.

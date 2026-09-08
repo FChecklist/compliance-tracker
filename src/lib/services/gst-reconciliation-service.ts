@@ -367,7 +367,7 @@ export async function generateReviewReportCore(db: TenantDb, ctx: GstContext, re
       } : null,
       reconciliationDeltas: matches.filter(m => m.matchType !== "exact").map(m => ({ matchType: m.matchType, deltaAmount: parseFloat(m.deltaAmount ?? "0"), notes: m.notes })),
       returnSummary: (returnPeriod.summary as Record<string, unknown>) ?? {},
-    })
+    }, db)
 
     const [report] = await db.insert(gstAiReviewReports).values({
       orgId: ctx.orgId, returnPeriodId, reportText: result.reportText, riskFlags: result.topIssues, provider: result.provider, model: result.model,
