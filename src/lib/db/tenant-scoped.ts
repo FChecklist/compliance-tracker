@@ -127,26 +127,48 @@ export type TenantContext = {
 // context, so the flag follows one call chain and only that one. This is the
 // first use of it in this repo.
 //
-// WHAT IS ALREADY KNOWN TO NEST (audited 2026-09-02 while adding this, by
-// matching every withTenantContext callback body against the exported functions
-// that open one). The construction/dashboard/reports chain this programme owns
-// is FLAT (R67 F-10/F-15 finished that), and these remain, in code this item
-// does not own -- they are why the guard exists, and each needs the same
-// treatment (pass the open handle down, or hoist the call above the
-// transaction):
-//   - erp-goods-receipt-service.ts submitPurchaseReceipt() -> recordStockReceipt()
-//     (also a correctness problem: the stock ledger commits in a different
-//     transaction from the receipt status it is posting for)
-//   - erp-returns-service.ts and erp-inventory-planning-service.ts -> the same
-//     recordStockReceipt() / recordStockIssue() / getItemValuation()
-//   - erp-invoicing-service.ts / erp-payment-entries-service.ts -> isPeriodOpenForDate()
-//   - construction-valuation-service.ts and erp-contract-service.ts -> createSalesInvoice()
-//   - orchestra-execution-logger.ts recordOrchestraExecution(), called from
-//     inside CRM / FM / meeting transactions. That one is fire-and-forget and
-//     already swallows its own failures, so under this guard it degrades to a
-//     skipped log line, not a failed request.
-// This list is a snapshot, not a maintained registry: the guard itself is the
-// live answer.
+// WHAT IS KNOWN TO NEST -- NOW ANSWERED BY A TEST, NOT BY THIS COMMENT.
+// src/lib/db/tenant-nesting-guard.test.ts rebuilds the answer from the real
+// filesystem on every CI run: it walks every withTenantContext callback body,
+// resolves each call inside it (following `await import()`, which is how two
+// real sites stayed invisible to a static grep), and FAILS on any callee that
+// opens its own transaction. Its KNOWN_OPEN_NESTING register is enforced in
+// both directions, so it cannot silently drift the way the list that used to
+// stand here did. Read that file, not this paragraph, for the live list.
+//
+// WHY THAT REPLACED A LIST. The list this comment carried from 2026-09-02
+// ended by admitting it was "a snapshot, not a maintained registry", and
+// nothing watched whether any entry on it became REACHABLE. Its first entry --
+// erp-goods-receipt-service.ts submitPurchaseReceipt() -> recordStockReceipt()
+// -- was dormant only because no PROJEXA screen sent an itemId, so an earlier
+// `if (!item.itemId) continue` short-circuited before the call. Commits
+// 754cef17 and 19491a5, neither about transactions, removed that guard, and
+// the nesting reached production: PO stuck at draft, received_quantity 0,
+// receipt stranded, zero stock ledger rows. A comment cannot fail; a test can.
+//
+// STATE OF THE 2026-09-02 ENTRIES, re-verified 2026-09-08 against the tree:
+//   - submitPurchaseReceipt() -> recordStockReceipt(): FIXED (afe275c9). Note
+//     6b56c00b threaded the handle into the BODY and was reported as fixed but
+//     was not -- requireErpEnabled() ran first and opened its own transaction
+//     ahead of the existingDb branch. The gate has to take the handle too.
+//   - erp-returns-service.ts / erp-inventory-planning-service.ts -> record-
+//     StockReceipt() / recordStockIssue() / getItemValuation(): FIXED, handles
+//     threaded. getReorderSuggestions() -> getItemValuation() was never nested:
+//     it runs sequentially, OUTSIDE any transaction, and a handle there is a
+//     type error.
+//   - erp-invoicing-service.ts / erp-payment-entries-service.ts ->
+//     isPeriodOpenForDate(): FIXED. recordSalesInvoicePayment()'s remaining
+//     un-threaded call is above its withTenantContext, not inside it.
+//   - construction-valuation-service.ts / erp-contract-service.ts ->
+//     createSalesInvoice(): FIXED, handles threaded and the requireErpEnabled
+//     gate honours them (isErpEnabledForOrgWithDb).
+//   - orchestra-execution-logger.ts recordOrchestraExecution(): PARTLY fixed.
+//     It now takes an `existingDb` and every DIRECT caller threads one, but it
+//     is still reached one hop out through enforcePolicy(), construction-ai-
+//     service's describe() and generateAiReviewReport(). Those are registered
+//     as open in the guard. This one is fire-and-forget, so in dev/test the
+//     throw lands in its own .catch() and the audit row is SILENTLY NEVER
+//     WRITTEN -- which is why only a static guard can see it.
 //
 // WHY IT THROWS IN DEV AND TEST, AND ONLY WARNS IN PRODUCTION. Throwing is how
 // a developer finds out, at the moment they write it, in the stack that caused

@@ -528,20 +528,37 @@ function lineOf(src: string, pos: number): number {
  * paths in this repo (enforcePolicy -> recordOrchestraExecution,
  * dispatchTool -> dispatchGstTool -> listBatches) are unreadable without it.
  */
+// Memoised per graph. Without this the sweep re-walks the same deep chains
+// once per call site (dispatchTool alone is reached from six places) and the
+// run takes over a minute -- slow enough that someone eventually excludes it,
+// which is the same as not having it.
+const openPathCache = new WeakMap<Graph, Map<string, string[] | null>>()
+
 export function pathToOpen(
   g: Graph, mod: ModuleInfo, fn: FuncDef, mode: OpenMode,
   seen: Set<string> = new Set(), depth = 0,
 ): string[] | null {
   const key = `${fn.key}|${mode}`
   if (seen.has(key) || depth > 12) return null
+  // Only cache top-level queries: a nested result is relative to the `seen`
+  // set of the walk that produced it, and caching those would let one walk's
+  // cycle-break masquerade as "does not open" for a later, independent walk.
+  let cache = openPathCache.get(g)
+  if (!cache) { cache = new Map(); openPathCache.set(g, cache) }
+  if (depth === 0 && cache.has(key)) return cache.get(key) ?? null
   seen.add(key)
   const src = mod.codeNoStrings
   const skip = mode === "threaded" ? handleConditionalSpans(src, fn) : []
   const calls = callsIn(src, fn.bodyStart, fn.bodyEnd).filter((c) => !inSpans(c.start, skip))
 
+  const done = (result: string[] | null): string[] | null => {
+    if (depth === 0) cache!.set(key, result)
+    return result
+  }
+
   for (const call of calls) {
     if (call.nameOnly === "withTenantContext") {
-      return [`${mod.module}:${lineOf(src, call.start)} ${fn.name}() opens withTenantContext`]
+      return done([`${mod.module}:${lineOf(src, call.start)} ${fn.name}() opens withTenantContext`])
     }
   }
   for (const call of calls) {
@@ -549,10 +566,10 @@ export function pathToOpen(
       if (r.kind !== "func" || r.fn.key === fn.key) continue
       const passes = r.fn.handleParams.length > 0 && argsMention(call.argsText, fn.handleParams)
       const sub = pathToOpen(g, r.mod, r.fn, passes ? "threaded" : "standalone", seen, depth + 1)
-      if (sub) return [`${mod.module}:${lineOf(src, call.start)} ${fn.name}() -> ${r.fn.name}()${passes ? " [handle passed]" : ""}`, ...sub]
+      if (sub) return done([`${mod.module}:${lineOf(src, call.start)} ${fn.name}() -> ${r.fn.name}()${passes ? " [handle passed]" : ""}`, ...sub])
     }
   }
-  return null
+  return done(null)
 }
 
 // ===========================================================================
@@ -734,7 +751,7 @@ const KNOWN_OPEN_NESTING: OpenSite[] = [
   { site: "src/lib/services/veri-chat-service.ts#revokeShareLink -> src/lib/services/veri-chat-service.ts#assertParticipant", rootCause: "C", reason: "Same assertParticipant hop, awaited from inside revokeShareLink's own transaction." },
   { site: "src/lib/services/veri-chat-service.ts#revokeGuestAccess -> src/lib/services/veri-chat-service.ts#assertParticipant", rootCause: "C", reason: "Same assertParticipant hop, awaited from inside revokeGuestAccess's own transaction." },
   { site: "src/lib/services/mca-filing-service.ts#generateFormData -> src/lib/services/mca-filing-service.ts#loadCompanyParticulars", rootCause: "C", reason: "loadCompanyParticulars opens its own transaction and is awaited inside generateFormData's; no enablement gate, so threading the handle would be the whole fix." },
-  { site: "src/lib/services/fm-asset-dedup-service.ts#findDuplicateCandidates -> src/lib/services/fm-asset-dedup-service.ts#scanForDuplicateAssets", rootCause: "C", reason: "scanForDuplicateAssets opens its own transaction, and its own requireFmEnabled gate, and is awaited inside findDuplicateCandidates'." },
+  { site: "src/lib/services/fm-asset-dedup-service.ts#findDuplicateCandidates -> src/lib/services/fm-asset-dedup-service.ts#scanForDuplicateAssets", rootCause: "C", reason: "scanForDuplicateAssets opens its own transaction and is awaited inside findDuplicateCandidates'; its own first statement is that withTenantContext, so there is no enablement gate to thread as well." },
 ]
 
 const SRC_ROOT = join(import.meta.dir, "..", "..")
