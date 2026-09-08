@@ -26,7 +26,9 @@ import { generateAiReviewReport } from "@/lib/gst/ai-review-report"
 export type GstContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 const SPREADSHEET_SOURCES: GstSourceType[] = ["excel_generic", "csv_generic", "busy", "zoho_books"]
 
-async function resolveOwnGstin(db: TenantDb, orgId: string, clientId: string | null): Promise<string | null> {
+/** Exported for task-execution/gst-tools.ts, which holds an open handle and
+ *  must not go through resolveOwnGstinForOrg, whose whole job is to open one. */
+export async function resolveOwnGstin(db: TenantDb, orgId: string, clientId: string | null): Promise<string | null> {
   if (clientId) {
     const entity = await db.query.clientEntities.findFirst({ where: eq(clientEntities.clientId, clientId) })
     if (entity?.gstin) return entity.gstin
@@ -104,10 +106,21 @@ export async function getBatch(ctx: { orgId: string }, batchId: string) {
   })
 }
 
+/**
+ * The read, on a handle the caller already holds. Every WRITE branch of
+ * task-execution/gst-tools.ts already used a *Core form; the two list_*
+ * branches called these wrappers instead and opened a second connection while
+ * the dispatcher held its own. gst-tools.ts's own comment argued they were
+ * "safe from either dispatch path" -- that reasoning is about ATOMICITY, and
+ * it is right about atomicity: a read cannot half-commit. It says nothing
+ * about the pool, which is max: 5 for the whole application.
+ */
+export async function listBatchesCore(db: TenantDb, ctx: { orgId: string }) {
+  return db.query.gstImportBatches.findMany({ where: eq(gstImportBatches.orgId, ctx.orgId), orderBy: (b, { desc }) => desc(b.createdAt), limit: 100 })
+}
+
 export async function listBatches(ctx: { orgId: string }) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.gstImportBatches.findMany({ where: eq(gstImportBatches.orgId, ctx.orgId), orderBy: (b, { desc }) => desc(b.createdAt), limit: 100 })
-  )
+  return withTenantContext({ orgId: ctx.orgId }, (db) => listBatchesCore(db, ctx))
 }
 
 // Applies a user-corrected column mapping to every already-staged row (no
@@ -334,10 +347,13 @@ export async function getReturn(ctx: { orgId: string }, returnPeriodId: string) 
   })
 }
 
+/** The read, on a handle the caller already holds -- see listBatchesCore. */
+export async function listReturnsCore(db: TenantDb, ctx: { orgId: string }) {
+  return db.query.gstReturnPeriods.findMany({ where: eq(gstReturnPeriods.orgId, ctx.orgId), orderBy: (r, { desc }) => desc(r.createdAt), limit: 50 })
+}
+
 export async function listReturns(ctx: { orgId: string }) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.gstReturnPeriods.findMany({ where: eq(gstReturnPeriods.orgId, ctx.orgId), orderBy: (r, { desc }) => desc(r.createdAt), limit: 50 })
-  )
+  return withTenantContext({ orgId: ctx.orgId }, (db) => listReturnsCore(db, ctx))
 }
 
 // ─── AI review (the one AI-touched step) ───────────────────────────────

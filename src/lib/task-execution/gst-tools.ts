@@ -33,13 +33,13 @@ export async function dispatchGstTool(
   context?: { inputs?: Record<string, unknown> }
 ): Promise<unknown> {
   if (codeReference === "list_gst_import_batches") {
-    const { listBatches } = await import("@/lib/services/gst-reconciliation-service")
-    return listBatches({ orgId })
+    const { listBatchesCore } = await import("@/lib/services/gst-reconciliation-service")
+    return listBatchesCore(db, { orgId })
   }
 
   if (codeReference === "list_gst_returns") {
-    const { listReturns } = await import("@/lib/services/gst-reconciliation-service")
-    return listReturns({ orgId })
+    const { listReturnsCore } = await import("@/lib/services/gst-reconciliation-service")
+    return listReturnsCore(db, { orgId })
   }
 
   if (codeReference === "confirm_gst_batch") {
@@ -110,8 +110,10 @@ export async function dispatchGstTool(
     if (!period || !["gstr1", "gstr3b"].includes(returnType)) throw new Error("Missing or invalid period/returnType")
     const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) })
     if (!dbUser) throw new Error("User not found")
-    const { generateReturnCore, resolveOwnGstinForOrg } = await import("@/lib/services/gst-reconciliation-service")
-    const gstin = await resolveOwnGstinForOrg({ orgId })
+    const { generateReturnCore, resolveOwnGstin } = await import("@/lib/services/gst-reconciliation-service")
+    // resolveOwnGstin, not resolveOwnGstinForOrg: the ForOrg wrapper opens its
+    // own withTenantContext, and this runs inside the dispatcher's.
+    const gstin = await resolveOwnGstin(db, orgId, null)
     if (!gstin) throw new Error("No GSTIN configured for this organisation -- set it in Settings before generating a return.")
     const returnPeriod = await generateReturnCore(db, { orgId, userId, dbUser }, { period, gstin, returnType: returnType as "gstr1" | "gstr3b" })
 
