@@ -45,7 +45,26 @@ const REGISTRY = [
     fault: "R81_F26_NESTING_GUARD_WARNS_IN_PRODUCTION",
     repo: "ct",
     file: "src/lib/db/tenant-scoped.ts",
-    anchor: "WHAT IS ALREADY KNOWN TO NEST",
+    // RE-ANCHORED 2026-09-08, and the reason is the check working exactly as
+    // intended. The previous anchor was "WHAT IS ALREADY KNOWN TO NEST", the
+    // heading over a hand-maintained list of nesting sites. The sibling session
+    // replaced that list with a pointer to tenant-nesting-guard.test.ts, which
+    // rebuilds the same answer from the real filesystem on every CI run. That
+    // is a genuine improvement -- the list itself admitted it was "a snapshot,
+    // not a maintained registry" -- so the right response was NOT to restore
+    // the comment. This check fired, a human looked, and the registry moved.
+    //
+    // The new anchor deliberately points at the DEFECT rather than at any list:
+    // R81_F26 is that the guard WARNS in production and lets the request
+    // finish, and that sentence has to survive for as long as the fault is
+    // open. A list of sites was always going to churn; the behaviour it
+    // describes will not, until the guard is flipped to throw -- at which point
+    // the fault closes and this entry should be removed with it.
+    //
+    // Chosen because it is present in BOTH the committed HEAD and the sibling
+    // session's in-flight working copy, so re-anchoring cannot itself become
+    // the next breakage.
+    anchor: "lets the request finish",
   },
   {
     fault: "R81_F28_ONE_LINE_FROM_A_CROSS_TENANT_CACHE_LEAK",
