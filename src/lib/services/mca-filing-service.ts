@@ -45,9 +45,21 @@ export async function generateFormData(ctx: { orgId: string }, filingId: string,
       // walk, the ledger read). The .catch(() => null) below is why nothing
       // ever surfaced it: in dev and test assertNotNested's throw was caught
       // here and AOC-4 was generated with null financials instead of failing.
+      // R81_F45. Returning null on failure is deliberate: an AOC-4 with the
+      // non-financial sections filled is more use than no form at all, and the
+      // generator already renders a null financial block honestly. Being SILENT
+      // about it was not deliberate -- a dropped connection produced exactly
+      // the same output as an org with no ledger, and the person filing the
+      // form had no way to tell which they were looking at.
       const [bs, pl] = await Promise.all([
-        balanceSheetWithDb(db, { orgId: ctx.orgId }, input.financialYearEnd).catch(() => null),
-        profitAndLossWithDb(db, { orgId: ctx.orgId }, input.financialYearStart, input.financialYearEnd).catch(() => null),
+        balanceSheetWithDb(db, { orgId: ctx.orgId }, input.financialYearEnd).catch((err) => {
+          console.error(`[mca-filing] balance sheet FAILED for org ${ctx.orgId} -- AOC-4 will be generated with no balance-sheet figures:`, err)
+          return null
+        }),
+        profitAndLossWithDb(db, { orgId: ctx.orgId }, input.financialYearStart, input.financialYearEnd).catch((err) => {
+          console.error(`[mca-filing] profit & loss FAILED for org ${ctx.orgId} -- AOC-4 will be generated with no P&L figures:`, err)
+          return null
+        }),
       ])
       formData = generateAoc4(
         company, `${input.financialYearStart} to ${input.financialYearEnd}`,

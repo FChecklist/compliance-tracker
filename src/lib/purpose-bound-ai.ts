@@ -148,7 +148,15 @@ export async function resolveOrgDomains(orgId: string, existingDb?: TenantDb): P
         return existingDb
           ? await mod.isErpEnabledForOrgWithDb(existingDb, orgId)
           : await mod.isErpEnabledForOrg(orgId)
-      } catch { return false }
+      } catch (err) {
+        // R81_F45. Degrading to "not enabled" is deliberate -- see the header.
+        // Being SILENT about it was not. A dropped connection or a timeout here
+        // is indistinguishable from an org that genuinely has not bought ERP,
+        // and the consequence is that the model is denied every ERP tool the
+        // customer pays for, with nothing in any log to say why.
+        console.error(`[purpose-bound-ai] ERP enablement lookup FAILED for org ${orgId} -- treating as NOT enabled, so ERP tools will be withheld:`, err)
+        return false
+      }
     })(),
     (async () => {
       try {
@@ -156,7 +164,15 @@ export async function resolveOrgDomains(orgId: string, existingDb?: TenantDb): P
         return existingDb
           ? await mod.isSalesEnabledForOrgWithDb(existingDb, orgId)
           : await mod.isSalesEnabledForOrg(orgId)
-      } catch { return false }
+      } catch (err) {
+        // R81_F45. Degrading to "not enabled" is deliberate -- see the header.
+        // Being SILENT about it was not. A dropped connection or a timeout here
+        // is indistinguishable from an org that genuinely has not bought CRM,
+        // and the consequence is that the model is denied every CRM tool the
+        // customer pays for, with nothing in any log to say why.
+        console.error(`[purpose-bound-ai] CRM enablement lookup FAILED for org ${orgId} -- treating as NOT enabled, so CRM tools will be withheld:`, err)
+        return false
+      }
     })(),
     (async () => {
       try {
@@ -164,7 +180,15 @@ export async function resolveOrgDomains(orgId: string, existingDb?: TenantDb): P
         return existingDb
           ? await mod.isPmsEnabledForOrgWithDb(existingDb, orgId)
           : await mod.isPmsEnabledForOrg(orgId)
-      } catch { return false }
+      } catch (err) {
+        // R81_F45. Degrading to "not enabled" is deliberate -- see the header.
+        // Being SILENT about it was not. A dropped connection or a timeout here
+        // is indistinguishable from an org that genuinely has not bought PMS,
+        // and the consequence is that the model is denied every PMS tool the
+        // customer pays for, with nothing in any log to say why.
+        console.error(`[purpose-bound-ai] PMS enablement lookup FAILED for org ${orgId} -- treating as NOT enabled, so PMS tools will be withheld:`, err)
+        return false
+      }
     })(),
   ])
   if (erpEnabled) domains.push("erp")
