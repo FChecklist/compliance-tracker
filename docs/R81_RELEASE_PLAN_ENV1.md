@@ -106,6 +106,26 @@ paths — trading a data-integrity risk for a customer-facing outage.
 
 ---
 
+## A KNOWN LIMITATION THE OWNER SHOULD DECIDE ON, NOT A TASK
+
+**`G-24` — environment 1's database cannot be rebuilt from `drizzle/`.** Measured,
+not reasoned about: a replay from empty produces **371 failing statements**, first
+failure at position 3. This is the pre-existing **E-103**, and its cause is already
+documented in `ci.yml` — the schema was originally built with `db:push`, which
+writes nothing to `drizzle/`, so the set was never complete from zero.
+
+This is **disaster recovery**, not a feature. If that database were lost, the
+migration directory is a changelog, not a build — and nobody would discover that
+until the moment they needed it. CI's own "Migration Replay From Empty" job
+concludes `success` while this is true, because it is deliberately report-only.
+
+Neither session is fixing it: reconstructing the base of a 401-file migration set
+is programme-level work. **The owner's decision is which of these two is true** —
+recovery is by replaying migrations (in which case the set must be repaired), or
+recovery is by restoring a backup (in which case that restore needs to be tested
+at least once, and the replay job renamed so its green does not read as assurance
+it cannot give).
+
 ## PHASE 4 — sign-off
 
 Env-1 readiness statement with the 18 headline figures, every number traceable to
