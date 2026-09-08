@@ -215,7 +215,7 @@ export async function dispatchPurchaseReturn(ctx: ErpContext, returnId: string) 
       await recordStockIssue(ctx, {
         itemId: item.itemId, warehouseId: existing.warehouseId, quantity: Number(item.quantity),
         postingDate: new Date().toISOString().slice(0, 10), voucherType: "purchase_return", voucherId: returnId,
-      })
+      }, db)
     }
 
     const [updated] = await db.update(erpPurchaseReturns).set({ status: "dispatched", updatedAt: new Date() }).where(eq(erpPurchaseReturns.id, returnId)).returning()
