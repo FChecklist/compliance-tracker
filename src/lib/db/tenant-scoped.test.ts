@@ -70,6 +70,8 @@ const {
   withTenantContext,
   isInsideTenantContext,
   assertNotNested,
+  getNestingObservations,
+  resetNestingObservations,
   appRuntimePoolOptions,
   extractRouteFromStack,
   reportIdleTransactionTermination,
@@ -180,10 +182,89 @@ describe("withTenantContext: production warns instead of throwing", () => {
       process.env.NODE_ENV = "test"
     }
 
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain("nested withTenantContext")
-    expect(warnings[0]).toContain("Outer transaction opened at:")
-    expect(warnings[0]).toContain("Inner call from:")
+    // R81 G-06/F34: production now emits TWO lines per detection, deliberately.
+    // The human-readable warn is unchanged; a machine-readable JSON line is
+    // emitted beside it so the occurrences can be COUNTED by a log query
+    // without anyone parsing a stack trace. This assertion was
+    // `toHaveLength(1)` before that change -- it is updated rather than
+    // loosened, because the exact number of lines is the thing worth pinning.
+    expect(warnings).toHaveLength(2)
+    const human = warnings.find((w) => w.includes("Outer transaction opened at:"))!
+    const machine = warnings.find((w) => w.trimStart().startsWith("{"))!
+
+    expect(human).toContain("nested withTenantContext")
+    expect(human).toContain("Outer transaction opened at:")
+    expect(human).toContain("Inner call from:")
+
+    const parsed = JSON.parse(machine)
+    expect(parsed.event).toBe("tenant_nesting_detected")
+    expect(parsed.fault).toBe("R81_F34")
+    expect(parsed.site).toBeTruthy()
+  })
+})
+
+// R81 G-06/F34 -- the evidence gate on flipping assertNotNested to throw.
+//
+// The two sessions agreed the sequence: fix every nesting site FIRST, then
+// tighten production from warn to throw, because tightening first turns silent
+// transaction splits into live 500s on financial paths. The hole in that plan
+// is that "every site is fixed" rests on a STATIC sweep, and a static sweep
+// cannot see a site reached only by dynamic dispatch. These tests exist so the
+// flip can be gated on production evidence -- an empty observation set -- rather
+// than on anyone's belief that the list was complete. That belief is exactly
+// what made 6b56c00b look correct while fixing nothing.
+describe("nesting observations: making 'all sites fixed' measurable", () => {
+  beforeEach(() => { resetNestingObservations() })
+  afterEach(() => { resetNestingObservations(); process.env.NODE_ENV = "test" })
+
+  async function nestOnceInProduction(): Promise<void> {
+    const realWarn = console.warn
+    console.warn = () => {}
+    process.env.NODE_ENV = "production"
+    try {
+      await withTenantContext(CTX, async () => withTenantContext(CTX, async () => "inner"))
+    } finally {
+      console.warn = realWarn
+      process.env.NODE_ENV = "test"
+    }
+  }
+
+  test("a clean slate reports nothing -- this empty result is what gates the flip", () => {
+    expect(getNestingObservations()).toHaveLength(0)
+  })
+
+  test("a nested call in production is recorded with a real call site", async () => {
+    await nestOnceInProduction()
+
+    const observed = getNestingObservations()
+    expect(observed).toHaveLength(1)
+    expect(observed[0].count).toBe(1)
+    expect(observed[0].sampleOuterOrgId).toBe(CTX.orgId)
+    expect(observed[0].sampleInnerOrgId).toBe(CTX.orgId)
+    // The site must be a real frame, not the "unknown-site" fallback --
+    // otherwise every distinct defect collapses into one key and the counter
+    // stops being able to tell us how many sites remain.
+    expect(observed[0].site).not.toBe("unknown-site")
+    expect(observed[0].firstSeenIso).toBeTruthy()
+  })
+
+  test("the same site twice increments rather than duplicating, so the count means occurrences", async () => {
+    await nestOnceInProduction()
+    await nestOnceInProduction()
+
+    const observed = getNestingObservations()
+    expect(observed).toHaveLength(1)
+    expect(observed[0].count).toBe(2)
+    expect(observed[0].lastSeenIso >= observed[0].firstSeenIso).toBe(true)
+  })
+
+  test("dev and test still THROW, and record nothing -- instrumentation must not soften the guard", async () => {
+    expect(process.env.NODE_ENV).toBe("test")
+    await expect(
+      withTenantContext(CTX, async () => withTenantContext(CTX, async () => "inner")),
+    ).rejects.toThrow(/nested withTenantContext/)
+
+    expect(getNestingObservations()).toHaveLength(0)
   })
 })
 

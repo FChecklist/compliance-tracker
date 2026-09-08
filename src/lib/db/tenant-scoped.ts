@@ -190,7 +190,113 @@ export function assertNotNested(context: TenantContext): void {
   if (env === "development" || env === "test") {
     throw new Error(detail)
   }
-  console.warn(`[tenant-scoped] ${detail}\nOuter transaction opened at:\n${open.stack}\nInner call from:\n${captureStack()}`)
+  const innerStack = captureStack()
+  recordNestingObservation(open.orgId, context.orgId, innerStack)
+  console.warn(`[tenant-scoped] ${detail}\nOuter transaction opened at:\n${open.stack}\nInner call from:\n${innerStack}`)
+}
+
+// R81 G-06/F34 -- MAKE "ALL SITES FIXED" A MEASURABLE FACT INSTEAD OF A CLAIM.
+//
+// The production branch above warns and lets the request finish, so an atomic
+// operation silently splits and nobody is told. The agreed remedy for that is
+// to flip production to `throw` -- but ONLY after every nesting site is fixed,
+// because flipping first converts silent data-integrity damage into live 500s
+// on financial paths, which is a worse trade for a customer.
+//
+// That sequencing has a hole in it, and this exists to close it. "Every site is
+// fixed" is currently a CLAIM resting on a static sweep (27 occurrences found
+// across 1,600 withTenantContext call sites: 3 already threading, 22 reachable,
+// 2 guard-fused). A static sweep cannot see a site reached only through dynamic
+// dispatch, and a bare console.warn that nothing counts means production has
+// been unable to contradict the sweep for as long as the defect has existed.
+//
+// So before the flip, the warn path is made COUNTABLE. The gate on flipping
+// becomes "this counter read zero across real traffic", which is evidence,
+// rather than "we believe the list was complete", which is how 6b56c00b shipped
+// looking correct.
+//
+// CONSTRAINTS THIS CODE RUNS UNDER, and why it is deliberately this boring:
+// it executes while a transaction is already open and misbehaving, so it must
+// never touch the database (that is the very resource under contention -- one
+// request must not hold two of the five app_runtime connections), never await,
+// and never throw. It is therefore pure in-memory bookkeeping plus one extra
+// log line. A counter that took a connection to record connection exhaustion
+// would be its own bug.
+export type NestingObservation = {
+  /** Stable fingerprint of the INNER call site, so distinct sites are counted
+   *  separately rather than collapsing into one meaningless total. */
+  site: string
+  count: number
+  firstSeenIso: string
+  lastSeenIso: string
+  /** One example only. Not a list: this must not grow without bound in a
+   *  long-lived process. */
+  sampleOuterOrgId: string
+  sampleInnerOrgId: string
+}
+
+const nestingObservations = new Map<string, NestingObservation>()
+
+/** Bounded so a pathological loop cannot turn observability into a leak. */
+const MAX_TRACKED_SITES = 200
+
+function fingerprintSite(stack: string): string {
+  // First frame that is application code. Node_modules and framework frames are
+  // noise here -- two different product bugs would otherwise share a key.
+  const frame = stack
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => l.includes("/src/") || l.includes("\\src\\"))
+  return frame ?? "unknown-site"
+}
+
+function recordNestingObservation(outerOrgId: string, innerOrgId: string, innerStack: string): void {
+  try {
+    const site = fingerprintSite(innerStack)
+    const now = new Date().toISOString()
+    const existing = nestingObservations.get(site)
+    if (existing) {
+      existing.count += 1
+      existing.lastSeenIso = now
+    } else if (nestingObservations.size < MAX_TRACKED_SITES) {
+      nestingObservations.set(site, {
+        site,
+        count: 1,
+        firstSeenIso: now,
+        lastSeenIso: now,
+        sampleOuterOrgId: outerOrgId,
+        sampleInnerOrgId: innerOrgId,
+      })
+    }
+    // One machine-readable line beside the human-readable warn, so this is
+    // countable by a log query without anyone having to parse a stack trace.
+    console.warn(
+      JSON.stringify({
+        event: "tenant_nesting_detected",
+        fault: "R81_F34",
+        site,
+        outerOrgId,
+        innerOrgId,
+        at: now,
+      }),
+    )
+  } catch {
+    // Observability must never be the thing that breaks a request. If
+    // fingerprinting fails, the human-readable warn above still fires.
+  }
+}
+
+/** Read the observed nesting sites. Empty means production has not contradicted
+ *  the static sweep -- which is the evidence required before assertNotNested is
+ *  flipped from warn to throw. */
+export function getNestingObservations(): NestingObservation[] {
+  return [...nestingObservations.values()].sort((a, b) => b.count - a.count)
+}
+
+/** Test-only. Exported because the sibling test must be able to assert on a
+ *  clean slate without reaching into module internals. */
+export function resetNestingObservations(): void {
+  nestingObservations.clear()
 }
 
 // R67 F-16 (R-233) -- MAKE A TERMINATED TRANSACTION VISIBLE.
