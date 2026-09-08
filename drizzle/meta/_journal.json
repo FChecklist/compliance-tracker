@@ -2682,6 +2682,13 @@
       "when": 1788510806000,
       "tag": "0573_r81_rls_on_registry_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 383,
+      "version": "7",
+      "when": 1788510807000,
+      "tag": "0571_r80add_submission_telemetry",
+      "breakpoints": true
     }
   ]
 }

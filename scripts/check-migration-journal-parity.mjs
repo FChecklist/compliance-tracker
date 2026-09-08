@@ -53,7 +53,6 @@ const ALLOWED = {
   "0548_r70_phase7_location_stamping": { cat: "DEBT", note: "real schema (location columns); fault R81_F37" },
   "0549_r70_phase7_graph_edge_validity_bounds": { cat: "DEBT", note: "real schema (validity bounds); fault R81_F37" },
   "0550_r70_phase7_current_row_indexes": { cat: "DEBT", note: "real schema (partial indexes); fault R81_F37" },
-  "0571_r80add_submission_telemetry": { cat: "DEBT", note: "R80's; applied via Supabase path only; owner session notified 2026-09-08; fault R81_F37" },
   "0562_r75_phase0_backup_grant_missing_sequence_select": { cat: "OPERATIONAL", note: "R75 Phase 0 one-off backup grant" },
   "0563_r75_phase0_backup_grant_remaining_sequence_select": { cat: "OPERATIONAL", note: "R75 Phase 0 one-off backup grant" },
   "0564_r75_phase0_backup_temp_bypassrls_grant": { cat: "OPERATIONAL", note: "temporary BYPASSRLS; paired with 0566 revoke -- must never replay" },
