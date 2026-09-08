@@ -12,7 +12,7 @@ nothing is estimated.
 **Environment 1 is not ready to put in front of a paying customer, and the
 reasons are a short list rather than a long one.**
 
-Seven gaps block release. Three of them need **you**, not an engineer, and two of
+Six gaps block release. Three of them need **you**, not an engineer, and two of
 those three are single settings changes. The product itself — the ERP a
 construction firm actually buys — is in better shape than the paperwork
 suggested: the requirement ledger was found to *under*-credit it more often than
@@ -31,7 +31,7 @@ it over-credited it.
 | 5 | OPEN | **4** | R-50, R-C11, R-C15, R-C16 |
 | 6 | NOT_TESTABLE | **5** | owner/legal actions, not code |
 | 7 | Gaps recorded | **25** | `platform.r81_gap` |
-| 8 | **Gaps blocking launch** | **7** | G-01, G-02, G-06, G-07, G-19, G-21, G-23 (G-03 and G-08 resolved) |
+| 8 | **Gaps blocking launch** | **6** | G-01, G-02, G-06, G-07, G-19, G-21 (G-03, G-08, G-23 downgraded) |
 | 9 | Faults filed this programme | **44** | `platform.r43_faults` `R81_%` |
 | 10 | Critical faults | **9** (2 closed, **7 open**) | same |
 | 11 | High faults | **23** (2 closed) | same |
@@ -62,7 +62,7 @@ it over-credited it.
 
 6. **G-06 / G-07** — transaction nesting on money paths, and the AI audit row that vanishes in production. R80, largely landed.
 7. ~~**G-08**~~ — **RESOLVED.** PROJEXA now has `/forgot-password` + `/reset-password` (projexa `7e0c902`). My original claim that *neither* repo had a recovery path was **wrong about ct**: it offers magic-link, passcode, Google and SSO against exactly one password sign-in, and its redirect is a documented decision. A locked-out ct user was never locked out.
-8. **G-23** — five UI-surfaced modules advertise capabilities with no executor, with the failing sentence in the composer's own placeholder. **The single most damaging thing a first customer would meet**, and the cheapest of these to fix: the screens already work, only the wiring is missing.
+8. ~~**G-23**~~ — **DOWNGRADED, and this was my error.** I called it "the single most damaging thing a first customer would meet". I filed that on two facts — the module advertises a sentence, no executor exists — and never checked the third: what the user actually *sees*. `dry-run.ts:266` already returns an honest, routed refusal ("*not enabled for this workspace — Open Permits*"). The real defect was narrower: 19 of 25 modules fell through to a generic "Open Home", which R80 has fixed. Fifty sentences still have no executor — real, sizeable, no longer a launch judgement call.
 9. **G-02** — AI attribution. (`G-03` is resolved: the six closures are now demonstrated on environment 1.)
 
 ---
@@ -86,7 +86,7 @@ it over-credited it.
 
 ## The one sentence to keep
 
-Of the seven blockers, **three are settings changes only you can make**, two are
-**rulings** no amount of engineering can substitute for, and the two remaining
-engineering items are assigned and moving. That is a short list — but figure 17
+Of the six blockers, **three are settings changes only you can make**, two are
+**rulings** no amount of engineering can substitute for, and the one remaining
+engineering item is assigned and moving. That is a short list — but figure 17
 means none of the automation built to protect it can currently hold a line.
