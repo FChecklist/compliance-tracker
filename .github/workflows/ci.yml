@@ -167,6 +167,22 @@ jobs:
       # so an age check would pass on an empty set and report false assurance.
       # Defects here are documented in prose; this checks those.
       - run: node scripts/check-comment-rot.mjs
+      # R81 K5-08, REPORT-ONLY on purpose (same pattern as the E-103 replay job
+      # below). This fails today, by design: six requirements are recorded CLOSED
+      # citing e2e/demo-gate-smoke.spec.ts, which skips itself whenever real
+      # production answers DEPLOYMENT_PAUSED -- which it does, because Vercel is
+      # paused deliberately. The CI log is the proof: the E2E job prints
+      # "3 skipped, 6 passed" and concludes SUCCESS, so a skipped test sits inside
+      # a GREEN job and no CI-outcome check can tell "requirement holds" apart
+      # from "requirement never ran".
+      # It is NOT blocking yet because the remedy -- reverting those six, or
+      # proving them against environment 1 (E2E_PROJEXA_ORIGIN=http://localhost:3100)
+      # -- is owner-sequenced work (R81 Addendum B, G2-02) and turning CI red for
+      # every contributor in the meantime would just get this switched off.
+      # FLIP continue-on-error TO false the moment that lands; the script then
+      # stops any NEW self-skipping citation from being recorded as closure proof.
+      - run: node scripts/check-closure-citation-skips.mjs
+        continue-on-error: true
   migration-integrity-check:
     name: Migration Integrity Check (AR-12)
     runs-on: ubuntu-latest
