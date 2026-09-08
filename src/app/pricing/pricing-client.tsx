@@ -516,9 +516,18 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                 </Button>
               </Link>
               <Link href="/login">
+                {/* bg-transparent is load-bearing, not decorative. The outline
+                    variant carries bg-background (#FFFDF9 cream), which paints
+                    OVER this panel's bg-gradient-navy -- so text-white landed
+                    on cream at 1.02:1 and the label was invisible on the
+                    page's final call to action. twMerge drops the variant's
+                    bg-* when a bg-* appears in className, which is what makes
+                    this one class the whole fix. Found by axe on /pricing:
+                    1 serious color-contrast node, and the only thing making ct
+                    CI red. */}
                 <Button
                   variant="outline"
-                  className="border-ct-cloud2 text-white hover:bg-white/10 text-sm"
+                  className="border-ct-cloud2 bg-transparent text-white hover:bg-white/10 text-sm"
                 >
                   Log in
                 </Button>

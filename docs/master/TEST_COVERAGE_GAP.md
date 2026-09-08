@@ -17,19 +17,19 @@ VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for Module": "No s
 | 4 | `src/lib/services/risk-register-service.ts` | 407 |
 | 5 | `src/lib/services/sales-engine-service.ts` | 397 |
 | 6 | `src/lib/services/gst-reconciliation-service.ts` | 390 |
-| 7 | `src/lib/services/erp-goods-receipt-service.ts` | 352 |
-| 8 | `src/lib/services/fm-register-digitization-service.ts` | 310 |
-| 9 | `src/lib/services/communication-drafting-service.ts` | 302 |
-| 10 | `src/lib/services/ai-report-builder-service.ts` | 251 |
-| 11 | `src/lib/services/veri-chat-service.ts` | 250 |
-| 12 | `src/lib/services/mdm-quality-service.ts` | 249 |
-| 13 | `src/lib/services/notice-service.ts` | 243 |
-| 14 | `src/lib/services/firm-engagement-service.ts` | 239 |
-| 15 | `src/lib/services/fm-ppm-service.ts` | 239 |
-| 16 | `src/lib/services/interior-floorplan-service.ts` | 238 |
-| 17 | `src/lib/services/erp-returns-service.ts` | 236 |
-| 18 | `src/lib/services/erp-inventory-planning-service.ts` | 233 |
-| 19 | `src/lib/services/erp-inventory-service.ts` | 225 |
-| 20 | `src/lib/services/workspace-memory-drive-sync.ts` | 225 |
+| 7 | `src/lib/services/erp-goods-receipt-service.ts` | 361 |
+| 8 | `src/lib/services/fm-register-digitization-service.ts` | 328 |
+| 9 | `src/lib/services/erp-inventory-service.ts` | 319 |
+| 10 | `src/lib/services/communication-drafting-service.ts` | 302 |
+| 11 | `src/lib/services/veri-chat-service.ts` | 259 |
+| 12 | `src/lib/services/ai-report-builder-service.ts` | 251 |
+| 13 | `src/lib/services/mdm-quality-service.ts` | 249 |
+| 14 | `src/lib/services/erp-returns-service.ts` | 243 |
+| 15 | `src/lib/services/notice-service.ts` | 243 |
+| 16 | `src/lib/services/firm-engagement-service.ts` | 239 |
+| 17 | `src/lib/services/fm-ppm-service.ts` | 239 |
+| 18 | `src/lib/services/interior-floorplan-service.ts` | 238 |
+| 19 | `src/lib/services/erp-vendor-master-service.ts` | 234 |
+| 20 | `src/lib/services/erp-inventory-planning-service.ts` | 233 |
 
 _Total untested files (all sizes): 110. Showing top 20._
