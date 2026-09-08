@@ -52,8 +52,24 @@ for (const { name, path } of PAGES) {
       contentType: "application/json",
     });
 
+    // The node TARGET, not just the count. Twice now a /pricing
+    // color-contrast failure has cost a full CI round trip per guess, because
+    // the count is identical whichever element is at fault and the attachment
+    // above only reaches an artifact upload this workflow does not do. A
+    // failure that names the selector is one a reader can act on from the log
+    // alone; `.slice(0, 3)` keeps a 40-node failure from burying the summary.
     const summary = results.violations.map(
-      (v) => `[${v.impact}] ${v.id}: ${v.help} (${v.nodes.length} node(s)) -- ${v.helpUrl}`,
+      (v) =>
+        `[${v.impact}] ${v.id}: ${v.help} (${v.nodes.length} node(s)) -- ${v.helpUrl}` +
+        v.nodes
+          .slice(0, 3)
+          .map(
+            (n) =>
+              `
+      at ${JSON.stringify(n.target)}` +
+              (n.failureSummary ? ` -- ${n.failureSummary.replace(/\s+/g, " ")}` : ""),
+          )
+          .join(""),
     );
 
     expect(summary, summary.join("\n")).toEqual([]);
