@@ -213,6 +213,18 @@ jobs:
       - run: node scripts/check-migration-integrity.mjs
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # R81 (2026-09-08): the file<->journal leg of AR-12, which the script
+      # above deliberately does NOT check (see its header: it cites the three
+      # 0294-0296 orphans as the reason a hard parity rule would fail).
+      # By 2026-09-08 that exception had grown from three files to sixteen and
+      # nothing was counting. It matters because BOTH the migrate runner and
+      # the replay-from-empty harness below iterate journal.entries -- a .sql
+      # file with no journal entry is never applied and never replayed, so the
+      # replay job reports green while the schema it proves is incomplete.
+      # Four migrations were in exactly that state when this was written,
+      # applied live through Supabase's migration ledger, which nothing in this
+      # repository reads. DB-free, so it always runs.
+      - run: node scripts/check-migration-journal-parity.mjs
   migration-replay-from-empty:
     # R67B (2026-09-03), platform.r43_faults fault_id
     # E103_MIGRATION_REPLAY_EMPTY_DB_BREAK. E-103 says a fresh database cannot

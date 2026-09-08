@@ -2654,6 +2654,34 @@
       "when": 1788510802000,
       "tag": "0561_r74_phase2_closure_state_and_surface_class",
       "breakpoints": true
+    },
+    {
+      "idx": 379,
+      "version": "7",
+      "when": 1788510803000,
+      "tag": "0569_r81_work_orders_migration_debt",
+      "breakpoints": true
+    },
+    {
+      "idx": 380,
+      "version": "7",
+      "when": 1788510804000,
+      "tag": "0570_r81_work_orders_rnumber_bodyhash",
+      "breakpoints": true
+    },
+    {
+      "idx": 381,
+      "version": "7",
+      "when": 1788510805000,
+      "tag": "0572_r81_gap_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 382,
+      "version": "7",
+      "when": 1788510806000,
+      "tag": "0573_r81_rls_on_registry_tables",
+      "breakpoints": true
     }
   ]
 }
