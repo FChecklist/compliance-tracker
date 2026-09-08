@@ -1,0 +1,17 @@
+... more matches <= 
+capability-tree-service <= services/chain-usage-ranking.ts
+compliance-service <= services/abac-policy-service.ts services/access-review-service.ts services/ai-report-builder-service.ts services/approval-workflow-service.ts services/asset-registry-service.ts services/asset-relationship-service.ts services/asset-vector-search-service.ts services/automation-rule-service.ts services/bcm-service.ts services/business-rules-service.ts services/capability-learning-service.ts services/capability-tree-service.ts services/chat-service.ts services/code-change-request-service.ts services/communication-drafting-service.ts services/connector-data-service.ts services/connector-data-store.ts services/construction-ai-service.ts services/construction-billing-workflow-service.ts
+construction-dashboard-service <= services/construction-ai-service.ts
+construction-reports-service <= services/construction-ai-service.ts
+context <= services/compliance-service.ts
+delegation-service <= services/approval-workflow-service.ts
+dialogue-script-executor <= services/chat-service.ts
+document-extraction-service <= services/ai-report-builder-service.ts
+services/automation-rule-service.ts:13:import { indexCapability, buildCapabilityContent } from "./capability-registry... <= 
+services/capability-audit-service.ts:68:import { ServiceError, type TaskCapability, computeCoverageStats, type Covera... <= 
+services/capability-backfill-service.ts:16:import { indexCapability, buildCapabilityContent } from "./capability-regi... <= 
+services/capability-bridge-service.ts:35:import { findSimilarCapabilities, buildCapabilityContent, type CapabilityMat... <= 
+services/capability-bridge-service.ts:36:import { deriveCapabilityKey, findCapabilityByKey, type TaskCapability } fro... <= 
+services/capability-tree-service.ts:35:import { computeUserChainUsageScoresWithDb, applyUsageRanking } from "./chain-... <= 
+services/connector-data-service.ts:39:import { getActiveConnectorAccount, upsertConnectorDocument, type ConnectorCont... <= 
+services/construction-billing-workflow-service.ts:19:import { generateInterimBill } from "./construction-valuation-se... <= 

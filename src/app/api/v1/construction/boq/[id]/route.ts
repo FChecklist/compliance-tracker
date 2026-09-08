@@ -4,7 +4,7 @@
 // call, same auth pattern as the sibling v1/construction/boq/route.ts.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { getBoq, deleteBoq, ServiceError } from "@/lib/services/construction-boq-service"
+import { getBoq, updateBoq, deleteBoq, ServiceError } from "@/lib/services/construction-boq-service"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuthOrApiKey(request)
@@ -41,5 +41,49 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 construction BOQ delete error:", error)
     return NextResponse.json({ error: "Failed to delete BOQ" }, { status: 500 })
+  }
+}
+
+// R80/GAP-14: PATCH a BOQ's HEADER. GET and DELETE existed here; there was no
+// write path for the header at all, so a BOQ's title was write-once (see
+// updateBoq()'s own header comment in construction-boq-service.ts for the
+// field allow-list and the superseded-revision block).
+//
+// Auth/role/error shape copied verbatim from the sibling that already exports
+// PATCH, boq/line-items/[id]/route.ts: requireAuthOrApiKey + explicit orgId
+// check + requireRoleOrScope(ctx, "member", "write"). Correcting a title is a
+// lighter act than DELETE's "manager" -- it is the same object, edited by the
+// same people who already edit its lines through that sibling route.
+//
+// The body is read FIELD BY FIELD rather than spread, and any lineage or
+// workflow key present in it is refused with a 400 instead of being silently
+// dropped: a caller that believes it just moved a BOQ to another project or
+// re-pointed its parent must be told it did not.
+const BOQ_HEADER_IMMUTABLE_FIELDS = ["version", "status", "projectId", "parentBoqId", "createdById", "approvedById", "approvedAt"] as const
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const ctx = await requireAuthOrApiKey(request)
+  if (ctx.response) return ctx.response
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  const roleErr = requireRoleOrScope(ctx, "member", "write")
+  if (roleErr) return roleErr
+
+  try {
+    const { id } = await params
+    const body = await request.json()
+    const rejected = BOQ_HEADER_IMMUTABLE_FIELDS.filter((field) => body?.[field] !== undefined)
+    if (rejected.length > 0) {
+      return NextResponse.json(
+        { error: `${rejected.join(", ")} cannot be changed here -- version, parentBoqId and status are the revision lineage (use Create Revision / Submit / Approve), and projectId would separate this BOQ from its own recorded progress. Nothing was saved.` },
+        { status: 400 }
+      )
+    }
+    const updated = await updateBoq({ orgId: ctx.orgId }, id, { title: body.title })
+    return NextResponse.json(updated)
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("v1 construction BOQ header update error:", error)
+    return NextResponse.json({ error: "Failed to update BOQ" }, { status: 500 })
   }
 }

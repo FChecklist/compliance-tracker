@@ -996,6 +996,73 @@ export async function getBoq(ctx: { orgId: string }, boqId: string) {
   })
 }
 
+// R80/GAP-14: CORRECTING A BOQ'S HEADER AFTER CREATION.
+//
+// THE FAULT THIS CLOSES: a BOQ could be deleted (draft only, deleteBoq below)
+// and every LINE could be annotated (updateLineItemBudget above), but the
+// header itself was write-once. A BOQ created as "Villa 21 - Interor Fitout"
+// carried that typo through its whole revision chain -- createBoqRevision()
+// copies `parent.title` forward -- and the only way to fix it was to delete
+// and rebuild, which is impossible the moment the BOQ leaves draft.
+//
+// WHAT IS EDITABLE, AND WHY IT IS ONLY THE TITLE. Every other column on
+// construction_boqs is owned by something else and would corrupt real state
+// if a generic header PATCH could write it:
+//   * version + parentBoqId  -- THE LINEAGE. boq-lineage.ts (PROJEXA) walks
+//     parentBoqId to find a chain's root and picks the "Current" revision by
+//     `status === approved` then MAX(version); the Work Progress Report is
+//     priced off whichever revision that resolves to. Writing either field
+//     re-points the chain and silently re-prices the WPR. parentBoqId is also
+//     UNIQUE (schema.ts, E-128), so a write here can break the one-parent-
+//     one-child invariant the whole compare/variation story rests on.
+//   * status -- owned by submitBoq/approveBoq/createBoqRevision. Setting a
+//     superseded revision back to "approved" would make resolveCurrentId()
+//     name a historical revision as Current.
+//   * projectId -- the line items' recorded progress
+//     (construction_work_progress_entries) stays on the old project; moving
+//     the header alone splits a BOQ from its own site records.
+//   * createdById / approvedById / approvedAt -- the approval trail.
+// So: TITLE ONLY. The caller-facing allow-list is this function's own
+// signature, and the route builds its input from `body.title` explicitly
+// rather than spreading the request body.
+//
+// WHEN IT IS BLOCKED. A SUPERSEDED revision is a closed historical record:
+// /scope/{id}/compare renders it as "what was agreed before" and the object
+// page's own banner reads "Supersedes RevN - variation X". Renaming it after
+// the fact rewrites a document a customer signed off, and the rename is
+// invisible on the revision that replaced it. Both halves of "superseded" are
+// checked, not just the status column: createBoqRevision() sets
+// status='superseded' AND inserts a child carrying parentBoqId = this id, so
+// a row with a child but a drifted status is still refused.
+export async function updateBoq(ctx: { orgId: string }, boqId: string, input: { title?: string }) {
+  if (input.title !== undefined && (typeof input.title !== "string" || input.title.trim() === "")) {
+    throw new ServiceError("title must be a non-empty string", 400)
+  }
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
+    if (!boq) throw new ServiceError("BOQ not found", 404)
+
+    if (boq.status === "superseded") {
+      throw new ServiceError("A superseded revision is a historical record and cannot be edited -- open the revision that replaced it", 409)
+    }
+    const successor = await db.query.constructionBoqs.findFirst({ where: eq(constructionBoqs.parentBoqId, boqId) })
+    if (successor) {
+      throw new ServiceError(`This BOQ has already been revised (revision ${successor.version}, id ${successor.id}) -- edit that revision instead`, 409)
+    }
+
+    // An empty patch is a no-op read, not a silent touch of updatedAt.
+    if (input.title === undefined) return getBoqRow(db, boqId)
+
+    await db.update(constructionBoqs)
+      .set({ title: input.title.trim(), updatedAt: new Date() })
+      .where(and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)))
+    return getBoqRow(db, boqId)
+  }).then((row) => {
+    bustProjectDashboardCache(ctx.orgId, row.projectId)
+    return row
+  })
+}
+
 // R39/R-C09 (Point 154 follow-on): sets a line item's budget/vendor overlay
 // AFTER the BOQ already exists -- budgetPercentage/vendorId/vendorAmount
 // were already real, live columns (Point 154, 22 Aug) with a default of 25
