@@ -792,11 +792,6 @@ const KNOWN_OPEN_NESTING: OpenSite[] = [
   // --- ROOT CAUSE C: a local helper that opens its own transaction, awaited
   // from inside one. The simplest shape, and the closest analogue of the
   // erp-goods-receipt entry that actually reached production.
-  { site: "src/lib/services/veri-chat-service.ts#attachDocumentToMessage -> src/lib/services/veri-chat-service.ts#assertParticipant", rootCause: "C", reason: "assertParticipant opens its own transaction and is awaited inside attachDocumentToMessage's, so the membership check and the attachment insert are not one unit." },
-  { site: "src/lib/services/veri-chat-service.ts#revokeShareLink -> src/lib/services/veri-chat-service.ts#assertParticipant", rootCause: "C", reason: "Same assertParticipant hop, awaited from inside revokeShareLink's own transaction." },
-  { site: "src/lib/services/veri-chat-service.ts#revokeGuestAccess -> src/lib/services/veri-chat-service.ts#assertParticipant", rootCause: "C", reason: "Same assertParticipant hop, awaited from inside revokeGuestAccess's own transaction." },
-  { site: "src/lib/services/mca-filing-service.ts#generateFormData -> src/lib/services/mca-filing-service.ts#loadCompanyParticulars", rootCause: "C", reason: "loadCompanyParticulars opens its own transaction and is awaited inside generateFormData's; no enablement gate, so threading the handle would be the whole fix." },
-  { site: "src/lib/services/fm-asset-dedup-service.ts#findDuplicateCandidates -> src/lib/services/fm-asset-dedup-service.ts#scanForDuplicateAssets", rootCause: "C", reason: "scanForDuplicateAssets opens its own transaction and is awaited inside findDuplicateCandidates'; its own first statement is that withTenantContext, so there is no enablement gate to thread as well." },
 
   // --- ROOT CAUSE D: threading the handle would be WRONG, because the callee
   // deliberately opens a transaction under a DIFFERENT identity.

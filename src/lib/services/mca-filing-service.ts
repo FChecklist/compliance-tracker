@@ -5,7 +5,7 @@
 // note on mcaFilings in schema.ts (this compiles data, it never files
 // anything with the MCA).
 import { mcaFilings, organisations, directorsKmp, capTableEntries, companyCharges, boardMeetings } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, gte, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
@@ -19,12 +19,14 @@ export type GenerateFormDataInput = {
   chargeId?: string // required for CHG-1/CHG-4
 }
 
-async function loadCompanyParticulars(orgId: string): Promise<CompanyParticulars> {
-  return withTenantContext({ orgId }, async (db) => {
+/** `existingDb` is generateFormData's open handle -- it calls this from inside its own transaction. */
+async function loadCompanyParticulars(orgId: string, existingDb?: TenantDb): Promise<CompanyParticulars> {
+  const run = async (db: TenantDb): Promise<CompanyParticulars> => {
     const org = await db.query.organisations.findFirst({ where: eq(organisations.id, orgId) })
     if (!org) throw new ServiceError("Organisation not found", 404)
     return { cin: org.cinNumber, name: org.name, registeredOfficeAddress: org.address, pan: org.panNumber, entityType: org.entityType }
-  })
+  }
+  return existingDb ? run(existingDb) : withTenantContext({ orgId }, run)
 }
 
 export async function generateFormData(ctx: { orgId: string }, filingId: string, input: GenerateFormDataInput) {
@@ -32,7 +34,7 @@ export async function generateFormData(ctx: { orgId: string }, filingId: string,
     const filing = await db.query.mcaFilings.findFirst({ where: and(eq(mcaFilings.id, filingId), eq(mcaFilings.orgId, ctx.orgId)) })
     if (!filing) throw new ServiceError("MCA filing not found", 404)
 
-    const company = await loadCompanyParticulars(ctx.orgId)
+    const company = await loadCompanyParticulars(ctx.orgId, db)
     const formTypeUpper = filing.formType.trim().toUpperCase()
     let formData: unknown
 
