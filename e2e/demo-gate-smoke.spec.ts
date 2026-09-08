@@ -53,6 +53,29 @@ const DEMO_EMAIL = "democeo@projexa-ai.com";
 // sent on a request to "localhost", so the two must change as a pair, not
 // just the URL alone (an easy, silent way for a "repoint to local" attempt
 // to look like it ran but never actually authenticate).
+// WHICH ENVIRONMENT THIS RUNS AGAINST, and how to run it against the one that
+// is actually up.
+//
+// The default target is ENV 2 (https://projexa-ai.com), which is deliberately
+// paused on credits -- so an unqualified run of this spec SKIPS, by design,
+// through the availability probe further down. A skip is not a pass and is not
+// evidence the demo gate holds.
+//
+// To exercise it against ENV 1 (local + Supabase + GitHub, where all
+// development, testing and deployment actually happen), start the projexa dev
+// server on 3100 and set the origin:
+//
+//   E2E_PROJEXA_ORIGIN=http://localhost:3100 bunx playwright test e2e/demo-gate-smoke.spec.ts
+//
+// Measured 2026-09-09, three consecutive runs: PASSED in 37.6s, 21.4s and
+// 29.3s. So TC-01, TC-10, TC-11, TC-30 and TC-40 DO hold on ENV 1. The 90s
+// timeout previously recorded against this spec was an ENV 2 observation and
+// should not be read as an ENV 1 result.
+//
+// Deliberately NOT wrapped in a package.json script: `VAR=value cmd` does not
+// survive bun's Windows script runner (the same gotcha that keeps `bun run
+// dev` out of playwright.config.ts's webServer, documented there), so a script
+// would fail on the one machine this is run from.
 const PROJEXA_ORIGIN = process.env.E2E_PROJEXA_ORIGIN || "https://projexa-ai.com";
 const PROJEXA_COOKIE_DOMAIN = new URL(PROJEXA_ORIGIN).hostname;
 
