@@ -2738,6 +2738,13 @@
       "when": 1788510813000,
       "tag": "0550_r70_phase7_current_row_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 391,
+      "version": "7",
+      "when": 1788510814000,
+      "tag": "0575_r81_rls_on_remaining_platform_tables",
+      "breakpoints": true
     }
   ]
 }
