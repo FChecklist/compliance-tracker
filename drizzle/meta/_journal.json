@@ -2693,8 +2693,50 @@
     {
       "idx": 384,
       "version": "7",
+      "when": 1788510807500,
+      "tag": "0296_r42_seq15_fix_l2_cross_org_discovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 385,
+      "version": "7",
       "when": 1788510808000,
       "tag": "0574_r81_revoke_public_execute_on_security_definer_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 386,
+      "version": "7",
+      "when": 1788510809000,
+      "tag": "0546_r68_phase4_memory_records_search_vector",
+      "breakpoints": true
+    },
+    {
+      "idx": 387,
+      "version": "7",
+      "when": 1788510810000,
+      "tag": "0547_r68_phase8_img_product_branch",
+      "breakpoints": true
+    },
+    {
+      "idx": 388,
+      "version": "7",
+      "when": 1788510811000,
+      "tag": "0548_r70_phase7_location_stamping",
+      "breakpoints": true
+    },
+    {
+      "idx": 389,
+      "version": "7",
+      "when": 1788510812000,
+      "tag": "0549_r70_phase7_graph_edge_validity_bounds",
+      "breakpoints": true
+    },
+    {
+      "idx": 390,
+      "version": "7",
+      "when": 1788510813000,
+      "tag": "0550_r70_phase7_current_row_indexes",
       "breakpoints": true
     }
   ]

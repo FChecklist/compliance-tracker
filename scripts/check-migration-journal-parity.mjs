@@ -47,12 +47,6 @@ const DRIZZLE = path.resolve(import.meta.dirname, "..", "drizzle")
 const ALLOWED = {
   "0294_r42_seq12_submissions_pipeline_tasks": { cat: "DEBT", note: "pre-existing orphan named in check-migration-integrity.mjs; fault R81_F37" },
   "0295_r42_seq20_screen_registry": { cat: "DEBT", note: "pre-existing orphan named in check-migration-integrity.mjs; fault R81_F37" },
-  "0296_r42_seq15_fix_l2_cross_org_discovery": { cat: "DEBT", note: "pre-existing orphan named in check-migration-integrity.mjs; fault R81_F37" },
-  "0546_r68_phase4_memory_records_search_vector": { cat: "DEBT", note: "real schema (search_vector); absent from fresh DBs; fault R81_F37" },
-  "0547_r68_phase8_img_product_branch": { cat: "DEBT", note: "real schema (IMG product branch); fault R81_F37" },
-  "0548_r70_phase7_location_stamping": { cat: "DEBT", note: "real schema (location columns); fault R81_F37" },
-  "0549_r70_phase7_graph_edge_validity_bounds": { cat: "DEBT", note: "real schema (validity bounds); fault R81_F37" },
-  "0550_r70_phase7_current_row_indexes": { cat: "DEBT", note: "real schema (partial indexes); fault R81_F37" },
   "0562_r75_phase0_backup_grant_missing_sequence_select": { cat: "OPERATIONAL", note: "R75 Phase 0 one-off backup grant" },
   "0563_r75_phase0_backup_grant_remaining_sequence_select": { cat: "OPERATIONAL", note: "R75 Phase 0 one-off backup grant" },
   "0564_r75_phase0_backup_temp_bypassrls_grant": { cat: "OPERATIONAL", note: "temporary BYPASSRLS; paired with 0566 revoke -- must never replay" },
