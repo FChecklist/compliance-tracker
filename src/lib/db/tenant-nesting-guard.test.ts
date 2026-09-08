@@ -803,20 +803,22 @@ const KNOWN_OPEN_NESTING: OpenSite[] = [
   // from inside one. The simplest shape, and the closest analogue of the
   // erp-goods-receipt entry that actually reached production.
 
-  // --- ROOT CAUSE D: threading the handle would be WRONG, because the callee
-  // deliberately opens a transaction under a DIFFERENT identity.
-  // provisionAiAssistantsForUser inserts compliance.ai_assistants rows for the
-  // user being provisioned, and that table has FORCE ROW LEVEL SECURITY with a
-  // policy requiring compliance.current_user_id() = the row's user_id (see the
-  // function's own header: this was a real production failure twice, R53 /
-  // F_021, 2026-08-24). The enclosing transaction is opened by the ADMIN who
-  // triggered the branch enable, so its current_user_id() is the admin, not
-  // the user being upgraded -- reusing that handle would make every insert
-  // fail the policy. Hoisting it out is the only real fix, and that changes
-  // failure semantics (users upgraded, then provisioning fails after the
-  // commit), so it is a product decision, not a mechanical one. Registered
-  // with the reason rather than "fixed" with a change that breaks RLS.
-  { site: "src/lib/services/product-branch-service.ts#enableProductBranchForOrg -> src/lib/services/stage0-service.ts#autoUpgradeStage0UsersOnBranchEnable", rootCause: "D", reason: "provisionAiAssistantsForUser must open its own transaction under the PROVISIONED user's identity -- compliance.ai_assistants RLS requires current_user_id() = user_id, and the enclosing transaction carries the admin's" },
+  // --- ROOT CAUSE D was here and is CLOSED (G-26, 2026-09-09).
+  // enableProductBranchForOrg -> autoUpgradeStage0UsersOnBranchEnable ->
+  // provisionAiAssistantsForUser. It was registered rather than fixed on the
+  // reasoning that threading would break compliance.ai_assistants RLS -- which
+  // was correct, and was the wrong conclusion. Reading what the code did TODAY
+  // showed it was not a trade-off awaiting a ruling: in dev/test
+  // assertNotNested threw into the caller's swallowing catch so NO stage-0 user
+  // was ever upgraded, and in production the guard only warned, the insert ran
+  // under the admin's identity, the policy denied it, and that denial landed in
+  // the same catch. Silent both ways. The fix was to HOIST the call out of the
+  // enable transaction so provisionAiAssistantsForUser opens its own under the
+  // provisioned user's identity -- the only context the policy accepts.
+  //
+  // The register is now EMPTY, and that is a real state, not a missing file:
+  // the sweep test below is what proves it, and it fails the moment any
+  // unregistered site opens a second transaction.
 ]
 
 const SRC_ROOT = join(import.meta.dir, "..", "..")

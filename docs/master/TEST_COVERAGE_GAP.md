@@ -30,6 +30,6 @@ VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for Module": "No s
 | 17 | `src/lib/services/fm-ppm-service.ts` | 239 |
 | 18 | `src/lib/services/interior-floorplan-service.ts` | 238 |
 | 19 | `src/lib/services/erp-vendor-master-service.ts` | 234 |
-| 20 | `src/lib/services/erp-inventory-planning-service.ts` | 233 |
+| 20 | `src/lib/services/product-branch-service.ts` | 234 |
 
 _Total untested files (all sizes): 110. Showing top 20._
