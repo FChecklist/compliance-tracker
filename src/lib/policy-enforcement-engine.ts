@@ -17,6 +17,7 @@
 // or costs any tokens -- the refusal is returned directly to the user.
 import { isKnownDomain, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+import type { TenantDb } from "@/lib/db/tenant-scoped"
 
 export type PolicyCategory = "personal_use" | "prompt_injection" | "out_of_domain" | "ok"
 
@@ -118,7 +119,31 @@ export type PolicyEnforcementContext = {
  * the real LLM call already covers that -- this function only logs the
  * cases where nothing else would have).
  */
-export function enforcePolicy(ctx: PolicyEnforcementContext, userMessage: string): PolicyDecision {
+/**
+ * G-07. `existingDb` is the caller's OPEN transaction handle, when it has one.
+ *
+ * enforcePolicy logs its denials through recordOrchestraExecution(), which
+ * opens a withTenantContext of its own. Five call sites invoke enforcePolicy
+ * from INSIDE their own transaction, so that logging call nested -- and
+ * because the logger is fire-and-forget and swallows its own failures, in
+ * development and test assertNotNested's throw landed in the logger's own
+ * .catch() and THE AUDIT ROW WAS SIMPLY NEVER WRITTEN. In production it was
+ * written, but in a different transaction from the request it describes.
+ * No runtime test can observe either outcome, which is why only the static
+ * guard (src/lib/db/tenant-nesting-guard.test.ts) ever found it.
+ *
+ * It is a THIRD PARAMETER rather than a field on PolicyEnforcementContext,
+ * deliberately, for two reasons. A connection handle is not policy context --
+ * every other field here describes the request being judged. And the guard
+ * cannot see a handle smuggled inside an object property: it matches the
+ * caller's handle against the callee's declared TenantDb parameters, so a
+ * fix hidden in `ctx` is a fix the guard keeps reporting as broken, which is
+ * indistinguishable from not having fixed it.
+ *
+ * Pass it whenever enforcePolicy is called inside withTenantContext. Leave it
+ * undefined and the logger opens its own, exactly as before.
+ */
+export function enforcePolicy(ctx: PolicyEnforcementContext, userMessage: string, existingDb?: TenantDb): PolicyDecision {
   const domain = ctx.domain ?? DEFAULT_DOMAIN
 
   const domainCheck = checkDomainValidity(domain)
@@ -134,7 +159,7 @@ export function enforcePolicy(ctx: PolicyEnforcementContext, userMessage: string
       input: { userMessage: userMessage.slice(0, 500) },
       output: { policyDenied: true, category: decision.category, reason: decision.reason },
       status: "denied", durationMs: 0,
-    })
+    }, existingDb)
   }
 
   return decision

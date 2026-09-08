@@ -482,7 +482,8 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
       // surface -- this call had no Constitution gate despite that.
       const policyDecision = enforcePolicy(
         { orgId: ctx.orgId, userId: ctx.userId ?? undefined, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "meeting_intelligence.extract" },
-        userMessage
+        userMessage,
+        db
       )
       if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 400)
 

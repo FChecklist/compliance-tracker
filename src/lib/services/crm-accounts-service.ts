@@ -668,7 +668,8 @@ export async function analyzeAccountHealth(ctx: CrmAccountContext, accountId: st
     // field reaching the model here.
     const policyDecision = enforcePolicy(
       { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.analyze_account" },
-      account.name
+      account.name,
+      db
     )
     if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403)
 

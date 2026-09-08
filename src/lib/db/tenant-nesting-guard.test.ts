@@ -772,11 +772,6 @@ const KNOWN_OPEN_NESTING: OpenSite[] = [
   // logger's own .catch() and the audit row is SILENTLY NEVER WRITTEN, while
   // in production it is written in a second transaction. No runtime test
   // anywhere can observe either outcome.
-  { site: "src/lib/services/crm-service.ts#scoreLead -> src/lib/policy-enforcement-engine.ts#enforcePolicy", rootCause: "A", reason: "Inside scoreLead's own transaction; enforcePolicy -> recordOrchestraExecution opens a second one to log a policy denial." },
-  { site: "src/lib/services/crm-service.ts#analyzeOpportunity -> src/lib/policy-enforcement-engine.ts#enforcePolicy", rootCause: "A", reason: "Inside analyzeOpportunity's own transaction; same enforcePolicy -> recordOrchestraExecution denial-logging hop." },
-  { site: "src/lib/services/crm-accounts-service.ts#analyzeAccountHealth -> src/lib/policy-enforcement-engine.ts#enforcePolicy", rootCause: "A", reason: "Inside analyzeAccountHealth's own transaction; same enforcePolicy -> recordOrchestraExecution denial-logging hop." },
-  { site: "src/lib/services/veri-meeting-service.ts#generateMeetingIntelligence -> src/lib/policy-enforcement-engine.ts#enforcePolicy", rootCause: "A", reason: "Inside generateMeetingIntelligence's own transaction; same enforcePolicy -> recordOrchestraExecution denial-logging hop." },
-  { site: "src/lib/task-execution-engine.ts#executePackageDispatch -> src/lib/policy-enforcement-engine.ts#enforcePolicy", rootCause: "A", reason: "Inside executePackageDispatch's own transaction; same enforcePolicy -> recordOrchestraExecution denial-logging hop." },
   { site: "src/app/api/construction/ai/diff-drawings/route.ts#POST -> src/lib/services/construction-ai-service.ts#diffDrawingRevisions", rootCause: "A", reason: "Route opens a transaction to load both drawings, then calls diffDrawingRevisions -> describe() -> recordOrchestraExecution, which opens its own." },
   { site: "src/lib/services/gst-reconciliation-service.ts#generateReviewReport -> src/lib/services/gst-reconciliation-service.ts#generateReviewReportCore", rootCause: "A", reason: "Core takes the open handle but reaches generateAiReviewReport -> recordOrchestraExecution, which is never given it." },
 

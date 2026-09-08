@@ -1826,7 +1826,8 @@ async function executePackageDispatch(
       // to the task it blocked.
       const policyDecision = enforcePolicy(
         { orgId, userId, taskId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "task_execution.package_dispatch" },
-        JSON.stringify(pkg.steps).slice(0, 4000)
+        JSON.stringify(pkg.steps).slice(0, 4000),
+        db
       );
       if (!policyDecision.allowed) throw new Error(refusalMessageFor(policyDecision));
 

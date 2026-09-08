@@ -1433,7 +1433,8 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
     // that's the exact text checked, not the whole constructed message.
     const policyDecision = enforcePolicy(
       { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.score_lead" },
-      lead.name
+      lead.name,
+      db
     )
     if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403, { code: "AI_REFUSED" })
 
@@ -1502,7 +1503,8 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
     // user-authored text reaching the model here.
     const policyDecision = enforcePolicy(
       { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.analyze_opportunity" },
-      opp.name
+      opp.name,
+      db
     )
     if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403, { code: "AI_REFUSED" })
 
