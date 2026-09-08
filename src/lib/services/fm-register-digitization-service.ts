@@ -123,12 +123,21 @@ export async function parseAndExtractFromFile(
       }
       totalExtracted += extracted.length
 
+      // R81_F26 (2026-09-08): `db` is this function's own open transaction
+      // handle -- this call is INSIDE the withTenantContext callback of parseAndExtractFromFile()
+      // opened at that function, wrapping the per-batch loop. recordOrchestraExecution is fire-and-forget and
+      // swallows its own failures, so the nesting produced no error anywhere: in
+      // dev/test assertNotNested's throw lands in its .catch() and the AI audit row
+      // required by VERIDIAN_AI_CONSTITUTION #19 / SEC-03 is silently never written;
+      // in production the guard only warns and the row is written in a second
+      // transaction. No enablement gate inside the logger (its first statement is
+      // the withTenantContext itself), so threading the handle is the whole fix.
       recordOrchestraExecution({
         orgId: ctx.orgId, userId: ctx.userId, layerKey: LAYER_KEY, eventType: EVENT_TYPE,
         input: { documentId: input.documentId, batchIndex: i / BATCH_SIZE }, output: { extractedCount: extracted.length },
         status: "completed", durationMs: Date.now() - startedAt,
         provider: modelConfig.provider, model: modelConfig.model, usage,
-      })
+      }, db)
     }
 
     await db.update(fmRegisterDigitizationBatches).set({ status: "under_review", totalRowsExtracted: totalExtracted }).where(eq(fmRegisterDigitizationBatches.id, batch.id))
@@ -198,12 +207,21 @@ export async function parseAndExtractFromPhoto(
       )
     }
 
+    // R81_F26 (2026-09-08): `db` is this function's own open transaction
+    // handle -- this call is INSIDE the withTenantContext callback of parseAndExtractFromPhoto()
+    // opened at the end of that function. recordOrchestraExecution is fire-and-forget and
+    // swallows its own failures, so the nesting produced no error anywhere: in
+    // dev/test assertNotNested's throw lands in its .catch() and the AI audit row
+    // required by VERIDIAN_AI_CONSTITUTION #19 / SEC-03 is silently never written;
+    // in production the guard only warns and the row is written in a second
+    // transaction. No enablement gate inside the logger (its first statement is
+    // the withTenantContext itself), so threading the handle is the whole fix.
     recordOrchestraExecution({
       orgId: ctx.orgId, userId: ctx.userId, layerKey: LAYER_KEY, eventType: EVENT_TYPE,
       input: { documentId: input.documentId, mimeType: input.mimeType }, output: { extractedCount: extracted.length },
       status: "completed", durationMs: Date.now() - startedAt,
       provider: visionProvider, model: visionModel, usage,
-    })
+    }, db)
 
     return { batchId: batch.id, totalRowsExtracted: extracted.length }
   })

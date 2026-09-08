@@ -30,7 +30,7 @@ export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { isPeriodOpenForDate, trialBalance, profitAndLoss } from "./erp-financial-report-service"
 import { didRevenuePost, recordAuditTrigger } from "@/lib/audit-event-triggers"
-import { requireErpEnabled } from "./erp-enablement-service"
+import { requireErpEnabled, isErpEnabledForOrgWithDb } from "./erp-enablement-service"
 import { ErpContext, ActorCtx } from "./actor-context"
 import { listBankAccounts } from "./erp-vendor-master-service"
 
@@ -319,13 +319,34 @@ export async function getSalesInvoice(ctx: { orgId: string }, invoiceId: string)
 // a real dbUser unchanged.
 export async function createSalesInvoice(
   ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
-  input: { customerId: string; salesOrderId?: string; projectId?: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: SalesInvoiceItemInput[] }
+  input: { customerId: string; salesOrderId?: string; projectId?: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: SalesInvoiceItemInput[] },
+  existingDb?: TenantDb
 ) {
-  await requireErpEnabled(ctx.orgId)
+  // R81_F26 (2026-09-08) -- THE GATE MUST TAKE THE HANDLE TOO. Threading the
+  // open handle into the body below is necessary but NOT sufficient:
+  // requireErpEnabled() opens its OWN withTenantContext (isErpEnabledForOrg ->
+  // isBranchEnabledForOrg, product-branch-service.ts:91) and it runs BEFORE the
+  // existingDb branch is ever reached, so a nested caller still trips
+  // assertNotNested -- just at a different line. That is exactly the mistake
+  // 6b56c00b made on recordStockReceipt and reported as fixed; see
+  // erp-inventory-service.ts's recordStockReceipt for the reference shape.
+  // isErpEnabledForOrgWithDb is the handle-accepting variant R74 Phase 10 added
+  // for this. The 403 wording below is requireErpEnabled's own, byte-identical,
+  // so the standalone and threaded paths refuse identically.
+  if (existingDb) {
+    if (!(await isErpEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the ERP module.",
+        403
+      )
+    }
+  } else {
+    await requireErpEnabled(ctx.orgId)
+  }
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const run = async (db: TenantDb) => {
     const customer = await db.query.erpCustomers.findFirst({ where: and(eq(erpCustomers.id, input.customerId), eq(erpCustomers.orgId, ctx.orgId)) })
     if (!customer) throw new ServiceError("Customer not found", 404)
     // Priority 15 (Sales & CRM depth wave): erp_sales_invoices.salesOrderId
@@ -385,7 +406,11 @@ export async function createSalesInvoice(
         : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_invoice.created", entityType: "erp_sales_invoice", entityId: invoice.id }
     )
     return invoice
-  })
+  }
+
+  // Reuse the caller's open transaction when there is one; otherwise open our
+  // own exactly as before. Both paths run the identical body above.
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, run)
 }
 
 // Real-screen conversion (2026-08-30): widened from ErpContext (real dbUser
@@ -407,7 +432,13 @@ export async function submitSalesInvoice(
     if (!invoice) throw new ServiceError("Sales invoice not found", 404)
     if (invoice.status !== "draft") throw new ServiceError("Only draft invoices can be submitted", 409)
 
-    const periodOpen = await isPeriodOpenForDate(ctx, invoice.postingDate)
+    // R81_F26 (2026-09-08): `db` is this function's OWN open transaction --
+    // isPeriodOpenForDate must reuse it, not open a second one. Without the
+    // handle assertNotNested() throws in dev/test and, worse, only warns in
+    // production while letting the request proceed: the period check would run
+    // on a separate connection from the GL posting below, so an invoice could
+    // be left at draft with no GL rows if anything failed between the two.
+    const periodOpen = await isPeriodOpenForDate(ctx, invoice.postingDate, db)
     if (!periodOpen) throw new ServiceError(`The accounting period covering ${invoice.postingDate} is closed`, 409)
 
     const receivableAccount = await findControlAccount(db, ctx.orgId, "receivable")
@@ -557,7 +588,13 @@ export async function submitPurchaseInvoice(ctx: ErpContext, invoiceId: string, 
     if (!invoice) throw new ServiceError("Purchase invoice not found", 404)
     if (invoice.status !== "draft") throw new ServiceError("Only draft invoices can be submitted", 409)
 
-    const periodOpen = await isPeriodOpenForDate(ctx, invoice.postingDate)
+    // R81_F26 (2026-09-08): `db` is this function's OWN open transaction --
+    // isPeriodOpenForDate must reuse it, not open a second one. Without the
+    // handle assertNotNested() throws in dev/test and, worse, only warns in
+    // production while letting the request proceed: the period check would run
+    // on a separate connection from the GL posting below, so an invoice could
+    // be left at draft with no GL rows if anything failed between the two.
+    const periodOpen = await isPeriodOpenForDate(ctx, invoice.postingDate, db)
     if (!periodOpen) throw new ServiceError(`The accounting period covering ${invoice.postingDate} is closed`, 409)
 
     const payableAccount = await findControlAccount(db, ctx.orgId, "payable")
@@ -1580,7 +1617,11 @@ export async function paymentProposalList(
     const supplierIds = [...new Set(bills.map((inv) => inv.supplierId))]
     const bankAccountsBySupplier = new Map<string, PaymentProposalBankAccount>()
     for (const supplierId of supplierIds) {
-      const accounts = await listBankAccounts({ orgId: ctx.orgId }, supplierId)
+      // R81_F26 (2026-09-08): inside this function's own open transaction AND
+      // inside a loop -- without the handle this opened N extra connections per
+      // call against an app_runtime pool of 5. listBankAccounts has no
+      // enablement gate of its own, so the handle alone is the whole fix there.
+      const accounts = await listBankAccounts({ orgId: ctx.orgId }, supplierId, db)
       const primary = accounts.find((a) => a.isPrimary) ?? accounts[0] ?? null
       bankAccountsBySupplier.set(supplierId, primary ? { bankName: primary.bankName, accountNumberMasked: primary.accountNumberMasked, ifscCode: primary.ifscCode } : null)
     }

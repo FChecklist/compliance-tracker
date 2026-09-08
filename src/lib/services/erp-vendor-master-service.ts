@@ -5,7 +5,7 @@
 // document-service.ts (linkedEntityType='erp_supplier') + POST /api/documents,
 // which already works with zero new code.
 import { erpSuppliers, erpSupplierBankAccounts, erpSupplierQualifications, erpSupplierSanctionChecks, erpSupplierPortalLinks, documents, db } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, desc } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
 import { encryptApiKey } from "@/lib/ai-config-crypto"
@@ -50,14 +50,25 @@ export async function addBankAccount(
   })
 }
 
-export async function listBankAccounts(ctx: { orgId: string }, supplierId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+/**
+ * `existingDb` -- R81_F26 (2026-09-08). erp-invoicing-service.ts's
+ * paymentProposalList() calls this once per supplier from INSIDE its own open
+ * withTenantContext, which assertNotNested() rejects. This function has NO
+ * enablement gate of its own (checked: no require*Enabled call in its first
+ * statements), so threading the handle into the body IS the whole fix here --
+ * unlike recordStockReceipt/isPeriodOpenForDate, where the gate itself had to
+ * take the handle too. Omitting `existingDb` behaves exactly as before.
+ */
+export async function listBankAccounts(ctx: { orgId: string }, supplierId: string, existingDb?: TenantDb) {
+  const run = async (db: TenantDb) => {
     const rows = await db.query.erpSupplierBankAccounts.findMany({
       where: and(eq(erpSupplierBankAccounts.supplierId, supplierId), eq(erpSupplierBankAccounts.orgId, ctx.orgId)),
       orderBy: desc(erpSupplierBankAccounts.createdAt),
     })
     return rows.map(maskBankAccount)
-  })
+  }
+
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId }, run)
 }
 
 // ─── Qualification workflow ───────────────────────────────────────────────

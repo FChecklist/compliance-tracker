@@ -194,9 +194,24 @@ export async function generateInterimBill(ctx: ValuationContext & { dbUser: type
 
     const invoiceItems = buildInterimBillInvoiceItems(billableLines, input.taxTemplateId)
 
+    // R81_F26 (2026-09-08): every statement in this callback runs inside the
+    // withTenantContext opened at the top of generateInterimBill, and
+    // createSalesInvoice used to open a second one. assertNotNested only THROWS
+    // in development and test (tenant-scoped.ts:188-192) -- in PRODUCTION it
+    // console.warn()s and lets the request proceed, which is the dangerous
+    // outcome here: the interim bill header, its line items and the sales
+    // invoice would commit in two different transactions, and a failure between
+    // them leaves a certified interim bill row with salesInvoiceId null -- work
+    // certified to the client with no invoice raised against it, and the
+    // constructionInterimBills.billNumber sequence already advanced. Passing
+    // the open handle makes bill + lines + invoice + back-reference one atomic
+    // unit. createSalesInvoice's own requireErpEnabled gate honours the handle
+    // as well (isErpEnabledForOrgWithDb), so the gate cannot open a second
+    // transaction before the body is reached.
     const invoice = await createSalesInvoice(
       { orgId: ctx.orgId, userId: ctx.userId, dbUser: ctx.dbUser },
-      { customerId: input.customerId, projectId: input.projectId, postingDate: input.billDate, items: invoiceItems }
+      { customerId: input.customerId, projectId: input.projectId, postingDate: input.billDate, items: invoiceItems },
+      db
     )
 
     const [updatedBill] = await db.update(constructionInterimBills)

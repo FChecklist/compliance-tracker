@@ -27,7 +27,7 @@ import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
 import { codeForParam, failureLogLine, isRetryableFailure, pipelineFailure, serialiseFailure, type PipelineFailure } from "./error-codes";
-import { dryRunSubmission as dryRun, missingParamsFor, type DryRunDeps, type DryRunResult } from "./dry-run";
+import { dryRunSubmission as dryRun, missingParamsFor, type DryRunDeps, type DryRunResult, type DryRunTelemetry } from "./dry-run";
 import { toVerdictResult, type SubmissionVerdictResult } from "./verdict";
 import { makeChainOptionsRepo } from "@/lib/services/chain-options-service";
 import { assertAiProviderAllowed } from "@/lib/ai/adapter";
@@ -1172,6 +1172,32 @@ function submissionStatusForVerdict(v: SubmissionVerdictResult): "chat" | "in_pr
   return v.verdicts.some((x) => x.status === "ready" || x.status === "needs_input") ? "in_progress" : "chat";
 }
 
+/**
+ * Maps step 1a's free-text refusal reason onto migration 0571's CLOSED
+ * vocabulary for compliance.submissions.level1_refusal_code.
+ *
+ * WHY A CODE AND NEVER THE MESSAGE: the column carries a NOT VALID CHECK that
+ * only admits these values, and -- the real reason -- a raw err.message
+ * routinely contains connection strings, tokens and request payloads. One
+ * Supabase project serves both environments, so anything written here is
+ * production the instant it lands. A code cannot leak a credential; a message
+ * can, and the leak would only be found by grepping the column later.
+ *
+ * Returns null when nothing was refused, so a resolved or not-needed submission
+ * stores NULL rather than a misleading "unknown".
+ */
+function refusalCodeFor(t: DryRunTelemetry): string | null {
+  if (t.level1Outcome !== "refused" && t.level1Outcome !== "error") return null;
+  const reason = (t.level1RefusalReason ?? "").toLowerCase();
+  // AiProviderRefusalError is what assertAiProviderAllowed throws, for BOTH the
+  // "RAJAT_USER_ID unset" and "wrong user" branches -- see ai/adapter.ts:63-92.
+  if (t.level1Outcome === "refused") return "provider_not_allowed";
+  if (reason.includes("fetch") || reason.includes("timeout") || reason.includes("econnrefused")) {
+    return "provider_unreachable";
+  }
+  return "unknown";
+}
+
 export async function submitForVerdict(input: RunSubmissionInput): Promise<SubmitVerdictResult> {
   const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
     const [row] = await db
@@ -1199,10 +1225,37 @@ export async function submitForVerdict(input: RunSubmissionInput): Promise<Submi
   const verdict = toVerdictResult(proposal, submissionId);
   const classification = classifySubmission(verdict.verdicts.map((v) => v.verdict));
 
+  // R80 Part 2 step 1b COMPLETION (2026-09-09). Migration 0571 added seven
+  // telemetry columns to compliance.submissions and step 1a computed every one
+  // of them -- and nothing wrote them. They reached a console.info below and
+  // NOWHERE ELSE, so all seven were 100% NULL on every row and the 95/5 split
+  // was exactly as unmeasurable as before the migration. I reported 1b as done;
+  // it was a schema and a log line, not a measurement. Found by the R81 session
+  // auditing my work.
+  //
+  // l0_hit_rate is stored as the numeric(5,4) the column declares, computed the
+  // same way as the log line below so the two can never disagree.
+  //
+  // level1_refusal_code, NOT the raw reason: 0571's CHECK constrains it to a
+  // closed vocabulary, and an err.message reaching a shared-DB column is how a
+  // connection string or a token gets durably stored. The reason text stays in
+  // the log, which is the right place for detail.
+  const l0HitRateForRow = telemetry.resolved === 0 ? 0 : telemetry.l0Hits / telemetry.resolved;
+
   await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
     db
       .update(submissions)
-      .set({ status: submissionStatusForVerdict(verdict), classification })
+      .set({
+        status: submissionStatusForVerdict(verdict),
+        classification,
+        level: telemetry.modelCalls > 0 ? 1 : 0,
+        source: telemetry.level1Outcome,
+        l0HitRate: l0HitRateForRow.toFixed(4),
+        modelCalls: telemetry.modelCalls,
+        cacheHits: telemetry.cacheHits,
+        level1Outcome: telemetry.level1Outcome,
+        level1RefusalCode: refusalCodeFor(telemetry),
+      })
       .where(eq(submissions.id, submissionId))
   );
 

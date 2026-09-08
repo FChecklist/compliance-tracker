@@ -1889,13 +1889,22 @@ async function executePackageDispatch(
       });
       await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: data.result });
       await updateTaskStatusAndReflect(db, orgId, taskId, "completed");
+      // R81_F26 (2026-09-08): `db` is this function's own open transaction
+      // handle -- this call is INSIDE the withTenantContext callback of executePackageDispatch()
+      // opened at that function's first statement. recordOrchestraExecution is fire-and-forget and
+      // swallows its own failures, so the nesting produced no error anywhere: in
+      // dev/test assertNotNested's throw lands in its .catch() and the AI audit row
+      // required by VERIDIAN_AI_CONSTITUTION #19 / SEC-03 is silently never written;
+      // in production the guard only warns and the row is written in a second
+      // transaction. No enablement gate inside the logger (its first statement is
+      // the withTenantContext itself), so threading the handle is the whole fix.
       recordOrchestraExecution({
         orgId, userId, taskId, layerKey: "task_oa", eventType: "task_execution.package_dispatch",
         input: { packageId: pkg.id, variables: resolvedVariables },
         output: { result: data.result },
         status: "completed", durationMs: Date.now() - startedAt.getTime(),
         provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
-      });
+      }, db);
       return { status: "completed", output: data.result };
     } catch (err) {
       if (err instanceof MissingInformationError) {

@@ -172,7 +172,20 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   // resolution poll, informational as it is, still costs real round-trips),
   // and the first push of this fix hit the old 60s ceiling on real CI
   // evidence, mid-TC-30, with no assertion failure -- just ran out of clock.
-  test.setTimeout(90_000);
+  // R80 (2026-09-08): the budget depends on WHICH environment this runs against.
+  // 90s was tuned against ENV 2 (deployed Vercel). ENV 1 is legitimately slower:
+  // measured on this laptop, /api/shell alone is ~1.7s warm and login-to-dashboard
+  // ~3.7s, because every read is a cross-repo hop from PROJEXA into
+  // compliance-tracker rather than one deployed app answering itself. A run
+  // against ENV 1 failed here at exactly 90s with NO assertion failure -- it ran
+  // out of clock mid-flight, which is a fact about the environment, not a defect
+  // in the product.
+  //
+  // Raising it for localhost is NOT relaxing the gate: every assertion below is
+  // unchanged and still has to pass on its own. The ENV 2 budget is untouched, so
+  // a real slowdown in the deployed product still fails at 90s.
+  const isLocalTarget = /^https?:\/\/(localhost|127\.0\.0\.1)(:|$|\/)/.test(PROJEXA_ORIGIN);
+  test.setTimeout(isLocalTarget ? 240_000 : 90_000);
 
   // ---------------------------------------------------------------------
   // R80 (2026-09-08): ENVIRONMENT-AWARE GATE.
@@ -261,6 +274,24 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   expect(orgRes.ok(), "the minted session must resolve to a real org").toBeTruthy();
   const org = await orgRes.json();
   expect(org.email).toBe(DEMO_EMAIL);
+
+  // R80 (2026-09-08), KD-15 warm-up -- the pattern every other cross-repo spec
+  // in this programme needed and this one never had. PROJEXA aborts an upstream
+  // call at 8s (VERIDIAN_FETCH_TIMEOUT_MS), and the FIRST authenticated read into
+  // a cold compliance-tracker costs a Next.js route compile plus a tenant-scoped
+  // round trip -- measured at 110s to warm on this machine. A cold run failed on
+  // the line below while a direct call to the same endpoint returned 200 with the
+  // expected project present, which is the signature of a compile race, not a
+  // broken read.
+  //
+  // Warming is not masking. No timeout, threshold or assertion is relaxed by this
+  // loop; the real read still has to succeed on its own immediately after it, and
+  // if the endpoint is genuinely broken the loop simply burns its attempts and the
+  // assertion fails exactly as before.
+  for (let i = 0; i < 8; i++) {
+    if ((await apiRequest.get("/api/projects")).ok()) break;
+    await new Promise((r) => setTimeout(r, 2000));
+  }
 
   const projectsRes = await apiRequest.get("/api/projects");
   expect(projectsRes.ok()).toBeTruthy();

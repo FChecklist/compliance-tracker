@@ -37,7 +37,7 @@ import {
   db, users, aiAssistants, conversations, conversationParticipants, messages,
   conversationGuestAccess, conversationShareLinks, stage0Sources, tasks, instructionCommitments,
 } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray, sql as drizzleSql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { provisionAiAssistantsForUser } from "./subscription-plan-service"
@@ -323,10 +323,35 @@ export function partitionEligibleForAutoUpgrade<T extends { orgId: string | null
   }
 }
 
-export async function autoUpgradeStage0UsersOnBranchEnable(orgId: string): Promise<AutoUpgradeOnBranchEnableResult> {
-  const sources = await withTenantContext({ orgId }, (tx) =>
+/**
+ * `existingDb` -- R81_F26 (2026-09-08). product-branch-service.ts's
+ * enableProductBranchForOrg() calls this via `await import()` from INSIDE its own
+ * open withTenantContext (the branch-enable transaction), which assertNotNested()
+ * rejects. The call there is wrapped in a try/catch that only console.warn()s, so
+ * the nesting never surfaced as an error: in dev/test the throw is swallowed and
+ * NO stage-0 user is ever auto-upgraded; in production the guard warns and the
+ * upgrade commits in a second transaction, so a failure between the two leaves the
+ * branch enabled with the upgrade half-applied. That try/catch is also why a
+ * static-import grep misses this site entirely.
+ *
+ * NO enablement gate here (checked: the first statement is the withTenantContext
+ * read below), so threading the handle IS the whole fix -- unlike
+ * recordStockReceipt / isPeriodOpenForDate, where the gate itself had to take the
+ * handle too.
+ *
+ * DELIBERATE DEVIATION from the one-`run`-for-the-whole-body shape used elsewhere
+ * in this change: only the stage0Sources read is tenant-scoped here. Everything
+ * after it deliberately uses the raw `db` import (DATABASE_URL, RLS-bypassing)
+ * because it updates users rows whose orgId IS NULL -- rows no tenant-scoped
+ * connection can see. Wrapping the whole body in withTenantContext to fit the
+ * template would change behaviour for every caller that omits `existingDb`, which
+ * this change is not allowed to do. So the handle is threaded into the one
+ * transaction that actually exists.
+ */
+export async function autoUpgradeStage0UsersOnBranchEnable(orgId: string, existingDb?: TenantDb): Promise<AutoUpgradeOnBranchEnableResult> {
+  const run = async (tx: TenantDb) =>
     tx.query.stage0Sources.findMany({ where: eq(stage0Sources.orgId, orgId) })
-  )
+  const sources = existingDb ? await run(existingDb) : await withTenantContext({ orgId }, run)
   const activeSources = sources.filter((s) => !s.revokedAt)
   if (activeSources.length === 0) return { upgraded: 0, blocked: 0 }
 

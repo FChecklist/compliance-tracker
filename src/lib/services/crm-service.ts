@@ -22,7 +22,7 @@ import { awardPoints } from "./veri-reward-service"
 import { listOrgIdsWithBranchEnabled } from "./product-branch-service"
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
 import { ServiceError, serviceErrorBody } from "./compliance-service"
-import { requireSalesEnabled } from "./crm-enablement-service"
+import { requireSalesEnabled, isSalesEnabledForOrgWithDb } from "./crm-enablement-service"
 import { explainCrmLeadDecision, explainCrmOpportunityDecision } from "@/lib/explainability/ai-decision-explanation"
 import { csvEscape } from "@/lib/report-export-shared"
 export { ServiceError, serviceErrorBody }
@@ -453,7 +453,17 @@ export async function updateOpportunity(
     // with no check at all. isValidStageTransition() is pure/unit-tested;
     // this is its one real call site.
     if (patch.stage && patch.stage !== existing.stage) {
-      const stages = await listPipelineStages({ orgId: ctx.orgId }, "opportunity")
+      // R81_F26 (2026-09-08): we are inside the withTenantContext opened above,
+      // and listPipelineStages used to open its own -- which made the primary
+      // Kanban drag-and-drop stage move fail outright in dev/test. Worse in
+      // production, where assertNotNested only warns: listPipelineStages SEEDS
+      // the five default stages on an org's first read, so that seed insert
+      // committed in a SEPARATE transaction from the stage transition that
+      // needed it. Passing the open handle keeps validation, seeding and the
+      // crm_stage_history write in one atomic unit. listPipelineStages' own
+      // requireSalesEnabled gate takes the handle too (isSalesEnabledForOrgWithDb),
+      // so the gate cannot open a third transaction ahead of the body.
+      const stages = await listPipelineStages({ orgId: ctx.orgId }, "opportunity", db)
       const actorRank = ctx.actorRole ? ROLE_RANK[ctx.actorRole] : 0
       const verdict = isValidStageTransition(existing.stage, patch.stage, stages, actorRank)
       if (!verdict.valid) throw new ServiceError(verdict.reason ?? "Invalid stage transition", 400)
@@ -848,9 +858,35 @@ const DEFAULT_PIPELINE_STAGES: { stageKey: string; label: string; sortOrder: num
  * isValidStageTransition below, getSalesPipelineOverview) goes through, so
  * an org's config is always resolvable even if it pre-dates drizzle/0314.
  */
-export async function listPipelineStages(ctx: { orgId: string }, entityType: "lead" | "opportunity" = "opportunity"): Promise<PipelineStageRow[]> {
-  await requireSalesEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+export async function listPipelineStages(ctx: { orgId: string }, entityType: "lead" | "opportunity" = "opportunity", existingDb?: TenantDb): Promise<PipelineStageRow[]> {
+  // R81_F26 (2026-09-08) -- THE GATE MUST TAKE THE HANDLE TOO. requireSalesEnabled()
+  // opens its OWN withTenantContext (isSalesEnabledForOrg -> isBranchEnabledForOrg,
+  // product-branch-service.ts:91) and it runs BEFORE the existingDb branch is ever
+  // reached, so threading the handle into the body alone still trips
+  // assertNotNested -- just at a different line. That is the mistake 6b56c00b made
+  // on recordStockReceipt and reported as fixed (see erp-inventory-service.ts's
+  // recordStockReceipt for the reference shape). isSalesEnabledForOrgWithDb is the
+  // handle-accepting variant R74 Phase 10 added for this; the 403 wording below is
+  // requireSalesEnabled's own, byte-identical, so the standalone and threaded paths
+  // refuse identically.
+  //
+  // The real nested caller is updateOpportunity() in this same file: it calls this
+  // function from inside its own open withTenantContext, and this function SEEDS on
+  // first read -- so under the guard the seed insert either throws in dev/test or,
+  // in production, commits in a SEPARATE transaction from the stage transition that
+  // needed it (assertNotNested only warns in prod, tenant-scoped.ts:188-192).
+  if (existingDb) {
+    if (!(await isSalesEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.",
+        403
+      )
+    }
+  } else {
+    await requireSalesEnabled(ctx.orgId)
+  }
+
+  const run = async (db: TenantDb) => {
     const existing = await db.query.crmPipelineStages.findMany({
       where: and(eq(crmPipelineStages.orgId, ctx.orgId), eq(crmPipelineStages.entityType, entityType)),
       orderBy: (t, { asc }) => asc(t.sortOrder),
@@ -860,7 +896,11 @@ export async function listPipelineStages(ctx: { orgId: string }, entityType: "le
       DEFAULT_PIPELINE_STAGES.map((s) => ({ orgId: ctx.orgId, entityType, ...s }))
     ).returning()
     return seeded.sort((a, b) => a.sortOrder - b.sortOrder)
-  })
+  }
+
+  // Reuse the caller's open transaction when there is one; otherwise open our own
+  // exactly as before. Both paths run the identical body above.
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId }, run)
 }
 
 export async function createPipelineStage(
@@ -1418,12 +1458,21 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
       modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 500 }, modelConfig.fallback
     )
 
+    // R81_F26 (2026-09-08): `db` is this function's own open transaction
+    // handle -- this call is INSIDE the withTenantContext callback of scoreLead()
+    // opened at that function's second statement. recordOrchestraExecution is fire-and-forget and
+    // swallows its own failures, so the nesting produced no error anywhere: in
+    // dev/test assertNotNested's throw lands in its .catch() and the AI audit row
+    // required by VERIDIAN_AI_CONSTITUTION #19 / SEC-03 is silently never written;
+    // in production the guard only warns and the row is written in a second
+    // transaction. No enablement gate inside the logger (its first statement is
+    // the withTenantContext itself), so threading the handle is the whole fix.
     recordOrchestraExecution({
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.score_lead",
       input: { leadId }, output: { score: result.score },
       status: "completed", durationMs: Date.now() - startedAt,
       provider: modelConfig.provider, model: modelConfig.model, usage,
-    })
+    }, db)
 
     const [updated] = await db.update(crmLeads).set({
       aiScore: Math.round(result.score), aiScoreReasoning: result.reasoning,
@@ -1472,12 +1521,21 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
       modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 600 }, modelConfig.fallback
     )
 
+    // R81_F26 (2026-09-08): `db` is this function's own open transaction
+    // handle -- this call is INSIDE the withTenantContext callback of analyzeOpportunity()
+    // opened at that function's second statement. recordOrchestraExecution is fire-and-forget and
+    // swallows its own failures, so the nesting produced no error anywhere: in
+    // dev/test assertNotNested's throw lands in its .catch() and the AI audit row
+    // required by VERIDIAN_AI_CONSTITUTION #19 / SEC-03 is silently never written;
+    // in production the guard only warns and the row is written in a second
+    // transaction. No enablement gate inside the logger (its first statement is
+    // the withTenantContext itself), so threading the handle is the whole fix.
     recordOrchestraExecution({
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.analyze_opportunity",
       input: { opportunityId }, output: { winProbability: result.winProbability },
       status: "completed", durationMs: Date.now() - startedAt,
       provider: modelConfig.provider, model: modelConfig.model, usage,
-    })
+    }, db)
 
     const [updated] = await db.update(crmOpportunities).set({
       aiWinProbability: Math.round(result.winProbability), aiRiskFactors: result.riskFactors ?? [],

@@ -1,5 +1,5 @@
 import { db, webhooks, webhookDeliveries } from "@/lib/db";
-import { withTenantContext } from "@/lib/db/tenant-scoped";
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { runWebhookDeliveryOutcomeMonitor } from "@/lib/monitors/webhook-delivery-outcome-monitor";
@@ -56,10 +56,32 @@ export async function sendWebhookAttempt(
   }
 }
 
+/**
+ * `existingDb` -- R81_F26 (2026-09-08). POST /api/compliance/recur calls this from
+ * INSIDE its own open withTenantContext (route.ts:30, the transaction that inserts
+ * the recurring compliance item), which assertNotNested() rejects at the
+ * withTenantContext below. That call is wrapped in a bare catch that swallows,
+ * so the nesting never surfaced: in dev/test the throw is swallowed and the
+ * delivery-outcome monitor silently never runs; in production the guard warns and
+ * the monitor's writes land in a second transaction.
+ *
+ * NO enablement gate here (checked: the first statement is the webhooks query), so
+ * threading the handle IS the whole fix -- unlike recordStockReceipt /
+ * isPeriodOpenForDate, where the gate itself had to take the handle too.
+ *
+ * DELIBERATE DEVIATION from the one-`run`-for-the-whole-body shape used elsewhere
+ * in this change: only the outcome-monitor call is tenant-scoped here. The
+ * delivery loop itself uses the raw `db` import (DATABASE_URL, RLS-bypassing) and
+ * always has; wrapping it in withTenantContext to fit the template would change
+ * behaviour for every caller that omits `existingDb`, which this change is not
+ * allowed to do. So the handle is threaded into the one transaction that actually
+ * exists -- the one at the bottom of the per-webhook loop.
+ */
 export async function deliverWebhook(
   orgId: string,
   eventType: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  existingDb?: TenantDb
 ): Promise<void> {
   const activeWebhooks = await db.query.webhooks.findMany({
     where: and(
@@ -115,11 +137,15 @@ export async function deliverWebhook(
     // separate API_SUCCESS/API_FAILED events). Best-effort: a monitor
     // failure must never break webhook delivery itself, which already
     // completed above.
-    await withTenantContext({ orgId }, (tx) =>
+    const runOutcomeMonitor = async (tx: TenantDb) =>
       runWebhookDeliveryOutcomeMonitor(tx, orgId, {
         webhookId: webhook.id, eventType, succeeded: delivered, attempts: attemptsMade, lastStatusCode,
-      })
-    ).catch((err) => console.error(`[webhook-delivery-outcome-monitor] failed for webhook ${webhook.id}:`, err));
+      });
+    // Reuse the caller's open transaction when there is one; otherwise open our own
+    // exactly as before. `runOutcomeMonitor` is an async arrow, so both paths return
+    // a promise and the identical .catch() keeps the same best-effort posture.
+    await (existingDb ? runOutcomeMonitor(existingDb) : withTenantContext({ orgId }, runOutcomeMonitor))
+      .catch((err) => console.error(`[webhook-delivery-outcome-monitor] failed for webhook ${webhook.id}:`, err));
   }
 }
 

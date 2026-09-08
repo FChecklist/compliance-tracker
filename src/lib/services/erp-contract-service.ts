@@ -237,11 +237,22 @@ export async function generateInvoiceFromBillingSchedule(
     if (!schedule.isActive) throw new ServiceError("This billing schedule is no longer active", 400)
     if (schedule.lastInvoiceId) throw new ServiceError("This billing schedule has already been invoiced for its current cycle", 400)
 
+    // R81_F26 (2026-09-08): this runs inside the withTenantContext opened above,
+    // and createSalesInvoice used to open a second one. assertNotNested throws
+    // in dev/test but only warns in production (tenant-scoped.ts:188-192), so
+    // in prod the invoice committed separately from the two updates below --
+    // erp_sales_invoices.billingScheduleId left unset and, for a recurring
+    // schedule, nextBillingDate never advanced while lastInvoiceId stayed null,
+    // which is precisely the state this function treats as "still due". The
+    // same schedule would then be invoiced again on the next run. Passing the
+    // open handle makes invoice + back-reference + schedule advance atomic.
+    // createSalesInvoice's requireErpEnabled gate takes the handle too
+    // (isErpEnabledForOrgWithDb), so no transaction is opened ahead of the body.
     const invoice = await createSalesInvoice(ctx, {
       customerId: contract.customerId,
       postingDate: new Date().toISOString().slice(0, 10),
       items: [{ description: `${contract.title} -- ${schedule.billingFrequency} billing`, quantity: 1, rate: Number(schedule.amount) }],
-    })
+    }, db)
     await db.update(erpSalesInvoices).set({ billingScheduleId: schedule.id }).where(eq(erpSalesInvoices.id, invoice.id))
 
     if (schedule.billingFrequency === "milestone") {

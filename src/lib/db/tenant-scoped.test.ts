@@ -246,6 +246,12 @@ describe("nesting observations: making 'all sites fixed' measurable", () => {
     // stops being able to tell us how many sites remain.
     expect(observed[0].site).not.toBe("unknown-site")
     expect(observed[0].firstSeenIso).toBeTruthy()
+    // The OUTER site is what makes this actionable rather than merely alarming:
+    // a count says the static sweep was incomplete, the caller says which file
+    // to change. Records are keyed on the pair, so the same callee nesting
+    // under two different callers stays two rows.
+    expect(observed[0].outerSite).not.toBe("unknown-site")
+    expect(observed[0].outerSite).toBeTruthy()
   })
 
   test("the same site twice increments rather than duplicating, so the count means occurrences", async () => {

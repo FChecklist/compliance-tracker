@@ -158,7 +158,19 @@ export async function enableProductBranchForOrg(ctx: BranchEnablementContext, br
     let stage0AutoUpgrade: { upgraded: number; blocked: number } | undefined
     try {
       const { autoUpgradeStage0UsersOnBranchEnable } = await import("./stage0-service")
-      stage0AutoUpgrade = await autoUpgradeStage0UsersOnBranchEnable(ctx.orgId)
+      // R81_F26 (2026-09-08): `db` is THIS enable transaction's own open handle.
+      // This call sits inside the withTenantContext callback opened above, so
+      // letting stage0-service open its own second transaction trips
+      // assertNotNested. The catch below only console.warn()s, which is why the
+      // nesting never surfaced: in dev/test the throw is swallowed and NO stage-0
+      // user is ever auto-upgraded; in production the guard warns and the upgrade
+      // commits in a transaction separate from the branch-enable that triggered
+      // it. The `await import()` is also why a static-import grep misses this
+      // site. autoUpgradeStage0UsersOnBranchEnable has no enablement gate of its
+      // own (its first statement is the tenant-scoped read), so threading the
+      // handle is the whole fix here -- unlike recordStockReceipt, where the gate
+      // itself had to take the handle too.
+      stage0AutoUpgrade = await autoUpgradeStage0UsersOnBranchEnable(ctx.orgId, db)
     } catch (err) {
       console.warn("Stage-0 auto-upgrade on branch enable failed (non-fatal):", err)
     }

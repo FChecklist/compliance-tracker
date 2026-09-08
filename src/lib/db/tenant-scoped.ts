@@ -191,7 +191,7 @@ export function assertNotNested(context: TenantContext): void {
     throw new Error(detail)
   }
   const innerStack = captureStack()
-  recordNestingObservation(open.orgId, context.orgId, innerStack)
+  recordNestingObservation(open.orgId, context.orgId, innerStack, open.stack)
   console.warn(`[tenant-scoped] ${detail}\nOuter transaction opened at:\n${open.stack}\nInner call from:\n${innerStack}`)
 }
 
@@ -226,6 +226,13 @@ export type NestingObservation = {
   /** Stable fingerprint of the INNER call site, so distinct sites are counted
    *  separately rather than collapsing into one meaningless total. */
   site: string
+  /** Where the OUTER transaction was opened. A count on its own only tells you
+   *  the static sweep was incomplete; the pair (outerSite -> site) tells you
+   *  which file to actually change, which is the whole point of collecting it.
+   *  Suggested by the sibling session working the call sites -- they are the
+   *  ones who have to act on this, and "something nested somewhere" is not
+   *  actionable. */
+  outerSite: string
   count: number
   firstSeenIso: string
   lastSeenIso: string
@@ -250,17 +257,28 @@ function fingerprintSite(stack: string): string {
   return frame ?? "unknown-site"
 }
 
-function recordNestingObservation(outerOrgId: string, innerOrgId: string, innerStack: string): void {
+function recordNestingObservation(
+  outerOrgId: string,
+  innerOrgId: string,
+  innerStack: string,
+  outerStack: string,
+): void {
   try {
     const site = fingerprintSite(innerStack)
+    const outerSite = fingerprintSite(outerStack)
+    // Keyed on the PAIR, not the inner site alone. The same callee nesting
+    // under two different callers is two different fixes, and collapsing them
+    // would hide the second one behind the first's count.
+    const key = `${outerSite} >>> ${site}`
     const now = new Date().toISOString()
-    const existing = nestingObservations.get(site)
+    const existing = nestingObservations.get(key)
     if (existing) {
       existing.count += 1
       existing.lastSeenIso = now
     } else if (nestingObservations.size < MAX_TRACKED_SITES) {
-      nestingObservations.set(site, {
+      nestingObservations.set(key, {
         site,
+        outerSite,
         count: 1,
         firstSeenIso: now,
         lastSeenIso: now,
@@ -274,6 +292,7 @@ function recordNestingObservation(outerOrgId: string, innerOrgId: string, innerS
       JSON.stringify({
         event: "tenant_nesting_detected",
         fault: "R81_F34",
+        outerSite,
         site,
         outerOrgId,
         innerOrgId,
