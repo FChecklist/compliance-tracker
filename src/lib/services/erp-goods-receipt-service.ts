@@ -163,10 +163,19 @@ export async function submitPurchaseReceipt(ctx: ActorCtx, receiptId: string) {
         const poItem = await db.query.erpPurchaseOrderItems.findFirst({ where: eq(erpPurchaseOrderItems.id, item.purchaseOrderItemId) })
         rate = poItem ? Number(poItem.rate) : 0
       }
+      // R81_F25 (2026-09-08): PASS `db` -- we are already inside this
+      // function's own withTenantContext, and recordStockReceipt used to open a
+      // SECOND transaction for the same org. assertNotNested() threw, the whole
+      // submit 500'd, and the PO was left at draft with received_quantity 0, the
+      // receipt stranded and zero ledger rows. That path only became reachable
+      // when 754cef17 and 19491a5 first let a PROJEXA line carry an itemId, so
+      // it had presumably never worked. Threading the open handle is what the
+      // guard's own message asks for and keeps this request on ONE of the five
+      // app_runtime connections.
       await recordStockReceipt(ctx, {
         itemId: item.itemId, warehouseId: item.warehouseId!, quantity: Number(item.quantity), rate: rate ?? 0,
         postingDate: receipt.postingDate, voucherType: "purchase_receipt", voucherId: receipt.id,
-      })
+      }, db)
     }
 
     if (receipt.purchaseOrderId) {

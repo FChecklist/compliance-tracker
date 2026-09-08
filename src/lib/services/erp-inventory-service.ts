@@ -47,13 +47,35 @@ export type StockReceiptInput = {
   uom?: string; batchNumber?: string; expiryDate?: string
 }
 
-/** Records a stock receipt and opens a new FIFO layer for it. */
-export async function recordStockReceipt(ctx: ActorCtx, input: StockReceiptInput) {
+/**
+ * Records a stock receipt and opens a new FIFO layer for it.
+ *
+ * `existingDb` -- R80/R81_F25 (2026-09-08). A caller that is ALREADY inside a
+ * withTenantContext transaction must pass its open handle here, because
+ * assertNotNested() throws on a second one and says so in its own message:
+ * "Pass the open transaction's db handle down instead -- one request must never
+ * hold two of the five app_runtime connections". That is not a style rule; the
+ * app_runtime pool is max: 5 and a request holding two connections is how it
+ * exhausts.
+ *
+ * This was latent until 2026-09-08 and never reachable from PROJEXA: no PROJEXA
+ * screen sent an itemId, so submitPurchaseReceipt's `if (!item.itemId) continue`
+ * short-circuited before ever reaching this function. Commits 754cef17 (move the
+ * receivedQuantity credit above that guard) and 19491a5 (let PO lines carry a
+ * stock item) opened the path for the first time, and it failed immediately with
+ * a 500: PO left draft, received_quantity 0, receipt stranded, zero ledger rows.
+ * Found by the R81 session driving the real UI, not by a unit test -- nothing in
+ * either suite exercises two services sharing one transaction.
+ *
+ * Omitting `existingDb` keeps the previous behaviour exactly for every caller
+ * that is not already in a transaction.
+ */
+export async function recordStockReceipt(ctx: ActorCtx, input: StockReceiptInput, existingDb?: TenantDb) {
   await requireErpEnabled(ctx.orgId)
   if (input.quantity <= 0) throw new ServiceError("quantity must be positive", 400)
   if (input.rate < 0) throw new ServiceError("rate cannot be negative", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const run = async (db: TenantDb) => {
     const item = await db.query.erpItems.findFirst({ where: and(eq(erpItems.id, input.itemId), eq(erpItems.orgId, ctx.orgId)) })
     if (!item) throw new ServiceError("Item not found", 404)
     const warehouse = await db.query.erpWarehouses.findFirst({ where: and(eq(erpWarehouses.id, input.warehouseId), eq(erpWarehouses.orgId, ctx.orgId)) })
@@ -89,7 +111,12 @@ export async function recordStockReceipt(ctx: ActorCtx, input: StockReceiptInput
 
     await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_stock.received", entityType: "erp_stock_ledger_entry", entityId: entry.id })
     return entry
-  })
+  }
+
+  // Reuse the caller's open transaction when there is one; otherwise open our
+  // own exactly as before. Both paths run the identical body above, so a
+  // nested caller and a standalone caller cannot diverge in behaviour.
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, run)
 }
 
 export type StockIssueInput = {
