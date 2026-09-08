@@ -47,15 +47,63 @@
 -- trigger-returning functions over /rpc, so it was never actually reachable
 -- that way. It is included anyway: it costs nothing, and "not reachable by the
 -- route we happened to test" is not the same as "not reachable".
-REVOKE EXECUTE ON FUNCTION compliance.auto_register_asset() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION compliance.backfill_registered_assets(text) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION compliance.conversation_org_id(text) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION compliance.gap_log_orgs_with_recent_activity() FROM PUBLIC;
+-- REPLAY SAFETY, added after the statements below were already applied live.
+-- Three of these four functions are created by migrations that ARE journaled
+-- (0152/0157/0039-era, all far below this one). The fourth,
+-- gap_log_orgs_with_recent_activity, is created ONLY by
+-- drizzle/0296_r42_seq15_fix_l2_cross_org_discovery.sql -- which is one of the
+-- eight orphaned files that have no journal entry (fault R81_F37) and are
+-- therefore never applied and never replayed.
+--
+-- So on a database built by replaying drizzle/ from empty, that function does
+-- not exist, and a bare REVOKE naming it would abort the whole migration run --
+-- which is all-or-nothing in one transaction. The security fix would have
+-- become the thing that broke the build, on exactly the environment we are
+-- trying to make releasable. Each statement is therefore guarded on the
+-- function actually existing.
+--
+-- A NOTE FOR WHOEVER CLOSES R81_F37: if 0296 is later journaled, it must be
+-- ordered BEFORE this migration. `CREATE OR REPLACE FUNCTION` preserves an
+-- existing ACL, but on a fresh database it creates the function anew with the
+-- default grant of EXECUTE to PUBLIC -- so 0296 running AFTER this file would
+-- silently re-open the hole this file closes.
+--
+-- Deliberately NOT done here: `ALTER DEFAULT PRIVILEGES IN SCHEMA compliance
+-- REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC`, which would fix the whole class
+-- rather than these four instances. It is the right long-term posture, but it
+-- silently changes every FUTURE function -- app_runtime currently reaches new
+-- functions through the default PUBLIC grant, so every subsequent migration
+-- would need an explicit GRANT or fail in a way that looks unrelated to this
+-- change. With another session actively writing migrations, that is a trap, not
+-- a fix. It belongs in its own migration, announced.
+DO $r81_sec04$
+DECLARE
+  fn text;
+  fns text[] := ARRAY[
+    'compliance.auto_register_asset()',
+    'compliance.backfill_registered_assets(text)',
+    'compliance.conversation_org_id(text)',
+    'compliance.gap_log_orgs_with_recent_activity()'
+  ];
+BEGIN
+  FOREACH fn IN ARRAY fns LOOP
+    IF to_regprocedure(fn) IS NOT NULL THEN
+      EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', fn);
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', fn);
+    ELSE
+      RAISE NOTICE 'R81 SEC-04: % not present, skipping (expected on a replay-from-empty database while R81_F37 orphans remain unjournaled)', fn;
+    END IF;
+  END LOOP;
 
--- Restore exactly the access the application and maintenance paths need.
-GRANT EXECUTE ON FUNCTION compliance.conversation_org_id(text) TO app_runtime;
-GRANT EXECUTE ON FUNCTION compliance.gap_log_orgs_with_recent_activity() TO app_runtime;
-GRANT EXECUTE ON FUNCTION compliance.auto_register_asset() TO service_role;
-GRANT EXECUTE ON FUNCTION compliance.backfill_registered_assets(text) TO service_role;
-GRANT EXECUTE ON FUNCTION compliance.conversation_org_id(text) TO service_role;
-GRANT EXECUTE ON FUNCTION compliance.gap_log_orgs_with_recent_activity() TO service_role;
+  -- app_runtime needs these two specifically: conversation_org_id is called by
+  -- the RLS policy app_runtime_insert_own_org_conversation on
+  -- compliance.conversation_participants, and revoking without granting back
+  -- would deny every insert into that table.
+  IF to_regprocedure('compliance.conversation_org_id(text)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION compliance.conversation_org_id(text) TO app_runtime;
+  END IF;
+  IF to_regprocedure('compliance.gap_log_orgs_with_recent_activity()') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION compliance.gap_log_orgs_with_recent_activity() TO app_runtime;
+  END IF;
+END
+$r81_sec04$;
