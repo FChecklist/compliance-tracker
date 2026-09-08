@@ -188,13 +188,68 @@ export { NO_COMMENTARY_SENTENCE };
 // The capabilities a user can reasonably ask for that this pipeline
 // genuinely cannot do from chat yet. A closed list: a gap it does not
 // recognise gets the generic sentence, never an invented promise.
+//
+// G-23, 2026-09-09 -- WHY THIS LIST GREW FROM SIX ENTRIES TO TWENTY-EIGHT.
+// PROJEXA's composer advertises two worked example sentences per module, in
+// the module's own vocabulary, rendered as chips under the input
+// (M24Shell.tsx, R67 A-02). Measured by joining projexa's MODULE_CATALOGUE
+// against ALL_FUNCTION_SPECS in ../pipeline/function-registry.ts:
+//
+//     39 modules advertise at least one sentence
+//     14 have a registered function on their subject   (28 sentences)
+//     25 have NONE                                     (50 sentences)
+//
+// So half of what the product invites a user to type, it cannot execute. That
+// is not by itself a defect -- gapAnswer() below exists precisely so a "no" is
+// still a useful answer -- but with only six nouns recognised, nineteen of
+// those twenty-five modules fell through to "That is not enabled for this
+// workspace yet - Open Home", which sends someone who asked about a permit to
+// the dashboard.
+//
+// Every entry below is a module that ADVERTISES a sentence it cannot run, with
+// the screen and route taken from that module's own MODULE_CATALOGUE row, so
+// the refusal ends on the screen the user was actually asking about. This does
+// not close G-23 -- the executors are still missing, and that is the real fix
+// -- it stops the gap being answered with a shrug.
+//
+// ORDER IS SIGNIFICANT: find() returns the FIRST match, so a more specific
+// phrase must precede a noun that also appears inside it. "purchase order"
+// stays above "order", "site diary" above "site", "bill of quantities" above
+// "bill".
 const GAP_CAPABILITIES: ReadonlyArray<{ match: RegExp; noun: string; screen: string; route: string }> = [
+  // Multi-word phrases first -- see ORDER IS SIGNIFICANT above.
+  { match: /\bpurchase orders?\b|\bpos?\b/i, noun: "purchase orders", screen: "Purchase Orders", route: "/purchase-orders" },
+  { match: /\bsite diary\b|\bsite diaries\b/i, noun: "site diary entries", screen: "Site Diary", route: "/site-diary" },
+  { match: /\bpunch (list|item)s?\b|\bsnags?\b/i, noun: "punch items", screen: "Punch List", route: "/punch-list" },
+  { match: /\bmood ?boards?\b/i, noun: "mood boards", screen: "Mood Boards", route: "/mood-boards" },
+  // Above "materials" on purpose: the advertised sentence is "submit the
+  // tile SAMPLE for approval" and never says "submittal", while "sample"
+  // reads as material to the entry below.
+  { match: /\bsubmittals?\b|\bsamples?\b|\bsubmit\b[^.]*\bapprovals?\b/i, noun: "submittals", screen: "Submittals", route: "/submittals" },
+  { match: /\bknowledge base\b|\barticles?\b/i, noun: "knowledge base articles", screen: "Knowledge Base", route: "/knowledge-base" },
+  { match: /\bdesign hours?\b|\bdesign studio\b|\bdrafting\b/i, noun: "design studio entries", screen: "Design Studio", route: "/design-studio" },
+  { match: /\bff&?e\b|\bfurniture\b/i, noun: "FF&E items", screen: "FF&E", route: "/ffe" },
+
+  // Single nouns.
   { match: /\bcustomers?\b|\bclients?\b/i, noun: "customers", screen: "Customers", route: "/customers" },
   { match: /\bvendors?\b|\bsuppliers?\b/i, noun: "vendors", screen: "Vendors", route: "/vendors" },
   { match: /\binvoices?\b/i, noun: "invoices", screen: "Invoices", route: "/invoices" },
   { match: /\bquotations?\b|\bquotes?\b/i, noun: "quotations", screen: "Quotations", route: "/quotations" },
-  { match: /\bpurchase orders?\b|\bpos?\b/i, noun: "purchase orders", screen: "Purchase Orders", route: "/purchase-orders" },
   { match: /\bemployees?\b|\bstaff\b/i, noun: "employees", screen: "Employees", route: "/employees" },
+  { match: /\bpermits?\b/i, noun: "permits", screen: "Permits", route: "/permits" },
+  { match: /\bdrawings?\b|\brevisions? [a-z]\b|\bfloor plans?\b/i, noun: "drawings", screen: "Drawings & 3D", route: "/drawings" },
+  { match: /\bmaterials?\b|\bcement\b|\btmt\b/i, noun: "materials", screen: "Material", route: "/materials" },
+  { match: /\bjournal entr(y|ies)\b|\btrial balance\b|\bledger\b/i, noun: "accounting entries", screen: "Accounting", route: "/accounting" },
+  { match: /\bprocurements?\b/i, noun: "procurement records", screen: "Procurement", route: "/procurement" },
+  { match: /\binventor(y|ies)\b|\bwarehouses?\b|\bon hand\b/i, noun: "inventory", screen: "Inventory", route: "/inventory" },
+  { match: /\bexpenses?\b|\bclaims?\b|\breimburse/i, noun: "expenses", screen: "Expenses", route: "/expenses" },
+  { match: /\bpayrolls?\b|\bsalar(y|ies)\b/i, noun: "payroll", screen: "Payroll", route: "/payroll" },
+  { match: /\brecruitments?\b|\bvacanc(y|ies)\b|\bapplications?\b|\binterviews?\b/i, noun: "recruitment records", screen: "Recruitment", route: "/recruitment" },
+  { match: /\brfis?\b/i, noun: "RFIs", screen: "RFIs", route: "/rfis" },
+  { match: /\bwikis?\b|\bmethod statements?\b/i, noun: "wiki pages", screen: "Wiki", route: "/wiki" },
+  { match: /\bmanpower\b|\blabour\b|\blabor\b/i, noun: "manpower records", screen: "Manpower", route: "/labour" },
+  { match: /\bpolic(y|ies)\b|\bgovernance\b/i, noun: "governance records", screen: "Governance & Risk", route: "/grc" },
+  { match: /\bmargins?\b|\bplanned against actual\b/i, noun: "analysis", screen: "Analysis", route: "/analysis" },
 ];
 
 const CREATE_VERB = /\b(create|add|new|raise|make|register)\b/i;
