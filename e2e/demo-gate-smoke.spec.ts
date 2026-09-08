@@ -207,13 +207,23 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   // Point it at ENV 1 to run it for real: E2E_PROJEXA_ORIGIN=http://localhost:3100
   // (that override moves the base URL and the cookie domain together -- see
   // PROJEXA_COOKIE_DOMAIN above).
-  const probe = await request
-    .get(PROJEXA_ORIGIN, { failOnStatusCode: false, timeout: 20_000 })
-    .catch((err: unknown) => ({ __unreachable: err instanceof Error ? err.message : String(err) }) as const);
-
-  const unreachable = "__unreachable" in probe ? probe.__unreachable : null;
-  const vercelError = unreachable ? null : probe.headers()["x-vercel-error"] ?? null;
-  const status = unreachable ? null : probe.status();
+  // Read the three facts inside the try, so TypeScript narrows on the control
+  // flow rather than on a sibling variable. The first version of this hoisted
+  // the failure into a `__unreachable` object and then tried to narrow `probe`
+  // by testing a SEPARATE `unreachable` const -- TS cannot correlate those, so
+  // `probe.headers()` and `probe.status()` were errors on the union. tsc did
+  // not catch it before it was pushed because the run OOMed on this machine
+  // and `playwright test --list` only parses.
+  let unreachable: string | null = null;
+  let status: number | null = null;
+  let vercelError: string | null = null;
+  try {
+    const probe = await request.get(PROJEXA_ORIGIN, { failOnStatusCode: false, timeout: 20_000 });
+    status = probe.status();
+    vercelError = probe.headers()["x-vercel-error"] ?? null;
+  } catch (err: unknown) {
+    unreachable = err instanceof Error ? err.message : String(err);
+  }
   const envDown =
     unreachable !== null || vercelError === "DEPLOYMENT_PAUSED" || status === 503;
 
