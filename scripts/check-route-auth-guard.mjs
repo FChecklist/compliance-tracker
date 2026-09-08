@@ -67,7 +67,14 @@ const REQUIRE_AUTH_RE = /\brequireAuth\s*\(/
 const SERVICE_ERROR_RE = /\bServiceError\b/
 
 function run(cmd) {
-  return execSync(cmd, { encoding: "utf8" }).trim()
+  // R81 K1-04: stderr is suppressed via stdio, NOT with a `2>/dev/null` suffix
+  // on the command string. execSync goes through cmd.exe on Windows, where
+  // that redirect is not valid syntax -- cmd reported "The system cannot find
+  // the path specified", BOTH git calls threw, both catch blocks returned "",
+  // and this check then reported "nothing to check" and exited 0 for EVERY
+  // change. It was silently vacuous on Windows: green, and checking nothing.
+  // Proven by planting a new unguarded route and watching it pass.
+  return execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 }
 
 function resolveBaseRef() {
@@ -108,12 +115,12 @@ function getChangedFiles(baseRef, predicate) {
   let changedOut = ""
   let untrackedOut = ""
   try {
-    changedOut = run(`git diff --name-only --diff-filter=d ${mergeBase} HEAD 2>/dev/null`)
+    changedOut = run(`git diff --name-only --diff-filter=d ${mergeBase} HEAD`)
   } catch {
     changedOut = ""
   }
   try {
-    untrackedOut = run("git ls-files --others --exclude-standard 2>/dev/null")
+    untrackedOut = run("git ls-files --others --exclude-standard")
   } catch {
     untrackedOut = ""
   }

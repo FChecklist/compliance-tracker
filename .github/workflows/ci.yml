@@ -151,6 +151,22 @@ jobs:
       # script's own header for the honest limitation this does and doesn't
       # guarantee.
       - run: node scripts/check-route-error-handling.mjs --base origin/main
+      # R81 K1-02 / fault R81_F29. check-route-auth-guard.mjs was written,
+      # committed, and never wired -- its own header records why: "NOT yet wired
+      # into .github/workflows/ci.yml as of this commit -- this session's git
+      # token lacks the workflow OAuth scope", and it writes out this exact
+      # command. Verified still unwired on 2026-09-08: ci.yml ran ten other
+      # check-*.mjs steps and not this one, so the CLAUDE.md-mandated "every API
+      # route MUST call requireAuth()" convention was unenforced and a new
+      # unguarded route passed CI clean. Same --base origin/main / fetch-depth 0
+      # shape as the step above, so only NEW or MODIFIED routes fail the build.
+      - run: node scripts/check-route-auth-guard.mjs --base origin/main
+      # R81 K1-04 / fault R81_F33. Registry check: every documented defect
+      # comment must keep a live fault row, and vice versa. NOT an age-based
+      # TODO check -- the K1 sweep found ZERO TODO/FIXME markers in either repo,
+      # so an age check would pass on an empty set and report false assurance.
+      # Defects here are documented in prose; this checks those.
+      - run: node scripts/check-comment-rot.mjs
   migration-integrity-check:
     name: Migration Integrity Check (AR-12)
     runs-on: ubuntu-latest
