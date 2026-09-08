@@ -11,11 +11,11 @@
 // codebase's own precedent (crm-accounts-service.ts, bcm-service.ts,
 // access-review-service.ts each own a single bounded concern).
 import { crmActivities } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError } from "./compliance-service"
-import { requireSalesEnabled } from "./crm-enablement-service"
+import { requireSalesEnabled, isSalesEnabledForOrgWithDb } from "./crm-enablement-service"
 // R75 Part 2 G2 gap-closure (2026-09-05): reuses crm-service.ts's own
 // canCreateCrmRecord (member-rank-or-above, no ownership concept since this
 // is always a brand-new record) rather than re-declaring a third copy of
@@ -44,8 +44,7 @@ export type CreateActivityInput = {
   assignedToId?: string
 }
 
-export async function createActivity(ctx: CrmActivityContext, input: CreateActivityInput) {
-  await requireSalesEnabled(ctx.orgId)
+export async function createActivity(ctx: CrmActivityContext, input: CreateActivityInput, existingDb?: TenantDb){
   // R75 Part 2 G2 gap-closure (2026-09-05): real gap -- any authenticated
   // org member of any rank, including viewer/client_viewer/external_auditor,
   // could log a CRM activity (task/meeting/call) against any lead/
@@ -58,7 +57,7 @@ export async function createActivity(ctx: CrmActivityContext, input: CreateActiv
   if (!subject) throw new ServiceError("subject is required", 400)
   if (!input.entityType || !input.entityId) throw new ServiceError("entityType and entityId are required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const run = async (db: TenantDb) => {
     const [activity] = await db.insert(crmActivities).values({
       orgId: ctx.orgId,
       entityType: input.entityType,
@@ -72,7 +71,19 @@ export async function createActivity(ctx: CrmActivityContext, input: CreateActiv
       createdById: ctx.userId,
     }).returning()
     return activity
-  })
+  }
+  // ROOT CAUSE B: dispatchCrmEngine reaches this from inside the engine dispatcher's own transaction. The gate must take the handle too -- requireSalesEnabled opens one of its own.
+  if (existingDb) {
+    if (!(await isSalesEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.",
+        403
+      )
+    }
+  } else {
+    await requireSalesEnabled(ctx.orgId)
+  }
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, run)
 }
 
 export async function listActivitiesForEntity(ctx: { orgId: string }, entityType: CrmActivityEntityType, entityId: string) {

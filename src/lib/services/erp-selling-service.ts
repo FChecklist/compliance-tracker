@@ -39,7 +39,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, ilike, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { requireErpEnabled } from "./erp-enablement-service"
+import { requireErpEnabled, isErpEnabledForOrgWithDb } from "./erp-enablement-service"
 import { logActivity } from "@/lib/audit"
 import type { PagedResult } from "./crm-service"
 import { ActorCtx } from "./actor-context"
@@ -76,11 +76,22 @@ function actorLogFields(ctx: SellingActorCtx) {
 // Customers
 // ============================================================
 
-export async function listCustomers(ctx: { orgId: string }) {
-  await requireErpEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+export async function listCustomers(ctx: { orgId: string }, existingDb?: TenantDb){
+  const run = async (db: TenantDb) => {
     return db.query.erpCustomers.findMany({ where: eq(erpCustomers.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.customerName) })
-  })
+  }
+  // ROOT CAUSE B: dispatchTool/dispatchEngine reach this from inside their own transaction. The gate must take the handle too -- requireErpEnabled opens one of its own, which is what made 6b56c00b a false fix.
+  if (existingDb) {
+    if (!(await isErpEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the ERP module.",
+        403
+      )
+    }
+  } else {
+    await requireErpEnabled(ctx.orgId)
+  }
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId }, run)
 }
 
 // Priority 15 depth pass: paginated/searchable variant, additive alongside
@@ -118,11 +129,10 @@ export type CustomerInput = { customerName: string; gstin?: string; panNumber?: 
 // name freed up by mdm-quality-service.ts's mergeDuplicates() (which
 // deactivates the loser rather than deleting it) must stay reusable for a
 // genuinely new customer.
-export async function createCustomer(ctx: { orgId: string }, input: CustomerInput) {
-  await requireErpEnabled(ctx.orgId)
+export async function createCustomer(ctx: { orgId: string }, input: CustomerInput, existingDb?: TenantDb){
   const normalizedName = input.customerName?.trim()
   if (!normalizedName) throw new ServiceError("customerName is required", 400)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  const run = async (db: TenantDb) => {
     const existing = await db.query.erpCustomers.findFirst({
       where: and(
         eq(erpCustomers.orgId, ctx.orgId),
@@ -136,7 +146,19 @@ export async function createCustomer(ctx: { orgId: string }, input: CustomerInpu
       defaultPaymentTermsDays: input.defaultPaymentTermsDays, creditLimit: input.creditLimit?.toString(),
     }).returning()
     return customer
-  })
+  }
+  // ROOT CAUSE B: dispatchTool/dispatchEngine reach this from inside their own transaction. The gate must take the handle too -- requireErpEnabled opens one of its own, which is what made 6b56c00b a false fix.
+  if (existingDb) {
+    if (!(await isErpEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the ERP module.",
+        403
+      )
+    }
+  } else {
+    await requireErpEnabled(ctx.orgId)
+  }
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId }, run)
 }
 
 // Real-screen conversion (2026-08-30): lightweight single-customer lookup
@@ -477,9 +499,21 @@ export type SalesOrderItemInput = { itemId?: string; description: string; quanti
 
 export type ListSalesOrdersOptions = { search?: string; status?: string; customerId?: string; projectId?: string; companyId?: string; page?: number; pageSize?: number }
 
-export async function listSalesOrders(ctx: { orgId: string }, opts: ListSalesOrdersOptions = {}): Promise<PagedResult<Awaited<ReturnType<typeof fetchSalesOrderPage>>["items"][number]>> {
-  await requireErpEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, (db) => fetchSalesOrderPage(db, ctx.orgId, opts))
+export async function listSalesOrders(ctx: { orgId: string }, opts: ListSalesOrdersOptions = {}, existingDb?: TenantDb): Promise<PagedResult<Awaited<ReturnType<typeof fetchSalesOrderPage>>["items"][number]>> {
+  // ROOT CAUSE B: dispatchTool/dispatchEngine reach this from inside their own transaction. The gate must take the handle too -- requireErpEnabled opens one of its own, which is what made 6b56c00b a false fix.
+  if (existingDb) {
+    if (!(await isErpEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the ERP module.",
+        403
+      )
+    }
+  } else {
+    await requireErpEnabled(ctx.orgId)
+  }
+  return existingDb
+    ? fetchSalesOrderPage(existingDb, ctx.orgId, opts)
+    : withTenantContext({ orgId: ctx.orgId }, (db) => fetchSalesOrderPage(db, ctx.orgId, opts))
 }
 
 async function fetchSalesOrderPage(db: TenantDb, orgId: string, opts: ListSalesOrdersOptions) {
@@ -545,13 +579,13 @@ async function insertSalesOrderRow(
 
 export async function createSalesOrder(
   ctx: SellingActorCtx,
-  input: { customerId: string; opportunityId?: string; quotationId?: string; projectId?: string; companyId?: string; orderDate: string; deliveryDate?: string; currencyId?: string; exchangeRate?: number; items: SalesOrderItemInput[] }
-) {
-  await requireErpEnabled(ctx.orgId)
+  input: { customerId: string; opportunityId?: string; quotationId?: string; projectId?: string; companyId?: string; orderDate: string; deliveryDate?: string; currencyId?: string; exchangeRate?: number; items: SalesOrderItemInput[] },
+  existingDb?: TenantDb
+){
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const run = async (db: TenantDb) => {
     const customer = await db.query.erpCustomers.findFirst({ where: and(eq(erpCustomers.id, input.customerId), eq(erpCustomers.orgId, ctx.orgId)) })
     if (!customer) throw new ServiceError("Customer not found", 404)
     if (input.opportunityId) {
@@ -576,7 +610,19 @@ export async function createSalesOrder(
 
     await logActivity({ tx: db, orgId: ctx.orgId, ...actorLogFields(ctx), action: "erp_sales_order.created", entityType: "erp_sales_order", entityId: salesOrder.id })
     return salesOrder
-  })
+  }
+  // ROOT CAUSE B: dispatchTool/dispatchEngine reach this from inside their own transaction. The gate must take the handle too -- requireErpEnabled opens one of its own, which is what made 6b56c00b a false fix.
+  if (existingDb) {
+    if (!(await isErpEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the ERP module.",
+        403
+      )
+    }
+  } else {
+    await requireErpEnabled(ctx.orgId)
+  }
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, run)
 }
 
 const SALES_ORDER_STATUSES = ["draft", "confirmed", "partially_fulfilled", "fulfilled", "cancelled"] as const

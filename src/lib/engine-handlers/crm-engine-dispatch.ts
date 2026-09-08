@@ -18,6 +18,8 @@
 // nothing left for an AI to interpret. userId makes createdById real
 // instead of a system placeholder.
 
+import type { TenantDb } from "@/lib/db/tenant-scoped";
+
 export const CRM_ENGINE_KEYS = new Set([
   "crm_create_lead_engine",
   "crm_create_opportunity_engine",
@@ -29,7 +31,15 @@ export async function dispatchCrmEngine(
   engineKey: string,
   orgId: string,
   userId: string,
-  inputs: Record<string, unknown>
+  inputs: Record<string, unknown>,
+  /**
+   * ROOT CAUSE B: task-execution-engine.ts dispatchEngine already holds an
+   * open transaction when it reaches this table, and every branch below is a
+   * WRITE. Without the handle each opened a second transaction, so the
+   * dispatcher's work and the record it creates could commit independently.
+   * Optional, so any caller that genuinely has no handle is unchanged.
+   */
+  existingDb?: TenantDb
 ): Promise<unknown> {
   switch (engineKey) {
     case "crm_create_lead_engine": {
@@ -43,7 +53,8 @@ export async function dispatchCrmEngine(
           contactEmail: inputs.contactEmail ? String(inputs.contactEmail) : undefined,
           contactPhone: inputs.contactPhone ? String(inputs.contactPhone) : undefined,
           source: inputs.source ? String(inputs.source) : undefined,
-        }
+        },
+        existingDb
       );
     }
     case "crm_create_opportunity_engine": {
@@ -54,7 +65,8 @@ export async function dispatchCrmEngine(
       if (!leadId) throw new Error("leadId is required");
       return createOpportunity(
         { orgId, userId },
-        { name, leadId, estimatedValue: inputs.estimatedValue != null ? Number(inputs.estimatedValue) : undefined }
+        { name, leadId, estimatedValue: inputs.estimatedValue != null ? Number(inputs.estimatedValue) : undefined },
+        existingDb
       );
     }
     case "crm_create_activity_engine": {
@@ -69,14 +81,15 @@ export async function dispatchCrmEngine(
       if (!subject) throw new Error("subject is required");
       return createActivity(
         { orgId, userId },
-        { entityType: entityType as "lead" | "opportunity" | "account" | "contact", entityId, activityType: activityType as "task" | "meeting" | "call", subject, dueDate: inputs.dueDate ? String(inputs.dueDate) : undefined }
+        { entityType: entityType as "lead" | "opportunity" | "account" | "contact", entityId, activityType: activityType as "task" | "meeting" | "call", subject, dueDate: inputs.dueDate ? String(inputs.dueDate) : undefined },
+        existingDb
       );
     }
     case "crm_create_campaign_engine": {
       const { createCampaign } = await import("@/lib/services/crm-campaigns-service");
       const name = String(inputs.name ?? "").trim();
       if (!name) throw new Error("name is required");
-      return createCampaign({ orgId, userId }, { name, campaignType: inputs.campaignType ? String(inputs.campaignType) : undefined });
+      return createCampaign({ orgId, userId }, { name, campaignType: inputs.campaignType ? String(inputs.campaignType) : undefined }, existingDb);
     }
     default:
       throw new Error(`No CRM engine dispatcher implemented for ${engineKey}`);

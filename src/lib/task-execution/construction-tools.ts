@@ -118,8 +118,10 @@ export async function dispatchConstructionTool(
     if (!financialsAllowed) throw new Error("This action requires manager role or higher")
     const projectId = String(context?.inputs?.projectId ?? "")
     if (!projectId) throw new Error("Missing projectId")
-    const { budgetVsActual } = await import("@/lib/services/construction-reports-service")
-    return budgetVsActual({ orgId }, projectId)
+    const { budgetVsActual, budgetVsActualWithDb } = await import("@/lib/services/construction-reports-service")
+    return db
+      ? budgetVsActualWithDb(db, { orgId }, projectId)
+      : budgetVsActual({ orgId }, projectId)
   }
 
   if (codeReference === "list_over_budget_projects") {
@@ -166,14 +168,14 @@ export async function dispatchConstructionTool(
     const projectId = String(context?.inputs?.projectId ?? "")
     if (!projectId) throw new Error("Missing projectId")
     const { generateProgressSummary } = await import("@/lib/services/construction-ai-service")
-    return generateProgressSummary({ orgId, userId }, projectId)
+    return generateProgressSummary({ orgId, userId }, projectId, db)
   }
 
   if (codeReference === "detect_construction_budget_schedule_risk") {
     const projectId = String(context?.inputs?.projectId ?? "")
     if (!projectId) throw new Error("Missing projectId")
     const { detectBudgetScheduleRisk } = await import("@/lib/services/construction-ai-service")
-    return detectBudgetScheduleRisk({ orgId, userId }, projectId)
+    return detectBudgetScheduleRisk({ orgId, userId }, projectId, db)
   }
 
   throw new Error(`No dispatcher implemented for ${codeReference}`)

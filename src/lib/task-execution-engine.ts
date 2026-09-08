@@ -232,27 +232,27 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
   // here.
   if (codeReference === "list_customers") {
     const { listCustomers } = await import("@/lib/services/erp-selling-service");
-    return listCustomers({ orgId });
+    return listCustomers({ orgId }, db);
   }
 
   if (codeReference === "list_sales_orders") {
     const { listSalesOrders } = await import("@/lib/services/erp-selling-service");
-    return listSalesOrders({ orgId });
+    return listSalesOrders({ orgId }, {}, db);
   }
 
   if (codeReference === "list_leads") {
-    const { listLeads } = await import("@/lib/services/crm-service");
-    return listLeads({ orgId });
+    const { listLeadsCore } = await import("@/lib/services/crm-service");
+    return listLeadsCore(db, { orgId });
   }
 
   if (codeReference === "list_opportunities") {
-    const { listOpportunities } = await import("@/lib/services/crm-service");
-    return listOpportunities({ orgId });
+    const { listOpportunitiesCore } = await import("@/lib/services/crm-service");
+    return listOpportunitiesCore(db, { orgId });
   }
 
   if (codeReference === "get_sales_pipeline_overview") {
-    const { getSalesPipelineOverview } = await import("@/lib/services/crm-service");
-    return getSalesPipelineOverview({ orgId });
+    const { getSalesPipelineOverviewCore } = await import("@/lib/services/crm-service");
+    return getSalesPipelineOverviewCore(db, { orgId });
   }
 
   // Construction Intelligence (PROJEXA), Wave 128, extracted into
@@ -324,7 +324,7 @@ async function dispatchEngine(db: TenantDb, orgId: string, userId: string, engin
   // engine-handlers/crm-engine-dispatch.ts (AI Engineering Quality / Code
   // Structure & Modularity gap-closure, "Code Modularity" finding). Pure
   // code motion: same cases, same behavior, now a separate module.
-  if (CRM_ENGINE_KEYS.has(engineKey)) return dispatchCrmEngine(engineKey, orgId, userId, inputs);
+  if (CRM_ENGINE_KEYS.has(engineKey)) return dispatchCrmEngine(engineKey, orgId, userId, inputs, db);
 
   switch (engineKey) {
     // R48/R64 gap-closure (2026-08-30, workstream 2: real erp writes,
@@ -342,7 +342,8 @@ async function dispatchEngine(db: TenantDb, orgId: string, userId: string, engin
           customerName,
           gstin: inputs.gstin ? String(inputs.gstin) : undefined,
           creditLimit: inputs.creditLimit != null && inputs.creditLimit !== "" ? Number(inputs.creditLimit) : undefined,
-        }
+        },
+        db
       );
     }
     case "erp_create_sales_order_engine": {
@@ -365,7 +366,8 @@ async function dispatchEngine(db: TenantDb, orgId: string, userId: string, engin
             description: itemDescription, rate,
             quantity: inputs.quantity != null && inputs.quantity !== "" ? Number(inputs.quantity) : undefined,
           }],
-        }
+        },
+        db
       );
     }
     // Mathematical Computation Engine (10 of 13 -- see capability-tree-

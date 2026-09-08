@@ -9,11 +9,11 @@
 // columns. Own dedicated file, matching this codebase's precedent of one
 // bounded concern per service file.
 import { crmCampaigns } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError } from "./compliance-service"
-import { requireSalesEnabled } from "./crm-enablement-service"
+import { requireSalesEnabled, isSalesEnabledForOrgWithDb } from "./crm-enablement-service"
 
 export type CrmCampaignContext = { orgId: string; userId: string }
 
@@ -31,12 +31,11 @@ export type CreateCampaignInput = {
   ownerId?: string
 }
 
-export async function createCampaign(ctx: CrmCampaignContext, input: CreateCampaignInput) {
-  await requireSalesEnabled(ctx.orgId)
+export async function createCampaign(ctx: CrmCampaignContext, input: CreateCampaignInput, existingDb?: TenantDb){
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const run = async (db: TenantDb) => {
     const [campaign] = await db.insert(crmCampaigns).values({
       orgId: ctx.orgId,
       name,
@@ -53,7 +52,19 @@ export async function createCampaign(ctx: CrmCampaignContext, input: CreateCampa
       createdById: ctx.userId,
     }).returning()
     return campaign
-  })
+  }
+  // ROOT CAUSE B: dispatchCrmEngine reaches this from inside the engine dispatcher's own transaction. The gate must take the handle too -- requireSalesEnabled opens one of its own.
+  if (existingDb) {
+    if (!(await isSalesEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.",
+        403
+      )
+    }
+  } else {
+    await requireSalesEnabled(ctx.orgId)
+  }
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, run)
 }
 
 export async function listCampaigns(ctx: { orgId: string }) {

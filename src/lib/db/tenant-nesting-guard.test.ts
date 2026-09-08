@@ -798,13 +798,6 @@ const KNOWN_OPEN_NESTING: OpenSite[] = [
   // either dispatch path"; that reasoning is about atomicity, and it is
   // exactly the kind of hand-checked claim this guard exists to keep honest --
   // they still open a second connection while the dispatcher holds its own.
-  { site: "src/lib/task-execution-engine.ts#executeStructuredDispatch -> src/lib/task-execution-engine.ts#dispatchTool", rootCause: "B", reason: "dispatchTool gets the open handle but its list_gst_* branches call listBatches/listReturns, which open their own transaction." },
-  { site: "src/lib/task-execution-engine.ts#executeTask -> src/lib/task-execution-engine.ts#dispatchTool", rootCause: "B", reason: "Same dispatchTool -> dispatchGstTool -> listBatches/listReturns hop, from executeTask's own transaction." },
-  { site: "src/app/api/v1/projexa/assistant/route.ts#POST -> src/lib/task-execution-engine.ts#dispatchTool", rootCause: "B", reason: "Same dispatchTool -> dispatchGstTool -> listBatches/listReturns hop, from the PROJEXA assistant route's own transaction." },
-  { site: "src/lib/pipeline/executor.ts#makeDispatchExecutor -> src/lib/task-execution-engine.ts#dispatchTool", rootCause: "B", reason: "Same dispatchTool -> dispatchGstTool -> listBatches/listReturns hop, from the pipeline dispatch executor's own transaction." },
-  { site: "src/lib/pipeline/executor.ts#makeOrgScopedExecutor -> src/lib/task-execution-engine.ts#dispatchTool", rootCause: "B", reason: "Same dispatchTool -> dispatchGstTool -> listBatches/listReturns hop, from the org-scoped executor's own transaction." },
-  { site: "src/lib/services/fde-service.ts#respondToResolvedCapability -> src/lib/task-execution-engine.ts#dispatchTool", rootCause: "B", reason: "Same dispatchTool -> dispatchGstTool -> listBatches/listReturns hop, from respondToResolvedCapability's own transaction." },
-  { site: "src/lib/task-execution-engine.ts#executeEngineDispatch -> src/lib/task-execution-engine.ts#dispatchEngine", rootCause: "B", reason: "dispatchEngine gets the open handle but dispatchCrmEngine calls createLead, the outer CRM wrapper, which opens its own." },
 
   // --- ROOT CAUSE C: a local helper that opens its own transaction, awaited
   // from inside one. The simplest shape, and the closest analogue of the

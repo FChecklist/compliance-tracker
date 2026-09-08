@@ -162,11 +162,23 @@ export function fieldErrorsFromZod(error: z.ZodError): Record<string, string> {
   return out
 }
 
+/**
+ * ROOT CAUSE B. task-execution-engine.ts dispatchTool already RECEIVES an open
+ * handle and called the wrapper below, which opens a second one against a
+ * max: 5 pool. The gate is the WithDb form and runs on THIS handle --
+ * requireSalesEnabled reaches isBranchEnabledForOrg, which opens a transaction
+ * of its own, so threading into the body alone is not a fix. 403 wording
+ * byte-identical to requireSalesEnabled's own.
+ */
+export async function listLeadsCore(db: TenantDb, ctx: { orgId: string }) {
+  if (!(await isSalesEnabledForOrgWithDb(db, ctx.orgId))) {
+    throw new ServiceError("This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.", 403)
+  }
+  return db.query.crmLeads.findMany({ where: eq(crmLeads.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
+}
+
 export async function listLeads(ctx: { orgId: string }) {
-  await requireSalesEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.crmLeads.findMany({ where: eq(crmLeads.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
-  )
+  return withTenantContext({ orgId: ctx.orgId }, (db) => listLeadsCore(db, ctx))
 }
 
 // Priority 15 (Sales & CRM depth wave): a real, DB-level paginated/filtered
@@ -205,15 +217,15 @@ export async function listLeadsPaged(ctx: { orgId: string }, opts: ListLeadsOpti
 
 export async function createLead(
   ctx: CrmContext,
-  input: { name: string; contactEmail?: string; contactPhone?: string; source?: string; ownerId?: string; companyId?: string; nextActionDate?: string; nextActionNote?: string }
-) {
-  await requireSalesEnabled(ctx.orgId)
+  input: { name: string; contactEmail?: string; contactPhone?: string; source?: string; ownerId?: string; companyId?: string; nextActionDate?: string; nextActionNote?: string },
+  existingDb?: TenantDb
+){
   if (ctx.role !== undefined) assertGate(canCreateCrmRecord(ctx.role))
   const parsed = createLeadSchema.safeParse(input)
   if (!parsed.success) throw new ServiceError("Validation failed", 400, { fields: fieldErrorsFromZod(parsed.error) })
   const { data } = parsed
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const run = async (db: TenantDb) => {
     const [lead] = await db.insert(crmLeads).values({
       orgId: ctx.orgId, name: data.name, contactEmail: data.contactEmail || null, contactPhone: data.contactPhone || null,
       source: data.source || null, ownerId: data.ownerId || null, companyId: data.companyId || null, createdById: ctx.userId,
@@ -236,7 +248,19 @@ export async function createLead(
       }).catch((err) => console.error(`[crm-service] failed to notify lead assignment for ${lead.id}:`, err))
     }
     return lead
-  })
+  }
+  // ROOT CAUSE B: dispatchCrmEngine reaches this from inside the engine dispatcher's own transaction. The gate must take the handle too -- requireSalesEnabled opens one of its own.
+  if (existingDb) {
+    if (!(await isSalesEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.",
+        403
+      )
+    }
+  } else {
+    await requireSalesEnabled(ctx.orgId)
+  }
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, run)
 }
 
 export async function updateLead(
@@ -370,11 +394,16 @@ export async function convertLeadToClient(ctx: CrmContext, leadId: string) {
   })
 }
 
+/** ROOT CAUSE B -- see listLeadsCore. */
+export async function listOpportunitiesCore(db: TenantDb, ctx: { orgId: string }) {
+  if (!(await isSalesEnabledForOrgWithDb(db, ctx.orgId))) {
+    throw new ServiceError("This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.", 403)
+  }
+  return db.query.crmOpportunities.findMany({ where: eq(crmOpportunities.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
+}
+
 export async function listOpportunities(ctx: { orgId: string }) {
-  await requireSalesEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.crmOpportunities.findMany({ where: eq(crmOpportunities.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
-  )
+  return withTenantContext({ orgId: ctx.orgId }, (db) => listOpportunitiesCore(db, ctx))
 }
 
 // Priority 15 (Sales & CRM depth wave): same paginated/filtered variant as
@@ -407,15 +436,15 @@ export async function createOpportunity(
     name: string; leadId?: string; clientId?: string; erpCustomerId?: string; stage?: string; estimatedValue?: number;
     currencyId?: string; exchangeRate?: number;
     expectedCloseDate?: string; ownerId?: string; nextActionDate?: string; nextActionNote?: string
-  }
-) {
-  await requireSalesEnabled(ctx.orgId)
+  },
+  existingDb?: TenantDb
+){
   if (ctx.role !== undefined) assertGate(canCreateCrmRecord(ctx.role))
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
   if (!input.leadId && !input.clientId && !input.erpCustomerId) throw new ServiceError("An opportunity needs a leadId, a clientId, or an erpCustomerId", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const run = async (db: TenantDb) => {
     if (input.erpCustomerId) {
       const customer = await db.query.erpCustomers.findFirst({ where: and(eq(erpCustomers.id, input.erpCustomerId), eq(erpCustomers.orgId, ctx.orgId)) })
       if (!customer) throw new ServiceError("Customer not found", 404)
@@ -429,7 +458,19 @@ export async function createOpportunity(
     }).returning()
     await db.insert(crmStageHistory).values({ orgId: ctx.orgId, entityType: "opportunity", entityId: opportunity.id, fromStage: null, toStage: opportunity.stage, changedById: ctx.userId })
     return opportunity
-  })
+  }
+  // ROOT CAUSE B: dispatchCrmEngine reaches this from inside the engine dispatcher's own transaction. The gate must take the handle too -- requireSalesEnabled opens one of its own.
+  if (existingDb) {
+    if (!(await isSalesEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.",
+        403
+      )
+    }
+  } else {
+    await requireSalesEnabled(ctx.orgId)
+  }
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, run)
 }
 
 export async function updateOpportunity(
@@ -1000,8 +1041,15 @@ export function isValidStageTransition(
 // currencyId/exchangeRate now roll up correctly into a single base-currency
 // total instead of silently mixing currencies.
 export async function getSalesPipelineOverview(ctx: { orgId: string }) {
-  await requireSalesEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withTenantContext({ orgId: ctx.orgId }, (db) => getSalesPipelineOverviewCore(db, ctx))
+}
+
+/** ROOT CAUSE B -- see listLeadsCore. */
+export async function getSalesPipelineOverviewCore(db: TenantDb, ctx: { orgId: string }) {
+  if (!(await isSalesEnabledForOrgWithDb(db, ctx.orgId))) {
+    throw new ServiceError("This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.", 403)
+  }
+  {
     const today = new Date().toISOString().slice(0, 10)
     const [leads, opportunities, overdueLeadCountRows, overdueOppCountRows] = await Promise.all([
       db.query.crmLeads.findMany({ where: eq(crmLeads.orgId, ctx.orgId) }),
@@ -1042,7 +1090,7 @@ export async function getSalesPipelineOverview(ctx: { orgId: string }) {
       overdueLeadFollowUps: Number(overdueLeadCountRows[0]?.count ?? 0),
       overdueOpportunityFollowUps: Number(overdueOppCountRows[0]?.count ?? 0),
     }
-  })
+  }
 }
 
 // Sales Pipeline closure (2026-08-07, "Notification & Alert Trigger
