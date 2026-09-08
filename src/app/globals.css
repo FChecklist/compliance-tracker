@@ -98,6 +98,28 @@
      fixed everywhere on one page's evidence. */
   --color-ct-saffron-button: #AB5B07;
 
+  /* R80 (2026-09-08): a FOURTH instance of the same problem as the three
+     tokens above, and the one R75 Part 4's own note predicted -- it wrote
+     that bg-ct-saffron + text-white and the muted text tokens were "very
+     likely used on other primary buttons across this product ... that were
+     outside this test's 5-page scope". /pricing is exactly that page.
+     Reproduced live under CI's own conditions (placeholder Supabase env, the
+     one difference between a local pass and a CI failure) via a direct
+     AxeBuilder run: 9 flagged nodes, axe's own figures including "insufficient
+     color contrast of 2.43 (foreground color: #ffffff, background color:
+     #f68b1b)" on the "Most Popular" badge and "3.95 ... #718096 on #fffdf9"
+     on the hero subtitle.
+     --color-ct-slate (#737B89, imported from @fchecklist/veridian-ui-kit)
+     reaches only 4.27:1 on white, 4.20:1 on cream and 3.86:1 on #F0F4F8 --
+     all under 4.5:1 for normal text. #737B89 is NOT changed, for exactly the
+     reason the tokens above give: it is the shared cross-product token and
+     PROJEXA imports the same package, so darkening the base would silently
+     restyle another product. This is a darker, same-hue variant verified
+     >=4.5:1 on every background ct-slate is used on here (#FFFFFF 4.98:1,
+     #FFFDF9 4.90:1, #F0F4F8 4.51:1) -- use `text-ct-slate-text` for TEXT
+     uses; decorative/icon uses of ct-slate are unaffected and untouched. */
+  --color-ct-slate-text: #69707D;
+
   /* ─── Pendency Colors ─── */
   --color-ct-pend-overdue-bg: #FDECEB;
   --color-ct-pend-overdue-text: #C0392B;

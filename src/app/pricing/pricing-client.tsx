@@ -184,7 +184,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
           </Link>
           <div className="flex items-center gap-3">
             <Link href="/login">
-              <Button variant="ghost" className="text-ct-slate text-sm">
+              <Button variant="ghost" className="text-ct-slate-text text-sm">
                 Log in
               </Button>
             </Link>
@@ -220,7 +220,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
           Simple, Transparent Pricing
         </motion.h1>
         <motion.p
-          className="text-ct-muted text-base sm:text-lg mt-4 max-w-lg mx-auto text-balance"
+          className="text-ct-muted-text text-base sm:text-lg mt-4 max-w-lg mx-auto text-balance"
           initial="hidden"
           animate="visible"
           variants={fadeUp}
@@ -239,7 +239,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
         >
           <Label
             htmlFor="billing-toggle"
-            className={`text-sm font-medium transition-colors ${!annual ? "text-ct-navy" : "text-ct-muted"}`}
+            className={`text-sm font-medium transition-colors ${!annual ? "text-ct-navy" : "text-ct-muted-text"}`}
           >
             Monthly
           </Label>
@@ -251,7 +251,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
           />
           <Label
             htmlFor="billing-toggle"
-            className={`text-sm font-medium transition-colors ${annual ? "text-ct-navy" : "text-ct-muted"}`}
+            className={`text-sm font-medium transition-colors ${annual ? "text-ct-navy" : "text-ct-muted-text"}`}
           >
             Annual
           </Label>
@@ -281,7 +281,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                 }`}
               >
                 {plan.popular && (
-                  <div className="absolute top-0 left-0 right-0 bg-ct-saffron text-white text-xs font-bold text-center py-1.5">
+                  <div className="absolute top-0 left-0 right-0 bg-ct-saffron-button text-white text-xs font-bold text-center py-1.5">
                     Most Popular
                   </div>
                 )}
@@ -294,7 +294,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                     >
                       <plan.icon
                         className={`size-5 ${
-                          plan.popular ? "text-ct-saffron-text" : "text-ct-slate"
+                          plan.popular ? "text-ct-saffron-text" : "text-ct-slate-text"
                         }`}
                       />
                     </div>
@@ -311,11 +311,11 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                       <p className="font-heading text-4xl text-ct-navy">Custom</p>
                     ) : (
                       <div className="flex items-baseline gap-1">
-                        <span className="text-ct-muted text-sm">₹</span>
+                        <span className="text-ct-muted-text text-sm">₹</span>
                         <span className="font-heading text-4xl text-ct-navy">
                           {annual ? plan.priceAnnual.toLocaleString("en-IN") : plan.priceMonthly.toLocaleString("en-IN")}
                         </span>
-                        <span className="text-ct-muted text-sm">
+                        <span className="text-ct-muted-text text-sm">
                           {plan.priceAnnual > 0
                             ? annual
                               ? "/year"
@@ -324,7 +324,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                         </span>
                       </div>
                     )}
-                    <p className="text-sm text-ct-muted mt-2">{plan.description}</p>
+                    <p className="text-sm text-ct-muted-text mt-2">{plan.description}</p>
                   </div>
 
                   <Link href={plan.ctaLink} className="block">
@@ -344,7 +344,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                     {plan.features.map((f) => (
                       <div key={f} className="flex items-center gap-2.5 text-sm">
                         <Check className="size-4 text-ct-teal shrink-0" />
-                        <span className="text-ct-slate">{f}</span>
+                        <span className="text-ct-slate-text">{f}</span>
                       </div>
                     ))}
                   </div>
@@ -369,7 +369,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
             <h2 className="font-heading text-2xl sm:text-3xl text-ct-navy text-balance">
               Compare Plans
             </h2>
-            <p className="text-ct-muted mt-2 text-sm">
+            <p className="text-ct-muted-text mt-2 text-sm">
               A detailed breakdown of what&apos;s included in each plan
             </p>
           </motion.div>
@@ -385,16 +385,16 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
             <Table>
               <TableHeader>
                 <TableRow className="border-ct-border hover:bg-transparent">
-                  <TableHead className="text-xs font-semibold text-ct-muted uppercase w-[40%]">
+                  <TableHead className="text-xs font-semibold text-ct-muted-text uppercase w-[40%]">
                     Feature
                   </TableHead>
-                  <TableHead className="text-xs font-semibold text-ct-muted uppercase text-center">
+                  <TableHead className="text-xs font-semibold text-ct-muted-text uppercase text-center">
                     Starter
                   </TableHead>
                   <TableHead className="text-xs font-semibold text-ct-saffron-text uppercase text-center">
                     Professional
                   </TableHead>
-                  <TableHead className="text-xs font-semibold text-ct-muted uppercase text-center">
+                  <TableHead className="text-xs font-semibold text-ct-muted-text uppercase text-center">
                     Enterprise
                   </TableHead>
                 </TableRow>
@@ -420,7 +420,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                                 <X className="size-4 text-ct-border2 mx-auto" />
                               )
                             ) : (
-                              <span className="text-sm text-ct-slate">{val}</span>
+                              <span className="text-sm text-ct-slate-text">{val}</span>
                             )}
                           </TableCell>
                         );
@@ -451,7 +451,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
             <h2 className="font-heading text-2xl sm:text-3xl text-ct-navy">
               Frequently Asked Questions
             </h2>
-            <p className="text-ct-muted mt-2 text-sm">
+            <p className="text-ct-muted-text mt-2 text-sm">
               Everything you need to know about our plans
             </p>
           </motion.div>
@@ -475,7 +475,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                       <AccordionTrigger className="text-sm sm:text-base font-medium text-ct-navy hover:no-underline">
                         {faq.q}
                       </AccordionTrigger>
-                      <AccordionContent className="text-sm text-ct-muted leading-relaxed">
+                      <AccordionContent className="text-sm text-ct-muted-text leading-relaxed">
                         {faq.a}
                       </AccordionContent>
                     </AccordionItem>
