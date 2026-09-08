@@ -42,6 +42,7 @@ it over-credited it.
 | 15 | Migration files unreachable by the build | **2** (+7 correctly excluded) | was 9; `R81_F37` |
 | 16 | **Statements failing on replay-from-empty** | **371** | measured, `G-24` |
 | 17 | **CI checks that can block a merge** | **0**, both repos | `R81_F44`, verified via GitHub API |
+| 17b | ct CI status | **15/15 green** | run 34291250762, verified — but see caveat below |
 | 18 | Decisions recorded in the durable log | **30** rows | `platform.claude_log` |
 
 ---
@@ -53,6 +54,16 @@ it over-credited it.
 1. **Set `MINT_SECRET`** (Supabase → Edge Functions → Secrets). Retires a secret published in a public repo. One action, no redeploy.
 2. **Remove `compliance` from Exposed Schemas.** The root enabler behind the anon-RPC hole; I revoked four functions, this closes the class.
 3. **Branch protection on `main`, both repos.** Until this exists, figure 17 stands: every check either session built is a notification. **A red build merges.**
+
+   **Now actionable.** ct CI reached **15/15 green** (run `34291250762`), which was
+   the precondition for requiring checks. Two cautions before you turn them on:
+   **`Migration Replay From Empty` is report-only** — it concludes `success` while
+   371 statements actually fail (`G-24`), so requiring it would gate merges on a
+   green that means nothing; and **`E2E Tests` passes partly by skipping** the
+   environment-2 specs. Require the checks that genuinely assert — Lint, Type
+   Check, Build, Unit Tests, Migration Integrity, Secret Scanning — and do it
+   *after* both sessions stop pushing directly to main, or you lock out the work
+   in the act of protecting it.
 
 ### Needs a ruling, not code
 
