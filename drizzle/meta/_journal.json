@@ -2689,6 +2689,13 @@
       "when": 1788510807000,
       "tag": "0571_r80add_submission_telemetry",
       "breakpoints": true
+    },
+    {
+      "idx": 384,
+      "version": "7",
+      "when": 1788510808000,
+      "tag": "0574_r81_revoke_public_execute_on_security_definer_functions",
+      "breakpoints": true
     }
   ]
 }
