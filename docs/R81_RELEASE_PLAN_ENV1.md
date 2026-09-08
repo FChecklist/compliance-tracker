@@ -57,6 +57,20 @@ R81 takes `scripts/**`, `drizzle/**`, `.github/**`, `src/lib/db/**`,
 3. **G-11 connector scope gate** — `executeGatedConnectorAction` has zero production call sites while live paths call `executeAction` directly.
 4. **G-01b** — the L2 batch bypasses the AI gate, and its justification ("no `claude` binary on serverless") is env-2 reasoning that fails on env 1, where the binary exists.
 
+**Added 2026-09-08 — `G-23`, and it may be the one that decides how finished the
+product looks.** Five UI-surfaced modules render a pill and put an example
+sentence **in the composer's own placeholder** while having no executor behind
+it: **Permits, Drawings, Material, Vendors** (a fifth being confirmed) — four of
+Sumeet's own eleven modules. So a first-time user's first action, on the primary
+screen, is *suggested by the product* and then fails.
+
+The remediation is much smaller than the count implies, and this must not be
+misread: **several of these modules already have working screens** — `/procurement`,
+`/invoices`, `/punch-list` all do real CRUD today. What is missing is a *composer
+executor*, not the module. It is a wiring job, not months of building. Twenty
+further modules have the same defect without a pill and do **not** block.
+Assigned to R80 (composer/service surface).
+
 **R81**
 1. Requirement ledger and `closure_state` — the 20 disputed entries.
 2. `r43_faults`, including every reachable site from the 22-site inventory.
