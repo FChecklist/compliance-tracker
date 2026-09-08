@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test, beforeEach, afterEach } from "bun:test";
-import { assertAiProviderAllowed, getAiProvider, AiProviderRefusalError } from "./adapter";
+import { assertAiProviderAllowed, assertAiProviderAllowedForSystemBatch, getAiProvider, AiProviderRefusalError } from "./adapter";
 
 const ORIGINAL_AI_PROVIDER = process.env.AI_PROVIDER;
 const ORIGINAL_RAJAT_USER_ID = process.env.RAJAT_USER_ID;
@@ -51,6 +51,42 @@ describe("assertAiProviderAllowed -- openrouter has no per-user restriction", ()
     process.env.AI_PROVIDER = "openrouter";
     delete process.env.RAJAT_USER_ID;
     expect(() => assertAiProviderAllowed("literally_anyone")).not.toThrow();
+  });
+});
+
+describe("assertAiProviderAllowedForSystemBatch -- G-01b, the L2 batch has no user to check", () => {
+  test("*** THE REQUIRED PROOF: claude-cli refuses a system batch even with RAJAT_USER_ID set ***", () => {
+    // This is the case the removed comment got wrong. RAJAT_USER_ID being set
+    // is exactly the environment-1 configuration, where the `claude` binary
+    // exists -- so "it would fail anyway for want of a binary" is false, and
+    // without this gate the batch fanned every org out through a personal
+    // subscription.
+    process.env.AI_PROVIDER = "claude-cli";
+    process.env.RAJAT_USER_ID = "rajat_user_id_123";
+    expect(() => assertAiProviderAllowedForSystemBatch("l2-nightly-analyse")).toThrow(AiProviderRefusalError);
+  });
+
+  test("there is no permitted-account escape hatch: it refuses with RAJAT_USER_ID unset too", () => {
+    process.env.AI_PROVIDER = "claude-cli";
+    delete process.env.RAJAT_USER_ID;
+    expect(() => assertAiProviderAllowedForSystemBatch("l2-nightly-analyse")).toThrow(AiProviderRefusalError);
+  });
+
+  test("openrouter runs the batch -- the refusal is about the licence, not about batches", () => {
+    process.env.AI_PROVIDER = "openrouter";
+    delete process.env.RAJAT_USER_ID;
+    expect(() => assertAiProviderAllowedForSystemBatch("l2-nightly-analyse")).not.toThrow();
+  });
+
+  test("the refusal carries a message rather than passing silently", () => {
+    process.env.AI_PROVIDER = "claude-cli";
+    try {
+      assertAiProviderAllowedForSystemBatch("l2-nightly-analyse");
+      throw new Error("expected assertAiProviderAllowedForSystemBatch to throw");
+    } catch (e) {
+      expect(e).toBeInstanceOf(AiProviderRefusalError);
+      expect((e as Error).message.length).toBeGreaterThan(0);
+    }
   });
 });
 

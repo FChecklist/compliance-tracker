@@ -1847,7 +1847,10 @@ async function executePackageDispatch(
 
       // R63 gap-closure (2026-08-29): was buildPurposeClause(DEFAULT_DOMAIN),
       // hardcoded to "compliance" regardless of what this org has enabled.
-      const orgDomains = await resolveOrgDomains(orgId);
+      // `db` is threaded because this line is INSIDE the withTenantContext
+      // opened at the top of executePackageDispatch, and resolveOrgDomains
+      // opens three of its own -- see its header for what that cost.
+      const orgDomains = await resolveOrgDomains(orgId, db);
       const systemPrompt =
         `${buildMultiDomainPurposeClause(orgDomains)}\n\n` +
         "You are executing a single pre-approved, narrow instruction package. " +

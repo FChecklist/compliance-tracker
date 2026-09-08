@@ -82,6 +82,11 @@ export const DOMAIN_ALLOWED_TOOLS: Record<string, Set<string>> = {
   the_firm: new Set([]),
 }
 
+// Type-only import: erased at compile time, so this module stays free of
+// runtime imports (every enablement lookup below is a dynamic await import,
+// deliberately, to keep this file loadable from anywhere).
+import type { TenantDb } from "@/lib/db/tenant-scoped"
+
 export const DEFAULT_DOMAIN = "compliance"
 
 export function buildPurposeClause(domain: string): string {
@@ -121,26 +126,44 @@ export function buildMultiDomainPurposeClause(domains: readonly string[]): strin
  * failure on any one check degrades that domain to "not enabled" rather
  * than throwing, so one broken enablement lookup can never take down the
  * whole system prompt.
+ *
+ * PASS `existingDb` WHENEVER YOU ALREADY HOLD AN OPEN TRANSACTION. Each of
+ * the three checks below reaches isBranchEnabledForOrg (product-branch-
+ * service.ts:91), which opens a withTenantContext of its own -- so calling
+ * this from inside one opened THREE nested transactions in parallel against
+ * a max: 5 pool. Worse than the pool cost: the per-check `catch { return
+ * false }` above SWALLOWS assertNotNested's throw, so in development and
+ * test the function quietly returned ["compliance"] alone and the model was
+ * silently denied every ERP, CRM and PMS tool the org had actually bought.
+ * No error, no log, just a smaller system prompt. Found by
+ * src/lib/db/tenant-nesting-guard.test.ts, which follows `await import()`
+ * -- a static grep for the callee names finds nothing here.
  */
-export async function resolveOrgDomains(orgId: string): Promise<string[]> {
+export async function resolveOrgDomains(orgId: string, existingDb?: TenantDb): Promise<string[]> {
   const domains = [DEFAULT_DOMAIN]
   const [erpEnabled, salesEnabled, pmsEnabled] = await Promise.all([
     (async () => {
       try {
-        const { isErpEnabledForOrg } = await import("@/lib/services/erp-enablement-service")
-        return await isErpEnabledForOrg(orgId)
+        const mod = await import("@/lib/services/erp-enablement-service")
+        return existingDb
+          ? await mod.isErpEnabledForOrgWithDb(existingDb, orgId)
+          : await mod.isErpEnabledForOrg(orgId)
       } catch { return false }
     })(),
     (async () => {
       try {
-        const { isSalesEnabledForOrg } = await import("@/lib/services/crm-enablement-service")
-        return await isSalesEnabledForOrg(orgId)
+        const mod = await import("@/lib/services/crm-enablement-service")
+        return existingDb
+          ? await mod.isSalesEnabledForOrgWithDb(existingDb, orgId)
+          : await mod.isSalesEnabledForOrg(orgId)
       } catch { return false }
     })(),
     (async () => {
       try {
-        const { isPmsEnabledForOrg } = await import("@/lib/services/pms-enablement-service")
-        return await isPmsEnabledForOrg(orgId)
+        const mod = await import("@/lib/services/pms-enablement-service")
+        return existingDb
+          ? await mod.isPmsEnabledForOrgWithDb(existingDb, orgId)
+          : await mod.isPmsEnabledForOrg(orgId)
       } catch { return false }
     })(),
   ])

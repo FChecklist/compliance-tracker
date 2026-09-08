@@ -330,6 +330,28 @@ export function indexModule(module: string, raw: string): ModuleInfo {
     funcs.set(m[1], { key: `${module}#${m[1]}`, module, name: m[1], paramNames: names, handleParams: handles, bodyStart, bodyEnd })
   }
 
+  // CLASSES ARE CALLABLE SYMBOLS TOO. `new ServiceError(...)` is a call, and a
+  // constructor or a method body can open a transaction exactly like a
+  // function can. Before this, a class was indexed nowhere: the walker
+  // resolved its module, found no function of that name, and reported an
+  // UNRESOLVED call it could not follow. ServiceError alone -- re-exported by
+  // compliance-service.ts and constructed in almost every service -- produced
+  // 492 of those, which is enough noise to make a real finding unfindable.
+  //
+  // The whole class body is the span, not just the constructor: that way a
+  // method that opens a withTenantContext is caught too, at the cost of
+  // attributing it to the class name rather than the method. For a guard whose
+  // output is "go read this file", that trade is the right way round.
+  const classRe = /(?:^|[\s;})])(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)/g
+  while ((m = classRe.exec(codeNoStrings))) {
+    if (funcs.has(m[1])) continue
+    const bodyStart = codeNoStrings.indexOf("{", m.index + m[0].length)
+    if (bodyStart < 0) continue
+    const bodyEnd = matchBracket(codeNoStrings, bodyStart)
+    if (bodyEnd < 0) continue
+    funcs.set(m[1], { key: `${module}#${m[1]}`, module, name: m[1], paramNames: [], handleParams: [], bodyStart, bodyEnd })
+  }
+
   return { module, code, codeNoStrings, funcs, imports, namespaces, reexports }
 }
 
@@ -348,10 +370,38 @@ export function buildGraph(root: string): Graph {
   return { mods, known: new Set(mods.keys()) }
 }
 
+/**
+ * Module keys in this graph are POSIX-style repo-relative paths ("src/lib/x.ts"),
+ * so resolution is pure string math, deliberately.
+ *
+ * WHAT THIS REPLACED AND WHY IT MATTERS. The previous line called node:path
+ * resolve() on a synthetic "/"-rooted path. That is correct on Linux and WRONG
+ * ON WINDOWS: resolve("/src/lib/services", "./x") returns a drive-qualified
+ * "C:\src\lib\services\x", whose .slice(1) starts with ":", so it matched no
+ * key and the function returned null. Every one of the 1,044 relative imports
+ * in this repo (603 files) therefore failed to resolve on a developer laptop
+ * while resolving fine in CI -- the guard reported a clean tree locally, and
+ * the two chains it exists to catch (report-engine-service.ts
+ * computeCostOverrunReport -> budgetVsActual -> ensureConstructionEnabled ->
+ * ... -> isBranchEnabledForOrg, and task-execution-engine.ts
+ * executePackageDispatch -> resolveOrgDomains -> isErpEnabledForOrg -> ...)
+ * were invisible. A guard that answers "clean" on the platform a developer
+ * looks at first and "dirty" only in CI is worse than no guard: the clean
+ * answer is the one that gets believed.
+ */
 export function resolveSpecifier(fromModule: string, spec: string, known: Set<string>): string | null {
   let base: string
   if (spec.startsWith("@/")) base = "src/" + spec.slice(2)
-  else if (spec.startsWith(".")) base = resolve("/" + dirname(fromModule), spec).slice(1).split(sep).join("/")
+  else if (spec.startsWith(".")) {
+    const segments = fromModule.split("/").slice(0, -1).concat(spec.split("/"))
+    const out: string[] = []
+    for (const seg of segments) {
+      if (seg === "" || seg === ".") continue
+      if (seg === "..") out.pop()
+      else out.push(seg)
+    }
+    base = out.join("/")
+  }
   else return null // a package, not our source
   for (const cand of [base + ".ts", base + ".tsx", base + "/index.ts", base + "/index.tsx", base]) {
     if (known.has(cand)) return cand
@@ -752,6 +802,21 @@ const KNOWN_OPEN_NESTING: OpenSite[] = [
   { site: "src/lib/services/veri-chat-service.ts#revokeGuestAccess -> src/lib/services/veri-chat-service.ts#assertParticipant", rootCause: "C", reason: "Same assertParticipant hop, awaited from inside revokeGuestAccess's own transaction." },
   { site: "src/lib/services/mca-filing-service.ts#generateFormData -> src/lib/services/mca-filing-service.ts#loadCompanyParticulars", rootCause: "C", reason: "loadCompanyParticulars opens its own transaction and is awaited inside generateFormData's; no enablement gate, so threading the handle would be the whole fix." },
   { site: "src/lib/services/fm-asset-dedup-service.ts#findDuplicateCandidates -> src/lib/services/fm-asset-dedup-service.ts#scanForDuplicateAssets", rootCause: "C", reason: "scanForDuplicateAssets opens its own transaction and is awaited inside findDuplicateCandidates'; its own first statement is that withTenantContext, so there is no enablement gate to thread as well." },
+
+  // --- ROOT CAUSE D: threading the handle would be WRONG, because the callee
+  // deliberately opens a transaction under a DIFFERENT identity.
+  // provisionAiAssistantsForUser inserts compliance.ai_assistants rows for the
+  // user being provisioned, and that table has FORCE ROW LEVEL SECURITY with a
+  // policy requiring compliance.current_user_id() = the row's user_id (see the
+  // function's own header: this was a real production failure twice, R53 /
+  // F_021, 2026-08-24). The enclosing transaction is opened by the ADMIN who
+  // triggered the branch enable, so its current_user_id() is the admin, not
+  // the user being upgraded -- reusing that handle would make every insert
+  // fail the policy. Hoisting it out is the only real fix, and that changes
+  // failure semantics (users upgraded, then provisioning fails after the
+  // commit), so it is a product decision, not a mechanical one. Registered
+  // with the reason rather than "fixed" with a change that breaks RLS.
+  { site: "src/lib/services/product-branch-service.ts#enableProductBranchForOrg -> src/lib/services/stage0-service.ts#autoUpgradeStage0UsersOnBranchEnable", rootCause: "D", reason: "provisionAiAssistantsForUser must open its own transaction under the PROVISIONED user's identity -- compliance.ai_assistants RLS requires current_user_id() = user_id, and the enclosing transaction carries the admin's" },
 ]
 
 const SRC_ROOT = join(import.meta.dir, "..", "..")
@@ -812,7 +877,7 @@ describe("withTenantContext nesting -- standing guard", () => {
   test("every KNOWN_OPEN_NESTING entry carries a reason and a root cause", () => {
     for (const e of KNOWN_OPEN_NESTING) {
       expect(e.reason.trim().length).toBeGreaterThan(30)
-      expect(["A", "B", "C"]).toContain(e.rootCause)
+      expect(["A", "B", "C", "D"]).toContain(e.rootCause)
     }
     expect(new Set(KNOWN_OPEN_NESTING.map((e) => e.site)).size).toBe(KNOWN_OPEN_NESTING.length)
   })

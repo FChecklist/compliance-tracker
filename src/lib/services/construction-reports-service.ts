@@ -15,8 +15,8 @@ import {
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, sql, gte, lt, lte, or, isNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
-import { getExpenseSummaryByHead } from "./construction-expense-service"
-import { getProjectDashboard } from "./construction-dashboard-service"
+import { getExpenseSummaryByHead, getExpenseSummaryByHeadWithDb } from "./construction-expense-service"
+import { getProjectDashboard, getProjectDashboardsWithDb } from "./construction-dashboard-service"
 import { resolvePmsBillableRatePure } from "./pms-time-service"
 // Priority 12 (OPEN-07 point 8 follow-on, 2026-07-14): these 17 functions
 // were the same "zero branch-check" gap PR #282 closed for ERP's
@@ -1707,6 +1707,48 @@ export function budgetVariance(budget: number | null, actual: number): number | 
   return budget === null ? null : budget - actual
 }
 
+/**
+ * db-handle-accepting variant of budgetVsActual, for a caller that already
+ * holds an open withTenantContext transaction.
+ *
+ * WHY IT EXISTS. report-engine-service.ts computeCostOverrunReport() opens a
+ * transaction and then calls budgetVsActual() once PER ACTIVE PROJECT from
+ * inside it. Each of those calls opened three more: ensureConstructionEnabled
+ * -> requireConstructionEnabled -> isConstructionEnabledForOrg ->
+ * isBranchEnabledForOrg opens one, and getProjectDashboard and
+ * getExpenseSummaryByHead each open one of their own. The app pool is max: 5
+ * (tenant-scoped.ts appRuntimePoolOptions), so a report over N projects held
+ * 3N+1 connections' worth of nesting. assertNotNested() throws on this in
+ * development and test; in PRODUCTION it only console.warn()s and lets the
+ * request proceed, which is why nothing surfaced it.
+ *
+ * Found by src/lib/db/tenant-nesting-guard.test.ts once it followed calls
+ * through the enablement chain rather than stopping at the first hop -- the
+ * same shape as R81_F25, where threading the handle into the BODY looked like
+ * a fix but the gate still opened its own transaction first.
+ *
+ * The 404-on-missing-project rule is getProjectDashboard's, restated here
+ * because this path goes through getProjectDashboardsWithDb (plural), which
+ * returns an empty array rather than throwing.
+ */
+export async function budgetVsActualWithDb(db: TenantDb, ctx: { orgId: string }, projectId: string) {
+  await ensureConstructionEnabledWithDb(db, ctx.orgId)
+  const [dashboards, expenseByHead] = await Promise.all([
+    getProjectDashboardsWithDb(db, ctx, [projectId]),
+    getExpenseSummaryByHeadWithDb(db, ctx, projectId),
+  ])
+  const dashboard = dashboards[0]
+  if (!dashboard) throw new ServiceError("Project not found", 404)
+  const actual = expenseByHead.reduce((s, r) => s + Number(r.total), 0)
+  return {
+    budget: dashboard.budget,
+    ledgerBudget: dashboard.ledgerBudget,
+    actual,
+    variance: budgetVariance(dashboard.budget, actual),
+    byHead: expenseByHead,
+  }
+}
+
 // 8. Budget vs Actual -- budget total (via cost center) vs actual expenses (construction_expense_entries).
 export async function budgetVsActual(ctx: { orgId: string }, projectId: string) {
   await ensureConstructionEnabled(ctx.orgId)
@@ -2380,67 +2422,94 @@ export function computeCategoryProgress(
 // need. `categories[].percentComplete` keeps its exact previous meaning and
 // value for every existing caller.
 export async function categoryProgressReport(ctx: { orgId: string }, projectId: string) {
-  await ensureConstructionEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const categories = await db.query.constructionCategories.findMany({ where: and(eq(constructionCategories.orgId, ctx.orgId), eq(constructionCategories.projectId, projectId)) })
-    const activities = await activityIdsForProject(db, ctx.orgId, projectId)
+  return withTenantContext({ orgId: ctx.orgId }, (db) => categoryProgressReportWithDb(db, ctx, projectId))
+}
 
-    // The BOQ half. Same "latest non-superseded revision" pick and same root-
-    // lines-only discipline as categoryBoqAmountsReport -- read in this SAME
-    // transaction rather than by calling that function, which would open a
-    // second one (the nested-transaction pool deadlock fixed in
-    // construction-dashboard-service.ts on 2026-09-02).
-    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
-    const latestBoq = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
-    const boqLines = latestBoq
-      ? await db.query.constructionBoqLineItems.findMany({ where: rootBoqLineItemsOnly(latestBoq.id), columns: { activityId: true, amount: true, category: true } })
-      : []
-    const amounts = attributeBoqAmountsByCategory(boqLines, categories, activities)
-    const namesByCategoryId = new Map(categories.map((c) => [c.id, c.name]))
+/**
+ * db-handle-accepting variant. The enablement gate moved INSIDE the
+ * transaction and became its WithDb form: it used to run before the
+ * transaction opened, which cost one pooled connection of its own, and the
+ * WithDb form costs none because it reuses this handle.
+ */
+export async function categoryProgressReportWithDb(db: TenantDb, ctx: { orgId: string }, projectId: string) {
+  await ensureConstructionEnabledWithDb(db, ctx.orgId)
+  const categories = await db.query.constructionCategories.findMany({ where: and(eq(constructionCategories.orgId, ctx.orgId), eq(constructionCategories.projectId, projectId)) })
+  const activities = await activityIdsForProject(db, ctx.orgId, projectId)
 
-    if (activities.length === 0) {
-      return {
-        categories: mergeCategoryProgressWithAmounts(new Map(), amounts, namesByCategoryId),
-        uncategorizedAmount: amounts.uncategorizedAmount,
-        totalAmount: amounts.totalAmount,
-        boqId: latestBoq?.id ?? null,
-      }
-    }
-    const ids = activities.map((a) => a.id)
-    // Same fix as construction-dashboard-service.ts's getProjectDashboard()
-    // (verified live in production 2026-07-08) -- a plain JS array as a
-    // single sql`` parameter doesn't serialize as a Postgres array; build a
-    // real ARRAY[...] literal instead (still individually bound, no
-    // injection risk).
-    const idsSql = sql.join(ids.map((id) => sql`${id}`), sql`, `)
-    const rows = (await db.execute(sql`
-      SELECT DISTINCT ON (activity_id) activity_id, percent_complete
-      FROM compliance.construction_work_progress_entries
-      WHERE activity_id = ANY(ARRAY[${idsSql}])
-      ORDER BY activity_id, entry_date DESC
-    `)) as { activity_id: string; percent_complete: number }[]
-    const percentByActivity = new Map(rows.map((r) => [r.activity_id, Number(r.percent_complete)]))
-    // R67 second-merge fix: the per-category average is now computeCategoryProgress()
-    // (F1's own extraction) rather than a second inline copy of the same
-    // averaging loop -- ONE arithmetic path, so this report and
-    // construction-dashboard-service.ts's categories tile can never disagree.
-    // Reshaped into a Map because mergeCategoryProgressWithAmounts (E-02) folds
-    // on category id, not an array.
-    const progressRows = computeCategoryProgress(categories, activities, percentByActivity)
-    const progressByCategoryId = new Map(progressRows.map((r) => [r.categoryId, r.percentComplete]))
+  // The BOQ half. Same "latest non-superseded revision" pick and same root-
+  // lines-only discipline as categoryBoqAmountsReport -- read in this SAME
+  // transaction rather than by calling that function, which would open a
+  // second one (the nested-transaction pool deadlock fixed in
+  // construction-dashboard-service.ts on 2026-09-02).
+  const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
+  const latestBoq = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
+  const boqLines = latestBoq
+    ? await db.query.constructionBoqLineItems.findMany({ where: rootBoqLineItemsOnly(latestBoq.id), columns: { activityId: true, amount: true, category: true } })
+    : []
+  const amounts = attributeBoqAmountsByCategory(boqLines, categories, activities)
+  const namesByCategoryId = new Map(categories.map((c) => [c.id, c.name]))
+
+  if (activities.length === 0) {
     return {
-      categories: mergeCategoryProgressWithAmounts(progressByCategoryId, amounts, namesByCategoryId),
+      categories: mergeCategoryProgressWithAmounts(new Map(), amounts, namesByCategoryId),
       uncategorizedAmount: amounts.uncategorizedAmount,
       totalAmount: amounts.totalAmount,
       boqId: latestBoq?.id ?? null,
     }
-  })
+  }
+  const ids = activities.map((a) => a.id)
+  // Same fix as construction-dashboard-service.ts's getProjectDashboard()
+  // (verified live in production 2026-07-08) -- a plain JS array as a
+  // single sql`` parameter doesn't serialize as a Postgres array; build a
+  // real ARRAY[...] literal instead (still individually bound, no
+  // injection risk).
+  const idsSql = sql.join(ids.map((id) => sql`${id}`), sql`, `)
+  const rows = (await db.execute(sql`
+    SELECT DISTINCT ON (activity_id) activity_id, percent_complete
+    FROM compliance.construction_work_progress_entries
+    WHERE activity_id = ANY(ARRAY[${idsSql}])
+    ORDER BY activity_id, entry_date DESC
+  `)) as { activity_id: string; percent_complete: number }[]
+  const percentByActivity = new Map(rows.map((r) => [r.activity_id, Number(r.percent_complete)]))
+  // R67 second-merge fix: the per-category average is now computeCategoryProgress()
+  // (F1's own extraction) rather than a second inline copy of the same
+  // averaging loop -- ONE arithmetic path, so this report and
+  // construction-dashboard-service.ts's categories tile can never disagree.
+  // Reshaped into a Map because mergeCategoryProgressWithAmounts (E-02) folds
+  // on category id, not an array.
+  const progressRows = computeCategoryProgress(categories, activities, percentByActivity)
+  const progressByCategoryId = new Map(progressRows.map((r) => [r.categoryId, r.percentComplete]))
+  return {
+    categories: mergeCategoryProgressWithAmounts(progressByCategoryId, amounts, namesByCategoryId),
+    uncategorizedAmount: amounts.uncategorizedAmount,
+    totalAmount: amounts.totalAmount,
+    boqId: latestBoq?.id ?? null,
+  }
 }
 
 // 17. Project Completion Report -- overall completion % (reuses the dashboard figure) + category breakdown.
 export async function projectCompletionReport(ctx: { orgId: string }, projectId: string) {
   await ensureConstructionEnabled(ctx.orgId)
   const [dashboard, categoryBreakdown] = await Promise.all([getProjectDashboard(ctx, projectId), categoryProgressReport(ctx, projectId)])
+  return { overallPercentComplete: dashboard.progressPercent, byCategory: categoryBreakdown.categories }
+}
+
+/**
+ * db-handle-accepting variant, for report-engine-service.ts computeSpi() and
+ * computeEarnedValueAnalysis(), which call this from INSIDE their own open
+ * transaction -- so each call opened three more (the enablement gate, the
+ * dashboard, the category roll-up) against a max: 5 pool. The 404 rule is
+ * getProjectDashboard singular's, restated here because this path uses the
+ * plural WithDb form, which returns [] rather than throwing.
+ */
+export async function projectCompletionReportWithDb(db: TenantDb, ctx: { orgId: string }, projectId: string) {
+  await ensureConstructionEnabledWithDb(db, ctx.orgId)
+  const [dashboards, categoryBreakdown] = await Promise.all([
+    getProjectDashboardsWithDb(db, ctx, [projectId]),
+    categoryProgressReportWithDb(db, ctx, projectId),
+  ])
+  const dashboard = dashboards[0]
+  if (!dashboard) throw new ServiceError("Project not found", 404)
   return { overallPercentComplete: dashboard.progressPercent, byCategory: categoryBreakdown.categories }
 }
 

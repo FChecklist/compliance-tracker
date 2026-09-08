@@ -9,7 +9,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, gte, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { balanceSheet, profitAndLoss } from "./erp-financial-report-service"
+import { balanceSheetWithDb, profitAndLossWithDb } from "./erp-financial-report-service"
 import { generateAoc4, generateMgt7, generateDir12, generateChg1, type CompanyParticulars, type DirectorInput, type ChargeSummaryInput } from "@/lib/cs/mca-form-generator"
 
 export type GenerateFormDataInput = {
@@ -38,9 +38,14 @@ export async function generateFormData(ctx: { orgId: string }, filingId: string,
 
     if (formTypeUpper === "AOC-4") {
       if (!input.financialYearStart || !input.financialYearEnd) throw new ServiceError("financialYearStart and financialYearEnd are required for AOC-4", 400)
+      // Threaded: this runs inside generateFormData's own withTenantContext,
+      // and each of these opened three more (the ERP gate, the company-scope
+      // walk, the ledger read). The .catch(() => null) below is why nothing
+      // ever surfaced it: in dev and test assertNotNested's throw was caught
+      // here and AOC-4 was generated with null financials instead of failing.
       const [bs, pl] = await Promise.all([
-        balanceSheet({ orgId: ctx.orgId }, input.financialYearEnd).catch(() => null),
-        profitAndLoss({ orgId: ctx.orgId }, input.financialYearStart, input.financialYearEnd).catch(() => null),
+        balanceSheetWithDb(db, { orgId: ctx.orgId }, input.financialYearEnd).catch(() => null),
+        profitAndLossWithDb(db, { orgId: ctx.orgId }, input.financialYearStart, input.financialYearEnd).catch(() => null),
       ])
       formData = generateAoc4(
         company, `${input.financialYearStart} to ${input.financialYearEnd}`,

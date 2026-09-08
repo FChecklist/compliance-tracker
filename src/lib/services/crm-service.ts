@@ -17,7 +17,7 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { executeTask } from "@/lib/task-execution-engine"
 import { recordTaskEscalationEdge } from "@/lib/task-dependency-graph"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
-import { isVeriRewardEnabledForOrg } from "./veri-reward-enablement-service"
+import { isVeriRewardEnabledForOrgWithDb } from "./veri-reward-enablement-service"
 import { awardPoints } from "./veri-reward-service"
 import { listOrgIdsWithBranchEnabled } from "./product-branch-service"
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
@@ -345,7 +345,8 @@ async function awardReferralPointsIfApplicable(db: TenantDb, orgId: string, lead
   if (!lead.source || !REFERRAL_SOURCE_PATTERN.test(lead.source)) return
   const recipientId = lead.ownerId ?? lead.createdById
   if (!recipientId) return
-  if (!(await isVeriRewardEnabledForOrg(orgId))) return
+  // db, not a fresh transaction: this helper always runs inside convertLeadToClient's.
+  if (!(await isVeriRewardEnabledForOrgWithDb(db, orgId))) return
   await awardPoints(db, {
     orgId, userId: recipientId, delta: LEAD_CONVERSION_REFERRAL_POINTS,
     sourceType: "crm_lead_referral_conversion", sourceId: lead.id,

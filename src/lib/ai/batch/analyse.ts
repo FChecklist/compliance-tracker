@@ -7,7 +7,7 @@
 import { sql, gte, and, eq, isNull } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { gapLog, phraseMap } from "@/lib/db/schema";
-import { getAiProvider, type Artifact } from "@/lib/ai/adapter";
+import { assertAiProviderAllowedForSystemBatch, getAiProvider, type Artifact } from "@/lib/ai/adapter";
 import { normalisePhrase } from "@/lib/pipeline/run-submission";
 import { db as rawDb } from "@/lib/db"; // read-only, cross-org: only used to discover WHICH orgs have gap_log activity; every per-org read/write below still goes through withTenantContext
 // R46 P9 seq33: report_definition artifacts now become real, immediately
@@ -171,6 +171,16 @@ export async function runL2Batch(): Promise<L2BatchResult> {
   const orgRows = (await rawDb.execute(sql`select * from compliance.gap_log_orgs_with_recent_activity()`)) as { org_id: string }[];
   const orgIds = orgRows.map((r) => r.org_id);
 
+  // G-01b. Gate BEFORE the org loop, not inside it: the refusal is a property
+  // of the configured provider, not of any one org, and checking it per-org
+  // would report the same refusal once per organisation. The comment that used
+  // to sit at the provider call claimed no gate was needed because claude-cli
+  // "would still correctly fail on a serverless runtime with no `claude`
+  // binary" -- true of environment 2, false of environment 1, which is the
+  // owner's laptop, where the binary exists and this loop covers every org.
+  // See assertAiProviderAllowedForSystemBatch's own header.
+  assertAiProviderAllowedForSystemBatch("l2-nightly-analyse");
+
   let clustersAnalysed = 0;
   let phraseMapCandidatesCreated = 0;
   let reportDefinitionsCreated = 0;
@@ -183,12 +193,6 @@ export async function runL2Batch(): Promise<L2BatchResult> {
     clustersAnalysed += clusters.length;
 
     const provider = getAiProvider();
-    // NOTE: L2 never calls assertAiProviderAllowed -- that gate is specific
-    // to L1's per-request, per-user posture (M27). L2 is a system batch job
-    // with no requesting user to check; AI_PROVIDER=claude-cli would still
-    // correctly fail here on a serverless runtime with no `claude` binary,
-    // same as any other environment without it (an honest failure, not a
-    // bypass of the tripwire's intent).
     const artifacts = await provider.analyse({ orgId, clusters });
 
     for (const artifact of artifacts) {

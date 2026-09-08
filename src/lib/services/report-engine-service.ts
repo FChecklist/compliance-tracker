@@ -77,7 +77,7 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor, hasGroundingData } from "@/lib/policy-enforcement-engine"
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, type ReportCategory } from "./report-taxonomy"
-import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport, projectPeriodReport } from "./construction-reports-service"
+import { budgetVsActual, budgetVsActualWithDb, projectCompletionReport, projectCompletionReportWithDb, revenueReport, expenseReport, projectPeriodReport } from "./construction-reports-service"
 import { customerPaymentBehaviorReport, vendorPaymentBehaviorReport } from "./erp-invoicing-service"
 import { getMaterialCostReport } from "./construction-materials-service"
 import { listStockBalances } from "./erp-inventory-service"
@@ -473,7 +473,8 @@ async function computeSpi(ctx: { orgId: string }, params: Record<string, unknown
     const now = Date.now()
     const totalMs = target - start
     const plannedPercent = totalMs <= 0 ? 100 : Math.max(0, Math.min(100, ((now - start) / totalMs) * 100))
-    const completion = await projectCompletionReport(ctx, projectId)
+    // Threaded: inside computeSpi's own withTenantContext.
+    const completion = await projectCompletionReportWithDb(db, ctx, projectId)
     const actualPercent = completion.overallPercentComplete
     const spi = plannedPercent > 0 ? actualPercent / plannedPercent : actualPercent > 0 ? Infinity : 1
     return {
@@ -594,7 +595,8 @@ async function computeEarnedValueAnalysis(ctx: { orgId: string }, params: Record
     if (!project.startDate || !project.targetDate) {
       return { columns: ["Metric", "Value"], rows: [{ Metric: "Earned Value Analysis", Value: "N/A" }], note: "Project has no startDate/targetDate set -- cannot compute a time-linear Planned Value baseline." }
     }
-    const [budget, completion] = await Promise.all([budgetVsActual(ctx, projectId), projectCompletionReport(ctx, projectId)])
+    // Threaded: inside computeEarnedValueAnalysis's own withTenantContext.
+    const [budget, completion] = await Promise.all([budgetVsActualWithDb(db, ctx, projectId), projectCompletionReportWithDb(db, ctx, projectId)])
     // R67 E-06: same null-or-zero guard as computeCpi above, via usableBudget() (D-02).
     const bac = usableBudget(budget.budget)
     if (bac === null) {
@@ -1188,7 +1190,10 @@ async function computeCostOverrunReport(ctx: { orgId: string }): Promise<ReportD
     const activeProjects = await db.query.projects.findMany({ where: and(eq(projects.orgId, ctx.orgId), eq(projects.isActive, true)), columns: { id: true, name: true } })
     const results: { name: string; budget: number; actual: number; overrun: number }[] = []
     for (const p of activeProjects) {
-      const bva = await budgetVsActual(ctx, p.id)
+      // Threaded: this loop body is INSIDE the withTenantContext opened four
+      // lines up, and budgetVsActual() opens three of its own. See
+      // budgetVsActualWithDb's header in construction-reports-service.ts.
+      const bva = await budgetVsActualWithDb(db, ctx, p.id)
       // R67 E-06: a project with no BOQ has no budget to overrun -- usableBudget()
       // (D-02) is the shared null-or-non-positive guard, reused rather than
       // restated. variance < 0 = over budget, D-26's canonical sign convention

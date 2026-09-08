@@ -272,15 +272,24 @@ export async function createExpenseEntry(ctx: { orgId: string; userId: string },
   })
 }
 
+/**
+ * db-handle-accepting variant of getExpenseSummaryByHead, for a caller that
+ * already holds an open withTenantContext transaction. Mechanical extraction:
+ * same body, `db` is a parameter instead of a callback argument. Exists for
+ * budgetVsActualWithDb() in construction-reports-service.ts -- see that
+ * function for the nesting chain this closes.
+ */
+export async function getExpenseSummaryByHeadWithDb(db: TenantDb, ctx: { orgId: string }, projectId: string) {
+  return db.select({
+    expenseHead: constructionExpenseEntries.expenseHead,
+    total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float`,
+  })
+    .from(constructionExpenseEntries)
+    .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), eq(constructionExpenseEntries.projectId, projectId)))
+    .groupBy(constructionExpenseEntries.expenseHead)
+}
+
 /** Sum of expense amounts for a project, grouped by expense head -- the building block for the Expense Report (Wave 122) and the project dashboard's `expenses` figure (Wave 121). */
 export async function getExpenseSummaryByHead(ctx: { orgId: string }, projectId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.select({
-      expenseHead: constructionExpenseEntries.expenseHead,
-      total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float`,
-    })
-      .from(constructionExpenseEntries)
-      .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), eq(constructionExpenseEntries.projectId, projectId)))
-      .groupBy(constructionExpenseEntries.expenseHead)
-  )
+  return withTenantContext({ orgId: ctx.orgId }, (db) => getExpenseSummaryByHeadWithDb(db, ctx, projectId))
 }

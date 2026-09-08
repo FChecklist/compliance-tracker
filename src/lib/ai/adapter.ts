@@ -60,6 +60,38 @@ function rajatUserId(): string | null {
   return process.env.RAJAT_USER_ID ?? null;
 }
 
+/**
+ * The SYSTEM-BATCH form of the assertion below. G-01b.
+ *
+ * L2 (src/lib/ai/batch/analyse.ts) has no requesting user, so it cannot call
+ * assertAiProviderAllowed(userId) -- and its own comment used that as the
+ * reason to call nothing at all, arguing that claude-cli "would still
+ * correctly fail on a serverless runtime with no `claude` binary".
+ *
+ * THAT REASONING HOLDS FOR ENVIRONMENT 2 ONLY. Environment 1 is the owner's
+ * laptop, where the binary DOES exist, and analyse() loops over every org
+ * returned by gap_log_orgs_with_recent_activity() -- so on the one environment
+ * currently declared live, the batch sent other organisations' data through a
+ * personal Claude subscription with no gate in front of it. "No user to check"
+ * is a reason the per-user gate does not fit, not a reason no gate applies.
+ *
+ * There is no "one permitted account" answer available to a batch job: it is
+ * acting for every org at once. So under claude-cli this refuses outright,
+ * which is also the honest description of the licence — an individual
+ * subscription may not serve a request on behalf of a different person, and
+ * every org in that loop is a different person. Set AI_PROVIDER=openrouter to
+ * run L2.
+ */
+export function assertAiProviderAllowedForSystemBatch(jobName: string): void {
+  const provider = resolveProviderName();
+  if (provider !== "claude-cli") return; // openrouter has no per-user restriction
+  console.error(
+    `[ai/adapter] AI_PROVIDER=claude-cli refused system batch "${jobName}": a batch acts for every ` +
+    `organisation at once, so no single permitted account exists. Set AI_PROVIDER=openrouter to run it.`
+  );
+  throw new AiProviderRefusalError(NO_COMMENTARY_SENTENCE);
+}
+
 export function assertAiProviderAllowed(userId: string): void {
   const provider = resolveProviderName();
   if (provider !== "claude-cli") return; // openrouter has no per-user restriction
