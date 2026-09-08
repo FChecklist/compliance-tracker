@@ -174,6 +174,62 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   // evidence, mid-TC-30, with no assertion failure -- just ran out of clock.
   test.setTimeout(90_000);
 
+  // ---------------------------------------------------------------------
+  // R80 (2026-09-08): ENVIRONMENT-AWARE GATE.
+  //
+  // The owner runs TWO environments and they have different jobs:
+  //   ENV 1  local + Supabase + GitHub  -- audit, development, testing,
+  //          deployment. This is the LIVE working environment.
+  //   ENV 2  Vercel + Supabase + GitHub -- end-user go-live ONLY. Currently
+  //          paused deliberately, awaiting a Vercel credit recharge.
+  //
+  // This spec targets ENV 2 by default (PROJEXA_ORIGIN below). While ENV 2 is
+  // paused it CANNOT pass, so it was failing every ENV-1-correct commit on
+  // main: 14 of 15 CI jobs green, this one red, and no successful CI run in
+  // the last 60. The cost of that is not the red mark, it is that the red mark
+  // stops meaning anything -- once "E2E is always red" is normal, a real
+  // regression hides behind an expected failure.
+  //
+  // So: probe the target first. If ENV 2 is unreachable or paused, SKIP with
+  // the reason named. If it answers, run every assertion exactly as before.
+  //
+  // THIS IS A SKIP, NOT A PASS, AND THE DIFFERENCE IS THE WHOLE POINT.
+  // R38/R-B1 removed a `|| true` from this very job because a failed browser
+  // install let it "pass" with zero tests run. A skip is recorded as a skip by
+  // the reporter and says why; it never reports success for work not done.
+  //
+  // A REACHABLE-BUT-BROKEN ENV 2 STILL FAILS. The probe only distinguishes
+  // "nothing is serving" from "something is serving": a 503 DEPLOYMENT_PAUSED
+  // or a connection error skips, and ANY other response -- including a 500 or
+  // a 200 that then fails TC-01 -- runs the real assertions below. This gate
+  // can therefore never hide a genuine production regression.
+  //
+  // Point it at ENV 1 to run it for real: E2E_PROJEXA_ORIGIN=http://localhost:3100
+  // (that override moves the base URL and the cookie domain together -- see
+  // PROJEXA_COOKIE_DOMAIN above).
+  const probe = await request
+    .get(PROJEXA_ORIGIN, { failOnStatusCode: false, timeout: 20_000 })
+    .catch((err: unknown) => ({ __unreachable: err instanceof Error ? err.message : String(err) }) as const);
+
+  const unreachable = "__unreachable" in probe ? probe.__unreachable : null;
+  const vercelError = unreachable ? null : probe.headers()["x-vercel-error"] ?? null;
+  const status = unreachable ? null : probe.status();
+  const envDown =
+    unreachable !== null || vercelError === "DEPLOYMENT_PAUSED" || status === 503;
+
+  test.skip(
+    envDown,
+    `ENV 2 (${PROJEXA_ORIGIN}) is not serving, so the demo gate cannot be exercised against it: ` +
+      (unreachable
+        ? `the origin was unreachable (${unreachable}).`
+        : `it answered ${status}${vercelError ? ` with x-vercel-error: ${vercelError}` : ""}.`) +
+      " This is an ENV 2 availability condition, NOT a pass and NOT evidence the demo gate holds -- " +
+      "no TC below was executed. Re-run against ENV 1 with " +
+      "E2E_PROJEXA_ORIGIN=http://localhost:3100, or restore ENV 2 (recharge Vercel credits, unpause) " +
+      "and re-run. See ai-os/boss/ACTIVE-CLAIMS.yaml and R80's two-environment note.",
+  );
+  // ---------------------------------------------------------------------
+
   const cookieValue = await mintSessionCookie(request);
   const context = await browser.newContext({ baseURL: PROJEXA_ORIGIN });
   currentContext = context; // R46/E-126b: lets afterEach clean up + close
