@@ -21,7 +21,7 @@ import { submissions, pipelineTasks, pillUsage, chainHistory } from "@/lib/db/sc
 import { segment, rejoinCandidate, type Segment } from "./segment";
 import { classifyL0, type L0Repo, type ClassificationResult as L0Result } from "./level0";
 import { makeL0Repo, makeChainRepo, makeReuseCacheRepo, resolveRootLabel, logGapRow } from "./repos";
-import { classifySegment, classifySubmission, normaliseForMatch, type Classification, type ResolvedFunction, type SubmissionClassification } from "./classify";
+import { type ResolutionSource, classifySegment, classifySubmission, normaliseForMatch, type Classification, type ResolvedFunction, type SubmissionClassification } from "./classify";
 import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
@@ -481,7 +481,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     if (!firstDerivedChain) firstDerivedChain = derived;
 
     const dependsOn = seg.orderingHint !== undefined ? previousOrderedTaskId : null;
-    const taskId = await mintTask(input, submissionId, tasks.length, dependsOn, c.functionId, resolvedParams, derived);
+    const taskId = await mintTask(input, submissionId, tasks.length, dependsOn, c.functionId, resolvedParams, derived, c.source);
     chainByTaskId.set(taskId, derived);
 
     const advance = (failed: boolean) => {
@@ -735,7 +735,10 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     params: resolvedParams,
   });
 
-  const taskId = await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived);
+  // "phrase_map": runDirectTask is the pill path -- the USER named the
+  // function, so no model was involved and its own telemetry above says so
+  // (l0HitRate 1, modelCalls 0).
+  const taskId = await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived, "phrase_map");
 
   let outcome: { success: true; result: unknown } | { success: false; failure: PipelineFailure; debug?: string };
   if (!hasExecutor(input.functionId)) {
@@ -995,6 +998,43 @@ function deriveSubmissionStatus(tasks: TaskOutcome[], gapCount: number): RunSubm
   return "partial";
 }
 
+/**
+ * G-02: "whether the AI acted must be recoverable".
+ *
+ * Every pipeline_tasks row was written with executor: "software", hardcoded,
+ * including the ones whose function and parameters a MODEL chose. So for an
+ * executed business-data write there was no persisted evidence that a model
+ * had touched it at all -- the column that exists to answer exactly that
+ * question answered "software" every time, which is worse than leaving it
+ * null, because a wrong answer is not obviously missing.
+ *
+ * `source` is classify.ts's ResolutionSource and is the honest signal:
+ *
+ *   level1        a model resolved this segment, in this request      -> ai
+ *   phrase_map    a deterministic Level 0 phrase match                -> software
+ *   structural    a deterministic structural match                    -> software
+ *   last_action   the user's own previous action, replayed            -> software
+ *   reuse_cache   a PREVIOUS level1 answer replayed with no model call
+ *
+ * NOT `level`. A reuse_cache hit deliberately reports level 0 (reuse-cache.ts
+ * :118 -- "a real $0 software hit by directive section 10's own definition"),
+ * which is BILLING truth, not provenance truth. Using level would have
+ * recorded a model-chosen mapping as software.
+ *
+ * reuse_cache is recorded as "software" nonetheless, and this is the one
+ * judgement in here worth disagreeing with: no model ran for this write, so
+ * "the AI acted" is false for this request. What is true is that the mapping
+ * being replayed was chosen by a model earlier, and that provenance is not
+ * lost -- it lives in compliance.reuse_cache, keyed by the same
+ * user+project+normalised text, and is joinable. If the intended reading of
+ * G-02 is "was this write's SHAPE ever decided by a model", this line is the
+ * one to change, and the enum has no third value for "replayed model
+ * decision" to change it to.
+ */
+export function executorFor(source: ResolutionSource | "none"): "software" | "ai" {
+  return source === "level1" ? "ai" : "software";
+}
+
 async function mintTask(
   input: RunSubmissionInput,
   submissionId: string,
@@ -1002,7 +1042,8 @@ async function mintTask(
   dependsOn: string | null,
   functionId: string,
   params: Record<string, unknown>,
-  derivedChain: DerivedChain
+  derivedChain: DerivedChain,
+  source: ResolutionSource | "none"
 ): Promise<string> {
   return withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
     const [row] = await db
@@ -1017,7 +1058,7 @@ async function mintTask(
         derivedChain,
         functionId,
         params,
-        executor: "software",
+        executor: executorFor(source),
         status: "to_do",
       })
       .returning({ id: pipelineTasks.id });
