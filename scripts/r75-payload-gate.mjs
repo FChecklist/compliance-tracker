@@ -87,7 +87,16 @@ function runGate(payloadJsonPath, root) {
     const existsInGit = gitFileExists(root, relPath)
     const realStatus = existsInGit ? "modified" : "new"
     if (f.claimed_status) {
-      const agrees = f.claimed_status === realStatus
+      // R81 D0-10: normalise case before comparing. This compare was strict
+      // and case-sensitive against the lowercase literals "new"/"modified",
+      // so a payload declaring the natural capitalisation ("Modified") was
+      // rejected with a claim/reality MISMATCH -- the gate accusing an agent
+      // of fabrication when the only fault was letter case. Proven live on a
+      // planted fixture: identical payloads, "modified" exit 0, "Modified"
+      // exit 1. A gate that cries wolf gets its verdict discounted, which is
+      // the failure this gate exists to prevent. Case-folding does NOT loosen
+      // it: a genuine new-vs-modified disagreement still fails.
+      const agrees = String(f.claimed_status).trim().toLowerCase() === realStatus
       if (!agrees) {
         anyFail = true
         findings.push({ file: relPath, check: "a-git-status", verdict: "FAIL", detail: `agent claimed "${f.claimed_status}" but this path is really "${realStatus}" in git -- claim/reality mismatch` })
