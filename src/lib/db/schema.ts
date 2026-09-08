@@ -1,4 +1,4 @@
-import { pgSchema, pgEnum, text, boolean, integer, timestamp, numeric, jsonb, date } from 'drizzle-orm/pg-core'
+import { pgSchema, pgEnum, text, boolean, integer, smallint, timestamp, numeric, jsonb, date } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { relations, sql } from 'drizzle-orm'
 
@@ -13378,6 +13378,31 @@ export const submissions = complianceSchemaDB.table('submissions', {
   // independently by request input. NULL on every submission that existed
   // before this migration -- not backfilled, see 0525's own header.
   classification: submissionClassificationEnum('classification'),
+  // R80 Part 2 step 1b (drizzle/0571) -- the software-vs-AI split, per
+  // submission. The 95/5 target could be neither substantiated nor refuted
+  // because nothing measured it: on the live typed path dry-run.ts DISCARDED
+  // modelCalls/cacheHits outright, so the numbers were never even computed.
+  // Step 1a (5b2ef432) computes them; these persist them. All nullable and NOT
+  // backfilled -- the 50 pre-existing rows keep NULL, because inventing values
+  // would fabricate history (same posture as 0525's header above).
+  level: smallint('level'),
+  source: text('source'),
+  l0HitRate: numeric('l0_hit_rate', { precision: 5, scale: 4 }),
+  modelCalls: integer('model_calls'),
+  cacheHits: integer('cache_hits'),
+  // 'resolved' | 'refused' | 'not_needed' | 'error'. An ENUM-shaped set rather
+  // than a boolean because a boolean cannot separate "the provider gate refused
+  // every end user" from "software genuinely resolved everything without AI" --
+  // both give modelCalls: 0, the first means the AI is switched OFF and the
+  // second is the 95/5 success case. Reported as one number they would be
+  // indistinguishable. Constrained by a NOT VALID CHECK in 0571.
+  level1Outcome: text('level1_outcome'),
+  // A CLOSED CODE, NEVER AN ERROR MESSAGE -- see 0571's header. Raw err.message
+  // routinely carries connection strings, tokens and request payloads, and this
+  // column is production the instant it is written under the one-database
+  // ruling. A code cannot leak a credential; a message can, and the leak would
+  // only be found by grepping the column later. Detail belongs in logs.
+  level1RefusalCode: text('level1_refusal_code'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
