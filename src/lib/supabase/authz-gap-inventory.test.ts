@@ -326,8 +326,17 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
 
   test("headline counts match the R75 Phase 2 audit, as of 2026-09-05", () => {
     const protectedCount = mutating.filter((r) => r.protected).length
-    expect(mutating.length).toBe(831)
-    expect(protectedCount).toBe(630) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain
+    // R80 (2026-09-08): 831 -> 832 and 630 -> 631. Exactly one new mutating
+    // route, PATCH /api/v1/construction/boq/[id] -- VERIDIAN had no BOQ-header
+    // write path at all, so PROJEXA's /api/scope/[id] proxy would have 405'd.
+    // It is counted as PROTECTED, not exempted and not a known gap: it calls
+    // requireAuthOrApiKey() then requireRoleOrScope(ctx, "member", "write"),
+    // copied verbatim from its sibling boq/line-items/[id]. Measured rather
+    // than assumed -- the unprotected-and-not-exempt set is still empty, and
+    // the sum invariant below (631 + 201 + 0 = 832) still holds, which is the
+    // property this guard actually exists to defend.
+    expect(mutating.length).toBe(832)
+    expect(protectedCount).toBe(631) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH
     expect(EXEMPT_ROUTES.length).toBe(201) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep
     expect(KNOWN_OPEN_GAPS.length).toBe(0)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
