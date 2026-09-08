@@ -324,20 +324,34 @@ export function partitionEligibleForAutoUpgrade<T extends { orgId: string | null
 }
 
 /**
- * `existingDb` -- R81_F26 (2026-09-08). product-branch-service.ts's
- * enableProductBranchForOrg() calls this via `await import()` from INSIDE its own
- * open withTenantContext (the branch-enable transaction), which assertNotNested()
- * rejects. The call there is wrapped in a try/catch that only console.warn()s, so
- * the nesting never surfaced as an error: in dev/test the throw is swallowed and
- * NO stage-0 user is ever auto-upgraded; in production the guard warns and the
- * upgrade commits in a second transaction, so a failure between the two leaves the
- * branch enabled with the upgrade half-applied. That try/catch is also why a
- * static-import grep misses this site entirely.
+ * `existingDb` -- R81_F26 (2026-09-08), and READ THE NEXT PARAGRAPH BEFORE
+ * ACTING ON THIS ONE.
  *
- * NO enablement gate here (checked: the first statement is the withTenantContext
- * read below), so threading the handle IS the whole fix -- unlike
- * recordStockReceipt / isPeriodOpenForDate, where the gate itself had to take the
- * handle too.
+ * The history: enableProductBranchForOrg() used to call this via `await import()`
+ * from INSIDE its own open withTenantContext, which assertNotNested() rejects,
+ * inside a try/catch that only console.warn()d -- so in dev/test the throw was
+ * swallowed and NO stage-0 user was ever auto-upgraded, and in production the
+ * guard warned, the upgrade ran in a second transaction under the ADMIN's
+ * identity, and compliance.ai_assistants' RLS policy (user_id =
+ * current_user_id()) denied the insert into the same silent catch.
+ *
+ * THAT IS NO LONGER TRUE, AND THE REMEDY THIS COMMENT USED TO RECOMMEND WAS THE
+ * WRONG ONE. It said "threading the handle IS the whole fix". It is not, and it
+ * could never have been: threading the caller's handle means inserting
+ * ai_assistants rows under the admin's identity, which that RLS policy refuses
+ * by design. G-26 (product-branch-service.ts, 2026-09-09) HOISTED the call out
+ * of the enable transaction instead, so this function opens its own under the
+ * provisioned user's identity. The caller no longer passes a handle at all.
+ *
+ * `existingDb` is therefore now unused by that caller and kept only for any
+ * other caller that genuinely holds an open transaction and whose work does not
+ * cross an identity boundary. If you are here because you want to thread a
+ * handle in from a branch-enable path: don't. That is the conclusion the hoist
+ * overturned.
+ *
+ * (R81_F48: this paragraph existed for a day describing the pre-fix world in the
+ * present tense, and a comment-rot check that verifies an anchor still EXISTS
+ * cannot catch that -- it detects deletion, not divergence.)
  *
  * DELIBERATE DEVIATION from the one-`run`-for-the-whole-body shape used elsewhere
  * in this change: only the stage0Sources read is tenant-scoped here. Everything

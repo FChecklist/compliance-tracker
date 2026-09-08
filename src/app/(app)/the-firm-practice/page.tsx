@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 // limitation tracking, unified deadline aggregation) -- none of that logic
 // is new, it was simply unreachable from any UI before this page existed.
 import { useCallback, useEffect, useState } from "react";
+import type { Stage0AutoUpgradeOutcome } from "@/lib/services/product-branch-service";
 import { toast } from "sonner";
 import { Loader2, Play, Square, Plus, CheckCircle2, IndianRupee, Briefcase } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -105,8 +106,20 @@ export default function TheFirmPracticePage() {
     // Trigger B) -- same surface as PmsEnablementSection.tsx's identical
     // addition: surface both counts, never silently drop the "already
     // belongs elsewhere" information.
-    const data: { stage0AutoUpgrade?: { upgraded: number; blocked: number } } = await res.json().catch(() => ({}));
+    // R81_F47: this used to RE-DECLARE the shape inline as
+    // `{ upgraded, blocked }`. TypeScript accepts that against a wider return
+    // -- omitting a field is a legal projection, not an error -- so when
+    // enableProductBranchForOrg gained `failed`/`reason` (G-26), this file
+    // silently could not see them, and an upgrade that FAILED rendered
+    // identically to one with nobody to upgrade. Importing the union is what
+    // makes a future field a compile error here instead of a silent omission.
+    const data: { stage0AutoUpgrade?: Stage0AutoUpgradeOutcome } = await res.json().catch(() => ({}));
     const su = data.stage0AutoUpgrade;
+        if (su?.failed) {
+          toast.error(
+            `Branch enabled, but the stage-0 auto-upgrade did not run: ${su.reason}. No user was upgraded -- retry by re-enabling, and if it recurs the server log carries the full error.`
+          );
+        }
     if (su && su.upgraded > 0) toast.success(`${su.upgraded} stage-0 user${su.upgraded === 1 ? "" : "s"} auto-upgraded to full membership`);
     if (su && su.blocked > 0) toast.info(`${su.blocked} stage-0 user${su.blocked === 1 ? "" : "s"} could not auto-upgrade -- already belong to another organization`);
     setEnabled(true);

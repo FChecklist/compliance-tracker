@@ -44,7 +44,15 @@ function definedTokens(): Set<string> {
       // what it claims to and must say so rather than report a clean sweep.
       throw new Error(`design-token-integrity: cannot read ${file} -- token set would be incomplete`);
     }
-    for (const m of css.matchAll(/--color-(ct-[a-z0-9-]+)\s*:/g)) out.add(m[1]);
+    // Comments stripped FIRST. globals.css discusses tokens in prose at
+    // length -- it explains why --color-ct-saffron was not changed, what
+    // --color-ct-slate reaches on each background, and so on. A commented
+    // example carrying a colon would register as a definition and make a dead
+    // class look alive, which is the one failure this file cannot afford.
+    // (R81 hit exactly this in its own parallel scan; adopted rather than
+    // rediscovered.)
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const m of code.matchAll(/--color-(ct-[a-z0-9-]+)\s*:/g)) out.add(m[1]);
   }
   return out;
 }
