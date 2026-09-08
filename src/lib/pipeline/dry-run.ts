@@ -30,6 +30,13 @@ import { functionWrites, type ExecutableTask, type ExecutionOutcome } from "./ex
 import { functionKind, functionLabel, functionSpec, requiredParamSatisfied, type CardSchema, type FunctionKind } from "./function-registry";
 import { codeForParam, type PipelineErrorCode } from "./error-codes";
 import { NO_COMMENTARY_SENTENCE } from "@/lib/ai/refusal";
+// R80 Part 2 (1a): the ONE type this file needs from the adapter -- the class
+// assertAiProviderAllowed() throws. Importing it is what lets the telemetry
+// below tell "the provider gate switched the AI off for this caller" apart
+// from "something genuinely broke". adapter.ts's own top-level import is just
+// ai/refusal.ts (its providers are lazily require()d), so this adds no module
+// weight and no cycle.
+import { AiProviderRefusalError } from "@/lib/ai/adapter";
 
 /**
  * A real choice, never "please retype it".
@@ -86,7 +93,67 @@ export type DryRunProposal = {
   message?: string;
 };
 
-export type DryRunResult = { dryRun: true; proposals: DryRunProposal[] } & Omit<DryRunProposal, "segmentText">;
+/**
+ * R80 PART 2, STEP 1a -- THE SOFTWARE-vs-AI SPLIT, COUNTED WHERE IT HAPPENS.
+ *
+ * Before this, the live typed path did not merely fail to PERSIST the split --
+ * it never computed it. The line that is now `modelCalls = level1.modelCalls`
+ * was literally `resolutions = level1.resolutions;`, throwing away the
+ * `modelCalls` and `cacheHits` that ReuseCacheOutcome (reuse-cache.ts:72-75)
+ * already hands back. Widening any log line downstream would have printed
+ * nothing.
+ *
+ * `resolved` and `l0Hits` are counted with EXACTLY the rule
+ * classify-only.ts:117-120 already uses, so the /classify and /tasks engines
+ * cannot report two different hit rates for the same input.
+ *
+ * WHY level1Outcome IS A FOUR-WAY ENUM AND NOT A BOOLEAN:
+ *
+ *   not_needed  every segment hit Level 0. The Level 1 lane was never entered,
+ *               so modelCalls is 0 because there was nothing to ask -- the
+ *               genuinely free case, and the one worth celebrating.
+ *   resolved    the Level 1 lane ran and returned. It may STILL have made zero
+ *               model calls: a reuse_cache hit is exactly that. What separates
+ *               a free answer from a paid one is modelCalls/cacheHits, never
+ *               this field.
+ *   refused     assertAiProviderAllowed() (ai/adapter.ts:63-88, called from
+ *               level1.ts:96) threw BEFORE any model work because the caller is
+ *               not RAJAT_USER_ID. The AI was switched OFF for this request.
+ *               RAJAT_USER_ID is absent from Vercel Production, so today this
+ *               is the outcome for every end user there.
+ *   error       anything else threw -- a misconfigured provider, a repo
+ *               failure. A fault, not a policy decision.
+ *
+ * Collapsing `refused` into `not_needed` is the single failure this field
+ * exists to prevent: it reports a triumphant 100% software / 0% AI split that
+ * actually means the model is turned off. `level1RefusalReason` carries the
+ * thrown message verbatim -- for `error` as well as `refused` -- so those two
+ * are never confused with each other either.
+ *
+ * DELIBERATELY OFF THE WIRE CONTRACT. `telemetry` lives on DryRunResult and
+ * nowhere else. verdict.ts's toVerdictResult() (:180-187) builds
+ * SubmissionVerdictResult field by field out of `result.proposals` and never
+ * spreads `result`, so this cannot reach SubmissionVerdict or PROJEXA's
+ * M24Shell client type. submitForVerdict() reads it off the proposal BEFORE
+ * calling toVerdictResult().
+ */
+export type DryRunTelemetry = {
+  /** how many segments segment() produced for this submission */
+  segments: number;
+  /** classify-only.ts:117 -- `c.verdict !== "gap"` */
+  resolved: number;
+  /** classify-only.ts:119 -- `c.level === 0`, counted only within `resolved` */
+  l0Hits: number;
+  /** live model calls actually made. ONE per batch, ZERO for a cache hit. */
+  modelCalls: number;
+  /** segments served from compliance.reuse_cache -- free, and never model calls */
+  cacheHits: number;
+  level1Outcome: "resolved" | "refused" | "not_needed" | "error";
+  /** the thrown message, verbatim, for `refused` AND `error`. Null otherwise. */
+  level1RefusalReason: string | null;
+};
+
+export type DryRunResult = { dryRun: true; proposals: DryRunProposal[]; telemetry: DryRunTelemetry } & Omit<DryRunProposal, "segmentText">;
 
 /** Everything this needs from the outside world. Injected, so it is testable. */
 export type DryRunDeps = {
@@ -170,7 +237,7 @@ export function missingParamsFor(functionId: string, params: Record<string, unkn
   return out;
 }
 
-function flatten(proposals: DryRunProposal[]): DryRunResult {
+function flatten(proposals: DryRunProposal[], telemetry: DryRunTelemetry): DryRunResult {
   const first: DryRunProposal = proposals[0] ?? {
     segmentText: "",
     status: "chat",
@@ -183,7 +250,9 @@ function flatten(proposals: DryRunProposal[]): DryRunResult {
     chain: null,
   };
   const { segmentText: _segmentText, ...rest } = first;
-  return { dryRun: true, proposals, ...rest };
+  // `telemetry` last: `rest` is a DryRunProposal and carries no such key, but
+  // the ordering makes it impossible for a future proposal field to shadow it.
+  return { dryRun: true, proposals, ...rest, telemetry };
 }
 
 /**
@@ -193,7 +262,11 @@ function flatten(proposals: DryRunProposal[]): DryRunResult {
  */
 export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Promise<DryRunResult> {
   const { segments } = segment(input.rawInput);
-  if (segments.length === 0) return flatten([]);
+  if (segments.length === 0) {
+    // Nothing was said, so nothing was asked of the model: "not_needed", never
+    // "refused" -- see DryRunTelemetry.
+    return flatten([], { segments: 0, resolved: 0, l0Hits: 0, modelCalls: 0, cacheHits: 0, level1Outcome: "not_needed", level1RefusalReason: null });
+  }
 
   const l0 = await Promise.all(segments.map((s) => classifyL0(s.text, { orgId: input.orgId, userId: input.userId }, deps.l0Repo)));
   const missIndices = l0.map((r, i) => (r.kind === "miss" ? i : -1)).filter((i) => i >= 0);
@@ -205,23 +278,60 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
   // to remove. A refusal means "nothing was resolved", which the loop below
   // already knows how to answer: a GAP verdict with a real destination.
   let resolutions: (ResolvedFunction | null)[] = [];
-  try {
-    const level1 = await resolveMissesWithReuseCache(
-      missIndices.map((i) => segments[i].text),
-      {
-        orgId: input.orgId,
-        userId: input.userId,
-        projectId: input.projectId ?? null,
-        candidateFunctionIds: input.candidateFunctionIds,
-      },
-      deps.reuseRepo
-    );
-    resolutions = level1.resolutions;
-  } catch (error) {
-    console.warn("[pipeline] dry run: Level 1 unavailable, answering from Level 0 only:", error);
+  // PER-INVOCATION LOCALS, DELIBERATELY. run-submission.ts:331 keeps its
+  // equivalent counter in a module-level `let` reset at the top of each call,
+  // which stops being per-request-safe the moment two submissions overlap.
+  // That pattern is not extended here.
+  let modelCalls = 0;
+  let cacheHits = 0;
+  let level1Outcome: DryRunTelemetry["level1Outcome"] = "not_needed";
+  let level1RefusalReason: string | null = null;
+  // No L0 miss means the Level 1 lane is never entered at all --
+  // resolveMissesWithReuseCache() returns all-zeros for an empty input, so
+  // skipping it is behaviour-identical, and "not_needed" stays true rather than
+  // being overwritten with "resolved".
+  if (missIndices.length > 0) {
+    try {
+      const level1 = await resolveMissesWithReuseCache(
+        missIndices.map((i) => segments[i].text),
+        {
+          orgId: input.orgId,
+          userId: input.userId,
+          projectId: input.projectId ?? null,
+          candidateFunctionIds: input.candidateFunctionIds,
+        },
+        deps.reuseRepo
+      );
+      resolutions = level1.resolutions;
+      // The two numbers this line used to drop on the floor.
+      modelCalls = level1.modelCalls;
+      cacheHits = level1.cacheHits;
+      level1Outcome = "resolved";
+    } catch (error) {
+      // A REFUSAL IS NOT AN OUTAGE, AND NEITHER IS A SUCCESS.
+      // assertAiProviderAllowed() throws AiProviderRefusalError before any model
+      // work when the configured provider may not serve this caller; anything
+      // else reaching here is a genuine fault. Recording both as one boolean --
+      // or as silence -- makes "the AI is switched off" indistinguishable from
+      // "software answered everything", which is precisely the misreading this
+      // telemetry exists to prevent.
+      modelCalls = 0;
+      cacheHits = 0;
+      level1Outcome = error instanceof AiProviderRefusalError ? "refused" : "error";
+      level1RefusalReason = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[pipeline] dry run: Level 1 ${level1Outcome} (${level1RefusalReason}), answering from Level 0 only:`,
+        error
+      );
+    }
   }
 
   const proposals: DryRunProposal[] = [];
+  // THE SAME RULE classify-only.ts:117-120 APPLIES, copied verbatim rather than
+  // approximated. Two engines answering the same question with two different
+  // arithmetics is how a measurement stops being a measurement.
+  let resolvedCount = 0;
+  let l0Hits = 0;
   for (let i = 0; i < segments.length; i++) {
     const text = segments[i].text;
     const hit = l0[i];
@@ -237,6 +347,11 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
       resolution,
       nature: resolution ? { writes: functionWrites(resolution.functionId) } : null,
     });
+
+    if (classification.verdict !== "gap") {
+      resolvedCount++;
+      if (classification.level === 0) l0Hits++;
+    }
 
     if (classification.verdict === "gap" || !classification.functionId) {
       if (classification.verdict === "gap") {
@@ -396,7 +511,15 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
     });
   }
 
-  return flatten(proposals);
+  return flatten(proposals, {
+    segments: segments.length,
+    resolved: resolvedCount,
+    l0Hits,
+    modelCalls,
+    cacheHits,
+    level1Outcome,
+    level1RefusalReason,
+  });
 }
 
 function labelForParam(functionId: string, name: string | undefined): string {

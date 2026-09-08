@@ -1098,7 +1098,7 @@ export { normalisePhrase };
 // this is where its real, DB- and provider-backed deps are built, because
 // this file already owns every one of those wires. Re-exported from here so
 // callers keep one import path for "the pipeline".
-export { dryRunSubmission, NO_COMMENTARY_SENTENCE, type DryRunResult, type DryRunProposal } from "./dry-run";
+export { dryRunSubmission, NO_COMMENTARY_SENTENCE, type DryRunResult, type DryRunProposal, type DryRunTelemetry } from "./dry-run";
 
 /**
  * The live deps. `providerAvailable` asks the adapter the same question the
@@ -1189,6 +1189,13 @@ export async function submitForVerdict(input: RunSubmissionInput): Promise<Submi
   });
 
   const proposal = await proposeSubmission(input);
+  // R80 Part 2 (1a): read the counters OFF THE PROPOSAL, here, BEFORE
+  // toVerdictResult(). That function (verdict.ts:180-187) builds its envelope
+  // field by field from `result.proposals` and never spreads `result`, so taking
+  // `telemetry` at this point is what keeps it off the wire contract and leaves
+  // PROJEXA's M24Shell type untouched. PERSISTING these numbers is step 1b and is
+  // deliberately not done here -- today they are logged only.
+  const telemetry = proposal.telemetry;
   const verdict = toVerdictResult(proposal, submissionId);
   const classification = classifySubmission(verdict.verdicts.map((v) => v.verdict));
 
@@ -1199,9 +1206,21 @@ export async function submitForVerdict(input: RunSubmissionInput): Promise<Submi
       .where(eq(submissions.id, submissionId))
   );
 
+  // THE PROOF, IN THE LOGS -- the same vocabulary runSubmission() logs at
+  // :597-600, plus the one distinction that line cannot make. `level1=refused`
+  // means the provider gate turned the model off for this caller; it does NOT
+  // mean software resolved everything, even though model_calls reads 0 in both
+  // cases. Reading a 100% software split off a `refused` line is a misreading,
+  // and printing the outcome beside the counters is what makes that misreading
+  // impossible to arrive at by accident.
+  const l0HitRate = telemetry.resolved === 0 ? 0 : telemetry.l0Hits / telemetry.resolved;
   console.info(
     `[pipeline] submission=${submissionId} verdict=${verdict.verdict} status=${verdict.status} ` +
-      `missing=${verdict.missing.map((m) => m.field).join(",") || "-"} minted=0`
+      `missing=${verdict.missing.map((m) => m.field).join(",") || "-"} minted=0 ` +
+      `segments=${telemetry.segments} resolved=${telemetry.resolved} l0_hits=${telemetry.l0Hits} ` +
+      `l0_hit_rate=${l0HitRate.toFixed(2)} model_calls=${telemetry.modelCalls} cache_hits=${telemetry.cacheHits} ` +
+      `level1=${telemetry.level1Outcome}` +
+      (telemetry.level1RefusalReason ? ` level1_reason=${JSON.stringify(telemetry.level1RefusalReason)}` : "")
   );
 
   return { ...verdict, submissionId };

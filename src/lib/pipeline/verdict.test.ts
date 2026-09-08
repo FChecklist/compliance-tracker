@@ -149,6 +149,11 @@ describe("the envelope keeps every segment's verdict", () => {
       params: first?.params ?? {},
       missing: first?.missing ?? [],
       chain: first?.chain ?? null,
+      // R80 Part 2 (1a): DryRunResult now carries the software/AI counters.
+      // This helper only ever exercises the ENVELOPE, so a fixed all-zero
+      // telemetry is the honest filler -- and the assertions below prove it
+      // never crosses into SubmissionVerdict.
+      telemetry: { segments: proposals.length, resolved: 0, l0Hits: 0, modelCalls: 0, cacheHits: 0, level1Outcome: "not_needed", level1RefusalReason: null },
     };
   }
 
