@@ -12,7 +12,7 @@ nothing is estimated.
 **Environment 1 is not ready to put in front of a paying customer, and the
 reasons are a short list rather than a long one.**
 
-Eight gaps block release. Three of them need **you**, not an engineer, and two of
+Seven gaps block release. Three of them need **you**, not an engineer, and two of
 those three are single settings changes. The product itself — the ERP a
 construction firm actually buys — is in better shape than the paperwork
 suggested: the requirement ledger was found to *under*-credit it more often than
@@ -31,7 +31,7 @@ it over-credited it.
 | 5 | OPEN | **4** | R-50, R-C11, R-C15, R-C16 |
 | 6 | NOT_TESTABLE | **5** | owner/legal actions, not code |
 | 7 | Gaps recorded | **25** | `platform.r81_gap` |
-| 8 | **Gaps blocking launch** | **8** | G-01, G-02, G-06, G-07, G-08, G-19, G-21, G-23 (G-03 resolved) |
+| 8 | **Gaps blocking launch** | **7** | G-01, G-02, G-06, G-07, G-19, G-21, G-23 (G-03 and G-08 resolved) |
 | 9 | Faults filed this programme | **44** | `platform.r43_faults` `R81_%` |
 | 10 | Critical faults | **9** (2 closed, **7 open**) | same |
 | 11 | High faults | **23** (2 closed) | same |
@@ -61,7 +61,7 @@ it over-credited it.
 ### Needs engineering, assigned and in flight
 
 6. **G-06 / G-07** — transaction nesting on money paths, and the AI audit row that vanishes in production. R80, largely landed.
-7. **G-08** — no password reset in **either** repo. A locked-out customer has no recovery path.
+7. ~~**G-08**~~ — **RESOLVED.** PROJEXA now has `/forgot-password` + `/reset-password` (projexa `7e0c902`). My original claim that *neither* repo had a recovery path was **wrong about ct**: it offers magic-link, passcode, Google and SSO against exactly one password sign-in, and its redirect is a documented decision. A locked-out ct user was never locked out.
 8. **G-23** — five UI-surfaced modules advertise capabilities with no executor, with the failing sentence in the composer's own placeholder. **The single most damaging thing a first customer would meet**, and the cheapest of these to fix: the screens already work, only the wiring is missing.
 9. **G-02** — AI attribution. (`G-03` is resolved: the six closures are now demonstrated on environment 1.)
 
@@ -86,7 +86,7 @@ it over-credited it.
 
 ## The one sentence to keep
 
-Of the eight blockers, **three are settings changes only you can make**, two are
-**rulings** no amount of engineering can substitute for, and the three remaining
+Of the seven blockers, **three are settings changes only you can make**, two are
+**rulings** no amount of engineering can substitute for, and the two remaining
 engineering items are assigned and moving. That is a short list — but figure 17
 means none of the automation built to protect it can currently hold a line.
