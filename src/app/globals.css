@@ -97,6 +97,17 @@
      argues against. Flagged, not silently left broken and not silently
      fixed everywhere on one page's evidence. */
   --color-ct-saffron-button: #AB5B07;
+  /* R80 (2026-09-09), FIFTH instance, and the one CI found rather than a
+     person: /pricing's navbar logo mark (a "V" in a size-8 rounded-lg badge)
+     was bg-ct-saffron + text-white -- the same 2.60:1 as the Sign In button
+     above. It now uses --color-ct-saffron-button too. No new token: the note
+     above predicted exactly this ("very likely used on other primary buttons
+     ... outside this test's 5-page scope"), and the remedy it prescribes is to
+     reuse this shade at each verified site rather than to darken the shared
+     base. Worth recording that the mark is aria-hidden and is a brand logo, so
+     WCAG SC 1.4.3 arguably exempts it -- the exemption was not claimed,
+     because the contrast is genuinely 2.6:1 and a verified alternative already
+     existed. */
 
   /* R80 (2026-09-08): a FOURTH instance of the same problem as the three
      tokens above, and the one R75 Part 4's own note predicted -- it wrote

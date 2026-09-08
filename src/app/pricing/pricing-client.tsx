@@ -177,7 +177,22 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
       <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg shadow-nav">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2">
-            <div className="size-8 rounded-lg bg-ct-saffron flex items-center justify-center" aria-hidden="true">
+            {/* bg-ct-saffron-button, NOT bg-ct-saffron: white on #F5820A is
+                2.60:1, and this is the fifth instance of the class R75 Part 4
+                documented in globals.css -- "bg-ct-saffron + text-white is
+                very likely used on other primary buttons ... that were
+                outside this test's 5-page scope". It was, and this is one.
+                #AB5B07 is the same-hue shade already verified at 4.96:1 for
+                white text. The shared base token is still not touched: it is
+                imported from @fchecklist/veridian-ui-kit and PROJEXA renders
+                from the same package.
+
+                This mark is aria-hidden and is a brand logo, so WCAG SC 1.4.3
+                would arguably exempt it -- but the contrast really is 2.6:1,
+                a verified token for exactly this case already exists, and
+                using it costs one shade of orange. Claiming the exemption to
+                quieten a checker would have been the worse answer. */}
+            <div className="size-8 rounded-lg bg-ct-saffron-button flex items-center justify-center" aria-hidden="true">
               <span className="text-white font-bold text-sm">V</span>
             </div>
             <span className="font-heading text-xl text-ct-navy">{brandLabel}</span>
