@@ -12,7 +12,7 @@ VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for Module": "No s
 | Rank | File | Lines |
 |------|------|-------|
 | 1 | `src/lib/services/compliance-service.ts` | 591 |
-| 2 | `src/lib/services/erp-procurement-workflow-service.ts` | 463 |
+| 2 | `src/lib/services/erp-procurement-workflow-service.ts` | 464 |
 | 3 | `src/lib/services/workspace-memory-service.ts` | 446 |
 | 4 | `src/lib/services/risk-register-service.ts` | 407 |
 | 5 | `src/lib/services/gst-reconciliation-service.ts` | 406 |
@@ -21,7 +21,7 @@ VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for Module": "No s
 | 8 | `src/lib/services/fm-register-digitization-service.ts` | 328 |
 | 9 | `src/lib/services/erp-inventory-service.ts` | 319 |
 | 10 | `src/lib/services/communication-drafting-service.ts` | 302 |
-| 11 | `src/lib/services/veri-chat-service.ts` | 259 |
+| 11 | `src/lib/services/veri-chat-service.ts` | 260 |
 | 12 | `src/lib/services/ai-report-builder-service.ts` | 251 |
 | 13 | `src/lib/services/mdm-quality-service.ts` | 249 |
 | 14 | `src/lib/services/erp-returns-service.ts` | 243 |
@@ -29,7 +29,7 @@ VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for Module": "No s
 | 16 | `src/lib/services/firm-engagement-service.ts` | 239 |
 | 17 | `src/lib/services/fm-ppm-service.ts` | 239 |
 | 18 | `src/lib/services/interior-floorplan-service.ts` | 238 |
-| 19 | `src/lib/services/erp-vendor-master-service.ts` | 234 |
+| 19 | `src/lib/services/erp-vendor-master-service.ts` | 235 |
 | 20 | `src/lib/services/product-branch-service.ts` | 234 |
 
 _Total untested files (all sizes): 110. Showing top 20._

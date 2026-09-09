@@ -5,6 +5,7 @@
 // document-service.ts (linkedEntityType='erp_supplier') + POST /api/documents,
 // which already works with zero new code.
 import { erpSuppliers, erpSupplierBankAccounts, erpSupplierQualifications, erpSupplierSanctionChecks, erpSupplierPortalLinks, documents, db } from "@/lib/db"
+import { isShareLinkUsable } from "@/lib/share-link-usable"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, desc } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
@@ -170,7 +171,7 @@ export async function revokePortalLink(ctx: { orgId: string }, linkId: string) {
 }
 
 function assertValidToken(link: typeof erpSupplierPortalLinks.$inferSelect | undefined) {
-  if (!link || link.revokedAt || link.expiresAt < new Date()) {
+  if (!isShareLinkUsable(link, new Date())) {
     throw new ServiceError("This vendor portal link is invalid or has expired", 404)
   }
 }

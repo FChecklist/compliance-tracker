@@ -7,6 +7,7 @@
 // receiving content shared from any app, including WhatsApp/Telegram's own
 // native "Export Chat"/Share Sheet).
 import { createId } from "@paralleldrive/cuid2"
+import { isShareLinkUsable } from "@/lib/share-link-usable"
 import {
   db, conversations, conversationParticipants, messages, messageAttachments,
   conversationShareLinks, conversationGuestAccess, documents, tickets,
@@ -104,7 +105,7 @@ export async function revokeShareLink(ctx: VeriChatContext, linkId: string) {
 // against, so this is the legitimate, existing RLS-bypass path, not a new one.
 export async function getSharedConversation(token: string) {
   const link = await db.query.conversationShareLinks.findFirst({ where: eq(conversationShareLinks.token, token) })
-  if (!link || link.revokedAt || link.expiresAt < new Date()) throw new ServiceError("This share link is invalid or has expired", 404)
+  if (!isShareLinkUsable(link, new Date())) throw new ServiceError("This share link is invalid or has expired", 404)
 
   const convo = await db.query.conversations.findFirst({ where: eq(conversations.id, link.conversationId) })
   if (!convo) throw new ServiceError("This share link is invalid or has expired", 404)
@@ -207,7 +208,7 @@ export async function revokeGuestAccess(ctx: VeriChatContext, guestAccessId: str
 // module already validates, rather than inventing a second token check.
 export async function resolveActiveGuestAccess(token: string) {
   const access = await db.query.conversationGuestAccess.findFirst({ where: eq(conversationGuestAccess.token, token) })
-  if (!access || access.revokedAt || access.expiresAt < new Date()) throw new ServiceError("This guest link is invalid or has expired", 404)
+  if (!isShareLinkUsable(access, new Date())) throw new ServiceError("This guest link is invalid or has expired", 404)
   return access
 }
 

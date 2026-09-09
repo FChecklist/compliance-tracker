@@ -5,6 +5,7 @@
 // pastes into WhatsApp themselves. AR-10 applies: the public resolve path
 // must render, never authorise -- see resolveReportShareLink()'s comment.
 import { reportShareLinks, db } from "@/lib/db"
+import { isShareLinkUsable } from "@/lib/share-link-usable"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
@@ -59,11 +60,10 @@ export function assertReportRef(ref: unknown): ReportRef {
 }
 
 /** Pure. Whether a link row may still be resolved. Expired, revoked and unknown are deliberately indistinguishable to a visitor. */
-export function isShareLinkUsable(link: { revokedAt: Date | null; expiresAt: Date } | null | undefined, now: Date): boolean {
-  if (!link) return false
-  if (link.revokedAt) return false
-  return link.expiresAt >= now
-}
+// Moved to @/lib/share-link-usable so the other three public share surfaces
+// can share it instead of each restating the rule. Re-exported because this
+// module's own tests and callers already import it from here.
+export { isShareLinkUsable }
 
 export async function createReportShareLink(
   // R38: userId is null for an API-key-authenticated (server-to-server)
