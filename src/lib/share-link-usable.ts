@@ -25,11 +25,38 @@
  * every service can import it without a cycle, and so it can be unit-tested
  * without a database.
  *
+ * DO NOT MAKE invite-link-service.ts USE THIS. It is the one public token
+ * surface that must NOT, and the reason is easy to miss. Redeeming an invite
+ * WRITES -- it creates a membership -- so it enforces revoked / expired /
+ * use-budget inside a single atomic conditional statement:
+ *
+ *     UPDATE compliance.org_invite_links
+ *     SET use_count = use_count + 1 ...
+ *     WHERE id = $1 AND revoked_at IS NULL AND expires_at > now()
+ *       AND (max_uses IS NULL OR use_count < max_uses)
+ *     RETURNING id
+ *
+ * ...and refuses when zero rows come back. That is TOCTOU-safe: two concurrent
+ * redemptions of a maxUses=1 link cannot both succeed. Replacing it with an
+ * application-level predicate like this one -- read the row, decide, then write
+ * -- would reintroduce exactly the race the atomic form exists to prevent. The
+ * helper below is correct for READ-ONLY resolvers, where the worst case of a
+ * stale read is serving a report a moment too long; it is not correct where the
+ * check gates a write. invite-link-service.ts's own header says all of this;
+ * verified against the code on 2026-09-09 rather than taken from the comment.
+ *
  * TOKEN ENTROPY IS NOT THIS FILE'S JOB and is recorded here because someone
  * will ask: every one of these tokens is `createId()` from
  * @paralleldrive/cuid2 v3.3.0 -- 24 characters over a 36-symbol alphabet,
  * roughly 124 bits, non-sequential by design. That is not the cuid v1 whose
  * ordering made tokens guessable. Checked 2026-09-09 rather than assumed.
+ * invite-link-service.ts is stronger again: crypto.randomBytes(24) (192 bits),
+ * and the raw token is NEVER PERSISTED -- only its SHA-256 hash, unique, the
+ * same posture as apiKeys.keyHash.
+ *
+ * /share/attendance/[token] is not a separate surface: `attendance_summary` is
+ * one of SHAREABLE_REPORT_TYPES, so it resolves through report-share-service
+ * like the other reports and is covered by the helper below.
  */
 export type ShareLinkLifetime = {
   /** Set the moment an owner revokes; null while live. */

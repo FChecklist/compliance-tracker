@@ -117,6 +117,25 @@ describe("no public resolver may hand-roll the rule again", () => {
     expect(offenders).toEqual([]);
   });
 
+  test("*** invite-link-service must NOT use this, and must keep its atomic UPDATE ***", () => {
+    // The one public token surface that must not be consolidated onto this
+    // helper. Redeeming an invite WRITES -- it creates a membership -- so it
+    // enforces revoked/expired/use-budget inside ONE conditional UPDATE and
+    // refuses when zero rows return. That is TOCTOU-safe: two concurrent
+    // redemptions of a maxUses=1 link cannot both succeed. Swapping it for a
+    // read-then-decide predicate would reintroduce exactly that race, and it
+    // would look like tidying.
+    const src = new Map(serviceSources()).get("lib/invite-link-service.ts");
+    expect(src === undefined ? "MISSING" : "found").toBe("found");
+    expect(src).toContain("UPDATE compliance.org_invite_links");
+    expect(src).toContain("revoked_at IS NULL");
+    expect(src).toContain("expires_at > now()");
+    expect(src).toContain("max_uses IS NULL OR use_count < max_uses");
+    expect(src).toContain("RETURNING id");
+    // And it must not have been "simplified" onto the helper.
+    expect(src).not.toContain("share-link-usable");
+  });
+
   test("every resolver that needs it actually imports it", () => {
     const byPath = new Map(serviceSources());
     for (const p of [
