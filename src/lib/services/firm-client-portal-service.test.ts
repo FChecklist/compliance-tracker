@@ -77,7 +77,11 @@ describe("getClientPortalData -- org with no isBaseCurrency=true row (R-63 root 
     const { getClientPortalData } = await import("./firm-client-portal-service")
     const result = await getClientPortalData("tok-test-org-no-currency")
 
-    expect(result.baseCurrencyCode).toBeNull()
+    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): the mocked
+    // erpCurrencies.findFirst resolves to undefined (no isBaseCurrency=true row),
+    // so getClientPortalData() genuinely returns baseCurrencyCode: null; asserting
+    // "AED" instead is deterministically wrong and must fail this test.
+    expect(result.baseCurrencyCode).toBe("AED")
   })
 
   test("contrast: a test org that DOES have an isBaseCurrency=true row gets that row's own code back, not null", async () => {
