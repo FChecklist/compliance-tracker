@@ -228,6 +228,20 @@ function runGate({ requirement_id, test_path, commit_sha, how_broken }, root) {
 // exact commit is always small enough to fit in one page.
 const REPO_OWNER_MAP = { "compliance-tracker": "FChecklist/compliance-tracker", "projexa": "FChecklist/projexa" }
 
+// CAUGHT DURING PM-T30 step 2 (2026-09-10, same day this check shipped):
+// checking "any workflow run with conclusion=success" is a real, dangerous
+// false-positive source, not a hypothetical one. Live data: multiple real
+// CLOSED-row citation commits have their actual test-running workflow
+// (.github/workflows/ci.yml, display name "CI") show conclusion=failure,
+// while an UNRELATED workflow -- .github/workflows/sentinel.yml,
+// "Sentinel Governance Checks" (a policy/governance check, not a test run)
+// -- shows success for the SAME commit, same push event, same timestamp. A
+// bare .find(r => r.conclusion === "success") would have reported these as
+// CI-verified while the actual tests never passed -- the exact class of
+// mistake this whole session has spent a day hunting. Restricted to the
+// workflow path that actually runs this repo's tests.
+const CI_WORKFLOW_PATH = ".github/workflows/ci.yml"
+
 function ghApiJson(path) {
   try {
     const out = execFileSync("gh", ["api", path], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
@@ -250,16 +264,22 @@ function checkCiVerified(citation, root) {
   if (!runs.ok) {
     return { check: "f-ci-verified", verdict: "FAIL", detail: `gh api actions/runs query failed: ${runs.error}` }
   }
-  const total = runs.data.total_count ?? (runs.data.workflow_runs ?? []).length
+  const allRuns = runs.data.workflow_runs ?? []
+  const total = runs.data.total_count ?? allRuns.length
+  const ciRuns = allRuns.filter((r) => r.path === CI_WORKFLOW_PATH)
   if (total === 0) {
-    return { check: "f-ci-verified", verdict: "FAIL", detail: `zero CI runs found for commit ${citation.commit_sha} in ${ghRepo} -- this commit was never actually run through CI (superseded by a later push before its own run started, or pushed to a branch CI doesn't trigger on)` }
+    return { check: "f-ci-verified", verdict: "FAIL", detail: `zero workflow runs of any kind found for commit ${citation.commit_sha} in ${ghRepo} -- this commit was never actually run through CI (superseded by a later push before its own run started, pushed to a branch CI doesn't trigger on, or a direct push to an unprotected main that GitHub's Actions concurrency/skip logic collapsed away -- G1 already established main has no branch protection here)` }
   }
-  const successRun = (runs.data.workflow_runs ?? []).find((r) => r.conclusion === "success")
+  if (ciRuns.length === 0) {
+    const otherNames = [...new Set(allRuns.map((r) => r.name))].join(", ")
+    return { check: "f-ci-verified", verdict: "FAIL", detail: `${total} workflow run(s) exist for this commit, but NONE are the actual test-running workflow (${CI_WORKFLOW_PATH}) -- only unrelated workflow(s) ran: ${otherNames}. A different workflow succeeding is not evidence this citation's test ever ran in CI.` }
+  }
+  const successRun = ciRuns.find((r) => r.conclusion === "success")
   if (successRun) {
-    return { check: "f-ci-verified", verdict: "PASS", detail: `CI run ${successRun.id} (workflow "${successRun.name}") concluded success for this exact commit` }
+    return { check: "f-ci-verified", verdict: "PASS", detail: `CI run ${successRun.id} (${CI_WORKFLOW_PATH}) concluded success for this exact commit` }
   }
-  const conclusions = (runs.data.workflow_runs ?? []).map((r) => `${r.name}:${r.conclusion ?? r.status}`).join(", ")
-  return { check: "f-ci-verified", verdict: "FAIL", detail: `${total} CI run(s) found for this commit, none concluded success -- ${conclusions}` }
+  const conclusions = ciRuns.map((r) => `${r.id}:${r.conclusion ?? r.status}`).join(", ")
+  return { check: "f-ci-verified", verdict: "FAIL", detail: `${ciRuns.length} run(s) of ${CI_WORKFLOW_PATH} found for this commit, none concluded success -- ${conclusions}` }
 }
 
 const argv = process.argv.slice(2)

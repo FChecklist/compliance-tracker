@@ -207,12 +207,18 @@ describe("DOD-X5: --verify-ci checks GitHub Actions, not just local", () => {
   })
 
   test("--verify-ci against a real commit with a real, known-successful CI run -- ACCEPTS, CI-verified", () => {
-    // A real commit 5 back from this worktree's HEAD, independently confirmed
-    // via `gh api actions/runs?head_sha=...` before writing this test: 3 real
-    // runs exist for it, one concluded success (the others failure/cancelled
-    // -- the same supersede-by-later-push pattern already documented
-    // elsewhere this session). Real GitHub data, not a fixture.
-    const realShaWithKnownCiHistory = execFileSync("git", ["rev-parse", "HEAD~5"], { cwd: REPO_ROOT, encoding: "utf8" }).trim()
+    // A real commit, independently confirmed via `gh api actions/runs?
+    // head_sha=...` before writing this test to have its ACTUAL
+    // .github/workflows/ci.yml run conclude success (not merely some other
+    // workflow -- see the CI_WORKFLOW_PATH fix in r75-citation-gate.mjs,
+    // added specifically because several nearby commits looked
+    // superficially "verified" by a passing Sentinel Governance Checks run
+    // while their own real CI run was cancelled or failed). A literal sha,
+    // not a HEAD~N relative ref -- this branch keeps gaining commits, so a
+    // relative ref would silently drift to a different, unverified commit
+    // on every future run. This exact sha's ci.yml run was independently
+    // confirmed green before writing this test.
+    const realShaWithKnownCiHistory = "900b4255e248118e828041bccd94f8bcd8c6f54c"
     const citation = {
       requirement_id: "DOD-X5-REAL-CI-SUCCESS-TEST",
       repo: "compliance-tracker",
