@@ -62,6 +62,15 @@
 //      single-file op, matching 'integrative''s own stated definition).
 import { db, taskCapabilities, instructionPackages, capabilityImprovementProposals } from "@/lib/db"
 import { eq, sql } from "drizzle-orm"
+// P2.6 (R81-ADDENDUM-B phase S5): platform.task_capabilities is going RLS-
+// tightened so app_runtime can no longer write its platform-wide (org_id
+// IS NULL) rows -- see drizzle/0577_p2_6_task_capabilities_registry_write_lockdown.sql
+// and this file's own PLATFORM_AUDIT_QUERY_ORG_ID comment below for why
+// every row this file writes IS one of those. Every taskCapabilities WRITE
+// in this file goes through this service-role client instead of the
+// app_runtime-connected `db`; reads (db.query.taskCapabilities.*) are
+// unaffected -- app_runtime keeps SELECT on platform-wide rows.
+import { serviceRoleUpdateTaskCapability } from "@/lib/db/service-role-client"
 import { runRole } from "@/lib/ai-team/team-service"
 import { dispatchAdvisoryTask } from "@/lib/ai-team/advisory-dispatch-service"
 import type { TightTask } from "@/lib/task-tightening"
@@ -487,10 +496,12 @@ export async function runCapabilityAudit(capabilityId: string): Promise<AuditRun
   const hasUsableFindings = Boolean(verdict?.fixableInSoftware && verdict.findings && FINDING_KEYS.some((k) => verdict.findings[k]))
   const needsImprovement: "yes" | "no" = hasUsableFindings ? "yes" : "no"
 
-  await db
-    .update(taskCapabilities)
-    .set({ needsImprovement, lastAuditedAt: new Date(), lastAuditedVersion: capability.version, updatedAt: new Date() })
-    .where(eq(taskCapabilities.id, capability.id))
+  await serviceRoleUpdateTaskCapability(capability.id, {
+    needs_improvement: needsImprovement,
+    last_audited_at: new Date().toISOString(),
+    last_audited_version: capability.version,
+    updated_at: new Date().toISOString(),
+  })
 
   if (!hasUsableFindings) {
     if (verdict === null) {
@@ -600,10 +611,7 @@ export async function dispatchProposalToHigherAI(proposalId: string): Promise<Di
       .update(capabilityImprovementProposals)
       .set({ status: "dispatched", dispatchedToRole: roleKey, dispatchedAt: now, dispatchOutput: advisoryOutput, updatedAt: now })
       .where(eq(capabilityImprovementProposals.id, proposal.id)),
-    db
-      .update(taskCapabilities)
-      .set({ needsImprovement: "in_progress", updatedAt: now })
-      .where(eq(taskCapabilities.id, capability.id)),
+    serviceRoleUpdateTaskCapability(capability.id, { needs_improvement: "in_progress", updated_at: now.toISOString() }),
   ])
 
   return { dispatched: true, roleKey }
@@ -663,10 +671,7 @@ export async function rejectImprovementProposal(proposalId: string, reason: stri
       .update(capabilityImprovementProposals)
       .set({ status: "rejected", rejectionReason: reason, updatedAt: now })
       .where(eq(capabilityImprovementProposals.id, proposal.id)),
-    db
-      .update(taskCapabilities)
-      .set({ needsImprovement: "no", updatedAt: now })
-      .where(eq(taskCapabilities.id, proposal.capabilityId)),
+    serviceRoleUpdateTaskCapability(proposal.capabilityId, { needs_improvement: "no", updated_at: now.toISOString() }),
   ])
 }
 
@@ -693,10 +698,11 @@ export async function closeImprovementLoop(proposalId: string, prUrl: string): P
 
   const now = new Date()
   await Promise.all([
-    db
-      .update(taskCapabilities)
-      .set({ version: capability.version + 1, needsImprovement: "no", updatedAt: now })
-      .where(eq(taskCapabilities.id, capability.id)),
+    serviceRoleUpdateTaskCapability(capability.id, {
+      version: capability.version + 1,
+      needs_improvement: "no",
+      updated_at: now.toISOString(),
+    }),
     db
       .update(capabilityImprovementProposals)
       .set({ status: "resolved", prUrl, updatedAt: now })
