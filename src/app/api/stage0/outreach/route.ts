@@ -14,7 +14,7 @@ export async function GET() {
   if (roleCheck) return roleCheck
 
   try {
-    const rows = await listStage0OutreachForOrg(orgId)
+    const rows = await listStage0OutreachForOrg(orgId, dbUser.id)
     return NextResponse.json({ outreach: rows })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
