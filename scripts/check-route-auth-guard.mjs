@@ -57,6 +57,21 @@ import { readFileSync } from "fs"
 // exception.
 const ROUTE_AUTH_EXEMPTIONS = new Set([
   // Example: "src/app/api/health/route.ts", // static payload, no auth boundary
+  //
+  // The MCP server authenticates, just not through requireAuth(). POST resolves
+  // an `Authorization: Bearer vk_...` key against the same compliance.api_keys
+  // table Settings > API Keys issues, and returns JSON-RPC -32600 Unauthorized
+  // when that fails -- verified by reading the handler, not inferred from the
+  // file's header comment. requireAuth() is a Supabase-session guard and there
+  // is no session on a machine-to-machine call.
+  //
+  // Its GET handler is deliberately unauthenticated: it is the MCP discovery
+  // manifest, which the protocol requires a client to be able to read before it
+  // holds a token. It returns tool NAMES only, no tenant data. That disclosure
+  // is real but conventional for the protocol, and it is recorded as
+  // F-2026-0910-PM-065 rather than buried in this exemption -- an exemption
+  // should not be where a security question goes to be forgotten.
+  "src/app/api/mcp/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail
