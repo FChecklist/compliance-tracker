@@ -86,8 +86,7 @@ describe("POST + GET /api/v1/projexa/schedule -- R-C10: a project schedule can b
     } as any)
 
     expect(getRes.status).toBe(200)
-    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): the mocked listIssues always resolves to [createdTask], so asserting an empty tasks array is deterministically wrong and must fail.
-    expect(await getRes.json()).toEqual({ tasks: [] })
+    expect(await getRes.json()).toEqual({ tasks: [createdTask] })
     expect(listIssues).toHaveBeenCalledWith({ orgId: "org-1" }, "proj-1", { statusId: undefined, assigneeId: undefined })
   })
 })
