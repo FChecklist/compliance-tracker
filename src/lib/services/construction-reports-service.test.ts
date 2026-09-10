@@ -1280,7 +1280,9 @@ describe("aggregateRevenueBudgetActual (R67 E-08)", () => {
     const civil = rows.find((r) => r.item === "Civil")!
     const joinery = rows.find((r) => r.item === "Joinery")!
 
-    expect(civil.lineCount).toBe(2)
+    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): l1+l2
+    // are both "Civil" per the fixture -- the real merged count is 2, not 3.
+    expect(civil.lineCount).toBe(3)
     expect(civil.revenue).toBe(5400 + 3375)
     expect(civil.budget).toBe(1350 + 843.75)
     // l1's actual is vendor-only (1500), l2's is material+manpower (600) --
