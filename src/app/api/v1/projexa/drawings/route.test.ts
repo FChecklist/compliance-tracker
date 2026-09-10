@@ -128,8 +128,7 @@ describe("POST /api/v1/projexa/drawings -- upload, then GET lists it with its me
     const listRes = await GET(getRequest("?projectId=proj-1"))
     const body = await listRes.json()
 
-    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): exactly 2 documents (1 dwg + 1 walkthrough) are created above, so the real list length is 2, not 3 -- this is deterministically wrong.
-    expect(body.drawings).toHaveLength(3)
+    expect(body.drawings).toHaveLength(2)
 
     const dwgRow = body.drawings.find((d: Record<string, unknown>) => d.kind === "dwg")
     expect(dwgRow.discipline).toBe("MEP")
