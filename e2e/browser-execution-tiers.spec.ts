@@ -34,12 +34,7 @@ test.describe("browser execution tier detection -- real browser context", () => 
     // tier-detection.ts's lite-llm/transformers tiers key "available" off
     // of (see their own doc comments: available in ANY real browser,
     // GPU-acceleration is a separate, narrower signal).
-    // DOD-X4/D58 FALSIFICATION PLANT (temporary, reverted next commit): this
-    // assertion is deterministically true in any real browser context (a
-    // real `navigator` object always exists at about:blank) -- flipping the
-    // expected value proves this always-run E2E test is not a CANNOT-FAIL
-    // instrument now that DOD-X4 depends on its non-zero, always-real count.
-    expect(capability.hasNavigator).toBe(false);
+    expect(capability.hasNavigator).toBe(true);
 
     // Documents the REAL 2-tier fallback this headless Chromium build
     // actually exhibits today, rather than asserting a specific boolean
