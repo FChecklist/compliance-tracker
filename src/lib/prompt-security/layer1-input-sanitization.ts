@@ -18,6 +18,7 @@
 // callers without a GROQ_API_KEY, or that want zero added latency/cost, get
 // the full deterministic verdict with promptGuardClassification left null.
 import { callLLM } from "@/lib/llm-client"
+import { logger } from "@/lib/logger"
 // Cross-reference with the existing pre-call policy gate (Wave 46,
 // VERIDIAN_AI_CONSTITUTION.md's Constitution Sec 18 -- already
 // production-wired on every real LLM call site via enforcePolicy()) instead
@@ -137,7 +138,18 @@ export async function classifyInput(rawText: string, apiKey: string | null): Pro
     let verdict = deterministic.verdict
     if (classification.label === "MALICIOUS" && verdict === "benign") verdict = "suspicious"
     return { verdict, deterministicMatches: deterministic.deterministicMatches, promptGuardClassification: classification }
-  } catch {
+  } catch (error) {
+    // DOD-C8 fix: the graceful degradation to deterministic-only stays
+    // exactly as designed (see the header comment above -- the
+    // deterministic baseline still runs and still catches its own
+    // patterns, so this is not a full bypass). What was missing was any
+    // signal: a live Prompt Guard outage was genuinely invisible. Now
+    // logged as a structured warning naming the reason; verdict/behavior
+    // unchanged.
+    logger.warn("classifyInput: Prompt Guard second-opinion call failed, degrading to deterministic-only classification", {
+      reason: "prompt_guard_unreachable",
+      errorMessage: error instanceof Error ? error.message : String(error),
+    })
     return deterministic
   }
 }
