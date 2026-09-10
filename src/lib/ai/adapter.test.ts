@@ -1,15 +1,18 @@
 /// <reference types="bun-types" />
 import { describe, expect, test, beforeEach, afterEach } from "bun:test";
 import { assertAiProviderAllowed, assertAiProviderAllowedForSystemBatch, getAiProvider, AiProviderRefusalError } from "./adapter";
+import { UnknownAiProviderError } from "./provider-config";
 
-const ORIGINAL_AI_PROVIDER = process.env.AI_PROVIDER;
-const ORIGINAL_RAJAT_USER_ID = process.env.RAJAT_USER_ID;
+const ENV_KEYS = ["AI_PROVIDER", "AI_PROVIDER_PIPELINE_L1", "AI_PROVIDER_PIPELINE_L2", "AI_ALLOWED_PROVIDERS", "RAJAT_USER_ID"] as const;
+const ORIGINAL = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]])) as Record<(typeof ENV_KEYS)[number], string | undefined>;
+const ORIGINAL_AI_PROVIDER = ORIGINAL.AI_PROVIDER;
+const ORIGINAL_RAJAT_USER_ID = ORIGINAL.RAJAT_USER_ID;
 
 afterEach(() => {
-  if (ORIGINAL_AI_PROVIDER === undefined) delete process.env.AI_PROVIDER;
-  else process.env.AI_PROVIDER = ORIGINAL_AI_PROVIDER;
-  if (ORIGINAL_RAJAT_USER_ID === undefined) delete process.env.RAJAT_USER_ID;
-  else process.env.RAJAT_USER_ID = ORIGINAL_RAJAT_USER_ID;
+  for (const k of ENV_KEYS) {
+    if (ORIGINAL[k] === undefined) delete process.env[k];
+    else process.env[k] = ORIGINAL[k];
+  }
 });
 
 describe("assertAiProviderAllowed -- the M27 startup/per-request assertion", () => {
@@ -125,5 +128,63 @@ describe("getAiProvider -- resolves and caches per AI_PROVIDER value", () => {
     process.env.AI_PROVIDER = "claude-cli";
     const claudeCli = getAiProvider();
     expect(openrouter).not.toBe(claudeCli);
+  });
+
+  test("caches per (level, provider) pair -- L1 and L2 resolving to different providers don't collide", () => {
+    process.env.AI_PROVIDER = "openrouter";
+    process.env.AI_PROVIDER_PIPELINE_L1 = "claude-cli";
+    const l1 = getAiProvider("pipeline_l1");
+    const l2 = getAiProvider("pipeline_l2");
+    expect(l1).not.toBe(l2);
+  });
+});
+
+describe("P1.1 -- per-level provider override, dev/prod default (see provider-config.test.ts for the resolver's own unit tests)", () => {
+  afterEach(() => {
+    delete process.env.AI_PROVIDER_PIPELINE_L1;
+    delete process.env.AI_PROVIDER_PIPELINE_L2;
+    delete process.env.AI_ALLOWED_PROVIDERS;
+  });
+
+  test("dev default: unset AI_PROVIDER gates pipeline_l1 exactly as before (no config regression)", () => {
+    delete process.env.AI_PROVIDER;
+    process.env.RAJAT_USER_ID = "rajat_user_id_123";
+    expect(() => assertAiProviderAllowed("rajat_user_id_123", "pipeline_l1")).not.toThrow();
+    expect(() => assertAiProviderAllowed("someone_else", "pipeline_l1")).toThrow(AiProviderRefusalError);
+  });
+
+  test("prod default: AI_PROVIDER=openrouter lifts the per-user restriction for every level with no override", () => {
+    process.env.AI_PROVIDER = "openrouter";
+    delete process.env.RAJAT_USER_ID;
+    expect(() => assertAiProviderAllowed("literally_anyone", "pipeline_l1")).not.toThrow();
+    expect(() => assertAiProviderAllowedForSystemBatch("l2-nightly-analyse", "pipeline_l2")).not.toThrow();
+  });
+
+  test("per-level override: L1 can run claude-cli (gated) while L2 is forced to openrouter by its own override", () => {
+    process.env.AI_PROVIDER = "claude-cli"; // global default
+    process.env.AI_PROVIDER_PIPELINE_L2 = "openrouter"; // L2-only override
+    process.env.RAJAT_USER_ID = "rajat_user_id_123";
+    // L1 still uses the global default (claude-cli) and is still gated:
+    expect(() => assertAiProviderAllowed("rajat_user_id_123", "pipeline_l1")).not.toThrow();
+    expect(() => assertAiProviderAllowed("someone_else", "pipeline_l1")).toThrow(AiProviderRefusalError);
+    // L2 uses its own override (openrouter) and is NOT claude-cli-gated:
+    expect(() => assertAiProviderAllowedForSystemBatch("l2-nightly-analyse", "pipeline_l2")).not.toThrow();
+  });
+
+  test("a disallowed provider is refused through the public gate too, not just the resolver", () => {
+    process.env.AI_ALLOWED_PROVIDERS = "openrouter";
+    process.env.AI_PROVIDER = "claude-cli";
+    expect(() => assertAiProviderAllowed("anyone", "pipeline_l1")).toThrow(UnknownAiProviderError);
+  });
+
+  test("*** THE DELIBERATE NON-CHANGE: no per-level override or allowlist config removes the claude-cli identity gate *** -- this is the P1.1 boundary: config controls WHICH provider a level uses, never WHETHER claude-cli still checks identity once selected", () => {
+    process.env.AI_PROVIDER = "openrouter"; // prod-like global default
+    process.env.AI_PROVIDER_PIPELINE_L1 = "claude-cli"; // but this level is overridden back to claude-cli
+    process.env.RAJAT_USER_ID = "rajat_user_id_123";
+    // The override reaching claude-cli still means the identity gate applies --
+    // config generality never bypasses the compliance check documented in
+    // assertAiProviderAllowed's own header (Anthropic OAuth/subscription
+    // auth is for ordinary individual use only).
+    expect(() => assertAiProviderAllowed("some_other_real_user_id", "pipeline_l1")).toThrow(AiProviderRefusalError);
   });
 });

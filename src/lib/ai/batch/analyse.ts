@@ -178,8 +178,11 @@ export async function runL2Batch(): Promise<L2BatchResult> {
   // "would still correctly fail on a serverless runtime with no `claude`
   // binary" -- true of environment 2, false of environment 1, which is the
   // owner's laptop, where the binary exists and this loop covers every org.
-  // See assertAiProviderAllowedForSystemBatch's own header.
-  assertAiProviderAllowedForSystemBatch("l2-nightly-analyse");
+  // See assertAiProviderAllowedForSystemBatch's own header. Explicit level
+  // ("pipeline_l2", this batch's only level) so this gate and getAiProvider()
+  // below always agree on which level's provider config they're resolving --
+  // see provider-config.ts (P1.1).
+  assertAiProviderAllowedForSystemBatch("l2-nightly-analyse", "pipeline_l2");
 
   let clustersAnalysed = 0;
   let phraseMapCandidatesCreated = 0;
@@ -192,7 +195,7 @@ export async function runL2Batch(): Promise<L2BatchResult> {
     if (clusters.length === 0) continue;
     clustersAnalysed += clusters.length;
 
-    const provider = getAiProvider();
+    const provider = getAiProvider("pipeline_l2");
     const artifacts = await provider.analyse({ orgId, clusters });
 
     for (const artifact of artifacts) {
