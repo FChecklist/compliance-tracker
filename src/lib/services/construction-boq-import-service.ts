@@ -97,7 +97,10 @@ function isMalformedNumericCell(raw: string): boolean {
     .replace(/[,₹\s]/g, "")
     .replace(/^[^\d.\-(]+/, "")
     .replace(/^\((.*)\)$/, "-$1")
-  return !/^-?\d+(\.\d+)?$/.test(cleaned)
+  // TEMPORARY DOD-R3 F-2 falsification plant (R-71, break-restore cycle) --
+  // will be reverted. Neutralizes the malformed-cell detector so it never
+  // reports a garbage Qty/Rate cell as malformed, regardless of content.
+  return !/^-?\d+(\.\d+)?$/.test(cleaned) && false
 }
 
 function normalizeHeader(h: string): string {
