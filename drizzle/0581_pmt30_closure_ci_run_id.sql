@@ -20,7 +20,21 @@
 -- (query actions/runs?head_sha=<full sha> per row's own closure_commit_sha,
 -- per this session's own standing trap note: never pipe gh api --paginate
 -- into a JSON parser, and a failed/absent lookup is recorded honestly as
--- NULL, never guessed).
+-- NULL, never guessed). PM-T30 step 2's actual finding was that closure_
+-- ci_run_id stays NULL for every one of the 48 currently-CLOSED rows --
+-- zero of them have a real, passing CI run to cite (see pm/PMT30_CI_
+-- BACKFILL_AUDIT_2026-09-10T1435.md). No backfill UPDATE was ever run.
+--
+-- APPLIED-STATE NOTE (renumbered 0580 -> 0581, 2026-09-10, D67 index
+-- reallocation after a double collision with W-GAP's own two migrations):
+-- this column is ALREADY LIVE on the database -- applied directly via the
+-- Supabase management API under the working name "pmt30_closure_ci_run_id"
+-- before this file was renumbered. The renumber changes only the tracked
+-- repository record, not the schema (IF NOT EXISTS above makes re-running
+-- this file a safe no-op either way). The file and journal entry still
+-- have to exist under their correct number regardless -- a live column
+-- with no tracked migration behind it is exactly the untracked-drift
+-- pattern that made DOD-F4 and DOD-T1 false elsewhere this session.
 ALTER TABLE platform.sumeet_requirements
   ADD COLUMN IF NOT EXISTS closure_ci_run_id text;
 
