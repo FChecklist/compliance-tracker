@@ -352,20 +352,8 @@ async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items
       remaining.filter((i) => !i.parentItemCode || idByItemCode.has(i.parentItemCode)),
       remaining.filter((i) => i.parentItemCode && !idByItemCode.has(i.parentItemCode)),
     ]
-    // TEMPORARY DOD-R3 F-2 falsification plant (R-18, will be reverted): the
-    // unresolvable/circular parentItemCode guard no longer throws -- it
-    // silently stops processing instead, so a circular reference is dropped
-    // rather than rejected with 400. (An earlier draft of this plant just
-    // made the `ready.length === 0` condition unreachable, which is
-    // implementation-faithful to the guard's real shape but reproduces a
-    // genuine unbounded infinite loop given a true cycle -- confirmed
-    // locally to hang past 60s with zero output, never hitting bun's own
-    // 5000ms per-test timeout, because the retry loop keeps generating
-    // resolved-promise microtasks that starve the timer phase. Breaking out
-    // here instead keeps the falsification deterministic and fast while
-    // still disabling the exact same guard.)
     if (ready.length === 0) {
-      break
+      throw new ServiceError(`Unresolvable parentItemCode reference(s) among: ${notReady.map((i) => i.itemCode || i.description).join(", ")}`, 400)
     }
 
     const inserted = await db.insert(constructionBoqLineItems).values(
