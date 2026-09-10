@@ -2822,6 +2822,13 @@
       "when": 1789033296662,
       "tag": "0589_dod_t8_backup22aug_naive_to_timestamptz",
       "breakpoints": true
+    },
+    {
+      "idx": 405,
+      "version": "7",
+      "when": 1789033297662,
+      "tag": "0588_construction_tenders_org_scoped",
+      "breakpoints": true
     }
   ]
 }
