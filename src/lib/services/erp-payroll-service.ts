@@ -169,13 +169,46 @@ export async function getPayrollRun(ctx: { orgId: string }, runId: string) {
   })
 }
 
+// PM-T33 / DOD-F3 (2026-09-10, R81_F25-style real-DB test):
+// findFirst-then-insert is not atomic, so a genuine concurrent double
+// submit can pass this function's own existence check twice before either
+// insert commits -- confirmed with 8 real trials against the live DB,
+// 0/8 ever created an actual duplicate row (the DB's own unique constraint
+// on org_id/month/year, now captured in drizzle/NNNN_pmt33_erp_payroll_runs_
+// month_year_unique.sql, always wins that race), but 7/8 losing callers got
+// a RAW, unhandled Postgres unique-violation error instead of this
+// function's own intended clean 409. The data was always safe; the error
+// experience was not. Catching the DB's own rejection and translating it
+// to the same message as the app-level check closes that gap -- whichever
+// of the two mechanisms actually wins a given race, the caller now always
+// sees the same clean answer.
+const PAYROLL_RUN_UNIQUE_VIOLATION = "erp_payroll_runs_org_id_month_year_key"
+
+function isPayrollRunUniqueViolation(error: unknown): boolean {
+  const err = error as { code?: unknown; constraint_name?: unknown; cause?: { code?: unknown; constraint_name?: unknown } } | null
+  const code = err?.code ?? err?.cause?.code
+  const constraint = err?.constraint_name ?? err?.cause?.constraint_name
+  return code === "23505" && constraint === PAYROLL_RUN_UNIQUE_VIOLATION
+}
+
 export async function createPayrollRun(ctx: ErpContext, input: { month: number; year: number }) {
   await requireErpEnabled(ctx.orgId)
   if (input.month < 1 || input.month > 12) throw new ServiceError("month must be 1-12", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.erpPayrollRuns.findFirst({ where: and(eq(erpPayrollRuns.orgId, ctx.orgId), eq(erpPayrollRuns.month, input.month), eq(erpPayrollRuns.year, input.year)) })
     if (existing) throw new ServiceError("A payroll run already exists for this month/year", 409)
-    const [run] = await db.insert(erpPayrollRuns).values({ orgId: ctx.orgId, month: input.month, year: input.year, createdById: ctx.userId }).returning()
+    let run: typeof erpPayrollRuns.$inferSelect
+    try {
+      ;[run] = await db.insert(erpPayrollRuns).values({ orgId: ctx.orgId, month: input.month, year: input.year, createdById: ctx.userId }).returning()
+    } catch (error) {
+      // The race this function's own findFirst check cannot fully close:
+      // another concurrent call's insert can commit between our findFirst
+      // and our own insert. The DB constraint catches it every time (0/8
+      // real trials); this just makes the loser's experience match the
+      // findFirst-caught case above instead of a raw 500.
+      if (isPayrollRunUniqueViolation(error)) throw new ServiceError("A payroll run already exists for this month/year", 409)
+      throw error
+    }
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_payroll_run.created", entityType: "erp_payroll_run", entityId: run.id })
     return run
   })
