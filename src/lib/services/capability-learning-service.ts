@@ -12,17 +12,18 @@
 import { db, taskCapabilities, instructionPackages } from "@/lib/db"
 import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
-// P2.6 (R81-ADDENDUM-B phase S5), same reason as capability-audit-service.ts:
-// every write in this file targets task_capabilities' platform-wide
-// (org_id IS NULL) rows -- see this file's own header -- which
-// drizzle/0577_p2_6_task_capabilities_registry_write_lockdown.sql makes
-// app_runtime-writable no longer. C-13 (external review): this file was the
-// SECOND writer found, missed by the first pass over capability-audit-service.ts
-// alone -- every findOrCreateCapability() call site (task-execution-engine.ts,
-// team-service.ts, dialogue-script-executor.ts, and this file's own
-// exploreUnknownPrompt()) passes orgId: null explicitly, so every write here
-// is platform-wide today.
-import { serviceRoleUpdateTaskCapability, serviceRoleInsertTaskCapabilityIfAbsent } from "@/lib/db/service-role-client"
+// P2.6/PM-T23 (2026-09-10): every write in this file targets
+// task_capabilities' platform-wide (org_id IS NULL) rows -- see this
+// file's own header -- which drizzle/0577_p2_6_task_capabilities_registry_write_lockdown.sql
+// makes app_runtime-writable no longer, by RLS. These writes go through
+// SECURITY DEFINER functions in drizzle/0585_p2_6_security_definer_registry_functions.sql
+// instead (called over this file's own `db` connection, direct Postgres --
+// NOT the service-role/PostgREST client that used to live here and that
+// PostgREST could never reach the `platform` schema through in the first
+// place; see that migration file's own header for the full history). Reads
+// are unaffected -- app_runtime keeps SELECT on platform-wide rows via
+// 0577's own read policy, so every read below still uses the plain `db`
+// query path it always did.
 export { ServiceError }
 
 export type TaskCapability = typeof taskCapabilities.$inferSelect
@@ -174,23 +175,24 @@ export async function findOrCreateCapability(input: { modePill: string; pathKeys
   }
 
   const newWords = input.promptText ? tokenizePrompt(input.promptText) : []
-  await serviceRoleInsertTaskCapabilityIfAbsent(
-    {
-      capability_key: capabilityKey,
-      mode_pill: input.modePill,
-      path_keys: input.pathKeys,
-      prompt_word_index: newWords,
-      org_id: input.orgId ?? null,
-    },
-    "capability_key"
-  )
+  // p_org_id passed through verbatim, never hardcoded to NULL -- see
+  // drizzle/0585's own header on rpc_task_capability_insert_if_absent for
+  // why (a cross-org-focused review found /api/prompt-compiler/execute
+  // passes a real orgId into exactly this path).
+  await db.execute(sql`SELECT platform.rpc_task_capability_insert_if_absent(
+    ${capabilityKey}::text,
+    ${input.modePill}::text,
+    ${JSON.stringify(input.pathKeys)}::jsonb,
+    ${JSON.stringify(newWords)}::jsonb,
+    ${input.orgId ?? null}::text
+  )`)
 
   // Always re-fetch through the normal (camelCase, drizzle-typed) read path
-  // rather than trust the service-role insert's own raw (snake_case) return
-  // shape -- this also folds the onConflictDoNothing/ignoreDuplicates race
-  // (another concurrent caller inserting the same capabilityKey between our
-  // findCapabilityByKey() above and this insert) into the same code path
-  // instead of a separate branch: either way, the row now exists.
+  // rather than trust the RPC's own void return -- this also folds the
+  // ON CONFLICT DO NOTHING race (another concurrent caller inserting the
+  // same capabilityKey between our findCapabilityByKey() above and this
+  // insert) into the same code path instead of a separate branch: either
+  // way, the row now exists.
   const created = await findCapabilityByKey(capabilityKey)
   if (!created) throw new ServiceError(`Failed to find-or-create capability ${capabilityKey}`, 500)
   return created
@@ -203,12 +205,15 @@ export async function findOrCreateCapability(input: { modePill: string; pathKeys
 async function extendPromptWordIndex(capabilityId: string, promptText: string): Promise<void> {
   const newWords = tokenizePrompt(promptText)
   if (newWords.length === 0) return
-  const existing = await findCapabilityById(capabilityId)
-  if (!existing) return
-  const existingWords = (existing.promptWordIndex as string[] | null) ?? []
-  const merged = Array.from(new Set([...existingWords, ...newWords]))
-  if (merged.length === existingWords.length) return // nothing new, skip the write
-  await serviceRoleUpdateTaskCapability(capabilityId, { prompt_word_index: merged, updated_at: new Date().toISOString() })
+  // The merge/dedup now happens in-SQL (rpc_task_capability_extend_word_index
+  // is append-only by construction -- see drizzle/0585's header for why a
+  // full-replacement array from TS was a free-form JSONB patch this design
+  // forbids), so this no longer needs to read the existing row first to
+  // compute a merged array -- it just sends the new tokens.
+  await db.execute(sql`SELECT platform.rpc_task_capability_extend_word_index(
+    ${capabilityId}::text,
+    ${JSON.stringify(newWords)}::jsonb
+  )`)
 }
 
 // engine-ai-learning (VERIDIAN_Architecture_v2.0 phase_8, gap analysis
@@ -297,37 +302,25 @@ export type ExecutionBucket = "FULL_SOFTWARE" | "PACKAGE_AVAILABLE" | "NOVEL"
 // load-bearing signal the whole learning loop depends on, worth the extra
 // lines for certainty over a clever-but-riskier single code path.
 //
-// P2.6 (R81-ADDENDUM-B phase S5): this used to be a db.transaction() (two
-// UPDATEs against the same row, atomic via Postgres's row lock) -- moved to
-// the service-role REST client (see service-role-client.ts's header for
-// why: task_capabilities' platform-wide rows are no longer app_runtime-
-// writable), which has no multi-statement transaction. Now a single
-// read-then-write instead: read the current counters, compute the new
-// counts AND the derived status locally, write both in ONE service-role
-// call. This trades the transaction's row-lock serialization for a
-// smaller, ACCEPTED race window -- two concurrent calls for the same
-// capabilityId could both read the same starting counters and one
-// increment could be lost. Given zero customers and that this is a
-// self-healing rolling counter (not tenant-facing data, not money), that
-// tradeoff is deliberate, not an oversight -- see C-13/C-15 (external
-// review, 2026-09-10) for why this file's writes had to move at all.
+// P2.6/PM-T23 (2026-09-10): this used to be a db.transaction() (two UPDATEs
+// against the same row, atomic via Postgres's row lock), then briefly a
+// non-atomic service-role read-then-write once 0577 made this connection's
+// direct write impossible. rpc_task_capability_record_execution_outcome
+// (drizzle/0585) restores the original atomicity for real: the increment
+// AND the status derivation both happen in one SECURITY DEFINER function
+// body, so the read-then-write race that read-then-write version accepted
+// no longer exists -- this was flagged as a real, in-scope fix during
+// PM-T23's design review (an attacker-framed review also showed that
+// passing pre-computed absolute counters, as an earlier draft of this fix
+// did, only relocates the race rather than closing it), not scope creep.
+// deriveCapabilityStatus() below is kept and still exported/tested as the
+// pure reference implementation the SQL function's status logic is a
+// byte-for-byte port of -- see that migration file's own header.
 export async function recordExecutionOutcome(capabilityId: string, bucket: ExecutionBucket): Promise<void> {
   const current = await findCapabilityById(capabilityId)
-  if (!current) return // capabilityId matched no row -- nothing to derive a status from either
+  if (!current) return // capabilityId matched no row -- preserves this function's original silent-no-op behavior for a since-deleted/never-existed id, rather than letting the RPC's row-count guard raise for that case
 
-  const fullSoftwareCount = current.fullSoftwareCount + (bucket === "FULL_SOFTWARE" ? 1 : 0)
-  const packageAvailableCount = current.packageAvailableCount + (bucket === "PACKAGE_AVAILABLE" ? 1 : 0)
-  const novelCount = current.novelCount + (bucket === "NOVEL" ? 1 : 0)
-  const status = deriveCapabilityStatus(fullSoftwareCount, packageAvailableCount, novelCount)
-
-  await serviceRoleUpdateTaskCapability(capabilityId, {
-    full_software_count: fullSoftwareCount,
-    package_available_count: packageAvailableCount,
-    novel_count: novelCount,
-    occurrence_count: current.occurrenceCount + 1,
-    status,
-    updated_at: new Date().toISOString(),
-  })
+  await db.execute(sql`SELECT platform.rpc_task_capability_record_execution_outcome(${capabilityId}::text, ${bucket}::text)`)
 }
 
 // Records a package's real usage outcome -- successRate is a simple moving
