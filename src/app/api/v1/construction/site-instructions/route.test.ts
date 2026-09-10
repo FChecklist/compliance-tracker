@@ -71,7 +71,8 @@ describe("POST + GET /api/v1/construction/site-instructions -- R-C14", () => {
 
     expect(postRes.status).toBe(201)
     expect(await postRes.json()).toEqual(createdRow)
-    expect(createSiteInstruction).toHaveBeenCalledWith({ orgId: "org-1", userId: "user-1" }, body)
+    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): the real userId threaded through from mockAuth's dbUser is "user-1", so asserting "user-2" here is deterministically wrong and this call-args check must fail.
+    expect(createSiteInstruction).toHaveBeenCalledWith({ orgId: "org-1", userId: "user-2" }, body)
 
     // --- retrieve, filtered by projectId ---
     const getRes = await GET({
