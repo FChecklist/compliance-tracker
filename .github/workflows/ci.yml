@@ -507,6 +507,26 @@ jobs:
     needs: [build]
     runs-on: ubuntu-latest
     steps:
+      # Fail fast and loud, not 2 build+boot steps later, the moment OR-7/
+      # OR-8 land wrong or get missed -- same "a missing required secret
+      # must fail loudly, not silently skip and report success" principle
+      # scripts/check-project-budgets-live.mjs already uses for
+      # DOD_S1_SMOKE_API_KEY. Checked before either checkout does real work
+      # so a misconfigured run fails in <5s, not after a 2+ minute build.
+      - name: Verify required secrets are set
+        run: |
+          missing=""
+          [ -z "${{ secrets.DATABASE_URL }}" ] && missing="$missing DATABASE_URL"
+          [ -z "${{ secrets.APP_RUNTIME_DATABASE_URL }}" ] && missing="$missing APP_RUNTIME_DATABASE_URL"
+          [ -z "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" ] && missing="$missing NEXT_PUBLIC_SUPABASE_URL"
+          [ -z "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" ] && missing="$missing NEXT_PUBLIC_SUPABASE_ANON_KEY"
+          [ -z "${{ secrets.PROJEXA_DATABASE_URL }}" ] && missing="$missing PROJEXA_DATABASE_URL"
+          [ -z "${{ secrets.VERIDIAN_API_KEY }}" ] && missing="$missing VERIDIAN_API_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::e2e-env1 cannot run: missing repo secret(s):$missing -- see kt/FINDINGS.W-CI.jsonl F-2026-09-10-W-CI-001 / OR-7 / OR-8 (owner-only, direct GitHub UI entry, never via a shell)."
+            exit 1
+          fi
+          echo "all 6 required secrets present (values not printed)"
       - name: Checkout compliance-tracker
         uses: actions/checkout@v7
       - name: Checkout projexa (sibling dir)
