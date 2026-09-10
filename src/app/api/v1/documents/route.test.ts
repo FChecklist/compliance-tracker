@@ -118,8 +118,7 @@ describe("POST /api/v1/documents -- any category, with or without an attached fi
     expect(byName["Site Survey Report"].category).toBe("survey")
     expect(byName["Site Survey Report"].fileUrl).toContain("survey.pdf")
     expect(byName["Matterport Walkthrough Link"].category).toBe("drawing_3d")
-    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): the link-only document's fileUrl must equal the externalUrl it was POSTed with, not this unrelated string -- this is deterministically wrong because GET should report exactly what POST wrote, not a canned answer.
-    expect(byName["Matterport Walkthrough Link"].fileUrl).toBe("https://example.com/DELIBERATELY-WRONG-URL")
+    expect(byName["Matterport Walkthrough Link"].fileUrl).toBe("https://my.matterport.com/show/?m=abc123")
   })
 
   test("neither a file nor an externalUrl is refused with 400 -- a document needs one or the other", async () => {
