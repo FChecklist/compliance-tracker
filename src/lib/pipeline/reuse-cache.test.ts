@@ -123,7 +123,7 @@ describe("resolveMissesWithReuseCache -- cache hit skips the model entirely", ()
 
     expect(repoCalls).toBe(0);
     expect(level1Calls).toBe(0);
-    expect(out).toEqual({ resolutions: [], reasons: [], modelCalls: 0, cacheHits: 0, fuzzyHits: 0 });
+    expect(out).toEqual({ resolutions: [], reasons: [], modelCalls: 0, cacheHits: 0, fuzzyHits: 0, fuzzyAskHits: 0 });
   });
 });
 
@@ -247,6 +247,78 @@ describe("P1.2/P1.3 -- the trigram fuzzy tier, checked after reuse_cache and bef
     expect(level1Calls).toBe(0);
     expect(out.fuzzyHits).toBe(2);
     expect(out.modelCalls).toBe(0);
+  });
+});
+
+describe("PM-T2 -- the middle confidence band (LOW <= score < HIGH -> needsConfirmation, not resolved and not escalated)", () => {
+  test("a middle-band score resolves with needsConfirmation=true, ZERO model calls, and is counted in fuzzyAskHits not fuzzyHits", async () => {
+    let level1Calls = 0;
+    const repo = fakeRepo();
+    // 0.60 is below the real default HIGH (0.70, PM-T1) and above the real
+    // default LOW (0.55) -- squarely the middle band with the shipped
+    // config, not a threshold this test invents its own value for.
+    const fuzzyRepo = fakeFuzzyRepo({ "mark the boq line done": { functionId: "record_work_progress", fixedParams: { itemCode: "PP1" }, score: 0.60 } });
+    const fakeLevel1 = async (): Promise<Level1Outcome> => {
+      level1Calls++;
+      return { resolutions: [], reasons: [], modelCalls: 1 };
+    };
+
+    const out = await resolveMissesWithReuseCache(["mark the boq line done"], CTX, repo, fakeLevel1, {}, fuzzyRepo);
+
+    expect(level1Calls).toBe(0); // NOT escalated to AI either -- a human confirms, not a model
+    expect(out.modelCalls).toBe(0);
+    expect(out.fuzzyHits).toBe(0);
+    expect(out.fuzzyAskHits).toBe(1);
+    expect(out.resolutions[0]).toEqual({ functionId: "record_work_progress", params: { itemCode: "PP1" }, source: "phrase_fuzzy", level: 0, needsConfirmation: true });
+  });
+
+  test("a HIGH-band score does NOT set needsConfirmation -- the P1.2 behaviour is unchanged by PM-T2's addition", async () => {
+    const repo = fakeRepo();
+    const fuzzyRepo = fakeFuzzyRepo({ "record 50 percent progress": { functionId: "record_work_progress", fixedParams: {}, score: 0.92 } });
+    const fakeLevel1 = async (): Promise<Level1Outcome> => ({ resolutions: [], reasons: [], modelCalls: 1 });
+
+    const out = await resolveMissesWithReuseCache(["record 50 percent progress"], CTX, repo, fakeLevel1, {}, fuzzyRepo);
+
+    expect(out.fuzzyHits).toBe(1);
+    expect(out.fuzzyAskHits).toBe(0);
+    expect(out.resolutions[0]?.needsConfirmation).toBeUndefined();
+  });
+
+  test("below LOW still falls through to Level 1 exactly as before PM-T2 -- the low band is a floor, not a wider net that swallows genuine escalations", async () => {
+    let level1Calls = 0;
+    const repo = fakeRepo();
+    const fuzzyRepo = fakeFuzzyRepo({}); // no match at all, i.e. below LOW
+    const fakeLevel1 = async (texts: string[]): Promise<Level1Outcome> => {
+      level1Calls++;
+      return { resolutions: texts.map(() => null), reasons: texts.map(() => "unresolved"), modelCalls: 1 };
+    };
+
+    const out = await resolveMissesWithReuseCache(["totally unrelated free text"], CTX, repo, fakeLevel1, {}, fuzzyRepo);
+
+    expect(level1Calls).toBe(1);
+    expect(out.fuzzyHits).toBe(0);
+    expect(out.fuzzyAskHits).toBe(0);
+  });
+
+  test("a mixed batch splits three ways in one call: resolved, asked, and escalated", async () => {
+    let level1Texts: string[] = [];
+    const repo = fakeRepo();
+    const fuzzyRepo = fakeFuzzyRepo({
+      high: { functionId: "record_work_progress", fixedParams: {}, score: 0.9 },
+      middle: { functionId: "record_work_progress", fixedParams: {}, score: 0.6 },
+    });
+    const fakeLevel1 = async (texts: string[]): Promise<Level1Outcome> => {
+      level1Texts = texts;
+      return { resolutions: texts.map(() => null), reasons: texts.map(() => "unresolved"), modelCalls: 1 };
+    };
+
+    const out = await resolveMissesWithReuseCache(["high", "middle", "escalates"], CTX, repo, fakeLevel1, {}, fuzzyRepo);
+
+    expect(out.fuzzyHits).toBe(1);
+    expect(out.fuzzyAskHits).toBe(1);
+    expect(level1Texts).toEqual(["escalates"]);
+    expect(out.resolutions[0]?.needsConfirmation).toBeUndefined();
+    expect(out.resolutions[1]?.needsConfirmation).toBe(true);
   });
 });
 

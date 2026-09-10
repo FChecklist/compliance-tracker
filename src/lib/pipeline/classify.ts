@@ -36,6 +36,21 @@ export type ResolvedFunction = {
   missingParams?: string[];
   source: ResolutionSource;
   level: 0 | 1;
+  /**
+   * PM-T2 -- the middle confidence band (R80_PART2_BUILD_PLAN.md's own
+   * Step 2 middle band, deliberately left unwired at P1.2/P1.3 time).
+   * Optional and absent/false for every resolution source that existed
+   * before this field -- exact-match, structural, last_action, reuse_cache
+   * and level1 NEVER set it, and phrase-fuzzy.ts only sets it true for a
+   * score in [LOW, HIGH). A TASK-kind (write) resolution carrying this MUST
+   * pause for user confirmation before minting rather than executing
+   * immediately -- see dry-run.ts's needs_confirmation status and
+   * verdict.ts's confirmable computation. An ASK-kind (read) resolution
+   * ignores this and answers immediately regardless, same posture the
+   * existing confirmable design already takes toward reads (only a write
+   * is confirmable at all -- see verdict.ts's own comment).
+   */
+  needsConfirmation?: boolean;
 };
 
 /**
@@ -66,6 +81,8 @@ export type Classification = {
   message: string | null;
   /** gap_log.reason. Non-null if and only if verdict === "gap". */
   gapReason: string | null;
+  /** PM-T2 -- see ResolvedFunction.needsConfirmation. Always false when resolution is null or absent on resolution; additive, no existing caller reads this yet. */
+  needsConfirmation: boolean;
 };
 
 // A message that is ONLY an acknowledgement carries no actionable content
@@ -158,6 +175,7 @@ export function classifySegment(input: ClassifyInput): Classification {
         level: null,
         message: null,
         gapReason: null,
+        needsConfirmation: false,
       };
     }
 
@@ -177,6 +195,7 @@ export function classifySegment(input: ClassifyInput): Classification {
       level: null,
       message: `I can't do that yet: "${text}"`,
       gapReason: `unresolved ${kind}: no Level 0 phrase match, no structural match, and Level 1 returned no function`,
+      needsConfirmation: false,
     };
   }
 
@@ -188,6 +207,7 @@ export function classifySegment(input: ClassifyInput): Classification {
     source: resolution.source,
     level: resolution.level,
     gapReason: null,
+    needsConfirmation: resolution.needsConfirmation ?? false,
   } as const;
 
   // ---- Reads as a question -> CHAT, whatever the function does ----------

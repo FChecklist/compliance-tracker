@@ -709,3 +709,73 @@ describe("FIX PASS -- a projectId the request itself carried is reachable", () =
     expect([...ctx.reachableProjectIds]).toEqual(["p1"])
   })
 })
+
+// PM-T2 -- END TO END THROUGH THE REAL dryRunSubmission() ENGINE, not just
+// reuse-cache.ts's own unit tests. Proves the middle band reaches the actual
+// wire contract (DryRunResult.status), through the same DryRunDeps seam
+// every other test in this file uses (fuzzyRepo is just another injected
+// dependency, same pattern as l0Repo/reuseRepo).
+describe("PM-T2 -- the middle confidence band reaches DryRunResult.status through the real engine", () => {
+  test("an L0 miss that scores in the middle band comes back needs_confirmation, with functionId/params filled in like ready, and confirmable via toVerdict", async () => {
+    const deps = depsFor(
+      {}, // no L0 phrase-map match -- forces the miss into the fuzzy tier
+      {
+        fuzzyRepo: {
+          findBestMatch: async (text) =>
+            text === "mark the boq line as finished" ? { functionId: "record_work_progress", fixedParams: { itemCode: "EX-01", percent: 100 }, score: 0.6 } : null,
+        },
+      }
+    )
+
+    const r = await dryRunSubmission({ ...BASE, rawInput: "mark the boq line as finished" }, deps)
+
+    expect(r.status).toBe("needs_confirmation")
+    expect(r.functionId).toBe("record_work_progress")
+    expect(r.params).toEqual({ itemCode: "EX-01", percent: 100, projectId: "p1" }) // projectId auto-filled from the submission's own rail, same as every other resolution source
+    expect(r.telemetry.modelCalls).toBe(0) // not escalated to AI -- a human confirms, not a model
+
+    const verdict = toVerdictResult(r, "sub_1")
+    expect(verdict.confirmable).toBe(true) // reaches PROJEXA's existing generic confirm-card branch
+  })
+
+  test("the SAME text at a HIGH-band score still resolves ready, unchanged by PM-T2's addition", async () => {
+    const deps = depsFor(
+      {},
+      {
+        fuzzyRepo: {
+          findBestMatch: async (text) =>
+            text === "mark the boq line as finished" ? { functionId: "record_work_progress", fixedParams: { itemCode: "EX-01", percent: 100 }, score: 0.95 } : null,
+        },
+      }
+    )
+
+    const r = await dryRunSubmission({ ...BASE, rawInput: "mark the boq line as finished" }, deps)
+
+    expect(r.status).toBe("ready")
+  })
+
+  test("confirmSubmission's re-derivation guard needs NO change: re-running the same input re-derives the SAME functionId deterministically, so a client confirming the middle-band candidate is not refused", async () => {
+    // This is the fact PM-T2's own condition #3 hinges on -- checked here,
+    // not just argued in a comment. proposeSubmission() (what confirmSubmission
+    // re-runs internally) is deterministic for a fixed fuzzyRepo: calling it
+    // twice on the same input must return the identical functionId, which is
+    // the ONLY thing confirmSubmission's guard (run-submission.ts ~1402)
+    // checks. If this ever returned different functionIds across calls, the
+    // guard change PM-T2 was told to stop and report on would become real.
+    const deps = depsFor(
+      {},
+      {
+        fuzzyRepo: {
+          findBestMatch: async (text) =>
+            text === "mark the boq line as finished" ? { functionId: "record_work_progress", fixedParams: { itemCode: "EX-01", percent: 100 }, score: 0.6 } : null,
+        },
+      }
+    )
+
+    const first = await dryRunSubmission({ ...BASE, rawInput: "mark the boq line as finished" }, deps)
+    const second = await dryRunSubmission({ ...BASE, rawInput: "mark the boq line as finished" }, deps)
+
+    expect(second.functionId).toBe(first.functionId)
+    expect(second.status).toBe(first.status)
+  })
+})

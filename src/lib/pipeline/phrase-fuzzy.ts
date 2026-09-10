@@ -20,19 +20,33 @@
 // software-computed number that exists BEFORE any model call, which is what
 // a pre-escalation confidence gate requires.
 //
-// SCOPE, deliberately narrowed from the build plan's full Step 2 for this
-// phase: only the HIGH branch (score >= PHRASE_FUZZY_HIGH_THRESHOLD) is
-// wired in -- resolved as a software (level 0) hit, exactly like
-// reuse-cache.ts's replay of an earlier Level 1 answer. The build plan's
-// middle band (LOW <= score < HIGH -> a "did you mean" ask instead of an AI
-// call) is NOT built here: it requires a new Classification/verdict shape
-// (a needs_input-style ask) that touches confirmSubmission's re-derivation
-// guard and the wire contract to PROJEXA (verdict.ts, M24Shell.tsx), which
-// is real, cross-repo blast radius this phase's surface does not cover. A
-// score below HIGH falls through to Level 1 exactly as before this phase --
-// behaviour-identical to the pre-P1.2 pipeline for that band, not a
-// regression, just not yet the full 3-way gate. Recorded honestly, not
-// silently narrowed.
+// PM-T2 (2026-09-10): the middle band IS wired -- see reuse-cache.ts's own
+// header for the 3-way gate this file's score feeds (score >= HIGH resolves
+// immediately; LOW <= score < HIGH resolves with needsConfirmation=true,
+// pausing for a user click rather than either auto-executing or paying for
+// a model call; score < LOW or no match falls through to Level 1 exactly as
+// before P1.2). This file's job stays narrow: find the best candidate at or
+// above LOW and report its score -- the banding DECISION belongs to
+// reuse-cache.ts, which is where the build plan's own gate logic lives.
+//
+// WHY THE MIDDLE BAND DID NOT NEED THE RE-DERIVATION GUARD OR CLIENT CHANGES
+// P1.2/P1.3's own note (superseded by this one) worried the middle band
+// would need confirmSubmission's re-derivation guard changed and a PROJEXA
+// client change. Neither turned out to be true, checked before building,
+// not assumed after:
+//   - confirmSubmission (run-submission.ts) re-runs proposeSubmission() and
+//     refuses only if the re-derived functionId differs from what the
+//     client is confirming. A middle-band candidate is fully deterministic
+//     (same phrase_map row, same trigram score) -- re-deriving it returns
+//     the IDENTICAL functionId every time, so the guard's own check passes
+//     unmodified. No guard change.
+//   - PROJEXA's M24Shell.tsx already branches on a generic
+//     `verdict.confirmable && verdict.submissionId` condition (not on the
+//     specific status string) to show its existing "one more click" confirm
+//     card. Making `confirmable` true for the new `needs_confirmation`
+//     status (verdict.ts) reaches that already-built UI with zero PROJEXA
+//     code changes -- confirmed by reading M24Shell.tsx before relying on
+//     it, not inferred from its name.
 //
 // THRESHOLD (PM-T1, calibrated 2026-09-10): 0.70, not the build plan's
 // original 0.85 placeholder. Measured against a REAL fixture, not invented
@@ -90,6 +104,31 @@ export function resolvePhraseFuzzyHighThreshold(): number {
   return parsed;
 }
 
+// PM-T2 -- the middle-band floor. 0.55, not independently precision/recall
+// calibrated the way HIGH was: the risk profile is different, not merely
+// "less strict". A HIGH false positive auto-executes a wrong write with no
+// human in the loop, which is why HIGH demanded a zero-measured-FP fixture.
+// A LOW false positive only shows a "did you mean X?" prompt the user can
+// decline -- confirmSubmission still requires an explicit confirm before
+// anything mints (see this file's header). 0.55 is PM-T1's own calibration
+// data point already measured (tp=98, fp=6 among same-org pairs at 0.55),
+// kept as the floor precisely because it is the lowest value this session
+// already has real numbers for, not a fresh guess. Revisit alongside a
+// human-facing false-prompt-rate metric once this band has live traffic --
+// there is none today (compliance.reuse_cache and every fuzzy-tier path are
+// unexercised in production, see P1.3's own disclosed caveat).
+export const DEFAULT_PHRASE_FUZZY_LOW_THRESHOLD = 0.55;
+
+export function resolvePhraseFuzzyLowThreshold(): number {
+  const raw = process.env.PHRASE_FUZZY_LOW_THRESHOLD;
+  if (raw === undefined || raw.trim() === "") return DEFAULT_PHRASE_FUZZY_LOW_THRESHOLD;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    throw new Error(`PHRASE_FUZZY_LOW_THRESHOLD="${raw}" is not a valid similarity threshold -- must be a number in [0, 1].`);
+  }
+  return parsed;
+}
+
 export type PhraseFuzzyMatch = {
   functionId: string;
   fixedParams: Record<string, unknown> | null;
@@ -97,7 +136,13 @@ export type PhraseFuzzyMatch = {
 };
 
 export type PhraseFuzzyRepo = {
-  /** Null on a miss (no promoted phrase in this org scores >= the caller's threshold). A cold/empty corpus is normal, never an error. */
+  /**
+   * Null on a miss (no promoted phrase in this org scores >= LOW). A cold/
+   * empty corpus is normal, never an error. Returns the best candidate at or
+   * above LOW regardless of whether it clears HIGH -- banding (resolve vs
+   * ask vs fall through) is the caller's decision (reuse-cache.ts), not
+   * this repo's; see this file's own header for why that split is correct.
+   */
   findBestMatch(text: string): Promise<PhraseFuzzyMatch | null>;
 };
 
@@ -117,7 +162,11 @@ export function makePhraseFuzzyRepo(orgId: string): PhraseFuzzyRepo {
       // against a raw, differently-cased/punctuated query would understate
       // similarity for what is otherwise an identical phrase.
       const normalised = normaliseForMatch(text);
-      const threshold = resolvePhraseFuzzyHighThreshold();
+      // LOW, not HIGH: this repo reports every candidate worth mentioning at
+      // all, including the middle band. The caller compares the returned
+      // score against resolvePhraseFuzzyHighThreshold() itself to decide
+      // resolve-vs-ask.
+      const threshold = resolvePhraseFuzzyLowThreshold();
       return withTenantContext({ orgId }, async (db) => {
         // extensions.similarity(), schema-qualified: pg_trgm is installed
         // into the `extensions` schema (see this file's own header + the

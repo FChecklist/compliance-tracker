@@ -156,8 +156,15 @@ export function toVerdict(p: DryRunProposal): SubmissionVerdict {
     ...(p.message ? { message: p.message } : {}),
     // ONLY a fully-resolved write is confirmable. An `answered` read already
     // ran (it recorded nothing), a gap has nothing to run, and needs_input is
-    // by definition not ready.
-    confirmable: p.status === "ready" && p.verdict === "task",
+    // by definition not ready. PM-T2: `needs_confirmation` (a middle-band
+    // fuzzy match) is ALSO confirmable -- additive to this condition, not a
+    // new branch -- because PROJEXA's M24Shell.tsx already renders ANY
+    // confirmable verdict with a submissionId via its existing "one more
+    // click" ConfirmCard, generically, not gated on the specific status
+    // string (confirmed by reading M24Shell.tsx before relying on it). That
+    // is what lets this reach a real "did you mean X?" UI with zero PROJEXA
+    // code changes.
+    confirmable: (p.status === "ready" || p.status === "needs_confirmation") && p.verdict === "task",
   };
 }
 

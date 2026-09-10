@@ -70,14 +70,24 @@ export type DryRunAnswer = {
 export type DryRunProposal = {
   segmentText: string;
   /**
-   *  ready       -> everything is filled in; POST {functionId, params} to run it
-   *  needs_input -> answer `missing` first. NOTHING WAS MINTED and nothing is
-   *                 counted in the Home badge; this is a question, not a task.
-   *  answered    -> an ASK verdict that already ran its read
-   *  gap         -> the capability genuinely is not wired; `message` + `route`
-   *  chat        -> an acknowledgement; nothing to do
+   *  ready               -> everything is filled in; POST {functionId, params} to run it
+   *  needs_confirmation  -> PM-T2: a middle-band fuzzy match (LOW <= score <
+   *                         HIGH, phrase-fuzzy.ts). functionId/params are
+   *                         filled in exactly like `ready`, but confidence
+   *                         is not high enough to auto-execute -- the client
+   *                         must show a "did you mean X?" style confirm
+   *                         (same confirmable mechanism as `ready`, see
+   *                         verdict.ts's toVerdict()) before POSTing
+   *                         {confirm:true, submissionId}. NOTHING WAS MINTED
+   *                         yet, same as `needs_input`, but the reason is
+   *                         "which function", not "which value".
+   *  needs_input         -> answer `missing` first. NOTHING WAS MINTED and nothing is
+   *                         counted in the Home badge; this is a question, not a task.
+   *  answered            -> an ASK verdict that already ran its read
+   *  gap                 -> the capability genuinely is not wired; `message` + `route`
+   *  chat                -> an acknowledgement; nothing to do
    */
-  status: "ready" | "needs_input" | "answered" | "gap" | "chat";
+  status: "ready" | "needs_confirmation" | "needs_input" | "answered" | "gap" | "chat";
   verdict: Classification["verdict"];
   kind: FunctionKind;
   functionId: string | null;
@@ -499,9 +509,16 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
     }
 
     if (kind === "run") {
+      // PM-T2: a middle-band fuzzy match (classify.ts's needsConfirmation)
+      // pauses for an explicit user click instead of auto-executing --
+      // reads (the "ask" branch below) ignore this and answer immediately
+      // regardless, same posture the pre-existing confirmable design
+      // already takes toward reads (see verdict.ts). Every OTHER resolution
+      // source never sets needsConfirmation, so this branch is additive:
+      // it cannot fire for anything that resolved "ready" before PM-T2.
       proposals.push({
         segmentText: text,
-        status: "ready",
+        status: classification.needsConfirmation ? "needs_confirmation" : "ready",
         verdict: classification.verdict,
         kind,
         functionId,
@@ -569,9 +586,16 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
       continue;
     }
 
+    // PM-T2: the "write" kind (functionKind() returns "write" | "ask" |
+    // "run" -- this is the branch for "write", distinct from the COMMAND
+    // "run" branch above) is the one record_work_progress and most other
+    // mutating functions actually take. Same needsConfirmation check as the
+    // "run" branch, for the identical reason -- missed on the first pass of
+    // this change, caught by this file's own end-to-end test rather than
+    // shipped silently wrong.
     proposals.push({
       segmentText: text,
-      status: "ready",
+      status: classification.needsConfirmation ? "needs_confirmation" : "ready",
       verdict: classification.verdict,
       kind,
       functionId,

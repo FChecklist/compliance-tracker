@@ -32,7 +32,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { eq, inArray } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { phraseMap, pipelineSimilarityMetrics } from "@/lib/db/schema";
-import { makePhraseFuzzyRepo, resolvePhraseFuzzyHighThreshold, DEFAULT_PHRASE_FUZZY_HIGH_THRESHOLD } from "./phrase-fuzzy";
+import { makePhraseFuzzyRepo, resolvePhraseFuzzyHighThreshold, resolvePhraseFuzzyLowThreshold, DEFAULT_PHRASE_FUZZY_HIGH_THRESHOLD } from "./phrase-fuzzy";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
 import type { Level1Context, Level1Outcome } from "./level1";
 
@@ -158,6 +158,22 @@ describe.skipIf(skipReason !== null)("makePhraseFuzzyRepo -- real pg_trgm simila
     const match = await repo.findBestMatch("please raise a purchase order for cement");
 
     expect(match).toBeNull();
+  });
+
+  test("PM-T2: a real middle-band paraphrase is returned (below HIGH, at/above LOW) -- findBestMatch reports the candidate, banding is the caller's job", async () => {
+    await seedPromotedPhrase("mark boq line pp9 as complete", "record_work_progress", { itemCode: "PP9" });
+
+    const repo = makePhraseFuzzyRepo(TEST_ORG);
+    // Measured live against pcrjmlpuqsbocqfwoxod before writing this test:
+    // extensions.similarity(...) = 0.5946 for this exact pair -- genuinely
+    // in [LOW, HIGH) at the shipped defaults (0.55, 0.70), not asserted
+    // blind.
+    const match = await repo.findBestMatch("set boq line pp9 to complete");
+
+    expect(match).not.toBeNull();
+    expect(match?.functionId).toBe("record_work_progress");
+    expect(match?.score).toBeGreaterThanOrEqual(resolvePhraseFuzzyLowThreshold());
+    expect(match?.score).toBeLessThan(resolvePhraseFuzzyHighThreshold());
   });
 
   test("an UNPROMOTED phrase_map row is never matched -- same M26 rule the exact-match tier enforces", async () => {
