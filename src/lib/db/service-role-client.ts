@@ -52,13 +52,42 @@ function getServiceRoleClient(): SupabaseClient<any, any, any> {
  * org-scoped write should still go through the regular `db` export from
  * "@/lib/db", which keeps full access to its own org's rows under
  * drizzle/0577.
+ *
+ * Callers that need the post-write state (e.g. recordExecutionOutcome()
+ * deriving `status` from freshly-incremented counters) read it themselves
+ * via the normal (camelCase, drizzle-typed) app_runtime SELECT path before
+ * calling this, rather than trust this function's own raw (snake_case)
+ * return shape -- same reasoning as serviceRoleInsertTaskCapabilityIfAbsent
+ * below. This is NOT transactional the way the original db.transaction()
+ * was (a single service-role call, not a Postgres transaction spanning a
+ * read and a write) -- accepted tradeoff: supabase-js's REST surface has no
+ * multi-statement transaction, and a crash between the read and this write
+ * leaves counters incremented with a stale `status` until the next
+ * execution recomputes it, which is a self-healing inconsistency in a
+ * bookkeeping counter, not a correctness bug in tenant data.
  */
-export async function serviceRoleUpdateTaskCapability(
-  id: string,
-  patch: Record<string, unknown>
-): Promise<void> {
+export async function serviceRoleUpdateTaskCapability(id: string, patch: Record<string, unknown>): Promise<void> {
   const { error } = await getServiceRoleClient().from("task_capabilities").update(patch).eq("id", id)
-  if (error) {
-    throw new Error(`serviceRoleUpdateTaskCapability(${id}) failed: ${error.message}`)
-  }
+  if (error) throw new Error(`serviceRoleUpdateTaskCapability(${id}) failed: ${error.message}`)
+}
+
+/**
+ * Insert-or-do-nothing on platform.task_capabilities by service_role, for
+ * capability-learning-service.ts's findOrCreateCapability() -- the same
+ * find-or-create shape as the original db.insert(...).onConflictDoNothing(),
+ * just over the service-role connection since every real call site passes
+ * orgId: null (verified: task-execution-engine.ts, team-service.ts,
+ * dialogue-script-executor.ts, and the internal exploreUnknownPrompt() call
+ * all pass orgId: null explicitly -- there is no live caller that inserts
+ * an org-scoped row here today). Does not return the inserted row -- the
+ * caller re-fetches through the normal (camelCase, drizzle-typed) read path
+ * instead of trusting this function's own raw (snake_case) shape, which
+ * also folds the "another caller won the race" case into the same
+ * read-after-write rather than a separate branch.
+ */
+export async function serviceRoleInsertTaskCapabilityIfAbsent(values: Record<string, unknown>, conflictColumn: string): Promise<void> {
+  const { error } = await getServiceRoleClient()
+    .from("task_capabilities")
+    .upsert(values, { onConflict: conflictColumn, ignoreDuplicates: true })
+  if (error) throw new Error(`serviceRoleInsertTaskCapabilityIfAbsent failed: ${error.message}`)
 }

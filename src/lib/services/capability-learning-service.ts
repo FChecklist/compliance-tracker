@@ -12,6 +12,17 @@
 import { db, taskCapabilities, instructionPackages } from "@/lib/db"
 import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+// P2.6 (R81-ADDENDUM-B phase S5), same reason as capability-audit-service.ts:
+// every write in this file targets task_capabilities' platform-wide
+// (org_id IS NULL) rows -- see this file's own header -- which
+// drizzle/0577_p2_6_task_capabilities_registry_write_lockdown.sql makes
+// app_runtime-writable no longer. C-13 (external review): this file was the
+// SECOND writer found, missed by the first pass over capability-audit-service.ts
+// alone -- every findOrCreateCapability() call site (task-execution-engine.ts,
+// team-service.ts, dialogue-script-executor.ts, and this file's own
+// exploreUnknownPrompt()) passes orgId: null explicitly, so every write here
+// is platform-wide today.
+import { serviceRoleUpdateTaskCapability, serviceRoleInsertTaskCapabilityIfAbsent } from "@/lib/db/service-role-client"
 export { ServiceError }
 
 export type TaskCapability = typeof taskCapabilities.$inferSelect
@@ -163,26 +174,26 @@ export async function findOrCreateCapability(input: { modePill: string; pathKeys
   }
 
   const newWords = input.promptText ? tokenizePrompt(input.promptText) : []
-  const [row] = await db
-    .insert(taskCapabilities)
-    .values({
-      capabilityKey,
-      modePill: input.modePill,
-      pathKeys: input.pathKeys,
-      promptWordIndex: newWords,
-      orgId: input.orgId ?? null,
-    })
-    .onConflictDoNothing({ target: taskCapabilities.capabilityKey })
-    .returning()
+  await serviceRoleInsertTaskCapabilityIfAbsent(
+    {
+      capability_key: capabilityKey,
+      mode_pill: input.modePill,
+      path_keys: input.pathKeys,
+      prompt_word_index: newWords,
+      org_id: input.orgId ?? null,
+    },
+    "capability_key"
+  )
 
-  // onConflictDoNothing races: another concurrent caller may have inserted
-  // the same capabilityKey between our findCapabilityByKey() and this
-  // insert -- if so, `row` is undefined and we re-fetch instead of
-  // returning an incomplete result.
-  if (row) return row
-  const raceWinner = await findCapabilityByKey(capabilityKey)
-  if (!raceWinner) throw new ServiceError(`Failed to find-or-create capability ${capabilityKey}`, 500)
-  return raceWinner
+  // Always re-fetch through the normal (camelCase, drizzle-typed) read path
+  // rather than trust the service-role insert's own raw (snake_case) return
+  // shape -- this also folds the onConflictDoNothing/ignoreDuplicates race
+  // (another concurrent caller inserting the same capabilityKey between our
+  // findCapabilityByKey() above and this insert) into the same code path
+  // instead of a separate branch: either way, the row now exists.
+  const created = await findCapabilityByKey(capabilityKey)
+  if (!created) throw new ServiceError(`Failed to find-or-create capability ${capabilityKey}`, 500)
+  return created
 }
 
 // Merges new tokens into the existing word index without duplicates --
@@ -197,7 +208,7 @@ async function extendPromptWordIndex(capabilityId: string, promptText: string): 
   const existingWords = (existing.promptWordIndex as string[] | null) ?? []
   const merged = Array.from(new Set([...existingWords, ...newWords]))
   if (merged.length === existingWords.length) return // nothing new, skip the write
-  await db.update(taskCapabilities).set({ promptWordIndex: merged, updatedAt: new Date() }).where(eq(taskCapabilities.id, capabilityId))
+  await serviceRoleUpdateTaskCapability(capabilityId, { prompt_word_index: merged, updated_at: new Date().toISOString() })
 }
 
 // engine-ai-learning (VERIDIAN_Architecture_v2.0 phase_8, gap analysis
@@ -279,12 +290,6 @@ export async function findApprovedPackage(capabilityId: string, packageType: Pac
 
 export type ExecutionBucket = "FULL_SOFTWARE" | "PACKAGE_AVAILABLE" | "NOVEL"
 
-const COUNTER_RETURNING = {
-  fullSoftwareCount: taskCapabilities.fullSoftwareCount,
-  packageAvailableCount: taskCapabilities.packageAvailableCount,
-  novelCount: taskCapabilities.novelCount,
-} as const
-
 // The "software learning" write -- increments exactly one rolling counter
 // plus occurrenceCount, never overwrites history. This is what feeds
 // computeCoverageStats()'s aggregate reporting. Written as 3 explicit
@@ -292,33 +297,36 @@ const COUNTER_RETURNING = {
 // load-bearing signal the whole learning loop depends on, worth the extra
 // lines for certainty over a clever-but-riskier single code path.
 //
-// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's
-// createPromptVersion()) so the counter increment and the derived-status
-// write below happen atomically against the SAME row: Postgres holds the
-// UPDATE's row lock for the life of the transaction, so a concurrent call
-// for the same capabilityId blocks until this one commits (counters AND
-// status together), then runs against the already-consistent row. That is
-// what makes "status can never drift out of sync with the counters" true
-// here, not just a comment -- see deriveCapabilityStatus()'s own doc for
-// the markDeterministic() precedent this mirrors.
+// P2.6 (R81-ADDENDUM-B phase S5): this used to be a db.transaction() (two
+// UPDATEs against the same row, atomic via Postgres's row lock) -- moved to
+// the service-role REST client (see service-role-client.ts's header for
+// why: task_capabilities' platform-wide rows are no longer app_runtime-
+// writable), which has no multi-statement transaction. Now a single
+// read-then-write instead: read the current counters, compute the new
+// counts AND the derived status locally, write both in ONE service-role
+// call. This trades the transaction's row-lock serialization for a
+// smaller, ACCEPTED race window -- two concurrent calls for the same
+// capabilityId could both read the same starting counters and one
+// increment could be lost. Given zero customers and that this is a
+// self-healing rolling counter (not tenant-facing data, not money), that
+// tradeoff is deliberate, not an oversight -- see C-13/C-15 (external
+// review, 2026-09-10) for why this file's writes had to move at all.
 export async function recordExecutionOutcome(capabilityId: string, bucket: ExecutionBucket): Promise<void> {
-  const common = { occurrenceCount: sql`${taskCapabilities.occurrenceCount} + 1`, updatedAt: new Date() }
+  const current = await findCapabilityById(capabilityId)
+  if (!current) return // capabilityId matched no row -- nothing to derive a status from either
 
-  await db.transaction(async (tx) => {
-    let updated: { fullSoftwareCount: number; packageAvailableCount: number; novelCount: number } | undefined
+  const fullSoftwareCount = current.fullSoftwareCount + (bucket === "FULL_SOFTWARE" ? 1 : 0)
+  const packageAvailableCount = current.packageAvailableCount + (bucket === "PACKAGE_AVAILABLE" ? 1 : 0)
+  const novelCount = current.novelCount + (bucket === "NOVEL" ? 1 : 0)
+  const status = deriveCapabilityStatus(fullSoftwareCount, packageAvailableCount, novelCount)
 
-    if (bucket === "FULL_SOFTWARE") {
-      ;[updated] = await tx.update(taskCapabilities).set({ ...common, fullSoftwareCount: sql`${taskCapabilities.fullSoftwareCount} + 1` }).where(eq(taskCapabilities.id, capabilityId)).returning(COUNTER_RETURNING)
-    } else if (bucket === "PACKAGE_AVAILABLE") {
-      ;[updated] = await tx.update(taskCapabilities).set({ ...common, packageAvailableCount: sql`${taskCapabilities.packageAvailableCount} + 1` }).where(eq(taskCapabilities.id, capabilityId)).returning(COUNTER_RETURNING)
-    } else {
-      ;[updated] = await tx.update(taskCapabilities).set({ ...common, novelCount: sql`${taskCapabilities.novelCount} + 1` }).where(eq(taskCapabilities.id, capabilityId)).returning(COUNTER_RETURNING)
-    }
-
-    if (!updated) return // capabilityId matched no row -- nothing to derive a status from either
-
-    const status = deriveCapabilityStatus(updated.fullSoftwareCount, updated.packageAvailableCount, updated.novelCount)
-    await tx.update(taskCapabilities).set({ status }).where(eq(taskCapabilities.id, capabilityId))
+  await serviceRoleUpdateTaskCapability(capabilityId, {
+    full_software_count: fullSoftwareCount,
+    package_available_count: packageAvailableCount,
+    novel_count: novelCount,
+    occurrence_count: current.occurrenceCount + 1,
+    status,
+    updated_at: new Date().toISOString(),
   })
 }
 
