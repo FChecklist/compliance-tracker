@@ -607,11 +607,7 @@ export function normaliseEntryBasis(entryBasis?: string | null): "DELTA" | "SNAP
 
 /** Pure. 0-100 inclusive, the one range rule both create and update apply. */
 export function assertPercentComplete(percentComplete: number): void {
-  // TEMPORARY DOD-R3 F-2 falsification plant for R-47 (break-restore cycle) --
-  // weakens the upper-bound comparison to an unreachable threshold so values
-  // above 100 are no longer rejected. This will be reverted immediately after
-  // CI confirms red. Do not leave this in place.
-  if (!Number.isFinite(percentComplete) || percentComplete < 0 || percentComplete > Number.MAX_SAFE_INTEGER) {
+  if (!Number.isFinite(percentComplete) || percentComplete < 0 || percentComplete > 100) {
     throw new ServiceError(PERCENT_COMPLETE_RANGE_MESSAGE, 400)
   }
 }
