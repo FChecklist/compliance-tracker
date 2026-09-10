@@ -191,3 +191,51 @@ describe("D57: repo resolution must come from the citation, never a silent cwd d
     expect(output).toContain(PROJEXA_ROOT)
   })
 })
+
+describe("DOD-X5: --verify-ci checks GitHub Actions, not just local", () => {
+  test("without --verify-ci, behavior is byte-identical to before -- opt-in never breaks the existing local-only workflow", () => {
+    const citation = {
+      requirement_id: "DOD-X5-NO-FLAG-TEST",
+      repo: "compliance-tracker",
+      test_path: REAL_TRACKED_TEST,
+      commit_sha: headSha(),
+      how_broken: "would fail if reconcile() stopped treating a CRLF/LF-only difference as non-drift",
+    }
+    const { exitCode, output } = runGate(citation)
+    expect(exitCode).toBe(0)
+    expect(output).not.toContain("f-ci-verified") // check never runs unless asked
+  })
+
+  test("--verify-ci against a real commit with a real, known-successful CI run -- ACCEPTS, CI-verified", () => {
+    // A real commit 5 back from this worktree's HEAD, independently confirmed
+    // via `gh api actions/runs?head_sha=...` before writing this test: 3 real
+    // runs exist for it, one concluded success (the others failure/cancelled
+    // -- the same supersede-by-later-push pattern already documented
+    // elsewhere this session). Real GitHub data, not a fixture.
+    const realShaWithKnownCiHistory = execFileSync("git", ["rev-parse", "HEAD~5"], { cwd: REPO_ROOT, encoding: "utf8" }).trim()
+    const citation = {
+      requirement_id: "DOD-X5-REAL-CI-SUCCESS-TEST",
+      repo: "compliance-tracker",
+      test_path: REAL_TRACKED_TEST,
+      commit_sha: realShaWithKnownCiHistory,
+      how_broken: "would fail if reconcile() stopped treating a CRLF/LF-only difference as non-drift",
+    }
+    const { exitCode, output } = runGate(citation, ["--repo-root", REPO_ROOT, "--verify-ci"])
+    expect(exitCode).toBe(0)
+    expect(output).toContain("PASS | f-ci-verified")
+    expect(output).toContain("CI-verified")
+  })
+
+  test("--verify-ci with a repo not in REPO_OWNER_MAP -- SKIPS the CI check, does not fail the citation over it", () => {
+    const citation = {
+      requirement_id: "DOD-X5-UNKNOWN-REPO-TEST",
+      repo: "some-repo-not-in-the-map",
+      test_path: REAL_TRACKED_TEST,
+      commit_sha: headSha(),
+      how_broken: "would fail if reconcile() stopped treating a CRLF/LF-only difference as non-drift",
+    }
+    const { exitCode, output } = runGate(citation, ["--repo-root", REPO_ROOT, "--verify-ci"])
+    expect(exitCode).toBe(0) // SKIP must not block an otherwise-valid local citation
+    expect(output).toContain("SKIP | f-ci-verified")
+  })
+})

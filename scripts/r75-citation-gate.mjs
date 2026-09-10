@@ -209,14 +209,68 @@ function runGate({ requirement_id, test_path, commit_sha, how_broken }, root) {
   return { requirement_id, findings, anyFail }
 }
 
+// DOD-X5: check (d) above only proves the test passes RIGHT NOW, LOCALLY, in
+// whatever environment this gate happens to be run from -- never that it
+// ever passed in CI. A citation can be structurally real, locally green,
+// and still never have been proven in the environment that actually gates
+// merges (different Node/bun version, different env vars, a local-only
+// fixture, flakiness that only shows up under CI's load). Opt-in via
+// --verify-ci (needs network + a reachable `gh`, which local-only usage of
+// this gate must not require) -- SKIPPED, not FAIL, when not requested or
+// when gh itself is unreachable, so this never silently blocks the
+// existing local-only workflow.
+//
+// TRAP AVOIDED (this program's own standing note, 2026-09-10): never pipe
+// `gh api --paginate` into a JSON parser -- it concatenates multiple JSON
+// documents and a parse error yields an empty array that prints as "no CI
+// run exists," a false negative that already burned this session twice.
+// Query a single page filtered by head_sha instead; a run list for one
+// exact commit is always small enough to fit in one page.
+const REPO_OWNER_MAP = { "compliance-tracker": "FChecklist/compliance-tracker", "projexa": "FChecklist/projexa" }
+
+function ghApiJson(path) {
+  try {
+    const out = execFileSync("gh", ["api", path], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
+    return { ok: true, data: JSON.parse(out) }
+  } catch (e) {
+    return { ok: false, error: (e.stderr ?? e.message ?? String(e)).toString().split("\n")[0] }
+  }
+}
+
+function checkCiVerified(citation, root) {
+  const ghRepo = citation.repo && REPO_OWNER_MAP[citation.repo]
+  if (!ghRepo) {
+    return { check: "f-ci-verified", verdict: "SKIP", detail: `citation.repo ("${citation.repo ?? "unset"}") is not in REPO_OWNER_MAP -- cannot resolve a GitHub owner/repo to query. Add it there if this repo should be CI-verifiable.` }
+  }
+  const authCheck = ghApiJson("user")
+  if (!authCheck.ok) {
+    return { check: "f-ci-verified", verdict: "SKIP", detail: `gh unreachable/unauthenticated (${authCheck.error}) -- CI verification skipped, not failed. Re-run with --verify-ci once gh works to get a real answer.` }
+  }
+  const runs = ghApiJson(`repos/${ghRepo}/actions/runs?head_sha=${citation.commit_sha}`)
+  if (!runs.ok) {
+    return { check: "f-ci-verified", verdict: "FAIL", detail: `gh api actions/runs query failed: ${runs.error}` }
+  }
+  const total = runs.data.total_count ?? (runs.data.workflow_runs ?? []).length
+  if (total === 0) {
+    return { check: "f-ci-verified", verdict: "FAIL", detail: `zero CI runs found for commit ${citation.commit_sha} in ${ghRepo} -- this commit was never actually run through CI (superseded by a later push before its own run started, or pushed to a branch CI doesn't trigger on)` }
+  }
+  const successRun = (runs.data.workflow_runs ?? []).find((r) => r.conclusion === "success")
+  if (successRun) {
+    return { check: "f-ci-verified", verdict: "PASS", detail: `CI run ${successRun.id} (workflow "${successRun.name}") concluded success for this exact commit` }
+  }
+  const conclusions = (runs.data.workflow_runs ?? []).map((r) => `${r.name}:${r.conclusion ?? r.status}`).join(", ")
+  return { check: "f-ci-verified", verdict: "FAIL", detail: `${total} CI run(s) found for this commit, none concluded success -- ${conclusions}` }
+}
+
 const argv = process.argv.slice(2)
 const citationPath = argv[0]
 if (!citationPath) {
-  console.error("usage: node scripts/r75-citation-gate.mjs <citation.json> --repo-root <dir> | --repo-roots <dir1>,<dir2>,... (D57: one of these is now required, no cwd default)")
+  console.error("usage: node scripts/r75-citation-gate.mjs <citation.json> --repo-root <dir> | --repo-roots <dir1>,<dir2>,... [--verify-ci] (D57: one repo flag is required, no cwd default. D56/DOD-X5: --verify-ci additionally checks GitHub Actions, not just local)")
   process.exit(2)
 }
 const citation = JSON.parse(fs.readFileSync(citationPath, "utf8"))
 const roots = repoRoots(argv, citation) // D57: parse citation first, it can name the repo; this call exits(2) if no root was given at all
+const verifyCi = argv.includes("--verify-ci")
 
 const perRoot = roots.map(root => ({ root, ...runGate(citation, root) }))
 const winner = perRoot.find(r => !r.anyFail)
@@ -226,9 +280,25 @@ for (const r of perRoot) {
   if (roots.length > 1) console.log(`-- in ${r.root} --`)
   for (const f of r.findings) console.log(`${f.verdict} | ${f.check} | ${f.detail}`)
 }
-if (winner) {
-  console.log(`--- ${citation.requirement_id}: ACCEPTED in ${winner.root}, may be written CLOSED (record which repo in the closure citation) ---`)
+
+// DOD-X5: runs once per citation (not per root -- CI is a property of the
+// commit/repo pair, not of which local checkout happened to check it), and
+// only matters at all if local checks already found a winner -- no point
+// asking GitHub about a citation that's already structurally rejected.
+let ciResult = null
+if (verifyCi && winner) {
+  ciResult = checkCiVerified(citation, winner.root)
+  console.log(`${ciResult.verdict} | ${ciResult.check} | ${ciResult.detail}`)
+}
+const ciBlocks = verifyCi && ciResult && ciResult.verdict === "FAIL"
+
+if (winner && !ciBlocks) {
+  const ciNote = verifyCi ? (ciResult.verdict === "PASS" ? ", CI-verified" : ", CI check SKIPPED (see above, not a rejection)") : ""
+  console.log(`--- ${citation.requirement_id}: ACCEPTED in ${winner.root}${ciNote}, may be written CLOSED (record which repo in the closure citation) ---`)
   process.exit(0)
+} else if (winner && ciBlocks) {
+  console.log(`--- ${citation.requirement_id}: REJECTED -- local checks passed in ${winner.root}, but --verify-ci found no successful CI run for this exact commit. A citation must be proven in the environment that actually gates merges, not only locally. ---`)
+  process.exit(1)
 } else {
   // D57: NOT a fabrication verdict on its own -- only "not found in the
   // repo(s) actually checked." If citation.repo names something not among
