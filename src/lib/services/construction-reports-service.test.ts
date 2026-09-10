@@ -658,7 +658,10 @@ describe("computeEarnedValue -- R-44/R-45 explicit invariant checks", () => {
     ])
     const result = computeEarnedValue(items, qtyByItem, new Map())
     // 30 x 60/100 + 20 x 40/100 = 18 + 8 = 26
-    expect(result.earnedValue).toBe(26)
+    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): flips the
+    // R-44-specific expected earnedValue from the correct 26 to a
+    // deterministically wrong 27, to prove this closure test can actually FAIL.
+    expect(result.earnedValue).toBe(27)
   })
 
   test("R-45: the parent percent complete equals the parent's cumulative amount divided by its total contracted amount", () => {
