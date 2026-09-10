@@ -621,22 +621,37 @@ jobs:
       # not a weaker check).
       - run: bunx playwright install --with-deps chromium
       - name: Run compliance-tracker Env-1 specs
-        run: bunx playwright test e2e/r01-r02-boq-create-env1.spec.ts e2e/r32-boq-total-excludes-subtasks-env1.spec.ts e2e/r40-work-progress-weighted-subtask-env1.spec.ts
+        # PM note (2026-09-10, D82/E-47 follow-on): W-TEST is adding 6 more
+        # route-level specs (R-21/22/23/24/33/C13) to this same batch, so
+        # this job will end up running more than today's known 3 files.
+        # Matched by the "*-env1.spec.ts" naming convention every spec in
+        # this batch already follows (playwright's own CLI treats a bare
+        # positional arg as a path substring/regex, not an exact filename --
+        # unrelated to bun test's own bare-path NAME FILTER bug this repo's
+        # citation gate works around, different tool, different rule) rather
+        # than hardcoded filenames, so new same-convention specs are picked
+        # up automatically once merged -- nothing here needs editing again
+        # just because the count grows. ciExcludedSpecs in
+        # playwright.config.ts (demo-gate-smoke/r48/r63) still applies on
+        # top of this and stays excluded, unaffected by the pattern.
+        run: bunx playwright test env1.spec.ts
         env:
           E2E_PROJEXA_ORIGIN: http://localhost:3100
           E2E_ENV1_JOB: "true"
 
-      # --- Run projexa's own R-60 spec under projexa's OWN playwright
-      # config (auth.setup.ts + storageState, a different fixture
+      # --- Run projexa's own Env-1 spec(s) (R-60 today) under projexa's OWN
+      # playwright config (auth.setup.ts + storageState, a different fixture
       # convention to this repo's mint-session-r33/GoTrue flow) -- separate
       # browser install, this repo's node_modules/playwright and projexa's
-      # are independent installs.
+      # are independent installs. Same "*-env1.spec.ts" pattern-match as
+      # above, same forward-compatibility reasoning, in case any of the 6
+      # new W-TEST specs land in projexa's own e2e/ instead of this repo's.
       - name: Install projexa's playwright browsers
         working-directory: projexa-checkout
         run: bunx playwright install --with-deps chromium
-      - name: Run projexa Env-1 spec (R-60)
+      - name: Run projexa Env-1 spec(s)
         working-directory: projexa-checkout
-        run: bunx playwright test e2e/r60-boq-currency-env1.spec.ts
+        run: bunx playwright test env1.spec.ts
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3100
 
