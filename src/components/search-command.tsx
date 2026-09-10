@@ -231,6 +231,22 @@ function SearchDialog() {
     [router]
   );
 
+  // Notices have a real per-record detail page (/notices/[id]); documents do
+  // not, so they land on their list page -- the same convention
+  // handleStandardSelect already applies to tasks and clients. Both rows were
+  // rendered with cursor-pointer and no onSelect at all, so they looked
+  // clickable and did nothing (DOD-S6).
+  const handleSemanticSelect = useCallback(
+    (kind: "notice" | "document", id: string) => {
+      setOpen(false);
+      setQuery("");
+      setResults(null);
+      setSemanticResults(null);
+      router.push(kind === "notice" ? `/notices/${id}` : "/documents");
+    },
+    [router]
+  );
+
   const totalStandardResults = results
     ? results.compliance_items.length + results.tasks.length + results.clients.length
     : 0;
@@ -457,6 +473,7 @@ function SearchDialog() {
                         <CommandItem
                           key={r.id}
                           value={r.title}
+                          onSelect={() => handleSemanticSelect("notice", r.id)}
                           className="flex items-start gap-3 cursor-pointer py-2.5"
                         >
                           <AlertTriangle className="size-4 text-red-500 mt-0.5 shrink-0" />
@@ -508,6 +525,7 @@ function SearchDialog() {
                       <CommandItem
                         key={r.id}
                         value={r.title}
+                        onSelect={() => handleSemanticSelect("document", r.id)}
                         className="flex items-start gap-3 cursor-pointer py-2.5"
                       >
                         <FileText className="size-4 text-ct-saffron-text mt-0.5 shrink-0" />
