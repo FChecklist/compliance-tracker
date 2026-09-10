@@ -30,6 +30,10 @@ describe("G-02: an executed write records whether a model chose it", () => {
     }
   });
 
+  test("P1.2/P1.3: phrase_fuzzy (trigram similarity, a software score, no model call) is recorded as software, same reasoning as reuse_cache", () => {
+    expect(executorFor("phrase_fuzzy")).toBe("software");
+  });
+
   test("a reuse_cache replay is software, and that is a judgement, not an oversight", () => {
     // No model ran for THIS write, so "the AI acted" is false for this request.
     // The mapping being replayed was chosen by a model earlier, and that

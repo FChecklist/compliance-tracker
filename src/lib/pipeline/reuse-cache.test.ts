@@ -7,6 +7,7 @@
 // established for classifyL0()/L0Repo.
 import { describe, expect, test } from "bun:test";
 import { computeReuseCacheKey, resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
+import type { PhraseFuzzyRepo, PhraseFuzzyMatch } from "./phrase-fuzzy";
 import type { Level1Context, Level1Outcome } from "./level1";
 import type { ResolvedFunction } from "./classify";
 
@@ -18,6 +19,10 @@ function fakeRepo(overrides: Partial<ReuseCacheRepo> = {}): ReuseCacheRepo {
     recordReuseHit: async () => {},
     ...overrides,
   };
+}
+
+function fakeFuzzyRepo(byText: Record<string, PhraseFuzzyMatch | null>): PhraseFuzzyRepo {
+  return { findBestMatch: async (text: string) => byText[text] ?? null };
 }
 
 describe("computeReuseCacheKey -- pure, deterministic", () => {
@@ -118,7 +123,7 @@ describe("resolveMissesWithReuseCache -- cache hit skips the model entirely", ()
 
     expect(repoCalls).toBe(0);
     expect(level1Calls).toBe(0);
-    expect(out).toEqual({ resolutions: [], reasons: [], modelCalls: 0, cacheHits: 0 });
+    expect(out).toEqual({ resolutions: [], reasons: [], modelCalls: 0, cacheHits: 0, fuzzyHits: 0 });
   });
 });
 
@@ -160,5 +165,87 @@ describe("resolveMissesWithReuseCache -- recording a new resolution back into th
 
     expect(recordCalls).toBe(0);
     expect(out.resolutions[0]?.functionId).toBe("record_work_progress");
+  });
+});
+
+describe("P1.2/P1.3 -- the trigram fuzzy tier, checked after reuse_cache and before Level 1", () => {
+  test("no fuzzyRepo injected (every pre-P1.2 call site) is behaviour-identical: falls straight through to Level 1", async () => {
+    let level1Calls = 0;
+    const repo = fakeRepo();
+    const fakeLevel1 = async (texts: string[]): Promise<Level1Outcome> => {
+      level1Calls++;
+      return { resolutions: texts.map(() => null), reasons: texts.map(() => "no fuzzy match"), modelCalls: 1 };
+    };
+
+    const out = await resolveMissesWithReuseCache(["PP1 is 50% done"], CTX, repo, fakeLevel1);
+
+    expect(level1Calls).toBe(1);
+    expect(out.fuzzyHits).toBe(0);
+  });
+
+  test("a fuzzy match resolves with ZERO calls to Level 1 -- the mechanism that moves 95/5", async () => {
+    let level1Calls = 0;
+    const repo = fakeRepo();
+    const fuzzyRepo = fakeFuzzyRepo({ "PP1 is 51% done": { functionId: "record_work_progress", fixedParams: { itemCode: "PP1" }, score: 0.9 } });
+    const fakeLevel1 = async (): Promise<Level1Outcome> => {
+      level1Calls++;
+      return { resolutions: [], reasons: [], modelCalls: 1 };
+    };
+
+    const out = await resolveMissesWithReuseCache(["PP1 is 51% done"], CTX, repo, fakeLevel1, {}, fuzzyRepo);
+
+    expect(level1Calls).toBe(0);
+    expect(out.modelCalls).toBe(0);
+    expect(out.fuzzyHits).toBe(1);
+    expect(out.resolutions[0]).toEqual({ functionId: "record_work_progress", params: { itemCode: "PP1" }, source: "phrase_fuzzy", level: 0 });
+  });
+
+  test("a fuzzy miss (null fixedParams too) falls through to Level 1, and only the miss reaches it", async () => {
+    const seenByLevel1: string[] = [];
+    const repo = fakeRepo();
+    const fuzzyRepo = fakeFuzzyRepo({ matched: { functionId: "record_work_progress", fixedParams: null, score: 0.95 } });
+    const fakeLevel1 = async (texts: string[]): Promise<Level1Outcome> => {
+      seenByLevel1.push(...texts);
+      return { resolutions: texts.map(() => null), reasons: texts.map(() => "unresolved"), modelCalls: 1 };
+    };
+
+    const out = await resolveMissesWithReuseCache(["matched", "unmatched"], CTX, repo, fakeLevel1, {}, fuzzyRepo);
+
+    expect(seenByLevel1).toEqual(["unmatched"]);
+    expect(out.fuzzyHits).toBe(1);
+    expect(out.resolutions[0]).toEqual({ functionId: "record_work_progress", params: {}, source: "phrase_fuzzy", level: 0 });
+    expect(out.modelCalls).toBe(1);
+  });
+
+  test("reuse_cache is still checked FIRST -- a cache hit never reaches the fuzzy repo at all", async () => {
+    let fuzzyCalls = 0;
+    const repo = fakeRepo({ findReuseHit: async () => ({ functionId: "record_work_progress", params: { itemCode: "PP1" } }) });
+    const fuzzyRepo: PhraseFuzzyRepo = { findBestMatch: async () => { fuzzyCalls++; return null; } };
+    const fakeLevel1 = async (): Promise<Level1Outcome> => ({ resolutions: [], reasons: [], modelCalls: 1 });
+
+    const out = await resolveMissesWithReuseCache(["PP1 is 50% done"], CTX, repo, fakeLevel1, {}, fuzzyRepo);
+
+    expect(fuzzyCalls).toBe(0);
+    expect(out.cacheHits).toBe(1);
+    expect(out.fuzzyHits).toBe(0);
+  });
+
+  test("when every miss is resolved by the fuzzy tier, Level 1 is never called (mirrors the all-cache-hit case)", async () => {
+    let level1Calls = 0;
+    const repo = fakeRepo();
+    const fuzzyRepo = fakeFuzzyRepo({
+      a: { functionId: "record_work_progress", fixedParams: {}, score: 0.9 },
+      b: { functionId: "record_work_progress", fixedParams: {}, score: 0.87 },
+    });
+    const fakeLevel1 = async (): Promise<Level1Outcome> => {
+      level1Calls++;
+      return { resolutions: [], reasons: [], modelCalls: 1 };
+    };
+
+    const out = await resolveMissesWithReuseCache(["a", "b"], CTX, repo, fakeLevel1, {}, fuzzyRepo);
+
+    expect(level1Calls).toBe(0);
+    expect(out.fuzzyHits).toBe(2);
+    expect(out.modelCalls).toBe(0);
   });
 });

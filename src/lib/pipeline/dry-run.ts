@@ -25,6 +25,7 @@ import { segment } from "./segment";
 import { classifyL0, type L0Repo } from "./level0";
 import { classifySegment, type Classification, type ResolvedFunction } from "./classify";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
+import type { PhraseFuzzyRepo } from "./phrase-fuzzy";
 import { deriveChain, type ChainRepo, type DerivedChain } from "./derive-chain";
 import { functionWrites, type ExecutableTask, type ExecutionOutcome } from "./executor";
 import { functionKind, functionLabel, functionSpec, requiredParamSatisfied, type CardSchema, type FunctionKind } from "./function-registry";
@@ -148,6 +149,8 @@ export type DryRunTelemetry = {
   modelCalls: number;
   /** segments served from compliance.reuse_cache -- free, and never model calls */
   cacheHits: number;
+  /** P1.2/P1.3: segments served from the trigram fuzzy tier (phrase-fuzzy.ts) -- free, and never model calls, distinct from cacheHits. */
+  fuzzyHits: number;
   level1Outcome: "resolved" | "refused" | "not_needed" | "error";
   /** the thrown message, verbatim, for `refused` AND `error`. Null otherwise. */
   level1RefusalReason: string | null;
@@ -159,6 +162,8 @@ export type DryRunResult = { dryRun: true; proposals: DryRunProposal[]; telemetr
 export type DryRunDeps = {
   l0Repo: L0Repo;
   reuseRepo: ReuseCacheRepo;
+  /** P1.2/P1.3: optional so every existing test fixture (none of which sets it) is unaffected -- undefined means "no fuzzy tier", same as passing none to resolveMissesWithReuseCache directly. makeDryRunDeps() (the real production factory, run-submission.ts) sets this to a real makePhraseFuzzyRepo(). */
+  fuzzyRepo?: PhraseFuzzyRepo;
   chainRepo: ChainRepo;
   rootLabel: string | null;
   /** the project's LEAF BOQ lines, for a missing BOQ-line chip row */
@@ -320,7 +325,7 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
   if (segments.length === 0) {
     // Nothing was said, so nothing was asked of the model: "not_needed", never
     // "refused" -- see DryRunTelemetry.
-    return flatten([], { segments: 0, resolved: 0, l0Hits: 0, modelCalls: 0, cacheHits: 0, level1Outcome: "not_needed", level1RefusalReason: null });
+    return flatten([], { segments: 0, resolved: 0, l0Hits: 0, modelCalls: 0, cacheHits: 0, fuzzyHits: 0, level1Outcome: "not_needed", level1RefusalReason: null });
   }
 
   const l0 = await Promise.all(segments.map((s) => classifyL0(s.text, { orgId: input.orgId, userId: input.userId }, deps.l0Repo)));
@@ -339,6 +344,7 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
   // That pattern is not extended here.
   let modelCalls = 0;
   let cacheHits = 0;
+  let fuzzyHits = 0;
   let level1Outcome: DryRunTelemetry["level1Outcome"] = "not_needed";
   let level1RefusalReason: string | null = null;
   // No L0 miss means the Level 1 lane is never entered at all --
@@ -355,12 +361,22 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
           projectId: input.projectId ?? null,
           candidateFunctionIds: input.candidateFunctionIds,
         },
-        deps.reuseRepo
+        deps.reuseRepo,
+        undefined,
+        undefined,
+        // P1.2/P1.3: the trigram fuzzy tier reads the classification-time
+        // similarity signal here, at the same L0-miss -> Level-1 boundary
+        // reuse_cache already occupies -- see phrase-fuzzy.ts's own header.
+        // Injected via deps (same testability seam as reuseRepo/l0Repo) --
+        // undefined for every existing test fixture, a real DB-backed repo
+        // from makeDryRunDeps() in production.
+        deps.fuzzyRepo
       );
       resolutions = level1.resolutions;
       // The two numbers this line used to drop on the floor.
       modelCalls = level1.modelCalls;
       cacheHits = level1.cacheHits;
+      fuzzyHits = level1.fuzzyHits;
       level1Outcome = "resolved";
     } catch (error) {
       // A REFUSAL IS NOT AN OUTAGE, AND NEITHER IS A SUCCESS.
@@ -372,6 +388,7 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
       // telemetry exists to prevent.
       modelCalls = 0;
       cacheHits = 0;
+      fuzzyHits = 0;
       level1Outcome = error instanceof AiProviderRefusalError ? "refused" : "error";
       level1RefusalReason = error instanceof Error ? error.message : String(error);
       console.warn(
@@ -572,6 +589,7 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
     l0Hits,
     modelCalls,
     cacheHits,
+    fuzzyHits,
     level1Outcome,
     level1RefusalReason,
   });

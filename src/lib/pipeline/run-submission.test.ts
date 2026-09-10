@@ -407,6 +407,7 @@ describe("R80 1a -- dry-run telemetry tells a refusal apart from a software win"
       l0Hits: 0,
       modelCalls: 0,
       cacheHits: 0,
+      fuzzyHits: 0,
       level1Outcome: "not_needed",
       level1RefusalReason: null,
     })

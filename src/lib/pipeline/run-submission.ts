@@ -25,6 +25,7 @@ import { type ResolutionSource, classifySegment, classifySubmission, normaliseFo
 import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
+import { makePhraseFuzzyRepo, type PhraseFuzzyRepo } from "./phrase-fuzzy";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
 import { codeForParam, failureLogLine, isRetryableFailure, pipelineFailure, serialiseFailure, type PipelineFailure } from "./error-codes";
 import { dryRunSubmission as dryRun, missingParamsFor, type DryRunDeps, type DryRunResult, type DryRunTelemetry } from "./dry-run";
@@ -372,6 +373,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
 
   const repo = makeL0Repo(input.orgId, input.userId);
   const reuseRepo = makeReuseCacheRepo(input.orgId, input.userId);
+  const fuzzyRepo = makePhraseFuzzyRepo(input.orgId);
   const chainRepo = makeChainRepo(input.orgId);
   const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
   const boqFacts = makeBoqFactsResolver(input.orgId, input.userId, input.projectId ?? null);
@@ -379,7 +381,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   let resolvedCount = 0;
 
   // ---- RESOLUTION PASS -------------------------------------------------
-  const resolved = await resolveAll(segs, input, repo, reuseRepo);
+  const resolved = await resolveAll(segs, input, repo, reuseRepo, fuzzyRepo);
   for (const r of resolved) {
     if (r.classification.verdict !== "gap") {
       resolvedCount++;
@@ -880,14 +882,18 @@ async function recordChainHistory(
  * each, then R53's re-join-once retry for whatever still resolved to
  * nothing.
  */
-async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Repo, reuseRepo: ReuseCacheRepo): Promise<ResolvedSegment[]> {
+async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Repo, reuseRepo: ReuseCacheRepo, fuzzyRepo?: PhraseFuzzyRepo): Promise<ResolvedSegment[]> {
   const l0 = await Promise.all(segs.map((s) => classifyL0(s.text, { orgId: input.orgId, userId: input.userId }, repo)));
 
   // R65 Part D: reuse_cache is checked BEFORE Level 1 for every miss -- see
   // reuse-cache.ts's own header. A hit is served with zero model calls
   // (level: 0), so modelCallCount below only ever counts genuine AI calls.
   const missIndices = l0.map((r, i) => (r.kind === "miss" ? i : -1)).filter((i) => i >= 0);
-  const level1 = await resolveMissesWithReuseCache(missIndices.map((i) => segs[i].text), level1Context(input), reuseRepo);
+  // P1.2/P1.3: trigram fuzzy tier reads the classification-time similarity
+  // signal at this same L0-miss -> Level-1 boundary -- see phrase-fuzzy.ts.
+  // Injected (same testability seam as repo/reuseRepo) -- undefined for any
+  // caller that doesn't pass one.
+  const level1 = await resolveMissesWithReuseCache(missIndices.map((i) => segs[i].text), level1Context(input), reuseRepo, undefined, undefined, fuzzyRepo);
   modelCallCount += level1.modelCalls;
   const aiByIndex = level1.resolutions;
 
@@ -948,7 +954,7 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
     retryTexts.map((r) => classifyL0(r.text, { orgId: input.orgId, userId: input.userId }, repo))
   );
   const retryMissIdx = retryL0.map((r, i) => (r.kind === "miss" ? i : -1)).filter((i) => i >= 0);
-  const retryLevel1 = await resolveMissesWithReuseCache(retryMissIdx.map((i) => retryTexts[i].text), level1Context(input), reuseRepo);
+  const retryLevel1 = await resolveMissesWithReuseCache(retryMissIdx.map((i) => retryTexts[i].text), level1Context(input), reuseRepo, undefined, undefined, fuzzyRepo);
   modelCallCount += retryLevel1.modelCalls;
   const retryAi = retryLevel1.resolutions;
 
@@ -1154,6 +1160,7 @@ export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunD
   return {
     l0Repo: makeL0Repo(input.orgId, input.userId),
     reuseRepo: makeReuseCacheRepo(input.orgId, input.userId),
+    fuzzyRepo: makePhraseFuzzyRepo(input.orgId),
     chainRepo: makeChainRepo(input.orgId),
     rootLabel,
     boqLineOptions: async (projectId: string) => {

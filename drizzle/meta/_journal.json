@@ -2745,6 +2745,13 @@
       "when": 1788510814000,
       "tag": "0575_r81_rls_on_remaining_platform_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 392,
+      "version": "7",
+      "when": 1788510815000,
+      "tag": "0576_r80part2_trigram_similarity",
+      "breakpoints": true
     }
   ]
 }

@@ -26,7 +26,7 @@ export type SegmentVerdict = "task" | "chat" | "gap";
 // -- see src/lib/pipeline/reuse-cache.ts's own header for the full
 // argument). Purely additive: no exhaustive switch anywhere in this repo
 // depends on this union being closed (verified by grep before adding this).
-export type ResolutionSource = "phrase_map" | "structural" | "last_action" | "level1" | "reuse_cache";
+export type ResolutionSource = "phrase_map" | "structural" | "last_action" | "level1" | "reuse_cache" | "phrase_fuzzy";
 
 /** What Level 0 or Level 1 resolved this segment to. Null when neither could. */
 export type ResolvedFunction = {

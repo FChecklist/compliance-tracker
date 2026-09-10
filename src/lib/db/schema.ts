@@ -12958,6 +12958,34 @@ export const aiRoutingAuditLog = platformSchemaDB.table('ai_routing_audit_log', 
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// R80 Part 2 / W-ROUTER P1.3 -- a dedicated reader for the pipeline's own
+// software-vs-AI split, deliberately NOT folded into ai_routing_audit_log
+// above (that table's axis is aiRouterScopeEnum -- Mother Router's
+// software_team/end_user_org/sales_marketing/customer_success scopes, a
+// different question from "did compliance.phrase_map's trigram tier or
+// Level 1 resolve this batch of segments") and NOT folded into
+// compliance.ai_reduction_snapshots either (that table measures a different
+// subsystem entirely -- platform.task_capabilities via
+// recordExecutionOutcome, none of whose callers are in src/lib/pipeline;
+// see R80_PART2_AI_ROUTER_AUDIT.md finding #25's explicit warning against
+// mixing the two). One row per measurement run (a live batch, a calibration
+// fixture run, or a seeded test), not one row per submission -- per-
+// submission telemetry already lives on compliance.submissions (migration
+// 0571, step 1b: level/source/l0_hit_rate/model_calls/cache_hits/
+// level1_outcome/level1_refusal_code).
+export const pipelineSimilarityMetrics = platformSchemaDB.table('pipeline_similarity_metrics', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  measuredAt: timestamp('measured_at').notNull().defaultNow(),
+  /** free text identifying what produced this row -- e.g. "p1.3-seed-test", "live-batch-2026-09-10" -- never parsed, only read by a human/dashboard. */
+  label: text('label').notNull(),
+  sampleSize: integer('sample_size').notNull(),
+  fuzzyHits: integer('fuzzy_hits').notNull(),
+  modelCalls: integer('model_calls').notNull(),
+  /** fuzzyHits / sampleSize, precomputed so a reader never has to guess the denominator (segments with zero AI need, e.g. an L0 exact hit, are never counted into sampleSize at all -- see phrase-fuzzy.ts). */
+  fuzzyHitRate: numeric('fuzzy_hit_rate', { precision: 5, scale: 4 }).notNull(),
+  note: text('note'),
+})
+
 // ─── Mother Router / AI Agent Roster persistent memory (ai-os gap
 // mother-router-roster-memory, 2026-07-26) ─────────────────────────────────
 // Genuinely distinct from ai_routing_audit_log above: that table is a
