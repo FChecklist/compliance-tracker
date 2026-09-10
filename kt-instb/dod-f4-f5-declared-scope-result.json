@@ -1,0 +1,42 @@
+{
+  "declared_scope": {
+    "F4": [
+      "erp-payroll-service.ts createPayrollRun (orgId,month,year), no DB backstop"
+    ],
+    "F5": [
+      "veri-meeting-service.ts updateVeriMeetingDetails, no optimistic-locking mechanism confirmed absent codebase-wide by sweep"
+    ]
+  },
+  "out_of_scope_note": "every other mutation route in this repo is OUT_OF_SCOPE for this pass -- not tested, not claimed passing, not claimed absent. See pm/ report for the 2 additional F4 candidates identified but not built this pass (construction-labour-service.ts recordAttendance, erp-selling-service.ts createCustomer).",
+  "results": {
+    "f4_falsifiability": {
+      "proven": true,
+      "method": "in-process (DDL unavailable to app_runtime), concurrent-fire pattern validated; real-table result follows in next test"
+    },
+    "f4_untracked_db_constraint": {
+      "constraints_found": [
+        "erp_payroll_runs_org_id_month_year_key"
+      ]
+    },
+    "f4_real_result": {
+      "trials": 8,
+      "duplicate_data_ever_persisted": 0,
+      "outcome_clean_app_409": 1,
+      "outcome_raw_db_constraint_violation": 7,
+      "outcome_other": 0,
+      "sample_raw_error": "Error: Failed query: insert into \"compliance\".\"erp_payroll_runs\" (\"id\", \"org_id\", \"month\", \"year\", \"status\", \"processed_at\", \"created_by_id\", \"created_at\") values ($1, $2, $3, $4, default, default, $5, default) returning \"id\", \"org_id\", \"month\", \"year\", \"status\", \"processed_at\", \"created_by_id\", \"cr",
+      "verdict": "PASS ON DATA (0/8 trials ever persisted a duplicate row) -- but 7/8 trials surfaced a raw, unhandled Postgres constraint violation to the losing caller instead of the app's intended clean 409 (\"A payroll run already exists for this month/year\"). The app-level check-then-throw has a real, non-simulated race window: it is saved from ever creating an actual duplicate only by a database constraint (erp_payroll_runs_org_id_month_year_key) that exists on the live database but in NO tracked migration -- if that untracked constraint were ever dropped/not replicated to another environment, this route would create real duplicates under load, not just ugly errors."
+    },
+    "f5_falsifiability": {
+      "proven": true,
+      "protected_successes": 1
+    },
+    "f5_real_result": {
+      "caller_a_outcome": "fulfilled",
+      "caller_b_outcome": "fulfilled",
+      "both_callers_told_success": true,
+      "final_title_in_db": "CALLER-A-TITLE",
+      "verdict": "FAIL (confirms sweep) -- both concurrent conflicting writers were told success, one was silently discarded with no conflict signal to either caller"
+    }
+  }
+}
