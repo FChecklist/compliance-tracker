@@ -56,6 +56,18 @@ const REAL_TRACKED_TEST = "scripts/check-migration-integrity.test.ts"
 // citation (repo says projexa; checking ct alone finds nothing).
 const PROJEXA_ONLY_TEST = "src/lib/currency-fallback-env.test.ts"
 
+// CI's actions/checkout only checks out THIS repo (compliance-tracker);
+// C:/ct/projexa is a local-laptop-only path that does not exist there.
+// headSha(PROJEXA_ROOT) previously threw ENOENT ("posix_spawn 'git'") in CI
+// -- a misleading message; the real cause is execFileSync's cwd not
+// existing, not git being missing from PATH (confirmed: this repo's OTHER
+// git calls in the same run succeeded). Skip these two genuine-second-repo
+// tests when that path isn't present rather than fail loud on an
+// environment difference that has nothing to do with D57's own logic --
+// D57 itself (repo resolution never defaults to cwd) is independently
+// covered above by a REPO_ROOT-only test that has no such dependency.
+const PROJEXA_ROOT_EXISTS = fs.existsSync(PROJEXA_ROOT)
+
 function headSha(root = REPO_ROOT) {
   return execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim()
 }
@@ -166,7 +178,7 @@ describe("D57: repo resolution must come from the citation, never a silent cwd d
     expect(output).toContain("will NOT default to the current directory")
   })
 
-  test("a citation naming a repo it isn't checked against -- REJECTS with 'not found here', explicitly NOT worded as fabrication, and names the declared repo", () => {
+  test.skipIf(!PROJEXA_ROOT_EXISTS)("a citation naming a repo it isn't checked against -- REJECTS with 'not found here', explicitly NOT worded as fabrication, and names the declared repo (SKIPPED when C:/ct/projexa isn't present, e.g. in CI)", () => {
     // the exact shape of R-81's real citation: repo says projexa, but only
     // ct (this worktree) is checked -- must fail loud and correctly-worded,
     // not silently or as a fabrication claim
@@ -187,7 +199,7 @@ describe("D57: repo resolution must come from the citation, never a silent cwd d
     expect(output).toContain('declares repo "projexa"')
   })
 
-  test("the SAME citation, checked with the repo it actually names included via --repo-roots -- ACCEPTS. Proves the fix is checking the right repo, not that R-81-shaped citations are unprovable", () => {
+  test.skipIf(!PROJEXA_ROOT_EXISTS)("the SAME citation, checked with the repo it actually names included via --repo-roots -- ACCEPTS. Proves the fix is checking the right repo, not that R-81-shaped citations are unprovable (SKIPPED when C:/ct/projexa isn't present, e.g. in CI)", () => {
     const citation = {
       requirement_id: "D57-CORRECT-REPO-INCLUDED-TEST",
       repo: "projexa",
