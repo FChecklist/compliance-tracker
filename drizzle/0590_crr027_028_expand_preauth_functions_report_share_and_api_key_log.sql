@@ -82,6 +82,30 @@
 -- Not touched, on purpose: zero ALTER on any RLS policy on any of the four
 -- tables (users, api_keys, api_key_request_log, report_share_links). Zero
 -- REVOKE. This migration cannot deny a call that succeeds today.
+--
+-- *** APPLIED LIVE 2026-09-10 via the Supabase MCP, ahead of this file
+-- merging (PM ruling, same pattern as 0584/0585 earlier today) *** -- do
+-- not be confused if these objects already exist when this PR is reviewed;
+-- that is expected, not drift. AFTER-apply widening confirmed live via
+-- pg_proc.proacl: 5 -> 12 compliance-schema SECURITY DEFINER functions
+-- with an explicit app_runtime EXECUTE grant, exact count, not estimated.
+--
+-- NAMED RESIDUAL, per PM instruction, not to be silently absorbed into this
+-- comment and forgotten: compliance.lookup_user_by_id(p_id) above returns
+-- SETOF compliance.users for ANY id, cross-org, SECURITY DEFINER -- correct
+-- and necessary today (the caller passes the full row to logActivity(),
+-- whose signature requires typeof users.$inferSelect, and narrowing this
+-- function means changing that signature, which is CONTRACT-adjacent work,
+-- not EXPAND). This is a real reduction from today's status quo (a full
+-- SELECT * FROM compliance.users returning every tenant's rows, via the
+-- postgres-role bypass) down to "one row at a time, by exact id, through a
+-- named function" -- but it is NOT eliminated by this migration or by the
+-- eventual CONTRACT phase closing the blanket policies. Tracked as its own
+-- follow-up ticket: narrow lookup_user_by_id by changing logActivity's
+-- dbUser parameter shape first, then narrow this function's return type to
+-- match. Carry this forward explicitly -- CRR-027/028 should never be
+-- reported as fully closed while this function's full-row cross-org shape
+-- is still live, even after CONTRACT lands.
 
 -- ============================================================
 -- 1. compliance.user_exists -- prompt-governance-service.ts:193
