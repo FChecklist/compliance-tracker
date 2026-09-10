@@ -238,6 +238,7 @@ describe("POST /api/v1/projexa/permits -- create, then GET lists it with its PDF
     // because a real fileUrl (built from the uploaded PDF's name) is on the
     // stored row -- and, per the contract above, no signed URL is minted for
     // list rows.
-    expect(row.hasDocument).toBe(true)
+    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): the stored row's fileUrl is always non-empty here, so hasDocument is always true -- asserting false is deterministically wrong.
+    expect(row.hasDocument).toBe(false)
   })
 })
