@@ -1,0 +1,5287 @@
+[
+  {
+    "specifier": "@/app/api/access-review/cycles/[id]/certifications/[certId]/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/access-review/cycles/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/ai/orchestrate/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/approval-workflows/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/approval-workflows/steps/[id]/decide/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/approvals/[id]/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/assets/[assetId]/relationships/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/audit-engagements/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/audit-findings/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/audit-findings/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/audit-points/[id]/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/automation-rules/[id]/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/automation-rules/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/bcm/[id]/bia/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/bcm/[id]/exercises/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/bcm/[id]/recovery-procedures/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/bcm/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/board-evaluation/[id]/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/board-evaluation/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/board/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/board/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/business-hours-schedules/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/business-rules/[id]/activate/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/business-rules/[id]/deprecate/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/business-rules/[id]/dry-run/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/business-rules/[id]/rollback/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/business-rules/[id]/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/business-rules/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/cap-table/events/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/cap-table/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/capability-registry/backfill/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/capability-registry/coverage/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/capability-registry/duplicates/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/capability-registry/impact/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/capability-registry/modules/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/challans/[id]/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/challans/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/charges/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/clients/[id]/access/route",
+    "guard": "requireRole",
+    "role": "branch_manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/clients/[id]/entities/route",
+    "guard": "requireRole",
+    "role": "branch_manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/clients/route",
+    "guard": "requireRole",
+    "role": "branch_manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/clm/clauses/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/clm/clauses/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/clm/templates/[id]/clauses/[templateClauseId]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/clm/templates/[id]/clauses/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/clm/templates/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/code-change-requests/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/committees/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/compliance-costs/[id]/payments/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/compliance/[id]/comments/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/compliance/[id]/costs/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/compliance/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/compliance/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/compliance/export-event/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/compliance/import/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/compliance/overdue/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/compliance/recur/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/compliance/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/activities/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/ai/diff-drawings/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/ai/estimate-progress/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/attendance/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/boq/[id]/approve/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/boq/[id]/revisions/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/boq/[id]/submit/route",
+    "guard": "requireRole",
+    "role": "branch_manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/boq/import/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/boq/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/categories/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/enablement/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/expenses/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/interim-bills/route",
+    "guard": "requireRole",
+    "role": "branch_manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/kpi-definitions/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/kpi-entries/[id]/approve/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/kpi-entries/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/labour-roster/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/progress-claims/[id]/approve/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/progress-claims/[id]/draft/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/progress-claims/[id]/invoice/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/progress-claims/[id]/reject/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/progress-claims/[id]/submit/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/progress-claims/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/progress/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/progress/daily/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/progress/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/construction/site-diary/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/contract-compliance/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/conversations/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/crm/activities/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/crm/campaigns/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/crm/campaigns/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/crm/leads/[id]/convert/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/crm/leads/import/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/crm/opportunities/bulk-reassign/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/crm/pipeline/ai-summary/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/crm/sales-pipeline/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/custom-charts/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/custom-charts/[id]/run/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/custom-charts/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/departments/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/directors/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/doa/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/document-correspondents/[id]/route",
+    "guard": "requireRole",
+    "role": "branch_manager",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/document-correspondents/route",
+    "guard": "requireRole",
+    "role": "branch_manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/document-matching-rules/[id]/route",
+    "guard": "requireRole",
+    "role": "branch_manager",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/document-matching-rules/route",
+    "guard": "requireRole",
+    "role": "branch_manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/documents/[id]/dispose/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/documents/[id]/retention/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/documents/[id]/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/documents/extract/route",
+    "guard": "requireRole",
+    "role": "team_member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/documents/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/drafted-communications/[id]/approve/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/drafted-communications/[id]/reject/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/drafted-communications/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/dynamic-chains/[id]/versions/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/email-intelligence/[id]/dismiss/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/email-intelligence/[id]/promote-to-ticket/route",
+    "guard": "requireRole",
+    "role": "team_member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/email-intelligence/[id]/promote/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/email-intelligence/route",
+    "guard": "requireRole",
+    "role": "team_member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/auctions/[id]/close/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/budgets/[id]/cancel/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/budgets/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/budgets/[id]/submit/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/budgets/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/buying/purchase-orders/[id]/submit/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/buying/suppliers/[id]/bank-accounts/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/buying/suppliers/[id]/portal-links/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/buying/suppliers/[id]/qualifications/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/buying/suppliers/[id]/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/buying/suppliers/[id]/sanction-checks/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/buying/suppliers/[id]/tax-withholding/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/buying/suppliers/portal-links/[linkId]/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/buying/suppliers/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/companies/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/companies/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/contracts/[id]/amendments/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/contracts/[id]/billing-schedules/[scheduleId]/generate-invoice/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/contracts/[id]/billing-schedules/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/contracts/[id]/generate-from-template/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/contracts/[id]/negotiation-rounds/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/contracts/[id]/obligations/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/contracts/[id]/revenue-schedules/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/contracts/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/contracts/obligations/[id]/complete/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/contracts/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/currencies/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/e-invoice-logs/[id]/cancel/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/e-invoice-logs/[id]/generate/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/enablement/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/exchange-rates/refresh/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/exchange-rates/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/inventory/cycle-count-lines/[id]/adjust/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/parties/[type]/[id]/addresses/[addressId]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/parties/[type]/[id]/addresses/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/parties/[type]/[id]/contacts/[contactId]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/parties/[type]/[id]/contacts/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/payment-entries/[id]/cancel/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/payment-entries/[id]/submit/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/payment-entries/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/payroll/employees/[id]/income-tax-slab/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/payroll/employees/[id]/tax-exemptions/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/payroll/income-tax-slabs/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/payroll/payslips/[id]/finalize/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/payroll/payslips/[id]/tds/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/payroll/runs/[id]/process/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/payroll/runs/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/payroll/salary-components/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/payroll/salary-structures/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/payroll/statutory-rules/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/periods/[id]/checklist/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/pricing-rules/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/procurement/requisitions/[id]/submit/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/procurement/requisitions/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/purchase-invoices/[id]/submit/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/purchase-invoices/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/quotations/[id]/negotiation-rounds/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/quotations/[id]/scores/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/returns/purchase/[id]/approve/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/returns/purchase/[id]/dispatch/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/returns/purchase/[id]/reject/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/returns/purchase/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/returns/sales/[id]/approve/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/returns/sales/[id]/receive/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/returns/sales/[id]/reject/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/returns/sales/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/rfqs/[id]/auctions/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/rfqs/[id]/scoring-criteria/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/selling/customers/[id]/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/selling/customers/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/stock/batches/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/stock/items/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/stock/serials/[id]/status/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/stock/serials/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/stock/uom-conversions/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/stock/warehouses/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/subscription-plans/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/subscriptions/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/subscriptions/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/tax-templates/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/erp/tax-withholding-categories/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/escalation-rules/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/esignature/requests/[id]/void/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/esignature/requests/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/fde/requests/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/field-service-dispatches/[dispatchId]/route",
+    "guard": "requireRole",
+    "role": "team_member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/fm/register-digitization/photo/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/frameworks/controls/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/frameworks/controls/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/fraud-cases/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/fraud-cases/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/glossary/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/glossary/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/governance/abac-policies/[id]/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/governance/abac-policies/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/gst-reconciliation/import/[batchId]/confirm/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/gst-reconciliation/import/[batchId]/mapping/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "specifier": "@/app/api/gst-reconciliation/import/[batchId]/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/gst-reconciliation/import/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/gst-reconciliation/reconcile/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/gst-reconciliation/returns/[returnPeriodId]/ai-review/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/gst-reconciliation/returns/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/help/ask/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/hr-compliance/[id]/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/hr-compliance/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/hr/employees/[userId]/route",
+    "guard": "requireRole",
+    "role": "branch_manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/hr/expenses/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/hr/leave-balances/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/hr/leave-requests/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/hr/loans/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/hr/shifts/roster/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/hr/shifts/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/incidents/[id]/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/incidents/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/ingest/[batchId]/confirm/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/ingest/[batchId]/items/[itemId]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/ingest/[batchId]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/ingest/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/installed-products/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/internal/pool-health/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/ip-portfolio/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/irdai/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/it-dr/[id]/backup-verifications/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/it-dr/[id]/failover-tests/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/it-dr/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/knowledge-base/pages/[id]/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/knowledge-base/pages/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/leave-holiday/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/legal-matters/[id]/arbitration/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/legal-matters/[id]/link/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/legal-matters/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/legal-matters/[id]/spend/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/legal-matters/arbitration/[arbitrationId]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/legal-matters/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/legal-opinions/[id]/generate/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/legal-opinions/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/legal-vendors/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/litigation/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/litigation/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/mca-filings/[id]/generate/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/mca-filings/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/mcp/tokens/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "GET",
+      "POST",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/mdm/duplicates/[id]/merge/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/mdm/duplicates/[id]/review/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/mdm/duplicates/scan/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/metric-alert-rules/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/metric-alert-rules/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/notices/[id]/dispatches/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/notices/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "viewer",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/notices/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/performance-reviews/cycles/[id]/activate/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/performance-reviews/cycles/[id]/close/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/performance-reviews/cycles/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/performance-reviews/reviews/[id]/acknowledge/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/performance-reviews/reviews/[id]/goals/[goalId]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/performance-reviews/reviews/[id]/goals/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/performance-reviews/reviews/[id]/raters/[raterId]/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/performance-reviews/reviews/[id]/raters/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/performance-reviews/reviews/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/performance-reviews/reviews/[id]/submit/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/performance-reviews/reviews/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/budgets/[id]/line-items/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/budgets/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/enablement/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/estimate-schemes/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/invoices/generate/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/issues/[id]/relations/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/issues/[id]/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/issues/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/labels/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/meetings/[id]/outcomes/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/meetings/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/milestones/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/schedule/baselines/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/schedule/resource-allocations/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/sprints/[id]/issues/route",
+    "guard": "requireRole",
+    "role": "team_member",
+    "methods": [
+      "POST",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/sprints/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/sprints/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/time-entries/[id]/approve/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/time-entries/[id]/reject/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/wiki/[id]/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/wiki/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/pms/workflow-transitions/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/policies/[id]/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/policies/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/posh/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/problem-records/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/problem-records/[id]/tickets/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/problem-records/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/products/[id]/projects/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/products/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/projects/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/prompt-compiler/execute/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/prompt-eval/cases/[id]/run/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/prompt-marketplace/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/prompt-os/import/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/prompt-os/translate/route",
+    "guard": "requireRole",
+    "role": "veridian_admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/rbi/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/recruitment/applications/[id]/hire/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/recruitment/applications/[id]/interviews/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/recruitment/applications/[id]/stage/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/recruitment/applications/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/recruitment/candidates/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/recruitment/interviews/[id]/feedback/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/recruitment/job-openings/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/recruitment/job-openings/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/reports/ai-builder/analyze/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/reports/definitions/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/reports/definitions/[id]/run/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/reports/definitions/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/reports/item-actions/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/reports/saved/[id]/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/reports/saved/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/reports/schedules/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/reports/schedules/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/risks/[id]/linked-controls/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/risks/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/rpt/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/sales-hq/commission-accruals/[id]/mark-paid/route",
+    "guard": "requireRole",
+    "role": "veridian_admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/sales-hq/commission-accruals/[id]/void/route",
+    "guard": "requireRole",
+    "role": "veridian_admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/search/semantic/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/sebi/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/secretarial-audit/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/ai-config/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/api-keys/[id]/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/api-keys/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/branding/logo/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/branding/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/model-config/[id]/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/model-config/pool-usage/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/model-config/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/sso/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/tenant-ai-config/[id]/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/tenant-ai-config/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/webhooks/[id]/redeliver/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/webhooks/[id]/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/settings/webhooks/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/sla-policies/[id]/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/sla-policies/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/social/posts/[id]/comments/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/social/posts/[id]/reactions/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/social/posts/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/stage0/outreach/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/support-sessions/start/route",
+    "guard": "requireRole",
+    "role": "veridian_admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/tasks/[id]/chat/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/tasks/[id]/comments/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/tasks/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "viewer",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/tasks/duplicates/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/tasks/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/billable-rates/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/clients/[clientId]/engagements/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/clients/[clientId]/invoices/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/clients/[clientId]/portal-links/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/clients/[clientId]/service-lines/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/clients/[clientId]/staff-assignments/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/clients/[clientId]/tax-cases/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/deliverables/[deliverableId]/complete/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/enablement/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/engagements/[engagementId]/deliverables/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/engagements/[engagementId]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/invoices/[invoiceId]/fixed-fee-line/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/invoices/[invoiceId]/paid/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/invoices/[invoiceId]/send/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/invoices/[invoiceId]/void/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/portal-links/[linkId]/revoke/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/staff-assignments/[assignmentId]/end/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/tax-cases/[caseId]/stage/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/time-entries/[timeEntryId]/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/time-entries/[timeEntryId]/stop/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/time-entries/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/the-firm/time-entries/start/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/ticket-intelligence/[id]/dismiss/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/ticket-intelligence/[id]/promote/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/ticket-teams/[id]/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/ticket-teams/route",
+    "guard": "requireRole",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/tickets/[id]/dispatches/route",
+    "guard": "requireRole",
+    "role": "team_member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/tickets/[id]/guest-access/route",
+    "guard": "requireRole",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/tickets/[id]/installed-product/route",
+    "guard": "requireRole",
+    "role": "team_member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/tickets/[id]/route",
+    "guard": "requireRole",
+    "role": "team_member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/tickets/route",
+    "guard": "requireRole",
+    "role": "team_member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/assessments/[id]/questions/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/assessments/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/courses/[id]/assessment/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/courses/[id]/modules/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/courses/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/courses/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/enrollments/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/lessons/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/modules/[id]/lessons/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/modules/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/paths/[id]/assign/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/paths/[id]/courses/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/paths/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/paths/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/questions/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/training/roster/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/users/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/brain/capabilities/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/brain/entity-relationships/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/compliance/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/compliance/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/compliance/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/attendance/bulk/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/attendance/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/boq/[id]/approve/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/boq/[id]/revisions/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/boq/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/boq/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/boq/[id]/submit/route",
+    "guard": "requireRoleOrScope",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/boq/categories/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/boq/categories/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/boq/line-items/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/boq/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/kpi-definitions/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/kpi-entries/[id]/approve/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/kpi-entries/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/labour-roster/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/labour-roster/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/materials/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/materials/issues/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/materials/receipts/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/materials/receipts/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/materials/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/progress/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/progress/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/site-diary/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/construction/site-instructions/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/documents/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/erp/budgets/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/erp/inventory/issues/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/erp/inventory/receipts/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/erp/procurement/requisitions/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/notices/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "viewer",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/notices/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/pms/meetings/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/pms/time-entries/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/access-review/certifications/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/access-review/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/accounts/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/ar-aging/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/asset-to-gl-reconciliation/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/assistant/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/audit-engagements/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/audit-findings/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/audit-findings/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/balance-sheet/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/bank-reconciliation/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/board/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/capability-tree/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/chain-options/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/change-orders/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "senior_professional",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/change-orders/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/classify/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/companies/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/compliance-register/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/cost-centers/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/credit-notes/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/credit-notes/[id]/submit/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/credit-notes/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/currencies/base/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/currencies/base/route",
+    "guard": "requireRoleOrScope",
+    "role": "admin",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/currencies/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/customer-payment-behavior/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/customers/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET",
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/customers/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/dashboard/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/design-materials/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/discuss/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/documents/[id]/dispose/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/documents/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/documents/[id]/versions/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/drawings/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/drawings/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/dunning-list/[invoiceId]/record/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/dunning-list/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/employees/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/employees/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/employees/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/expenses/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/ffe/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/ffe/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/finance-dashboard/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/floor-plans/[id]/placements/[placementId]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/floor-plans/[id]/placements/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/floor-plans/[id]/rooms/[roomId]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/floor-plans/[id]/rooms/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/floor-plans/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/floor-plans/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/fraud-cases/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/fraud-cases/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/hr/departments/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/inventory/items/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/inventory/stock-entries/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/inventory/warehouses/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/journal-entries/[id]/submit/route",
+    "guard": "requireRoleOrScope",
+    "role": "senior_professional",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/knowledge-base/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/knowledge-base/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/labour-roster/import/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/labour-roster/trades/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/leads/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/leads/auto-distribute/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/leads/bulk-reassign/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/leads/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/leave/balances/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/leave/requests/[id]/decision/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/leave/requests/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/meetings/[id]/outcomes/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/meetings/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/meetings/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/module-chain/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/mood-boards/[id]/items/[itemId]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/mood-boards/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH",
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/mood-boards/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/opportunities/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/opportunities/auto-distribute/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/opportunities/bulk-reassign/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/opportunities/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/payroll/employees/[id]/income-tax-slab/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/payroll/employees/[id]/tax-exemptions/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/payroll/income-tax-slabs/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/payroll/payslips/[id]/finalize/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/payroll/payslips/[id]/tds/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/payroll/runs/[id]/process/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/payroll/runs/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/payroll/salary-components/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/payroll/salary-structures/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/payroll/statutory-rules/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/permits/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/permits/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/phrase-map/[id]/promote/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/pill-usage/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/policies/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/policies/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/procurement/goods-receipts/[id]/submit/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/procurement/goods-receipts/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/procurement/purchase-orders/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/procurement/purchase-orders/[id]/submit/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/procurement/purchase-orders/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/procurement/quotations/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/procurement/requisitions/[id]/submit/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/procurement/requisitions/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/procurement/rfqs/[id]/send/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/procurement/rfqs/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/project-budgets/[id]/cancel/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/project-budgets/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/project-budgets/[id]/submit/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/project-budgets/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/projects/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/projects/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/punch-list/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/punch-list/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/purchase-orders/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/recruitment/applications/[id]/hire/route",
+    "guard": "requireRoleOrScope",
+    "role": "admin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/recruitment/applications/[id]/interviews/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/recruitment/applications/[id]/stage/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/recruitment/applications/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/recruitment/candidates/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/recruitment/interviews/[id]/feedback/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/recruitment/job-openings/[id]/status/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/recruitment/job-openings/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/reports/definitions/[id]/run/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/reports/share/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/rfis/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/rfis/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/risks/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/risks/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/sales-invoices/[id]/cancel/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/sales-invoices/[id]/payments/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/sales-invoices/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/sales-invoices/[id]/submit/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/sales-invoices/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/schedule/[id]/completion/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/schedule/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/schedule/baselines/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/schedule/import/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/schedule/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/schedule/sprints/[id]/issues/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/schedule/sprints/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/schedule/sprints/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/schedule/workload/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/scope/import/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/screen-drafts/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/screen-drafts/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/subcontractor-retention-summary/[invoiceId]/release/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/submissions/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/submittals/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/submittals/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/tasks/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/tasks/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST",
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/timesheets/[id]/approve/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/timesheets/[id]/reject/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/timesheets/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/timesheets/review-day/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/timesheets/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/timesheets/submit-day/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/users/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/vendor-risk/route",
+    "guard": "requireRoleOrScope",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/vendors/[id]/bank-accounts/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/vendors/[id]/portal-links/[linkId]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/vendors/[id]/portal-links/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/vendors/[id]/qualification/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/vendors/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET",
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/vendors/[id]/sanction-checks/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/vendors/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/veri-meetings/[id]/action-items/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/veri-meetings/[id]/generate-intelligence/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/veri-meetings/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/veri-meetings/[id]/share-links/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/veri-meetings/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/veri-meetings/share-links/[linkId]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/wiki/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET",
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/wiki/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/work-progress/activities/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/projexa/work-progress/report/xlsx/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/tasks/[id]/route",
+    "guard": "requireRoleOrScope",
+    "role": "viewer",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/v1/tasks/route",
+    "guard": "requireRoleOrScope",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/vendor-risk/[id]/assess/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/vendor-risk/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/veri-meetings/[id]/action-items/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/veri-meetings/[id]/generate-intelligence/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/veri-meetings/[id]/minutes/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/veri-meetings/[id]/publish/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/veri-meetings/[id]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/veri-meetings/[id]/share-links/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/veri-meetings/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/veri-meetings/share-links/[linkId]/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "specifier": "@/app/api/voice-tickets/[id]/action-items/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/voice-tickets/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/whistleblower/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/worker-agents/[id]/publish/route",
+    "guard": "requireRole",
+    "role": "veridian_admin",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/worker-agents/[id]/route",
+    "guard": "requireRole",
+    "role": "veridian_admin",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "specifier": "@/app/api/worker-agents/route",
+    "guard": "requireRole",
+    "role": "member",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/workspace-memory/drive-export/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/workspace-memory/drive-import/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/workspace-memory/export/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "specifier": "@/app/api/workspace-memory/import/route",
+    "guard": "requireRole",
+    "role": "manager",
+    "methods": [
+      "POST"
+    ]
+  }
+]
