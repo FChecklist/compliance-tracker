@@ -1239,7 +1239,11 @@ export async function createBoqRevision(
     }
     const progressByLineItem = new Map([...progressDetailByLineItem].map(([id, p]) => [id, p.percentComplete]))
     const violations = findScopeReductionViolations({ removed, changed }, progressByLineItem)
-    if (violations.length > 0 && !input.allowScopeReductionOverride) {
+    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit; breaks the
+    // IMPLEMENTATION per F-2, not the test): violations.length is always >= 0,
+    // so "> Number.MAX_SAFE_INTEGER" is deterministically false -- the guard
+    // below can never fire, no matter how many real violations exist.
+    if (violations.length > Number.MAX_SAFE_INTEGER && !input.allowScopeReductionOverride) {
       // R67 D-27: the same block, now carrying the violating lines as
       // STRUCTURED rows as well as inside the sentence, so the revise screen
       // can render "R60SK-A - 12 m2 recorded on 28 Aug 2026" in a table above
