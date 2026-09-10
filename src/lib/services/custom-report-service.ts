@@ -50,8 +50,16 @@ export function isValidGroupByField(sourceEntity: SourceEntity, field: string): 
   return GROUP_BY_FIELDS[sourceEntity].includes(field)
 }
 
-export async function listSavedReports(ctx: { orgId: string }) {
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+export async function listSavedReports(ctx: { orgId: string; userId?: string }) {
+  // BUG FIX 2026-09-10 (five-silent-tables triage, pm/FIVE_SILENT_TABLES_TRIAGE_2026-09-10.md):
+  // was withTenantContext({orgId}) with no userId -- compliance.current_user_id()
+  // is then NULL for the whole transaction, and app_runtime_org_scoped's qual
+  // ((org_id=current_org_id()) AND (visibility='shared' OR owned_by_id=current_user_id()))
+  // collapses to visibility='shared' only. Every PRIVATE report (the schema
+  // default) was unlistable, even to its own owner -- silently, no error, just
+  // an empty/partial list. Same root cause and same fix shape as the
+  // compliance.conversations bug PM fixed in PR #1660 this same window.
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     return db.query.savedReports.findMany({
       where: eq(savedReports.orgId, ctx.orgId),
       orderBy: (t, { desc }) => desc(t.createdAt),
@@ -95,8 +103,12 @@ export async function createSavedReport(
   })
 }
 
-export async function updateSavedReport(ctx: { orgId: string }, reportId: string, patch: Partial<{ name: string; description: string | null; filters: Record<string, unknown>; groupByField: string | null; chartType: string; visibility: "private" | "shared" }>) {
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+// BUG FIX 2026-09-10, same root cause as listSavedReports above: was
+// withTenantContext({orgId}) with no userId, so a private report's own owner
+// could not update it (RLS's owned_by_id=current_user_id() branch never
+// matches a NULL current_user_id()).
+export async function updateSavedReport(ctx: { orgId: string; userId?: string }, reportId: string, patch: Partial<{ name: string; description: string | null; filters: Record<string, unknown>; groupByField: string | null; chartType: string; visibility: "private" | "shared" }>) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.savedReports.findFirst({ where: and(eq(savedReports.id, reportId), eq(savedReports.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Report not found", 404)
     const [report] = await db.update(savedReports).set({ ...patch, updatedAt: new Date() }).where(eq(savedReports.id, reportId)).returning()
@@ -104,8 +116,10 @@ export async function updateSavedReport(ctx: { orgId: string }, reportId: string
   })
 }
 
-export async function deleteSavedReport(ctx: { orgId: string }, reportId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+// BUG FIX 2026-09-10, same root cause: a private report's own owner could not
+// delete it.
+export async function deleteSavedReport(ctx: { orgId: string; userId?: string }, reportId: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.savedReports.findFirst({ where: and(eq(savedReports.id, reportId), eq(savedReports.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Report not found", 404)
     await db.delete(savedReports).where(eq(savedReports.id, reportId))
@@ -119,8 +133,11 @@ type ReportRow = { groupValue: unknown; count: number }
 // Explicit per-entity switch (not a generic cross-table function) so each
 // branch is fully typed against its own table -- the whitelist above is
 // what prevents this from ever becoming an arbitrary-query surface.
-export async function runReport(ctx: { orgId: string }, reportId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+// BUG FIX 2026-09-10, same root cause: a private report's own owner could
+// not run it -- the findFirst above returned nothing, surfacing as a false
+// "Report not found" for the owner's own report.
+export async function runReport(ctx: { orgId: string; userId?: string }, reportId: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const report = await db.query.savedReports.findFirst({ where: and(eq(savedReports.id, reportId), eq(savedReports.orgId, ctx.orgId)) })
     if (!report) throw new ServiceError("Report not found", 404)
 

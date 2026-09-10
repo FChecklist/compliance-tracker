@@ -1187,8 +1187,15 @@ function buildErpQuickCreateNodes(): CapabilityNode[] {
   return [{ key: "erp_quick_create", label: "Create", leaf: false, children: leaves }]
 }
 
+// BUG FIX 2026-09-10 (five-silent-tables triage, pm/FIVE_SILENT_TABLES_TRIAGE_2026-09-10.md):
+// ctx.userId was already part of this function's own signature but was never
+// forwarded into withTenantContext -- compliance.current_user_id() was NULL
+// for the whole transaction regardless of what the caller passed, so any
+// saved_reports node this tree builds (reportUrl leaves) silently missed
+// every PRIVATE report, visible only via visibility='shared'. Same root
+// cause and same fix shape as PR #1660 (compliance.conversations).
 export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: string; userId?: string }): Promise<CapabilityNode[]> {
-  const { tree, scores } = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  const { tree, scores } = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const branchNodes = await buildBranchNodes(db, ctx.orgId)
     const productNodes = await buildProductNodes(db, ctx.orgId)
     const entityNodes = await buildEntityNodes(db, ctx.orgId)
