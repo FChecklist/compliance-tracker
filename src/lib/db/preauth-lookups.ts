@@ -42,11 +42,12 @@
 // "getting the field mapping subtly wrong" risk the prior session (R58)
 // flagged as its reason for stopping before this step; this is that step,
 // done and type-checked.
-import { db, type users, type apiKeys } from "@/lib/db"
+import { db, type users, type apiKeys, type reportShareLinks } from "@/lib/db"
 import { sql } from "drizzle-orm"
 
 type UserRow = typeof users.$inferSelect
 type ApiKeyRow = typeof apiKeys.$inferSelect
+type ReportShareLinkRow = typeof reportShareLinks.$inferSelect
 
 // Timestamp fields are typed `string` here, NOT `Date` -- verified live
 // 2026-08-28 that `db.execute(sql\`select * from
@@ -173,4 +174,137 @@ export async function lookupApiKeyByHash(keyHash: string): Promise<ApiKeyRow | n
   const rows = await db.execute(sql`select * from compliance.lookup_api_key_by_hash(${keyHash})`)
   const row = rows[0] as unknown as RawApiKeyRow | undefined
   return row ? mapApiKeyRow(row) : null
+}
+
+// ─── CRR-027/028 CONTRACT phase: the 6 NEEDS_NEW_NARROW_FUNCTION sites ────
+// (pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md §6). Each function below is a
+// thin wrapper around one of the SECURITY DEFINER functions already applied
+// live (crr027_028_expand_two_tables + p2_6_security_definer_registry_functions
+// migrations, verified live via pg_proc this session: all `security_definer:
+// true`, all EXECUTE-granted to app_runtime). Same discipline as
+// lookupUserByEmail/lookupApiKeyByHash above: explicit Raw*Row type per
+// function, explicit field-by-field mapping (never spread), timestamps
+// re-Date()'d because a SETOF-returning function call comes back with raw
+// Postgres text for timestamp columns, not pre-parsed Date objects the way a
+// plain `select * from <table>` does through postgres.js.
+
+type RawReportShareLinkRow = {
+  id: string
+  org_id: string
+  report_type: string
+  report_ref: string
+  token: string
+  created_by_id: string | null
+  expires_at: string
+  revoked_at: string | null
+  created_at: string
+}
+
+function mapReportShareLinkRow(row: RawReportShareLinkRow): ReportShareLinkRow {
+  return {
+    id: row.id,
+    orgId: row.org_id,
+    reportType: row.report_type,
+    reportRef: row.report_ref,
+    token: row.token,
+    createdById: row.created_by_id,
+    expiresAt: toDate(row.expires_at),
+    revokedAt: toDate(row.revoked_at),
+    createdAt: toDate(row.created_at),
+  }
+}
+
+/**
+ * Existence check by id only, via SECURITY DEFINER compliance.user_exists(text).
+ * Replaces `db.query.users.findFirst({ where: eq(users.id, ...) })` at
+ * prompt-governance-service.ts:193, where the caller only ever does
+ * `if (!owner) throw` -- no row data is read, so a plain boolean is the
+ * narrowest correct surface (not a full-row fetch of data nothing touches).
+ */
+export async function userExists(id: string): Promise<boolean> {
+  const rows = await db.execute(sql`select compliance.user_exists(${id}) as exists`)
+  return Boolean((rows[0] as unknown as { exists: boolean } | undefined)?.exists)
+}
+
+/**
+ * id+org-scoped lookup returning only (id, name), via SECURITY DEFINER
+ * compliance.lookup_user_by_id_in_org(text, text). Replaces
+ * `db.query.users.findFirst({ where: eq(users.id,...) and eq(users.orgId,...) })`
+ * at support-session-service.ts:96, where the caller only ever reads
+ * `.name` off the result (both call sites, l.110/l.129) -- narrowed to match,
+ * per the audit doc's own §6 recommendation.
+ */
+export async function lookupUserByIdInOrg(id: string, orgId: string): Promise<{ id: string; name: string } | null> {
+  const rows = await db.execute(sql`select * from compliance.lookup_user_by_id_in_org(${id}, ${orgId})`)
+  const row = rows[0] as unknown as { id: string; name: string } | undefined
+  return row ?? null
+}
+
+/**
+ * Cross-org (by construction -- a cron has no per-request org context)
+ * lookup of the oldest active admin for one org/role, via SECURITY DEFINER
+ * compliance.lookup_oldest_active_admin_by_role(text, text). Replaces
+ * `db.query.users.findFirst({ where: eq(users.orgId,...) and role='veridian_admin' and
+ * isActive, orderBy: createdAt })` at
+ * dispatch-completion-monitor/run/route.ts:66. The function itself does the
+ * ordering/filtering server-side (SETOF, but this call site only ever wants
+ * one row, same as the findFirst() it replaces); the caller needs the FULL
+ * row (passed onward as `dbUser: typeof users.$inferSelect`), so this
+ * returns the same mapped UserRow shape as lookupUserByEmail.
+ */
+export async function lookupOldestActiveAdminByRole(orgId: string, role: string): Promise<UserRow | null> {
+  const rows = await db.execute(sql`select * from compliance.lookup_oldest_active_admin_by_role(${orgId}, ${role})`)
+  const row = rows[0] as unknown as RawUserRow | undefined
+  return row ? mapUserRow(row) : null
+}
+
+/**
+ * Full-row lookup by id, deliberately cross-org, via SECURITY DEFINER
+ * compliance.lookup_user_by_id(text). Replaces
+ * `db.query.users.findFirst({ where: eq(users.id, ...) })` at
+ * support-sessions/whoami-target/route.ts:31, whose result is passed
+ * straight to `logActivity({ dbUser: initiator, ... })`, which requires
+ * `typeof users.$inferSelect` -- the caller genuinely needs the full row,
+ * not a narrowed projection, matching the audit doc's own §6 note. This is
+ * the SAME named residual flagged in kt/handover/HANDOVER_W-ENV_2026-09-10T2230.json
+ * (compliance.lookup_user_by_id returns SETOF compliance.users for ANY id,
+ * cross-org, SECURITY DEFINER -- correct and necessary today because
+ * logActivity's signature requires the full row; narrowing this further is
+ * its own follow-up, not done here).
+ */
+export async function lookupUserById(id: string): Promise<UserRow | null> {
+  const rows = await db.execute(sql`select * from compliance.lookup_user_by_id(${id})`)
+  const row = rows[0] as unknown as RawUserRow | undefined
+  return row ? mapUserRow(row) : null
+}
+
+/**
+ * Pre-auth rate-limit count (no row data, just count(*)), via SECURITY
+ * DEFINER compliance.count_recent_api_key_requests(text, timestamptz).
+ * Replaces the raw `db.select({count:...}).from(apiKeyRequestLog).where(...)`
+ * at api-key-auth.ts:166-168, keyed by the already-resolved apiKeyId (not
+ * org) -- runs before any org context exists, the same pre-auth posture as
+ * validateApiKey()'s key-hash lookup this file already covers.
+ */
+export async function countRecentApiKeyRequests(apiKeyId: string, since: Date): Promise<number> {
+  const rows = await db.execute(sql`select compliance.count_recent_api_key_requests(${apiKeyId}, ${since.toISOString()}) as count`)
+  const row = rows[0] as unknown as { count: string | number } | undefined
+  return row ? Number(row.count) : 0
+}
+
+/**
+ * Full-row lookup by token, via SECURITY DEFINER
+ * compliance.lookup_report_share_link_by_token(text). Replaces
+ * `db.query.reportShareLinks.findFirst({ where: eq(reportShareLinks.token, ...) })`
+ * at report-share-service.ts:120. Deliberately does ONLY the exact-token-
+ * equality lookup and returns the unfiltered full row -- usability
+ * (isShareLinkUsable()) stays in application code, unchanged, per the
+ * design rationale recorded in kt/handover/HANDOVER_W-ENV_2026-09-10T2230.json's
+ * report_share_links_shape_divergence note (baking the usability check into
+ * SQL would fork a rule shared by 7 other public token surfaces).
+ */
+export async function lookupReportShareLinkByToken(token: string): Promise<ReportShareLinkRow | null> {
+  const rows = await db.execute(sql`select * from compliance.lookup_report_share_link_by_token(${token})`)
+  const row = rows[0] as unknown as RawReportShareLinkRow | undefined
+  return row ? mapReportShareLinkRow(row) : null
 }
