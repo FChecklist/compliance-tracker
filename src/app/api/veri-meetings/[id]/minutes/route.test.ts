@@ -67,8 +67,7 @@ describe("PATCH /api/veri-meetings/[id]/minutes -- R-C04 live-editable minutes",
     const { PATCH } = await import("./route")
     const res = await PATCH(req({ minutes: 42 }) as never, ctx)
 
-    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): the route's real guard (`typeof body.minutes !== "string"`) rejects a numeric `minutes` with 400, so asserting 200 here is deterministically wrong and must fail.
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(400)
     expect(await res.json()).toEqual({ error: "minutes is required" })
     expect(updateMeetingMinutes).not.toHaveBeenCalled()
   })
