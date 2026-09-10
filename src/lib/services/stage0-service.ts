@@ -41,6 +41,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray, sql as drizzleSql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { provisionAiAssistantsForUser } from "./subscription-plan-service"
+import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
 export { ServiceError }
 
 // --- Token resolution ------------------------------------------------------
@@ -139,7 +140,11 @@ export async function consumeStage0TokenAndProvisionUser(
   if (!convo) return { ok: false, reason: "This link is invalid." }
   const orgId = convo.orgId
 
-  let user = await db.query.users.findFirst({ where: eq(users.email, authUser.email) })
+  // CRR-027 CONTRACT migration: was db.query.users.findFirst() over the
+  // plain (RLS-bypassing) db client -- stage-0 provisioning, no real home
+  // org yet by design. See EXISTING_FN row #31 in
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md.
+  let user = await lookupUserByEmail(authUser.email)
   if (!user) {
     const [newUser] = await db.insert(users).values({
       name: authUser.fullName,
@@ -260,7 +265,11 @@ export async function tryUpgradeStage0UserInPlace(
   email: string,
   target: { orgId: string; role: string; authUserId?: string }
 ): Promise<UpgradeStage0Result> {
-  const found = await db.query.users.findFirst({ where: eq(users.email, email) })
+  // CRR-027 CONTRACT migration: was db.query.users.findFirst() over the
+  // plain (RLS-bypassing) db client -- auto-upgrade trigger, same pre-org
+  // posture as the provisioning path above. See EXISTING_FN row #32 in
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md.
+  const found = await lookupUserByEmail(email)
   const decision = decideStage0UpgradeAction(found ?? null)
   if (decision === "not_found") return { ok: false, reason: "not_found" }
   if (decision === "different_org") return { ok: false, reason: "different_org" }

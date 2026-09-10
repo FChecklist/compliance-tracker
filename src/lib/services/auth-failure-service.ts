@@ -9,11 +9,12 @@
 // Same pre-auth posture as passcode-login-service.ts's own recordAttempt/
 // checkPasscodeRateLimit: runs through the raw (RLS-bypassing) `db` client,
 // since no session/tenant context exists yet at the point a login fails.
-import { db, authFailureEvents, users, riskAnomalyEvents } from "@/lib/db"
+import { db, authFailureEvents, riskAnomalyEvents } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and, gte, sql } from "drizzle-orm"
 import { evaluateRepeatedFailedAuth, FAILED_AUTH_THRESHOLD } from "@/lib/risk-anomaly-detection"
 import { recordAndEscalateAnomaly } from "./risk-escalation-service"
+import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
 
 export type AuthFailureMethod = "password" | "oauth" | "sso" | "passcode"
 const VALID_METHODS: readonly AuthFailureMethod[] = ["password", "oauth", "sso", "passcode"]
@@ -59,7 +60,11 @@ export async function recordAuthFailureAndCheckAnomaly(params: { email: string; 
   const verdict = evaluateRepeatedFailedAuth(recentCount, FAILED_AUTH_THRESHOLD)
   if (!verdict.anomaly) return
 
-  const user = await db.query.users.findFirst({ where: eq(users.email, email) })
+  // CRR-027 CONTRACT migration: was db.query.users.findFirst() over the
+  // plain (RLS-bypassing) db client -- called before any org is known, the
+  // textbook pre-auth case. See EXISTING_FN row #13 in
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md.
+  const user = await lookupUserByEmail(email)
   if (!user?.orgId) return // no org to scope the escalation to (unknown email, or a stage-0-only account)
 
   await withTenantContext({ orgId: user.orgId, userId: user.id }, async (tx) => {
