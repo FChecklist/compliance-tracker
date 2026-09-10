@@ -349,6 +349,39 @@ describe("INST-A -- reports-module independent recompute + date-boundary audit (
     }
   })
 
+  // PM-directed follow-up (window W20260910-1302, 1715-1730 extension): the
+  // cancelled-invoice lever above is inconclusive for this project (zero
+  // cancelled invoices exist to distinguish it), which under D58 leaves
+  // revenueReport recomputed-but-not-falsified. Falsify via a DIFFERENT
+  // corruption of the RECOMPUTE itself instead of relying on the data
+  // shape: drop the project_id filter entirely, so the corrupted query
+  // sums every invoice in the org, not just this project's. If the org has
+  // any other project's invoices, the total must move away from real.total.
+  // If it does NOT move even with the project filter gone, the query
+  // returns 0 (or the same number) for a structural reason unrelated to
+  // filtering -- reported as its own finding, not papered over.
+  test("D58 falsifiability (v2): revenueReport recompute DOES flag a planted defect (project filter dropped)", async () => {
+    if (skipReason) return
+    const { revenueReport } = await import("./construction-reports-service")
+    const { withTenantContext } = await import("../db/tenant-scoped")
+    const { sql } = await import("drizzle-orm")
+    const real = await revenueReport({ orgId: ORG_ID }, PROJECT_ID)
+    const orgWide = await withTenantContext({ orgId: ORG_ID }, async (db) => {
+      const rows = (await db.execute(sql`
+        SELECT coalesce(sum(grand_total), 0)::float AS total, count(*)::int AS n
+        FROM compliance.erp_sales_invoices
+        WHERE org_id = ${ORG_ID} AND status != 'cancelled'
+      `)) as any[]
+      return { total: Number(rows[0].total), count: Number(rows[0].n) }
+    })
+    console.log(`[INST-A] revenueReport falsify v2: real(project-scoped)=${real.total}/${real.invoices.length} corrupted(org-wide, no project filter)=${orgWide.total}/${orgWide.count}`)
+    if (orgWide.total === real.total && orgWide.count === real.invoices.length) {
+      console.log(`[INST-A] revenueReport falsify v2: org-wide total EQUALS project-scoped total -- either this org has exactly one project with invoices (a real, checkable fact, not a defect in the query), or the query never discriminates on project_id at all. Recorded as its own finding, not asserted as a pass.`)
+    } else {
+      expect(orgWide.total).not.toBeCloseTo(real.total, 2)
+    }
+  })
+
   test("REPORT 4/6: expenseReport.total matches an independent SQL recompute", async () => {
     if (skipReason) return
     const { expenseReport } = await import("./construction-reports-service")
