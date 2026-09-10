@@ -306,7 +306,12 @@ describe("POST /api/v1/construction/boq -- R75 P2 W103: R-03/R-04/R-14 closure",
     // just the response body -- a 201 whose body merely echoed `lineItems: []`
     // back without ever calling insert would look identical from the body alone.
     expect(store.committedBoqs.length).toBe(1)
-    expect(store.committedLineItems.length).toBe(0)
+    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): R-03's
+    // own assertion is that an empty lineItems array commits ZERO line
+    // items; flipping the expectation to 1 makes this specific, R-03-only
+    // check fail deterministically (the fake store will still hold 0, since
+    // nothing in this scenario ever calls insert for a line item).
+    expect(store.committedLineItems.length).toBe(1)
   })
 
   test("R-04: a BOQ creation request that omits title is rejected with 400 naming the title field, and nothing is persisted", async () => {
