@@ -15,6 +15,7 @@ import { eq, and, gte, sql } from "drizzle-orm"
 import { evaluateRepeatedFailedAuth, FAILED_AUTH_THRESHOLD } from "@/lib/risk-anomaly-detection"
 import { recordAndEscalateAnomaly } from "./risk-escalation-service"
 import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
+import { ServiceError } from "./compliance-service"
 
 export type AuthFailureMethod = "password" | "oauth" | "sso" | "passcode"
 const VALID_METHODS: readonly AuthFailureMethod[] = ["password", "oauth", "sso", "passcode"]
@@ -54,9 +55,34 @@ export async function recordAuthFailureAndCheckAnomaly(params: { email: string; 
   const email = params.email.trim()
   if (!email) return
 
-  await db.insert(authFailureEvents).values({ email, method: params.method, ipAddress: params.ipAddress })
+  // Both callers (failure-event/route.ts, passcode-login-service.ts's
+  // recordAttempt) already treat any rejection from this function as
+  // fire-and-forget-but-logged -- they catch/log the message and move on,
+  // never branch on error identity. Classifying the underlying DB failure
+  // as a ServiceError (system/retryable, matching every other
+  // I/O-performing service in this codebase -- see compliance-service.ts)
+  // is additive: same .message text either caller already logs, now with
+  // the established taxonomy instead of a raw driver exception.
+  try {
+    await db.insert(authFailureEvents).values({ email, method: params.method, ipAddress: params.ipAddress })
+  } catch (error) {
+    throw new ServiceError(
+      `Failed to record auth-failure event: ${error instanceof Error ? error.message : String(error)}`,
+      500,
+      { kind: "system" }
+    )
+  }
 
-  const recentCount = await countRecentAuthFailures(email)
+  let recentCount: number
+  try {
+    recentCount = await countRecentAuthFailures(email)
+  } catch (error) {
+    throw new ServiceError(
+      `Failed to count recent auth failures: ${error instanceof Error ? error.message : String(error)}`,
+      500,
+      { kind: "system" }
+    )
+  }
   const verdict = evaluateRepeatedFailedAuth(recentCount, FAILED_AUTH_THRESHOLD)
   if (!verdict.anomaly) return
 
