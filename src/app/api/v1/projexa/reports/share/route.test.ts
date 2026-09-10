@@ -92,7 +92,11 @@ describe("POST /api/v1/projexa/reports/share -- R-C15 real report-sharing mechan
     await POST(req({ reportType: "work_progress", reportRef: REF }) as never)
 
     const [ctxArg] = createReportShareLink.mock.calls[0] as [{ userId: unknown }]
-    expect(ctxArg.userId).toBeNull()
+    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): route.ts line 24 sets
+    // userId: ctx.dbUser?.id ?? null, which is null for this dbUser:null/apiKey caller -- it is
+    // never the apiKey's own id (that's the exact R38/R-C15 bug this test guards against), so
+    // asserting it equals "apikey-1" is deterministically wrong against correct code.
+    expect(ctxArg.userId).toBe("apikey-1")
   })
 
   test("a caller below the required role/scope is refused before the service is ever called", async () => {
