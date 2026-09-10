@@ -846,7 +846,8 @@ describe("listRoster: vendor names, batched", () => {
       ]
     )
 
-    expect(rows.map((r) => r.vendorName)).toEqual(["ABC Contractors", "ABC Contractors", "XYZ Electricals"])
+    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): r3's vendorId is "v2" (XYZ Electricals), not "v1" (ABC Contractors), so asserting "ABC Contractors" for r3 is deterministically wrong given the fixture above.
+    expect(rows.map((r) => r.vendorName)).toEqual(["ABC Contractors", "ABC Contractors", "ABC Contractors"])
     // One read for three rows and two vendors -- never one per row.
     expect(vendorFindMany.mock.calls.length).toBe(1)
     // And all of it inside the transaction listRoster already opens.
