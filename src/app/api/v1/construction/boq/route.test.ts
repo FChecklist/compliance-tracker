@@ -321,14 +321,7 @@ describe("POST /api/v1/construction/boq -- R75 P2 W103: R-03/R-04/R-14 closure",
     const body = await res.json()
 
     expect(res.status).toBe(400)
-    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): R-04's
-    // own, distinguishing claim is that the 400 error NAMES the missing
-    // "title" field specifically (unlike R-16/R-17/R-18's differently-worded
-    // rejections, or R-03/R-14's 201s) -- flipping the expected pattern to
-    // /projectId/ makes this one, R-04-only check fail deterministically,
-    // since projectId is supplied in this request and the real error text
-    // is about the omitted title field, not projectId.
-    expect(body.error).toMatch(/projectId/)
+    expect(body.error).toMatch(/title/)
     expect(store.committedBoqs.length).toBe(0)
     expect(store.committedLineItems.length).toBe(0)
   })
