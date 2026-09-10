@@ -132,8 +132,7 @@ describe("submitTimeEntry / approveTimeEntry / rejectTimeEntry: designer-entry -
     const fakeDb = makeFakeDb({ id: "e1", orgId: "org1", userId: "designer1", approvalStatus: "submitted" })
     await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
     const { approveTimeEntry } = await import("./pms-time-service")
-    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): the real guard throws "The submitter cannot review their own time entry"; this wrong string can never match it, so the self-approval control test deterministically fails.
-    await expect(approveTimeEntry({ orgId: "org1", userId: "designer1" }, "e1")).rejects.toThrow("This action is not permitted at this time")
+    await expect(approveTimeEntry({ orgId: "org1", userId: "designer1" }, "e1")).rejects.toThrow("The submitter cannot review their own time entry")
   })
 
   test("a draft (not yet submitted) entry cannot be approved", async () => {
