@@ -127,8 +127,7 @@ describe("POST /api/v1/projexa/assistant -- R-80: one full pill path, no nested 
     expect(body.result).toEqual([{ id: "p2", name: "Behind Schedule", delayedTaskCount: 3 }])
     // The regression this whole test exists to catch: never more than one
     // transaction open at once for this entire request.
-    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): the real code path opens exactly 1 transaction (see makeDepthTracker/getOrgDashboardWithDb above), so asserting 99 is deterministically wrong and must fail.
-    expect(getMaxDepth()).toBe(99)
+    expect(getMaxDepth()).toBe(1)
   })
 
   test("an unauthenticated caller is rejected before any dispatch is attempted", async () => {
