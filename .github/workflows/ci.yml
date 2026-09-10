@@ -442,3 +442,191 @@ jobs:
       # honest limitation to wave through.
       - run: bunx playwright install --with-deps chromium
       - run: bunx playwright test
+  e2e-env1:
+    # T2 (W-CI, window W20260910-2248, PM ruling D78): the Env-1 CI job.
+    # Answers the recorded next_action on 17 requirements (R-11/15/30/31/41/
+    # 42/43/60/82/90/91 + R-01/02/32/40/B1/B2): "bind a Playwright spec
+    # against environment 1 (localhost) and let it go green in CI" -- until
+    # this job, nothing in either repo's CI booted BOTH apps together, so
+    # every one of those specs could only ever be run by hand.
+    #
+    # WHY BOTH APPS, ONE JOB. r01-r02/r32/r40-*-env1.spec.ts (this repo) and
+    # projexa's own r60-boq-currency-env1.spec.ts all exercise PROJEXA's own
+    # UI/API surface, and PROJEXA's real business data (BOQs, projects)
+    # proxies through THIS repo's VERIDIAN API bridge
+    # (VERIDIAN_API_BASE_URL=http://localhost:3000/api/v1/projexa, see
+    # projexa/.env.local's own documented convention) -- a locally-booted
+    # PROJEXA with no locally-booted ct backend behind it can authenticate
+    # but cannot serve real data, which is exactly what these specs assert
+    # against. PR #1629's DOD-S1 job deliberately avoided this same
+    # dual-boot requirement for ITS narrower route (a ct-side API key
+    # instead) -- that choice does not apply here, these specs already use
+    # PROJEXA's own mint-session-r33/GoTrue auth against PROJEXA_ORIGIN
+    # directly, not ct's API. PM ruling D78: this is a genuinely different
+    # requirement (multi-repo boot), not a repeat of the W-ROUTER
+    # do_not_redo note that said a cross-repo dev-server stack was never
+    # needed for DOD-X4 specifically.
+    #
+    # WHY THE JOB LIVES HERE, NOT IN PROJEXA'S ci.yml. GitHub Actions
+    # secrets are scoped strictly to the repo whose workflow is running --
+    # FChecklist is a personal account, not an Organization, so there is no
+    # shared/org-level secret to fall back on (confirmed live via `gh api
+    # users/FChecklist`, .type == "User"). Hosting the job here means only
+    # THIS repo's secret store needs both apps' real values; hosting it in
+    # projexa would need the reverse (4 ct secrets duplicated there, vs 2
+    # here). Both repos are public, so the cross-repo checkout below needs
+    # no special token.
+    #
+    # SECRETS THIS JOB NEEDS THAT DO NOT YET EXIST (OR-7, owner-only, never
+    # via a shell -- see kt/FINDINGS.W-CI.jsonl F-2026-09-10-W-CI-001):
+    #   PROJEXA_DATABASE_URL -- PROJEXA's own Postgres connection string
+    #     (evpckeuxgvahguwsaeul), distinct from this repo's own DATABASE_URL
+    #     secret (a different Supabase project). Construct the same way
+    #     db-migrate.yml's DATABASE_URL is built (postgres.<ref>:<password>@
+    #     <pooler-host>:6543/postgres, transaction-mode pooler) -- verify the
+    #     working host/port live once the password is in, the same
+    #     trial-and-error db-migrate.yml's own header already documents for
+    #     this repo's project; do not assume the same pooler region.
+    #   VERIDIAN_API_KEY -- the bridge auth PROJEXA's backend sends ct on
+    #     every VERIDIAN_API_BASE_URL call. Real value already exists
+    #     locally (projexa/.env.local, gitignored, never committed) -- the
+    #     owner can copy that same value in directly, this does not need to
+    #     be a new/rotated key.
+    # NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY for PROJEXA are
+    # PUBLIC/client-exposed by design (PM confirmed, D78) -- baked directly
+    # into this file below, not secrets, matching the same anon key already
+    # hardcoded in this repo's own r01-r02/r32/r40 spec files.
+    #
+    # FALSIFIABILITY (D58): NOT YET RUN as of this commit -- this job cannot
+    # produce a real result until OR-7 lands. Once it does: break one
+    # assertion (e.g. r32's expected total), push, confirm RED with a real
+    # run id, revert, confirm GREEN with a second real run id, record both --
+    # same pattern already used for DOD-X4/DOD-R3. Do not report this job
+    # green from a claim; only from an observed run.
+    name: E2E Tests (Env-1, cross-repo)
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout compliance-tracker
+        uses: actions/checkout@v7
+      - name: Checkout projexa (sibling dir)
+        uses: actions/checkout@v7
+        with:
+          repository: FChecklist/projexa
+          ref: main
+          path: projexa-checkout
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Install projexa deps
+        run: bun install --frozen-lockfile
+        working-directory: projexa-checkout
+
+      # --- Boot THIS repo's real backend on :3000 first -- PROJEXA calls it
+      # via VERIDIAN_API_BASE_URL below, so it must already be up before
+      # PROJEXA's own readiness probe can return real data. Same real
+      # `next start` production-server pattern PR #1629's DOD-S1 job already
+      # proved live (build once here, not reused from the separate `build`
+      # job above -- GitHub Actions jobs do not share a filesystem).
+      - run: bun run db:generate || true
+      - name: Build compliance-tracker
+        run: bun run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NODE_OPTIONS: --max-old-space-size=8192
+      - name: Start compliance-tracker (background, :3000)
+        run: nohup bunx next start -p 3000 > ct-server.log 2>&1 & echo $! > ct-server.pid
+        env:
+          NODE_ENV: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APP_RUNTIME_DATABASE_URL: ${{ secrets.APP_RUNTIME_DATABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Wait for compliance-tracker to accept connections
+        run: |
+          for i in $(seq 1 40); do
+            if curl -s -o /dev/null "http://localhost:3000/api/organization"; then
+              echo "ct responding after ${i} attempt(s)"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::compliance-tracker never accepted a connection on :3000 within 120s"
+          cat ct-server.log || true
+          exit 1
+
+      # --- Boot PROJEXA's real backend on :3100, pointed at the ct instance
+      # above via VERIDIAN_API_BASE_URL (same convention projexa/.env.local
+      # already documents for local dev).
+      - name: Build projexa
+        run: bun run build
+        working-directory: projexa-checkout
+        env:
+          DATABASE_URL: ${{ secrets.PROJEXA_DATABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: https://evpckeuxgvahguwsaeul.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_f0C6ZvVjEnwkdN7wxfEwBQ_x69zrGs8
+      - name: Start projexa (background, :3100)
+        working-directory: projexa-checkout
+        run: nohup bunx next start -p 3100 > ../projexa-server.log 2>&1 & echo $! > ../projexa-server.pid
+        env:
+          NODE_ENV: production
+          DATABASE_URL: ${{ secrets.PROJEXA_DATABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: https://evpckeuxgvahguwsaeul.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_f0C6ZvVjEnwkdN7wxfEwBQ_x69zrGs8
+          VERIDIAN_API_BASE_URL: http://localhost:3000/api/v1/projexa
+          VERIDIAN_API_KEY: ${{ secrets.VERIDIAN_API_KEY }}
+      - name: Wait for projexa to accept connections
+        run: |
+          for i in $(seq 1 40); do
+            if curl -s -o /dev/null "http://localhost:3100/login"; then
+              echo "projexa responding after ${i} attempt(s)"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::projexa never accepted a connection on :3100 within 120s"
+          cat projexa-server.log || true
+          exit 1
+
+      # --- Run this repo's 3 Env-1 specs against the already-running :3100
+      # PROJEXA instance. E2E_ENV1_JOB=true tells playwright.config.ts to
+      # reuse the ct server already running on :3000 above instead of trying
+      # to launch its own dev-mode copy on the same port (which would error
+      # "port already in use" -- reuseExistingServer defaults to false in CI
+      # for the regular `e2e` job above, deliberately, so that job still
+      # proves it boots its OWN server from cold; this job already proved
+      # that above with a real production boot, so reusing here is correct,
+      # not a weaker check).
+      - run: bunx playwright install --with-deps chromium
+      - name: Run compliance-tracker Env-1 specs
+        run: bunx playwright test e2e/r01-r02-boq-create-env1.spec.ts e2e/r32-boq-total-excludes-subtasks-env1.spec.ts e2e/r40-work-progress-weighted-subtask-env1.spec.ts
+        env:
+          E2E_PROJEXA_ORIGIN: http://localhost:3100
+          E2E_ENV1_JOB: "true"
+
+      # --- Run projexa's own R-60 spec under projexa's OWN playwright
+      # config (auth.setup.ts + storageState, a different fixture
+      # convention to this repo's mint-session-r33/GoTrue flow) -- separate
+      # browser install, this repo's node_modules/playwright and projexa's
+      # are independent installs.
+      - name: Install projexa's playwright browsers
+        working-directory: projexa-checkout
+        run: bunx playwright install --with-deps chromium
+      - name: Run projexa Env-1 spec (R-60)
+        working-directory: projexa-checkout
+        run: bunx playwright test e2e/r60-boq-currency-env1.spec.ts
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3100
+
+      - name: Server logs (always shown, for debugging any outcome)
+        if: always()
+        run: |
+          echo "--- compliance-tracker (:3000) ---"; cat ct-server.log || true
+          echo "--- projexa (:3100) ---"; cat projexa-server.log || true
+      - name: Stop background servers
+        if: always()
+        run: |
+          kill "$(cat ct-server.pid)" 2>/dev/null || true
+          kill "$(cat projexa-server.pid)" 2>/dev/null || true
