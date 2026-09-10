@@ -442,3 +442,69 @@ jobs:
       # honest limitation to wave through.
       - run: bunx playwright install --with-deps chromium
       - run: bunx playwright test
+  dod-s1-project-budgets-live-check:
+    # DOD-S1 CI instrument (D28, kt/DOD_BASELINE_2026-09-10.csv). Answers a
+    # real, unresolved finding: pm/owner_admin hit POST
+    # /api/v1/projexa/project-budgets and got two DIFFERENT 5xx codes (503
+    # then 500) on the identical request back to back, in three separate
+    # attempts -- every one of them against a ct DEV-MODE backend, never a
+    # real production server. "Does this survive a real production build" was
+    # left as the open question this job settles, repeatedly, on ubuntu-
+    # latest's 16GB runner rather than a local machine with a tighter RAM
+    # ceiling (D72). Deliberately small per PM's own ruling: ONE role (a
+    # minimal-privilege, revocable API key scoped write-only to
+    # org=projexa_demo_org, compliance.api_keys id
+    # eb7328b8-319e-4413-8b23-4be754abd84b -- see
+    # scripts/check-project-budgets-live.mjs's own header for the full
+    # reasoning), ONE route, ONE assertion. See that script for the D58
+    # falsifiability self-test this job's verdict depends on.
+    #
+    # next.config.ts has no `output: 'standalone'`, so package.json's own
+    # "start" script (`bun .next/standalone/server.js`) does not work --
+    # confirmed by reading next.config.ts end to end, not assumed. This job
+    # uses `bunx next start` directly instead, the same real production
+    # server command projexa's own working "start" script already uses.
+    name: DOD-S1 Project Budgets Live Check
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run db:generate || true
+      - run: bun run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NODE_OPTIONS: --max-old-space-size=8192
+      - name: Start production server (background)
+        run: nohup bunx next start -p 3000 > server.log 2>&1 & echo $! > server.pid
+        env:
+          NODE_ENV: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APP_RUNTIME_DATABASE_URL: ${{ secrets.APP_RUNTIME_DATABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Wait for the server to accept connections
+        run: |
+          for i in $(seq 1 40); do
+            if curl -s -o /dev/null "http://localhost:3000/api/v1/projexa/project-budgets"; then
+              echo "server responding after ${i} attempt(s)"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::server never accepted a connection on :3000 within 120s"
+          cat server.log || true
+          exit 1
+      - run: node scripts/check-project-budgets-live.mjs
+        env:
+          DOD_S1_SMOKE_API_KEY: ${{ secrets.DOD_S1_SMOKE_API_KEY }}
+      - name: Server log (always shown, for debugging either outcome)
+        if: always()
+        run: cat server.log || true
+      - name: Stop server
+        if: always()
+        run: kill "$(cat server.pid)" 2>/dev/null || true
