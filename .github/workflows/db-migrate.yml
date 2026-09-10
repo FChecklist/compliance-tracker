@@ -32,6 +32,10 @@ on:
       confirm:
         description: 'Type "apply" to confirm running drizzle-kit migrate against the live database'
         required: true
+      expected_to_apply:
+        description: 'How many migrations you expect this run to apply. The job ABORTS before touching the database if the real number differs. If you do not know, dispatch with 0 first and read the list the preflight prints.'
+        required: true
+        default: '0'
 
 jobs:
   migrate:
@@ -49,6 +53,20 @@ jobs:
             const j = require('./drizzle/meta/_journal.json');
             console.log(JSON.stringify(j.entries.slice(-10).map(e => ({idx: e.idx, tag: e.tag, when: e.when})), null, 2));
           "
+      # Added 2026-09-10 after this workflow was found non-functional for ~8
+      # weeks (28P01: SUPABASE_DB_PASS last updated 06-28, DATABASE_URL 08-29,
+      # a password rotation that never propagated). That breakage is why the
+      # journal drifted to 398 entries against 305 ledger rows -- everything
+      # since the rotation was applied by another route. The hazard is the
+      # REPAIR: the first dispatch after the secret is fixed would apply every
+      # entry with no ledger row, and whoever fixed a stale password is not
+      # expecting that. This gate makes the operator declare the number first
+      # and stops the job before any SQL if reality disagrees.
+      - name: Preflight -- declared migration count must match reality
+        run: node scripts/db-migrate-preflight.mjs
+        env:
+          DATABASE_URL: "postgresql://postgres.pcrjmlpuqsbocqfwoxod:${{ secrets.SUPABASE_DB_PASS }}@aws-1-ap-south-1.pooler.supabase.com:6543/postgres"
+          EXPECTED_TO_APPLY: ${{ github.event.inputs.expected_to_apply }}
       - name: Apply migrations
         # Live-tested 2026-08-29, real issues found and fixed in turn:
         # (1) secrets.DATABASE_URL is the app_runtime role (correct for the
