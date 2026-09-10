@@ -1668,11 +1668,7 @@ export async function scopeReport(ctx: { orgId: string }, projectId: string) {
     // (kept as an inline duplicate here rather than a cross-module call, to
     // avoid nesting withTenantContext).
     const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
-    // TEMPORARY DOD-R3 F-2 falsification plant (R-52, to be reverted): drops the
-    // "skip superseded" selection so scopeReport blindly trusts DB-sorted position
-    // 0 again, even when that row is superseded -- this is the exact "only the
-    // LATEST [non-superseded] revision is counted" guarantee R-52 exists to test.
-    const latest = boqs[0]
+    const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
     if (!latest) return { boq: null, totalValue: 0, lineItemCount: 0, revisions: [] }
     const [valueRow] = await db.select({ total: sql<number>`coalesce(sum(${constructionBoqLineItems.amount}), 0)::float`, count: sql<number>`count(*)` })
       .from(constructionBoqLineItems).where(rootBoqLineItemsOnly(latest.id))
