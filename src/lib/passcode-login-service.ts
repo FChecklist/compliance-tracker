@@ -68,6 +68,7 @@ import { eq, and, gte, sql } from "drizzle-orm"
 import bcrypt from "bcryptjs"
 import { recordAuthFailureAndCheckAnomaly } from "./services/auth-failure-service"
 import { logger } from "@/lib/logger"
+import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
 
 export const PASSCODE_LENGTH = 4
 const BCRYPT_COST = 10
@@ -222,7 +223,10 @@ export async function verifyPasscodeLogin(email: string, passcode: string, ipAdd
     return { ok: false, reason: "invalid" }
   }
 
-  const user = await db.query.users.findFirst({ where: eq(users.email, normalizedEmail) })
+  // CRR-027 CONTRACT migration: was db.query.users.findFirst() over the
+  // plain (RLS-bypassing) db client -- genuine pre-auth lookup, no session
+  // yet. See EXISTING_FN row #9 in pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md.
+  const user = await lookupUserByEmail(normalizedEmail)
   if (!user || !user.passcodeHash) {
     await recordAttempt(normalizedEmail, ipAddress, false)
     return { ok: false, reason: "invalid" }
