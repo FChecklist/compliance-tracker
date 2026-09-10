@@ -61,7 +61,7 @@
 //      task-execution-engine.ts concept first, never a from-scratch
 //      single-file op, matching 'integrative''s own stated definition).
 import { db, taskCapabilities, instructionPackages, capabilityImprovementProposals } from "@/lib/db"
-import { eq, sql } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 // P2.6 (R81-ADDENDUM-B phase S5): platform.task_capabilities is going RLS-
 // tightened so app_runtime can no longer write its platform-wide (org_id
 // IS NULL) rows -- see drizzle/0577_p2_6_task_capabilities_registry_write_lockdown.sql
@@ -70,7 +70,39 @@ import { eq, sql } from "drizzle-orm"
 // in this file goes through this service-role client instead of the
 // app_runtime-connected `db`; reads (db.query.taskCapabilities.*) are
 // unaffected -- app_runtime keeps SELECT on platform-wide rows.
-import { serviceRoleUpdateTaskCapability } from "@/lib/db/service-role-client"
+import {
+  serviceRoleUpdateTaskCapability,
+  serviceRoleUpsertImprovementProposal,
+  serviceRoleUpdateImprovementProposal,
+  serviceRoleFindImprovementProposalById,
+  serviceRoleFindImprovementProposalByCapabilityVersion,
+  serviceRoleListImprovementProposals,
+} from "@/lib/db/service-role-client"
+
+// C-14 (external review 2026-09-10 / F-2026-0910-006): capability_improvement_proposals
+// has no app_runtime policy at all (not even SELECT) and no org_id column --
+// every read AND write goes through the service-role client. This mapper
+// converts that client's raw (snake_case) row shape back to the drizzle-
+// inferred (camelCase) CapabilityImprovementProposal type every caller in
+// this file already expects, so nothing downstream needs to change.
+function mapProposalRow(row: Record<string, unknown>): CapabilityImprovementProposal {
+  return {
+    id: row.id,
+    capabilityId: row.capability_id,
+    capabilityVersion: row.capability_version,
+    findings: row.findings,
+    existingAssetMatch: row.existing_asset_match,
+    occurrenceCount: row.occurrence_count,
+    status: row.status,
+    dispatchedToRole: row.dispatched_to_role,
+    dispatchedAt: row.dispatched_at ? new Date(row.dispatched_at as string) : null,
+    dispatchOutput: row.dispatch_output,
+    prUrl: row.pr_url,
+    rejectionReason: row.rejection_reason,
+    createdAt: new Date(row.created_at as string),
+    updatedAt: new Date(row.updated_at as string),
+  } as CapabilityImprovementProposal
+}
 import { runRole } from "@/lib/ai-team/team-service"
 import { dispatchAdvisoryTask } from "@/lib/ai-team/advisory-dispatch-service"
 import type { TightTask } from "@/lib/task-tightening"
@@ -544,18 +576,37 @@ export async function upsertImprovementProposal(
   findings: AuditFindings,
   existingAssetMatch: ExistingAssetMatch | null = null
 ): Promise<CapabilityImprovementProposal> {
-  const [row] = await db
-    .insert(capabilityImprovementProposals)
-    .values({ capabilityId, capabilityVersion, findings, existingAssetMatch })
-    .onConflictDoUpdate({
-      target: [capabilityImprovementProposals.capabilityId, capabilityImprovementProposals.capabilityVersion],
-      set: {
-        occurrenceCount: sql`${capabilityImprovementProposals.occurrenceCount} + 1`,
-        updatedAt: new Date(),
-      },
+  // Explicit find-then-branch, not a single atomic UPSERT ... ON CONFLICT DO
+  // UPDATE SET occurrence_count = occurrence_count + 1: supabase-js's
+  // .upsert() writes every column in `values` on BOTH the insert and the
+  // conflict-update path, which would silently overwrite `findings`/
+  // `existingAssetMatch` on a repeat finding -- exactly what this function's
+  // own doc comment says must never happen. Branching explicitly preserves
+  // that guarantee; the cost is the same accepted race as
+  // recordExecutionOutcome() in capability-learning-service.ts (two
+  // concurrent audits of the same (capabilityId, capabilityVersion) could
+  // under-count occurrenceCount by one -- not tenant data, not money).
+  const existing = await serviceRoleFindImprovementProposalByCapabilityVersion(capabilityId, capabilityVersion)
+  if (existing) {
+    await serviceRoleUpdateImprovementProposal(existing.id as string, {
+      occurrence_count: (existing.occurrence_count as number) + 1,
+      updated_at: new Date().toISOString(),
     })
-    .returning()
-  return row
+  } else {
+    await serviceRoleUpsertImprovementProposal(
+      {
+        capability_id: capabilityId,
+        capability_version: capabilityVersion,
+        findings,
+        existing_asset_match: existingAssetMatch,
+        occurrence_count: 1,
+      },
+      ["capability_id", "capability_version"]
+    )
+  }
+  const row = await serviceRoleFindImprovementProposalByCapabilityVersion(capabilityId, capabilityVersion)
+  if (!row) throw new ServiceError(`Failed to upsert improvement proposal for capability ${capabilityId} v${capabilityVersion}`, 500)
+  return mapProposalRow(row)
 }
 
 export type DispatchResult =
@@ -571,8 +622,9 @@ export type DispatchResult =
  * is configured, without re-spending an Auditor LLM call.
  */
 export async function dispatchProposalToHigherAI(proposalId: string): Promise<DispatchResult> {
-  const proposal = await db.query.capabilityImprovementProposals.findFirst({ where: eq(capabilityImprovementProposals.id, proposalId) })
-  if (!proposal) throw new ServiceError(`No improvement proposal found for ${proposalId}`, 404)
+  const proposalRow = await serviceRoleFindImprovementProposalById(proposalId)
+  if (!proposalRow) throw new ServiceError(`No improvement proposal found for ${proposalId}`, 404)
+  const proposal = mapProposalRow(proposalRow)
 
   if (proposal.status !== "open") {
     return { dispatched: false, reason: `Proposal ${proposalId} is already '${proposal.status}', not eligible for dispatch.` }
@@ -607,10 +659,13 @@ export async function dispatchProposalToHigherAI(proposalId: string): Promise<Di
 
   const now = new Date()
   await Promise.all([
-    db
-      .update(capabilityImprovementProposals)
-      .set({ status: "dispatched", dispatchedToRole: roleKey, dispatchedAt: now, dispatchOutput: advisoryOutput, updatedAt: now })
-      .where(eq(capabilityImprovementProposals.id, proposal.id)),
+    serviceRoleUpdateImprovementProposal(proposal.id, {
+      status: "dispatched",
+      dispatched_to_role: roleKey,
+      dispatched_at: now.toISOString(),
+      dispatch_output: advisoryOutput,
+      updated_at: now.toISOString(),
+    }),
     serviceRoleUpdateTaskCapability(capability.id, { needs_improvement: "in_progress", updated_at: now.toISOString() }),
   ])
 
@@ -631,10 +686,8 @@ export async function dispatchProposalToHigherAI(proposalId: string): Promise<Di
  * doesn't exist in the schema.
  */
 export async function listImprovementProposals(status?: ProposalStatus): Promise<CapabilityImprovementProposal[]> {
-  return db.query.capabilityImprovementProposals.findMany({
-    where: status ? eq(capabilityImprovementProposals.status, status) : undefined,
-    orderBy: (t, { desc }) => desc(t.updatedAt),
-  })
+  const rows = await serviceRoleListImprovementProposals(status)
+  return rows.map(mapProposalRow)
 }
 
 /**
@@ -659,18 +712,16 @@ export async function listImprovementProposals(status?: ProposalStatus): Promise
  * Auditor LLM call on a gap a human just said "no" to.
  */
 export async function rejectImprovementProposal(proposalId: string, reason: string): Promise<void> {
-  const proposal = await db.query.capabilityImprovementProposals.findFirst({ where: eq(capabilityImprovementProposals.id, proposalId) })
-  if (!proposal) throw new ServiceError(`No improvement proposal found for ${proposalId}`, 404)
+  const proposalRow = await serviceRoleFindImprovementProposalById(proposalId)
+  if (!proposalRow) throw new ServiceError(`No improvement proposal found for ${proposalId}`, 404)
+  const proposal = mapProposalRow(proposalRow)
   if (proposal.status !== "open" && proposal.status !== "dispatched") {
     throw new ServiceError(`Proposal ${proposalId} is already '${proposal.status}' -- only an 'open' or 'dispatched' proposal can be rejected.`, 409)
   }
 
   const now = new Date()
   await Promise.all([
-    db
-      .update(capabilityImprovementProposals)
-      .set({ status: "rejected", rejectionReason: reason, updatedAt: now })
-      .where(eq(capabilityImprovementProposals.id, proposal.id)),
+    serviceRoleUpdateImprovementProposal(proposal.id, { status: "rejected", rejection_reason: reason, updated_at: now.toISOString() }),
     serviceRoleUpdateTaskCapability(proposal.capabilityId, { needs_improvement: "no", updated_at: now.toISOString() }),
   ])
 }
@@ -690,8 +741,9 @@ export async function rejectImprovementProposal(proposalId: string, reason: stri
  * loop closing for real.
  */
 export async function closeImprovementLoop(proposalId: string, prUrl: string): Promise<void> {
-  const proposal = await db.query.capabilityImprovementProposals.findFirst({ where: eq(capabilityImprovementProposals.id, proposalId) })
-  if (!proposal) throw new ServiceError(`No improvement proposal found for ${proposalId}`, 404)
+  const proposalRow = await serviceRoleFindImprovementProposalById(proposalId)
+  if (!proposalRow) throw new ServiceError(`No improvement proposal found for ${proposalId}`, 404)
+  const proposal = mapProposalRow(proposalRow)
 
   const capability = await db.query.taskCapabilities.findFirst({ where: eq(taskCapabilities.id, proposal.capabilityId) })
   if (!capability) throw new ServiceError(`No capability found for proposal ${proposalId}'s capabilityId ${proposal.capabilityId}`, 404)
@@ -703,10 +755,7 @@ export async function closeImprovementLoop(proposalId: string, prUrl: string): P
       needs_improvement: "no",
       updated_at: now.toISOString(),
     }),
-    db
-      .update(capabilityImprovementProposals)
-      .set({ status: "resolved", prUrl, updatedAt: now })
-      .where(eq(capabilityImprovementProposals.id, proposal.id)),
+    serviceRoleUpdateImprovementProposal(proposal.id, { status: "resolved", pr_url: prUrl, updated_at: now.toISOString() }),
   ])
 
   // Priority 6: make the now-closed capability a discoverable UMR asset --

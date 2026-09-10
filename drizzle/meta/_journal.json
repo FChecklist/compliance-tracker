@@ -2773,6 +2773,13 @@
       "when": 1788510818000,
       "tag": "0295_r42_seq20_screen_registry",
       "breakpoints": true
+    },
+    {
+      "idx": 396,
+      "version": "7",
+      "when": 1788510819000,
+      "tag": "0578_p2_6_capability_improvement_proposals_registry",
+      "breakpoints": true
     }
   ]
 }

@@ -91,3 +91,63 @@ export async function serviceRoleInsertTaskCapabilityIfAbsent(values: Record<str
     .upsert(values, { onConflict: conflictColumn, ignoreDuplicates: true })
   if (error) throw new Error(`serviceRoleInsertTaskCapabilityIfAbsent failed: ${error.message}`)
 }
+
+// ---------------------------------------------------------------------------
+// platform.capability_improvement_proposals (C-14, external review
+// 2026-09-10 / finding F-2026-0910-006): this table has NO org_id column at
+// all -- every row is unconditionally platform-wide, by schema, not by
+// convention. It already had ONLY a service_role_bypass policy and no
+// app_runtime policy of any kind (not even SELECT), so capability-audit-
+// service.ts's reads AND writes against it were already failing before
+// P2.6 touched anything -- see drizzle/0578_p2_6_capability_improvement_proposals_registry.sql,
+// which adds an app_runtime SELECT-only policy (listImprovementProposals()
+// is a read surface for a human review UI) and leaves writes service-role-only,
+// same shape as task_capabilities. Reads in capability-audit-service.ts
+// switch to the service-role client rather than wait for that migration to
+// be applied (it is authored+proven but left unapplied, same as 0577) --
+// once it lands, app_runtime SELECT would also work, but there is no reason
+// to have two working read paths for one table.
+// ---------------------------------------------------------------------------
+
+export async function serviceRoleUpsertImprovementProposal(
+  values: Record<string, unknown>,
+  conflictColumns: string[]
+): Promise<void> {
+  const { error } = await getServiceRoleClient()
+    .from("capability_improvement_proposals")
+    .upsert(values, { onConflict: conflictColumns.join(",") })
+  if (error) throw new Error(`serviceRoleUpsertImprovementProposal failed: ${error.message}`)
+}
+
+export async function serviceRoleUpdateImprovementProposal(id: string, patch: Record<string, unknown>): Promise<void> {
+  const { error } = await getServiceRoleClient().from("capability_improvement_proposals").update(patch).eq("id", id)
+  if (error) throw new Error(`serviceRoleUpdateImprovementProposal(${id}) failed: ${error.message}`)
+}
+
+export async function serviceRoleFindImprovementProposalById(id: string): Promise<Record<string, unknown> | undefined> {
+  const { data, error } = await getServiceRoleClient().from("capability_improvement_proposals").select("*").eq("id", id).maybeSingle()
+  if (error) throw new Error(`serviceRoleFindImprovementProposalById(${id}) failed: ${error.message}`)
+  return data ?? undefined
+}
+
+export async function serviceRoleFindImprovementProposalByCapabilityVersion(
+  capabilityId: string,
+  capabilityVersion: number
+): Promise<Record<string, unknown> | undefined> {
+  const { data, error } = await getServiceRoleClient()
+    .from("capability_improvement_proposals")
+    .select("*")
+    .eq("capability_id", capabilityId)
+    .eq("capability_version", capabilityVersion)
+    .maybeSingle()
+  if (error) throw new Error(`serviceRoleFindImprovementProposalByCapabilityVersion(${capabilityId}, ${capabilityVersion}) failed: ${error.message}`)
+  return data ?? undefined
+}
+
+export async function serviceRoleListImprovementProposals(status?: string): Promise<Record<string, unknown>[]> {
+  let query = getServiceRoleClient().from("capability_improvement_proposals").select("*").order("updated_at", { ascending: false })
+  if (status) query = query.eq("status", status)
+  const { data, error } = await query
+  if (error) throw new Error(`serviceRoleListImprovementProposals failed: ${error.message}`)
+  return data ?? []
+}

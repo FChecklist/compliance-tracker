@@ -42,7 +42,16 @@ async function runCapabilityAuditSweep() {
         }
       }
     } catch (err) {
-      errors.push({ capabilityId: capability.id, capabilityKey: capability.capabilityKey, error: err instanceof Error ? err.message : String(err) })
+      const message = err instanceof Error ? err.message : String(err)
+      // C-14 (external review 2026-09-10 / F-2026-0910-006): this catch used
+      // to only push to `errors` below, with nothing else observing it --
+      // a CRON-triggered route's 200 OK response body is not something
+      // anything alerts on, so a per-capability failure (e.g. the RLS
+      // failures that existed before P2.6's service-role fix) went
+      // completely unlogged. console.error puts it in server logs
+      // regardless of whether anything ever reads this response.
+      console.error(`[capability-audit] audit failed for capability ${capability.id} ("${capability.capabilityKey}"):`, message)
+      errors.push({ capabilityId: capability.id, capabilityKey: capability.capabilityKey, error: message })
     }
   }
 
