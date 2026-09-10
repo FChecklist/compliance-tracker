@@ -59,6 +59,20 @@
 -- from the broken service-role client onto these functions.
 -- Idempotent: CREATE OR REPLACE FUNCTION is naturally idempotent; each
 -- REVOKE/GRANT pair is unconditional and safe to re-run.
+--
+-- *** APPLIED LIVE 2026-09-10 via the Supabase MCP, ahead of this file
+-- merging (D48 ruling, same pattern as 0584/0590) *** -- do not be
+-- confused if these objects already exist when this PR is reviewed; that
+-- is expected, not drift. Widens app_runtime's compliance+platform-schema
+-- SECURITY DEFINER EXECUTE surface from 1 (platform.graph_full_resync,
+-- pre-existing) to 10 with these 9 functions alone -- see D63's own
+-- framing of this as a real widening requiring scrutiny, not routine
+-- precedent. This journal entry's idx (407) does not match this file's
+-- own number (0585) -- confirmed deliberate, not drift: D76 established
+-- that idx and file number were never a corresponding pair in this
+-- journal (238 of 404 pre-existing entries already diverge), so renaming
+-- this file to chase a correspondence that never existed elsewhere would
+-- have cost a rename for zero benefit. See D76 for the full reasoning.
 
 -- ── 1. platform.rpc_task_capability_mark_audited ───────────────────────
 -- Site: capability-audit-service.ts's runCapabilityAudit(), ~line 531.

@@ -6,6 +6,7 @@
 // llm-client.ts, which this reuses rather than re-deriving pricing.
 
 import { estimateCostUsd, type LLMUsage } from "@/lib/llm-client"
+import { logger } from "@/lib/logger"
 
 export type CostPolicyDecision = {
   allowed: boolean
@@ -75,11 +76,31 @@ export async function checkOpenRouterBalance(): Promise<BalancePolicyDecision> {
       headers: { Authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(5000),
     })
-    if (!res.ok) return { allowed: true, remainingUsd: null } // fail open
+    if (!res.ok) {
+      // DOD-C8 fix: fail open is still correct (see header comment and the
+      // 2026-09-10 PM ruling this codifies -- OpenRouter enforces its own
+      // hard credit limit server-side via a 402 on the actual call, so this
+      // check is a courtesy/early-warning layer, not the last line of
+      // defense; forcing fail-CLOSED here would make every AI role call
+      // depend on this one endpoint's own reachability). What was missing
+      // is that the degradation was invisible -- "invisible until the
+      // invoice" -- so it's now a structured, named log line instead of a
+      // silent return.
+      logger.warn("checkOpenRouterBalance: fail-open, non-ok response from OpenRouter credits API", {
+        reason: "non_ok_response",
+        httpStatus: res.status,
+      })
+      return { allowed: true, remainingUsd: null } // fail open
+    }
     const body = (await res.json()) as { data?: { total_credits?: number; total_usage?: number } }
     const totalCredits = body.data?.total_credits
     const totalUsage = body.data?.total_usage
     if (typeof totalCredits !== "number" || typeof totalUsage !== "number") {
+      logger.warn("checkOpenRouterBalance: fail-open, unexpected response shape from OpenRouter credits API", {
+        reason: "unexpected_shape",
+        hasTotalCredits: typeof totalCredits,
+        hasTotalUsage: typeof totalUsage,
+      })
       return { allowed: true, remainingUsd: null } // fail open -- unexpected shape
     }
     const remaining = totalCredits - totalUsage
@@ -91,7 +112,11 @@ export async function checkOpenRouterBalance(): Promise<BalancePolicyDecision> {
       }
     }
     return { allowed: true, remainingUsd: remaining }
-  } catch {
+  } catch (error) {
+    logger.warn("checkOpenRouterBalance: fail-open, network/timeout error reaching OpenRouter credits API", {
+      reason: "network_or_timeout",
+      errorMessage: error instanceof Error ? error.message : String(error),
+    })
     return { allowed: true, remainingUsd: null } // fail open on any network/timeout error
   }
 }
