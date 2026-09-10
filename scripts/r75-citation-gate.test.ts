@@ -23,7 +23,17 @@
 // class being guarded against is specifically about what git itself
 // reports -- a unit test against extracted pure functions would not have
 // caught the original gap (fs.existsSync doesn't know what git tracks).
-import { describe, test, expect } from "bun:test"
+import { describe, test, expect, setDefaultTimeout } from "bun:test"
+
+// This whole file's tests spawn a real subprocess per test (the gate CLI
+// itself, and one of them nests a full second `bun test` invocation inside
+// that). No network, but subprocess-spawn latency is itself variable under
+// machine load -- exactly the same shape of problem W-GAP found in the
+// (now-split-out) DOD-X5 network suite, just with a process spawn instead
+// of a socket. Every test here is homogeneously "spawns a subprocess," so
+// one generous shared budget is the honest fix (unlike DOD-X5, there is no
+// fast pure-logic test in this file for a wide timeout to mask).
+setDefaultTimeout(30_000)
 import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
@@ -192,56 +202,12 @@ describe("D57: repo resolution must come from the citation, never a silent cwd d
   })
 })
 
-describe("DOD-X5: --verify-ci checks GitHub Actions, not just local", () => {
-  test("without --verify-ci, behavior is byte-identical to before -- opt-in never breaks the existing local-only workflow", () => {
-    const citation = {
-      requirement_id: "DOD-X5-NO-FLAG-TEST",
-      repo: "compliance-tracker",
-      test_path: REAL_TRACKED_TEST,
-      commit_sha: headSha(),
-      how_broken: "would fail if reconcile() stopped treating a CRLF/LF-only difference as non-drift",
-    }
-    const { exitCode, output } = runGate(citation)
-    expect(exitCode).toBe(0)
-    expect(output).not.toContain("f-ci-verified") // check never runs unless asked
-  })
-
-  test("--verify-ci against a real commit with a real, known-successful CI run -- ACCEPTS, CI-verified", () => {
-    // A real commit, independently confirmed via `gh api actions/runs?
-    // head_sha=...` before writing this test to have its ACTUAL
-    // .github/workflows/ci.yml run conclude success (not merely some other
-    // workflow -- see the CI_WORKFLOW_PATH fix in r75-citation-gate.mjs,
-    // added specifically because several nearby commits looked
-    // superficially "verified" by a passing Sentinel Governance Checks run
-    // while their own real CI run was cancelled or failed). A literal sha,
-    // not a HEAD~N relative ref -- this branch keeps gaining commits, so a
-    // relative ref would silently drift to a different, unverified commit
-    // on every future run. This exact sha's ci.yml run was independently
-    // confirmed green before writing this test.
-    const realShaWithKnownCiHistory = "900b4255e248118e828041bccd94f8bcd8c6f54c"
-    const citation = {
-      requirement_id: "DOD-X5-REAL-CI-SUCCESS-TEST",
-      repo: "compliance-tracker",
-      test_path: REAL_TRACKED_TEST,
-      commit_sha: realShaWithKnownCiHistory,
-      how_broken: "would fail if reconcile() stopped treating a CRLF/LF-only difference as non-drift",
-    }
-    const { exitCode, output } = runGate(citation, ["--repo-root", REPO_ROOT, "--verify-ci"])
-    expect(exitCode).toBe(0)
-    expect(output).toContain("PASS | f-ci-verified")
-    expect(output).toContain("CI-verified")
-  })
-
-  test("--verify-ci with a repo not in REPO_OWNER_MAP -- SKIPS the CI check, does not fail the citation over it", () => {
-    const citation = {
-      requirement_id: "DOD-X5-UNKNOWN-REPO-TEST",
-      repo: "some-repo-not-in-the-map",
-      test_path: REAL_TRACKED_TEST,
-      commit_sha: headSha(),
-      how_broken: "would fail if reconcile() stopped treating a CRLF/LF-only difference as non-drift",
-    }
-    const { exitCode, output } = runGate(citation, ["--repo-root", REPO_ROOT, "--verify-ci"])
-    expect(exitCode).toBe(0) // SKIP must not block an otherwise-valid local citation
-    expect(output).toContain("SKIP | f-ci-verified")
-  })
-})
+// DOD-X5's tests live in two SEPARATE files from here on, not in this one --
+// see r75-citation-gate-ci-verify-logic.test.ts (fast, deterministic, no
+// network) and r75-citation-gate-ci-verify-live.test.ts (small, isolated,
+// real gh api calls). W-GAP found the original single-suite version flaky
+// under machine load (9/10, 5/10, 2/10 across three re-runs, a different
+// test failing each time) because logic assertions and live-network calls
+// shared one bun-test timeout budget -- splitting them means a red in the
+// logic suite always means the logic is wrong, and a red in the live suite
+// always means the network was slow, never the same color again.

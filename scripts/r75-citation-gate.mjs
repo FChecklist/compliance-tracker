@@ -65,6 +65,8 @@
 // fails silent and plausible instead of loud.
 import fs from "node:fs"
 import { execFileSync, execSync } from "node:child_process"
+import { fileURLToPath } from "node:url"
+import path from "node:path"
 
 const PLACEHOLDER_MARKERS = ["SEE_PREVIOUS_CALL", "SEE PREVIOUS", "TODO", "N/A", "n/a", ""]
 
@@ -251,21 +253,22 @@ function ghApiJson(path) {
   }
 }
 
-function checkCiVerified(citation, root) {
-  const ghRepo = citation.repo && REPO_OWNER_MAP[citation.repo]
-  if (!ghRepo) {
-    return { check: "f-ci-verified", verdict: "SKIP", detail: `citation.repo ("${citation.repo ?? "unset"}") is not in REPO_OWNER_MAP -- cannot resolve a GitHub owner/repo to query. Add it there if this repo should be CI-verifiable.` }
-  }
-  const authCheck = ghApiJson("user")
-  if (!authCheck.ok) {
-    return { check: "f-ci-verified", verdict: "SKIP", detail: `gh unreachable/unauthenticated (${authCheck.error}) -- CI verification skipped, not failed. Re-run with --verify-ci once gh works to get a real answer.` }
-  }
-  const runs = ghApiJson(`repos/${ghRepo}/actions/runs?head_sha=${citation.commit_sha}`)
-  if (!runs.ok) {
-    return { check: "f-ci-verified", verdict: "FAIL", detail: `gh api actions/runs query failed: ${runs.error}` }
-  }
-  const allRuns = runs.data.workflow_runs ?? []
-  const total = runs.data.total_count ?? allRuns.length
+// PURE DECISION LOGIC, no I/O. Split out after W-GAP found the original
+// single-file test suite flaky under machine load (9/10, then 5/10, then
+// 2/10 across three re-runs, a different test failing each time) -- every
+// assertion, including the ones that test nothing but this function's own
+// branching, was sharing one bun-test timeout budget with real network
+// calls, so load on the machine (two dev servers running at the time)
+// made deterministic logic look flaky. This function takes an ALREADY-
+// FETCHED runs API response and returns a verdict -- it makes no network
+// call itself, so it can be tested exhaustively with recorded/fixture
+// response shapes, fast and 100% deterministic, in
+// r75-citation-gate-ci-verify-logic.test.ts. The live-network act of
+// actually calling gh api lives in checkCiVerified() below, tested
+// separately and minimally in r75-citation-gate-ci-verify-live.test.ts.
+function decideCiVerdict(citation, ghRepo, runsData) {
+  const allRuns = runsData.workflow_runs ?? []
+  const total = runsData.total_count ?? allRuns.length
   const ciRuns = allRuns.filter((r) => r.path === CI_WORKFLOW_PATH)
   if (total === 0) {
     return { check: "f-ci-verified", verdict: "FAIL", detail: `zero workflow runs of any kind found for commit ${citation.commit_sha} in ${ghRepo} -- this commit was never actually run through CI (superseded by a later push before its own run started, pushed to a branch CI doesn't trigger on, or a direct push to an unprotected main that GitHub's Actions concurrency/skip logic collapsed away -- G1 already established main has no branch protection here)` }
@@ -282,52 +285,89 @@ function checkCiVerified(citation, root) {
   return { check: "f-ci-verified", verdict: "FAIL", detail: `${ciRuns.length} run(s) of ${CI_WORKFLOW_PATH} found for this commit, none concluded success -- ${conclusions}` }
 }
 
-const argv = process.argv.slice(2)
-const citationPath = argv[0]
-if (!citationPath) {
-  console.error("usage: node scripts/r75-citation-gate.mjs <citation.json> --repo-root <dir> | --repo-roots <dir1>,<dir2>,... [--verify-ci] (D57: one repo flag is required, no cwd default. D56/DOD-X5: --verify-ci additionally checks GitHub Actions, not just local)")
-  process.exit(2)
+// I/O wrapper: resolves the repo, checks gh reachability, fetches the real
+// data, then hands off to decideCiVerdict() above for the actual verdict.
+// This is the only part of DOD-X5 that touches the network.
+function checkCiVerified(citation, root) {
+  const ghRepo = citation.repo && REPO_OWNER_MAP[citation.repo]
+  if (!ghRepo) {
+    return { check: "f-ci-verified", verdict: "SKIP", detail: `citation.repo ("${citation.repo ?? "unset"}") is not in REPO_OWNER_MAP -- cannot resolve a GitHub owner/repo to query. Add it there if this repo should be CI-verifiable.` }
+  }
+  const authCheck = ghApiJson("user")
+  if (!authCheck.ok) {
+    return { check: "f-ci-verified", verdict: "SKIP", detail: `gh unreachable/unauthenticated (${authCheck.error}) -- CI verification skipped, not failed. Re-run with --verify-ci once gh works to get a real answer.` }
+  }
+  const runs = ghApiJson(`repos/${ghRepo}/actions/runs?head_sha=${citation.commit_sha}`)
+  if (!runs.ok) {
+    return { check: "f-ci-verified", verdict: "FAIL", detail: `gh api actions/runs query failed: ${runs.error}` }
+  }
+  return decideCiVerdict(citation, ghRepo, runs.data)
 }
-const citation = JSON.parse(fs.readFileSync(citationPath, "utf8"))
-const roots = repoRoots(argv, citation) // D57: parse citation first, it can name the repo; this call exits(2) if no root was given at all
-const verifyCi = argv.includes("--verify-ci")
 
-const perRoot = roots.map(root => ({ root, ...runGate(citation, root) }))
-const winner = perRoot.find(r => !r.anyFail)
+// Exports exist ONLY so the two split test suites can reach these directly
+// (decideCiVerdict for fast fixture-driven logic tests with zero network;
+// checkCiVerified for the small, isolated live-network smoke test) --
+// this file still runs standalone as a CLI script exactly as before, the
+// exports don't change that.
+export { decideCiVerdict, checkCiVerified, REPO_OWNER_MAP, CI_WORKFLOW_PATH }
 
-if (roots.length > 1) console.log(`Checking ${roots.length} repo(s): ${roots.join(", ")}`)
-for (const r of perRoot) {
-  if (roots.length > 1) console.log(`-- in ${r.root} --`)
-  for (const f of r.findings) console.log(`${f.verdict} | ${f.check} | ${f.detail}`)
-}
+// CAUGHT while splitting DOD-X5's test suite (2026-09-10): this file used
+// to run its CLI body unconditionally at the top level, which is fine when
+// executed directly (`node scripts/r75-citation-gate.mjs ...`) but means
+// `import`-ing it for its exports (as the new split test files need to)
+// ALSO ran the CLI body immediately -- printed the usage error and called
+// process.exit(2) the instant the test file's import line executed, before
+// a single test could run. Guarded so the CLI body only runs when this
+// file is the actual entry point, never on a plain import.
+const isMainModule = Boolean(process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url)))
+if (isMainModule) {
+  const argv = process.argv.slice(2)
+  const citationPath = argv[0]
+  if (!citationPath) {
+    console.error("usage: node scripts/r75-citation-gate.mjs <citation.json> --repo-root <dir> | --repo-roots <dir1>,<dir2>,... [--verify-ci] (D57: one repo flag is required, no cwd default. D56/DOD-X5: --verify-ci additionally checks GitHub Actions, not just local)")
+    process.exit(2)
+  }
+  const citation = JSON.parse(fs.readFileSync(citationPath, "utf8"))
+  const roots = repoRoots(argv, citation) // D57: parse citation first, it can name the repo; this call exits(2) if no root was given at all
+  const verifyCi = argv.includes("--verify-ci")
 
-// DOD-X5: runs once per citation (not per root -- CI is a property of the
-// commit/repo pair, not of which local checkout happened to check it), and
-// only matters at all if local checks already found a winner -- no point
-// asking GitHub about a citation that's already structurally rejected.
-let ciResult = null
-if (verifyCi && winner) {
-  ciResult = checkCiVerified(citation, winner.root)
-  console.log(`${ciResult.verdict} | ${ciResult.check} | ${ciResult.detail}`)
-}
-const ciBlocks = verifyCi && ciResult && ciResult.verdict === "FAIL"
+  const perRoot = roots.map(root => ({ root, ...runGate(citation, root) }))
+  const winner = perRoot.find(r => !r.anyFail)
 
-if (winner && !ciBlocks) {
-  const ciNote = verifyCi ? (ciResult.verdict === "PASS" ? ", CI-verified" : ", CI check SKIPPED (see above, not a rejection)") : ""
-  console.log(`--- ${citation.requirement_id}: ACCEPTED in ${winner.root}${ciNote}, may be written CLOSED (record which repo in the closure citation) ---`)
-  process.exit(0)
-} else if (winner && ciBlocks) {
-  console.log(`--- ${citation.requirement_id}: REJECTED -- local checks passed in ${winner.root}, but --verify-ci found no successful CI run for this exact commit. A citation must be proven in the environment that actually gates merges, not only locally. ---`)
-  process.exit(1)
-} else {
-  // D57: NOT a fabrication verdict on its own -- only "not found in the
-  // repo(s) actually checked." If citation.repo names something not among
-  // `roots` (the repoRoots() warning above would already have fired), this
-  // is very likely a repo-mismatch, not fabrication. Only call it fabricated
-  // once the citation's own declared repo has genuinely been checked.
-  const repoCoverageNote = citation.repo
-    ? ` Citation declares repo "${citation.repo}" -- confirm that repo was actually among the roots checked before calling this fabrication.`
-    : ""
-  console.log(`--- ${citation.requirement_id}: REJECTED in the repo(s) checked (${roots.join(", ")}), stays OPEN. This means NOT FOUND HERE, not proven fabricated.${repoCoverageNote} ---`)
-  process.exit(1)
+  if (roots.length > 1) console.log(`Checking ${roots.length} repo(s): ${roots.join(", ")}`)
+  for (const r of perRoot) {
+    if (roots.length > 1) console.log(`-- in ${r.root} --`)
+    for (const f of r.findings) console.log(`${f.verdict} | ${f.check} | ${f.detail}`)
+  }
+
+  // DOD-X5: runs once per citation (not per root -- CI is a property of the
+  // commit/repo pair, not of which local checkout happened to check it), and
+  // only matters at all if local checks already found a winner -- no point
+  // asking GitHub about a citation that's already structurally rejected.
+  let ciResult = null
+  if (verifyCi && winner) {
+    ciResult = checkCiVerified(citation, winner.root)
+    console.log(`${ciResult.verdict} | ${ciResult.check} | ${ciResult.detail}`)
+  }
+  const ciBlocks = verifyCi && ciResult && ciResult.verdict === "FAIL"
+
+  if (winner && !ciBlocks) {
+    const ciNote = verifyCi ? (ciResult.verdict === "PASS" ? ", CI-verified" : ", CI check SKIPPED (see above, not a rejection)") : ""
+    console.log(`--- ${citation.requirement_id}: ACCEPTED in ${winner.root}${ciNote}, may be written CLOSED (record which repo in the closure citation) ---`)
+    process.exit(0)
+  } else if (winner && ciBlocks) {
+    console.log(`--- ${citation.requirement_id}: REJECTED -- local checks passed in ${winner.root}, but --verify-ci found no successful CI run for this exact commit. A citation must be proven in the environment that actually gates merges, not only locally. ---`)
+    process.exit(1)
+  } else {
+    // D57: NOT a fabrication verdict on its own -- only "not found in the
+    // repo(s) actually checked." If citation.repo names something not among
+    // `roots` (the repoRoots() warning above would already have fired), this
+    // is very likely a repo-mismatch, not fabrication. Only call it fabricated
+    // once the citation's own declared repo has genuinely been checked.
+    const repoCoverageNote = citation.repo
+      ? ` Citation declares repo "${citation.repo}" -- confirm that repo was actually among the roots checked before calling this fabrication.`
+      : ""
+    console.log(`--- ${citation.requirement_id}: REJECTED in the repo(s) checked (${roots.join(", ")}), stays OPEN. This means NOT FOUND HERE, not proven fabricated.${repoCoverageNote} ---`)
+    process.exit(1)
+  }
 }
