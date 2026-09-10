@@ -4,15 +4,30 @@
 // Unlike reuse-cache.test.ts (which injects a fake PhraseFuzzyRepo and needs
 // no DB), this file tests makePhraseFuzzyRepo() itself -- the actual SQL
 // query against compliance.phrase_map -- so it needs the real dev/test
-// Supabase project (guarded by test-guard.ts / bunfig.toml's preload; refuses
-// to run against anything else). Same pattern as this repo's other DB-backed
-// tests (see test-guard.ts's own header: r48-six-tenant-tables-rls.test.ts,
-// erp-goods-receipt-nested-transaction.test.ts).
+// Supabase project.
+//
+// WHY IT SKIPS INSTEAD OF FAILING WITHOUT A DATABASE. Same reasoning as
+// erp-goods-receipt-nested-transaction.test.ts's own header (read in full
+// before writing this): CI runs `bun test --isolate` with placeholder DB env
+// vars (.github/workflows/ci.yml -- postgresql://app_runtime:placeholder@
+// localhost:5432/postgres) so importing src/lib/db doesn't throw at module
+// load, but nothing is listening there. This file's FIRST version did not
+// probe first and turned CI's Unit Tests job red with ECONNREFUSED -- caught
+// and fixed here, not left for someone else to find. Probes first, skips the
+// whole file with a printed reason when unreachable.
+//
+// WHY IT LOADS .env.local ITSELF. Same reasoning, same mechanism as that
+// file: `bun test` sets NODE_ENV=test, and bun does not read .env.local
+// under NODE_ENV=test (confirmed empirically in this repo) -- so this reads
+// it explicitly, only for keys the environment has not already set, so
+// CI's placeholders always win and a real CI value is never overridden.
 //
 // A "test-" prefixed org id is used throughout (not a real/demo tenant) --
 // same convention scripts/check-test-tenant-scoping.mjs enforces for e2e
 // fixtures, applied here even though that script itself only scans e2e/.
 import { describe, expect, test, beforeAll, afterAll } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createId } from "@paralleldrive/cuid2";
 import { eq, inArray } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
@@ -20,6 +35,65 @@ import { phraseMap, pipelineSimilarityMetrics } from "@/lib/db/schema";
 import { makePhraseFuzzyRepo, PHRASE_FUZZY_HIGH_THRESHOLD } from "./phrase-fuzzy";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
 import type { Level1Context, Level1Outcome } from "./level1";
+
+const REPO_ROOT = join(import.meta.dir, "..", "..", "..");
+
+/** Fills in DB connection strings from .env.local for keys the environment
+ *  has not already set. Never overrides an existing value (CI's placeholders
+ *  win) -- copied verbatim in spirit from erp-goods-receipt-nested-
+ *  transaction.test.ts, same repo, same problem. */
+function loadDbEnvFromEnvLocalIfAbsent(): void {
+  const path = join(REPO_ROOT, ".env.local");
+  if (!existsSync(path)) return;
+  const wanted = new Set(["APP_RUNTIME_DATABASE_URL", "DATABASE_URL"]);
+  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (!match) continue;
+    const key = match[1];
+    if (!wanted.has(key) || process.env[key]) continue;
+    let value = match[2].trim();
+    const quoted = (value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"));
+    if (quoted) value = value.slice(1, -1);
+    if (value.length > 0) process.env[key] = value;
+  }
+}
+loadDbEnvFromEnvLocalIfAbsent();
+
+/** Returns null when a database answered, else the reason to skip. Retried
+ *  (a single dropped connection to a remote pooler should not silently
+ *  downgrade this file to "all skipped" and look green while testing
+ *  nothing); CI's placeholder host refuses immediately, so all three
+ *  attempts there cost milliseconds. */
+async function probeDatabase(): Promise<string | null> {
+  const url = process.env.APP_RUNTIME_DATABASE_URL;
+  if (!url) return "APP_RUNTIME_DATABASE_URL is not set";
+  const postgres = (await import("postgres")).default;
+  let lastError = "unknown error";
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const probe = postgres(url, { prepare: false, ssl: { rejectUnauthorized: false }, max: 1, connect_timeout: 5, idle_timeout: 1 });
+    try {
+      await probe`select 1`;
+      await probe.end({ timeout: 5 });
+      return null;
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code;
+      const message = error instanceof Error ? error.message : String(error);
+      lastError = [code, message].filter((part) => part !== undefined && part !== "").join(" ") || "unknown error";
+      try {
+        await probe.end({ timeout: 5 });
+      } catch {
+        // the probe already failed; how it closes is not interesting
+      }
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+  return `no reachable database after 3 attempts (${lastError})`;
+}
+
+const skipReason = await probeDatabase();
+if (skipReason) {
+  console.warn(`[phrase-fuzzy.test.ts] SKIPPED -- ${skipReason}. This file needs a live app_runtime database (pcrjmlpuqsbocqfwoxod in dev); CI intentionally has none for the Unit Tests job.`);
+}
 
 const TEST_ORG = "test-p1-2-phrase-fuzzy";
 const seededPhraseMapIds: string[] = [];
@@ -30,6 +104,7 @@ const seededPhraseMapIds: string[] = [];
 // test was being written) -- clears any leftover TEST_ORG rows up front
 // rather than colliding on phrase_map_org_phrase_unique.
 beforeAll(async () => {
+  if (skipReason) return;
   await withTenantContext({ orgId: TEST_ORG }, async (db) => {
     await db.delete(phraseMap).where(eq(phraseMap.orgId, TEST_ORG));
   });
@@ -52,7 +127,7 @@ async function seedPromotedPhrase(normalisedPhrase: string, functionId: string, 
   return id;
 }
 
-describe("makePhraseFuzzyRepo -- real pg_trgm similarity against a seeded org (P1.2)", () => {
+describe.skipIf(skipReason !== null)("makePhraseFuzzyRepo -- real pg_trgm similarity against a seeded org (P1.2)", () => {
   afterAll(async () => {
     if (seededPhraseMapIds.length === 0) return;
     await withTenantContext({ orgId: TEST_ORG }, async (db) => {
@@ -115,7 +190,7 @@ describe("makePhraseFuzzyRepo -- real pg_trgm similarity against a seeded org (P
   });
 });
 
-describe("P1.3 -- measuring the fuzzy-vs-model split on a seeded set, and persisting it (platform.pipeline_similarity_metrics)", () => {
+describe.skipIf(skipReason !== null)("P1.3 -- measuring the fuzzy-vs-model split on a seeded set, and persisting it (platform.pipeline_similarity_metrics)", () => {
   afterAll(async () => {
     if (seededPhraseMapIds.length === 0) return;
     // Best-effort cleanup for THIS describe block's own seeds too, in case
