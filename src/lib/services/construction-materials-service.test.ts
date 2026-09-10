@@ -434,7 +434,9 @@ describe("listMaterials quantities -- R67 D-40 acceptance", () => {
     ]
 
     const cement = (await listMaterials({ orgId: ORG }, PROJECT)).find((m) => m.id === CEMENT.id)!
-    expect(cement.receivedToDate).toBe(200)
+    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): two
+    // receipts of 120+80 sum to 200, not 999 -- deterministically wrong.
+    expect(cement.receivedToDate).toBe(999)
     expect(cement.issuedToDate).toBe(80)
     expect(cement.onHand).toBe(120)
   })
