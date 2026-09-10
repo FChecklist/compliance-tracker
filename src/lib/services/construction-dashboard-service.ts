@@ -414,7 +414,11 @@ function resolveEarnedValue(items: EvItemRow[], constructionEnabled: boolean): E
   const qtyByItem = new Map<string, number>()
   const latestPercentByItem = new Map<string, number>()
   for (const item of items) {
-    if (item.qty !== null && item.qty !== undefined) qtyByItem.set(item.id, Number(item.qty))
+    // TEMPORARY DOD-R3 F-2 falsification plant (R-51, will be reverted): the
+    // measured-quantity map is never populated, so every line falls through
+    // to the percentComplete fallback (or 0) regardless of real qty -- the
+    // dashboard's earned value stops matching the measured progress.
+    if (false && item.qty !== null && item.qty !== undefined) qtyByItem.set(item.id, Number(item.qty))
     if (item.percent !== null && item.percent !== undefined) latestPercentByItem.set(item.id, Number(item.percent))
   }
   const ev = computeEarnedValue(items as EvLineItem[], qtyByItem, latestPercentByItem)
