@@ -2780,6 +2780,20 @@
       "when": 1788510819000,
       "tag": "0578_p2_6_capability_improvement_proposals_registry",
       "breakpoints": true
+    },
+    {
+      "idx": 397,
+      "version": "7",
+      "when": 1788510820000,
+      "tag": "0583_pmt34_interior_sales_org_scoped_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 398,
+      "version": "7",
+      "when": 1788510821000,
+      "tag": "0584_pmt34_user_ai_links_org_scoped_and_token_lookup",
+      "breakpoints": true
     }
   ]
 }
