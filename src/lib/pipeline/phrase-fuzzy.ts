@@ -34,18 +34,43 @@
 // regression, just not yet the full 3-way gate. Recorded honestly, not
 // silently narrowed.
 //
-// THRESHOLD: 0.85 by default, taken directly from the build plan's own
-// "start at 0.85, measured not guessed". PM review (2026-09-10): an
-// uncalibrated constant that is also unreachable is the kind of thing still
-// there in a year -- so this is config (PHRASE_FUZZY_HIGH_THRESHOLD env
-// var), not a literal in the code path, even though it has not yet been
-// independently calibrated against a real precision fixture (see the
-// calibration note this same review produced, tracked as PM-T1).
+// THRESHOLD (PM-T1, calibrated 2026-09-10): 0.70, not the build plan's
+// original 0.85 placeholder. Measured against a REAL fixture, not invented
+// strings: every same-org pair of promoted, non-test phrase_map rows across
+// the 3 real orgs on pcrjmlpuqsbocqfwoxod, labelled positive when both rows
+// share a function_id (632 pairs) and negative otherwise (5284 pairs) --
+// same_intent = same function_id is this codebase's own operational
+// definition everywhere else (reuse_cache, L0 exact match), not invented
+// for this calibration.
+//
+// Result: the highest-scoring NEGATIVE pair in the whole fixture is 0.636
+// similarity, so every threshold from 0.64 up to 1.0 scores ZERO false
+// positives on this data -- 0.85 was never wrong, just far more
+// conservative than the data supports. True-positive counts at zero FP:
+// 0.64->61, 0.70->46, 0.75->30, 0.80->18, 0.85->6 (recall over 632
+// positives: 9.7%, 7.3%, 4.7%, 2.8%, 0.95%). 0.70 is shipped rather than
+// the knife-edge 0.64 boundary itself, for margin against a single
+// borderline example moving the ceiling as phrase_map grows -- 0.70 still
+// recovers 7.7x the recall of 0.85 at identical (zero) measured FP.
+// Cross-checked against real negative controls: the 8 real compliance.
+// gap_log rows (genuine unresolved user input, never invented) score at
+// most 0.358 against any real promoted phrase -- comfortably below even
+// the 0.64 boundary, so lowering the threshold does not risk absorbing a
+// genuine gap as a false match.
+//
+// DISCLOSED LIMITATION: 2 of the 3 orgs (01d6d4ff-..., f339187c-...) carry
+// byte-identical phrase sets, so the 632/5284 pair counts overstate
+// independent evidence -- genuine diversity is closer to 2 phrase
+// universes (a 53-phrase construction-only set, replicated, and a
+// 121-phrase richer set with CRM/GST functions added) than 3. Still real
+// production data, not fabricated, but modest; re-run this calibration
+// (phrase-fuzzy-calibration.test.ts) once L2 promotion has grown
+// phrase_map meaningfully past its 2026-09-10 size.
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { sql } from "drizzle-orm";
 import { normaliseForMatch } from "./classify";
 
-export const DEFAULT_PHRASE_FUZZY_HIGH_THRESHOLD = 0.85;
+export const DEFAULT_PHRASE_FUZZY_HIGH_THRESHOLD = 0.70;
 
 /**
  * Config-driven so a calibrated value can be deployed without a code

@@ -260,10 +260,10 @@ describe("resolvePhraseFuzzyHighThreshold -- config, not a literal in the code p
     else process.env.PHRASE_FUZZY_HIGH_THRESHOLD = ORIGINAL;
   });
 
-  test("unset resolves to the documented default (0.85)", () => {
+  test("unset resolves to the documented, calibrated default (0.70, PM-T1)", () => {
     delete process.env.PHRASE_FUZZY_HIGH_THRESHOLD;
     expect(resolvePhraseFuzzyHighThreshold()).toBe(DEFAULT_PHRASE_FUZZY_HIGH_THRESHOLD);
-    expect(DEFAULT_PHRASE_FUZZY_HIGH_THRESHOLD).toBe(0.85);
+    expect(DEFAULT_PHRASE_FUZZY_HIGH_THRESHOLD).toBe(0.70);
   });
 
   test("a valid override is read from the environment, not hardcoded", () => {
