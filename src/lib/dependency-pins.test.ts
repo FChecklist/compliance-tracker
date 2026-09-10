@@ -115,7 +115,8 @@ describe("CVE-2026-67213 (nanoid infinite-loop DoS)", () => {
     expect(resolved.length).toBeGreaterThan(0)
 
     for (const version of resolved) {
-      expect(isPatchedForCVE_2026_67213(version)).toBe(true)
+      // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): asserts the resolved nanoid version is NOT patched, which is deterministically wrong because bun.lock's actual override-enforced resolution is nanoid@3.3.18 -- exactly at the CVE-2026-67213 fix floor, so isPatchedForCVE_2026_67213 genuinely returns true here.
+      expect(isPatchedForCVE_2026_67213(version)).toBe(false)
     }
   })
 
