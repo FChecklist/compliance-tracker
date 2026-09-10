@@ -45,8 +45,12 @@ import path from "node:path"
 const DRIZZLE = path.resolve(import.meta.dirname, "..", "drizzle")
 
 const ALLOWED = {
-  "0294_r42_seq12_submissions_pipeline_tasks": { cat: "DEBT", note: "pre-existing orphan named in check-migration-integrity.mjs; fault R81_F37" },
-  "0295_r42_seq20_screen_registry": { cat: "DEBT", note: "pre-existing orphan named in check-migration-integrity.mjs; fault R81_F37" },
+  // 0294/0295 closed 2026-09-10 (fault R81_F37): both are real schema
+  // (CREATE TABLE + RLS, verified by reading the files), now journaled at
+  // idx 394/395 in drizzle/meta/_journal.json. DEBT category emptied per
+  // this file's own header ("closing R81_F37 means emptying that list, not
+  // extending it") -- do not re-add them here; if they ever go missing from
+  // the journal again that is a regression, not a return to a known state.
   "0562_r75_phase0_backup_grant_missing_sequence_select": { cat: "OPERATIONAL", note: "R75 Phase 0 one-off backup grant" },
   "0563_r75_phase0_backup_grant_remaining_sequence_select": { cat: "OPERATIONAL", note: "R75 Phase 0 one-off backup grant" },
   "0564_r75_phase0_backup_temp_bypassrls_grant": { cat: "OPERATIONAL", note: "temporary BYPASSRLS; paired with 0566 revoke -- must never replay" },

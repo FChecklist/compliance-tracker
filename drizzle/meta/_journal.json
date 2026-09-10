@@ -2759,6 +2759,20 @@
       "when": 1788510816000,
       "tag": "0577_p2_6_task_capabilities_registry_write_lockdown",
       "breakpoints": true
+    },
+    {
+      "idx": 394,
+      "version": "7",
+      "when": 1788510817000,
+      "tag": "0294_r42_seq12_submissions_pipeline_tasks",
+      "breakpoints": true
+    },
+    {
+      "idx": 395,
+      "version": "7",
+      "when": 1788510818000,
+      "tag": "0295_r42_seq20_screen_registry",
+      "breakpoints": true
     }
   ]
 }
