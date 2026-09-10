@@ -74,7 +74,27 @@ const SENTINEL_PATH_KEYS = ["do_not_delete"]
 // running these tests.
 const HAS_REAL_DATABASE = Boolean(process.env.DATABASE_URL) && !process.env.DATABASE_URL?.includes("placeholder")
 
-describe.skipIf(!HAS_REAL_DATABASE)("capability registry, real socket (PM-T24)", () => {
+// D58 corollary (PM, 2026-09-10, 13:58 IST): "skipIf makes a test that can
+// SKIP, and a skipping test reports green. That is precisely the shape of
+// the Env-2 E2E job we are excluding for being vacuous... a silently-
+// skipping real-socket test is worse than no real-socket test, because it
+// looks like coverage." Fixed by printing loudly, unconditionally, at
+// module-evaluation time -- not inside a test body, so it cannot itself be
+// skipped -- whenever this file is about to skip. This does not make bun's
+// own reporter distinguish skip from pass in its exit code (bun already
+// exits non-zero only on an actual failure, never on a skip, which is
+// correct bun behavior, not a defect to work around here) -- it makes the
+// skip impossible to miss in any log a human or CI step actually reads.
+if (!HAS_REAL_DATABASE) {
+  console.warn(
+    "[capability-registry-live.test.ts] SKIPPING both real-socket tests: " +
+      "DATABASE_URL is unset or is CI's placeholder localhost value, so there is no real database to test against. " +
+      "This is NOT the same as passing -- it means PM-T24's regression coverage did not run this time. " +
+      "See this file's own CI GAP comment above for why, and PM-T23 for the migration this test is the regression test for."
+  )
+}
+
+describe.skipIf(!HAS_REAL_DATABASE)("capability registry, real socket (PM-T24) [SKIPPED without a real DATABASE_URL -- see console warning above, not equivalent to passing]", () => {
   test("findOrCreateCapability + recordExecutionOutcome round-trip through the real registry write path", async () => {
     const before = await findOrCreateCapability({
       modePill: SENTINEL_MODE_PILL,
