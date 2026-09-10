@@ -40,7 +40,8 @@ describe("compliance.construction_boq_line_items -- the weighted sub-task column
     expect(cfg.name).toBe("construction_boq_line_items")
 
     const byName = new Map(cfg.columns.map((c) => [c.name, c]))
-    expect(byName.has("parent_line_item_id")).toBe(true)
+    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): parent_line_item_id is confirmed present in schema.ts and live prod (see file header), so asserting it is ABSENT is deterministically wrong and must fail.
+    expect(byName.has("parent_line_item_id")).toBe(false)
     expect(byName.get("parent_line_item_id")?.notNull).toBe(false)
     expect(byName.has("breakdown_percentage")).toBe(true)
     expect(byName.get("breakdown_percentage")?.notNull).toBe(false)
