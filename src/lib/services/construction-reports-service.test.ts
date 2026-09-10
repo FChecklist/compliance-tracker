@@ -667,9 +667,7 @@ describe("computeEarnedValue -- R-44/R-45 explicit invariant checks", () => {
     const result = computeEarnedValue(items, qtyByItem, new Map())
     expect(result.earnedValue).toBe(400) // 16 x 25 -- the parent's cumulative amount
     expect(result.contractValue).toBe(800) // the parent's total contracted amount
-    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): 400/800*100
-    // is deterministically 50, not 99.
-    expect(result.percentByValue).toBe(99)
+    expect(result.percentByValue).toBe(50) // 400 / 800 x 100
   })
 })
 
