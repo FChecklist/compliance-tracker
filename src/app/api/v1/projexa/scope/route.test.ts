@@ -204,8 +204,7 @@ describe("GET /api/v1/projexa/scope -- R-A4 cross-org isolation", () => {
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): the real, unmodified route correctly returns an empty array for org B, so asserting a non-empty array here is deterministically wrong and must fail.
-    expect(body.boqs).toEqual([{ id: "boq-A-1" }])
+    expect(body.boqs).toEqual([])
   })
 
   test("R-A4 (vice versa): org A's request never surfaces as belonging to org B when org B is the caller", async () => {
