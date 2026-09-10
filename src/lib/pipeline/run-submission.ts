@@ -1180,7 +1180,11 @@ export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunD
     runRead: (task) => executeTask(task),
     providerAvailable: () => {
       try {
-        assertAiProviderAllowed(input.userId);
+        // Explicit level, matching level1.ts/analyse.ts (P1.1): this checks
+        // whether L1 -- the level this dry-run's own Level 1 call will use
+        // -- is available, so it must resolve the SAME provider config that
+        // call resolves, not rely on the default parameter agreeing by luck.
+        assertAiProviderAllowed(input.userId, "pipeline_l1");
         return true;
       } catch {
         return false;

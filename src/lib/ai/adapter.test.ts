@@ -187,4 +187,20 @@ describe("P1.1 -- per-level provider override, dev/prod default (see provider-co
     // auth is for ordinary individual use only).
     expect(() => assertAiProviderAllowed("some_other_real_user_id", "pipeline_l1")).toThrow(AiProviderRefusalError);
   });
+
+  test("*** C-05, reviewer-required: BOTH refusal paths in ONE test *** -- a second identity on claude-cli is refused, AND an unlisted provider string is refused, so neither guard can silently regress without the other's test also failing", () => {
+    // Path 1: claude-cli (the command-line/CLI-OAuth provider) refuses a
+    // second identity -- the compliance gate itself.
+    process.env.AI_PROVIDER = "claude-cli";
+    process.env.RAJAT_USER_ID = "rajat_user_id_123";
+    delete process.env.AI_ALLOWED_PROVIDERS;
+    expect(() => assertAiProviderAllowed("a_genuinely_different_user", "pipeline_l1")).toThrow(AiProviderRefusalError);
+
+    // Path 2: an unlisted/unknown provider string is refused -- the
+    // default-deny allowlist, a structurally different failure mode (an
+    // UnknownAiProviderError, not a per-user AiProviderRefusalError) that a
+    // fix for path 1 could not accidentally satisfy.
+    process.env.AI_PROVIDER = "some-provider-nobody-configured";
+    expect(() => assertAiProviderAllowed("rajat_user_id_123", "pipeline_l1")).toThrow(UnknownAiProviderError);
+  });
 });
