@@ -249,3 +249,69 @@ describe("P1.2/P1.3 -- the trigram fuzzy tier, checked after reuse_cache and bef
     expect(out.modelCalls).toBe(0);
   });
 });
+
+// P1.4R -- the real confidence-driven escalation capability, in place of
+// building out escalation-tier-catalog.ts's PERCEPTION/REASONING/AUTHORITY
+// (retired, P1.4: zero production importers, unwired by its own header, its
+// own test admitted 2/3 models don't exist in the live roster, "L3" already
+// means a human approver elsewhere, and a 3rd AI-tier-to-AI-tier catalog
+// inverts the actual directive of AI-escalation-last). The real escalation
+// axis in this pipeline is software -> AI, gated by a software-computed
+// confidence score (phrase-fuzzy.ts's trigram similarity) computed BEFORE
+// any model call -- exactly what a confidence-driven (non-boolean) gate
+// requires, unlike MIN_CONFIDENCE (the model's own post-hoc self-report).
+// Three paths, matching the original step's own framing:
+describe("P1.4R -- confidence-driven escalation: three paths", () => {
+  test("path 1: resolved on the cheap path -- a high-confidence trigram match resolves with ZERO model calls", async () => {
+    let level1Calls = 0;
+    const repo = fakeRepo();
+    const fuzzyRepo = fakeFuzzyRepo({ "PP1 is 51% done": { functionId: "record_work_progress", fixedParams: { itemCode: "PP1" }, score: 0.92 } });
+    const fakeLevel1 = async (): Promise<Level1Outcome> => {
+      level1Calls++;
+      return { resolutions: [], reasons: [], modelCalls: 1 };
+    };
+
+    const out = await resolveMissesWithReuseCache(["PP1 is 51% done"], CTX, repo, fakeLevel1, {}, fuzzyRepo);
+
+    expect(level1Calls).toBe(0);
+    expect(out.modelCalls).toBe(0);
+    expect(out.fuzzyHits).toBe(1);
+    expect(out.resolutions[0]?.source).toBe("phrase_fuzzy");
+  });
+
+  test("path 2: escalated once, and the model resolves it -- confidence was too low for the cheap path, one model call succeeds", async () => {
+    let level1Calls = 0;
+    const repo = fakeRepo();
+    const fuzzyRepo = fakeFuzzyRepo({}); // no confident match anywhere -- always escalates
+    const resolved: ResolvedFunction = { functionId: "record_work_progress", params: { itemCode: "PP9" }, source: "level1", level: 1 };
+    const fakeLevel1 = async (texts: string[]): Promise<Level1Outcome> => {
+      level1Calls++;
+      return { resolutions: texts.map(() => resolved), reasons: texts.map(() => null), modelCalls: 1 };
+    };
+
+    const out = await resolveMissesWithReuseCache(["PP9 is nearly done, mark it"], CTX, repo, fakeLevel1, {}, fuzzyRepo);
+
+    expect(level1Calls).toBe(1);
+    expect(out.modelCalls).toBe(1);
+    expect(out.fuzzyHits).toBe(0);
+    expect(out.resolutions[0]).toEqual(resolved);
+  });
+
+  test("path 3: escalated to the model, and it does NOT resolve -- escalation is a real call with a real outcome, not a guaranteed hit", async () => {
+    let level1Calls = 0;
+    const repo = fakeRepo();
+    const fuzzyRepo = fakeFuzzyRepo({}); // no confident match -- escalates
+    const fakeLevel1 = async (texts: string[]): Promise<Level1Outcome> => {
+      level1Calls++;
+      return { resolutions: texts.map(() => null), reasons: texts.map(() => "Level 1 could not map this to any known function"), modelCalls: 1 };
+    };
+
+    const out = await resolveMissesWithReuseCache(["completely unmappable gibberish input"], CTX, repo, fakeLevel1, {}, fuzzyRepo);
+
+    expect(level1Calls).toBe(1); // the escalation genuinely happened
+    expect(out.modelCalls).toBe(1);
+    expect(out.fuzzyHits).toBe(0);
+    expect(out.resolutions[0]).toBeNull(); // ...and still didn't resolve -- a real miss, not a fabricated pass
+    expect(out.reasons[0]).toBe("Level 1 could not map this to any known function");
+  });
+});
