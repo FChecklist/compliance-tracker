@@ -3,12 +3,12 @@ import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { listSavedReports, createSavedReport, ServiceError } from "@/lib/services/custom-report-service"
 
 export async function GET() {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ reports: [] })
 
   try {
-    const reports = await listSavedReports({ orgId })
+    const reports = await listSavedReports({ orgId, userId: dbUser?.id })
     return NextResponse.json({ reports })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
