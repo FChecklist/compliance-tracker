@@ -34,17 +34,36 @@
 // regression, just not yet the full 3-way gate. Recorded honestly, not
 // silently narrowed.
 //
-// THRESHOLD: 0.85, taken directly from the build plan's own "start at 0.85,
-// measured not guessed" -- not re-derived in this phase (no time to build
-// the precision-at-{0.75,0.80,0.85,0.90} fixture the plan calls for against
-// live phrase_map data). This is a disclosed gap: ship at the plan's own
-// stated starting point, calibrate for real before raising real traffic
-// through this path.
+// THRESHOLD: 0.85 by default, taken directly from the build plan's own
+// "start at 0.85, measured not guessed". PM review (2026-09-10): an
+// uncalibrated constant that is also unreachable is the kind of thing still
+// there in a year -- so this is config (PHRASE_FUZZY_HIGH_THRESHOLD env
+// var), not a literal in the code path, even though it has not yet been
+// independently calibrated against a real precision fixture (see the
+// calibration note this same review produced, tracked as PM-T1).
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { sql } from "drizzle-orm";
 import { normaliseForMatch } from "./classify";
 
-export const PHRASE_FUZZY_HIGH_THRESHOLD = 0.85;
+export const DEFAULT_PHRASE_FUZZY_HIGH_THRESHOLD = 0.85;
+
+/**
+ * Config-driven so a calibrated value can be deployed without a code
+ * change -- read fresh on every call (not cached) so a redeploy-only config
+ * change takes effect immediately, same posture as AI_PROVIDER in
+ * provider-config.ts. Throws on an out-of-range or non-numeric value rather
+ * than silently falling back to the default -- a typo'd threshold should
+ * fail loudly, not quietly resolve every request through Level 1.
+ */
+export function resolvePhraseFuzzyHighThreshold(): number {
+  const raw = process.env.PHRASE_FUZZY_HIGH_THRESHOLD;
+  if (raw === undefined || raw.trim() === "") return DEFAULT_PHRASE_FUZZY_HIGH_THRESHOLD;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    throw new Error(`PHRASE_FUZZY_HIGH_THRESHOLD="${raw}" is not a valid similarity threshold -- must be a number in [0, 1].`);
+  }
+  return parsed;
+}
 
 export type PhraseFuzzyMatch = {
   functionId: string;
@@ -73,6 +92,7 @@ export function makePhraseFuzzyRepo(orgId: string): PhraseFuzzyRepo {
       // against a raw, differently-cased/punctuated query would understate
       // similarity for what is otherwise an identical phrase.
       const normalised = normaliseForMatch(text);
+      const threshold = resolvePhraseFuzzyHighThreshold();
       return withTenantContext({ orgId }, async (db) => {
         // extensions.similarity(), schema-qualified: pg_trgm is installed
         // into the `extensions` schema (see this file's own header + the
@@ -84,7 +104,7 @@ export function makePhraseFuzzyRepo(orgId: string): PhraseFuzzyRepo {
           SELECT function_id, fixed_params, extensions.similarity(normalised_phrase, ${normalised}) AS score
           FROM compliance.phrase_map
           WHERE org_id = ${orgId} AND promoted_at IS NOT NULL
-            AND extensions.similarity(normalised_phrase, ${normalised}) >= ${PHRASE_FUZZY_HIGH_THRESHOLD}
+            AND extensions.similarity(normalised_phrase, ${normalised}) >= ${threshold}
           ORDER BY score DESC
           LIMIT 1
         `);

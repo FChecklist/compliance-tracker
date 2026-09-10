@@ -32,7 +32,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { eq, inArray } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { phraseMap, pipelineSimilarityMetrics } from "@/lib/db/schema";
-import { makePhraseFuzzyRepo, PHRASE_FUZZY_HIGH_THRESHOLD } from "./phrase-fuzzy";
+import { makePhraseFuzzyRepo, resolvePhraseFuzzyHighThreshold, DEFAULT_PHRASE_FUZZY_HIGH_THRESHOLD } from "./phrase-fuzzy";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
 import type { Level1Context, Level1Outcome } from "./level1";
 
@@ -148,7 +148,7 @@ describe.skipIf(skipReason !== null)("makePhraseFuzzyRepo -- real pg_trgm simila
     expect(match).not.toBeNull();
     expect(match?.functionId).toBe("record_work_progress");
     expect(match?.fixedParams).toEqual({ itemCode: "PP1" });
-    expect(match?.score).toBeGreaterThanOrEqual(PHRASE_FUZZY_HIGH_THRESHOLD);
+    expect(match?.score).toBeGreaterThanOrEqual(resolvePhraseFuzzyHighThreshold());
   });
 
   test("an unrelated string scores below the threshold -- null, not a forced pick of the nearest row", async () => {
@@ -250,5 +250,34 @@ describe.skipIf(skipReason !== null)("P1.3 -- measuring the fuzzy-vs-model split
     // (that's the point of P1.3), so it is NOT deleted the way seeded
     // phrase_map fixture rows are -- it's the readable evidence the step
     // asks for. Left in place for the audit/PM to SELECT directly.
+  });
+});
+
+describe("resolvePhraseFuzzyHighThreshold -- config, not a literal in the code path (PM review 2026-09-10)", () => {
+  const ORIGINAL = process.env.PHRASE_FUZZY_HIGH_THRESHOLD;
+  afterAll(() => {
+    if (ORIGINAL === undefined) delete process.env.PHRASE_FUZZY_HIGH_THRESHOLD;
+    else process.env.PHRASE_FUZZY_HIGH_THRESHOLD = ORIGINAL;
+  });
+
+  test("unset resolves to the documented default (0.85)", () => {
+    delete process.env.PHRASE_FUZZY_HIGH_THRESHOLD;
+    expect(resolvePhraseFuzzyHighThreshold()).toBe(DEFAULT_PHRASE_FUZZY_HIGH_THRESHOLD);
+    expect(DEFAULT_PHRASE_FUZZY_HIGH_THRESHOLD).toBe(0.85);
+  });
+
+  test("a valid override is read from the environment, not hardcoded", () => {
+    process.env.PHRASE_FUZZY_HIGH_THRESHOLD = "0.72";
+    expect(resolvePhraseFuzzyHighThreshold()).toBe(0.72);
+  });
+
+  test("an out-of-range value throws rather than silently clamping or defaulting", () => {
+    process.env.PHRASE_FUZZY_HIGH_THRESHOLD = "1.5";
+    expect(() => resolvePhraseFuzzyHighThreshold()).toThrow();
+  });
+
+  test("a non-numeric value throws rather than silently defaulting", () => {
+    process.env.PHRASE_FUZZY_HIGH_THRESHOLD = "not-a-number";
+    expect(() => resolvePhraseFuzzyHighThreshold()).toThrow();
   });
 });
