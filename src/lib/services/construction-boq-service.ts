@@ -1209,12 +1209,7 @@ export async function createBoqRevision(
     // default; `undefined` now means "copy every parent line item forward
     // unchanged," matching the create-with-reference contract the TIMELINE/
     // COMPARE archetypes' test oracle requires.
-    // TEMPORARY DOD-R3 F-2 falsification plant (R-20, will be reverted after
-    // CI evidence capture): starving this map of entries makes every
-    // copy-forward child's parentItemCode resolve to undefined inside
-    // toLineItemInput below, so a revision's new child row loses its
-    // parentLineItemId link to the new root row instead of preserving it.
-    const itemCodeById = new Map<string, string>()
+    const itemCodeById = new Map(previousItems.filter((i) => i.itemCode).map((i) => [i.id, i.itemCode!]))
     const lineItems = input.lineItems ?? previousItems.map((row) => toLineItemInput(row, itemCodeById))
 
     validateLineItemInputs(lineItems)
