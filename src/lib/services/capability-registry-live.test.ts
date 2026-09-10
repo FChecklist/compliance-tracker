@@ -37,15 +37,17 @@
 // (not tenant data, not money, safe to leave running forever in CI).
 //
 // EXPECTED STATE AT THE TIME THIS FILE WAS COMMITTED (2026-09-10, PM-T23
-// still open): both tests below FAIL, on purpose, for the same reason
-// scripts/p2-6-post-apply-verify.mjs is committed failing (D44) -- the
-// underlying write/read path throws "Invalid schema: platform" before
-// either assertion is reached. This file is the regression test for
-// PM-T23's fix, whichever option lands: once that fix repoints
-// findOrCreateCapability/recordExecutionOutcome/listImprovementProposals
-// off the broken service-role/PostgREST client, these tests should flip to
-// passing with NO CHANGE to this file, since it only calls those
-// functions' existing public signatures.
+// still open), when run against a REAL DATABASE_URL (see the CI GAP note
+// below for what happens without one): both tests FAIL, on purpose, for the
+// same reason scripts/p2-6-post-apply-verify.mjs is committed failing
+// (D44) -- the underlying write/read path throws "Invalid schema:
+// platform" before either assertion is reached. Verified manually against
+// the real dev project (pcrjmlpuqsbocqfwoxod) before this commit. This file
+// is the regression test for PM-T23's fix, whichever option lands: once
+// that fix repoints findOrCreateCapability/recordExecutionOutcome/
+// listImprovementProposals off the broken service-role/PostgREST client,
+// these tests should flip to passing with NO CHANGE to this file, since it
+// only calls those functions' existing public signatures.
 import { describe, test, expect } from "bun:test"
 import { findOrCreateCapability, recordExecutionOutcome } from "./capability-learning-service"
 import { listImprovementProposals } from "./capability-audit-service"
@@ -53,7 +55,26 @@ import { listImprovementProposals } from "./capability-audit-service"
 const SENTINEL_MODE_PILL = "pm_t24_real_socket_test_sentinel"
 const SENTINEL_PATH_KEYS = ["do_not_delete"]
 
-describe("capability registry, real socket (PM-T24)", () => {
+// CI GAP (2026-09-10, not fixed by this file -- an owner/PM CI-wiring
+// decision, see this file's own module header): .github/workflows/ci.yml's
+// unit-tests job runs `bun test --isolate` with DATABASE_URL/
+// APP_RUNTIME_DATABASE_URL hardcoded to the literal string
+// "postgresql://.../placeholder@localhost:5432/postgres" -- nothing is
+// listening there, by design, since every OTHER test in this repo is
+// pure-function-only and never dereferences that value. Without this guard,
+// this file's two tests would ECONNREFUSED/timeout against that
+// placeholder on every PR in the whole repo, forever, proving nothing about
+// the actual PM-T23 regression -- a strictly worse failure than skipping.
+// Detects the SAME literal "placeholder" substring ci.yml's own build job
+// already uses for the identical purpose (see that job's DATABASE_URL/
+// NEXT_PUBLIC_SUPABASE_URL values) rather than inventing a new convention.
+// Runs for real: locally (via .env.local, copied into a worktree) and in
+// any environment where DATABASE_URL is a real connection string -- CI,
+// once wired with one, needs no change to this file to start actually
+// running these tests.
+const HAS_REAL_DATABASE = Boolean(process.env.DATABASE_URL) && !process.env.DATABASE_URL?.includes("placeholder")
+
+describe.skipIf(!HAS_REAL_DATABASE)("capability registry, real socket (PM-T24)", () => {
   test("findOrCreateCapability + recordExecutionOutcome round-trip through the real registry write path", async () => {
     const before = await findOrCreateCapability({
       modePill: SENTINEL_MODE_PILL,
