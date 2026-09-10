@@ -86,7 +86,6 @@ describe("getBaseCurrency -- reads the calling org's OWN stored row, not a share
     expect(usd.baseCurrency?.code).toBe("USD")
     // The point of R-61: these differ because each org's own stored row is
     // read, not because of any hardcoded per-call branch.
-    // DOD-R3 FALSIFICATION PLANT (temporary, reverted next commit): asserts AED equals USD, which is deterministically false since STORE maps org-aed->AED and org-usd->USD and can never be equal.
-    expect(aed.baseCurrency?.code).toBe(usd.baseCurrency?.code)
+    expect(aed.baseCurrency?.code).not.toBe(usd.baseCurrency?.code)
   })
 })
