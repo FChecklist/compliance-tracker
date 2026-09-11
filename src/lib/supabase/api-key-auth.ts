@@ -1,7 +1,5 @@
-import { db, apiKeyRequestLog } from "@/lib/db"
-import { eq, and, gte, sql } from "drizzle-orm"
 import { hashSHA256 } from "@/lib/api-keys"
-import { lookupApiKeyByHash } from "@/lib/db/preauth-lookups"
+import { lookupApiKeyByHash, countRecentApiKeyRequests } from "@/lib/db/preauth-lookups"
 import { pendingApiKeyRequestCount, recordApiKeyUse } from "@/lib/auth/api-key-audit"
 
 // R67 F-17 (R-234) x F-33 (R-278) -- THE USAGE BOOKKEEPING LEAVES THE REQUEST
@@ -163,9 +161,14 @@ export async function validateApiKey(request: Request): Promise<ValidateApiKeyRe
 
   if (rateLimit !== null) {
     const cutoff = new Date(at.getTime() - RATE_LIMIT_WINDOW_SECONDS * 1000)
-    const [{ count }] = await db.select({ count: sql<number>`count(*)` })
-      .from(apiKeyRequestLog)
-      .where(and(eq(apiKeyRequestLog.apiKeyId, row.id), gte(apiKeyRequestLog.createdAt, cutoff)))
+    // CRR-027/028 CONTRACT expand step, 6th of 6 NEEDS_NEW_NARROW_FUNCTION
+    // sites (F-2026-0910-W-PROD-009): was a raw db.select(...).from(apiKeyRequestLog)
+    // count query over the plain (RLS-bypassing) db client -- this IS the
+    // preauth step, same reasoning as lookupApiKeyByHash above -- now goes
+    // through the narrow SECURITY DEFINER
+    // compliance.count_recent_api_key_requests(text, timestamptz) function
+    // instead. Same window/condition (apiKeyId = row.id, createdAt >= cutoff).
+    const count = await countRecentApiKeyRequests(row.id, cutoff)
 
     // R67 F-17: the request log is now written in batches (see
     // src/lib/auth/api-key-audit.ts), so the DB count alone is up to one flush
@@ -173,7 +176,7 @@ export async function validateApiKey(request: Request): Promise<ValidateApiKeyRe
     // start of each batch. The queue's own unwritten rows close it.
     const queued = pendingApiKeyRequestCount(row.id, cutoff)
 
-    if (Number(count) + queued >= rateLimit) {
+    if (count + queued >= rateLimit) {
       // R67 F-33: still logged -- a rejected request is the one an operator most
       // wants to see in the usage dashboard -- but never beside the 429.
       void recordApiKeyUse({

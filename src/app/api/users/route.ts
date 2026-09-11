@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { canAssignSeat } from "@/lib/org-license-service";
 import { provisionAiAssistantsForUser } from "@/lib/services/subscription-plan-service";
+import { lookupUserByEmail } from "@/lib/db/preauth-lookups";
 
 export async function GET() {
   const { response, orgId } = await requireAuth()
@@ -73,7 +74,10 @@ export async function POST(request: NextRequest) {
 
     // Email is globally unique (mirrors the auth.users constraint) -- this
     // check is intentionally NOT tenant-scoped, unlike everything else here.
-    const existing = await db.query.users.findFirst({ where: eq(users.email, email.toLowerCase().trim()) })
+    // CRR-027 CONTRACT migration: was db.query.users.findFirst() over the
+    // plain (RLS-bypassing) db client. See EXISTING_FN row #36 in
+    // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md.
+    const existing = await lookupUserByEmail(email.toLowerCase().trim())
     if (existing) {
       // Priority 18b (Owner directive 2026-07-15, Option B, auto-upgrade
       // Trigger A): a stage-0-only person (orgId IS NULL) being directly

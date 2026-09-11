@@ -399,10 +399,20 @@ function ChecklistPhone() {
             })}
           </div>
 
+          {/* Decorative, not a control. This whole card is an autoplaying
+              animation on a public marketing page: `i` advances on a 1s
+              interval and the visitor cannot influence it, so a real <button>
+              here is an affordance that can never do anything (DOD-S6). It is
+              rendered as a styled div rather than wired up, because inventing a
+              submit action for a mock checklist would be worse than admitting
+              it is a picture of one. */}
           {complete && (
-            <button className="mt-5 w-full rounded-full bg-ct-saffron px-4 py-2.5 text-sm font-semibold text-white shadow-saffron">
+            <div
+              role="presentation"
+              className="mt-5 w-full rounded-full bg-ct-saffron px-4 py-2.5 text-center text-sm font-semibold text-white shadow-saffron"
+            >
               Submit checklist
-            </button>
+            </div>
           )}
         </div>
       </div>

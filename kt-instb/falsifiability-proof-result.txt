@@ -1,0 +1,5 @@
+INST-B DOD-C7 falsifiability proof
+result: PASS -- instrument correctly failed against a deliberately-broken guard
+
+enumerate-api-routes: scanned 1173 route files, 1654 methods total, 708 with a detected requireRole/requireRoleOrScope guard, 946 NO_GUARD_DETECTED (triage required, not an automatic finding). Wrote C:\ct\ct-worktrees\w-router-instb-route-harness\kt-instb\route-enumeration.json
+generate-authz-gate-table: 708 guarded methods -> 655 (specifier,guard,role) groups. Wrote C:\ct\ct-worktrees\w-router-instb-route-harness\kt-instb\authz-gate-table.json

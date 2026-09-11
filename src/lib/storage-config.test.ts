@@ -63,7 +63,16 @@ describe("getStorageStatus", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "sk-now-present"
     const second = await getStorageStatus()
     expect(second).toBe(first)
-    // ...until the cache is dropped.
+    // ...until the cache is dropped. Point at a closed port for that third
+    // call: with the key now set, storageEnvResolves() passes and
+    // getStorageStatus() performs a REAL probe. Against a hostname that has to
+    // be resolved over the network, this test's duration depends on DNS and it
+    // exceeded bun's 5s timeout in CI on 2026-09-10 while the network was slow
+    // -- a unit test that can fail because of the weather. 127.0.0.1:1 is
+    // closed on every machine this can run on, so the probe rejects
+    // immediately. It is the same address probeUploadBucket's own test in this
+    // file already uses, for the same reason.
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:1"
     resetStorageStatusCache()
     expect(await getStorageStatus()).not.toBe(first)
   })

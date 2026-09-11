@@ -2780,6 +2780,62 @@
       "when": 1788510819000,
       "tag": "0578_p2_6_capability_improvement_proposals_registry",
       "breakpoints": true
+    },
+    {
+      "idx": 397,
+      "version": "7",
+      "when": 1788510820000,
+      "tag": "0583_pmt34_interior_sales_org_scoped_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 398,
+      "version": "7",
+      "when": 1788510821000,
+      "tag": "0584_pmt34_user_ai_links_org_scoped_and_token_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 399,
+      "version": "7",
+      "when": 1789030279867,
+      "tag": "0581_pmt30_closure_ci_run_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 400,
+      "version": "7",
+      "when": 1789033292662,
+      "tag": "0582_pmt33_erp_payroll_runs_month_year_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 401,
+      "version": "7",
+      "when": 1789033293662,
+      "tag": "0586_dod_t8_compliance_naive_timestamps_to_timestamptz",
+      "breakpoints": true
+    },
+    {
+      "idx": 404,
+      "version": "7",
+      "when": 1789033296662,
+      "tag": "0589_dod_t8_backup22aug_naive_to_timestamptz",
+      "breakpoints": true
+    },
+    {
+      "idx": 405,
+      "version": "7",
+      "when": 1789033297662,
+      "tag": "0588_construction_tenders_org_scoped",
+      "breakpoints": true
+    },
+    {
+      "idx": 406,
+      "version": "7",
+      "when": 1789033298662,
+      "tag": "0590_crr027_028_expand_preauth_functions_report_share_and_api_key_log",
+      "breakpoints": true
     }
   ]
 }

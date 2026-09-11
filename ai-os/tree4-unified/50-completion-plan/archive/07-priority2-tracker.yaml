@@ -24,7 +24,7 @@ items:
       - The veda-advisors LOCAL checkout has 2 parts: `code-by-zai/` (the real
         git repo, remote github.com/FChecklist/veda-advisors) and a parent
         `veda-advisors/` folder that is NOT a git repo at all (just local files).
-      - A real, working GitHub PAT (github_pat_11AL4BWDI0gNHc6hDZInQi_...) is
+      - A real, working GitHub PAT (github_pat_[REDACTED-see-F-2026-0910-PM-066]...) is
         in plaintext in 2 local, non-git-tracked files (MASTER_IMPLEMENTATION_
         PROMPT.md, Veda_Advisors_Master_Prompt.md) in that parent folder, AND
         is embedded directly in code-by-zai/.git/config's remote URL (used for

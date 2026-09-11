@@ -249,14 +249,39 @@ async function getToolDefinitions(): Promise<ToolDefinition[]> {
       .eq('tier', 'global')
       .not('code_reference', 'is', null)
 
-    if (error || !data || data.length === 0) return TOOL_DEFINITIONS
+    if (error || !data || data.length === 0) {
+      // The fallback is deliberate and stays. What was missing is any record
+      // that it happened: platform.worker_agents currently holds 22 global
+      // tools while TOOL_DEFINITIONS holds 7, so this path silently serves a
+      // THIRD of the tool surface and looks identical to a healthy response.
+      // A caller cannot tell "these are the tools" from "the database was
+      // unreachable, here are some of the tools".
+      console.warn(
+        JSON.stringify({
+          event: 'mcp_tool_definitions_fallback',
+          reason: error ? 'query_error' : 'empty_result',
+          error: error?.message ?? null,
+          served: TOOL_DEFINITIONS.length,
+          expected_from_db: 'unknown -- query did not return',
+        }),
+      )
+      return TOOL_DEFINITIONS
+    }
 
     return data.map((row) => ({
       name: row.code_reference as string,
       description: (row.description as string) ?? '',
       inputSchema: (row.input_schema as Record<string, unknown>) ?? { type: 'object', properties: {} },
     }))
-  } catch {
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        event: 'mcp_tool_definitions_fallback',
+        reason: 'exception',
+        error: err instanceof Error ? err.message : String(err),
+        served: TOOL_DEFINITIONS.length,
+      }),
+    )
     return TOOL_DEFINITIONS
   }
 }

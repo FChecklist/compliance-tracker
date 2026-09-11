@@ -1,0 +1,14 @@
+{
+  "groups": 654,
+  "real_failures": [],
+  "floor_role_skips": [
+    "@/app/api/notices/[id]/route: role=\"viewer\" is a floor role (rank 1) -- no valid below-minimum caller exists",
+    "@/app/api/tasks/[id]/route: role=\"viewer\" is a floor role (rank 1) -- no valid below-minimum caller exists",
+    "@/app/api/v1/notices/[id]/route: role=\"viewer\" is a floor role (rank 1) -- no valid below-minimum caller exists",
+    "@/app/api/v1/tasks/[id]/route: role=\"viewer\" is a floor role (rank 1) -- no valid below-minimum caller exists"
+  ],
+  "known_conditional_skips": [
+    "@/app/api/capability-registry/coverage/route GET: known unrelated sibling-promise test artifact (see KNOWN_UNRELATED_ASYNC_ARTIFACT comment) -- gate itself is positioned correctly and unaffected",
+    "@/app/api/training/enrollments/route POST: known conditional guard, generic body does not trigger it (see KNOWN_CONDITIONAL_GUARDS comment)"
+  ]
+}
