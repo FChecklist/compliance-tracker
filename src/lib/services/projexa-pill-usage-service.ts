@@ -27,7 +27,9 @@
 // PER USER, never per org: one PM's ranking must never reorder another's
 // strip. The unique key on pill_usage is (org_id, user_id, pill_key).
 
-import { and, desc, eq, gte, lt, sql } from "drizzle-orm"
+// R75-shell: gte/lt dropped -- the pinned/in_window/outside_window queries
+// they scoped are now one raw-SQL statement (see readPillStrip below).
+import { and, desc, eq, sql } from "drizzle-orm"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { chainHistory, pillUsage } from "@/lib/db/schema"
 
@@ -271,27 +273,60 @@ export async function readPillStrip(input: {
   const windowStart = new Date(now.getTime() - PILL_WINDOW_DAYS * 86400000)
 
   return withTenantContext({ orgId: input.orgId }, async (db) => {
-    const scope = and(eq(pillUsage.orgId, input.orgId), eq(pillUsage.userId, input.userId))
-
-    const pinned = await db
-      .select()
-      .from(pillUsage)
-      .where(and(scope, eq(pillUsage.pinned, true)))
-      .orderBy(desc(pillUsage.lastUsedAt))
-
-    const inWindow = await db
-      .select()
-      .from(pillUsage)
-      .where(and(scope, eq(pillUsage.pinned, false), gte(pillUsage.lastUsedAt, windowStart)))
-      .orderBy(desc(pillUsage.useCount), desc(pillUsage.lastUsedAt))
-      .limit(input.limit)
-
-    const outsideWindow = await db
-      .select()
-      .from(pillUsage)
-      .where(and(scope, eq(pillUsage.pinned, false), lt(pillUsage.lastUsedAt, windowStart)))
-      .orderBy(desc(pillUsage.lastUsedAt))
-      .limit(input.limit)
+    // R75-shell (B3 redirect, D89): the three tiers used to be three
+    // sequentially-awaited SELECTs against this SAME table, differing only in
+    // WHERE/ORDER BY/LIMIT -- exactly the shape construction-dashboard-
+    // service.ts's R75 Part 5 fix consolidated, at smaller scale. Folded into
+    // ONE statement: a bucket (pinned/in_window/outside_window, the same
+    // predicate each removed query used) plus a ROW_NUMBER() PARTITIONed by
+    // that bucket, ORDERed by a single expression that reduces to each
+    // bucket's OWN original ordering -- `use_count DESC` only ever applies
+    // inside the in_window partition (the CASE is NULL everywhere else, and
+    // NULLS LAST means a NULL never outranks a real value), so pinned and
+    // outside_window still rank by last_used_at DESC alone, byte-for-byte
+    // what their own removed queries did. The pinned bucket's `rn` is
+    // computed but never used to filter -- every pinned row is always kept,
+    // same as the removed query's lack of a LIMIT.
+    const bucketedRows = (await db.execute(sql`
+      SELECT pill_key, function_id, derived_chain, use_count, pinned, last_used_at, bucket
+      FROM (
+        SELECT pill_key, function_id, derived_chain, use_count, pinned, last_used_at,
+          CASE WHEN pinned THEN 'pinned' WHEN last_used_at >= ${windowStart.toISOString()}::timestamptz THEN 'in_window' ELSE 'outside_window' END AS bucket,
+          ROW_NUMBER() OVER (
+            PARTITION BY (CASE WHEN pinned THEN 'pinned' WHEN last_used_at >= ${windowStart.toISOString()}::timestamptz THEN 'in_window' ELSE 'outside_window' END)
+            ORDER BY (CASE WHEN NOT pinned AND last_used_at >= ${windowStart.toISOString()}::timestamptz THEN use_count END) DESC NULLS LAST, last_used_at DESC
+          ) AS rn
+        FROM compliance.pill_usage
+        WHERE org_id = ${input.orgId} AND user_id = ${input.userId}
+      ) b
+      WHERE bucket = 'pinned' OR rn <= ${input.limit}
+      ORDER BY (CASE bucket WHEN 'pinned' THEN 0 WHEN 'in_window' THEN 1 ELSE 2 END), rn
+    `)) as {
+      pill_key: string; function_id: string | null; derived_chain: unknown; use_count: number; pinned: boolean
+      last_used_at: Date; bucket: "pinned" | "in_window" | "outside_window"
+    }[]
+    // VERIFIED, NOT ASSUMED, BEHAVIOR CHANGE: the removed `db.select()` calls
+    // (no column list) returned the FULL row -- id/orgId/userId/createdAt
+    // included -- and readPillStrip spread it (`...row`) straight into the
+    // response, leaking those four columns past PillUsageRow's own declared
+    // shape (TS structural typing does not strip excess properties off a
+    // spread). This raw query selects only PillUsageRow's own columns, so
+    // those four are gone from here on. Confirmed harmless before removing
+    // them: grepped every consumer in the projexa repo (the pill-usage route
+    // passes this payload straight through, M24Shell.tsx is the only
+    // component reading pillKey off it) -- none reads id/orgId/userId/
+    // createdAt off a pill entry. A byte-for-byte old-vs-new comparison
+    // against real data (multiple real users plus a synthetic pinned-tier
+    // fixture, since no live row happened to be pinned) confirmed every
+    // OTHER field, and the ordering, tier assignment and limit cutoff, are
+    // unchanged -- this is the one deliberate difference.
+    const toRow = (r: (typeof bucketedRows)[number]): PillUsageRow => ({
+      pillKey: r.pill_key, functionId: r.function_id, derivedChain: r.derived_chain,
+      useCount: Number(r.use_count), pinned: r.pinned, lastUsedAt: new Date(r.last_used_at),
+    })
+    const pinned = bucketedRows.filter((r) => r.bucket === "pinned").map(toRow)
+    const inWindow = bucketedRows.filter((r) => r.bucket === "in_window").map(toRow)
+    const outsideWindow = bucketedRows.filter((r) => r.bucket === "outside_window").map(toRow)
 
     // M24: PINNED above a divider, then RECENT. FAILED chains are INCLUDED --
     // "the commonest reason to re-run something is that it went wrong."
