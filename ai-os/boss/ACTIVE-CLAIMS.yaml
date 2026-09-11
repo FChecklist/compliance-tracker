@@ -3143,6 +3143,33 @@ active:
       tier/model-selection file, or the token_usage_ledger columns from
       Phase 2.
 
+  - session_label: "claude-code (interactive, w-test) -- R83 PM dispatch 2026-09-11: bucket C, de-share construction-boq-service.test.ts + open CI-verifying PR for construction-progress-service.test.ts (R-46) / construction-boq-import-service.test.ts (R-70/R-72) / construction-boq-service.revision-variation.test.ts + .scope-reduction-guard.test.ts (R-21/22/23/24) -- all four already merged to main, none ever had a CI run on their own commit (pushed direct, no PR)"
+    claimed_at: "2026-09-11T (this session)"
+    claim: |
+      TEST-FILE AUTHORSHIP ONLY per PM dispatch (message id relayed via
+      cross-session, R83 bucket C, items 13-15). No product source changes.
+      Splitting R-C09's own assertions out of construction-boq-service.test.ts
+      into their own file (same overshare-fix pattern as PR #1666), then
+      opening one PR that also lightly touches construction-progress-
+      service.test.ts, construction-boq-import-service.test.ts,
+      construction-boq-service.revision-variation.test.ts and
+      construction-boq-service.scope-reduction-guard.test.ts so a real CI
+      run finally executes them (all four are already on main via direct
+      push, with real break-restore evidence on file, but zero CI run
+      because no PR was ever opened touching them).
+    scope_note: >-
+      File scope: src/lib/services/construction-boq-service.test.ts (trim
+      only), NEW src/lib/services/construction-boq-service.r-c09-vendor-
+      write.test.ts (or similar name, exact name TBD at write time),
+      src/lib/services/construction-progress-service.test.ts (header-comment
+      touch only), src/lib/services/construction-boq-import-service.test.ts
+      (header-comment touch only),
+      src/lib/services/construction-boq-service.revision-variation.test.ts
+      (header-comment touch only),
+      src/lib/services/construction-boq-service.scope-reduction-guard.test.ts
+      (header-comment touch only). No drizzle/ migration. No product
+      src/lib/services/construction-boq-service.ts change.
+
 recently_completed:
   - session_label: "claude-code (interactive, r65-parte-billing-contracts) -- R65 Part E Billing Engine, Phase 2: billing_contracts schema + wiring into resolveActiveBillingRate's Sec14 priority resolution [DONE, merged as PR #1568 -- relocated here from active: by the Phase 3 session (r65-parte-phase3-formula-edge-cases), which found this entry never moved after its own real merge; per this file's own documented convention of appending just the one relevant entry under a fresh recently_completed: section when main has been pruned back to just its active: list, same precedent as the Task #47 rebase note elsewhere in this file's own history]"
     claimed_at: "2026-09-02T00:00Z"

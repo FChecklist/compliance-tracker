@@ -748,6 +748,11 @@ describe("updateLineItemBudget -- material/manpower amounts and category (R67 I-
     expect(updated.manpowerAmount).toBe("300")
   })
 
+  // R-C09 sub-claim 3 (vendorId/vendorAmount write path) was de-shared out
+  // of this block on 2026-09-11 (R83 bucket C item 13) into its own file,
+  // construction-boq-service.vendor-budget.test.ts -- this describe block
+  // now serves R67 I-03/I-05 only, not R-C09. See that file's own header
+  // for the full history (moved verbatim from here, not rewritten).
   test("null clears an amount, and undefined leaves it completely alone", async () => {
     const cleared = await patch({ materialAmount: null })
     expect(cleared.setCalls[0]).toEqual({ materialAmount: null })
