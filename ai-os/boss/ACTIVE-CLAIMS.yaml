@@ -40,6 +40,28 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, successor PM session, took handover from prior 'Project Manager' session local_9ded2765-995d-446e-ac58-eff36e1ad5ae mid-day 2026-09-11) -- R83 register integrity + continuation"
+    claimed_at: "2026-09-11T23:15 IST (this session)"
+    claim: |
+      SCOPE: platform.sumeet_requirement_components / platform.sumeet_requirements (Supabase project
+      pcrjmlpuqsbocqfwoxod), plus kt/r83/SCORECARD_MASTER.md, kt/DECISIONS.PM.jsonl, kt/FINDINGS.PM.jsonl
+      under C:\Users\Dell\Downloads\Claude Code\audit_9_sept_2026 (synced to Drive folder
+      1vJdIG_4w2eMjgsSn3ofHGy4ylgBIhKXp). NOT a repo-file-scoped claim in the usual sense of this registry --
+      recorded here because AGENTS.md Rule 11 requires it and the prior PM session explicitly flagged (in its
+      own handover) that it had never registered one, a real gap now closed.
+
+      WORK DONE: independently re-verified (own gh/git/SQL calls, not trusting the paste) all 6 findings in
+      kt/AUDIT_EVIDENCE_PACK_2026-09-12.md (produced by the prior PM session for an external-reviewer audit
+      request). Found the pack's own headline arithmetic was off by 2 (it said "25 cells / <=412 TRUE",
+      actually 27 cells since R-10 and R-B2 each carry 2 distinct bad cells, not 1). Applied all 27 demotions
+      via UPDATE...RETURNING (exact match), corrected headline 410 TRUE + 15 NA / 490. Then R-60 closed (PR
+      #258, projexa, merged by the prior PM session, independently confirmed via `gh pr view`) brought it to
+      413 TRUE. Full detail: kt/DECISIONS.PM.jsonl D140, kt/FINDINGS.PM.jsonl F-044.
+
+      NOT touching: repo source files (no code change made by this claim), any other requirement row not
+      named above. The prior PM session (local_9ded2765...) is still live, finishing its own audit/handoff and
+      about to archive -- coordinating via cross-session messages, not this file, since only one of us is
+      actually mid-archive.
   - session_label: "claude-code (interactive, W-PROD, w-prod/r83-p0-rls-preauth-scope-fix) -- P0 RLS preauth-policy narrowing (owner decision, confirmed directly in this session's own chat 2026-09-11), reapplication of migration 0587 (applied 2026-09-10, reverted same day pending call-site audit)"
     claimed_at: "2026-09-11T (this session)"
     claim: |
