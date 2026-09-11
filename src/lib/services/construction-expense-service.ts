@@ -50,7 +50,7 @@ export { ServiceError }
 // R67 F-27 (R-243): the one cache-bust helper -- see project-dashboard-cache.ts.
 import { bustProjectDashboardCache } from "./project-dashboard-cache"
 import { findControlAccount } from "./erp-invoicing-service"
-import { isErpEnabledForOrg } from "./erp-enablement-service"
+import { isErpEnabledForOrgWithDb } from "./erp-enablement-service"
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
 
 export type ExpenseEntryInput = {
@@ -160,7 +160,22 @@ export async function postConstructionExpenseEntryToGL(
   ctx: { orgId: string; userId: string },
   entry: { id: string; projectId: string; expenseHead: string; amount: string; expenseDate: string }
 ): Promise<{ journalEntryId: string } | null> {
-  if (!(await isErpEnabledForOrg(ctx.orgId))) return null
+  // R81_F34 continuation (D96/D103): this function already receives the
+  // caller's open transaction as `db` (createExpenseEntry's own
+  // withTenantContext) and threads it to findControlAccount/
+  // resolveConstructionExpenseAccount below -- but these next two gates were
+  // still calling their no-handle variant, each silently opening a SECOND
+  // withTenantContext (and, for isPeriodOpenForDate, its own nested
+  // requireErpEnabled on top of that) from inside the first one. The repo's
+  // own guard test (tenant-nesting-guard.test.ts) cannot see into this
+  // function -- its brace-matcher gets confused by the `Promise<{ ... }>`
+  // return-type annotation above and never scans the real body -- which is
+  // exactly why this sat undetected next to 9 other sites of the identical
+  // shape that the guard DID catch and that are already fixed. Same fix as
+  // those: use the WithDb sibling, matching the identical call-with-handle
+  // pattern erp-invoicing-service.ts's submitSalesInvoice/submitPurchaseInvoice
+  // already establish for isPeriodOpenForDate specifically.
+  if (!(await isErpEnabledForOrgWithDb(db, ctx.orgId))) return null
 
   let payableAccount
   try {
@@ -170,7 +185,7 @@ export async function postConstructionExpenseEntryToGL(
     throw err
   }
 
-  const periodOpen = await isPeriodOpenForDate({ orgId: ctx.orgId }, entry.expenseDate)
+  const periodOpen = await isPeriodOpenForDate({ orgId: ctx.orgId }, entry.expenseDate, db)
   if (!periodOpen) return null
 
   const expenseAccount = await resolveConstructionExpenseAccount(db, ctx.orgId, entry.expenseHead)

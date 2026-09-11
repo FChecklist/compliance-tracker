@@ -4,12 +4,13 @@
 // ruled: NOT the WhatsApp Business API -- a plain unguessable URL the user
 // pastes into WhatsApp themselves. AR-10 applies: the public resolve path
 // must render, never authorise -- see resolveReportShareLink()'s comment.
-import { reportShareLinks, db } from "@/lib/db"
+import { reportShareLinks } from "@/lib/db"
 import { isShareLinkUsable } from "@/lib/share-link-usable"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
 import { ServiceError } from "./compliance-service"
+import { lookupReportShareLinkByToken } from "@/lib/db/preauth-lookups"
 import { listBoqs, getBoq } from "./construction-boq-service"
 import { listActivities, listCategories, listProgressEntries } from "./construction-progress-service"
 import { getProjectDashboard } from "./construction-dashboard-service"
@@ -117,7 +118,17 @@ export async function revokeReportShareLink(ctx: { orgId: string }, linkId: stri
 // visitor can therefore only ever reach the one org + one report the token
 // was minted for, nothing else in the multi-tenant database.
 export async function resolveReportShareLink(token: string) {
-  const found = await db.query.reportShareLinks.findFirst({ where: eq(reportShareLinks.token, token) })
+  // CRR-027/028 CONTRACT: was db.query.reportShareLinks.findFirst() over
+  // the raw (RLS-bypassing) client -- narrowed to SECURITY DEFINER
+  // compliance.lookup_report_share_link_by_token(text), which does ONLY the
+  // exact-token-equality lookup and returns the unfiltered full row.
+  // isShareLinkUsable() below is UNCHANGED and still decides usability in
+  // application code -- deliberately not baked into the SQL function, since
+  // that same predicate is shared by 7 other public token surfaces (see
+  // kt/handover/HANDOVER_W-ENV_2026-09-10T2230.json's
+  // report_share_links_shape_divergence note). See
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md §6.
+  const found = await lookupReportShareLinkByToken(token)
   if (!isShareLinkUsable(found, new Date()) || !found) {
     throw new ServiceError("This share link is invalid or has expired", 404)
   }

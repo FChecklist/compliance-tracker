@@ -40,6 +40,39 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, W-PROD, w-prod/wire-record-api-key-request-batch) -- wire the unused compliance.record_api_key_request_batch SECURITY DEFINER function (migration 0590) into api-key-audit.ts's insertRequestLog, closing the last raw-preauth-write call site this codebase's R58/CRR-027-028 narrowing effort had flagged and left open"
+    claimed_at: "2026-09-11T (this session)"
+    claim: |
+      SPEC: src/lib/auth/api-key-audit.ts's defaultDeps().insertRequestLog did a
+      bare `db.insert(apiKeyRequestLog).values(...)` over the unauthenticated
+      app_runtime client (no tenant context -- preauth, same as the two reads
+      src/lib/db/preauth-lookups.ts already narrowed). Swapped for
+      `db.execute(sql\`select compliance.record_api_key_request_batch($1::jsonb)\`)`,
+      the same narrow-SECURITY-DEFINER-function pattern preauth-lookups.ts already
+      uses for lookupUserByEmail/lookupApiKeyByHash. No behaviour change: same
+      rows, same columns, request-time createdAt preserved (ISO string in,
+      ::timestamptz cast in the function -- verified live against
+      compliance.api_key_request_log's actual column type via Supabase MCP
+      execute_sql before writing the code, not assumed). Function signature/body
+      and the live table's column types/defaults (id has a live
+      gen_random_uuid()::text default, not a schema.ts-declared one -- confirmed
+      before relying on the function's INSERT omitting it) were read live via
+      execute_sql, not guessed.
+
+      File scope: src/lib/auth/api-key-audit.ts, src/lib/auth/api-key-audit.test.ts
+      (module-level wiring test updated to assert against db.execute's queryChunks
+      instead of db.insert's values -- the injected-dependency tests above it are
+      untouched, since insertRequestLog is still just a function the harness
+      supplies). No migration, no schema.ts change, no other file.
+
+      Worktree: C:/ct/ct-worktrees/w-prod-api-key-audit-fn. Verified before
+      claiming: no other active: entry in this file (checked via grep for
+      "api-key-audit" / "api_key_request" across the whole file) touches this
+      file or this function.
+
+      Local gate at time of this entry: bun test --isolate on the one test file
+      (19/19 pass), full-repo tsc --noEmit (exit 0). Lint clean on both changed
+      files. PR to follow this same commit.
   - session_label: "claude-code (subagent, r67-lane-E1) -- PROGRAMME R67 workstream WS-E (reports-charts-1), items E-01..E-20"
     claimed_at: "2026-09-03T (this session)"
     claim: |

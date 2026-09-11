@@ -1,6 +1,6 @@
 import { after } from "next/server"
-import { eq } from "drizzle-orm"
-import { db, apiKeys, apiKeyRequestLog } from "@/lib/db"
+import { eq, sql } from "drizzle-orm"
+import { db, apiKeys } from "@/lib/db"
 
 // R67 F-17 (R-234) -- TAKE THE TWO API-KEY AUDIT WRITES OFF THE REQUEST PATH.
 //
@@ -243,17 +243,28 @@ function deferOffTheHotPath(task: () => void): void {
 function defaultDeps(): ApiKeyAuditDeps {
   return {
     now: () => Date.now(),
+    // Goes through the SECURITY DEFINER compliance.record_api_key_request_batch
+    // (migration 0590) instead of a bare db.insert(apiKeyRequestLog) -- same
+    // narrow-function pattern as lookupUserByEmail/lookupApiKeyByHash in
+    // src/lib/db/preauth-lookups.ts. This write ran unauthenticated (app_runtime,
+    // no tenant context -- see this file's header) via a blanket-permissive RLS
+    // policy exactly like those two reads did before that fix; this closes the
+    // matching gap on the one remaining raw preauth write this codebase had.
+    // Does NOT change behaviour: same rows, same columns, same request-time
+    // createdAt (ISO string in, ::timestamptz cast in the function -- verified
+    // live against api_key_request_log.created_at's actual column type).
     insertRequestLog: async (rows) => {
-      await db.insert(apiKeyRequestLog).values(
-        rows.map((row) => ({
-          apiKeyId: row.apiKeyId,
-          orgId: row.orgId,
-          route: row.route,
-          method: row.method,
-          wasRateLimited: row.wasRateLimited,
-          // The request's own time. See this file's header.
-          createdAt: row.at,
-        }))
+      const payload = rows.map((row) => ({
+        apiKeyId: row.apiKeyId,
+        orgId: row.orgId,
+        route: row.route,
+        method: row.method,
+        wasRateLimited: row.wasRateLimited,
+        // The request's own time. See this file's header.
+        createdAt: row.at.toISOString(),
+      }))
+      await db.execute(
+        sql`select compliance.record_api_key_request_batch(${JSON.stringify(payload)}::jsonb)`
       )
     },
     touchLastUsedAt: async (apiKeyId, at) => {
