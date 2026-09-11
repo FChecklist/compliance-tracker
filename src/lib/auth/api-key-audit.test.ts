@@ -28,16 +28,20 @@ import type { ApiKeyAuditDeps, ApiKeyUse } from "./api-key-audit"
 // api-key-auth.test.ts's own header). Without it, the last describe block below
 // would try to open a real connection from whatever DATABASE_URL the machine
 // happens to have.
-const stubbedInserts: unknown[][] = []
+const stubbedExecutes: unknown[] = []
 const stubbedLastUsedWrites: unknown[] = []
 
 await mock.module("@/lib/db", () => ({
   db: {
-    insert: () => ({ values: async (rows: unknown[]) => { stubbedInserts.push(rows) } }),
+    // insertRequestLog now goes through db.execute(sql`select
+    // compliance.record_api_key_request_batch(...)`) -- see api-key-audit.ts's
+    // own comment. drizzle's sql`` tagged template exposes the interpolated
+    // value on `.queryChunks`; that is what the assertion below reads instead
+    // of a raw `values` array.
+    execute: async (query: { queryChunks: unknown[] }) => { stubbedExecutes.push(query) },
     update: () => ({ set: (values: unknown) => ({ where: async () => { stubbedLastUsedWrites.push(values) } }) }),
   },
   apiKeys: { id: "id" },
-  apiKeyRequestLog: {},
 }))
 
 const {
@@ -404,8 +408,12 @@ describe("the module-level recorder, bound to the production dependencies", () =
     await expect(flushApiKeyAuditNow()).resolves.toBeUndefined()
 
     expect(pendingApiKeyRequestCount("key-live", windowStart)).toBe(0)
-    expect(stubbedInserts).toHaveLength(1)
-    expect(stubbedInserts[0]).toEqual([{
+    expect(stubbedExecutes).toHaveLength(1)
+    // The interpolated jsonb param is the one chunk that is a plain string
+    // rather than a StringChunk -- see this file's header comment.
+    const query = stubbedExecutes[0] as { queryChunks: unknown[] }
+    const jsonChunk = query.queryChunks.find((c) => typeof c === "string") as string
+    expect(JSON.parse(jsonChunk)).toEqual([{
       apiKeyId: "key-live",
       orgId: "org-live",
       route: "/api/v1/projexa/projects",
@@ -413,7 +421,7 @@ describe("the module-level recorder, bound to the production dependencies", () =
       wasRateLimited: false,
       // The mapping that matters most: created_at is the request's time, so the
       // 60 s rate-limit window and the usage analytics both read the truth.
-      createdAt: requestedAt,
+      createdAt: requestedAt.toISOString(),
     }])
     expect(stubbedLastUsedWrites).toEqual([{ lastUsedAt: requestedAt }])
   })
