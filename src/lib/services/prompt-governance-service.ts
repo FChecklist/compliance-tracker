@@ -16,6 +16,7 @@ import { and, eq, gte, sql } from "drizzle-orm"
 import { type TenantDb } from "@/lib/db/tenant-scoped"
 import { checkAbacDenyPoliciesWithDb } from "./abac-policy-service"
 import { logActivity } from "@/lib/audit"
+import { userExists } from "@/lib/db/preauth-lookups"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -190,8 +191,13 @@ export async function assignPromptTemplateOwner(
 ) {
   const template = await db.query.promptTemplates.findFirst({ where: eq(promptTemplates.id, input.templateId) })
   if (!template) throw new ServiceError("Unknown prompt template", 404)
-  const owner = await db.query.users.findFirst({ where: eq(users.id, input.ownerId) })
-  if (!owner) throw new ServiceError("Unknown ownerId -- must be a real user", 400)
+  // CRR-027/028 CONTRACT: was db.query.users.findFirst() over the plain
+  // (RLS-bypassing) db client, keyed by id with no org concept for this
+  // platform-wide feature, existence-check only (nothing else read off the
+  // result). See NEEDS_NEW_NARROW_FUNCTION row in
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md §6.
+  const ownerExists = await userExists(input.ownerId)
+  if (!ownerExists) throw new ServiceError("Unknown ownerId -- must be a real user", 400)
 
   const [row] = await db.update(promptTemplates).set({ ownerId: input.ownerId, updatedAt: new Date() })
     .where(eq(promptTemplates.id, input.templateId)).returning()

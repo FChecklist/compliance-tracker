@@ -29,6 +29,7 @@
 import { db, loopImprovements, notifications, users } from "@/lib/db"
 import { and, eq, inArray } from "drizzle-orm"
 import type { LoopImprovementProposal } from "@/lib/loop-improvement-proposer"
+import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
 
 // The platform Owner -- the single human audience for a `targetType:
 // "platform"` insight (a platform-level code/config review no single org's
@@ -173,11 +174,13 @@ export async function resolveInsightRecipients(
       return rows.map((r) => r.id)
     }
     if (kind === "platform") {
-      const owner = await db.query.users.findFirst({
-        where: and(eq(users.email, PLATFORM_OWNER_EMAIL), eq(users.isActive, true)),
-        columns: { id: true },
-      })
-      return owner ? [owner.id] : []
+      // CRR-027 CONTRACT migration: was db.query.users.findFirst() over the
+      // plain (RLS-bypassing) db client -- see EXISTING_FN row #1 in
+      // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md. Same result: a constant,
+      // known-cross-org email lookup, isActive checked in app code since
+      // lookupUserByEmail returns the full row.
+      const owner = await lookupUserByEmail(PLATFORM_OWNER_EMAIL)
+      return owner && owner.isActive ? [owner.id] : []
     }
     return []
   } catch (err) {

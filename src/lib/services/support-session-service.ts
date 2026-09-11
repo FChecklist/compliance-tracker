@@ -27,6 +27,7 @@ import { randomBytes } from "crypto"
 import { hashSHA256 } from "@/lib/api-keys"
 import { logActivity } from "@/lib/audit"
 import { ServiceError } from "./compliance-service"
+import { lookupUserByIdInOrg } from "@/lib/db/preauth-lookups"
 
 export type SupportSessionRow = typeof supportSessions.$inferSelect
 
@@ -93,9 +94,12 @@ export async function startSupportSession(params: StartSupportSessionParams): Pr
   const reason = params.reason.trim()
   if (!reason) throw new ServiceError("A reason is required to start a support session", 400)
 
-  const targetUser = await db.query.users.findFirst({
-    where: and(eq(users.id, params.targetUserId), eq(users.orgId, params.targetOrgId)),
-  })
+  // CRR-027/028 CONTRACT: was db.query.users.findFirst() over the raw
+  // (RLS-bypassing) client, id+org-scoped, only .name read off the result
+  // (both here and l.110/l.129 below) -- narrowed to (id, name) via SECURITY
+  // DEFINER compliance.lookup_user_by_id_in_org(text, text). See
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md §6.
+  const targetUser = await lookupUserByIdInOrg(params.targetUserId, params.targetOrgId)
   if (!targetUser) throw new ServiceError("Target user not found in the target organisation", 404)
 
   const token = generateSupportSessionToken()

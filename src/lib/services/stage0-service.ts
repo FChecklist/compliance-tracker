@@ -41,6 +41,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray, sql as drizzleSql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { provisionAiAssistantsForUser } from "./subscription-plan-service"
+import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
 export { ServiceError }
 
 // --- Token resolution ------------------------------------------------------
@@ -139,7 +140,11 @@ export async function consumeStage0TokenAndProvisionUser(
   if (!convo) return { ok: false, reason: "This link is invalid." }
   const orgId = convo.orgId
 
-  let user = await db.query.users.findFirst({ where: eq(users.email, authUser.email) })
+  // CRR-027 CONTRACT migration: was db.query.users.findFirst() over the
+  // plain (RLS-bypassing) db client -- stage-0 provisioning, no real home
+  // org yet by design. See EXISTING_FN row #31 in
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md.
+  let user = await lookupUserByEmail(authUser.email)
   if (!user) {
     const [newUser] = await db.insert(users).values({
       name: authUser.fullName,
@@ -260,7 +265,11 @@ export async function tryUpgradeStage0UserInPlace(
   email: string,
   target: { orgId: string; role: string; authUserId?: string }
 ): Promise<UpgradeStage0Result> {
-  const found = await db.query.users.findFirst({ where: eq(users.email, email) })
+  // CRR-027 CONTRACT migration: was db.query.users.findFirst() over the
+  // plain (RLS-bypassing) db client -- auto-upgrade trigger, same pre-org
+  // posture as the provisioning path above. See EXISTING_FN row #32 in
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md.
+  const found = await lookupUserByEmail(email)
   const decision = decideStage0UpgradeAction(found ?? null)
   if (decision === "not_found") return { ok: false, reason: "not_found" }
   if (decision === "different_org") return { ok: false, reason: "different_org" }
@@ -501,8 +510,23 @@ export type Stage0OutreachRow = {
  * read-model pattern (sales-engine-service.ts) rather than duplicating data
  * that already exists (this codebase's "Zero duplication" precedent).
  */
-export async function listStage0OutreachForOrg(orgId: string): Promise<Stage0OutreachRow[]> {
-  return withTenantContext({ orgId }, async (tx) => {
+export async function listStage0OutreachForOrg(
+  orgId: string,
+  // REQUIRED, not optional, and that is the whole fix. compliance.conversations
+  // carries app_runtime_select_participant, whose qual is
+  //   (org_id = current_org_id()) AND is_conversation_participant(id)
+  // and is_conversation_participant compares against compliance.current_user_id().
+  // withTenantContext only sets app.current_user_id when context.userId is
+  // present, so calling it with { orgId } alone left current_user_id() NULL.
+  // Every comparison against NULL is NULL, never true, so the conversations
+  // read below returned ZERO ROWS unconditionally -- for every org, on every
+  // call, since this function was written. The route already had dbUser in
+  // scope and simply never passed it. tenant-scoped.ts's own doc comment says
+  // userId "is required for ... routes whose RLS policies check
+  // compliance.current_user_id()"; this was one of them.
+  userId: string,
+): Promise<Stage0OutreachRow[]> {
+  return withTenantContext({ orgId, userId }, async (tx) => {
     const stage0Users = await tx.query.stage0Sources.findMany({
       where: eq(stage0Sources.orgId, orgId),
       with: { user: { columns: { id: true, name: true } } },

@@ -84,7 +84,15 @@ const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv
 if (isMain) {
   const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url))
 
-  const sh = (cmd) => execSync(cmd, { encoding: "utf8", cwd: REPO_ROOT }).trim()
+  // R81 K1-04 (same fix as check-route-auth-guard.mjs's own run(), ported
+  // here after W-PROD found the identical bug in this file and
+  // check-route-error-handling.mjs -- F-2026-0910-W-PROD-011/012): stderr
+  // must be suppressed via stdio, NOT a `2>/dev/null` suffix on the command
+  // string. execSync goes through cmd.exe on Windows, where that redirect
+  // is not valid syntax -- every git call below threw, mergeBase stayed
+  // null, and this check silently reported "skipping" and exited 0 for
+  // every diff, on Windows only (real CI runs on Ubuntu, unaffected).
+  const sh = (cmd) => execSync(cmd, { encoding: "utf8", cwd: REPO_ROOT, stdio: ["ignore", "pipe", "ignore"] }).trim()
   const shLines = (cmd) => {
     const out = sh(cmd)
     return out ? out.split("\n").filter(Boolean) : []
@@ -98,7 +106,7 @@ if (isMain) {
   let mergeBase = null
   for (const ref of ["origin/main", "main"]) {
     try {
-      mergeBase = sh(`git merge-base HEAD ${ref} 2>/dev/null`)
+      mergeBase = sh(`git merge-base HEAD ${ref}`)
       if (mergeBase) break
     } catch {
       // try next ref
@@ -110,9 +118,29 @@ if (isMain) {
     process.exit(0)
   }
 
+  // SECOND Windows-vacuous bug, found while porting the fix above and
+  // confirmed by direct empirical test on this machine (not assumed): the
+  // single-quoted pathspec patterns below ('src/lib/services/*.ts',
+  // '*.test.ts', '*.test.tsx') were written so a POSIX shell passes the
+  // literal glob through to git instead of expanding it itself -- correct
+  // on bash, but cmd.exe does not strip single quotes as quoting syntax at
+  // all, so git receives the pattern WITH the quote characters still
+  // attached and matches zero files, silently, no exception thrown (unlike
+  // the stdio bug above, this one doesn't even need a try/catch to hide
+  // it). Verified directly: `git ls-files -- 'src/lib/services/x.ts'`
+  // returns "" on this machine; the same command unquoted returns the real
+  // file. Unquoted works correctly on BOTH platforms here -- cmd.exe does
+  // no glob expansion of its own, so `*` reaches git literally and git's
+  // own pathspec matcher expands it (same as the quoted-on-bash case); bash
+  // either shell-expands it to the same real files first or, if no local
+  // match, still passes it through to git's own matcher unchanged. Same
+  // class of "instrument cannot fail" bug as the stdio one -- fixing only
+  // the redirect above and leaving this would have left this script still
+  // silently vacuous on Windows, just via a different mechanism.
+  //
   // Files this PR touches (modified or added, not deleted) in the service layer.
   const changedServiceFiles = shLines(
-    `git diff --name-only --diff-filter=d ${mergeBase} HEAD -- 'src/lib/services/*.ts' 2>/dev/null`
+    `git diff --name-only --diff-filter=d ${mergeBase} HEAD -- src/lib/services/*.ts`
   ).filter((f) => !f.endsWith(".test.ts"))
 
   if (changedServiceFiles.length === 0) {
@@ -125,7 +153,7 @@ if (isMain) {
     const base = path.basename(serviceFile, ".ts")
     const testFile = `${dir}/${base}.test.ts`
     try {
-      sh(`git cat-file -e ${mergeBase}:${testFile} 2>/dev/null`)
+      sh(`git cat-file -e ${mergeBase}:${testFile}`)
       return true
     } catch {
       return false
@@ -135,7 +163,7 @@ if (isMain) {
   const previouslyUntested = filterPreviouslyUntested(changedServiceFiles, hadSiblingTestAtMergeBase)
 
   const changedTestFiles = shLines(
-    `git diff --name-only --diff-filter=d ${mergeBase} HEAD -- '*.test.ts' '*.test.tsx' 2>/dev/null`
+    `git diff --name-only --diff-filter=d ${mergeBase} HEAD -- *.test.ts *.test.tsx`
   )
 
   const result = decideGate(previouslyUntested, changedTestFiles)

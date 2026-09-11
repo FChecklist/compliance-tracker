@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db, organisations, users, monitorExecutionLog } from "@/lib/db"
-import { and, asc, eq } from "drizzle-orm"
+import { db, organisations, monitorExecutionLog } from "@/lib/db"
 import { runDispatchCompletionSweep, DISPATCH_COMPLETION_MONITOR_NAME } from "@/lib/monitors/dispatch-completion-monitor"
+import { lookupOldestActiveAdminByRole } from "@/lib/db/preauth-lookups"
 
 /**
  * Cron-triggered entry point for PR #257's dispatch-completion monitor --
@@ -63,10 +63,14 @@ async function runSweepAcrossAllOrgs(request: NextRequest) {
   const orgsSkippedNoAdmin: string[] = []
 
   for (const org of orgs) {
-    const admin = await db.query.users.findFirst({
-      where: and(eq(users.orgId, org.id), eq(users.role, "veridian_admin"), eq(users.isActive, true)),
-      orderBy: asc(users.createdAt),
-    })
+    // CRR-027/028 CONTRACT: was db.query.users.findFirst() over the raw
+    // (RLS-bypassing) client, genuinely cross-org by construction (a cron
+    // has no per-request org context) -- narrowed to a SECURITY DEFINER
+    // function scoped to exactly this org+role+active+oldest query, same
+    // filter/order the direct query used. Caller needs the full row (passed
+    // to runDispatchCompletionSweep -> logActivity as dbUser). See
+    // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md §6.
+    const admin = await lookupOldestActiveAdminByRole(org.id, "veridian_admin")
     if (!admin) {
       orgsSkippedNoAdmin.push(org.id)
       continue

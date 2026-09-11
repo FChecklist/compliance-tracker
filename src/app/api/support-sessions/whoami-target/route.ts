@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db, organisations, users } from "@/lib/db"
+import { organisations, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq } from "drizzle-orm"
 import { validateSupportSessionToken } from "@/lib/services/support-session-service"
 import { logActivity } from "@/lib/audit"
+import { lookupUserById } from "@/lib/db/preauth-lookups"
 
 // Proves the whole mechanism actually threads through: a caller presenting
 // a valid `Authorization: Bearer ss_...` token (same convention as
@@ -21,39 +22,52 @@ export async function GET(request: NextRequest) {
 
   const { row: session } = validated
 
-  // The REAL actor is the support agent who started the session, never the
-  // impersonated target user -- fetched via the raw (RLS-bypassing) client
-  // because the agent's own user row lives in a DIFFERENT org than the one
-  // this request's tenant context is about to be scoped to (users' own RLS
-  // policy would otherwise hide it). acting_on_behalf_of_user_id (set below)
-  // is what records the impersonated identity -- see audit.ts's
-  // supportSession param.
-  const initiator = await db.query.users.findFirst({ where: eq(users.id, session.initiatedByUserId) })
-  if (!initiator) return NextResponse.json({ error: "Support session's initiating user no longer exists" }, { status: 410 })
+  // Wraps the real work in try/catch: everything below can throw (DB I/O
+  // via lookupUserById/withTenantContext/logActivity), and an unhandled
+  // rejection here would surface as an opaque 500 with no server-side
+  // record of what failed -- same posture as
+  // dispatch-completion-monitor/run/route.ts's GET, this route's nearest
+  // sibling for error-handling shape.
+  try {
+    // The REAL actor is the support agent who started the session, never
+    // the impersonated target user -- looked up via SECURITY DEFINER
+    // compliance.lookup_user_by_id(text) (CRR-027/028 CONTRACT, was a
+    // direct db.query.users.findFirst() over the raw RLS-bypassing client)
+    // because the agent's own user row lives in a DIFFERENT org than the
+    // one this request's tenant context is about to be scoped to (users'
+    // own RLS policy would otherwise hide it). acting_on_behalf_of_user_id
+    // (set below) is what records the impersonated identity -- see
+    // audit.ts's supportSession param.
+    const initiator = await lookupUserById(session.initiatedByUserId)
+    if (!initiator) return NextResponse.json({ error: "Support session's initiating user no longer exists" }, { status: 410 })
 
-  const result = await withTenantContext({ orgId: session.targetOrgId, userId: session.targetUserId }, async (tx) => {
-    const targetUser = await tx.query.users.findFirst({ where: eq(users.id, session.targetUserId) })
-    const targetOrg = await tx.query.organisations.findFirst({ where: eq(organisations.id, session.targetOrgId) })
+    const result = await withTenantContext({ orgId: session.targetOrgId, userId: session.targetUserId }, async (tx) => {
+      const targetUser = await tx.query.users.findFirst({ where: eq(users.id, session.targetUserId) })
+      const targetOrg = await tx.query.organisations.findFirst({ where: eq(organisations.id, session.targetOrgId) })
 
-    await logActivity({
-      tx,
-      orgId: session.targetOrgId,
-      dbUser: initiator,
-      action: "support_session.whoami_target_read",
-      entityType: "support_session",
-      entityId: session.id,
-      request,
-      supportSession: { id: session.id, actingOnBehalfOfUserId: session.targetUserId },
+      await logActivity({
+        tx,
+        orgId: session.targetOrgId,
+        dbUser: initiator,
+        action: "support_session.whoami_target_read",
+        entityType: "support_session",
+        entityId: session.id,
+        request,
+        supportSession: { id: session.id, actingOnBehalfOfUserId: session.targetUserId },
+      })
+
+      return { targetUser, targetOrg }
     })
 
-    return { targetUser, targetOrg }
-  })
-
-  return NextResponse.json({
-    supportSessionId: session.id,
-    initiatedByName: session.initiatedByName,
-    expiresAt: session.expiresAt.toISOString(),
-    targetOrg: result.targetOrg ? { id: result.targetOrg.id, name: result.targetOrg.name } : null,
-    targetUser: result.targetUser ? { id: result.targetUser.id, name: result.targetUser.name, email: result.targetUser.email } : null,
-  })
+    return NextResponse.json({
+      supportSessionId: session.id,
+      initiatedByName: session.initiatedByName,
+      expiresAt: session.expiresAt.toISOString(),
+      targetOrg: result.targetOrg ? { id: result.targetOrg.id, name: result.targetOrg.name } : null,
+      targetUser: result.targetUser ? { id: result.targetUser.id, name: result.targetUser.name, email: result.targetUser.email } : null,
+    })
+  } catch (error) {
+    console.error("support-sessions/whoami-target: failed to resolve the impersonated identity:", error)
+    return NextResponse.json({ error: "Failed to resolve support-session identity" }, { status: 500 })
+  }
 }

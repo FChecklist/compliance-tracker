@@ -15,7 +15,17 @@ export function verifyVercelSignature(rawBody: string, headerSignature: string |
   if (headerSignature.length !== expected.length) return false
   try {
     return timingSafeEqual(Buffer.from(headerSignature), Buffer.from(expected))
-  } catch {
+  } catch (err) {
+    // Still fail closed -- that part was always right. What was missing is the
+    // distinction between "an attacker sent a bad signature", which is ordinary
+    // traffic, and "our own verifier threw", which means a wrong secret
+    // encoding or a length skew and would otherwise look identical forever.
+    console.warn(
+      JSON.stringify({
+        event: 'vercel_signature_verify_threw',
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    )
     return false
   }
 }

@@ -19,6 +19,7 @@ import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
+import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
 
 export type SsoContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -113,8 +114,18 @@ export async function validateSsoAssertionAndGetUser(orgSlug: string, samlRespon
   const email = (profile.email ?? profile.mail ?? profile.nameID)?.toLowerCase()?.trim()
   if (!email) throw new ServiceError("SAML assertion did not include an email address", 400)
 
-  const user = await db.query.users.findFirst({ where: and(eq(users.email, email), eq(users.orgId, org.id)) })
-  if (!user) throw new ServiceError("No matching user found for this organisation -- SAML login does not create new users", 403)
+  // CRR-027 CONTRACT migration: was db.query.users.findFirst() over the
+  // plain (RLS-bypassing) db client, keyed by email+orgId -- runs before any
+  // session exists. users.email is globally unique (schema.ts), so
+  // lookupUserByEmail(email) + an app-level orgId check reproduces the
+  // original compound condition exactly. See EXISTING_FN row #33 in
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md. Same error and status for
+  // "no user" and "wrong org" as before -- never reveals which case it was.
+  const found = await lookupUserByEmail(email)
+  if (!found || found.orgId !== org.id) {
+    throw new ServiceError("No matching user found for this organisation -- SAML login does not create new users", 403)
+  }
+  const user = found
 
   return { org, user, email }
 }
