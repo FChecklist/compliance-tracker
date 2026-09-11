@@ -1,0 +1,18 @@
+# Narrowly-scoped exception, owner-approved directly (not via PM relay, per
+# this repo's standing rule for security-guardrail changes -- confirmed by
+# the owner's own words in W-TEST's session chat, 2026-09-11).
+#
+# These 3 fingerprints are the SAME Supabase ANON/publishable key
+# (decoded JWT payload: {"iss":"supabase","ref":"evpckeuxgvahguwsaeul",
+# "role":"anon",...}) for PROJEXA's own project -- not service_role, and by
+# Supabase's own security model an anon key is DESIGNED to be public
+# (RLS-protected, not secrecy-protected). This exact key already exists
+# verbatim, un-flagged, on main in e2e/demo-gate-smoke.spec.ts (lines
+# 46-47/169/178/284); these 3 files just copied an already-merged constant
+# when split out of it (compliance-tracker PR #1666, pre-existing commit
+# 6bc26140). Not a new secret, not a real leak -- a false positive on
+# gitleaks' generic "jwt" pattern. Full writeup: .gitleaks.toml's own header
+# comment.
+6bc26140a1ca86c3475ba2a0e63287489ecf868b:e2e/r01-r02-boq-create-env1.spec.ts:jwt:29
+6bc26140a1ca86c3475ba2a0e63287489ecf868b:e2e/r32-boq-total-excludes-subtasks-env1.spec.ts:jwt:22
+6bc26140a1ca86c3475ba2a0e63287489ecf868b:e2e/r40-work-progress-weighted-subtask-env1.spec.ts:jwt:13

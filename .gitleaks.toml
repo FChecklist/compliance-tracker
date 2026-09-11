@@ -26,7 +26,15 @@ title = "compliance-tracker gitleaks config"
 # gitleaks' generic "jwt" pattern, which cannot distinguish a public
 # anon key from a real bearer credential.
 #
-# SCOPE, deliberately narrow: this allowlists only these 3 exact
+# The actual suppression lives in .gitleaksignore (fingerprint-based,
+# gitleaks' own mechanism for this exact "known finding, don't re-flag on
+# every run" case) -- NOT in an [allowlist] table here, which a first
+# attempt at this fix incorrectly tried and confirmed does not work for
+# per-finding fingerprints in gitleaks 8.24.3 (the fix landed on the second
+# attempt, re-verified green via the SAME CI job, not just assumed correct
+# from local TOML syntax validation this time).
+#
+# SCOPE, deliberately narrow: .gitleaksignore names only these 3 exact
 # (commit, file, rule, line) fingerprints -- it does NOT disable the "jwt"
 # rule, does NOT allowlist this string anywhere else it might appear, and
 # does NOT weaken this guardrail's ability to catch a real credential
@@ -34,11 +42,3 @@ title = "compliance-tracker gitleaks config"
 # including a future occurrence of a DIFFERENT jwt-shaped secret.
 [extend]
 useDefault = true
-
-[allowlist]
-description = "Known-public Supabase anon key (role:anon), already on main in e2e/demo-gate-smoke.spec.ts, duplicated into 3 split files by PR #1666's pre-existing commit 6bc26140"
-fingerprints = [
-  "6bc26140a1ca86c3475ba2a0e63287489ecf868b:e2e/r01-r02-boq-create-env1.spec.ts:jwt:29",
-  "6bc26140a1ca86c3475ba2a0e63287489ecf868b:e2e/r32-boq-total-excludes-subtasks-env1.spec.ts:jwt:22",
-  "6bc26140a1ca86c3475ba2a0e63287489ecf868b:e2e/r40-work-progress-weighted-subtask-env1.spec.ts:jwt:13",
-]
