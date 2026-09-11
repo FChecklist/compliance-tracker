@@ -102,6 +102,10 @@ describe("validateApiKey: demo-key environment gate", () => {
     expect(result.status).toBe("ok")
     if (result.status === "ok") {
       expect(result.context.orgId).toBe("projexa_demo_org")
+      // R81_F31: the DB row's own scopes are "read,write" (demoKeyRow()'s
+      // default) -- an allowlisted demo key must never be able to write,
+      // even though its rate limit alone is throttled.
+      expect(result.context.scopes).toEqual(["read"])
     }
   })
 
@@ -111,7 +115,7 @@ describe("validateApiKey: demo-key environment gate", () => {
       id: "a-real-provisioned-cuid-id",
       orgId: "org-1",
       name: "Real customer key",
-      scopes: "read",
+      scopes: "read,write",
       rateLimitPerMinute: null,
       isActive: true,
     })
@@ -119,6 +123,11 @@ describe("validateApiKey: demo-key environment gate", () => {
     const { validateApiKey } = await import("./api-key-auth")
     const result = await validateApiKey(request())
     expect(result.status).toBe("ok")
+    if (result.status === "ok") {
+      // R81_F31: the read-only clamp is specific to KNOWN_DEMO_KEY_IDS -- a
+      // real customer key's own granted write scope must survive untouched.
+      expect(result.context.scopes).toEqual(["read", "write"])
+    }
   })
 
   test("an inactive/missing key is still rejected as invalid, unrelated to the demo-key gate", async () => {
