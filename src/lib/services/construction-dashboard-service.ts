@@ -19,9 +19,16 @@
 // statement (table names spelled out as compliance.<table> there instead).
 // Still real, live tables -- just no longer referenced as drizzle schema
 // symbols from this file.
-import { projects, products, constructionActivities, constructionWorkProgressEntries, users, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
+// R75 Part 5 step 2: constructionActivities dropped -- its findMany() is now
+// part of the raw-SQL activity/progress consolidation below (a LEFT JOIN
+// LATERAL against compliance.construction_activities). constructionWork-
+// ProgressEntries was already unused before this change (pre-existing dead
+// import, confirmed by diffing against origin/main before removing it here
+// rather than leaving it to look related to this pass).
+import { projects, products, users, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, isNull, sql } from "drizzle-orm"
+// isNull dropped alongside the BOQ chain's old isNull(constructionBoqLineItems.parentLineItemId) -- now `cbli.parent_line_item_id IS NULL` in raw SQL.
+import { and, eq, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 // R39/R-51 (D-3): reuses the SAME earnedValueReport construction-reports-
 // service.ts exposes as the "earned-value" named report -- NOT a second
@@ -1177,33 +1184,39 @@ export async function getOrgDashboardWithDb(db: TenantDb, ctx: { orgId: string }
     // one convention). DISTINCT ON is Postgres-native and does this in one
     // query rather than N -- there is no drizzle query-builder equivalent.
     // (projectIdsSql is now declared once, up near `ids` -- R75 Part 5.)
-    const latestBoqPerProject = (await db.execute(sql`
-      SELECT DISTINCT ON (project_id) project_id, id AS boq_id
-      FROM compliance.construction_boqs
-      WHERE org_id = ${ctx.orgId} AND project_id = ANY(ARRAY[${projectIdsSql}]) AND status != 'superseded'
-      ORDER BY project_id, version DESC, created_at DESC
-    `)) as { project_id: string; boq_id: string }[]
-    const boqIdByProject = new Map(latestBoqPerProject.map((r) => [r.project_id, r.boq_id]))
-    const activeBoqIds = Array.from(boqIdByProject.values())
     //
-    // R67 E-06 (R-108): the SAME grouped read now also returns the BOQ-derived
-    // BUDGET -- sum(amount x budget_percentage / 100) over the same root lines,
-    // the arithmetic sumRootLineBudgets() states once for the whole product.
-    // An extra projected column on a query that was already running, never a
-    // second query and never a per-project fan-out (the shape R43_MGR_01
-    // removed from this function after it deadlocked the 5-connection pool).
-    const valueByBoq = activeBoqIds.length > 0
-      ? await db.select({
-          boqId: constructionBoqLineItems.boqId,
-          total: sql<number>`coalesce(sum(${constructionBoqLineItems.amount}), 0)::float`,
-          budget: sql<number>`coalesce(sum(${constructionBoqLineItems.amount} * coalesce(${constructionBoqLineItems.budgetPercentage}, 0) / 100.0), 0)::float`,
-        })
-          .from(constructionBoqLineItems)
-          .where(and(inArray(constructionBoqLineItems.boqId, activeBoqIds), isNull(constructionBoqLineItems.parentLineItemId)))
-          .groupBy(constructionBoqLineItems.boqId)
-      : []
-    const valueByBoqMap = new Map(valueByBoq.map((v) => [v.boqId, Number(v.total)]))
-    const budgetByBoqMap = new Map(valueByBoq.map((v) => [v.boqId, Math.round(Number(v.budget) * 100) / 100]))
+    // R75 Part 5 step 2 (dashboard perf work order, W-PROD): this used to be
+    // TWO statements -- latestBoqPerProject (DISTINCT ON), then valueByBoq
+    // (db.select, scoped by activeBoqIds -- a REAL dependency on the first
+    // query's output, unlike step 1's independent aggregates). Folded into
+    // ONE statement via a CTE + LEFT JOIN: the DISTINCT ON still runs first,
+    // as a CTE, but the dependency is now expressed IN SQL (the join
+    // condition) rather than as two round trips with JS gluing them
+    // together. R67 E-06's own reasoning (one query, one round trip, never a
+    // per-project fan-out) is unchanged -- this only removes the SECOND
+    // round trip that same reasoning had not yet closed.
+    const boqRows = (await db.execute(sql`
+      WITH latest_boq AS (
+        SELECT DISTINCT ON (project_id) project_id, id AS boq_id
+        FROM compliance.construction_boqs
+        WHERE org_id = ${ctx.orgId} AND project_id = ANY(ARRAY[${projectIdsSql}]) AND status != 'superseded'
+        ORDER BY project_id, version DESC, created_at DESC
+      )
+      SELECT lb.project_id, lb.boq_id,
+        coalesce(sum(cbli.amount), 0)::float AS total,
+        coalesce(sum(cbli.amount * coalesce(cbli.budget_percentage, 0) / 100.0), 0)::float AS budget
+      FROM latest_boq lb
+      LEFT JOIN compliance.construction_boq_line_items cbli
+        ON cbli.boq_id = lb.boq_id AND cbli.parent_line_item_id IS NULL
+      GROUP BY lb.project_id, lb.boq_id
+    `)) as { project_id: string; boq_id: string; total: number; budget: number }[]
+    const boqIdByProject = new Map(boqRows.map((r) => [r.project_id, r.boq_id]))
+    const activeBoqIds = Array.from(boqIdByProject.values())
+    // R67 E-06 (R-108): the BOQ-derived BUDGET rides the same read as the
+    // value total -- unchanged reasoning, now inside the CTE above instead
+    // of a second db.select().
+    const valueByBoqMap = new Map(boqRows.map((r) => [r.boq_id, Number(r.total)]))
+    const budgetByBoqMap = new Map(boqRows.map((r) => [r.boq_id, Math.round(Number(r.budget) * 100) / 100]))
 
     // R67 E-21 wrote a SECOND activity-log-percent query here, reading
     // project_id straight off the entries table. It was deleted on rebase in
@@ -1229,46 +1242,48 @@ export async function getOrgDashboardWithDb(db: TenantDb, ctx: { orgId: string }
     // per-project fan-out is the exact shape R43_MGR_01 removed from this
     // function (see the long note below), and re-adding it for a row's status
     // word would put the pool deadlock straight back.
-    const activityRows = await db.query.constructionActivities.findMany({
-      where: and(eq(constructionActivities.orgId, ctx.orgId), inArray(constructionActivities.projectId, ids)),
-      columns: { id: true, projectId: true },
-    })
+    // R75 Part 5 step 2: activityRows (findMany) -> latestRows (DISTINCT ON,
+    // scoped by activityRows' own ids -- a real dependency) used to be two
+    // round trips, the second conditional on the first returning any rows.
+    // Folded into ONE statement via LEFT JOIN LATERAL: for every activity,
+    // pull its own single latest-by-entry_date progress entry (the
+    // correlated-subquery equivalent of DISTINCT ON per activity, same
+    // "no secondary tiebreaker" behavior on an exact entry_date tie the
+    // original DISTINCT ON already had -- not a new source of
+    // non-determinism). LEFT JOIN so an activity with zero entries still
+    // produces a row (percent_complete/entry_date null), exactly like the
+    // old code's percentByActivityId.get() returning undefined for one.
+    const activityProgressRows = (await db.execute(sql`
+      SELECT a.id AS activity_id, a.project_id, latest.percent_complete, latest.entry_date
+      FROM compliance.construction_activities a
+      LEFT JOIN LATERAL (
+        SELECT percent_complete, entry_date
+        FROM compliance.construction_work_progress_entries e
+        WHERE e.activity_id = a.id
+        ORDER BY e.entry_date DESC
+        LIMIT 1
+      ) latest ON true
+      WHERE a.org_id = ${ctx.orgId} AND a.project_id = ANY(ARRAY[${projectIdsSql}])
+    `)) as { activity_id: string; project_id: string; percent_complete: number | null; entry_date: string | Date | null }[]
     const percentsByProject = new Map<string, number[]>()
     /** R67 E-19: the latest recorded progress entry date per project, YYYY-MM-DD. */
     const lastProgressByProject = new Map<string, string>()
-    if (activityRows.length > 0) {
-      // Same ARRAY[...] construction, and for the same postgres.js reason, as
-      // latestBoqPerProject above and getProjectDashboard's own equivalent
-      // query -- one DISTINCT ON for every activity across every project.
-      const activityIdsSql = sql.join(activityRows.map((a) => sql`${a.id}`), sql`, `)
-      // R67 E-19 (R-180): entry_date joins this SAME row set. The DISTINCT ON
-      // already orders by it to pick the latest percentage; selecting it costs
-      // nothing and is what lets the home screen say "no progress recorded for
-      // 34 days" about a named project instead of a mood. NOT a second query --
-      // re-adding a per-project read here is exactly what R43_MGR_01 removed.
-      const latestRows = (await db.execute(sql`
-        SELECT DISTINCT ON (activity_id) activity_id, percent_complete, entry_date
-        FROM compliance.construction_work_progress_entries
-        WHERE activity_id = ANY(ARRAY[${activityIdsSql}])
-        ORDER BY activity_id, entry_date DESC
-      `)) as { activity_id: string; percent_complete: number; entry_date: string | Date }[]
-      const percentByActivityId = new Map(latestRows.map((r) => [r.activity_id, Number(r.percent_complete)]))
-      const lastEntryByActivityId = new Map(latestRows.map((r) => [r.activity_id, isoDay(r.entry_date)]))
-      for (const activity of activityRows) {
-        const lastEntry = lastEntryByActivityId.get(activity.id)
-        if (lastEntry) {
-          const current = lastProgressByProject.get(activity.projectId)
-          if (!current || lastEntry > current) lastProgressByProject.set(activity.projectId, lastEntry)
-        }
-        const percent = percentByActivityId.get(activity.id)
-        // Only activities that have actually been logged against contribute --
-        // an activity nobody has touched is "not recorded", not "0% done", and
-        // averaging a zero in for it would drag every real figure down.
-        if (percent === undefined) continue
-        const list = percentsByProject.get(activity.projectId) ?? []
-        list.push(percent)
-        percentsByProject.set(activity.projectId, list)
+    for (const row of activityProgressRows) {
+      // R67 E-19 (R-180): entry_date rides the SAME row as percent_complete,
+      // unchanged reasoning -- lets the home screen say "no progress
+      // recorded for 34 days" about a named project instead of a mood.
+      const lastEntry = isoDay(row.entry_date)
+      if (lastEntry) {
+        const current = lastProgressByProject.get(row.project_id)
+        if (!current || lastEntry > current) lastProgressByProject.set(row.project_id, lastEntry)
       }
+      // Only activities that have actually been logged against contribute --
+      // an activity nobody has touched is "not recorded", not "0% done", and
+      // averaging a zero in for it would drag every real figure down.
+      if (row.percent_complete === null) continue
+      const list = percentsByProject.get(row.project_id) ?? []
+      list.push(Number(row.percent_complete))
+      percentsByProject.set(row.project_id, list)
     }
 
     // Permits are documents with category='permit' linked to a project -- the

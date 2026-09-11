@@ -462,8 +462,11 @@ describe("getOrgDashboard: the R67 E-01 additions are batched, not per-project",
   })
 
   test("permits and activity percentages are each read once, for every project at once", () => {
-    // inArray(..., ids) is what makes activities one query rather than N.
-    expect(body).toMatch(/inArray\(constructionActivities\.projectId, ids\)/)
+    // R75 Part 5 step 2: activities are now read via the same raw-SQL,
+    // ARRAY[...]-driven shape as permits (below) -- ANY(ARRAY[...]) against
+    // a.project_id is what makes it one query rather than N, replacing the
+    // old inArray(constructionActivities.projectId, ids) drizzle call.
+    expect(body).toMatch(/a\.project_id = ANY\(ARRAY\[\$\{projectIdsSql\}\]\)/)
     // R75 Part 5: permits now ride the consolidated aggregate query (raw
     // SQL, ARRAY[...] driven by the same `ids`/projectIdsSql), not its own
     // drizzle-builder statement -- ANY(ARRAY[...]) is what makes IT one
@@ -504,8 +507,12 @@ describe("getOrgDashboard: the R67 E-01 additions are batched, not per-project",
 describe("getOrgDashboard: lastProgressAt rides the query that already runs (R67 E-19)", () => {
   const body = functionBody("getOrgDashboard")
 
-  test("entry_date is selected by the SAME DISTINCT ON query that reads percent_complete", () => {
-    expect(body).toMatch(/SELECT DISTINCT ON \(activity_id\) activity_id, percent_complete, entry_date/)
+  test("entry_date is selected by the SAME query that reads percent_complete", () => {
+    // R75 Part 5 step 2: was a DISTINCT ON over a separately-fetched
+    // activity-id list (2 round trips); now a LEFT JOIN LATERAL per activity
+    // (1 round trip) -- same "latest entry per activity" answer, entry_date
+    // still riding the exact same row as percent_complete.
+    expect(body).toMatch(/SELECT percent_complete, entry_date\s*\n\s*FROM compliance\.construction_work_progress_entries e\s*\n\s*WHERE e\.activity_id = a\.id/)
   })
 
   test("no EXTRA query was added for it", () => {
@@ -614,54 +621,46 @@ describe("getOrgDashboard: the date range narrows revenue and spend ONLY (R67 E-
  * apart without depending on the order they happen to run in.
  */
 function fakeOrgDb(opts: { projects: { id: string; name: string }[]; boqByProject: Record<string, string>; valueByBoq: Record<string, { total: number; budget: number }>; ledgerTotal: number; boqLineItems?: unknown[] }) {
-  const answerFor = (fields: Record<string, unknown>): unknown[] => {
-    const keys = Object.keys(fields).sort().join(",")
-    // The ERP annual ledger sum (erp_budget_line_items via the cost centre).
-    // R67 D-02/E-23 (second-merge fold-in): GROUPED by project now (E-23's own
-    // per-project `ledgerBudget` field needs the breakdown the portfolio total
-    // used to compute alone), so the statement also asks for `projectId`
-    // alongside the row COUNT (`lines`) that tells "no budget set" (0 lines)
-    // apart from "a real budget that sums to zero" (lines > 0). Every fixture
-    // in this describe block has exactly one project, so one row carries the
-    // whole ledgerTotal. This fixture is never about the lines distinction
-    // (it always has a real ledger row), so lines is a fixed 1.
-    if (keys === "lines,projectId,total") return [{ projectId: opts.projects[0]?.id, total: opts.ledgerTotal, lines: 1 }]
-    // The per-BOQ root-line value AND budget -- one query, two figures.
-    if (keys === "boqId,budget,total") {
-      return Object.entries(opts.valueByBoq).map(([boqId, v]) => ({ boqId, total: v.total, budget: v.budget }))
-    }
-    // revenue / expenses / permits / task counts: none in this fixture, which
-    // is deliberate -- this test is about the budget and nothing else.
-    return []
-  }
   return {
     query: {
       projects: { findMany: async () => opts.projects },
+      // R75 Part 5 step 2: constructionActivities.findMany is no longer
+      // called by getOrgDashboardWithDb at all (folded into the activity/
+      // progress execute() call below) -- kept here, unused, only because
+      // removing it would be a no-op change with a chance of looking
+      // related to something else in a future diff.
       constructionActivities: { findMany: async () => [] },
       constructionBoqLineItems: { findMany: async () => opts.boqLineItems ?? [] },
       users: { findMany: async () => [] },
     },
-    select: (fields: Record<string, unknown>) => {
-      const rows = answerFor(fields)
-      // where() has to be BOTH awaitable (the aggregates that end there) and
-      // chainable into groupBy() (the per-project ones) -- a promise carrying
-      // the extra method is the smallest fake that is honest about both.
-      const terminal = () => Object.assign(Promise.resolve(rows), { groupBy: async () => rows })
+    // R75 Part 5 step 2: the old select()-shape answer for "boqId,budget,total"
+    // is gone -- valueByBoq is no longer a separate db.select() at all, it
+    // rides the same execute() call as the BOQ id lookup now (call 2 below).
+    // Only the ERP-ledger shape from the ORIGINAL consolidated-aggregate fold
+    // would ever reach select(), and this describe block never does (that
+    // path is execute()'s call 1 now) -- so this fake's select() has nothing
+    // left to answer. Kept as a defensive no-op rather than removed: a test
+    // that accidentally triggers a real db.select() should get an honest
+    // empty result, not a thrown "not a function".
+    select: () => {
       const chain: Record<string, unknown> = {}
       chain.from = () => chain
       chain.innerJoin = () => chain
-      chain.where = terminal
-      chain.groupBy = async () => rows
+      chain.where = () => Object.assign(Promise.resolve([]), { groupBy: async () => [] })
+      chain.groupBy = async () => []
       return chain
     },
-    // R75 Part 5: getOrgDashboardWithDb now issues its statements in a fixed
-    // order -- the ONE consolidated revenue/expense/tasks/budget/po/permit
-    // read first (replacing this describe block's old `select()`-shape
-    // answer for "lines,projectId,total"), then the BOQ DISTINCT ON read,
-    // then F-01's org-level progress read. None of these fixtures populate
-    // boqLineItems, so activeBoqIds.length>0 && itemIds.length>0 never gates
-    // the earned-value block's own extra execute() calls open here -- three
-    // calls, every time, for every test in this describe block.
+    // R75 Part 5 step 2: getOrgDashboardWithDb now issues FOUR execute()
+    // calls in a fixed order -- the consolidated revenue/expense/tasks/
+    // budget/po/permit read, then the BOQ id+value+budget read (valueByBoq
+    // folded in, step 2), then the activity/progress LEFT JOIN LATERAL read
+    // (also folded in, step 2, and now UNCONDITIONAL -- it used to be
+    // skipped when activityRows was empty; now it always runs one cheap
+    // extra query instead of a conditional second one, net cheaper on any
+    // org that actually has activities), then F-01's org-level progress
+    // read. None of these fixtures populate boqLineItems, so
+    // activeBoqIds.length>0 && itemIds.length>0 never gates the
+    // earned-value block's own extra execute() calls open here.
     execute: (() => {
       let call = 0
       return async () => {
@@ -681,7 +680,18 @@ function fakeOrgDb(opts: { projects: { id: string; name: string }[]; boqByProjec
             po_total: null, permit_total: null,
           }))
         }
-        if (call === 2) return Object.entries(opts.boqByProject).map(([project_id, boq_id]) => ({ project_id, boq_id }))
+        if (call === 2) {
+          // BOQ id + value + budget, one row per project that has an active
+          // BOQ (LEFT JOIN in the real query, but a project with no row in
+          // opts.boqByProject has no BOQ at all, so it correctly has no row
+          // here either -- matching boqIdByProject.get(p.id) being undefined).
+          return Object.entries(opts.boqByProject).map(([project_id, boq_id]) => ({
+            project_id, boq_id,
+            total: opts.valueByBoq[boq_id]?.total ?? 0,
+            budget: opts.valueByBoq[boq_id]?.budget ?? 0,
+          }))
+        }
+        if (call === 3) return [] // activity/progress read -- no activities in this fixture
         return [] // F-01's progress read -- not exercised by this describe block
       }
     })(),
@@ -1293,9 +1303,14 @@ describe("construction-dashboard-service: getOrgDashboard row shape (E-21)", () 
     // the bound), on the same two columns, inside the consolidated query.
     expect(body).toMatch(/\(\$\{from\}::date IS NULL OR posting_date >= \$\{from\}::date\)/)
     expect(body).toMatch(/\(\$\{from\}::date IS NULL OR expense_date >= \$\{from\}::date\)/)
-    const boqBudgetQuery = body.slice(body.indexOf("const valueByBoq ="), body.indexOf("const valueByBoqMap"))
+    // R75 Part 5 step 2: valueByBoq is no longer its own statement -- the BOQ
+    // value+budget read is now `boqRows` (the merged CTE+JOIN query, up near
+    // `latestBoqPerProject`/`boqIdByProject`).
+    const boqBudgetQuery = body.slice(body.indexOf("const boqRows ="), body.indexOf("const boqIdByProject ="))
     expect(boqBudgetQuery).not.toMatch(/filters\.(from|to)/)
-    expect(boqBudgetQuery).toMatch(/budgetPercentage/)
+    // R75 Part 5 step 2: raw SQL now uses the snake_case column directly
+    // (cbli.budget_percentage) instead of drizzle's camelCase symbol.
+    expect(boqBudgetQuery).toMatch(/budget_percentage/)
   })
 
   test("ledgerBudget is null-not-zero when the project has no budget rows, and progressPercent is F-01's 0", () => {
@@ -1334,24 +1349,38 @@ describe("R75 Part 5: dashboard query consolidation is bounded and falsifiable",
     await mock.module("./construction-enablement-service", () => realEnablement)
   })
 
-  // The six-aggregate consolidation reduced this scenario's DB statement
-  // count from 8 (6 x db.select + latestBoqPerProject + progressByProject)
-  // to 3 (1 consolidated db.execute + latestBoqPerProject + progressByProject).
-  // activeBoqIds is empty (no BOQ fixture below), so valueByBoq's `db.select`
-  // and the entire earned-value block are both skipped by their own
-  // `.length > 0` gates -- not faked away, genuinely not reached.
-  const EXPECTED_EXECUTE_CALLS = 3
+  // Step 1 (the six-aggregate consolidation) reduced this scenario's DB
+  // statement count from 8 (6 x db.select + latestBoqPerProject +
+  // progressByProject) to 3 (1 consolidated db.execute + latestBoqPerProject
+  // + progressByProject) -- activeBoqIds is empty (no BOQ fixture below), so
+  // valueByBoq's old `db.select` and the entire earned-value block were both
+  // skipped by their own `.length > 0` gates.
+  //
+  // Step 2 folds valueByBoq INTO the BOQ execute() call (no count change --
+  // it was already gated to zero calls here) and makes the activity/progress
+  // read its OWN execute() call, UNCONDITIONALLY -- it used to be a
+  // `db.query.constructionActivities.findMany()` (a different call type this
+  // counter never tracked) gated in front of a conditional second execute().
+  // Net effect on THIS empty-data scenario: 3 execute() + 1 untracked
+  // query.findMany() (4 real round trips) -> 4 execute() + 0 query.findMany
+  // (also 4) -- flat, not worse, once the previously-invisible findMany is
+  // counted honestly. The real step-2 win is in the COMMON case, where
+  // activities exist -- see the second test below, which is where 2 round
+  // trips (findMany + conditional execute) become 1.
+  const EXPECTED_EXECUTE_CALLS = 4
   const EXPECTED_SELECT_CALLS = 0
+  const EXPECTED_ACTIVITY_FIND_MANY_CALLS = 0
 
-  test(`issues exactly ${EXPECTED_EXECUTE_CALLS} db.execute call(s) and ${EXPECTED_SELECT_CALLS} db.select call(s) for an org with active projects and no BOQ/activity data yet`, async () => {
+  test(`issues exactly ${EXPECTED_EXECUTE_CALLS} db.execute call(s), ${EXPECTED_SELECT_CALLS} db.select call(s) and ${EXPECTED_ACTIVITY_FIND_MANY_CALLS} activity find-many call(s) for an org with active projects and no BOQ/activity data yet`, async () => {
     let executeCalls = 0
     let selectCalls = 0
+    let activityFindManyCalls = 0
     const projects = [{ id: "p1", name: "Falsifiability Tower" }]
 
     const db = {
       query: {
         projects: { findMany: async () => projects },
-        constructionActivities: { findMany: async () => [] },
+        constructionActivities: { findMany: async () => { activityFindManyCalls += 1; return [] } },
         constructionBoqLineItems: { findMany: async () => [] },
         users: { findMany: async () => [] },
       },
@@ -1369,8 +1398,9 @@ describe("R75 Part 5: dashboard query consolidation is bounded and falsifiable",
         executeCalls += 1
         // Call 1: the consolidated aggregate read -- one row per project,
         // every aggregate null (this fixture has no revenue/expense/task/
-        // budget/po/permit data). Calls 2+ (BOQ, then F-01 progress) can both
-        // safely answer empty -- neither is asserted on by this test.
+        // budget/po/permit data). Calls 2+ (BOQ, activity/progress, then
+        // F-01 progress) can all safely answer empty -- none is asserted on
+        // by this test beyond its own call count.
         if (executeCalls === 1) {
           return projects.map((p) => ({
             project_id: p.id,
@@ -1403,6 +1433,74 @@ describe("R75 Part 5: dashboard query consolidation is bounded and falsifiable",
 
     expect(executeCalls).toBe(EXPECTED_EXECUTE_CALLS)
     expect(selectCalls).toBe(EXPECTED_SELECT_CALLS)
+    expect(activityFindManyCalls).toBe(EXPECTED_ACTIVITY_FIND_MANY_CALLS)
+  })
+
+  // The scenario above has NO activities, which is exactly where step 2's
+  // activity/progress consolidation shows its SMALLEST win (a conditional
+  // 0-or-1 extra query becomes an unconditional 1). This is the common case:
+  // an org with real activities, where the OLD code paid findMany() (1) +
+  // the conditional DISTINCT ON (1) = 2 round trips for this pair, and the
+  // NEW code pays exactly 1 -- proven the same way, by counting.
+  test("an org WITH activities still issues only 1 execute() call for the activity/progress read (not 2, not a findMany + a conditional execute)", async () => {
+    let executeCalls = 0
+    let activityFindManyCalls = 0
+    const projects = [{ id: "p1", name: "Has Activities Co" }]
+
+    const db = {
+      query: {
+        projects: { findMany: async () => projects },
+        constructionActivities: { findMany: async () => { activityFindManyCalls += 1; return [] } },
+        constructionBoqLineItems: { findMany: async () => [] },
+        users: { findMany: async () => [] },
+      },
+      select: () => {
+        const terminal = () => Object.assign(Promise.resolve([]), { groupBy: async () => [] })
+        const chain: Record<string, unknown> = {}
+        chain.from = () => chain
+        chain.innerJoin = () => chain
+        chain.where = terminal
+        chain.groupBy = async () => []
+        return chain
+      },
+      execute: async () => {
+        executeCalls += 1
+        if (executeCalls === 1) {
+          return projects.map((p) => ({
+            project_id: p.id,
+            revenue_total: null, expense_total: null,
+            task_total: null, task_delayed: null, task_due: null, task_with_due_date: null,
+            budget_total: null, budget_lines: null,
+            po_total: null, permit_total: null,
+          }))
+        }
+        // Call 3 (after call 1=agg, call 2=BOQ) is the activity/progress
+        // read -- answer with one real activity row to prove the fixture
+        // actually exercises a non-empty path, not a vacuous empty one.
+        if (executeCalls === 3) {
+          return [{ activity_id: "act-1", project_id: "p1", percent_complete: 42, entry_date: "2026-09-01" }]
+        }
+        return []
+      },
+    }
+
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (d: unknown) => Promise<unknown>) => fn(db)),
+    }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablement,
+      isConstructionEnabledForOrg: mock(async () => true),
+      isConstructionEnabledForOrgWithDb: mock(async () => true),
+    }))
+    const { getOrgDashboard } = await import("./construction-dashboard-service")
+    const summary = await getOrgDashboard({ orgId: "org-r75p5-with-activities" })
+
+    // Sanity: the activity row's percentage actually reached the response
+    // -- proves this isn't measuring an empty path by accident.
+    expect(summary.projects[0]!.percentByActivity).toBe(42)
+    expect(activityFindManyCalls).toBe(0)
+    expect(executeCalls).toBe(4)
   })
 })
 // R67 E-39 (R-271 / R-297 / R-293). THE PROJECT DASHBOARD PAYLOAD.
