@@ -638,38 +638,9 @@ describe("computeEarnedValue -- R46/R-51 percent-complete fallback + root-with-c
   })
 })
 
-// R75 Part 2 Phase 3 (R-44/R-45): explicit, standalone checks of the two
-// invariants computeEarnedValue() must hold -- not regression-oracle
-// reproductions of a historical bug like the describe block above, but
-// direct assertions of the formulas themselves.
-describe("computeEarnedValue -- R-44/R-45 explicit invariant checks", () => {
-  test("R-44: a parent's cumulative quantity equals the sum of each child's cumulative quantity x that child's breakdownPercentage/100", () => {
-    const items: EvLineItem[] = [
-      { id: "root1", parentLineItemId: null, rate: 1, amount: 1000, breakdownPercentage: null },
-      { id: "childA", parentLineItemId: "root1", rate: 1, amount: 600, breakdownPercentage: 60 },
-      { id: "childB", parentLineItemId: "root1", rate: 1, amount: 400, breakdownPercentage: 40 },
-    ]
-    // root1 itself has no measured quantity and no percentComplete, so it
-    // contributes nothing on its own here -- isolating the children-only
-    // sum. rootRate=1 on every line so earnedValue reads as pure quantity.
-    const qtyByItem = new Map([
-      ["childA", 30], // childA's own cumulative quantity
-      ["childB", 20], // childB's own cumulative quantity
-    ])
-    const result = computeEarnedValue(items, qtyByItem, new Map())
-    // 30 x 60/100 + 20 x 40/100 = 18 + 8 = 26
-    expect(result.earnedValue).toBe(26)
-  })
-
-  test("R-45: the parent percent complete equals the parent's cumulative amount divided by its total contracted amount", () => {
-    const items: EvLineItem[] = [{ id: "root1", parentLineItemId: null, rate: 25, amount: 800, breakdownPercentage: null }]
-    const qtyByItem = new Map([["root1", 16]]) // root1's own cumulative quantity
-    const result = computeEarnedValue(items, qtyByItem, new Map())
-    expect(result.earnedValue).toBe(400) // 16 x 25 -- the parent's cumulative amount
-    expect(result.contractValue).toBe(800) // the parent's total contracted amount
-    expect(result.percentByValue).toBe(50) // 400 / 800 x 100
-  })
-})
+// R-44/R-45 (computeEarnedValue explicit invariant checks) moved to
+// construction-reports-service.earned-value.test.ts (seq4/c5 de-share,
+// 2026-09-11) -- this file cited 5 requirements over the 3-per-file cap.
 
 // ---------------------------------------------------------------------------
 // R67 F-10 (R-134) acceptance test.
@@ -1148,41 +1119,10 @@ describe("mergeCategoryProgressWithAmounts (R67 E-02)", () => {
 // below is the item's own 2,193.75 and the assertions compare the three
 // figures to each other rather than to three separately-typed constants.
 // ---------------------------------------------------------------------------
-describe("sumRootLineBudgets (R67 E-06)", () => {
-  test("sums amount x budgetPercentage / 100 over the ROOT lines -- the item's own 2,193.75", () => {
-    expect(sumRootLineBudgets([
-      { parentLineItemId: null, amount: 5400, budgetPercentage: 25 },  // 1350
-      { parentLineItemId: null, amount: 3375, budgetPercentage: 25 },  //  843.75
-    ])).toBe(2193.75)
-  })
-
-  test("a weighted sub-task is NOT added again -- its amount is already inside its parent's", () => {
-    const withChildren = sumRootLineBudgets([
-      { parentLineItemId: null, amount: 5400, budgetPercentage: 25 },
-      { parentLineItemId: "root-1", amount: 2700, budgetPercentage: 25 },
-      { parentLineItemId: "root-1", amount: 2700, budgetPercentage: 25 },
-    ])
-    expect(withChildren).toBe(1350)
-  })
-
-  test("no lines at all is null, NEVER 0 -- 'no BOQ' is not 'a budget of nothing'", () => {
-    expect(sumRootLineBudgets([])).toBeNull()
-    expect(sumRootLineBudgets([{ parentLineItemId: "root-1", amount: 100, budgetPercentage: 25 }])).toBeNull()
-  })
-
-  test("a real BOQ worth zero still reports 0 -- absent and zero stay distinguishable in both directions", () => {
-    expect(sumRootLineBudgets([{ parentLineItemId: null, amount: 0, budgetPercentage: 25 }])).toBe(0)
-  })
-
-  test("rounds ONCE at the end, so the total reconciles to a raw SQL sum over the same rows", () => {
-    // Three lines whose individual budgets are 33.333..., summed then rounded.
-    expect(sumRootLineBudgets([
-      { parentLineItemId: null, amount: 100, budgetPercentage: 33.3333 },
-      { parentLineItemId: null, amount: 100, budgetPercentage: 33.3333 },
-      { parentLineItemId: null, amount: 100, budgetPercentage: 33.3334 },
-    ])).toBe(100)
-  })
-})
+// sumRootLineBudgets (R67 E-06 / R-33) moved to
+// construction-reports-service.boq-budget-closure.test.ts (seq4/c5
+// de-share, 2026-09-11) -- this file cited 5 requirements over the
+// 3-per-file cap.
 
 // ---------------------------------------------------------------------------
 // R67 E-08 (R-115) -- Revenue / Budget / Actual, scope-wise and category-wise
@@ -1263,34 +1203,11 @@ describe("aggregateRevenueBudgetActual (R67 E-08)", () => {
     expect(rows[0].lineCount).toBe(1)
   })
 
-  // R75 Part 2 Phase 3 (R-C11 gap closure): the "ACCEPTANCE" tests above only
-  // assert that summed figures agree between the two foldings -- a property
-  // that holds true even if "category" grouping were silently broken (e.g. it
-  // fell back to one row per line, exactly like "scope"), because a sum over
-  // ungrouped rows equals the same sum over correctly-grouped rows either way.
-  // Nothing before this test actually proved lines SHARING a category are
-  // merged into one row. LINES has l1+l2 both "Civil" (l3 is the only
-  // "Joinery" line) -- this pins the real merge: row count collapses from 3
-  // lines to 2 categories, and the Civil row's figures are the true sum of
-  // l1+l2, not a coincidental pass-through.
-  test("category-wise MERGES every line sharing a category into ONE row (not one row per line)", () => {
-    const { rows } = aggregateRevenueBudgetActual(LINES, "category")
-
-    expect(rows).toHaveLength(2)
-    const civil = rows.find((r) => r.item === "Civil")!
-    const joinery = rows.find((r) => r.item === "Joinery")!
-
-    expect(civil.lineCount).toBe(2)
-    expect(civil.revenue).toBe(5400 + 3375)
-    expect(civil.budget).toBe(1350 + 843.75)
-    // l1's actual is vendor-only (1500), l2's is material+manpower (600) --
-    // the merged row must carry their real sum, 2100, not just l1's or l2's.
-    expect(civil.actual).toBe(1500 + 600)
-
-    expect(joinery.lineCount).toBe(1)
-    expect(joinery.revenue).toBe(2000)
-    expect(joinery.actual).toBeNull()
-  })
+  // R-C11 (category-wise merge gap closure) moved to
+  // construction-reports-service.boq-budget-closure.test.ts (seq4/c5
+  // de-share, 2026-09-11) -- this file cited 5 requirements over the
+  // 3-per-file cap. The other ACCEPTANCE tests in this describe block stay
+  // here; they are not cited by any of the 5 over-shared requirement IDs.
 
   test("both foldings report the SAME totals -- one fold, two views", () => {
     const scope = aggregateRevenueBudgetActual(LINES, "scope")
@@ -1523,97 +1440,10 @@ describe("R67 E-06: the Project Status report and the budget-variance report sta
   })
 })
 
-// R75 Phase 3 (R74-RULING-03 closure for R-52 -- "Only the LATEST revision is
-// counted"): R38 (23 Aug, TC-11/TC-43, cited in platform.sumeet_requirements)
-// found and fixed a real bug live -- scopeReport()/categoryBoqAmountsReport()
-// picked "latest" via version DESC with no tiebreaker, so 2+ independent BOQs
-// sharing a version number could resolve to an arbitrary one. The fix added a
-// createdAt DESC tiebreaker to the SQL orderBy (trusted here, not
-// re-verified -- Postgres's own ORDER BY is not this test's concern) AND kept
-// the existing `.find(b => b.status !== "superseded") ?? boqs[0]` fallback,
-// which IS this test's concern: given boqs already in DB-sorted order, does
-// the app correctly skip a superseded row instead of blindly trusting
-// position 0? No existing test constructs a multi-BOQ scenario to check this
-// -- every other scopeReport-adjacent test here uses exactly one BOQ. This is
-// deliberately scoped to SELECTION only (which BOQ counts), not summation
-// (R-33's already-covered concern, sumRootLineBudgets above) -- the fake
-// select-chain returns a fixed canned value regardless of which boqId it was
-// called with, same convention as fakeDbFor's ROW above, so this test's own
-// assertions are on report.boq/report.revisions, never report.totalValue.
-describe("scopeReport (R75 Phase 3 / R-52): the DB-sorted-first-non-superseded BOQ wins, not array position 0 blindly", () => {
-  afterEach(async () => {
-    mock.restore()
-    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
-    await mock.module("./construction-enablement-service", () => realEnablementService)
-  })
-
-  const SUPERSEDED_NEWEST = { id: "boq-superseded", orgId: "org-r52", projectId: "proj-r52", version: 2, status: "superseded", title: "Superseded rev", createdAt: new Date("2026-02-01") }
-  const ACTIVE_OLDER = { id: "boq-active", orgId: "org-r52", projectId: "proj-r52", version: 1, status: "approved", title: "Still-active v1", createdAt: new Date("2026-01-01") }
-
-  function fakeDbMultiBoq(boqsInDbSortOrder: typeof SUPERSEDED_NEWEST[]) {
-    const chain: Record<string, unknown> = {}
-    chain.from = () => chain
-    // Canned, boqId-independent -- see this block's own header on why.
-    chain.where = async () => [{ total: 999, count: 1 }]
-    return {
-      query: {
-        constructionBoqs: { findMany: async () => boqsInDbSortOrder },
-        constructionBoqLineItems: { findMany: async () => [] },
-      },
-      select: () => chain,
-    }
-  }
-
-  async function withMultiBoqFakeDb(boqsInDbSortOrder: typeof SUPERSEDED_NEWEST[]) {
-    await mock.module("@/lib/db/tenant-scoped", () => ({
-      ...realTenantScoped,
-      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDbMultiBoq(boqsInDbSortOrder))),
-    }))
-    await mock.module("./construction-enablement-service", () => ({
-      ...realEnablementService,
-      requireConstructionEnabled: mock(async () => {}),
-      isConstructionEnabledForOrg: mock(async () => true),
-      // R75 Part 2/3 (R-80 fix): construction-dashboard-service.ts's
-      // getProjectDashboard(s)/getOrgDashboard now delegate to a WithDb
-      // sibling that calls isConstructionEnabledForOrgWithDb (reusing the
-      // caller's own db handle) instead of the plain, self-opening
-      // isConstructionEnabledForOrg -- mock both so a real, unmocked call
-      // never slips through to a real DB (self-caught: this exact gap made
-      // CI's Unit Tests job fail for real after the R-80/R-50 pushes,
-      // because this file's own mock predates that refactor and wasn't
-      // updated alongside construction-dashboard-service.test.ts's copy).
-      isConstructionEnabledForOrgWithDb: mock(async () => true),
-    }))
-    return import("./construction-reports-service")
-  }
-
-  test("a superseded row sorted first (higher version) is skipped -- the older but still-active row is the one that counts", async () => {
-    const { scopeReport } = await withMultiBoqFakeDb([SUPERSEDED_NEWEST, ACTIVE_OLDER])
-    const report = await scopeReport({ orgId: "org-r52" }, "proj-r52")
-
-    expect(report.boq).not.toBeNull()
-    expect(report.boq!.id).toBe(ACTIVE_OLDER.id)
-    expect(report.boq!.id).not.toBe(SUPERSEDED_NEWEST.id)
-    // Both still surface in the revisions list -- R-52 is about what COUNTS,
-    // not about hiding the history.
-    expect(report.revisions.map((r) => r.id).sort()).toEqual([ACTIVE_OLDER.id, SUPERSEDED_NEWEST.id].sort())
-  })
-
-  test("when NEITHER row is superseded, DB sort order (position 0, already version+createdAt DESC) wins -- the app trusts Postgres's own ORDER BY, it does not re-sort", async () => {
-    const bothActive = { ...SUPERSEDED_NEWEST, id: "boq-both-active", status: "approved" }
-    const { scopeReport } = await withMultiBoqFakeDb([bothActive, ACTIVE_OLDER])
-    const report = await scopeReport({ orgId: "org-r52" }, "proj-r52")
-    expect(report.boq!.id).toBe(bothActive.id)
-  })
-
-  test("no BOQ at all reports null, not a crash", async () => {
-    const { scopeReport } = await withMultiBoqFakeDb([])
-    const report = await scopeReport({ orgId: "org-r52" }, "proj-r52")
-    expect(report.boq).toBeNull()
-    expect(report.totalValue).toBe(0)
-    expect(report.revisions).toEqual([])
-  })
-})
+// scopeReport (R75 Phase 3 / R-52) moved to
+// construction-reports-service.boq-budget-closure.test.ts (seq4/c5
+// de-share, 2026-09-11) -- this file cited 5 requirements over the
+// 3-per-file cap.
 
 // R67 lane D22 (item D-41): the Budget screen PROJEXA now renders at /budgets
 // prints Sumeet's own columns -- S.No | Category | Code | Description | Qty |
