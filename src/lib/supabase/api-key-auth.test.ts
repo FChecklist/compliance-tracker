@@ -7,11 +7,24 @@
 // dependency (never touching a live DB from a .test.ts file).
 import { describe, test, expect, mock, afterEach, beforeEach } from "bun:test"
 
+// api-key-audit.ts's insertRequestLog now goes through
+// db.execute(sql`select compliance.record_api_key_request_batch(...)`) instead
+// of db.insert(apiKeyRequestLog).values(...) -- see that file's own comment.
+// The rows-per-call are the one interpolated chunk that is a plain string
+// (drizzle's sql`` template pushes params in as-is; see
+// node_modules/drizzle-orm/sql/sql.js's tag() -- the same fact
+// api-key-audit.test.ts's own module-level test relies on).
+function rowsFromExecuteCall(query: { queryChunks?: unknown[] } | undefined): unknown[] {
+  const chunk = query?.queryChunks?.find((c) => typeof c === "string")
+  return chunk ? JSON.parse(chunk as string) : []
+}
+
 function mockDbFor(row: Record<string, unknown> | undefined) {
   mock.module("@/lib/db", () => ({
     db: {
       update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
       insert: () => ({ values: () => Promise.resolve() }),
+      execute: () => Promise.resolve(),
       select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: 0 }]) }) }),
     },
     apiKeys: {}, apiKeyRequestLog: {},
@@ -137,6 +150,7 @@ describe("validateApiKey: demo-key sandbox rate-limit ceiling", () => {
       db: {
         update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
         insert: () => ({ values: () => Promise.resolve() }),
+        execute: () => Promise.resolve(),
         select: () => ({ from: () => ({ where: () => Promise.resolve([{ count }]) }) }),
       },
       apiKeys: {}, apiKeyRequestLog: {},
@@ -237,14 +251,13 @@ describe("validateApiKey: the audit writes are batched, and the rate limit still
     mock.module("@/lib/db", () => ({
       db: {
         update: () => ({ set: () => ({ where: () => { state.lastUsedUpdates += 1; return Promise.resolve() } }) }),
-        insert: () => ({
-          values: (rows: unknown) => {
-            const list = Array.isArray(rows) ? rows : [rows]
-            state.batches += 1
-            state.rowsWritten += list.length
-            return Promise.resolve()
-          },
-        }),
+        insert: () => ({ values: () => Promise.resolve() }),
+        execute: (query: { queryChunks?: unknown[] }) => {
+          const list = rowsFromExecuteCall(query)
+          state.batches += 1
+          state.rowsWritten += list.length
+          return Promise.resolve()
+        },
         select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: baseCount + state.rowsWritten }]) }) }),
       },
       apiKeys: { id: "id" }, apiKeyRequestLog: {},
@@ -387,6 +400,7 @@ describe("validateApiKey: orgId comes only from the key-hash match (R43_EXEC_01 
       db: {
         update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
         insert: () => ({ values: () => Promise.resolve() }),
+        execute: () => Promise.resolve(),
         select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: 0 }]) }) }),
       },
       apiKeys: {}, apiKeyRequestLog: {},
@@ -453,7 +467,8 @@ describe("validateApiKey: usage bookkeeping is deferred, and never silently lost
     mock.module("@/lib/db", () => ({
       db: {
         update: () => ({ set: () => ({ where: () => { writes.push("last_used_at"); return failWith ? Promise.reject(failWith) : Promise.resolve() } }) }),
-        insert: () => ({ values: () => { writes.push("request_log"); return failWith ? Promise.reject(failWith) : Promise.resolve() } }),
+        insert: () => ({ values: () => Promise.resolve() }),
+        execute: () => { writes.push("request_log"); return failWith ? Promise.reject(failWith) : Promise.resolve() },
         select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: 0 }]) }) }),
       },
       apiKeys: {}, apiKeyRequestLog: {},
