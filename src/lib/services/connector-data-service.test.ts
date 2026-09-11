@@ -110,7 +110,37 @@ describe("normalizeDriveFiles / toDriveFileSummary", () => {
   })
 })
 
-// ─── listRecentGmailMessages / listRecentDriveFiles -- store + Composio mocked ──
+// ─── listRecentGmailMessages / listRecentDriveFiles -- store + gate mocked ──
+//
+// R81_F23 fix: both functions now route through connector-scope-gate-
+// service.ts's executeGatedConnectorAction (CRR-158) instead of calling
+// composio-connectors.ts's executeAction directly, opening a real (mocked
+// here) withTenantContext transaction to supply the gate's required `tx`.
+// mockGate() below stands in for a passing gate verdict -- the gate's own
+// pass/fail logic is covered by connector-scope-gate-service.test.ts /
+// composio-connectors.test.ts, not re-tested here; this suite only proves
+// the CALL SITE wires through it correctly (right toolkit/actionSlug/scopes
+// reach the gate, the gate's result shape is unwrapped correctly, a gate
+// denial surfaces as ServiceError(403) via this file's existing
+// ServiceError-on-failure convention).
+function mockGate(impl: (params: Record<string, unknown>) => Promise<unknown>) {
+  mock.module("./connector-scope-gate-service", () => ({
+    executeGatedConnectorAction: mock(impl),
+    ConnectorGateDeniedError: class ConnectorGateDeniedError extends Error {},
+  }))
+}
+
+function mockScopes(scopes: string[] = ["some.scope"]) {
+  mock.module("@/lib/composio-connectors", () => ({
+    getAuthConfigScopes: mock(async () => scopes),
+  }))
+}
+
+function mockTenantContext() {
+  mock.module("@/lib/db/tenant-scoped", () => ({
+    withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn({})),
+  }))
+}
 
 describe("listRecentGmailMessages", () => {
   test("propagates ServiceError when the caller has no active gmail connection", async () => {
@@ -118,9 +148,9 @@ describe("listRecentGmailMessages", () => {
       getActiveConnectorAccount: mock(async () => { throw new ServiceError("No gmail connection found", 400) }),
       upsertConnectorDocument: mock(async () => null),
     }))
-    mock.module("@/lib/composio-connectors", () => ({
-      executeAction: mock(async () => ({ successful: true, data: { messages: [] }, error: null })),
-    }))
+    mockScopes()
+    mockTenantContext()
+    mockGate(async () => ({ category: "read", auditRecorded: false, result: { successful: true, data: { messages: [] }, error: null } }))
     const { listRecentGmailMessages } = await import("./connector-data-service")
 
     await expect(listRecentGmailMessages({ orgId: "org-1", userId: "user-1" })).rejects.toThrow(/No gmail connection/)
@@ -135,24 +165,27 @@ describe("listRecentGmailMessages", () => {
         return { id: "doc-1" }
       }),
     }))
-    let capturedArgs: unknown
-    mock.module("@/lib/composio-connectors", () => ({
-      executeAction: mock(async (_slug: string, _accountId: string, _userId: string, args: unknown) => {
-        capturedArgs = args
-        return {
-          successful: true,
-          data: { messages: [{ messageId: "m1", subject: "Hi", snippet: "s", internalDate: "1700000000000" }] },
-          error: null,
-        }
-      }),
-    }))
+    mockScopes(["https://www.googleapis.com/auth/gmail.readonly"])
+    mockTenantContext()
+    let capturedParams: Record<string, unknown> | undefined
+    mockGate(async (params) => {
+      capturedParams = params
+      return {
+        category: "read",
+        auditRecorded: false,
+        result: { successful: true, data: { messages: [{ messageId: "m1", subject: "Hi", snippet: "s", internalDate: "1700000000000" }] }, error: null },
+      }
+    })
     const { listRecentGmailMessages } = await import("./connector-data-service")
 
     const messages = await listRecentGmailMessages({ orgId: "org-1", userId: "user-1" }, { maxResults: 5 })
 
     expect(messages).toHaveLength(1)
     expect(messages[0]!.externalId).toBe("m1")
-    expect((capturedArgs as { max_results: number }).max_results).toBe(5)
+    expect(capturedParams?.toolkit).toBe("gmail")
+    expect(capturedParams?.actionSlug).toBe("GMAIL_FETCH_EMAILS")
+    expect(capturedParams?.requestedScopes).toEqual(["https://www.googleapis.com/auth/gmail.readonly"])
+    expect((capturedParams?.args as { max_results: number }).max_results).toBe(5)
     expect(upsertCalls).toHaveLength(1)
     expect((upsertCalls[0] as { connectorAccountId: string }).connectorAccountId).toBe("conn-1")
   })
@@ -162,13 +195,13 @@ describe("listRecentGmailMessages", () => {
       getActiveConnectorAccount: mock(async () => ({ id: "conn-1", composioConnectedAccountId: "ca_1", status: "ACTIVE" })),
       upsertConnectorDocument: mock(async () => ({ id: "doc-1" })),
     }))
+    mockScopes()
+    mockTenantContext()
     const capturedArgsList: unknown[] = []
-    mock.module("@/lib/composio-connectors", () => ({
-      executeAction: mock(async (_slug: string, _accountId: string, _userId: string, args: unknown) => {
-        capturedArgsList.push(args)
-        return { successful: true, data: { messages: [] }, error: null }
-      }),
-    }))
+    mockGate(async (params) => {
+      capturedArgsList.push(params.args)
+      return { category: "read", auditRecorded: false, result: { successful: true, data: { messages: [] }, error: null } }
+    })
     const { listRecentGmailMessages } = await import("./connector-data-service")
 
     await listRecentGmailMessages({ orgId: "org-1", userId: "user-1" }, { maxResults: 9999 })
@@ -185,13 +218,33 @@ describe("listRecentGmailMessages", () => {
       getActiveConnectorAccount: mock(async () => ({ id: "conn-1", composioConnectedAccountId: "ca_1", status: "ACTIVE" })),
       upsertConnectorDocument: mock(async () => ({ id: "doc-1" })),
     }))
-    mock.module("@/lib/composio-connectors", () => ({
-      executeAction: mock(async () => ({ successful: false, data: null, error: "token expired" })),
-    }))
+    mockScopes()
+    mockTenantContext()
+    mockGate(async () => ({ category: "read", auditRecorded: false, result: { successful: false, data: null, error: "token expired" } }))
     const { listRecentGmailMessages, ServiceError: ReExportedServiceError } = await import("./connector-data-service")
 
     await expect(listRecentGmailMessages({ orgId: "org-1", userId: "user-1" })).rejects.toBeInstanceOf(ReExportedServiceError)
     await expect(listRecentGmailMessages({ orgId: "org-1", userId: "user-1" })).rejects.toThrow(/token expired/)
+  })
+
+  test("throws ServiceError(403) when the CRR-158 scope gate denies the call", async () => {
+    mock.module("./connector-data-store", () => ({
+      getActiveConnectorAccount: mock(async () => ({ id: "conn-1", composioConnectedAccountId: "ca_1", status: "ACTIVE" })),
+      upsertConnectorDocument: mock(async () => ({ id: "doc-1" })),
+    }))
+    mockScopes(["https://www.googleapis.com/auth/gmail.metadata"]) // not on the allow-list
+    mockTenantContext()
+    mock.module("./connector-scope-gate-service", () => {
+      class ConnectorGateDeniedError extends Error {}
+      return {
+        executeGatedConnectorAction: mock(async () => { throw new ConnectorGateDeniedError("scope not allow-listed") }),
+        ConnectorGateDeniedError,
+      }
+    })
+    const { listRecentGmailMessages, ServiceError: ReExportedServiceError } = await import("./connector-data-service")
+
+    await expect(listRecentGmailMessages({ orgId: "org-1", userId: "user-1" })).rejects.toBeInstanceOf(ReExportedServiceError)
+    await expect(listRecentGmailMessages({ orgId: "org-1", userId: "user-1" })).rejects.toThrow(/CRR-158/)
   })
 
   test("a digital-twin persistence failure does not fail the overall data pull", async () => {
@@ -199,9 +252,9 @@ describe("listRecentGmailMessages", () => {
       getActiveConnectorAccount: mock(async () => ({ id: "conn-1", composioConnectedAccountId: "ca_1", status: "ACTIVE" })),
       upsertConnectorDocument: mock(async () => { throw new Error("db unreachable") }),
     }))
-    mock.module("@/lib/composio-connectors", () => ({
-      executeAction: mock(async () => ({ successful: true, data: { messages: [{ messageId: "m1" }] }, error: null })),
-    }))
+    mockScopes()
+    mockTenantContext()
+    mockGate(async () => ({ category: "read", auditRecorded: false, result: { successful: true, data: { messages: [{ messageId: "m1" }] }, error: null } }))
     const { listRecentGmailMessages } = await import("./connector-data-service")
 
     const messages = await listRecentGmailMessages({ orgId: "org-1", userId: "user-1" })
@@ -215,9 +268,9 @@ describe("listRecentDriveFiles", () => {
       getActiveConnectorAccount: mock(async () => { throw new ServiceError("No googledrive connection found", 400) }),
       upsertConnectorDocument: mock(async () => null),
     }))
-    mock.module("@/lib/composio-connectors", () => ({
-      executeAction: mock(async () => ({ successful: true, data: { files: [] }, error: null })),
-    }))
+    mockScopes()
+    mockTenantContext()
+    mockGate(async () => ({ category: "read", auditRecorded: false, result: { successful: true, data: { files: [] }, error: null } }))
     const { listRecentDriveFiles } = await import("./connector-data-service")
 
     await expect(listRecentDriveFiles({ orgId: "org-1", userId: "user-1" })).rejects.toThrow(/No googledrive connection/)
@@ -228,18 +281,24 @@ describe("listRecentDriveFiles", () => {
       getActiveConnectorAccount: mock(async () => ({ id: "conn-2", composioConnectedAccountId: "ca_2", status: "ACTIVE" })),
       upsertConnectorDocument: mock(async () => ({ id: "doc-2" })),
     }))
-    mock.module("@/lib/composio-connectors", () => ({
-      executeAction: mock(async () => ({
-        successful: true,
-        data: { files: [{ id: "f1", name: "report.pdf", mimeType: "application/pdf" }] },
-        error: null,
-      })),
-    }))
+    mockScopes(["https://www.googleapis.com/auth/drive.readonly"])
+    mockTenantContext()
+    let capturedParams: Record<string, unknown> | undefined
+    mockGate(async (params) => {
+      capturedParams = params
+      return {
+        category: "read",
+        auditRecorded: false,
+        result: { successful: true, data: { files: [{ id: "f1", name: "report.pdf", mimeType: "application/pdf" }] }, error: null },
+      }
+    })
     const { listRecentDriveFiles } = await import("./connector-data-service")
 
     const files = await listRecentDriveFiles({ orgId: "org-1", userId: "user-1" })
     expect(files).toHaveLength(1)
     expect(files[0]!.externalId).toBe("f1")
     expect(files[0]!.name).toBe("report.pdf")
+    expect(capturedParams?.toolkit).toBe("googledrive")
+    expect(capturedParams?.actionSlug).toBe("GOOGLEDRIVE_FIND_FILE")
   })
 })

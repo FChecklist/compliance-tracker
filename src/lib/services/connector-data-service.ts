@@ -35,7 +35,9 @@
 // survive first contact with the real API. This should be verified against
 // a real connected account before being trusted as final -- flagged in the
 // PR description, not silently assumed correct.
-import { executeAction, type ConnectorToolkit } from "@/lib/composio-connectors"
+import { getAuthConfigScopes, type ConnectorToolkit } from "@/lib/composio-connectors"
+import { executeGatedConnectorAction, ConnectorGateDeniedError } from "./connector-scope-gate-service"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { getActiveConnectorAccount, upsertConnectorDocument, type ConnectorContext } from "./connector-data-store"
 import { ServiceError } from "./compliance-service"
 
@@ -47,6 +49,61 @@ const DEFAULT_MAX_RESULTS = 10
 function clampMaxResults(requested: number | undefined): number {
   if (!requested || !Number.isFinite(requested) || requested < 1) return DEFAULT_MAX_RESULTS
   return Math.min(Math.floor(requested), MAX_RESULTS_CAP)
+}
+
+// R81_F23 fix: both real data-pull call sites below used to call
+// composio-connectors.ts's executeAction() directly, entirely bypassing
+// CRR-158's scope gate (connector-scope-gate-service.ts's
+// executeGatedConnectorAction) -- the gate was built, tested, and had ZERO
+// production callers (F23's own finding). LATENT today (COMPOSIO_API_KEY is
+// unprovisioned -- CRR-007, standing declined purchase -- so both the old
+// and new code paths throw identically before any real Composio call), but
+// the fix needs to land BEFORE that key is ever provisioned, not after,
+// per F23's own recommendation.
+//
+// requestedScopes come from getAuthConfigScopes(toolkit), the gate's own
+// documented calling convention (composio-connectors.ts's own comment on
+// that function: "Callers should feed the result straight into
+// evaluateToolkitScopes()/evaluateConnectorGate() as requestedScopes").
+// tx is a real, freshly-opened withTenantContext handle -- read actions
+// never dereference it (executeGatedConnectorAction only touches tx on the
+// write/edit audit-logging branch), but the gate's contract requires a real
+// TenantDb rather than a caller-supplied placeholder. Safe to open fresh
+// here: neither of this file's two real callers (the two /api/connectors/*
+// routes) is ever itself inside an already-open withTenantContext block
+// (verified by reading both route handlers), so this cannot hit the
+// nested-withTenantContext class of bug documented elsewhere in this
+// codebase (R74/R75's *WithDb precedent).
+async function runGatedRead(
+  ctx: ConnectorContext,
+  toolkit: ConnectorToolkit,
+  actionSlug: string,
+  composioConnectedAccountId: string,
+  args: Record<string, unknown>
+) {
+  const requestedScopes = await getAuthConfigScopes(toolkit)
+  try {
+    return await withTenantContext(ctx, (db) =>
+      executeGatedConnectorAction({
+        toolkit,
+        actionSlug,
+        requestedScopes,
+        composioConnectedAccountId,
+        appUserId: ctx.userId,
+        args,
+        tx: db,
+      })
+    )
+  } catch (err) {
+    if (err instanceof ConnectorGateDeniedError) {
+      // Matches this file's existing ServiceError-on-failure convention
+      // (never lets an internal gate-error type leak to route handlers) --
+      // 403, not 502: the server refused to even ask Composio, it isn't
+      // reporting a Composio-side failure.
+      throw new ServiceError(`Blocked by CRR-158 scope gate: ${err.message}`, 403)
+    }
+    throw err
+  }
 }
 
 function parseTimestamp(value: unknown): Date | null {
@@ -114,17 +171,17 @@ export async function listRecentGmailMessages(
   const connection = await getActiveConnectorAccount(ctx, "gmail")
   const maxResults = clampMaxResults(opts.maxResults)
 
-  const result = await executeAction<unknown>("GMAIL_FETCH_EMAILS", connection.composioConnectedAccountId, ctx.userId, {
+  const gated = await runGatedRead(ctx, "gmail", "GMAIL_FETCH_EMAILS", connection.composioConnectedAccountId, {
     user_id: "me",
     max_results: maxResults,
     ...(opts.query ? { query: opts.query } : {}),
   })
 
-  if (!result.successful) {
-    throw new ServiceError(`Gmail fetch failed via Composio: ${result.error ?? "unknown error"}`, 502)
+  if (!gated.result.successful) {
+    throw new ServiceError(`Gmail fetch failed via Composio: ${gated.result.error ?? "unknown error"}`, 502)
   }
 
-  const messages = normalizeGmailMessages(result.data).map(toGmailMessageSummary).filter((m) => m.externalId)
+  const messages = normalizeGmailMessages(gated.result.data).map(toGmailMessageSummary).filter((m) => m.externalId)
 
   await persistGmailDocuments(ctx, connection.id, messages)
 
@@ -208,16 +265,16 @@ export async function listRecentDriveFiles(
   const connection = await getActiveConnectorAccount(ctx, "googledrive")
   const maxResults = clampMaxResults(opts.maxResults)
 
-  const result = await executeAction<unknown>("GOOGLEDRIVE_FIND_FILE", connection.composioConnectedAccountId, ctx.userId, {
+  const gated = await runGatedRead(ctx, "googledrive", "GOOGLEDRIVE_FIND_FILE", connection.composioConnectedAccountId, {
     orderBy: "modifiedTime desc",
     pageSize: maxResults,
   })
 
-  if (!result.successful) {
-    throw new ServiceError(`Google Drive fetch failed via Composio: ${result.error ?? "unknown error"}`, 502)
+  if (!gated.result.successful) {
+    throw new ServiceError(`Google Drive fetch failed via Composio: ${gated.result.error ?? "unknown error"}`, 502)
   }
 
-  const files = normalizeDriveFiles(result.data).map(toDriveFileSummary).filter((f) => f.externalId)
+  const files = normalizeDriveFiles(gated.result.data).map(toDriveFileSummary).filter((f) => f.externalId)
 
   await persistDriveDocuments(ctx, connection.id, files)
 
