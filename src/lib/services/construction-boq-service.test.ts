@@ -748,6 +748,38 @@ describe("updateLineItemBudget -- material/manpower amounts and category (R67 I-
     expect(updated.manpowerAmount).toBe("300")
   })
 
+  // ADDED 2026-09-11 (R83 P2, R-C09 sub-claim 3). R-C09 bundles three
+  // claims: (1) 25% default -- a DB schema column default, out of this
+  // file's reach; (2) changeable-per-item override -- already covered
+  // above and break-restore-observed by W-VERIFY; (3) vendor name +
+  // vendor amount per scope item -- CONFIRMED UNTESTED by W-VERIFY (zero
+  // matches for vendorAmount/vendorName anywhere in this file, despite a
+  // real production write path here). This is that missing test, same
+  // patch()/mountFakeDb() convention as the material/manpower test above.
+  //
+  // vendorNAME itself is NOT asserted here -- updateLineItemBudget only
+  // ever writes vendorId (a foreign key); the real name resolution is a
+  // separate READ-side join (construction-reports-service.ts:1253,
+  // supplierNameById.get(item.vendorId), inside boqBudgetVarianceReport)
+  // that this write-path function never touches. Asserting a name here
+  // would test the wrong function's responsibility.
+  test("a PATCH of vendorId and vendorAmount round-trips on the line item", async () => {
+    const { updated, setCalls } = await patch({ vendorId: "supplier-42", vendorAmount: 450 })
+    expect(setCalls[0]).toEqual({ vendorId: "supplier-42", vendorAmount: "450" })
+    expect(updated.vendorId).toBe("supplier-42")
+    expect(updated.vendorAmount).toBe("450")
+  })
+
+  test("vendorId null clears the vendor link, and vendorAmount null clears the amount, independently", async () => {
+    const clearedVendor = await patch({ vendorId: null })
+    expect(clearedVendor.setCalls[0]).toEqual({ vendorId: null })
+    expect("vendorAmount" in clearedVendor.setCalls[0]).toBe(false)
+
+    const clearedAmount = await patch({ vendorAmount: null })
+    expect(clearedAmount.setCalls[0]).toEqual({ vendorAmount: null })
+    expect("vendorId" in clearedAmount.setCalls[0]).toBe(false)
+  })
+
   test("null clears an amount, and undefined leaves it completely alone", async () => {
     const cleared = await patch({ materialAmount: null })
     expect(cleared.setCalls[0]).toEqual({ materialAmount: null })
