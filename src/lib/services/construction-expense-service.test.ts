@@ -135,8 +135,20 @@ async function loadServiceWith(opts: { fakeDb: ReturnType<typeof makeFakeDb>["db
     ...realTenantScoped,
     withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(opts.fakeDb)),
   }))
-  await mock.module("./erp-enablement-service", () => ({ ...realEnablement, isErpEnabledForOrg: mock(async () => opts.erpEnabled) }))
-  await mock.module("./erp-financial-report-service", () => ({ ...realFinancialReport, isPeriodOpenForDate: mock(async () => opts.periodOpen) }))
+  // R81_F34 continuation (D96/D103): postConstructionExpenseEntryToGL now
+  // calls the WithDb siblings (threading the fake tx handle instead of
+  // opening a second one) -- both mocked here alongside the originals so
+  // neither path falls through to the real implementation, which would try
+  // to query product_branches / open a real transaction against this fake db.
+  await mock.module("./erp-enablement-service", () => ({
+    ...realEnablement,
+    isErpEnabledForOrg: mock(async () => opts.erpEnabled),
+    isErpEnabledForOrgWithDb: mock(async () => opts.erpEnabled),
+  }))
+  await mock.module("./erp-financial-report-service", () => ({
+    ...realFinancialReport,
+    isPeriodOpenForDate: mock(async () => opts.periodOpen),
+  }))
   // createExpenseEntry's pre-existing (unchanged by this PR) fire-and-forget
   // budget-threshold check dynamically imports getProjectDashboard AFTER
   // the transaction above already committed -- it is not awaited by
@@ -303,6 +315,81 @@ describe("createExpenseEntry -> GL posting (F_020)", () => {
     expect(store.erpJournalEntries.map((e) => e.totalDebit)).toEqual(["400000", "20000"])
     const grandTotal = store.erpJournalEntryLines.filter((l) => Number(l.debit) > 0).reduce((s, l) => s + Number(l.debit), 0)
     expect(grandTotal).toBe(420000)
+  })
+})
+
+// R81_F34 continuation (D96/D103): postConstructionExpenseEntryToGL used to
+// call isErpEnabledForOrg/isPeriodOpenForDate WITHOUT threading the open
+// transaction's own db handle -- each silently opened its OWN
+// withTenantContext from inside createExpenseEntry's already-open one, the
+// exact "assertNotNested" shape this codebase treats as a real defect class
+// (production only warns, never throws, so this was invisible without a
+// direct call-count assertion like this one). Real behaviour test, not a
+// source-shape regex: counts how many times withTenantContext is actually
+// invoked for one createExpenseEntry call, using the SAME fake db/mocks as
+// the suite above so a regression here fails for the identical reason the
+// bug itself would have been invisible.
+describe("createExpenseEntry: the open transaction's own db handle is threaded, never dropped (R81_F34)", () => {
+  test("isErpEnabledForOrgWithDb and isPeriodOpenForDate both receive the SAME db reference postConstructionExpenseEntryToGL itself was called with", async () => {
+    const { db, accountsFindFirstQueue } = makeFakeDb()
+    accountsFindFirstQueue.push(
+      () => ({ id: "acct-payable", orgId: "org1", accountType: "payable", rootType: "liability" }),
+      () => undefined,
+    )
+
+    let enabledWithDbCalls = 0
+    let enabledNoDbCalls = 0
+    let periodDbArg: unknown = "UNSET"
+
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(db)),
+    }))
+    await mock.module("./erp-enablement-service", () => ({
+      ...realEnablement,
+      // Deliberately asymmetric: the no-handle variant is left CALLABLE but
+      // tracked, so reverting the fix (back to isErpEnabledForOrg(ctx.orgId))
+      // is caught by enabledNoDbCalls flipping to 1, not by a thrown error --
+      // a test that only fails loudly on error would pass just as easily on
+      // the OLD, broken code, which is exactly the vacuous-test trap.
+      isErpEnabledForOrg: mock(async () => { enabledNoDbCalls += 1; return true }),
+      isErpEnabledForOrgWithDb: mock(async (passedDb: unknown) => {
+        enabledWithDbCalls += 1
+        expect(passedDb).toBe(db)
+        return true
+      }),
+    }))
+    await mock.module("./erp-financial-report-service", () => ({
+      ...realFinancialReport,
+      isPeriodOpenForDate: mock(async (_ctx: unknown, _date: string, existingDb?: unknown) => {
+        periodDbArg = existingDb
+        return true
+      }),
+    }))
+    await mock.module("./construction-dashboard-service", () => ({
+      ...realDashboard,
+      getProjectDashboard: mock(async () => ({ budget: null, spent: 0 })),
+    }))
+
+    try {
+      const { createExpenseEntry } = await import("./construction-expense-service")
+      const entry = await createExpenseEntry({ orgId: "org1", userId: "u1" }, {
+        projectId: "p1", expenseHead: "material", amount: 185000, expenseDate: "2026-08-20",
+      }) as Row
+
+      // Sanity: the real code path actually ran and posted -- this is not a
+      // vacuous "0 calls because it threw" pass.
+      expect(entry.journalEntryId).toBeTruthy()
+
+      expect(enabledWithDbCalls).toBe(1)
+      expect(enabledNoDbCalls).toBe(0)
+      expect(periodDbArg).toBe(db)
+    } finally {
+      await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+      await mock.module("./erp-enablement-service", () => realEnablement)
+      await mock.module("./erp-financial-report-service", () => realFinancialReport)
+      await mock.module("./construction-dashboard-service", () => realDashboard)
+    }
   })
 })
 
