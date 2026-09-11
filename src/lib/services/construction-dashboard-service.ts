@@ -11,9 +11,17 @@
 // hierarchy is approximated via the project lead's department
 // (`projects.leadUserId` -> `users.departmentId`), not a direct FK. This is
 // documented here rather than silently treated as exact.
-import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users, erpPurchaseOrders, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
+// R75 Part 5 (W-PROD): erpSalesInvoices/erpBudgetLineItems/erpBudgets/
+// erpCostCenters/constructionExpenseEntries/pmsIssues/documents/
+// erpPurchaseOrders (and drizzle-orm's gte/lte/isNotNull) dropped from this
+// import -- getOrgDashboardWithDb's six independent grouped aggregates that
+// used them via the query builder now run as one consolidated raw-SQL
+// statement (table names spelled out as compliance.<table> there instead).
+// Still real, live tables -- just no longer referenced as drizzle schema
+// symbols from this file.
+import { projects, products, constructionActivities, constructionWorkProgressEntries, users, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm"
+import { and, eq, inArray, isNull, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 // R39/R-51 (D-3): reuses the SAME earnedValueReport construction-reports-
 // service.ts exposes as the "earned-value" named report -- NOT a second
@@ -1009,66 +1017,154 @@ export async function getOrgDashboardWithDb(db: TenantDb, ctx: { orgId: string }
     const ids = projectRows.map((p) => p.id)
     if (ids.length === 0) return { totalProjects: 0, totalBudget: null, totalLedgerBudget: null, totalRevenue: 0, totalExpenses: 0, projects: [], dateRangeApplied }
 
-    // R67 E-02/E-23: the optional window narrows these two sums and nothing
-    // else -- see OrgDashboardFilters' own comment for why the BOQ-derived
-    // figures are deliberately left alone. Both lanes built this
-    // independently; `from`/`to` (normalized once above) is the form kept.
-    const revenueConditions = [eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.projectId, ids), sql`${erpSalesInvoices.status} != 'cancelled'`]
-    if (from) revenueConditions.push(gte(erpSalesInvoices.postingDate, from))
-    if (to) revenueConditions.push(lte(erpSalesInvoices.postingDate, to))
-    const revenueByProject = await db.select({ projectId: erpSalesInvoices.projectId, total: sql<number>`coalesce(sum(${erpSalesInvoices.grandTotal}), 0)::float` })
-      .from(erpSalesInvoices)
-      .where(and(...revenueConditions))
-      .groupBy(erpSalesInvoices.projectId)
-
-    const expenseConditions = [eq(constructionExpenseEntries.orgId, ctx.orgId), inArray(constructionExpenseEntries.projectId, ids)]
-    if (from) expenseConditions.push(gte(constructionExpenseEntries.expenseDate, from))
-    if (to) expenseConditions.push(lte(constructionExpenseEntries.expenseDate, to))
-    const expensesByProject = await db.select({ projectId: constructionExpenseEntries.projectId, total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float` })
-      .from(constructionExpenseEntries)
-      .where(and(...expenseConditions))
-      .groupBy(constructionExpenseEntries.projectId)
-
+    // R75 Part 5 (dashboard perf work order, W-PROD): `ids` is the ONE array
+    // every query below scopes by -- built once, reused by every raw-SQL
+    // ARRAY[...] construction in this function (sql.join, not a bound JS
+    // array; postgres.js does not serialize a plain array parameter as
+    // Postgres array syntax -- see the original BOQ query's own comment,
+    // kept below, for the long version of why).
+    const projectIdsSql = sql.join(ids.map((id) => sql`${id}`), sql`, `)
     const today = new Date().toISOString().slice(0, 10)
     // R67 E-21: the "vs last week" cut-off, as a plain ISO date so the
     // comparison happens in Postgres against the DATE column, not in JS.
     const baselineDate = new Date(Date.now() - EARNED_VALUE_BASELINE_DAYS * 86400000).toISOString().slice(0, 10)
-    // R67 E-21: `due` and `withDueDate` are new, computed by the SAME
-    // grouped count this query already ran -- a task with no due date is
-    // neither late nor due, and a project with no dated task at all has no
-    // schedule to be "on track" against (hasSchedule below).
-    const tasksByProject = await db.select({
-      projectId: pmsIssues.projectId,
-      total: sql<number>`count(*)`,
-      delayed: sql<number>`count(*) filter (where ${pmsIssues.dueDate} < ${today})`,
-      due: sql<number>`count(*) filter (where ${pmsIssues.dueDate} >= ${today})`,
-      withDueDate: sql<number>`count(*) filter (where ${pmsIssues.dueDate} is not null)`,
-    }).from(pmsIssues).where(and(eq(pmsIssues.orgId, ctx.orgId), inArray(pmsIssues.projectId, ids), eq(pmsIssues.isArchived, false)))
-      .groupBy(pmsIssues.projectId)
+    // Moved up from beside permitsByProject below -- needed here now that
+    // the permit count rides the consolidated query too.
+    const permitFloor = new Date()
+    const permitCutoff = new Date(permitFloor)
+    permitCutoff.setDate(permitCutoff.getDate() + PERMIT_EXPIRY_HORIZON_DAYS)
 
-    // R67 E-21/E-23: was a single SUM over the whole org. Grouping it by
-    // cost-centre project gives the per-project ERP-ledger budget the
-    // launchpad's "Budget vs spend" row needs (`ledgerBudget` below), and
-    // totalLedgerBudget is the sum of the SAME rows -- one query instead of
-    // two, and the total can no longer disagree with the parts. Predicate is
-    // byte-for-byte the one the total used.
-    //
-    // R67 D-02 (folded in on rebase): the per-group line COUNT travels with the
-    // sum, so "no budget rows at all" stays distinguishable from "a budget that
-    // sums to zero". coalesce(sum(...), 0) cannot tell those apart on its own,
-    // and D-02's whole point is that totalLedgerBudget is null, never 0, when
-    // nothing matched. Grouping makes the count per project as well, which is
-    // what the per-row `ledgerBudget` field needs for exactly the same reason.
-    const budgetByProject = await db.select({
-      projectId: erpCostCenters.projectId,
-      total: sql<number>`coalesce(sum(${erpBudgetLineItems.annualAmount}), 0)::float`,
-      lines: sql<number>`count(${erpBudgetLineItems.id})::int`,
-    })
-      .from(erpBudgetLineItems)
-      .innerJoin(erpBudgets, eq(erpBudgetLineItems.budgetId, erpBudgets.id))
-      .innerJoin(erpCostCenters, eq(erpBudgets.costCenterId, erpCostCenters.id))
-      .where(and(eq(erpBudgets.orgId, ctx.orgId), inArray(erpCostCenters.projectId, ids)))
-      .groupBy(erpCostCenters.projectId)
+    // R75 Part 5 (dashboard perf work order): SIX independent grouped
+    // aggregates -- revenue, expenses, tasks, budget, purchase orders,
+    // expiring permits -- each used to be its own sequentially-awaited
+    // statement on this function's single open transaction/connection
+    // (R43_MGR_01's fix keeps everything on ONE connection deliberately; see
+    // that fault's history and the work order for why `Promise.all` on this
+    // same `db` handle would not achieve real parallelism anyway). None of
+    // these six depends on another's output -- each was already scoped by
+    // nothing but `ctx.orgId` and `ids` -- so they fold into ONE statement,
+    // driven by `proj` (one row per id, so every project is present in the
+    // result even where a given aggregate found zero matching rows -- the
+    // same "absent = not present" shape the six separate Maps had before,
+    // preserved below by only `.set()`-ing a map entry when the joined
+    // column is not null). ~6 round trips -> 1. Every WHERE clause and every
+    // edge-case rule below is byte-for-byte what its own removed query had
+    // (R67 E-02/E-23's optional from/to window on revenue+expenses only;
+    // R67 D-02's "null, not 0, when nothing matched" for the ledger budget;
+    // the permit window bounded at both ends) -- see each CTE's own
+    // one-line note for exactly which removed query it replaces.
+    const aggRows = (await db.execute(sql`
+      WITH proj AS (
+        SELECT unnest(ARRAY[${projectIdsSql}]::text[]) AS project_id
+      ),
+      revenue AS ( -- was revenueByProject (R67 E-02/E-23: from/to narrows this one)
+        SELECT project_id, coalesce(sum(grand_total), 0)::float AS total
+        FROM compliance.erp_sales_invoices
+        WHERE org_id = ${ctx.orgId} AND project_id = ANY(ARRAY[${projectIdsSql}]) AND status != 'cancelled'
+          AND (${from}::date IS NULL OR posting_date >= ${from}::date)
+          AND (${to}::date IS NULL OR posting_date <= ${to}::date)
+        GROUP BY project_id
+      ),
+      expense AS ( -- was expensesByProject (same from/to window as revenue)
+        SELECT project_id, coalesce(sum(amount), 0)::float AS total
+        FROM compliance.construction_expense_entries
+        WHERE org_id = ${ctx.orgId} AND project_id = ANY(ARRAY[${projectIdsSql}])
+          AND (${from}::date IS NULL OR expense_date >= ${from}::date)
+          AND (${to}::date IS NULL OR expense_date <= ${to}::date)
+        GROUP BY project_id
+      ),
+      tasks AS ( -- was tasksByProject (R67 E-21: due/withDueDate ride the same count)
+        SELECT project_id,
+          count(*)::int AS total,
+          count(*) FILTER (WHERE due_date < ${today})::int AS delayed,
+          count(*) FILTER (WHERE due_date >= ${today})::int AS due,
+          count(*) FILTER (WHERE due_date IS NOT NULL)::int AS with_due_date
+        FROM compliance.pms_issues
+        WHERE org_id = ${ctx.orgId} AND project_id = ANY(ARRAY[${projectIdsSql}]) AND is_archived = false
+        GROUP BY project_id
+      ),
+      budget AS ( -- was budgetByProject (R67 D-02: 'lines' travels with 'total' so a zero-sum budget stays distinguishable from no budget rows at all)
+        SELECT cc.project_id,
+          coalesce(sum(bli.annual_amount), 0)::float AS total,
+          count(bli.id)::int AS lines
+        FROM compliance.erp_budget_line_items bli
+        JOIN compliance.erp_budgets b ON bli.budget_id = b.id
+        JOIN compliance.erp_cost_centers cc ON b.cost_center_id = cc.id
+        WHERE b.org_id = ${ctx.orgId} AND cc.project_id = ANY(ARRAY[${projectIdsSql}])
+        GROUP BY cc.project_id
+      ),
+      po AS ( -- was poByProject (R67 D-62: second half of projectValue)
+        SELECT project_id, sum(grand_total) AS total
+        FROM compliance.erp_purchase_orders
+        WHERE org_id = ${ctx.orgId} AND project_id = ANY(ARRAY[${projectIdsSql}])
+        GROUP BY project_id
+      ),
+      permit AS ( -- was permitsByProject (window bounded at BOTH ends -- see that removed query's long comment, unchanged, for why)
+        SELECT linked_entity_id AS project_id, count(*)::int AS total
+        FROM compliance.documents
+        WHERE org_id = ${ctx.orgId} AND category = 'permit' AND linked_entity_type = 'project'
+          AND linked_entity_id = ANY(ARRAY[${projectIdsSql}]) AND is_latest_version = true
+          AND expiry_date IS NOT NULL AND expiry_date >= ${permitFloor.toISOString()}::timestamptz AND expiry_date <= ${permitCutoff.toISOString()}::timestamptz
+        GROUP BY linked_entity_id
+      )
+      SELECT proj.project_id,
+        revenue.total AS revenue_total, expense.total AS expense_total,
+        tasks.total AS task_total, tasks.delayed AS task_delayed, tasks.due AS task_due, tasks.with_due_date AS task_with_due_date,
+        budget.total AS budget_total, budget.lines AS budget_lines,
+        po.total AS po_total, permit.total AS permit_total
+      FROM proj
+      LEFT JOIN revenue ON revenue.project_id = proj.project_id
+      LEFT JOIN expense ON expense.project_id = proj.project_id
+      LEFT JOIN tasks ON tasks.project_id = proj.project_id
+      LEFT JOIN budget ON budget.project_id = proj.project_id
+      LEFT JOIN po ON po.project_id = proj.project_id
+      LEFT JOIN permit ON permit.project_id = proj.project_id
+    `)) as {
+      project_id: string
+      revenue_total: number | string | null
+      expense_total: number | string | null
+      task_total: number | string | null
+      task_delayed: number | string | null
+      task_due: number | string | null
+      task_with_due_date: number | string | null
+      budget_total: number | string | null
+      budget_lines: number | string | null
+      po_total: number | string | null
+      permit_total: number | string | null
+    }[]
+
+    const revenueMap = new Map<string, number>()
+    const expenseMap = new Map<string, number>()
+    const taskMap = new Map<string, { total: number; delayed: number; due: number; withDueDate: number }>()
+    const budgetMap = new Map<string, number>()
+    const poMap = new Map<string, number>()
+    const permitMap = new Map<string, number>()
+    // R67 D-02: mirrors budgetByProject.reduce(...) exactly -- summed only
+    // over rows that actually had budget line items (a row with lines=0
+    // cannot occur: the JOINs above are all INNER, so a `budget` CTE row
+    // only exists when count(bli.id) >= 1).
+    let totalLedgerBudgetLines = 0
+    let totalLedgerBudgetSum = 0
+    for (const row of aggRows) {
+      if (row.revenue_total !== null) revenueMap.set(row.project_id, Number(row.revenue_total))
+      if (row.expense_total !== null) expenseMap.set(row.project_id, Number(row.expense_total))
+      if (row.task_total !== null) {
+        taskMap.set(row.project_id, {
+          total: Number(row.task_total), delayed: Number(row.task_delayed), due: Number(row.task_due), withDueDate: Number(row.task_with_due_date),
+        })
+      }
+      if (row.budget_lines !== null) {
+        budgetMap.set(row.project_id, Number(row.budget_total))
+        totalLedgerBudgetLines += Number(row.budget_lines)
+        totalLedgerBudgetSum += Number(row.budget_total)
+      }
+      // sum() over a numeric column comes back as a string from postgres-js,
+      // and null when the group has no rows -- Number(null) would be 0,
+      // which is exactly the fabricated figure resolveProjectMoney() exists
+      // to avoid (same guard poByProject's own removed loop had).
+      if (row.po_total !== null) poMap.set(row.project_id, Number(row.po_total))
+      if (row.permit_total !== null) permitMap.set(row.project_id, Number(row.permit_total))
+    }
 
     // R38 (R-50/TC-40): the dashboard's per-project "value" now derives from
     // the project's own active BOQ (root lines only, same rootBoqLineItemsOnly
@@ -1080,7 +1176,7 @@ export async function getOrgDashboardWithDb(db: TenantDb, ctx: { orgId: string }
     // already use, kept consistent on purpose (three independent call sites,
     // one convention). DISTINCT ON is Postgres-native and does this in one
     // query rather than N -- there is no drizzle query-builder equivalent.
-    const projectIdsSql = sql.join(ids.map((id) => sql`${id}`), sql`, `)
+    // (projectIdsSql is now declared once, up near `ids` -- R75 Part 5.)
     const latestBoqPerProject = (await db.execute(sql`
       SELECT DISTINCT ON (project_id) project_id, id AS boq_id
       FROM compliance.construction_boqs
@@ -1118,30 +1214,11 @@ export async function getOrgDashboardWithDb(db: TenantDb, ctx: { orgId: string }
     // lane's own E-21 note ("so the two screens cannot disagree") argued for
     // exactly one. Per D-11, main's is canonical.
 
-    // R67 D-62: the second half of projectValue, grouped in ONE query for every
-    // project in scope rather than the per-project read the batched
-    // getProjectDashboards() statement does -- same figure, no extra pool
-    // connections (this reuses the already open outer transaction, per
-    // R43_MGR_01's rule for this function).
-    const poByProject = await db.select({ projectId: erpPurchaseOrders.projectId, total: sql<number | null>`sum(${erpPurchaseOrders.grandTotal})` })
-      .from(erpPurchaseOrders)
-      .where(and(eq(erpPurchaseOrders.orgId, ctx.orgId), inArray(erpPurchaseOrders.projectId, ids)))
-      .groupBy(erpPurchaseOrders.projectId)
-    // sum() over a numeric column comes back as a string from postgres-js, and
-    // as null when the group has no rows -- Number(null) would be 0, which is
-    // exactly the fabricated figure resolveProjectMoney() exists to avoid.
-    const poMap = new Map<string, number>()
-    for (const row of poByProject) {
-      if (row.projectId === null || row.total === null || row.total === undefined) continue
-      poMap.set(row.projectId, Number(row.total))
-    }
-
-    const revenueMap = new Map(revenueByProject.map((r) => [r.projectId, Number(r.total)]))
-    const expenseMap = new Map(expensesByProject.map((r) => [r.projectId, Number(r.total)]))
-    const budgetMap = new Map(budgetByProject.map((r) => [r.projectId as string, Number(r.total)]))
-    const taskMap = new Map(tasksByProject.map((r) => [r.projectId, {
-      total: Number(r.total), delayed: Number(r.delayed), due: Number(r.due), withDueDate: Number(r.withDueDate),
-    }]))
+    // R67 D-62: the second half of projectValue -- poMap is now built as part
+    // of the R75 Part 5 consolidated query up near `ids`, alongside
+    // revenueMap/expenseMap/budgetMap/taskMap/permitMap. Kept this comment's
+    // pointer here since this is where a reader following `poMap`'s usage
+    // below would first look for it.
 
     // R67 E-01 (R-007). The home dashboard's project row prints THREE things
     // the org payload did not carry: the activity-log percentage (small grey
@@ -1195,37 +1272,11 @@ export async function getOrgDashboardWithDb(db: TenantDb, ctx: { orgId: string }
     }
 
     // Permits are documents with category='permit' linked to a project -- the
-    // same shape document-service.ts#listExpiringDocuments reads, grouped in
-    // one pass here instead of one call per project.
-    //
-    // The window is BOUNDED AT BOTH ENDS. It shipped with only the upper bound,
-    // so a permit that expired six months ago satisfied `expiryDate <= cutoff`
-    // and was counted -- and PROJEXA renders this count as literal words ("2
-    // permits expiring in 30 days"), so an org holding old expired permit
-    // documents saw a permanently lit "needs you" row whose stated reason was
-    // untrue. Deliberately NOT answered by adding a second "expired" count: a
-    // permit that lapsed three years ago would light the row forever just the
-    // same, and this screen's own rule (see projectRowStatus's docstring in
-    // PROJEXA) is that an alarm which is always on is not a signal. Documents
-    // already past their date are document hygiene, and belong on the documents
-    // screen that can actually clear them.
-    const permitFloor = new Date()
-    const permitCutoff = new Date(permitFloor)
-    permitCutoff.setDate(permitCutoff.getDate() + PERMIT_EXPIRY_HORIZON_DAYS)
-    const permitsByProject = await db.select({ projectId: documents.linkedEntityId, total: sql<number>`count(*)` })
-      .from(documents)
-      .where(and(
-        eq(documents.orgId, ctx.orgId),
-        eq(documents.category, "permit"),
-        eq(documents.linkedEntityType, "project"),
-        inArray(documents.linkedEntityId, ids),
-        eq(documents.isLatestVersion, true),
-        isNotNull(documents.expiryDate),
-        gte(documents.expiryDate, permitFloor),
-        lte(documents.expiryDate, permitCutoff),
-      ))
-      .groupBy(documents.linkedEntityId)
-    const permitMap = new Map(permitsByProject.map((r) => [r.projectId, Number(r.total)]))
+    // same shape document-service.ts#listExpiringDocuments reads. R75 Part 5:
+    // permitMap (and the permitFloor/permitCutoff window it depends on -- BOUNDED
+    // AT BOTH ENDS, see the `permit` CTE's comment near `ids` above for the full
+    // "always-on alarm is not a signal" rationale, unchanged) now rides the
+    // consolidated query up near `ids`, alongside revenue/expense/tasks/budget/po.
 
     // R67 F-01: progress per project, ONE grouped query, in this transaction.
     // Identical semantics to getProjectDashboard's own progressPercent -- the
@@ -1455,10 +1506,10 @@ export async function getOrgDashboardWithDb(db: TenantDb, ctx: { orgId: string }
         : Math.round(projectsWithBoqBudget.reduce((s, p) => s + (p.budget ?? 0), 0) * 100) / 100,
       // R67 D-02: null (never 0) when nothing matched at all -- the sum of the
       // SAME per-project `ledgerBudget` rows the launchpad renders, so the
-      // total and the parts cannot disagree.
-      totalLedgerBudget: budgetByProject.reduce((s, r) => s + Number(r.lines), 0) > 0
-        ? budgetByProject.reduce((s, r) => s + Number(r.total), 0)
-        : null,
+      // total and the parts cannot disagree. totalLedgerBudgetLines/Sum are
+      // accumulated while reading aggRows, up near `ids` (R75 Part 5) --
+      // byte-for-byte the same reduce this used to do over budgetByProject.
+      totalLedgerBudget: totalLedgerBudgetLines > 0 ? totalLedgerBudgetSum : null,
       totalRevenue: projectSummaries.reduce((s, p) => s + p.revenue, 0),
       totalExpenses: projectSummaries.reduce((s, p) => s + p.expenses, 0),
       projects: projectSummaries,

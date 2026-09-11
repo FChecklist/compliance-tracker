@@ -33,15 +33,18 @@
 // problem for a human/AI reviewer to catch in the PR, same class of
 // guarantee as every other check-*.mjs here.
 //
-// CI wiring status: NOT yet wired into .github/workflows/ci.yml as of this
-// commit -- this session's git token lacks the `workflow` OAuth scope
-// needed to push a branch that touches .github/workflows/*.yml (same
-// documented limitation as the "Back out ci.yml wiring for the new
-// service-header-comment check" commit in this repo's history). A
-// follow-up session with a workflow-scoped token should add:
-//   - run: node scripts/check-route-auth-guard.mjs --base origin/main
-// as its own job step, alongside check-route-error-handling.mjs (which
-// has the same not-yet-wired status).
+// CI wiring status (corrected 2026-09-11, W-CI): the paragraph originally
+// here claiming this was "NOT yet wired into CI" was stale -- confirmed by
+// reading .github/workflows/ci.yml directly, this check IS wired in, as
+// its own step inside the "Route Error Handling Check" job, alongside
+// check-route-error-handling.mjs. Original note kept below for the
+// history of why the gap existed, not deleted:
+//   ORIGINAL NOTE: NOT yet wired into .github/workflows/ci.yml as of that
+//   commit -- that session's git token lacked the `workflow` OAuth scope
+//   needed to push a branch that touches .github/workflows/*.yml (same
+//   documented limitation as the "Back out ci.yml wiring for the new
+//   service-header-comment check" commit in this repo's history). Fixed by
+//   a later session with a workflow-scoped token.
 //
 // Usage: node scripts/check-route-auth-guard.mjs [--base <ref>]
 //        BASE_REF=origin/main node scripts/check-route-auth-guard.mjs
@@ -72,6 +75,23 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   // F-2026-0910-PM-065 rather than buried in this exemption -- an exemption
   // should not be where a security question goes to be forgotten.
   "src/app/api/mcp/route.ts",
+  //
+  // Cron-triggered entry point (see vercel.json) -- there is no Supabase
+  // session for a scheduled job. isAuthorized() below (verbatim pattern
+  // from every other /api/internal/*/run route) gates on
+  // `Authorization: Bearer ${CRON_SECRET}`, checked directly in the file,
+  // not inferred from its header comment -- requireAuth() would be
+  // structurally inapplicable here, not merely omitted.
+  "src/app/api/internal/dispatch-completion-monitor/run/route.ts",
+  //
+  // Deliberately token-based, not session-based -- validateSupportSessionToken()
+  // gates on `Authorization: Bearer ss_...`, the same convention as
+  // api-key-auth.ts's `Bearer vk_...` pattern, verified by reading the
+  // handler directly. The route answers "who am I impersonating" for a
+  // support agent acting via a token that precedes/replaces a normal
+  // session; requireAuth() would break the exact mechanism this route
+  // exists to expose.
+  "src/app/api/support-sessions/whoami-target/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail
