@@ -40,6 +40,41 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, W-PROD, w-prod/r83-p0-rls-preauth-scope-fix) -- P0 RLS preauth-policy narrowing (owner decision, confirmed directly in this session's own chat 2026-09-11), reapplication of migration 0587 (applied 2026-09-10, reverted same day pending call-site audit)"
+    claimed_at: "2026-09-11T (this session)"
+    claim: |
+      SPEC: narrow 8 pre-auth RLS policies on compliance.users/api_keys/
+      api_key_request_log/report_share_links from USING(true)/WITH CHECK(true)
+      to USING(compliance.current_org_id() IS NULL) -- closes a real live leak
+      (permissive RLS policies OR together, so the unconditional preauth
+      policy silently defeated app_runtime_tenant_isolation for these 4
+      tables' reads/writes: any authenticated, tenant-context app_runtime
+      query could see every other org's rows on these tables).
+
+      APPLIED LIVE 2026-09-11 via Supabase MCP apply_migration against
+      pcrjmlpuqsbocqfwoxod (supabase_migrations.schema_migrations version
+      20260911094933). Proven both directions via BEGIN...ROLLBACK
+      immediately before applying, then re-proven live (real, non-rolled-back
+      reads) immediately after: preauth (no context) unchanged (users=1093,
+      api_keys=35); authenticated (real org context) now correctly scoped
+      (0 foreign rows on every one of the 4 tables, verified against 2
+      different real orgs). Before/after pg_policies state recorded in this
+      migration's own file header.
+
+      File scope: drizzle/0592_r83_p0_preauth_policies_scope_to_no_tenant_context.sql
+      (NEW), drizzle/meta/_journal.json (idx 408). No other file.
+
+      NUMBERING NOTE: main's journal tops out at idx 407 (tags up to 0590,
+      applied out-of-band -- the on-disk drizzle/*.sql files only go to 0325,
+      per this repo's own documented drizzle-vs-live-history gap). PR #1681
+      (w-prod/f20-graph-edge-update-guard, draft, not yet merged) already
+      claims idx 408/file 0591 from the SAME base -- a real, expected
+      collision at merge time, per this file's own protocol and
+      check-migration-collision.mjs's accepted role. Whichever of #1681/this
+      PR merges second will need a rebase-renumber; not resolved pre-emptively
+      since the other branch might renumber first.
+
+      Worktree: C:/ct/ct-worktrees/w-prod-rls-preauth-fix.
   - session_label: "claude-code (interactive, W-PROD, w-prod/wire-record-api-key-request-batch) -- wire the unused compliance.record_api_key_request_batch SECURITY DEFINER function (migration 0590) into api-key-audit.ts's insertRequestLog, closing the last raw-preauth-write call site this codebase's R58/CRR-027-028 narrowing effort had flagged and left open"
     claimed_at: "2026-09-11T (this session)"
     claim: |
