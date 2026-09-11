@@ -104,6 +104,45 @@ describe("aggregateRevenueBudgetActual: category merge (R-C11 gap closure)", () 
     expect(joinery.revenue).toBe(2000)
     expect(joinery.actual).toBeNull()
   })
+
+  // ADDED 2026-09-11 (R83 P2, PM: "write the real additional coverage
+  // needed, not just re-cite the existing test"). R-C11 was REOPENED as
+  // over-credited: the requirement's blanket "ALL REPORTS IN DASHBOARD
+  // FORMAT AND INTERACTIVE" claim does not hold for the ERP financial
+  // statements (Trial Balance/P&L/Balance Sheet/Cash Flow render as plain
+  // tables, confirmed by W-ROUTER: AccountingClient.tsx imports no
+  // charting library). That gap is real and is PRODUCT work (building
+  // interactive financial-statement views), outside this file's own scope
+  // and outside test-writing -- not something a test can close.
+  //
+  // What WAS a real, closable gap in THIS test file: the existing R-C11
+  // test above only ever exercised groupBy="category". The complementary
+  // "scope" branch (aggregateRevenueBudgetActual's OTHER real code path,
+  // construction-reports-service.ts:1013 onward) had zero coverage here --
+  // a silent break in the ungrouped/per-line branch could ship unnoticed.
+  // Scope-wise is one row PER LINE (the opposite of category's merge), so
+  // this pins the real complementary case with the SAME fixture.
+  test("R-C11: scope-wise is one row PER LINE, never merged (the exact opposite of category-wise)", () => {
+    const { rows } = aggregateRevenueBudgetActual(LINES, "scope")
+
+    expect(rows).toHaveLength(3)
+    const l1 = rows.find((r) => r.key === "l1")!
+    const l2 = rows.find((r) => r.key === "l2")!
+    const l3 = rows.find((r) => r.key === "l3")!
+
+    expect(l1.lineCount).toBe(1)
+    expect(l1.item).toBe("C-01")
+    expect(l1.revenue).toBe(5400)
+    expect(l1.actual).toBe(1500)
+
+    expect(l2.lineCount).toBe(1)
+    expect(l2.actual).toBe(600)
+
+    // l3 has no vendor/material/manpower amounts entered at all -- actual
+    // must stay null (not 0), same "absent vs zero" distinction the
+    // sumRootLineBudgets tests above already pin for the budget side.
+    expect(l3.actual).toBeNull()
+  })
 })
 
 // R75 Phase 3 (R74-RULING-03 closure for R-52 -- "Only the LATEST revision is
