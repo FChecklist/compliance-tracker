@@ -42,10 +42,7 @@ describe("compliance.construction_boq_line_items -- the weighted sub-task column
     const byName = new Map(cfg.columns.map((c) => [c.name, c]))
     expect(byName.has("parent_line_item_id")).toBe(true)
     expect(byName.get("parent_line_item_id")?.notNull).toBe(false)
-    // R-10 break-restore verification (2026-09-11): temporarily asserting the
-    // column does NOT exist, to prove this test genuinely fails when the
-    // column it's supposed to protect is missing. Will be reverted.
-    expect(byName.has("breakdown_percentage")).toBe(false)
+    expect(byName.has("breakdown_percentage")).toBe(true)
     expect(byName.get("breakdown_percentage")?.notNull).toBe(false)
   })
 })
