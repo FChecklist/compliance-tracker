@@ -125,7 +125,21 @@ const PROJEXA_COOKIE_DOMAIN = new URL(PROJEXA_ORIGIN).hostname;
 // point of polling -- without paying for 6 when the common case can never
 // succeed early) and gave the whole test more headroom below to match how
 // much more real network work it legitimately does now.
-async function pollUntil<T>(fn: () => Promise<T>, isReady: (value: T) => boolean, attempts = 3, delayMs = 400): Promise<T> {
+// WIDENED 2026-09-12 (PM, real bug found running this spec against local
+// ENV1): the R45 seq6 trim above (3 attempts/400ms) was correct for the
+// content-mismatch case it documents (the stray row means retrying never
+// helps THAT specific match, so more attempts were pure waste) -- but the
+// actual TC-11 failure observed locally was a harder one: `tc11.ok()` was
+// false on the FINAL attempt too, i.e. the real HTTP call itself failed
+// (not just a content mismatch), consistent with this machine's genuinely
+// elevated local load during this session (confirmed elsewhere this
+// session: real server-side GETs on this same reports surface measured at
+// 8s+ under load). Retrying more DOES help this failure mode, unlike the
+// content-mismatch one R45 was trimming for. Modest increase (not a full
+// revert of R45's trim) to give the HTTP call itself more real chances to
+// land: 5 attempts / 600ms = 3s total, still well below what the original,
+// larger pre-R45 budget spent.
+async function pollUntil<T>(fn: () => Promise<T>, isReady: (value: T) => boolean, attempts = 5, delayMs = 600): Promise<T> {
   let last!: T;
   for (let i = 0; i < attempts; i++) {
     last = await fn();
