@@ -32,6 +32,14 @@
 import { and, desc, eq, sql } from "drizzle-orm"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { chainHistory, pillUsage } from "@/lib/db/schema"
+// check-route-auth-guard.mjs (SERVICE_ERROR_EXEMPTIONS): this file does real
+// DB I/O (readPillStrip, recordPillUse), so it is not exempt. Matches the
+// established convention (compliance-service.ts's own ServiceError, the same
+// shape construction-dashboard-service.ts and erp-accounting-service.ts
+// already use) -- re-exported so a route catching THIS file's errors can
+// `instanceof ServiceError` without a second import.
+import { ServiceError } from "./compliance-service"
+export { ServiceError }
 
 export const PILL_WINDOW_DAYS = 7
 
@@ -269,6 +277,14 @@ export async function readPillStrip(input: {
   historyLimit: number
   now?: Date
 }): Promise<PillStripPayload> {
+  // AR-04-shaped guard (fail loud, never silently answer for the wrong
+  // scope -- same reasoning veridian-client.ts's resolveApiKey() uses for a
+  // missing orgId): an empty orgId/userId is a caller bug, not "no rows",
+  // and letting it through would either 500 opaquely inside the SQL below
+  // or, worse, silently scope a query to `''` and return an empty-but-200
+  // strip that reads exactly like a genuine new user.
+  if (!input.orgId?.trim()) throw new ServiceError("orgId is required", 400)
+  if (!input.userId?.trim()) throw new ServiceError("userId is required", 400)
   const now = input.now ?? new Date()
   const windowStart = new Date(now.getTime() - PILL_WINDOW_DAYS * 86400000)
 
@@ -384,6 +400,17 @@ export async function recordPillUse(input: {
   functionId?: string | null
   derivedChain?: unknown
 }): Promise<void> {
+  if (!input.orgId?.trim()) throw new ServiceError("orgId is required", 400)
+  if (!input.userId?.trim()) throw new ServiceError("userId is required", 400)
+  // Defense in depth, not duplication: the route already rejects an invalid
+  // key with normaliseRecordedPillKey() before calling this, but this
+  // service is exported and callable from elsewhere (this exact key check
+  // is the one place the codebase defines what a valid key IS) -- a second
+  // caller that skipped the route's own check must not silently write an
+  // empty or control-character key that nothing could ever render or match.
+  if (normaliseRecordedPillKey(input.pillKey) === null) {
+    throw new ServiceError("pillKey is invalid or missing", 400)
+  }
   await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
     db
       .insert(pillUsage)
