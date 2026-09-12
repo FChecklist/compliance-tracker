@@ -3167,3 +3167,92 @@ entries:
         2026-08-30), and any future session has one canonical record to check
         instead of reconstructing the history from scattered COMPLETED.yaml/
         ACTIVE-CLAIMS.yaml prose each time.
+
+  - id: E2E-ENV1-PROJEXA-DB-PASSWORD-FIX
+    title: "e2e-env1's /api/projects 500s root-caused to a wrong PROJEXA_DATABASE_URL password, via a fixed error-logging gap in projexa's veridian-client.ts"
+    doer:
+      agent: "claude-code (interactive session, goofy-northcutt-3d4a48)"
+      date: "2026-09-12"
+      pr: "FChecklist/projexa#261 (merged, squash commit c5372fcb29a7b1bd729bc38973ee855c315bcb94)"
+      summary: >
+        Investigated the first real e2e-env1 run after PR #1711/#1712 (ct-6e's
+        tsconfig-contamination and mint-session-r33 race fixes): all 3
+        compliance-tracker-side Env-1 specs got past auth but failed on a genuine
+        /api/projects 500 on projexa (:3100). Raw job log (gh api .../jobs/<id>/logs,
+        not `gh run view --log`) showed `getVeridianApiKey()` swallowing every DB
+        error into Drizzle's generic "Failed query: ..." wrapper message, discarding
+        `err.cause` -- the real reason was invisible in every occurrence.
+
+        Fixed the logging gap first (`describeErrorChain()`, same cause-walk pattern
+        `isConnectionFailure()` already used in that file): contract unchanged (still
+        returns null, never throws), nothing logged can leak a credential. Verified
+        falsifiable -- reverted, confirmed the new test goes red against the unfixed
+        catch block, restored, green (8/8 in veridian-client.org-scoping.test.ts,
+        26/26 across its 2 sibling test files, eslint clean). Opened as PR #261,
+        merged after real CI passed (Build/Lint/TypeCheck/Test/Migration
+        guard/Secret Scanning -- the one failing check, "Vercel", was an unrelated
+        blocked preview deploy).
+
+        With the fix live, root-caused the actual failure from TWO independent
+        sources: the app's own new log line ("... caused by: password authentication
+        failed for user \"postgres\" (code=28P01)") from a rerun of the CI job, and
+        separately, evpckeuxgvahguwsaeul's own supavisor_logs queried directly via
+        the Supabase MCP ("ClientHandler: Exchange error: password authentication
+        failed for user \"postgres\"" + an auth_error circuit breaker opening for the
+        runner's IP, same second as the CI failure). Ruled out RLS (table has RLS
+        enabled with zero anon/authenticated policies, but PROJEXA_DATABASE_URL
+        connects as the postgres.<ref> Supavisor role, which bypasses RLS -- a pure
+        RLS block returns 0 rows silently, not a thrown exception) and missing/wrong
+        data (confirmed via execute_sql that org bc689d97-...'s veridian_credentials
+        row exists with a valid 35-char key). Root cause: the PROJEXA_DATABASE_URL
+        GitHub secret (added same-day, hand-typed by a non-technical user) had a
+        wrong password -- not a wrong pooler host/cluster (that fails with Supavisor's
+        own "Tenant or user not found", not a password rejection).
+
+        Declined to touch the secret directly (viewing/resetting a DB credential and
+        writing it into a GitHub secret is an owner-only action -- matches ci.yml's
+        own comment on this exact secret: "owner-only, direct GitHub UI entry, never
+        via a shell"). Reported the finding; Owner corrected the secret same day.
+        Triggered a rerun of e2e-env1 (compliance-tracker run 34708692987) to confirm
+        -- see this entry's own `verification` block below for the actual result.
+
+        Also updated ai-os/MASTER-TRACKER.yaml (new entry
+        GAP-E2E-ENV1-PROJEXA-DB-PASSWORD, status closed) with the same root-cause/fix
+        narrative, and pinged ct-6e (peer session, same box) with a status update
+        before/during this work per Rule 11's collision-avoidance intent -- no
+        collision; ct-6e was concurrently on PRs #1711/#1712/#1713 and projexa#262 in
+        the same job/area and is independently re-verifying the raw job log itself
+        before updating the ~15 c6-FALSE `platform.sumeet_requirements` rows this bug
+        was blocking (R-01/02/11/15/30/31/32/40/41/42/43/60/90/B1/B2) -- that
+        requirement-row update is explicitly ct-6e's own verification, not
+        self-certified by this entry.
+    verification:
+      status: "STILL FAILING, confirmed twice -- the reported secret fix has not
+        actually taken effect. Do not mark this gap closed on the Owner's word alone;
+        this block is the record of why."
+      detail: |
+        Reran e2e-env1 (compliance-tracker run 34708692987) twice after being told the
+        PROJEXA_DATABASE_URL secret was corrected. Both reruns failed identically:
+        job 103597623840 (18:14:05Z) and job 103598979796 (18:23:29Z) both logged the
+        exact same `getVeridianApiKey` error -- "... caused by: password
+        authentication failed for user \"postgres\" (code=28P01)" -- and, independently,
+        evpckeuxgvahguwsaeul's own supavisor_logs (queried live via the Supabase MCP)
+        show the identical `ClientHandler: Exchange error: password authentication
+        failed for user "postgres"` at 18:23:21-29Z, from a DIFFERENT CI runner IP
+        than the first failure (57.154.5.135 vs. 172.183.91.160/68.220.61.192 earlier)
+        -- ruling out a stale circuit-breaker/propagation artifact from the OLD wrong
+        password. This is a fresh connection attempt with a still-wrong password,
+        15+ minutes after the fix was reported done.
+      next_step: "Owner needs to re-check the actual value now sitting in the
+        PROJEXA_DATABASE_URL GitHub secret (FChecklist/compliance-tracker repo
+        settings) against the real database password shown in the Supabase dashboard
+        for project evpckeuxgvahguwsaeul (Settings -> Database) -- likely candidates:
+        wrong secret edited (e.g. a similarly-named secret, or the wrong repo),
+        unescaped special character in the password breaking the connection-string
+        URL, or a copy-paste error (stray whitespace/quote). Do not re-close this gap
+        without observing a fresh run's log actually clear this exact error."
+    auditor:
+      agent: "none yet -- flagged to ct-6e, which already committed to independently
+        re-reading the raw job log for its own requirement-row closures over this
+        same bug. No self-certification claimed here; this doer block is unaudited
+        until that happens or another agent reviews it."
