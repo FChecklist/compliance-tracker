@@ -277,15 +277,18 @@ export async function computeCostActuals(ctx: { orgId: string }, projectId: stri
 
 // ─── 5-06 / 5-07 -- pure, no DB. Both take the baseline's snapshotted
 // estimated cost as a plain MoneyFigure PARAMETER rather than importing
-// Phase 3's boq-baseline service directly: Phase 3 (the boq_baseline table
-// + service) is still in progress on a separate branch as of this writing
-// and is not yet on main, so importing it here would create a cross-branch
-// dependency this branch cannot actually resolve. INTEGRATION POINT FOR
-// WHOEVER WIRES PHASE 9 (the analysis screen) TOGETHER: once Phase 3 merges,
-// its "estimated cost" read (the baseline snapshot of project_value at the
-// project's latest confirmed version, per E2) is the value to pass as
-// `baselineEstimatedCost` below -- this file deliberately never reaches
-// into that table itself, so it keeps working unchanged either way. ─────────
+// Phase 3's boq-baseline-service.ts directly: Phase 3 was still in progress
+// on a separate branch when this file was first written (this comment was
+// updated once Phase 3 merged to main -- PR #1697 -- but the parameter
+// shape was kept deliberately, both to avoid a cross-branch dependency
+// while it was still unmerged and because it keeps this file's own tests
+// free of Phase 3's DB-touching setup). INTEGRATION POINT FOR WHOEVER WIRES
+// PHASE 9 (the analysis screen) TOGETHER: boq-baseline-service.ts's own
+// getEstimatedCostFromBaseline(baseline).projectValue -- "the baseline
+// snapshot of rate_project at the project's latest confirmed version, per
+// E2/3-09" -- is the exact value to pass as `baselineEstimatedCost` below.
+// This file deliberately never imports that table/service itself; the
+// caller reads the baseline and hands this file only the number. ──────────
 
 export type CostVarianceLabel = "committed" | "spent"
 
