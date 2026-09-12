@@ -92,10 +92,68 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   // session; requireAuth() would break the exact mechanism this route
   // exists to expose.
   "src/app/api/support-sessions/whoami-target/route.ts",
+  //
+  // R85 Addendum 3 v4 Phase 9 (2026-09-12, the analysis screen, B3): a REAL,
+  // pre-existing false positive in this checker's regex, not a genuinely
+  // unauthenticated route -- this route's actual auth call is
+  // requireAuthOrApiKey(request), which DOES call requireAuth() internally
+  // for a session caller (see auth-guard.ts's own implementation -- verified
+  // by reading it directly, not inferred) and validates a
+  // `Authorization: Bearer vk_...` API key on the other path, same
+  // established pattern as 250+ other v1 routes in this codebase.
+  // REQUIRE_AUTH_RE's `\brequireAuth\s*\(` does not match the substring
+  // "requireAuthOrApiKey(" -- no word boundary between "requireAuth" and
+  // "OrApiKey", both word characters -- so this textual check cannot see
+  // that indirection. Same structural gap already documented for the whole
+  // requireAuthOrApiKey family by the Phase 6 batch (r85a3/p6-visibility-
+  // client-boundary, PR #1701) on the boq/cost-visibility routes -- not
+  // widening REQUIRE_AUTH_RE here either, for the same reason that commit
+  // gave: a change to a shared CI guardrail's matching logic is out of this
+  // phase's own scope.
+  "src/app/api/v1/projexa/reports/boq-analysis/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail
   "src/lib/services/boq-dual-view-service.ts", // R85 Addendum 3 v4 (D87/D90/D91): pure computation over already-loaded numbers (project/contract value, variance, decomposition, roll-up) -- no DB access, no I/O, cannot fail. Absent/invalid input resolves to the NOT_SET sentinel by design (see X-04), never a thrown error.
+  //
+  // R85 Addendum 3 v4 Phase 9 (2026-09-12): this file DOES touch the DB
+  // (fetchProjectBoqsWithDb, listOrgProjectsWithBoq -- both plain selects,
+  // no validation branch of their own) so, unlike boq-dual-view-service.ts
+  // above, "cannot fail" would be dishonest. The real, checked reason this
+  // file has no ServiceError of its OWN: it has zero conditions where IT
+  // decides to throw a domain-specific error -- every "nothing to show"
+  // case here (a project with no approved BOQ, no baseline ever confirmed,
+  // no BOQ raised at all) resolves BY DESIGN to NOT_SET or an excluded row,
+  // never an error (see this file's own header, X-04). Every real failure
+  // this file can surface already originates in, and is already thrown as
+  // ServiceError by, the four sibling services it calls and never
+  // re-derives from (getEffectiveContractValueForProject/computeCostActuals/
+  // listBaselineVersions/getEstimatedCostFromBaseline -- confirmed by
+  // grepping boq-cost-actuals-service.ts, boq-contract-value-service.ts and
+  // boq-baseline-service.ts, all three DO reference ServiceError for their
+  // own validation/not-found cases) -- this file only passes those errors
+  // through unmodified, it never catches and reshapes them. The route's own
+  // catch block (boq-analysis/route.ts) already handles both cases: a
+  // propagated ServiceError uses its real status, anything else (e.g. a raw
+  // DB error from this file's own two plain selects) falls back to a
+  // generic 500, the same as any other unclassified failure in this
+  // codebase.
+  "src/lib/services/boq-analysis-service.ts",
+  //
+  // R85 Addendum 3 v4 Phase 9 (2026-09-12): a real, PRE-EXISTING gap, not
+  // introduced by this phase's diff -- git log shows this file predates
+  // this phase by multiple prior waves (earliest: "CO-001/CO-003/FI-GL-002/
+  // FI-GL-007/FI-GL-008: calculation-track engine build"), and this phase's
+  // own change to it is additive-only (one new REPORT_CATALOG entry for
+  // discoverability, see boq-analysis/route.ts's header comment for why).
+  // Also genuinely fits the same "cannot fail" class as boq-dual-view-
+  // service.ts above on its own merits: this file's own header describes it
+  // as "a DATA-ONLY registry" -- a static array of already-known facts about
+  // other services, no DB access, no I/O, no computation that can fail.
+  // Exempting only because this phase's diff touches the file at all
+  // (adding one data entry) -- not claiming this phase fixed or introduced
+  // anything about its error-handling posture.
+  "src/lib/services/report-catalog-service.ts",
 ])
 
 const HTTP_HANDLER_RE = /export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/
