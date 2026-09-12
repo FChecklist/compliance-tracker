@@ -347,13 +347,21 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
     // assumed posture as R80's entry above: the unprotected-and-not-exempt
     // set is still empty, and the sum invariant still holds.
     //
+    // R85 Addendum 3 v4 Phase 7 (2026-09-13): +2 mutating routes, both under
+    // the new /api/v1/construction/boq/[id]/excel/ family (D89, Excel round
+    // trip): POST .../excel/diff and POST .../excel/apply. Both counted as
+    // PROTECTED: each calls requireAuthOrApiKey() then
+    // requireRoleOrScope(ctx, "member", "write") -- the SAME floor this
+    // file's own sibling boq/line-items/[id] PATCH already uses for editing a
+    // BOQ line. (GET .../excel/export is a read, not a mutating verb, and is
+    // not counted here at all.)
+    //
     // R85 Addendum 3 v4 Phase 10 (2026-09-12, what-if / scenario engine),
-    // MERGED ON TOP OF Phase 6's 833/632 above (this branch was originally
-    // computed against the stale pre-Phase-6 832/631 base; re-based here to
-    // the real current baseline, not re-derived from scratch): 833 -> 837,
-    // 632 -> 636. Four new mutating route FILES (one entry per file, not per
-    // verb -- [id]/adjustments/route.ts exports both POST and DELETE and
-    // still counts once): boq-scenarios/route.ts (POST),
+    // MERGED ALONGSIDE Phase 7 above (both phases branched from the same
+    // 833/632 base independently -- this merge combines both deltas rather
+    // than re-deriving from scratch): +4 new mutating route FILES (one entry
+    // per file, not per verb -- [id]/adjustments/route.ts exports both POST
+    // and DELETE and still counts once): boq-scenarios/route.ts (POST),
     // boq-scenarios/[id]/adjustments/route.ts (POST+DELETE),
     // boq-scenarios/[id]/commit/route.ts (POST),
     // boq-scenarios/target-seek/route.ts (POST). All four are grep-visible
@@ -363,11 +371,14 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
     // in GUARD_CALLS above. (This phase's other two new route files,
     // boq-scenarios/[id]/route.ts and boq-scenarios/compare/route.ts, are
     // GET-only and are correctly excluded from `mutating` entirely.)
-    // Re-measured directly against this merged branch's own filesystem, not
-    // added on paper -- the unprotected-and-not-exempt set is still empty,
-    // and the sum invariant below (636 + 201 + 0 = 837) still holds.
-    expect(mutating.length).toBe(837)
-    expect(protectedCount).toBe(636) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH; +1 R85A3 P6 cost-visibility config PATCH; +4 R85 A3v4 Phase 10 boq-scenarios routes
+    //
+    // Combined: 833 + 2 (Phase 7) + 4 (Phase 10) = 839 mutating,
+    // 632 + 2 + 4 = 638 protected. Re-measured directly against this merged
+    // branch's own filesystem by actually running this test, not added on
+    // paper -- the unprotected-and-not-exempt set is still empty, and the
+    // sum invariant below (638 + 201 + 0 = 839) still holds.
+    expect(mutating.length).toBe(839)
+    expect(protectedCount).toBe(638) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH; +1 R85A3 P6 cost-visibility config PATCH; +2 R85A3 P7 Excel round-trip diff/apply POSTs; +4 R85 A3v4 Phase 10 boq-scenarios routes
     expect(EXEMPT_ROUTES.length).toBe(201) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep
     expect(KNOWN_OPEN_GAPS.length).toBe(0)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
