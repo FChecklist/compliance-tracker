@@ -87,7 +87,10 @@ describe("REPORT_CATALOG: every other construction entry stays honest about havi
   )
 
   test("the construction domain is still fully catalogued (the map did not drop entries)", () => {
-    expect(construction).toHaveLength(18)
+    // 19, not 18: R85 Addendum 3 v4 Phase 9 added "construction-boq-analysis"
+    // (the Analysis screen, gates 9-01..9-07) as a real new construction-
+    // domain catalog entry -- see boq-analysis-service.ts.
+    expect(construction).toHaveLength(19)
   })
 
   test("none of them claims to be directly navigable", () => {
