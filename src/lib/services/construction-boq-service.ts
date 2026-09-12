@@ -27,6 +27,17 @@ import { isSelfApproval } from "./approval-workflow-service"
 // cache. ONE helper, in a dependency-free module -- see its own header for why
 // it does not live in construction-dashboard-service.ts.
 import { bustProjectDashboardCache } from "./project-dashboard-cache"
+// R85 Addendum 3 v4 Phase 2/D91: THE ONE PRODUCER for every project/contract/
+// variance figure on a BOQ line (see that file's own SINGLE PRODUCER RULE
+// header) -- built and tested since Phase 2 but never actually called by any
+// route until now (X-27 gap, closed here). Wired into withComputedRate() so
+// every existing caller of it (getBoq/getBoqRow/listBoqs) gets the dual view
+// with no separate call to remember, plus the two whole-BOQ summaries
+// (rollUpRootLines/computeCostCoverage) attached alongside each BOQ header.
+// Redaction for roles without cost visibility is unchanged and already
+// handles these exact field names -- see cost-visibility-service.ts's
+// PROJECT_SIDE_COST_FIELDS, which was written in anticipation of this wiring.
+import { computeBoqLineMoneyView, rollUpRootLines, computeCostCoverage } from "./boq-dual-view-service"
 export { ServiceError }
 
 export type BoqContext = { orgId: string; userId: string }
@@ -443,7 +454,19 @@ function computedBudget(item: { amount: string; budgetPercentage: string }): num
 }
 
 function withComputedRate(item: typeof constructionBoqLineItems.$inferSelect) {
-  return { ...item, computedRate: computedRate(item), computedBudget: computedBudget(item) }
+  return {
+    ...item,
+    computedRate: computedRate(item),
+    computedBudget: computedBudget(item),
+    // D91 dual view: projectValue/contractValue/variance/variancePercent/
+    // quantityVariance/rateVariance, computed from this row's own
+    // qtyProject/rateProject/qtyContract/rateContract -- see
+    // boq-dual-view-service.ts's own header for the exact math and NOT_SET
+    // rules. Every one of these field names is already in cost-visibility-
+    // service.ts's PROJECT_SIDE_COST_FIELDS redaction set except
+    // contractValue (deliberately kept visible -- the customer-facing side).
+    ...computeBoqLineMoneyView(item),
+  }
 }
 
 // R67 F-04 (R-060/R-063) was the SAME fix arriving from lane F1, and lands
@@ -726,6 +749,16 @@ export async function listBoqs(
       return {
         ...boq,
         ...(include.lineItems ? { lineItems: lineItemsByBoq.get(boq.id) ?? [] } : {}),
+        // D91: same whole-BOQ dual view as getBoq()/getBoqRow() above --
+        // "at every stage" includes the list screen, not just the object
+        // page. Computed from the RAW rows (rawLineItemsByBoq), same as the
+        // chain-variation figures just below, so this costs no second query.
+        ...(include.lineItems
+          ? {
+              moneyView: rollUpRootLines(rawLineItemsByBoq.get(boq.id) ?? []),
+              costCoverage: computeCostCoverage(rawLineItemsByBoq.get(boq.id) ?? []),
+            }
+          : {}),
         ...(include.variation
           ? { variationVsPrior: summary.variationVsPrior, lineDelta: summary.lineDelta }
           : {}),
@@ -992,7 +1025,18 @@ export async function getBoq(ctx: { orgId: string }, boqId: string) {
     const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!boq) throw new ServiceError("BOQ not found", 404)
     const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boqId) })
-    return { ...boq, lineItems: lineItems.map(withComputedRate) }
+    return {
+      ...boq,
+      lineItems: lineItems.map(withComputedRate),
+      // D91: the whole-BOQ dual view, root lines only (A7/R-32 -- sub-tasks
+      // never double-count) -- internal and customer-facing totals side by
+      // side, at this stage (the object page), same as every other stage
+      // per the SINGLE PRODUCER RULE. costCoverage (Phase 2 2-08) lets the
+      // screen say "priced on X% of contract value" instead of a confident
+      // number built on mostly-blank cost data.
+      moneyView: rollUpRootLines(lineItems),
+      costCoverage: computeCostCoverage(lineItems),
+    }
   })
 }
 
@@ -1159,7 +1203,12 @@ async function getBoqRow(db: TenantDb, boqId: string) {
   // thrown 404 in this situation; this path silently did not.
   if (!boq) throw new ServiceError("BOQ not found after write -- nothing was saved", 500)
   const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boqId) })
-  return { ...boq, lineItems: lineItems.map(withComputedRate) }
+  return {
+    ...boq,
+    lineItems: lineItems.map(withComputedRate),
+    moneyView: rollUpRootLines(lineItems),
+    costCoverage: computeCostCoverage(lineItems),
+  }
 }
 
 export async function createBoqRevision(
