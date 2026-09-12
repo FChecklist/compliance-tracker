@@ -40,6 +40,34 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (subagent, isolated worktree wf_2ecda735-e0d-1) -- URGENT, standalone security fix: public share-link cost leak in resolveReportShareLink()"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      TASK: pm-urgent-share-leak. src/lib/services/report-share-service.ts's
+      resolveReportShareLink() (a genuinely public, unauthenticated route) was
+      found returning cost/budget/variance figures (ProjectDashboard's budget/
+      ledgerBudget/revenue/expenses/projectValue/earnedValue/percentByValue/
+      contractValue, plus boqBudgetVarianceReport's totals/lines) for
+      reportType === 'project_status', in violation of owner ruling D91
+      (claude_log id 375: "Any unauthenticated share token CAN NEVER CARRY
+      COST"). Redacting to an explicit allowlist of customer-safe (schedule/
+      progress/scope) fields only.
+
+      File scope: src/lib/services/report-share-service.ts (+ NEW/updated
+      .test.ts), and (read-only check, guard only if needed) projexa's
+      src/app/share/report/[token]/page.tsx for optional-chaining on the
+      removed fields. Does NOT touch boq-dual-view-service.ts or any Phase
+      6/9/10 R85 Addendum 3 v4 file -- explicitly out of scope per this
+      task's own instructions, and distinct from that effort even though
+      both cite D91.
+
+      Checked before starting: no active: entry below claims
+      report-share-service.ts right now (the two prior entries mentioning it,
+      r67-lane-E1 and the D-31 lane, are both already-merged/historical
+      claims, not currently active). Phase 6's "visibility/client-boundary"
+      entry above has an unknown file scope (its own claim says so) -- if it
+      turns out to also touch this file, that collision is noted in this
+      claim rather than silently worked around, per Rule 11(4).
   - session_label: "claude-code (subagent, isolated worktree, r85a3/p9-analysis-screen) -- R85 Addendum 3 v4 FINAL, PHASE 9: the analysis screen (B3, gates 9-01..9-07)"
     claimed_at: "2026-09-12T (this session)"
     claim: |
