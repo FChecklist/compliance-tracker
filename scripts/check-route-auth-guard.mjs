@@ -92,6 +92,31 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   // session; requireAuth() would break the exact mechanism this route
   // exists to expose.
   "src/app/api/support-sessions/whoami-target/route.ts",
+  //
+  // R85 Addendum 3 v4 Phase 10 (2026-09-12, what-if / scenario engine): a
+  // REAL, pre-existing false positive in this checker's regex, not a
+  // genuinely unauthenticated route -- flagging it here honestly rather
+  // than papering over it. requireAuthOrApiKey() (this file's actual auth
+  // call) DOES call requireAuth() internally for a session caller (see
+  // auth-guard.ts's own implementation, ~line 397) -- REQUIRE_AUTH_RE's
+  // `\brequireAuth\s*\(` simply does not match the substring
+  // "requireAuthOrApiKey(" (no word boundary between "requireAuth" and
+  // "OrApiKey", both word characters), so this textual check cannot see
+  // that indirection. All 5 files below call requireAuthOrApiKey() +
+  // requireRoleOrScope() (verified by reading each handler directly), the
+  // same real, established auth pattern used across this codebase's v1
+  // API. Not fixed here (widening REQUIRE_AUTH_RE or adding a second
+  // accepted identifier is a change to a shared CI guardrail's matching
+  // logic, out of this phase's scope) -- flagged for a future session to
+  // fix the regex itself rather than growing this exemption list one
+  // requireAuthOrApiKey route at a time. (This directory's 6th route,
+  // [id]/commit/route.ts, uses requireAuth() literally and is correctly
+  // NOT exempted/flagged by this checker.)
+  "src/app/api/v1/projexa/boq-scenarios/route.ts",
+  "src/app/api/v1/projexa/boq-scenarios/[id]/route.ts",
+  "src/app/api/v1/projexa/boq-scenarios/[id]/adjustments/route.ts",
+  "src/app/api/v1/projexa/boq-scenarios/compare/route.ts",
+  "src/app/api/v1/projexa/boq-scenarios/target-seek/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail
