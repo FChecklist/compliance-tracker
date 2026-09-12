@@ -59,7 +59,21 @@ const HTTP_HANDLER_RE = /export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELE
 const TRY_RE = /\btry\s*\{/
 
 function run(cmd) {
-  return execSync(cmd, { encoding: "utf8" }).trim()
+  // R81 K1-04 (same fix as check-route-auth-guard.mjs's own run()): stderr
+  // must be suppressed via stdio, NOT a `2>/dev/null` suffix on the command
+  // string. execSync goes through cmd.exe on Windows, where that redirect
+  // is not valid syntax -- cmd throws "The system cannot find the path
+  // specified", every git call below threw, every surrounding catch block
+  // fell back to "" / "HEAD~1", and this check silently reported "nothing
+  // to check" and exited 0 for every diff -- vacuous on Windows: green, and
+  // checking nothing. Does not affect real CI (Ubuntu runners), only local
+  // Windows self-verification -- but that is exactly how W-PROD nearly
+  // shipped PR #1674 believing local checks passed when real CI had
+  // actually failed (F-2026-0910-W-PROD-011/012). Ported here after
+  // check-route-auth-guard.mjs's own header documented finding and fixing
+  // the identical bug once already (R81 K1-04) -- see that file for the
+  // original discovery and proof-by-planting-a-violation.
+  return execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
 }
 
 function resolveBaseRef() {
@@ -92,7 +106,7 @@ function resolveBaseRef() {
 
 function getMergeBase(baseRef) {
   try {
-    return run(`git merge-base HEAD ${baseRef} 2>/dev/null`) || "HEAD~1"
+    return run(`git merge-base HEAD ${baseRef}`) || "HEAD~1"
   } catch {
     return "HEAD~1"
   }
@@ -103,12 +117,12 @@ function getChangedRouteFiles(baseRef) {
   let changedOut = ""
   let untrackedOut = ""
   try {
-    changedOut = run(`git diff --name-only --diff-filter=d ${mergeBase} HEAD 2>/dev/null`)
+    changedOut = run(`git diff --name-only --diff-filter=d ${mergeBase} HEAD`)
   } catch {
     changedOut = ""
   }
   try {
-    untrackedOut = run("git ls-files --others --exclude-standard 2>/dev/null")
+    untrackedOut = run("git ls-files --others --exclude-standard")
   } catch {
     untrackedOut = ""
   }

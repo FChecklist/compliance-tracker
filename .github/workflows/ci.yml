@@ -59,6 +59,16 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
+      # R76 (2026-09-06, Vercel deploy lockdown, A3-03): a file-existence
+      # check that does NOT depend on the guarded file's own content to run
+      # -- src/lib/vercel-lockdown.test.ts's assertions only execute if the
+      # file itself still exists, so deleting it silently drops those
+      # assertions rather than failing anything, unlike a config value being
+      # merely weakened. This step fails the job outright if the file is
+      # gone, independent of whatever `bun test` below would or wouldn't
+      # catch. See platform.crr_ruling R76-RULING-01.
+      - name: Guard against deleting the Vercel-lockdown drift test
+        run: test -f src/lib/vercel-lockdown.test.ts || (echo "::error::src/lib/vercel-lockdown.test.ts is missing -- this is the Layer 3 drift guard for the Vercel deploy lockdown (R76-RULING-01). Restore it, do not just let this fail silently." && exit 1)
       # Wave 79: real test files now exist (src/lib/*.test.ts), so
       # --passWithNoTests is dropped -- a future PR that deletes all tests
       # should fail CI, not pass silently. Placeholder DB env vars mirror
@@ -141,6 +151,38 @@ jobs:
       # script's own header for the honest limitation this does and doesn't
       # guarantee.
       - run: node scripts/check-route-error-handling.mjs --base origin/main
+      # R81 K1-02 / fault R81_F29. check-route-auth-guard.mjs was written,
+      # committed, and never wired -- its own header records why: "NOT yet wired
+      # into .github/workflows/ci.yml as of this commit -- this session's git
+      # token lacks the workflow OAuth scope", and it writes out this exact
+      # command. Verified still unwired on 2026-09-08: ci.yml ran ten other
+      # check-*.mjs steps and not this one, so the CLAUDE.md-mandated "every API
+      # route MUST call requireAuth()" convention was unenforced and a new
+      # unguarded route passed CI clean. Same --base origin/main / fetch-depth 0
+      # shape as the step above, so only NEW or MODIFIED routes fail the build.
+      - run: node scripts/check-route-auth-guard.mjs --base origin/main
+      # R81 K1-04 / fault R81_F33. Registry check: every documented defect
+      # comment must keep a live fault row, and vice versa. NOT an age-based
+      # TODO check -- the K1 sweep found ZERO TODO/FIXME markers in either repo,
+      # so an age check would pass on an empty set and report false assurance.
+      # Defects here are documented in prose; this checks those.
+      - run: node scripts/check-comment-rot.mjs
+      # R81 K5-08, REPORT-ONLY on purpose (same pattern as the E-103 replay job
+      # below). This fails today, by design: six requirements are recorded CLOSED
+      # citing e2e/demo-gate-smoke.spec.ts, which skips itself whenever real
+      # production answers DEPLOYMENT_PAUSED -- which it does, because Vercel is
+      # paused deliberately. The CI log is the proof: the E2E job prints
+      # "3 skipped, 6 passed" and concludes SUCCESS, so a skipped test sits inside
+      # a GREEN job and no CI-outcome check can tell "requirement holds" apart
+      # from "requirement never ran".
+      # It is NOT blocking yet because the remedy -- reverting those six, or
+      # proving them against environment 1 (E2E_PROJEXA_ORIGIN=http://localhost:3100)
+      # -- is owner-sequenced work (R81 Addendum B, G2-02) and turning CI red for
+      # every contributor in the meantime would just get this switched off.
+      # FLIP continue-on-error TO false the moment that lands; the script then
+      # stops any NEW self-skipping citation from being recorded as closure proof.
+      - run: node scripts/check-closure-citation-skips.mjs
+        continue-on-error: true
   migration-integrity-check:
     name: Migration Integrity Check (AR-12)
     runs-on: ubuntu-latest
@@ -187,6 +229,18 @@ jobs:
       - run: node scripts/check-migration-integrity.mjs
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # R81 (2026-09-08): the file<->journal leg of AR-12, which the script
+      # above deliberately does NOT check (see its header: it cites the three
+      # 0294-0296 orphans as the reason a hard parity rule would fail).
+      # By 2026-09-08 that exception had grown from three files to sixteen and
+      # nothing was counting. It matters because BOTH the migrate runner and
+      # the replay-from-empty harness below iterate journal.entries -- a .sql
+      # file with no journal entry is never applied and never replayed, so the
+      # replay job reports green while the schema it proves is incomplete.
+      # Four migrations were in exactly that state when this was written,
+      # applied live through Supabase's migration ledger, which nothing in this
+      # repository reads. DB-free, so it always runs.
+      - run: node scripts/check-migration-journal-parity.mjs
   migration-replay-from-empty:
     # R67B (2026-09-03), platform.r43_faults fault_id
     # E103_MIGRATION_REPLAY_EMPTY_DB_BREAK. E-103 says a fresh database cannot
@@ -388,3 +442,306 @@ jobs:
       # honest limitation to wave through.
       - run: bunx playwright install --with-deps chromium
       - run: bunx playwright test
+  e2e-env1:
+    # T2 (W-CI, window W20260910-2248, PM ruling D78): the Env-1 CI job.
+    # Answers the recorded next_action on 17 requirements (R-11/15/30/31/41/
+    # 42/43/60/82/90/91 + R-01/02/32/40/B1/B2): "bind a Playwright spec
+    # against environment 1 (localhost) and let it go green in CI" -- until
+    # this job, nothing in either repo's CI booted BOTH apps together, so
+    # every one of those specs could only ever be run by hand.
+    #
+    # WHY BOTH APPS, ONE JOB. r01-r02/r32/r40-*-env1.spec.ts (this repo) and
+    # projexa's own r60-boq-currency-env1.spec.ts all exercise PROJEXA's own
+    # UI/API surface, and PROJEXA's real business data (BOQs, projects)
+    # proxies through THIS repo's VERIDIAN API bridge
+    # (VERIDIAN_API_BASE_URL=http://localhost:3000/api/v1/projexa, see
+    # projexa/.env.local's own documented convention) -- a locally-booted
+    # PROJEXA with no locally-booted ct backend behind it can authenticate
+    # but cannot serve real data, which is exactly what these specs assert
+    # against. PR #1629's DOD-S1 job deliberately avoided this same
+    # dual-boot requirement for ITS narrower route (a ct-side API key
+    # instead) -- that choice does not apply here, these specs already use
+    # PROJEXA's own mint-session-r33/GoTrue auth against PROJEXA_ORIGIN
+    # directly, not ct's API. PM ruling D78: this is a genuinely different
+    # requirement (multi-repo boot), not a repeat of the W-ROUTER
+    # do_not_redo note that said a cross-repo dev-server stack was never
+    # needed for DOD-X4 specifically.
+    #
+    # WHY THE JOB LIVES HERE, NOT IN PROJEXA'S ci.yml. GitHub Actions
+    # secrets are scoped strictly to the repo whose workflow is running --
+    # FChecklist is a personal account, not an Organization, so there is no
+    # shared/org-level secret to fall back on (confirmed live via `gh api
+    # users/FChecklist`, .type == "User"). Hosting the job here means only
+    # THIS repo's secret store needs both apps' real values; hosting it in
+    # projexa would need the reverse (4 ct secrets duplicated there, vs 2
+    # here). Both repos are public, so the cross-repo checkout below needs
+    # no special token.
+    #
+    # SECRETS THIS JOB NEEDS THAT DO NOT YET EXIST (OR-7, owner-only, never
+    # via a shell -- see kt/FINDINGS.W-CI.jsonl F-2026-09-10-W-CI-001):
+    #   PROJEXA_DATABASE_URL -- PROJEXA's own Postgres connection string
+    #     (evpckeuxgvahguwsaeul), distinct from this repo's own DATABASE_URL
+    #     secret (a different Supabase project). Construct the same way
+    #     db-migrate.yml's DATABASE_URL is built (postgres.<ref>:<password>@
+    #     <pooler-host>:6543/postgres, transaction-mode pooler) -- verify the
+    #     working host/port live once the password is in, the same
+    #     trial-and-error db-migrate.yml's own header already documents for
+    #     this repo's project; do not assume the same pooler region.
+    #   VERIDIAN_API_KEY -- the bridge auth PROJEXA's backend sends ct on
+    #     every VERIDIAN_API_BASE_URL call. Real value already exists
+    #     locally (projexa/.env.local, gitignored, never committed) -- the
+    #     owner can copy that same value in directly, this does not need to
+    #     be a new/rotated key.
+    # NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY for PROJEXA are
+    # PUBLIC/client-exposed by design (PM confirmed, D78) -- baked directly
+    # into this file below, not secrets, matching the same anon key already
+    # hardcoded in this repo's own r01-r02/r32/r40 spec files.
+    #
+    # FALSIFIABILITY (D58): NOT YET RUN as of this commit -- this job cannot
+    # produce a real result until OR-7 lands. Once it does: break one
+    # assertion (e.g. r32's expected total), push, confirm RED with a real
+    # run id, revert, confirm GREEN with a second real run id, record both --
+    # same pattern already used for DOD-X4/DOD-R3. Do not report this job
+    # green from a claim; only from an observed run.
+    name: E2E Tests (Env-1, cross-repo)
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      # Fail fast and loud, not 2 build+boot steps later, the moment OR-7/
+      # OR-8 land wrong or get missed -- same "a missing required secret
+      # must fail loudly, not silently skip and report success" principle
+      # scripts/check-project-budgets-live.mjs already uses for
+      # DOD_S1_SMOKE_API_KEY. Checked before either checkout does real work
+      # so a misconfigured run fails in <5s, not after a 2+ minute build.
+      - name: Verify required secrets are set
+        run: |
+          missing=""
+          [ -z "${{ secrets.DATABASE_URL }}" ] && missing="$missing DATABASE_URL"
+          [ -z "${{ secrets.APP_RUNTIME_DATABASE_URL }}" ] && missing="$missing APP_RUNTIME_DATABASE_URL"
+          [ -z "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" ] && missing="$missing NEXT_PUBLIC_SUPABASE_URL"
+          [ -z "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" ] && missing="$missing NEXT_PUBLIC_SUPABASE_ANON_KEY"
+          [ -z "${{ secrets.PROJEXA_DATABASE_URL }}" ] && missing="$missing PROJEXA_DATABASE_URL"
+          [ -z "${{ secrets.VERIDIAN_API_KEY }}" ] && missing="$missing VERIDIAN_API_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::e2e-env1 cannot run: missing repo secret(s):$missing -- see kt/FINDINGS.W-CI.jsonl F-2026-09-10-W-CI-001 / OR-7 / OR-8 (owner-only, direct GitHub UI entry, never via a shell)."
+            exit 1
+          fi
+          echo "all 6 required secrets present (values not printed)"
+      - name: Checkout compliance-tracker
+        uses: actions/checkout@v7
+      - name: Checkout projexa (sibling dir)
+        uses: actions/checkout@v7
+        with:
+          repository: FChecklist/projexa
+          ref: main
+          path: projexa-checkout
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Install projexa deps
+        run: bun install --frozen-lockfile
+        working-directory: projexa-checkout
+
+      # --- Boot THIS repo's real backend on :3000 first -- PROJEXA calls it
+      # via VERIDIAN_API_BASE_URL below, so it must already be up before
+      # PROJEXA's own readiness probe can return real data. Same real
+      # `next start` production-server pattern PR #1629's DOD-S1 job already
+      # proved live (build once here, not reused from the separate `build`
+      # job above -- GitHub Actions jobs do not share a filesystem).
+      - run: bun run db:generate || true
+      - name: Build compliance-tracker
+        run: bun run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NODE_OPTIONS: --max-old-space-size=8192
+      - name: Start compliance-tracker (background, :3000)
+        run: nohup bunx next start -p 3000 > ct-server.log 2>&1 & echo $! > ct-server.pid
+        env:
+          NODE_ENV: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APP_RUNTIME_DATABASE_URL: ${{ secrets.APP_RUNTIME_DATABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Wait for compliance-tracker to accept connections
+        run: |
+          for i in $(seq 1 40); do
+            if curl -s -o /dev/null "http://localhost:3000/api/organization"; then
+              echo "ct responding after ${i} attempt(s)"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::compliance-tracker never accepted a connection on :3000 within 120s"
+          cat ct-server.log || true
+          exit 1
+
+      # --- Boot PROJEXA's real backend on :3100, pointed at the ct instance
+      # above via VERIDIAN_API_BASE_URL (same convention projexa/.env.local
+      # already documents for local dev).
+      - name: Build projexa
+        run: bun run build
+        working-directory: projexa-checkout
+        env:
+          DATABASE_URL: ${{ secrets.PROJEXA_DATABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: https://evpckeuxgvahguwsaeul.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_f0C6ZvVjEnwkdN7wxfEwBQ_x69zrGs8
+      - name: Start projexa (background, :3100)
+        working-directory: projexa-checkout
+        run: nohup bunx next start -p 3100 > ../projexa-server.log 2>&1 & echo $! > ../projexa-server.pid
+        env:
+          NODE_ENV: production
+          DATABASE_URL: ${{ secrets.PROJEXA_DATABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: https://evpckeuxgvahguwsaeul.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_f0C6ZvVjEnwkdN7wxfEwBQ_x69zrGs8
+          VERIDIAN_API_BASE_URL: http://localhost:3000/api/v1/projexa
+          VERIDIAN_API_KEY: ${{ secrets.VERIDIAN_API_KEY }}
+      - name: Wait for projexa to accept connections
+        run: |
+          for i in $(seq 1 40); do
+            if curl -s -o /dev/null "http://localhost:3100/login"; then
+              echo "projexa responding after ${i} attempt(s)"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::projexa never accepted a connection on :3100 within 120s"
+          cat projexa-server.log || true
+          exit 1
+
+      # --- Run this repo's 3 Env-1 specs against the already-running :3100
+      # PROJEXA instance. E2E_ENV1_JOB=true tells playwright.config.ts to
+      # reuse the ct server already running on :3000 above instead of trying
+      # to launch its own dev-mode copy on the same port (which would error
+      # "port already in use" -- reuseExistingServer defaults to false in CI
+      # for the regular `e2e` job above, deliberately, so that job still
+      # proves it boots its OWN server from cold; this job already proved
+      # that above with a real production boot, so reusing here is correct,
+      # not a weaker check).
+      - run: bunx playwright install --with-deps chromium
+      - name: Run compliance-tracker Env-1 specs
+        # PM note (2026-09-10, D82/E-47 follow-on): W-TEST is adding 6 more
+        # route-level specs (R-21/22/23/24/33/C13) to this same batch, so
+        # this job will end up running more than today's known 3 files.
+        # Matched by the "*-env1.spec.ts" naming convention every spec in
+        # this batch already follows (playwright's own CLI treats a bare
+        # positional arg as a path substring/regex, not an exact filename --
+        # unrelated to bun test's own bare-path NAME FILTER bug this repo's
+        # citation gate works around, different tool, different rule) rather
+        # than hardcoded filenames, so new same-convention specs are picked
+        # up automatically once merged -- nothing here needs editing again
+        # just because the count grows. ciExcludedSpecs in
+        # playwright.config.ts (demo-gate-smoke/r48/r63) still applies on
+        # top of this and stays excluded, unaffected by the pattern.
+        #
+        # --workers=1 (added after this job's own first real run, 2026-09-12):
+        # every one of these specs authenticates via mintSessionCookie() ->
+        # mint-session-r33 -> GoTrue /auth/v1/verify, and mint-session-r33's
+        # own allow-list (evpckeuxgvahguwsaeul, R81 hardening) permits exactly
+        # ONE address, democeo@projexa-ai.com -- confirmed by reading the
+        # deployed function source directly, not assumed. generateLink()
+        # supersedes any not-yet-verified prior magic-link token for the same
+        # user, so 2 concurrent workers minting for the same address race:
+        # whichever mint call lands second invalidates the first test's
+        # token_hash before its own verify() call can consume it. Observed
+        # exactly this failure on this job's first real run (all 3 specs
+        # failed, worker count 2, "GoTrue token_hash exchange must succeed" /
+        # Received: false) -- not flaky, not intermittent, a deterministic
+        # race that reproduces every time 2+ of these specs run together.
+        # Serializing this step is the correct, narrowly-scoped fix: it does
+        # NOT touch mint-session-r33 itself (a live, security-hardened
+        # function, R81_F40) and does NOT affect the projexa Env-1 step below
+        # -- that one authenticates via projexa's own auth.setup.ts
+        # (real per-user password login + storageState, 4 distinct seeded
+        # users, confirmed by reading it directly), a structurally different
+        # mechanism with no shared single-slot token to race on, so its own
+        # `workers: 3` config is untouched and correct as-is.
+        run: bunx playwright test env1.spec.ts --workers=1
+        env:
+          E2E_PROJEXA_ORIGIN: http://localhost:3100
+          E2E_ENV1_JOB: "true"
+
+      # --- Run projexa's own Env-1 spec(s) (R-60 today) under projexa's OWN
+      # playwright config (auth.setup.ts + storageState, a different fixture
+      # convention to this repo's mint-session-r33/GoTrue flow) -- separate
+      # browser install, this repo's node_modules/playwright and projexa's
+      # are independent installs. Same "*-env1.spec.ts" pattern-match as
+      # above, same forward-compatibility reasoning, in case any of the 6
+      # new W-TEST specs land in projexa's own e2e/ instead of this repo's.
+      - name: Install projexa's playwright browsers
+        working-directory: projexa-checkout
+        run: bunx playwright install --with-deps chromium
+      - name: Run projexa Env-1 spec(s)
+        working-directory: projexa-checkout
+        run: bunx playwright test env1.spec.ts
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3100
+
+      - name: Server logs (always shown, for debugging any outcome)
+        if: always()
+        run: |
+          echo "--- compliance-tracker (:3000) ---"; cat ct-server.log || true
+          echo "--- projexa (:3100) ---"; cat projexa-server.log || true
+      - name: Stop background servers
+        if: always()
+        run: |
+          kill "$(cat ct-server.pid)" 2>/dev/null || true
+          kill "$(cat projexa-server.pid)" 2>/dev/null || true
+  register-consistency-check:
+    # pm-t1 brief (2026-09-12): wires 4 standing register-consistency proofs
+    # over platform.sumeet_requirements / platform.sumeet_requirement_
+    # components into CI as a real, permanent, checked-in check, replacing
+    # a one-off manual investigation nobody could reproduce. See
+    # scripts/check-register-consistency.mjs's own header for the full
+    # design of each of the 4 proofs (closure-state c1-vs-c6 drift --
+    # KNOWN-RED by design, must never assert zero; CI-ancestry; CI-citation;
+    # NA self-certification, known-vacuous literal spec) and its
+    # falsifiability-tested unit tests in
+    # scripts/check-register-consistency.test.ts (part of the normal `bun
+    # test --isolate` run, no separate step needed here).
+    #
+    # NOT secrets.DATABASE_URL, and this is a real, live-confirmed finding,
+    # not a stylistic choice -- see scripts/check-register-consistency.mjs's
+    # own header for the full incident: CI's DATABASE_URL connects as the
+    # `app_runtime` role, which lacks BYPASSRLS, and both
+    # platform.sumeet_requirements and platform.sumeet_requirement_components
+    # have RLS policies granting SELECT only to `service_role` (a deliberate
+    # pattern shared by every other governance/audit table in this schema).
+    # A first real run against DATABASE_URL connected fine and returned ZERO
+    # rows from both tables with no error -- exactly the false-negative this
+    # check exists to prevent (a KNOWN-RED gate silently reporting PASS).
+    #
+    # HONEST CURRENT STATE (2026-09-12): this job is GREEN today only
+    # because it degrades to a warning, not because the 4 proofs are
+    # passing. The SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY REST-API pair
+    # below (the same one doc-processing-job.yml uses for other
+    # service-role-only tables) also fails live -- PostgREST on this
+    # project only exposes {public, graphql_public, compliance}, not
+    # `platform`. The actual minimal fix (a new, additive, SELECT-only RLS
+    # policy granting app_runtime read access on just these two tables) was
+    # drafted and attempted, and was correctly blocked by this platform's
+    # own safety classifier as "modifying security settings" -- not this
+    # agent's call to push through by any other route. See the script's own
+    # header for the exact DDL and the two ways an authorized human can
+    # unblock this (apply that policy, or expose `platform` via PostgREST).
+    # Until then, treat a passing run here as "did not run," not as
+    # evidence the register is consistent -- do not remove this comment or
+    # silently reinterpret a warn-pass as success in a future edit.
+    #
+    # Proofs 2/3 additionally need cross-repo GitHub API read access
+    # (closure_repo can genuinely be 'projexa', a different repo than this
+    # one) -- PAT_FCHECKLIST is the same cross-repo PAT sync-vercel-env.yml
+    # already uses for this; those two proofs degrade to their own,
+    # independent warning if it's absent, without blocking proofs 1/4.
+    name: Register Consistency Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: node scripts/check-register-consistency.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PAT_FCHECKLIST: ${{ secrets.PAT_FCHECKLIST }}

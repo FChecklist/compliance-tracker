@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { createPost, listFeed, ServiceError } from "@/lib/services/social-feed-service"
 
 export async function GET(request: NextRequest) {
@@ -24,6 +24,11 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // R75 Part 2 Phase 5 (G8-misc): had no role check at all. "member" matches
+  // this codebase's general low bar for a baseline authenticated org action
+  // -- low-stakes social content, but still gated to real org members.
+  const roleCheck = requireRole(dbUser, "member")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()

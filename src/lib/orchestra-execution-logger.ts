@@ -7,7 +7,7 @@
 // failure, matching the original helper's own posture -- observability
 // logging must never block or fail the actual AI operation it's recording.
 import { db, orchestraLayers, orchestraExecutions } from "@/lib/db";
-import { withTenantContext } from "@/lib/db/tenant-scoped";
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
 import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import { estimateCostUsd, type LLMUsage } from "@/lib/llm-client";
 import { computeClaimConfidenceScore } from "@/lib/claim-verification";
@@ -63,8 +63,27 @@ async function computeOutputConfidenceFields(output: Record<string, unknown>): P
   }
 }
 
-export function recordOrchestraExecution(params: RecordOrchestraExecutionInput): void {
-  withTenantContext({ orgId: params.orgId, userId: params.userId }, async (db) => {
+/**
+ * `existingDb` -- R81_F26 (2026-09-08). This helper is called from inside an
+ * already-open withTenantContext at many real call sites (crm-service.ts's
+ * scoreLead/analyzeOpportunity/getPipelineAiSummary, crm-accounts-service.ts's
+ * analyzeAccountHealth, veri-meeting-service.ts's generateMeetingIntelligence,
+ * fm-register-digitization-service.ts, ticket-intelligence-service.ts -- exactly
+ * the "CRM / FM / meeting transactions" tenant-scoped.ts:144 names). Because it
+ * is fire-and-forget and swallows its own failures, the nesting does not surface
+ * as a broken request: in dev/test assertNotNested() throws INTO the .catch()
+ * below and the execution row is silently never written; in production it warns
+ * and writes the row in a second transaction. Either way the AI usage/cost ledger
+ * loses rows, which is why this is an audit path and not just a latency bug.
+ *
+ * NO enablement gate here (checked: this function's first statement is the
+ * withTenantContext itself), so threading the handle IS the whole fix -- unlike
+ * recordStockReceipt / isPeriodOpenForDate, where the gate itself had to take the
+ * handle too. Omitting `existingDb` behaves exactly as before, including the
+ * fire-and-forget posture and the identical .catch() warning.
+ */
+export function recordOrchestraExecution(params: RecordOrchestraExecutionInput, existingDb?: TenantDb): void {
+  const run = async (db: TenantDb) => {
     const layer = await db.query.orchestraLayers.findFirst({ where: eq(orchestraLayers.layerKey, params.layerKey) });
     if (!layer) return;
 
@@ -102,7 +121,13 @@ export function recordOrchestraExecution(params: RecordOrchestraExecutionInput):
       costUsd: costUsd !== null ? costUsd.toFixed(6) : null,
       routingRationale: params.routingRationale ?? null,
     });
-  }).catch((err) => console.warn(`orchestra_executions logging failed for layer '${params.layerKey}' (non-fatal):`, err));
+  };
+
+  // Reuse the caller's open transaction when there is one; otherwise open our own
+  // exactly as before. `run` is an async arrow, so it always returns a promise and
+  // the .catch() below keeps the identical fire-and-forget posture on both paths.
+  (existingDb ? run(existingDb) : withTenantContext({ orgId: params.orgId, userId: params.userId }, run))
+    .catch((err) => console.warn(`orchestra_executions logging failed for layer '${params.layerKey}' (non-fatal):`, err));
 }
 
 // VERIDIAN Review Framework gap-closure (2026-07-18), "Audit Trail" finding

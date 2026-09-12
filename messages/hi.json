@@ -58,7 +58,6 @@
         }
       },
       "constructionDesign": {
-        "title": "निर्माण (डिज़ाइन और प्रगति)",
         "items": {
           "designStudio": "डिज़ाइन स्टूडियो",
           "floorPlans": "फ़्लोर प्लान",
@@ -244,7 +243,10 @@
           "voiceTickets": "वॉइस टिकट्स",
           "penaltyTracker": "पेनल्टी ट्रैकर",
           "helpCentre": "सहायता केंद्र",
-          "team": "टीम"
+          "team": "टीम",
+          "importComplianceData": "अनुपालन डेटा आयात करें",
+          "veriAi": "VERI AI",
+          "digitizeRegister": "रजिस्टर को डिजिटल करें"
         }
       }
     }

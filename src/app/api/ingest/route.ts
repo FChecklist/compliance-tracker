@@ -5,7 +5,7 @@
  * Node.js runtime — uses pdf-parse and xlsx which need Node.js Buffer.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/supabase/auth-guard'
+import { requireAuth, requireRole } from '@/lib/supabase/auth-guard'
 import { ingestionBatches, ingestionItems } from '@/lib/db'
 import { withTenantContext } from '@/lib/db/tenant-scoped'
 import { eq } from 'drizzle-orm'
@@ -20,6 +20,9 @@ export async function POST(req: NextRequest) {
   const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: 'Organisation not set up' }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, 'manager')
+  if (roleCheck) return roleCheck
 
   let batchId: string | null = null
 

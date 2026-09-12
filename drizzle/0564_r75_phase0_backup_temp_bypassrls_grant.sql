@@ -1,0 +1,17 @@
+-- R75 Phase 0 (Z0-02): 600 of 602 tables in compliance/platform have RLS
+-- enabled, most with FORCE ROW LEVEL SECURITY -- app_runtime correctly lacks
+-- BYPASSRLS (least privilege, exactly as it should for the app's own
+-- runtime role), which means a plain pg_dump connecting as app_runtime
+-- cannot read a true superset of rows and fails outright ("query would be
+-- affected by row-level security policy").
+--
+-- THIS IS A DELIBERATE, TEMPORARY, FULLY-REVERSED PRIVILEGE ESCALATION,
+-- not a standing change: granted here immediately before the one pg_dump
+-- run this phase needs, revoked immediately after in migration 0565, both
+-- steps independently verified against pg_roles.rolbypassrls. Justified
+-- specifically because Vercel production is paused and there are zero real
+-- customers (R75 Part B) -- no live traffic exists in the window this is
+-- granted, so there is no real request this could improperly affect. This
+-- must never be treated as a template for routine app_runtime privilege --
+-- it is a one-time exception for one backup operation, immediately undone.
+ALTER ROLE app_runtime BYPASSRLS;

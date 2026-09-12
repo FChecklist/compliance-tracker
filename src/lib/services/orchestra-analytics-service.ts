@@ -7,7 +7,7 @@
 // which are real policy-engine refusals (Wave 46's Constitution/Policy
 // Enforcement Engine) that never reached an LLM at all.
 import { orchestraExecutions } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, gte, sql } from "drizzle-orm"
 
 export type OrchestraAnalyticsSummary = {
@@ -24,8 +24,17 @@ export type OrchestraAnalyticsSummary = {
   executionsByDay: { day: string; count: number }[]
 }
 
-export async function getOrchestraAnalytics(ctx: { orgId: string }, sinceDays: number = 30): Promise<OrchestraAnalyticsSummary> {
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+/**
+ * `existingDb` -- R81_F26 (2026-09-08). kpi-hub-service.ts's getKpiHubSummary()
+ * calls this from INSIDE its own open withTenantContext, which assertNotNested()
+ * rejects. This function has NO enablement gate of its own (checked: no
+ * require*Enabled call anywhere in it), so threading the handle into the body IS
+ * the whole fix here -- unlike recordStockReceipt/isPeriodOpenForDate, where the
+ * gate itself had to take the handle too. Omitting `existingDb` behaves exactly
+ * as before.
+ */
+export async function getOrchestraAnalytics(ctx: { orgId: string }, sinceDays: number = 30, existingDb?: TenantDb): Promise<OrchestraAnalyticsSummary> {
+  const run = async (db: TenantDb) => {
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() - sinceDays)
 
@@ -75,7 +84,9 @@ export async function getOrchestraAnalytics(ctx: { orgId: string }, sinceDays: n
       costByModel: costByModel.map((r) => ({ model: r.model ?? "unknown", provider: r.provider ?? "unknown", costUsd: Number(r.costUsd), executions: Number(r.executions) })),
       executionsByDay: executionsByDay.map((r) => ({ day: r.day, count: Number(r.count) })),
     }
-  })
+  }
+
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId }, run)
 }
 
 // AI Architecture / Explainability & Transparency gap-closure (2026-07-18):

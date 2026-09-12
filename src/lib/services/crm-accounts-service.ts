@@ -668,7 +668,8 @@ export async function analyzeAccountHealth(ctx: CrmAccountContext, accountId: st
     // field reaching the model here.
     const policyDecision = enforcePolicy(
       { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.analyze_account" },
-      account.name
+      account.name,
+      db
     )
     if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403)
 
@@ -695,12 +696,21 @@ export async function analyzeAccountHealth(ctx: CrmAccountContext, accountId: st
       modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 400 }, modelConfig.fallback
     )
 
+    // R81_F26 (2026-09-08): `db` is this function's own open transaction
+    // handle -- this call is INSIDE the withTenantContext callback of analyzeAccountHealth()
+    // opened at that function's second statement. recordOrchestraExecution is fire-and-forget and
+    // swallows its own failures, so the nesting produced no error anywhere: in
+    // dev/test assertNotNested's throw lands in its .catch() and the AI audit row
+    // required by VERIDIAN_AI_CONSTITUTION #19 / SEC-03 is silently never written;
+    // in production the guard only warns and the row is written in a second
+    // transaction. No enablement gate inside the logger (its first statement is
+    // the withTenantContext itself), so threading the handle is the whole fix.
     recordOrchestraExecution({
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.analyze_account",
       input: { accountId }, output: { healthScore: result.healthScore },
       status: "completed", durationMs: Date.now() - startedAt,
       provider: modelConfig.provider, model: modelConfig.model, usage,
-    })
+    }, db)
 
     const [updated] = await db.update(crmAccounts).set({
       aiHealthScore: Math.round(result.healthScore), aiRiskFactors: result.riskFactors ?? [],

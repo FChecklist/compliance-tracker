@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth, hasRole } from "@/lib/supabase/auth-guard"
+import { requireAuth, hasRole, requireRole } from "@/lib/supabase/auth-guard"
 import { getSalesPipelineDashboardData, setSalesTarget, ServiceError } from "@/lib/services/crm-service"
 import type { users } from "@/lib/db"
 
@@ -40,6 +40,9 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()

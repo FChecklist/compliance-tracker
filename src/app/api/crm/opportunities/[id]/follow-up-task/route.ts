@@ -17,7 +17,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     // attach to. Omitted entirely, this behaves exactly as before.
     const body = await request.json().catch(() => ({}))
     const fromTaskId = typeof body?.fromTaskId === "string" ? body.fromTaskId : undefined
-    const result = await createFollowUpTaskFromOpportunity({ orgId, userId: dbUser.id }, id, fromTaskId)
+    const result = await createFollowUpTaskFromOpportunity({ orgId, userId: dbUser.id, role: dbUser.role }, id, fromTaskId)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

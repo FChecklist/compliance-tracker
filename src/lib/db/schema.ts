@@ -1,4 +1,4 @@
-import { pgSchema, pgEnum, text, boolean, integer, timestamp, numeric, jsonb, date } from 'drizzle-orm/pg-core'
+import { pgSchema, pgEnum, text, boolean, integer, smallint, timestamp, numeric, jsonb, date } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { relations, sql } from 'drizzle-orm'
 
@@ -4308,6 +4308,37 @@ export const projects = complianceSchemaDB.table('projects', {
   // derived from the BOQ (Rajat explicitly ruled that out -- a BOQ is what
   // WE think the job is worth, a PO is what the CLIENT has committed to).
   projectValue: numeric('project_value'),
+  // R85 Addendum 3 v4, Phase 4 (E3, gates 4-01/4-02; owner rulings D87/D91,
+  // claude_log 366/375; supersession notice 379). The gross/net stack's two
+  // configurable rates.
+  //
+  // WHY BOTH LIVE HERE, ON `projects`, RATHER THAN A SEPARATE ORG-SETTINGS
+  // TABLE: the spec frames these at two different levels -- "VAT ...
+  // configurable per jurisdiction" vs "retention ... configurable per
+  // project" -- and this comment exists because that distinction was
+  // deliberately investigated, not glossed over. This schema has NO
+  // `organizations`/`org_settings`/`*_settings` table of any kind (verified
+  // by grep across this whole file before adding these columns) -- every
+  // table in `compliance` carries `orgId` directly as a bare tenant-scope
+  // column, with no row anywhere in this schema representing "the org
+  // itself" for a jurisdiction-level default to live on. `projects` is
+  // therefore the finest AND ONLY existing level that can stand in for "this
+  // job's jurisdiction": a firm operating across multiple emirates/countries
+  // sets a different vatRatePercent per project exactly the way it would set
+  // a different jurisdiction per project, and nothing upstream of `projects`
+  // exists in this schema to inherit a default from. retentionPercent is
+  // unambiguously project-level per spec and needs no such justification.
+  // This is intentionally NOT the same field as constructionInterimBills.
+  // retentionPercent / erpPurchaseInvoices.retentionPercent (both already
+  // real, per-transaction retention rates snapshotted at billing time for a
+  // specific AR/AP document) -- those answer "what retention applied to THIS
+  // bill", this answers "what is this PROJECT's target/default retention
+  // rate for the Phase 4 gross/net stack", a distinct, coarser-grained
+  // question. Both NOT NULL with a real default so every existing project
+  // (backfilled to the default) computes a real gross/net stack immediately
+  // rather than needing a migration-time per-row decision.
+  vatRatePercent: numeric('vat_rate_percent').notNull().default('5'),
+  retentionPercent: numeric('retention_percent').notNull().default('5'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -10184,7 +10215,7 @@ export const tokenUsageLedger = complianceSchemaDB.table('token_usage_ledger', {
   taskId: text('task_id'), // logical ref (pipeline_tasks id, or a caller-generated run id for ai_team_internal rows), not a hard FK
   routeId: text('route_id'), // logical ref: platform.mother_router_memory.dispatch_id, when routed through Mother Router (most calls aren't, today)
   sessionId: text('session_id'), // directive rule #21 ("every AI call has a session_id") -- closes an already-violated rule; no writer yet
-  level: text('level'), // src/lib/ai-router/escalation-tier-catalog.ts's AiEscalationTier ('PERCEPTION'|'REASONING'|'AUTHORITY'), free text like sibling `scope` column -- Phase 6 wiring, not this PR
+  level: text('level'), // R80 Part 2 P1.4: repointed from escalation-tier-catalog.ts's AiEscalationTier (PERCEPTION/REASONING/AUTHORITY) -- that file was deleted (see this migration's-era commit): zero production importers, unwired by its own header, its own test admitted 2 of 3 models don't exist in the live roster, "L3" already means a human approver elsewhere (analyse.ts's promotePhraseMapCandidate), and building a 3rd AI-tier-to-AI-tier catalog inverts the actual directive (AI escalation LAST, target <5% AI). Free text like sibling `scope` column; the pipeline's own vocabulary is 'pipeline_l1'|'pipeline_l2' (level-model-registry.ts's PipelineLevelRole) -- use that, not a re-invented 3-tier scheme, if this column ever gets a real writer.
   aiRole: text('ai_role'), // directive §19's 9-value WHAT-kind-of-step taxonomy, distinct from roleKey's WHO/job-title taxonomy above -- no writer yet
   cacheReadTokens: integer('cache_read_tokens'), // named to match prompt_cache_metrics/LLMUsage, not directive's "cache_write_tokens" synonym -- see 0524 header
   cacheCreationTokens: integer('cache_creation_tokens'),
@@ -10831,6 +10862,29 @@ export const constructionBoqs = complianceSchemaDB.table('construction_boqs', {
   createdById: text('created_by_id').notNull(),
   approvedById: text('approved_by_id'),
   approvedAt: timestamp('approved_at'),
+  // R85 Addendum 3 v4, Phase 4 (4-07, D88): the MANUAL CONTRACT OVERRIDE.
+  // Lives on the BOQ header, not per line item -- Part D's objects table
+  // feeds "Manual contract override" straight into `contract_value` (the
+  // whole-BOQ rolled-up total this file's revision already represents), and
+  // the C-1..C-8 comparison block only ever shows ONE contract_value figure
+  // per BOQ/revision, never a per-line override. X-12 is explicit that this
+  // NEVER overwrites the computed total: resolveEffectiveContractValue() in
+  // boq-dual-view-service.ts reads both this column and the rollup and
+  // returns which one is "in force" without ever discarding the other --
+  // this row is not touched by that read, only by applyContractOverride().
+  // All five columns are set together, by applyContractOverride() only nulls
+  // them out; overrideActorId mirrors approvedById's naming (a user id, not
+  // free text, despite the spec's own prose saying "actor").
+  // evidenceArtefactRef is REQUIRED by applyContractOverride() (D88: every
+  // contract-side change after confirmation needs a cited evidence
+  // artefact) even though the column itself is nullable at the DB level --
+  // nullable here only so a plain ALTER TABLE stays additive/non-breaking;
+  // the service layer is what actually enforces "never empty".
+  contractValueOverride: numeric('contract_value_override'),
+  overrideActorId: text('override_actor_id'),
+  overrideAt: timestamp('override_at'),
+  overrideReason: text('override_reason'),
+  evidenceArtefactRef: text('evidence_artefact_ref'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -10932,6 +10986,174 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   // text equals its old name), never by blind text replace across the org.
   category: text('category'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // R85 Addendum 3 v2, Phase 1 (owner rulings D87/claude_log 366, D90/374, D91/375):
+  // the dual-view money model. `quantity`/`rate`/`amount` above are UNCHANGED and
+  // keep meaning what they have always meant -- the quoted/contract figure (D89/D90
+  // 1-02) -- nothing reads or writes them differently because of this addition.
+  // These four columns are the new, explicit home for BOTH sides of the line:
+  //   PROJECT (internal/cost) side: qtyProject, rateProject
+  //   CONTRACT (customer-facing) side: qtyContract, rateContract
+  // All NULLABLE, additive migration (drizzle/0593_r85a3_p1_boq_line_project_contract_columns.sql,
+  // applied live via Supabase MCP 2026-09-12, version 20260912063030). Backfilled at
+  // migration time: qtyContract=quantity, rateContract=rate for all 912 existing rows
+  // (verified 0 real mismatches between qtyContract*rateContract and amount, after
+  // correcting for float-precision display noise -- one genuine, PRE-EXISTING,
+  // unrelated data anomaly found and flagged, not fixed here: line
+  // fx3401ycp8l9ml6s6vj8g1iv, quantity=100/rate=50/amount=150, created 2026-09-11,
+  // predates this migration).
+  //
+  // *** rateProject IS THE MOST SENSITIVE FIELD IN THE PRODUCT (D91 B1) ***: the
+  // firm's own buying cost. NEVER client-reachable in any surface, export, share
+  // link, or API response -- see D91 Part B1/B4 and Addendum 3 Phase 8's client-
+  // boundary gates before adding any new reader of this column.
+  //
+  // ALL SIX of project_value/contract_value/variance/variance%/quantity variance/
+  // rate variance are COMPUTED, NEVER STORED (D90 A6/A4, D91 A4) -- they live in
+  // construction-boq-service.ts as service-layer derivations, not as columns here.
+  qtyProject: numeric('qty_project'),
+  rateProject: numeric('rate_project'),
+  qtyContract: numeric('qty_contract'),
+  rateContract: numeric('rate_contract'),
+})
+
+// R85 Addendum 3 v4, Phase 3 (E2 "the versioned baseline, not a freeze" --
+// D87/D88/D89/D90/D91, claude_log 366/372/373/374/375; work order
+// WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md section E2/Phase 3, gates
+// 3-01..3-09). Confirming a baseline is an explicit user act (never
+// automatic -- 3-02) that snapshots every line's four dual-view columns
+// (qtyProject/rateProject/qtyContract/rateContract) at that moment. Prior
+// versions are NEVER overwritten or deleted (3-03) -- enforced at the DB
+// level too (drizzle/0594 REVOKEs UPDATE/DELETE from app_runtime AND
+// service_role; only the table owner retains implicit privilege, same
+// documented limitation as compliance.audit_logs -- see drizzle/0236's own
+// Part A comment). rate_project as it stood at each confirmation IS the
+// estimated cost for every later comparison (A5, 3-09) -- proven in
+// boq-baseline-service.test.ts by mutating the LIVE line after confirmation
+// and re-reading this row's line_snapshot unchanged.
+//
+// ONE ROW PER BASELINE VERSION, not one row per line -- line_snapshot is a
+// JSONB array (BoqBaselineLineSnapshot[] in boq-baseline-service.ts) of
+// every line's id/parentLineItemId/qtyProject/rateProject/qtyContract/
+// rateContract at confirmation time, shaped to match boq-dual-view-
+// service.ts's BoqLineForRollup exactly so rollUpRootLines()/
+// computeCostCoverage() run directly against it (single-producer rule,
+// X-27 -- nothing here recomputes that math). The work order's own 3-01
+// only requires "a snapshot of every line's four columns", not line-level
+// baseline rows.
+export const boqBaseline = complianceSchemaDB.table('boq_baseline', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  boqId: text('boq_id').notNull(),
+  version: integer('version').notNull(),
+  confirmedById: text('confirmed_by_id').notNull(),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }).notNull().defaultNow(),
+  // D88: PO, proforma, agreed proposal, term sheet, proposal sent, agreement,
+  // email, or explicit written confirmation. NOT NULL and non-empty (DB CHECK
+  // constraint in drizzle/0594) -- confirmBaseline() validates this BEFORE
+  // ever reaching the DB; the DB constraint is the backstop.
+  evidenceArtefactRef: text('evidence_artefact_ref').notNull(),
+  // BoqBaselineLineSnapshot[] -- see boq-baseline-service.ts for the shape.
+  lineSnapshot: jsonb('line_snapshot').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// R85 Addendum 3 v4, Phase 6 -- VISIBILITY AND THE CLIENT BOUNDARY (Part H:
+// deliberately sequenced BEFORE Phase 7 exports -- build the boundary before
+// the thing it protects exists). Owner rulings D87 (claude_log 366), D88
+// (372), D89 (373), D90 (374), D91 (375). Work order: Google Drive
+// WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md, gates 6-01..6-05.
+//
+// Per-org, per-INTERNAL-role toggle: which roles may see cost/variance/
+// project-side figures (rate_project above all -- "the most sensitive field
+// in the product", D91 B1). ONE row per (org_id, role); the row's absence
+// means "not granted" (fail-closed default -- see
+// cost-visibility-service.ts's canRoleSeeCost()).
+//
+// ★ HARD FLOOR (6-01), NOT CONFIGURABLE BY ANYONE, ENFORCED HERE AT THE DB
+// LAYER -- NOT JUST IN APPLICATION CODE ★: the CHECK constraint below makes
+// it structurally impossible to INSERT or UPDATE a row that grants
+// client_viewer cost visibility, so a direct SQL write or a future
+// application-code bug cannot violate it either -- see
+// cost_visibility_config_no_client_viewer_grant in
+// drizzle/0596_r85a3_p6_cost_visibility_config.sql. `role` reuses the real
+// userRoleEnum (not a separate/duplicated role model, not the
+// PROJEXA-repo-only owner/admin/pm/site_engineer/member/client_viewer
+// OrgRole shape -- see this repo's own CLAUDE.md "PROJEXA is a SEPARATE
+// repository" section) so an invalid role string is rejected at the type
+// level before the CHECK constraint is ever reached.
+//
+// changedById/changedAt (6-02): every visibility change captures who made it
+// and when -- set-cost-visibility-for-role's upsert always rewrites both,
+// never just canSeeCost, so the row can never show a stale
+// changedBy/changedAt beside a fresh value.
+export const costVisibilityConfig = complianceSchemaDB.table('cost_visibility_config', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  role: userRoleEnum('role').notNull(),
+  canSeeCost: boolean('can_see_cost').notNull().default(false),
+  changedById: text('changed_by_id').notNull(),
+  changedAt: timestamp('changed_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// R85 Addendum 3 v4 (FINAL, claude_log 379), Phase 10 / spec Part F -- THE
+// WHAT-IF / SCENARIO ENGINE (gates 10-01..10-13). Work order: Google Drive
+// WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md, Part F.
+//
+// 10-01: "A scenario is a NON-DESTRUCTIVE scratch layer." ONE ROW PER
+// SCENARIO (not per adjustment, same "one row, jsonb array" shape as
+// boqBaseline above) -- `adjustments` is a ScenarioAdjustment[] (shape owned
+// by src/lib/services/boq-scenario-service.ts, this file's own single-
+// producer for every figure derived from it, per X-27). NOTHING on this row
+// is ever a computed money figure (X-02) -- only the raw adjustment
+// instructions (mode/value/side per line, or an exclude flag) and the
+// scenario's own bookkeeping (name/author/status/commit metadata). Every
+// BASE/SCENARIO/DELTA figure (10-05) is derived at read time by re-running
+// boq-dual-view-service.ts's existing computeBoqLineMoneyView/rollUpRootLines
+// over the live BOQ lines with these adjustments applied -- never stored.
+//
+// 10-08 ("NOTHING IS WRITTEN UNTIL COMMIT"): every column below except
+// `status`/`committedAt`/`committedById`/`committedRevisionBoqId` is written
+// ONLY by createScenario/addAdjustment/addBulkAdjustment/removeAdjustment --
+// none of which ever touches constructionBoqLineItems or constructionBoqs.
+// The BOQ itself is untouched until commitScenario() runs (see that
+// function's own header for exactly what it writes and why).
+export const boqScenarioStatusEnum = complianceSchemaDB.enum('boq_scenario_status', ['draft', 'committed'])
+
+export const boqScenario = complianceSchemaDB.table('boq_scenario', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  // The LIVE BOQ this scenario was built against. A scenario's adjustments
+  // are always resolved against boqId's CURRENT live line items at read/
+  // commit time (never a second frozen copy of the lines themselves -- only
+  // boq_baseline freezes lines, per X-07/E2; a scenario is explicitly NOT a
+  // baseline).
+  boqId: text('boq_id').notNull(),
+  projectId: text('project_id').notNull(), // denormalized from boqId at creation, for listing scenarios by project without a join
+  // 10-01 "base baseline version" -- optional: a project may have no
+  // confirmed baseline yet (Phase 3, boq_baseline) when a scenario is first
+  // built. Nullable rather than a fabricated 0/1.
+  baseBaselineVersion: integer('base_baseline_version'),
+  name: text('name').notNull(),
+  authorId: text('author_id').notNull(),
+  status: boqScenarioStatusEnum('status').notNull().default('draft'),
+  // ScenarioAdjustment[] -- see boq-scenario-service.ts for the shape. Empty
+  // array (never null) for a freshly-created scenario with no adjustments yet.
+  adjustments: jsonb('adjustments').notNull().default([]),
+  // 10-09/10-11: set ONLY by commitScenario(), together, once. A committed
+  // scenario is never mutated again (enforced in boq-scenario-service.ts,
+  // not the DB layer -- matching this table's own "mutable until an explicit
+  // terminal action" shape, unlike boq_baseline's DB-level immutability,
+  // because a DRAFT scenario legitimately needs UPDATE for its adjustments
+  // list right up until commit).
+  committedAt: timestamp('committed_at', { withTimezone: true }),
+  committedById: text('committed_by_id'),
+  // Set only when commitScenario() had to create a new BOQ revision for an
+  // excluded line or an evidenced contract-side change (10-09's third
+  // bullet, X-24) -- null when the commit was cost-side only.
+  committedRevisionBoqId: text('committed_revision_boq_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 // R67 lane I (WS-I item I-05, R-177): the org's editable BOQ category list --
@@ -11108,6 +11330,10 @@ export const constructionBoqsRelations = relations(constructionBoqs, ({ many }) 
 export const constructionBoqLineItemsRelations = relations(constructionBoqLineItems, ({ one, many }) => ({
   boq: one(constructionBoqs, { fields: [constructionBoqLineItems.boqId], references: [constructionBoqs.id] }),
   progressEntries: many(constructionWorkProgressEntries),
+}))
+
+export const boqBaselineRelations = relations(boqBaseline, ({ one }) => ({
+  boq: one(constructionBoqs, { fields: [boqBaseline.boqId], references: [constructionBoqs.id] }),
 }))
 
 export const constructionInterimBillsRelations = relations(constructionInterimBills, ({ many }) => ({
@@ -12958,6 +13184,34 @@ export const aiRoutingAuditLog = platformSchemaDB.table('ai_routing_audit_log', 
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// R80 Part 2 / W-ROUTER P1.3 -- a dedicated reader for the pipeline's own
+// software-vs-AI split, deliberately NOT folded into ai_routing_audit_log
+// above (that table's axis is aiRouterScopeEnum -- Mother Router's
+// software_team/end_user_org/sales_marketing/customer_success scopes, a
+// different question from "did compliance.phrase_map's trigram tier or
+// Level 1 resolve this batch of segments") and NOT folded into
+// compliance.ai_reduction_snapshots either (that table measures a different
+// subsystem entirely -- platform.task_capabilities via
+// recordExecutionOutcome, none of whose callers are in src/lib/pipeline;
+// see R80_PART2_AI_ROUTER_AUDIT.md finding #25's explicit warning against
+// mixing the two). One row per measurement run (a live batch, a calibration
+// fixture run, or a seeded test), not one row per submission -- per-
+// submission telemetry already lives on compliance.submissions (migration
+// 0571, step 1b: level/source/l0_hit_rate/model_calls/cache_hits/
+// level1_outcome/level1_refusal_code).
+export const pipelineSimilarityMetrics = platformSchemaDB.table('pipeline_similarity_metrics', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  measuredAt: timestamp('measured_at').notNull().defaultNow(),
+  /** free text identifying what produced this row -- e.g. "p1.3-seed-test", "live-batch-2026-09-10" -- never parsed, only read by a human/dashboard. */
+  label: text('label').notNull(),
+  sampleSize: integer('sample_size').notNull(),
+  fuzzyHits: integer('fuzzy_hits').notNull(),
+  modelCalls: integer('model_calls').notNull(),
+  /** fuzzyHits / sampleSize, precomputed so a reader never has to guess the denominator (segments with zero AI need, e.g. an L0 exact hit, are never counted into sampleSize at all -- see phrase-fuzzy.ts). */
+  fuzzyHitRate: numeric('fuzzy_hit_rate', { precision: 5, scale: 4 }).notNull(),
+  note: text('note'),
+})
+
 // ─── Mother Router / AI Agent Roster persistent memory (ai-os gap
 // mother-router-roster-memory, 2026-07-26) ─────────────────────────────────
 // Genuinely distinct from ai_routing_audit_log above: that table is a
@@ -13378,6 +13632,31 @@ export const submissions = complianceSchemaDB.table('submissions', {
   // independently by request input. NULL on every submission that existed
   // before this migration -- not backfilled, see 0525's own header.
   classification: submissionClassificationEnum('classification'),
+  // R80 Part 2 step 1b (drizzle/0571) -- the software-vs-AI split, per
+  // submission. The 95/5 target could be neither substantiated nor refuted
+  // because nothing measured it: on the live typed path dry-run.ts DISCARDED
+  // modelCalls/cacheHits outright, so the numbers were never even computed.
+  // Step 1a (5b2ef432) computes them; these persist them. All nullable and NOT
+  // backfilled -- the 50 pre-existing rows keep NULL, because inventing values
+  // would fabricate history (same posture as 0525's header above).
+  level: smallint('level'),
+  source: text('source'),
+  l0HitRate: numeric('l0_hit_rate', { precision: 5, scale: 4 }),
+  modelCalls: integer('model_calls'),
+  cacheHits: integer('cache_hits'),
+  // 'resolved' | 'refused' | 'not_needed' | 'error'. An ENUM-shaped set rather
+  // than a boolean because a boolean cannot separate "the provider gate refused
+  // every end user" from "software genuinely resolved everything without AI" --
+  // both give modelCalls: 0, the first means the AI is switched OFF and the
+  // second is the 95/5 success case. Reported as one number they would be
+  // indistinguishable. Constrained by a NOT VALID CHECK in 0571.
+  level1Outcome: text('level1_outcome'),
+  // A CLOSED CODE, NEVER AN ERROR MESSAGE -- see 0571's header. Raw err.message
+  // routinely carries connection strings, tokens and request payloads, and this
+  // column is production the instant it is written under the one-database
+  // ruling. A code cannot leak a credential; a message can, and the leak would
+  // only be found by grepping the column later. Detail belongs in logs.
+  level1RefusalCode: text('level1_refusal_code'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

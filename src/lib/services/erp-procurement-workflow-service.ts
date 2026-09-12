@@ -5,6 +5,7 @@
 // Workflow Engine (see approval-workflow-service.ts) as its SECOND real
 // consumer after erp_journal_entry -- proving the engine generalizes
 // rather than being a single-use abstraction disguised as generic.
+import { isShareLinkUsable } from "@/lib/share-link-usable"
 import {
   erpPurchaseRequisitions, erpPurchaseRequisitionItems,
   erpRfqs, erpRfqItems, erpRfqSuppliers,
@@ -417,7 +418,7 @@ export async function listAuctionBids(ctx: { orgId: string }, auctionId: string)
 // same RLS-bypass rationale as getSupplierPortalData()/getGuestConversation().
 async function resolveSupplierFromPortalToken(token: string) {
   const link = await rawDb.query.erpSupplierPortalLinks.findFirst({ where: eq(erpSupplierPortalLinks.token, token) })
-  if (!link || link.revokedAt || link.expiresAt < new Date()) throw new ServiceError("This vendor portal link is invalid or has expired", 404)
+  if (!isShareLinkUsable(link, new Date())) throw new ServiceError("This vendor portal link is invalid or has expired", 404)
   return link.supplierId
 }
 

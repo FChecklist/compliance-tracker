@@ -84,8 +84,22 @@ export async function getBudgetActuals(ctx: { orgId: string }, budgetId: string)
 
     let actualLaborCost = 0
     let totalHours = 0
+    // R81_F26 (2026-09-08) -- the worst nesting amplifier the R81_F25 sweep
+    // found. resolveBillableRate() used to open its OWN withTenantContext, and
+    // this loop calls it ONCE PER TIME ENTRY from inside the transaction opened
+    // above, so a project with 400 logged entries asked for 400 further
+    // connections out of an app_runtime pool whose max is 5. assertNotNested()
+    // only THROWS in development and test (tenant-scoped.ts:188-192); in
+    // PRODUCTION it console.warn()s and lets the request proceed, so this did
+    // not fail loudly there -- it read the rate table in a different
+    // transaction from the budget/issue/time-entry reads above, priced actuals
+    // against rates that may have moved underneath, and hammered the pool.
+    // Threading the open handle keeps the whole computation on one connection
+    // and one consistent snapshot. resolveBillableRate has no enablement gate
+    // of its own, so passing the handle is the complete fix there (unlike
+    // createSalesInvoice, whose requireErpEnabled had to take the handle too).
     for (const entry of entries) {
-      const rate = await resolveBillableRate({ orgId: ctx.orgId }, entry.userId, entry.spentOn)
+      const rate = await resolveBillableRate({ orgId: ctx.orgId }, entry.userId, entry.spentOn, db)
       actualLaborCost += rate * Number(entry.hours)
       totalHours += Number(entry.hours)
     }

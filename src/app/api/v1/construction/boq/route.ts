@@ -5,6 +5,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { listBoqs, parseBoqInclude, createBoq, ServiceError } from "@/lib/services/construction-boq-service"
 import { withRouteTiming } from "@/lib/route-timing"
+// R85 Addendum 3 v4 Phase 6 (gates 6-01/6-03a): THE ONE GATE every BOQ read
+// route must call before returning line items -- see cost-visibility-
+// service.ts's own header for why. An API-key-only caller (ctx.dbUser null)
+// has no real internal role to check and is always treated as cost-blind,
+// same as this file's own comment on the shared-per-org-API-key posture.
+import { applyCostVisibility } from "@/lib/services/cost-visibility-service"
+import type { UserRole } from "@/lib/supabase/role-rank"
 
 // R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
 // route guards read it with a regex -- and delegates to its original body so
@@ -45,7 +52,13 @@ async function GET_impl(request: NextRequest) {
     if (variation) parts.push("variation")
     if (compare) parts.push("compare")
     const boqs = await listBoqs({ orgId: ctx.orgId }, projectId, { include: parts.join(",") })
-    return NextResponse.json({ boqs })
+    // 6-01/6-03a: rate_project/qty_project (and any future project-side
+    // figure) are stripped out here for any caller who is not granted cost
+    // visibility -- client_viewer can NEVER pass this, unconditionally (see
+    // canRoleSeeCost's hard floor).
+    const role = (ctx.dbUser?.role as UserRole | undefined) ?? null
+    const responseBody = await applyCostVisibility({ orgId: ctx.orgId }, role, { boqs })
+    return NextResponse.json(responseBody)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 construction BOQ list error:", error)

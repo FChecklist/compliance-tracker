@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { endStaffAssignment, ServiceError } from "@/lib/services/firm-staff-assignment-service"
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ assignmentId: string }> }) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { assignmentId } = await ctx.params

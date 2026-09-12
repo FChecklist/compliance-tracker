@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { createReportItemAction, listReportItemActions, ServiceError } from "@/lib/services/report-item-action-service"
 
 // GET ?reportId=<id> -- the action trail for one report's rows (accept/
@@ -30,6 +30,16 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  // R75 Part 2 Phase 5 (G4 reports): had no role check at all. This only
+  // records that the current user acknowledged/delegated/to-do'd a report
+  // row -- it never creates the delegation/task itself and never mutates the
+  // underlying domain entity (see report-item-action-service.ts's own
+  // header) -- a genuinely low-stakes action, so "member" (not "manager") is
+  // the right floor, same posture as this codebase's other low-stakes-create
+  // routes (e.g. erp/journal-entries's draft-only POST).
+  const roleCheck = requireRole(dbUser, "member")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()

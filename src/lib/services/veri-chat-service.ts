@@ -7,24 +7,34 @@
 // receiving content shared from any app, including WhatsApp/Telegram's own
 // native "Export Chat"/Share Sheet).
 import { createId } from "@paralleldrive/cuid2"
+import { isShareLinkUsable } from "@/lib/share-link-usable"
 import {
   db, conversations, conversationParticipants, messages, messageAttachments,
   conversationShareLinks, conversationGuestAccess, documents, tickets,
 } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
 export type VeriChatContext = { orgId: string; userId: string }
 
-async function assertParticipant(orgId: string, userId: string, conversationId: string) {
-  return withTenantContext({ orgId, userId }, async (db) => {
+/**
+ * `existingDb` is the caller's open transaction handle, when it has one.
+ * Three callers (attachDocumentToMessage, revokeShareLink, revokeGuestAccess)
+ * call this from inside their own withTenantContext, so without it the
+ * membership check opened a second connection against a max: 5 pool -- and,
+ * worse, checked participation in a transaction separate from the one whose
+ * writes that check is supposed to authorise.
+ */
+async function assertParticipant(orgId: string, userId: string, conversationId: string, existingDb?: TenantDb) {
+  const run = async (db: TenantDb) => {
     const membership = await db.query.conversationParticipants.findFirst({
       where: and(eq(conversationParticipants.conversationId, conversationId), eq(conversationParticipants.userId, userId)),
     })
     if (!membership) throw new ServiceError("Conversation not found", 404)
-  })
+  }
+  return existingDb ? run(existingDb) : withTenantContext({ orgId, userId }, run)
 }
 
 export async function setConversationContext(
@@ -45,7 +55,7 @@ export async function attachDocumentToMessage(ctx: VeriChatContext, messageId: s
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const message = await db.query.messages.findFirst({ where: eq(messages.id, messageId) })
     if (!message) throw new ServiceError("Message not found", 404)
-    await assertParticipant(ctx.orgId, ctx.userId, message.conversationId)
+    await assertParticipant(ctx.orgId, ctx.userId, message.conversationId, db)
     const document = await db.query.documents.findFirst({ where: and(eq(documents.id, documentId), eq(documents.orgId, ctx.orgId)) })
     if (!document) throw new ServiceError("Document not found", 404)
 
@@ -80,7 +90,7 @@ export async function revokeShareLink(ctx: VeriChatContext, linkId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const link = await db.query.conversationShareLinks.findFirst({ where: eq(conversationShareLinks.id, linkId) })
     if (!link) throw new ServiceError("Share link not found", 404)
-    await assertParticipant(ctx.orgId, ctx.userId, link.conversationId)
+    await assertParticipant(ctx.orgId, ctx.userId, link.conversationId, db)
     const [updated] = await db.update(conversationShareLinks).set({ revokedAt: new Date() }).where(eq(conversationShareLinks.id, linkId)).returning()
     return updated
   })
@@ -95,7 +105,7 @@ export async function revokeShareLink(ctx: VeriChatContext, linkId: string) {
 // against, so this is the legitimate, existing RLS-bypass path, not a new one.
 export async function getSharedConversation(token: string) {
   const link = await db.query.conversationShareLinks.findFirst({ where: eq(conversationShareLinks.token, token) })
-  if (!link || link.revokedAt || link.expiresAt < new Date()) throw new ServiceError("This share link is invalid or has expired", 404)
+  if (!isShareLinkUsable(link, new Date())) throw new ServiceError("This share link is invalid or has expired", 404)
 
   const convo = await db.query.conversations.findFirst({ where: eq(conversations.id, link.conversationId) })
   if (!convo) throw new ServiceError("This share link is invalid or has expired", 404)
@@ -187,7 +197,7 @@ export async function revokeGuestAccess(ctx: VeriChatContext, guestAccessId: str
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const access = await db.query.conversationGuestAccess.findFirst({ where: eq(conversationGuestAccess.id, guestAccessId) })
     if (!access) throw new ServiceError("Guest access not found", 404)
-    await assertParticipant(ctx.orgId, ctx.userId, access.conversationId)
+    await assertParticipant(ctx.orgId, ctx.userId, access.conversationId, db)
     const [updated] = await db.update(conversationGuestAccess).set({ revokedAt: new Date() }).where(eq(conversationGuestAccess.id, guestAccessId)).returning()
     return updated
   })
@@ -198,7 +208,7 @@ export async function revokeGuestAccess(ctx: VeriChatContext, guestAccessId: str
 // module already validates, rather than inventing a second token check.
 export async function resolveActiveGuestAccess(token: string) {
   const access = await db.query.conversationGuestAccess.findFirst({ where: eq(conversationGuestAccess.token, token) })
-  if (!access || access.revokedAt || access.expiresAt < new Date()) throw new ServiceError("This guest link is invalid or has expired", 404)
+  if (!isShareLinkUsable(access, new Date())) throw new ServiceError("This guest link is invalid or has expired", 404)
   return access
 }
 

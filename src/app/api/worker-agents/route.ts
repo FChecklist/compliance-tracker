@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 import { discoverWorkerAgent, proposeWorkerAgent, ServiceError } from "@/lib/services/worker-agent-service";
 
 // Lists every worker agent visible to the caller across all 4 tiers: global
@@ -55,6 +55,17 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth();
   if (response) return response;
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 });
+  // R75 Part 2 Phase 5 (G8-misc): proposeWorkerAgent() already requires admin
+  // for the customer/client tiers (worker-agent-service.ts), but the "user"
+  // (self-scoped) tier had no route-level gate at all. "member" is the
+  // chosen minimum: a proposal lands as lifecycleStatus='proposed', pending
+  // a real veridian_admin approval (PATCH /api/approvals/[id]) before it is
+  // ever dispatchable, so a low bar is appropriate -- it excludes only the
+  // viewer-tier roles, matching this codebase's general low bar for a
+  // baseline authenticated org action. Redundant-but-harmless for the
+  // customer/client tiers, which the service already gates higher (admin).
+  const roleCheck = requireRole(dbUser, "member");
+  if (roleCheck) return roleCheck;
 
   try {
     const body = await request.json();

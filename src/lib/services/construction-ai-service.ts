@@ -25,6 +25,7 @@
 // placeholder numbers that didn't match real seeded data, and these prompts
 // exist specifically to not repeat that.
 import { documents } from "@/lib/db"
+import type { TenantDb } from "@/lib/db/tenant-scoped"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
@@ -34,8 +35,8 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { ServiceError } from "./compliance-service"
-import { getProjectDashboard } from "./construction-dashboard-service"
-import { budgetVsActual } from "./construction-reports-service"
+import { getProjectDashboard, getProjectDashboardsWithDb } from "./construction-dashboard-service"
+import { budgetVsActual, budgetVsActualWithDb } from "./construction-reports-service"
 export { ServiceError }
 
 const VISION_MODEL_OVERRIDES: Partial<Record<LLMProvider, string>> = {
@@ -91,12 +92,28 @@ export async function estimateProgressFromPhoto(
 
 export type ProgressSummary = { summary: string; highlights: string[]; concerns: string[] }
 
-export async function generateProgressSummary(ctx: { orgId: string; userId: string }, projectId: string): Promise<ProgressSummary> {
+/**
+ * ROOT CAUSE B. `existingDb` is the caller's open handle:
+ * task-execution/construction-tools.ts receives one from dispatchTool and
+ * called this without it, so the dashboard read and the audit write each
+ * opened a transaction of their own against a max: 5 pool.
+ *
+ * The 404-on-missing-project rule is getProjectDashboard singular's, restated
+ * because the threaded path goes through the plural WithDb form, which returns
+ * an empty array rather than throwing.
+ */
+export async function generateProgressSummary(ctx: { orgId: string; userId: string }, projectId: string, existingDb?: TenantDb): Promise<ProgressSummary> {
   const startedAt = Date.now()
   const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
   if (!modelConfig) throw new ServiceError("No AI model is configured for this organisation", 400)
 
-  const dashboard = await getProjectDashboard({ orgId: ctx.orgId }, projectId)
+  const dashboard = existingDb
+    ? await (async () => {
+        const [d] = await getProjectDashboardsWithDb(existingDb, { orgId: ctx.orgId }, [projectId])
+        if (!d) throw new ServiceError("Project not found", 404)
+        return d
+      })()
+    : await getProjectDashboard({ orgId: ctx.orgId }, projectId)
   const systemPrompt = await resolvePromptTemplate("construction.generate_progress_summary")
   const userMessage = `Project: ${dashboard.projectName}\nReal aggregated data (JSON): ${JSON.stringify(dashboard)}`
 
@@ -110,7 +127,7 @@ export async function generateProgressSummary(ctx: { orgId: string; userId: stri
     input: { projectId }, output: { summaryLength: data.summary?.length ?? 0 },
     status: "completed", durationMs: Date.now() - startedAt,
     provider: modelConfig.provider, model: modelConfig.model, usage,
-  })
+  }, existingDb)
   return data
 }
 
@@ -194,13 +211,22 @@ function templateBudgetScheduleRisk(factors: BudgetScheduleRiskFactors, riskLeve
   }
 }
 
-export async function detectBudgetScheduleRisk(ctx: { orgId: string; userId: string }, projectId: string): Promise<BudgetScheduleRisk> {
+/** ROOT CAUSE B -- see generateProgressSummary above for why. */
+export async function detectBudgetScheduleRisk(ctx: { orgId: string; userId: string }, projectId: string, existingDb?: TenantDb): Promise<BudgetScheduleRisk> {
   const startedAt = Date.now()
 
-  const [dashboard, budgetActual] = await Promise.all([
-    getProjectDashboard({ orgId: ctx.orgId }, projectId),
-    budgetVsActual({ orgId: ctx.orgId }, projectId),
-  ])
+  const [dashboard, budgetActual] = existingDb
+    ? await Promise.all([
+        getProjectDashboardsWithDb(existingDb, { orgId: ctx.orgId }, [projectId]).then((rows) => {
+          if (!rows[0]) throw new ServiceError("Project not found", 404)
+          return rows[0]
+        }),
+        budgetVsActualWithDb(existingDb, { orgId: ctx.orgId }, projectId),
+      ])
+    : await Promise.all([
+        getProjectDashboard({ orgId: ctx.orgId }, projectId),
+        budgetVsActual({ orgId: ctx.orgId }, projectId),
+      ])
   // R67 E-06 (R-108): budgetVsActual's budget/variance are null when the
   // project has no BOQ to derive a budget from. 0 is the right input for the
   // classifier in exactly that case -- classifyBudgetScheduleRisk() already
@@ -235,7 +261,7 @@ export async function detectBudgetScheduleRisk(ctx: { orgId: string; userId: str
     input: { projectId }, output: { riskLevel: result.riskLevel },
     status: "completed", durationMs: Date.now() - startedAt,
     provider: modelConfig.provider, model: modelConfig.model, usage,
-  })
+  }, existingDb)
   return result
 }
 
@@ -246,9 +272,19 @@ export type DrawingDiff = { added: string[]; removed: string[]; changed: string[
 // is done as describe(A) + describe(B) + diff(textA, textB) -- 3 calls,
 // each individually logged -- rather than extending that shared,
 // platform-wide function's signature for one feature's sake.
+/**
+ * G-07 continuation. `existingDb` is the caller's open transaction handle.
+ * The diff-drawings route opens one to download both images and then calls
+ * this from inside it, so both audit writes below nested -- and because
+ * recordOrchestraExecution is fire-and-forget, in dev and test those rows
+ * were silently never written. These two log the vision-model calls, the
+ * most expensive events this product records and the ones an AI usage
+ * ledger least wants missing.
+ */
 export async function diffDrawingRevisions(
   ctx: { orgId: string; userId: string },
-  input: { imageBase64A: string; mimeTypeA: string; imageBase64B: string; mimeTypeB: string }
+  input: { imageBase64A: string; mimeTypeA: string; imageBase64B: string; mimeTypeB: string },
+  existingDb?: TenantDb
 ): Promise<DrawingDiff> {
   const modelConfig = await resolveModelConfig(ctx.orgId, "customer_account_oa")
   if (!modelConfig) throw new ServiceError("No AI model is configured for this organisation", 400)
@@ -257,7 +293,12 @@ export async function diffDrawingRevisions(
 
   const describePrompt = await resolvePromptTemplate("construction.describe_drawing")
 
-  async function describe(imageBase64: string, mimeType: string, label: string): Promise<DrawingDescription> {
+  // `db` is a parameter, not a closure capture of `existingDb`, deliberately.
+  // The nesting guard matches a caller's handle against the callee's DECLARED
+  // TenantDb parameters; a handle reaching an inner function by closure is
+  // invisible to it, so the site would keep being reported as open -- and a
+  // fix the guard cannot see is indistinguishable from no fix.
+  async function describe(imageBase64: string, mimeType: string, label: string, db?: TenantDb): Promise<DrawingDescription> {
     const startedAt = Date.now()
     const { content, usage } = await callLLMVision(
       modelConfig!.provider, visionModel!, modelConfig!.apiKey,
@@ -269,13 +310,13 @@ export async function diffDrawingRevisions(
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "customer_account_oa", eventType: "construction.describe_drawing",
       input: { label }, output: {}, status: "completed", durationMs: Date.now() - startedAt,
       provider: modelConfig!.provider, model: visionModel!, usage,
-    })
+    }, db)
     return JSON.parse(content) as DrawingDescription
   }
 
   const [descA, descB] = await Promise.all([
-    describe(input.imageBase64A, input.mimeTypeA, "revisionA"),
-    describe(input.imageBase64B, input.mimeTypeB, "revisionB"),
+    describe(input.imageBase64A, input.mimeTypeA, "revisionA", existingDb),
+    describe(input.imageBase64B, input.mimeTypeB, "revisionB", existingDb),
   ])
 
   const diffStartedAt = Date.now()
@@ -290,7 +331,7 @@ export async function diffDrawingRevisions(
     input: {}, output: { addedCount: data.added?.length ?? 0, removedCount: data.removed?.length ?? 0 },
     status: "completed", durationMs: Date.now() - diffStartedAt,
     provider: modelConfig.provider, model: modelConfig.model, usage,
-  })
+  }, existingDb)
   return data
 }
 

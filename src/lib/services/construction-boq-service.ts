@@ -27,6 +27,17 @@ import { isSelfApproval } from "./approval-workflow-service"
 // cache. ONE helper, in a dependency-free module -- see its own header for why
 // it does not live in construction-dashboard-service.ts.
 import { bustProjectDashboardCache } from "./project-dashboard-cache"
+// R85 Addendum 3 v4 Phase 2/D91: THE ONE PRODUCER for every project/contract/
+// variance figure on a BOQ line (see that file's own SINGLE PRODUCER RULE
+// header) -- built and tested since Phase 2 but never actually called by any
+// route until now (X-27 gap, closed here). Wired into withComputedRate() so
+// every existing caller of it (getBoq/getBoqRow/listBoqs) gets the dual view
+// with no separate call to remember, plus the two whole-BOQ summaries
+// (rollUpRootLines/computeCostCoverage) attached alongside each BOQ header.
+// Redaction for roles without cost visibility is unchanged and already
+// handles these exact field names -- see cost-visibility-service.ts's
+// PROJECT_SIDE_COST_FIELDS, which was written in anticipation of this wiring.
+import { computeBoqLineMoneyView, rollUpRootLines, computeCostCoverage } from "./boq-dual-view-service"
 export { ServiceError }
 
 export type BoqContext = { orgId: string; userId: string }
@@ -443,7 +454,19 @@ function computedBudget(item: { amount: string; budgetPercentage: string }): num
 }
 
 function withComputedRate(item: typeof constructionBoqLineItems.$inferSelect) {
-  return { ...item, computedRate: computedRate(item), computedBudget: computedBudget(item) }
+  return {
+    ...item,
+    computedRate: computedRate(item),
+    computedBudget: computedBudget(item),
+    // D91 dual view: projectValue/contractValue/variance/variancePercent/
+    // quantityVariance/rateVariance, computed from this row's own
+    // qtyProject/rateProject/qtyContract/rateContract -- see
+    // boq-dual-view-service.ts's own header for the exact math and NOT_SET
+    // rules. Every one of these field names is already in cost-visibility-
+    // service.ts's PROJECT_SIDE_COST_FIELDS redaction set except
+    // contractValue (deliberately kept visible -- the customer-facing side).
+    ...computeBoqLineMoneyView(item),
+  }
 }
 
 // R67 F-04 (R-060/R-063) was the SAME fix arriving from lane F1, and lands
@@ -726,6 +749,16 @@ export async function listBoqs(
       return {
         ...boq,
         ...(include.lineItems ? { lineItems: lineItemsByBoq.get(boq.id) ?? [] } : {}),
+        // D91: same whole-BOQ dual view as getBoq()/getBoqRow() above --
+        // "at every stage" includes the list screen, not just the object
+        // page. Computed from the RAW rows (rawLineItemsByBoq), same as the
+        // chain-variation figures just below, so this costs no second query.
+        ...(include.lineItems
+          ? {
+              moneyView: rollUpRootLines(rawLineItemsByBoq.get(boq.id) ?? []),
+              costCoverage: computeCostCoverage(rawLineItemsByBoq.get(boq.id) ?? []),
+            }
+          : {}),
         ...(include.variation
           ? { variationVsPrior: summary.variationVsPrior, lineDelta: summary.lineDelta }
           : {}),
@@ -992,7 +1025,85 @@ export async function getBoq(ctx: { orgId: string }, boqId: string) {
     const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!boq) throw new ServiceError("BOQ not found", 404)
     const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boqId) })
-    return { ...boq, lineItems: lineItems.map(withComputedRate) }
+    return {
+      ...boq,
+      lineItems: lineItems.map(withComputedRate),
+      // D91: the whole-BOQ dual view, root lines only (A7/R-32 -- sub-tasks
+      // never double-count) -- internal and customer-facing totals side by
+      // side, at this stage (the object page), same as every other stage
+      // per the SINGLE PRODUCER RULE. costCoverage (Phase 2 2-08) lets the
+      // screen say "priced on X% of contract value" instead of a confident
+      // number built on mostly-blank cost data.
+      moneyView: rollUpRootLines(lineItems),
+      costCoverage: computeCostCoverage(lineItems),
+    }
+  })
+}
+
+// R80/GAP-14: CORRECTING A BOQ'S HEADER AFTER CREATION.
+//
+// THE FAULT THIS CLOSES: a BOQ could be deleted (draft only, deleteBoq below)
+// and every LINE could be annotated (updateLineItemBudget above), but the
+// header itself was write-once. A BOQ created as "Villa 21 - Interor Fitout"
+// carried that typo through its whole revision chain -- createBoqRevision()
+// copies `parent.title` forward -- and the only way to fix it was to delete
+// and rebuild, which is impossible the moment the BOQ leaves draft.
+//
+// WHAT IS EDITABLE, AND WHY IT IS ONLY THE TITLE. Every other column on
+// construction_boqs is owned by something else and would corrupt real state
+// if a generic header PATCH could write it:
+//   * version + parentBoqId  -- THE LINEAGE. boq-lineage.ts (PROJEXA) walks
+//     parentBoqId to find a chain's root and picks the "Current" revision by
+//     `status === approved` then MAX(version); the Work Progress Report is
+//     priced off whichever revision that resolves to. Writing either field
+//     re-points the chain and silently re-prices the WPR. parentBoqId is also
+//     UNIQUE (schema.ts, E-128), so a write here can break the one-parent-
+//     one-child invariant the whole compare/variation story rests on.
+//   * status -- owned by submitBoq/approveBoq/createBoqRevision. Setting a
+//     superseded revision back to "approved" would make resolveCurrentId()
+//     name a historical revision as Current.
+//   * projectId -- the line items' recorded progress
+//     (construction_work_progress_entries) stays on the old project; moving
+//     the header alone splits a BOQ from its own site records.
+//   * createdById / approvedById / approvedAt -- the approval trail.
+// So: TITLE ONLY. The caller-facing allow-list is this function's own
+// signature, and the route builds its input from `body.title` explicitly
+// rather than spreading the request body.
+//
+// WHEN IT IS BLOCKED. A SUPERSEDED revision is a closed historical record:
+// /scope/{id}/compare renders it as "what was agreed before" and the object
+// page's own banner reads "Supersedes RevN - variation X". Renaming it after
+// the fact rewrites a document a customer signed off, and the rename is
+// invisible on the revision that replaced it. Both halves of "superseded" are
+// checked, not just the status column: createBoqRevision() sets
+// status='superseded' AND inserts a child carrying parentBoqId = this id, so
+// a row with a child but a drifted status is still refused.
+export async function updateBoq(ctx: { orgId: string }, boqId: string, input: { title?: string }) {
+  if (input.title !== undefined && (typeof input.title !== "string" || input.title.trim() === "")) {
+    throw new ServiceError("title must be a non-empty string", 400)
+  }
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
+    if (!boq) throw new ServiceError("BOQ not found", 404)
+
+    if (boq.status === "superseded") {
+      throw new ServiceError("A superseded revision is a historical record and cannot be edited -- open the revision that replaced it", 409)
+    }
+    const successor = await db.query.constructionBoqs.findFirst({ where: eq(constructionBoqs.parentBoqId, boqId) })
+    if (successor) {
+      throw new ServiceError(`This BOQ has already been revised (revision ${successor.version}, id ${successor.id}) -- edit that revision instead`, 409)
+    }
+
+    // An empty patch is a no-op read, not a silent touch of updatedAt.
+    if (input.title === undefined) return getBoqRow(db, boqId)
+
+    await db.update(constructionBoqs)
+      .set({ title: input.title.trim(), updatedAt: new Date() })
+      .where(and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)))
+    return getBoqRow(db, boqId)
+  }).then((row) => {
+    bustProjectDashboardCache(ctx.orgId, row.projectId)
+    return row
   })
 }
 
@@ -1092,7 +1203,12 @@ async function getBoqRow(db: TenantDb, boqId: string) {
   // thrown 404 in this situation; this path silently did not.
   if (!boq) throw new ServiceError("BOQ not found after write -- nothing was saved", 500)
   const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boqId) })
-  return { ...boq, lineItems: lineItems.map(withComputedRate) }
+  return {
+    ...boq,
+    lineItems: lineItems.map(withComputedRate),
+    moneyView: rollUpRootLines(lineItems),
+    costCoverage: computeCostCoverage(lineItems),
+  }
 }
 
 export async function createBoqRevision(

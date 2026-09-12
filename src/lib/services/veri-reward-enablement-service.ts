@@ -14,6 +14,7 @@ import {
   enableProductBranchForOrg,
   disableProductBranchForOrg,
   isBranchEnabledForOrg,
+  isBranchEnabledForOrgWithDb,
   getBranchEnablement,
   type BranchEnablementContext,
   ServiceError,
@@ -33,6 +34,17 @@ async function seedNothing(_db: TenantDb, _orgId: string): Promise<void> {
 
 export async function isVeriRewardEnabledForOrg(orgId: string): Promise<boolean> {
   return isBranchEnabledForOrg(orgId, VERI_REWARD_BRANCH_KEY)
+}
+
+/**
+ * db-handle-accepting variant, the sibling erp/crm/pms enablement services
+ * each have. Needed by crm-service.ts awardReferralPointsIfApplicable, which
+ * runs inside convertLeadToClient's transaction and whose early-return on a
+ * disabled org was silently becoming an early-return on a THROWN
+ * assertNotNested in dev and test.
+ */
+export async function isVeriRewardEnabledForOrgWithDb(db: TenantDb, orgId: string): Promise<boolean> {
+  return isBranchEnabledForOrgWithDb(db, orgId, VERI_REWARD_BRANCH_KEY)
 }
 
 /** Shared 403 gate every VERI Treasure service/route calls first. */

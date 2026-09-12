@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { runEval, ServiceError } from "@/lib/services/prompt-eval-service"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { response, dbUser } = await requireAuth()
   if (response) return response
   if (!dbUser) return NextResponse.json({ error: "No user found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "admin")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

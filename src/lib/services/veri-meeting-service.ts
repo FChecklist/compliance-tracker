@@ -15,6 +15,7 @@
 // the task lifecycle, which meettrack-v2 never had to reason about since its
 // "action items" were never real cross-module rows.
 import { createId } from "@paralleldrive/cuid2"
+import { isShareLinkUsable } from "@/lib/share-link-usable"
 import { after } from "next/server"
 import { veriMeetings, veriMeetingActionItems, veriMeetingShareLinks, tasks, auditLogs, projects, users as usersTable, db } from "@/lib/db"
 import { MEETING_DELETED_STATUS } from "@/lib/db/schema"
@@ -482,7 +483,8 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
       // surface -- this call had no Constitution gate despite that.
       const policyDecision = enforcePolicy(
         { orgId: ctx.orgId, userId: ctx.userId ?? undefined, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "meeting_intelligence.extract" },
-        userMessage
+        userMessage,
+        db
       )
       if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 400)
 
@@ -493,12 +495,21 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
         suggestedActionItems: { title: string; assignee: string | null; dueDateHint: string | null }[]
       }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 700 }, modelConfig.fallback)
 
+      // R81_F26 (2026-09-08): `db` is this function's own open transaction
+      // handle -- this call is INSIDE the withTenantContext callback of generateMeetingIntelligence()
+      // opened at that function's inner try block. recordOrchestraExecution is fire-and-forget and
+      // swallows its own failures, so the nesting produced no error anywhere: in
+      // dev/test assertNotNested's throw lands in its .catch() and the AI audit row
+      // required by VERIDIAN_AI_CONSTITUTION #19 / SEC-03 is silently never written;
+      // in production the guard only warns and the row is written in a second
+      // transaction. No enablement gate inside the logger (its first statement is
+      // the withTenantContext itself), so threading the handle is the whole fix.
       recordOrchestraExecution({
         orgId: ctx.orgId, userId: ctx.userId ?? undefined, layerKey: "task_oa", eventType: "meeting_intelligence.extract",
         input: { meetingId }, output: { keyDecisionCount: result.keyDecisions?.length ?? 0, actionItemCount: result.suggestedActionItems?.length ?? 0 },
         status: "completed", durationMs: Date.now() - startedAt,
         provider: modelConfig.provider, model: modelConfig.model, usage,
-      })
+      }, db)
 
       const [updated] = await db.update(veriMeetings).set({
         aiSummary: result.summary,
@@ -825,7 +836,7 @@ export async function revokeMeetingShareLink(ctx: VeriMeetingContext, linkId: st
 // link to run withTenantContext against.
 export async function getMeetingByShareToken(token: string) {
   const link = await db.query.veriMeetingShareLinks.findFirst({ where: eq(veriMeetingShareLinks.token, token) })
-  if (!link || link.revokedAt || link.expiresAt < new Date()) throw new ServiceError("This share link is invalid or has expired", 404)
+  if (!isShareLinkUsable(link, new Date())) throw new ServiceError("This share link is invalid or has expired", 404)
 
   const meeting = await db.query.veriMeetings.findFirst({ where: eq(veriMeetings.id, link.meetingId) })
   // R67 D-17/D-21: a soft-deleted meeting behind a live token is treated

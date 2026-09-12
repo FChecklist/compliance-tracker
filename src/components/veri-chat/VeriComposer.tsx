@@ -693,7 +693,15 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
             className="w-full bg-transparent text-[15px] text-ct-navy placeholder:text-ct-muted focus:outline-none resize-none max-h-[160px] overflow-y-auto disabled:cursor-not-allowed"
           />
           <div className="flex items-center justify-between mt-2">
-            <button type="button" className="grid size-9 place-items-center rounded-lg text-ct-muted hover:bg-ct-cloud hover:text-ct-slate transition-colors" title="Attach a document">
+            {/* No upload path exists for the composer yet: this button has never
+                had a handler, so it presented as clickable and did nothing
+                (DOD-S6, and the calibration case for that whole sweep). Marked
+                disabled rather than wired, because inventing an attachment
+                pipeline here would be a feature, not a fix, and rather than
+                deleted, because the capability is intended. The title now says
+                so instead of implying it already works. */}
+            <button type="button" disabled aria-disabled="true" title="Attaching documents is not available yet"
+              className="grid size-9 place-items-center rounded-lg text-ct-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
               <Paperclip className="size-[18px]" />
             </button>
             <div className="flex items-center gap-2">

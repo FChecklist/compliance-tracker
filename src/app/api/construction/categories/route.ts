@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { listCategories, createCategory, ServiceError } from "@/lib/services/construction-progress-service"
 
 export async function GET(request: NextRequest) {
@@ -21,9 +21,14 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  // Matches construction/progress/route.ts's own POST floor -- same
+  // service file (construction-progress-service.ts), same write weight.
+  const roleCheck = requireRole(dbUser, "member")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()

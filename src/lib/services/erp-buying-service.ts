@@ -184,6 +184,123 @@ export async function submitPurchaseOrder(ctx: ActorCtx, purchaseOrderId: string
   })
 }
 
+// R80 GAP-6 (PROJEXA R80_PART5_ERP_SCREEN_GAP_AUDIT.md): a purchase order --
+// a core ERP document -- had no update and no cancel at ANY layer.
+// PurchaseOrderObjectClient.tsx said so about itself in a comment ("No
+// generic Edit/Delete -- no updatePurchaseOrder() exists") and
+// /api/v1/projexa/procurement/purchase-orders/[id] exported GET only, so a PO
+// raised against the wrong vendor or with the wrong delivery date could only
+// ever be abandoned in place.
+//
+// THE RULE THESE TWO FUNCTIONS ENFORCE, and where each half of it comes from.
+//
+// (1) DRAFT ONLY. submitPurchaseOrder() directly above already refuses
+//     anything but a draft with a 409, and cancelSalesInvoice() in
+//     erp-invoicing-service.ts uses the identical draft-only shape for the
+//     same reason: once a document leaves draft it is a commitment something
+//     downstream has already acted on. For a PO that "something" is the
+//     supplier and the goods-receipt chain.
+//
+// (2) NOTHING RECEIVED AGAINST IT. submitPurchaseReceipt() in
+//     erp-goods-receipt-service.ts writes receivedQuantity back onto
+//     erp_purchase_order_items and rolls the parent PO's status up to
+//     partially_received/completed, and getThreeWayMatchReport() reconciles
+//     PO vs receipt vs invoice off exactly those rows. Editing the header or
+//     cancelling the order underneath that silently invalidates the match.
+//     The status check ALONE does not cover this: createPurchaseReceipt()
+//     only checks that the PO exists, never that it is submitted, so a draft
+//     receipt can legitimately already point at a draft PO.
+//
+// CANCEL, NOT DESTROY. 'cancelled' is already in the documented status
+// vocabulary of erp_purchase_orders (schema.ts) with nothing writing it until
+// now, and erp_purchase_receipts.purchaseOrderId is bare text with no
+// DB-level FK -- a row delete would leave dangling references with nothing to
+// catch them. Same soft end-state cancelSalesInvoice() settled on.
+export type PurchaseOrderUpdateInput = {
+  supplierId?: string
+  orderDate?: string
+  expectedDeliveryDate?: string | null
+  companyId?: string | null
+  projectId?: string | null
+  currencyId?: string | null
+  exchangeRate?: number
+}
+
+/**
+ * Loads a PO for mutation, or refuses it. `verb` is the past participle used
+ * in the refusal ("edited", "cancelled") so one guard produces a sentence that
+ * says what was actually attempted.
+ */
+async function loadMutablePurchaseOrder(db: TenantDb, orgId: string, purchaseOrderId: string, verb: string) {
+  const po = await db.query.erpPurchaseOrders.findFirst({
+    where: and(eq(erpPurchaseOrders.id, purchaseOrderId), eq(erpPurchaseOrders.orgId, orgId)),
+    with: { items: true },
+  })
+  if (!po) throw new ServiceError("Purchase order not found", 404)
+  if (po.status !== "draft") throw new ServiceError(`Only draft purchase orders can be ${verb} -- this one is ${po.status.replace(/_/g, " ")}`, 409)
+  if (po.items.some((i) => Number(i.receivedQuantity) > 0)) {
+    throw new ServiceError(`This purchase order already has goods received against it, so it can no longer be ${verb}`, 409)
+  }
+  const receipt = await db.query.erpPurchaseReceipts.findFirst({
+    where: and(
+      eq(erpPurchaseReceipts.purchaseOrderId, purchaseOrderId),
+      eq(erpPurchaseReceipts.orgId, orgId),
+      ne(erpPurchaseReceipts.status, "cancelled")
+    ),
+  })
+  if (receipt) throw new ServiceError(`A goods receipt already references this purchase order, so it can no longer be ${verb}`, 409)
+  return po
+}
+
+/**
+ * Header-only update of a draft purchase order. Line items are deliberately
+ * NOT editable here: grandTotal is derived from them at create time and the
+ * receipt/invoice chain matches on erp_purchase_order_items.id, so a line
+ * editor is its own piece of work (R80 GAP-7), not a side effect of this one.
+ */
+export async function updatePurchaseOrder(ctx: ActorCtx, purchaseOrderId: string, input: PurchaseOrderUpdateInput) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    await loadMutablePurchaseOrder(db, ctx.orgId, purchaseOrderId, "edited")
+
+    if (input.orderDate !== undefined && !input.orderDate) throw new ServiceError("orderDate cannot be cleared", 400)
+    if (input.supplierId !== undefined) {
+      if (!input.supplierId) throw new ServiceError("supplierId cannot be cleared", 400)
+      const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, input.supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
+      if (!supplier) throw new ServiceError("Supplier not found", 404)
+    }
+    // Identical optional-pair validation to createPurchaseOrder's: an explicit
+    // positive rate is required whenever a currency is set, never guessed.
+    const currency = input.currencyId !== undefined
+      ? await resolvePoCurrency(db, ctx.orgId, input.currencyId ?? undefined, input.exchangeRate)
+      : null
+
+    const [updated] = await db.update(erpPurchaseOrders).set({
+      ...(input.supplierId !== undefined ? { supplierId: input.supplierId } : {}),
+      ...(input.orderDate !== undefined ? { orderDate: input.orderDate } : {}),
+      ...(input.expectedDeliveryDate !== undefined ? { expectedDeliveryDate: input.expectedDeliveryDate } : {}),
+      ...(input.companyId !== undefined ? { companyId: input.companyId } : {}),
+      ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+      ...(currency ? { currencyId: currency.currencyId, exchangeRate: currency.exchangeRate.toString() } : {}),
+      updatedAt: new Date(),
+    }).where(eq(erpPurchaseOrders.id, purchaseOrderId)).returning()
+
+    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_order.updated", entityType: "erp_purchase_order", entityId: purchaseOrderId })
+    return updated
+  })
+}
+
+/** Cancels a DRAFT purchase order with nothing received against it -- the soft lifecycle end-state, never a row delete. See the block comment above updatePurchaseOrder for why. */
+export async function cancelPurchaseOrder(ctx: ActorCtx, purchaseOrderId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    await loadMutablePurchaseOrder(db, ctx.orgId, purchaseOrderId, "cancelled")
+    const [updated] = await db.update(erpPurchaseOrders).set({ status: "cancelled", updatedAt: new Date() }).where(eq(erpPurchaseOrders.id, purchaseOrderId)).returning()
+    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_order.cancelled", entityType: "erp_purchase_order", entityId: purchaseOrderId })
+    return updated
+  })
+}
+
 /** Wave 68: assigns (or clears, if categoryId is undefined) a supplier's default Tax Withholding Category -- the opt-in switch for vendor-payment TDS auto-computation at invoice-submit time. */
 export async function updateSupplierTaxWithholding(ctx: { orgId: string }, supplierId: string, categoryId: string | undefined) {
   await requireErpEnabled(ctx.orgId)

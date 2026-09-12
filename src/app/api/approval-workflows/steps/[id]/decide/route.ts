@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { decideApprovalStep, ServiceError } from "@/lib/services/approval-workflow-service"
 import { markJournalEntrySubmittedFromApproval } from "@/lib/services/erp-accounting-service"
 import { markPurchaseRequisitionApprovedFromApproval } from "@/lib/services/erp-procurement-workflow-service"
@@ -50,6 +50,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

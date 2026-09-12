@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { listMarketplaceListings, publishToMarketplace, ServiceError } from "@/lib/services/prompt-marketplace-service"
 
 // VERIDIAN_Architecture_v2.0 phase_8: engine-prompt-marketplace.
@@ -20,6 +20,9 @@ export async function POST(request: NextRequest) {
   const { response, dbUser } = await requireAuth()
   if (response) return response
   if (!dbUser) return NextResponse.json({ error: "No user found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "admin")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()

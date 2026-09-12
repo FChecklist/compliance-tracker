@@ -9,11 +9,13 @@
 // Same pre-auth posture as passcode-login-service.ts's own recordAttempt/
 // checkPasscodeRateLimit: runs through the raw (RLS-bypassing) `db` client,
 // since no session/tenant context exists yet at the point a login fails.
-import { db, authFailureEvents, users, riskAnomalyEvents } from "@/lib/db"
+import { db, authFailureEvents, riskAnomalyEvents } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and, gte, sql } from "drizzle-orm"
 import { evaluateRepeatedFailedAuth, FAILED_AUTH_THRESHOLD } from "@/lib/risk-anomaly-detection"
 import { recordAndEscalateAnomaly } from "./risk-escalation-service"
+import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
+import { ServiceError } from "./compliance-service"
 
 export type AuthFailureMethod = "password" | "oauth" | "sso" | "passcode"
 const VALID_METHODS: readonly AuthFailureMethod[] = ["password", "oauth", "sso", "passcode"]
@@ -53,13 +55,42 @@ export async function recordAuthFailureAndCheckAnomaly(params: { email: string; 
   const email = params.email.trim()
   if (!email) return
 
-  await db.insert(authFailureEvents).values({ email, method: params.method, ipAddress: params.ipAddress })
+  // Both callers (failure-event/route.ts, passcode-login-service.ts's
+  // recordAttempt) already treat any rejection from this function as
+  // fire-and-forget-but-logged -- they catch/log the message and move on,
+  // never branch on error identity. Classifying the underlying DB failure
+  // as a ServiceError (system/retryable, matching every other
+  // I/O-performing service in this codebase -- see compliance-service.ts)
+  // is additive: same .message text either caller already logs, now with
+  // the established taxonomy instead of a raw driver exception.
+  try {
+    await db.insert(authFailureEvents).values({ email, method: params.method, ipAddress: params.ipAddress })
+  } catch (error) {
+    throw new ServiceError(
+      `Failed to record auth-failure event: ${error instanceof Error ? error.message : String(error)}`,
+      500,
+      { kind: "system" }
+    )
+  }
 
-  const recentCount = await countRecentAuthFailures(email)
+  let recentCount: number
+  try {
+    recentCount = await countRecentAuthFailures(email)
+  } catch (error) {
+    throw new ServiceError(
+      `Failed to count recent auth failures: ${error instanceof Error ? error.message : String(error)}`,
+      500,
+      { kind: "system" }
+    )
+  }
   const verdict = evaluateRepeatedFailedAuth(recentCount, FAILED_AUTH_THRESHOLD)
   if (!verdict.anomaly) return
 
-  const user = await db.query.users.findFirst({ where: eq(users.email, email) })
+  // CRR-027 CONTRACT migration: was db.query.users.findFirst() over the
+  // plain (RLS-bypassing) db client -- called before any org is known, the
+  // textbook pre-auth case. See EXISTING_FN row #13 in
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md.
+  const user = await lookupUserByEmail(email)
   if (!user?.orgId) return // no org to scope the escalation to (unknown email, or a stage-0-only account)
 
   await withTenantContext({ orgId: user.orgId, userId: user.id }, async (tx) => {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { listMatchingRules, createMatchingRule, ServiceError } from "@/lib/services/document-classification-service"
 
 // Priority 13 (Document Correspondent/Type Auto-Classification): org-scoped
@@ -24,9 +24,18 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  // R75 Part 2 Phase 5 (G5 misc gap-closure, 2026-09-05): this had NO role
+  // gate at all -- any authenticated org member could add an auto-
+  // classification rule that tags future document uploads. Matches this
+  // exact resource's own sibling PATCH/DELETE (./[id]/route.ts), which
+  // already require "branch_manager" -- creating a rule should not sit at
+  // a lower bar than editing or deleting one.
+  const roleCheck = requireRole(dbUser, "branch_manager")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()

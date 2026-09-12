@@ -12,7 +12,7 @@ export default function JoinUsPage() {
           <Link href="/" className="flex items-center gap-2.5 font-heading text-lg tracking-tight">
             <Image src="/logo-mark.svg" alt="VERIDIAN" width={28} height={28} priority />
             <span>
-              VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span>
+              VERIDIAN <span className="text-[#1a1a17]/65">COGNITIVE AI OS</span>
             </span>
           </Link>
           <div className="hidden items-center gap-8 text-sm text-[#1a1a17]/70 md:flex">
@@ -31,7 +31,7 @@ export default function JoinUsPage() {
       </nav>
 
       <section className="mx-auto max-w-4xl px-6 pt-20 pb-24 md:pt-28">
-        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/50">Join Us</div>
+        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/65">Join Us</div>
         <h1 className="mt-4 max-w-2xl font-heading text-4xl leading-tight sm:text-5xl">
           One team, three ways in
         </h1>
@@ -48,9 +48,9 @@ export default function JoinUsPage() {
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2 font-heading">
             <Image src="/logo-mark.svg" alt="VERIDIAN" width={22} height={22} />
-            <span>VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span></span>
+            <span>VERIDIAN <span className="text-[#1a1a17]/65">COGNITIVE AI OS</span></span>
           </div>
-          <div className="text-sm text-[#1a1a17]/50">© {new Date().getFullYear()} VERIDIAN AI</div>
+          <div className="text-sm text-[#1a1a17]/65">© {new Date().getFullYear()} VERIDIAN AI</div>
         </div>
       </footer>
     </main>

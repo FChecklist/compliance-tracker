@@ -37,10 +37,11 @@ import {
   db, users, aiAssistants, conversations, conversationParticipants, messages,
   conversationGuestAccess, conversationShareLinks, stage0Sources, tasks, instructionCommitments,
 } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray, sql as drizzleSql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { provisionAiAssistantsForUser } from "./subscription-plan-service"
+import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
 export { ServiceError }
 
 // --- Token resolution ------------------------------------------------------
@@ -139,7 +140,11 @@ export async function consumeStage0TokenAndProvisionUser(
   if (!convo) return { ok: false, reason: "This link is invalid." }
   const orgId = convo.orgId
 
-  let user = await db.query.users.findFirst({ where: eq(users.email, authUser.email) })
+  // CRR-027 CONTRACT migration: was db.query.users.findFirst() over the
+  // plain (RLS-bypassing) db client -- stage-0 provisioning, no real home
+  // org yet by design. See EXISTING_FN row #31 in
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md.
+  let user = await lookupUserByEmail(authUser.email)
   if (!user) {
     const [newUser] = await db.insert(users).values({
       name: authUser.fullName,
@@ -260,7 +265,11 @@ export async function tryUpgradeStage0UserInPlace(
   email: string,
   target: { orgId: string; role: string; authUserId?: string }
 ): Promise<UpgradeStage0Result> {
-  const found = await db.query.users.findFirst({ where: eq(users.email, email) })
+  // CRR-027 CONTRACT migration: was db.query.users.findFirst() over the
+  // plain (RLS-bypassing) db client -- auto-upgrade trigger, same pre-org
+  // posture as the provisioning path above. See EXISTING_FN row #32 in
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md.
+  const found = await lookupUserByEmail(email)
   const decision = decideStage0UpgradeAction(found ?? null)
   if (decision === "not_found") return { ok: false, reason: "not_found" }
   if (decision === "different_org") return { ok: false, reason: "different_org" }
@@ -323,10 +332,49 @@ export function partitionEligibleForAutoUpgrade<T extends { orgId: string | null
   }
 }
 
-export async function autoUpgradeStage0UsersOnBranchEnable(orgId: string): Promise<AutoUpgradeOnBranchEnableResult> {
-  const sources = await withTenantContext({ orgId }, (tx) =>
+/**
+ * `existingDb` -- R81_F26 (2026-09-08), and READ THE NEXT PARAGRAPH BEFORE
+ * ACTING ON THIS ONE.
+ *
+ * The history: enableProductBranchForOrg() used to call this via `await import()`
+ * from INSIDE its own open withTenantContext, which assertNotNested() rejects,
+ * inside a try/catch that only console.warn()d -- so in dev/test the throw was
+ * swallowed and NO stage-0 user was ever auto-upgraded, and in production the
+ * guard warned, the upgrade ran in a second transaction under the ADMIN's
+ * identity, and compliance.ai_assistants' RLS policy (user_id =
+ * current_user_id()) denied the insert into the same silent catch.
+ *
+ * THAT IS NO LONGER TRUE, AND THE REMEDY THIS COMMENT USED TO RECOMMEND WAS THE
+ * WRONG ONE. It said "threading the handle IS the whole fix". It is not, and it
+ * could never have been: threading the caller's handle means inserting
+ * ai_assistants rows under the admin's identity, which that RLS policy refuses
+ * by design. G-26 (product-branch-service.ts, 2026-09-09) HOISTED the call out
+ * of the enable transaction instead, so this function opens its own under the
+ * provisioned user's identity. The caller no longer passes a handle at all.
+ *
+ * `existingDb` is therefore now unused by that caller and kept only for any
+ * other caller that genuinely holds an open transaction and whose work does not
+ * cross an identity boundary. If you are here because you want to thread a
+ * handle in from a branch-enable path: don't. That is the conclusion the hoist
+ * overturned.
+ *
+ * (R81_F48: this paragraph existed for a day describing the pre-fix world in the
+ * present tense, and a comment-rot check that verifies an anchor still EXISTS
+ * cannot catch that -- it detects deletion, not divergence.)
+ *
+ * DELIBERATE DEVIATION from the one-`run`-for-the-whole-body shape used elsewhere
+ * in this change: only the stage0Sources read is tenant-scoped here. Everything
+ * after it deliberately uses the raw `db` import (DATABASE_URL, RLS-bypassing)
+ * because it updates users rows whose orgId IS NULL -- rows no tenant-scoped
+ * connection can see. Wrapping the whole body in withTenantContext to fit the
+ * template would change behaviour for every caller that omits `existingDb`, which
+ * this change is not allowed to do. So the handle is threaded into the one
+ * transaction that actually exists.
+ */
+export async function autoUpgradeStage0UsersOnBranchEnable(orgId: string, existingDb?: TenantDb): Promise<AutoUpgradeOnBranchEnableResult> {
+  const run = async (tx: TenantDb) =>
     tx.query.stage0Sources.findMany({ where: eq(stage0Sources.orgId, orgId) })
-  )
+  const sources = existingDb ? await run(existingDb) : await withTenantContext({ orgId }, run)
   const activeSources = sources.filter((s) => !s.revokedAt)
   if (activeSources.length === 0) return { upgraded: 0, blocked: 0 }
 
@@ -462,8 +510,23 @@ export type Stage0OutreachRow = {
  * read-model pattern (sales-engine-service.ts) rather than duplicating data
  * that already exists (this codebase's "Zero duplication" precedent).
  */
-export async function listStage0OutreachForOrg(orgId: string): Promise<Stage0OutreachRow[]> {
-  return withTenantContext({ orgId }, async (tx) => {
+export async function listStage0OutreachForOrg(
+  orgId: string,
+  // REQUIRED, not optional, and that is the whole fix. compliance.conversations
+  // carries app_runtime_select_participant, whose qual is
+  //   (org_id = current_org_id()) AND is_conversation_participant(id)
+  // and is_conversation_participant compares against compliance.current_user_id().
+  // withTenantContext only sets app.current_user_id when context.userId is
+  // present, so calling it with { orgId } alone left current_user_id() NULL.
+  // Every comparison against NULL is NULL, never true, so the conversations
+  // read below returned ZERO ROWS unconditionally -- for every org, on every
+  // call, since this function was written. The route already had dbUser in
+  // scope and simply never passed it. tenant-scoped.ts's own doc comment says
+  // userId "is required for ... routes whose RLS policies check
+  // compliance.current_user_id()"; this was one of them.
+  userId: string,
+): Promise<Stage0OutreachRow[]> {
+  return withTenantContext({ orgId, userId }, async (tx) => {
     const stage0Users = await tx.query.stage0Sources.findMany({
       where: eq(stage0Sources.orgId, orgId),
       with: { user: { columns: { id: true, name: true } } },

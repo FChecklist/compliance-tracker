@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { Stage0AutoUpgradeOutcome } from "@/lib/services/product-branch-service";
 import { toast } from "sonner";
 import { Rocket, Loader2, CheckCircle2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -63,8 +64,15 @@ export default function PmsEnablementSection({ isAdmin }: { isAdmin: boolean }) 
       // here so an admin isn't left guessing. `blocked` (already belongs to
       // a different org) is surfaced, not silently dropped.
       if (enable) {
-        const data: { stage0AutoUpgrade?: { upgraded: number; blocked: number } } = await res.json().catch(() => ({}));
+        // R81_F47 -- see the-firm-practice/page.tsx for the full note. The
+        // inline re-declaration here hid `failed`/`reason` the same way.
+        const data: { stage0AutoUpgrade?: Stage0AutoUpgradeOutcome } = await res.json().catch(() => ({}));
         const su = data.stage0AutoUpgrade;
+        if (su?.failed) {
+          toast.error(
+            `Branch enabled, but the stage-0 auto-upgrade did not run: ${su.reason}. No user was upgraded -- retry by re-enabling, and if it recurs the server log carries the full error.`
+          );
+        }
         if (su && su.upgraded > 0) toast.success(`${su.upgraded} stage-0 user${su.upgraded === 1 ? "" : "s"} auto-upgraded to full membership`);
         if (su && su.blocked > 0) toast.info(`${su.blocked} stage-0 user${su.blocked === 1 ? "" : "s"} could not auto-upgrade -- already belong to another organization`);
       }

@@ -18,6 +18,7 @@ import {
   enableProductBranchForOrg,
   disableProductBranchForOrg,
   isBranchEnabledForOrg,
+  isBranchEnabledForOrgWithDb,
   getBranchEnablement,
   type BranchEnablementContext,
   ServiceError,
@@ -44,6 +45,17 @@ async function seedDefaultIssueTypes(db: TenantDb, orgId: string): Promise<void>
 
 export async function isPmsEnabledForOrg(orgId: string): Promise<boolean> {
   return isBranchEnabledForOrg(orgId, "pms")
+}
+
+/**
+ * db-handle-accepting variant, the sibling erp-enablement-service.ts and
+ * crm-enablement-service.ts have each had since R74 Phase 10. PMS was the
+ * only one of the three without it, which is why resolveOrgDomains() could
+ * not be made nesting-safe until now: it checks all three in one
+ * Promise.all, and two out of three is not a fix.
+ */
+export async function isPmsEnabledForOrgWithDb(db: TenantDb, orgId: string): Promise<boolean> {
+  return isBranchEnabledForOrgWithDb(db, orgId, "pms")
 }
 
 /** Shared 403 gate every PMS service/route calls first. */

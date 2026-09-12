@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { updateTaxCaseStage, ServiceError } from "@/lib/services/firm-tax-case-service"
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ caseId: string }> }) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "senior_professional")
+  if (roleCheck) return roleCheck
 
   try {
     const { caseId } = await ctx.params

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 import { db, aiConfigurations } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
 import { encryptApiKey } from "@/lib/ai-config-crypto";
@@ -54,11 +54,13 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { orgId, response } = await requireAuth();
+  const { orgId, dbUser, response } = await requireAuth();
   if (response) return response;
   if (!orgId) {
     return NextResponse.json({ error: "No organisation on this account" }, { status: 400 });
   }
+  const roleCheck = requireRole(dbUser, "admin");
+  if (roleCheck) return roleCheck;
 
   try {
     const body = await request.json();

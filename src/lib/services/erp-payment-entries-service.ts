@@ -423,7 +423,12 @@ export async function decidePaymentEntry(ctx: ErpContext, id: string, decision: 
       return updated
     }
 
-    const periodOpen = await isPeriodOpenForDate(ctx, entry.postingDate)
+    // R81_F26 (2026-09-08): `db` is this function's OWN open transaction. Only
+    // the approve path reaches here (the reject path returned above), and the
+    // GL journal + invoice-outstanding update below MUST share one transaction
+    // with this period check -- otherwise production splits them across two and
+    // can leave the entry submitted with the invoice outstanding never reduced.
+    const periodOpen = await isPeriodOpenForDate(ctx, entry.postingDate, db)
     if (!periodOpen) throw new ServiceError(`The accounting period covering ${entry.postingDate} is closed`, 409)
 
     if (!entry.bankAccountId) throw new ServiceError("This payment entry has no bank account set", 400)

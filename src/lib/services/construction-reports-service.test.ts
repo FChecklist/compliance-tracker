@@ -638,6 +638,10 @@ describe("computeEarnedValue -- R46/R-51 percent-complete fallback + root-with-c
   })
 })
 
+// R-44/R-45 (computeEarnedValue explicit invariant checks) moved to
+// construction-reports-service.earned-value.test.ts (seq4/c5 de-share,
+// 2026-09-11) -- this file cited 5 requirements over the 3-per-file cap.
+
 // ---------------------------------------------------------------------------
 // R67 F-10 (R-134) acceptance test.
 //
@@ -1115,41 +1119,10 @@ describe("mergeCategoryProgressWithAmounts (R67 E-02)", () => {
 // below is the item's own 2,193.75 and the assertions compare the three
 // figures to each other rather than to three separately-typed constants.
 // ---------------------------------------------------------------------------
-describe("sumRootLineBudgets (R67 E-06)", () => {
-  test("sums amount x budgetPercentage / 100 over the ROOT lines -- the item's own 2,193.75", () => {
-    expect(sumRootLineBudgets([
-      { parentLineItemId: null, amount: 5400, budgetPercentage: 25 },  // 1350
-      { parentLineItemId: null, amount: 3375, budgetPercentage: 25 },  //  843.75
-    ])).toBe(2193.75)
-  })
-
-  test("a weighted sub-task is NOT added again -- its amount is already inside its parent's", () => {
-    const withChildren = sumRootLineBudgets([
-      { parentLineItemId: null, amount: 5400, budgetPercentage: 25 },
-      { parentLineItemId: "root-1", amount: 2700, budgetPercentage: 25 },
-      { parentLineItemId: "root-1", amount: 2700, budgetPercentage: 25 },
-    ])
-    expect(withChildren).toBe(1350)
-  })
-
-  test("no lines at all is null, NEVER 0 -- 'no BOQ' is not 'a budget of nothing'", () => {
-    expect(sumRootLineBudgets([])).toBeNull()
-    expect(sumRootLineBudgets([{ parentLineItemId: "root-1", amount: 100, budgetPercentage: 25 }])).toBeNull()
-  })
-
-  test("a real BOQ worth zero still reports 0 -- absent and zero stay distinguishable in both directions", () => {
-    expect(sumRootLineBudgets([{ parentLineItemId: null, amount: 0, budgetPercentage: 25 }])).toBe(0)
-  })
-
-  test("rounds ONCE at the end, so the total reconciles to a raw SQL sum over the same rows", () => {
-    // Three lines whose individual budgets are 33.333..., summed then rounded.
-    expect(sumRootLineBudgets([
-      { parentLineItemId: null, amount: 100, budgetPercentage: 33.3333 },
-      { parentLineItemId: null, amount: 100, budgetPercentage: 33.3333 },
-      { parentLineItemId: null, amount: 100, budgetPercentage: 33.3334 },
-    ])).toBe(100)
-  })
-})
+// sumRootLineBudgets (R67 E-06 / R-33) moved to
+// construction-reports-service.boq-budget-closure.test.ts (seq4/c5
+// de-share, 2026-09-11) -- this file cited 5 requirements over the
+// 3-per-file cap.
 
 // ---------------------------------------------------------------------------
 // R67 E-08 (R-115) -- Revenue / Budget / Actual, scope-wise and category-wise
@@ -1229,6 +1202,12 @@ describe("aggregateRevenueBudgetActual (R67 E-08)", () => {
     expect(rows[0].item).toBe(UNCATEGORIZED_LABEL)
     expect(rows[0].lineCount).toBe(1)
   })
+
+  // R-C11 (category-wise merge gap closure) moved to
+  // construction-reports-service.boq-budget-closure.test.ts (seq4/c5
+  // de-share, 2026-09-11) -- this file cited 5 requirements over the
+  // 3-per-file cap. The other ACCEPTANCE tests in this describe block stay
+  // here; they are not cited by any of the 5 over-shared requirement IDs.
 
   test("both foldings report the SAME totals -- one fold, two views", () => {
     const scope = aggregateRevenueBudgetActual(LINES, "scope")
@@ -1374,6 +1353,16 @@ describe("R67 E-06: the Project Status report and the budget-variance report sta
       ...realEnablementService,
       requireConstructionEnabled: mock(async () => {}),
       isConstructionEnabledForOrg: mock(async () => true),
+      // R75 Part 2/3 (R-80 fix): construction-dashboard-service.ts's
+      // getProjectDashboard(s)/getOrgDashboard now delegate to a WithDb
+      // sibling that calls isConstructionEnabledForOrgWithDb (reusing the
+      // caller's own db handle) instead of the plain, self-opening
+      // isConstructionEnabledForOrg -- mock both so a real, unmocked call
+      // never slips through to a real DB (self-caught: this exact gap made
+      // CI's Unit Tests job fail for real after the R-80/R-50 pushes,
+      // because this file's own mock predates that refactor and wasn't
+      // updated alongside construction-dashboard-service.test.ts's copy).
+      isConstructionEnabledForOrgWithDb: mock(async () => true),
     }))
     return import("./construction-reports-service")
   }
@@ -1450,6 +1439,11 @@ describe("R67 E-06: the Project Status report and the budget-variance report sta
     expect(byCategory.revenueBudgetActual.totals).toEqual(scope.revenueBudgetActual.totals)
   })
 })
+
+// scopeReport (R75 Phase 3 / R-52) moved to
+// construction-reports-service.boq-budget-closure.test.ts (seq4/c5
+// de-share, 2026-09-11) -- this file cited 5 requirements over the
+// 3-per-file cap.
 
 // R67 lane D22 (item D-41): the Budget screen PROJEXA now renders at /budgets
 // prints Sumeet's own columns -- S.No | Category | Code | Description | Qty |
@@ -2736,5 +2730,68 @@ describe("R67 E-33: buildBudgetVsActualByProject", () => {
 
   test("the table says which budget it is showing", () => {
     expect(buildBudgetVsActualByProject([project()], "AED").note).toContain("BOQ-derived")
+  })
+})
+
+// R75 Part 3 (2026-09-05): kpiReportWithDb() is the third construction
+// codeReference (get_construction_kpi_status) fixed for the same class of
+// bug R-80 closed for get_construction_project_dashboard/
+// list_delayed_activities/list_over_budget_projects -- a caller that
+// already holds an open withTenantContext transaction (dispatchConstructionTool,
+// via construction-tools.ts) used to reach kpiReport(), which opened a
+// SECOND, nested one via ensureConstructionEnabled() + its own
+// withTenantContext. Same fix shape: kpiReportWithDb() reuses the caller's
+// db handle for both the enablement check (via the new
+// requireConstructionEnabledWithDb()) and the report queries, opening no
+// transaction of its own.
+describe("kpiReportWithDb -- R75 Part 3: reuses the caller's transaction, never opens its own", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+    await mock.module("./construction-enablement-service", () => realEnablementService)
+  })
+
+  test("kpiReportWithDb never calls withTenantContext, and reuses the exact db handle it was given", async () => {
+    const neverOpen = mock(async () => { throw new Error("kpiReportWithDb must never open its own transaction") })
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: neverOpen }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablementService,
+      requireConstructionEnabledWithDb: mock(async () => {}),
+    }))
+    const fakeDb = {
+      query: {
+        constructionKpiDefinitions: { findMany: async () => [{ id: "def-1" }] },
+        constructionKpiEntries: { findMany: async (args: { where: unknown }) => {
+          expect(args).toBeTruthy()
+          return [{ id: "entry-1", kpiDefinitionId: "def-1" }]
+        } },
+      },
+    }
+    const { kpiReportWithDb } = await import("./construction-reports-service")
+    const result = await kpiReportWithDb(fakeDb as unknown as never, { orgId: "org-kpi" }, "proj-kpi")
+    expect(result.definitions).toEqual([{ id: "def-1" }])
+    expect(result.entries).toEqual([{ id: "entry-1", kpiDefinitionId: "def-1" }])
+    expect(neverOpen).not.toHaveBeenCalled()
+  })
+
+  test("kpiReport (the public wrapper) opens exactly one transaction and delegates to kpiReportWithDb", async () => {
+    let opens = 0
+    const fakeDb = {
+      query: {
+        constructionKpiDefinitions: { findMany: async () => [] },
+        constructionKpiEntries: { findMany: async () => [] },
+      },
+    }
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => { opens += 1; return fn(fakeDb) }),
+    }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablementService,
+      isConstructionEnabledForOrg: mock(async () => true),
+    }))
+    const { kpiReport } = await import("./construction-reports-service")
+    await kpiReport({ orgId: "org-kpi" }, "proj-kpi")
+    expect(opens).toBe(1)
   })
 })

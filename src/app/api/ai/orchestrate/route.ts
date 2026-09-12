@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 import { complianceItems, notices } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { eq } from "drizzle-orm";
@@ -72,6 +72,22 @@ function getUserMessage(
 export async function POST(request: NextRequest) {
   const { user, dbUser, orgId, response: authError } = await requireAuth();
   if (!user) return authError!;
+  // Decision (R75 Phase 5 gap closure): gated at "member", the same floor
+  // as every other write-adjacent action in this codebase (compliance
+  // POST/PATCH, construction progress/KPI submission, etc.). This endpoint
+  // was previously open to any authenticated org member with zero role
+  // check. It doesn't write AI output directly onto complianceItems/notices
+  // rows itself (it only reads them for context and returns suggested
+  // actions to the caller), but it does persist an orchestra_execution_logs
+  // row on every call and triggers a real, potentially-costly LLM call --
+  // both good reasons a viewer/stage_0/client_viewer/external_auditor-rank
+  // account (rank 1, the only ranks below "member") shouldn't be able to
+  // trigger it freely. "member" (not "manager"+) because this is a per-item
+  // action any real team member reasonably triggers day-to-day (an item
+  // going overdue, a notice arriving) -- it is not a configuration or
+  // approval action that should be manager-gated.
+  const roleErr = requireRole(dbUser, "member");
+  if (roleErr) return roleErr;
   if (!orgId) {
     return NextResponse.json({ error: "No organisation on this account" }, { status: 400 });
   }

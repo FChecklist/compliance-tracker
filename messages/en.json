@@ -58,7 +58,6 @@
         }
       },
       "constructionDesign": {
-        "title": "Construction (Design & Progress)",
         "items": {
           "designStudio": "Design Studio",
           "floorPlans": "Floor Plans",
@@ -244,7 +243,10 @@
           "voiceTickets": "Voice Tickets",
           "penaltyTracker": "Penalty Tracker",
           "helpCentre": "Help Centre",
-          "team": "Team"
+          "team": "Team",
+          "importComplianceData": "Import Compliance Data",
+          "veriAi": "VERI AI",
+          "digitizeRegister": "Digitize a Register"
         }
       }
     }

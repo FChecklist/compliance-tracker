@@ -2654,6 +2654,237 @@
       "when": 1788510802000,
       "tag": "0561_r74_phase2_closure_state_and_surface_class",
       "breakpoints": true
+    },
+    {
+      "idx": 379,
+      "version": "7",
+      "when": 1788510803000,
+      "tag": "0569_r81_work_orders_migration_debt",
+      "breakpoints": true
+    },
+    {
+      "idx": 380,
+      "version": "7",
+      "when": 1788510804000,
+      "tag": "0570_r81_work_orders_rnumber_bodyhash",
+      "breakpoints": true
+    },
+    {
+      "idx": 381,
+      "version": "7",
+      "when": 1788510805000,
+      "tag": "0572_r81_gap_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 382,
+      "version": "7",
+      "when": 1788510806000,
+      "tag": "0573_r81_rls_on_registry_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 383,
+      "version": "7",
+      "when": 1788510807000,
+      "tag": "0571_r80add_submission_telemetry",
+      "breakpoints": true
+    },
+    {
+      "idx": 384,
+      "version": "7",
+      "when": 1788510807500,
+      "tag": "0296_r42_seq15_fix_l2_cross_org_discovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 385,
+      "version": "7",
+      "when": 1788510808000,
+      "tag": "0574_r81_revoke_public_execute_on_security_definer_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 386,
+      "version": "7",
+      "when": 1788510809000,
+      "tag": "0546_r68_phase4_memory_records_search_vector",
+      "breakpoints": true
+    },
+    {
+      "idx": 387,
+      "version": "7",
+      "when": 1788510810000,
+      "tag": "0547_r68_phase8_img_product_branch",
+      "breakpoints": true
+    },
+    {
+      "idx": 388,
+      "version": "7",
+      "when": 1788510811000,
+      "tag": "0548_r70_phase7_location_stamping",
+      "breakpoints": true
+    },
+    {
+      "idx": 389,
+      "version": "7",
+      "when": 1788510812000,
+      "tag": "0549_r70_phase7_graph_edge_validity_bounds",
+      "breakpoints": true
+    },
+    {
+      "idx": 390,
+      "version": "7",
+      "when": 1788510813000,
+      "tag": "0550_r70_phase7_current_row_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 391,
+      "version": "7",
+      "when": 1788510814000,
+      "tag": "0575_r81_rls_on_remaining_platform_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 392,
+      "version": "7",
+      "when": 1788510815000,
+      "tag": "0576_r80part2_trigram_similarity",
+      "breakpoints": true
+    },
+    {
+      "idx": 393,
+      "version": "7",
+      "when": 1788510816000,
+      "tag": "0577_p2_6_task_capabilities_registry_write_lockdown",
+      "breakpoints": true
+    },
+    {
+      "idx": 394,
+      "version": "7",
+      "when": 1788510817000,
+      "tag": "0294_r42_seq12_submissions_pipeline_tasks",
+      "breakpoints": true
+    },
+    {
+      "idx": 395,
+      "version": "7",
+      "when": 1788510818000,
+      "tag": "0295_r42_seq20_screen_registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 396,
+      "version": "7",
+      "when": 1788510819000,
+      "tag": "0578_p2_6_capability_improvement_proposals_registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 397,
+      "version": "7",
+      "when": 1788510820000,
+      "tag": "0583_pmt34_interior_sales_org_scoped_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 398,
+      "version": "7",
+      "when": 1788510821000,
+      "tag": "0584_pmt34_user_ai_links_org_scoped_and_token_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 399,
+      "version": "7",
+      "when": 1789030279867,
+      "tag": "0581_pmt30_closure_ci_run_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 400,
+      "version": "7",
+      "when": 1789033292662,
+      "tag": "0582_pmt33_erp_payroll_runs_month_year_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 401,
+      "version": "7",
+      "when": 1789033293662,
+      "tag": "0586_dod_t8_compliance_naive_timestamps_to_timestamptz",
+      "breakpoints": true
+    },
+    {
+      "idx": 404,
+      "version": "7",
+      "when": 1789033296662,
+      "tag": "0589_dod_t8_backup22aug_naive_to_timestamptz",
+      "breakpoints": true
+    },
+    {
+      "idx": 405,
+      "version": "7",
+      "when": 1789033297662,
+      "tag": "0588_construction_tenders_org_scoped",
+      "breakpoints": true
+    },
+    {
+      "idx": 406,
+      "version": "7",
+      "when": 1789033298662,
+      "tag": "0590_crr027_028_expand_preauth_functions_report_share_and_api_key_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 407,
+      "version": "7",
+      "when": 1789033299662,
+      "tag": "0585_p2_6_security_definer_registry_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 408,
+      "version": "7",
+      "when": 1789033300662,
+      "tag": "0592_r83_p0_preauth_policies_scope_to_no_tenant_context",
+      "breakpoints": true
+    },
+    {
+      "idx": 409,
+      "version": "7",
+      "when": 1789194771199,
+      "tag": "0593_r85a3_p1_boq_line_project_contract_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 410,
+      "version": "7",
+      "when": 1789194871199,
+      "tag": "0594_r85a3_p3_boq_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 411,
+      "version": "7",
+      "when": 1789200000000,
+      "tag": "0595_r85a3_p4_gross_net_override_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 412,
+      "version": "7",
+      "when": 1789200100000,
+      "tag": "0596_r85a3_p6_cost_visibility_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 413,
+      "version": "7",
+      "when": 1789200200000,
+      "tag": "0597_r85a3_p10_boq_scenarios",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,7 @@
 // read-only + narrow self-service-write view of their own client record,
 // via the raw `db` export (bypasses RLS, since there's no org/session
 // context a public route could run withTenantContext against).
+import { isShareLinkUsable } from "@/lib/share-link-usable"
 import {
   db, firmClientPortalLinks, clients, firmEngagements, firmEngagementDeliverables, firmInvoices, documents, erpCurrencies,
 } from "@/lib/db"
@@ -16,7 +17,7 @@ import { createId } from "@paralleldrive/cuid2"
 const DEFAULT_EXPIRY_DAYS = 30
 
 function assertValidToken(link: typeof firmClientPortalLinks.$inferSelect | undefined) {
-  if (!link || link.revokedAt || link.expiresAt < new Date()) {
+  if (!isShareLinkUsable(link, new Date())) {
     throw new ServiceError("This client portal link is invalid or has expired", 404)
   }
 }

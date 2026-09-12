@@ -167,6 +167,12 @@ describe("runLifecycleTransitionGates -- Review -> Staging (eval pass rate gate)
     })
     expect(result.setStagingEnteredAt).toBe(true)
     expect(result.setApproval).toBe(true)
+    // T2-01: dependents is a confirmed {status:"ok"} answer here (a
+    // real-but-unused templateKey), never a bare array -- the DB mocking in
+    // this file has no bearing on getPromptTemplateDependents (it reads the
+    // build-time generated map, not the DB), so this is the same real,
+    // trustworthy map every other caller gets.
+    expect(result.dependents.status).toBe("ok")
   })
 
   test("REGRESSION (PR #561 cross-tenant escalation): an org context present at call time cannot weaken the eval-pass-rate gate -- the platform threshold is enforced regardless of actingOrgId", async () => {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { documents } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 import { eq } from "drizzle-orm";
 import { storeEmbedding } from "@/lib/embeddings";
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine";
@@ -15,9 +15,12 @@ import {
 registerAllGuardrails();
 
 export async function POST(request: NextRequest) {
-  const { response, orgId } = await requireAuth();
+  const { response, orgId, dbUser } = await requireAuth();
   if (response) return response;
   if (!orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 });
+
+  const roleCheck = requireRole(dbUser, "team_member");
+  if (roleCheck) return roleCheck;
 
   try {
     const contentType = request.headers.get("content-type") || "";

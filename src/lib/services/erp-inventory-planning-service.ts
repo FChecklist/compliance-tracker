@@ -153,7 +153,7 @@ export async function createCycleCountPlan(ctx: ErpContext, input: { warehouseId
 
     const lines: { planId: string; itemId: string; systemQty: string }[] = []
     for (const itemId of input.itemIds) {
-      const { qty } = await getItemValuation({ orgId: ctx.orgId }, itemId, input.warehouseId)
+      const { qty } = await getItemValuation({ orgId: ctx.orgId }, itemId, input.warehouseId, db)
       lines.push({ planId: plan.id, itemId, systemQty: qty.toString() })
     }
     await db.insert(erpCycleCountLines).values(lines)
@@ -212,17 +212,17 @@ export async function postCycleCountAdjustment(ctx: ErpContext, lineId: string) 
     const variance = Number(line.countedQty) - Number(line.systemQty)
     const postingDate = new Date().toISOString().slice(0, 10)
     if (variance !== 0) {
-      const { averageCost } = await getItemValuation({ orgId: ctx.orgId }, line.itemId, plan.warehouseId)
+      const { averageCost } = await getItemValuation({ orgId: ctx.orgId }, line.itemId, plan.warehouseId, db)
       if (variance > 0) {
         await recordStockReceipt(ctx, {
           itemId: line.itemId, warehouseId: plan.warehouseId, quantity: variance, rate: averageCost,
           postingDate, voucherType: "cycle_count_adjustment", voucherId: line.id,
-        })
+        }, db)
       } else {
         await recordStockIssue(ctx, {
           itemId: line.itemId, warehouseId: plan.warehouseId, quantity: Math.abs(variance),
           postingDate, voucherType: "cycle_count_adjustment", voucherId: line.id,
-        })
+        }, db)
       }
     }
 
