@@ -455,15 +455,25 @@ jobs:
     # scripts/check-register-consistency.test.ts (part of the normal `bun
     # test --isolate` run, no separate step needed here).
     #
-    # Same DATABASE_URL secret / degrade-to-warning-without-it convention as
-    # Migration Schema Drift Check / Migration Integrity Check (AR-12)
-    # above: an unreachable database is an infrastructure condition, not
-    # proof of drift, so it warns and exits 0 rather than blocking every PR.
-    # Proofs 2/3 additionally need cross-repo GitHub API read access
-    # (closure_repo can genuinely be 'projexa', a different repo than this
-    # one) -- PAT_FCHECKLIST is the same cross-repo PAT sync-vercel-env.yml
-    # already uses for this; those two proofs degrade to their own,
-    # independent warning if it's absent, without blocking proofs 1/4.
+    # NOT secrets.DATABASE_URL, and this is a real, live-confirmed finding,
+    # not a stylistic choice -- see scripts/check-register-consistency.mjs's
+    # own header for the full incident: CI's DATABASE_URL connects as the
+    # `app_runtime` role, which lacks BYPASSRLS, and both
+    # platform.sumeet_requirements and platform.sumeet_requirement_components
+    # have RLS policies granting SELECT only to `service_role` (a deliberate
+    # pattern shared by every other governance/audit table in this schema).
+    # A first real run against DATABASE_URL connected fine and returned ZERO
+    # rows from both tables with no error -- exactly the false-negative this
+    # check exists to prevent (a KNOWN-RED gate silently reporting PASS).
+    # Uses the same SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY REST-API pair
+    # doc-processing-job.yml already uses for this identical class of
+    # service-role-only table; degrades to a warning without them, same
+    # convention as the DATABASE_URL-gated jobs above. Proofs 2/3
+    # additionally need cross-repo GitHub API read access (closure_repo can
+    # genuinely be 'projexa', a different repo than this one) --
+    # PAT_FCHECKLIST is the same cross-repo PAT sync-vercel-env.yml already
+    # uses for this; those two proofs degrade to their own, independent
+    # warning if it's absent, without blocking proofs 1/4.
     name: Register Consistency Check
     runs-on: ubuntu-latest
     steps:
@@ -472,5 +482,6 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: node scripts/check-register-consistency.mjs
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PAT_FCHECKLIST: ${{ secrets.PAT_FCHECKLIST }}

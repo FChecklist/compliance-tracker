@@ -72,21 +72,56 @@
 //    schema change adds a structured `na_ruled_by` actor column, THAT is
 //    the real 5th proof to add here.
 //
-// DB-BACKED, DEGRADES TO WARNING -- same convention as
-// check-migration-schema-drift.mjs / check-migration-integrity.mjs: an
-// unreachable DATABASE_URL is an infrastructure condition, not proof of a
-// real drift, so it warns and exits 0 rather than blocking every PR in the
-// repo on prod DB reachability.
+// DB ACCESS -- NOT plain DATABASE_URL, AND WHY (real finding, 2026-09-12)
+// ------------------------------------------------------------------------
+// The brief that started this script asked for the same secrets.DATABASE_URL
+// / degrade-to-warning wiring the other DB-backed CI jobs use (Migration
+// Schema Drift Check, Migration Integrity Check). That was tried FIRST, and
+// it is silently, dangerously wrong for these two tables specifically: CI's
+// DATABASE_URL connects as the `app_runtime` role (this app's normal
+// tenant-scoped runtime role, see src/lib/db/tenant-scoped.ts), which does
+// NOT have BYPASSRLS, and both platform.sumeet_requirements and platform.
+// sumeet_requirement_components have RLS enabled with real SELECT policies
+// ONLY for `service_role` (sumeet_requirement_components also grants
+// `authenticated`, which app_runtime is not either) -- confirmed live via
+// pg_policies, and this is a DELIBERATE, consistent pattern across the
+// governance/audit tables in this schema (claude_log, crr_*, uat_*, and
+// every other sumeet_* table are the same: service_role-only). A first
+// real run of this script against CI's actual DATABASE_URL proved this
+// isn't theoretical: it connected successfully, ran every query without
+// error, and returned ZERO rows from BOTH tables -- which would have made
+// proof 1 (a KNOWN-RED gate that must never assert zero) silently report
+// PASS with an empty set, exactly the false-negative failure mode this
+// whole check exists to prevent elsewhere. See PR discussion / claude_log
+// (author pm-t1) for the full incident.
+//
+// The fix is NOT to weaken RLS (that would be loosening a real security
+// boundary these audit tables intentionally hold, per AGENTS.md Rule 9 --
+// not this script's call to make unilaterally) and NOT to silently keep
+// DATABASE_URL and hope -- it's to read these two tables the same way this
+// repo's own doc-processing-job.yml already reads other service-role-only
+// tables: the Supabase REST API (PostgREST) with the service role key,
+// which genuinely bypasses RLS by design. SUPABASE_URL +
+// SUPABASE_SERVICE_ROLE_KEY are both already real GitHub secrets in this
+// repo (doc-processing-job.yml uses the identical pair). Both tables are
+// small (70 / 490 rows as of 2026-09-12), so this script fetches each in
+// full and does every join/filter in JS -- no PostgREST query-building
+// gymnastics for the EXISTS/JOIN shapes proofs 1-3 need.
+//
+// DEGRADES TO WARNING, same convention as the DATABASE_URL-gated jobs: an
+// unreachable/misconfigured Supabase REST endpoint is an infrastructure
+// condition, not proof of drift, so it warns and exits 0 rather than
+// blocking every PR in the repo.
 //
 // Proofs 2 and 3 additionally need a GitHub token with cross-repo read
 // access (closure_repo can be 'projexa', a different repo than this one)
 // -- GITHUB_TOKEN alone cannot read another repo's Actions API, so these
 // two proofs use PAT_FCHECKLIST (the same cross-repo PAT
-// sync-vercel-env.yml already uses) and degrade to a warning, independently
-// of the DATABASE_URL gate, if it's absent. Proofs 1 and 4 are DB-only and
-// always run once DATABASE_URL is present.
+// sync-vercel-env.yml already uses) and degrade to their own, independent
+// warning if it's absent, without blocking proofs 1/4.
 //
-// Usage: DATABASE_URL=... [GITHUB_TOKEN=... or PAT_FCHECKLIST=...] \
+// Usage: SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+//          [GITHUB_TOKEN=... or PAT_FCHECKLIST=...] \
 //          node scripts/check-register-consistency.mjs
 // Exit code 0 = all runnable proofs pass (or DB/token unavailable, warned),
 // 1 = a real, currently-runnable proof failed.
@@ -116,6 +151,19 @@ export const EXPECTED_CLOSURE_DRIFT_IDS = [
  *                 where c.requirement_id = r.id and c.state = 'FALSE')
  * Each row only needs an `id` field.
  */
+/**
+ * Pure join replacing the SQL EXISTS-subquery shape above, now that both
+ * tables are fetched in full via REST (see header): every requirement
+ * whose closure_state is 'CLOSED' AND has at least one component row with
+ * state === 'FALSE'.
+ */
+export function computeClosureDriftRows(requirements, components) {
+  const falseReqIds = new Set(
+    components.filter((c) => c.state === "FALSE").map((c) => c.requirement_id)
+  )
+  return requirements.filter((r) => r.closure_state === "CLOSED" && falseReqIds.has(r.id))
+}
+
 export function evaluateProof1(currentRows, expectedIds = EXPECTED_CLOSURE_DRIFT_IDS) {
   const currentIds = [...new Set(currentRows.map((r) => r.id))].sort()
   const expected = [...new Set(expectedIds)].sort()
@@ -230,6 +278,20 @@ export async function evaluateProof3(rows, resolveJobIdFn, fetchLogFn) {
 // see header).
 // ---------------------------------------------------------------------
 
+/**
+ * Pure join replacing the SQL c.component='c6' AND c.state='TRUE' JOIN
+ * shape above: every requirement with a c6 component row whose state is
+ * 'TRUE', carrying the requirement's own closure_repo/closure_ci_run_id/
+ * closure_commit_sha/closure_test_path (proofs 2 and 3 need these from the
+ * requirement row itself, not the component row).
+ */
+export function computeC6TrueRows(requirements, components) {
+  const c6TrueReqIds = new Set(
+    components.filter((c) => c.component === "c6" && c.state === "TRUE").map((c) => c.requirement_id)
+  )
+  return requirements.filter((r) => c6TrueReqIds.has(r.id))
+}
+
 export function evaluateProof4(componentRows) {
   const violations = componentRows.filter(
     (r) => r.na_ruling_id != null && r.na_ruling_id === r.verified_by
@@ -266,28 +328,45 @@ async function ghApiText(repo, path, token) {
   return res.text()
 }
 
+async function supabaseRestSelect(table, params, url, serviceRoleKey) {
+  const qs = new URLSearchParams(params).toString()
+  const res = await fetch(`${url}/rest/v1/${table}?${qs}`, {
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      "Accept-Profile": "platform",
+    },
+  })
+  if (!res.ok) {
+    throw new Error(`Supabase REST select on platform.${table} failed: ${res.status} ${await res.text()}`)
+  }
+  return res.json()
+}
+
 async function main() {
-  if (!process.env.DATABASE_URL) {
-    console.warn("WARNING: DATABASE_URL not set -- skipping the register-consistency check.")
+  const supabaseUrl = process.env.SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.warn("WARNING: SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not set -- skipping the register-consistency check.")
+    console.warn("(Not DATABASE_URL -- see this script's own header for why these two tables need the service-role REST path instead.)")
     process.exit(0)
   }
 
-  let sql
   let exitCode = 0
   try {
-    const postgres = (await import("postgres")).default
-    sql = postgres(process.env.DATABASE_URL, { max: 1, connect_timeout: 15, idle_timeout: 5 })
+    const requirements = await supabaseRestSelect(
+      "sumeet_requirements",
+      { select: "id,closure_state,closure_repo,closure_ci_run_id,closure_commit_sha,closure_test_path" },
+      supabaseUrl, serviceRoleKey
+    )
+    const components = await supabaseRestSelect(
+      "sumeet_requirement_components",
+      { select: "requirement_id,component,state,na_ruling_id,verified_by" },
+      supabaseUrl, serviceRoleKey
+    )
 
     // ---- Proof 1 ----
-    const proof1Rows = await sql`
-      select distinct r.id
-      from platform.sumeet_requirements r
-      where r.closure_state = 'CLOSED'
-        and exists (
-          select 1 from platform.sumeet_requirement_components c
-          where c.requirement_id = r.id and c.state = 'FALSE'
-        )
-    `
+    const proof1Rows = computeClosureDriftRows(requirements, components)
     const p1 = evaluateProof1(proof1Rows)
     console.log(`\n[Proof 1: closure-state drift] expected ${p1.expectedIds.length} known-red row(s), found ${p1.currentIds.length} live.`)
     if (p1.pass) {
@@ -300,13 +379,9 @@ async function main() {
     }
 
     // ---- Proof 4 ----
-    const componentRows = await sql`
-      select requirement_id, component, na_ruling_id, verified_by
-      from platform.sumeet_requirement_components
-      where na_ruling_id is not null
-    `
-    const p4 = evaluateProof4(componentRows)
-    console.log(`\n[Proof 4: NA self-certification, literal spec] checked ${componentRows.length} NA-ruled component row(s).`)
+    const naComponentRows = components.filter((c) => c.na_ruling_id != null)
+    const p4 = evaluateProof4(naComponentRows)
+    console.log(`\n[Proof 4: NA self-certification, literal spec] checked ${naComponentRows.length} NA-ruled component row(s).`)
     if (p4.pass) {
       console.log("PASS -- 0 rows where na_ruling_id = verified_by (this predicate is known-vacuous today, see this script's header -- a permanent 0 is not a guarantee against real self-certification).")
     } else {
@@ -320,12 +395,7 @@ async function main() {
     if (!token) {
       console.warn("\nWARNING: no PAT_FCHECKLIST/GITHUB_TOKEN set -- skipping proofs 2 and 3 (CI-ancestry, CI-citation). These need cross-repo GitHub API read access (closure_repo can be 'projexa').")
     } else {
-      const c6Rows = await sql`
-        select r.id, r.closure_repo, r.closure_ci_run_id, r.closure_commit_sha, r.closure_test_path
-        from platform.sumeet_requirements r
-        join platform.sumeet_requirement_components c on c.requirement_id = r.id
-        where c.component = 'c6' and c.state = 'TRUE'
-      `
+      const c6Rows = computeC6TrueRows(requirements, components)
 
       const compareFn = async (repo, sha) => {
         const data = await ghApiJson(repo, `compare/main...${sha}`, token)
@@ -358,12 +428,10 @@ async function main() {
       }
     }
 
-    await sql.end({ timeout: 5 })
     process.exit(exitCode)
   } catch (err) {
     console.warn(`WARNING: could not complete the register-consistency check (${err.message ?? err}).`)
-    console.warn("Not failing CI on this -- an unreachable database is an infrastructure condition, not proof of drift.")
-    try { await sql?.end({ timeout: 5 }) } catch {}
+    console.warn("Not failing CI on this -- an unreachable/misconfigured Supabase REST endpoint is an infrastructure condition, not proof of drift.")
     process.exit(0)
   }
 }

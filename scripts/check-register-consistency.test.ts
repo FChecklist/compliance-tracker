@@ -17,7 +17,41 @@ import {
   classifyCompareStatus,
   logContainsTestPath,
   resolveTestJobName,
+  computeClosureDriftRows,
+  computeC6TrueRows,
 } from "./check-register-consistency.mjs"
+
+describe("computeClosureDriftRows (proof 1 join helper)", () => {
+  test("a CLOSED requirement with a FALSE component is drifted", () => {
+    const requirements = [{ id: "R-1", closure_state: "CLOSED" }, { id: "R-2", closure_state: "CLOSED" }]
+    const components = [
+      { requirement_id: "R-1", state: "FALSE" },
+      { requirement_id: "R-2", state: "TRUE" },
+    ]
+    expect(computeClosureDriftRows(requirements, components).map((r) => r.id)).toEqual(["R-1"])
+  })
+  test("a non-CLOSED requirement with a FALSE component is NOT drifted", () => {
+    const requirements = [{ id: "R-1", closure_state: "OPEN" }]
+    const components = [{ requirement_id: "R-1", state: "FALSE" }]
+    expect(computeClosureDriftRows(requirements, components)).toEqual([])
+  })
+})
+
+describe("computeC6TrueRows (proofs 2/3 join helper)", () => {
+  test("returns the requirement row for a requirement with c6=TRUE", () => {
+    const requirements = [{ id: "R-1", closure_repo: "compliance-tracker" }, { id: "R-2", closure_repo: "projexa" }]
+    const components = [
+      { requirement_id: "R-1", component: "c6", state: "TRUE" },
+      { requirement_id: "R-2", component: "c6", state: "FALSE" },
+    ]
+    expect(computeC6TrueRows(requirements, components).map((r) => r.id)).toEqual(["R-1"])
+  })
+  test("ignores a TRUE component that isn't c6", () => {
+    const requirements = [{ id: "R-1" }]
+    const components = [{ requirement_id: "R-1", component: "c2", state: "TRUE" }]
+    expect(computeC6TrueRows(requirements, components)).toEqual([])
+  })
+})
 
 describe("evaluateProof1 (closure-state c1 vs c6 drift)", () => {
   test("GREEN: the current live set exactly matching EXPECTED_CLOSURE_DRIFT_IDS passes", () => {
