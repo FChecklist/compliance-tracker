@@ -42,6 +42,7 @@
     "examples",
     "**/*.test.ts",
     "**/*.test.tsx",
-    "playwright.config.ts"
+    "playwright.config.ts",
+    "projexa-checkout"
   ]
 }

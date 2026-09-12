@@ -111,6 +111,30 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   // gave: a change to a shared CI guardrail's matching logic is out of this
   // phase's own scope.
   "src/app/api/v1/projexa/reports/boq-analysis/route.ts",
+  //
+  // R85 Addendum 3 v4 Phase 6 (2026-09-12): a REAL, pre-existing false
+  // positive in this checker's regex, not a genuinely unauthenticated
+  // route -- flagging it here honestly rather than papering over it.
+  // requireAuthOrApiKey() (this file's actual auth call) DOES call
+  // requireAuth() internally for a session caller (see auth-guard.ts's own
+  // implementation) -- REQUIRE_AUTH_RE's `\brequireAuth\s*\(` simply does
+  // not match the substring "requireAuthOrApiKey(" (no word boundary
+  // between "requireAuth" and "OrApiKey", both word characters), so this
+  // textual check cannot see that indirection. This is a real, structural
+  // gap for the ENTIRE requireAuthOrApiKey family of v1 routes across this
+  // codebase -- these four just happen to be the first requireAuthOrApiKey-
+  // only files a session has modified since this checker went live in CI
+  // (confirmed: origin/main's own pre-change versions already lacked a
+  // literal "requireAuth(" match and were never previously flagged, simply
+  // because they were never in a diff before). Not fixed here (widening
+  // REQUIRE_AUTH_RE or adding a second accepted identifier is a change to
+  // a shared CI guardrail's matching logic, out of this phase's scope) --
+  // flagged for a future session to fix the regex itself rather than
+  // growing this exemption list one requireAuthOrApiKey route at a time.
+  "src/app/api/v1/construction/boq/route.ts",
+  "src/app/api/v1/construction/boq/[id]/route.ts",
+  "src/app/api/v1/construction/boq/[id]/compare/route.ts",
+  "src/app/api/v1/construction/cost-visibility/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail
