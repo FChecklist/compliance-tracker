@@ -465,15 +465,29 @@ jobs:
     # A first real run against DATABASE_URL connected fine and returned ZERO
     # rows from both tables with no error -- exactly the false-negative this
     # check exists to prevent (a KNOWN-RED gate silently reporting PASS).
-    # Uses the same SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY REST-API pair
-    # doc-processing-job.yml already uses for this identical class of
-    # service-role-only table; degrades to a warning without them, same
-    # convention as the DATABASE_URL-gated jobs above. Proofs 2/3
-    # additionally need cross-repo GitHub API read access (closure_repo can
-    # genuinely be 'projexa', a different repo than this one) --
-    # PAT_FCHECKLIST is the same cross-repo PAT sync-vercel-env.yml already
-    # uses for this; those two proofs degrade to their own, independent
-    # warning if it's absent, without blocking proofs 1/4.
+    #
+    # HONEST CURRENT STATE (2026-09-12): this job is GREEN today only
+    # because it degrades to a warning, not because the 4 proofs are
+    # passing. The SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY REST-API pair
+    # below (the same one doc-processing-job.yml uses for other
+    # service-role-only tables) also fails live -- PostgREST on this
+    # project only exposes {public, graphql_public, compliance}, not
+    # `platform`. The actual minimal fix (a new, additive, SELECT-only RLS
+    # policy granting app_runtime read access on just these two tables) was
+    # drafted and attempted, and was correctly blocked by this platform's
+    # own safety classifier as "modifying security settings" -- not this
+    # agent's call to push through by any other route. See the script's own
+    # header for the exact DDL and the two ways an authorized human can
+    # unblock this (apply that policy, or expose `platform` via PostgREST).
+    # Until then, treat a passing run here as "did not run," not as
+    # evidence the register is consistent -- do not remove this comment or
+    # silently reinterpret a warn-pass as success in a future edit.
+    #
+    # Proofs 2/3 additionally need cross-repo GitHub API read access
+    # (closure_repo can genuinely be 'projexa', a different repo than this
+    # one) -- PAT_FCHECKLIST is the same cross-repo PAT sync-vercel-env.yml
+    # already uses for this; those two proofs degrade to their own,
+    # independent warning if it's absent, without blocking proofs 1/4.
     name: Register Consistency Check
     runs-on: ubuntu-latest
     steps:
