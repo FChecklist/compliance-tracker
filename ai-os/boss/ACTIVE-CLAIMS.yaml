@@ -3449,6 +3449,36 @@ recently_completed:
       (regenerated). Did not touch platform_billing_invoices/platform-billing-service.ts (a
       separate, live invoice path) or ai_cost_reconciliations/cost-reconciliation-service.ts
       (PR #1546's area).
+  - session_label: "claude-desktop (Super Boss, interactive PM session) -- PR #1677 (w-ci/env1-ci-job): undraft + rebase onto current main + resolve the ci.yml conflict"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      Checked before starting: no other active: entry claims .github/workflows/ci.yml,
+      playwright.config.ts, or e2e-env1/register-consistency-check job names -- grepped
+      this whole file for "1677", "e2e-env1", "w-ci/", and "report-share-service" (the
+      last only to confirm the unrelated Phase-6/WS-B claims elsewhere in this file don't
+      touch CI wiring). No collision found.
+      PR #1677 was 58 commits behind main (3 ahead) and mergeable_state=dirty. Merged
+      origin/main into w-ci/env1-ci-job: exactly one real conflict, in .github/workflows/
+      ci.yml -- both branches independently appended a new job at the same end-of-file
+      location (this PR's e2e-env1 vs main's register-consistency-check, PR #1708).
+      Resolved by keeping both job blocks concatenated, dropping no content from either
+      side; playwright.config.ts's reuseExistingServer change auto-merged cleanly.
+      Verified post-resolution: YAML parses (python yaml.safe_load), 17 jobs present
+      (e2e-env1 and register-consistency-check both intact, no duplicates).
+      Also verified against platform.sumeet_requirements (Supabase pcrjmlpuqsbocqfwoxod)
+      before reporting anything as closed: contrary to this session's own earlier
+      "Group 1: 15 rows blocked on 2 missing secrets" framing, that framing is now STALE
+      -- live query shows only 3 rows with closure_state=BLOCKED repo-wide (R-80/R-81/
+      R-82, all citing e2e/r81-d603-chain.spec.ts, unrelated to this CI job or these 2
+      secrets). 16 of the 17 requirement IDs this PR's own header comment names are
+      already closure_state=CLOSED. This PR's real remaining value is backfilling
+      closure_ci_run_id for 9 already-CLOSED rows (R-11/15/30/31/41/42/43/90/B2) that
+      cite a projexa-side env1 spec but have closure_ci_run_id=NULL -- those specs have
+      never actually run in CI before this job existed. NOT claiming to close any
+      requirement via this PR; flagged this correction to the Owner directly.
+      File scope: .github/workflows/ci.yml (conflict resolution only, no new content
+      authored), this file (claim entry only). Did not touch playwright.config.ts
+      (auto-merged, no manual edit needed) or any service/route/schema file.
 # =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
