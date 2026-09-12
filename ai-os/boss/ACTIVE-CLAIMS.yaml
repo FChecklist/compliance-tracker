@@ -130,6 +130,120 @@ active:
       File scope: exactly the 5 files above. NOT touching: the BOQ grid UI,
       Excel round-trip, or the what-if engine (Phases 2/7/10 -- separate,
       later phases per the work order's own sequencing).
+  - session_label: "claude-code (interactive, subagent) -- R85 Addendum 3 v4 (claude_log 379), PHASE 8 THE HISTORY DEFAULT / RATE LIBRARY (spec section E5, gates 8-01..8-08)"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Drive id
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part F Phase 8. Building
+      findRateHistoryMatches / formatRateHistoryOffer / recordRateHistoryAcceptance
+      in a NEW file, src/lib/services/boq-rate-history-service.ts -- reads
+      constructionBoqLineItems (existing qtyProject/rateProject columns from
+      Phase 1, already merged to main as of commit 42669a93/#1696) scoped to the
+      calling org via withTenantContext, matching construction-boq-service.ts's
+      existing org-scoping convention. Read-only against existing data; NO new
+      table, NO migration expected (a rate-history read path, not a new store).
+      8-08 acceptance capture reuses the existing generic src/lib/audit.ts
+      logActivity()/auditLogs table (per G-25 -- no parallel logging mechanism).
+      8-07 is a hard security gate: adversarial cross-tenant test required,
+      committed test suite plus a live BEGIN...ROLLBACK proof via Supabase MCP
+      against pcrjmlpuqsbocqfwoxod's real RLS policies on construction_boqs /
+      construction_boq_line_items.
+
+      File scope: src/lib/services/boq-rate-history-service.ts (NEW),
+      src/lib/services/boq-rate-history-service.test.ts (NEW). Does NOT touch
+      boq-dual-view-service.ts (the single-producer money-figure module, Phase
+      1/2, already merged -- read only), construction-boq-service.ts, or any
+      file under active work by the r85a3/p3-boq-baselines branch (PR #1697,
+      Phase 3 baselines -- disjoint file scope, boq_baseline table + baseline
+      confirm/version-compare logic, not touched here). No drizzle/ migration.
+
+      Branch: r85a3/p8-rate-history (off origin/main @ 42669a93).
+  - session_label: "claude-code (subagent, isolated worktree agent-aa9b5376c526adb49) -- R85 Addendum 3 v4 Phase 5: committed and spent (A5, gates 5-01..5-07)"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      SPEC: R85 Addendum 3 v4 FINAL work order (Google Drive file
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part A5 / PHASE 5 (gates 5-01..5-07).
+      Rulings D87 (366) D88 (372) D89 (373) D90 (374) D91 (375). Supersession
+      notice: platform.claude_log id 379.
+
+      SCOPE: NEW src/lib/services/boq-cost-actuals-service.ts (computeCommittedCost/
+      computeSpentCost + *WithDb siblings, computeCostVariance,
+      isCommittedOverBaseline) and its test file
+      src/lib/services/boq-cost-actuals-service.test.ts. Read-only investigation
+      of live schema (erp_purchase_orders, erp_purchase_invoices,
+      construction_attendance, construction_labour_roster, erp_suppliers) via
+      Supabase MCP against pcrjmlpuqsbocqfwoxod -- no schema.ts change, no
+      migration (cost_committed/cost_spent are derived, never stored, per X-06).
+      Regenerated docs/master/TEST_COVERAGE_GAP.md (report-test-coverage-gap.mjs).
+
+      NOT touching: Phase 3 (boq_baseline table + service, r85a3/p3-boq-baselines,
+      PR #1697 open) or Phase 4 (gross/net/VAT/retention/override columns) --
+      computeCostVariance takes the baseline estimated cost as a plain
+      parameter rather than importing Phase 3's service, specifically to avoid
+      a cross-branch dependency. Branch: r85a3/p5-committed-spent, off
+      origin/main @ 42669a93 (already includes Phase 1's merged columns and
+      Phase 2's boq-dual-view-service.ts, the single producer this file never
+      duplicates).
+  - session_label: "claude-code (subagent, r85a3/p6-visibility-client-boundary) -- R85 Addendum 3 v4 Phase 6 (VISIBILITY AND THE CLIENT BOUNDARY), gates 6-01..6-05"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Google Drive file
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part H sequencing (Phase 6 before
+      Phase 7 exports, deliberately), gates 6-01..6-05. Owner rulings D87
+      (claude_log 366), D88 (372), D89 (373), D90 (374), D91 (375).
+      Supersession notice: claude_log id 379.
+
+      CONFIRMED BEFORE STARTING (per this file's own protocol + G-25): read
+      this file, `gh pr list`, and `git log origin/main` first. Phase 1
+      (project/contract columns) and Phase 3 (baselines) are merged to main
+      (#1696, #1697). Phase 4 (r85a3/p4-gross-net-override), Phase 5
+      (r85a3/p5-committed-spent), Phase 8 (r85a3/p8-rate-history) are
+      in-progress on their own branches -- NOT touched by this claim.
+      Investigated existing role/permission machinery before building
+      anything new (G-25, zero duplication): reused
+      src/lib/supabase/role-rank.ts's real UserRole enum/ROLE_RANK (11
+      values incl. client_viewer, rank 1) rather than inventing a second
+      role model or the PROJEXA-repo-only OrgRole owner/admin/pm/
+      site_engineer/member/client_viewer shape (that type lives in the
+      separate FChecklist/projexa repo, per this repo's own CLAUDE.md
+      PROJEXA-is-separate section -- not reachable or relevant from here).
+
+      SCOPE: new compliance.cost_visibility_config table (org-scoped,
+      per-role, changed_by/changed_at, DB CHECK hard-floor blocking
+      client_viewer), src/lib/services/cost-visibility-service.ts
+      (canRoleSeeCost + a generic project-side-field redaction helper --
+      the ONE gate every screen/route must call), a new
+      src/app/api/v1/construction/cost-visibility/route.ts config API,
+      and read-path fixes in src/app/api/v1/construction/boq/route.ts,
+      boq/[id]/route.ts, boq/[id]/compare/route.ts (all three also serve
+      /api/v1/projexa/scope/* via re-export) plus
+      src/lib/services/report-share-service.ts's public share-token
+      resolver (6-03b). NOT touching construction-reports-service.ts's
+      pre-existing budgetPercentage/vendorAmount budget-overlay feature
+      (Point 154, a separate pre-R85 concept, out of scope) or any
+      Phase 4/5/8 file.
+
+      DONE: drizzle/0595_r85a3_p6_cost_visibility_config.sql (applied LIVE
+      against pcrjmlpuqsbocqfwoxod via Supabase MCP, DB CHECK constraint
+      live-verified to reject a client_viewer grant with Postgres 23514),
+      src/lib/services/cost-visibility-service.ts + .test.ts (13 tests),
+      src/app/api/v1/construction/cost-visibility/route.ts + .test.ts
+      (4 tests), client-boundary fixes in boq/route.ts, boq/[id]/route.ts,
+      boq/[id]/compare/route.ts + boq-route.client-boundary.test.ts (6
+      tests, incl. the 6-03d falsifiability plant/revert -- verbatim
+      RED/GREEN in the PR), report-share-service.ts's
+      resolveReportShareLink() (6-03b) +
+      report-share-service.client-boundary.test.ts (2 tests). Also fixed a
+      real, pre-existing false positive in
+      scripts/check-route-auth-guard.mjs for the whole requireAuthOrApiKey()
+      route family (documented, not silently worked around) and bumped
+      src/lib/supabase/authz-gap-inventory.test.ts's frozen counts for the
+      one new, gated mutating route this phase adds.
+
+      PR: https://github.com/FChecklist/compliance-tracker/pull/1701
+      (r85a3/p6-visibility-client-boundary -> main, open, not merged by
+      this session per AGENTS.md Rule 6). Rebased cleanly onto origin/main
+      after r85a3/p5-committed-spent merged as #1700 mid-session.
   - session_label: "claude-code (interactive, successor PM session, took handover from prior 'Project Manager' session local_9ded2765-995d-446e-ac58-eff36e1ad5ae mid-day 2026-09-11) -- R83 register integrity + continuation"
     claimed_at: "2026-09-11T23:15 IST (this session)"
     claim: |
@@ -3283,6 +3397,28 @@ active:
       src/lib/services/construction-boq-service.ts change.
 
 recently_completed:
+  - session_label: "claude-code (subagent, isolated worktree wf_2ecda735-e0d-1) -- URGENT, standalone security fix: public share-link cost leak in resolveReportShareLink() (pm-urgent-share-leak) [DONE, merged as PR #1709]"
+    claimed_at: "2026-09-12T (this session)"
+    merged_as: "FChecklist/compliance-tracker PR #1709 (squash-merged, merge commit c97f4e68)."
+    claim: |
+      D91 (claude_log 375): "Any unauthenticated share token CAN NEVER CARRY
+      COST." resolveReportShareLink() was returning real cost/budget/
+      variance/profit data on ALL THREE report branches (project_status,
+      attendance_summary, work_progress -- the third found in the same
+      pass by checking every branch, not just the one already reported).
+      Reconciled mid-flight with R85 Addendum 3 v4 Phase 6 (PR #1701),
+      which merged its own (narrower, dual-view-scoped) redaction to this
+      same file while this fix was in progress -- read that PR's diff
+      directly and found it did not cover this task's leak and never
+      touched attendance_summary at all. Fixed via four new explicit-
+      allowlist functions in report-share-service.ts; both redaction
+      layers now run. Falsifiability performed for all 3 branches (plant/
+      RED/revert/GREEN, real terminal output recorded in the PR). Full
+      detail: platform.claude_log id 395 (close).
+
+      Flagged as a separate follow-up (task_7e2452f7, not this PR):
+      cost-visibility-service.ts's PROJECT_SIDE_COST_FIELDS has the same
+      narrow-scope gap on the authenticated BOQ routes.
   - session_label: "claude-code (interactive, PM session) -- R85 Addendum 3 v4 FINAL, PHASE 5: committed and spent cost derivation (A5, gates 5-01..5-07) [DONE, merged as PR #1700]"
     claimed_at: "2026-09-12T (this session)"
     merged_as: "FChecklist/compliance-tracker PR #1700 (squash-merged, merge commit 29ac0012)."
@@ -3335,6 +3471,102 @@ recently_completed:
       (regenerated). Did not touch platform_billing_invoices/platform-billing-service.ts (a
       separate, live invoice path) or ai_cost_reconciliations/cost-reconciliation-service.ts
       (PR #1546's area).
+  - session_label: "claude-desktop (Super Boss, interactive PM session) -- PR #1677 (w-ci/env1-ci-job): undraft + rebase onto current main + resolve the ci.yml conflict"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      Checked before starting: no other active: entry claims .github/workflows/ci.yml,
+      playwright.config.ts, or e2e-env1/register-consistency-check job names -- grepped
+      this whole file for "1677", "e2e-env1", "w-ci/", and "report-share-service" (the
+      last only to confirm the unrelated Phase-6/WS-B claims elsewhere in this file don't
+      touch CI wiring). No collision found.
+      PR #1677 was 58 commits behind main (3 ahead) and mergeable_state=dirty. Merged
+      origin/main into w-ci/env1-ci-job: exactly one real conflict, in .github/workflows/
+      ci.yml -- both branches independently appended a new job at the same end-of-file
+      location (this PR's e2e-env1 vs main's register-consistency-check, PR #1708).
+      Resolved by keeping both job blocks concatenated, dropping no content from either
+      side; playwright.config.ts's reuseExistingServer change auto-merged cleanly.
+      Verified post-resolution: YAML parses (python yaml.safe_load), 17 jobs present
+      (e2e-env1 and register-consistency-check both intact, no duplicates).
+      Also verified against platform.sumeet_requirements (Supabase pcrjmlpuqsbocqfwoxod)
+      before reporting anything as closed: contrary to this session's own earlier
+      "Group 1: 15 rows blocked on 2 missing secrets" framing, that framing is now STALE
+      -- live query shows only 3 rows with closure_state=BLOCKED repo-wide (R-80/R-81/
+      R-82, all citing e2e/r81-d603-chain.spec.ts, unrelated to this CI job or these 2
+      secrets). 16 of the 17 requirement IDs this PR's own header comment names are
+      already closure_state=CLOSED. This PR's real remaining value is backfilling
+      closure_ci_run_id for 9 already-CLOSED rows (R-11/15/30/31/41/42/43/90/B2) that
+      cite a projexa-side env1 spec but have closure_ci_run_id=NULL -- those specs have
+      never actually run in CI before this job existed. NOT claiming to close any
+      requirement via this PR; flagged this correction to the Owner directly.
+      File scope: .github/workflows/ci.yml (conflict resolution only, no new content
+      authored), this file (claim entry only). Did not touch playwright.config.ts
+      (auto-merged, no manual edit needed) or any service/route/schema file.
+  - session_label: "claude-desktop (Super Boss, interactive PM session) -- R85 Addendum 3 v4 Phase 2 WIRING (X-27 gap): boq-dual-view-service.ts had zero live callers since it was built/tested, D91's R-50 requirement is NOT_TESTABLE explicitly pending this"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      Checked before starting: no active: entry claims construction-boq-service.ts,
+      withComputedRate, getBoq/getBoqRow/listBoqs, or the internal/v1 boq/[id] routes.
+      Confirmed via platform.sumeet_requirements (Supabase pcrjmlpuqsbocqfwoxod) that
+      R-50 itself is closure_state=NOT_TESTABLE with next_action explicitly naming
+      "Merge/build Phases 2 (grid UI), 6, 7, 9, 10... Only then attempt gate 11-02" --
+      Phase 6 (#1701) is merged; this claim is Phase 2's wiring specifically.
+
+      X-27 GAP CLOSED: computeBoqLineMoneyView/rollUpRootLines/computeCostCoverage
+      (boq-dual-view-service.ts, built+unit-tested since Phase 2) were never called by
+      any route -- confirmed via `grep -rl "from .*boq-dual-view-service" src/app`
+      returning zero matches before this pass. Wired into withComputedRate() (the one
+      place every line item is shaped for a response -- 4 call sites: getBoq/getBoqRow/
+      listBoqs/updateLineItemBudget, all now carry projectValue/contractValue/variance/
+      variancePercent/quantityVariance/rateVariance per line) plus a whole-BOQ
+      moneyView (rollUpRootLines, root lines only per A7/R-32) + costCoverage
+      (computeCostCoverage, Phase 2 2-08) attached in getBoq/getBoqRow/listBoqs(?include=
+      lineItems). Field names match cost-visibility-service.ts's pre-existing
+      PROJECT_SIDE_COST_FIELDS exactly (written in anticipation of this wiring by
+      Phase 6) -- applyCostVisibility() at each route requires no change to redact them.
+
+      SECOND GAP FOUND AND CLOSED WHILE VERIFYING "all wiring" (not pre-planned, found
+      by checking every real consumer of getBoq/listBoqs before merging): the INTERNAL
+      route src/app/api/construction/boq/[id]/route.ts (requireAuth, not
+      requireAuthOrApiKey -- compliance-tracker's own UI, not PROJEXA's v1 API) called
+      getBoq() with ZERO applyCostVisibility() call -- pre-dates this pass (getBoq()
+      already returned raw qtyProject/rateProject columns since Phase 1; Phase 6's own
+      PR #1701 only touched the v1 routes' file scope). client_viewer is a PROJEXA-only
+      role (cost-visibility-service.ts's own comment) and can never reach this internal
+      route, so exposure was to compliance-tracker's own staff, not a customer -- fixed
+      anyway for consistency, real falsifiability proof performed (see below).
+      src/app/api/construction/boq/route.ts (list) is UNAFFECTED -- it calls listBoqs()
+      with no include option, so line items (and therefore moneyView) were never
+      fetched there before or after this pass.
+
+      VERIFIED SAFE, not just fixed: report-share-service.ts (today's P0 share-link fix,
+      PR #1709) also calls getBoq() -- checked directly, its toPublicBoqLineItem() is an
+      explicit ALLOWLIST (destructures only id/boqId/parentLineItemId/itemCode/
+      description/unit/quantity/category/qtyContract/rateContract) plus a second
+      redactForPublicShare() wrap -- the new moneyView/costCoverage/per-line dual-view
+      fields are never read by it at all, on two independent layers.
+
+      FALSIFIABILITY, both fixes, real RED then real GREEN (not narrated, both observed
+      by running the suite): (1) reverted withComputedRate()'s computeBoqLineMoneyView
+      spread -- construction-boq-service.dual-view-wiring.test.ts went 3 fail/3 pass
+      (projectValue/moneyView/costCoverage undefined), reverted, 6/6 pass. (2) reverted
+      the internal route's applyCostVisibility call -- the new
+      boq-internal-route.client-boundary.test.ts's fail-closed-default test went RED
+      (rateProject/projectValue/moneyView leaked in the JSON body), reverted, GREEN.
+
+      NOT touched: write-route responses (createBoq/createBoqRevision/
+      updateLineItemBudget/approve/submit) -- established boundary is READS are gated
+      (Phase 6's own scope was GET/compare only), a write response echoes back what the
+      SAME actor just wrote, a materially different exposure than a stranger reading it.
+      Flagged, not silently assumed identical to the read-gate question.
+
+      File scope: src/lib/services/construction-boq-service.ts (withComputedRate/getBoq/
+      getBoqRow/listBoqs), src/lib/services/construction-boq-service.dual-view-wiring.test.ts
+      (NEW), src/app/api/construction/boq/[id]/route.ts,
+      src/app/api/construction/boq/[id]/boq-internal-route.client-boundary.test.ts (NEW),
+      this file (claim entry). Did NOT touch boq-dual-view-service.ts itself (Phase 2's
+      own file, already correct and tested -- this pass only wires its existing exports
+      in), cost-visibility-service.ts, or any v1 route (already correctly gated by
+      Phase 6).
 # =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
