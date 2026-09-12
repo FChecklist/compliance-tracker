@@ -442,3 +442,60 @@ jobs:
       # honest limitation to wave through.
       - run: bunx playwright install --with-deps chromium
       - run: bunx playwright test
+  register-consistency-check:
+    # pm-t1 brief (2026-09-12): wires 4 standing register-consistency proofs
+    # over platform.sumeet_requirements / platform.sumeet_requirement_
+    # components into CI as a real, permanent, checked-in check, replacing
+    # a one-off manual investigation nobody could reproduce. See
+    # scripts/check-register-consistency.mjs's own header for the full
+    # design of each of the 4 proofs (closure-state c1-vs-c6 drift --
+    # KNOWN-RED by design, must never assert zero; CI-ancestry; CI-citation;
+    # NA self-certification, known-vacuous literal spec) and its
+    # falsifiability-tested unit tests in
+    # scripts/check-register-consistency.test.ts (part of the normal `bun
+    # test --isolate` run, no separate step needed here).
+    #
+    # NOT secrets.DATABASE_URL, and this is a real, live-confirmed finding,
+    # not a stylistic choice -- see scripts/check-register-consistency.mjs's
+    # own header for the full incident: CI's DATABASE_URL connects as the
+    # `app_runtime` role, which lacks BYPASSRLS, and both
+    # platform.sumeet_requirements and platform.sumeet_requirement_components
+    # have RLS policies granting SELECT only to `service_role` (a deliberate
+    # pattern shared by every other governance/audit table in this schema).
+    # A first real run against DATABASE_URL connected fine and returned ZERO
+    # rows from both tables with no error -- exactly the false-negative this
+    # check exists to prevent (a KNOWN-RED gate silently reporting PASS).
+    #
+    # HONEST CURRENT STATE (2026-09-12): this job is GREEN today only
+    # because it degrades to a warning, not because the 4 proofs are
+    # passing. The SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY REST-API pair
+    # below (the same one doc-processing-job.yml uses for other
+    # service-role-only tables) also fails live -- PostgREST on this
+    # project only exposes {public, graphql_public, compliance}, not
+    # `platform`. The actual minimal fix (a new, additive, SELECT-only RLS
+    # policy granting app_runtime read access on just these two tables) was
+    # drafted and attempted, and was correctly blocked by this platform's
+    # own safety classifier as "modifying security settings" -- not this
+    # agent's call to push through by any other route. See the script's own
+    # header for the exact DDL and the two ways an authorized human can
+    # unblock this (apply that policy, or expose `platform` via PostgREST).
+    # Until then, treat a passing run here as "did not run," not as
+    # evidence the register is consistent -- do not remove this comment or
+    # silently reinterpret a warn-pass as success in a future edit.
+    #
+    # Proofs 2/3 additionally need cross-repo GitHub API read access
+    # (closure_repo can genuinely be 'projexa', a different repo than this
+    # one) -- PAT_FCHECKLIST is the same cross-repo PAT sync-vercel-env.yml
+    # already uses for this; those two proofs degrade to their own,
+    # independent warning if it's absent, without blocking proofs 1/4.
+    name: Register Consistency Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: node scripts/check-register-consistency.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PAT_FCHECKLIST: ${{ secrets.PAT_FCHECKLIST }}
