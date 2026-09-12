@@ -40,34 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (subagent, isolated worktree wf_2ecda735-e0d-1) -- URGENT, standalone security fix: public share-link cost leak in resolveReportShareLink()"
-    claimed_at: "2026-09-12T (this session)"
-    claim: |
-      TASK: pm-urgent-share-leak. src/lib/services/report-share-service.ts's
-      resolveReportShareLink() (a genuinely public, unauthenticated route) was
-      found returning cost/budget/variance figures (ProjectDashboard's budget/
-      ledgerBudget/revenue/expenses/projectValue/earnedValue/percentByValue/
-      contractValue, plus boqBudgetVarianceReport's totals/lines) for
-      reportType === 'project_status', in violation of owner ruling D91
-      (claude_log id 375: "Any unauthenticated share token CAN NEVER CARRY
-      COST"). Redacting to an explicit allowlist of customer-safe (schedule/
-      progress/scope) fields only.
-
-      File scope: src/lib/services/report-share-service.ts (+ NEW/updated
-      .test.ts), and (read-only check, guard only if needed) projexa's
-      src/app/share/report/[token]/page.tsx for optional-chaining on the
-      removed fields. Does NOT touch boq-dual-view-service.ts or any Phase
-      6/9/10 R85 Addendum 3 v4 file -- explicitly out of scope per this
-      task's own instructions, and distinct from that effort even though
-      both cite D91.
-
-      Checked before starting: no active: entry below claims
-      report-share-service.ts right now (the two prior entries mentioning it,
-      r67-lane-E1 and the D-31 lane, are both already-merged/historical
-      claims, not currently active). Phase 6's "visibility/client-boundary"
-      entry above has an unknown file scope (its own claim says so) -- if it
-      turns out to also touch this file, that collision is noted in this
-      claim rather than silently worked around, per Rule 11(4).
   - session_label: "claude-code (subagent, isolated worktree, r85a3/p9-analysis-screen) -- R85 Addendum 3 v4 FINAL, PHASE 9: the analysis screen (B3, gates 9-01..9-07)"
     claimed_at: "2026-09-12T (this session)"
     claim: |
@@ -3425,6 +3397,28 @@ active:
       src/lib/services/construction-boq-service.ts change.
 
 recently_completed:
+  - session_label: "claude-code (subagent, isolated worktree wf_2ecda735-e0d-1) -- URGENT, standalone security fix: public share-link cost leak in resolveReportShareLink() (pm-urgent-share-leak) [DONE, merged as PR #1709]"
+    claimed_at: "2026-09-12T (this session)"
+    merged_as: "FChecklist/compliance-tracker PR #1709 (squash-merged, merge commit c97f4e68)."
+    claim: |
+      D91 (claude_log 375): "Any unauthenticated share token CAN NEVER CARRY
+      COST." resolveReportShareLink() was returning real cost/budget/
+      variance/profit data on ALL THREE report branches (project_status,
+      attendance_summary, work_progress -- the third found in the same
+      pass by checking every branch, not just the one already reported).
+      Reconciled mid-flight with R85 Addendum 3 v4 Phase 6 (PR #1701),
+      which merged its own (narrower, dual-view-scoped) redaction to this
+      same file while this fix was in progress -- read that PR's diff
+      directly and found it did not cover this task's leak and never
+      touched attendance_summary at all. Fixed via four new explicit-
+      allowlist functions in report-share-service.ts; both redaction
+      layers now run. Falsifiability performed for all 3 branches (plant/
+      RED/revert/GREEN, real terminal output recorded in the PR). Full
+      detail: platform.claude_log id 395 (close).
+
+      Flagged as a separate follow-up (task_7e2452f7, not this PR):
+      cost-visibility-service.ts's PROJECT_SIDE_COST_FIELDS has the same
+      narrow-scope gap on the authenticated BOQ routes.
   - session_label: "claude-code (interactive, PM session) -- R85 Addendum 3 v4 FINAL, PHASE 5: committed and spent cost derivation (A5, gates 5-01..5-07) [DONE, merged as PR #1700]"
     claimed_at: "2026-09-12T (this session)"
     merged_as: "FChecklist/compliance-tracker PR #1700 (squash-merged, merge commit 29ac0012)."
