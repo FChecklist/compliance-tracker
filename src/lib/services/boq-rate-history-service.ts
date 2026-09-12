@@ -70,6 +70,7 @@ import { constructionBoqLineItems, constructionBoqs, projects, users } from "@/l
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, desc, eq, isNotNull } from "drizzle-orm"
 import { logActivity } from "@/lib/audit"
+import { ServiceError } from "./compliance-service"
 
 export type RateHistoryContext = { orgId: string }
 export type RateHistoryWriteContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
@@ -294,10 +295,17 @@ export function buildCandidatesFromRows(rows: RawRateHistoryRow[], callingOrgId:
   }
 
   if (foreignOrgIds.size > 0) {
-    throw new Error(
+    // A genuine internal-invariant violation (both RLS and the query's own
+    // WHERE clause would have had to fail at once for this to be reached),
+    // not a user input mistake -- 500/system/non-retryable, matching this
+    // codebase's own ServiceError convention (see compliance-service.ts).
+    // Not retryable: an identical retry would hit the identical bug.
+    throw new ServiceError(
       `boq-rate-history-service: 8-07 cross-tenant leak blocked -- expected only org ${callingOrgId}, ` +
         `also saw ${[...foreignOrgIds].join(", ")}. This should be unreachable (RLS + the query's own WHERE ` +
-        `clause both scope to org_id already) -- refusing to return anything rather than risk a partial leak.`
+        `clause both scope to org_id already) -- refusing to return anything rather than risk a partial leak.`,
+      500,
+      { kind: "system", retryable: false }
     )
   }
 
