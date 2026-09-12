@@ -2878,6 +2878,13 @@
       "when": 1789200100000,
       "tag": "0596_r85a3_p6_cost_visibility_config",
       "breakpoints": true
+    },
+    {
+      "idx": 413,
+      "version": "7",
+      "when": 1789200200000,
+      "tag": "0597_r85a3_p10_boq_scenarios",
+      "breakpoints": true
     }
   ]
 }

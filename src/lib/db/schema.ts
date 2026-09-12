@@ -11096,6 +11096,66 @@ export const costVisibilityConfig = complianceSchemaDB.table('cost_visibility_co
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// R85 Addendum 3 v4 (FINAL, claude_log 379), Phase 10 / spec Part F -- THE
+// WHAT-IF / SCENARIO ENGINE (gates 10-01..10-13). Work order: Google Drive
+// WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md, Part F.
+//
+// 10-01: "A scenario is a NON-DESTRUCTIVE scratch layer." ONE ROW PER
+// SCENARIO (not per adjustment, same "one row, jsonb array" shape as
+// boqBaseline above) -- `adjustments` is a ScenarioAdjustment[] (shape owned
+// by src/lib/services/boq-scenario-service.ts, this file's own single-
+// producer for every figure derived from it, per X-27). NOTHING on this row
+// is ever a computed money figure (X-02) -- only the raw adjustment
+// instructions (mode/value/side per line, or an exclude flag) and the
+// scenario's own bookkeeping (name/author/status/commit metadata). Every
+// BASE/SCENARIO/DELTA figure (10-05) is derived at read time by re-running
+// boq-dual-view-service.ts's existing computeBoqLineMoneyView/rollUpRootLines
+// over the live BOQ lines with these adjustments applied -- never stored.
+//
+// 10-08 ("NOTHING IS WRITTEN UNTIL COMMIT"): every column below except
+// `status`/`committedAt`/`committedById`/`committedRevisionBoqId` is written
+// ONLY by createScenario/addAdjustment/addBulkAdjustment/removeAdjustment --
+// none of which ever touches constructionBoqLineItems or constructionBoqs.
+// The BOQ itself is untouched until commitScenario() runs (see that
+// function's own header for exactly what it writes and why).
+export const boqScenarioStatusEnum = complianceSchemaDB.enum('boq_scenario_status', ['draft', 'committed'])
+
+export const boqScenario = complianceSchemaDB.table('boq_scenario', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  // The LIVE BOQ this scenario was built against. A scenario's adjustments
+  // are always resolved against boqId's CURRENT live line items at read/
+  // commit time (never a second frozen copy of the lines themselves -- only
+  // boq_baseline freezes lines, per X-07/E2; a scenario is explicitly NOT a
+  // baseline).
+  boqId: text('boq_id').notNull(),
+  projectId: text('project_id').notNull(), // denormalized from boqId at creation, for listing scenarios by project without a join
+  // 10-01 "base baseline version" -- optional: a project may have no
+  // confirmed baseline yet (Phase 3, boq_baseline) when a scenario is first
+  // built. Nullable rather than a fabricated 0/1.
+  baseBaselineVersion: integer('base_baseline_version'),
+  name: text('name').notNull(),
+  authorId: text('author_id').notNull(),
+  status: boqScenarioStatusEnum('status').notNull().default('draft'),
+  // ScenarioAdjustment[] -- see boq-scenario-service.ts for the shape. Empty
+  // array (never null) for a freshly-created scenario with no adjustments yet.
+  adjustments: jsonb('adjustments').notNull().default([]),
+  // 10-09/10-11: set ONLY by commitScenario(), together, once. A committed
+  // scenario is never mutated again (enforced in boq-scenario-service.ts,
+  // not the DB layer -- matching this table's own "mutable until an explicit
+  // terminal action" shape, unlike boq_baseline's DB-level immutability,
+  // because a DRAFT scenario legitimately needs UPDATE for its adjustments
+  // list right up until commit).
+  committedAt: timestamp('committed_at', { withTimezone: true }),
+  committedById: text('committed_by_id'),
+  // Set only when commitScenario() had to create a new BOQ revision for an
+  // excluded line or an evidenced contract-side change (10-09's third
+  // bullet, X-24) -- null when the commit was cost-side only.
+  committedRevisionBoqId: text('committed_revision_boq_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 // R67 lane I (WS-I item I-05, R-177): the org's editable BOQ category list --
 // what the Category select on a BOQ line offers, and what Settings edits.
 // Org-scoped, not project-scoped: a contractor's trade breakdown is a company
