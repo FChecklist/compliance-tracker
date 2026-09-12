@@ -14,7 +14,7 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { convertToStockUom } from "./erp-uom-batch-service"
-import { requireErpEnabled } from "./erp-enablement-service"
+import { requireErpEnabled, isErpEnabledForOrgWithDb } from "./erp-enablement-service"
 import { ErpContext, ActorCtx } from "./actor-context"
 
 
@@ -47,13 +47,55 @@ export type StockReceiptInput = {
   uom?: string; batchNumber?: string; expiryDate?: string
 }
 
-/** Records a stock receipt and opens a new FIFO layer for it. */
-export async function recordStockReceipt(ctx: ActorCtx, input: StockReceiptInput) {
-  await requireErpEnabled(ctx.orgId)
+/**
+ * Records a stock receipt and opens a new FIFO layer for it.
+ *
+ * `existingDb` -- R80/R81_F25 (2026-09-08). A caller that is ALREADY inside a
+ * withTenantContext transaction must pass its open handle here, because
+ * assertNotNested() throws on a second one and says so in its own message:
+ * "Pass the open transaction's db handle down instead -- one request must never
+ * hold two of the five app_runtime connections". That is not a style rule; the
+ * app_runtime pool is max: 5 and a request holding two connections is how it
+ * exhausts.
+ *
+ * This was latent until 2026-09-08 and never reachable from PROJEXA: no PROJEXA
+ * screen sent an itemId, so submitPurchaseReceipt's `if (!item.itemId) continue`
+ * short-circuited before ever reaching this function. Commits 754cef17 (move the
+ * receivedQuantity credit above that guard) and 19491a5 (let PO lines carry a
+ * stock item) opened the path for the first time, and it failed immediately with
+ * a 500: PO left draft, received_quantity 0, receipt stranded, zero ledger rows.
+ * Found by the R81 session driving the real UI, not by a unit test -- nothing in
+ * either suite exercises two services sharing one transaction.
+ *
+ * Omitting `existingDb` keeps the previous behaviour exactly for every caller
+ * that is not already in a transaction.
+ */
+export async function recordStockReceipt(ctx: ActorCtx, input: StockReceiptInput, existingDb?: TenantDb) {
+  // R81_F25 COMPLETION (2026-09-08). Threading the open handle into the body
+  // below was necessary but NOT sufficient: requireErpEnabled() opens its OWN
+  // withTenantContext (isErpEnabledForOrg -> isBranchEnabledForOrg,
+  // product-branch-service.ts:91), and it runs BEFORE the existingDb branch is
+  // ever reached. So a caller already inside a transaction still tripped
+  // assertNotNested here -- verified against the live database at 6b56c00b:
+  // submitPurchaseReceipt still threw "nested withTenantContext" and still left
+  // the PO at draft with received_quantity 0 and zero ledger rows.
+  // isErpEnabledForOrgWithDb is the db-handle-accepting variant R74 Phase 10
+  // added for exactly this shape; the 403 wording is requireErpEnabled's own,
+  // unchanged, so the standalone and threaded paths refuse identically.
+  if (existingDb) {
+    if (!(await isErpEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the ERP module.",
+        403
+      )
+    }
+  } else {
+    await requireErpEnabled(ctx.orgId)
+  }
   if (input.quantity <= 0) throw new ServiceError("quantity must be positive", 400)
   if (input.rate < 0) throw new ServiceError("rate cannot be negative", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const run = async (db: TenantDb) => {
     const item = await db.query.erpItems.findFirst({ where: and(eq(erpItems.id, input.itemId), eq(erpItems.orgId, ctx.orgId)) })
     if (!item) throw new ServiceError("Item not found", 404)
     const warehouse = await db.query.erpWarehouses.findFirst({ where: and(eq(erpWarehouses.id, input.warehouseId), eq(erpWarehouses.orgId, ctx.orgId)) })
@@ -89,7 +131,12 @@ export async function recordStockReceipt(ctx: ActorCtx, input: StockReceiptInput
 
     await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_stock.received", entityType: "erp_stock_ledger_entry", entityId: entry.id })
     return entry
-  })
+  }
+
+  // Reuse the caller's open transaction when there is one; otherwise open our
+  // own exactly as before. Both paths run the identical body above, so a
+  // nested caller and a standalone caller cannot diverge in behaviour.
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, run)
 }
 
 export type StockIssueInput = {
@@ -103,11 +150,37 @@ export type StockIssueInput = {
  * average cost of what was actually consumed, not an arbitrary number --
  * this is the core fix: previously nothing computed this at all.
  */
-export async function recordStockIssue(ctx: ActorCtx, input: StockIssueInput) {
-  await requireErpEnabled(ctx.orgId)
+/**
+ * `existingDb` -- R81_F25/F26 (2026-09-08). A caller already inside a
+ * withTenantContext MUST pass its open handle. assertNotNested() rejects a
+ * second transaction, and critically it only THROWS in development and test --
+ * in PRODUCTION it console.warn()s and lets the request proceed
+ * (tenant-scoped.ts:188-192). So a nested call does not fail loudly in prod; it
+ * silently splits one logical operation across two transactions, and a failure
+ * between them commits half of it. For a stock/financial path that is silent
+ * corruption, not a latency bug.
+ */
+export async function recordStockIssue(ctx: ActorCtx, input: StockIssueInput, existingDb?: TenantDb) {
+  // R81_F25 COMPLETION: the enablement gate must ALSO honour the threaded
+  // handle. requireErpEnabled() opens its own withTenantContext and runs BEFORE
+  // the existingDb branch below, so threading the handle into the body alone
+  // still trips assertNotNested -- the mistake 6b56c00b made on
+  // recordStockReceipt. Same shape, same fix: isErpEnabledForOrgWithDb is the
+  // db-handle-accepting variant, and the 403 wording is requireErpEnabled's own
+  // so both paths refuse identically.
+  if (existingDb) {
+    if (!(await isErpEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the ERP module.",
+        403
+      )
+    }
+  } else {
+    await requireErpEnabled(ctx.orgId)
+  }
   if (input.quantity <= 0) throw new ServiceError("quantity must be positive", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const run = async (db: TenantDb) => {
     const issueQty = await convertToStockUom(db, ctx.orgId, input.itemId, input.uom, input.quantity)
 
     const layers = await db.query.erpStockValuationLayers.findMany({
@@ -152,15 +225,36 @@ export async function recordStockIssue(ctx: ActorCtx, input: StockIssueInput) {
 
     await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_stock.issued", entityType: "erp_stock_ledger_entry", entityId: entry.id })
     return entry
-  })
+  }
+
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, run)
 }
 
-export async function getItemValuation(ctx: { orgId: string }, itemId: string, warehouseId: string) {
-  await requireErpEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+/** Reads current valuation. See recordStockIssue above for why `existingDb` exists. */
+export async function getItemValuation(ctx: { orgId: string }, itemId: string, warehouseId: string, existingDb?: TenantDb) {
+  // R81_F25 COMPLETION: the enablement gate must ALSO honour the threaded
+  // handle. requireErpEnabled() opens its own withTenantContext and runs BEFORE
+  // the existingDb branch below, so threading the handle into the body alone
+  // still trips assertNotNested -- the mistake 6b56c00b made on
+  // recordStockReceipt. Same shape, same fix: isErpEnabledForOrgWithDb is the
+  // db-handle-accepting variant, and the 403 wording is requireErpEnabled's own
+  // so both paths refuse identically.
+  if (existingDb) {
+    if (!(await isErpEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the ERP module.",
+        403
+      )
+    }
+  } else {
+    await requireErpEnabled(ctx.orgId)
+  }
+  const run = async (db: TenantDb) => {
     const { qty, value } = await currentBalance(db, itemId, warehouseId)
     return { qty, value, averageCost: qty > 0 ? value / qty : 0 }
-  })
+  }
+
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId }, run)
 }
 
 export async function listStockLedger(ctx: { orgId: string }, filters: { itemId?: string; warehouseId?: string } = {}) {

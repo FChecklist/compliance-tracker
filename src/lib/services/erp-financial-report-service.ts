@@ -8,12 +8,12 @@
 // Tier 1 #3 fix (erp_accounting_periods) that gates journal-entry
 // posting so these reports stay trustworthy in production.
 import { erpAccounts, erpJournalEntries, erpJournalEntryLines, erpAccountingPeriods, erpFiscalYears, erpPeriodClosingChecklistItems, erpCostCenters, erpSalesInvoices, erpPurchaseInvoices } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, lte, gte, sql, inArray, ne, isNotNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { getCompanyDescendantIds } from "./erp-company-service"
-import { requireErpEnabled } from "./erp-enablement-service"
+import { getCompanyDescendantIds, getCompanyDescendantIdsWithDb } from "./erp-company-service"
+import { requireErpEnabled, isErpEnabledForOrgWithDb } from "./erp-enablement-service"
 
 // Wave 82 (Period Closing checklist workflow, COMPARISON_CSV_GAP_ANALYSIS.md
 // backlog #3): a real month-end close always needs the same handful of
@@ -71,15 +71,40 @@ export async function generatePeriodsForFiscalYear(ctx: { orgId: string }, fisca
  * or (b) a period row exists and its status is 'open'. Once an org
  * starts using periods, closing one is an explicit act (closedAt set).
  */
-export async function isPeriodOpenForDate(ctx: { orgId: string }, isoDate: string): Promise<boolean> {
-  await requireErpEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+export async function isPeriodOpenForDate(ctx: { orgId: string }, isoDate: string, existingDb?: TenantDb): Promise<boolean> {
+  // R81_F26 (2026-09-08) -- THE GATE MUST TAKE THE HANDLE TOO. Threading the
+  // open handle into the body below is necessary but NOT sufficient:
+  // requireErpEnabled() opens its OWN withTenantContext (isErpEnabledForOrg ->
+  // isBranchEnabledForOrg, product-branch-service.ts:91) and it runs BEFORE the
+  // existingDb branch is ever reached, so a nested caller still trips
+  // assertNotNested -- just at a different line. That is exactly the mistake
+  // 6b56c00b made on recordStockReceipt and reported as fixed; see
+  // erp-inventory-service.ts's recordStockReceipt for the reference shape.
+  // isErpEnabledForOrgWithDb is the handle-accepting variant R74 Phase 10 added
+  // for this. The 403 wording below is requireErpEnabled's own, byte-identical,
+  // so the standalone and threaded paths refuse identically.
+  if (existingDb) {
+    if (!(await isErpEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the ERP module.",
+        403
+      )
+    }
+  } else {
+    await requireErpEnabled(ctx.orgId)
+  }
+
+  const run = async (db: TenantDb) => {
     const period = await db.query.erpAccountingPeriods.findFirst({
       where: and(eq(erpAccountingPeriods.orgId, ctx.orgId), lte(erpAccountingPeriods.startDate, isoDate), gte(erpAccountingPeriods.endDate, isoDate)),
     })
     if (!period) return true
     return period.status === "open"
-  })
+  }
+
+  // Reuse the caller's open transaction when there is one; otherwise open our
+  // own exactly as before. Both paths run the identical body above.
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId }, run)
 }
 
 export async function listPeriods(ctx: { orgId: string }, fiscalYearId?: string) {
@@ -211,32 +236,35 @@ type AccountBalance = {
 
 /** Sums submitted journal-entry-line debit/credit by account, in a date range. */
 async function accountBalancesInRange(orgId: string, fromDate: string | null, toDate: string, companyIds?: string[]): Promise<AccountBalance[]> {
-  return withTenantContext({ orgId }, async (db) => {
-    const conditions = [eq(erpJournalEntries.orgId, orgId), eq(erpJournalEntries.status, "submitted"), lte(erpJournalEntries.postingDate, toDate)]
-    if (fromDate) conditions.push(gte(erpJournalEntries.postingDate, fromDate))
-    if (companyIds) conditions.push(inArray(erpJournalEntries.companyId, companyIds))
+  return withTenantContext({ orgId }, (db) => accountBalancesInRangeWithDb(db, orgId, fromDate, toDate, companyIds))
+}
 
-    const rows = await db
-      .select({
-        accountId: erpAccounts.id,
-        accountName: erpAccounts.accountName,
-        accountNumber: erpAccounts.accountNumber,
-        rootType: erpAccounts.rootType,
-        accountType: erpAccounts.accountType,
-        totalDebit: sql<string>`coalesce(sum(${erpJournalEntryLines.debit}), 0)`,
-        totalCredit: sql<string>`coalesce(sum(${erpJournalEntryLines.credit}), 0)`,
-      })
-      .from(erpJournalEntryLines)
-      .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
-      .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
-      .where(and(...conditions))
-      .groupBy(erpAccounts.id, erpAccounts.accountName, erpAccounts.accountNumber, erpAccounts.rootType, erpAccounts.accountType)
+/** db-handle-accepting variant of accountBalancesInRange. */
+async function accountBalancesInRangeWithDb(db: TenantDb, orgId: string, fromDate: string | null, toDate: string, companyIds?: string[]): Promise<AccountBalance[]> {
+  const conditions = [eq(erpJournalEntries.orgId, orgId), eq(erpJournalEntries.status, "submitted"), lte(erpJournalEntries.postingDate, toDate)]
+  if (fromDate) conditions.push(gte(erpJournalEntries.postingDate, fromDate))
+  if (companyIds) conditions.push(inArray(erpJournalEntries.companyId, companyIds))
 
-    return rows.map((r) => {
-      const totalDebit = Number(r.totalDebit)
-      const totalCredit = Number(r.totalCredit)
-      return { accountId: r.accountId, accountName: r.accountName, accountNumber: r.accountNumber, rootType: r.rootType, accountType: r.accountType, totalDebit, totalCredit, netBalance: totalDebit - totalCredit }
+  const rows = await db
+    .select({
+      accountId: erpAccounts.id,
+      accountName: erpAccounts.accountName,
+      accountNumber: erpAccounts.accountNumber,
+      rootType: erpAccounts.rootType,
+      accountType: erpAccounts.accountType,
+      totalDebit: sql<string>`coalesce(sum(${erpJournalEntryLines.debit}), 0)`,
+      totalCredit: sql<string>`coalesce(sum(${erpJournalEntryLines.credit}), 0)`,
     })
+    .from(erpJournalEntryLines)
+    .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+    .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
+    .where(and(...conditions))
+    .groupBy(erpAccounts.id, erpAccounts.accountName, erpAccounts.accountNumber, erpAccounts.rootType, erpAccounts.accountType)
+
+  return rows.map((r) => {
+    const totalDebit = Number(r.totalDebit)
+    const totalCredit = Number(r.totalCredit)
+    return { accountId: r.accountId, accountName: r.accountName, accountNumber: r.accountNumber, rootType: r.rootType, accountType: r.accountType, totalDebit, totalCredit, netBalance: totalDebit - totalCredit }
   })
 }
 
@@ -259,6 +287,13 @@ async function resolveCompanyScope(ctx: { orgId: string }, scope?: CompanyScope)
   return [scope.companyId]
 }
 
+/** db-handle-accepting variant of resolveCompanyScope. */
+async function resolveCompanyScopeWithDb(db: TenantDb, ctx: { orgId: string }, scope?: CompanyScope): Promise<string[] | undefined> {
+  if (!scope?.companyId) return undefined
+  if (scope.consolidate) return getCompanyDescendantIdsWithDb(db, ctx, scope.companyId)
+  return [scope.companyId]
+}
+
 /** Trial Balance: every account's cumulative debit/credit as of a date, from inception. */
 export async function trialBalance(ctx: { orgId: string }, asOfDate: string, scope?: CompanyScope) {
   await requireErpEnabled(ctx.orgId)
@@ -269,11 +304,35 @@ export async function trialBalance(ctx: { orgId: string }, asOfDate: string, sco
   return { asOfDate, accounts: balances.sort((a, b) => (a.accountNumber ?? "").localeCompare(b.accountNumber ?? "")), totalDebit, totalCredit, isBalanced: Math.abs(totalDebit - totalCredit) < 0.01 }
 }
 
+/**
+ * db-handle-accepting variant, for mca-filing-service.ts generateFormData(),
+ * which calls this from inside its own open transaction. Three separate
+ * transactions were opened per call before this existed: requireErpEnabled,
+ * the company-scope walk, and the ledger read. 403 wording is byte-identical
+ * to requireErpEnabled's own.
+ */
+export async function profitAndLossWithDb(db: TenantDb, ctx: { orgId: string }, fromDate: string, toDate: string, scope?: CompanyScope) {
+  if (!(await isErpEnabledForOrgWithDb(db, ctx.orgId))) {
+    throw new ServiceError(
+      "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the ERP module.",
+      403
+    )
+  }
+  const companyIds = await resolveCompanyScopeWithDb(db, ctx, scope)
+  const balances = await accountBalancesInRangeWithDb(db, ctx.orgId, fromDate, toDate, companyIds)
+  return profitAndLossFromBalances(balances, fromDate, toDate)
+}
+
 /** Profit & Loss: income/expense accounts only, over a period (not cumulative from inception). */
 export async function profitAndLoss(ctx: { orgId: string }, fromDate: string, toDate: string, scope?: CompanyScope) {
   await requireErpEnabled(ctx.orgId)
   const companyIds = await resolveCompanyScope(ctx, scope)
   const balances = await accountBalancesInRange(ctx.orgId, fromDate, toDate, companyIds)
+  return profitAndLossFromBalances(balances, fromDate, toDate)
+}
+
+/** The pure half of profitAndLoss, so both entry points share one definition. */
+function profitAndLossFromBalances(balances: AccountBalance[], fromDate: string, toDate: string) {
   const income = balances.filter((b) => b.rootType === "income")
   const expense = balances.filter((b) => b.rootType === "expense")
   // Income accounts are credit-natured (netBalance is debit-credit, so flip sign); expense accounts are debit-natured.
@@ -282,11 +341,29 @@ export async function profitAndLoss(ctx: { orgId: string }, fromDate: string, to
   return { fromDate, toDate, income, expense, totalIncome, totalExpense, netProfit: totalIncome - totalExpense }
 }
 
+/** db-handle-accepting variant -- see profitAndLossWithDb above for why. */
+export async function balanceSheetWithDb(db: TenantDb, ctx: { orgId: string }, asOfDate: string, scope?: CompanyScope) {
+  if (!(await isErpEnabledForOrgWithDb(db, ctx.orgId))) {
+    throw new ServiceError(
+      "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the ERP module.",
+      403
+    )
+  }
+  const companyIds = await resolveCompanyScopeWithDb(db, ctx, scope)
+  const balances = await accountBalancesInRangeWithDb(db, ctx.orgId, null, asOfDate, companyIds)
+  return balanceSheetFromBalances(balances, asOfDate)
+}
+
 /** Balance Sheet: asset/liability/equity accounts, cumulative as of a date. */
 export async function balanceSheet(ctx: { orgId: string }, asOfDate: string, scope?: CompanyScope) {
   await requireErpEnabled(ctx.orgId)
   const companyIds = await resolveCompanyScope(ctx, scope)
   const balances = await accountBalancesInRange(ctx.orgId, null, asOfDate, companyIds)
+  return balanceSheetFromBalances(balances, asOfDate)
+}
+
+/** The pure half of balanceSheet, so both entry points share one definition. */
+function balanceSheetFromBalances(balances: AccountBalance[], asOfDate: string) {
   const assets = balances.filter((b) => b.rootType === "asset")
   const liabilities = balances.filter((b) => b.rootType === "liability")
   const equity = balances.filter((b) => b.rootType === "equity")

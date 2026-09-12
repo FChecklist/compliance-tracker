@@ -52,7 +52,15 @@ export default function DepartmentsPage() {
             {departments.length} departments managing compliance
           </p>
         </div>
-        <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron">
+        {/* Two separately-measured defects were the same broken wire: this
+            button had no onClick (DOD-S6), and /departments/new -- a complete,
+            working creation form -- had ZERO references anywhere in the
+            repository, making it an orphan route (DOD-S2). Somebody built both
+            ends and never connected them. */}
+        <Button
+          onClick={() => router.push("/departments/new")}
+          className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
+        >
           <Plus className="size-4 mr-2" />
           Add Department
         </Button>

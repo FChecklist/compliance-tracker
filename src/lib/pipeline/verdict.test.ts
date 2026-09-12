@@ -43,6 +43,21 @@ describe("confirmable -- ONLY a fully-resolved write may be executed by a confir
     expect(v.answer).toBeDefined();
   });
 
+  test("PM-T2: a middle-band write (needs_confirmation) IS confirmable -- additive to this condition, same mechanism as ready", () => {
+    const v = toVerdict(proposal({ status: "needs_confirmation" }));
+    expect(v.confirmable).toBe(true);
+    expect(v.status).toBe("needs_confirmation");
+    // The client's own confirm-card branch reads confirmable + submissionId
+    // generically, never the specific status string -- this proves the
+    // shape it needs is present without inventing a new client field.
+    expect(v.understood).not.toBeNull();
+  });
+
+  test("PM-T2: needs_confirmation on a READ (verdict=chat, not task) is NOT confirmable -- reads never pause for confirmation, before or after this change", () => {
+    const v = toVerdict(proposal({ status: "needs_confirmation", verdict: "chat", kind: "ask" }));
+    expect(v.confirmable).toBe(false);
+  });
+
   test("a gap is not, and carries its destination instead", () => {
     const v = toVerdict(
       proposal({
@@ -149,6 +164,11 @@ describe("the envelope keeps every segment's verdict", () => {
       params: first?.params ?? {},
       missing: first?.missing ?? [],
       chain: first?.chain ?? null,
+      // R80 Part 2 (1a): DryRunResult now carries the software/AI counters.
+      // This helper only ever exercises the ENVELOPE, so a fixed all-zero
+      // telemetry is the honest filler -- and the assertions below prove it
+      // never crosses into SubmissionVerdict.
+      telemetry: { segments: proposals.length, resolved: 0, l0Hits: 0, modelCalls: 0, cacheHits: 0, level1Outcome: "not_needed", level1RefusalReason: null },
     };
   }
 

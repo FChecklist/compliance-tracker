@@ -5,7 +5,7 @@
 // -- ON CONFLICT DO NOTHING;
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
 import { runDefenseInDepth } from "@/lib/prompt-security";
@@ -38,6 +38,15 @@ export async function POST(request: NextRequest) {
   const { user, dbUser, orgId, response } = await requireAuth();
   if (!user) return response!;
   if (!orgId) return NextResponse.json({ error: "No organisation" }, { status: 400 });
+
+  // R75 Part 2 Phase 5 (G5 misc gap-closure, 2026-09-05): this had NO role
+  // gate at all. Low-stakes by what it actually does -- a read-only,
+  // in-app help/support Q&A grounded on the org's own KB pages, no writes,
+  // no financial data -- matching the "member" floor already established
+  // for a broadly-available AI call over org data (construction/ai/
+  // estimate-progress, reports/ai-builder/analyze), not a higher bar.
+  const roleCheck = requireRole(dbUser, "member");
+  if (roleCheck) return roleCheck;
 
   const { question, currentPath } = await request.json();
 

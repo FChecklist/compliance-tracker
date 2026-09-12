@@ -5,6 +5,7 @@
 // the same resolveModelConfig -> callLLMJson -> recordOrchestraExecution
 // pattern as crm-service.ts's scoreLead/analyzeOpportunity.
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
+import type { TenantDb } from "@/lib/db/tenant-scoped"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
@@ -29,7 +30,13 @@ export type AiReviewResult = {
 
 export class AiReviewUnavailableError extends Error {}
 
-export async function generateAiReviewReport(orgId: string, userId: string | undefined, input: AiReviewInput): Promise<AiReviewResult> {
+/**
+ * G-07 continuation. `existingDb` is the caller's open transaction handle.
+ * generateReviewReportCore() already receives one and calls this from inside
+ * it, so the audit write below nested -- and because recordOrchestraExecution
+ * is fire-and-forget, in dev and test the row was silently never written.
+ */
+export async function generateAiReviewReport(orgId: string, userId: string | undefined, input: AiReviewInput, existingDb?: TenantDb): Promise<AiReviewResult> {
   const modelConfig = await resolveModelConfig(orgId, "task_oa")
   if (!modelConfig) throw new AiReviewUnavailableError("No AI provider configured for this organisation")
 
@@ -55,7 +62,7 @@ export async function generateAiReviewReport(orgId: string, userId: string | und
     output: { verdict: data.verdict },
     status: "completed", durationMs: Date.now() - startedAt,
     provider: modelConfig.provider, model: modelConfig.model, usage,
-  })
+  }, existingDb)
 
   return { ...data, provider: modelConfig.provider, model: modelConfig.model }
 }

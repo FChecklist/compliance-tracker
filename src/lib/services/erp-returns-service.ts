@@ -98,10 +98,17 @@ export async function receiveSalesReturn(ctx: ErpContext, returnId: string) {
 
     const items = await db.query.erpSalesReturnItems.findMany({ where: eq(erpSalesReturnItems.returnId, returnId) })
     for (const item of items) {
+      // R81_F25 (2026-09-08): pass `db` -- this call is inside this function's
+      // own withTenantContext and recordStockReceipt used to open a second
+      // transaction, which assertNotNested() rejects. tenant-scoped.ts's own
+      // 2026-09-02 known-nesting list names this exact call site. Same defect
+      // and same fix as submitPurchaseReceipt; that one was proven broken
+      // through the real UI, this one is the same shape and was fixed with it
+      // rather than left to be discovered separately.
       await recordStockReceipt(ctx, {
         itemId: item.itemId, warehouseId: existing.warehouseId, quantity: Number(item.quantity), rate: Number(item.rate),
         postingDate: new Date().toISOString().slice(0, 10), voucherType: "sales_return", voucherId: returnId,
-      })
+      }, db)
     }
 
     const [updated] = await db.update(erpSalesReturns).set({ status: "received", updatedAt: new Date() }).where(eq(erpSalesReturns.id, returnId)).returning()
@@ -208,7 +215,7 @@ export async function dispatchPurchaseReturn(ctx: ErpContext, returnId: string) 
       await recordStockIssue(ctx, {
         itemId: item.itemId, warehouseId: existing.warehouseId, quantity: Number(item.quantity),
         postingDate: new Date().toISOString().slice(0, 10), voucherType: "purchase_return", voucherId: returnId,
-      })
+      }, db)
     }
 
     const [updated] = await db.update(erpPurchaseReturns).set({ status: "dispatched", updatedAt: new Date() }).where(eq(erpPurchaseReturns.id, returnId)).returning()

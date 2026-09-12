@@ -61,7 +61,23 @@
 //      task-execution-engine.ts concept first, never a from-scratch
 //      single-file op, matching 'integrative''s own stated definition).
 import { db, taskCapabilities, instructionPackages, capabilityImprovementProposals } from "@/lib/db"
-import { eq, sql } from "drizzle-orm"
+import { eq, and, desc, sql } from "drizzle-orm"
+// P2.6/PM-T23 (2026-09-10): platform.task_capabilities is RLS-tightened so
+// app_runtime can no longer write its platform-wide (org_id IS NULL) rows
+// directly -- see drizzle/0577_p2_6_task_capabilities_registry_write_lockdown.sql
+// -- and platform.capability_improvement_proposals has no app_runtime
+// write policy at all (0578). Every WRITE in this file goes through the
+// SECURITY DEFINER functions in
+// drizzle/0585_p2_6_security_definer_registry_functions.sql instead,
+// called over this file's own `db` connection (direct Postgres) -- NOT a
+// service-role/PostgREST client (that transport could never reach the
+// `platform` schema at all; see that migration's own header for the full
+// history). Reads (db.query.taskCapabilities.*,
+// db.query.capabilityImprovementProposals.*) are unaffected -- app_runtime
+// keeps SELECT on platform-wide task_capabilities rows via 0577 and on
+// every capability_improvement_proposals row via 0578's SELECT-only
+// policy, so this file's reads use the plain drizzle query path directly,
+// no mapper needed.
 import { runRole } from "@/lib/ai-team/team-service"
 import { dispatchAdvisoryTask } from "@/lib/ai-team/advisory-dispatch-service"
 import type { TightTask } from "@/lib/task-tightening"
@@ -487,10 +503,13 @@ export async function runCapabilityAudit(capabilityId: string): Promise<AuditRun
   const hasUsableFindings = Boolean(verdict?.fixableInSoftware && verdict.findings && FINDING_KEYS.some((k) => verdict.findings[k]))
   const needsImprovement: "yes" | "no" = hasUsableFindings ? "yes" : "no"
 
-  await db
-    .update(taskCapabilities)
-    .set({ needsImprovement, lastAuditedAt: new Date(), lastAuditedVersion: capability.version, updatedAt: new Date() })
-    .where(eq(taskCapabilities.id, capability.id))
+  // last_audited_version is read from the row's own `version` inside the
+  // RPC, never passed as a parameter here -- see drizzle/0585's header on
+  // rpc_task_capability_mark_audited for why a caller-supplied version
+  // integer was a real defect (an attacker-framed review found the
+  // identical bug, already fixed once elsewhere in this same design, left
+  // unfixed on this call).
+  await db.execute(sql`SELECT platform.rpc_task_capability_mark_audited(${capability.id}::text, ${needsImprovement}::text)`)
 
   if (!hasUsableFindings) {
     if (verdict === null) {
@@ -533,17 +552,28 @@ export async function upsertImprovementProposal(
   findings: AuditFindings,
   existingAssetMatch: ExistingAssetMatch | null = null
 ): Promise<CapabilityImprovementProposal> {
-  const [row] = await db
-    .insert(capabilityImprovementProposals)
-    .values({ capabilityId, capabilityVersion, findings, existingAssetMatch })
-    .onConflictDoUpdate({
-      target: [capabilityImprovementProposals.capabilityId, capabilityImprovementProposals.capabilityVersion],
-      set: {
-        occurrenceCount: sql`${capabilityImprovementProposals.occurrenceCount} + 1`,
-        updatedAt: new Date(),
-      },
-    })
-    .returning()
+  // Explicit find-then-branch, same reasoning as before: ON CONFLICT DO
+  // NOTHING inside rpc_improvement_proposal_upsert_new_finding (drizzle/0585)
+  // never overwrites `findings`/`existingAssetMatch` on a repeat finding --
+  // exactly what this function's own doc comment says must never happen --
+  // so the repeat case is a separate, explicit increment-only call instead.
+  const existing = await db.query.capabilityImprovementProposals.findFirst({
+    where: and(eq(capabilityImprovementProposals.capabilityId, capabilityId), eq(capabilityImprovementProposals.capabilityVersion, capabilityVersion)),
+  })
+  if (existing) {
+    await db.execute(sql`SELECT platform.rpc_improvement_proposal_increment_occurrence(${existing.id}::text)`)
+  } else {
+    await db.execute(sql`SELECT platform.rpc_improvement_proposal_upsert_new_finding(
+      ${capabilityId}::text,
+      ${capabilityVersion}::integer,
+      ${JSON.stringify(findings)}::jsonb,
+      ${existingAssetMatch ? JSON.stringify(existingAssetMatch) : null}::jsonb
+    )`)
+  }
+  const row = await db.query.capabilityImprovementProposals.findFirst({
+    where: and(eq(capabilityImprovementProposals.capabilityId, capabilityId), eq(capabilityImprovementProposals.capabilityVersion, capabilityVersion)),
+  })
+  if (!row) throw new ServiceError(`Failed to upsert improvement proposal for capability ${capabilityId} v${capabilityVersion}`, 500)
   return row
 }
 
@@ -594,17 +624,15 @@ export async function dispatchProposalToHigherAI(proposalId: string): Promise<Di
     return { dispatched: false, reason }
   }
 
-  const now = new Date()
-  await Promise.all([
-    db
-      .update(capabilityImprovementProposals)
-      .set({ status: "dispatched", dispatchedToRole: roleKey, dispatchedAt: now, dispatchOutput: advisoryOutput, updatedAt: now })
-      .where(eq(capabilityImprovementProposals.id, proposal.id)),
-    db
-      .update(taskCapabilities)
-      .set({ needsImprovement: "in_progress", updatedAt: now })
-      .where(eq(taskCapabilities.id, capability.id)),
-  ])
+  // One atomic function updates both tables -- see drizzle/0585's header on
+  // rpc_improvement_proposal_mark_dispatched_and_capability_in_progress for
+  // why this used to be two independent Promise.all calls (a real
+  // atomicity gap) AND why 'in_progress' must never be settable any other
+  // way (a standalone setter was a denial-of-audit primitive an attacker-
+  // framed review found).
+  await db.execute(sql`SELECT platform.rpc_improvement_proposal_mark_dispatched_and_capability_in_progress(
+    ${proposal.id}::text, ${roleKey}::text, ${advisoryOutput}::text
+  )`)
 
   return { dispatched: true, roleKey }
 }
@@ -625,7 +653,7 @@ export async function dispatchProposalToHigherAI(proposalId: string): Promise<Di
 export async function listImprovementProposals(status?: ProposalStatus): Promise<CapabilityImprovementProposal[]> {
   return db.query.capabilityImprovementProposals.findMany({
     where: status ? eq(capabilityImprovementProposals.status, status) : undefined,
-    orderBy: (t, { desc }) => desc(t.updatedAt),
+    orderBy: desc(capabilityImprovementProposals.updatedAt),
   })
 }
 
@@ -657,17 +685,11 @@ export async function rejectImprovementProposal(proposalId: string, reason: stri
     throw new ServiceError(`Proposal ${proposalId} is already '${proposal.status}' -- only an 'open' or 'dispatched' proposal can be rejected.`, 409)
   }
 
-  const now = new Date()
-  await Promise.all([
-    db
-      .update(capabilityImprovementProposals)
-      .set({ status: "rejected", rejectionReason: reason, updatedAt: now })
-      .where(eq(capabilityImprovementProposals.id, proposal.id)),
-    db
-      .update(taskCapabilities)
-      .set({ needsImprovement: "no", updatedAt: now })
-      .where(eq(taskCapabilities.id, proposal.capabilityId)),
-  ])
+  // One atomic function updates both tables -- see drizzle/0585's header on
+  // rpc_improvement_proposal_reject_and_reset_capability for why this used
+  // to be two independent Promise.all calls (the same atomicity gap fixed
+  // for dispatch/close-loop).
+  await db.execute(sql`SELECT platform.rpc_improvement_proposal_reject_and_reset_capability(${proposal.id}::text, ${reason}::text)`)
 }
 
 /**
@@ -691,17 +713,14 @@ export async function closeImprovementLoop(proposalId: string, prUrl: string): P
   const capability = await db.query.taskCapabilities.findFirst({ where: eq(taskCapabilities.id, proposal.capabilityId) })
   if (!capability) throw new ServiceError(`No capability found for proposal ${proposalId}'s capabilityId ${proposal.capabilityId}`, 404)
 
-  const now = new Date()
-  await Promise.all([
-    db
-      .update(taskCapabilities)
-      .set({ version: capability.version + 1, needsImprovement: "no", updatedAt: now })
-      .where(eq(taskCapabilities.id, capability.id)),
-    db
-      .update(capabilityImprovementProposals)
-      .set({ status: "resolved", prUrl, updatedAt: now })
-      .where(eq(capabilityImprovementProposals.id, proposal.id)),
-  ])
+  // One atomic function updates both tables -- see drizzle/0585's header on
+  // rpc_task_capability_close_improvement_loop for why this used to be two
+  // independent Promise.all calls (a real atomicity gap: a crash between
+  // them could bump version without resolving the proposal, or vice versa,
+  // corrupting shouldAuditCapability's gate). `capability` here still holds
+  // the PRE-bump version -- `capability.version + 1` below is exactly the
+  // new version the RPC just set, read fresh, not assumed.
+  await db.execute(sql`SELECT platform.rpc_task_capability_close_improvement_loop(${proposal.id}::text, ${prUrl}::text)`)
 
   // Priority 6: make the now-closed capability a discoverable UMR asset --
   // best-effort, and deliberately AFTER the two updates above already

@@ -7,11 +7,24 @@
 // dependency (never touching a live DB from a .test.ts file).
 import { describe, test, expect, mock, afterEach, beforeEach } from "bun:test"
 
+// api-key-audit.ts's insertRequestLog now goes through
+// db.execute(sql`select compliance.record_api_key_request_batch(...)`) instead
+// of db.insert(apiKeyRequestLog).values(...) -- see that file's own comment.
+// The rows-per-call are the one interpolated chunk that is a plain string
+// (drizzle's sql`` template pushes params in as-is; see
+// node_modules/drizzle-orm/sql/sql.js's tag() -- the same fact
+// api-key-audit.test.ts's own module-level test relies on).
+function rowsFromExecuteCall(query: { queryChunks?: unknown[] } | undefined): unknown[] {
+  const chunk = query?.queryChunks?.find((c) => typeof c === "string")
+  return chunk ? JSON.parse(chunk as string) : []
+}
+
 function mockDbFor(row: Record<string, unknown> | undefined) {
   mock.module("@/lib/db", () => ({
     db: {
       update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
       insert: () => ({ values: () => Promise.resolve() }),
+      execute: () => Promise.resolve(),
       select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: 0 }]) }) }),
     },
     apiKeys: {}, apiKeyRequestLog: {},
@@ -24,6 +37,14 @@ function mockDbFor(row: Record<string, unknown> | undefined) {
   // a stale one.
   mock.module("@/lib/db/preauth-lookups", () => ({
     lookupApiKeyByHash: mock(async () => row ?? null),
+    // CRR-027/028 CONTRACT 6th site: validateApiKey()'s rate-limit count now
+    // goes through this wrapper instead of a raw db.select -- see
+    // api-key-auth.ts's own comment at the call site. Every mock.module of
+    // this specifier in this file must export it (a fixed export list
+    // missing a real import throws a real, deterministic SyntaxError, per
+    // F-2026-0910-W-PROD-009). Default 0, matching this helper's own
+    // previous db.select stub default.
+    countRecentApiKeyRequests: mock(async () => 0),
   }))
   mock.module("@/lib/api-keys", () => ({ hashSHA256: mock(async () => "hash-doesnt-matter") }))
 }
@@ -81,6 +102,10 @@ describe("validateApiKey: demo-key environment gate", () => {
     expect(result.status).toBe("ok")
     if (result.status === "ok") {
       expect(result.context.orgId).toBe("projexa_demo_org")
+      // R81_F31: the DB row's own scopes are "read,write" (demoKeyRow()'s
+      // default) -- an allowlisted demo key must never be able to write,
+      // even though its rate limit alone is throttled.
+      expect(result.context.scopes).toEqual(["read"])
     }
   })
 
@@ -90,7 +115,7 @@ describe("validateApiKey: demo-key environment gate", () => {
       id: "a-real-provisioned-cuid-id",
       orgId: "org-1",
       name: "Real customer key",
-      scopes: "read",
+      scopes: "read,write",
       rateLimitPerMinute: null,
       isActive: true,
     })
@@ -98,6 +123,11 @@ describe("validateApiKey: demo-key environment gate", () => {
     const { validateApiKey } = await import("./api-key-auth")
     const result = await validateApiKey(request())
     expect(result.status).toBe("ok")
+    if (result.status === "ok") {
+      // R81_F31: the read-only clamp is specific to KNOWN_DEMO_KEY_IDS -- a
+      // real customer key's own granted write scope must survive untouched.
+      expect(result.context.scopes).toEqual(["read", "write"])
+    }
   })
 
   test("an inactive/missing key is still rejected as invalid, unrelated to the demo-key gate", async () => {
@@ -129,6 +159,7 @@ describe("validateApiKey: demo-key sandbox rate-limit ceiling", () => {
       db: {
         update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
         insert: () => ({ values: () => Promise.resolve() }),
+        execute: () => Promise.resolve(),
         select: () => ({ from: () => ({ where: () => Promise.resolve([{ count }]) }) }),
       },
       apiKeys: {}, apiKeyRequestLog: {},
@@ -139,6 +170,11 @@ describe("validateApiKey: demo-key sandbox rate-limit ceiling", () => {
     // db.query.apiKeys.findFirst shape.
     mock.module("@/lib/db/preauth-lookups", () => ({
       lookupApiKeyByHash: mock(async () => row ?? null),
+      // Same CRR-027/028 6th-site wiring as mockDbFor() above -- this is the
+      // helper whose whole POINT is a real, parameterized count against the
+      // rate-limit check, so it must return the real `count` argument, not a
+      // hardcoded 0.
+      countRecentApiKeyRequests: mock(async () => count),
     }))
     mock.module("@/lib/api-keys", () => ({ hashSHA256: mock(async () => "hash-doesnt-matter") }))
   }
@@ -224,19 +260,25 @@ describe("validateApiKey: the audit writes are batched, and the rate limit still
     mock.module("@/lib/db", () => ({
       db: {
         update: () => ({ set: () => ({ where: () => { state.lastUsedUpdates += 1; return Promise.resolve() } }) }),
-        insert: () => ({
-          values: (rows: unknown) => {
-            const list = Array.isArray(rows) ? rows : [rows]
-            state.batches += 1
-            state.rowsWritten += list.length
-            return Promise.resolve()
-          },
-        }),
+        insert: () => ({ values: () => Promise.resolve() }),
+        execute: (query: { queryChunks?: unknown[] }) => {
+          const list = rowsFromExecuteCall(query)
+          state.batches += 1
+          state.rowsWritten += list.length
+          return Promise.resolve()
+        },
         select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: baseCount + state.rowsWritten }]) }) }),
       },
       apiKeys: { id: "id" }, apiKeyRequestLog: {},
     }))
-    mock.module("@/lib/db/preauth-lookups", () => ({ lookupApiKeyByHash: mock(async () => row) }))
+    mock.module("@/lib/db/preauth-lookups", () => ({
+      lookupApiKeyByHash: mock(async () => row),
+      // Must stay LIVE (baseCount + state.rowsWritten), not a static value --
+      // this helper's whole point is proving the rate limit accounts for rows
+      // written since the test started, and the DB-backed row count this
+      // wrapper replaces (line 248 above) was already the same live formula.
+      countRecentApiKeyRequests: mock(async () => baseCount + state.rowsWritten),
+    }))
     mock.module("@/lib/api-keys", () => ({ hashSHA256: mock(async () => "hash-doesnt-matter") }))
     return state
   }
@@ -367,6 +409,7 @@ describe("validateApiKey: orgId comes only from the key-hash match (R43_EXEC_01 
       db: {
         update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
         insert: () => ({ values: () => Promise.resolve() }),
+        execute: () => Promise.resolve(),
         select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: 0 }]) }) }),
       },
       apiKeys: {}, apiKeyRequestLog: {},
@@ -384,6 +427,7 @@ describe("validateApiKey: orgId comes only from the key-hash match (R43_EXEC_01 
         }
         return null
       }),
+      countRecentApiKeyRequests: mock(async () => 0),
     }))
 
     const { validateApiKey } = await import("./api-key-auth")
@@ -432,7 +476,8 @@ describe("validateApiKey: usage bookkeeping is deferred, and never silently lost
     mock.module("@/lib/db", () => ({
       db: {
         update: () => ({ set: () => ({ where: () => { writes.push("last_used_at"); return failWith ? Promise.reject(failWith) : Promise.resolve() } }) }),
-        insert: () => ({ values: () => { writes.push("request_log"); return failWith ? Promise.reject(failWith) : Promise.resolve() } }),
+        insert: () => ({ values: () => Promise.resolve() }),
+        execute: () => { writes.push("request_log"); return failWith ? Promise.reject(failWith) : Promise.resolve() },
         select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: 0 }]) }) }),
       },
       apiKeys: {}, apiKeyRequestLog: {},
@@ -445,6 +490,7 @@ describe("validateApiKey: usage bookkeeping is deferred, and never silently lost
         // this block assert a write the throttle had correctly suppressed.
         id: keyId, orgId: "org-real", name: "Real key", scopes: "read,write", rateLimitPerMinute: null, isActive: true,
       })),
+      countRecentApiKeyRequests: mock(async () => 0),
     }))
   }
 

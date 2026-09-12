@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { deleteProgressEntry, ServiceError } from "@/lib/services/construction-progress-service"
 
 // R48 gap-closure (2026-08-29, F085: "Progress entry delete recalculates
@@ -11,9 +11,12 @@ import { deleteProgressEntry, ServiceError } from "@/lib/services/construction-p
 // figure naturally excludes the removed entry. Same requireAuth() + org-scope
 // pattern as construction-boq-service.ts's deleteBoq() and its own route.
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

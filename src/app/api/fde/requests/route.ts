@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { listFdeRequests, submitFdeRequest, ServiceError } from "@/lib/services/fde-service"
 
 export async function GET() {
@@ -21,6 +21,9 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "member")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()

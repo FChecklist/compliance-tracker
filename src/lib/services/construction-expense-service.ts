@@ -50,7 +50,7 @@ export { ServiceError }
 // R67 F-27 (R-243): the one cache-bust helper -- see project-dashboard-cache.ts.
 import { bustProjectDashboardCache } from "./project-dashboard-cache"
 import { findControlAccount } from "./erp-invoicing-service"
-import { isErpEnabledForOrg } from "./erp-enablement-service"
+import { isErpEnabledForOrgWithDb } from "./erp-enablement-service"
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
 
 export type ExpenseEntryInput = {
@@ -160,7 +160,22 @@ export async function postConstructionExpenseEntryToGL(
   ctx: { orgId: string; userId: string },
   entry: { id: string; projectId: string; expenseHead: string; amount: string; expenseDate: string }
 ): Promise<{ journalEntryId: string } | null> {
-  if (!(await isErpEnabledForOrg(ctx.orgId))) return null
+  // R81_F34 continuation (D96/D103): this function already receives the
+  // caller's open transaction as `db` (createExpenseEntry's own
+  // withTenantContext) and threads it to findControlAccount/
+  // resolveConstructionExpenseAccount below -- but these next two gates were
+  // still calling their no-handle variant, each silently opening a SECOND
+  // withTenantContext (and, for isPeriodOpenForDate, its own nested
+  // requireErpEnabled on top of that) from inside the first one. The repo's
+  // own guard test (tenant-nesting-guard.test.ts) cannot see into this
+  // function -- its brace-matcher gets confused by the `Promise<{ ... }>`
+  // return-type annotation above and never scans the real body -- which is
+  // exactly why this sat undetected next to 9 other sites of the identical
+  // shape that the guard DID catch and that are already fixed. Same fix as
+  // those: use the WithDb sibling, matching the identical call-with-handle
+  // pattern erp-invoicing-service.ts's submitSalesInvoice/submitPurchaseInvoice
+  // already establish for isPeriodOpenForDate specifically.
+  if (!(await isErpEnabledForOrgWithDb(db, ctx.orgId))) return null
 
   let payableAccount
   try {
@@ -170,7 +185,7 @@ export async function postConstructionExpenseEntryToGL(
     throw err
   }
 
-  const periodOpen = await isPeriodOpenForDate({ orgId: ctx.orgId }, entry.expenseDate)
+  const periodOpen = await isPeriodOpenForDate({ orgId: ctx.orgId }, entry.expenseDate, db)
   if (!periodOpen) return null
 
   const expenseAccount = await resolveConstructionExpenseAccount(db, ctx.orgId, entry.expenseHead)
@@ -272,15 +287,24 @@ export async function createExpenseEntry(ctx: { orgId: string; userId: string },
   })
 }
 
+/**
+ * db-handle-accepting variant of getExpenseSummaryByHead, for a caller that
+ * already holds an open withTenantContext transaction. Mechanical extraction:
+ * same body, `db` is a parameter instead of a callback argument. Exists for
+ * budgetVsActualWithDb() in construction-reports-service.ts -- see that
+ * function for the nesting chain this closes.
+ */
+export async function getExpenseSummaryByHeadWithDb(db: TenantDb, ctx: { orgId: string }, projectId: string) {
+  return db.select({
+    expenseHead: constructionExpenseEntries.expenseHead,
+    total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float`,
+  })
+    .from(constructionExpenseEntries)
+    .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), eq(constructionExpenseEntries.projectId, projectId)))
+    .groupBy(constructionExpenseEntries.expenseHead)
+}
+
 /** Sum of expense amounts for a project, grouped by expense head -- the building block for the Expense Report (Wave 122) and the project dashboard's `expenses` figure (Wave 121). */
 export async function getExpenseSummaryByHead(ctx: { orgId: string }, projectId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.select({
-      expenseHead: constructionExpenseEntries.expenseHead,
-      total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float`,
-    })
-      .from(constructionExpenseEntries)
-      .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), eq(constructionExpenseEntries.projectId, projectId)))
-      .groupBy(constructionExpenseEntries.expenseHead)
-  )
+  return withTenantContext({ orgId: ctx.orgId }, (db) => getExpenseSummaryByHeadWithDb(db, ctx, projectId))
 }

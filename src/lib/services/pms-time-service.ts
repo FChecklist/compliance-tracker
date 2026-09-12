@@ -3,7 +3,7 @@
 // Callers must have already passed requirePmsEnabled() (enforced at the
 // route layer).
 import { pmsTimeEntries, pmsBillableRates, pmsIssues, users as usersTable } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
@@ -397,9 +397,21 @@ export function resolvePmsBillableRatePure(rates: PmsBillableRateRow[], userId: 
 }
 
 /** Resolves the applicable rate for a user as of a given date, defaulting to 0 when unconfigured -- used for internal cost-vs-budget estimates (pms-budget-service.ts), where a missing rate should not block the read. Real invoicing must not use this 0-fallback -- see resolvePmsBillableRatePure. */
-export async function resolveBillableRate(ctx: { orgId: string }, userId: string, asOf: string): Promise<number> {
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+/**
+ * `existingDb` -- R81_F26 (2026-09-08). pms-budget-service.ts's getBudgetActuals()
+ * calls this ONCE PER TIME ENTRY from inside its own open withTenantContext -- the
+ * worst connection-pool amplifier the R81_F25 sweep found, since the app_runtime
+ * pool is max: 5. This function has NO enablement gate of its own (checked: no
+ * requirePmsEnabled call in it -- its callers gate instead), so threading the
+ * handle into the body IS the whole fix here, unlike recordStockReceipt /
+ * isPeriodOpenForDate where the gate itself had to take the handle too. Omitting
+ * `existingDb` behaves exactly as before.
+ */
+export async function resolveBillableRate(ctx: { orgId: string }, userId: string, asOf: string, existingDb?: TenantDb): Promise<number> {
+  const run = async (db: TenantDb) => {
     const rates = await db.query.pmsBillableRates.findMany({ where: eq(pmsBillableRates.orgId, ctx.orgId) })
     return resolvePmsBillableRatePure(rates, userId, asOf) ?? 0
-  })
+  }
+
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId }, run)
 }

@@ -21,13 +21,14 @@ import { submissions, pipelineTasks, pillUsage, chainHistory } from "@/lib/db/sc
 import { segment, rejoinCandidate, type Segment } from "./segment";
 import { classifyL0, type L0Repo, type ClassificationResult as L0Result } from "./level0";
 import { makeL0Repo, makeChainRepo, makeReuseCacheRepo, resolveRootLabel, logGapRow } from "./repos";
-import { classifySegment, classifySubmission, normaliseForMatch, type Classification, type ResolvedFunction, type SubmissionClassification } from "./classify";
+import { type ResolutionSource, classifySegment, classifySubmission, normaliseForMatch, type Classification, type ResolvedFunction, type SubmissionClassification } from "./classify";
 import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
+import { makePhraseFuzzyRepo, type PhraseFuzzyRepo } from "./phrase-fuzzy";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
 import { codeForParam, failureLogLine, isRetryableFailure, pipelineFailure, serialiseFailure, type PipelineFailure } from "./error-codes";
-import { dryRunSubmission as dryRun, missingParamsFor, type DryRunDeps, type DryRunResult } from "./dry-run";
+import { dryRunSubmission as dryRun, missingParamsFor, type DryRunDeps, type DryRunResult, type DryRunTelemetry } from "./dry-run";
 import { toVerdictResult, type SubmissionVerdictResult } from "./verdict";
 import { makeChainOptionsRepo } from "@/lib/services/chain-options-service";
 import { assertAiProviderAllowed } from "@/lib/ai/adapter";
@@ -372,6 +373,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
 
   const repo = makeL0Repo(input.orgId, input.userId);
   const reuseRepo = makeReuseCacheRepo(input.orgId, input.userId);
+  const fuzzyRepo = makePhraseFuzzyRepo(input.orgId);
   const chainRepo = makeChainRepo(input.orgId);
   const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
   const boqFacts = makeBoqFactsResolver(input.orgId, input.userId, input.projectId ?? null);
@@ -379,7 +381,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   let resolvedCount = 0;
 
   // ---- RESOLUTION PASS -------------------------------------------------
-  const resolved = await resolveAll(segs, input, repo, reuseRepo);
+  const resolved = await resolveAll(segs, input, repo, reuseRepo, fuzzyRepo);
   for (const r of resolved) {
     if (r.classification.verdict !== "gap") {
       resolvedCount++;
@@ -481,7 +483,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     if (!firstDerivedChain) firstDerivedChain = derived;
 
     const dependsOn = seg.orderingHint !== undefined ? previousOrderedTaskId : null;
-    const taskId = await mintTask(input, submissionId, tasks.length, dependsOn, c.functionId, resolvedParams, derived);
+    const taskId = await mintTask(input, submissionId, tasks.length, dependsOn, c.functionId, resolvedParams, derived, c.source);
     chainByTaskId.set(taskId, derived);
 
     const advance = (failed: boolean) => {
@@ -735,7 +737,10 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     params: resolvedParams,
   });
 
-  const taskId = await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived);
+  // "phrase_map": runDirectTask is the pill path -- the USER named the
+  // function, so no model was involved and its own telemetry above says so
+  // (l0HitRate 1, modelCalls 0).
+  const taskId = await mintTask(base, submissionId, 0, null, input.functionId, resolvedParams, derived, "phrase_map");
 
   let outcome: { success: true; result: unknown } | { success: false; failure: PipelineFailure; debug?: string };
   if (!hasExecutor(input.functionId)) {
@@ -877,14 +882,18 @@ async function recordChainHistory(
  * each, then R53's re-join-once retry for whatever still resolved to
  * nothing.
  */
-async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Repo, reuseRepo: ReuseCacheRepo): Promise<ResolvedSegment[]> {
+async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Repo, reuseRepo: ReuseCacheRepo, fuzzyRepo?: PhraseFuzzyRepo): Promise<ResolvedSegment[]> {
   const l0 = await Promise.all(segs.map((s) => classifyL0(s.text, { orgId: input.orgId, userId: input.userId }, repo)));
 
   // R65 Part D: reuse_cache is checked BEFORE Level 1 for every miss -- see
   // reuse-cache.ts's own header. A hit is served with zero model calls
   // (level: 0), so modelCallCount below only ever counts genuine AI calls.
   const missIndices = l0.map((r, i) => (r.kind === "miss" ? i : -1)).filter((i) => i >= 0);
-  const level1 = await resolveMissesWithReuseCache(missIndices.map((i) => segs[i].text), level1Context(input), reuseRepo);
+  // P1.2/P1.3: trigram fuzzy tier reads the classification-time similarity
+  // signal at this same L0-miss -> Level-1 boundary -- see phrase-fuzzy.ts.
+  // Injected (same testability seam as repo/reuseRepo) -- undefined for any
+  // caller that doesn't pass one.
+  const level1 = await resolveMissesWithReuseCache(missIndices.map((i) => segs[i].text), level1Context(input), reuseRepo, undefined, undefined, fuzzyRepo);
   modelCallCount += level1.modelCalls;
   const aiByIndex = level1.resolutions;
 
@@ -945,7 +954,7 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
     retryTexts.map((r) => classifyL0(r.text, { orgId: input.orgId, userId: input.userId }, repo))
   );
   const retryMissIdx = retryL0.map((r, i) => (r.kind === "miss" ? i : -1)).filter((i) => i >= 0);
-  const retryLevel1 = await resolveMissesWithReuseCache(retryMissIdx.map((i) => retryTexts[i].text), level1Context(input), reuseRepo);
+  const retryLevel1 = await resolveMissesWithReuseCache(retryMissIdx.map((i) => retryTexts[i].text), level1Context(input), reuseRepo, undefined, undefined, fuzzyRepo);
   modelCallCount += retryLevel1.modelCalls;
   const retryAi = retryLevel1.resolutions;
 
@@ -995,6 +1004,43 @@ function deriveSubmissionStatus(tasks: TaskOutcome[], gapCount: number): RunSubm
   return "partial";
 }
 
+/**
+ * G-02: "whether the AI acted must be recoverable".
+ *
+ * Every pipeline_tasks row was written with executor: "software", hardcoded,
+ * including the ones whose function and parameters a MODEL chose. So for an
+ * executed business-data write there was no persisted evidence that a model
+ * had touched it at all -- the column that exists to answer exactly that
+ * question answered "software" every time, which is worse than leaving it
+ * null, because a wrong answer is not obviously missing.
+ *
+ * `source` is classify.ts's ResolutionSource and is the honest signal:
+ *
+ *   level1        a model resolved this segment, in this request      -> ai
+ *   phrase_map    a deterministic Level 0 phrase match                -> software
+ *   structural    a deterministic structural match                    -> software
+ *   last_action   the user's own previous action, replayed            -> software
+ *   reuse_cache   a PREVIOUS level1 answer replayed with no model call
+ *
+ * NOT `level`. A reuse_cache hit deliberately reports level 0 (reuse-cache.ts
+ * :118 -- "a real $0 software hit by directive section 10's own definition"),
+ * which is BILLING truth, not provenance truth. Using level would have
+ * recorded a model-chosen mapping as software.
+ *
+ * reuse_cache is recorded as "software" nonetheless, and this is the one
+ * judgement in here worth disagreeing with: no model ran for this write, so
+ * "the AI acted" is false for this request. What is true is that the mapping
+ * being replayed was chosen by a model earlier, and that provenance is not
+ * lost -- it lives in compliance.reuse_cache, keyed by the same
+ * user+project+normalised text, and is joinable. If the intended reading of
+ * G-02 is "was this write's SHAPE ever decided by a model", this line is the
+ * one to change, and the enum has no third value for "replayed model
+ * decision" to change it to.
+ */
+export function executorFor(source: ResolutionSource | "none"): "software" | "ai" {
+  return source === "level1" ? "ai" : "software";
+}
+
 async function mintTask(
   input: RunSubmissionInput,
   submissionId: string,
@@ -1002,7 +1048,8 @@ async function mintTask(
   dependsOn: string | null,
   functionId: string,
   params: Record<string, unknown>,
-  derivedChain: DerivedChain
+  derivedChain: DerivedChain,
+  source: ResolutionSource | "none"
 ): Promise<string> {
   return withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
     const [row] = await db
@@ -1017,7 +1064,7 @@ async function mintTask(
         derivedChain,
         functionId,
         params,
-        executor: "software",
+        executor: executorFor(source),
         status: "to_do",
       })
       .returning({ id: pipelineTasks.id });
@@ -1098,7 +1145,7 @@ export { normalisePhrase };
 // this is where its real, DB- and provider-backed deps are built, because
 // this file already owns every one of those wires. Re-exported from here so
 // callers keep one import path for "the pipeline".
-export { dryRunSubmission, NO_COMMENTARY_SENTENCE, type DryRunResult, type DryRunProposal } from "./dry-run";
+export { dryRunSubmission, NO_COMMENTARY_SENTENCE, type DryRunResult, type DryRunProposal, type DryRunTelemetry } from "./dry-run";
 
 /**
  * The live deps. `providerAvailable` asks the adapter the same question the
@@ -1113,6 +1160,7 @@ export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunD
   return {
     l0Repo: makeL0Repo(input.orgId, input.userId),
     reuseRepo: makeReuseCacheRepo(input.orgId, input.userId),
+    fuzzyRepo: makePhraseFuzzyRepo(input.orgId),
     chainRepo: makeChainRepo(input.orgId),
     rootLabel,
     boqLineOptions: async (projectId: string) => {
@@ -1132,7 +1180,11 @@ export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunD
     runRead: (task) => executeTask(task),
     providerAvailable: () => {
       try {
-        assertAiProviderAllowed(input.userId);
+        // Explicit level, matching level1.ts/analyse.ts (P1.1): this checks
+        // whether L1 -- the level this dry-run's own Level 1 call will use
+        // -- is available, so it must resolve the SAME provider config that
+        // call resolves, not rely on the default parameter agreeing by luck.
+        assertAiProviderAllowed(input.userId, "pipeline_l1");
         return true;
       } catch {
         return false;
@@ -1172,6 +1224,32 @@ function submissionStatusForVerdict(v: SubmissionVerdictResult): "chat" | "in_pr
   return v.verdicts.some((x) => x.status === "ready" || x.status === "needs_input") ? "in_progress" : "chat";
 }
 
+/**
+ * Maps step 1a's free-text refusal reason onto migration 0571's CLOSED
+ * vocabulary for compliance.submissions.level1_refusal_code.
+ *
+ * WHY A CODE AND NEVER THE MESSAGE: the column carries a NOT VALID CHECK that
+ * only admits these values, and -- the real reason -- a raw err.message
+ * routinely contains connection strings, tokens and request payloads. One
+ * Supabase project serves both environments, so anything written here is
+ * production the instant it lands. A code cannot leak a credential; a message
+ * can, and the leak would only be found by grepping the column later.
+ *
+ * Returns null when nothing was refused, so a resolved or not-needed submission
+ * stores NULL rather than a misleading "unknown".
+ */
+function refusalCodeFor(t: DryRunTelemetry): string | null {
+  if (t.level1Outcome !== "refused" && t.level1Outcome !== "error") return null;
+  const reason = (t.level1RefusalReason ?? "").toLowerCase();
+  // AiProviderRefusalError is what assertAiProviderAllowed throws, for BOTH the
+  // "RAJAT_USER_ID unset" and "wrong user" branches -- see ai/adapter.ts:63-92.
+  if (t.level1Outcome === "refused") return "provider_not_allowed";
+  if (reason.includes("fetch") || reason.includes("timeout") || reason.includes("econnrefused")) {
+    return "provider_unreachable";
+  }
+  return "unknown";
+}
+
 export async function submitForVerdict(input: RunSubmissionInput): Promise<SubmitVerdictResult> {
   const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
     const [row] = await db
@@ -1189,19 +1267,65 @@ export async function submitForVerdict(input: RunSubmissionInput): Promise<Submi
   });
 
   const proposal = await proposeSubmission(input);
+  // R80 Part 2 (1a): read the counters OFF THE PROPOSAL, here, BEFORE
+  // toVerdictResult(). That function (verdict.ts:180-187) builds its envelope
+  // field by field from `result.proposals` and never spreads `result`, so taking
+  // `telemetry` at this point is what keeps it off the wire contract and leaves
+  // PROJEXA's M24Shell type untouched. PERSISTING these numbers is step 1b and is
+  // deliberately not done here -- today they are logged only.
+  const telemetry = proposal.telemetry;
   const verdict = toVerdictResult(proposal, submissionId);
   const classification = classifySubmission(verdict.verdicts.map((v) => v.verdict));
+
+  // R80 Part 2 step 1b COMPLETION (2026-09-09). Migration 0571 added seven
+  // telemetry columns to compliance.submissions and step 1a computed every one
+  // of them -- and nothing wrote them. They reached a console.info below and
+  // NOWHERE ELSE, so all seven were 100% NULL on every row and the 95/5 split
+  // was exactly as unmeasurable as before the migration. I reported 1b as done;
+  // it was a schema and a log line, not a measurement. Found by the R81 session
+  // auditing my work.
+  //
+  // l0_hit_rate is stored as the numeric(5,4) the column declares, computed the
+  // same way as the log line below so the two can never disagree.
+  //
+  // level1_refusal_code, NOT the raw reason: 0571's CHECK constrains it to a
+  // closed vocabulary, and an err.message reaching a shared-DB column is how a
+  // connection string or a token gets durably stored. The reason text stays in
+  // the log, which is the right place for detail.
+  const l0HitRateForRow = telemetry.resolved === 0 ? 0 : telemetry.l0Hits / telemetry.resolved;
 
   await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
     db
       .update(submissions)
-      .set({ status: submissionStatusForVerdict(verdict), classification })
+      .set({
+        status: submissionStatusForVerdict(verdict),
+        classification,
+        level: telemetry.modelCalls > 0 ? 1 : 0,
+        source: telemetry.level1Outcome,
+        l0HitRate: l0HitRateForRow.toFixed(4),
+        modelCalls: telemetry.modelCalls,
+        cacheHits: telemetry.cacheHits,
+        level1Outcome: telemetry.level1Outcome,
+        level1RefusalCode: refusalCodeFor(telemetry),
+      })
       .where(eq(submissions.id, submissionId))
   );
 
+  // THE PROOF, IN THE LOGS -- the same vocabulary runSubmission() logs at
+  // :597-600, plus the one distinction that line cannot make. `level1=refused`
+  // means the provider gate turned the model off for this caller; it does NOT
+  // mean software resolved everything, even though model_calls reads 0 in both
+  // cases. Reading a 100% software split off a `refused` line is a misreading,
+  // and printing the outcome beside the counters is what makes that misreading
+  // impossible to arrive at by accident.
+  const l0HitRate = telemetry.resolved === 0 ? 0 : telemetry.l0Hits / telemetry.resolved;
   console.info(
     `[pipeline] submission=${submissionId} verdict=${verdict.verdict} status=${verdict.status} ` +
-      `missing=${verdict.missing.map((m) => m.field).join(",") || "-"} minted=0`
+      `missing=${verdict.missing.map((m) => m.field).join(",") || "-"} minted=0 ` +
+      `segments=${telemetry.segments} resolved=${telemetry.resolved} l0_hits=${telemetry.l0Hits} ` +
+      `l0_hit_rate=${l0HitRate.toFixed(2)} model_calls=${telemetry.modelCalls} cache_hits=${telemetry.cacheHits} ` +
+      `level1=${telemetry.level1Outcome}` +
+      (telemetry.level1RefusalReason ? ` level1_reason=${JSON.stringify(telemetry.level1RefusalReason)}` : "")
   );
 
   return { ...verdict, submissionId };

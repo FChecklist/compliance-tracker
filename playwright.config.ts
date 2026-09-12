@@ -59,8 +59,39 @@ const ciPlaceholderEnv = process.env.CI
     }
   : undefined;
 
+// DOD-X4/P4.4 (2026-09-10): "ct main CI green with the Vercel-env test
+// EXCLUDED, not tolerated." Before this, `bunx playwright test` in CI
+// ATTEMPTED all 9 tests and 3 self-skipped (test.skip(!!process.env.CI, ...)
+// in r48-uat-bank-reachability.spec.ts and r63-local-composer.spec.ts;
+// demo-gate-smoke.spec.ts's own runtime ENV-2-reachability probe) -- CI
+// still went green, but only because a skip doesn't fail the job, which is
+// tolerance, not exclusion (D58: a result an instrument was never shown
+// capable of turning red on is a claim, not a finding). Excluding these
+// three here means they never appear in a CI run's test count at all
+// (0 skipped, not 3) -- the run reports exactly the 6 tests that always
+// execute for real (5x accessibility.spec.ts + browser-execution-
+// tiers.spec.ts), and each excluded file's own test.skip(!!process.env.CI)
+// stays in place as an unrelated belt-and-braces guard, not the primary
+// mechanism, for anyone who somehow runs playwright without this config.
+// r48/r63 are local-only manual diagnostics (need an already-running dev
+// server this job's own webServer doesn't provide the way they expect) --
+// unrelated to DOD-X4's Vercel/ENV-2 target, excluded here only so the
+// CI-wide "zero skipped" reading holds, not reclassified as gate evidence.
+// Local/manual runs are UNCHANGED: `bunx playwright test
+// e2e/demo-gate-smoke.spec.ts` (optionally with E2E_PROJEXA_ORIGIN pointed
+// at a local ENV-1 projexa dev server) still works exactly as before --
+// this only narrows what CI itself attempts.
+const ciExcludedSpecs = process.env.CI
+  ? [
+      "demo-gate-smoke.spec.ts",
+      "r48-uat-bank-reachability.spec.ts",
+      "r63-local-composer.spec.ts",
+    ]
+  : undefined;
+
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: ciExcludedSpecs,
   use: {
     baseURL: "http://localhost:3000",
     // R74 Y4-03: capture on failure only (not every run -- would fill the
@@ -80,7 +111,16 @@ export default defineConfig({
     // underlying steps `bun run dev` would, without the broken pipe.
     command: "node scripts/generate-protected-routes.mjs && npx next dev -p 3000",
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    // T2 (W-CI, e2e-env1 job, ci.yml): that job boots a REAL production
+    // `next start` on :3000 itself, with real secrets, BEFORE running
+    // playwright at all (its specs need it as PROJEXA's live backend, not
+    // as their own baseURL) -- reuseExistingServer must be true there, or
+    // this config's own dev-mode webServer would try to bind the same port
+    // and fail "already in use". The regular `e2e` job above is unaffected:
+    // it never sets E2E_ENV1_JOB, so reuseExistingServer still defaults to
+    // false in CI there, and that job still proves it can boot its own
+    // server from cold, same as before this line existed.
+    reuseExistingServer: !process.env.CI || process.env.E2E_ENV1_JOB === "true",
     timeout: 300_000,
     env: ciPlaceholderEnv,
     stdout: "pipe",

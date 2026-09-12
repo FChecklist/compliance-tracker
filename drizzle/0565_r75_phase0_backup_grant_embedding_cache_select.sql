@@ -1,0 +1,11 @@
+-- R75 Phase 0 (Z0-02): pg_dump found compliance.embedding_cache has NO
+-- SELECT grant for app_runtime at all -- confirmed the ONLY such table-level
+-- gap across all of compliance+platform (602 tables checked via
+-- has_table_privilege). Not caused by this session; a genuine, pre-existing
+-- gap surfaced only because a full unrestricted dump exercises every table,
+-- something the app's own normal read paths apparently never all touch.
+-- Real functional impact beyond this backup: any app code path that reads
+-- embedding_cache as app_runtime has been silently failing or falling back
+-- to an uncached path this whole time -- worth a follow-up to find which
+-- caller (if any) actually needs this table and confirm it isn't dead code.
+GRANT SELECT ON TABLE compliance.embedding_cache TO app_runtime;

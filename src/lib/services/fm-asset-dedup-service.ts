@@ -9,7 +9,7 @@
 // should never be flagged as duplicates of each other just because their
 // names happen to share tokens.
 import { fmAssetDuplicateCandidates, fmAssets, fmPpmSchedules, fmAmcContracts } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
 import { requireFmEnabled } from "./fm-enablement-service"
 import { ServiceError } from "./compliance-service"
@@ -24,39 +24,48 @@ const SIMILARITY_THRESHOLD = 0.5
  *  matches, upserting pending candidates. Existing 'not_duplicate'/'merged'
  *  rows are never re-raised (a human already decided that pair). */
 export async function scanForDuplicateAssets(ctx: { orgId: string }, categoryId?: string) {
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const rows = (await db.execute(sql`
-      SELECT a.id AS id_a, b.id AS id_b, similarity(a.normalized_name, b.normalized_name) AS name_score
-      FROM compliance.fm_assets a
-      JOIN compliance.fm_assets b ON a.id < b.id AND a.org_id = b.org_id AND a.category_id = b.category_id
-      WHERE a.org_id = ${ctx.orgId}
-        AND a.status != 'decommissioned' AND b.status != 'decommissioned'
-        AND a.is_duplicate_of IS NULL AND b.is_duplicate_of IS NULL
-        ${categoryId ? sql`AND a.category_id = ${categoryId}` : sql``}
-        AND similarity(a.normalized_name, b.normalized_name) > ${SIMILARITY_THRESHOLD}
-    `)) as { id_a: string; id_b: string; name_score: number }[]
+  return withTenantContext({ orgId: ctx.orgId }, (db) => scanForDuplicateAssetsWithDb(db, ctx, categoryId))
+}
 
-    const existing = await db.query.fmAssetDuplicateCandidates.findMany({ where: eq(fmAssetDuplicateCandidates.orgId, ctx.orgId) })
-    const existingByPair = new Map(existing.map((c) => [`${c.assetIdA}:${c.assetIdB}`, c]))
+/**
+ * db-handle-accepting variant. findDuplicateCandidates() below calls this
+ * from inside its own transaction, so without it the scan ran in a second
+ * one -- reading assets that the enclosing transaction may have just
+ * written and not yet committed, which is the wrong answer, not merely a
+ * slower one.
+ */
+export async function scanForDuplicateAssetsWithDb(db: TenantDb, ctx: { orgId: string }, categoryId?: string) {
+  const rows = (await db.execute(sql`
+    SELECT a.id AS id_a, b.id AS id_b, similarity(a.normalized_name, b.normalized_name) AS name_score
+    FROM compliance.fm_assets a
+    JOIN compliance.fm_assets b ON a.id < b.id AND a.org_id = b.org_id AND a.category_id = b.category_id
+    WHERE a.org_id = ${ctx.orgId}
+      AND a.status != 'decommissioned' AND b.status != 'decommissioned'
+      AND a.is_duplicate_of IS NULL AND b.is_duplicate_of IS NULL
+      ${categoryId ? sql`AND a.category_id = ${categoryId}` : sql``}
+      AND similarity(a.normalized_name, b.normalized_name) > ${SIMILARITY_THRESHOLD}
+  `)) as { id_a: string; id_b: string; name_score: number }[]
 
-    let created = 0
-    for (const row of rows) {
-      const key = `${row.id_a}:${row.id_b}`
-      const prior = existingByPair.get(key)
-      if (prior && prior.status !== "pending") continue // a human already decided this pair
+  const existing = await db.query.fmAssetDuplicateCandidates.findMany({ where: eq(fmAssetDuplicateCandidates.orgId, ctx.orgId) })
+  const existingByPair = new Map(existing.map((c) => [`${c.assetIdA}:${c.assetIdB}`, c]))
 
-      if (prior) {
-        await db.update(fmAssetDuplicateCandidates).set({ matchScore: String(row.name_score), matchReason: "trigram_name_similarity" }).where(eq(fmAssetDuplicateCandidates.id, prior.id))
-      } else {
-        await db.insert(fmAssetDuplicateCandidates).values({
-          orgId: ctx.orgId, assetIdA: row.id_a, assetIdB: row.id_b,
-          matchScore: String(row.name_score), matchReason: "trigram_name_similarity", status: "pending",
-        })
-        created++
-      }
+  let created = 0
+  for (const row of rows) {
+    const key = `${row.id_a}:${row.id_b}`
+    const prior = existingByPair.get(key)
+    if (prior && prior.status !== "pending") continue // a human already decided this pair
+
+    if (prior) {
+      await db.update(fmAssetDuplicateCandidates).set({ matchScore: String(row.name_score), matchReason: "trigram_name_similarity" }).where(eq(fmAssetDuplicateCandidates.id, prior.id))
+    } else {
+      await db.insert(fmAssetDuplicateCandidates).values({
+        orgId: ctx.orgId, assetIdA: row.id_a, assetIdB: row.id_b,
+        matchScore: String(row.name_score), matchReason: "trigram_name_similarity", status: "pending",
+      })
+      created++
     }
-    return { scanned: rows.length, created }
-  })
+  }
+  return { scanned: rows.length, created }
 }
 
 /** Convenience wrapper: run scanForDuplicateAssets scoped to the single
@@ -67,7 +76,7 @@ export async function findDuplicateCandidates(ctx: { orgId: string }, assetId: s
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const asset = await db.query.fmAssets.findFirst({ where: and(eq(fmAssets.id, assetId), eq(fmAssets.orgId, ctx.orgId)) })
     if (!asset) throw new ServiceError("Asset not found", 404)
-    return scanForDuplicateAssets(ctx, asset.categoryId)
+    return scanForDuplicateAssetsWithDb(db, ctx, asset.categoryId)
   })
 }
 

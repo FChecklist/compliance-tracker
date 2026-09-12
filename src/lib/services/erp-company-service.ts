@@ -5,12 +5,12 @@
 // shared across an org's companies; consolidation is computed here at
 // report-runtime by walking the company tree, never a stored "group GL".
 import { erpCompanies, users } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
-import { requireErpEnabled } from "./erp-enablement-service"
+import { requireErpEnabled, isErpEnabledForOrgWithDb } from "./erp-enablement-service"
 import { ErpContext } from "./actor-context"
 
 
@@ -91,20 +91,35 @@ export async function updateCompany(ctx: ErpContext, companyId: string, input: P
  */
 export async function getCompanyDescendantIds(ctx: { orgId: string }, rootCompanyId: string): Promise<string[]> {
   await requireErpEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const all = await db.query.erpCompanies.findMany({ where: eq(erpCompanies.orgId, ctx.orgId) })
-    const byParent = new Map<string, string[]>()
-    for (const c of all) {
-      if (!c.parentCompanyId) continue
-      byParent.set(c.parentCompanyId, [...(byParent.get(c.parentCompanyId) ?? []), c.id])
-    }
-    const result: string[] = []
-    const queue = [rootCompanyId]
-    while (queue.length > 0) {
-      const current = queue.shift()!
-      result.push(current)
-      queue.push(...(byParent.get(current) ?? []))
-    }
-    return result
-  })
+  return withTenantContext({ orgId: ctx.orgId }, (db) => getCompanyDescendantIdsWithDb(db, ctx, rootCompanyId))
+}
+
+/**
+ * db-handle-accepting variant. The gate is the WithDb form and runs on THIS
+ * handle: requireErpEnabled() reaches isBranchEnabledForOrg, which opens a
+ * transaction of its own, so a caller that already holds one gets the exact
+ * shape that made 6b56c00b a false fix. 403 wording is byte-identical to
+ * requireErpEnabled's own.
+ */
+export async function getCompanyDescendantIdsWithDb(db: TenantDb, ctx: { orgId: string }, rootCompanyId: string): Promise<string[]> {
+  if (!(await isErpEnabledForOrgWithDb(db, ctx.orgId))) {
+    throw new ServiceError(
+      "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the ERP module.",
+      403
+    )
+  }
+  const all = await db.query.erpCompanies.findMany({ where: eq(erpCompanies.orgId, ctx.orgId) })
+  const byParent = new Map<string, string[]>()
+  for (const c of all) {
+    if (!c.parentCompanyId) continue
+    byParent.set(c.parentCompanyId, [...(byParent.get(c.parentCompanyId) ?? []), c.id])
+  }
+  const result: string[] = []
+  const queue = [rootCompanyId]
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    result.push(current)
+    queue.push(...(byParent.get(current) ?? []))
+  }
+  return result
 }

@@ -215,6 +215,219 @@ describe("B-05 -- a GAP is an answer with a destination", () => {
   })
 })
 
+// ── R80 Part 2 (1a): THE SOFTWARE-vs-AI SPLIT, COUNTED IN THE LIVE ENGINE ─
+//
+// dry-run.ts is the engine PROJEXA's composer actually reaches, and it used to
+// discard the two numbers that answer "how much of this was software?":
+// `resolutions = level1.resolutions;` dropped ReuseCacheOutcome's own
+// `modelCalls` and `cacheHits` on the floor. The split was not merely
+// unpersisted, it was never computed.
+//
+// THE THIRD TEST IS THE ONE THAT MATTERS. `modelCalls: 0` is true of three
+// completely different situations -- Level 0 answered it, a reuse_cache hit
+// replayed it, or the provider gate REFUSED to let the model be asked at all.
+// RAJAT_USER_ID is unset in Vercel Production, so today the third is what
+// every end user gets there, and a telemetry field that cannot tell it from
+// the first reports a triumphant 100% software / 0% AI split whose real
+// meaning is "the AI is switched off". These tests exist so that conflation
+// cannot be reintroduced by accident.
+//
+// The refusal case drives the REAL assertAiProviderAllowed() through the REAL
+// runLevel1(), not a fake: that assertion runs ahead of any DB read or model
+// call (level1.ts:96, before loadValidItemCodes at :98), so the production
+// refusal path is reachable here with no database and no network.
+import { assertAiProviderAllowed, AiProviderRefusalError } from "@/lib/ai/adapter"
+
+const L0_DEPS_CACHED = depsFor(
+  {},
+  {
+    reuseRepo: {
+      findReuseHit: async () => ({ functionId: "record_work_progress", params: { itemCode: "EX-01", percent: 50 } }),
+      recordReuseHit: async () => {},
+    },
+  }
+)
+
+describe("R80 1a -- dry-run telemetry tells a refusal apart from a software win", () => {
+  const L0_DEPS = depsFor({
+    "record 50% progress on excavation": { functionId: "record_work_progress", fixedParams: { percent: 50 } },
+  })
+
+  // Misses every L0 tier: not an acknowledgement, no phrase-map entry, no
+  // item-code+percent structural match, no logging verb + duration, and
+  // findLastPillUse returns null. It is the input that forces the L1 lane open.
+  const L0_MISS = "arrange the site handover paperwork"
+
+  test("every segment hit L0 -> not_needed, NOT refused: the model was never asked", async () => {
+    const r = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on excavation" }, L0_DEPS)
+    expect(r.telemetry.level1Outcome).toBe("not_needed")
+    expect(r.telemetry.modelCalls).toBe(0)
+    expect(r.telemetry.cacheHits).toBe(0)
+    expect(r.telemetry.level1RefusalReason).toBeNull()
+    expect(r.telemetry.segments).toBe(1)
+    expect(r.telemetry.resolved).toBe(1)
+    expect(r.telemetry.l0Hits).toBe(1)
+  })
+
+  test("a reuse_cache hit -> resolved, modelCalls 0, cacheHits 1 -- free, but the lane DID run", async () => {
+    let recorded = false
+    const deps = depsFor(
+      {},
+      {
+        reuseRepo: {
+          findReuseHit: async () => ({ functionId: "record_work_progress", params: { itemCode: "EX-01", percent: 50 } }),
+          recordReuseHit: async () => {
+            recorded = true
+          },
+        },
+      }
+    )
+    const r = await dryRunSubmission({ ...BASE, rawInput: L0_MISS }, deps)
+    // recordReuseHit only ever runs after a live Level 1 answer, so this is
+    // structural proof that no model call happened -- not just a counter.
+    expect(recorded).toBe(false)
+    expect(r.telemetry.level1Outcome).toBe("resolved")
+    expect(r.telemetry.modelCalls).toBe(0)
+    expect(r.telemetry.cacheHits).toBe(1)
+    expect(r.telemetry.level1RefusalReason).toBeNull()
+    // reuse-cache.ts:118-124 records a cache hit as level 0 on purpose, so it
+    // counts as the free hit it is. That is the counting rule, not a guess.
+    expect(r.telemetry.resolved).toBe(1)
+    expect(r.telemetry.l0Hits).toBe(1)
+  })
+
+  test("the provider gate refusing -> refused, with the reason as a STRING, not a silent zero", async () => {
+    const priorProvider = process.env.AI_PROVIDER
+    const priorRajat = process.env.RAJAT_USER_ID
+    // The live production shape: claude-cli configured, and an ordinary end
+    // user who is not the one account that provider is permitted to serve.
+    process.env.AI_PROVIDER = "claude-cli"
+    process.env.RAJAT_USER_ID = "not_this_caller"
+    try {
+      const deps = depsFor({}, { reuseRepo: { findReuseHit: async () => null, recordReuseHit: async () => {} } })
+      const r = await dryRunSubmission({ ...BASE, rawInput: L0_MISS }, deps)
+      expect(r.telemetry.level1Outcome).toBe("refused")
+      expect(r.telemetry.modelCalls).toBe(0)
+      expect(r.telemetry.cacheHits).toBe(0)
+      // A STRING, not a boolean. The reason is what tells a reader months from
+      // now that the AI was switched off rather than unnecessary.
+      expect(typeof r.telemetry.level1RefusalReason).toBe("string")
+      expect(r.telemetry.level1RefusalReason).toBe(NO_COMMENTARY_SENTENCE)
+      // ...and it really is the provider gate, not some incidental failure.
+      expect(() => assertAiProviderAllowed(BASE.userId)).toThrow(AiProviderRefusalError)
+      // The user still gets a real answer: nothing resolved, so it is an honest
+      // gap with a destination -- never a 400 carrying the refusal sentence.
+      expect(r.status).toBe("gap")
+      expect(r.telemetry.resolved).toBe(0)
+      expect(r.telemetry.l0Hits).toBe(0)
+    } finally {
+      if (priorProvider === undefined) delete process.env.AI_PROVIDER
+      else process.env.AI_PROVIDER = priorProvider
+      if (priorRajat === undefined) delete process.env.RAJAT_USER_ID
+      else process.env.RAJAT_USER_ID = priorRajat
+    }
+  })
+
+  test("a genuine fault -> error, NOT refused -- a broken repo is not a policy decision", async () => {
+    const deps = depsFor(
+      { "record 50% progress on excavation": { functionId: "record_work_progress", fixedParams: { percent: 50 } } },
+      {
+        reuseRepo: {
+          findReuseHit: async () => {
+            throw new Error("reuse_cache read failed")
+          },
+          recordReuseHit: async () => {},
+        },
+      }
+    )
+    // Two segments: the first hits phrase_map, the second misses and opens the
+    // L1 lane, which then faults. One message, both halves counted.
+    const r = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on excavation; " + L0_MISS }, deps)
+    expect(r.telemetry.level1Outcome).toBe("error")
+    expect(r.telemetry.level1RefusalReason).toBe("reuse_cache read failed")
+    expect(r.telemetry.modelCalls).toBe(0)
+    expect(r.telemetry.cacheHits).toBe(0)
+    expect(r.telemetry.segments).toBe(2)
+    // THE classify-only.ts:117-120 RULE, asserted as the invariant it is so
+    // the two engines cannot drift into two different hit rates.
+    expect(r.telemetry.segments).toBe(r.proposals.length)
+    expect(r.telemetry.resolved).toBe(r.proposals.filter((p) => p.verdict !== "gap").length)
+    expect(r.telemetry.resolved).toBe(1)
+    expect(r.telemetry.l0Hits).toBe(1)
+  })
+
+  test("refused and error are DIFFERENT values -- one boolean could not carry both", async () => {
+    const refusingDeps = depsFor({}, { reuseRepo: { findReuseHit: async () => null, recordReuseHit: async () => {} } })
+    const faultingDeps = depsFor(
+      {},
+      {
+        reuseRepo: {
+          findReuseHit: async () => {
+            throw new Error("reuse_cache read failed")
+          },
+          recordReuseHit: async () => {},
+        },
+      }
+    )
+    const priorProvider = process.env.AI_PROVIDER
+    const priorRajat = process.env.RAJAT_USER_ID
+    process.env.AI_PROVIDER = "claude-cli"
+    process.env.RAJAT_USER_ID = "not_this_caller"
+    try {
+      const refused = await dryRunSubmission({ ...BASE, rawInput: L0_MISS }, refusingDeps)
+      const faulted = await dryRunSubmission({ ...BASE, rawInput: L0_MISS }, faultingDeps)
+      const free = await dryRunSubmission({ ...BASE, rawInput: L0_MISS }, L0_DEPS_CACHED)
+      const notNeeded = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on excavation" }, L0_DEPS)
+      const outcomes = [
+        refused.telemetry.level1Outcome,
+        faulted.telemetry.level1Outcome,
+        free.telemetry.level1Outcome,
+        notNeeded.telemetry.level1Outcome,
+      ]
+      // All four report modelCalls 0. Only level1Outcome tells them apart.
+      expect(refused.telemetry.modelCalls).toBe(0)
+      expect(faulted.telemetry.modelCalls).toBe(0)
+      expect(free.telemetry.modelCalls).toBe(0)
+      expect(notNeeded.telemetry.modelCalls).toBe(0)
+      expect(outcomes).toEqual(["refused", "error", "resolved", "not_needed"])
+      expect(new Set(outcomes).size).toBe(4)
+    } finally {
+      if (priorProvider === undefined) delete process.env.AI_PROVIDER
+      else process.env.AI_PROVIDER = priorProvider
+      if (priorRajat === undefined) delete process.env.RAJAT_USER_ID
+      else process.env.RAJAT_USER_ID = priorRajat
+    }
+  })
+
+  test("an empty message reports not_needed, never refused", async () => {
+    const r = await dryRunSubmission({ ...BASE, rawInput: "   " }, L0_DEPS)
+    expect(r.telemetry).toEqual({
+      segments: 0,
+      resolved: 0,
+      l0Hits: 0,
+      modelCalls: 0,
+      cacheHits: 0,
+      fuzzyHits: 0,
+      level1Outcome: "not_needed",
+      level1RefusalReason: null,
+    })
+  })
+
+  test("telemetry NEVER reaches the verdict envelope -- the wire contract is untouched", async () => {
+    const r = await dryRunSubmission({ ...BASE, rawInput: "record 50% progress on excavation" }, L0_DEPS)
+    expect(r.telemetry).toBeDefined()
+    const v = toVerdictResult(r, "sub_1")
+    // toVerdictResult() builds its envelope field by field and never spreads
+    // `result`, so PROJEXA's M24Shell type gains nothing and needs no change.
+    expect("telemetry" in v).toBe(false)
+    expect(JSON.stringify(v)).not.toContain("telemetry")
+    expect(JSON.stringify(v)).not.toContain("level1Outcome")
+    for (const one of v.verdicts) {
+      expect("telemetry" in one).toBe(false)
+    }
+  })
+})
+
 // ── R67 B-06: a transport failure is a RETRY, not a blocked task ──────────
 import { statusForFailure } from "./run-submission"
 import { pipelineFailure } from "./error-codes"
@@ -331,7 +544,7 @@ describe("B-07 -- a gap answers with a destination and is never confirmable", ()
 
 describe("B-07 -- the per-segment verdict is never collapsed", () => {
   test("an empty proposal set still returns a well-formed envelope", () => {
-    const v = toVerdictResult({ dryRun: true, proposals: [], status: "chat", verdict: "chat", kind: "ask", functionId: null, label: null, params: {}, missing: [], chain: null }, null)
+    const v = toVerdictResult({ dryRun: true, proposals: [], status: "chat", verdict: "chat", kind: "ask", functionId: null, label: null, params: {}, missing: [], chain: null, telemetry: { segments: 0, resolved: 0, l0Hits: 0, modelCalls: 0, cacheHits: 0, level1Outcome: "not_needed", level1RefusalReason: null } }, null)
     expect(v.verdicts).toEqual([])
     expect(v.status).toBe("chat")
     expect(v.confirmable).toBe(false)
@@ -494,5 +707,75 @@ describe("FIX PASS -- a projectId the request itself carried is reachable", () =
   test("omitting params entirely keeps the previous behaviour exactly", () => {
     const ctx = buildValidationContext({ projectId: "p1", projectLabel: null, boq: null })
     expect([...ctx.reachableProjectIds]).toEqual(["p1"])
+  })
+})
+
+// PM-T2 -- END TO END THROUGH THE REAL dryRunSubmission() ENGINE, not just
+// reuse-cache.ts's own unit tests. Proves the middle band reaches the actual
+// wire contract (DryRunResult.status), through the same DryRunDeps seam
+// every other test in this file uses (fuzzyRepo is just another injected
+// dependency, same pattern as l0Repo/reuseRepo).
+describe("PM-T2 -- the middle confidence band reaches DryRunResult.status through the real engine", () => {
+  test("an L0 miss that scores in the middle band comes back needs_confirmation, with functionId/params filled in like ready, and confirmable via toVerdict", async () => {
+    const deps = depsFor(
+      {}, // no L0 phrase-map match -- forces the miss into the fuzzy tier
+      {
+        fuzzyRepo: {
+          findBestMatch: async (text) =>
+            text === "mark the boq line as finished" ? { functionId: "record_work_progress", fixedParams: { itemCode: "EX-01", percent: 100 }, score: 0.6 } : null,
+        },
+      }
+    )
+
+    const r = await dryRunSubmission({ ...BASE, rawInput: "mark the boq line as finished" }, deps)
+
+    expect(r.status).toBe("needs_confirmation")
+    expect(r.functionId).toBe("record_work_progress")
+    expect(r.params).toEqual({ itemCode: "EX-01", percent: 100, projectId: "p1" }) // projectId auto-filled from the submission's own rail, same as every other resolution source
+    expect(r.telemetry.modelCalls).toBe(0) // not escalated to AI -- a human confirms, not a model
+
+    const verdict = toVerdictResult(r, "sub_1")
+    expect(verdict.confirmable).toBe(true) // reaches PROJEXA's existing generic confirm-card branch
+  })
+
+  test("the SAME text at a HIGH-band score still resolves ready, unchanged by PM-T2's addition", async () => {
+    const deps = depsFor(
+      {},
+      {
+        fuzzyRepo: {
+          findBestMatch: async (text) =>
+            text === "mark the boq line as finished" ? { functionId: "record_work_progress", fixedParams: { itemCode: "EX-01", percent: 100 }, score: 0.95 } : null,
+        },
+      }
+    )
+
+    const r = await dryRunSubmission({ ...BASE, rawInput: "mark the boq line as finished" }, deps)
+
+    expect(r.status).toBe("ready")
+  })
+
+  test("confirmSubmission's re-derivation guard needs NO change: re-running the same input re-derives the SAME functionId deterministically, so a client confirming the middle-band candidate is not refused", async () => {
+    // This is the fact PM-T2's own condition #3 hinges on -- checked here,
+    // not just argued in a comment. proposeSubmission() (what confirmSubmission
+    // re-runs internally) is deterministic for a fixed fuzzyRepo: calling it
+    // twice on the same input must return the identical functionId, which is
+    // the ONLY thing confirmSubmission's guard (run-submission.ts ~1402)
+    // checks. If this ever returned different functionIds across calls, the
+    // guard change PM-T2 was told to stop and report on would become real.
+    const deps = depsFor(
+      {},
+      {
+        fuzzyRepo: {
+          findBestMatch: async (text) =>
+            text === "mark the boq line as finished" ? { functionId: "record_work_progress", fixedParams: { itemCode: "EX-01", percent: 100 }, score: 0.6 } : null,
+        },
+      }
+    )
+
+    const first = await dryRunSubmission({ ...BASE, rawInput: "mark the boq line as finished" }, deps)
+    const second = await dryRunSubmission({ ...BASE, rawInput: "mark the boq line as finished" }, deps)
+
+    expect(second.functionId).toBe(first.functionId)
+    expect(second.status).toBe(first.status)
   })
 })

@@ -8,7 +8,7 @@
 // honest message when there's no real session, instead of silently no-op'ing
 // or faking an actor.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { submitJournalEntry, ServiceError } from "@/lib/services/erp-accounting-service"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -18,6 +18,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // submitJournalEntry needs a real actor to attribute the submission to --
   // an API key alone (no dbUser) can't submit one.
   if (!ctx.dbUser) return NextResponse.json({ error: "Submitting a journal entry requires a real user session, not just an API key" }, { status: 400 })
+
+  const roleCheck = requireRoleOrScope(ctx, "senior_professional")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

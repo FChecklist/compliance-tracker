@@ -33,6 +33,7 @@ import { startApprovalWorkflow } from "./approval-workflow-service"
 import { createJournalEntry, submitJournalEntry, voidDraftJournalEntry, type JournalEntryLineInput } from "./erp-accounting-service"
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
 import { ErpContext, ActorCtx } from "./actor-context"
+import { logger } from "@/lib/logger"
 
 // Matches erp-accounting-service.ts's createJournalEntry / erp-procurement-
 // workflow-service.ts's createPurchaseRequisition precedent exactly: "basic
@@ -585,7 +586,23 @@ export async function runDepreciationBatch(ctx: ErpContext, input: { asOfDate: s
       })
     } catch (error) {
       if (journalEntryId) {
-        await voidDraftJournalEntry(ctx, journalEntryId, `runDepreciationBatch follow-up write failed for schedule ${row.id}`).catch(() => {})
+        // DOD-C8 fix: the primary failure (this catch) is already
+        // surfaced via `failed.push` below -- what was silent was the
+        // COMPENSATING void itself also failing, which would leave this
+        // journalEntryId orphaned in draft state with no record that
+        // cleanup didn't happen. Logged, not auto-retried: a second
+        // automatic attempt here risks masking a real, persistent
+        // problem with the entry rather than surfacing it.
+        await voidDraftJournalEntry(ctx, journalEntryId, `runDepreciationBatch follow-up write failed for schedule ${row.id}`).catch((voidError) => {
+          logger.warn("runDepreciationBatch: compensating voidDraftJournalEntry ALSO failed -- journal entry left orphaned in draft state", {
+            reason: "compensating_void_failed",
+            scheduleId: row.id,
+            assetId: asset.id,
+            journalEntryId,
+            originalErrorMessage: error instanceof Error ? error.message : String(error),
+            voidErrorMessage: voidError instanceof Error ? voidError.message : String(voidError),
+          })
+        })
       }
       failed.push({ scheduleId: row.id, assetId: asset.id, error: error instanceof Error ? error.message : String(error) })
       continue
@@ -852,7 +869,20 @@ export async function finalizeAssetDisposal(ctx: { orgId: string; userId: string
     })
   } catch (error) {
     if (journalEntryId) {
-      await voidDraftJournalEntry(ctx, journalEntryId, `finalizeAssetDisposal follow-up write failed for disposal ${disposalId}`).catch(() => {})
+      // DOD-C8 fix: the primary failure is already surfaced (re-thrown
+      // below) -- what was silent was the COMPENSATING void itself also
+      // failing, orphaning this journalEntryId in draft state with no
+      // record that cleanup didn't happen. Logged, not auto-retried, same
+      // reasoning as runDepreciationBatch's identical catch above.
+      await voidDraftJournalEntry(ctx, journalEntryId, `finalizeAssetDisposal follow-up write failed for disposal ${disposalId}`).catch((voidError) => {
+        logger.warn("finalizeAssetDisposal: compensating voidDraftJournalEntry ALSO failed -- journal entry left orphaned in draft state", {
+          reason: "compensating_void_failed",
+          disposalId,
+          journalEntryId,
+          originalErrorMessage: error instanceof Error ? error.message : String(error),
+          voidErrorMessage: voidError instanceof Error ? voidError.message : String(voidError),
+        })
+      })
     }
     throw error
   }

@@ -2,7 +2,7 @@ import { complianceItems } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 import { logActivity } from "@/lib/audit";
 import { addMonths } from "date-fns";
 
@@ -17,6 +17,9 @@ export async function POST(request: NextRequest) {
   const { response, orgId, dbUser } = await requireAuth();
   if (response) return response;
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 });
+
+  const roleCheck = requireRole(dbUser, "manager");
+  if (roleCheck) return roleCheck;
 
   try {
     const { complianceItemId } = await request.json();
@@ -98,13 +101,21 @@ export async function POST(request: NextRequest) {
 
       try {
         const { deliverWebhook } = await import("@/lib/webhook-deliver");
+        // R81_F26 (2026-09-08): `db` is THIS route's own open transaction handle --
+        // the one that just inserted the recurring item above. deliverWebhook runs
+        // the delivery-outcome monitor inside its own withTenantContext, which
+        // assertNotNested rejects from in here. The bare `catch { }` below swallows
+        // that throw, so the failure produced no error anywhere: in dev/test the
+        // item.created webhook silently never goes out, and in production the
+        // monitor's writes land in a second transaction. The `await import()` is
+        // also why a static-import grep misses this site.
         await deliverWebhook(orgId, "item.created", {
           itemId: newItem.id,
           title: newItem.title,
           recurrenceParentId: parent.id,
           complianceType: newItem.complianceType,
           dueDate: newItem.dueDate.toISOString(),
-        });
+        }, db);
       } catch { /* best-effort */ }
 
       return {

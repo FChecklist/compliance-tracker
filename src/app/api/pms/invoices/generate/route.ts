@@ -5,13 +5,16 @@
 // action, matching how the rest of erp-invoicing-service.ts's write routes
 // are gated.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { generateInvoiceFromUnbilledProjectTime, ServiceError } from "@/lib/services/pms-invoice-service"
 
 export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "admin")
+  if (roleCheck) return roleCheck
 
   try {
     const body = await request.json()

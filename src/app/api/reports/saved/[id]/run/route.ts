@@ -13,7 +13,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
   try {
     const { id } = await params
-    const result = await runReport({ orgId }, id)
+    const result = await runReport({ orgId, userId: dbUser?.id }, id)
 
     // D15.B2.S1 named event #3, "Report Generated -> Report Audit". runReport()
     // itself takes no actor (reports aren't otherwise audit-logged), so this

@@ -137,6 +137,9 @@ describe("ERP_ACTION_ROLES -- policy table integrity", () => {
       "erp.fiscal_periods.checklist_complete", // close-step attestation
       // Sales Pipeline gap-closure (task-20260718-082004, 2026-08-07):
       "crm.pipeline_stages.manage",        // master-data configuration, same class as chart_of_accounts.create/fixed_assets.category_manage above
+      // R75 Part 2 G2 gap-closure (2026-09-05): sibling org-wide CRM
+      // picklist to crm.pipeline_stages.manage above, same manager bar.
+      "crm.lost_reasons.manage",
     ].sort())
   })
 
@@ -439,5 +442,41 @@ describe("Wave 4 Track 2 -- Banking / Bank Reconciliation (module 7; all member-
 
   test("a viewer-rank user is BLOCKED from importing a bank statement (below the member bar -- viewer is read-only by design)", () => {
     expect(requirePermissionForUser(userWithRole("viewer"), "erp.banking.import_statement")).not.toBeNull()
+  })
+})
+
+// R75 Part 2 "G2 crm" gap-closure (2026-09-05): POST /api/crm/lost-reasons
+// and PATCH /api/crm/lost-reasons/[id] had NO role gate at all before this --
+// any authenticated org member of any rank could add/deactivate an entry in
+// this org-wide picklist. Gated the same way (requirePermissionForUser +
+// this registry, inline in the route) and at the same manager bar as the
+// sibling crm.pipeline_stages.manage picklist gate -- see this file's own
+// "policy table integrity" describe block above, which crm.pipeline_stages.manage
+// itself has no dedicated describe block for either (only the managerGated
+// list-membership check), so this block goes further than that precedent,
+// proving both directions of the actual requirePermissionForUser() call the
+// routes now make.
+describe("Lost Reasons (R75 Part 2 G2 gap-closure) -- crm.lost_reasons.manage", () => {
+  test("a member-rank user is BLOCKED from creating/deactivating a lost reason (org-wide picklist configuration, not routine data entry)", () => {
+    expect(requirePermissionForUser(userWithRole("member"), "crm.lost_reasons.manage")).not.toBeNull()
+  })
+
+  test("a viewer-rank user is BLOCKED (below the member bar too)", () => {
+    expect(requirePermissionForUser(userWithRole("viewer"), "crm.lost_reasons.manage")).not.toBeNull()
+  })
+
+  test("a manager-rank user IS allowed", () => {
+    expect(requirePermissionForUser(userWithRole("manager"), "crm.lost_reasons.manage")).toBeNull()
+  })
+
+  test("every role at or above manager rank is allowed, matching ROLE_RANK's own ordering", () => {
+    const rolesManagerOrAbove: UserRole[] = ["manager", "senior_professional", "branch_manager", "admin", "veridian_admin"]
+    for (const role of rolesManagerOrAbove) {
+      expect(requirePermissionForUser(userWithRole(role), "crm.lost_reasons.manage")).toBeNull()
+    }
+  })
+
+  test("a null dbUser (no session) is refused", () => {
+    expect(requirePermissionForUser(null, "crm.lost_reasons.manage")).not.toBeNull()
   })
 })

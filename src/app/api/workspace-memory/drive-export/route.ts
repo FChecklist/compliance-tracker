@@ -7,7 +7,7 @@
 // response makes that distinction explicit rather than implying total
 // failure.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { exportWorkspaceMemory, ServiceError } from "@/lib/services/workspace-memory-service"
 import { requireActiveDriveConnection, uploadCapsuleToDrive } from "@/lib/services/workspace-memory-drive-sync"
 
@@ -15,6 +15,8 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     // Fail fast, before spending time producing a capsule, if Drive isn't

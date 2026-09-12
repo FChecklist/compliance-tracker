@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { listEmployeeTaxExemptions, createEmployeeTaxExemption, ServiceError } from "@/lib/services/erp-payroll-service"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -23,6 +23,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

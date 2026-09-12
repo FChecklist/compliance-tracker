@@ -1,0 +1,44 @@
+title = "compliance-tracker gitleaks config"
+
+# Narrowly-scoped exception, added 2026-09-11 (owner-approved, direct
+# confirmation in W-TEST's own session -- not a peer relay, per this repo's
+# standing rule that a security-guardrail change needs the owner's own
+# direct word, quoted, not a routed-through-PM approval).
+#
+# CI's Secret Scanning job (gitleaks/gitleaks-action, default ruleset) flags
+# 3 hits under RuleID "jwt", all the SAME string, all introduced by
+# compliance-tracker PR #1666's pre-existing commit 6bc26140:
+#   e2e/r01-r02-boq-create-env1.spec.ts:29
+#   e2e/r32-boq-total-excludes-subtasks-env1.spec.ts:22
+#   e2e/r40-work-progress-weighted-subtask-env1.spec.ts:13
+#
+# INVESTIGATED, not assumed: decoded the flagged JWT's payload directly --
+# {"iss":"supabase","ref":"evpckeuxgvahguwsaeul","role":"anon","iat":...,
+# "exp":...}. role:"anon" confirms this is a Supabase ANON/publishable key
+# for PROJEXA's own Supabase project (evpckeuxgvahguwsaeul), not a
+# service_role key. Per Supabase's own security model, an anon key is
+# DESIGNED to be public -- access is controlled by RLS policies server-side,
+# not by keeping this key secret; it is routinely shipped in client-side
+# bundles. This is the same key already present verbatim, un-flagged, on
+# main today in e2e/demo-gate-smoke.spec.ts (lines 46-47/169/178/284) --
+# these 3 files just copied an already-merged constant when they were split
+# out of it. Not a new secret, not a real leak: a false positive on
+# gitleaks' generic "jwt" pattern, which cannot distinguish a public
+# anon key from a real bearer credential.
+#
+# The actual suppression lives in .gitleaksignore (fingerprint-based,
+# gitleaks' own mechanism for this exact "known finding, don't re-flag on
+# every run" case) -- NOT in an [allowlist] table here, which a first
+# attempt at this fix incorrectly tried and confirmed does not work for
+# per-finding fingerprints in gitleaks 8.24.3 (the fix landed on the second
+# attempt, re-verified green via the SAME CI job, not just assumed correct
+# from local TOML syntax validation this time).
+#
+# SCOPE, deliberately narrow: .gitleaksignore names only these 3 exact
+# (commit, file, rule, line) fingerprints -- it does NOT disable the "jwt"
+# rule, does NOT allowlist this string anywhere else it might appear, and
+# does NOT weaken this guardrail's ability to catch a real credential
+# (service_role key, DB password, API token) anywhere in this repo,
+# including a future occurrence of a DIFFERENT jwt-shaped secret.
+[extend]
+useDefault = true

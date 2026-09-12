@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { completeDeliverable, ServiceError } from "@/lib/services/firm-engagement-service"
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ deliverableId: string }> }) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  const roleCheck = requireRole(dbUser, "senior_professional")
+  if (roleCheck) return roleCheck
 
   try {
     const { deliverableId } = await ctx.params

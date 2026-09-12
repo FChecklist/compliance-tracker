@@ -232,27 +232,27 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
   // here.
   if (codeReference === "list_customers") {
     const { listCustomers } = await import("@/lib/services/erp-selling-service");
-    return listCustomers({ orgId });
+    return listCustomers({ orgId }, db);
   }
 
   if (codeReference === "list_sales_orders") {
     const { listSalesOrders } = await import("@/lib/services/erp-selling-service");
-    return listSalesOrders({ orgId });
+    return listSalesOrders({ orgId }, {}, db);
   }
 
   if (codeReference === "list_leads") {
-    const { listLeads } = await import("@/lib/services/crm-service");
-    return listLeads({ orgId });
+    const { listLeadsCore } = await import("@/lib/services/crm-service");
+    return listLeadsCore(db, { orgId });
   }
 
   if (codeReference === "list_opportunities") {
-    const { listOpportunities } = await import("@/lib/services/crm-service");
-    return listOpportunities({ orgId });
+    const { listOpportunitiesCore } = await import("@/lib/services/crm-service");
+    return listOpportunitiesCore(db, { orgId });
   }
 
   if (codeReference === "get_sales_pipeline_overview") {
-    const { getSalesPipelineOverview } = await import("@/lib/services/crm-service");
-    return getSalesPipelineOverview({ orgId });
+    const { getSalesPipelineOverviewCore } = await import("@/lib/services/crm-service");
+    return getSalesPipelineOverviewCore(db, { orgId });
   }
 
   // Construction Intelligence (PROJEXA), Wave 128, extracted into
@@ -260,7 +260,11 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
   // for the extraction/R48-preservation rationale). `role` is threaded
   // through so dispatchConstructionTool() can apply the same R48 (F089/
   // F059) financial-field redaction gate this used to apply inline.
-  if (CONSTRUCTION_TOOL_CODES.has(codeReference)) return dispatchConstructionTool(orgId, userId, codeReference, context, role);
+  // R75 Part 2 (R-80): `db` (this function's own already-open transaction
+  // handle) is now threaded through too, so dispatchConstructionTool's
+  // dashboard-reading codeReferences reuse it instead of each opening a
+  // second, nested transaction -- see construction-tools.ts's own header.
+  if (CONSTRUCTION_TOOL_CODES.has(codeReference)) return dispatchConstructionTool(orgId, userId, codeReference, context, role, db);
 
   throw new Error(`No dispatcher implemented for ${codeReference}`);
 }
@@ -320,7 +324,7 @@ async function dispatchEngine(db: TenantDb, orgId: string, userId: string, engin
   // engine-handlers/crm-engine-dispatch.ts (AI Engineering Quality / Code
   // Structure & Modularity gap-closure, "Code Modularity" finding). Pure
   // code motion: same cases, same behavior, now a separate module.
-  if (CRM_ENGINE_KEYS.has(engineKey)) return dispatchCrmEngine(engineKey, orgId, userId, inputs);
+  if (CRM_ENGINE_KEYS.has(engineKey)) return dispatchCrmEngine(engineKey, orgId, userId, inputs, db);
 
   switch (engineKey) {
     // R48/R64 gap-closure (2026-08-30, workstream 2: real erp writes,
@@ -338,7 +342,8 @@ async function dispatchEngine(db: TenantDb, orgId: string, userId: string, engin
           customerName,
           gstin: inputs.gstin ? String(inputs.gstin) : undefined,
           creditLimit: inputs.creditLimit != null && inputs.creditLimit !== "" ? Number(inputs.creditLimit) : undefined,
-        }
+        },
+        db
       );
     }
     case "erp_create_sales_order_engine": {
@@ -361,7 +366,8 @@ async function dispatchEngine(db: TenantDb, orgId: string, userId: string, engin
             description: itemDescription, rate,
             quantity: inputs.quantity != null && inputs.quantity !== "" ? Number(inputs.quantity) : undefined,
           }],
-        }
+        },
+        db
       );
     }
     // Mathematical Computation Engine (10 of 13 -- see capability-tree-
@@ -1822,7 +1828,8 @@ async function executePackageDispatch(
       // to the task it blocked.
       const policyDecision = enforcePolicy(
         { orgId, userId, taskId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "task_execution.package_dispatch" },
-        JSON.stringify(pkg.steps).slice(0, 4000)
+        JSON.stringify(pkg.steps).slice(0, 4000),
+        db
       );
       if (!policyDecision.allowed) throw new Error(refusalMessageFor(policyDecision));
 
@@ -1843,7 +1850,10 @@ async function executePackageDispatch(
 
       // R63 gap-closure (2026-08-29): was buildPurposeClause(DEFAULT_DOMAIN),
       // hardcoded to "compliance" regardless of what this org has enabled.
-      const orgDomains = await resolveOrgDomains(orgId);
+      // `db` is threaded because this line is INSIDE the withTenantContext
+      // opened at the top of executePackageDispatch, and resolveOrgDomains
+      // opens three of its own -- see its header for what that cost.
+      const orgDomains = await resolveOrgDomains(orgId, db);
       const systemPrompt =
         `${buildMultiDomainPurposeClause(orgDomains)}\n\n` +
         "You are executing a single pre-approved, narrow instruction package. " +
@@ -1885,13 +1895,22 @@ async function executePackageDispatch(
       });
       await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: data.result });
       await updateTaskStatusAndReflect(db, orgId, taskId, "completed");
+      // R81_F26 (2026-09-08): `db` is this function's own open transaction
+      // handle -- this call is INSIDE the withTenantContext callback of executePackageDispatch()
+      // opened at that function's first statement. recordOrchestraExecution is fire-and-forget and
+      // swallows its own failures, so the nesting produced no error anywhere: in
+      // dev/test assertNotNested's throw lands in its .catch() and the AI audit row
+      // required by VERIDIAN_AI_CONSTITUTION #19 / SEC-03 is silently never written;
+      // in production the guard only warns and the row is written in a second
+      // transaction. No enablement gate inside the logger (its first statement is
+      // the withTenantContext itself), so threading the handle is the whole fix.
       recordOrchestraExecution({
         orgId, userId, taskId, layerKey: "task_oa", eventType: "task_execution.package_dispatch",
         input: { packageId: pkg.id, variables: resolvedVariables },
         output: { result: data.result },
         status: "completed", durationMs: Date.now() - startedAt.getTime(),
         provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
-      });
+      }, db);
       return { status: "completed", output: data.result };
     } catch (err) {
       if (err instanceof MissingInformationError) {

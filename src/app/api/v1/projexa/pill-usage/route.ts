@@ -50,6 +50,7 @@ import {
   normaliseRecordedPillKey,
   readPillStrip,
   recordPillUse,
+  ServiceError,
 } from "@/lib/services/projexa-pill-usage-service"
 
 export async function GET(request: NextRequest) {
@@ -73,6 +74,7 @@ export async function GET(request: NextRequest) {
     const payload = await readPillStrip({ orgId: ctx.orgId, userId: actorId, limit, historyLimit })
     return NextResponse.json(payload)
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa pill-usage error:", error)
     const message = error instanceof Error ? error.message : "Failed to read pill usage"
     return NextResponse.json({ error: message }, { status: 400 })
@@ -119,6 +121,7 @@ export async function POST(request: NextRequest) {
     await recordPillUse({ orgId: ctx.orgId, userId: actorId, pillKey, functionId, derivedChain })
     return NextResponse.json({ recorded: pillKey }, { status: 201 })
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa pill-usage POST error:", error)
     const message = error instanceof Error ? error.message : "Failed to record pill usage"
     return NextResponse.json({ error: message }, { status: 400 })

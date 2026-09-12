@@ -97,7 +97,14 @@ export async function getKpiHubSummary(ctx: { orgId: string }): Promise<KpiHubSu
     const ratedApproved = Number(constructionKpiStats?.ratedApproved ?? 0)
     const onTarget = Number(constructionKpiStats?.onTarget ?? 0)
 
-    const aiOps = await getOrchestraAnalytics({ orgId: ctx.orgId }, 30)
+    // R81_F26 (2026-09-08): this call is inside the withTenantContext opened at
+    // the top of getKpiHubSummary, and getOrchestraAnalytics used to open a
+    // second one -- assertNotNested throws in dev/test (so the KPI Hub simply
+    // failed to load) and in production merely warns while splitting one
+    // dashboard read across two transactions. Pass the open handle down.
+    // getOrchestraAnalytics has no enablement gate of its own, so the handle
+    // alone is the complete fix here.
+    const aiOps = await getOrchestraAnalytics({ orgId: ctx.orgId }, 30, db)
 
     return {
       compliance: {

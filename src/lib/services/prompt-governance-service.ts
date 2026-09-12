@@ -16,6 +16,7 @@ import { and, eq, gte, sql } from "drizzle-orm"
 import { type TenantDb } from "@/lib/db/tenant-scoped"
 import { checkAbacDenyPoliciesWithDb } from "./abac-policy-service"
 import { logActivity } from "@/lib/audit"
+import { userExists } from "@/lib/db/preauth-lookups"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -190,8 +191,13 @@ export async function assignPromptTemplateOwner(
 ) {
   const template = await db.query.promptTemplates.findFirst({ where: eq(promptTemplates.id, input.templateId) })
   if (!template) throw new ServiceError("Unknown prompt template", 404)
-  const owner = await db.query.users.findFirst({ where: eq(users.id, input.ownerId) })
-  if (!owner) throw new ServiceError("Unknown ownerId -- must be a real user", 400)
+  // CRR-027/028 CONTRACT: was db.query.users.findFirst() over the plain
+  // (RLS-bypassing) db client, keyed by id with no org concept for this
+  // platform-wide feature, existence-check only (nothing else read off the
+  // result). See NEEDS_NEW_NARROW_FUNCTION row in
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md §6.
+  const ownerExists = await userExists(input.ownerId)
+  if (!ownerExists) throw new ServiceError("Unknown ownerId -- must be a real user", 400)
 
   const [row] = await db.update(promptTemplates).set({ ownerId: input.ownerId, updatedAt: new Date() })
     .where(eq(promptTemplates.id, input.templateId)).returning()
@@ -202,85 +208,99 @@ export async function assignPromptTemplateOwner(
 // "Required module identification and dependency graph management for
 // prompts." WIRING_ENGINE_REGISTRY_2026-07-25.json (claude-control) is a
 // real dependency graph but has no "prompt" entity type and lives in a
-// config-only repo with no application code -- rather than duplicating it
-// with a second, static, drift-prone registry, this computes the real edge
-// list live from source: every resolvePromptTemplate(templateKey) call
-// site in the actual application tree. Deliberately server-only / not a hot
-// path (governance UI use only), plain fs scan -- no shelling out to grep
-// with interpolated input, which would be a command-injection surface for
-// no real benefit here.
-import { readdirSync, readFileSync, type Dirent } from "node:fs"
-import { join, sep } from "node:path"
-
-const DEPENDENCY_SCAN_ROOT = join(process.cwd(), "src")
-const SCAN_EXTENSIONS = new Set([".ts", ".tsx"])
-const SCAN_IGNORE_DIRS = new Set(["node_modules", ".next", "dist"])
-
-function* walkSourceFiles(dir: string): Generator<string> {
-  let entries: Dirent[]
-  try {
-    entries = readdirSync(dir, { withFileTypes: true })
-  } catch {
-    return
-  }
-  for (const entry of entries) {
-    if (SCAN_IGNORE_DIRS.has(entry.name)) continue
-    const full = join(dir, entry.name)
-    if (entry.isDirectory()) {
-      yield* walkSourceFiles(full)
-    } else if (SCAN_EXTENSIONS.has(entry.name.slice(entry.name.lastIndexOf(".")))) {
-      yield full
-    }
-  }
-}
+// config-only repo with no application code.
+//
+// CORRECTIVE FIX (T2-01, 2026-09-12, silent-wrong-answer defect): this used
+// to compute the edge list live, at REQUEST TIME, via a runtime
+// readdirSync/readFileSync walk over join(process.cwd(), 'src'). Confirmed
+// via this repo's own `next build` output (route.js.nft.json for the
+// settings/prompts route traces zero files under this repo's own src/ tree)
+// that on real Vercel production this walk finds NOTHING -- Vercel's
+// file-tracer can only see files reached via a real static import/require,
+// not a dynamic directory walk, and next.config.ts has no
+// outputFileTracingIncludes entry for src/. The walk's own try/catch
+// silently swallowed the resulting ENOENT and returned an empty array --
+// indistinguishable, to every caller and to the operator promoting a
+// template through the lifecycle state machine, from "walked the real tree
+// and genuinely found zero dependents." That is a wrong answer that LOOKS
+// like a right one: an operator sees "no dependents", proceeds with a
+// Staging->Production promotion, and the real answer could have been dozens
+// of call sites.
+//
+// STEP 2 fix (this file): the runtime walk is gone. getPromptTemplateDependents()
+// now does a static import of a BUILD-TIME generated map
+// (scripts/generate-prompt-template-dependents.mjs ->
+// src/lib/generated/prompt-template-dependents.generated.ts), so Vercel's
+// file-tracer includes the map file the same way it includes any other
+// statically-imported module -- no runtime fs access at all.
+//
+// STEP 1 fix (shipped first, as its own reviewable unit, before STEP 2 was
+// built on top of it): a genuine "cannot determine" state, DISTINCT from a
+// confirmed empty array, threaded all the way through
+// runLifecycleTransitionGates() and prompt-os-service.ts's
+// transitionPromptLifecycle() to the operator-facing response. See
+// PromptDependentsResult below -- this is the type every caller must now
+// branch on instead of assuming a bare array.
+import promptTemplateDependentsMap, {
+  GENERATED_AT as PROMPT_DEPENDENTS_GENERATED_AT,
+  SOURCE_FILE_COUNT as PROMPT_DEPENDENTS_SOURCE_FILE_COUNT,
+} from "@/lib/generated/prompt-template-dependents.generated"
 
 export type PromptDependent = { file: string }
 
+// Discriminated union: "ok" is a real, confirmed answer (possibly a real
+// empty list -- a template can genuinely have zero call sites); "unknown"
+// means the generated map could not be trusted, and MUST be surfaced to the
+// operator as "cannot determine dependents", never silently rendered as an
+// empty list. Every caller (runLifecycleTransitionGates,
+// transitionPromptLifecycle, and ultimately the settings/prompts UI) must
+// branch on `status`, not just read `.dependents`.
+export type PromptDependentsResult =
+  | { status: "ok"; dependents: PromptDependent[] }
+  | { status: "unknown"; dependents: []; reason: string }
+
+// A source tree with genuinely zero build-time-scanned .ts/.tsx files is not
+// a plausible "real zero" for this codebase (it has tens of thousands) --
+// it is the same "cannot walk the tree" signal the runtime version of this
+// bug produced. Guards against a map that was generated against an empty/
+// wrong root, not just a missing file.
+const MIN_PLAUSIBLE_SOURCE_FILE_COUNT = 50
+
 /**
- * Real, live-computed list of source files that call
+ * Real, BUILD-TIME-computed list of source files that call
  * resolvePromptTemplate("<templateKey>") (or the equivalent template-literal
  * form) -- the actual "which module depends on this prompt" graph edge.
  * Advisory only (surfaced on the transition response so an operator can see
  * blast radius before promoting) -- not itself a blocking gate, matching
  * the requirement's own "identification and graph management" framing
  * rather than an enforcement one.
+ *
+ * Returns `{ status: "unknown" }` -- never a bare empty array standing in
+ * for "could not check" -- when the generated map is missing, malformed, or
+ * implausibly small (see MIN_PLAUSIBLE_SOURCE_FILE_COUNT above).
  */
-export function getPromptTemplateDependents(templateKey: string): PromptDependent[] {
-  const needle = `"${templateKey}"`
-  const needleAlt = `'${templateKey}'`
-  const dependents: PromptDependent[] = []
+export function getPromptTemplateDependents(templateKey: string): PromptDependentsResult {
   try {
-    for (const file of walkSourceFiles(DEPENDENCY_SCAN_ROOT)) {
-      // Excludes this module's own file (its docstrings mention
-      // resolvePromptTemplate() literally) and any *.test.ts(x) fixture
-      // (a test asserting against a templateKey string is not a real
-      // application dependency on that prompt) -- both would otherwise
-      // false-positive as "dependents".
-      if (file.endsWith("prompt-governance-service.ts") || file.endsWith(".test.ts") || file.endsWith(".test.tsx")) continue
-      let content: string
-      try {
-        content = readFileSync(file, "utf8")
-      } catch {
-        continue
-      }
-      if (!content.includes("resolvePromptTemplate(")) continue
-      if (content.includes(needle) || content.includes(needleAlt)) {
-        // Normalize to forward slashes: join()/readdirSync() walk with the
-        // OS-native separator, so on Windows this would otherwise emit
-        // "src\\app\\api\\..." -- inconsistent with every other path string
-        // in this repo (git, imports, the UI this surfaces to) and with what
-        // callers/tests reasonably expect a "file path" string to look like
-        // regardless of the OS the governance read happens to run on.
-        dependents.push({ file: file.slice(process.cwd().length + 1).split(sep).join("/") })
+    if (!promptTemplateDependentsMap || typeof promptTemplateDependentsMap !== "object") {
+      return {
+        status: "unknown", dependents: [],
+        reason: "Generated prompt-template dependency map is missing or malformed. Run `node scripts/generate-prompt-template-dependents.mjs` and rebuild.",
       }
     }
-  } catch {
-    // Best-effort: an unreadable source tree (e.g. restricted sandbox) means
-    // an empty dependency list, never a thrown error blocking a governance
-    // read.
-    return []
+    if (!Number.isFinite(PROMPT_DEPENDENTS_SOURCE_FILE_COUNT) || PROMPT_DEPENDENTS_SOURCE_FILE_COUNT < MIN_PLAUSIBLE_SOURCE_FILE_COUNT) {
+      return {
+        status: "unknown", dependents: [],
+        reason: `Generated prompt-template dependency map reports scanning only ${PROMPT_DEPENDENTS_SOURCE_FILE_COUNT} source file(s) (generated ${PROMPT_DEPENDENTS_GENERATED_AT}) -- below the plausibility floor of ${MIN_PLAUSIBLE_SOURCE_FILE_COUNT}, which means the tree it was generated against was empty or unreachable, not that this repo genuinely has that few files. Regenerate via \`node scripts/generate-prompt-template-dependents.mjs\`.`,
+      }
+    }
+    const dependents = promptTemplateDependentsMap[templateKey] ?? []
+    return { status: "ok", dependents: dependents.map((file) => ({ file })) }
+  } catch (err) {
+    return {
+      status: "unknown", dependents: [],
+      reason: `Failed to read the generated prompt-template dependency map: ${err instanceof Error ? err.message : String(err)}`,
+    }
   }
-  return dependents
 }
 
 // ─── Cost Optimization Engine (engine-cost-optimization) ─────────────────
@@ -408,7 +428,7 @@ export type LifecycleTransitionGateInput = {
 }
 
 export type LifecycleTransitionGateResult = {
-  dependents: PromptDependent[]
+  dependents: PromptDependentsResult
   setApproval: boolean
   setStagingEnteredAt: boolean
 }

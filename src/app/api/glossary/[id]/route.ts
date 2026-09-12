@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { updateGlossaryTerm, deleteGlossaryTerm, ServiceError } from "@/lib/services/glossary-service"
 import { serviceErrorBody } from "@/lib/services/compliance-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  // R75 Part 2 Phase 5 (G5 misc gap-closure, 2026-09-05): same gate as
+  // POST /api/glossary -- see that file's comment.
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params
@@ -23,9 +28,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  // R75 Part 2 Phase 5 (G5 misc gap-closure, 2026-09-05): same gate as
+  // POST /api/glossary -- see that file's comment.
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

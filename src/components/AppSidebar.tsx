@@ -17,6 +17,7 @@ import {
   Settings,
   History,
   Bot,
+  Camera,
   RefreshCw,
   X,
   CheckSquare,
@@ -487,6 +488,27 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
           label: t("sections.tools.items.documents"),
           href: "/documents",
           icon: FolderOpen,
+        },
+        // These three were ORPHAN ROUTES (DOD-S2): finished, working,
+        // user-facing pages that nothing in the codebase linked to, so the only
+        // way to reach them was to type the URL. A route-reachability sweep of
+        // all 198 page routes found them by subtracting 340 distinct navigation
+        // targets from the route list. None of them duplicates an existing nav
+        // entry -- there was no /veri-ai or /chat entry here at all.
+        {
+          label: t("sections.tools.items.veriAi"),
+          href: "/veri-ai",
+          icon: Sparkles,
+        },
+        {
+          label: t("sections.tools.items.importComplianceData"),
+          href: "/ingest",
+          icon: Upload,
+        },
+        {
+          label: t("sections.tools.items.digitizeRegister"),
+          href: "/fm-register-digitization",
+          icon: Camera,
         },
         // "VERI REPORTS AI" -> /reports moved to its own top-level
         // "REPORTS & ANALYSIS" section (Priority 11) -- removed here to

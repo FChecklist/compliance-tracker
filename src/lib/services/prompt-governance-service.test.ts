@@ -55,15 +55,25 @@ describe("scanPromptContentForPii -- Compliance Engine (prompt-lifecycle sense)"
   })
 })
 
-describe("getPromptTemplateDependents -- Dependency Engine (live-computed, not a static registry)", () => {
+// T2-01 (2026-09-12): getPromptTemplateDependents() no longer walks the
+// filesystem at request time (that walk silently returned an empty array on
+// real Vercel production -- see prompt-governance-service.ts's own header
+// comment for the full RCA). It now reads a BUILD-TIME generated map
+// (src/lib/generated/prompt-template-dependents.generated.ts, produced by
+// scripts/generate-prompt-template-dependents.mjs) via a real static
+// import, and returns a discriminated union ({status:"ok"|"unknown"})
+// rather than a bare array, so "0 confirmed dependents" and "could not
+// determine" can never be confused by a caller again.
+describe("getPromptTemplateDependents -- Dependency Engine (build-time generated map, not a runtime fs walk)", () => {
   test("finds a real, known resolvePromptTemplate('help.ai_assistant_system') call site", () => {
-    const dependents = getPromptTemplateDependents("help.ai_assistant_system")
-    expect(dependents.length).toBeGreaterThan(0)
-    expect(dependents.some((d) => d.file.includes("app/api/help/ask/route.ts"))).toBe(true)
+    const result = getPromptTemplateDependents("help.ai_assistant_system")
+    expect(result.status).toBe("ok")
+    expect(result.dependents.length).toBeGreaterThan(0)
+    expect(result.dependents.some((d) => d.file.includes("app/api/help/ask/route.ts"))).toBe(true)
   })
 
-  test("a templateKey with no real call site anywhere returns an empty list, not a fabricated one", () => {
-    const dependents = getPromptTemplateDependents("this.template.key.does.not.exist.anywhere")
-    expect(dependents).toEqual([])
+  test("a templateKey with no real call site anywhere returns a CONFIRMED empty list (status 'ok'), not a fabricated one and not 'unknown'", () => {
+    const result = getPromptTemplateDependents("this.template.key.does.not.exist.anywhere")
+    expect(result).toEqual({ status: "ok", dependents: [] })
   })
 })

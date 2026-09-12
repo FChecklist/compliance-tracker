@@ -72,6 +72,17 @@ export async function createPurchaseReceipt(
     if (input.purchaseOrderId) {
       const po = await db.query.erpPurchaseOrders.findFirst({ where: and(eq(erpPurchaseOrders.id, input.purchaseOrderId), eq(erpPurchaseOrders.orgId, ctx.orgId)) })
       if (!po) throw new ServiceError("Purchase order not found", 404)
+      // R80 GAP-6 follow-up: cancelPurchaseOrder() (erp-buying-service.ts)
+      // made 'cancelled' a status something actually writes, and the only
+      // thing standing between a withdrawn order and received stock was a
+      // hidden button on the PO object screen. A hidden button is not a
+      // boundary; this is. Same refusal shape as loadMutablePurchaseOrder()
+      // -- a 409 naming the status it found, so the caller can say why.
+      // Deliberately NOT a draft-only check: this function has always
+      // accepted a draft or a submitted PO, and that stays true.
+      if (po.status === "cancelled") {
+        throw new ServiceError(`Goods cannot be received against this purchase order -- it is ${po.status.replace(/_/g, " ")}`, 409)
+      }
     }
 
     const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpPurchaseReceipts.receiptNumber}), 0)` })
@@ -95,11 +106,12 @@ export async function createPurchaseReceipt(
 }
 
 /**
- * Posts stock for every line (recordStockReceipt opens a new FIFO layer
- * each) and, for lines linked to a PO item, increments that PO item's
- * receivedQuantity + rolls the parent PO's status up to
- * partially_received/completed -- both previously dead columns with no
- * writer at all.
+ * Posts stock for every line that names a stock item (recordStockReceipt
+ * opens a new FIFO layer each) and, INDEPENDENTLY of that, for every line
+ * linked to a PO item, increments that PO item's receivedQuantity + rolls
+ * the parent PO's status up to partially_received/completed. The two are
+ * deliberately not conditional on each other: a free-text line with no
+ * stock item still discharges the ordered quantity it was raised against.
  */
 export async function submitPurchaseReceipt(ctx: ActorCtx, receiptId: string) {
   await requireErpEnabled(ctx.orgId)
@@ -111,28 +123,70 @@ export async function submitPurchaseReceipt(ctx: ActorCtx, receiptId: string) {
     if (!receipt) throw new ServiceError("Purchase receipt not found", 404)
     if (receipt.status !== "draft") throw new ServiceError("Only draft receipts can be submitted", 409)
 
+    // R80 re-verification fix (2): the per-line receivedQuantity increment
+    // below used to sit OUTSIDE the cancelled-PO guard that protects the
+    // header rollup further down, so an inconsistent pair -- a cancelled
+    // header with a still-draft receipt pointed at it -- could keep mutating
+    // PO line quantities while the header itself stayed protected. One
+    // status read, hoisted here, now gates both. The rollup still re-reads
+    // the PO after the loop because it needs the freshly incremented items.
+    const parentPo = receipt.purchaseOrderId
+      ? await db.query.erpPurchaseOrders.findFirst({ where: and(eq(erpPurchaseOrders.id, receipt.purchaseOrderId), eq(erpPurchaseOrders.orgId, ctx.orgId)) })
+      : null
+    const parentPoCancelled = parentPo?.status === "cancelled"
+
     for (const item of receipt.items) {
+      // R80 re-verification fix (1): crediting the ORDER and posting STOCK
+      // are two different facts and no longer share one guard.
+      //
+      // Crediting the order is true whenever an ordered line was received.
+      // It does not depend on stock at all. erp_purchase_order_items.itemId
+      // is nullable, and a PO line without one is ordinary rather than
+      // exceptional -- this product legitimately buys things that are not
+      // stock items, and PROJEXA's two PO-raising screens both leave the
+      // stock item OPTIONAL. This increment previously sat below the
+      // `!item.itemId` continue, so any such line credited nothing and its
+      // purchase order was stuck before partially_received forever. It now
+      // runs first.
+      if (item.purchaseOrderItemId && !parentPoCancelled) {
+        await db.update(erpPurchaseOrderItems)
+          .set({ receivedQuantity: sql`${erpPurchaseOrderItems.receivedQuantity} + ${item.quantity}` })
+          .where(eq(erpPurchaseOrderItems.id, item.purchaseOrderItemId))
+      }
+
+      // Posting FIFO stock genuinely does require a stock item -- there is
+      // nothing to open a valuation layer against without one. So the guard
+      // stays, but now covers only the stock posting.
+      if (!item.itemId) continue // a free-text line (no stock item) has nothing to post
       let rate = item.rate != null ? Number(item.rate) : undefined
       if (rate === undefined && item.purchaseOrderItemId) {
         const poItem = await db.query.erpPurchaseOrderItems.findFirst({ where: eq(erpPurchaseOrderItems.id, item.purchaseOrderItemId) })
         rate = poItem ? Number(poItem.rate) : 0
       }
-      if (!item.itemId) continue // a free-text line (no stock item) has nothing to post
+      // R81_F25 (2026-09-08): PASS `db` -- we are already inside this
+      // function's own withTenantContext, and recordStockReceipt used to open a
+      // SECOND transaction for the same org. assertNotNested() threw, the whole
+      // submit 500'd, and the PO was left at draft with received_quantity 0, the
+      // receipt stranded and zero ledger rows. That path only became reachable
+      // when 754cef17 and 19491a5 first let a PROJEXA line carry an itemId, so
+      // it had presumably never worked. Threading the open handle is what the
+      // guard's own message asks for and keeps this request on ONE of the five
+      // app_runtime connections.
       await recordStockReceipt(ctx, {
         itemId: item.itemId, warehouseId: item.warehouseId!, quantity: Number(item.quantity), rate: rate ?? 0,
         postingDate: receipt.postingDate, voucherType: "purchase_receipt", voucherId: receipt.id,
-      })
-
-      if (item.purchaseOrderItemId) {
-        await db.update(erpPurchaseOrderItems)
-          .set({ receivedQuantity: sql`${erpPurchaseOrderItems.receivedQuantity} + ${item.quantity}` })
-          .where(eq(erpPurchaseOrderItems.id, item.purchaseOrderItemId))
-      }
+      }, db)
     }
 
     if (receipt.purchaseOrderId) {
       const po = await db.query.erpPurchaseOrders.findFirst({ where: eq(erpPurchaseOrders.id, receipt.purchaseOrderId), with: { items: true } })
-      if (po) {
+      // 'cancelled' is a terminal state -- this rollup must never drag a
+      // withdrawn order back into partially_received/completed. Defence in
+      // depth rather than a live hole: createPurchaseReceipt above now
+      // refuses a cancelled PO outright, and loadMutablePurchaseOrder()
+      // refuses to cancel a PO that any non-cancelled receipt references, so
+      // reaching here means the two were made inconsistent some other way.
+      if (po && po.status !== "cancelled") {
         const fullyReceived = po.items.every((i) => Number(i.receivedQuantity) >= Number(i.quantity))
         const partiallyReceived = po.items.some((i) => Number(i.receivedQuantity) > 0)
         await db.update(erpPurchaseOrders)

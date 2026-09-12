@@ -6,6 +6,9 @@
 // esignature-service.test.ts.
 /// <reference types="bun-types" />
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
+// R-C13: table refs, compared by reference (===), so the fake db's insert()
+// can tell which table a real createBoqRevision() call is writing to.
+import { constructionBoqs, constructionBoqLineItems } from "@/lib/db"
 import {
   buildBoqListRows,
   computeHierarchicalAmount, deriveLineItemQuantityAndRate, diffLineItems, computeTotalVariation, findScopeReductionViolations,
@@ -118,108 +121,14 @@ describe("computeHierarchicalAmount -- Sub-Task Amount = Main QTY * Main RATE * 
 // gap that let convention (B) silently disagree with convention (A).
 // These tests would FAIL if that enforcement were ever removed and a child
 // row's own submitted quantity/rate were trusted again.
-describe("deriveLineItemQuantityAndRate -- canonical child-rate rule (R45 seq 7 / E-127)", () => {
-  test("a root-level item (no parentItemCode) keeps its own quantity/rate exactly as entered -- F1", () => {
-    const item: BoqLineItemInput = { description: "Excavation", unit: "cum", quantity: 100, rate: 50 }
-    expect(deriveLineItemQuantityAndRate(item, new Map())).toEqual({ quantity: 100, rate: 50 })
-  })
+// deriveLineItemQuantityAndRate (R-12/R-13) moved to
+// construction-boq-service.weighted-subtask-pricing.test.ts (seq4/c5
+// de-share, 2026-09-11) -- this file cited 9 requirements over the
+// 3-per-file cap.
 
-  test("a child's quantity is the ROOT's quantity, unscaled -- F3", () => {
-    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
-    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 30, description: "Frame 01", unit: "sqm", quantity: 0, rate: 0 }
-    expect(deriveLineItemQuantityAndRate(sub, new Map([["M1", main]])).quantity).toBe(472)
-  })
-
-  test("a child's rate is ROOT rate x breakdown% / 100 -- F2 (the Sumeet spec's own worked example: 108 x 30% = 32.4)", () => {
-    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
-    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 30, description: "Frame 01", unit: "sqm", quantity: 0, rate: 0 }
-    expect(deriveLineItemQuantityAndRate(sub, new Map([["M1", main]])).rate).toBeCloseTo(32.4, 6)
-  })
-
-  test("*** THE CORE FIX ***: a child's OWN submitted quantity/rate are IGNORED and overwritten by the derived root values -- proves independent entry (convention B) is no longer possible", () => {
-    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
-    // caller submits garbage/stale quantity+rate on a child row -- must not survive.
-    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 30, description: "Frame 01", unit: "sqm", quantity: 999999, rate: 1 }
-    expect(deriveLineItemQuantityAndRate(sub, new Map([["M1", main]]))).toEqual({ quantity: 472, rate: 32.4 })
-  })
-
-  test("a child submitted with quantity/rate both 0 (the historically 'always 0' assumption) still derives the correct non-zero values", () => {
-    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
-    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 15, description: "Gypsum Board 01", unit: "sqm", quantity: 0, rate: 0 }
-    expect(deriveLineItemQuantityAndRate(sub, new Map([["M1", main]]))).toEqual({ quantity: 472, rate: 16.2 })
-  })
-
-  test("multi-level nesting (Main -> Sub -> Sub-sub) derives off the ROOT Main's qty/rate, not the immediate parent Sub's", () => {
-    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "cum", quantity: 100, rate: 50 }
-    const sub: BoqLineItemInput = { itemCode: "S1", parentItemCode: "M1", breakdownPercentage: 40, description: "Sub", unit: "cum", quantity: 0, rate: 0 }
-    const subsub: BoqLineItemInput = { parentItemCode: "S1", breakdownPercentage: 50, description: "Sub-sub", unit: "cum", quantity: 0, rate: 0 }
-    const byCode = new Map([["M1", main], ["S1", sub]])
-    expect(deriveLineItemQuantityAndRate(subsub, byCode)).toEqual({ quantity: 100, rate: 25 })
-  })
-
-  test("computeHierarchicalAmount's output equals derived quantity x derived rate (F4) -- amount and the stored columns can never disagree", () => {
-    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
-    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 30, description: "Frame 01", unit: "sqm", quantity: 0, rate: 0 }
-    const byCode = new Map([["M1", main]])
-    const { quantity, rate } = deriveLineItemQuantityAndRate(sub, byCode)
-    expect(computeHierarchicalAmount(sub, byCode)).toBe(quantity * rate)
-    expect(computeHierarchicalAmount(sub, byCode)).toBeCloseTo(15292.8, 6) // Sumeet spec's own worked example, item 1.01 Frame 01
-  })
-
-  test("missing breakdownPercentage on a child item throws a 400 ServiceError, same as computeHierarchicalAmount", () => {
-    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "cum", quantity: 100, rate: 50 }
-    const sub: BoqLineItemInput = { parentItemCode: "M1", description: "Sub", unit: "cum", quantity: 0, rate: 0 }
-    expect(() => deriveLineItemQuantityAndRate(sub, new Map([["M1", main]]))).toThrow(ServiceError)
-  })
-
-  test("a circular parentItemCode chain throws rather than looping forever, same as computeHierarchicalAmount", () => {
-    const a: BoqLineItemInput = { itemCode: "A", parentItemCode: "B", breakdownPercentage: 50, description: "A", unit: "cum", quantity: 0, rate: 0 }
-    const b: BoqLineItemInput = { itemCode: "B", parentItemCode: "A", breakdownPercentage: 50, description: "B", unit: "cum", quantity: 0, rate: 0 }
-    const byCode = new Map([["A", a], ["B", b]])
-    expect(() => deriveLineItemQuantityAndRate(a, byCode)).toThrow(ServiceError)
-  })
-})
-
-describe("diffLineItems -- hierarchy-aware revision comparison", () => {
-  test("qty/rate unchanged, only breakdownPercentage moved -- now flagged as changed (previously invisible to the diff)", () => {
-    const prev = [row({ id: "p1", itemCode: "S1", parentLineItemId: "main-id", quantity: "0", rate: "0", breakdownPercentage: "40", amount: "2000" })]
-    const curr = [row({ id: "c1", itemCode: "S1", parentLineItemId: "main-id", quantity: "0", rate: "0", breakdownPercentage: "55", amount: "2750" })]
-    const { changed } = diffLineItems(prev, curr)
-    expect(changed).toHaveLength(1)
-    expect(changed[0].breakdownPercentageChange).toBe(15)
-    expect(changed[0].quantityChange).toBe(0)
-    expect(changed[0].rateChange).toBe(0)
-    expect(changed[0].netVariation).toBe(750)
-    expect(changed[0].isSubItem).toBe(true)
-  })
-
-  test("a main item's own quantity/rate change is still detected exactly as before, isSubItem false", () => {
-    const prev = [row({ id: "p1", itemCode: "M1", quantity: "100", rate: "50", amount: "5000" })]
-    const curr = [row({ id: "c1", itemCode: "M1", quantity: "120", rate: "50", amount: "6000" })]
-    const { changed } = diffLineItems(prev, curr)
-    expect(changed[0].quantityChange).toBe(20)
-    expect(changed[0].netVariation).toBe(1000)
-    expect(changed[0].isSubItem).toBe(false)
-  })
-
-  test("nothing changed -- diff is empty, no spurious breakdownPercentage noise from null vs null", () => {
-    const prev = [row({ id: "p1", itemCode: "M1", quantity: "100", rate: "50", amount: "5000" })]
-    const curr = [row({ id: "c1", itemCode: "M1", quantity: "100", rate: "50", amount: "5000" })]
-    expect(diffLineItems(prev, curr).changed).toHaveLength(0)
-  })
-
-  test("a brand-new sub-task added in this revision shows up in `added`, not `changed`", () => {
-    const prev = [row({ id: "p1", itemCode: "M1", quantity: "100", rate: "50", amount: "5000" })]
-    const curr = [
-      row({ id: "c1", itemCode: "M1", quantity: "100", rate: "50", amount: "5000" }),
-      row({ id: "c2", itemCode: "S1", parentLineItemId: "c1", breakdownPercentage: "40", amount: "2000" }),
-    ]
-    const { added, changed } = diffLineItems(prev, curr)
-    expect(added).toHaveLength(1)
-    expect(added[0].itemCode).toBe("S1")
-    expect(changed).toHaveLength(0)
-  })
-})
+// diffLineItems (R-24) moved to
+// construction-boq-service.revision-variation.test.ts (seq4/c5 de-share,
+// 2026-09-11), alongside buildBoqListRows (R-21) below.
 
 describe("computeTotalVariation -- the running total variation value across a revision", () => {
   test("a positive variation: one added line item, nothing removed or changed", () => {
@@ -244,56 +153,12 @@ describe("computeTotalVariation -- the running total variation value across a re
   })
 })
 
-// R12 point 7 (Option B): findScopeReductionViolations now looks up
-// progress by the CURRENT/removed line item's own `id`, via the map
-// loadLatestProgressByLineItem()/resolveProgressByLineItem() produce --
-// not by activityId any more (that lookup now lives one layer down, inside
-// the resolver). Every test below is keyed by item id, not activityId, to
-// match the new resolver output shape.
-describe("findScopeReductionViolations -- the Owner's hard-block rule for descoping completed work", () => {
-  test("a positive variation on a line item with completed progress is never a violation", () => {
-    const changed: ChangedLineItem[] = [{
-      key: "M1", previous: row({ id: "p1", activityId: "act-1" }), current: row({ id: "c1", activityId: "act-1" }),
-      quantityChange: 10, rateChange: 0, breakdownPercentageChange: 0, netVariation: 500, isSubItem: false,
-    }]
-    const violations = findScopeReductionViolations({ removed: [], changed }, new Map([["c1", 60]]))
-    expect(violations).toHaveLength(0)
-  })
-
-  test("removing a line item entirely is blocked when the resolver found it >0% complete", () => {
-    const removed = [row({ id: "r1", description: "Brickwork", activityId: "act-1" })]
-    const violations = findScopeReductionViolations({ removed, changed: [] }, new Map([["r1", 25]]))
-    expect(violations).toHaveLength(1)
-    expect(violations[0]).toContain("Brickwork")
-  })
-
-  test("a negative variation (reduced quantity/amount) on a line item is blocked when the resolver found it >0% complete", () => {
-    const changed: ChangedLineItem[] = [{
-      key: "M1", previous: row({ id: "p1", activityId: "act-1", description: "Plastering" }), current: row({ id: "c1", activityId: "act-1", description: "Plastering" }),
-      quantityChange: -10, rateChange: 0, breakdownPercentageChange: 0, netVariation: -500, isSubItem: false,
-    }]
-    const violations = findScopeReductionViolations({ removed: [], changed }, new Map([["c1", 40]]))
-    expect(violations).toHaveLength(1)
-    expect(violations[0]).toContain("Plastering")
-  })
-
-  test("removing/reducing an item with NO recorded progress (0% or no entry at all) is not blocked -- nothing has been done on site yet", () => {
-    const removed = [row({ id: "r1", activityId: "act-1" })]
-    const changed: ChangedLineItem[] = [{
-      key: "M2", previous: row({ id: "p2", activityId: "act-2" }), current: row({ id: "c2", activityId: "act-2" }),
-      quantityChange: -5, rateChange: 0, breakdownPercentageChange: 0, netVariation: -200, isSubItem: false,
-    }]
-    // r1 has an explicit 0% entry, c2 has no entry in the map at all -- neither should block.
-    const violations = findScopeReductionViolations({ removed, changed }, new Map([["r1", 0]]))
-    expect(violations).toHaveLength(0)
-  })
-
-  test("a line item with no entry in the resolved progress map at all can never be blocked", () => {
-    const removed = [row({ id: "r1", activityId: null })]
-    const violations = findScopeReductionViolations({ removed, changed: [] }, new Map([["some-other-item", 90]]))
-    expect(violations).toHaveLength(0)
-  })
-})
+// findScopeReductionViolations (R-22/R-23) moved to
+// construction-boq-service.scope-reduction-guard.test.ts (seq4/c5
+// de-share, 2026-09-11) -- this file cited 9 requirements over the
+// 3-per-file cap. (The "R12 point 7 (Option B)" comment that used to sit
+// here referred to an unrelated internal numbering scheme, not Sumeet's
+// R-12 -- see that new file's own header for the correction.)
 
 // R12 point 7 (Option B): the pure merge core of loadLatestProgressByLineItem
 // -- factored out so it's testable without a live DB (this file's own
@@ -424,116 +289,9 @@ describe("toLineItemInput -- copy-forward round-trip for create-with-reference",
 })
 
 
-// R67 F-04 (R-060/R-063). buildBoqListRows is the pure half of listBoqs(): it
-// turns "every BOQ in the project" + "every line item across all of them"
-// into the list rows, WITH the two variation figures the /scope table shows.
-//
-// What it replaces: the route ran Promise.all(boqs.map(getBoq)) -- one
-// withTenantContext TRANSACTION per revision against a five-connection pool --
-// and the browser then fired one GET /api/scope/{id}/compare per revision on
-// top (eight calls at 0.58-1.44 s for an eight-revision project). The figures
-// are computed here with the SAME diffLineItems + computeTotalVariation pair
-// compareBoq() uses, so a list cell and the compare screen cannot disagree.
-function boq(id: string, parentBoqId: string | null = null) {
-  return { id, parentBoqId }
-}
-
-function itemAt(boqId: string, itemCode: string, amount: number, extras: Partial<BoqLineItemRow> = {}): BoqLineItemRow {
-  return row({ id: `${boqId}-${itemCode}`, boqId, itemCode, amount: String(amount), ...extras })
-}
-
-describe("buildBoqListRows -- variation per revision, computed in one pass", () => {
-  test("a baseline BOQ (no parent) reports null for BOTH figures, never 0", () => {
-    const rows = buildBoqListRows([boq("rev0")], [itemAt("rev0", "A", 1000)])
-
-    expect(rows).toHaveLength(1)
-    // "no baseline to differ from" is not "no change" -- a zero here would be
-    // rendered as a real, confirmed figure.
-    expect(rows[0].totalVariation).toBeNull()
-    expect(rows[0].totalVariationVsOriginal).toBeNull()
-  })
-
-  test("each row carries its own line items, grouped from the single flat query", () => {
-    const rows = buildBoqListRows(
-      [boq("rev1", "rev0"), boq("rev0")],
-      [itemAt("rev0", "A", 1000), itemAt("rev1", "A", 1200), itemAt("rev1", "B", 300)]
-    )
-
-    const byId = new Map(rows.map((r) => [r.id, r]))
-    expect(byId.get("rev0")!.lineItems.map((i) => i.itemCode)).toEqual(["A"])
-    expect(byId.get("rev1")!.lineItems.map((i) => i.itemCode)).toEqual(["A", "B"])
-    // withComputedRate is still applied, same as getBoq()'s own shape
-    expect(byId.get("rev1")!.lineItems[0]).toHaveProperty("computedBudget")
-  })
-
-  test("totalVariation is the change against the IMMEDIATE parent", () => {
-    // rev1 raises A by 200 and adds B worth 300 => +500 vs rev0
-    const rows = buildBoqListRows(
-      [boq("rev1", "rev0"), boq("rev0")],
-      [
-        itemAt("rev0", "A", 1000, { quantity: "10", rate: "100" }),
-        itemAt("rev1", "A", 1200, { quantity: "10", rate: "120" }),
-        itemAt("rev1", "B", 300, { quantity: "3", rate: "100" }),
-      ]
-    )
-
-    expect(rows.find((r) => r.id === "rev1")!.totalVariation).toBe(500)
-  })
-
-  test("totalVariationVsOriginal walks the chain back to Rev0, not just one hop", () => {
-    // rev0 A=1000 -> rev1 A=1200 (+200) -> rev2 A=1500 (+300)
-    const rows = buildBoqListRows(
-      [boq("rev2", "rev1"), boq("rev1", "rev0"), boq("rev0")],
-      [
-        itemAt("rev0", "A", 1000, { quantity: "10", rate: "100" }),
-        itemAt("rev1", "A", 1200, { quantity: "10", rate: "120" }),
-        itemAt("rev2", "A", 1500, { quantity: "10", rate: "150" }),
-      ]
-    )
-
-    const rev2 = rows.find((r) => r.id === "rev2")!
-    expect(rev2.totalVariation).toBe(300) // vs rev1
-    expect(rev2.totalVariationVsOriginal).toBe(500) // vs rev0
-  })
-
-  test("the figure equals what compareBoq() would return for the same pair", () => {
-    const previous = [itemAt("rev0", "A", 1000, { quantity: "10", rate: "100" })]
-    const current = [itemAt("rev1", "A", 800, { quantity: "8", rate: "100" })]
-
-    const rows = buildBoqListRows([boq("rev1", "rev0"), boq("rev0")], [...previous, ...current])
-    const viaCompare = computeTotalVariation(diffLineItems(previous, current))
-
-    expect(rows.find((r) => r.id === "rev1")!.totalVariation).toBe(viaCompare)
-    expect(viaCompare).toBe(-200)
-  })
-
-  test("a parent outside this project's list degrades to null instead of guessing", () => {
-    const rows = buildBoqListRows([boq("rev1", "not-in-this-project")], [itemAt("rev1", "A", 1200)])
-
-    expect(rows[0].totalVariation).toBeNull()
-    expect(rows[0].totalVariationVsOriginal).toBeNull()
-  })
-
-  test("a cyclic parent chain terminates instead of hanging the list", () => {
-    // parentBoqId is plain data; a loop must not spin forever.
-    const rows = buildBoqListRows(
-      [boq("a", "b"), boq("b", "a")],
-      [itemAt("a", "A", 100), itemAt("b", "A", 100)]
-    )
-
-    expect(rows).toHaveLength(2)
-    for (const r of rows) expect(typeof r.totalVariation === "number" || r.totalVariation === null).toBe(true)
-  })
-
-  test("a revision with no line items at all still produces a row", () => {
-    const rows = buildBoqListRows([boq("rev1", "rev0"), boq("rev0")], [itemAt("rev0", "A", 1000)])
-
-    const rev1 = rows.find((r) => r.id === "rev1")!
-    expect(rev1.lineItems).toEqual([])
-    // every rev0 line removed => the full baseline amount, negative
-    expect(rev1.totalVariation).toBe(-1000)
-  })
-})
+// buildBoqListRows (R-21) moved to
+// construction-boq-service.revision-variation.test.ts (seq4/c5 de-share,
+// 2026-09-11), alongside diffLineItems (R-24) above.
 
 // ---------------------------------------------------------------------------
 // R67 F-23 (audit recommendation R-239) -- listBoqs in ONE transaction, with
@@ -990,6 +748,11 @@ describe("updateLineItemBudget -- material/manpower amounts and category (R67 I-
     expect(updated.manpowerAmount).toBe("300")
   })
 
+  // R-C09 sub-claim 3 (vendorId/vendorAmount write path) was de-shared out
+  // of this block on 2026-09-11 (R83 bucket C item 13) into its own file,
+  // construction-boq-service.vendor-budget.test.ts -- this describe block
+  // now serves R67 I-03/I-05 only, not R-C09. See that file's own header
+  // for the full history (moved verbatim from here, not rewritten).
   test("null clears an amount, and undefined leaves it completely alone", async () => {
     const cleared = await patch({ materialAmount: null })
     expect(cleared.setCalls[0]).toEqual({ materialAmount: null })
@@ -1027,7 +790,7 @@ describe("updateLineItemBudget -- material/manpower amounts and category (R67 I-
   })
 })
 
-// ─── R67 lane D22 (item D-64, rec R-230) ──────────────────────────────────
+// ─── R67 lane D22 (item D-64, rec R-230) ──────────────────────────────────────────
 // The searchable BOQ line lookup's pure half: what a typed query matches, what
 // an option carries, and which revision "the current BOQ" means when no caller
 // names one.
@@ -1242,3 +1005,8 @@ describe("resolveProgressDetailByLineItem (D-27)", () => {
     expect(resolveProgressDetailByLineItem([row({ id: "li-1" })], new Map(), new Map()).size).toBe(0)
   })
 })
+
+// createBoqRevision R-C13 and R-20 acceptance tests moved to
+// construction-boq-service.revision-integration.test.ts (seq4/c5
+// de-share, 2026-09-11) -- this file cited 9 requirements over the
+// 3-per-file cap.

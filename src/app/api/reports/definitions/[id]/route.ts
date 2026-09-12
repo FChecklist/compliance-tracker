@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { updateReportDefinition, deleteReportDefinition, ServiceError } from "@/lib/services/report-engine-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
+// R75 Part 2 Phase 5 (G4 reports): PATCH/DELETE previously had no role check
+// at all. Matches the sibling POST /api/reports/definitions gate (same
+// reasoning: report_definitions.executionConfig resolves against the same
+// broad TABLE_REGISTRY custom-charts/route.ts's manager-gated config does).
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params
@@ -22,9 +28,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  const roleCheck = requireRole(dbUser, "manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

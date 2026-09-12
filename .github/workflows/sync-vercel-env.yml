@@ -35,9 +35,9 @@ on:
   workflow_dispatch:
     inputs:
       redeploy:
-        description: "Trigger a production redeploy of main after syncing env vars"
+        description: "Trigger a production redeploy of main after syncing env vars. R76 (2026-09-06, Vercel lockdown): default flipped false->true to true->false. This step calls the Vercel Deployments API directly and bypasses vercel.json's git.deploymentEnabled entirely -- it is a real, separate deploy path a casual/accidental workflow_dispatch must not fire by default. Type \"true\" explicitly if a deploy is genuinely intended; per platform.crr_ruling (R76), no session/agent may ever do so."
         required: false
-        default: "true"
+        default: "false"
 
 jobs:
   sync:

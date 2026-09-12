@@ -93,13 +93,16 @@ export async function runLevel1(texts: string[], ctx: Level1Context): Promise<Le
   // Refuses closed. Anthropic's Claude Code policy permits OAuth/subscription
   // auth for ordinary individual use only, never to serve another person's
   // request -- so a misconfigured provider must fail, not quietly serve.
-  assertAiProviderAllowed(ctx.userId);
+  // Explicit level ("pipeline_l1", this file's only level) so the identity
+  // gate and getAiProvider() below always agree on which level's provider
+  // config they're each resolving -- see provider-config.ts (P1.1).
+  assertAiProviderAllowed(ctx.userId, "pipeline_l1");
 
   const validItemCodes = await loadValidItemCodes(ctx.orgId, ctx.projectId);
 
   let raw: Awaited<ReturnType<ReturnType<typeof getAiProvider>["classify"]>>;
   try {
-    raw = await getAiProvider().classify(texts, [...ctx.candidateFunctionIds], {
+    raw = await getAiProvider("pipeline_l1").classify(texts, [...ctx.candidateFunctionIds], {
       orgId: ctx.orgId,
       projectId: ctx.projectId ?? undefined,
       validIds: validItemCodes.length > 0 ? { itemCode: validItemCodes } : undefined,

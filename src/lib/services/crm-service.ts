@@ -17,12 +17,12 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { executeTask } from "@/lib/task-execution-engine"
 import { recordTaskEscalationEdge } from "@/lib/task-dependency-graph"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
-import { isVeriRewardEnabledForOrg } from "./veri-reward-enablement-service"
+import { isVeriRewardEnabledForOrgWithDb } from "./veri-reward-enablement-service"
 import { awardPoints } from "./veri-reward-service"
 import { listOrgIdsWithBranchEnabled } from "./product-branch-service"
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
 import { ServiceError, serviceErrorBody } from "./compliance-service"
-import { requireSalesEnabled } from "./crm-enablement-service"
+import { requireSalesEnabled, isSalesEnabledForOrgWithDb } from "./crm-enablement-service"
 import { explainCrmLeadDecision, explainCrmOpportunityDecision } from "@/lib/explainability/ai-decision-explanation"
 import { csvEscape } from "@/lib/report-export-shared"
 export { ServiceError, serviceErrorBody }
@@ -162,11 +162,23 @@ export function fieldErrorsFromZod(error: z.ZodError): Record<string, string> {
   return out
 }
 
+/**
+ * ROOT CAUSE B. task-execution-engine.ts dispatchTool already RECEIVES an open
+ * handle and called the wrapper below, which opens a second one against a
+ * max: 5 pool. The gate is the WithDb form and runs on THIS handle --
+ * requireSalesEnabled reaches isBranchEnabledForOrg, which opens a transaction
+ * of its own, so threading into the body alone is not a fix. 403 wording
+ * byte-identical to requireSalesEnabled's own.
+ */
+export async function listLeadsCore(db: TenantDb, ctx: { orgId: string }) {
+  if (!(await isSalesEnabledForOrgWithDb(db, ctx.orgId))) {
+    throw new ServiceError("This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.", 403)
+  }
+  return db.query.crmLeads.findMany({ where: eq(crmLeads.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
+}
+
 export async function listLeads(ctx: { orgId: string }) {
-  await requireSalesEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.crmLeads.findMany({ where: eq(crmLeads.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
-  )
+  return withTenantContext({ orgId: ctx.orgId }, (db) => listLeadsCore(db, ctx))
 }
 
 // Priority 15 (Sales & CRM depth wave): a real, DB-level paginated/filtered
@@ -205,15 +217,15 @@ export async function listLeadsPaged(ctx: { orgId: string }, opts: ListLeadsOpti
 
 export async function createLead(
   ctx: CrmContext,
-  input: { name: string; contactEmail?: string; contactPhone?: string; source?: string; ownerId?: string; companyId?: string; nextActionDate?: string; nextActionNote?: string }
-) {
-  await requireSalesEnabled(ctx.orgId)
+  input: { name: string; contactEmail?: string; contactPhone?: string; source?: string; ownerId?: string; companyId?: string; nextActionDate?: string; nextActionNote?: string },
+  existingDb?: TenantDb
+){
   if (ctx.role !== undefined) assertGate(canCreateCrmRecord(ctx.role))
   const parsed = createLeadSchema.safeParse(input)
   if (!parsed.success) throw new ServiceError("Validation failed", 400, { fields: fieldErrorsFromZod(parsed.error) })
   const { data } = parsed
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const run = async (db: TenantDb) => {
     const [lead] = await db.insert(crmLeads).values({
       orgId: ctx.orgId, name: data.name, contactEmail: data.contactEmail || null, contactPhone: data.contactPhone || null,
       source: data.source || null, ownerId: data.ownerId || null, companyId: data.companyId || null, createdById: ctx.userId,
@@ -236,7 +248,19 @@ export async function createLead(
       }).catch((err) => console.error(`[crm-service] failed to notify lead assignment for ${lead.id}:`, err))
     }
     return lead
-  })
+  }
+  // ROOT CAUSE B: dispatchCrmEngine reaches this from inside the engine dispatcher's own transaction. The gate must take the handle too -- requireSalesEnabled opens one of its own.
+  if (existingDb) {
+    if (!(await isSalesEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.",
+        403
+      )
+    }
+  } else {
+    await requireSalesEnabled(ctx.orgId)
+  }
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, run)
 }
 
 export async function updateLead(
@@ -345,7 +369,8 @@ async function awardReferralPointsIfApplicable(db: TenantDb, orgId: string, lead
   if (!lead.source || !REFERRAL_SOURCE_PATTERN.test(lead.source)) return
   const recipientId = lead.ownerId ?? lead.createdById
   if (!recipientId) return
-  if (!(await isVeriRewardEnabledForOrg(orgId))) return
+  // db, not a fresh transaction: this helper always runs inside convertLeadToClient's.
+  if (!(await isVeriRewardEnabledForOrgWithDb(db, orgId))) return
   await awardPoints(db, {
     orgId, userId: recipientId, delta: LEAD_CONVERSION_REFERRAL_POINTS,
     sourceType: "crm_lead_referral_conversion", sourceId: lead.id,
@@ -369,11 +394,16 @@ export async function convertLeadToClient(ctx: CrmContext, leadId: string) {
   })
 }
 
+/** ROOT CAUSE B -- see listLeadsCore. */
+export async function listOpportunitiesCore(db: TenantDb, ctx: { orgId: string }) {
+  if (!(await isSalesEnabledForOrgWithDb(db, ctx.orgId))) {
+    throw new ServiceError("This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.", 403)
+  }
+  return db.query.crmOpportunities.findMany({ where: eq(crmOpportunities.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
+}
+
 export async function listOpportunities(ctx: { orgId: string }) {
-  await requireSalesEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.crmOpportunities.findMany({ where: eq(crmOpportunities.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
-  )
+  return withTenantContext({ orgId: ctx.orgId }, (db) => listOpportunitiesCore(db, ctx))
 }
 
 // Priority 15 (Sales & CRM depth wave): same paginated/filtered variant as
@@ -406,15 +436,15 @@ export async function createOpportunity(
     name: string; leadId?: string; clientId?: string; erpCustomerId?: string; stage?: string; estimatedValue?: number;
     currencyId?: string; exchangeRate?: number;
     expectedCloseDate?: string; ownerId?: string; nextActionDate?: string; nextActionNote?: string
-  }
-) {
-  await requireSalesEnabled(ctx.orgId)
+  },
+  existingDb?: TenantDb
+){
   if (ctx.role !== undefined) assertGate(canCreateCrmRecord(ctx.role))
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
   if (!input.leadId && !input.clientId && !input.erpCustomerId) throw new ServiceError("An opportunity needs a leadId, a clientId, or an erpCustomerId", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const run = async (db: TenantDb) => {
     if (input.erpCustomerId) {
       const customer = await db.query.erpCustomers.findFirst({ where: and(eq(erpCustomers.id, input.erpCustomerId), eq(erpCustomers.orgId, ctx.orgId)) })
       if (!customer) throw new ServiceError("Customer not found", 404)
@@ -428,7 +458,19 @@ export async function createOpportunity(
     }).returning()
     await db.insert(crmStageHistory).values({ orgId: ctx.orgId, entityType: "opportunity", entityId: opportunity.id, fromStage: null, toStage: opportunity.stage, changedById: ctx.userId })
     return opportunity
-  })
+  }
+  // ROOT CAUSE B: dispatchCrmEngine reaches this from inside the engine dispatcher's own transaction. The gate must take the handle too -- requireSalesEnabled opens one of its own.
+  if (existingDb) {
+    if (!(await isSalesEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.",
+        403
+      )
+    }
+  } else {
+    await requireSalesEnabled(ctx.orgId)
+  }
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, run)
 }
 
 export async function updateOpportunity(
@@ -453,7 +495,17 @@ export async function updateOpportunity(
     // with no check at all. isValidStageTransition() is pure/unit-tested;
     // this is its one real call site.
     if (patch.stage && patch.stage !== existing.stage) {
-      const stages = await listPipelineStages({ orgId: ctx.orgId }, "opportunity")
+      // R81_F26 (2026-09-08): we are inside the withTenantContext opened above,
+      // and listPipelineStages used to open its own -- which made the primary
+      // Kanban drag-and-drop stage move fail outright in dev/test. Worse in
+      // production, where assertNotNested only warns: listPipelineStages SEEDS
+      // the five default stages on an org's first read, so that seed insert
+      // committed in a SEPARATE transaction from the stage transition that
+      // needed it. Passing the open handle keeps validation, seeding and the
+      // crm_stage_history write in one atomic unit. listPipelineStages' own
+      // requireSalesEnabled gate takes the handle too (isSalesEnabledForOrgWithDb),
+      // so the gate cannot open a third transaction ahead of the body.
+      const stages = await listPipelineStages({ orgId: ctx.orgId }, "opportunity", db)
       const actorRank = ctx.actorRole ? ROLE_RANK[ctx.actorRole] : 0
       const verdict = isValidStageTransition(existing.stage, patch.stage, stages, actorRank)
       if (!verdict.valid) throw new ServiceError(verdict.reason ?? "Invalid stage transition", 400)
@@ -848,9 +900,35 @@ const DEFAULT_PIPELINE_STAGES: { stageKey: string; label: string; sortOrder: num
  * isValidStageTransition below, getSalesPipelineOverview) goes through, so
  * an org's config is always resolvable even if it pre-dates drizzle/0314.
  */
-export async function listPipelineStages(ctx: { orgId: string }, entityType: "lead" | "opportunity" = "opportunity"): Promise<PipelineStageRow[]> {
-  await requireSalesEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+export async function listPipelineStages(ctx: { orgId: string }, entityType: "lead" | "opportunity" = "opportunity", existingDb?: TenantDb): Promise<PipelineStageRow[]> {
+  // R81_F26 (2026-09-08) -- THE GATE MUST TAKE THE HANDLE TOO. requireSalesEnabled()
+  // opens its OWN withTenantContext (isSalesEnabledForOrg -> isBranchEnabledForOrg,
+  // product-branch-service.ts:91) and it runs BEFORE the existingDb branch is ever
+  // reached, so threading the handle into the body alone still trips
+  // assertNotNested -- just at a different line. That is the mistake 6b56c00b made
+  // on recordStockReceipt and reported as fixed (see erp-inventory-service.ts's
+  // recordStockReceipt for the reference shape). isSalesEnabledForOrgWithDb is the
+  // handle-accepting variant R74 Phase 10 added for this; the 403 wording below is
+  // requireSalesEnabled's own, byte-identical, so the standalone and threaded paths
+  // refuse identically.
+  //
+  // The real nested caller is updateOpportunity() in this same file: it calls this
+  // function from inside its own open withTenantContext, and this function SEEDS on
+  // first read -- so under the guard the seed insert either throws in dev/test or,
+  // in production, commits in a SEPARATE transaction from the stage transition that
+  // needed it (assertNotNested only warns in prod, tenant-scoped.ts:188-192).
+  if (existingDb) {
+    if (!(await isSalesEnabledForOrgWithDb(existingDb, ctx.orgId))) {
+      throw new ServiceError(
+        "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.",
+        403
+      )
+    }
+  } else {
+    await requireSalesEnabled(ctx.orgId)
+  }
+
+  const run = async (db: TenantDb) => {
     const existing = await db.query.crmPipelineStages.findMany({
       where: and(eq(crmPipelineStages.orgId, ctx.orgId), eq(crmPipelineStages.entityType, entityType)),
       orderBy: (t, { asc }) => asc(t.sortOrder),
@@ -860,7 +938,11 @@ export async function listPipelineStages(ctx: { orgId: string }, entityType: "le
       DEFAULT_PIPELINE_STAGES.map((s) => ({ orgId: ctx.orgId, entityType, ...s }))
     ).returning()
     return seeded.sort((a, b) => a.sortOrder - b.sortOrder)
-  })
+  }
+
+  // Reuse the caller's open transaction when there is one; otherwise open our own
+  // exactly as before. Both paths run the identical body above.
+  return existingDb ? run(existingDb) : withTenantContext({ orgId: ctx.orgId }, run)
 }
 
 export async function createPipelineStage(
@@ -959,8 +1041,15 @@ export function isValidStageTransition(
 // currencyId/exchangeRate now roll up correctly into a single base-currency
 // total instead of silently mixing currencies.
 export async function getSalesPipelineOverview(ctx: { orgId: string }) {
-  await requireSalesEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withTenantContext({ orgId: ctx.orgId }, (db) => getSalesPipelineOverviewCore(db, ctx))
+}
+
+/** ROOT CAUSE B -- see listLeadsCore. */
+export async function getSalesPipelineOverviewCore(db: TenantDb, ctx: { orgId: string }) {
+  if (!(await isSalesEnabledForOrgWithDb(db, ctx.orgId))) {
+    throw new ServiceError("This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the Sales module.", 403)
+  }
+  {
     const today = new Date().toISOString().slice(0, 10)
     const [leads, opportunities, overdueLeadCountRows, overdueOppCountRows] = await Promise.all([
       db.query.crmLeads.findMany({ where: eq(crmLeads.orgId, ctx.orgId) }),
@@ -1001,7 +1090,7 @@ export async function getSalesPipelineOverview(ctx: { orgId: string }) {
       overdueLeadFollowUps: Number(overdueLeadCountRows[0]?.count ?? 0),
       overdueOpportunityFollowUps: Number(overdueOppCountRows[0]?.count ?? 0),
     }
-  })
+  }
 }
 
 // Sales Pipeline closure (2026-08-07, "Notification & Alert Trigger
@@ -1371,6 +1460,19 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
     const lead = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
     if (!lead) throw new ServiceError("Lead not found", 404, { code: "NOT_FOUND" })
 
+    // R75 Part 2 G2 gap-closure (2026-09-05): this action AI-scores an
+    // existing lead and writes the result back onto it (aiScore/
+    // aiScoreReasoning/aiRecommendedAction/...), which is exactly the kind
+    // of write updateLead() already gates -- but scoreLead() itself had no
+    // RBAC check at all, so any authenticated org member of any rank,
+    // including viewer/client_viewer/external_auditor, could trigger it on
+    // any lead in the org. Same owner-or-manager bar as canEditLead's other
+    // call sites (updateLead/createFollowUpTaskFromLead), checked here
+    // (post-fetch, ownerId now known) rather than the pre-fetch
+    // manager-only shape bulkReassignLeads uses -- this is an edit-grade
+    // action, not a reassign/delete-grade one.
+    if (ctx.role !== undefined) assertGate(canEditLead(ctx.role, lead.ownerId, ctx.userId))
+
     // VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md §3/#6: lead.name is the one
     // genuinely user-authored field reaching the model here (everything
     // else in userMessage below is system-derived from DB columns) -- a
@@ -1379,7 +1481,8 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
     // that's the exact text checked, not the whole constructed message.
     const policyDecision = enforcePolicy(
       { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.score_lead" },
-      lead.name
+      lead.name,
+      db
     )
     if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403, { code: "AI_REFUSED" })
 
@@ -1405,12 +1508,21 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
       modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 500 }, modelConfig.fallback
     )
 
+    // R81_F26 (2026-09-08): `db` is this function's own open transaction
+    // handle -- this call is INSIDE the withTenantContext callback of scoreLead()
+    // opened at that function's second statement. recordOrchestraExecution is fire-and-forget and
+    // swallows its own failures, so the nesting produced no error anywhere: in
+    // dev/test assertNotNested's throw lands in its .catch() and the AI audit row
+    // required by VERIDIAN_AI_CONSTITUTION #19 / SEC-03 is silently never written;
+    // in production the guard only warns and the row is written in a second
+    // transaction. No enablement gate inside the logger (its first statement is
+    // the withTenantContext itself), so threading the handle is the whole fix.
     recordOrchestraExecution({
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.score_lead",
       input: { leadId }, output: { score: result.score },
       status: "completed", durationMs: Date.now() - startedAt,
       provider: modelConfig.provider, model: modelConfig.model, usage,
-    })
+    }, db)
 
     const [updated] = await db.update(crmLeads).set({
       aiScore: Math.round(result.score), aiScoreReasoning: result.reasoning,
@@ -1429,11 +1541,18 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
     const opp = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
     if (!opp) throw new ServiceError("Opportunity not found", 404, { code: "NOT_FOUND" })
 
+    // R75 Part 2 G2 gap-closure (2026-09-05): same real gap as scoreLead()
+    // above, mirrored for opportunities -- see that function's comment.
+    // canEditOpportunity is the existing owner-or-manager predicate this
+    // file already uses for updateOpportunity/createFollowUpTaskFromOpportunity.
+    if (ctx.role !== undefined) assertGate(canEditOpportunity(ctx.role, opp.ownerId, ctx.userId))
+
     // Same reasoning as scoreLead() above -- opp.name is the only
     // user-authored text reaching the model here.
     const policyDecision = enforcePolicy(
       { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.analyze_opportunity" },
-      opp.name
+      opp.name,
+      db
     )
     if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403, { code: "AI_REFUSED" })
 
@@ -1453,12 +1572,21 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
       modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 600 }, modelConfig.fallback
     )
 
+    // R81_F26 (2026-09-08): `db` is this function's own open transaction
+    // handle -- this call is INSIDE the withTenantContext callback of analyzeOpportunity()
+    // opened at that function's second statement. recordOrchestraExecution is fire-and-forget and
+    // swallows its own failures, so the nesting produced no error anywhere: in
+    // dev/test assertNotNested's throw lands in its .catch() and the AI audit row
+    // required by VERIDIAN_AI_CONSTITUTION #19 / SEC-03 is silently never written;
+    // in production the guard only warns and the row is written in a second
+    // transaction. No enablement gate inside the logger (its first statement is
+    // the withTenantContext itself), so threading the handle is the whole fix.
     recordOrchestraExecution({
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.analyze_opportunity",
       input: { opportunityId }, output: { winProbability: result.winProbability },
       status: "completed", durationMs: Date.now() - startedAt,
       provider: modelConfig.provider, model: modelConfig.model, usage,
-    })
+    }, db)
 
     const [updated] = await db.update(crmOpportunities).set({
       aiWinProbability: Math.round(result.winProbability), aiRiskFactors: result.riskFactors ?? [],
@@ -1527,6 +1655,10 @@ export async function createFollowUpTaskFromLead(ctx: CrmContext, leadId: string
     db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
   )
   if (!lead) throw new ServiceError("Lead not found", 404)
+  // R75 Part 2 G2 gap-closure (2026-09-05): raising a follow-up task off a
+  // lead's AI-recommended action is an edit-grade use of that lead, same
+  // bar as scoreLead()/updateLead() -- this had zero RBAC check before.
+  if (ctx.role !== undefined) assertGate(canEditLead(ctx.role, lead.ownerId, ctx.userId))
   if (!lead.aiRecommendedAction) throw new ServiceError("Score this lead first to get an AI-recommended action", 400)
   return createChainedTask(ctx, `Follow up: ${lead.name}`, lead.aiRecommendedAction, fromTaskId)
 }
@@ -1537,6 +1669,9 @@ export async function createFollowUpTaskFromOpportunity(ctx: CrmContext, opportu
     db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
   )
   if (!opp) throw new ServiceError("Opportunity not found", 404)
+  // R75 Part 2 G2 gap-closure (2026-09-05): same real gap as
+  // createFollowUpTaskFromLead() above, mirrored for opportunities.
+  if (ctx.role !== undefined) assertGate(canEditOpportunity(ctx.role, opp.ownerId, ctx.userId))
   if (!opp.aiRecommendedAction) throw new ServiceError("Analyze this opportunity first to get an AI-recommended action", 400)
   return createChainedTask(ctx, `Follow up: ${opp.name}`, opp.aiRecommendedAction, fromTaskId)
 }

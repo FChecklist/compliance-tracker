@@ -6,13 +6,16 @@
 // status-transition actions, not a dead end). Same service call, same
 // pattern as this route's sibling v1/construction/boq/[id]/route.ts.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { submitBoq, ServiceError } from "@/lib/services/construction-boq-service"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  const roleCheck = requireRoleOrScope(ctx, "senior_professional")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params

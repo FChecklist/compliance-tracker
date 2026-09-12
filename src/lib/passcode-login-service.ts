@@ -67,6 +67,8 @@ import { db, users, passcodeLoginAttempts } from "@/lib/db"
 import { eq, and, gte, sql } from "drizzle-orm"
 import bcrypt from "bcryptjs"
 import { recordAuthFailureAndCheckAnomaly } from "./services/auth-failure-service"
+import { logger } from "@/lib/logger"
+import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
 
 export const PASSCODE_LENGTH = 4
 const BCRYPT_COST = 10
@@ -158,11 +160,40 @@ export async function checkPasscodeRateLimit(email: string, ipAddress: string): 
  * Balances / Risk, Fraud & Anomaly Detection gap-closure) -- this table
  * stays exactly as it was for passcode's own internal rate limiting, this
  * is purely additive.
+ *
+ * Exported (DOD-C8 fix) solely so the loud-logging-on-failure behavior
+ * below is directly unit-testable, matching this file's own documented
+ * convention of not test-covering the DB-touching functions end-to-end
+ * (no test-DB harness in this repo) -- mocking @/lib/db and
+ * auth-failure-service directly is the same shape this repo already uses
+ * elsewhere (see route.test.ts files under src/app/api).
  */
-async function recordAttempt(email: string, ipAddress: string, wasSuccessful: boolean): Promise<void> {
-  db.insert(passcodeLoginAttempts).values({ email, ipAddress, wasSuccessful }).then(() => {})
+export async function recordAttempt(email: string, ipAddress: string, wasSuccessful: boolean): Promise<void> {
+  // DOD-C8 fix: both writes below are deliberately fire-and-forget (never
+  // block the caller's login response on them) -- that part is unchanged.
+  // What was missing was any signal on failure: the first line had no
+  // rejection handler at all (a genuine unhandled-rejection risk, not just
+  // a swallowed catch), and the second silently dropped a failure to feed
+  // the same repeated-failed-auth monitor #1632 hardened at the route
+  // layer -- a service-layer instance of the identical vulnerability
+  // class. Both now log a structured warning naming the reason on
+  // failure; neither is awaited, so login latency is unaffected.
+  db.insert(passcodeLoginAttempts).values({ email, ipAddress, wasSuccessful }).then(
+    () => {},
+    (error) => {
+      logger.warn("passcode-login-service: recordAttempt failed to write passcodeLoginAttempts", {
+        reason: "insert_failed",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      })
+    },
+  )
   if (!wasSuccessful) {
-    recordAuthFailureAndCheckAnomaly({ email, method: "passcode", ipAddress }).catch(() => {})
+    recordAuthFailureAndCheckAnomaly({ email, method: "passcode", ipAddress }).catch((error) => {
+      logger.warn("passcode-login-service: recordAttempt failed to feed the repeated-failed-auth monitor", {
+        reason: "anomaly_check_failed",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      })
+    })
   }
 }
 
@@ -192,7 +223,10 @@ export async function verifyPasscodeLogin(email: string, passcode: string, ipAdd
     return { ok: false, reason: "invalid" }
   }
 
-  const user = await db.query.users.findFirst({ where: eq(users.email, normalizedEmail) })
+  // CRR-027 CONTRACT migration: was db.query.users.findFirst() over the
+  // plain (RLS-bypassing) db client -- genuine pre-auth lookup, no session
+  // yet. See EXISTING_FN row #9 in pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md.
+  const user = await lookupUserByEmail(normalizedEmail)
   if (!user || !user.passcodeHash) {
     await recordAttempt(normalizedEmail, ipAddress, false)
     return { ok: false, reason: "invalid" }

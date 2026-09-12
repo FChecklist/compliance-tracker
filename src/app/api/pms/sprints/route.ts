@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { requirePmsEnabled, ServiceError } from "@/lib/services/pms-enablement-service"
 import { listSprints, createSprint } from "@/lib/services/pms-sprint-service"
 
@@ -23,9 +23,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "senior_professional")
+  if (roleCheck) return roleCheck
 
   try {
     await requirePmsEnabled(orgId)

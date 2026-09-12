@@ -5,11 +5,11 @@
 // note on mcaFilings in schema.ts (this compiles data, it never files
 // anything with the MCA).
 import { mcaFilings, organisations, directorsKmp, capTableEntries, companyCharges, boardMeetings } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, gte, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { balanceSheet, profitAndLoss } from "./erp-financial-report-service"
+import { balanceSheetWithDb, profitAndLossWithDb } from "./erp-financial-report-service"
 import { generateAoc4, generateMgt7, generateDir12, generateChg1, type CompanyParticulars, type DirectorInput, type ChargeSummaryInput } from "@/lib/cs/mca-form-generator"
 
 export type GenerateFormDataInput = {
@@ -19,12 +19,14 @@ export type GenerateFormDataInput = {
   chargeId?: string // required for CHG-1/CHG-4
 }
 
-async function loadCompanyParticulars(orgId: string): Promise<CompanyParticulars> {
-  return withTenantContext({ orgId }, async (db) => {
+/** `existingDb` is generateFormData's open handle -- it calls this from inside its own transaction. */
+async function loadCompanyParticulars(orgId: string, existingDb?: TenantDb): Promise<CompanyParticulars> {
+  const run = async (db: TenantDb): Promise<CompanyParticulars> => {
     const org = await db.query.organisations.findFirst({ where: eq(organisations.id, orgId) })
     if (!org) throw new ServiceError("Organisation not found", 404)
     return { cin: org.cinNumber, name: org.name, registeredOfficeAddress: org.address, pan: org.panNumber, entityType: org.entityType }
-  })
+  }
+  return existingDb ? run(existingDb) : withTenantContext({ orgId }, run)
 }
 
 export async function generateFormData(ctx: { orgId: string }, filingId: string, input: GenerateFormDataInput) {
@@ -32,15 +34,32 @@ export async function generateFormData(ctx: { orgId: string }, filingId: string,
     const filing = await db.query.mcaFilings.findFirst({ where: and(eq(mcaFilings.id, filingId), eq(mcaFilings.orgId, ctx.orgId)) })
     if (!filing) throw new ServiceError("MCA filing not found", 404)
 
-    const company = await loadCompanyParticulars(ctx.orgId)
+    const company = await loadCompanyParticulars(ctx.orgId, db)
     const formTypeUpper = filing.formType.trim().toUpperCase()
     let formData: unknown
 
     if (formTypeUpper === "AOC-4") {
       if (!input.financialYearStart || !input.financialYearEnd) throw new ServiceError("financialYearStart and financialYearEnd are required for AOC-4", 400)
+      // Threaded: this runs inside generateFormData's own withTenantContext,
+      // and each of these opened three more (the ERP gate, the company-scope
+      // walk, the ledger read). The .catch(() => null) below is why nothing
+      // ever surfaced it: in dev and test assertNotNested's throw was caught
+      // here and AOC-4 was generated with null financials instead of failing.
+      // R81_F45. Returning null on failure is deliberate: an AOC-4 with the
+      // non-financial sections filled is more use than no form at all, and the
+      // generator already renders a null financial block honestly. Being SILENT
+      // about it was not deliberate -- a dropped connection produced exactly
+      // the same output as an org with no ledger, and the person filing the
+      // form had no way to tell which they were looking at.
       const [bs, pl] = await Promise.all([
-        balanceSheet({ orgId: ctx.orgId }, input.financialYearEnd).catch(() => null),
-        profitAndLoss({ orgId: ctx.orgId }, input.financialYearStart, input.financialYearEnd).catch(() => null),
+        balanceSheetWithDb(db, { orgId: ctx.orgId }, input.financialYearEnd).catch((err) => {
+          console.error(`[mca-filing] balance sheet FAILED for org ${ctx.orgId} -- AOC-4 will be generated with no balance-sheet figures:`, err)
+          return null
+        }),
+        profitAndLossWithDb(db, { orgId: ctx.orgId }, input.financialYearStart, input.financialYearEnd).catch((err) => {
+          console.error(`[mca-filing] profit & loss FAILED for org ${ctx.orgId} -- AOC-4 will be generated with no P&L figures:`, err)
+          return null
+        }),
       ])
       formData = generateAoc4(
         company, `${input.financialYearStart} to ${input.financialYearEnd}`,

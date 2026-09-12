@@ -1,0 +1,373 @@
+#!/usr/bin/env node
+// R75 Part 2 Phase 0 (V0-02): the anti-fabrication citation gate.
+//
+// Run this BEFORE writing any platform.sumeet_requirements.closure_state to
+// CLOSED. Takes one citation {requirement_id, test_path, commit_sha,
+// how_broken} and proves, mechanically, that it is real:
+//   (a) `git cat-file -e <sha>` -- the commit object exists in this repo.
+//   (b) `git cat-file -e <sha>:<test_path>` -- the file existed AT that
+//       commit, not merely somewhere in history or only at HEAD.
+//   (c) `git ls-files --error-unmatch <test_path>` -- the path is TRACKED IN
+//       GIT at HEAD right now, independent of whether it happens to exist on
+//       disk (D43, P0). Existing on disk is NOT evidence: an untracked local
+//       file (gitignored, created outside version control, or simply never
+//       committed) passes fs.existsSync and can even pass its own test run,
+//       while being invisible to every reviewer, to CI, and to anyone who
+//       clones the repo. This check is unconditional and independent of (d)
+//       below -- a passing test at an untracked path must still REJECT.
+//
+//       CORRECTION 2026-09-10 13:28 IST: this check was originally motivated
+//       by "R-81, closed 2026-09-05 citing veri-chat-context.test.ts, a path
+//       git never tracked" -- that motivating claim was WRONG. R-81's own
+//       closure_repo field says "projexa"; every session that investigated
+//       it, including the one that wrote this comment, checked ONLY
+//       compliance-tracker and never checked projexa, where the path is
+//       genuinely tracked, the cited commit and sha both resolve, and the
+//       cited test passes (10/0). This is the EXACT GV-22 mistake described
+//       two paragraphs below (R-48/R-62), now proven to have also caught out
+//       R-81's own investigators -- ironic, given GV-22 exists specifically
+//       to prevent it. D43 (this check) is still sound practice regardless
+//       of its original motivating example being wrong -- verifying a
+//       citation is tracked in the repo it actually claims is a correct
+//       thing to require. See scripts/r75-citation-gate.test.ts for a
+//       synthetic (not R-81) reproduction of the failure mode this guards.
+//   (d) the test actually runs and passes RIGHT NOW at HEAD (a citation can
+//       be structurally valid and still broken by a later merge).
+//   (e) a non-empty, non-placeholder falsifiability record (how_broken) is
+//       present -- a test never seen to fail is unproven (GV-12).
+//
+// CORRECTION (R75 Part 2 continuation, Phase 2 -> "MAJOR CORRECTION" log
+// entries): this gate's very first real use flagged R-48/R-62's citation
+// (commit 2b6bfbb88a30f15e47b9a3e770c05ebceecff8bd) as fabricated -- the
+// object genuinely does not exist in compliance-tracker. But it DOES exist,
+// really, on origin/main, in the SEPARATE FChecklist/projexa repository
+// (GV-22 -- these are two different repos, a fix in one does not reach the
+// other, and neither does its git history). The citation was real, just
+// missing which repo it belonged to. A commit/path not found in the repo
+// you happened to check is NOT proof of fabrication by itself -- pass
+// --repo-roots with every real candidate repo before concluding a citation
+// is fake. This gate now checks each root in order and reports which one
+// (if any) the citation resolved against.
+//
+// Usage: node scripts/r75-citation-gate.mjs <citation.json> [--repo-root <dir>] [--repo-roots <dir1>,<dir2>,...]
+// citation.json shape: { requirement_id, test_path, commit_sha, how_broken }
+// Exit 0 = citation is real (in at least one checked repo) and the test
+// passes now there. Exit 1 = reject (fails in every checked repo).
+//
+// PATH FORMAT GOTCHA (caught proving the R-48/R-62 correction above): pass
+// Windows-style paths (C:/ct/projexa or C:\ct\projexa), never a Git-Bash
+// MSYS path (/c/ct/projexa). Node's child_process cwd does not understand
+// the /c/... form -- it silently fails to find the directory, every git
+// command then throws, and every check in that root reports FAIL, which
+// looks exactly like "the citation is fake" when the real fault is the path
+// format. Same family as the memory-recorded "PowerShell [id] paths
+// silently match nothing" gotcha -- a Windows/POSIX path confusion that
+// fails silent and plausible instead of loud.
+import fs from "node:fs"
+import { execFileSync, execSync } from "node:child_process"
+import { fileURLToPath } from "node:url"
+import path from "node:path"
+
+const PLACEHOLDER_MARKERS = ["SEE_PREVIOUS_CALL", "SEE PREVIOUS", "TODO", "N/A", "n/a", ""]
+
+// D57 (filed 2026-09-10, after R-81's citation was wrongly called fabricated
+// three separate times because every check ran in compliance-tracker while
+// the citation's own `repo` field said "projexa" and nobody looked): the
+// gate must resolve the repo from the citation's OWN declared field and must
+// refuse to silently default to cwd. A caller who omits --repo-root/
+// --repo-roots gets a loud, actionable error, never a quiet "check whatever
+// directory I happen to be in and call that the answer."
+function repoRoots(argv, citation) {
+  const multi = argv.indexOf("--repo-roots")
+  const single = argv.indexOf("--repo-root")
+  const explicit = multi >= 0 ? argv[multi + 1].split(",").map(s => s.trim()).filter(Boolean)
+    : single >= 0 ? [argv[single + 1]]
+    : null
+
+  if (!explicit) {
+    const repoHint = citation && citation.repo ? ` The citation itself names repo "${citation.repo}" -- pass its actual path.` : ""
+    console.error(`error: no --repo-root or --repo-roots given. This gate will NOT default to the current directory -- that silent default is exactly how R-81's real, valid citation got called "fabricated" three times (D57): every check happened to run in compliance-tracker, R-81's citation said projexa, nobody looked.${repoHint}`)
+    process.exit(2)
+  }
+
+  // D57 second clause: if the citation declares which repo it belongs to,
+  // sanity-check that at least one of the roots actually being checked looks
+  // like that repo, by directory name. This is a best-effort warning, not a
+  // hard block (repo checkouts are sometimes named differently on purpose),
+  // but a silent mismatch here is precisely last window's failure mode.
+  if (citation && citation.repo) {
+    const looksRight = explicit.some(r => r.toLowerCase().includes(String(citation.repo).toLowerCase()))
+    if (!looksRight) {
+      console.error(`WARNING: citation declares repo "${citation.repo}" but none of the roots being checked (${explicit.join(", ")}) contain that name. Proceeding, but a REJECTED result below may mean "wrong repo checked," not "fabricated" -- verify you are pointed at the repo the citation actually names before concluding anything.`)
+    }
+  }
+
+  return explicit
+}
+
+function objectExists(root, sha) {
+  try {
+    execFileSync("git", ["cat-file", "-e", sha], { cwd: root, stdio: "ignore" })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function pathExistsAtCommit(root, sha, testPath) {
+  try {
+    execFileSync("git", ["cat-file", "-e", `${sha}:${testPath}`], { cwd: root, stdio: "ignore" })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// D43: distinct from pathExistsAtCommit above -- that checks history AT one
+// cited sha, this checks the git INDEX at HEAD, right now. A path can only
+// pass this if `git add`/a real commit put it there; a file merely sitting
+// in the working tree (untracked, gitignored, or a local scratch copy)
+// fails it every time, regardless of its content or whether it runs green.
+function pathTrackedInGit(root, testPath) {
+  try {
+    execFileSync("git", ["ls-files", "--error-unmatch", testPath], { cwd: root, stdio: "ignore" })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function testPassesAtHead(root, testPath) {
+  // bun test writes its actual pass/fail tally to STDERR, not stdout (only the
+  // version banner goes to stdout) -- confirmed live, a real bug caught while
+  // proving this gate on a planted fixture (this comment IS that proof).
+  // `2>&1` merges both streams so the tally is visible regardless of which
+  // one bun used, on both cmd.exe and a POSIX shell.
+  //
+  // SECOND BUG, caught proving D43 (bun 1.3.14, this machine): `bun test
+  // "scripts/foo.test.ts"` with a bare relative path -- no leading `./` --
+  // is parsed as a NAME FILTER, not a path, and matches zero files: "The
+  // following filters did not match any test files". That produces bun's
+  // own "0 tests" banner, which contains neither "0 fail" nor any failure
+  // text, so this function silently returned false for EVERY real citation
+  // this check has ever been run against on this machine -- a passing test
+  // and a not-found test were indistinguishable. Force a `./`-relative path
+  // so bun's path branch, not its filter branch, is the one that runs.
+  const relPath = testPath.startsWith("./") || testPath.startsWith("../") ? testPath : `./${testPath}`
+  try {
+    const out = execSync(`bun test "${relPath}" 2>&1`, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
+    return /\b0 fail\b/.test(out) && !/did not match any test files/.test(out)
+  } catch (e) {
+    const out = (e.stdout ?? "") + (e.stderr ?? "")
+    return /\b0 fail\b/.test(out) && !/did not match any test files/.test(out)
+  }
+}
+
+function runGate({ requirement_id, test_path, commit_sha, how_broken }, root) {
+  const findings = []
+  let anyFail = false
+
+  // D57: "not found in THIS repo" is not the same claim as "fabricated" --
+  // it only becomes a fabrication verdict once the repo the citation itself
+  // names has actually been checked. Wording below says "not found in this
+  // repo" everywhere it used to say "fabricated," on purpose.
+  const shaOk = objectExists(root, commit_sha)
+  findings.push({ check: "a-commit-exists", verdict: shaOk ? "PASS" : "FAIL", detail: shaOk ? `${commit_sha} is a real object` : `${commit_sha} is NOT a known object in THIS repo (${root}) -- not proof of fabrication by itself, could be the wrong repo checked; wrong SHA only if the correct repo was already confirmed` })
+  if (!shaOk) anyFail = true
+
+  let pathOk = false
+  if (shaOk) {
+    pathOk = pathExistsAtCommit(root, commit_sha, test_path)
+    findings.push({ check: "b-path-at-commit", verdict: pathOk ? "PASS" : "FAIL", detail: pathOk ? `${test_path} exists at ${commit_sha}` : `${test_path} does NOT exist at ${commit_sha} in THIS repo (${root}) -- not proof of fabrication by itself, could be the wrong repo checked; wrong path/commit only if the correct repo was already confirmed` })
+    if (!pathOk) anyFail = true
+  } else {
+    findings.push({ check: "b-path-at-commit", verdict: "FAIL", detail: "skipped -- commit does not exist in this repo" })
+    anyFail = true
+  }
+
+  // D43 hard requirement: unconditional and independent of every other
+  // check. A path that fails this REJECTS the citation even if (a)/(b)
+  // passed and even if the test at that path currently runs green -- being
+  // on disk, or having existed at some cited historical commit, is not the
+  // same claim as "this is real, reviewable, shared evidence right now."
+  const trackedOk = pathTrackedInGit(root, test_path)
+  findings.push({ check: "c-tracked-in-git", verdict: trackedOk ? "PASS" : "FAIL", detail: trackedOk ? `${test_path} is tracked in git (git ls-files confirms it at HEAD)` : `${test_path} is NOT tracked in git -- git ls-files finds nothing at this path, so it is not real, reviewable, shared evidence regardless of what's on disk or whether a run of it passes (D43)` })
+  if (!trackedOk) anyFail = true
+
+  let headOk = false
+  if (fs.existsSync(`${root}/${test_path}`)) {
+    headOk = testPassesAtHead(root, test_path)
+    findings.push({ check: "d-passes-at-head", verdict: headOk ? "PASS" : "FAIL", detail: headOk ? `${test_path} passes (0 fail) at HEAD` : `${test_path} does NOT pass at HEAD right now` })
+    if (!headOk) anyFail = true
+  } else {
+    findings.push({ check: "d-passes-at-head", verdict: "FAIL", detail: `${test_path} does not exist at HEAD at all` })
+    anyFail = true
+  }
+
+  const brokenOk = typeof how_broken === "string" && how_broken.trim().length > 20 && !PLACEHOLDER_MARKERS.includes(how_broken.trim())
+  findings.push({ check: "e-falsifiability-recorded", verdict: brokenOk ? "PASS" : "FAIL", detail: brokenOk ? "how_broken is a real, substantive record" : "how_broken is empty, a placeholder, or too short to be a real demonstration" })
+  if (!brokenOk) anyFail = true
+
+  return { requirement_id, findings, anyFail }
+}
+
+// DOD-X5: check (d) above only proves the test passes RIGHT NOW, LOCALLY, in
+// whatever environment this gate happens to be run from -- never that it
+// ever passed in CI. A citation can be structurally real, locally green,
+// and still never have been proven in the environment that actually gates
+// merges (different Node/bun version, different env vars, a local-only
+// fixture, flakiness that only shows up under CI's load). Opt-in via
+// --verify-ci (needs network + a reachable `gh`, which local-only usage of
+// this gate must not require) -- SKIPPED, not FAIL, when not requested or
+// when gh itself is unreachable, so this never silently blocks the
+// existing local-only workflow.
+//
+// TRAP AVOIDED (this program's own standing note, 2026-09-10): never pipe
+// `gh api --paginate` into a JSON parser -- it concatenates multiple JSON
+// documents and a parse error yields an empty array that prints as "no CI
+// run exists," a false negative that already burned this session twice.
+// Query a single page filtered by head_sha instead; a run list for one
+// exact commit is always small enough to fit in one page.
+const REPO_OWNER_MAP = { "compliance-tracker": "FChecklist/compliance-tracker", "projexa": "FChecklist/projexa" }
+
+// CAUGHT DURING PM-T30 step 2 (2026-09-10, same day this check shipped):
+// checking "any workflow run with conclusion=success" is a real, dangerous
+// false-positive source, not a hypothetical one. Live data: multiple real
+// CLOSED-row citation commits have their actual test-running workflow
+// (.github/workflows/ci.yml, display name "CI") show conclusion=failure,
+// while an UNRELATED workflow -- .github/workflows/sentinel.yml,
+// "Sentinel Governance Checks" (a policy/governance check, not a test run)
+// -- shows success for the SAME commit, same push event, same timestamp. A
+// bare .find(r => r.conclusion === "success") would have reported these as
+// CI-verified while the actual tests never passed -- the exact class of
+// mistake this whole session has spent a day hunting. Restricted to the
+// workflow path that actually runs this repo's tests.
+const CI_WORKFLOW_PATH = ".github/workflows/ci.yml"
+
+function ghApiJson(path) {
+  try {
+    const out = execFileSync("gh", ["api", path], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
+    return { ok: true, data: JSON.parse(out) }
+  } catch (e) {
+    return { ok: false, error: (e.stderr ?? e.message ?? String(e)).toString().split("\n")[0] }
+  }
+}
+
+// PURE DECISION LOGIC, no I/O. Split out after W-GAP found the original
+// single-file test suite flaky under machine load (9/10, then 5/10, then
+// 2/10 across three re-runs, a different test failing each time) -- every
+// assertion, including the ones that test nothing but this function's own
+// branching, was sharing one bun-test timeout budget with real network
+// calls, so load on the machine (two dev servers running at the time)
+// made deterministic logic look flaky. This function takes an ALREADY-
+// FETCHED runs API response and returns a verdict -- it makes no network
+// call itself, so it can be tested exhaustively with recorded/fixture
+// response shapes, fast and 100% deterministic, in
+// r75-citation-gate-ci-verify-logic.test.ts. The live-network act of
+// actually calling gh api lives in checkCiVerified() below, tested
+// separately and minimally in r75-citation-gate-ci-verify-live.test.ts.
+function decideCiVerdict(citation, ghRepo, runsData) {
+  const allRuns = runsData.workflow_runs ?? []
+  const total = runsData.total_count ?? allRuns.length
+  const ciRuns = allRuns.filter((r) => r.path === CI_WORKFLOW_PATH)
+  if (total === 0) {
+    return { check: "f-ci-verified", verdict: "FAIL", detail: `zero workflow runs of any kind found for commit ${citation.commit_sha} in ${ghRepo} -- this commit was never actually run through CI (superseded by a later push before its own run started, pushed to a branch CI doesn't trigger on, or a direct push to an unprotected main that GitHub's Actions concurrency/skip logic collapsed away -- G1 already established main has no branch protection here)` }
+  }
+  if (ciRuns.length === 0) {
+    const otherNames = [...new Set(allRuns.map((r) => r.name))].join(", ")
+    return { check: "f-ci-verified", verdict: "FAIL", detail: `${total} workflow run(s) exist for this commit, but NONE are the actual test-running workflow (${CI_WORKFLOW_PATH}) -- only unrelated workflow(s) ran: ${otherNames}. A different workflow succeeding is not evidence this citation's test ever ran in CI.` }
+  }
+  const successRun = ciRuns.find((r) => r.conclusion === "success")
+  if (successRun) {
+    return { check: "f-ci-verified", verdict: "PASS", detail: `CI run ${successRun.id} (${CI_WORKFLOW_PATH}) concluded success for this exact commit` }
+  }
+  const conclusions = ciRuns.map((r) => `${r.id}:${r.conclusion ?? r.status}`).join(", ")
+  return { check: "f-ci-verified", verdict: "FAIL", detail: `${ciRuns.length} run(s) of ${CI_WORKFLOW_PATH} found for this commit, none concluded success -- ${conclusions}` }
+}
+
+// I/O wrapper: resolves the repo, checks gh reachability, fetches the real
+// data, then hands off to decideCiVerdict() above for the actual verdict.
+// This is the only part of DOD-X5 that touches the network.
+function checkCiVerified(citation, root) {
+  const ghRepo = citation.repo && REPO_OWNER_MAP[citation.repo]
+  if (!ghRepo) {
+    return { check: "f-ci-verified", verdict: "SKIP", detail: `citation.repo ("${citation.repo ?? "unset"}") is not in REPO_OWNER_MAP -- cannot resolve a GitHub owner/repo to query. Add it there if this repo should be CI-verifiable.` }
+  }
+  const authCheck = ghApiJson("user")
+  if (!authCheck.ok) {
+    return { check: "f-ci-verified", verdict: "SKIP", detail: `gh unreachable/unauthenticated (${authCheck.error}) -- CI verification skipped, not failed. Re-run with --verify-ci once gh works to get a real answer.` }
+  }
+  const runs = ghApiJson(`repos/${ghRepo}/actions/runs?head_sha=${citation.commit_sha}`)
+  if (!runs.ok) {
+    return { check: "f-ci-verified", verdict: "FAIL", detail: `gh api actions/runs query failed: ${runs.error}` }
+  }
+  return decideCiVerdict(citation, ghRepo, runs.data)
+}
+
+// Exports exist ONLY so the two split test suites can reach these directly
+// (decideCiVerdict for fast fixture-driven logic tests with zero network;
+// checkCiVerified for the small, isolated live-network smoke test) --
+// this file still runs standalone as a CLI script exactly as before, the
+// exports don't change that.
+export { decideCiVerdict, checkCiVerified, REPO_OWNER_MAP, CI_WORKFLOW_PATH }
+
+// CAUGHT while splitting DOD-X5's test suite (2026-09-10): this file used
+// to run its CLI body unconditionally at the top level, which is fine when
+// executed directly (`node scripts/r75-citation-gate.mjs ...`) but means
+// `import`-ing it for its exports (as the new split test files need to)
+// ALSO ran the CLI body immediately -- printed the usage error and called
+// process.exit(2) the instant the test file's import line executed, before
+// a single test could run. Guarded so the CLI body only runs when this
+// file is the actual entry point, never on a plain import.
+const isMainModule = Boolean(process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url)))
+if (isMainModule) {
+  const argv = process.argv.slice(2)
+  const citationPath = argv[0]
+  if (!citationPath) {
+    console.error("usage: node scripts/r75-citation-gate.mjs <citation.json> --repo-root <dir> | --repo-roots <dir1>,<dir2>,... [--verify-ci] (D57: one repo flag is required, no cwd default. D56/DOD-X5: --verify-ci additionally checks GitHub Actions, not just local)")
+    process.exit(2)
+  }
+  const citation = JSON.parse(fs.readFileSync(citationPath, "utf8"))
+  const roots = repoRoots(argv, citation) // D57: parse citation first, it can name the repo; this call exits(2) if no root was given at all
+  const verifyCi = argv.includes("--verify-ci")
+
+  const perRoot = roots.map(root => ({ root, ...runGate(citation, root) }))
+  const winner = perRoot.find(r => !r.anyFail)
+
+  if (roots.length > 1) console.log(`Checking ${roots.length} repo(s): ${roots.join(", ")}`)
+  for (const r of perRoot) {
+    if (roots.length > 1) console.log(`-- in ${r.root} --`)
+    for (const f of r.findings) console.log(`${f.verdict} | ${f.check} | ${f.detail}`)
+  }
+
+  // DOD-X5: runs once per citation (not per root -- CI is a property of the
+  // commit/repo pair, not of which local checkout happened to check it), and
+  // only matters at all if local checks already found a winner -- no point
+  // asking GitHub about a citation that's already structurally rejected.
+  let ciResult = null
+  if (verifyCi && winner) {
+    ciResult = checkCiVerified(citation, winner.root)
+    console.log(`${ciResult.verdict} | ${ciResult.check} | ${ciResult.detail}`)
+  }
+  const ciBlocks = verifyCi && ciResult && ciResult.verdict === "FAIL"
+
+  if (winner && !ciBlocks) {
+    const ciNote = verifyCi ? (ciResult.verdict === "PASS" ? ", CI-verified" : ", CI check SKIPPED (see above, not a rejection)") : ""
+    console.log(`--- ${citation.requirement_id}: ACCEPTED in ${winner.root}${ciNote}, may be written CLOSED (record which repo in the closure citation) ---`)
+    process.exit(0)
+  } else if (winner && ciBlocks) {
+    console.log(`--- ${citation.requirement_id}: REJECTED -- local checks passed in ${winner.root}, but --verify-ci found no successful CI run for this exact commit. A citation must be proven in the environment that actually gates merges, not only locally. ---`)
+    process.exit(1)
+  } else {
+    // D57: NOT a fabrication verdict on its own -- only "not found in the
+    // repo(s) actually checked." If citation.repo names something not among
+    // `roots` (the repoRoots() warning above would already have fired), this
+    // is very likely a repo-mismatch, not fabrication. Only call it fabricated
+    // once the citation's own declared repo has genuinely been checked.
+    const repoCoverageNote = citation.repo
+      ? ` Citation declares repo "${citation.repo}" -- confirm that repo was actually among the roots checked before calling this fabrication.`
+      : ""
+    console.log(`--- ${citation.requirement_id}: REJECTED in the repo(s) checked (${roots.join(", ")}), stays OPEN. This means NOT FOUND HERE, not proven fabricated.${repoCoverageNote} ---`)
+    process.exit(1)
+  }
+}

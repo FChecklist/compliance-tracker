@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { getBatch, cancelBatch, ServiceError } from "@/lib/services/gst-reconciliation-service"
 
 type Context = { params: Promise<{ batchId: string }> }
@@ -24,6 +24,9 @@ export async function DELETE(_req: NextRequest, ctx: Context) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "senior_professional")
+  if (roleCheck) return roleCheck
 
   try {
     const { batchId } = await ctx.params

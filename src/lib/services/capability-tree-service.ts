@@ -34,7 +34,7 @@ import {
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { computeUserChainUsageScoresWithDb, applyUsageRanking } from "./chain-usage-ranking"
 import { and, eq, inArray, ne, asc, desc, or, isNull } from "drizzle-orm"
-import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "./compliance-service"
+import { VALID_TYPES as VALID_COMPLIANCE_TYPES, ServiceError } from "./compliance-service"
 import type { ReportDomain } from "./report-catalog-service"
 import { getFullReportCatalogByDomain } from "./report-engine-service"
 
@@ -1187,40 +1187,66 @@ function buildErpQuickCreateNodes(): CapabilityNode[] {
   return [{ key: "erp_quick_create", label: "Create", leaf: false, children: leaves }]
 }
 
+// BUG FIX 2026-09-10 (five-silent-tables triage, pm/FIVE_SILENT_TABLES_TRIAGE_2026-09-10.md):
+// ctx.userId was already part of this function's own signature but was never
+// forwarded into withTenantContext -- compliance.current_user_id() was NULL
+// for the whole transaction regardless of what the caller passed, so any
+// saved_reports node this tree builds (reportUrl leaves) silently missed
+// every PRIVATE report, visible only via visibility='shared'. Same root
+// cause and same fix shape as PR #1660 (compliance.conversations).
 export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: string; userId?: string }): Promise<CapabilityNode[]> {
-  const { tree, scores } = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const branchNodes = await buildBranchNodes(db, ctx.orgId)
-    const productNodes = await buildProductNodes(db, ctx.orgId)
-    const entityNodes = await buildEntityNodes(db, ctx.orgId)
-    const complianceItemNodes = await buildComplianceItemNodes(db, ctx.orgId)
-    const calculatorNodes = await buildCalculatorNodes(db)
-    const gstReconciliationNodes = await buildGstReconciliationNodes(db, ctx.orgId)
-    const constructionNodes = await buildConstructionNodes(db, ctx.orgId)
-    const reportNodes = await buildReportLinkNodes(db, ctx.orgId)
-    // R74 Phase 10 fix: `db` passed down instead of letting this open its own
-    // transaction -- was a real, deterministic (every call, not
-    // intermittent) nested-withTenantContext bug. See its own comment.
-    const reportCatalogNodes = await buildReportCatalogNodes({ orgId: ctx.orgId }, db)
-    const learnedCapabilityNodes = await buildLearnedCapabilityNodes(db, ctx.orgId)
-    const crmQuickCreateNodes = buildCrmQuickCreateNodes()
-    const erpQuickCreateNodes = buildErpQuickCreateNodes()
-    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes, ...reportCatalogNodes, ...learnedCapabilityNodes, ...crmQuickCreateNodes, ...erpQuickCreateNodes]
+  // Wraps the whole tree-build transaction in ServiceError classification --
+  // this function fans out into a dozen+ sub-builders (buildBranchNodes,
+  // buildProductNodes, buildConstructionNodes, etc.), any of which can throw
+  // on a real DB failure, and previously did so as an unclassified raw
+  // exception. Matches the established convention (see
+  // src/lib/services/compliance-service.ts's ServiceError) -- callers
+  // (src/app/api/capability-tree/route.ts, .../v1/projexa/module-chain/route.ts)
+  // already have their own try/catch around this call; this only makes what
+  // they catch a classified, system-kind error instead of an opaque one.
+  let tree: CapabilityNode[]
+  let scores: Awaited<ReturnType<typeof computeUserChainUsageScoresWithDb>> | null
+  try {
+    ;({ tree, scores } = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+      const branchNodes = await buildBranchNodes(db, ctx.orgId)
+      const productNodes = await buildProductNodes(db, ctx.orgId)
+      const entityNodes = await buildEntityNodes(db, ctx.orgId)
+      const complianceItemNodes = await buildComplianceItemNodes(db, ctx.orgId)
+      const calculatorNodes = await buildCalculatorNodes(db)
+      const gstReconciliationNodes = await buildGstReconciliationNodes(db, ctx.orgId)
+      const constructionNodes = await buildConstructionNodes(db, ctx.orgId)
+      const reportNodes = await buildReportLinkNodes(db, ctx.orgId)
+      // R74 Phase 10 fix: `db` passed down instead of letting this open its own
+      // transaction -- was a real, deterministic (every call, not
+      // intermittent) nested-withTenantContext bug. See its own comment.
+      const reportCatalogNodes = await buildReportCatalogNodes({ orgId: ctx.orgId }, db)
+      const learnedCapabilityNodes = await buildLearnedCapabilityNodes(db, ctx.orgId)
+      const crmQuickCreateNodes = buildCrmQuickCreateNodes()
+      const erpQuickCreateNodes = buildErpQuickCreateNodes()
+      const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes, ...reportCatalogNodes, ...learnedCapabilityNodes, ...crmQuickCreateNodes, ...erpQuickCreateNodes]
 
-    const allowedKeys = ctx.moduleScope ? MODULE_SCOPE_TOP_LEVEL_KEYS[ctx.moduleScope] : undefined
-    const scopedStaticNodes = allowedKeys ? staticNodes.filter((n) => allowedKeys.includes(n.key)) : staticNodes
+      const allowedKeys = ctx.moduleScope ? MODULE_SCOPE_TOP_LEVEL_KEYS[ctx.moduleScope] : undefined
+      const scopedStaticNodes = allowedKeys ? staticNodes.filter((n) => allowedKeys.includes(n.key)) : staticNodes
 
-    const tree = markDeterministic([...branchNodes, ...scopedStaticNodes])
+      const tree = markDeterministic([...branchNodes, ...scopedStaticNodes])
 
-    // R74 Phase 10 fix: computed HERE, on this same open transaction, instead
-    // of as a separate sequential withTenantContext call after this one
-    // closed -- that second, later call was the OTHER real nested-transaction
-    // site this same route hit (fixed alongside buildReportCatalogNodes
-    // above; see computeUserChainUsageScoresWithDb's own comment in
-    // chain-usage-ranking.ts). Same optional/additive behaviour as before:
-    // no userId means no scores, exactly as this always worked.
-    const scores = ctx.userId ? await computeUserChainUsageScoresWithDb(db, ctx.orgId, ctx.userId) : null
-    return { tree, scores }
-  })
+      // R74 Phase 10 fix: computed HERE, on this same open transaction, instead
+      // of as a separate sequential withTenantContext call after this one
+      // closed -- that second, later call was the OTHER real nested-transaction
+      // site this same route hit (fixed alongside buildReportCatalogNodes
+      // above; see computeUserChainUsageScoresWithDb's own comment in
+      // chain-usage-ranking.ts). Same optional/additive behaviour as before:
+      // no userId means no scores, exactly as this always worked.
+      const scores = ctx.userId ? await computeUserChainUsageScoresWithDb(db, ctx.orgId, ctx.userId) : null
+      return { tree, scores }
+    }))
+  } catch (error) {
+    throw new ServiceError(
+      `Failed to build capability tree: ${error instanceof Error ? error.message : String(error)}`,
+      500,
+      { kind: "system" }
+    )
+  }
 
   // tree4-unified U-D5.B2.S3 ("prioritize frequent chains... recommend
   // previous selections"): re-orders every level of the tree by this user's

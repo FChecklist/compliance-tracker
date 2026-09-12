@@ -125,10 +125,20 @@ export async function getBranchEnablement(ctx: { orgId: string }, branchKey: str
   })
 }
 
+/**
+ * What the stage-0 auto-upgrade did, INCLUDING when it did nothing because it
+ * failed. `failed` is the G-26 half: the upgrade is deliberately non-blocking,
+ * so without a field for it a failure and a no-op are the same response, and
+ * the two UI surfaces that read this cannot tell a customer which happened.
+ */
+export type Stage0AutoUpgradeOutcome =
+  | { upgraded: number; blocked: number; failed?: false; reason?: never }
+  | { upgraded: 0; blocked: 0; failed: true; reason: string }
+
 export async function enableProductBranchForOrg(ctx: BranchEnablementContext, branchKey: string, seedFn?: BranchSeedFn) {
   if (!hasRole(ctx.dbUser, "admin")) throw new ServiceError("Enabling a product branch requires admin role or higher", 403)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const enabled = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const branchId = await getBranchId(db, branchKey)
     const existing = await db.query.orgProductBranchEnablements.findFirst({
       where: and(eq(orgProductBranchEnablements.orgId, ctx.orgId), eq(orgProductBranchEnablements.productBranchId, branchId)),
@@ -147,24 +157,60 @@ export async function enableProductBranchForOrg(ctx: BranchEnablementContext, br
 
     if (seedFn) await seedFn(db, ctx.orgId)
 
-    // Priority 18b (Owner directive 2026-07-15, Option B, auto-upgrade
-    // Trigger B): this is the single real chokepoint every enable*ForOrg
-    // wrapper in this codebase routes through (erp/pms/construction/crm/
-    // firm/fm/veri_chat_v2/veri_reward-enablement-service.ts), so hooking
-    // in here correctly fires no matter which vertical's paid branch gets
-    // enabled, present or future. Never blocks the branch-enable call on
-    // failure -- same "never blocks" posture org-provisioning-service.ts's
-    // own VERI Reward/VERI Chat v2 auto-enable already uses.
-    let stage0AutoUpgrade: { upgraded: number; blocked: number } | undefined
-    try {
-      const { autoUpgradeStage0UsersOnBranchEnable } = await import("./stage0-service")
-      stage0AutoUpgrade = await autoUpgradeStage0UsersOnBranchEnable(ctx.orgId)
-    } catch (err) {
-      console.warn("Stage-0 auto-upgrade on branch enable failed (non-fatal):", err)
-    }
-
-    return { isEnabled: true, enabledAt: now.toISOString(), stage0AutoUpgrade }
+    return { isEnabled: true as const, enabledAt: now.toISOString() }
   })
+
+  // Priority 18b (Owner directive 2026-07-15, Option B, auto-upgrade Trigger
+  // B): this is the single real chokepoint every enable*ForOrg wrapper in this
+  // codebase routes through (erp/pms/construction/crm/firm/fm/veri_chat_v2/
+  // veri_reward-enablement-service.ts), so hooking in here fires no matter
+  // which vertical's paid branch gets enabled, present or future.
+  //
+  // G-26 -- HOISTED OUT OF THE TRANSACTION ABOVE, and this is a fix, not a
+  // tidy-up. It used to run INSIDE that withTenantContext with the handle
+  // threaded in. Threading looked right and could never have worked, because
+  // the chain ends at subscription-plan-service.ts provisionAiAssistantsForUser,
+  // which inserts compliance.ai_assistants rows FOR THE USER BEING UPGRADED.
+  // That table has FORCE ROW LEVEL SECURITY with
+  //   app_runtime_owner_only  USING (user_id = compliance.current_user_id())
+  // and the enclosing transaction carries the ADMIN who triggered the enable.
+  // So the insert was denied by policy for every user who was not the admin.
+  //
+  // WHAT THAT MEANT IN PRACTICE, both ways, and neither was visible:
+  //   dev/test    assertNotNested THREW, into the catch below -> no stage-0
+  //               user was ever auto-upgraded.
+  //   production  the guard only warns, so the call proceeded under the
+  //               admin's identity -> the RLS policy denied the insert -> that
+  //               denial ALSO landed in the catch below. The branch was
+  //               enabled with the upgrade half-applied and nothing said so.
+  // Registering this as a known-open nesting site (ROOT CAUSE D) was wrong: it
+  // is not a pool-pressure trade-off awaiting a ruling, it is a defect that is
+  // failing now. Hoisting lets provisionAiAssistantsForUser open its own
+  // transaction under the PROVISIONED user's identity, which is the only
+  // context the policy accepts.
+  //
+  // The enable itself has already COMMITTED by this point, so this still must
+  // not throw -- failing the whole call after the branch is enabled would
+  // report a failure for work that succeeded. It stays non-blocking, the same
+  // posture org-provisioning-service.ts uses. What changes is that a failure is
+  // no longer silent: it is logged at ERROR and RETURNED, so the caller and the
+  // two UI surfaces that read stage0AutoUpgrade can say the upgrade did not
+  // happen instead of implying it did.
+  let stage0AutoUpgrade: Stage0AutoUpgradeOutcome | undefined
+  try {
+    const { autoUpgradeStage0UsersOnBranchEnable } = await import("./stage0-service")
+    stage0AutoUpgrade = await autoUpgradeStage0UsersOnBranchEnable(ctx.orgId)
+  } catch (err) {
+    console.error("Stage-0 auto-upgrade on branch enable FAILED (branch stays enabled):", err)
+    stage0AutoUpgrade = {
+      upgraded: 0,
+      blocked: 0,
+      failed: true,
+      reason: err instanceof Error ? err.message : String(err),
+    }
+  }
+
+  return { ...enabled, stage0AutoUpgrade }
 }
 
 export async function disableProductBranchForOrg(ctx: BranchEnablementContext, branchKey: string) {

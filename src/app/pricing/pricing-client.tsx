@@ -177,19 +177,34 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
       <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg shadow-nav">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2">
-            <div className="size-8 rounded-lg bg-ct-saffron flex items-center justify-center" aria-hidden="true">
+            {/* bg-ct-saffron-button, NOT bg-ct-saffron: white on #F5820A is
+                2.60:1, and this is the fifth instance of the class R75 Part 4
+                documented in globals.css -- "bg-ct-saffron + text-white is
+                very likely used on other primary buttons ... that were
+                outside this test's 5-page scope". It was, and this is one.
+                #AB5B07 is the same-hue shade already verified at 4.96:1 for
+                white text. The shared base token is still not touched: it is
+                imported from @fchecklist/veridian-ui-kit and PROJEXA renders
+                from the same package.
+
+                This mark is aria-hidden and is a brand logo, so WCAG SC 1.4.3
+                would arguably exempt it -- but the contrast really is 2.6:1,
+                a verified token for exactly this case already exists, and
+                using it costs one shade of orange. Claiming the exemption to
+                quieten a checker would have been the worse answer. */}
+            <div className="size-8 rounded-lg bg-ct-saffron-button flex items-center justify-center" aria-hidden="true">
               <span className="text-white font-bold text-sm">V</span>
             </div>
             <span className="font-heading text-xl text-ct-navy">{brandLabel}</span>
           </Link>
           <div className="flex items-center gap-3">
             <Link href="/login">
-              <Button variant="ghost" className="text-ct-slate text-sm">
+              <Button variant="ghost" className="text-ct-slate-text text-sm">
                 Log in
               </Button>
             </Link>
             <Link href="/signup">
-              <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron text-sm">
+              <Button className="bg-ct-saffron-button hover:bg-ct-saffron-hover text-white shadow-saffron text-sm">
                 Get Started
               </Button>
             </Link>
@@ -220,7 +235,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
           Simple, Transparent Pricing
         </motion.h1>
         <motion.p
-          className="text-ct-muted text-base sm:text-lg mt-4 max-w-lg mx-auto text-balance"
+          className="text-ct-muted-text text-base sm:text-lg mt-4 max-w-lg mx-auto text-balance"
           initial="hidden"
           animate="visible"
           variants={fadeUp}
@@ -239,7 +254,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
         >
           <Label
             htmlFor="billing-toggle"
-            className={`text-sm font-medium transition-colors ${!annual ? "text-ct-navy" : "text-ct-muted"}`}
+            className={`text-sm font-medium transition-colors ${!annual ? "text-ct-navy" : "text-ct-muted-text"}`}
           >
             Monthly
           </Label>
@@ -251,7 +266,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
           />
           <Label
             htmlFor="billing-toggle"
-            className={`text-sm font-medium transition-colors ${annual ? "text-ct-navy" : "text-ct-muted"}`}
+            className={`text-sm font-medium transition-colors ${annual ? "text-ct-navy" : "text-ct-muted-text"}`}
           >
             Annual
           </Label>
@@ -281,7 +296,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                 }`}
               >
                 {plan.popular && (
-                  <div className="absolute top-0 left-0 right-0 bg-ct-saffron text-white text-xs font-bold text-center py-1.5">
+                  <div className="absolute top-0 left-0 right-0 bg-ct-saffron-button text-white text-xs font-bold text-center py-1.5">
                     Most Popular
                   </div>
                 )}
@@ -294,7 +309,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                     >
                       <plan.icon
                         className={`size-5 ${
-                          plan.popular ? "text-ct-saffron-text" : "text-ct-slate"
+                          plan.popular ? "text-ct-saffron-text" : "text-ct-slate-text"
                         }`}
                       />
                     </div>
@@ -311,11 +326,11 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                       <p className="font-heading text-4xl text-ct-navy">Custom</p>
                     ) : (
                       <div className="flex items-baseline gap-1">
-                        <span className="text-ct-muted text-sm">₹</span>
+                        <span className="text-ct-muted-text text-sm">₹</span>
                         <span className="font-heading text-4xl text-ct-navy">
                           {annual ? plan.priceAnnual.toLocaleString("en-IN") : plan.priceMonthly.toLocaleString("en-IN")}
                         </span>
-                        <span className="text-ct-muted text-sm">
+                        <span className="text-ct-muted-text text-sm">
                           {plan.priceAnnual > 0
                             ? annual
                               ? "/year"
@@ -324,14 +339,14 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                         </span>
                       </div>
                     )}
-                    <p className="text-sm text-ct-muted mt-2">{plan.description}</p>
+                    <p className="text-sm text-ct-muted-text mt-2">{plan.description}</p>
                   </div>
 
                   <Link href={plan.ctaLink} className="block">
                     <Button
                       className={`w-full text-sm font-semibold ${
                         plan.popular
-                          ? "bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
+                          ? "bg-ct-saffron-button hover:bg-ct-saffron-hover text-white shadow-saffron"
                           : "bg-ct-navy hover:bg-ct-navy2 text-white"
                       }`}
                     >
@@ -344,7 +359,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                     {plan.features.map((f) => (
                       <div key={f} className="flex items-center gap-2.5 text-sm">
                         <Check className="size-4 text-ct-teal shrink-0" />
-                        <span className="text-ct-slate">{f}</span>
+                        <span className="text-ct-slate-text">{f}</span>
                       </div>
                     ))}
                   </div>
@@ -369,7 +384,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
             <h2 className="font-heading text-2xl sm:text-3xl text-ct-navy text-balance">
               Compare Plans
             </h2>
-            <p className="text-ct-muted mt-2 text-sm">
+            <p className="text-ct-muted-text mt-2 text-sm">
               A detailed breakdown of what&apos;s included in each plan
             </p>
           </motion.div>
@@ -385,16 +400,16 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
             <Table>
               <TableHeader>
                 <TableRow className="border-ct-border hover:bg-transparent">
-                  <TableHead className="text-xs font-semibold text-ct-muted uppercase w-[40%]">
+                  <TableHead className="text-xs font-semibold text-ct-muted-text uppercase w-[40%]">
                     Feature
                   </TableHead>
-                  <TableHead className="text-xs font-semibold text-ct-muted uppercase text-center">
+                  <TableHead className="text-xs font-semibold text-ct-muted-text uppercase text-center">
                     Starter
                   </TableHead>
                   <TableHead className="text-xs font-semibold text-ct-saffron-text uppercase text-center">
                     Professional
                   </TableHead>
-                  <TableHead className="text-xs font-semibold text-ct-muted uppercase text-center">
+                  <TableHead className="text-xs font-semibold text-ct-muted-text uppercase text-center">
                     Enterprise
                   </TableHead>
                 </TableRow>
@@ -420,7 +435,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                                 <X className="size-4 text-ct-border2 mx-auto" />
                               )
                             ) : (
-                              <span className="text-sm text-ct-slate">{val}</span>
+                              <span className="text-sm text-ct-slate-text">{val}</span>
                             )}
                           </TableCell>
                         );
@@ -451,7 +466,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
             <h2 className="font-heading text-2xl sm:text-3xl text-ct-navy">
               Frequently Asked Questions
             </h2>
-            <p className="text-ct-muted mt-2 text-sm">
+            <p className="text-ct-muted-text mt-2 text-sm">
               Everything you need to know about our plans
             </p>
           </motion.div>
@@ -475,7 +490,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
                       <AccordionTrigger className="text-sm sm:text-base font-medium text-ct-navy hover:no-underline">
                         {faq.q}
                       </AccordionTrigger>
-                      <AccordionContent className="text-sm text-ct-muted leading-relaxed">
+                      <AccordionContent className="text-sm text-ct-muted-text leading-relaxed">
                         {faq.a}
                       </AccordionContent>
                     </AccordionItem>
@@ -510,15 +525,24 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
               <Link href="/signup">
-                <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron text-sm font-semibold px-6">
+                <Button className="bg-ct-saffron-button hover:bg-ct-saffron-hover text-white shadow-saffron text-sm font-semibold px-6">
                   Start Free Trial
                   <ArrowRight className="size-4 ml-2" />
                 </Button>
               </Link>
               <Link href="/login">
+                {/* bg-transparent is load-bearing, not decorative. The outline
+                    variant carries bg-background (#FFFDF9 cream), which paints
+                    OVER this panel's bg-gradient-navy -- so text-white landed
+                    on cream at 1.02:1 and the label was invisible on the
+                    page's final call to action. twMerge drops the variant's
+                    bg-* when a bg-* appears in className, which is what makes
+                    this one class the whole fix. Found by axe on /pricing:
+                    1 serious color-contrast node, and the only thing making ct
+                    CI red. */}
                 <Button
                   variant="outline"
-                  className="border-ct-cloud2 text-white hover:bg-white/10 text-sm"
+                  className="border-ct-cloud2 bg-transparent text-white hover:bg-white/10 text-sm"
                 >
                   Log in
                 </Button>
@@ -530,7 +554,7 @@ export default function PricingPage({ brand }: { brand: PreAuthBrand | null }) {
 
       {/* ── Footer ── */}
       <footer className="border-t border-ct-border py-8 px-4">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-ct-muted">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-ct-muted-text">
           <p>&copy; {new Date().getFullYear()} {brandLabel}. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <Link href="/" className="hover:text-ct-navy transition-colors">

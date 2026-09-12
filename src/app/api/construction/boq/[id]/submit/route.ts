@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { submitBoq, ServiceError } from "@/lib/services/construction-boq-service"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  const roleCheck = requireRole(dbUser, "branch_manager")
+  if (roleCheck) return roleCheck
 
   try {
     const { id } = await params
