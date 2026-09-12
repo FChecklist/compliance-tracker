@@ -2871,6 +2871,13 @@
       "when": 1789200000000,
       "tag": "0595_r85a3_p4_gross_net_override_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 412,
+      "version": "7",
+      "when": 1789200100000,
+      "tag": "0596_r85a3_p6_cost_visibility_config",
+      "breakpoints": true
     }
   ]
 }
