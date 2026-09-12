@@ -2,8 +2,42 @@
 // Wave 79: regression test for Wave 23's token-cost estimation -- pure
 // math, no network/DB, cheap to get exactly right and easy to silently
 // break (e.g. a units mix-up between per-1k and per-token pricing).
-import { describe, expect, test, afterEach } from "bun:test"
-import { estimateCostUsd, estimateCostBreakdownUsd, estimateCacheSavingsUsd, callLLM } from "./llm-client"
+import { describe, expect, test, afterEach, mock } from "bun:test"
+import { estimateCostUsd, estimateCostBreakdownUsd, estimateCacheSavingsUsd, callLLM, logAiSupervisionEvent } from "./llm-client"
+
+// 2026-09-12 production-RAM/resource audit finding: logAiSupervisionEvent
+// used to unconditionally attempt execFileAsync("python3", [a host-only
+// script path, ...]) on every call, on every environment (Vercel, this test
+// runner, any local dev machine that isn't the one dedicated host server) --
+// paying a real fork/exec-then-ENOENT cost every time, silently, forever.
+// This is that gap's regression test: on an environment where the script
+// genuinely doesn't exist (true in CI/this test runner), the function must
+// resolve cleanly without throwing, warn exactly ONCE (not per call -- the
+// module-level cache is the whole point of the fix), and never on a second
+// call in the same process.
+describe("logAiSupervisionEvent -- script-availability cache (2026-09-12 resource-waste fix)", () => {
+  afterEach(() => mock.restore())
+
+  test("resolves without throwing when the host-only script doesn't exist, warns exactly once across repeated calls", async () => {
+    const warnSpy = mock(() => {})
+    const originalWarn = console.warn
+    console.warn = warnSpy
+    try {
+      await expect(logAiSupervisionEvent({ probe: "first" })).resolves.toBeUndefined()
+      await expect(logAiSupervisionEvent({ probe: "second" })).resolves.toBeUndefined()
+      await expect(logAiSupervisionEvent({ probe: "third" })).resolves.toBeUndefined()
+    } finally {
+      console.warn = originalWarn
+    }
+    // The cache is module-level and computed once per process, so exactly
+    // one warning across all three calls above proves the fix -- the
+    // pre-fix behavior had no warning at all here (it attempted, and
+    // silently console.error'd a raw ENOENT via a completely different,
+    // per-call code path) and would never converge to a single call.
+    expect(warnSpy.mock.calls.length).toBe(1)
+    expect(String(warnSpy.mock.calls[0]?.[0])).toContain("no-op")
+  })
+})
 
 describe("estimateCostUsd", () => {
   test("computes prompt+completion cost for a known model", () => {

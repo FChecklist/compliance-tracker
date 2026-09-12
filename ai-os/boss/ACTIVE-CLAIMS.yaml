@@ -40,50 +40,70 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (subagent, r85a3/p4-gross-net-override) -- R85 Addendum 3 v4 FINAL, PHASE 4: gross/net stack, profit at both levels, contract variance, manual contract override, variation-approval gate (spec gates 4-01..4-09)"
+  - session_label: "claude-code (subagent, isolated worktree, r85a3/p9-analysis-screen) -- R85 Addendum 3 v4 FINAL, PHASE 9: the analysis screen (B3, gates 9-01..9-07)"
     claimed_at: "2026-09-12T (this session)"
     claim: |
-      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (drive_id
-      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part E3 / Phase 4 (4-01..4-09).
-      Owner rulings D87 (claude_log 366) D88 (372) D89 (373) D90 (374) D91
-      (375). Supersession notice claude_log 379. A9's three superseded
-      designs (per-project toggle, one-unit-cost-two-quantities, hard
-      freeze at award) are explicitly NOT built.
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Drive id
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part F Phase 9. Per-project and
+      cross-project profit/variance analysis, READ-ONLY, built on top of the
+      SINGLE-PRODUCER services already merged: boq-dual-view-service.ts
+      (Phase 1/2), boq-baseline-service.ts (Phase 3), boq-contract-value-
+      service.ts (Phase 4), boq-cost-actuals-service.ts (Phase 5). Does NOT
+      recompute any figure -- calls the existing functions only (Part D
+      SINGLE PRODUCER RULE / X-27).
 
-      PRE-WORK CHECKS (this file's own protocol): read this file in full
-      before claiming -- grepped for "r85a3|R85|Phase 4|gross|variation|
-      override", zero conflicting active claims found. Confirmed via
-      `git log origin/main` / `gh pr list` that Phase 1 (drizzle/0593,
-      PR #1696) is MERGED, Phase 2's pure logic (boq-dual-view-service.ts,
-      also shipped in #1696 despite its title) is MERGED, and Phase 3
-      (boq_baseline table, PR #1697 "WIP checkpoint, unverified") is OPEN
-      and NOT touched by this claim -- no baseline-table dependency in
-      Phase 4's own pure functions (computeContractVariance takes two
-      caller-supplied values rather than reading a baseline row itself).
+      File scope: NEW src/lib/services/boq-analysis-service.ts (+ .test.ts),
+      NEW src/app/api/v1/projexa/reports/boq-analysis/route.ts (+
+      route.test.ts, gated via requireRole -- client_viewer/viewer are rank 1
+      in role-rank.ts, same pattern as reports/definitions/[id]/run/route.ts).
+      Does NOT touch boq-dual-view-service.ts, boq-baseline-service.ts,
+      boq-contract-value-service.ts, boq-cost-actuals-service.ts,
+      boq-rate-history-service.ts, or any file under Phase 6's active work
+      (visibility/client-boundary, background agent a174a8d7fb8c22c9d, file
+      scope not yet known from its own claim since it has not reported --
+      re-checked this file for a Phase 6 active: entry before starting: none
+      exists, so scope is inferred conservatively as read-only reads through
+      the existing services only, no shared-file edits).
 
-      File scope:
-        src/lib/db/schema.ts -- additive columns only: projects.vatRatePercent /
-          projects.retentionPercent (project-level, justified in a code comment:
-          this schema has no separate jurisdiction/org-settings table);
-          constructionBoqs.contractValueOverride/overrideActorId/overrideAt/
-          overrideReason/evidenceArtefactRef (BOQ-level override, not per-line).
-        drizzle/05XX_r85a3_p4_*.sql (NEW, via db:generate) -- applied live via
-          Supabase MCP against pcrjmlpuqsbocqfwoxod, same pattern as drizzle/0593.
-        src/lib/services/boq-dual-view-service.ts (+ .test.ts) -- additive pure
-          functions only: computeGrossNetStack, computeProfitAtBothLevels,
-          computeContractVariance, resolveEffectiveContractValue. NOT touching
-          computeBoqLineMoneyView/rollUpRootLines/computeCostCoverage/
-          validateBoqCellEdit/compareBoqLinesBySortKey (Phase 1/2's own functions).
-        src/lib/services/boq-contract-value-service.ts (NEW, + .test.ts) -- DB-
-          touching Phase 4 additions: applyContractOverride, resolveApprovedBoq
-          (reuses constructionBoqs.status, the EXISTING submitBoq/approveBoq
-          state machine -- no new approval machinery, no polymorphic
-          approval-workflow-service.ts wiring, since BOQ never used that engine
-          to begin with, only its isSelfApproval() pure helper).
+      NOT touching: Phase 7 (Excel round-trip, not yet started), Phase 10
+      (what-if engine, dispatched in parallel by this same session under a
+      disjoint NEW-file scope), Phase 11 (close).
+  - session_label: "claude-code (subagent, isolated worktree, r85a3/p10-what-if-engine) -- R85 Addendum 3 v4 FINAL, PHASE 10: the what-if / scenario engine (gates 10-01..10-13)"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Drive id
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part F Phase 10 -- "the largest
+      single build" per Part H's own honest sizing. Non-destructive scratch
+      scenarios (rate/qty adjustments, bulk, target-seek, BASE|SCENARIO|DELTA)
+      with NOTHING written until an explicit commit (10-08), and on commit,
+      every Phase 3/4 evidence-gated write guard applies in full (10-09) --
+      reuses construction-boq-service.ts's createBoqRevision/submitBoq/
+      approveBoq and boq-contract-value-service.ts's applyContractOverride as
+      the actual write path, never re-implementing the evidence gate. AI actor
+      commit attempts are refused at the guard (10-12), never only the UI.
 
-      NOT touching: construction-boq-service.ts's own submitBoq/approveBoq/
-      createBoqRevision (read-only investigation, reused as-is per 4-06),
-      Phase 3's boq_baseline table/branch, Phase 5-11 of the same spec.
+      File scope: NEW drizzle/05XX_r85a3_p10_boq_scenarios.sql (a
+      boq_scenario table: name/author/created_at/base_baseline_version/
+      adjustment list -- additive only, via db:generate), src/lib/db/
+      schema.ts (additive boqScenario table only), NEW
+      src/lib/services/boq-scenario-service.ts (+ .test.ts), NEW
+      src/app/api/v1/projexa/boq-scenarios/** routes (+ route.test.ts,
+      client-role-refused per 10-13, same requireRole pattern as Phase 9's
+      entry above).
+
+      MIGRATION NUMBERING: check drizzle/meta/_journal.json and
+      `git ls-files drizzle/` against origin/main immediately before
+      generating -- 0595 (Phase 4) is the highest merged number as of this
+      claim; this branch's own number is NOT reserved here since Phase 9
+      (this session, parallel, no migration) and Phase 6 (in flight,
+      migration status unknown) could still land first. Renumber at merge
+      time via check-migration-collision.mjs's accepted role, per this
+      file's own established convention this session (Phase 3/4's 0594/0595
+      collision-and-renumber).
+
+      NOT touching: Phase 9 (analysis screen, dispatched in parallel by this
+      same session under a disjoint NEW-file scope), Phase 6/7 (visibility
+      and Excel round-trip, not yet started/in flight), Phase 11 (close).
   - session_label: "claude-code (subagent, r85a3/p3-boq-baselines) -- R85 Addendum 3 v4 Phase 3 (BASELINES), gates 3-01..3-09"
     claimed_at: "2026-09-12T (this session) -- registered retroactively after work was already complete and PR opened, due to an emergency mid-task reboot-checkpoint interruption; recorded here per AGENTS.md Rule 11 as soon as the session resumed normal flow"
     claim: |
@@ -110,60 +130,6 @@ active:
       File scope: exactly the 5 files above. NOT touching: the BOQ grid UI,
       Excel round-trip, or the what-if engine (Phases 2/7/10 -- separate,
       later phases per the work order's own sequencing).
-  - session_label: "claude-code (interactive, subagent) -- R85 Addendum 3 v4 (claude_log 379), PHASE 8 THE HISTORY DEFAULT / RATE LIBRARY (spec section E5, gates 8-01..8-08)"
-    claimed_at: "2026-09-12T (this session)"
-    claim: |
-      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Drive id
-      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part F Phase 8. Building
-      findRateHistoryMatches / formatRateHistoryOffer / recordRateHistoryAcceptance
-      in a NEW file, src/lib/services/boq-rate-history-service.ts -- reads
-      constructionBoqLineItems (existing qtyProject/rateProject columns from
-      Phase 1, already merged to main as of commit 42669a93/#1696) scoped to the
-      calling org via withTenantContext, matching construction-boq-service.ts's
-      existing org-scoping convention. Read-only against existing data; NO new
-      table, NO migration expected (a rate-history read path, not a new store).
-      8-08 acceptance capture reuses the existing generic src/lib/audit.ts
-      logActivity()/auditLogs table (per G-25 -- no parallel logging mechanism).
-      8-07 is a hard security gate: adversarial cross-tenant test required,
-      committed test suite plus a live BEGIN...ROLLBACK proof via Supabase MCP
-      against pcrjmlpuqsbocqfwoxod's real RLS policies on construction_boqs /
-      construction_boq_line_items.
-
-      File scope: src/lib/services/boq-rate-history-service.ts (NEW),
-      src/lib/services/boq-rate-history-service.test.ts (NEW). Does NOT touch
-      boq-dual-view-service.ts (the single-producer money-figure module, Phase
-      1/2, already merged -- read only), construction-boq-service.ts, or any
-      file under active work by the r85a3/p3-boq-baselines branch (PR #1697,
-      Phase 3 baselines -- disjoint file scope, boq_baseline table + baseline
-      confirm/version-compare logic, not touched here). No drizzle/ migration.
-
-      Branch: r85a3/p8-rate-history (off origin/main @ 42669a93).
-  - session_label: "claude-code (subagent, isolated worktree agent-aa9b5376c526adb49) -- R85 Addendum 3 v4 Phase 5: committed and spent (A5, gates 5-01..5-07)"
-    claimed_at: "2026-09-12T (this session)"
-    claim: |
-      SPEC: R85 Addendum 3 v4 FINAL work order (Google Drive file
-      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part A5 / PHASE 5 (gates 5-01..5-07).
-      Rulings D87 (366) D88 (372) D89 (373) D90 (374) D91 (375). Supersession
-      notice: platform.claude_log id 379.
-
-      SCOPE: NEW src/lib/services/boq-cost-actuals-service.ts (computeCommittedCost/
-      computeSpentCost + *WithDb siblings, computeCostVariance,
-      isCommittedOverBaseline) and its test file
-      src/lib/services/boq-cost-actuals-service.test.ts. Read-only investigation
-      of live schema (erp_purchase_orders, erp_purchase_invoices,
-      construction_attendance, construction_labour_roster, erp_suppliers) via
-      Supabase MCP against pcrjmlpuqsbocqfwoxod -- no schema.ts change, no
-      migration (cost_committed/cost_spent are derived, never stored, per X-06).
-      Regenerated docs/master/TEST_COVERAGE_GAP.md (report-test-coverage-gap.mjs).
-
-      NOT touching: Phase 3 (boq_baseline table + service, r85a3/p3-boq-baselines,
-      PR #1697 open) or Phase 4 (gross/net/VAT/retention/override columns) --
-      computeCostVariance takes the baseline estimated cost as a plain
-      parameter rather than importing Phase 3's service, specifically to avoid
-      a cross-branch dependency. Branch: r85a3/p5-committed-spent, off
-      origin/main @ 42669a93 (already includes Phase 1's merged columns and
-      Phase 2's boq-dual-view-service.ts, the single producer this file never
-      duplicates).
   - session_label: "claude-code (interactive, successor PM session, took handover from prior 'Project Manager' session local_9ded2765-995d-446e-ac58-eff36e1ad5ae mid-day 2026-09-11) -- R83 register integrity + continuation"
     claimed_at: "2026-09-11T23:15 IST (this session)"
     claim: |
@@ -3317,6 +3283,39 @@ active:
       src/lib/services/construction-boq-service.ts change.
 
 recently_completed:
+  - session_label: "claude-code (interactive, PM session) -- R85 Addendum 3 v4 FINAL, PHASE 5: committed and spent cost derivation (A5, gates 5-01..5-07) [DONE, merged as PR #1700]"
+    claimed_at: "2026-09-12T (this session)"
+    merged_as: "FChecklist/compliance-tracker PR #1700 (squash-merged, merge commit 29ac0012)."
+    claim: |
+      boq-cost-actuals-service.ts (+ .test.ts): computeCommittedCost/computeSpentCost
+      (+ *WithDb siblings)/computeCostVariance/isCommittedOverBaseline, derived only
+      (no schema/migration change), against erp_purchase_orders/erp_purchase_invoices/
+      construction_attendance/construction_labour_roster/erp_suppliers.
+  - session_label: "claude-code (interactive, PM session) -- R85 Addendum 3 v4 FINAL, PHASE 4: gross/net stack, profit at both levels, contract variance, manual contract override, variation-approval gate (spec gates 4-01..4-09) [DONE, merged as PR #1699]"
+    claimed_at: "2026-09-12T (this session)"
+    merged_as: "FChecklist/compliance-tracker PR #1699 (squash-merged, merge commit d4a9fb61)."
+    claim: |
+      drizzle/0595_r85a3_p4_gross_net_override_columns.sql (projects.vatRatePercent/
+      retentionPercent; constructionBoqs.contractValueOverride/overrideActorId/
+      overrideAt/overrideReason/evidenceArtefactRef), boq-dual-view-service.ts additions
+      (computeGrossNetStack/computeProfitAtBothLevels/computeContractVariance/
+      resolveEffectiveContractValue), boq-contract-value-service.ts (NEW: applyContractOverride/
+      resolveApprovedBoq). Renumbered from a mid-merge 0594 collision with Phase 3's
+      migration to 0595 during this session; document-extraction-service.ts's
+      pre-existing unrelated CRLF drift (swept in by an earlier `git add -A`) was
+      identified and reverted to origin/main's exact blob before merging.
+  - session_label: "claude-code (interactive, PM session) -- R85 Addendum 3 v4 (claude_log 379), PHASE 8 THE HISTORY DEFAULT / RATE LIBRARY (spec section E5, gates 8-01..8-08) [DONE, merged as PR #1698]"
+    claimed_at: "2026-09-12T (this session)"
+    merged_as: "FChecklist/compliance-tracker PR #1698 (squash-merged, merge commit f3fb3b64)."
+    claim: |
+      boq-rate-history-service.ts (+ .test.ts, NEW): findRateHistoryMatches/
+      formatRateHistoryOffer/recordRateHistoryAcceptance, read-only against existing
+      constructionBoqLineItems columns, no migration. GitHub's mergeable cache got
+      stuck reporting CONFLICTING/DIRTY after Phase 5 merged even though the branch
+      was genuinely conflict-free (confirmed via the compare API and a local
+      test-merge); resolved by closing/reopening the PR to force a recompute, which
+      also surfaced a real stale Test Coverage Gap Report Check (fixed by
+      re-merging main and regenerating docs/master/TEST_COVERAGE_GAP.md in isolation).
   - session_label: "claude-code (interactive, r65-parte-billing-contracts) -- R65 Part E Billing Engine, Phase 2: billing_contracts schema + wiring into resolveActiveBillingRate's Sec14 priority resolution [DONE, merged as PR #1568 -- relocated here from active: by the Phase 3 session (r65-parte-phase3-formula-edge-cases), which found this entry never moved after its own real merge; per this file's own documented convention of appending just the one relevant entry under a fresh recently_completed: section when main has been pruned back to just its active: list, same precedent as the Task #47 rebase note elsewhere in this file's own history]"
     claimed_at: "2026-09-02T00:00Z"
     merged_as: "FChecklist/compliance-tracker PR #1568 (commit bca8433e), drizzle/0527_r65_parte_billing_contracts.sql."
