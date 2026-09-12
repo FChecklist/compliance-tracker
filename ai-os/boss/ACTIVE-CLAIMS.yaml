@@ -40,6 +40,70 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (subagent, isolated worktree, r85a3/p9-analysis-screen) -- R85 Addendum 3 v4 FINAL, PHASE 9: the analysis screen (B3, gates 9-01..9-07)"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Drive id
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part F Phase 9. Per-project and
+      cross-project profit/variance analysis, READ-ONLY, built on top of the
+      SINGLE-PRODUCER services already merged: boq-dual-view-service.ts
+      (Phase 1/2), boq-baseline-service.ts (Phase 3), boq-contract-value-
+      service.ts (Phase 4), boq-cost-actuals-service.ts (Phase 5). Does NOT
+      recompute any figure -- calls the existing functions only (Part D
+      SINGLE PRODUCER RULE / X-27).
+
+      File scope: NEW src/lib/services/boq-analysis-service.ts (+ .test.ts),
+      NEW src/app/api/v1/projexa/reports/boq-analysis/route.ts (+
+      route.test.ts, gated via requireRole -- client_viewer/viewer are rank 1
+      in role-rank.ts, same pattern as reports/definitions/[id]/run/route.ts).
+      Does NOT touch boq-dual-view-service.ts, boq-baseline-service.ts,
+      boq-contract-value-service.ts, boq-cost-actuals-service.ts,
+      boq-rate-history-service.ts, or any file under Phase 6's active work
+      (visibility/client-boundary, background agent a174a8d7fb8c22c9d, file
+      scope not yet known from its own claim since it has not reported --
+      re-checked this file for a Phase 6 active: entry before starting: none
+      exists, so scope is inferred conservatively as read-only reads through
+      the existing services only, no shared-file edits).
+
+      NOT touching: Phase 7 (Excel round-trip, not yet started), Phase 10
+      (what-if engine, dispatched in parallel by this same session under a
+      disjoint NEW-file scope), Phase 11 (close).
+  - session_label: "claude-code (subagent, isolated worktree, r85a3/p10-what-if-engine) -- R85 Addendum 3 v4 FINAL, PHASE 10: the what-if / scenario engine (gates 10-01..10-13)"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Drive id
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part F Phase 10 -- "the largest
+      single build" per Part H's own honest sizing. Non-destructive scratch
+      scenarios (rate/qty adjustments, bulk, target-seek, BASE|SCENARIO|DELTA)
+      with NOTHING written until an explicit commit (10-08), and on commit,
+      every Phase 3/4 evidence-gated write guard applies in full (10-09) --
+      reuses construction-boq-service.ts's createBoqRevision/submitBoq/
+      approveBoq and boq-contract-value-service.ts's applyContractOverride as
+      the actual write path, never re-implementing the evidence gate. AI actor
+      commit attempts are refused at the guard (10-12), never only the UI.
+
+      File scope: NEW drizzle/05XX_r85a3_p10_boq_scenarios.sql (a
+      boq_scenario table: name/author/created_at/base_baseline_version/
+      adjustment list -- additive only, via db:generate), src/lib/db/
+      schema.ts (additive boqScenario table only), NEW
+      src/lib/services/boq-scenario-service.ts (+ .test.ts), NEW
+      src/app/api/v1/projexa/boq-scenarios/** routes (+ route.test.ts,
+      client-role-refused per 10-13, same requireRole pattern as Phase 9's
+      entry above).
+
+      MIGRATION NUMBERING: check drizzle/meta/_journal.json and
+      `git ls-files drizzle/` against origin/main immediately before
+      generating -- 0595 (Phase 4) is the highest merged number as of this
+      claim; this branch's own number is NOT reserved here since Phase 9
+      (this session, parallel, no migration) and Phase 6 (in flight,
+      migration status unknown) could still land first. Renumber at merge
+      time via check-migration-collision.mjs's accepted role, per this
+      file's own established convention this session (Phase 3/4's 0594/0595
+      collision-and-renumber).
+
+      NOT touching: Phase 9 (analysis screen, dispatched in parallel by this
+      same session under a disjoint NEW-file scope), Phase 6/7 (visibility
+      and Excel round-trip, not yet started/in flight), Phase 11 (close).
   - session_label: "claude-code (subagent, r85a3/p3-boq-baselines) -- R85 Addendum 3 v4 Phase 3 (BASELINES), gates 3-01..3-09"
     claimed_at: "2026-09-12T (this session) -- registered retroactively after work was already complete and PR opened, due to an emergency mid-task reboot-checkpoint interruption; recorded here per AGENTS.md Rule 11 as soon as the session resumed normal flow"
     claim: |
