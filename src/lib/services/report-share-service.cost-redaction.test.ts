@@ -14,7 +14,9 @@
 // lineItems carry rateProject, schema.ts's own "THE MOST SENSITIVE FIELD IN
 // THE PRODUCT" column, plus rate/amount/vendorAmount/materialCost/
 // labourCost/equipmentCost/overheadPercent/profitPercent/budgetPercentage/
-// materialAmount/manpowerAmount/qtyProject/qtyContract/rateContract).
+// materialAmount/manpowerAmount/qtyProject -- NOT qtyContract/rateContract,
+// which are deliberately KEPT (Phase 6/#1701's own PROJECT_SIDE_COST_FIELDS
+// rule: the customer-facing contract side is always visible).
 //
 // This file proves, for each of the three branches, that the real service
 // dependencies' cost data does NOT reach the public response -- by mocking
@@ -137,10 +139,29 @@ async function mockModules(opts: {
   }))
 }
 
+/** Every real column constructionBoqLineItems carries (schema.ts), for the work_progress branch. */
+const FAKE_RAW_LINE_ITEM = {
+  id: "line-1", orgId: "org-leak-test", boqId: "boq-1", activityId: null, parentLineItemId: null,
+  itemCode: "C-01", description: "Excavation", unit: "m3", quantity: "100",
+  rate: String(COST_SENTINEL), amount: String(COST_SENTINEL), breakdownPercentage: null,
+  materialCost: String(COST_SENTINEL), labourCost: String(COST_SENTINEL), equipmentCost: String(COST_SENTINEL),
+  overheadPercent: "10", profitPercent: "15", budgetPercentage: "25",
+  vendorId: "vendor-1", vendorAmount: String(COST_SENTINEL),
+  materialAmount: String(COST_SENTINEL), manpowerAmount: String(COST_SENTINEL),
+  category: "Civil", createdAt: new Date("2026-09-01"),
+  qtyProject: "100", rateProject: String(COST_SENTINEL),
+  // Deliberately NOT sentinel values -- these two are meant to SURVIVE (see
+  // toPublicBoqLineItem's own comment: contract-side figures are
+  // customer-facing and always visible, per Phase 6/#1701).
+  qtyContract: "100", rateContract: "42",
+}
+
 const REAL_MODULES = {
   preauth: await import("@/lib/db/preauth-lookups"),
   dashboard: await import("./construction-dashboard-service"),
   reports: await import("./construction-reports-service"),
+  boq: await import("./construction-boq-service"),
+  progress: await import("./construction-progress-service"),
 }
 
 afterEach(async () => {
@@ -148,6 +169,8 @@ afterEach(async () => {
   await mock.module("@/lib/db/preauth-lookups", () => REAL_MODULES.preauth)
   await mock.module("./construction-dashboard-service", () => REAL_MODULES.dashboard)
   await mock.module("./construction-reports-service", () => REAL_MODULES.reports)
+  await mock.module("./construction-boq-service", () => REAL_MODULES.boq)
+  await mock.module("./construction-progress-service", () => REAL_MODULES.progress)
 })
 
 describe("resolveReportShareLink -- public share links can never carry cost (D91)", () => {
@@ -194,5 +217,34 @@ describe("resolveReportShareLink -- public share links can never carry cost (D91
     expect(r.rows[0].trade).toBe("Mason")
     expect(r.rows[0].present).toBe(5)
     expect(r.reconciliation.ties).toBe(true)
+  })
+
+  test("work_progress (the original branch): no cost sentinel anywhere in the response, but the contract-side figures survive", async () => {
+    await mockModules({ link: { ...BASE_LINK, reportType: "work_progress" } })
+    await mock.module("./construction-boq-service", () => ({
+      listBoqs: async () => [{ id: "boq-1", title: "Villa 21 BOQ", status: "approved" }],
+      getBoq: async () => ({ id: "boq-1", title: "Villa 21 BOQ", status: "approved", lineItems: [{ ...FAKE_RAW_LINE_ITEM, computedRate: COST_SENTINEL, computedBudget: COST_SENTINEL }] }),
+    }))
+    await mock.module("./construction-progress-service", () => ({
+      listActivities: async () => [],
+      listCategories: async () => [],
+      listProgressEntries: async () => [],
+    }))
+    const { resolveReportShareLink } = await import("./report-share-service")
+
+    const result = await resolveReportShareLink("tok-1")
+    const leaves = collectLeafStrings(result)
+
+    expect(leaves).not.toContain(String(COST_SENTINEL))
+    const r = result as { lineItems: Record<string, unknown>[] }
+    for (const key of ["rate", "amount", "materialCost", "labourCost", "equipmentCost", "overheadPercent", "profitPercent", "budgetPercentage", "vendorId", "vendorAmount", "materialAmount", "manpowerAmount", "qtyProject", "rateProject", "computedRate", "computedBudget", "orgId", "activityId", "createdAt", "breakdownPercentage"]) {
+      expect(r.lineItems[0]).not.toHaveProperty(key)
+    }
+    // Customer-safe AND contract-side facts survived (Phase 6/#1701: the
+    // contract side is deliberately always visible).
+    expect(r.lineItems[0].itemCode).toBe("C-01")
+    expect(r.lineItems[0].quantity).toBe("100")
+    expect(r.lineItems[0].qtyContract).toBe("100")
+    expect(r.lineItems[0].rateContract).toBe("42")
   })
 })

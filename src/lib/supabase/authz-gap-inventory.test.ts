@@ -335,8 +335,19 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
     // than assumed -- the unprotected-and-not-exempt set is still empty, and
     // the sum invariant below (631 + 201 + 0 = 832) still holds, which is the
     // property this guard actually exists to defend.
-    expect(mutating.length).toBe(832)
-    expect(protectedCount).toBe(631) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH
+    //
+    // R85 Addendum 3 v4 Phase 6 (2026-09-12): 832 -> 833 and 631 -> 632.
+    // Exactly one new mutating route, PATCH /api/v1/construction/cost-
+    // visibility -- the cost-visibility config API (gates 6-01/6-02). Counted
+    // as PROTECTED: it calls requireAuthOrApiKey() then
+    // requireRoleOrScope(ctx, "admin", "write"), a materially HIGHER bar than
+    // this file's own sibling BOQ write routes, deliberately -- see that
+    // route's own header comment ("the single most important line of defense
+    // in this phase" alongside the DB CHECK constraint). Same measured-not-
+    // assumed posture as R80's entry above: the unprotected-and-not-exempt
+    // set is still empty, and the sum invariant still holds.
+    expect(mutating.length).toBe(833)
+    expect(protectedCount).toBe(632) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH; +1 R85A3 P6 cost-visibility config PATCH
     expect(EXEMPT_ROUTES.length).toBe(201) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep
     expect(KNOWN_OPEN_GAPS.length).toBe(0)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)

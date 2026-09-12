@@ -15,6 +15,28 @@ import { listBoqs, getBoq, type BoqLineItemRow } from "./construction-boq-servic
 import { listActivities, listCategories, listProgressEntries } from "./construction-progress-service"
 import { getProjectDashboard, type ProjectDashboard } from "./construction-dashboard-service"
 import { attendanceSummary, boqBudgetVarianceReport, type AttendanceSummary, type BudgetLine } from "./construction-reports-service"
+// R85 Addendum 3 v4 Phase 6 (gate 6-03b): a public, unauthenticated share
+// link "must never carry cost/project-side/variance fields either, even for
+// a share token an internal user created" -- there is no caller identity
+// here to grant visibility to, so this always redacts, unconditionally,
+// never calling canRoleSeeCost at all. See cost-visibility-service.ts's own
+// header for the full rule this file is one caller of.
+//
+// pm-urgent-share-leak (2026-09-12): kept as a SECOND, defense-in-depth
+// layer wrapping the explicit allowlists below, not relied on as the ONLY
+// layer -- redactForPublicShare()'s own PROJECT_SIDE_COST_FIELDS blocklist
+// (qtyProject/rateProject/projectValue/variance/... -- the R85 Addendum 3
+// dual-view feature's own field vocabulary) does NOT cover the pre-existing
+// cost fields this task found leaking (budget/ledgerBudget/revenue/
+// expenses/earnedValue/percentByValue/rate/amount/budgetPercentage/
+// vendorAmount/materialAmount/manpowerAmount/committed/budgetRemaining/
+// actual, attendance's `cost`, etc.) -- confirmed by reading
+// PROJECT_SIDE_COST_FIELDS directly, not assumed. A blocklist that doesn't
+// yet know about a field is exactly the failure mode the allowlists below
+// are built to avoid (see this file's own PUBLIC-SHARE COST REDACTION
+// comment). Both layers run; the allowlist is what actually closes this
+// task's reported leak.
+import { redactForPublicShare } from "./cost-visibility-service"
 export { ServiceError }
 
 export type ReportRef = { projectId: string; from: string; to: string }
@@ -232,25 +254,32 @@ export function toPublicAttendanceSummary(summary: AttendanceSummary): PublicAtt
  * getBoq()'s own withComputedRate() wrapper -- carry, and this DROPS: rate,
  * amount, breakdownPercentage, materialCost, labourCost, equipmentCost,
  * overheadPercent, profitPercent, budgetPercentage, vendorId, vendorAmount,
- * materialAmount, manpowerAmount, qtyProject, rateProject, qtyContract,
- * rateContract, computedRate, computedBudget. schema.ts's own comment on
- * rateProject: "THE MOST SENSITIVE FIELD IN THE PRODUCT (D91 B1) ... NEVER
- * client-reachable in any surface, export, share link, or API response" --
- * getBoq() (called by this file's 'work_progress' branch, a genuinely public
- * unauthenticated route) was returning it, and every other cost column on
- * the row, in full.
+ * materialAmount, manpowerAmount, qtyProject, rateProject, computedRate,
+ * computedBudget. schema.ts's own comment on rateProject: "THE MOST
+ * SENSITIVE FIELD IN THE PRODUCT (D91 B1) ... NEVER client-reachable in any
+ * surface, export, share link, or API response" -- getBoq() (called by this
+ * file's 'work_progress' branch, a genuinely public unauthenticated route)
+ * was returning it, and every other cost column on the row, in full.
  *
- * Kept: identity (id/boqId/parentLineItemId) and pure scope description
- * (itemCode/description/unit/quantity/category).
+ * Kept: identity (id/boqId/parentLineItemId), pure scope description
+ * (itemCode/description/unit/quantity/category), AND qtyContract/
+ * rateContract -- these are deliberately NOT dropped: Phase 6/#1701's own
+ * PROJECT_SIDE_COST_FIELDS blocklist (cost-visibility-service.ts) excludes
+ * them by name for the same reason -- "the customer-facing, contract side
+ * -- what a client is actually billed, always visible" -- and
+ * report-share-service.client-boundary.test.ts (6-03b) already pins that
+ * exact behaviour for this branch. Kept here to match, not silently
+ * narrowed further.
  */
 export type PublicBoqLineItem = Pick<
   BoqLineItemRow,
-  "id" | "boqId" | "parentLineItemId" | "itemCode" | "description" | "unit" | "quantity" | "category"
+  | "id" | "boqId" | "parentLineItemId" | "itemCode" | "description" | "unit" | "quantity" | "category"
+  | "qtyContract" | "rateContract"
 >
 
 export function toPublicBoqLineItem(item: BoqLineItemRow): PublicBoqLineItem {
-  const { id, boqId, parentLineItemId, itemCode, description, unit, quantity, category } = item
-  return { id, boqId, parentLineItemId, itemCode, description, unit, quantity, category }
+  const { id, boqId, parentLineItemId, itemCode, description, unit, quantity, category, qtyContract, rateContract } = item
+  return { id, boqId, parentLineItemId, itemCode, description, unit, quantity, category, qtyContract, rateContract }
 }
 
 // Public route (no auth) -- resolves a token to the underlying report's raw
@@ -309,14 +338,19 @@ export async function resolveReportShareLink(token: string) {
     // each kept one is safe. `totals` (budget + vendorAmount, both cost) is
     // removed entirely rather than redacted-in-place: there is no
     // customer-safe stand-in for "total budget" that keeps the key name
-    // without implying it still means what it used to.
-    return {
+    // without implying it still means what it used to. Wrapped in
+    // redactForPublicShare() too (Phase 6, #1701) as a second, defense-in-
+    // depth layer -- a no-op today since the allowlist below never includes
+    // any of its PROJECT_SIDE_COST_FIELDS names, but free insurance against
+    // a future dual-view field slipping into ProjectDashboard/BudgetLine and
+    // being picked up by this file's allowlist by mistake.
+    return redactForPublicShare({
       reportType: link.reportType,
       projectId: ref.projectId, from: ref.from, to: ref.to,
       boqTitle: variance.boqTitle,
       dashboard: toPublicProjectStatusDashboard(dashboard),
       lines: variance.lines.filter((l) => l.isRootLine).map(toPublicBudgetLine),
-    }
+    })
   }
 
   // R67 D-31: the attendance summary resolves through the SAME rule the work
@@ -332,7 +366,12 @@ export async function resolveReportShareLink(token: string) {
   // comment.
   if (link.reportType === "attendance_summary") {
     const summary = await attendanceSummary({ orgId: link.orgId }, ref.projectId, ref.from, ref.to)
-    return { reportType: link.reportType, ...toPublicAttendanceSummary(summary) }
+    // NOTE this branch was NOT touched by Phase 6/#1701's
+    // redactForPublicShare() wrapping (checked directly against that PR's
+    // diff -- only the project_status and work_progress returns were
+    // wrapped), so before this fix the leak reported here was still fully
+    // live on main even after #1701 merged.
+    return redactForPublicShare({ reportType: link.reportType, ...toPublicAttendanceSummary(summary) })
   }
 
   const boqs = await listBoqs({ orgId: link.orgId }, ref.projectId)
@@ -356,11 +395,13 @@ export async function resolveReportShareLink(token: string) {
   // columns at all, and listProgressEntries here reads BASE_ENTRY_COLUMNS,
   // not the boqLineRate/boqLineAmount-carrying OBJECT_ENTRY_COLUMNS variant
   // getProgressEntry() uses) -- none of the three needed redaction.
-  return {
+  // Wrapped in redactForPublicShare() too (Phase 6, #1701 already wrapped
+  // this branch) as the same defense-in-depth second layer as above.
+  return redactForPublicShare({
     reportType: link.reportType,
     projectId: ref.projectId, from: ref.from, to: ref.to,
     boqTitle: latestBoq?.title ?? null,
     lineItems: (latestBoq?.lineItems ?? []).map(toPublicBoqLineItem),
     activities, categories, entries,
-  }
+  })
 }

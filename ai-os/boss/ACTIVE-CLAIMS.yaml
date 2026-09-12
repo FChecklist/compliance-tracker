@@ -158,6 +158,120 @@ active:
       File scope: exactly the 5 files above. NOT touching: the BOQ grid UI,
       Excel round-trip, or the what-if engine (Phases 2/7/10 -- separate,
       later phases per the work order's own sequencing).
+  - session_label: "claude-code (interactive, subagent) -- R85 Addendum 3 v4 (claude_log 379), PHASE 8 THE HISTORY DEFAULT / RATE LIBRARY (spec section E5, gates 8-01..8-08)"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Drive id
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part F Phase 8. Building
+      findRateHistoryMatches / formatRateHistoryOffer / recordRateHistoryAcceptance
+      in a NEW file, src/lib/services/boq-rate-history-service.ts -- reads
+      constructionBoqLineItems (existing qtyProject/rateProject columns from
+      Phase 1, already merged to main as of commit 42669a93/#1696) scoped to the
+      calling org via withTenantContext, matching construction-boq-service.ts's
+      existing org-scoping convention. Read-only against existing data; NO new
+      table, NO migration expected (a rate-history read path, not a new store).
+      8-08 acceptance capture reuses the existing generic src/lib/audit.ts
+      logActivity()/auditLogs table (per G-25 -- no parallel logging mechanism).
+      8-07 is a hard security gate: adversarial cross-tenant test required,
+      committed test suite plus a live BEGIN...ROLLBACK proof via Supabase MCP
+      against pcrjmlpuqsbocqfwoxod's real RLS policies on construction_boqs /
+      construction_boq_line_items.
+
+      File scope: src/lib/services/boq-rate-history-service.ts (NEW),
+      src/lib/services/boq-rate-history-service.test.ts (NEW). Does NOT touch
+      boq-dual-view-service.ts (the single-producer money-figure module, Phase
+      1/2, already merged -- read only), construction-boq-service.ts, or any
+      file under active work by the r85a3/p3-boq-baselines branch (PR #1697,
+      Phase 3 baselines -- disjoint file scope, boq_baseline table + baseline
+      confirm/version-compare logic, not touched here). No drizzle/ migration.
+
+      Branch: r85a3/p8-rate-history (off origin/main @ 42669a93).
+  - session_label: "claude-code (subagent, isolated worktree agent-aa9b5376c526adb49) -- R85 Addendum 3 v4 Phase 5: committed and spent (A5, gates 5-01..5-07)"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      SPEC: R85 Addendum 3 v4 FINAL work order (Google Drive file
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part A5 / PHASE 5 (gates 5-01..5-07).
+      Rulings D87 (366) D88 (372) D89 (373) D90 (374) D91 (375). Supersession
+      notice: platform.claude_log id 379.
+
+      SCOPE: NEW src/lib/services/boq-cost-actuals-service.ts (computeCommittedCost/
+      computeSpentCost + *WithDb siblings, computeCostVariance,
+      isCommittedOverBaseline) and its test file
+      src/lib/services/boq-cost-actuals-service.test.ts. Read-only investigation
+      of live schema (erp_purchase_orders, erp_purchase_invoices,
+      construction_attendance, construction_labour_roster, erp_suppliers) via
+      Supabase MCP against pcrjmlpuqsbocqfwoxod -- no schema.ts change, no
+      migration (cost_committed/cost_spent are derived, never stored, per X-06).
+      Regenerated docs/master/TEST_COVERAGE_GAP.md (report-test-coverage-gap.mjs).
+
+      NOT touching: Phase 3 (boq_baseline table + service, r85a3/p3-boq-baselines,
+      PR #1697 open) or Phase 4 (gross/net/VAT/retention/override columns) --
+      computeCostVariance takes the baseline estimated cost as a plain
+      parameter rather than importing Phase 3's service, specifically to avoid
+      a cross-branch dependency. Branch: r85a3/p5-committed-spent, off
+      origin/main @ 42669a93 (already includes Phase 1's merged columns and
+      Phase 2's boq-dual-view-service.ts, the single producer this file never
+      duplicates).
+  - session_label: "claude-code (subagent, r85a3/p6-visibility-client-boundary) -- R85 Addendum 3 v4 Phase 6 (VISIBILITY AND THE CLIENT BOUNDARY), gates 6-01..6-05"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Google Drive file
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part H sequencing (Phase 6 before
+      Phase 7 exports, deliberately), gates 6-01..6-05. Owner rulings D87
+      (claude_log 366), D88 (372), D89 (373), D90 (374), D91 (375).
+      Supersession notice: claude_log id 379.
+
+      CONFIRMED BEFORE STARTING (per this file's own protocol + G-25): read
+      this file, `gh pr list`, and `git log origin/main` first. Phase 1
+      (project/contract columns) and Phase 3 (baselines) are merged to main
+      (#1696, #1697). Phase 4 (r85a3/p4-gross-net-override), Phase 5
+      (r85a3/p5-committed-spent), Phase 8 (r85a3/p8-rate-history) are
+      in-progress on their own branches -- NOT touched by this claim.
+      Investigated existing role/permission machinery before building
+      anything new (G-25, zero duplication): reused
+      src/lib/supabase/role-rank.ts's real UserRole enum/ROLE_RANK (11
+      values incl. client_viewer, rank 1) rather than inventing a second
+      role model or the PROJEXA-repo-only OrgRole owner/admin/pm/
+      site_engineer/member/client_viewer shape (that type lives in the
+      separate FChecklist/projexa repo, per this repo's own CLAUDE.md
+      PROJEXA-is-separate section -- not reachable or relevant from here).
+
+      SCOPE: new compliance.cost_visibility_config table (org-scoped,
+      per-role, changed_by/changed_at, DB CHECK hard-floor blocking
+      client_viewer), src/lib/services/cost-visibility-service.ts
+      (canRoleSeeCost + a generic project-side-field redaction helper --
+      the ONE gate every screen/route must call), a new
+      src/app/api/v1/construction/cost-visibility/route.ts config API,
+      and read-path fixes in src/app/api/v1/construction/boq/route.ts,
+      boq/[id]/route.ts, boq/[id]/compare/route.ts (all three also serve
+      /api/v1/projexa/scope/* via re-export) plus
+      src/lib/services/report-share-service.ts's public share-token
+      resolver (6-03b). NOT touching construction-reports-service.ts's
+      pre-existing budgetPercentage/vendorAmount budget-overlay feature
+      (Point 154, a separate pre-R85 concept, out of scope) or any
+      Phase 4/5/8 file.
+
+      DONE: drizzle/0595_r85a3_p6_cost_visibility_config.sql (applied LIVE
+      against pcrjmlpuqsbocqfwoxod via Supabase MCP, DB CHECK constraint
+      live-verified to reject a client_viewer grant with Postgres 23514),
+      src/lib/services/cost-visibility-service.ts + .test.ts (13 tests),
+      src/app/api/v1/construction/cost-visibility/route.ts + .test.ts
+      (4 tests), client-boundary fixes in boq/route.ts, boq/[id]/route.ts,
+      boq/[id]/compare/route.ts + boq-route.client-boundary.test.ts (6
+      tests, incl. the 6-03d falsifiability plant/revert -- verbatim
+      RED/GREEN in the PR), report-share-service.ts's
+      resolveReportShareLink() (6-03b) +
+      report-share-service.client-boundary.test.ts (2 tests). Also fixed a
+      real, pre-existing false positive in
+      scripts/check-route-auth-guard.mjs for the whole requireAuthOrApiKey()
+      route family (documented, not silently worked around) and bumped
+      src/lib/supabase/authz-gap-inventory.test.ts's frozen counts for the
+      one new, gated mutating route this phase adds.
+
+      PR: https://github.com/FChecklist/compliance-tracker/pull/1701
+      (r85a3/p6-visibility-client-boundary -> main, open, not merged by
+      this session per AGENTS.md Rule 6). Rebased cleanly onto origin/main
+      after r85a3/p5-committed-spent merged as #1700 mid-session.
   - session_label: "claude-code (interactive, successor PM session, took handover from prior 'Project Manager' session local_9ded2765-995d-446e-ac58-eff36e1ad5ae mid-day 2026-09-11) -- R83 register integrity + continuation"
     claimed_at: "2026-09-11T23:15 IST (this session)"
     claim: |
