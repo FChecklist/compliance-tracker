@@ -346,8 +346,21 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
     // in this phase" alongside the DB CHECK constraint). Same measured-not-
     // assumed posture as R80's entry above: the unprotected-and-not-exempt
     // set is still empty, and the sum invariant still holds.
-    expect(mutating.length).toBe(833)
-    expect(protectedCount).toBe(632) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH; +1 R85A3 P6 cost-visibility config PATCH
+    //
+    // R85 Addendum 3 v4 Phase 7 (2026-09-13): 833 -> 835 and 632 -> 634.
+    // Exactly two new mutating routes, both under the new
+    // /api/v1/construction/boq/[id]/excel/ family (D89, Excel round trip):
+    // POST .../excel/diff and POST .../excel/apply. Both counted as
+    // PROTECTED: each calls requireAuthOrApiKey() then
+    // requireRoleOrScope(ctx, "member", "write") -- the SAME floor this
+    // file's own sibling boq/line-items/[id] PATCH already uses for editing a
+    // BOQ line. (GET .../excel/export is a read, not a mutating verb, and is
+    // not counted here at all.) Re-derived by actually running this test
+    // (mutating.length reported 835 before this edit), not guessed -- the
+    // unprotected-and-not-exempt set is still empty, and the sum invariant
+    // below still holds.
+    expect(mutating.length).toBe(835)
+    expect(protectedCount).toBe(634) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH; +1 R85A3 P6 cost-visibility config PATCH; +2 R85A3 P7 Excel round-trip diff/apply POSTs
     expect(EXEMPT_ROUTES.length).toBe(201) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep
     expect(KNOWN_OPEN_GAPS.length).toBe(0)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
