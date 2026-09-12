@@ -95,6 +95,7 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail
+  "src/lib/services/boq-dual-view-service.ts", // R85 Addendum 3 v4 (D87/D90/D91): pure computation over already-loaded numbers (project/contract value, variance, decomposition, roll-up) -- no DB access, no I/O, cannot fail. Absent/invalid input resolves to the NOT_SET sentinel by design (see X-04), never a thrown error.
 ])
 
 const HTTP_HANDLER_RE = /export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/
