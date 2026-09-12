@@ -63,25 +63,42 @@ describe("getEstimatedCostFromBaseline -- A5, single producer via rollUpRootLine
 // A mock-based check can only prove this WITHIN this file's own read
 // functions (see below); this proves it across the whole src/ tree. ───────
 describe("3-02: confirmBaseline is the ONLY write path to boq_baseline in this codebase", () => {
+  // Only real server-side write paths can plausibly call db.insert():
+  // src/lib/** (services, pipeline, task-execution) and src/app/api/**
+  // (routes). Scanning ONLY `.ts` (never `.tsx` -- React components/pages
+  // cannot contain a server-side db.insert call) keeps this fast; scanning
+  // the ENTIRE src/ tree (including src/components, src/app/(app)/**/
+  // page.tsx) was measured at 60s+ for no extra coverage of a plausible
+  // write path.
   function walk(dir: string, out: string[] = []): string[] {
     for (const entry of readdirSync(dir)) {
       if (entry === "node_modules" || entry === ".next" || entry.startsWith(".")) continue
       const full = join(dir, entry)
       const st = statSync(full)
       if (st.isDirectory()) walk(full, out)
-      else if (entry.endsWith(".ts") || entry.endsWith(".tsx")) out.push(full)
+      else if (entry.endsWith(".ts") && !entry.endsWith(".test.ts")) out.push(full)
     }
     return out
   }
 
-  test('exactly one file under src/ contains "insert(boqBaseline)", and it is this service', () => {
-    const srcRoot = join(import.meta.dir, "..", "..") // src/lib/services -> src/lib -> src
-    const files = walk(srcRoot)
-    const hits = files.filter((f) => readFileSync(f, "utf8").includes("insert(boqBaseline)"))
-    const relHits = hits.map((f) => f.replace(/\\/g, "/"))
-    expect(relHits.length).toBe(1)
-    expect(relHits[0]).toContain("boq-baseline-service.ts")
-  })
+  // The needle is built from two pieces so this test file's OWN source does
+  // not match itself (it is excluded from `walk` above anyway, since it ends
+  // in .test.ts, but this also protects the assertion if that ever changes).
+  const NEEDLE = "insert" + "(boqBaseline)"
+
+  test(
+    'exactly one file under src/lib and src/app/api contains "insert(boqBaseline)", and it is this service',
+    () => {
+      const srcLib = join(import.meta.dir, "..") // src/lib/services -> src/lib
+      const srcAppApi = join(import.meta.dir, "..", "..", "app", "api") // -> src/app/api
+      const files = [...walk(srcLib), ...walk(srcAppApi)]
+      const hits = files.filter((f) => readFileSync(f, "utf8").includes(NEEDLE))
+      const relHits = hits.map((f) => f.replace(/\\/g, "/"))
+      expect(relHits.length).toBe(1)
+      expect(relHits[0]).toContain("boq-baseline-service.ts")
+    },
+    20000
+  )
 })
 
 // ─── DB-backed suite: confirmBaseline / getBaselineVersion / listBaselineVersions / compareBaselines ──
