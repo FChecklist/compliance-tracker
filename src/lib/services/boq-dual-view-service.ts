@@ -1,0 +1,208 @@
+// R85 Addendum 3 v4 (FINAL, supersedes v3/v2/Addendum 2 -- claude_log 379),
+// owner rulings D87 (366) D88 (372) D89 (373) D90 (374) D91 (375).
+//
+// ★ SINGLE PRODUCER RULE (Part D) ★ -- this file is THE ONE place every
+// project/contract/variance figure for a BOQ line is computed. Every screen
+// (BOQ grid, financial block, dashboard, analysis) calls these functions;
+// no screen computes its own version. This rule exists because the R67
+// D-62 bug was one project telling three different money stories on three
+// screens -- see this file's own header precedent in construction-dashboard-
+// service.ts for the same lesson applied elsewhere.
+//
+// Nothing here is stored. Per A6: project_value, contract_value, variance,
+// variance %, quantity variance and rate variance are ALL derived, never
+// columns. The four STORED inputs (qtyProject/rateProject/qtyContract/
+// rateContract) live on constructionBoqLineItems (drizzle/0593).
+//
+// Rules this module exists to enforce (Part A4/A9, Part G prohibitions):
+//   X-02 never store a computed field
+//   X-03 never round an intermediate -- full precision, round at display only
+//   X-04 never treat NULL as 0 -- a zero project_value yields a 100% profit
+//        and is a lie, so absence must propagate as NOT_SET, not silently 0
+//   X-27 one producer -- do not duplicate this math on a screen or route
+
+/** A money/percentage figure that may be legitimately unavailable. NEVER a
+ * literal 0 standing in for "unknown" -- callers must render this exact
+ * string as-is (C-5: "NOT_SET renders as the literal text NOT_SET. Never 0,
+ * never blank, never a dash that reads as zero."). */
+export const NOT_SET = "NOT_SET" as const
+export type MoneyFigure = number | typeof NOT_SET
+
+export type BoqLineMoneyInput = {
+  // Drizzle's `numeric` column type comes back as a string (postgres.js
+  // avoids silent float-precision loss on NUMERIC by not casting it),
+  // so every real caller reading this off a DB row passes strings here.
+  // null/undefined/"" all mean "not entered yet" -- distinct from 0.
+  qtyProject: number | string | null | undefined
+  rateProject: number | string | null | undefined
+  qtyContract: number | string | null | undefined
+  rateContract: number | string | null | undefined
+}
+
+export type BoqLineMoneyView = {
+  projectValue: MoneyFigure
+  contractValue: MoneyFigure
+  variance: MoneyFigure
+  variancePercent: MoneyFigure
+  quantityVariance: MoneyFigure
+  rateVariance: MoneyFigure
+}
+
+/** Parses a DB numeric-as-string (or number) into a finite number, or null
+ * if genuinely absent/unparseable. Never coerces null/undefined/"" to 0 --
+ * that coercion is exactly what X-04 forbids further up the call chain. */
+function toFinite(v: number | string | null | undefined): number | null {
+  if (v === null || v === undefined || v === "") return null
+  const n = typeof v === "number" ? v : Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+/**
+ * A4's mathematics, exactly, no interpretation. Computed at full precision;
+ * this function NEVER rounds -- rounding is a display-layer concern (A4
+ * "ROUNDING: compute at FULL PRECISION. Round ONLY at display. NEVER store a
+ * rounded intermediate.").
+ */
+export function computeBoqLineMoneyView(input: BoqLineMoneyInput): BoqLineMoneyView {
+  const qtyProject = toFinite(input.qtyProject)
+  const rateProject = toFinite(input.rateProject)
+  const qtyContract = toFinite(input.qtyContract)
+  const rateContract = toFinite(input.rateContract)
+
+  const projectValue: MoneyFigure =
+    qtyProject === null || rateProject === null ? NOT_SET : qtyProject * rateProject
+  const contractValue: MoneyFigure =
+    qtyContract === null || rateContract === null ? NOT_SET : qtyContract * rateContract
+
+  // NULL PROPAGATION (A4): either side NOT_SET -> variance is NOT_SET.
+  const variance: MoneyFigure =
+    projectValue === NOT_SET || contractValue === NOT_SET ? NOT_SET : contractValue - projectValue
+
+  // DIVISION BY ZERO (A4): contract_value = 0 or unavailable -> NOT_SET,
+  // never 0 and never Infinity/-Infinity/NaN.
+  const variancePercent: MoneyFigure =
+    variance === NOT_SET || contractValue === NOT_SET || contractValue === 0
+      ? NOT_SET
+      : (variance / contractValue) * 100
+
+  // Decomposition (A4): QUANTITY VARIANCE = (qty_contract - qty_project) * rate_project
+  //                     RATE VARIANCE     = (rate_contract - rate_project) * qty_contract
+  // Both need all four raw inputs present, independent of whether project/
+  // contractValue themselves resolved (they always will together, but this
+  // is written independently so a future change to one side's formula can't
+  // silently break the other's NULL handling).
+  const quantityVariance: MoneyFigure =
+    qtyContract === null || qtyProject === null || rateProject === null
+      ? NOT_SET
+      : (qtyContract - qtyProject) * rateProject
+  const rateVariance: MoneyFigure =
+    rateContract === null || rateProject === null || qtyContract === null
+      ? NOT_SET
+      : (rateContract - rateProject) * qtyContract
+
+  return { projectValue, contractValue, variance, variancePercent, quantityVariance, rateVariance }
+}
+
+export type BoqLineForRollup = {
+  parentLineItemId: string | null
+} & BoqLineMoneyInput
+
+export type BoqRollupTotals = {
+  projectValue: MoneyFigure
+  contractValue: MoneyFigure
+  variance: MoneyFigure
+  variancePercent: MoneyFigure
+  /** Number of root lines actually included -- lets a caller distinguish
+   * "0 because every root line is NOT_SET" from "0 because there are no
+   * root lines at all", which read very differently to a user. */
+  rootLineCount: number
+}
+
+/**
+ * Root-lines-only roll-up (A7, R-32 unchanged): weighted sub-tasks
+ * (parentLineItemId set) are EXCLUDED from both totals -- a sub-task must
+ * never double-count into either project or contract value. Applies to
+ * BOTH sides identically (the same fixture that would double-count a
+ * contract total if wrong applies equally to the project-cost total).
+ *
+ * A line whose own project/contract value is NOT_SET is excluded from that
+ * particular sum (not treated as 0) so a handful of unpriced lines don't
+ * silently understate the total -- callers combine this with the cost-
+ * coverage indicator (Phase 2 2-08) to show PARTIAL rather than a
+ * confidently-wrong number.
+ */
+export function rollUpRootLines(lines: BoqLineForRollup[]): BoqRollupTotals {
+  const rootLines = lines.filter((l) => l.parentLineItemId === null)
+  let projectSum = 0
+  let projectAny = false
+  let contractSum = 0
+  let contractAny = false
+
+  for (const line of rootLines) {
+    const view = computeBoqLineMoneyView(line)
+    if (view.projectValue !== NOT_SET) {
+      projectSum += view.projectValue
+      projectAny = true
+    }
+    if (view.contractValue !== NOT_SET) {
+      contractSum += view.contractValue
+      contractAny = true
+    }
+  }
+
+  const projectValue: MoneyFigure = projectAny ? projectSum : NOT_SET
+  const contractValue: MoneyFigure = contractAny ? contractSum : NOT_SET
+  const variance: MoneyFigure =
+    projectValue === NOT_SET || contractValue === NOT_SET ? NOT_SET : contractValue - projectValue
+  const variancePercent: MoneyFigure =
+    variance === NOT_SET || contractValue === NOT_SET || contractValue === 0
+      ? NOT_SET
+      : (variance / contractValue) * 100
+
+  return { projectValue, contractValue, variance, variancePercent, rootLineCount: rootLines.length }
+}
+
+/**
+ * COST COVERAGE (Phase 2, 2-08): what fraction of root-line contract value
+ * has a project-side rate entered at all. A 300-line BOQ with every cost
+ * blank is a wall; this lets a screen say "profit is PARTIAL, priced on
+ * 12% of contract value" instead of presenting a confident-looking number
+ * built on almost no cost data.
+ */
+export function computeCostCoverage(lines: BoqLineForRollup[]): {
+  coveredContractValue: number
+  totalContractValue: MoneyFigure
+  coverageRatio: MoneyFigure
+} {
+  const rootLines = lines.filter((l) => l.parentLineItemId === null)
+  let coveredContractValue = 0
+  let totalContractValue = 0
+  let anyContract = false
+
+  for (const line of rootLines) {
+    const view = computeBoqLineMoneyView(line)
+    if (view.contractValue !== NOT_SET) {
+      totalContractValue += view.contractValue
+      anyContract = true
+      if (view.projectValue !== NOT_SET) coveredContractValue += view.contractValue
+    }
+  }
+
+  const total: MoneyFigure = anyContract ? totalContractValue : NOT_SET
+  const coverageRatio: MoneyFigure =
+    total === NOT_SET || total === 0 ? NOT_SET : (coveredContractValue / total) * 100
+
+  return { coveredContractValue, totalContractValue: total, coverageRatio }
+}
+
+/**
+ * Rounds a MoneyFigure for DISPLAY ONLY (X-03: never round an intermediate,
+ * never store a rounded value). `decimals` defaults to 2 for currency; pass
+ * a different value for a percentage if the caller wants more precision on
+ * screen. NOT_SET passes through unchanged -- rendering it is the caller's
+ * job (C-5), this function never turns it into a number.
+ */
+export function formatMoneyFigureForDisplay(figure: MoneyFigure, decimals = 2): string {
+  if (figure === NOT_SET) return NOT_SET
+  return figure.toFixed(decimals)
+}
