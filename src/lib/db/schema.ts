@@ -4308,6 +4308,37 @@ export const projects = complianceSchemaDB.table('projects', {
   // derived from the BOQ (Rajat explicitly ruled that out -- a BOQ is what
   // WE think the job is worth, a PO is what the CLIENT has committed to).
   projectValue: numeric('project_value'),
+  // R85 Addendum 3 v4, Phase 4 (E3, gates 4-01/4-02; owner rulings D87/D91,
+  // claude_log 366/375; supersession notice 379). The gross/net stack's two
+  // configurable rates.
+  //
+  // WHY BOTH LIVE HERE, ON `projects`, RATHER THAN A SEPARATE ORG-SETTINGS
+  // TABLE: the spec frames these at two different levels -- "VAT ...
+  // configurable per jurisdiction" vs "retention ... configurable per
+  // project" -- and this comment exists because that distinction was
+  // deliberately investigated, not glossed over. This schema has NO
+  // `organizations`/`org_settings`/`*_settings` table of any kind (verified
+  // by grep across this whole file before adding these columns) -- every
+  // table in `compliance` carries `orgId` directly as a bare tenant-scope
+  // column, with no row anywhere in this schema representing "the org
+  // itself" for a jurisdiction-level default to live on. `projects` is
+  // therefore the finest AND ONLY existing level that can stand in for "this
+  // job's jurisdiction": a firm operating across multiple emirates/countries
+  // sets a different vatRatePercent per project exactly the way it would set
+  // a different jurisdiction per project, and nothing upstream of `projects`
+  // exists in this schema to inherit a default from. retentionPercent is
+  // unambiguously project-level per spec and needs no such justification.
+  // This is intentionally NOT the same field as constructionInterimBills.
+  // retentionPercent / erpPurchaseInvoices.retentionPercent (both already
+  // real, per-transaction retention rates snapshotted at billing time for a
+  // specific AR/AP document) -- those answer "what retention applied to THIS
+  // bill", this answers "what is this PROJECT's target/default retention
+  // rate for the Phase 4 gross/net stack", a distinct, coarser-grained
+  // question. Both NOT NULL with a real default so every existing project
+  // (backfilled to the default) computes a real gross/net stack immediately
+  // rather than needing a migration-time per-row decision.
+  vatRatePercent: numeric('vat_rate_percent').notNull().default('5'),
+  retentionPercent: numeric('retention_percent').notNull().default('5'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -10831,6 +10862,29 @@ export const constructionBoqs = complianceSchemaDB.table('construction_boqs', {
   createdById: text('created_by_id').notNull(),
   approvedById: text('approved_by_id'),
   approvedAt: timestamp('approved_at'),
+  // R85 Addendum 3 v4, Phase 4 (4-07, D88): the MANUAL CONTRACT OVERRIDE.
+  // Lives on the BOQ header, not per line item -- Part D's objects table
+  // feeds "Manual contract override" straight into `contract_value` (the
+  // whole-BOQ rolled-up total this file's revision already represents), and
+  // the C-1..C-8 comparison block only ever shows ONE contract_value figure
+  // per BOQ/revision, never a per-line override. X-12 is explicit that this
+  // NEVER overwrites the computed total: resolveEffectiveContractValue() in
+  // boq-dual-view-service.ts reads both this column and the rollup and
+  // returns which one is "in force" without ever discarding the other --
+  // this row is not touched by that read, only by applyContractOverride().
+  // All five columns are set together, by applyContractOverride() only nulls
+  // them out; overrideActorId mirrors approvedById's naming (a user id, not
+  // free text, despite the spec's own prose saying "actor").
+  // evidenceArtefactRef is REQUIRED by applyContractOverride() (D88: every
+  // contract-side change after confirmation needs a cited evidence
+  // artefact) even though the column itself is nullable at the DB level --
+  // nullable here only so a plain ALTER TABLE stays additive/non-breaking;
+  // the service layer is what actually enforces "never empty".
+  contractValueOverride: numeric('contract_value_override'),
+  overrideActorId: text('override_actor_id'),
+  overrideAt: timestamp('override_at'),
+  overrideReason: text('override_reason'),
+  evidenceArtefactRef: text('evidence_artefact_ref'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

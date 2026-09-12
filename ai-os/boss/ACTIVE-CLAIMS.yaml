@@ -40,6 +40,50 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (subagent, r85a3/p4-gross-net-override) -- R85 Addendum 3 v4 FINAL, PHASE 4: gross/net stack, profit at both levels, contract variance, manual contract override, variation-approval gate (spec gates 4-01..4-09)"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (drive_id
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part E3 / Phase 4 (4-01..4-09).
+      Owner rulings D87 (claude_log 366) D88 (372) D89 (373) D90 (374) D91
+      (375). Supersession notice claude_log 379. A9's three superseded
+      designs (per-project toggle, one-unit-cost-two-quantities, hard
+      freeze at award) are explicitly NOT built.
+
+      PRE-WORK CHECKS (this file's own protocol): read this file in full
+      before claiming -- grepped for "r85a3|R85|Phase 4|gross|variation|
+      override", zero conflicting active claims found. Confirmed via
+      `git log origin/main` / `gh pr list` that Phase 1 (drizzle/0593,
+      PR #1696) is MERGED, Phase 2's pure logic (boq-dual-view-service.ts,
+      also shipped in #1696 despite its title) is MERGED, and Phase 3
+      (boq_baseline table, PR #1697 "WIP checkpoint, unverified") is OPEN
+      and NOT touched by this claim -- no baseline-table dependency in
+      Phase 4's own pure functions (computeContractVariance takes two
+      caller-supplied values rather than reading a baseline row itself).
+
+      File scope:
+        src/lib/db/schema.ts -- additive columns only: projects.vatRatePercent /
+          projects.retentionPercent (project-level, justified in a code comment:
+          this schema has no separate jurisdiction/org-settings table);
+          constructionBoqs.contractValueOverride/overrideActorId/overrideAt/
+          overrideReason/evidenceArtefactRef (BOQ-level override, not per-line).
+        drizzle/05XX_r85a3_p4_*.sql (NEW, via db:generate) -- applied live via
+          Supabase MCP against pcrjmlpuqsbocqfwoxod, same pattern as drizzle/0593.
+        src/lib/services/boq-dual-view-service.ts (+ .test.ts) -- additive pure
+          functions only: computeGrossNetStack, computeProfitAtBothLevels,
+          computeContractVariance, resolveEffectiveContractValue. NOT touching
+          computeBoqLineMoneyView/rollUpRootLines/computeCostCoverage/
+          validateBoqCellEdit/compareBoqLinesBySortKey (Phase 1/2's own functions).
+        src/lib/services/boq-contract-value-service.ts (NEW, + .test.ts) -- DB-
+          touching Phase 4 additions: applyContractOverride, resolveApprovedBoq
+          (reuses constructionBoqs.status, the EXISTING submitBoq/approveBoq
+          state machine -- no new approval machinery, no polymorphic
+          approval-workflow-service.ts wiring, since BOQ never used that engine
+          to begin with, only its isSelfApproval() pure helper).
+
+      NOT touching: construction-boq-service.ts's own submitBoq/approveBoq/
+      createBoqRevision (read-only investigation, reused as-is per 4-06),
+      Phase 3's boq_baseline table/branch, Phase 5-11 of the same spec.
   - session_label: "claude-code (subagent, r85a3/p3-boq-baselines) -- R85 Addendum 3 v4 Phase 3 (BASELINES), gates 3-01..3-09"
     claimed_at: "2026-09-12T (this session) -- registered retroactively after work was already complete and PR opened, due to an emergency mid-task reboot-checkpoint interruption; recorded here per AGENTS.md Rule 11 as soon as the session resumed normal flow"
     claim: |
