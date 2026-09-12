@@ -4308,6 +4308,37 @@ export const projects = complianceSchemaDB.table('projects', {
   // derived from the BOQ (Rajat explicitly ruled that out -- a BOQ is what
   // WE think the job is worth, a PO is what the CLIENT has committed to).
   projectValue: numeric('project_value'),
+  // R85 Addendum 3 v4, Phase 4 (E3, gates 4-01/4-02; owner rulings D87/D91,
+  // claude_log 366/375; supersession notice 379). The gross/net stack's two
+  // configurable rates.
+  //
+  // WHY BOTH LIVE HERE, ON `projects`, RATHER THAN A SEPARATE ORG-SETTINGS
+  // TABLE: the spec frames these at two different levels -- "VAT ...
+  // configurable per jurisdiction" vs "retention ... configurable per
+  // project" -- and this comment exists because that distinction was
+  // deliberately investigated, not glossed over. This schema has NO
+  // `organizations`/`org_settings`/`*_settings` table of any kind (verified
+  // by grep across this whole file before adding these columns) -- every
+  // table in `compliance` carries `orgId` directly as a bare tenant-scope
+  // column, with no row anywhere in this schema representing "the org
+  // itself" for a jurisdiction-level default to live on. `projects` is
+  // therefore the finest AND ONLY existing level that can stand in for "this
+  // job's jurisdiction": a firm operating across multiple emirates/countries
+  // sets a different vatRatePercent per project exactly the way it would set
+  // a different jurisdiction per project, and nothing upstream of `projects`
+  // exists in this schema to inherit a default from. retentionPercent is
+  // unambiguously project-level per spec and needs no such justification.
+  // This is intentionally NOT the same field as constructionInterimBills.
+  // retentionPercent / erpPurchaseInvoices.retentionPercent (both already
+  // real, per-transaction retention rates snapshotted at billing time for a
+  // specific AR/AP document) -- those answer "what retention applied to THIS
+  // bill", this answers "what is this PROJECT's target/default retention
+  // rate for the Phase 4 gross/net stack", a distinct, coarser-grained
+  // question. Both NOT NULL with a real default so every existing project
+  // (backfilled to the default) computes a real gross/net stack immediately
+  // rather than needing a migration-time per-row decision.
+  vatRatePercent: numeric('vat_rate_percent').notNull().default('5'),
+  retentionPercent: numeric('retention_percent').notNull().default('5'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -10831,6 +10862,29 @@ export const constructionBoqs = complianceSchemaDB.table('construction_boqs', {
   createdById: text('created_by_id').notNull(),
   approvedById: text('approved_by_id'),
   approvedAt: timestamp('approved_at'),
+  // R85 Addendum 3 v4, Phase 4 (4-07, D88): the MANUAL CONTRACT OVERRIDE.
+  // Lives on the BOQ header, not per line item -- Part D's objects table
+  // feeds "Manual contract override" straight into `contract_value` (the
+  // whole-BOQ rolled-up total this file's revision already represents), and
+  // the C-1..C-8 comparison block only ever shows ONE contract_value figure
+  // per BOQ/revision, never a per-line override. X-12 is explicit that this
+  // NEVER overwrites the computed total: resolveEffectiveContractValue() in
+  // boq-dual-view-service.ts reads both this column and the rollup and
+  // returns which one is "in force" without ever discarding the other --
+  // this row is not touched by that read, only by applyContractOverride().
+  // All five columns are set together, by applyContractOverride() only nulls
+  // them out; overrideActorId mirrors approvedById's naming (a user id, not
+  // free text, despite the spec's own prose saying "actor").
+  // evidenceArtefactRef is REQUIRED by applyContractOverride() (D88: every
+  // contract-side change after confirmation needs a cited evidence
+  // artefact) even though the column itself is nullable at the DB level --
+  // nullable here only so a plain ALTER TABLE stays additive/non-breaking;
+  // the service layer is what actually enforces "never empty".
+  contractValueOverride: numeric('contract_value_override'),
+  overrideActorId: text('override_actor_id'),
+  overrideAt: timestamp('override_at'),
+  overrideReason: text('override_reason'),
+  evidenceArtefactRef: text('evidence_artefact_ref'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -10932,6 +10986,114 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   // text equals its old name), never by blind text replace across the org.
   category: text('category'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // R85 Addendum 3 v2, Phase 1 (owner rulings D87/claude_log 366, D90/374, D91/375):
+  // the dual-view money model. `quantity`/`rate`/`amount` above are UNCHANGED and
+  // keep meaning what they have always meant -- the quoted/contract figure (D89/D90
+  // 1-02) -- nothing reads or writes them differently because of this addition.
+  // These four columns are the new, explicit home for BOTH sides of the line:
+  //   PROJECT (internal/cost) side: qtyProject, rateProject
+  //   CONTRACT (customer-facing) side: qtyContract, rateContract
+  // All NULLABLE, additive migration (drizzle/0593_r85a3_p1_boq_line_project_contract_columns.sql,
+  // applied live via Supabase MCP 2026-09-12, version 20260912063030). Backfilled at
+  // migration time: qtyContract=quantity, rateContract=rate for all 912 existing rows
+  // (verified 0 real mismatches between qtyContract*rateContract and amount, after
+  // correcting for float-precision display noise -- one genuine, PRE-EXISTING,
+  // unrelated data anomaly found and flagged, not fixed here: line
+  // fx3401ycp8l9ml6s6vj8g1iv, quantity=100/rate=50/amount=150, created 2026-09-11,
+  // predates this migration).
+  //
+  // *** rateProject IS THE MOST SENSITIVE FIELD IN THE PRODUCT (D91 B1) ***: the
+  // firm's own buying cost. NEVER client-reachable in any surface, export, share
+  // link, or API response -- see D91 Part B1/B4 and Addendum 3 Phase 8's client-
+  // boundary gates before adding any new reader of this column.
+  //
+  // ALL SIX of project_value/contract_value/variance/variance%/quantity variance/
+  // rate variance are COMPUTED, NEVER STORED (D90 A6/A4, D91 A4) -- they live in
+  // construction-boq-service.ts as service-layer derivations, not as columns here.
+  qtyProject: numeric('qty_project'),
+  rateProject: numeric('rate_project'),
+  qtyContract: numeric('qty_contract'),
+  rateContract: numeric('rate_contract'),
+})
+
+// R85 Addendum 3 v4, Phase 3 (E2 "the versioned baseline, not a freeze" --
+// D87/D88/D89/D90/D91, claude_log 366/372/373/374/375; work order
+// WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md section E2/Phase 3, gates
+// 3-01..3-09). Confirming a baseline is an explicit user act (never
+// automatic -- 3-02) that snapshots every line's four dual-view columns
+// (qtyProject/rateProject/qtyContract/rateContract) at that moment. Prior
+// versions are NEVER overwritten or deleted (3-03) -- enforced at the DB
+// level too (drizzle/0594 REVOKEs UPDATE/DELETE from app_runtime AND
+// service_role; only the table owner retains implicit privilege, same
+// documented limitation as compliance.audit_logs -- see drizzle/0236's own
+// Part A comment). rate_project as it stood at each confirmation IS the
+// estimated cost for every later comparison (A5, 3-09) -- proven in
+// boq-baseline-service.test.ts by mutating the LIVE line after confirmation
+// and re-reading this row's line_snapshot unchanged.
+//
+// ONE ROW PER BASELINE VERSION, not one row per line -- line_snapshot is a
+// JSONB array (BoqBaselineLineSnapshot[] in boq-baseline-service.ts) of
+// every line's id/parentLineItemId/qtyProject/rateProject/qtyContract/
+// rateContract at confirmation time, shaped to match boq-dual-view-
+// service.ts's BoqLineForRollup exactly so rollUpRootLines()/
+// computeCostCoverage() run directly against it (single-producer rule,
+// X-27 -- nothing here recomputes that math). The work order's own 3-01
+// only requires "a snapshot of every line's four columns", not line-level
+// baseline rows.
+export const boqBaseline = complianceSchemaDB.table('boq_baseline', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  boqId: text('boq_id').notNull(),
+  version: integer('version').notNull(),
+  confirmedById: text('confirmed_by_id').notNull(),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }).notNull().defaultNow(),
+  // D88: PO, proforma, agreed proposal, term sheet, proposal sent, agreement,
+  // email, or explicit written confirmation. NOT NULL and non-empty (DB CHECK
+  // constraint in drizzle/0594) -- confirmBaseline() validates this BEFORE
+  // ever reaching the DB; the DB constraint is the backstop.
+  evidenceArtefactRef: text('evidence_artefact_ref').notNull(),
+  // BoqBaselineLineSnapshot[] -- see boq-baseline-service.ts for the shape.
+  lineSnapshot: jsonb('line_snapshot').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// R85 Addendum 3 v4, Phase 6 -- VISIBILITY AND THE CLIENT BOUNDARY (Part H:
+// deliberately sequenced BEFORE Phase 7 exports -- build the boundary before
+// the thing it protects exists). Owner rulings D87 (claude_log 366), D88
+// (372), D89 (373), D90 (374), D91 (375). Work order: Google Drive
+// WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md, gates 6-01..6-05.
+//
+// Per-org, per-INTERNAL-role toggle: which roles may see cost/variance/
+// project-side figures (rate_project above all -- "the most sensitive field
+// in the product", D91 B1). ONE row per (org_id, role); the row's absence
+// means "not granted" (fail-closed default -- see
+// cost-visibility-service.ts's canRoleSeeCost()).
+//
+// ★ HARD FLOOR (6-01), NOT CONFIGURABLE BY ANYONE, ENFORCED HERE AT THE DB
+// LAYER -- NOT JUST IN APPLICATION CODE ★: the CHECK constraint below makes
+// it structurally impossible to INSERT or UPDATE a row that grants
+// client_viewer cost visibility, so a direct SQL write or a future
+// application-code bug cannot violate it either -- see
+// cost_visibility_config_no_client_viewer_grant in
+// drizzle/0596_r85a3_p6_cost_visibility_config.sql. `role` reuses the real
+// userRoleEnum (not a separate/duplicated role model, not the
+// PROJEXA-repo-only owner/admin/pm/site_engineer/member/client_viewer
+// OrgRole shape -- see this repo's own CLAUDE.md "PROJEXA is a SEPARATE
+// repository" section) so an invalid role string is rejected at the type
+// level before the CHECK constraint is ever reached.
+//
+// changedById/changedAt (6-02): every visibility change captures who made it
+// and when -- set-cost-visibility-for-role's upsert always rewrites both,
+// never just canSeeCost, so the row can never show a stale
+// changedBy/changedAt beside a fresh value.
+export const costVisibilityConfig = complianceSchemaDB.table('cost_visibility_config', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  role: userRoleEnum('role').notNull(),
+  canSeeCost: boolean('can_see_cost').notNull().default(false),
+  changedById: text('changed_by_id').notNull(),
+  changedAt: timestamp('changed_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 // R67 lane I (WS-I item I-05, R-177): the org's editable BOQ category list --
@@ -11108,6 +11270,10 @@ export const constructionBoqsRelations = relations(constructionBoqs, ({ many }) 
 export const constructionBoqLineItemsRelations = relations(constructionBoqLineItems, ({ one, many }) => ({
   boq: one(constructionBoqs, { fields: [constructionBoqLineItems.boqId], references: [constructionBoqs.id] }),
   progressEntries: many(constructionWorkProgressEntries),
+}))
+
+export const boqBaselineRelations = relations(boqBaseline, ({ one }) => ({
+  boq: one(constructionBoqs, { fields: [boqBaseline.boqId], references: [constructionBoqs.id] }),
 }))
 
 export const constructionInterimBillsRelations = relations(constructionInterimBills, ({ many }) => ({

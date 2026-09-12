@@ -33,15 +33,18 @@
 // problem for a human/AI reviewer to catch in the PR, same class of
 // guarantee as every other check-*.mjs here.
 //
-// CI wiring status: NOT yet wired into .github/workflows/ci.yml as of this
-// commit -- this session's git token lacks the `workflow` OAuth scope
-// needed to push a branch that touches .github/workflows/*.yml (same
-// documented limitation as the "Back out ci.yml wiring for the new
-// service-header-comment check" commit in this repo's history). A
-// follow-up session with a workflow-scoped token should add:
-//   - run: node scripts/check-route-auth-guard.mjs --base origin/main
-// as its own job step, alongside check-route-error-handling.mjs (which
-// has the same not-yet-wired status).
+// CI wiring status (corrected 2026-09-11, W-CI): the paragraph originally
+// here claiming this was "NOT yet wired into CI" was stale -- confirmed by
+// reading .github/workflows/ci.yml directly, this check IS wired in, as
+// its own step inside the "Route Error Handling Check" job, alongside
+// check-route-error-handling.mjs. Original note kept below for the
+// history of why the gap existed, not deleted:
+//   ORIGINAL NOTE: NOT yet wired into .github/workflows/ci.yml as of that
+//   commit -- that session's git token lacked the `workflow` OAuth scope
+//   needed to push a branch that touches .github/workflows/*.yml (same
+//   documented limitation as the "Back out ci.yml wiring for the new
+//   service-header-comment check" commit in this repo's history). Fixed by
+//   a later session with a workflow-scoped token.
 //
 // Usage: node scripts/check-route-auth-guard.mjs [--base <ref>]
 //        BASE_REF=origin/main node scripts/check-route-auth-guard.mjs
@@ -72,9 +75,51 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   // F-2026-0910-PM-065 rather than buried in this exemption -- an exemption
   // should not be where a security question goes to be forgotten.
   "src/app/api/mcp/route.ts",
+  //
+  // Cron-triggered entry point (see vercel.json) -- there is no Supabase
+  // session for a scheduled job. isAuthorized() below (verbatim pattern
+  // from every other /api/internal/*/run route) gates on
+  // `Authorization: Bearer ${CRON_SECRET}`, checked directly in the file,
+  // not inferred from its header comment -- requireAuth() would be
+  // structurally inapplicable here, not merely omitted.
+  "src/app/api/internal/dispatch-completion-monitor/run/route.ts",
+  //
+  // Deliberately token-based, not session-based -- validateSupportSessionToken()
+  // gates on `Authorization: Bearer ss_...`, the same convention as
+  // api-key-auth.ts's `Bearer vk_...` pattern, verified by reading the
+  // handler directly. The route answers "who am I impersonating" for a
+  // support agent acting via a token that precedes/replaces a normal
+  // session; requireAuth() would break the exact mechanism this route
+  // exists to expose.
+  "src/app/api/support-sessions/whoami-target/route.ts",
+  //
+  // R85 Addendum 3 v4 Phase 6 (2026-09-12): a REAL, pre-existing false
+  // positive in this checker's regex, not a genuinely unauthenticated
+  // route -- flagging it here honestly rather than papering over it.
+  // requireAuthOrApiKey() (this file's actual auth call) DOES call
+  // requireAuth() internally for a session caller (see auth-guard.ts's own
+  // implementation) -- REQUIRE_AUTH_RE's `\brequireAuth\s*\(` simply does
+  // not match the substring "requireAuthOrApiKey(" (no word boundary
+  // between "requireAuth" and "OrApiKey", both word characters), so this
+  // textual check cannot see that indirection. This is a real, structural
+  // gap for the ENTIRE requireAuthOrApiKey family of v1 routes across this
+  // codebase -- these four just happen to be the first requireAuthOrApiKey-
+  // only files a session has modified since this checker went live in CI
+  // (confirmed: origin/main's own pre-change versions already lacked a
+  // literal "requireAuth(" match and were never previously flagged, simply
+  // because they were never in a diff before). Not fixed here (widening
+  // REQUIRE_AUTH_RE or adding a second accepted identifier is a change to
+  // a shared CI guardrail's matching logic, out of this phase's scope) --
+  // flagged for a future session to fix the regex itself rather than
+  // growing this exemption list one requireAuthOrApiKey route at a time.
+  "src/app/api/v1/construction/boq/route.ts",
+  "src/app/api/v1/construction/boq/[id]/route.ts",
+  "src/app/api/v1/construction/boq/[id]/compare/route.ts",
+  "src/app/api/v1/construction/cost-visibility/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail
+  "src/lib/services/boq-dual-view-service.ts", // R85 Addendum 3 v4 (D87/D90/D91): pure computation over already-loaded numbers (project/contract value, variance, decomposition, roll-up) -- no DB access, no I/O, cannot fail. Absent/invalid input resolves to the NOT_SET sentinel by design (see X-04), never a thrown error.
 ])
 
 const HTTP_HANDLER_RE = /export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/

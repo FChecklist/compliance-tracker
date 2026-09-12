@@ -4,16 +4,24 @@
 // ruled: NOT the WhatsApp Business API -- a plain unguessable URL the user
 // pastes into WhatsApp themselves. AR-10 applies: the public resolve path
 // must render, never authorise -- see resolveReportShareLink()'s comment.
-import { reportShareLinks, db } from "@/lib/db"
+import { reportShareLinks } from "@/lib/db"
 import { isShareLinkUsable } from "@/lib/share-link-usable"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
 import { ServiceError } from "./compliance-service"
+import { lookupReportShareLinkByToken } from "@/lib/db/preauth-lookups"
 import { listBoqs, getBoq } from "./construction-boq-service"
 import { listActivities, listCategories, listProgressEntries } from "./construction-progress-service"
 import { getProjectDashboard } from "./construction-dashboard-service"
 import { attendanceSummary, boqBudgetVarianceReport } from "./construction-reports-service"
+// R85 Addendum 3 v4 Phase 6 (gate 6-03b): a public, unauthenticated share
+// link "must never carry cost/project-side/variance fields either, even for
+// a share token an internal user created" -- there is no caller identity
+// here to grant visibility to, so this always redacts, unconditionally,
+// never calling canRoleSeeCost at all. See cost-visibility-service.ts's own
+// header for the full rule this file is one caller of.
+import { redactForPublicShare } from "./cost-visibility-service"
 export { ServiceError }
 
 export type ReportRef = { projectId: string; from: string; to: string }
@@ -117,7 +125,17 @@ export async function revokeReportShareLink(ctx: { orgId: string }, linkId: stri
 // visitor can therefore only ever reach the one org + one report the token
 // was minted for, nothing else in the multi-tenant database.
 export async function resolveReportShareLink(token: string) {
-  const found = await db.query.reportShareLinks.findFirst({ where: eq(reportShareLinks.token, token) })
+  // CRR-027/028 CONTRACT: was db.query.reportShareLinks.findFirst() over
+  // the raw (RLS-bypassing) client -- narrowed to SECURITY DEFINER
+  // compliance.lookup_report_share_link_by_token(text), which does ONLY the
+  // exact-token-equality lookup and returns the unfiltered full row.
+  // isShareLinkUsable() below is UNCHANGED and still decides usability in
+  // application code -- deliberately not baked into the SQL function, since
+  // that same predicate is shared by 7 other public token surfaces (see
+  // kt/handover/HANDOVER_W-ENV_2026-09-10T2230.json's
+  // report_share_links_shape_divergence note). See
+  // pm/CRR027_028_CONTRACT_AUDIT_2026-09-10.md §6.
+  const found = await lookupReportShareLinkByToken(token)
   if (!isShareLinkUsable(found, new Date()) || !found) {
     throw new ServiceError("This share link is invalid or has expired", 404)
   }
@@ -138,14 +156,14 @@ export async function resolveReportShareLink(token: string) {
       getProjectDashboard({ orgId: link.orgId }, ref.projectId),
       boqBudgetVarianceReport({ orgId: link.orgId }, ref.projectId, {}),
     ])
-    return {
+    return redactForPublicShare({
       reportType: link.reportType,
       projectId: ref.projectId, from: ref.from, to: ref.to,
       boqTitle: variance.boqTitle,
       dashboard,
       lines: variance.lines.filter((l) => l.isRootLine),
       totals: { budget: variance.totalBudget, vendorAmount: variance.totalVendorAmount },
-    }
+    })
   }
 
   // R67 D-31: the attendance summary resolves through the SAME rule the work
@@ -167,11 +185,11 @@ export async function resolveReportShareLink(token: string) {
     listProgressEntries({ orgId: link.orgId }, { projectId: ref.projectId }),
   ])
 
-  return {
+  return redactForPublicShare({
     reportType: link.reportType,
     projectId: ref.projectId, from: ref.from, to: ref.to,
     boqTitle: latestBoq?.title ?? null,
     lineItems: latestBoq?.lineItems ?? [],
     activities, categories, entries,
-  }
+  })
 }

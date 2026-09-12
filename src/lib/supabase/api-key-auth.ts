@@ -1,7 +1,5 @@
-import { db, apiKeyRequestLog } from "@/lib/db"
-import { eq, and, gte, sql } from "drizzle-orm"
 import { hashSHA256 } from "@/lib/api-keys"
-import { lookupApiKeyByHash } from "@/lib/db/preauth-lookups"
+import { lookupApiKeyByHash, countRecentApiKeyRequests } from "@/lib/db/preauth-lookups"
 import { pendingApiKeyRequestCount, recordApiKeyUse } from "@/lib/auth/api-key-audit"
 
 // R67 F-17 (R-234) x F-33 (R-278) -- THE USAGE BOOKKEEPING LEAVES THE REQUEST
@@ -111,6 +109,20 @@ function demoKeyAllowlist(): Set<string> {
 // rate-limited rather than unlimited -- no separate step required. Doesn't
 // touch scopes (read,write is fine for a sandbox -- integrators need to
 // exercise writes too) or any non-demo key's behavior at all.
+//
+// CORRECTED (R81_F31): that last sentence was the defect. The rate ceiling
+// above is clamped for any KNOWN_DEMO_KEY_IDS key; the SCOPE ceiling was
+// not -- so an operator who opts a demo key into sandbox use via
+// DEMO_API_KEY_IDS gets a key that is throttled but can still WRITE to the
+// demo org, the exact asymmetry F31 named. effectiveScopesFor() below
+// closes it the same way effectiveRateLimitFor() already does: independent
+// of, and always at least as strict as, whatever the DB row itself grants.
+// A scope counts as read-shaped if it IS "read" or starts with "read:" (the
+// only two conventions this codebase actually checks via .includes() --
+// see auth-guard.ts's hasScope()/requireReportsReadAccess()) -- everything
+// else (today: "write") is dropped for a demo key. Today this is still a
+// no-op in every real environment: the key is rejected outright unless
+// DEMO_API_KEY_IDS explicitly allowlists it.
 const DEMO_KEY_RATE_LIMIT_PER_MINUTE = 30
 
 function effectiveRateLimitFor(row: { id: string; rateLimitPerMinute: number | null }): number | null {
@@ -118,6 +130,12 @@ function effectiveRateLimitFor(row: { id: string; rateLimitPerMinute: number | n
   return row.rateLimitPerMinute === null
     ? DEMO_KEY_RATE_LIMIT_PER_MINUTE
     : Math.min(row.rateLimitPerMinute, DEMO_KEY_RATE_LIMIT_PER_MINUTE)
+}
+
+function effectiveScopesFor(row: { id: string; scopes: string }): string[] {
+  const scopes = row.scopes.split(",").map((s) => s.trim()).filter(Boolean)
+  if (!KNOWN_DEMO_KEY_IDS.has(row.id)) return scopes
+  return scopes.filter((s) => s === "read" || s.startsWith("read:"))
 }
 
 /**
@@ -128,9 +146,11 @@ function effectiveRateLimitFor(row: { id: string; rateLimitPerMinute: number | n
  * in auth-guard.ts). Also enforces the key's effective rate limit (its own
  * rate_limit_per_minute -- null = unlimited -- capped at
  * DEMO_KEY_RATE_LIMIT_PER_MINUTE for known demo/sandbox keys, see
- * effectiveRateLimitFor() above), rejects a known demo/seed key unless
- * explicitly allowlisted via DEMO_API_KEY_IDS (see KNOWN_DEMO_KEY_IDS
- * above), and logs the request into api_key_request_log for both the
+ * effectiveRateLimitFor() above) and effective scopes (clamped to read-only
+ * for the same demo/sandbox keys, see effectiveScopesFor() above --
+ * R81_F31), rejects a known demo/seed key unless explicitly allowlisted via
+ * DEMO_API_KEY_IDS (see KNOWN_DEMO_KEY_IDS above), and logs the request
+ * into api_key_request_log for both the
  * rate-limit count and the usage-analytics dashboard. Since R67 F-17 that
  * log write (and the api_keys.last_used_at touch that used to accompany it)
  * goes through the batching queue in src/lib/auth/api-key-audit.ts instead
@@ -163,9 +183,14 @@ export async function validateApiKey(request: Request): Promise<ValidateApiKeyRe
 
   if (rateLimit !== null) {
     const cutoff = new Date(at.getTime() - RATE_LIMIT_WINDOW_SECONDS * 1000)
-    const [{ count }] = await db.select({ count: sql<number>`count(*)` })
-      .from(apiKeyRequestLog)
-      .where(and(eq(apiKeyRequestLog.apiKeyId, row.id), gte(apiKeyRequestLog.createdAt, cutoff)))
+    // CRR-027/028 CONTRACT expand step, 6th of 6 NEEDS_NEW_NARROW_FUNCTION
+    // sites (F-2026-0910-W-PROD-009): was a raw db.select(...).from(apiKeyRequestLog)
+    // count query over the plain (RLS-bypassing) db client -- this IS the
+    // preauth step, same reasoning as lookupApiKeyByHash above -- now goes
+    // through the narrow SECURITY DEFINER
+    // compliance.count_recent_api_key_requests(text, timestamptz) function
+    // instead. Same window/condition (apiKeyId = row.id, createdAt >= cutoff).
+    const count = await countRecentApiKeyRequests(row.id, cutoff)
 
     // R67 F-17: the request log is now written in batches (see
     // src/lib/auth/api-key-audit.ts), so the DB count alone is up to one flush
@@ -173,7 +198,7 @@ export async function validateApiKey(request: Request): Promise<ValidateApiKeyRe
     // start of each batch. The queue's own unwritten rows close it.
     const queued = pendingApiKeyRequestCount(row.id, cutoff)
 
-    if (Number(count) + queued >= rateLimit) {
+    if (count + queued >= rateLimit) {
       // R67 F-33: still logged -- a rejected request is the one an operator most
       // wants to see in the usage dashboard -- but never beside the 429.
       void recordApiKeyUse({
@@ -198,7 +223,7 @@ export async function validateApiKey(request: Request): Promise<ValidateApiKeyRe
     status: "ok",
     context: {
       orgId: row.orgId,
-      scopes: row.scopes.split(",").map((s) => s.trim()).filter(Boolean),
+      scopes: effectiveScopesFor(row),
       keyId: row.id,
       keyName: row.name,
     },

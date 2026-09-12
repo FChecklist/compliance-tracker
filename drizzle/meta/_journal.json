@@ -2829,6 +2829,55 @@
       "when": 1789033297662,
       "tag": "0588_construction_tenders_org_scoped",
       "breakpoints": true
+    },
+    {
+      "idx": 406,
+      "version": "7",
+      "when": 1789033298662,
+      "tag": "0590_crr027_028_expand_preauth_functions_report_share_and_api_key_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 407,
+      "version": "7",
+      "when": 1789033299662,
+      "tag": "0585_p2_6_security_definer_registry_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 408,
+      "version": "7",
+      "when": 1789033300662,
+      "tag": "0592_r83_p0_preauth_policies_scope_to_no_tenant_context",
+      "breakpoints": true
+    },
+    {
+      "idx": 409,
+      "version": "7",
+      "when": 1789194771199,
+      "tag": "0593_r85a3_p1_boq_line_project_contract_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 410,
+      "version": "7",
+      "when": 1789194871199,
+      "tag": "0594_r85a3_p3_boq_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 411,
+      "version": "7",
+      "when": 1789200000000,
+      "tag": "0595_r85a3_p4_gross_net_override_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 412,
+      "version": "7",
+      "when": 1789200100000,
+      "tag": "0596_r85a3_p6_cost_visibility_config",
+      "breakpoints": true
     }
   ]
 }

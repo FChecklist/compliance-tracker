@@ -209,12 +209,23 @@ export async function transitionPromptLifecycle(
     .where(eq(promptVersions.id, input.versionId))
     .returning()
 
+  // Dependents may be a confirmed answer (possibly a real empty list) or an
+  // explicit "unknown" state (T2-01) -- never silently collapse "unknown"
+  // into "0 known call sites" here, in the audit trail an operator/auditor
+  // relies on to reconstruct blast radius after the fact.
+  const dependentsSummary =
+    gateResult.dependents.status === "unknown"
+      ? ` Dependents: UNKNOWN -- could not determine (${gateResult.dependents.reason})`
+      : gateResult.dependents.dependents.length
+        ? ` ${gateResult.dependents.dependents.length} known call site(s): ${gateResult.dependents.dependents.map((d) => d.file).join(", ")}`
+        : ""
+
   if (ctx.dbUser.orgId) {
     await withTenantContext({ orgId: ctx.dbUser.orgId, userId: ctx.userId }, (tx) =>
       recordPromptGovernanceEvent(tx, {
         orgId: ctx.dbUser.orgId!, dbUser: ctx.dbUser, entityId: row.id,
         action: "prompt_lifecycle.transition",
-        details: `Prompt template "${template.templateKey}" version ${version.version}: ${fromState} -> ${input.toState}.${gateResult.dependents.length ? ` ${gateResult.dependents.length} known call site(s): ${gateResult.dependents.map((d) => d.file).join(", ")}` : ""}`,
+        details: `Prompt template "${template.templateKey}" version ${version.version}: ${fromState} -> ${input.toState}.${dependentsSummary}`,
       })
     ).catch((err) => console.error(`[audit] failed to record prompt_lifecycle.transition for version ${row.id}:`, err))
   }

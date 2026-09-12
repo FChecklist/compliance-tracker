@@ -9,7 +9,17 @@
 // use (same xlsx package, same json_to_sheet call) -- just without the
 // browser download trigger, so src/app/api/v1/reports/** can return the
 // bytes directly in an HTTP response instead.
-import * as XLSX from "xlsx"
+//
+// NOTE (2026-09-12, production RAM audit): `xlsx` is NOT imported at module
+// scope here. csvEscape()/rowsToCSV() have zero dependency on it, but this
+// file used to import it eagerly anyway -- since crm-service.ts only needs
+// csvEscape(), that eager import was dragging the full xlsx library into 45
+// otherwise-unrelated CRM routes' cold-start bundle for no functional
+// benefit. rowsToXLSXBuffer() below lazy-requires it instead, same
+// established pattern as src/lib/ingest/parser.ts's own `require('xlsx')`
+// inside parseCsv() -- a synchronous, Node-`require`-cached lazy load, so
+// every one of this function's 6+ existing call sites (all synchronous,
+// none `await` it) keeps working unchanged.
 
 export type ExportRow = Record<string, string | number>
 
@@ -48,6 +58,8 @@ export function rowsToCSV(rows: ExportRow[]): string {
 }
 
 export function rowsToXLSXBuffer(rows: ExportRow[], sheetName = "Report"): Buffer {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy load, see file header
+  const XLSX = require("xlsx") as typeof import("xlsx")
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, sheetName)

@@ -5,6 +5,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { getBoq, updateBoq, deleteBoq, ServiceError } from "@/lib/services/construction-boq-service"
+// R85 Addendum 3 v4 Phase 6 (gates 6-01/6-03a): THE ONE GATE, see
+// cost-visibility-service.ts's own header.
+import { applyCostVisibility } from "@/lib/services/cost-visibility-service"
+import type { UserRole } from "@/lib/supabase/role-rank"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuthOrApiKey(request)
@@ -14,7 +18,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id } = await params
     const boq = await getBoq({ orgId: ctx.orgId }, id)
-    return NextResponse.json(boq)
+    const role = (ctx.dbUser?.role as UserRole | undefined) ?? null
+    const responseBody = await applyCostVisibility({ orgId: ctx.orgId }, role, boq)
+    return NextResponse.json(responseBody)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 construction BOQ get error:", error)
