@@ -198,7 +198,7 @@ describe("applyContractOverride -- 4-07/4-08: reason + evidenceArtefactRef requi
 })
 
 describe("4-05: nothing is stored pre-computed -- the migration adds ONLY the two rate columns and the five override columns, never a gross/net/profit column", () => {
-  const migrationPath = join(import.meta.dir, "..", "..", "..", "drizzle", "0594_r85a3_p4_gross_net_override_columns.sql")
+  const migrationPath = join(import.meta.dir, "..", "..", "..", "drizzle", "0595_r85a3_p4_gross_net_override_columns.sql")
   const sql = readFileSync(migrationPath, "utf8")
   // Strip `--` line comments before pattern-matching below -- this
   // migration's own header comment narrates (in prose) the bloated
