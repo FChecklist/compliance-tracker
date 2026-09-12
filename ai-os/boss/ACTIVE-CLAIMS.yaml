@@ -40,210 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (subagent, isolated worktree, r85a3/p9-analysis-screen) -- R85 Addendum 3 v4 FINAL, PHASE 9: the analysis screen (B3, gates 9-01..9-07)"
-    claimed_at: "2026-09-12T (this session)"
-    claim: |
-      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Drive id
-      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part F Phase 9. Per-project and
-      cross-project profit/variance analysis, READ-ONLY, built on top of the
-      SINGLE-PRODUCER services already merged: boq-dual-view-service.ts
-      (Phase 1/2), boq-baseline-service.ts (Phase 3), boq-contract-value-
-      service.ts (Phase 4), boq-cost-actuals-service.ts (Phase 5). Does NOT
-      recompute any figure -- calls the existing functions only (Part D
-      SINGLE PRODUCER RULE / X-27).
-
-      File scope: NEW src/lib/services/boq-analysis-service.ts (+ .test.ts),
-      NEW src/app/api/v1/projexa/reports/boq-analysis/route.ts (+
-      route.test.ts, gated via requireRole -- client_viewer/viewer are rank 1
-      in role-rank.ts, same pattern as reports/definitions/[id]/run/route.ts).
-      Does NOT touch boq-dual-view-service.ts, boq-baseline-service.ts,
-      boq-contract-value-service.ts, boq-cost-actuals-service.ts,
-      boq-rate-history-service.ts, or any file under Phase 6's active work
-      (visibility/client-boundary, background agent a174a8d7fb8c22c9d, file
-      scope not yet known from its own claim since it has not reported --
-      re-checked this file for a Phase 6 active: entry before starting: none
-      exists, so scope is inferred conservatively as read-only reads through
-      the existing services only, no shared-file edits).
-
-      NOT touching: Phase 7 (Excel round-trip, not yet started), Phase 10
-      (what-if engine, dispatched in parallel by this same session under a
-      disjoint NEW-file scope), Phase 11 (close).
-  - session_label: "claude-code (subagent, isolated worktree, r85a3/p10-what-if-engine) -- R85 Addendum 3 v4 FINAL, PHASE 10: the what-if / scenario engine (gates 10-01..10-13)"
-    claimed_at: "2026-09-12T (this session)"
-    claim: |
-      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Drive id
-      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part F Phase 10 -- "the largest
-      single build" per Part H's own honest sizing. Non-destructive scratch
-      scenarios (rate/qty adjustments, bulk, target-seek, BASE|SCENARIO|DELTA)
-      with NOTHING written until an explicit commit (10-08), and on commit,
-      every Phase 3/4 evidence-gated write guard applies in full (10-09) --
-      reuses construction-boq-service.ts's createBoqRevision/submitBoq/
-      approveBoq and boq-contract-value-service.ts's applyContractOverride as
-      the actual write path, never re-implementing the evidence gate. AI actor
-      commit attempts are refused at the guard (10-12), never only the UI.
-
-      File scope: NEW drizzle/05XX_r85a3_p10_boq_scenarios.sql (a
-      boq_scenario table: name/author/created_at/base_baseline_version/
-      adjustment list -- additive only, via db:generate), src/lib/db/
-      schema.ts (additive boqScenario table only), NEW
-      src/lib/services/boq-scenario-service.ts (+ .test.ts), NEW
-      src/app/api/v1/projexa/boq-scenarios/** routes (+ route.test.ts,
-      client-role-refused per 10-13, same requireRole pattern as Phase 9's
-      entry above).
-
-      MIGRATION NUMBERING: check drizzle/meta/_journal.json and
-      `git ls-files drizzle/` against origin/main immediately before
-      generating -- 0595 (Phase 4) is the highest merged number as of this
-      claim; this branch's own number is NOT reserved here since Phase 9
-      (this session, parallel, no migration) and Phase 6 (in flight,
-      migration status unknown) could still land first. Renumber at merge
-      time via check-migration-collision.mjs's accepted role, per this
-      file's own established convention this session (Phase 3/4's 0594/0595
-      collision-and-renumber).
-
-      NOT touching: Phase 9 (analysis screen, dispatched in parallel by this
-      same session under a disjoint NEW-file scope), Phase 6/7 (visibility
-      and Excel round-trip, not yet started/in flight), Phase 11 (close).
-  - session_label: "claude-code (subagent, r85a3/p3-boq-baselines) -- R85 Addendum 3 v4 Phase 3 (BASELINES), gates 3-01..3-09"
-    claimed_at: "2026-09-12T (this session) -- registered retroactively after work was already complete and PR opened, due to an emergency mid-task reboot-checkpoint interruption; recorded here per AGENTS.md Rule 11 as soon as the session resumed normal flow"
-    claim: |
-      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Google Drive file
-      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), section E2/Phase 3, gates
-      3-01..3-09. Owner rulings D87 (claude_log 366), D88 (372), D89 (373),
-      D90 (374), D91 (375).
-
-      DONE: drizzle/0594_r85a3_p3_boq_baseline.sql (new compliance.boq_baseline
-      table, applied LIVE against pcrjmlpuqsbocqfwoxod via Supabase MCP and
-      re-verified via information_schema/pg_policies/pg_constraint),
-      drizzle/meta/_journal.json idx 410, src/lib/db/schema.ts (boqBaseline +
-      boqBaselineRelations), src/lib/services/boq-baseline-service.ts
-      (confirmBaseline/getBaselineVersion/listBaselineVersions/
-      compareBaselines/getEstimatedCostFromBaseline/isBaselineEvidenced/
-      getEvidenceArtefactRefOrUnevidenced), src/lib/services/
-      boq-baseline-service.test.ts (14 tests, all passing; 3-09's
-      falsifiability plant/revert performed and recorded verbatim in the PR).
-
-      PR: https://github.com/FChecklist/compliance-tracker/pull/1697
-      (r85a3/p3-boq-baselines -> main, open, not merged by this session per
-      AGENTS.md Rule 6).
-
-      File scope: exactly the 5 files above. NOT touching: the BOQ grid UI,
-      Excel round-trip, or the what-if engine (Phases 2/7/10 -- separate,
-      later phases per the work order's own sequencing).
-  - session_label: "claude-code (interactive, subagent) -- R85 Addendum 3 v4 (claude_log 379), PHASE 8 THE HISTORY DEFAULT / RATE LIBRARY (spec section E5, gates 8-01..8-08)"
-    claimed_at: "2026-09-12T (this session)"
-    claim: |
-      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Drive id
-      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part F Phase 8. Building
-      findRateHistoryMatches / formatRateHistoryOffer / recordRateHistoryAcceptance
-      in a NEW file, src/lib/services/boq-rate-history-service.ts -- reads
-      constructionBoqLineItems (existing qtyProject/rateProject columns from
-      Phase 1, already merged to main as of commit 42669a93/#1696) scoped to the
-      calling org via withTenantContext, matching construction-boq-service.ts's
-      existing org-scoping convention. Read-only against existing data; NO new
-      table, NO migration expected (a rate-history read path, not a new store).
-      8-08 acceptance capture reuses the existing generic src/lib/audit.ts
-      logActivity()/auditLogs table (per G-25 -- no parallel logging mechanism).
-      8-07 is a hard security gate: adversarial cross-tenant test required,
-      committed test suite plus a live BEGIN...ROLLBACK proof via Supabase MCP
-      against pcrjmlpuqsbocqfwoxod's real RLS policies on construction_boqs /
-      construction_boq_line_items.
-
-      File scope: src/lib/services/boq-rate-history-service.ts (NEW),
-      src/lib/services/boq-rate-history-service.test.ts (NEW). Does NOT touch
-      boq-dual-view-service.ts (the single-producer money-figure module, Phase
-      1/2, already merged -- read only), construction-boq-service.ts, or any
-      file under active work by the r85a3/p3-boq-baselines branch (PR #1697,
-      Phase 3 baselines -- disjoint file scope, boq_baseline table + baseline
-      confirm/version-compare logic, not touched here). No drizzle/ migration.
-
-      Branch: r85a3/p8-rate-history (off origin/main @ 42669a93).
-  - session_label: "claude-code (subagent, isolated worktree agent-aa9b5376c526adb49) -- R85 Addendum 3 v4 Phase 5: committed and spent (A5, gates 5-01..5-07)"
-    claimed_at: "2026-09-12T (this session)"
-    claim: |
-      SPEC: R85 Addendum 3 v4 FINAL work order (Google Drive file
-      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part A5 / PHASE 5 (gates 5-01..5-07).
-      Rulings D87 (366) D88 (372) D89 (373) D90 (374) D91 (375). Supersession
-      notice: platform.claude_log id 379.
-
-      SCOPE: NEW src/lib/services/boq-cost-actuals-service.ts (computeCommittedCost/
-      computeSpentCost + *WithDb siblings, computeCostVariance,
-      isCommittedOverBaseline) and its test file
-      src/lib/services/boq-cost-actuals-service.test.ts. Read-only investigation
-      of live schema (erp_purchase_orders, erp_purchase_invoices,
-      construction_attendance, construction_labour_roster, erp_suppliers) via
-      Supabase MCP against pcrjmlpuqsbocqfwoxod -- no schema.ts change, no
-      migration (cost_committed/cost_spent are derived, never stored, per X-06).
-      Regenerated docs/master/TEST_COVERAGE_GAP.md (report-test-coverage-gap.mjs).
-
-      NOT touching: Phase 3 (boq_baseline table + service, r85a3/p3-boq-baselines,
-      PR #1697 open) or Phase 4 (gross/net/VAT/retention/override columns) --
-      computeCostVariance takes the baseline estimated cost as a plain
-      parameter rather than importing Phase 3's service, specifically to avoid
-      a cross-branch dependency. Branch: r85a3/p5-committed-spent, off
-      origin/main @ 42669a93 (already includes Phase 1's merged columns and
-      Phase 2's boq-dual-view-service.ts, the single producer this file never
-      duplicates).
-  - session_label: "claude-code (subagent, r85a3/p6-visibility-client-boundary) -- R85 Addendum 3 v4 Phase 6 (VISIBILITY AND THE CLIENT BOUNDARY), gates 6-01..6-05"
-    claimed_at: "2026-09-12T (this session)"
-    claim: |
-      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Google Drive file
-      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part H sequencing (Phase 6 before
-      Phase 7 exports, deliberately), gates 6-01..6-05. Owner rulings D87
-      (claude_log 366), D88 (372), D89 (373), D90 (374), D91 (375).
-      Supersession notice: claude_log id 379.
-
-      CONFIRMED BEFORE STARTING (per this file's own protocol + G-25): read
-      this file, `gh pr list`, and `git log origin/main` first. Phase 1
-      (project/contract columns) and Phase 3 (baselines) are merged to main
-      (#1696, #1697). Phase 4 (r85a3/p4-gross-net-override), Phase 5
-      (r85a3/p5-committed-spent), Phase 8 (r85a3/p8-rate-history) are
-      in-progress on their own branches -- NOT touched by this claim.
-      Investigated existing role/permission machinery before building
-      anything new (G-25, zero duplication): reused
-      src/lib/supabase/role-rank.ts's real UserRole enum/ROLE_RANK (11
-      values incl. client_viewer, rank 1) rather than inventing a second
-      role model or the PROJEXA-repo-only OrgRole owner/admin/pm/
-      site_engineer/member/client_viewer shape (that type lives in the
-      separate FChecklist/projexa repo, per this repo's own CLAUDE.md
-      PROJEXA-is-separate section -- not reachable or relevant from here).
-
-      SCOPE: new compliance.cost_visibility_config table (org-scoped,
-      per-role, changed_by/changed_at, DB CHECK hard-floor blocking
-      client_viewer), src/lib/services/cost-visibility-service.ts
-      (canRoleSeeCost + a generic project-side-field redaction helper --
-      the ONE gate every screen/route must call), a new
-      src/app/api/v1/construction/cost-visibility/route.ts config API,
-      and read-path fixes in src/app/api/v1/construction/boq/route.ts,
-      boq/[id]/route.ts, boq/[id]/compare/route.ts (all three also serve
-      /api/v1/projexa/scope/* via re-export) plus
-      src/lib/services/report-share-service.ts's public share-token
-      resolver (6-03b). NOT touching construction-reports-service.ts's
-      pre-existing budgetPercentage/vendorAmount budget-overlay feature
-      (Point 154, a separate pre-R85 concept, out of scope) or any
-      Phase 4/5/8 file.
-
-      DONE: drizzle/0595_r85a3_p6_cost_visibility_config.sql (applied LIVE
-      against pcrjmlpuqsbocqfwoxod via Supabase MCP, DB CHECK constraint
-      live-verified to reject a client_viewer grant with Postgres 23514),
-      src/lib/services/cost-visibility-service.ts + .test.ts (13 tests),
-      src/app/api/v1/construction/cost-visibility/route.ts + .test.ts
-      (4 tests), client-boundary fixes in boq/route.ts, boq/[id]/route.ts,
-      boq/[id]/compare/route.ts + boq-route.client-boundary.test.ts (6
-      tests, incl. the 6-03d falsifiability plant/revert -- verbatim
-      RED/GREEN in the PR), report-share-service.ts's
-      resolveReportShareLink() (6-03b) +
-      report-share-service.client-boundary.test.ts (2 tests). Also fixed a
-      real, pre-existing false positive in
-      scripts/check-route-auth-guard.mjs for the whole requireAuthOrApiKey()
-      route family (documented, not silently worked around) and bumped
-      src/lib/supabase/authz-gap-inventory.test.ts's frozen counts for the
-      one new, gated mutating route this phase adds.
-
-      PR: https://github.com/FChecklist/compliance-tracker/pull/1701
-      (r85a3/p6-visibility-client-boundary -> main, open, not merged by
-      this session per AGENTS.md Rule 6). Rebased cleanly onto origin/main
-      after r85a3/p5-committed-spent merged as #1700 mid-session.
   - session_label: "claude-code (interactive, successor PM session, took handover from prior 'Project Manager' session local_9ded2765-995d-446e-ac58-eff36e1ad5ae mid-day 2026-09-11) -- R83 register integrity + continuation"
     claimed_at: "2026-09-11T23:15 IST (this session)"
     claim: |
@@ -3437,6 +3233,207 @@ active:
       push/PR/CI/merge (per this task's own instructions).
 
 recently_completed:
+  - session_label: "claude-code (interactive, PM continuation session) -- R85 Addendum 3 v4 FINAL, PHASE 7: Excel round trip (D89, gates 7-01..7-12) [DONE, merged as PR #1715]"
+    claimed_at: "2026-09-13T (this session)"
+    merged_as: "FChecklist/compliance-tracker PR #1715 (squash-merged, merge commit a39f2b1a)."
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Drive id
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part F Phase 7, gates 7-01..7-12,
+      C7. New src/lib/services/boq-excel-roundtrip-service.ts:
+      exportInternalBoq/exportCustomerBoq (two templates -- the customer one
+      structurally incapable of emitting cost-detail fields, X-31),
+      parseUploadedBoq, diffOneRow/diffUpload (four-way classification:
+      structural/cost/contract/rejected, with an evidence gate on
+      post-baseline contract changes), applyUpload (non-structural edits via
+      an in-place stale-token-refusing UPDATE; structural edits route
+      through the existing createBoqRevision path). New routes: GET/POST
+      .../boq/[id]/excel/export, diff, apply, each with its own route.test.ts.
+      Both mandatory gates (7-11 round-trip proof, 7-12 customer-template
+      cost-blindness proof reading the real produced .xlsx bytes) verified
+      in full before merge -- not just confirmed present. Also fixed a real,
+      pre-existing bug this phase's own testing surfaced: createBoqRevision's
+      copy-forward was silently wiping qtyProject/rateProject/qtyContract/
+      rateContract to NULL on every revision (regression-proofed in
+      construction-boq-service.dual-view-write.test.ts).
+  - session_label: "claude-code (interactive, PM continuation session) -- CI fix: run PROJEXA Env-1 specs even when compliance-tracker's own env1 specs fail [DONE, merged as PR #1716]"
+    claimed_at: "2026-09-13T (this session)"
+    merged_as: "FChecklist/compliance-tracker PR #1716 (squash-merged, merge commit ce3d0819)."
+    claim: |
+      Found live on the Phase 7 merge run (34717605094): PROJEXA's own env1
+      specs (including e2e/r80-r81-r82-copilot-pill-chain-env1.spec.ts, the
+      R-80/81/82 pill-chain test) had NEVER ONCE EXECUTED in CI -- the "Run
+      projexa Env-1 spec(s)" step had no if: condition, so it silently
+      skipped every time compliance-tracker's own (unrelated) env1 specs
+      failed, which they always did (peer-owned DB-password bug, unrelated
+      to what PROJEXA's specs actually test). Added if: always() to both the
+      "Install projexa's playwright browsers" and "Run projexa Env-1
+      spec(s)" steps in .github/workflows/ci.yml, matching this same job's
+      own "Server logs"/"Stop background servers" steps. Re-verified live on
+      the merge commit's own run (34718761436): the step now genuinely
+      executes for the first time ever. Result: 18/24 tests failed, but
+      across 12+ completely unrelated spec files, all showing the same
+      known "[veridian-client] getVeridianApiKey ... password
+      authentication" error already tracked against several c6-FALSE
+      sumeet_requirements rows -- R-80/81/82's OWN spec logic is not at
+      fault (R-82's own test in that file passed). Recorded against
+      R-80/81/82's c6 evidence in platform.sumeet_requirement_components
+      with the specific run URL and timestamp; left FALSE per the peer
+      session's explicit request not to close DB-password-blocked rows
+      until that separate fix lands independently.
+  - session_label: "claude-code (subagent, isolated worktree, r85a3/p9-analysis-screen) -- R85 Addendum 3 v4 FINAL, PHASE 9: the analysis screen (B3, gates 9-01..9-07) [DONE, merged as PR #1703]"
+    claimed_at: "2026-09-12T (this session)"
+    merged_as: "FChecklist/compliance-tracker PR #1703 (squash-merged, merge commit 3ec565d2)."
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Drive id
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part F Phase 9. Per-project and
+      cross-project profit/variance analysis, READ-ONLY, built on top of the
+      SINGLE-PRODUCER services already merged: boq-dual-view-service.ts
+      (Phase 1/2), boq-baseline-service.ts (Phase 3), boq-contract-value-
+      service.ts (Phase 4), boq-cost-actuals-service.ts (Phase 5). Does NOT
+      recompute any figure -- calls the existing functions only (Part D
+      SINGLE PRODUCER RULE / X-27).
+
+      File scope: NEW src/lib/services/boq-analysis-service.ts (+ .test.ts),
+      NEW src/app/api/v1/projexa/reports/boq-analysis/route.ts (+
+      route.test.ts, gated via requireRole -- client_viewer/viewer are rank 1
+      in role-rank.ts, same pattern as reports/definitions/[id]/run/route.ts).
+      Does NOT touch boq-dual-view-service.ts, boq-baseline-service.ts,
+      boq-contract-value-service.ts, boq-cost-actuals-service.ts,
+      boq-rate-history-service.ts, or any file under Phase 6's active work
+      (visibility/client-boundary, background agent a174a8d7fb8c22c9d, file
+      scope not yet known from its own claim since it has not reported --
+      re-checked this file for a Phase 6 active: entry before starting: none
+      exists, so scope is inferred conservatively as read-only reads through
+      the existing services only, no shared-file edits).
+
+      NOT touching: Phase 7 (Excel round-trip, not yet started), Phase 10
+      (what-if engine, dispatched in parallel by this same session under a
+      disjoint NEW-file scope), Phase 11 (close).
+  - session_label: "claude-code (subagent, isolated worktree, r85a3/p10-what-if-engine) -- R85 Addendum 3 v4 FINAL, PHASE 10: the what-if / scenario engine (gates 10-01..10-13) [DONE, merged as PR #1704]"
+    claimed_at: "2026-09-12T (this session)"
+    merged_as: "FChecklist/compliance-tracker PR #1704 (squash-merged, merge commit 2a20715b)."
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Drive id
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part F Phase 10 -- "the largest
+      single build" per Part H's own honest sizing. Non-destructive scratch
+      scenarios (rate/qty adjustments, bulk, target-seek, BASE|SCENARIO|DELTA)
+      with NOTHING written until an explicit commit (10-08), and on commit,
+      every Phase 3/4 evidence-gated write guard applies in full (10-09) --
+      reuses construction-boq-service.ts's createBoqRevision/submitBoq/
+      approveBoq and boq-contract-value-service.ts's applyContractOverride as
+      the actual write path, never re-implementing the evidence gate. AI actor
+      commit attempts are refused at the guard (10-12), never only the UI.
+
+      File scope: NEW drizzle/05XX_r85a3_p10_boq_scenarios.sql (a
+      boq_scenario table: name/author/created_at/base_baseline_version/
+      adjustment list -- additive only, via db:generate), src/lib/db/
+      schema.ts (additive boqScenario table only), NEW
+      src/lib/services/boq-scenario-service.ts (+ .test.ts), NEW
+      src/app/api/v1/projexa/boq-scenarios/** routes (+ route.test.ts,
+      client-role-refused per 10-13, same requireRole pattern as Phase 9's
+      entry above).
+
+      MIGRATION NUMBERING: check drizzle/meta/_journal.json and
+      `git ls-files drizzle/` against origin/main immediately before
+      generating -- 0595 (Phase 4) is the highest merged number as of this
+      claim; this branch's own number is NOT reserved here since Phase 9
+      (this session, parallel, no migration) and Phase 6 (in flight,
+      migration status unknown) could still land first. Renumber at merge
+      time via check-migration-collision.mjs's accepted role, per this
+      file's own established convention this session (Phase 3/4's 0594/0595
+      collision-and-renumber).
+
+      NOT touching: Phase 9 (analysis screen, dispatched in parallel by this
+      same session under a disjoint NEW-file scope), Phase 6/7 (visibility
+      and Excel round-trip, not yet started/in flight), Phase 11 (close).
+  - session_label: "claude-code (subagent, r85a3/p3-boq-baselines) -- R85 Addendum 3 v4 Phase 3 (BASELINES), gates 3-01..3-09 [DONE, merged as PR #1697]"
+    claimed_at: "2026-09-12T (this session) -- registered retroactively after work was already complete and PR opened, due to an emergency mid-task reboot-checkpoint interruption; recorded here per AGENTS.md Rule 11 as soon as the session resumed normal flow"
+    merged_as: "FChecklist/compliance-tracker PR #1697 (squash-merged, merge commit 1e3997da)."
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Google Drive file
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), section E2/Phase 3, gates
+      3-01..3-09. Owner rulings D87 (claude_log 366), D88 (372), D89 (373),
+      D90 (374), D91 (375).
+
+      DONE: drizzle/0594_r85a3_p3_boq_baseline.sql (new compliance.boq_baseline
+      table, applied LIVE against pcrjmlpuqsbocqfwoxod via Supabase MCP and
+      re-verified via information_schema/pg_policies/pg_constraint),
+      drizzle/meta/_journal.json idx 410, src/lib/db/schema.ts (boqBaseline +
+      boqBaselineRelations), src/lib/services/boq-baseline-service.ts
+      (confirmBaseline/getBaselineVersion/listBaselineVersions/
+      compareBaselines/getEstimatedCostFromBaseline/isBaselineEvidenced/
+      getEvidenceArtefactRefOrUnevidenced), src/lib/services/
+      boq-baseline-service.test.ts (14 tests, all passing; 3-09's
+      falsifiability plant/revert performed and recorded verbatim in the PR).
+
+      PR: https://github.com/FChecklist/compliance-tracker/pull/1697
+      (r85a3/p3-boq-baselines -> main, open, not merged by this session per
+      AGENTS.md Rule 6).
+
+      File scope: exactly the 5 files above. NOT touching: the BOQ grid UI,
+      Excel round-trip, or the what-if engine (Phases 2/7/10 -- separate,
+      later phases per the work order's own sequencing).
+  - session_label: "claude-code (subagent, r85a3/p6-visibility-client-boundary) -- R85 Addendum 3 v4 Phase 6 (VISIBILITY AND THE CLIENT BOUNDARY), gates 6-01..6-05 [DONE, merged as PR #1701]"
+    claimed_at: "2026-09-12T (this session)"
+    merged_as: "FChecklist/compliance-tracker PR #1701 (squash-merged, merge commit b386906a)."
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Google Drive file
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part H sequencing (Phase 6 before
+      Phase 7 exports, deliberately), gates 6-01..6-05. Owner rulings D87
+      (claude_log 366), D88 (372), D89 (373), D90 (374), D91 (375).
+      Supersession notice: claude_log id 379.
+
+      CONFIRMED BEFORE STARTING (per this file's own protocol + G-25): read
+      this file, `gh pr list`, and `git log origin/main` first. Phase 1
+      (project/contract columns) and Phase 3 (baselines) are merged to main
+      (#1696, #1697). Phase 4 (r85a3/p4-gross-net-override), Phase 5
+      (r85a3/p5-committed-spent), Phase 8 (r85a3/p8-rate-history) are
+      in-progress on their own branches -- NOT touched by this claim.
+      Investigated existing role/permission machinery before building
+      anything new (G-25, zero duplication): reused
+      src/lib/supabase/role-rank.ts's real UserRole enum/ROLE_RANK (11
+      values incl. client_viewer, rank 1) rather than inventing a second
+      role model or the PROJEXA-repo-only OrgRole owner/admin/pm/
+      site_engineer/member/client_viewer shape (that type lives in the
+      separate FChecklist/projexa repo, per this repo's own CLAUDE.md
+      PROJEXA-is-separate section -- not reachable or relevant from here).
+
+      SCOPE: new compliance.cost_visibility_config table (org-scoped,
+      per-role, changed_by/changed_at, DB CHECK hard-floor blocking
+      client_viewer), src/lib/services/cost-visibility-service.ts
+      (canRoleSeeCost + a generic project-side-field redaction helper --
+      the ONE gate every screen/route must call), a new
+      src/app/api/v1/construction/cost-visibility/route.ts config API,
+      and read-path fixes in src/app/api/v1/construction/boq/route.ts,
+      boq/[id]/route.ts, boq/[id]/compare/route.ts (all three also serve
+      /api/v1/projexa/scope/* via re-export) plus
+      src/lib/services/report-share-service.ts's public share-token
+      resolver (6-03b). NOT touching construction-reports-service.ts's
+      pre-existing budgetPercentage/vendorAmount budget-overlay feature
+      (Point 154, a separate pre-R85 concept, out of scope) or any
+      Phase 4/5/8 file.
+
+      DONE: drizzle/0595_r85a3_p6_cost_visibility_config.sql (applied LIVE
+      against pcrjmlpuqsbocqfwoxod via Supabase MCP, DB CHECK constraint
+      live-verified to reject a client_viewer grant with Postgres 23514),
+      src/lib/services/cost-visibility-service.ts + .test.ts (13 tests),
+      src/app/api/v1/construction/cost-visibility/route.ts + .test.ts
+      (4 tests), client-boundary fixes in boq/route.ts, boq/[id]/route.ts,
+      boq/[id]/compare/route.ts + boq-route.client-boundary.test.ts (6
+      tests, incl. the 6-03d falsifiability plant/revert -- verbatim
+      RED/GREEN in the PR), report-share-service.ts's
+      resolveReportShareLink() (6-03b) +
+      report-share-service.client-boundary.test.ts (2 tests). Also fixed a
+      real, pre-existing false positive in
+      scripts/check-route-auth-guard.mjs for the whole requireAuthOrApiKey()
+      route family (documented, not silently worked around) and bumped
+      src/lib/supabase/authz-gap-inventory.test.ts's frozen counts for the
+      one new, gated mutating route this phase adds.
+
+      PR: https://github.com/FChecklist/compliance-tracker/pull/1701
+      (r85a3/p6-visibility-client-boundary -> main, open, not merged by
+      this session per AGENTS.md Rule 6). Rebased cleanly onto origin/main
+      after r85a3/p5-committed-spent merged as #1700 mid-session.
   - session_label: "claude-code (subagent, isolated worktree wf_2ecda735-e0d-1) -- URGENT, standalone security fix: public share-link cost leak in resolveReportShareLink() (pm-urgent-share-leak) [DONE, merged as PR #1709]"
     claimed_at: "2026-09-12T (this session)"
     merged_as: "FChecklist/compliance-tracker PR #1709 (squash-merged, merge commit c97f4e68)."
