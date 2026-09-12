@@ -2850,6 +2850,13 @@
       "when": 1789033300662,
       "tag": "0592_r83_p0_preauth_policies_scope_to_no_tenant_context",
       "breakpoints": true
+    },
+    {
+      "idx": 409,
+      "version": "7",
+      "when": 1789194771199,
+      "tag": "0593_r85a3_p1_boq_line_project_contract_columns",
+      "breakpoints": true
     }
   ]
 }

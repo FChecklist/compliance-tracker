@@ -10932,6 +10932,34 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   // text equals its old name), never by blind text replace across the org.
   category: text('category'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // R85 Addendum 3 v2, Phase 1 (owner rulings D87/claude_log 366, D90/374, D91/375):
+  // the dual-view money model. `quantity`/`rate`/`amount` above are UNCHANGED and
+  // keep meaning what they have always meant -- the quoted/contract figure (D89/D90
+  // 1-02) -- nothing reads or writes them differently because of this addition.
+  // These four columns are the new, explicit home for BOTH sides of the line:
+  //   PROJECT (internal/cost) side: qtyProject, rateProject
+  //   CONTRACT (customer-facing) side: qtyContract, rateContract
+  // All NULLABLE, additive migration (drizzle/0593_r85a3_p1_boq_line_project_contract_columns.sql,
+  // applied live via Supabase MCP 2026-09-12, version 20260912063030). Backfilled at
+  // migration time: qtyContract=quantity, rateContract=rate for all 912 existing rows
+  // (verified 0 real mismatches between qtyContract*rateContract and amount, after
+  // correcting for float-precision display noise -- one genuine, PRE-EXISTING,
+  // unrelated data anomaly found and flagged, not fixed here: line
+  // fx3401ycp8l9ml6s6vj8g1iv, quantity=100/rate=50/amount=150, created 2026-09-11,
+  // predates this migration).
+  //
+  // *** rateProject IS THE MOST SENSITIVE FIELD IN THE PRODUCT (D91 B1) ***: the
+  // firm's own buying cost. NEVER client-reachable in any surface, export, share
+  // link, or API response -- see D91 Part B1/B4 and Addendum 3 Phase 8's client-
+  // boundary gates before adding any new reader of this column.
+  //
+  // ALL SIX of project_value/contract_value/variance/variance%/quantity variance/
+  // rate variance are COMPUTED, NEVER STORED (D90 A6/A4, D91 A4) -- they live in
+  // construction-boq-service.ts as service-layer derivations, not as columns here.
+  qtyProject: numeric('qty_project'),
+  rateProject: numeric('rate_project'),
+  qtyContract: numeric('qty_contract'),
+  rateContract: numeric('rate_contract'),
 })
 
 // R67 lane I (WS-I item I-05, R-177): the org's editable BOQ category list --
