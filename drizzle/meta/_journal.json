@@ -2857,6 +2857,13 @@
       "when": 1789194771199,
       "tag": "0593_r85a3_p1_boq_line_project_contract_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 410,
+      "version": "7",
+      "when": 1789200000000,
+      "tag": "0594_r85a3_p4_gross_net_override_columns",
+      "breakpoints": true
     }
   ]
 }
