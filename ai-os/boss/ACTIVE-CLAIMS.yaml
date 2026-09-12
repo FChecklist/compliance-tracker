@@ -110,6 +110,32 @@ active:
       File scope: exactly the 5 files above. NOT touching: the BOQ grid UI,
       Excel round-trip, or the what-if engine (Phases 2/7/10 -- separate,
       later phases per the work order's own sequencing).
+  - session_label: "claude-code (subagent, isolated worktree agent-aa9b5376c526adb49) -- R85 Addendum 3 v4 Phase 5: committed and spent (A5, gates 5-01..5-07)"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      SPEC: R85 Addendum 3 v4 FINAL work order (Google Drive file
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), Part A5 / PHASE 5 (gates 5-01..5-07).
+      Rulings D87 (366) D88 (372) D89 (373) D90 (374) D91 (375). Supersession
+      notice: platform.claude_log id 379.
+
+      SCOPE: NEW src/lib/services/boq-cost-actuals-service.ts (computeCommittedCost/
+      computeSpentCost + *WithDb siblings, computeCostVariance,
+      isCommittedOverBaseline) and its test file
+      src/lib/services/boq-cost-actuals-service.test.ts. Read-only investigation
+      of live schema (erp_purchase_orders, erp_purchase_invoices,
+      construction_attendance, construction_labour_roster, erp_suppliers) via
+      Supabase MCP against pcrjmlpuqsbocqfwoxod -- no schema.ts change, no
+      migration (cost_committed/cost_spent are derived, never stored, per X-06).
+      Regenerated docs/master/TEST_COVERAGE_GAP.md (report-test-coverage-gap.mjs).
+
+      NOT touching: Phase 3 (boq_baseline table + service, r85a3/p3-boq-baselines,
+      PR #1697 open) or Phase 4 (gross/net/VAT/retention/override columns) --
+      computeCostVariance takes the baseline estimated cost as a plain
+      parameter rather than importing Phase 3's service, specifically to avoid
+      a cross-branch dependency. Branch: r85a3/p5-committed-spent, off
+      origin/main @ 42669a93 (already includes Phase 1's merged columns and
+      Phase 2's boq-dual-view-service.ts, the single producer this file never
+      duplicates).
   - session_label: "claude-code (interactive, successor PM session, took handover from prior 'Project Manager' session local_9ded2765-995d-446e-ac58-eff36e1ad5ae mid-day 2026-09-11) -- R83 register integrity + continuation"
     claimed_at: "2026-09-11T23:15 IST (this session)"
     claim: |
