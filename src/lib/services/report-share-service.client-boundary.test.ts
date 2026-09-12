@@ -106,6 +106,15 @@ describe("resolveReportShareLink -- 6-03b: a public unauthenticated share token 
     const text = JSON.stringify(result)
     expect(text).not.toContain("rateProject")
     expect(text).not.toContain("qtyProject")
-    expect(result.lines[0]!.qtyContract).toBe("100")
+    // pm-urgent-share-leak (2026-09-12): this branch's `lines` come from
+    // boqBudgetVarianceReport()'s toBudgetLine() shape, which has no
+    // qtyContract/rateContract field at all in real usage (unlike the raw
+    // BOQ line item the work_progress branch above reads) -- this test's
+    // own mock adds qtyContract/rateContract onto the line SYNTHETICALLY,
+    // just to prove the redaction mechanism is structural. `description` is
+    // the real, always-present scope field this branch's own allowlist
+    // (report-share-service.ts's toPublicBudgetLine) keeps, so it is the
+    // correct thing to assert survives.
+    expect(result.lines[0]!.description).toBe("Excavation")
   })
 })
