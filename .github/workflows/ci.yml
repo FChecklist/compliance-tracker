@@ -669,10 +669,28 @@ jobs:
       # are independent installs. Same "*-env1.spec.ts" pattern-match as
       # above, same forward-compatibility reasoning, in case any of the 6
       # new W-TEST specs land in projexa's own e2e/ instead of this repo's.
+      # if: always() (added 2026-09-13, W-CI follow-up): found live, on a
+      # real run (34717605094, Phase 7 merge commit a39f2b1a) -- neither of
+      # these two steps has ever actually executed, because compliance-
+      # tracker's own "Run compliance-tracker Env-1 specs" step above fails
+      # on a genuinely unrelated, still-open bug (a wrong DB password value
+      # blocking BOQ-create, owned by a separate workstream -- see this
+      # repo's own sumeet_requirements register, several c6-FALSE rows cite
+      # the same root cause), and a step with no `if:` only runs when every
+      # prior step in the job succeeded. That silently blocks R-80/81/82's
+      # OWN spec (r80-r81-r82-copilot-pill-chain-env1.spec.ts, lives in
+      # PROJEXA's e2e/ dir, picked up by this step's own *-env1.spec.ts
+      # pattern) from ever producing CI evidence, for a reason that has
+      # nothing to do with what that spec actually tests -- these are two
+      # independent test suites against the same already-running server
+      # pair, not a dependent pipeline. always() matches this same job's
+      # own "Server logs"/"Stop background servers" steps below.
       - name: Install projexa's playwright browsers
+        if: always()
         working-directory: projexa-checkout
         run: bunx playwright install --with-deps chromium
       - name: Run projexa Env-1 spec(s)
+        if: always()
         working-directory: projexa-checkout
         run: bunx playwright test env1.spec.ts
         env:
