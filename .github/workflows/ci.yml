@@ -634,7 +634,30 @@ jobs:
         # just because the count grows. ciExcludedSpecs in
         # playwright.config.ts (demo-gate-smoke/r48/r63) still applies on
         # top of this and stays excluded, unaffected by the pattern.
-        run: bunx playwright test env1.spec.ts
+        #
+        # --workers=1 (added after this job's own first real run, 2026-09-12):
+        # every one of these specs authenticates via mintSessionCookie() ->
+        # mint-session-r33 -> GoTrue /auth/v1/verify, and mint-session-r33's
+        # own allow-list (evpckeuxgvahguwsaeul, R81 hardening) permits exactly
+        # ONE address, democeo@projexa-ai.com -- confirmed by reading the
+        # deployed function source directly, not assumed. generateLink()
+        # supersedes any not-yet-verified prior magic-link token for the same
+        # user, so 2 concurrent workers minting for the same address race:
+        # whichever mint call lands second invalidates the first test's
+        # token_hash before its own verify() call can consume it. Observed
+        # exactly this failure on this job's first real run (all 3 specs
+        # failed, worker count 2, "GoTrue token_hash exchange must succeed" /
+        # Received: false) -- not flaky, not intermittent, a deterministic
+        # race that reproduces every time 2+ of these specs run together.
+        # Serializing this step is the correct, narrowly-scoped fix: it does
+        # NOT touch mint-session-r33 itself (a live, security-hardened
+        # function, R81_F40) and does NOT affect the projexa Env-1 step below
+        # -- that one authenticates via projexa's own auth.setup.ts
+        # (real per-user password login + storageState, 4 distinct seeded
+        # users, confirmed by reading it directly), a structurally different
+        # mechanism with no shared single-slot token to race on, so its own
+        # `workers: 3` config is untouched and correct as-is.
+        run: bunx playwright test env1.spec.ts --workers=1
         env:
           E2E_PROJEXA_ORIGIN: http://localhost:3100
           E2E_ENV1_JOB: "true"
