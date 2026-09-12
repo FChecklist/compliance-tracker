@@ -3396,6 +3396,46 @@ active:
       (header-comment touch only). No drizzle/ migration. No product
       src/lib/services/construction-boq-service.ts change.
 
+  - session_label: "claude-code (subagent, isolated worktree wf_c7b3288f-3b5-1) -- R85 Addendum 3 v4 FINAL, PHASE 7: Excel round trip (D89, gates 7-01..7-12)"
+    claimed_at: "2026-09-13T (this session)"
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md, Part F Phase 7 (D89) --
+      dual-view .xlsx export (internal + customer templates), upload/diff/
+      apply round trip with hidden line_id matching (never row position,
+      X-19), per-cell diff-before-apply (X-20/X-21), evidence-artefact gating
+      of post-confirmation contract-side edits (reuses boq-baseline-service.ts's
+      evidenceArtefactRef pattern), structural edits routed through
+      construction-boq-service.ts's createBoqRevision rather than an in-place
+      edit. Never recomputes project_value/contract_value/variance/
+      variancePercent/quantityVariance/rateVariance -- imports
+      computeBoqLineMoneyView/rollUpRootLines/computeCostCoverage from
+      boq-dual-view-service.ts only (X-27).
+
+      CONFIRMED BEFORE STARTING (per this file's own protocol): read this
+      whole file first -- no other active: entry claims Phase 7 or the file
+      scope below; the Phase 9 (p9-analysis-screen) entry explicitly notes
+      "NOT touching: Phase 7 (Excel round-trip, not yet started)". Phases
+      1/2/3/4/5/6/8/10 are separate, disjoint files (dual-view/baseline/
+      gross-net/cost-actuals/visibility/rate-history/scenario services) and
+      are not touched here except a single additive, backward-compatible
+      change: exporting the already-existing, previously-unexported
+      `listBaselineVersionsWithDb(db, boqId)` helper from
+      boq-baseline-service.ts (Phase 3, merged via PR #1697) so this phase's
+      post-confirmation evidence gate can check for a confirmed baseline
+      without opening a second, nested withTenantContext transaction (the
+      real R74/R75 nested-withTenantContext gotcha CLAUDE.md documents) --
+      no other line in that file changes.
+
+      SCOPE: NEW src/lib/services/boq-excel-roundtrip-service.ts (+ .test.ts),
+      NEW src/app/api/v1/construction/boq/[id]/excel/export/route.ts,
+      .../excel/diff/route.ts, .../excel/apply/route.ts (+ route.test.ts
+      files), ONE additive `export` keyword in
+      src/lib/services/boq-baseline-service.ts (see above), and the frozen
+      count update in src/lib/supabase/authz-gap-inventory.test.ts for the
+      2 new mutating routes (diff, apply) this phase adds. Isolated git
+      worktree -- commits locally only, orchestrating session handles
+      push/PR/CI/merge (per this task's own instructions).
+
 recently_completed:
   - session_label: "claude-code (subagent, isolated worktree wf_2ecda735-e0d-1) -- URGENT, standalone security fix: public share-link cost leak in resolveReportShareLink() (pm-urgent-share-leak) [DONE, merged as PR #1709]"
     claimed_at: "2026-09-12T (this session)"

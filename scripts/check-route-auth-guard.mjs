@@ -160,6 +160,13 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   "src/app/api/v1/construction/boq/[id]/route.ts",
   "src/app/api/v1/construction/boq/[id]/compare/route.ts",
   "src/app/api/v1/construction/cost-visibility/route.ts",
+  // R85 Addendum 3 v4 Phase 7 (D89, 2026-09-13): same requireAuthOrApiKey
+  // family gap as the four routes immediately above -- these three call
+  // requireAuthOrApiKey(), not requireAuth() literally, for the exact same
+  // documented reason.
+  "src/app/api/v1/construction/boq/[id]/excel/export/route.ts",
+  "src/app/api/v1/construction/boq/[id]/excel/diff/route.ts",
+  "src/app/api/v1/construction/boq/[id]/excel/apply/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail

@@ -183,7 +183,17 @@ export async function confirmBaseline(
 // version. Both getBaselineVersionWithDb and confirmBaseline's next-version
 // computation build on this ONE query shape rather than each rolling their
 // own filtered/ordered variant against the same table.
-async function listBaselineVersionsWithDb(db: TenantDb, boqId: string): Promise<BoqBaseline[]> {
+//
+// Exported (R85 Addendum 3 v4 Phase 7, D89, additive -- no existing caller or
+// behaviour changes): boq-excel-roundtrip-service.ts's post-confirmation
+// contract-edit evidence gate needs to know whether a BOQ has ANY confirmed
+// baseline from inside its own already-open withTenantContext transaction
+// (its diff/apply functions already hold a db handle) -- calling the
+// top-level listBaselineVersions() there would open a SECOND, nested
+// transaction, exactly the real R74/R75 assertNotNested() gotcha this
+// codebase's own CLAUDE.md documents. Same *WithDb reuse pattern as
+// isBranchEnabledForOrgWithDb/computeUserChainUsageScoresWithDb.
+export async function listBaselineVersionsWithDb(db: TenantDb, boqId: string): Promise<BoqBaseline[]> {
   const rows = await db.query.boqBaseline.findMany({ where: eq(boqBaseline.boqId, boqId) })
   return rows.map(toBaseline).sort((a, b) => a.version - b.version)
 }

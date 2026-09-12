@@ -87,6 +87,21 @@ export type BoqLineItemInput = {
   // spreadsheet says. A blank/absent category is legal and renders a
   // "no category" chip rather than blocking Save.
   category?: string
+  // R85 Addendum 3 v4 Phase 1 added these 4 columns to the table
+  // (drizzle/0593) and Phase 2 wired them into every READ path
+  // (withComputedRate -> computeBoqLineMoneyView, X-27 single producer) --
+  // but until Phase 7 (Excel round trip), NOTHING in this codebase ever
+  // WROTE them: a `git grep -n "qtyProject:"` across all of src/ before this
+  // change found zero insert/update call sites, only type declarations and
+  // test fixtures. Added here, optional, so every existing caller
+  // (createBoq/createBoqRevision from a plain lineItems array, the Excel/CSV
+  // importer, every existing test) that never sets these keeps getting
+  // exactly today's behaviour (NULL, i.e. NOT_SET) -- only a caller that
+  // explicitly passes one now has a way to.
+  qtyProject?: number
+  rateProject?: number
+  qtyContract?: number
+  rateContract?: number
 }
 
 export type BoqInput = {
@@ -398,6 +413,15 @@ async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items
           materialAmount: item.materialAmount !== undefined ? String(item.materialAmount) : null,
           manpowerAmount: item.manpowerAmount !== undefined ? String(item.manpowerAmount) : null,
           category: normalizeCategory(item.category),
+          // R85 Addendum 3 v4 Phase 7 (D89): the first real write path for
+          // these 4 columns -- see BoqLineItemInput's own comment on why
+          // this was previously always NULL for every caller. `undefined`
+          // still means "not set" (NULL, i.e. NOT_SET per X-04), exactly as
+          // it always has for every field in this object.
+          qtyProject: item.qtyProject !== undefined ? String(item.qtyProject) : null,
+          rateProject: item.rateProject !== undefined ? String(item.rateProject) : null,
+          qtyContract: item.qtyContract !== undefined ? String(item.qtyContract) : null,
+          rateContract: item.rateContract !== undefined ? String(item.rateContract) : null,
         }
       })
     ).returning({ id: constructionBoqLineItems.id, itemCode: constructionBoqLineItems.itemCode })
@@ -441,6 +465,26 @@ export function toLineItemInput(item: BoqLineItemRow, itemCodeById: Map<string, 
     materialAmount: item.materialAmount != null ? Number(item.materialAmount) : undefined,
     manpowerAmount: item.manpowerAmount != null ? Number(item.manpowerAmount) : undefined,
     category: item.category ?? undefined,
+    // R85 Addendum 3 v4 Phase 7 (D89): REAL BUG FOUND AND FIXED HERE, not
+    // just a new feature. Before this line existed, createBoqRevision()'s
+    // own "copy every parent line item forward unchanged" default path (the
+    // common case: a user creates a new revision and only touches a couple
+    // of lines) went through toLineItemInput -> insertLineItems for EVERY
+    // line, and because this function never read qtyProject/rateProject/
+    // qtyContract/rateContract off the previous row, every revision silently
+    // wiped all four columns to NULL for every line, including lines nobody
+    // touched. Currently harmless in practice (nothing wrote real values
+    // into these columns before Phase 7 -- see BoqLineItemInput's own
+    // comment -- so there was nothing yet to lose), but the moment Phase 7's
+    // Excel apply path (or any future editor) starts writing real cost/
+    // contract data, the very next "Create Revision" click on that BOQ would
+    // have discarded it silently. `!= null` (loose), matching
+    // materialAmount/manpowerAmount immediately above, for the same reason:
+    // a missing field and a NULL field must both mean "not set", never NaN.
+    qtyProject: item.qtyProject != null ? Number(item.qtyProject) : undefined,
+    rateProject: item.rateProject != null ? Number(item.rateProject) : undefined,
+    qtyContract: item.qtyContract != null ? Number(item.qtyContract) : undefined,
+    rateContract: item.rateContract != null ? Number(item.rateContract) : undefined,
   }
 }
 
