@@ -10962,6 +10962,47 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   rateContract: numeric('rate_contract'),
 })
 
+// R85 Addendum 3 v4, Phase 3 (E2 "the versioned baseline, not a freeze" --
+// D87/D88/D89/D90/D91, claude_log 366/372/373/374/375; work order
+// WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md section E2/Phase 3, gates
+// 3-01..3-09). Confirming a baseline is an explicit user act (never
+// automatic -- 3-02) that snapshots every line's four dual-view columns
+// (qtyProject/rateProject/qtyContract/rateContract) at that moment. Prior
+// versions are NEVER overwritten or deleted (3-03) -- enforced at the DB
+// level too (drizzle/0594 REVOKEs UPDATE/DELETE from app_runtime AND
+// service_role; only the table owner retains implicit privilege, same
+// documented limitation as compliance.audit_logs -- see drizzle/0236's own
+// Part A comment). rate_project as it stood at each confirmation IS the
+// estimated cost for every later comparison (A5, 3-09) -- proven in
+// boq-baseline-service.test.ts by mutating the LIVE line after confirmation
+// and re-reading this row's line_snapshot unchanged.
+//
+// ONE ROW PER BASELINE VERSION, not one row per line -- line_snapshot is a
+// JSONB array (BoqBaselineLineSnapshot[] in boq-baseline-service.ts) of
+// every line's id/parentLineItemId/qtyProject/rateProject/qtyContract/
+// rateContract at confirmation time, shaped to match boq-dual-view-
+// service.ts's BoqLineForRollup exactly so rollUpRootLines()/
+// computeCostCoverage() run directly against it (single-producer rule,
+// X-27 -- nothing here recomputes that math). The work order's own 3-01
+// only requires "a snapshot of every line's four columns", not line-level
+// baseline rows.
+export const boqBaseline = complianceSchemaDB.table('boq_baseline', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  boqId: text('boq_id').notNull(),
+  version: integer('version').notNull(),
+  confirmedById: text('confirmed_by_id').notNull(),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }).notNull().defaultNow(),
+  // D88: PO, proforma, agreed proposal, term sheet, proposal sent, agreement,
+  // email, or explicit written confirmation. NOT NULL and non-empty (DB CHECK
+  // constraint in drizzle/0594) -- confirmBaseline() validates this BEFORE
+  // ever reaching the DB; the DB constraint is the backstop.
+  evidenceArtefactRef: text('evidence_artefact_ref').notNull(),
+  // BoqBaselineLineSnapshot[] -- see boq-baseline-service.ts for the shape.
+  lineSnapshot: jsonb('line_snapshot').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 // R67 lane I (WS-I item I-05, R-177): the org's editable BOQ category list --
 // what the Category select on a BOQ line offers, and what Settings edits.
 // Org-scoped, not project-scoped: a contractor's trade breakdown is a company
@@ -11136,6 +11177,10 @@ export const constructionBoqsRelations = relations(constructionBoqs, ({ many }) 
 export const constructionBoqLineItemsRelations = relations(constructionBoqLineItems, ({ one, many }) => ({
   boq: one(constructionBoqs, { fields: [constructionBoqLineItems.boqId], references: [constructionBoqs.id] }),
   progressEntries: many(constructionWorkProgressEntries),
+}))
+
+export const boqBaselineRelations = relations(boqBaseline, ({ one }) => ({
+  boq: one(constructionBoqs, { fields: [boqBaseline.boqId], references: [constructionBoqs.id] }),
 }))
 
 export const constructionInterimBillsRelations = relations(constructionInterimBills, ({ many }) => ({
