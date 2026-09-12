@@ -3501,6 +3501,72 @@ recently_completed:
       File scope: .github/workflows/ci.yml (conflict resolution only, no new content
       authored), this file (claim entry only). Did not touch playwright.config.ts
       (auto-merged, no manual edit needed) or any service/route/schema file.
+  - session_label: "claude-desktop (Super Boss, interactive PM session) -- R85 Addendum 3 v4 Phase 2 WIRING (X-27 gap): boq-dual-view-service.ts had zero live callers since it was built/tested, D91's R-50 requirement is NOT_TESTABLE explicitly pending this"
+    claimed_at: "2026-09-12T (this session)"
+    claim: |
+      Checked before starting: no active: entry claims construction-boq-service.ts,
+      withComputedRate, getBoq/getBoqRow/listBoqs, or the internal/v1 boq/[id] routes.
+      Confirmed via platform.sumeet_requirements (Supabase pcrjmlpuqsbocqfwoxod) that
+      R-50 itself is closure_state=NOT_TESTABLE with next_action explicitly naming
+      "Merge/build Phases 2 (grid UI), 6, 7, 9, 10... Only then attempt gate 11-02" --
+      Phase 6 (#1701) is merged; this claim is Phase 2's wiring specifically.
+
+      X-27 GAP CLOSED: computeBoqLineMoneyView/rollUpRootLines/computeCostCoverage
+      (boq-dual-view-service.ts, built+unit-tested since Phase 2) were never called by
+      any route -- confirmed via `grep -rl "from .*boq-dual-view-service" src/app`
+      returning zero matches before this pass. Wired into withComputedRate() (the one
+      place every line item is shaped for a response -- 4 call sites: getBoq/getBoqRow/
+      listBoqs/updateLineItemBudget, all now carry projectValue/contractValue/variance/
+      variancePercent/quantityVariance/rateVariance per line) plus a whole-BOQ
+      moneyView (rollUpRootLines, root lines only per A7/R-32) + costCoverage
+      (computeCostCoverage, Phase 2 2-08) attached in getBoq/getBoqRow/listBoqs(?include=
+      lineItems). Field names match cost-visibility-service.ts's pre-existing
+      PROJECT_SIDE_COST_FIELDS exactly (written in anticipation of this wiring by
+      Phase 6) -- applyCostVisibility() at each route requires no change to redact them.
+
+      SECOND GAP FOUND AND CLOSED WHILE VERIFYING "all wiring" (not pre-planned, found
+      by checking every real consumer of getBoq/listBoqs before merging): the INTERNAL
+      route src/app/api/construction/boq/[id]/route.ts (requireAuth, not
+      requireAuthOrApiKey -- compliance-tracker's own UI, not PROJEXA's v1 API) called
+      getBoq() with ZERO applyCostVisibility() call -- pre-dates this pass (getBoq()
+      already returned raw qtyProject/rateProject columns since Phase 1; Phase 6's own
+      PR #1701 only touched the v1 routes' file scope). client_viewer is a PROJEXA-only
+      role (cost-visibility-service.ts's own comment) and can never reach this internal
+      route, so exposure was to compliance-tracker's own staff, not a customer -- fixed
+      anyway for consistency, real falsifiability proof performed (see below).
+      src/app/api/construction/boq/route.ts (list) is UNAFFECTED -- it calls listBoqs()
+      with no include option, so line items (and therefore moneyView) were never
+      fetched there before or after this pass.
+
+      VERIFIED SAFE, not just fixed: report-share-service.ts (today's P0 share-link fix,
+      PR #1709) also calls getBoq() -- checked directly, its toPublicBoqLineItem() is an
+      explicit ALLOWLIST (destructures only id/boqId/parentLineItemId/itemCode/
+      description/unit/quantity/category/qtyContract/rateContract) plus a second
+      redactForPublicShare() wrap -- the new moneyView/costCoverage/per-line dual-view
+      fields are never read by it at all, on two independent layers.
+
+      FALSIFIABILITY, both fixes, real RED then real GREEN (not narrated, both observed
+      by running the suite): (1) reverted withComputedRate()'s computeBoqLineMoneyView
+      spread -- construction-boq-service.dual-view-wiring.test.ts went 3 fail/3 pass
+      (projectValue/moneyView/costCoverage undefined), reverted, 6/6 pass. (2) reverted
+      the internal route's applyCostVisibility call -- the new
+      boq-internal-route.client-boundary.test.ts's fail-closed-default test went RED
+      (rateProject/projectValue/moneyView leaked in the JSON body), reverted, GREEN.
+
+      NOT touched: write-route responses (createBoq/createBoqRevision/
+      updateLineItemBudget/approve/submit) -- established boundary is READS are gated
+      (Phase 6's own scope was GET/compare only), a write response echoes back what the
+      SAME actor just wrote, a materially different exposure than a stranger reading it.
+      Flagged, not silently assumed identical to the read-gate question.
+
+      File scope: src/lib/services/construction-boq-service.ts (withComputedRate/getBoq/
+      getBoqRow/listBoqs), src/lib/services/construction-boq-service.dual-view-wiring.test.ts
+      (NEW), src/app/api/construction/boq/[id]/route.ts,
+      src/app/api/construction/boq/[id]/boq-internal-route.client-boundary.test.ts (NEW),
+      this file (claim entry). Did NOT touch boq-dual-view-service.ts itself (Phase 2's
+      own file, already correct and tested -- this pass only wires its existing exports
+      in), cost-visibility-service.ts, or any v1 route (already correctly gated by
+      Phase 6).
 # =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
