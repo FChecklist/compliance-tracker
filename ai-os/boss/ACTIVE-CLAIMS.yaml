@@ -84,6 +84,32 @@ active:
       NOT touching: construction-boq-service.ts's own submitBoq/approveBoq/
       createBoqRevision (read-only investigation, reused as-is per 4-06),
       Phase 3's boq_baseline table/branch, Phase 5-11 of the same spec.
+  - session_label: "claude-code (subagent, r85a3/p3-boq-baselines) -- R85 Addendum 3 v4 Phase 3 (BASELINES), gates 3-01..3-09"
+    claimed_at: "2026-09-12T (this session) -- registered retroactively after work was already complete and PR opened, due to an emergency mid-task reboot-checkpoint interruption; recorded here per AGENTS.md Rule 11 as soon as the session resumed normal flow"
+    claim: |
+      SPEC: WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md (Google Drive file
+      1fO5g8xfpL70Nhuh3MYz5H9qTqFu-omUL), section E2/Phase 3, gates
+      3-01..3-09. Owner rulings D87 (claude_log 366), D88 (372), D89 (373),
+      D90 (374), D91 (375).
+
+      DONE: drizzle/0594_r85a3_p3_boq_baseline.sql (new compliance.boq_baseline
+      table, applied LIVE against pcrjmlpuqsbocqfwoxod via Supabase MCP and
+      re-verified via information_schema/pg_policies/pg_constraint),
+      drizzle/meta/_journal.json idx 410, src/lib/db/schema.ts (boqBaseline +
+      boqBaselineRelations), src/lib/services/boq-baseline-service.ts
+      (confirmBaseline/getBaselineVersion/listBaselineVersions/
+      compareBaselines/getEstimatedCostFromBaseline/isBaselineEvidenced/
+      getEvidenceArtefactRefOrUnevidenced), src/lib/services/
+      boq-baseline-service.test.ts (14 tests, all passing; 3-09's
+      falsifiability plant/revert performed and recorded verbatim in the PR).
+
+      PR: https://github.com/FChecklist/compliance-tracker/pull/1697
+      (r85a3/p3-boq-baselines -> main, open, not merged by this session per
+      AGENTS.md Rule 6).
+
+      File scope: exactly the 5 files above. NOT touching: the BOQ grid UI,
+      Excel round-trip, or the what-if engine (Phases 2/7/10 -- separate,
+      later phases per the work order's own sequencing).
   - session_label: "claude-code (interactive, successor PM session, took handover from prior 'Project Manager' session local_9ded2765-995d-446e-ac58-eff36e1ad5ae mid-day 2026-09-11) -- R83 register integrity + continuation"
     claimed_at: "2026-09-11T23:15 IST (this session)"
     claim: |

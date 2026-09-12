@@ -1,4 +1,0 @@
-{"event":"WORKER_START","worker":"W-TEST","session_id":"local_662ac0d1-6c73-402c-bcbb-5c49275d4598","model":"claude-sonnet-5","scope":["seq2","seq4"],"read_complete":false,"ist_now":"2026-09-11T11:00:08+05:30"}
-{"event":"WORKER_START","worker":"W-PROD","session_id":"local_c0cc9c01-e452-469d-9194-4892191a1067","model":"claude-sonnet-5","scope":["B1","B2","B3","seq6"],"read_complete":true,"ist_now":"2026-09-11T11:00:55+05:30"}
-{"event": "WORKER_START", "worker": "W-VERIFY", "session_id": "local_2c4175a1-a6ca-4ad1-bded-d7fe9f9cd63d", "model": "claude-sonnet-5", "scope": ["R1-R6", "seq5"], "read_complete": false, "ist_now": "2026-09-11T11:04:00+05:30"}
-{"event":"progress","seq":"seq4","file":"construction-reports-service.test.ts","reqs_moved":["R-33","R-44","R-45","R-52","R-C11"],"commit":"pending"}
