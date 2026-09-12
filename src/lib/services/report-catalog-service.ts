@@ -552,6 +552,32 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     classifications: ["financial"],
     periodicity: "on_demand",
   },
+
+  // R85 Addendum 3 v4, Phase 9 (Part F, gates 9-01..9-07; use case B3 -- "did
+  // we make the margin we quoted, and where did it go"). A DEDICATED route,
+  // not a construction-reports-service.ts REPORT_REGISTRY entry -- see
+  // boq-analysis-service.ts and the route's own header comment for why (a
+  // hard-required projectId with no cross-project mode, and ad-hoc
+  // per-report role gating, both genuinely mismatched 9-02/9-07's needs).
+  // This catalog entry exists purely for discoverability (this file is a
+  // data-only listing, no execution logic) -- appended at the end to avoid
+  // a merge-conflict collision with other still-open sibling PRs editing
+  // earlier regions of this array, matching this file's own established
+  // convention for recent additions.
+  {
+    id: "construction-boq-analysis",
+    name: "BOQ Analysis (Margin)",
+    description: "Per-project and cross-project margin analysis: contract at first confirmation vs contract now, baseline estimated cost vs committed vs spent, and expected vs actual profit -- which jobs make money and which do not.",
+    domain: "construction",
+    sourceService: "src/lib/services/boq-analysis-service.ts#getProjectAnalysis / listOrgAnalysis",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/reports/boq-analysis[?projectId=<id>])"],
+    route: "/api/v1/projexa/reports/boq-analysis",
+    routeNote: "Real, auth-required API endpoint, gated at manager role or higher (stricter than this codebase's usual member GET floor -- see the route's own header). No dedicated UI page renders it yet. Omitting projectId returns one row per project (9-02); passing it returns the single-project view (9-01).",
+    directlyNavigable: false,
+    category: "software_analysis",
+    classifications: ["financial", "project", "executive", "construction"],
+    periodicity: "on_demand",
+  },
 ]
 
 export function getReportCatalogEntry(id: string): ReportCatalogEntry | undefined {
