@@ -11057,6 +11057,45 @@ export const boqBaseline = complianceSchemaDB.table('boq_baseline', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// R85 Addendum 3 v4, Phase 6 -- VISIBILITY AND THE CLIENT BOUNDARY (Part H:
+// deliberately sequenced BEFORE Phase 7 exports -- build the boundary before
+// the thing it protects exists). Owner rulings D87 (claude_log 366), D88
+// (372), D89 (373), D90 (374), D91 (375). Work order: Google Drive
+// WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md, gates 6-01..6-05.
+//
+// Per-org, per-INTERNAL-role toggle: which roles may see cost/variance/
+// project-side figures (rate_project above all -- "the most sensitive field
+// in the product", D91 B1). ONE row per (org_id, role); the row's absence
+// means "not granted" (fail-closed default -- see
+// cost-visibility-service.ts's canRoleSeeCost()).
+//
+// ★ HARD FLOOR (6-01), NOT CONFIGURABLE BY ANYONE, ENFORCED HERE AT THE DB
+// LAYER -- NOT JUST IN APPLICATION CODE ★: the CHECK constraint below makes
+// it structurally impossible to INSERT or UPDATE a row that grants
+// client_viewer cost visibility, so a direct SQL write or a future
+// application-code bug cannot violate it either -- see
+// cost_visibility_config_no_client_viewer_grant in
+// drizzle/0596_r85a3_p6_cost_visibility_config.sql. `role` reuses the real
+// userRoleEnum (not a separate/duplicated role model, not the
+// PROJEXA-repo-only owner/admin/pm/site_engineer/member/client_viewer
+// OrgRole shape -- see this repo's own CLAUDE.md "PROJEXA is a SEPARATE
+// repository" section) so an invalid role string is rejected at the type
+// level before the CHECK constraint is ever reached.
+//
+// changedById/changedAt (6-02): every visibility change captures who made it
+// and when -- set-cost-visibility-for-role's upsert always rewrites both,
+// never just canSeeCost, so the row can never show a stale
+// changedBy/changedAt beside a fresh value.
+export const costVisibilityConfig = complianceSchemaDB.table('cost_visibility_config', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  role: userRoleEnum('role').notNull(),
+  canSeeCost: boolean('can_see_cost').notNull().default(false),
+  changedById: text('changed_by_id').notNull(),
+  changedAt: timestamp('changed_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 // R85 Addendum 3 v4 (FINAL, claude_log 379), Phase 10 / spec Part F -- THE
 // WHAT-IF / SCENARIO ENGINE (gates 10-01..10-13). Work order: Google Drive
 // WORK_ORDER_R85_ADDENDUM_3_v4_R50_FINAL.md, Part F.
