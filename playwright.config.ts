@@ -111,7 +111,16 @@ export default defineConfig({
     // underlying steps `bun run dev` would, without the broken pipe.
     command: "node scripts/generate-protected-routes.mjs && npx next dev -p 3000",
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    // T2 (W-CI, e2e-env1 job, ci.yml): that job boots a REAL production
+    // `next start` on :3000 itself, with real secrets, BEFORE running
+    // playwright at all (its specs need it as PROJEXA's live backend, not
+    // as their own baseURL) -- reuseExistingServer must be true there, or
+    // this config's own dev-mode webServer would try to bind the same port
+    // and fail "already in use". The regular `e2e` job above is unaffected:
+    // it never sets E2E_ENV1_JOB, so reuseExistingServer still defaults to
+    // false in CI there, and that job still proves it can boot its own
+    // server from cold, same as before this line existed.
+    reuseExistingServer: !process.env.CI || process.env.E2E_ENV1_JOB === "true",
     timeout: 300_000,
     env: ciPlaceholderEnv,
     stdout: "pipe",

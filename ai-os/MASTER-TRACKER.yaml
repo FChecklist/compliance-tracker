@@ -3938,6 +3938,71 @@ open_items:
       status: open
       first_raised: "ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md, 2026-08-01/07 (AI Documentation / Documentation Lifecycle gap-closure, task-20260718-064004)"
 
+    - id: GAP-E2E-ENV1-PROJEXA-DB-PASSWORD
+      name: "e2e-env1 (cross-repo Env-1 CI job) failed at /api/projects on projexa (:3100) -- wrong PROJEXA_DATABASE_URL password, masked by a swallowed error"
+      old_ids: []
+      detail: |
+        First real run of `e2e-env1` after PR #1711 (tsconfig cross-contamination fix) and PR #1712
+        (mint-session-r33 concurrency race fix, both ct-6e) got past auth (GoTrue token exchange,
+        `/api/organization` 200) but all 3 compliance-tracker-side Env-1 specs (r01-r02/r32/r40)
+        failed on a genuine `/api/projects` 500. Raw job log (`gh api .../actions/jobs/<id>/logs`,
+        never `gh run view --log`, which truncates) showed the same line before every 500:
+        `[veridian-client] getVeridianApiKey(...) failed -- treating as no per-org key found: Failed
+        query: select "veridian_api_key" from "veridian_credentials" ... limit $2` -- Drizzle's
+        generic DrizzleQueryError wrapper text, with the real cause (on `err.cause`) never logged.
+        `public.veridian_credentials` (projexa's own Supabase project, `evpckeuxgvahguwsaeul`) was
+        confirmed to exist with a valid row for the failing org (`bc689d97-...`, key length 35, via
+        the Supabase MCP's `execute_sql`) -- ruled out missing/wrong data and RLS (the table has RLS
+        enabled with zero anon/authenticated policies, but `PROJEXA_DATABASE_URL` connects as the
+        `postgres.<ref>` Supavisor role, which bypasses RLS -- a pure RLS block would return 0 rows
+        silently, not throw, and this was a genuine thrown exception).
+      size: XS (code fix, done) + owner-only credential fix (NOT yet actually done,
+        despite being reported done -- see status)
+      recommendation: "Owner: re-check the literal value now in the
+        PROJEXA_DATABASE_URL GitHub secret against the real password in the Supabase
+        dashboard for evpckeuxgvahguwsaeul -- reported fixed once already and the
+        very next rerun failed with the identical password-auth error from a fresh
+        runner IP, ruling out propagation lag. Do not report this fixed again without
+        having read a fresh run's own job log yourself."
+      status: "owner_blocked -- code half closed (PR #261 merged), credential half
+        STILL OPEN as of 2026-09-12T18:23Z despite being reported fixed once already"
+      first_raised: "e2e-env1's first real run, 2026-09-12 (task-20260912, this session)"
+      resolved: |
+        Two-part fix. (1) Code: `getVeridianApiKey()` (projexa's `src/lib/veridian-client.ts`) only
+        logged `err.message`, discarding `err.cause` -- so every occurrence of the failure read as
+        the same uninformative wrapper text regardless of the real reason. Added
+        `describeErrorChain()` (same depth-bounded cause-walk pattern `isConnectionFailure()` in that
+        file already uses) so the log carries the whole chain; contract unchanged (still returns
+        `null`, never throws), nothing it logs can leak a credential. Verified falsifiable: reverted,
+        confirmed the new test's assertions go red against the unfixed catch block, restored, green
+        (8/8 in `veridian-client.org-scoping.test.ts`, 26/26 across its 2 sibling test files). Shipped
+        as FChecklist/projexa#261 (merged).
+        (2) Root cause, confirmed from TWO independent sources once (1) was live: the app's own new
+        log line (`... caused by: password authentication failed for user "postgres" (code=28P01)`)
+        and, separately, `evpckeuxgvahguwsaeul`'s own `supavisor_logs` queried directly via the
+        Supabase MCP (`ClientHandler: Exchange error: password authentication failed for user
+        "postgres"`, same second as the CI failure, plus an `auth_error` circuit breaker opening for
+        the runner's IP) -- the `PROJEXA_DATABASE_URL` GitHub secret (added same-day, hand-typed by a
+        non-technical user per its own onboarding note) had a wrong password. Not the pooler
+        host/cluster (a wrong one gives Supavisor's own "Tenant or user not found", not a password
+        rejection), not RLS, not missing data. Fixing the secret value is an owner-only credential
+        action (view/reset a DB password + update a GitHub secret) this session declined to touch
+        directly, consistent with `ci.yml`'s own comment on this exact secret ("owner-only, direct
+        GitHub UI entry, never via a shell") -- reported the finding instead.
+
+        **NOT actually resolved, despite being reported fixed once already.** Owner reported the
+        secret corrected same day; the very next rerun of `e2e-env1` (run 34708692987, job
+        103597623840, 18:14:05Z) failed with the IDENTICAL `password authentication failed for user
+        "postgres" (code=28P01)` error. Reported that back and reran a second time (job
+        103598979796, 18:23:29Z) to rule out a fluke/propagation-lag explanation -- failed again,
+        identically, and independently confirmed live via `evpckeuxgvahguwsaeul`'s own
+        `supavisor_logs` (queried through the Supabase MCP) from a THIRD, different CI runner IP
+        each time -- ruling out a stale circuit-breaker artifact from the original wrong password.
+        The credential half of this gap is still genuinely open; see
+        `ai-os/boss/COMPLETED.yaml`'s `E2E-ENV1-PROJEXA-DB-PASSWORD-FIX` entry's `verification`
+        block for the full evidence. Do not mark this closed again on a report alone -- confirm from
+        a fresh run's own job log.
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
