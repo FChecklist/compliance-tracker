@@ -253,3 +253,178 @@ export function formatMoneyFigureForDisplay(figure: MoneyFigure, decimals = 2): 
   if (figure === NOT_SET) return NOT_SET
   return figure.toFixed(decimals)
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// PHASE 4 (E3, gates 4-01..4-09; owner rulings D87 claude_log 366, D88 372,
+// D91 375) -- gross/net stack, profit at both levels, contract variance and
+// the manual contract override. Additive to this file, per X-27/the single-
+// producer rule: these are the SAME kind of derived money figure as
+// computeBoqLineMoneyView's outputs above, so they belong in the one module
+// every screen already calls, not a parallel computation somewhere else.
+// Nothing below is stored (4-05) -- see drizzle/0594's own header for the
+// two real columns this phase DID add (vatRatePercent/retentionPercent, the
+// two INPUT rates -- never the derived gross/net/profit figures themselves).
+// ─────────────────────────────────────────────────────────────────────────
+
+export type GrossNetStack = {
+  gross: MoneyFigure
+  vatAmount: MoneyFigure
+  netOfVat: MoneyFigure
+  retentionAmount: MoneyFigure
+  netReceivable: MoneyFigure
+}
+
+/**
+ * E3's gross/net stack:
+ *   GROSS CONTRACT VALUE
+ *   less VAT       -> NET OF VAT
+ *   less RETENTION -> NET RECEIVABLE
+ *
+ * VAT IS EXTRACTED FROM A VAT-INCLUSIVE GROSS FIGURE, NOT ADDED ON TOP --
+ * verified against Part C's own worked numeric example, not assumed:
+ * gross=850,000, vatRatePercent=5 -> netOfVat=809,524, i.e.
+ * netOfVat = gross / (1 + vatRate/100), vatAmount = gross - netOfVat. A
+ * naive "vatAmount = gross * rate/100" gives 42,500 / netOfVat 807,500 --
+ * DOES NOT match the spec's own example, and was the first (wrong) version
+ * of this function until checked against Part C's numbers directly. RETENTION
+ * is then a plain percentage of netOfVat (not a second inclusive
+ * extraction) -- the same worked example's retentionAmount=40,476 equals
+ * netOfVat*5% exactly, and netReceivable=769,048 = netOfVat - that amount.
+ *
+ * Full NOT_SET propagation, same rules as computeBoqLineMoneyView above:
+ * a missing contractValue or a missing/unparseable rate makes every
+ * downstream figure NOT_SET, never a silent 0 (X-04). `gross` is the one
+ * figure that survives a missing rate -- it is contractValue itself,
+ * unchanged -- so a caller can still show the top line while the rest of
+ * the stack waits on a real rate. A vatRatePercent of exactly -100 (the
+ * only value making the (1 + rate/100) divisor zero) is treated as
+ * division-by-zero -> NOT_SET, never Infinity/NaN.
+ */
+export function computeGrossNetStack(
+  contractValue: MoneyFigure,
+  vatRatePercent: number | string | null | undefined,
+  retentionPercent: number | string | null | undefined
+): GrossNetStack {
+  const gross = contractValue
+  if (contractValue === NOT_SET) {
+    return { gross: NOT_SET, vatAmount: NOT_SET, netOfVat: NOT_SET, retentionAmount: NOT_SET, netReceivable: NOT_SET }
+  }
+
+  const vatRate = toFinite(vatRatePercent)
+  const vatDivisor = vatRate === null ? null : 1 + vatRate / 100
+  const netOfVat: MoneyFigure = vatDivisor === null || vatDivisor === 0 ? NOT_SET : contractValue / vatDivisor
+  const vatAmount: MoneyFigure = netOfVat === NOT_SET ? NOT_SET : contractValue - netOfVat
+
+  const retentionRate = toFinite(retentionPercent)
+  const retentionAmount: MoneyFigure =
+    netOfVat === NOT_SET || retentionRate === null ? NOT_SET : netOfVat * (retentionRate / 100)
+  const netReceivable: MoneyFigure =
+    netOfVat === NOT_SET || retentionAmount === NOT_SET ? NOT_SET : netOfVat - retentionAmount
+
+  return { gross, vatAmount, netOfVat, retentionAmount, netReceivable }
+}
+
+export type ProfitAtBothLevels = {
+  profitOnGross: MoneyFigure
+  profitOnGrossPercent: MoneyFigure
+  profitOnNetReceivable: MoneyFigure
+  profitOnNetReceivablePercent: MoneyFigure
+}
+
+/**
+ * C-3/4-04: profit computed and LABELLED at BOTH gross and net-receivable
+ * levels -- the user chooses nothing, both are always shown (C-8, X-30: no
+ * toggle between them). Division-by-zero and NULL propagation follow the
+ * exact same rules as computeBoqLineMoneyView's variancePercent above: a
+ * zero or NOT_SET denominator yields NOT_SET, never 0 or Infinity.
+ */
+export function computeProfitAtBothLevels(stack: GrossNetStack, projectValue: MoneyFigure): ProfitAtBothLevels {
+  const profitOnGross: MoneyFigure =
+    stack.gross === NOT_SET || projectValue === NOT_SET ? NOT_SET : stack.gross - projectValue
+  const profitOnGrossPercent: MoneyFigure =
+    profitOnGross === NOT_SET || stack.gross === NOT_SET || stack.gross === 0
+      ? NOT_SET
+      : (profitOnGross / stack.gross) * 100
+
+  const profitOnNetReceivable: MoneyFigure =
+    stack.netReceivable === NOT_SET || projectValue === NOT_SET ? NOT_SET : stack.netReceivable - projectValue
+  const profitOnNetReceivablePercent: MoneyFigure =
+    profitOnNetReceivable === NOT_SET || stack.netReceivable === NOT_SET || stack.netReceivable === 0
+      ? NOT_SET
+      : (profitOnNetReceivable / stack.netReceivable) * 100
+
+  return { profitOnGross, profitOnGrossPercent, profitOnNetReceivable, profitOnNetReceivablePercent }
+}
+
+/**
+ * A4's CONTRACT VARIANCE = contract_value now - contract_value at first
+ * confirmation. A simple, NOT_SET-aware delta -- deliberately takes two
+ * caller-supplied figures rather than reading a baseline row itself, so
+ * this function has no dependency on Phase 3's boq_baseline table (a
+ * separate, in-flight, not-yet-merged piece of this same spec -- see this
+ * file's own PR/ACTIVE-CLAIMS entry). Whoever wires Phase 3's baseline
+ * table to this figure passes its snapshot value as the first argument.
+ */
+export function computeContractVariance(
+  contractValueAtFirstConfirmation: MoneyFigure,
+  contractValueNow: MoneyFigure
+): MoneyFigure {
+  if (contractValueAtFirstConfirmation === NOT_SET || contractValueNow === NOT_SET) return NOT_SET
+  return contractValueNow - contractValueAtFirstConfirmation
+}
+
+export type ContractValueOverrideDetails = {
+  value: number
+  actorId: string
+  at: Date | string
+  reason: string
+  evidenceArtefactRef: string
+}
+
+export type EffectiveContractValue = {
+  /** The figure actually in force -- the override's value when one is set, otherwise computedTotal. */
+  value: MoneyFigure
+  source: "computed" | "override"
+  /** ALWAYS the rolled-up BOQ total, regardless of `source` -- 4-07/X-12: an
+   * override NEVER overwrites this, and this field is how a caller (and this
+   * function's own test) proves both figures are still retrievable even
+   * when an override is in force. */
+  computedTotal: MoneyFigure
+  /** Present only when `source === "override"`. */
+  override?: ContractValueOverrideDetails
+}
+
+/**
+ * 4-07/X-12: "a separate column with actor, timestamp, reason AND a cited
+ * evidence artefact. It NEVER overwrites the computed BOQ total -- both are
+ * retained and which is in force is shown." This is that decision, made in
+ * exactly one place (X-27): the override is "in force" whenever one has a
+ * real numeric value set, full stop -- it does not matter whether it is
+ * larger or smaller than computedTotal, or whether computedTotal is itself
+ * NOT_SET. `computedTotal` is echoed back unchanged either way, so a caller
+ * (or a test) can always see both figures from this one return value.
+ */
+export function resolveEffectiveContractValue(
+  computedTotal: MoneyFigure,
+  override:
+    | { value: number | string | null | undefined; actorId: string; at: Date | string; reason: string; evidenceArtefactRef: string }
+    | null
+    | undefined
+): EffectiveContractValue {
+  const overrideValue = override ? toFinite(override.value) : null
+  if (override === null || override === undefined || overrideValue === null) {
+    return { value: computedTotal, source: "computed", computedTotal }
+  }
+  return {
+    value: overrideValue,
+    source: "override",
+    computedTotal,
+    override: {
+      value: overrideValue,
+      actorId: override.actorId,
+      at: override.at,
+      reason: override.reason,
+      evidenceArtefactRef: override.evidenceArtefactRef,
+    },
+  }
+}

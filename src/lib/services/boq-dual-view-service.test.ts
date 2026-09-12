@@ -6,9 +6,13 @@ import { describe, expect, test } from "bun:test"
 import {
   compareBoqLinesBySortKey,
   computeBoqLineMoneyView,
+  computeContractVariance,
   computeCostCoverage,
+  computeGrossNetStack,
+  computeProfitAtBothLevels,
   formatMoneyFigureForDisplay,
   NOT_SET,
+  resolveEffectiveContractValue,
   rollUpRootLines,
   validateBoqCellEdit,
   type BoqLineForRollup,
@@ -226,5 +230,196 @@ describe("computeCostCoverage -- Phase 2 2-08, partial cost sheets must say PART
       { parentLineItemId: null, qtyProject: 3, rateProject: 1, qtyContract: 3, rateContract: 1 },
     ]
     expect(computeCostCoverage(lines).coverageRatio).toBe(100)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────
+// PHASE 4 (gates 4-01..4-09) -- gross/net stack, profit at both levels,
+// contract variance, effective contract value (override resolution).
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("computeGrossNetStack -- 4-01/4-02/4-03, verified against Part C's own worked example", () => {
+  // Part C's exact worked numbers: gross=850,000, VAT 5% -> net of VAT
+  // 809,524, retention 5% -> net receivable 769,048. Used verbatim as the
+  // fixture so this test can only pass if the formula matches the spec's
+  // own example, not just "a plausible-looking VAT calculation".
+  test("4-03: matches Part C's worked example exactly (full precision, not the rounded display figures)", () => {
+    const stack = computeGrossNetStack(850000, 5, 5)
+    expect(stack.gross).toBe(850000)
+    expect(stack.netOfVat).toBeCloseTo(809523.8095238095, 6)
+    expect(stack.vatAmount).toBeCloseTo(40476.19047619048, 6)
+    expect(stack.retentionAmount).toBeCloseTo(40476.19047619048, 6)
+    expect(stack.netReceivable).toBeCloseTo(769047.619047619, 6)
+    // The spec's own display rounds each to the nearest whole AED:
+    expect(Math.round(stack.netOfVat as number)).toBe(809524)
+    expect(Math.round(stack.vatAmount as number)).toBe(40476)
+    expect(Math.round(stack.retentionAmount as number)).toBe(40476)
+    expect(Math.round(stack.netReceivable as number)).toBe(769048)
+  })
+
+  test("a naive 'VAT added on top of gross' formula would be WRONG here -- explicitly disproven", () => {
+    const stack = computeGrossNetStack(850000, 5, 5)
+    // The wrong formula (vatAmount = gross * rate/100) gives 42,500 / netOfVat 807,500.
+    expect(stack.vatAmount).not.toBeCloseTo(42500, 0)
+    expect(stack.netOfVat).not.toBeCloseTo(807500, 0)
+  })
+
+  test("4-01/4-02: VAT rate 0 -> netOfVat equals gross exactly, vatAmount 0 (not NOT_SET -- a real, entered zero rate)", () => {
+    const stack = computeGrossNetStack(100000, 0, 5)
+    expect(stack.netOfVat).toBe(100000)
+    expect(stack.vatAmount).toBe(0)
+    expect(stack.retentionAmount).toBeCloseTo(5000, 6)
+    expect(stack.netReceivable).toBeCloseTo(95000, 6)
+  })
+
+  test("contractValue NOT_SET -> every figure NOT_SET, including gross", () => {
+    const stack = computeGrossNetStack(NOT_SET, 5, 5)
+    expect(stack).toEqual({ gross: NOT_SET, vatAmount: NOT_SET, netOfVat: NOT_SET, retentionAmount: NOT_SET, netReceivable: NOT_SET })
+  })
+
+  test("missing/unparseable vatRatePercent -> gross survives, everything downstream is NOT_SET (never a silent 0)", () => {
+    for (const missing of [null, undefined, "", "abc"] as const) {
+      const stack = computeGrossNetStack(500000, missing, 5)
+      expect(stack.gross).toBe(500000)
+      expect(stack.vatAmount).toBe(NOT_SET)
+      expect(stack.netOfVat).toBe(NOT_SET)
+      expect(stack.retentionAmount).toBe(NOT_SET)
+      expect(stack.netReceivable).toBe(NOT_SET)
+    }
+  })
+
+  test("missing retentionPercent leaves VAT figures intact but retention/net-receivable NOT_SET", () => {
+    const stack = computeGrossNetStack(500000, 5, null)
+    expect(stack.netOfVat).not.toBe(NOT_SET)
+    expect(stack.retentionAmount).toBe(NOT_SET)
+    expect(stack.netReceivable).toBe(NOT_SET)
+  })
+
+  test("division by zero: vatRatePercent = -100 (the one value making the divisor 0) -> NOT_SET, never Infinity", () => {
+    const stack = computeGrossNetStack(500000, -100, 5)
+    expect(stack.netOfVat).toBe(NOT_SET)
+    expect(stack.vatAmount).toBe(NOT_SET)
+    expect(Number.isFinite(stack.netOfVat)).toBe(false)
+  })
+})
+
+describe("computeProfitAtBothLevels -- 4-04, C-3: BOTH levels always computed and labelled distinctly", () => {
+  test("matches Part C's worked example: profit on gross 240,000/28.2%, profit on net receivable 159,048/20.7%", () => {
+    const stack = computeGrossNetStack(850000, 5, 5)
+    const profit = computeProfitAtBothLevels(stack, 610000)
+    expect(profit.profitOnGross).toBe(240000)
+    expect(profit.profitOnGrossPercent).toBeCloseTo(28.235294117647058, 6)
+    expect(Math.round((profit.profitOnGrossPercent as number) * 10) / 10).toBe(28.2)
+    expect(profit.profitOnNetReceivable).toBeCloseTo(159047.619047619, 6)
+    expect(Math.round(profit.profitOnNetReceivable as number)).toBe(159048)
+    expect(profit.profitOnNetReceivablePercent).toBeCloseTo(20.681114551083578, 6)
+    expect(Math.round((profit.profitOnNetReceivablePercent as number) * 10) / 10).toBe(20.7)
+    // Both levels are genuinely DIFFERENT numbers -- proves this isn't one
+    // figure duplicated under two labels.
+    expect(profit.profitOnGross).not.toBe(profit.profitOnNetReceivable)
+    expect(profit.profitOnGrossPercent).not.toBe(profit.profitOnNetReceivablePercent)
+  })
+
+  test("a LOSS (project value exceeds gross) is still a real, computed negative number, never suppressed", () => {
+    const stack = computeGrossNetStack(100000, 5, 5)
+    const profit = computeProfitAtBothLevels(stack, 200000)
+    expect(profit.profitOnGross).toBeLessThan(0)
+    expect(profit.profitOnNetReceivable).toBeLessThan(0)
+  })
+
+  test("projectValue NOT_SET -> both profit figures NOT_SET, never treated as a 0-cost 100% profit (X-04)", () => {
+    const stack = computeGrossNetStack(500000, 5, 5)
+    const profit = computeProfitAtBothLevels(stack, NOT_SET)
+    expect(profit.profitOnGross).toBe(NOT_SET)
+    expect(profit.profitOnGrossPercent).toBe(NOT_SET)
+    expect(profit.profitOnNetReceivable).toBe(NOT_SET)
+    expect(profit.profitOnNetReceivablePercent).toBe(NOT_SET)
+  })
+
+  test("division by zero: gross/netReceivable of 0 -> percent NOT_SET, never Infinity/NaN", () => {
+    const stack = computeGrossNetStack(0, 5, 5)
+    const profit = computeProfitAtBothLevels(stack, 0)
+    expect(profit.profitOnGross).toBe(0) // a real, computed zero (0 - 0)
+    expect(profit.profitOnGrossPercent).toBe(NOT_SET) // but %-of-zero is undefined
+    expect(profit.profitOnNetReceivablePercent).toBe(NOT_SET)
+  })
+})
+
+describe("computeContractVariance -- A4's CONTRACT VARIANCE, a simple NOT_SET-aware delta", () => {
+  test("contract value increased via an approved variation -> a positive delta", () => {
+    expect(computeContractVariance(850000, 900000)).toBe(50000)
+  })
+
+  test("contract value decreased -> a real negative delta, not suppressed", () => {
+    expect(computeContractVariance(900000, 850000)).toBe(-50000)
+  })
+
+  test("either side NOT_SET (e.g. no baseline confirmed yet) -> NOT_SET, never 0", () => {
+    expect(computeContractVariance(NOT_SET, 900000)).toBe(NOT_SET)
+    expect(computeContractVariance(850000, NOT_SET)).toBe(NOT_SET)
+    expect(computeContractVariance(NOT_SET, NOT_SET)).toBe(NOT_SET)
+  })
+
+  test("no change at all is a real, computed zero, not NOT_SET", () => {
+    expect(computeContractVariance(850000, 850000)).toBe(0)
+  })
+})
+
+describe("resolveEffectiveContractValue -- 4-07/X-12: override NEVER overwrites the computed total, both retained", () => {
+  test("no override set -> source is 'computed', value is the computed total, no override block", () => {
+    const result = resolveEffectiveContractValue(850000, null)
+    expect(result).toEqual({ value: 850000, source: "computed", computedTotal: 850000 })
+  })
+
+  test("4-07 CORE PROOF: computed=X, override=Y -- BOTH are retrievable from the one return value, override clearly marked as override, X is never silently replaced", () => {
+    const computed = 850000
+    const override = 900000
+    const result = resolveEffectiveContractValue(computed, {
+      value: override,
+      actorId: "user-1",
+      at: "2026-09-12T10:00:00Z",
+      reason: "Client agreed a higher lump sum verbally, formalised by email",
+      evidenceArtefactRef: "artefact://emails/msg-123",
+    })
+    // The figure IN FORCE is the override...
+    expect(result.value).toBe(override)
+    expect(result.source).toBe("override")
+    // ...but the computed BOQ total is STILL retained and readable, unchanged:
+    expect(result.computedTotal).toBe(computed)
+    expect(result.computedTotal).not.toBe(result.value)
+    // and the override is clearly marked, not merged silently into `value`:
+    expect(result.override).toEqual({
+      value: override,
+      actorId: "user-1",
+      at: "2026-09-12T10:00:00Z",
+      reason: "Client agreed a higher lump sum verbally, formalised by email",
+      evidenceArtefactRef: "artefact://emails/msg-123",
+    })
+  })
+
+  test("override present even when LOWER than the computed total -- still 'in force', computed total still retained", () => {
+    const result = resolveEffectiveContractValue(900000, {
+      value: 850000, actorId: "user-1", at: "2026-09-12", reason: "negotiated down", evidenceArtefactRef: "artefact://po/PO-99",
+    })
+    expect(result.value).toBe(850000)
+    expect(result.computedTotal).toBe(900000)
+    expect(result.source).toBe("override")
+  })
+
+  test("override with a null/unparseable value is treated as no override at all -- falls back to computed", () => {
+    const result = resolveEffectiveContractValue(850000, {
+      value: null, actorId: "user-1", at: "2026-09-12", reason: "x", evidenceArtefactRef: "y",
+    })
+    expect(result.source).toBe("computed")
+    expect(result.value).toBe(850000)
+  })
+
+  test("computedTotal itself NOT_SET (no root lines yet) but an override IS set -- override still resolves, computedTotal stays NOT_SET (not coerced to 0)", () => {
+    const result = resolveEffectiveContractValue(NOT_SET, {
+      value: 500000, actorId: "user-1", at: "2026-09-12", reason: "x", evidenceArtefactRef: "y",
+    })
+    expect(result.value).toBe(500000)
+    expect(result.source).toBe("override")
+    expect(result.computedTotal).toBe(NOT_SET)
   })
 })
