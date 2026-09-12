@@ -4,11 +4,13 @@
 // RULING-03's own bar for what counts as evidence).
 import { describe, expect, test } from "bun:test"
 import {
+  compareBoqLinesBySortKey,
   computeBoqLineMoneyView,
   computeCostCoverage,
   formatMoneyFigureForDisplay,
   NOT_SET,
   rollUpRootLines,
+  validateBoqCellEdit,
   type BoqLineForRollup,
 } from "./boq-dual-view-service"
 
@@ -142,6 +144,62 @@ describe("rollUpRootLines -- 1-07 root-lines-only, R-32 fixture, BOTH sides, wou
     expect(totals.projectValue).toBe(NOT_SET)
     expect(totals.contractValue).toBe(NOT_SET)
     expect(totals.rootLineCount).toBe(0)
+  })
+})
+
+describe("validateBoqCellEdit -- Phase 2 2-04 inline validation", () => {
+  test("negative quantity is REFUSED", () => {
+    const r = validateBoqCellEdit("qty", "-5")
+    expect(r.valid).toBe(false)
+    if (!r.valid) expect(r.refused).toBe(true)
+  })
+
+  test("negative rate is WARNED, not refused -- a credit line is legitimate", () => {
+    const r = validateBoqCellEdit("rate", "-100")
+    expect(r.valid).toBe(false)
+    if (!r.valid) expect(r.refused).toBe(false)
+  })
+
+  test("non-numeric input is REFUSED, for either field", () => {
+    expect(validateBoqCellEdit("qty", "abc")).toEqual({ valid: false, refused: true, reason: "Enter a number." })
+    expect(validateBoqCellEdit("rate", "12x").valid).toBe(false)
+  })
+
+  test("clearing a cell (empty string) is legal -- becomes NOT_SET, not refused", () => {
+    expect(validateBoqCellEdit("qty", "")).toEqual({ valid: true })
+    expect(validateBoqCellEdit("rate", "   ")).toEqual({ valid: true })
+  })
+
+  test("a valid positive number passes for both fields", () => {
+    expect(validateBoqCellEdit("qty", "100")).toEqual({ valid: true })
+    expect(validateBoqCellEdit("rate", "45.5")).toEqual({ valid: true })
+  })
+})
+
+describe("compareBoqLinesBySortKey -- Phase 2 2-07, NOT_SET always sorts last regardless of direction", () => {
+  type Line = { id: string; parentLineItemId: string | null; qtyProject: number | null; rateProject: number | null; qtyContract: number | null; rateContract: number | null }
+  const lines: Line[] = [
+    { id: "worst", parentLineItemId: null, qtyProject: 100, rateProject: 90, qtyContract: 100, rateContract: 50 }, // variance -4000
+    { id: "unpriced", parentLineItemId: null, qtyProject: null, rateProject: null, qtyContract: 100, rateContract: 50 }, // NOT_SET
+    { id: "best", parentLineItemId: null, qtyProject: 100, rateProject: 10, qtyContract: 100, rateContract: 50 }, // variance 4000
+  ]
+
+  test("ascending by variance: worst (most negative) first, NOT_SET last", () => {
+    const sorted = [...lines].sort(compareBoqLinesBySortKey<Line>("variance", "asc"))
+    expect(sorted.map((l) => l.id)).toEqual(["worst", "best", "unpriced"])
+  })
+
+  test("descending by variance: best first, NOT_SET STILL last (not first)", () => {
+    const sorted = [...lines].sort(compareBoqLinesBySortKey<Line>("variance", "desc"))
+    expect(sorted.map((l) => l.id)).toEqual(["best", "worst", "unpriced"])
+  })
+
+  test("all-NOT_SET input is stable and does not throw", () => {
+    const allUnset: Line[] = [
+      { id: "a", parentLineItemId: null, qtyProject: null, rateProject: null, qtyContract: null, rateContract: null },
+      { id: "b", parentLineItemId: null, qtyProject: null, rateProject: null, qtyContract: null, rateContract: null },
+    ]
+    expect(() => [...allUnset].sort(compareBoqLinesBySortKey<Line>("contractValue"))).not.toThrow()
   })
 })
 

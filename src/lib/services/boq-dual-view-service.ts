@@ -195,6 +195,53 @@ export function computeCostCoverage(lines: BoqLineForRollup[]): {
   return { coveredContractValue, totalContractValue: total, coverageRatio }
 }
 
+export type BoqCellValidation = { valid: true } | { valid: false; refused: boolean; reason: string }
+
+/**
+ * Phase 2, 2-04 inline validation for a single qty/rate cell edit.
+ * - negative quantity: REFUSED (a negative quantity has no real meaning here)
+ * - negative rate: WARNED, not refused -- a credit line is legitimate
+ * - non-numeric: REFUSED
+ * `refused: false` on an invalid result means "let the value through with a
+ * visible warning"; `refused: true` means the edit must not be accepted.
+ */
+export function validateBoqCellEdit(field: "qty" | "rate", raw: string): BoqCellValidation {
+  const trimmed = raw.trim()
+  if (trimmed === "") return { valid: true } // clearing a cell is legal -- becomes NOT_SET
+  const n = Number(trimmed)
+  if (!Number.isFinite(n)) return { valid: false, refused: true, reason: "Enter a number." }
+  if (n < 0) {
+    if (field === "qty") return { valid: false, refused: true, reason: "Quantity cannot be negative." }
+    // field === "rate": a credit/rebate line is a legitimate real-world case.
+    return { valid: false, refused: false, reason: "Negative rate -- confirm this is intended (e.g. a credit line)." }
+  }
+  return { valid: true }
+}
+
+export type BoqLineSortKey = "variance" | "variancePercent" | "contractValue" | "quantityVariance"
+
+/**
+ * Phase 2, 2-07: sort comparator for the grid's "what is killing the job"
+ * views. NOT_SET always sorts LAST regardless of direction -- an unpriced
+ * line is neither the best nor the worst performer, it is simply unknown,
+ * and burying known-bad lines under a pile of NOT_SET rows would defeat the
+ * entire purpose of the sort (2-07: "the sorted list is what the user acts
+ * on").
+ */
+export function compareBoqLinesBySortKey<T extends { parentLineItemId: string | null } & BoqLineMoneyInput>(
+  key: BoqLineSortKey,
+  direction: "asc" | "desc" = "asc",
+) {
+  return (a: T, b: T): number => {
+    const va = computeBoqLineMoneyView(a)[key]
+    const vb = computeBoqLineMoneyView(b)[key]
+    if (va === NOT_SET && vb === NOT_SET) return 0
+    if (va === NOT_SET) return 1 // NOT_SET always last
+    if (vb === NOT_SET) return -1
+    return direction === "asc" ? va - vb : vb - va
+  }
+}
+
 /**
  * Rounds a MoneyFigure for DISPLAY ONLY (X-03: never round an intermediate,
  * never store a rounded value). `decimals` defaults to 2 for currency; pass
