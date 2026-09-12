@@ -42,12 +42,38 @@ export type LLMProvider = "groq" | "openai" | "anthropic" | "google" | "openrout
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 
 const execFileAsync = promisify(execFile);
 
 /** Deterministic short fingerprint for supervision logging -- deliberately never logs raw prompt/response text (privacy + row-size), only a value an auditor can correlate against if they also have the original text. */
 export function supervisionHash(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
+}
+
+const SUPERVISION_SCRIPT_PATH = "/opt/veridian/scripts/superboss-register.py";
+
+// 2026-09-12 production-RAM/resource audit finding: this script only exists
+// on the dedicated host server this engagement also runs on -- NOT in a
+// Vercel deployment, and not on most local dev machines either. Before this
+// fix, every call unconditionally attempted execFileAsync("python3", ...)
+// and only found out it was hopeless from the ENOENT after paying a real
+// fork/exec cost -- up to 3x per LLM call (mother-router.ts's before/after-
+// success/after-error call sites), always, forever, on every environment
+// that isn't the one host where this can ever succeed. Checked ONCE per
+// process lifetime (module-level, not per-call) and cached, so a warm
+// Vercel/local instance pays this cost at most once, not on every request.
+let scriptAvailable: boolean | undefined;
+function isSupervisionScriptAvailable(): boolean {
+  if (scriptAvailable === undefined) {
+    scriptAvailable = existsSync(SUPERVISION_SCRIPT_PATH);
+    if (!scriptAvailable) {
+      console.warn(
+        `[ai-supervision] ${SUPERVISION_SCRIPT_PATH} not found on this instance -- ai_supervision logging is a no-op here for the rest of this process's lifetime (this is expected on Vercel and most local dev machines; only the dedicated host server has this script).`
+      );
+    }
+  }
+  return scriptAvailable;
 }
 
 /**
@@ -61,11 +87,22 @@ export function supervisionHash(value: string): string {
  * has no ability to alter or stop the call it's logging. Real-time
  * blocking/intervention on a model call is a separate, larger, not-yet-
  * scoped capability.
+ *
+ * KNOWN GAP, not fixed by this change: on any instance where the script
+ * genuinely isn't present (Vercel, most local dev), this function is now a
+ * cheap, silent no-op rather than a failed subprocess spawn -- but the
+ * underlying governance gap (Mother Router supervision logging has no
+ * Vercel-reachable backend at all) is unchanged. This fix only stops paying
+ * a real, repeated resource cost for an attempt that could never succeed;
+ * it does not give production a working supervision audit trail. That is a
+ * separate, larger design decision (e.g. writing to a DB table instead of
+ * shelling out) for whoever owns this feature next.
  */
 export async function logAiSupervisionEvent(content: Record<string, unknown>): Promise<void> {
+  if (!isSupervisionScriptAvailable()) return;
   try {
     await execFileAsync("python3", [
-      "/opt/veridian/scripts/superboss-register.py",
+      SUPERVISION_SCRIPT_PATH,
       "log-action",
       "--source",
       "ai_supervision",
