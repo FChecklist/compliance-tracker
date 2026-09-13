@@ -9,6 +9,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -17,6 +18,7 @@ jobs:
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -32,6 +34,7 @@ jobs:
     name: Build
     needs: [lint, typecheck]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -55,6 +58,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -108,6 +112,7 @@ jobs:
   migration-collision-check:
     name: Migration Number Collision Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
@@ -136,6 +141,7 @@ jobs:
   route-error-handling-check:
     name: Route Error Handling Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
@@ -186,6 +192,7 @@ jobs:
   migration-integrity-check:
     name: Migration Integrity Check (AR-12)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -265,6 +272,7 @@ jobs:
     # the run below on the day a clean replay is expected to hold.
     name: Migration Replay From Empty (E-103, report-only)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -287,6 +295,7 @@ jobs:
     # feedback_bypass_server_direct_work memory).
     name: Governance YAML Parse Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -311,6 +320,7 @@ jobs:
     # missing live.
     name: Migration Schema Drift Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -349,6 +359,7 @@ jobs:
     # rows, delete the `continue-on-error: true` below so the job blocks again.
     name: Screen Definition Label Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
@@ -381,6 +392,7 @@ jobs:
     # unreachable-DB-warns-not-fails convention.
     name: Graph Drift Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -391,6 +403,7 @@ jobs:
   new-test-coverage:
     name: New Test Coverage Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -416,6 +429,7 @@ jobs:
   test-coverage-gap-report:
     name: Test Coverage Gap Report Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       # VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for
@@ -429,6 +443,7 @@ jobs:
     name: E2E Tests
     needs: [build]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -506,6 +521,14 @@ jobs:
     name: E2E Tests (Env-1, cross-repo)
     needs: [build]
     runs-on: ubuntu-latest
+    # PM directive 2026-09-13: no job in this workflow set timeout-minutes, so
+    # every job silently inherited GitHub's 6-hour default. This is the one
+    # job that genuinely can hang -- it boots two real dev servers and drives
+    # a real browser against them -- and on a hang it would sit unnoticed for
+    # 6 hours before anyone saw a red run. 25 minutes gives real headroom over
+    # this job's own observed real duration (~9-10 minutes end to end) without
+    # masking a genuine hang for anywhere near that long.
+    timeout-minutes: 25
     steps:
       # Fail fast and loud, not 2 build+boot steps later, the moment OR-7/
       # OR-8 land wrong or get missed -- same "a missing required secret
@@ -1061,6 +1084,7 @@ jobs:
     # independent warning if it's absent, without blocking proofs 1/4.
     name: Register Consistency Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
