@@ -41,12 +41,19 @@ import { analyzeInboundEmail } from "@/lib/services/email-intelligence-service"
 // visible row for someone to investigate rather than a silently dropped
 // webhook.
 //
-// STATUS: code-complete, NOT yet reachable from a real inbox -- two things
-// remain, both explicitly OWNER-GATED (not this route's job): (a) creating
-// the Resend Inbound configuration itself (an account-level action), and
-// (b) adding the MX record it specifies to veridian-aios.com's live DNS
-// (ai-os/DOMAIN_OWNERSHIP.yaml: no AI session may change production domain
-// DNS/routing unilaterally). See platform.sumeet_requirements row R-C17.
+// STATUS: code-complete. 2026-09-13 (owner directive): the owner confirmed
+// real, working email already exists on the root veridian-aios.com/
+// projexa-ai.com domains, so per-user aliases were moved to the subdomain
+// mail.veridian-aios.com (ALLOWED_ALIAS_DOMAINS in email-alias-service.ts)
+// -- a domain's MX record routes ALL its mail to one place, so the root
+// domain could not safely be used without hijacking existing mail. Two
+// steps remain, both genuinely owner-only (not this route's job): (a)
+// adding mail.veridian-aios.com as an Inbound domain in the Resend
+// dashboard (an account-level action, needs Resend login), and (b) adding
+// the MX record Resend then specifies to mail.veridian-aios.com's DNS
+// (owner-authorized 2026-09-13 for the PM session to do directly in Vercel,
+// scoped to exactly this one record -- see platform.claude_log for the
+// exact ruling). See platform.sumeet_requirements row R-C17.
 
 type ReceivedEmailEventData = {
   email_id: string

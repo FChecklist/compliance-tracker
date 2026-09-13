@@ -51,7 +51,7 @@ let userLookupResult: { id: string; name: string; email: string } | null = { id:
 let nextId = 1
 
 let receivingGetResult: { data: Record<string, unknown> | null; error: { message: string } | null } = {
-  data: { from: "sender@external.com", to: ["raajat.agarwal@veridian-aios.com"], subject: "Real subject", text: "Real body", html: null },
+  data: { from: "sender@external.com", to: ["raajat.agarwal@mail.veridian-aios.com"], subject: "Real subject", text: "Real body", html: null },
   error: null,
 }
 
@@ -112,7 +112,7 @@ beforeEach(() => {
   updateCalls = []
   userLookupResult = { id: "user-1", name: "Test User", email: "test@example.com" }
   receivingGetResult = {
-    data: { from: "sender@external.com", to: ["raajat.agarwal@veridian-aios.com"], subject: "Real subject", text: "Real body", html: null },
+    data: { from: "sender@external.com", to: ["raajat.agarwal@mail.veridian-aios.com"], subject: "Real subject", text: "Real body", html: null },
     error: null,
   }
   resolveEmailAliasResult = { orgId: "org-1", userId: "user-1", aliasId: "alias-1" }
@@ -152,7 +152,7 @@ describe("POST /api/webhooks/resend-inbound -- falsifiability (both directions, 
     const body = JSON.stringify({
       type: "email.received",
       created_at: new Date().toISOString(),
-      data: { email_id: "email_valid_1", from: "sender@external.com", to: ["raajat.agarwal@veridian-aios.com"], subject: "hi" },
+      data: { email_id: "email_valid_1", from: "sender@external.com", to: ["raajat.agarwal@mail.veridian-aios.com"], subject: "hi" },
     })
     const res = await POST(signedRequest(body) as any)
     expect(res.status).toBe(200)
@@ -167,7 +167,7 @@ describe("POST /api/webhooks/resend-inbound -- end-to-end happy path", () => {
     const body = JSON.stringify({
       type: "email.received",
       created_at: "2026-09-13T10:00:00.000Z",
-      data: { email_id: "email_e2e_1", from: "webhook-from@external.com", to: ["raajat.agarwal@veridian-aios.com"], subject: "webhook subject" },
+      data: { email_id: "email_e2e_1", from: "webhook-from@external.com", to: ["raajat.agarwal@mail.veridian-aios.com"], subject: "webhook subject" },
     })
     const res = await POST(signedRequest(body) as any)
     expect(res.status).toBe(200)
@@ -180,7 +180,7 @@ describe("POST /api/webhooks/resend-inbound -- end-to-end happy path", () => {
       orgId: "org-1",
       userId: "user-1",
       fromAddress: "sender@external.com", // from the mocked receiving.get() full fetch, not the webhook's own "webhook-from@external.com"
-      toAddress: "raajat.agarwal@veridian-aios.com",
+      toAddress: "raajat.agarwal@mail.veridian-aios.com",
       subject: "Real subject",
       resendMessageId: "email_e2e_1",
       processingError: null,
@@ -202,7 +202,7 @@ describe("POST /api/webhooks/resend-inbound -- end-to-end happy path", () => {
     resolveEmailAliasResult = null
     const body = JSON.stringify({
       type: "email.received",
-      data: { email_id: "email_unresolved_1", from: "sender@external.com", to: ["nobody@veridian-aios.com"], subject: "misdirected" },
+      data: { email_id: "email_unresolved_1", from: "sender@external.com", to: ["nobody@mail.veridian-aios.com"], subject: "misdirected" },
     })
     const res = await POST(signedRequest(body) as any)
     expect(res.status).toBe(200)
@@ -218,7 +218,7 @@ describe("POST /api/webhooks/resend-inbound -- end-to-end happy path", () => {
 
   test("a repeated delivery for an already-recorded resendMessageId is acknowledged without reprocessing (idempotency)", async () => {
     existingMessageRow = { id: "existing-msg-1", resendMessageId: "email_dup_1" }
-    const body = JSON.stringify({ type: "email.received", data: { email_id: "email_dup_1", to: ["raajat.agarwal@veridian-aios.com"] } })
+    const body = JSON.stringify({ type: "email.received", data: { email_id: "email_dup_1", to: ["raajat.agarwal@mail.veridian-aios.com"] } })
     const res = await POST(signedRequest(body) as any)
     expect(res.status).toBe(200)
     const json = (await res.json()) as { ok: boolean; alreadyProcessed: boolean; id: string }
@@ -232,7 +232,7 @@ describe("POST /api/webhooks/resend-inbound -- end-to-end happy path", () => {
     analyzeInboundEmailShouldThrow = true
     const body = JSON.stringify({
       type: "email.received",
-      data: { email_id: "email_fail_1", from: "sender@external.com", to: ["raajat.agarwal@veridian-aios.com"], subject: "will fail" },
+      data: { email_id: "email_fail_1", from: "sender@external.com", to: ["raajat.agarwal@mail.veridian-aios.com"], subject: "will fail" },
     })
     const res = await POST(signedRequest(body) as any)
     expect(res.status).toBe(200)
