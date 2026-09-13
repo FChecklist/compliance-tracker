@@ -657,7 +657,13 @@ jobs:
         # users, confirmed by reading it directly), a structurally different
         # mechanism with no shared single-slot token to race on, so its own
         # `workers: 3` config is untouched and correct as-is.
-        run: bunx playwright test env1.spec.ts --workers=1
+        # `2>&1 | tee ...` (not a plain redirect): the log file feeds the
+        # credential-leak scan step below, but the raw stdout/stderr must
+        # still reach the job's own live log exactly as before -- this repo's
+        # default `bash -eo pipefail` shell (GitHub Actions' own default for
+        # non-Windows `run` steps) means playwright's real exit code still
+        # propagates through the pipe, so this does not mask a test failure.
+        run: bunx playwright test env1.spec.ts --workers=1 2>&1 | tee playwright-env1-ct.log
         env:
           E2E_PROJEXA_ORIGIN: http://localhost:3100
           E2E_ENV1_JOB: "true"
@@ -692,9 +698,54 @@ jobs:
       - name: Run projexa Env-1 spec(s)
         if: always()
         working-directory: projexa-checkout
-        run: bunx playwright test env1.spec.ts
+        # `../playwright-env1-projexa.log` lands next to playwright-env1-ct.log
+        # above (this job's default working directory, one level up from
+        # projexa-checkout/) so the scan step below can find both with no
+        # working-directory override of its own. Same pipefail reasoning as
+        # the compliance-tracker step's own comment just above.
+        run: bunx playwright test env1.spec.ts 2>&1 | tee ../playwright-env1-projexa.log
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3100
+
+      # W-CI follow-up (2026-09-13): defense-in-depth net, companion to the
+      # sibling PROJEXA repo's own fix for a real secret leak -- Supabase auth
+      # cookies/Authorization headers appearing in plaintext in this job's own
+      # GitHub Actions logs on a Playwright timeout, because both repos are
+      # public. That fix addresses one spec family; this step is a permanent,
+      # self-contained scan of THIS job's own captured Playwright/server output
+      # for the same class of signature, so any FUTURE recurrence -- a new
+      # spec, a different failure mode, a library upgrade that changes what
+      # gets dumped on timeout -- fails this job loudly instead of silently
+      # printing a real credential to a public log. if: always() so it still
+      # inspects output on failure, which is exactly when Playwright is most
+      # likely to have dumped a full request/response (including auth
+      # headers/cookies) into its own console output. grep-only, no new
+      # dependency (rg/grep both ship on ubuntu-latest).
+      - name: Scan Env-1 job output for leaked credentials
+        if: always()
+        run: |
+          set -uo pipefail
+          # sb-<project-ref>-auth-token=... : Supabase's own SSR cookie name
+          # access_token"/"refresh_token" : GoTrue session JSON, however it got dumped
+          # Authorization: Bearer ... : a real bearer credential on the wire
+          # cookie: ...auth-token : a raw Cookie/Set-Cookie header carrying the same token
+          # -i (case-insensitive): header names/casing vary by client/logger; a security
+          # scan being too broad here is far cheaper than one being too narrow.
+          PATTERN='sb-[a-z0-9]+-auth-token=|access_token"[[:space:]]*:|refresh_token"[[:space:]]*:|Authorization: Bearer |cookie: .*auth-token'
+          FILES="playwright-env1-ct.log playwright-env1-projexa.log ct-server.log projexa-server.log"
+          leaked=0
+          for f in $FILES; do
+            if [ -f "$f" ]; then
+              if grep -inE "$PATTERN" "$f"; then
+                echo "::error::Potential Supabase auth-token/Authorization-header leak found in $f (matched line(s) printed above, file NOT uploaded as an artifact). This job's log is public -- treat any real match as a live credential exposure, rotate it, and fix the code path that printed it rather than loosening this pattern."
+                leaked=1
+              fi
+            fi
+          done
+          if [ "$leaked" -ne 0 ]; then
+            exit 1
+          fi
+          echo "credential-leak scan: no matches in $FILES"
 
       - name: Server logs (always shown, for debugging any outcome)
         if: always()
