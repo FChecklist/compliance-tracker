@@ -707,6 +707,39 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3100
 
+      # W-CI follow-up (2026-09-13, follow-up to compliance-tracker#1719 /
+      # projexa#263): projexa#263 added playwright/redacted-reporter.ts (a
+      # custom Playwright reporter + a process.stdout/stderr.write patch) to
+      # redact Supabase auth-token cookies out of Playwright's own
+      # TimeoutError "Call log" dumps before they reach this job's captured
+      # .log files. A real run of THIS job (34738259390, 2026-09-13) showed
+      # that fix did NOT fully work -- a live Supabase auth-token cookie
+      # still landed in plaintext in playwright-env1-projexa.log. Root cause
+      # (confirmed via a local multi-process repro, see this fix's own PR
+      # description): projexa's playwright.config.ts runs with workers: 3,
+      # each worker a SEPARATE OS process -- a process.stdout/stderr.write
+      # patch applied in the main/orchestrator process (where reporters
+      # live) has no effect on a worker process's own, independent
+      # stdout/stderr, so a worker's own Call-log dump can reach this job's
+      # captured file without ever passing through that patched stream.
+      #
+      # This step is the process-topology-independent backstop: it operates
+      # on the log FILES' bytes directly (scripts/redact-env1-log.mjs), so
+      # it does not matter which process -- main or any worker, however it
+      # wrote -- produced the leaking line. Runs BEFORE the credential-scan
+      # step below so that step has genuinely nothing left to find (the scan
+      # step itself is intentionally left unweakened -- this step does not
+      # touch its patterns or its exit behavior, only removes what it would
+      # otherwise flag). if: always(), same reasoning as the scan step
+      # below: a timeout dump is exactly as likely on a failed run as a
+      # passing one, so this must run either way.
+      - name: Redact credential patterns from Env-1 log files
+        if: always()
+        run: |
+          node scripts/redact-env1-log.mjs \
+            playwright-env1-ct.log playwright-env1-projexa.log \
+            ct-server.log projexa-server.log
+
       # W-CI follow-up (2026-09-13): defense-in-depth net, companion to the
       # sibling PROJEXA repo's own fix for a real secret leak -- Supabase auth
       # cookies/Authorization headers appearing in plaintext in this job's own
@@ -720,7 +753,10 @@ jobs:
       # inspects output on failure, which is exactly when Playwright is most
       # likely to have dumped a full request/response (including auth
       # headers/cookies) into its own console output. grep-only, no new
-      # dependency (rg/grep both ship on ubuntu-latest).
+      # dependency (rg/grep both ship on ubuntu-latest). The "Redact
+      # credential patterns" step immediately above runs first and should
+      # leave this step with nothing to find -- this step is intentionally
+      # NOT weakened or removed to compensate; it stays the final gate.
       - name: Scan Env-1 job output for leaked credentials
         if: always()
         run: |
