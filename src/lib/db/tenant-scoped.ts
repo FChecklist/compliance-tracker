@@ -103,7 +103,18 @@ export function appRuntimePoolOptions() {
     // real backend ones -- client-side `max` is not a 1:1 draw against that
     // 60. Every timeout/statement_timeout value below is untouched; this is
     // a capacity axis, not a guardrail-weakening one.
-    max: 15,
+    // 2026-09-13, second re-measurement same day: run 34751296323/job
+    // 103709045231 (max:15) cut the same job's failures from 15/25 to 7/25
+    // -- R-80 and R-81's own dedicated spec now pass clean -- but one
+    // remaining failure (r21-r24, "TimeoutError: apiRequestContext.post:
+    // Timeout 15000ms exceeded" on POST /api/scope) landed only 23s after
+    // the 3-worker step started, i.e. the cold-start instant where all 3
+    // workers' first page loads (each fanning out via /api/shell) compete
+    // for connections before the pool has had a chance to breathe. Raised
+    // once more, 15 -> 20, still well inside the confirmed ~48-connection
+    // headroom (60 max_connections - ~12 baseline) -- not a blind escalation,
+    // the same measured-headroom check as the first raise, just re-applied.
+    max: 20,
     connect_timeout: 10,
     idle_timeout: 30,
     connection: {

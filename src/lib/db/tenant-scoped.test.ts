@@ -296,10 +296,10 @@ describe("the app_runtime pool options this guard exists to protect", () => {
   // should support -- D-06's own rule explicitly anticipated re-measuring
   // once the leak was confirmed gone, which this file's own passing tests
   // now confirm.
-  test("max 15 (re-measured 2026-09-13), with the timeouts R46 added -- the guard is the fix, not a bigger pool", async () => {
+  test("max 20 (re-measured 2026-09-13, second pass), with the timeouts R46 added -- the guard is the fix, not a bigger pool", async () => {
     await withTenantContext(CTX, async () => "ok")
 
-    expect(postgresOptions?.max).toBe(15)
+    expect(postgresOptions?.max).toBe(20)
     expect(postgresOptions?.connect_timeout).toBe(10)
     expect(postgresOptions?.idle_timeout).toBe(30)
     expect((postgresOptions?.connection as { statement_timeout?: number })?.statement_timeout).toBe(25_000)
@@ -326,7 +326,7 @@ describe("F-16: the 30 s idle-in-transaction safety net travels with the connect
   test("the exported options builder is the same object the client is built from", () => {
     const built = appRuntimePoolOptions()
 
-    expect(built.max).toBe(15)
+    expect(built.max).toBe(20)
     expect(built.connection.options).toBe(`-c idle_in_transaction_session_timeout=${IDLE_IN_TRANSACTION_TIMEOUT_MS}`)
     expect(IDLE_IN_TRANSACTION_TIMEOUT_MS).toBe(30_000)
   })
@@ -460,7 +460,7 @@ describe("F-16: readAppRuntimePoolHealth", () => {
     expect(health.idle).toBe(2)
     expect(health.idleInTransaction).toBe(2)
     expect(health.total).toBe(5)
-    expect(health.maxPoolSize).toBe(15)
+    expect(health.maxPoolSize).toBe(20)
     expect(health.oldestIdleInTransactionSeconds).toBeCloseTo(1523.4)
     expect(health.idleInTransactionTimeoutMs).toBe(30_000)
   })
