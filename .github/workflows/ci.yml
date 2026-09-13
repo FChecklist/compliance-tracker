@@ -707,6 +707,39 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3100
 
+      # W-CI follow-up (2026-09-13, follow-up to compliance-tracker#1719 /
+      # projexa#263): projexa#263 added playwright/redacted-reporter.ts (a
+      # custom Playwright reporter + a process.stdout/stderr.write patch) to
+      # redact Supabase auth-token cookies out of Playwright's own
+      # TimeoutError "Call log" dumps before they reach this job's captured
+      # .log files. A real run of THIS job (34738259390, 2026-09-13) showed
+      # that fix did NOT fully work -- a live Supabase auth-token cookie
+      # still landed in plaintext in playwright-env1-projexa.log. Root cause
+      # (confirmed via a local multi-process repro, see this fix's own PR
+      # description): projexa's playwright.config.ts runs with workers: 3,
+      # each worker a SEPARATE OS process -- a process.stdout/stderr.write
+      # patch applied in the main/orchestrator process (where reporters
+      # live) has no effect on a worker process's own, independent
+      # stdout/stderr, so a worker's own Call-log dump can reach this job's
+      # captured file without ever passing through that patched stream.
+      #
+      # This step is the process-topology-independent backstop: it operates
+      # on the log FILES' bytes directly (scripts/redact-env1-log.mjs), so
+      # it does not matter which process -- main or any worker, however it
+      # wrote -- produced the leaking line. Runs BEFORE the credential-scan
+      # step below so that step has genuinely nothing left to find (the scan
+      # step itself is intentionally left unweakened -- this step does not
+      # touch its patterns or its exit behavior, only removes what it would
+      # otherwise flag). if: always(), same reasoning as the scan step
+      # below: a timeout dump is exactly as likely on a failed run as a
+      # passing one, so this must run either way.
+      - name: Redact credential patterns from Env-1 log files
+        if: always()
+        run: |
+          node scripts/redact-env1-log.mjs \
+            playwright-env1-ct.log playwright-env1-projexa.log \
+            ct-server.log projexa-server.log
+
       # W-CI follow-up (2026-09-13): defense-in-depth net, companion to the
       # sibling PROJEXA repo's own fix for a real secret leak -- Supabase auth
       # cookies/Authorization headers appearing in plaintext in this job's own
@@ -720,7 +753,10 @@ jobs:
       # inspects output on failure, which is exactly when Playwright is most
       # likely to have dumped a full request/response (including auth
       # headers/cookies) into its own console output. grep-only, no new
-      # dependency (rg/grep both ship on ubuntu-latest).
+      # dependency (rg/grep both ship on ubuntu-latest). The "Redact
+      # credential patterns" step immediately above runs first and should
+      # leave this step with nothing to find -- this step is intentionally
+      # NOT weakened or removed to compensate; it stays the final gate.
       - name: Scan Env-1 job output for leaked credentials
         if: always()
         run: |
@@ -731,12 +767,28 @@ jobs:
           # cookie: ...auth-token : a raw Cookie/Set-Cookie header carrying the same token
           # -i (case-insensitive): header names/casing vary by client/logger; a security
           # scan being too broad here is far cheaper than one being too narrow.
+          #
+          # 2026-09-13 correction: the patterns above deliberately match the
+          # COOKIE-NAME PREFIX (e.g. "sb-<ref>-auth-token="), not the secret
+          # VALUE after it -- by design, so a differently-formatted real leak
+          # still gets caught. But redact-env1-log.mjs (the step above this
+          # one) deliberately keeps that same prefix visible and replaces
+          # only the value with a fixed marker, so a SUCCESSFUL redaction
+          # still matches this scan's own pattern and self-flags as a false
+          # leak. Confirmed live: PR #1722's own CI run showed this exact
+          # false positive -- every matched line already contained
+          # REDACT_MARKER, zero real token/cookie VALUES remained. Fix:
+          # exclude lines already carrying that exact marker before judging
+          # a match real. This does not narrow what counts as a genuine
+          # leak -- it only recognizes this scan's own redaction step's
+          # known, fixed output as already-handled.
           PATTERN='sb-[a-z0-9]+-auth-token=|access_token"[[:space:]]*:|refresh_token"[[:space:]]*:|Authorization: Bearer |cookie: .*auth-token'
+          REDACT_MARKER='REDACTED-BY-redact-env1-log'
           FILES="playwright-env1-ct.log playwright-env1-projexa.log ct-server.log projexa-server.log"
           leaked=0
           for f in $FILES; do
             if [ -f "$f" ]; then
-              if grep -inE "$PATTERN" "$f"; then
+              if grep -inE "$PATTERN" "$f" | grep -v "$REDACT_MARKER"; then
                 echo "::error::Potential Supabase auth-token/Authorization-header leak found in $f (matched line(s) printed above, file NOT uploaded as an artifact). This job's log is public -- treat any real match as a live credential exposure, rotate it, and fix the code path that printed it rather than loosening this pattern."
                 leaked=1
               fi
