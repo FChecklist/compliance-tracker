@@ -527,6 +527,51 @@ jobs:
             exit 1
           fi
           echo "all 6 required secrets present (values not printed)"
+      # R-80/81/82 investigation (2026-09-13): the REAL, confirmed root cause of
+      # this job's cascading timeouts (15s/30s/45s/90s apiRequestContext/page.goto
+      # failures across ~24 of 25 PROJEXA Env-1 tests, every one of them, not just
+      # R-80/81/82) is NOT compliance-tracker's app_runtime connection pool -- that
+      # was this investigation's starting hypothesis (see CLAUDE.md's R74/R75/R83
+      # notes on ensureConstructionEnabled()/withTenantContext nesting) and it does
+      # NOT hold up against the evidence: ct-server.log shows ZERO route activity
+      # for the entire run (confirmed via `gh run view --log` on run 34738259390,
+      # PR #1721) and PROJEXA's own structured request log shows
+      # upstreamCalls:0/upstreamMs:0 on every logged request -- compliance-tracker
+      # was never even reached.
+      #
+      # The real fault: PROJEXA's own server-side DB query
+      # (getVeridianApiKey() in projexa's src/lib/veridian-client.ts, which every
+      # single /api/* proxy route calls BEFORE it ever forwards to compliance-
+      # tracker) intermittently fails with `connect ENETUNREACH
+      # 2406:da1a:314:...:6543` -- an IPv6 address, Supabase's pooler port --
+      # while OTHER connection attempts to the same host just hang (no reject at
+      # all) until something upstream gives up. That inconsistency (instant
+      # ENETUNREACH some of the time, a silent multi-second-to-90s hang the rest)
+      # is the well-documented GitHub Actions ubuntu-latest-runner symptom of
+      # having an IPv6 address assigned with no real, reliable route to it:
+      # glibc's getaddrinfo() returns Supabase's AAAA record first (RFC 3484
+      # default ordering), some of THOSE connection attempts get a fast kernel-
+      # level "no route" (ENETUNREACH), and others reach a hop that silently
+      # drops packets instead of rejecting, which just hangs until a TCP-level
+      # retransmit timeout or an application-level timeout fires -- exactly
+      # matching the spread of failure modes/durations observed here.
+      #
+      # Fix: prefer IPv4 at the OS resolver level (glibc's /etc/gai.conf
+      # precedence table), which applies to EVERY process on this runner
+      # regardless of language/runtime (Bun, for both the compliance-tracker and
+      # projexa servers below, plus Node/curl/anything else) -- deliberately NOT
+      # a per-runtime flag (e.g. NODE_OPTIONS=--dns-result-order=ipv4first), since
+      # both app servers here run via `bunx next start`, i.e. the Bun runtime, not
+      # Node, and Bun's own support for that Node CLI flag is not confirmed
+      # anywhere in its documentation -- an OS-level fix has no such doubt. This
+      # does not touch application code, RLS, or tenant isolation in any way; it
+      # only changes which address family this ephemeral CI runner's libc tries
+      # first when a hostname resolves to both an A and an AAAA record. No effect
+      # on IPv6-only hosts (there is no IPv4 address to prefer). Standard,
+      # widely-used GitHub Actions workaround for this exact Supabase/IPv6 class
+      # of failure.
+      - name: Prefer IPv4 over IPv6 (fixes Supabase IPv6/ENETUNREACH flakiness on this runner)
+        run: echo "precedence ::ffff:0:0/96 100" | sudo tee -a /etc/gai.conf
       - name: Checkout compliance-tracker
         uses: actions/checkout@v7
       - name: Checkout projexa (sibling dir)
