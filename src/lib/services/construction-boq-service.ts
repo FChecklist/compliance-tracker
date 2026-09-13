@@ -1242,14 +1242,38 @@ export async function updateLineItemBudget(
     const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, existing.boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!boq) throw new ServiceError("Line item not found", 404)
 
-    const [updated] = await db.update(constructionBoqLineItems).set({
+    const setValues = {
       ...(input.budgetPercentage !== undefined ? { budgetPercentage: String(input.budgetPercentage) } : {}),
       ...(input.vendorId !== undefined ? { vendorId: input.vendorId } : {}),
       ...(input.vendorAmount !== undefined ? { vendorAmount: input.vendorAmount === null ? null : String(input.vendorAmount) } : {}),
       ...(input.materialAmount !== undefined ? { materialAmount: input.materialAmount === null ? null : String(input.materialAmount) } : {}),
       ...(input.manpowerAmount !== undefined ? { manpowerAmount: input.manpowerAmount === null ? null : String(input.manpowerAmount) } : {}),
       ...(input.category !== undefined ? { category: normalizeCategory(input.category) } : {}),
-    }).where(eq(constructionBoqLineItems.id, lineItemId)).returning()
+    }
+    // R85 Addendum 3 v4 Phase 2 fallout (2026-09-13): the PATCH route calls
+    // this function UNCONDITIONALLY, even when the caller only sent one of
+    // the grid's own dual-view money fields (qtyProject/rateProject/
+    // qtyContract/rateContract) and none of THIS function's own six fields
+    // -- e.g. BoqDualViewGrid.tsx's commitCell() sends a single field per
+    // request, `{ [field]: value }`. When none of the six are present,
+    // `setValues` is `{}`, and drizzle-orm's real postgres.js driver throws
+    // "No values to set" for an empty `.set()` (confirmed via a real Env-1
+    // CI run: "v1 construction BOQ line-item update error: Error: No values
+    // to set", at `es.set` inside this file's own compiled chunk) -- NOT a
+    // ServiceError, so the route's catch falls through to its generic 500,
+    // and the caller's real edit (money-field or otherwise) never reaches
+    // updateLineItemMoneyFields() at all. The mocked unit test in
+    // construction-boq-service.money-fields-write.test.ts never caught this
+    // because its fake db's `.set()` accepts anything unconditionally --
+    // this codebase's own established fix for "an empty patch" is a no-op
+    // READ, not a write (see updateBoq() above, same file: "An empty patch
+    // is a no-op read, not a silent touch of updatedAt").
+    if (Object.keys(setValues).length === 0) {
+      return withComputedRate(existing)
+    }
+
+    const [updated] = await db.update(constructionBoqLineItems).set(setValues)
+      .where(eq(constructionBoqLineItems.id, lineItemId)).returning()
     return withComputedRate(updated)
   })
 }
