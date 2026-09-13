@@ -630,6 +630,71 @@ jobs:
       # going to work here -- the fix (5th attempt) is to detect that shape
       # and route through Supabase's IPv4-reachable Supavisor transaction
       # pooler instead of trying to pin an IP that doesn't exist.
+      #
+      # 2026-09-13 FOURTH correction (PR #1723, run 34748506949): the 5th-
+      # attempt rewrite above IS reaching the real pooler now (confirmed --
+      # "Force IPv4"/"Wait for projexa to accept connections" both pass
+      # cleanly) but the job STILL fails downstream, at "Run compliance-
+      # tracker Env-1 specs": 9 of 10 specs there time out (15s API / 30s
+      # page.goto), not on a real assertion mismatch. Root-caused with real
+      # evidence, not guessed: (a) PROJEXA's own structured request log
+      # (projexa-server.log) shows upstreamCalls:0/upstreamMs:0 on every
+      # single failing request for the ENTIRE run -- compliance-tracker's
+      # backend (:3000) was never once reached, ruling out every
+      # compliance-tracker-side hypothesis (nested withTenantContext,
+      # ensureConstructionEnabled(), connection-pool exhaustion -- see
+      # CLAUDE.md's R74/R75/R83 notes) for THIS failure; (b) projexa-
+      # server.log instead shows `[veridian-client] getVeridianApiKey(...)
+      # failed ... caused by: password authentication failed for user
+      # "postgres"` on every call, immediately followed by Supavisor's own
+      # `(ECIRCUITBREAKER) too many authentication failures` once ~20 have
+      # accumulated; (c) confirmed from the OTHER side too, via the Supabase
+      # MCP's query_logs against project evpckeuxgvahguwsaeul's own
+      # `supavisor_logs` for this exact run's time window: repeated
+      # `ClientHandler: Exchange error: password authentication failed for
+      # user "postgres"` from the runner's own IP, then two real
+      # `Circuit breaker opened for key={"evpckeuxgvahguwsaeul", ...}
+      # operation=auth_error` events -- this is the pooler's OWN server-side
+      # circuit breaker (not a postgres.js client-side one), confirming every
+      # attempt genuinely failed auth rather than a transient network glitch;
+      # (d) getVeridianApiKey() has no query timeout and runs on PROJEXA's
+      # `max:1`-pool db client (src/lib/db/index.ts there), so once the first
+      # few auth attempts are slow-failing, EVERY OTHER db-touching request
+      # (nearly every PROJEXA route calls resolveApiKey() -> getVeridianApiKey()
+      # per src/lib/veridian-client.ts there) queues behind that one
+      # congested slot -- this is why the observed delays escalate across
+      # the run (1.3s, 2s, 8s, 10s, 15s, ... 30s) rather than failing
+      # uniformly fast, and why it eventually exceeds Playwright's 15s/30s
+      # budgets on whichever spec's request lands at the tail of the queue.
+      # Confirmed the row genuinely exists (so this is not a missing-seed-
+      # data problem either): `select organization_id from
+      # public.veridian_credentials` on evpckeuxgvahguwsaeul, via the same
+      # Supabase MCP, shows real rows for both test org ids used by these
+      # specs (42d7bac5-... and bc689d97-...) -- the DB, if reachable, would
+      # answer these queries in well under a second.
+      #
+      # Fix (6th attempt, this commit): the PROJEXA_DATABASE_URL secret's
+      # password was simply wrong/stale (per the THIRD correction above, the
+      # owner had reset this secret earlier the same day) -- not a parsing or
+      # connectivity bug in this step at all. Verified the CORRECT password
+      # directly: projexa's own local, gitignored .env.local carries
+      # SUPABASE_DB_PASSWORD for this exact project, and a real, live
+      # connection test against the Supavisor pooler
+      # (postgres.evpckeuxgvahguwsaeul@aws-1-ap-south-1.pooler.supabase.com:6543)
+      # using that value succeeded (`select current_user, now()` returned
+      # real data) -- so this is not a guess, it's a proven-working
+      # credential. The PROJEXA_DATABASE_URL secret has been updated (via
+      # `gh secret set`, not a dashboard round-trip, since this value's only
+      # consumer is this one CI job -- confirmed via a repo-wide grep, no
+      # other workflow references PROJEXA_DATABASE_URL) to
+      # postgres://postgres:<that verified password>@db.evpckeuxgvahguwsaeul.supabase.co:5432/postgres,
+      # the same direct-connection SHAPE this step already expects and
+      # rewrites -- no change needed to the rewrite logic itself, only to
+      # the secret's own value. If this job ever fails this same way again,
+      # check supavisor_logs for this project via the Supabase MCP first --
+      # it will say definitively whether it's an auth failure (secret is
+      # wrong again) or something else, rather than re-deriving this from
+      # cascading Playwright timeouts.
       - name: Force IPv4 for the Supabase pooler host (fixes IPv6 ENETUNREACH flakiness on this runner)
         run: |
           set -euo pipefail
