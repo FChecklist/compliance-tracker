@@ -117,9 +117,9 @@ describe("slugifyLocalPart", () => {
 
 describe("parseRecipientAddress", () => {
   test("splits and lower-cases local-part and domain", () => {
-    expect(parseRecipientAddress("Raajat.Agarwal@Veridian-AIOS.com")).toEqual({
+    expect(parseRecipientAddress("Raajat.Agarwal@mail.Veridian-AIOS.com")).toEqual({
       localPart: "raajat.agarwal",
-      domain: "veridian-aios.com",
+      domain: "mail.veridian-aios.com",
     })
   })
   test.each([["no-at-sign"], ["@leading-at.com"], ["trailing-at@"], [""]])("rejects malformed address %p", (bad) => {
@@ -209,21 +209,21 @@ describe("getOrCreateUserEmailAlias", () => {
     expect(insertCalls.length).toBe(0)
   })
 
-  test("ALLOWED_ALIAS_DOMAINS is exactly ['veridian-aios.com'] today", () => {
-    expect(ALLOWED_ALIAS_DOMAINS).toEqual(["veridian-aios.com"])
+  test("ALLOWED_ALIAS_DOMAINS is exactly ['mail.veridian-aios.com'] today", () => {
+    expect(ALLOWED_ALIAS_DOMAINS).toEqual(["mail.veridian-aios.com"])
   })
 })
 
 describe("resolveEmailAlias", () => {
   test("resolves a known, active alias to its (orgId, userId)", async () => {
     aliasLookupResult = makeAliasRow({ id: "alias-9", orgId: "org-9", userId: "user-9" })
-    const result = await resolveEmailAlias("raajat.agarwal@veridian-aios.com")
+    const result = await resolveEmailAlias("raajat.agarwal@mail.veridian-aios.com")
     expect(result).toEqual({ orgId: "org-9", userId: "user-9", aliasId: "alias-9" })
   })
 
   test("returns null when no alias matches", async () => {
     aliasLookupResult = null
-    const result = await resolveEmailAlias("nobody@veridian-aios.com")
+    const result = await resolveEmailAlias("nobody@mail.veridian-aios.com")
     expect(result).toBeNull()
   })
 
