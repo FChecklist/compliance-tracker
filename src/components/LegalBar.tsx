@@ -15,6 +15,7 @@ export function LegalBar() {
           <Link href="/terms" className="hover:text-ct-navy">Terms & Conditions</Link>
           <Link href="/privacy" className="hover:text-ct-navy">Privacy Policy</Link>
           <Link href="/data-policy" className="hover:text-ct-navy">Data Policy</Link>
+          <Link href="/disclaimer" className="hover:text-ct-navy">Disclaimer</Link>
         </span>
       </div>
     </div>

@@ -45,6 +45,7 @@ export function LegalShell({ title, updated, brand, children }: { title: string;
             <Link href="/terms" className="hover:text-[#1a1a17]">Terms</Link>
             <Link href="/privacy" className="hover:text-[#1a1a17]">Privacy</Link>
             <Link href="/data-policy" className="hover:text-[#1a1a17]">Data</Link>
+            <Link href="/disclaimer" className="hover:text-[#1a1a17]">Disclaimer</Link>
           </div>
         </div>
       </nav>

@@ -92,3 +92,13 @@
 
 ## Contact
 Repository owner: raajat.agarwal@gmail.com | Z.ai user_id: 9f3b0147-85ba-4461-9e27-aa782b31328512. **Added 2026-07-31 (Owner directive, live session, quoted verbatim):** "on my behalf to to server and take decisions for approvals etc. let server work independently with claude cli directly, no connection of work from this laptop... you are going in it do do approvals etc on my behalf... work is done by the server - claude code ai session directly, not via laptop, laptop can be closed, still the server and claude code cli will keep working even if laptop is switched off." When asked explicitly whether security-sensitive and financial-calculation items should still be held for review, the Owner confirmed **"Full autonomy, no exceptions."** Effective immediately: `scripts/supervisor-entrypoint.sh`s `HOLD_FOR_OWNER_SIGNOFF` and `tier2` branches no longer hold a task in `awaiting_human_approval` — any task whose own Superboss review verdict is `approve` and passes `scope-check.py` now merges autonomously via the same path `tier1` always used, regardless of risk tier or hold-flag (see claude-control PR #118 and its inline `AUTONOMOUS-FULL-APPROVAL-2026-07-31` comment block for the exact mechanism). This does **not** weaken the underlying review: a rejected verdict, or a real `scope-check.py` file-ownership violation, still blocks exactly as before — only the redundant additional human-confirmation step on top of an already-approved review was removed. The Owner is still notified (informational only, no action requested) whenever a formerly-held task merges this way. **To revert:** restore the pre-2026-07-31 if/elif chain in `scripts/supervisor-entrypoint.sh` from git history (claude-control PR #118) and remove this rule.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
