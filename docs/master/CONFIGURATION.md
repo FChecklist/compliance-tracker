@@ -84,6 +84,7 @@ human read of each call site, not just extraction.
 | `OPS_SYNC_SECRET` | Same pattern, guards `/api/internal/ops-task-sync`. |
 | `VERCEL_DEPLOYMENT_WEBHOOK_SECRET` | Verifies inbound Vercel deployment webhooks. |
 | `PLATFORM_AUDIT_ORG_ID` | Which org the Vercel-deployment webhook attributes platform-level audit events to. |
+| `RESEND_WEBHOOK_SECRET` | R-C17 (Platform: Email Engine). Svix signing secret for Resend Inbound's `email.received` webhook (`src/app/api/webhooks/resend-inbound/route.ts`) — see `src/lib/webhooks/resend-svix-signature.ts` for the verification algorithm. Not yet set in any environment: requires the owner to create the Resend Inbound configuration first (an account-level action, not a code change), which is what generates this secret. |
 | `VERCEL_URL` | Vercel's own runtime-injected deployment URL — used to build an absolute `/api/v1` base URL when constructing external links from server code. |
 | `ORCHESTRA_PAYLOAD_RETENTION_DAYS` | Retention window (days) for the orchestra log purge job; falls back to a coded default if unset/non-numeric. |
 | `GITHUB_DISPATCH_PAT` | PAT used by `ai-team/dispatch-repo.ts` to fire `repository_dispatch` events (the `zai-task`/`claude-task` triggers documented in `AGENTS.md`). |
