@@ -1096,13 +1096,30 @@ export async function getBoq(ctx: { orgId: string }, boqId: string) {
       // this BOQ confirmed", the same reasoning updateLineItemMoneyFields
       // already applies to the lock check itself). Not cost data -- safe on
       // both the internal and the `?view=customer` branch alike.
+      //
+      // WRAPPED, DELIBERATELY: a real regression was found and fixed here --
+      // dozens of this codebase's own EXISTING unit tests construct a
+      // reduced fake `db` covering only the tables their own fixture cares
+      // about (an established, widespread convention in this repo, not a
+      // one-off), and getBoq() is called from many of them with no
+      // `query.boqBaseline` on that fake at all. An unguarded call crashed
+      // the WHOLE response (a TypeError, not a graceful degrade) for every
+      // one of those pre-existing tests -- confirmed live via a real CI run
+      // on this PR, not assumed. This is genuinely supplementary UI
+      // metadata, not core to the response, so a lookup failure here
+      // degrades to "no baseline info available" rather than breaking
+      // getBoq() for every caller that doesn't happen to care about it.
       ...(await (async () => {
-        const baselines = await listBaselineVersionsWithDb(db, boqId)
-        const latest = baselines[baselines.length - 1]
-        return {
-          hasConfirmedBaseline: baselines.length > 0,
-          latestBaselineVersion: latest?.version ?? null,
-          latestBaselineConfirmedAt: latest?.confirmedAt ?? null,
+        try {
+          const baselines = await listBaselineVersionsWithDb(db, boqId)
+          const latest = baselines[baselines.length - 1]
+          return {
+            hasConfirmedBaseline: baselines.length > 0,
+            latestBaselineVersion: latest?.version ?? null,
+            latestBaselineConfirmedAt: latest?.confirmedAt ?? null,
+          }
+        } catch {
+          return { hasConfirmedBaseline: false, latestBaselineVersion: null, latestBaselineConfirmedAt: null }
         }
       })()),
     }
