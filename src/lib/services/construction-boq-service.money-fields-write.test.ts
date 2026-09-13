@@ -183,3 +183,85 @@ describe("updateLineItemMoneyFields -- not found", () => {
     await expect(svc.updateLineItemMoneyFields({ orgId: ORG_ID }, "missing", { qtyProject: 1 })).rejects.toMatchObject({ status: 404 })
   })
 })
+
+// REGRESSION (2026-09-13, real Env-1 CI fallout -- R-50 Phase 2's own first
+// real run): the PATCH route (route.ts) calls updateLineItemBudget()
+// UNCONDITIONALLY before it ever looks at hasMoneyFieldEdit, so a caller
+// that sends ONLY one of the grid's own dual-view money fields (exactly
+// what BoqDualViewGrid.tsx's commitCell() does -- a single-field body,
+// `{ [field]: value }`) reaches updateLineItemBudget() with all SIX of
+// its own fields undefined. Confirmed via a real Env-1 CI run's server log
+// ("v1 construction BOQ line-item update error: Error: No values to set",
+// thrown from `es.set` inside this file's own compiled chunk): drizzle-orm's
+// REAL postgres.js driver throws on `.update(...).set({})` -- an empty
+// object -- which the OLDER version of every other test in this file could
+// never catch, because their fake `db.update().set()` accepts anything
+// unconditionally and never replicates that real-driver behavior. That
+// silent mock/reality gap is exactly why this is a SEPARATE describe block
+// with its OWN fake db that fails loudly on an empty set, rather than reusing
+// mountFakeDb/mountAndImport above.
+describe("updateLineItemBudget -- an all-undefined patch is a no-op read, never an empty DB write", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  })
+
+  function mountFakeDbThatRejectsEmptySet() {
+    const setCalls: Array<Record<string, unknown>> = []
+    const fakeDb = {
+      query: {
+        constructionBoqLineItems: {
+          findFirst: mock(async () => ({
+            id: LINE_ID, boqId: BOQ_ID, itemCode: "C-01", parentLineItemId: null,
+            description: "Excavation", unit: "m3", quantity: "100", rate: "50", amount: "5000",
+            breakdownPercentage: null, materialCost: null, labourCost: null, equipmentCost: null,
+            overheadPercent: null, profitPercent: null, materialAmount: null, manpowerAmount: null,
+            category: null, vendorId: null, vendorAmount: null,
+            qtyProject: null, rateProject: null, qtyContract: null, rateContract: null,
+          })),
+        },
+        constructionBoqs: { findFirst: mock(async () => ({ id: BOQ_ID, orgId: ORG_ID })) },
+      },
+      update: mock(() => ({
+        // Faithful to the real drizzle-orm/postgres.js driver this file's
+        // OTHER fakes do not replicate: `.set({})` throws, exactly like the
+        // real "No values to set" seen in the real CI run this regression
+        // test is named for.
+        set: (values: Record<string, unknown>) => {
+          if (Object.keys(values).length === 0) throw new Error("No values to set")
+          setCalls.push(values)
+          return { where: () => ({ returning: async () => [{ id: LINE_ID, boqId: BOQ_ID, ...values }] }) }
+        },
+      })),
+    }
+    return { fakeDb, setCalls }
+  }
+
+  test("a body with none of updateLineItemBudget's own fields never calls .set() at all -- returns the existing row", async () => {
+    const { fakeDb, setCalls } = mountFakeDbThatRejectsEmptySet()
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    const svc = await import("./construction-boq-service")
+    // The exact real-world shape: BoqDualViewGrid.tsx's commitCell() sends
+    // only ONE dual-view money field, none of updateLineItemBudget's own six.
+    const result = await svc.updateLineItemBudget({ orgId: ORG_ID }, LINE_ID, {})
+    expect(setCalls.length).toBe(0) // never even attempted the empty write
+    expect(result.id).toBe(LINE_ID)
+    expect(result.description).toBe("Excavation") // the real, unmodified existing row
+  })
+
+  test("a body with a real budget field still writes normally", async () => {
+    const { fakeDb, setCalls } = mountFakeDbThatRejectsEmptySet()
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    const svc = await import("./construction-boq-service")
+    const result = await svc.updateLineItemBudget({ orgId: ORG_ID }, LINE_ID, { budgetPercentage: 40 })
+    expect(setCalls.length).toBe(1)
+    expect(setCalls[0]!.budgetPercentage).toBe("40")
+    expect(result.budgetPercentage).toBe("40")
+  })
+})

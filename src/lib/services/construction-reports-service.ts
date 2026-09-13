@@ -2594,13 +2594,43 @@ export function attributeBoqAmountsByCategory(
   return { categories: byCategory, uncategorizedAmount, totalAmount }
 }
 
-export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId: string) {
+export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId: string, options: { boqId?: string } = {}) {
   await ensureConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    // R38 (TC-42/TC-43 fix): same missing-tiebreaker bug as scopeReport() above --
-    // see its comment for the full explanation.
-    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
-    const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
+    // R86 (R-33 CI-flake root cause, 2026-09-13): this report never took an
+    // explicit boqId -- the ONLY way a caller could target a specific BOQ was
+    // to make it win the implicit "highest version in the whole project"
+    // race below (same shared-project contest scopeReport()/
+    // workProgressReport() resolve the identical way, see their own
+    // comments). That's fine for the real dashboard (which legitimately
+    // wants "whatever's currently active"), but it made e2e/r33-category-
+    // rollup-excludes-subtasks-env1.spec.ts (PROJEXA) monotonically
+    // self-destructive: every run had to out-version every prior run (and
+    // every other spec revising the same shared "Meridian Heights" fixture)
+    // just to get read back, so the shared project's max version only ever
+    // climbed (2 at R38 fix time -> 16 by 2026-09-13, confirmed live via the
+    // Supabase MCP), and each climb needed one more serialized revision
+    // POST than the last. Compliance-tracker CI run 34774191857 (and its
+    // first 2 reruns) timed out at exactly this loop, 120s test timeout
+    // exceeded on a single POST, for exactly this reason -- not a flake, a
+    // real, reproducible, self-inflicted escalation with no ceiling.
+    // An explicit boqId (verified to belong to this org+project, same
+    // ownership check every other explicit-id report/route in this file
+    // uses) sidesteps the race entirely: the caller states which BOQ it
+    // means instead of trying to out-climb everyone else that also writes
+    // to a shared fixture project. Omitted, behaviour is BYTE-IDENTICAL to
+    // before this change -- every existing caller (the real dashboard/
+    // reports UI) keeps getting "whatever's currently active."
+    let latest
+    if (options.boqId) {
+      latest = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, options.boqId), eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)) })
+      if (!latest) throw new ServiceError(`boqId "${options.boqId}" does not belong to this project`, 404)
+    } else {
+      // R38 (TC-42/TC-43 fix): same missing-tiebreaker bug as scopeReport() above --
+      // see its comment for the full explanation.
+      const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
+      latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
+    }
     if (!latest) return { categories: [], uncategorizedAmount: 0, totalAmount: 0 }
 
     const [lineItems, categories, activities] = await Promise.all([

@@ -112,6 +112,21 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   // phase's own scope.
   "src/app/api/v1/projexa/reports/boq-analysis/route.ts",
   //
+  // R86 (2026-09-13, R-33 CI-flake fix): same real, pre-existing false
+  // positive as its sibling directly above -- this route's actual auth call
+  // is requireAuthOrApiKey(request) (confirmed by reading the handler
+  // directly), which DOES call requireAuth() internally for a session
+  // caller. REQUIRE_AUTH_RE's `\brequireAuth\s*\(` does not match the
+  // substring "requireAuthOrApiKey(" for the same word-boundary reason
+  // documented throughout this list. This file simply hadn't been modified
+  // in a diff since this checker went live -- an unrelated, additive change
+  // (an optional boqId param on the category-boq-amounts branch) is what
+  // put it in a diff for the first time. Not fixed here for the same reason
+  // as every other entry in this family: widening REQUIRE_AUTH_RE is a
+  // change to a shared CI guardrail's matching logic, out of this fix's
+  // scope.
+  "src/app/api/v1/projexa/reports/[reportName]/route.ts",
+  //
   // R85 Addendum 3 v4 Phase 10 (2026-09-12, what-if / scenario engine): a
   // REAL, pre-existing false positive in this checker's regex, not a
   // genuinely unauthenticated route -- flagging it here honestly rather

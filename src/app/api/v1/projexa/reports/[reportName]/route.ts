@@ -81,6 +81,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // disagree about which day "no date" means.
       const date = request.nextUrl.searchParams.get("date") ?? undefined
       result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId, date)
+    } else if (reportName === "category-boq-amounts") {
+      // R86 (R-33 CI-flake root cause): optional explicit boqId, same
+      // ownership-checked escape hatch as workProgressReport's boqId
+      // parameter elsewhere in this system -- see categoryBoqAmountsReport's
+      // own comment. Omitted, behaviour is unchanged (whatever's currently
+      // active for the project).
+      const boqId = request.nextUrl.searchParams.get("boqId") ?? undefined
+      result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId, { boqId })
     } else {
       result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId)
     }
