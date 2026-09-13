@@ -618,10 +618,18 @@ jobs:
       # correctly caught that the actual secret no longer contains that exact
       # string (run 34746433414 failed loudly here rather than silently
       # proceeding on a stale assumption -- exactly what that check is for).
-      # Fix: parse the real hostname OUT of the secret at runtime instead of
-      # assuming it, so this survives any future password/host reset without
-      # needing another hardcoded-value fix. Never echoes the parsed URL or
-      # secret itself, only the extracted hostname (not sensitive) and the IP.
+      # Fix (4th attempt): parse the real hostname OUT of the secret at
+      # runtime instead of assuming it. This surfaced a NEW fact: the secret
+      # now holds a direct-connection URL (`db.<ref>.supabase.co`), and
+      # `getent ahostsv4` correctly returned nothing for it (exit code 2) --
+      # not a bug in this step, a real property of that hostname: confirmed
+      # via `nslookup db.evpckeuxgvahguwsaeul.supabase.co` returning only an
+      # AAAA record, zero A records. Supabase's direct-connection host is
+      # IPv6-only on this project's tier; there is no IPv4 address to pin,
+      # ever, for that exact hostname shape. "Force IPv4" was therefore never
+      # going to work here -- the fix (5th attempt) is to detect that shape
+      # and route through Supabase's IPv4-reachable Supavisor transaction
+      # pooler instead of trying to pin an IP that doesn't exist.
       - name: Force IPv4 for the Supabase pooler host (fixes IPv6 ENETUNREACH flakiness on this runner)
         run: |
           set -euo pipefail
@@ -631,19 +639,64 @@ jobs:
             exit 1
           fi
           echo "Parsed host from PROJEXA_DATABASE_URL: $HOST"
-          IP=$(getent ahostsv4 "$HOST" | awk '{print $1; exit}')
-          if [ -z "$IP" ]; then
-            echo "::error::Could not resolve an IPv4 address for $HOST -- cannot rewrite PROJEXA_DATABASE_URL, failing loudly rather than silently continuing on IPv6"
-            exit 1
-          fi
-          echo "Resolved $HOST -> $IP"
-          PINNED_URL=$(printf '%s' "${{ secrets.PROJEXA_DATABASE_URL }}" | sed "s/$HOST/$IP/")
-          if [ "$PINNED_URL" = "${{ secrets.PROJEXA_DATABASE_URL }}" ]; then
-            echo "::error::Substitution had no effect -- refusing to proceed with an unmodified connection string"
-            exit 1
-          fi
-          echo "PROJEXA_DATABASE_URL_PINNED=$PINNED_URL" >> "$GITHUB_ENV"
-          echo "PROJEXA_DATABASE_URL rewritten to dial $IP directly (host header preserved nowhere -- Supavisor routes by the postgres.<ref> username in the connection string, not hostname/SNI)"
+
+          case "$HOST" in
+            db.*.supabase.co)
+              # Direct-connection format -- IPv6-only, see comment above.
+              # Rewrite to the pooler instead of trying to pin an IPv4
+              # address that does not exist for this host.
+              REF=$(printf '%s' "$HOST" | sed -E 's#^db\.([^.]+)\.supabase\.co$#\1#')
+              if [ -z "$REF" ] || [ "$REF" = "$HOST" ]; then
+                echo "::error::Could not extract a project ref out of direct-connection host $HOST -- refusing to proceed"
+                exit 1
+              fi
+              # aws-1-ap-south-1 confirmed live for THIS project two
+              # independent ways, not guessed: (1) the Supabase Management
+              # API reports this project's region as ap-south-1; (2) a live
+              # TCP probe against the Supavisor pooler with a deliberately
+              # WRONG password got back "password authentication failed"
+              # from aws-1-ap-south-1.pooler.supabase.com (the tenant
+              # postgres.<ref> IS registered there) vs "Tenant or user not
+              # found" from aws-0-ap-south-1.pooler.supabase.com for the same
+              # ref (that generation does NOT know this project). Neither
+              # probe ever touched or needed the real secret.
+              POOLER_HOST="aws-1-ap-south-1.pooler.supabase.com"
+              POOLER_PORT="6543"
+              # Supabase's direct-connection URLs from the dashboard are
+              # postgres://postgres:<pw>@db.<ref>.supabase.co:5432/<db>[?q] --
+              # the pooler needs the username rewritten to postgres.<ref>
+              # (Supavisor routes by username, not hostname/SNI) in addition
+              # to the host:port swap. One pass, both substitutions.
+              REWRITTEN_URL=$(printf '%s' "${{ secrets.PROJEXA_DATABASE_URL }}" | sed -E \
+                -e "s#://postgres:#://postgres.$REF:#" \
+                -e "s#@$HOST(:[0-9]+)?#@$POOLER_HOST:$POOLER_PORT#")
+              if [ "$REWRITTEN_URL" = "${{ secrets.PROJEXA_DATABASE_URL }}" ]; then
+                echo "::error::Rewrite to the pooler had no effect -- refusing to proceed with an unmodified direct-connection (IPv6-only) URL"
+                exit 1
+              fi
+              echo "PROJEXA_DATABASE_URL_PINNED=$REWRITTEN_URL" >> "$GITHUB_ENV"
+              echo "Direct-connection host $HOST is IPv6-only on this runner (no A record) -- rewritten to dial the IPv4-reachable pooler $POOLER_HOST:$POOLER_PORT instead, as tenant postgres.$REF"
+              ;;
+            *)
+              # Already pooler-shaped (or some other host) -- keep the
+              # original force-IPv4 behaviour: resolve and pin a literal
+              # IPv4 address so the runner's resolver can't pick an
+              # unreachable AAAA for it.
+              IP=$(getent ahostsv4 "$HOST" | awk '{print $1; exit}')
+              if [ -z "$IP" ]; then
+                echo "::error::Could not resolve an IPv4 address for $HOST -- cannot rewrite PROJEXA_DATABASE_URL, failing loudly rather than silently continuing on IPv6"
+                exit 1
+              fi
+              echo "Resolved $HOST -> $IP"
+              PINNED_URL=$(printf '%s' "${{ secrets.PROJEXA_DATABASE_URL }}" | sed "s/$HOST/$IP/")
+              if [ "$PINNED_URL" = "${{ secrets.PROJEXA_DATABASE_URL }}" ]; then
+                echo "::error::Substitution had no effect -- refusing to proceed with an unmodified connection string"
+                exit 1
+              fi
+              echo "PROJEXA_DATABASE_URL_PINNED=$PINNED_URL" >> "$GITHUB_ENV"
+              echo "PROJEXA_DATABASE_URL rewritten to dial $IP directly (host header preserved nowhere -- Supavisor routes by the postgres.<ref> username in the connection string, not hostname/SNI)"
+              ;;
+          esac
       - name: Checkout compliance-tracker
         uses: actions/checkout@v7
       - name: Checkout projexa (sibling dir)
