@@ -914,7 +914,26 @@ jobs:
         # (real per-user password login + storageState, 4 distinct seeded
         # users, confirmed by reading it directly), a structurally different
         # mechanism with no shared single-slot token to race on, so its own
-        # `workers: 3` config is untouched and correct as-is.
+        # `workers: 3` config was left untouched here for that (still valid)
+        # reason.
+        #
+        # 2026-09-13 correction (R80/81/82 CI investigation, after the
+        # PROJEXA_DATABASE_URL fix + app_runtime pool re-measurement above):
+        # `workers: 3` is now serialized to `--workers=1` too, for a
+        # DIFFERENT reason than the token race this comment describes --
+        # confirmed via two consecutive real runs (34751296323 max:15 pool,
+        # 7/25 failed; 34753495031 max:20 pool, 8/25 failed) that raising the
+        # pool further stopped moving the needle and the SET of failing
+        # specs shifted between the two runs (r33 and the R-41/42/43 CEO
+        # variant flipped from pass to fail with no code change in between) --
+        # exactly the signature of genuine cross-worker resource contention
+        # (3 workers' page loads each fanning out ~5-8 concurrent server
+        # calls via /api/shell, competing with each other, not with anything
+        # in compliance-tracker's own pool specifically) rather than a fixed
+        # logic bug. Serializing removes that contention at the source
+        # without raising the pool again -- matches the compliance-tracker
+        # step's own already-serialized pattern above, just for a different
+        # underlying reason.
         # `2>&1 | tee ...` (not a plain redirect): the log file feeds the
         # credential-leak scan step below, but the raw stdout/stderr must
         # still reach the job's own live log exactly as before.
@@ -982,7 +1001,7 @@ jobs:
         # never reflected these tests' real outcome before this fix).
         run: |
           set -o pipefail
-          bunx playwright test env1.spec.ts 2>&1 | tee ../playwright-env1-projexa.log
+          bunx playwright test env1.spec.ts --workers=1 2>&1 | tee ../playwright-env1-projexa.log
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3100
 
