@@ -585,18 +585,49 @@ jobs:
       # (distinguished by the postgres.<ref> username, not the host), so one
       # resolution covers this repo's own DATABASE_URL/APP_RUNTIME_DATABASE_URL
       # and PROJEXA_DATABASE_URL alike.
+      # 2026-09-13 SECOND correction: the /etc/hosts pin above did NOT fix it
+      # either -- confirmed live (PR #1723, run 34745310994, now with the
+      # pipefail bug also fixed so this is a trustworthy result, not a masked
+      # one): the pin visibly took effect (`getent hosts` printed the correct
+      # IPv4 line right after this step ran) but ENETUNREACH still fired 82
+      # times in the same run. Bun's own connection layer does not appear to
+      # consult glibc's NSS/`/etc/hosts` for this path (a known, documented
+      # class of Bun DNS/IPv6 quirk -- see oven-sh/bun#10731, which describes
+      # Bun lacking a Happy-Eyeballs-style fallback and using whichever
+      # address its own resolver returns first, not necessarily going through
+      # libc's getaddrinfo at all).
+      #
+      # Real fix this time: stop asking DNS to behave and remove it from the
+      # connection entirely -- substitute the pooler hostname's own resolved
+      # IPv4 address directly INTO the PROJEXA_DATABASE_URL connection string
+      # used by PROJEXA's server process, via $GITHUB_ENV, so postgres.js
+      # never performs a hostname lookup for this specific connection at all.
+      # Scoped to PROJEXA_DATABASE_URL only (the one connection actually
+      # proven to fail) -- this repo's own DATABASE_URL/APP_RUNTIME_DATABASE_URL
+      # have shown zero ENETUNREACH occurrences in every run's ct-server.log,
+      # so they are left untouched rather than changing something not proven
+      # broken. Supavisor routes by the `postgres.<ref>` USERNAME in the
+      # connection string, not by hostname/SNI, so dialing the same pooler by
+      # IP instead of name should reach the identical backend --
+      # rejectUnauthorized:false (already set in projexa's own db/index.ts)
+      # means certificate/hostname validation is not in play either way.
       - name: Force IPv4 for the Supabase pooler host (fixes IPv6 ENETUNREACH flakiness on this runner)
         run: |
           set -euo pipefail
           HOST="aws-1-ap-south-1.pooler.supabase.com"
           IP=$(getent ahostsv4 "$HOST" | awk '{print $1; exit}')
           if [ -z "$IP" ]; then
-            echo "::error::Could not resolve an IPv4 address for $HOST -- cannot apply the /etc/hosts pin, failing loudly rather than silently continuing on IPv6"
+            echo "::error::Could not resolve an IPv4 address for $HOST -- cannot rewrite PROJEXA_DATABASE_URL, failing loudly rather than silently continuing on IPv6"
             exit 1
           fi
-          echo "$IP $HOST" | sudo tee -a /etc/hosts
-          echo "Pinned $HOST -> $IP in /etc/hosts"
-          getent hosts "$HOST"
+          echo "Resolved $HOST -> $IP"
+          PINNED_URL=$(printf '%s' "${{ secrets.PROJEXA_DATABASE_URL }}" | sed "s/$HOST/$IP/")
+          if [ "$PINNED_URL" = "${{ secrets.PROJEXA_DATABASE_URL }}" ]; then
+            echo "::error::PROJEXA_DATABASE_URL did not contain $HOST as expected -- refusing to proceed with an unmodified/unknown connection string"
+            exit 1
+          fi
+          echo "PROJEXA_DATABASE_URL_PINNED=$PINNED_URL" >> "$GITHUB_ENV"
+          echo "PROJEXA_DATABASE_URL rewritten to dial $IP directly (host header preserved nowhere -- Supavisor routes by the postgres.<ref> username in the connection string, not hostname/SNI)"
       - name: Checkout compliance-tracker
         uses: actions/checkout@v7
       - name: Checkout projexa (sibling dir)
@@ -654,7 +685,7 @@ jobs:
         run: bun run build
         working-directory: projexa-checkout
         env:
-          DATABASE_URL: ${{ secrets.PROJEXA_DATABASE_URL }}
+          DATABASE_URL: ${{ env.PROJEXA_DATABASE_URL_PINNED }}
           NEXT_PUBLIC_SUPABASE_URL: https://evpckeuxgvahguwsaeul.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_f0C6ZvVjEnwkdN7wxfEwBQ_x69zrGs8
       - name: Start projexa (background, :3100)
@@ -662,7 +693,7 @@ jobs:
         run: nohup bunx next start -p 3100 > ../projexa-server.log 2>&1 & echo $! > ../projexa-server.pid
         env:
           NODE_ENV: production
-          DATABASE_URL: ${{ secrets.PROJEXA_DATABASE_URL }}
+          DATABASE_URL: ${{ env.PROJEXA_DATABASE_URL_PINNED }}
           NEXT_PUBLIC_SUPABASE_URL: https://evpckeuxgvahguwsaeul.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_f0C6ZvVjEnwkdN7wxfEwBQ_x69zrGs8
           VERIDIAN_API_BASE_URL: http://localhost:3000/api/v1/projexa
