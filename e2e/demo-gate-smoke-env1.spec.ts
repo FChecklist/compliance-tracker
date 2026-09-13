@@ -65,11 +65,23 @@ const DEMO_EMAIL = "democeo@projexa-ai.com";
 // development, testing and deployment actually happen), start the projexa dev
 // server on 3100 and set the origin:
 //
-//   E2E_PROJEXA_ORIGIN=http://localhost:3100 bunx playwright test e2e/demo-gate-smoke.spec.ts
+//   E2E_PROJEXA_ORIGIN=http://localhost:3100 bunx playwright test e2e/demo-gate-smoke-env1.spec.ts
 //
 // Measured 2026-09-09, three consecutive runs: PASSED in 37.6s, 21.4s and
 // 29.3s. So TC-01, TC-10, TC-11, TC-30 and TC-40 DO hold on ENV 1. The 90s
 // timeout previously recorded against this spec was an ENV 2 observation and
+//
+// RENAMED 2026-09-13 (R-B1, R74-RULING-03 c6 closure): demo-gate-smoke.spec.ts
+// -> demo-gate-smoke-env1.spec.ts, so compliance-tracker's e2e-env1 CI job
+// (ci.yml's "Run compliance-tracker Env-1 specs" step, `playwright test
+// env1.spec.ts`) picks this file up automatically -- that job already boots
+// a real local PROJEXA dev server AND already sets E2E_PROJEXA_ORIGIN=
+// http://localhost:3100 (confirmed directly in ci.yml's own env block), which
+// is exactly the ENV 1 target measured passing above. No content changed,
+// only the filename and playwright.config.ts's own ciExcludedSpecs entry
+// (this spec must stay excluded from the OTHER, plain "e2e" job, which never
+// boots PROJEXA at all and would just skip this spec's ENV-2 probe instead of
+// giving it a real target).
 // should not be read as an ENV 1 result.
 //
 // Deliberately NOT wrapped in a package.json script: `VAR=value cmd` does not
@@ -541,7 +553,22 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   // Residence - Full" })). An SVG <title> has no accessible "link" role, so
   // scoping to links excludes it structurally rather than by DOM-order luck
   // (.first()'s mistake) or containment guessing (<body>'s).
-  await expect(page.getByRole("link").filter({ hasText: expectedAedText })).toBeVisible({ timeout: 15_000 });
+  //
+  // R86 (2026-09-13, first-ever real CI execution of this spec via
+  // e2e-env1): raised from 15s to 45s. This is the FIRST spec file this CI
+  // job runs against the freshly-started `next start` server (Running 4
+  // tests, before the main "Running 28 tests" batch) -- goto("/dashboard")
+  // above already waits for the page's own load event, but if
+  // DashboardHomeView populates its project rows via a client-side fetch
+  // after mount rather than pure SSR, the very first hit against a cold
+  // connection pool could plausibly take longer than 15s to resolve that
+  // fetch, same class of cold-first-hit margin issue already documented
+  // elsewhere in this suite (R-91's cold-start spec). Widening this
+  // assertion's own wait costs nothing on a real logic bug (it would still
+  // eventually time out and fail, just later) -- it only helps if the real
+  // cause is margin, not correctness. There is ample overall budget:
+  // test.setTimeout above gives this whole test 240s on the local target.
+  await expect(page.getByRole("link").filter({ hasText: expectedAedText })).toBeVisible({ timeout: 45_000 });
 
   // R46/E-126b: context is closed by test.afterEach above, AFTER it uses
   // this same context's authenticated apiRequest to delete the 3 BOQs this

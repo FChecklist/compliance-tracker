@@ -81,9 +81,35 @@ const ciPlaceholderEnv = process.env.CI
 // e2e/demo-gate-smoke.spec.ts` (optionally with E2E_PROJEXA_ORIGIN pointed
 // at a local ENV-1 projexa dev server) still works exactly as before --
 // this only narrows what CI itself attempts.
+// FIXED 2026-09-13 (R-B1 rename, real bug found on the rename's OWN first CI
+// run): testIgnore is a blanket filter applied BEFORE the CLI's positional
+// pattern narrows anything further, and both this repo's Playwright-running
+// CI jobs set CI=true -- so simply renaming demo-gate-smoke.spec.ts to
+// demo-gate-smoke-env1.spec.ts and adding the new name here EXCLUDED it from
+// BOTH jobs, not just the one it needed excluding from. Verified directly:
+// `CI=true bunx playwright test env1.spec.ts --list` (the actual e2e-env1
+// job's real invocation) showed the file was NOT picked up, even though two
+// separate, narrower checks (`CI=true` alone, and the pattern alone without
+// `CI=true`) each looked correct in isolation -- the combination is what
+// matters and is what was never actually tested before this fix.
+// E2E_ENV1_JOB=true (ci.yml's own established distinguisher for exactly this
+// job, already used by this same file's webServer.reuseExistingServer logic
+// above) is checked explicitly now, so the exclusion applies ONLY to the
+// plain "e2e" job (which never boots PROJEXA and would just skip this spec's
+// ENV-2-reachability probe) and never to e2e-env1 (which needs to run it).
 const ciExcludedSpecs = process.env.CI
   ? [
-      "demo-gate-smoke.spec.ts",
+      // RENAMED 2026-09-13 (R-B1, e2e-env1 CI wiring): demo-gate-smoke.spec.ts
+      // -> demo-gate-smoke-env1.spec.ts, so e2e-env1's own `bunx playwright
+      // test env1.spec.ts` invocation (matches by filename substring, NOT
+      // via this file's own testDir sweep) picks it up automatically -- that
+      // job boots a REAL local PROJEXA dev server with E2E_PROJEXA_ORIGIN=
+      // http://localhost:3100 already set, which is exactly the ENV-1 target
+      // this spec's own header comment documents as proven-passing
+      // (2026-09-09, three consecutive local runs). Only actually excluded
+      // when E2E_ENV1_JOB is not "true" (the plain "e2e" job) -- see the
+      // block comment above for why a bare filename entry here is wrong.
+      ...(process.env.E2E_ENV1_JOB === "true" ? [] : ["demo-gate-smoke-env1.spec.ts"]),
       "r48-uat-bank-reachability.spec.ts",
       "r63-local-composer.spec.ts",
     ]
