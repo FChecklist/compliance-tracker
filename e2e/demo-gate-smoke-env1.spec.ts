@@ -553,7 +553,22 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   // Residence - Full" })). An SVG <title> has no accessible "link" role, so
   // scoping to links excludes it structurally rather than by DOM-order luck
   // (.first()'s mistake) or containment guessing (<body>'s).
-  await expect(page.getByRole("link").filter({ hasText: expectedAedText })).toBeVisible({ timeout: 15_000 });
+  //
+  // R86 (2026-09-13, first-ever real CI execution of this spec via
+  // e2e-env1): raised from 15s to 45s. This is the FIRST spec file this CI
+  // job runs against the freshly-started `next start` server (Running 4
+  // tests, before the main "Running 28 tests" batch) -- goto("/dashboard")
+  // above already waits for the page's own load event, but if
+  // DashboardHomeView populates its project rows via a client-side fetch
+  // after mount rather than pure SSR, the very first hit against a cold
+  // connection pool could plausibly take longer than 15s to resolve that
+  // fetch, same class of cold-first-hit margin issue already documented
+  // elsewhere in this suite (R-91's cold-start spec). Widening this
+  // assertion's own wait costs nothing on a real logic bug (it would still
+  // eventually time out and fail, just later) -- it only helps if the real
+  // cause is margin, not correctness. There is ample overall budget:
+  // test.setTimeout above gives this whole test 240s on the local target.
+  await expect(page.getByRole("link").filter({ hasText: expectedAedText })).toBeVisible({ timeout: 45_000 });
 
   // R46/E-126b: context is closed by test.afterEach above, AFTER it uses
   // this same context's authenticated apiRequest to delete the 3 BOQs this
