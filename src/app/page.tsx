@@ -334,6 +334,7 @@ export default async function CognitiveRootPage({
               <Link href="/terms" className="hover:text-[#1a1a17]">Terms & Conditions</Link>
               <Link href="/privacy" className="hover:text-[#1a1a17]">Privacy Policy</Link>
               <Link href="/data-policy" className="hover:text-[#1a1a17]">Data Policy</Link>
+              <Link href="/disclaimer" className="hover:text-[#1a1a17]">Disclaimer</Link>
             </span>
           </div>
         </div>
