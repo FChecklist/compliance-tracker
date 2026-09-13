@@ -3232,6 +3232,24 @@ active:
       worktree -- commits locally only, orchestrating session handles
       push/PR/CI/merge (per this task's own instructions).
 
+  - session_label: "claude-code (background agent) -- R-C17 Platform: Email Engine, code-side (schema + provisioning + inbound webhook)"
+    claimed_at: "2026-09-13T (this session)"
+    claim: |
+      SCOPE: platform.sumeet_requirements row R-C17 (Supabase pcrjmlpuqsbocqfwoxod),
+      code-side only. NEW compliance.user_email_addresses +
+      compliance.inbound_email_messages tables (src/lib/db/schema.ts,
+      drizzle/0598_r_c17_email_engine_alias_and_inbound_log.sql -- hand-
+      authored, see that file's own header for why db:generate's raw diff
+      was discarded), NEW src/lib/services/email-alias-service.ts (+
+      .test.ts), NEW src/lib/webhooks/resend-svix-signature.ts (+ .test.ts),
+      NEW src/app/api/webhooks/resend-inbound/route.ts (+ route.test.ts),
+      one new env var documented in docs/master/CONFIGURATION.md
+      (RESEND_WEBHOOK_SECRET). Isolated git worktree -- this session
+      commits/pushes/opens the PR itself per its own task instructions.
+      NOT touching: any other sumeet_requirements row, PROJEXA
+      (FChecklist/projexa, separate repo), or any live Resend/DNS
+      configuration (both explicitly owner-gated, see the PR description).
+
 recently_completed:
   - session_label: "claude-code (interactive, PM continuation session) -- R85 Addendum 3 v4 FINAL, PHASE 7: Excel round trip (D89, gates 7-01..7-12) [DONE, merged as PR #1715]"
     claimed_at: "2026-09-13T (this session)"

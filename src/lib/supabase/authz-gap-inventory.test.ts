@@ -182,6 +182,7 @@ const EXEMPT_ROUTES: Array<{ path: string; category: string; reason: string }> =
   {"path":"src/app/api/track/route.ts","category":"PUBLIC_BY_DESIGN","reason":"Records an anonymous visitor analytics event from public marketing pages."},
   {"path":"src/app/api/track/offer/route.ts","category":"PUBLIC_BY_DESIGN","reason":"Decides and logs an anonymous exit-intent marketing offer for a visitor."},
   {"path":"src/app/api/webhooks/vercel-deployment/route.ts","category":"INTERNAL_SECRET","reason":"Receives Vercel's deployment webhook and records a deployment event, authenticated via HMAC signature rather than a user session."},
+  {"path":"src/app/api/webhooks/resend-inbound/route.ts","category":"INTERNAL_SECRET","reason":"R-C17 (Platform: Email Engine). Receives Resend's inbound-email webhook and records/processes a received message, authenticated via Svix signature verification rather than a user session -- same posture as the Vercel deployment webhook above."},
   {"path":"src/app/api/stage0/conversations/[id]/messages/route.ts","category":"TOKEN_SCOPED","reason":"Stage-0 user posts/reads messages in a specific conversation, gated by a real per-resource active-membership DB check, not by requireRole."},
   {"path":"src/app/api/support-sessions/[id]/end/route.ts","category":"TOKEN_SCOPED","reason":"Ends a support/impersonation session early, gated by hasRole() checks for either veridian_admin or the specific target org's own admin."},
   {"path":"src/app/api/training/enrollments/[id]/start/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G8 ownership-bypass fix: startEnrollment() in training-service.ts checks enrollment.employeeId !== ctx.userId -> 403 before flipping status, matching submitAttempt()'s own no-manager-override convention; the grep's requireRole()/requireRoleOrScope() scan can't see a service-layer ownership check."},
@@ -377,9 +378,9 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
     // branch's own filesystem by actually running this test, not added on
     // paper -- the unprotected-and-not-exempt set is still empty, and the
     // sum invariant below (638 + 201 + 0 = 839) still holds.
-    expect(mutating.length).toBe(839)
+    expect(mutating.length).toBe(840) // +1 R-C17 resend-inbound webhook (new mutating POST route)
     expect(protectedCount).toBe(638) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH; +1 R85A3 P6 cost-visibility config PATCH; +2 R85A3 P7 Excel round-trip diff/apply POSTs; +4 R85 A3v4 Phase 10 boq-scenarios routes
-    expect(EXEMPT_ROUTES.length).toBe(201) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep
+    expect(EXEMPT_ROUTES.length).toBe(202) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep // +1 R-C17 resend-inbound webhook (Svix-signature-gated, INTERNAL_SECRET)
     expect(KNOWN_OPEN_GAPS.length).toBe(0)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
   })
