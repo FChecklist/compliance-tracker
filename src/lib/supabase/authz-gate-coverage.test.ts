@@ -127,6 +127,19 @@ beforeEach(() => {
     requireRoleOrScope: fakeRequireRoleOrScope,
     hasRole: fakeHasRole,
     requireOrg: fakeRequireOrg,
+    // R85 Addendum 3 v4 Phase 2 (R-50, 2026-09-13): GET /api/v1/construction/
+    // boq/[id]/route.ts (one of the 189 routes this file exercises) now also
+    // imports these three -- same "an unmocked name a file imports anywhere
+    // breaks that file's import with a SyntaxError" reason the comment above
+    // already gives for hasRole/requireOrg. Trivial stubs, not the real
+    // implementations, are correct here: this mock's own requireAuthOrApiKey
+    // above always returns `apiKey: null`, so the route's own
+    // `if (!ctx.dbUser && ctx.apiKey)` branch -- the only branch that would
+    // ever CALL resolveActingUser -- is structurally unreachable from any
+    // fixture in this file. These exist only so the module link succeeds.
+    readActingUserId: () => null,
+    readActingUserEmail: () => null,
+    resolveActingUser: async () => ({ user: null, error: NextResponse.json({ error: "not exercised by this test" }, { status: 401 }) }),
   }))
 })
 
