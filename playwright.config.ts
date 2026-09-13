@@ -83,7 +83,20 @@ const ciPlaceholderEnv = process.env.CI
 // this only narrows what CI itself attempts.
 const ciExcludedSpecs = process.env.CI
   ? [
-      "demo-gate-smoke.spec.ts",
+      // RENAMED 2026-09-13 (R-B1, e2e-env1 CI wiring): demo-gate-smoke.spec.ts
+      // -> demo-gate-smoke-env1.spec.ts, so this job's e2e-env1 sibling job
+      // (ci.yml, whose own `bunx playwright test env1.spec.ts` invocation
+      // matches by filename substring, NOT via this file's own testDir sweep)
+      // picks it up automatically -- that job boots a REAL local PROJEXA dev
+      // server with E2E_PROJEXA_ORIGIN=http://localhost:3100 already set,
+      // which is exactly the ENV-1 target this spec's own header comment
+      // documents as proven-passing (2026-09-09, three consecutive local
+      // runs). Still excluded HERE (the plain "e2e" job, whose webServer only
+      // boots compliance-tracker's own :3000 -- it never starts PROJEXA at
+      // all, so this spec's ENV-2-reachability probe would just skip there,
+      // exactly the "tolerance, not exclusion" problem DOD-X4 already fixed
+      // once) -- the rename must not silently re-admit it to this job.
+      "demo-gate-smoke-env1.spec.ts",
       "r48-uat-bank-reachability.spec.ts",
       "r63-local-composer.spec.ts",
     ]
