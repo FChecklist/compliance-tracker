@@ -3,12 +3,40 @@
 // reachable at the internal /api/construction/boq/[id] route. Same service
 // call, same auth pattern as the sibling v1/construction/boq/route.ts.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import { getBoq, updateBoq, deleteBoq, ServiceError } from "@/lib/services/construction-boq-service"
 // R85 Addendum 3 v4 Phase 6 (gates 6-01/6-03a): THE ONE GATE, see
 // cost-visibility-service.ts's own header.
-import { applyCostVisibility } from "@/lib/services/cost-visibility-service"
+import { applyCostVisibility, redactProjectSideFields } from "@/lib/services/cost-visibility-service"
 import type { UserRole } from "@/lib/supabase/role-rank"
+
+/**
+ * R85 Addendum 3 v4, Phase 2 (gates 2-09/E1). Resolves the role to check
+ * cost visibility against for THIS request. A real session caller already
+ * has ctx.dbUser (its role is used directly, exactly as before). PROJEXA's
+ * server authenticates with a single shared per-org API key (see this
+ * file's own prior header and cost-visibility-service.ts's note that "there
+ * is no real internal role to check for that caller") -- without this,
+ * EVERY API-key call was unconditionally redacted regardless of which real
+ * PROJEXA user was asking, which made an "internal view" impossible to ever
+ * show. This reuses the D-05 identity bridge (X-Acting-User /
+ * X-Acting-User-Email, auth-guard.ts's resolveActingUser()) already proven
+ * for write-attribution (timesheets, progress entries) -- the same real
+ * person, resolved the same way, now also used to decide what a read
+ * response may contain. Resolution failing (no headers sent, unmapped id,
+ * no actorEmail) is NOT an error for a GET: it simply leaves role null,
+ * which canRoleSeeCost()'s existing fail-closed default already turns into
+ * "redacted" -- the safe behaviour this route always had.
+ */
+async function resolveRoleForCostVisibility(
+  request: NextRequest,
+  ctx: Awaited<ReturnType<typeof requireAuthOrApiKey>>
+): Promise<UserRole | null> {
+  if (ctx.dbUser) return (ctx.dbUser.role as UserRole | undefined) ?? null
+  if (!ctx.apiKey) return null
+  const acting = await resolveActingUser(ctx, readActingUserEmail(request), readActingUserId(request))
+  return (acting.user?.role as UserRole | undefined) ?? null
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuthOrApiKey(request)
@@ -18,7 +46,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id } = await params
     const boq = await getBoq({ orgId: ctx.orgId }, id)
-    const role = (ctx.dbUser?.role as UserRole | undefined) ?? null
+
+    // 2-09/E1: `?view=customer` is an INTERNAL-ONLY PREVIEW of exactly what
+    // the customer will receive -- forced redaction regardless of the
+    // caller's own cost visibility, never a client-side-only toggle over
+    // data already sent to the browser in internal form (see
+    // BoqDualViewGrid.tsx's own header in the PROJEXA repo for how this is
+    // consumed). This is NOT gated by role: an internal user who cannot see
+    // cost at all already gets the same redacted shape from the branch
+    // below, and a caller with no real role still only gets the customer
+    // shape either way.
+    if (new URL(request.url).searchParams.get("view") === "customer") {
+      return NextResponse.json(redactProjectSideFields(boq))
+    }
+
+    const role = await resolveRoleForCostVisibility(request, ctx)
     const responseBody = await applyCostVisibility({ orgId: ctx.orgId }, role, boq)
     return NextResponse.json(responseBody)
   } catch (error) {

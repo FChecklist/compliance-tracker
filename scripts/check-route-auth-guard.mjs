@@ -167,6 +167,17 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   "src/app/api/v1/construction/boq/[id]/excel/export/route.ts",
   "src/app/api/v1/construction/boq/[id]/excel/diff/route.ts",
   "src/app/api/v1/construction/boq/[id]/excel/apply/route.ts",
+  // R85 Addendum 3 v4 Phase 2 (R-50, 2026-09-13): same requireAuthOrApiKey
+  // family gap as the routes immediately above -- this file's PATCH handler
+  // already called requireAuthOrApiKey(request) on origin/main (pre-dating
+  // this checker going live) and was simply never in a diff since, so it
+  // was never flagged before now. Verified directly: it DOES call
+  // requireAuth() internally for a session caller (auth-guard.ts's own
+  // implementation) and validates a Bearer API key on the other path, the
+  // same established pattern as every other exemption in this list. Not
+  // fixed here for the same reason those give (widening REQUIRE_AUTH_RE is
+  // a shared-CI-guardrail change, out of this phase's scope).
+  "src/app/api/v1/construction/boq/line-items/[id]/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail

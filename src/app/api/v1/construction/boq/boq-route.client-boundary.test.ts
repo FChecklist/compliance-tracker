@@ -22,6 +22,20 @@
 // what was actually observed.
 import { describe, test, expect, mock, beforeEach } from "bun:test"
 import { NextRequest } from "next/server"
+// R85 Addendum 3 v4 Phase 2 (2026-09-13): a REAL regression, found and fixed
+// here, of the exact class this codebase's own CLAUDE.md documents --
+// mock.module() on a real module must spread it, or a caller that starts
+// importing a DIFFERENT real export of that same module later breaks at
+// module-link time, not inside any one test(). GET /api/v1/construction/
+// boq/[id]/route.ts started importing resolveActingUser/readActingUserId/
+// readActingUserEmail (the acting-user cost-visibility fix, same PR) --
+// this file's own mockAuth() below previously provided only
+// requireAuthOrApiKey/requireRoleOrScope, so every other real export
+// (including the three above) silently disappeared for that route module,
+// producing `SyntaxError: Export named 'readActingUserId' not found`.
+// Fixed by spreading the real module first, same pattern
+// project-scoped-page-error-isolation.test.tsx already uses correctly.
+import * as realAuthGuard from "@/lib/supabase/auth-guard"
 
 const ORG_ID = "org-1"
 
@@ -46,6 +60,7 @@ const RAW_LINE_ITEM = {
 
 function mockAuth(opts: { role?: string; apiKeyOnly?: boolean } = {}) {
   mock.module("@/lib/supabase/auth-guard", () => ({
+    ...realAuthGuard,
     requireAuthOrApiKey: mock(async () => ({
       response: null,
       orgId: ORG_ID,
@@ -53,6 +68,13 @@ function mockAuth(opts: { role?: string; apiKeyOnly?: boolean } = {}) {
       apiKey: opts.apiKeyOnly ? { id: "key-1", name: "test key", scopes: ["read", "write"] } : null,
     })),
     requireRoleOrScope: mock(() => null),
+    // This suite never exercises the API-key + X-Acting-User path (its own
+    // apiKeyOnly fixture always leaves dbUser AND role resolution moot --
+    // the route's own role branch only runs resolveActingUser when
+    // ctx.dbUser is null, and every apiKeyOnly case here is exercised
+    // through the SAME canRoleSeeCostWithDb mock as the session cases) --
+    // real, unmocked resolveActingUser is spread in via ...realAuthGuard
+    // above and is simply never invoked by these fixtures.
   }))
 }
 
