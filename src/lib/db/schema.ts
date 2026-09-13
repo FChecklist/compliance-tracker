@@ -1,4 +1,4 @@
-import { pgSchema, pgEnum, text, boolean, integer, smallint, timestamp, numeric, jsonb, date } from 'drizzle-orm/pg-core'
+import { pgSchema, pgEnum, text, boolean, integer, smallint, timestamp, numeric, jsonb, date, unique } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { relations, sql } from 'drizzle-orm'
 
@@ -12193,6 +12193,84 @@ export const emailIntelligenceItemsRelations = relations(emailIntelligenceItems,
 export const emailIntelligenceActionItemsRelations = relations(emailIntelligenceActionItems, ({ one }) => ({
   emailIntelligenceItem: one(emailIntelligenceItems, { fields: [emailIntelligenceActionItems.emailIntelligenceItemId], references: [emailIntelligenceItems.id] }),
   task: one(tasks, { fields: [emailIntelligenceActionItems.taskId], references: [tasks.id] }),
+}))
+
+// ─── R-C17 (platform.sumeet_requirements, Owner-initiated 2026-09-13,
+// "Platform: Email Engine") -- per-user inbound email addresses ──────────
+// Give each end user a real, unique, working email address
+// (userid@veridian-aios.com today) able to both send (src/lib/email.ts
+// already does this, one shared FROM address) and RECEIVE real mail. AI
+// email-reading already existed too (email-intelligence-service.ts's
+// analyzeInboundEmail()) but its own header comment confirms "no inbound-
+// email-ingestion trigger exists anywhere in this codebase today" -- it is
+// a callable function with nothing feeding it. This table,
+// inboundEmailMessages below, email-alias-service.ts, and
+// src/app/api/webhooks/resend-inbound/route.ts are what wires a real
+// inbound address all the way through -- code-complete, pending the
+// owner's own account-level action (creating the Resend Inbound
+// configuration) and DNS action (adding the MX record it specifies for
+// veridian-aios.com, at the DNS host -- see ai-os/DOMAIN_OWNERSHIP.yaml, no
+// AI session may change production domain DNS/routing unilaterally). See
+// this table's own migration file header for the full status.
+//
+// Auto-provisioned lazily, not at signup -- email-alias-service.ts's
+// getOrCreateUserEmailAlias() mirrors this codebase's existing lazy-
+// provisioning precedent (stage0-service.ts, autoProvisionUser() in
+// auth-guard.ts) rather than adding a new signup-time side effect.
+export const userEmailAddresses = complianceSchemaDB.table('user_email_addresses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull().references(() => users.id),
+  // The part before '@', e.g. 'raajat', or 'raajat-2' on a slug collision --
+  // see email-alias-service.ts's slugify-then-numeric-suffix logic.
+  localPart: text('local_part').notNull(),
+  // Deliberately a plain text column, NOT a pgEnum or a DB CHECK constraint:
+  // R-C17's own scope note asks for this to be "structured so
+  // 'projexa-ai.com' can be added later without a schema change" -- a
+  // Postgres ENUM or a CHECK constraint both require a migration to admit a
+  // new allowed value, which is exactly the schema change this avoids.
+  // ALLOWED_ALIAS_DOMAINS in email-alias-service.ts is the real allow-list
+  // enforced at provisioning time; adding a domain there is a one-line code
+  // change, no migration required.
+  domain: text('domain').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => [
+  unique('user_email_addresses_local_part_domain_unique').on(table.localPart, table.domain),
+])
+
+export const userEmailAddressesRelations = relations(userEmailAddresses, ({ one }) => ({
+  user: one(users, { fields: [userEmailAddresses.userId], references: [users.id] }),
+}))
+
+// Durable receipt log for every inbound webhook delivery (Resend Inbound's
+// `email.received` event) -- written for EVERY delivery, whether or not the
+// recipient resolves to a known userEmailAddresses row, so a misdirected or
+// pre-provisioning delivery is a visible row for someone to investigate
+// rather than a silently dropped 200. orgId/userId are BOTH nullable (not
+// just userId): when resolution fails there is no real org to attribute the
+// row to either -- forcing a NOT NULL org_id here would mean either
+// fabricating one or rejecting the very deliveries this table exists to
+// make visible.
+export const inboundEmailMessages = complianceSchemaDB.table('inbound_email_messages', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'),
+  userId: text('user_id').references(() => users.id),
+  fromAddress: text('from_address').notNull(),
+  toAddress: text('to_address').notNull(),
+  subject: text('subject'),
+  // Resend's own email id for this delivery -- unique so a webhook retry
+  // (Resend retries a non-2xx delivery) can't double-insert the same
+  // message; the route checks for an existing row with this id first.
+  resendMessageId: text('resend_message_id').notNull().unique(),
+  receivedAt: timestamp('received_at').notNull(),
+  processedAt: timestamp('processed_at'), // set once analyzeInboundEmail() has run for this row
+  processingError: text('processing_error'), // set instead of processedAt if resolution or analyzeInboundEmail() threw
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const inboundEmailMessagesRelations = relations(inboundEmailMessages, ({ one }) => ({
+  user: one(users, { fields: [inboundEmailMessages.userId], references: [users.id] }),
 }))
 
 // GAP-06 (tree4-unified/30-gap-backlog.yaml): "Build a genuine draft-then-
