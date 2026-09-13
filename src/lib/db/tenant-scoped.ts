@@ -71,9 +71,39 @@ export function appRuntimePoolOptions() {
   return {
     prepare: false,
     ssl: { rejectUnauthorized: false },
-    // Not raised by R67: the pool is only re-measured once the leak is gone
-    // (D-06's own rule). More connections would only leak faster.
-    max: 5,
+    // RE-MEASURED 2026-09-13 (R80/81/82 CI investigation, PR #1723), per
+    // D-06's own rule directly above this comment ("re-measured once the
+    // leak is gone") -- the leak IS gone: src/lib/db/tenant-nesting-guard.test.ts
+    // (the live, filesystem-walking static-analysis guard this pool's own
+    // header comment describes) passes clean, confirming no same-process
+    // nested withTenantContext call currently reaches this pool.
+    //
+    // What PR #1723's own e2e-env1 CI job (run 34751296323, job
+    // 103709045231) then surfaced, once an unrelated PROJEXA_DATABASE_URL
+    // credential bug was fixed and this pool was reachable under REAL
+    // concurrent load for the first time, was NOT nesting -- it was breadth:
+    // 15 of 25 PROJEXA Env-1 specs failed with "did not respond in time"
+    // (PROJEXA's own 8s client budget expiring) spread across routes with
+    // nothing in common except this one shared pool (construction: /scope,
+    // /module-chain, /capability-tree, /tasks; ERP: /currencies, /vendors;
+    // HR: /employees, /leave/requests, /hr/org-chart; plus /assistant,
+    // /policies, /pill-usage) -- confirming this is ordinary concurrent-
+    // request queueing against a 5-connection application-wide pool, not a
+    // narrow bug in any one of them. 3 Playwright workers, each driving a
+    // PROJEXA page load that itself fans out ~5-8 concurrent server-side
+    // calls (see projexa's /api/shell route), routinely exceeds 5 at once.
+    //
+    // Raised to 15, not removed/unbounded: confirmed real headroom first,
+    // not guessed -- `select count(*) from pg_stat_activity` on
+    // pcrjmlpuqsbocqfwoxod showed ~12 total connections in use against this
+    // project's own `max_connections` of 60 (both via the Supabase MCP,
+    // same session), and this client dials through Supabase's Supavisor
+    // transaction-mode pooler (see db/index.ts's own sibling comment),
+    // which multiplexes client-side connections down to a smaller number of
+    // real backend ones -- client-side `max` is not a 1:1 draw against that
+    // 60. Every timeout/statement_timeout value below is untouched; this is
+    // a capacity axis, not a guardrail-weakening one.
+    max: 15,
     connect_timeout: 10,
     idle_timeout: 30,
     connection: {

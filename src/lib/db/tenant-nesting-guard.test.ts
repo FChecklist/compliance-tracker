@@ -13,9 +13,11 @@
 // WHAT IT DETECTS. A function that opens a withTenantContext transaction and
 // then, from INSIDE that transaction's callback, calls another function which
 // opens its own -- directly, or through any number of intermediate hops. The
-// pool is `max: 5` for the whole application (tenant-scoped.ts's own
-// appRuntimePoolOptions), so one request holding two connections is how it
-// exhausts.
+// pool is shared for the whole application (tenant-scoped.ts's own
+// appRuntimePoolOptions, `max: 15` as of 2026-09-13's re-measurement -- see
+// that file's own comment), so one request holding two-plus connections at
+// once is how a genuinely concurrent workload exhausts it faster than the
+// same top-level request volume would alone.
 //
 // WHY THIS IS NOT A LATENCY BUG, AND WHY THE TEST IS A HARD FAILURE.
 // assertNotNested() throws ONLY when NODE_ENV is "development" or "test"
