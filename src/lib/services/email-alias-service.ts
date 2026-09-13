@@ -38,12 +38,28 @@ import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 
 // Deliberately a plain array, not a DB enum/CHECK constraint -- see
-// userEmailAddresses.domain's own comment in schema.ts for why. Adding
-// "projexa-ai.com" here later is a one-line code change; per this task's
-// own scope note, PROJEXA is a separate repository/Supabase project and is
-// NOT added here -- if per-user provisioning is ever needed for PROJEXA
-// users, that is its own follow-up in that repo, not this array.
-export const DEFAULT_ALIAS_DOMAIN = "veridian-aios.com"
+// userEmailAddresses.domain's own comment in schema.ts for why.
+//
+// 2026-09-13 (R-C17 DNS/Resend setup, owner directive): changed from the
+// bare root domain "veridian-aios.com" to the subdomain
+// "mail.veridian-aios.com". The root domain already carries real, working
+// company email (confirmed directly by the owner) -- a domain's MX records
+// route ALL mail for that domain to one place, so pointing Resend Inbound
+// at the root would have silently hijacked that existing mail. A subdomain
+// gets its own independent MX record with zero effect on the root domain's
+// existing mail, which is why Resend's own inbound-email guidance
+// recommends a subdomain for exactly this reason.
+//
+// "projexa-ai.com" (or a mail.projexa-ai.com subdomain) is deliberately NOT
+// added here, still: PROJEXA is a separate repository with its OWN,
+// separate Supabase project/users table (see CLAUDE.md's own "PROJEXA is a
+// SEPARATE repository" section) -- adding that domain string to THIS array
+// would let an address resolve against compliance-tracker's own `users`
+// table, which is the wrong database for a PROJEXA end user. Per-user email
+// aliases for PROJEXA need their own, separate implementation of this same
+// pattern inside the projexa repo, querying its own database -- not a
+// one-line addition here.
+export const DEFAULT_ALIAS_DOMAIN = "mail.veridian-aios.com"
 export const ALLOWED_ALIAS_DOMAINS = [DEFAULT_ALIAS_DOMAIN] as const
 export type AllowedAliasDomain = (typeof ALLOWED_ALIAS_DOMAINS)[number]
 
