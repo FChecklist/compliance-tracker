@@ -791,7 +791,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: FChecklist/projexa
-          ref: main
+          ref: throwaway/r80-r82-break-restore-c7 # TEMP, PM break-restore check only, reverted before merge
           path: projexa-checkout
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
