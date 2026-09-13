@@ -9,6 +9,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -17,6 +18,7 @@ jobs:
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -32,6 +34,7 @@ jobs:
     name: Build
     needs: [lint, typecheck]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -55,6 +58,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -108,6 +112,7 @@ jobs:
   migration-collision-check:
     name: Migration Number Collision Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
@@ -136,6 +141,7 @@ jobs:
   route-error-handling-check:
     name: Route Error Handling Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
@@ -186,6 +192,7 @@ jobs:
   migration-integrity-check:
     name: Migration Integrity Check (AR-12)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -265,6 +272,7 @@ jobs:
     # the run below on the day a clean replay is expected to hold.
     name: Migration Replay From Empty (E-103, report-only)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -287,6 +295,7 @@ jobs:
     # feedback_bypass_server_direct_work memory).
     name: Governance YAML Parse Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -311,6 +320,7 @@ jobs:
     # missing live.
     name: Migration Schema Drift Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -349,6 +359,7 @@ jobs:
     # rows, delete the `continue-on-error: true` below so the job blocks again.
     name: Screen Definition Label Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
@@ -381,6 +392,7 @@ jobs:
     # unreachable-DB-warns-not-fails convention.
     name: Graph Drift Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -391,6 +403,7 @@ jobs:
   new-test-coverage:
     name: New Test Coverage Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -416,6 +429,7 @@ jobs:
   test-coverage-gap-report:
     name: Test Coverage Gap Report Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       # VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for
@@ -429,6 +443,7 @@ jobs:
     name: E2E Tests
     needs: [build]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -506,6 +521,14 @@ jobs:
     name: E2E Tests (Env-1, cross-repo)
     needs: [build]
     runs-on: ubuntu-latest
+    # PM directive 2026-09-13: no job in this workflow set timeout-minutes, so
+    # every job silently inherited GitHub's 6-hour default. This is the one
+    # job that genuinely can hang -- it boots two real dev servers and drives
+    # a real browser against them -- and on a hang it would sit unnoticed for
+    # 6 hours before anyone saw a red run. 25 minutes gives real headroom over
+    # this job's own observed real duration (~9-10 minutes end to end) without
+    # masking a genuine hang for anywhere near that long.
+    timeout-minutes: 25
     steps:
       # Fail fast and loud, not 2 build+boot steps later, the moment OR-7/
       # OR-8 land wrong or get missed -- same "a missing required secret
@@ -527,6 +550,241 @@ jobs:
             exit 1
           fi
           echo "all 6 required secrets present (values not printed)"
+      # R-80/81/82 investigation (2026-09-13): the REAL, confirmed root cause of
+      # this job's cascading timeouts (15s/30s/45s/90s apiRequestContext/page.goto
+      # failures across ~24 of 25 PROJEXA Env-1 tests, every one of them, not just
+      # R-80/81/82) is NOT compliance-tracker's app_runtime connection pool -- that
+      # was this investigation's starting hypothesis (see CLAUDE.md's R74/R75/R83
+      # notes on ensureConstructionEnabled()/withTenantContext nesting) and it does
+      # NOT hold up against the evidence: ct-server.log shows ZERO route activity
+      # for the entire run (confirmed via `gh run view --log` on run 34738259390,
+      # PR #1721) and PROJEXA's own structured request log shows
+      # upstreamCalls:0/upstreamMs:0 on every logged request -- compliance-tracker
+      # was never even reached.
+      #
+      # The real fault: PROJEXA's own server-side DB query
+      # (getVeridianApiKey() in projexa's src/lib/veridian-client.ts, which every
+      # single /api/* proxy route calls BEFORE it ever forwards to compliance-
+      # tracker) intermittently fails with `connect ENETUNREACH
+      # 2406:da1a:314:...:6543` -- an IPv6 address, Supabase's pooler port --
+      # while OTHER connection attempts to the same host just hang (no reject at
+      # all) until something upstream gives up. That inconsistency (instant
+      # ENETUNREACH some of the time, a silent multi-second-to-90s hang the rest)
+      # is the well-documented GitHub Actions ubuntu-latest-runner symptom of
+      # having an IPv6 address assigned with no real, reliable route to it:
+      # glibc's getaddrinfo() returns Supabase's AAAA record first (RFC 3484
+      # default ordering), some of THOSE connection attempts get a fast kernel-
+      # level "no route" (ENETUNREACH), and others reach a hop that silently
+      # drops packets instead of rejecting, which just hangs until a TCP-level
+      # retransmit timeout or an application-level timeout fires -- exactly
+      # matching the spread of failure modes/durations observed here.
+      #
+      # Fix: prefer IPv4 at the OS resolver level (glibc's /etc/gai.conf
+      # precedence table), which applies to EVERY process on this runner
+      # regardless of language/runtime (Bun, for both the compliance-tracker and
+      # projexa servers below, plus Node/curl/anything else) -- deliberately NOT
+      # a per-runtime flag (e.g. NODE_OPTIONS=--dns-result-order=ipv4first), since
+      # both app servers here run via `bunx next start`, i.e. the Bun runtime, not
+      # Node, and Bun's own support for that Node CLI flag is not confirmed
+      # anywhere in its documentation -- an OS-level fix has no such doubt. This
+      # does not touch application code, RLS, or tenant isolation in any way; it
+      # only changes which address family this ephemeral CI runner's libc tries
+      # first when a hostname resolves to both an A and an AAAA record. No effect
+      # on IPv6-only hosts (there is no IPv4 address to prefer). Standard,
+      # widely-used GitHub Actions workaround for this exact Supabase/IPv6 class
+      # of failure.
+      # 2026-09-13 correction: the /etc/gai.conf "precedence ::ffff:0:0/96 100"
+      # line originally tried here does NOT do what it looks like it does --
+      # that address block is IPv4-MAPPED IPv6 addresses specifically, not a
+      # general "prefer real A records over real AAAA records" switch, so it
+      # left ENETUNREACH firing identically on the next real CI run (PR #1723,
+      # run 34742214978: 69 ENETUNREACH occurrences, same 19-failed/5-passed
+      # pattern as before this step existed) -- confirmed live, not assumed.
+      # Real fix: bypass DNS's dual-stack address selection entirely for the
+      # one hostname that matters, by resolving its real IPv4 address once and
+      # pinning it in /etc/hosts (NSS "files" precedes "dns" on Ubuntu, so this
+      # wins regardless of gai.conf/glibc/runtime DNS-order quirks). Every
+      # Supabase project in this region shares the same pooler hostname
+      # (distinguished by the postgres.<ref> username, not the host), so one
+      # resolution covers this repo's own DATABASE_URL/APP_RUNTIME_DATABASE_URL
+      # and PROJEXA_DATABASE_URL alike.
+      # 2026-09-13 SECOND correction: the /etc/hosts pin above did NOT fix it
+      # either -- confirmed live (PR #1723, run 34745310994, now with the
+      # pipefail bug also fixed so this is a trustworthy result, not a masked
+      # one): the pin visibly took effect (`getent hosts` printed the correct
+      # IPv4 line right after this step ran) but ENETUNREACH still fired 82
+      # times in the same run. Bun's own connection layer does not appear to
+      # consult glibc's NSS/`/etc/hosts` for this path (a known, documented
+      # class of Bun DNS/IPv6 quirk -- see oven-sh/bun#10731, which describes
+      # Bun lacking a Happy-Eyeballs-style fallback and using whichever
+      # address its own resolver returns first, not necessarily going through
+      # libc's getaddrinfo at all).
+      #
+      # Real fix this time: stop asking DNS to behave and remove it from the
+      # connection entirely -- substitute the pooler hostname's own resolved
+      # IPv4 address directly INTO the PROJEXA_DATABASE_URL connection string
+      # used by PROJEXA's server process, via $GITHUB_ENV, so postgres.js
+      # never performs a hostname lookup for this specific connection at all.
+      # Scoped to PROJEXA_DATABASE_URL only (the one connection actually
+      # proven to fail) -- this repo's own DATABASE_URL/APP_RUNTIME_DATABASE_URL
+      # have shown zero ENETUNREACH occurrences in every run's ct-server.log,
+      # so they are left untouched rather than changing something not proven
+      # broken. Supavisor routes by the `postgres.<ref>` USERNAME in the
+      # connection string, not by hostname/SNI, so dialing the same pooler by
+      # IP instead of name should reach the identical backend --
+      # rejectUnauthorized:false (already set in projexa's own db/index.ts)
+      # means certificate/hostname validation is not in play either way.
+      # 2026-09-13 THIRD correction: the hardcoded HOST above assumed the pre-
+      # R72/OR-7-fix hostname (aws-1-ap-south-1.pooler.supabase.com, still
+      # real and resolvable, confirmed via nslookup) -- but the owner reset
+      # PROJEXA_DATABASE_URL this same day, and this step's own safety check
+      # correctly caught that the actual secret no longer contains that exact
+      # string (run 34746433414 failed loudly here rather than silently
+      # proceeding on a stale assumption -- exactly what that check is for).
+      # Fix (4th attempt): parse the real hostname OUT of the secret at
+      # runtime instead of assuming it. This surfaced a NEW fact: the secret
+      # now holds a direct-connection URL (`db.<ref>.supabase.co`), and
+      # `getent ahostsv4` correctly returned nothing for it (exit code 2) --
+      # not a bug in this step, a real property of that hostname: confirmed
+      # via `nslookup db.evpckeuxgvahguwsaeul.supabase.co` returning only an
+      # AAAA record, zero A records. Supabase's direct-connection host is
+      # IPv6-only on this project's tier; there is no IPv4 address to pin,
+      # ever, for that exact hostname shape. "Force IPv4" was therefore never
+      # going to work here -- the fix (5th attempt) is to detect that shape
+      # and route through Supabase's IPv4-reachable Supavisor transaction
+      # pooler instead of trying to pin an IP that doesn't exist.
+      #
+      # 2026-09-13 FOURTH correction (PR #1723, run 34748506949): the 5th-
+      # attempt rewrite above IS reaching the real pooler now (confirmed --
+      # "Force IPv4"/"Wait for projexa to accept connections" both pass
+      # cleanly) but the job STILL fails downstream, at "Run compliance-
+      # tracker Env-1 specs": 9 of 10 specs there time out (15s API / 30s
+      # page.goto), not on a real assertion mismatch. Root-caused with real
+      # evidence, not guessed: (a) PROJEXA's own structured request log
+      # (projexa-server.log) shows upstreamCalls:0/upstreamMs:0 on every
+      # single failing request for the ENTIRE run -- compliance-tracker's
+      # backend (:3000) was never once reached, ruling out every
+      # compliance-tracker-side hypothesis (nested withTenantContext,
+      # ensureConstructionEnabled(), connection-pool exhaustion -- see
+      # CLAUDE.md's R74/R75/R83 notes) for THIS failure; (b) projexa-
+      # server.log instead shows `[veridian-client] getVeridianApiKey(...)
+      # failed ... caused by: password authentication failed for user
+      # "postgres"` on every call, immediately followed by Supavisor's own
+      # `(ECIRCUITBREAKER) too many authentication failures` once ~20 have
+      # accumulated; (c) confirmed from the OTHER side too, via the Supabase
+      # MCP's query_logs against project evpckeuxgvahguwsaeul's own
+      # `supavisor_logs` for this exact run's time window: repeated
+      # `ClientHandler: Exchange error: password authentication failed for
+      # user "postgres"` from the runner's own IP, then two real
+      # `Circuit breaker opened for key={"evpckeuxgvahguwsaeul", ...}
+      # operation=auth_error` events -- this is the pooler's OWN server-side
+      # circuit breaker (not a postgres.js client-side one), confirming every
+      # attempt genuinely failed auth rather than a transient network glitch;
+      # (d) getVeridianApiKey() has no query timeout and runs on PROJEXA's
+      # `max:1`-pool db client (src/lib/db/index.ts there), so once the first
+      # few auth attempts are slow-failing, EVERY OTHER db-touching request
+      # (nearly every PROJEXA route calls resolveApiKey() -> getVeridianApiKey()
+      # per src/lib/veridian-client.ts there) queues behind that one
+      # congested slot -- this is why the observed delays escalate across
+      # the run (1.3s, 2s, 8s, 10s, 15s, ... 30s) rather than failing
+      # uniformly fast, and why it eventually exceeds Playwright's 15s/30s
+      # budgets on whichever spec's request lands at the tail of the queue.
+      # Confirmed the row genuinely exists (so this is not a missing-seed-
+      # data problem either): `select organization_id from
+      # public.veridian_credentials` on evpckeuxgvahguwsaeul, via the same
+      # Supabase MCP, shows real rows for both test org ids used by these
+      # specs (42d7bac5-... and bc689d97-...) -- the DB, if reachable, would
+      # answer these queries in well under a second.
+      #
+      # Fix (6th attempt, this commit): the PROJEXA_DATABASE_URL secret's
+      # password was simply wrong/stale (per the THIRD correction above, the
+      # owner had reset this secret earlier the same day) -- not a parsing or
+      # connectivity bug in this step at all. Verified the CORRECT password
+      # directly: projexa's own local, gitignored .env.local carries
+      # SUPABASE_DB_PASSWORD for this exact project, and a real, live
+      # connection test against the Supavisor pooler
+      # (postgres.evpckeuxgvahguwsaeul@aws-1-ap-south-1.pooler.supabase.com:6543)
+      # using that value succeeded (`select current_user, now()` returned
+      # real data) -- so this is not a guess, it's a proven-working
+      # credential. The PROJEXA_DATABASE_URL secret has been updated (via
+      # `gh secret set`, not a dashboard round-trip, since this value's only
+      # consumer is this one CI job -- confirmed via a repo-wide grep, no
+      # other workflow references PROJEXA_DATABASE_URL) to
+      # postgres://postgres:<that verified password>@db.evpckeuxgvahguwsaeul.supabase.co:5432/postgres,
+      # the same direct-connection SHAPE this step already expects and
+      # rewrites -- no change needed to the rewrite logic itself, only to
+      # the secret's own value. If this job ever fails this same way again,
+      # check supavisor_logs for this project via the Supabase MCP first --
+      # it will say definitively whether it's an auth failure (secret is
+      # wrong again) or something else, rather than re-deriving this from
+      # cascading Playwright timeouts.
+      - name: Force IPv4 for the Supabase pooler host (fixes IPv6 ENETUNREACH flakiness on this runner)
+        run: |
+          set -euo pipefail
+          HOST=$(printf '%s' "${{ secrets.PROJEXA_DATABASE_URL }}" | sed -E 's#^[a-zA-Z]+://[^@]*@([^:/?]+).*#\1#')
+          if [ -z "$HOST" ] || [ "$HOST" = "${{ secrets.PROJEXA_DATABASE_URL }}" ]; then
+            echo "::error::Could not parse a hostname out of PROJEXA_DATABASE_URL (unexpected format) -- refusing to proceed"
+            exit 1
+          fi
+          echo "Parsed host from PROJEXA_DATABASE_URL: $HOST"
+
+          case "$HOST" in
+            db.*.supabase.co)
+              # Direct-connection format -- IPv6-only, see comment above.
+              # Rewrite to the pooler instead of trying to pin an IPv4
+              # address that does not exist for this host.
+              REF=$(printf '%s' "$HOST" | sed -E 's#^db\.([^.]+)\.supabase\.co$#\1#')
+              if [ -z "$REF" ] || [ "$REF" = "$HOST" ]; then
+                echo "::error::Could not extract a project ref out of direct-connection host $HOST -- refusing to proceed"
+                exit 1
+              fi
+              # aws-1-ap-south-1 confirmed live for THIS project two
+              # independent ways, not guessed: (1) the Supabase Management
+              # API reports this project's region as ap-south-1; (2) a live
+              # TCP probe against the Supavisor pooler with a deliberately
+              # WRONG password got back "password authentication failed"
+              # from aws-1-ap-south-1.pooler.supabase.com (the tenant
+              # postgres.<ref> IS registered there) vs "Tenant or user not
+              # found" from aws-0-ap-south-1.pooler.supabase.com for the same
+              # ref (that generation does NOT know this project). Neither
+              # probe ever touched or needed the real secret.
+              POOLER_HOST="aws-1-ap-south-1.pooler.supabase.com"
+              POOLER_PORT="6543"
+              # Supabase's direct-connection URLs from the dashboard are
+              # postgres://postgres:<pw>@db.<ref>.supabase.co:5432/<db>[?q] --
+              # the pooler needs the username rewritten to postgres.<ref>
+              # (Supavisor routes by username, not hostname/SNI) in addition
+              # to the host:port swap. One pass, both substitutions.
+              REWRITTEN_URL=$(printf '%s' "${{ secrets.PROJEXA_DATABASE_URL }}" | sed -E \
+                -e "s#://postgres:#://postgres.$REF:#" \
+                -e "s#@$HOST(:[0-9]+)?#@$POOLER_HOST:$POOLER_PORT#")
+              if [ "$REWRITTEN_URL" = "${{ secrets.PROJEXA_DATABASE_URL }}" ]; then
+                echo "::error::Rewrite to the pooler had no effect -- refusing to proceed with an unmodified direct-connection (IPv6-only) URL"
+                exit 1
+              fi
+              echo "PROJEXA_DATABASE_URL_PINNED=$REWRITTEN_URL" >> "$GITHUB_ENV"
+              echo "Direct-connection host $HOST is IPv6-only on this runner (no A record) -- rewritten to dial the IPv4-reachable pooler $POOLER_HOST:$POOLER_PORT instead, as tenant postgres.$REF"
+              ;;
+            *)
+              # Already pooler-shaped (or some other host) -- keep the
+              # original force-IPv4 behaviour: resolve and pin a literal
+              # IPv4 address so the runner's resolver can't pick an
+              # unreachable AAAA for it.
+              IP=$(getent ahostsv4 "$HOST" | awk '{print $1; exit}')
+              if [ -z "$IP" ]; then
+                echo "::error::Could not resolve an IPv4 address for $HOST -- cannot rewrite PROJEXA_DATABASE_URL, failing loudly rather than silently continuing on IPv6"
+                exit 1
+              fi
+              echo "Resolved $HOST -> $IP"
+              PINNED_URL=$(printf '%s' "${{ secrets.PROJEXA_DATABASE_URL }}" | sed "s/$HOST/$IP/")
+              if [ "$PINNED_URL" = "${{ secrets.PROJEXA_DATABASE_URL }}" ]; then
+                echo "::error::Substitution had no effect -- refusing to proceed with an unmodified connection string"
+                exit 1
+              fi
+              echo "PROJEXA_DATABASE_URL_PINNED=$PINNED_URL" >> "$GITHUB_ENV"
+              echo "PROJEXA_DATABASE_URL rewritten to dial $IP directly (host header preserved nowhere -- Supavisor routes by the postgres.<ref> username in the connection string, not hostname/SNI)"
+              ;;
+          esac
       - name: Checkout compliance-tracker
         uses: actions/checkout@v7
       - name: Checkout projexa (sibling dir)
@@ -584,7 +842,7 @@ jobs:
         run: bun run build
         working-directory: projexa-checkout
         env:
-          DATABASE_URL: ${{ secrets.PROJEXA_DATABASE_URL }}
+          DATABASE_URL: ${{ env.PROJEXA_DATABASE_URL_PINNED }}
           NEXT_PUBLIC_SUPABASE_URL: https://evpckeuxgvahguwsaeul.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_f0C6ZvVjEnwkdN7wxfEwBQ_x69zrGs8
       - name: Start projexa (background, :3100)
@@ -592,7 +850,7 @@ jobs:
         run: nohup bunx next start -p 3100 > ../projexa-server.log 2>&1 & echo $! > ../projexa-server.pid
         env:
           NODE_ENV: production
-          DATABASE_URL: ${{ secrets.PROJEXA_DATABASE_URL }}
+          DATABASE_URL: ${{ env.PROJEXA_DATABASE_URL_PINNED }}
           NEXT_PUBLIC_SUPABASE_URL: https://evpckeuxgvahguwsaeul.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_f0C6ZvVjEnwkdN7wxfEwBQ_x69zrGs8
           VERIDIAN_API_BASE_URL: http://localhost:3000/api/v1/projexa
@@ -656,14 +914,50 @@ jobs:
         # (real per-user password login + storageState, 4 distinct seeded
         # users, confirmed by reading it directly), a structurally different
         # mechanism with no shared single-slot token to race on, so its own
-        # `workers: 3` config is untouched and correct as-is.
+        # `workers: 3` config was left untouched here for that (still valid)
+        # reason.
+        #
+        # 2026-09-13 correction (R80/81/82 CI investigation, after the
+        # PROJEXA_DATABASE_URL fix + app_runtime pool re-measurement above):
+        # `workers: 3` is now serialized to `--workers=1` too, for a
+        # DIFFERENT reason than the token race this comment describes --
+        # confirmed via two consecutive real runs (34751296323 max:15 pool,
+        # 7/25 failed; 34753495031 max:20 pool, 8/25 failed) that raising the
+        # pool further stopped moving the needle and the SET of failing
+        # specs shifted between the two runs (r33 and the R-41/42/43 CEO
+        # variant flipped from pass to fail with no code change in between) --
+        # exactly the signature of genuine cross-worker resource contention
+        # (3 workers' page loads each fanning out ~5-8 concurrent server
+        # calls via /api/shell, competing with each other, not with anything
+        # in compliance-tracker's own pool specifically) rather than a fixed
+        # logic bug. Serializing removes that contention at the source
+        # without raising the pool again -- matches the compliance-tracker
+        # step's own already-serialized pattern above, just for a different
+        # underlying reason.
         # `2>&1 | tee ...` (not a plain redirect): the log file feeds the
         # credential-leak scan step below, but the raw stdout/stderr must
-        # still reach the job's own live log exactly as before -- this repo's
-        # default `bash -eo pipefail` shell (GitHub Actions' own default for
-        # non-Windows `run` steps) means playwright's real exit code still
-        # propagates through the pipe, so this does not mask a test failure.
-        run: bunx playwright test env1.spec.ts --workers=1 2>&1 | tee playwright-env1-ct.log
+        # still reach the job's own live log exactly as before.
+        #
+        # 2026-09-13 correction: this comment used to claim GitHub Actions'
+        # default non-Windows `run` shell already applies `-o pipefail`, so
+        # playwright's real exit code would propagate through the `tee` pipe
+        # unmasked. That claim was wrong -- confirmed via GitHub's own actions/
+        # runner issue tracker: `-o pipefail` is only added when `shell: bash`
+        # is EXPLICITLY specified; with no `shell:` key (this job's case), only
+        # `-e` applies, `tee` always exits 0, and the whole pipeline's exit
+        # code was `tee`'s, not playwright's. Confirmed live and directly: PR
+        # #1723's own run 34742214978/34743574600 showed this job reporting
+        # "E2E Tests (Env-1, cross-repo): pass" while the real log underneath
+        # showed 19-20 failed Playwright tests (R-80/81/82's own spec among
+        # them) and zero "Process completed with exit code" messages anywhere
+        # in the raw job log -- meaning this job's pass/fail has NEVER
+        # reliably reflected whether the Env-1 specs actually passed, for any
+        # of the 17 sumeet_requirements this job exists for, since it was
+        # created. Fixed by setting pipefail explicitly, matching the pattern
+        # the credential-scan step below already used correctly.
+        run: |
+          set -o pipefail
+          bunx playwright test env1.spec.ts --workers=1 2>&1 | tee playwright-env1-ct.log
         env:
           E2E_PROJEXA_ORIGIN: http://localhost:3100
           E2E_ENV1_JOB: "true"
@@ -701,9 +995,13 @@ jobs:
         # `../playwright-env1-projexa.log` lands next to playwright-env1-ct.log
         # above (this job's default working directory, one level up from
         # projexa-checkout/) so the scan step below can find both with no
-        # working-directory override of its own. Same pipefail reasoning as
-        # the compliance-tracker step's own comment just above.
-        run: bunx playwright test env1.spec.ts 2>&1 | tee ../playwright-env1-projexa.log
+        # working-directory override of its own. pipefail set explicitly --
+        # see the compliance-tracker step's own comment above for why this
+        # was a real, confirmed-live bug without it (this job's pass/fail
+        # never reflected these tests' real outcome before this fix).
+        run: |
+          set -o pipefail
+          bunx playwright test env1.spec.ts --workers=1 2>&1 | tee ../playwright-env1-projexa.log
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3100
 
@@ -857,6 +1155,7 @@ jobs:
     # independent warning if it's absent, without blocking proofs 1/4.
     name: Register Consistency Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2

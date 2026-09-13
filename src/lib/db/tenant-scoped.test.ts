@@ -2,15 +2,19 @@
 // R67 F-12 / F-15 (R-192 / R-216 / R-232 / R-251), programme decision D-06 --
 // sibling test for the nested-transaction guard.
 //
-// THE FAULT. tenant-scoped.ts's pool is `max: 5` for the whole application. A
-// function that opens a tenant transaction and then calls another function that
-// opens its own holds two of those five connections at once, and the second is
+// THE FAULT. tenant-scoped.ts's pool was `max: 5` for the whole application at
+// the time this guard was written (raised to 15 on 2026-09-13 -- see
+// appRuntimePoolOptions()'s own comment for why; nesting still holds 2+
+// connections at once regardless of the pool's size, so this guard's job is
+// unchanged). A function that opens a tenant transaction and then calls another
+// function that opens its own holds two connections at once, and the second is
 // only obtainable if a slot is free. On 2026-09-02 that self-deadlocked
-// production: pg_stat_activity showed all five app_runtime sessions "idle in
-// transaction" for 25 minutes, parked on getProjectDashboard() ->
-// earnedValueReport() -> requireConstructionEnabled(). Every one of those
-// functions is correct on its own; the combination is not. The guard makes that
-// rule mechanical instead of a thing reviewers have to remember.
+// production: pg_stat_activity showed all five app_runtime sessions (the pool
+// size at the time) "idle in transaction" for 25 minutes, parked on
+// getProjectDashboard() -> earnedValueReport() -> requireConstructionEnabled().
+// Every one of those functions is correct on its own; the combination is not.
+// The guard makes that rule mechanical instead of a thing reviewers have to
+// remember.
 //
 // HOW THIS TESTS IT WITHOUT A DATABASE. The postgres driver and drizzle's
 // constructor are mocked, so the transaction "runs" in memory. That is enough,
@@ -281,10 +285,21 @@ describe("assertNotNested", () => {
 })
 
 describe("the app_runtime pool options this guard exists to protect", () => {
-  test("still max 5, with the timeouts R46 added -- the guard is the fix, not a bigger pool", async () => {
+  // 2026-09-13 (R80/81/82 CI investigation, PR #1723): raised 5 -> 15, a real
+  // re-measurement (see appRuntimePoolOptions()'s own comment for the CI run
+  // and pg_stat_activity evidence behind the number), not a reversion of the
+  // "the guard is the fix, not a bigger pool" principle this test's name still
+  // carries -- that principle is about NESTING (one request silently opening
+  // 2+ transactions), which the guard below still catches at any pool size.
+  // It was never a claim that 5 was the permanently-correct number of
+  // genuinely concurrent, non-nested top-level requests this application
+  // should support -- D-06's own rule explicitly anticipated re-measuring
+  // once the leak was confirmed gone, which this file's own passing tests
+  // now confirm.
+  test("max 20 (re-measured 2026-09-13, second pass), with the timeouts R46 added -- the guard is the fix, not a bigger pool", async () => {
     await withTenantContext(CTX, async () => "ok")
 
-    expect(postgresOptions?.max).toBe(5)
+    expect(postgresOptions?.max).toBe(20)
     expect(postgresOptions?.connect_timeout).toBe(10)
     expect(postgresOptions?.idle_timeout).toBe(30)
     expect((postgresOptions?.connection as { statement_timeout?: number })?.statement_timeout).toBe(25_000)
@@ -311,7 +326,7 @@ describe("F-16: the 30 s idle-in-transaction safety net travels with the connect
   test("the exported options builder is the same object the client is built from", () => {
     const built = appRuntimePoolOptions()
 
-    expect(built.max).toBe(5)
+    expect(built.max).toBe(20)
     expect(built.connection.options).toBe(`-c idle_in_transaction_session_timeout=${IDLE_IN_TRANSACTION_TIMEOUT_MS}`)
     expect(IDLE_IN_TRANSACTION_TIMEOUT_MS).toBe(30_000)
   })
@@ -445,7 +460,7 @@ describe("F-16: readAppRuntimePoolHealth", () => {
     expect(health.idle).toBe(2)
     expect(health.idleInTransaction).toBe(2)
     expect(health.total).toBe(5)
-    expect(health.maxPoolSize).toBe(5)
+    expect(health.maxPoolSize).toBe(20)
     expect(health.oldestIdleInTransactionSeconds).toBeCloseTo(1523.4)
     expect(health.idleInTransactionTimeoutMs).toBe(30_000)
   })
