@@ -37,7 +37,14 @@ import { bustProjectDashboardCache } from "./project-dashboard-cache"
 // Redaction for roles without cost visibility is unchanged and already
 // handles these exact field names -- see cost-visibility-service.ts's
 // PROJECT_SIDE_COST_FIELDS, which was written in anticipation of this wiring.
-import { computeBoqLineMoneyView, rollUpRootLines, computeCostCoverage } from "./boq-dual-view-service"
+import { computeBoqLineMoneyView, rollUpRootLines, computeCostCoverage, validateBoqCellEdit } from "./boq-dual-view-service"
+// R85 Addendum 3 v4, Phase 2 (gate 2-02): "confirmation" locking the
+// contract side is Phase 3/E2's own event (at least one boq_baseline row) --
+// reusing its *WithDb reader rather than re-deriving "is this BOQ confirmed"
+// a second way keeps this file from becoming a second, drifting definition
+// of what confirmation means (the same X-27 single-producer discipline this
+// file already applies to the money math itself).
+import { listBaselineVersionsWithDb } from "./boq-baseline-service"
 export { ServiceError }
 
 export type BoqContext = { orgId: string; userId: string }
@@ -1080,6 +1087,24 @@ export async function getBoq(ctx: { orgId: string }, boqId: string) {
       // number built on mostly-blank cost data.
       moneyView: rollUpRootLines(lineItems),
       costCoverage: computeCostCoverage(lineItems),
+      // R85 Addendum 3 v4, Phase 2 (gate 2-02): lets the grid pre-emptively
+      // disable/explain a locked contract-side cell instead of only
+      // discovering the lock reactively from a 409 on the first edit
+      // attempt. "Confirmed" is Phase 3/E2's own event (>=1 boq_baseline
+      // row) -- reusing listBaselineVersionsWithDb rather than re-deriving
+      // it a second way (X-27 single-producer discipline extended to "is
+      // this BOQ confirmed", the same reasoning updateLineItemMoneyFields
+      // already applies to the lock check itself). Not cost data -- safe on
+      // both the internal and the `?view=customer` branch alike.
+      ...(await (async () => {
+        const baselines = await listBaselineVersionsWithDb(db, boqId)
+        const latest = baselines[baselines.length - 1]
+        return {
+          hasConfirmedBaseline: baselines.length > 0,
+          latestBaselineVersion: latest?.version ?? null,
+          latestBaselineConfirmedAt: latest?.confirmedAt ?? null,
+        }
+      })()),
     }
   })
 }
@@ -1207,6 +1232,69 @@ export async function updateLineItemBudget(
       ...(input.materialAmount !== undefined ? { materialAmount: input.materialAmount === null ? null : String(input.materialAmount) } : {}),
       ...(input.manpowerAmount !== undefined ? { manpowerAmount: input.manpowerAmount === null ? null : String(input.manpowerAmount) } : {}),
       ...(input.category !== undefined ? { category: normalizeCategory(input.category) } : {}),
+    }).where(eq(constructionBoqLineItems.id, lineItemId)).returning()
+    return withComputedRate(updated)
+  })
+}
+
+// R85 Addendum 3 v4, Phase 2 (gates 2-01/2-02/2-04) -- the grid's own write
+// path. qtyProject/rateProject/qtyContract/rateContract had a READ path
+// (withComputedRate, above) since the Phase 3 merge but no WRITE path
+// anywhere in this codebase until now -- a grid that cannot save an edited
+// cell is not a grid. Validation mirrors boq-dual-view-service.ts's
+// validateBoqCellEdit exactly (2-04: negative qty refused, negative rate
+// warned-not-refused since a credit line is legitimate, non-numeric
+// refused) so the server can never accept what the UI itself would refuse,
+// even from a caller that bypasses the grid entirely.
+//
+// 2-02: CONTRACT-SIDE COLUMNS LOCKED AFTER CONFIRMATION. "Confirmation" is
+// Phase 3/E2's own event -- a BOQ has at least one row in boq_baseline.
+// Locked means the write is REFUSED with a real, specific reason (2-02:
+// "Locked means the cell REFUSES the edit and EXPLAINS WHY, not that it is
+// hidden") -- a 409, never a silent no-op and never a field merely disabled
+// client-side with no server-side backstop. PROJECT-SIDE columns
+// (qtyProject/rateProject) are NEVER locked by this check (A8: "PROJECT
+// SIDE the firm's OWN numbers. Freely editable. Every change captured. NO
+// evidence required.") -- this function does not even look at baseline
+// state unless the CALLER is trying to touch qtyContract/rateContract.
+export async function updateLineItemMoneyFields(
+  ctx: { orgId: string },
+  lineItemId: string,
+  input: { qtyProject?: number | null; rateProject?: number | null; qtyContract?: number | null; rateContract?: number | null }
+) {
+  const rawFieldFor = { qtyProject: "qty", rateProject: "rate", qtyContract: "qty", rateContract: "rate" } as const
+  for (const key of ["qtyProject", "rateProject", "qtyContract", "rateContract"] as const) {
+    const value = input[key]
+    if (value === undefined) continue
+    const check = validateBoqCellEdit(rawFieldFor[key], value === null ? "" : String(value))
+    if (!check.valid && check.refused) {
+      throw new ServiceError(`${key}: ${check.reason}`, 400)
+    }
+  }
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, lineItemId) })
+    if (!existing) throw new ServiceError("Line item not found", 404)
+    const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, existing.boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
+    if (!boq) throw new ServiceError("Line item not found", 404)
+
+    const editingContractSide = input.qtyContract !== undefined || input.rateContract !== undefined
+    if (editingContractSide) {
+      const baselines = await listBaselineVersionsWithDb(db, boq.id)
+      if (baselines.length > 0) {
+        const latest = baselines[baselines.length - 1]
+        throw new ServiceError(
+          `The contract side is locked -- this BOQ was confirmed (baseline v${latest.version}, ${latest.confirmedAt.toISOString()}). A post-confirmation contract change needs a cited evidence artefact and creates the next baseline version -- it cannot be edited directly here.`,
+          409
+        )
+      }
+    }
+
+    const [updated] = await db.update(constructionBoqLineItems).set({
+      ...(input.qtyProject !== undefined ? { qtyProject: input.qtyProject === null ? null : String(input.qtyProject) } : {}),
+      ...(input.rateProject !== undefined ? { rateProject: input.rateProject === null ? null : String(input.rateProject) } : {}),
+      ...(input.qtyContract !== undefined ? { qtyContract: input.qtyContract === null ? null : String(input.qtyContract) } : {}),
+      ...(input.rateContract !== undefined ? { rateContract: input.rateContract === null ? null : String(input.rateContract) } : {}),
     }).where(eq(constructionBoqLineItems.id, lineItemId)).returning()
     return withComputedRate(updated)
   })
