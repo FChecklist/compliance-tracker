@@ -729,11 +729,28 @@ jobs:
         # `workers: 3` config is untouched and correct as-is.
         # `2>&1 | tee ...` (not a plain redirect): the log file feeds the
         # credential-leak scan step below, but the raw stdout/stderr must
-        # still reach the job's own live log exactly as before -- this repo's
-        # default `bash -eo pipefail` shell (GitHub Actions' own default for
-        # non-Windows `run` steps) means playwright's real exit code still
-        # propagates through the pipe, so this does not mask a test failure.
-        run: bunx playwright test env1.spec.ts --workers=1 2>&1 | tee playwright-env1-ct.log
+        # still reach the job's own live log exactly as before.
+        #
+        # 2026-09-13 correction: this comment used to claim GitHub Actions'
+        # default non-Windows `run` shell already applies `-o pipefail`, so
+        # playwright's real exit code would propagate through the `tee` pipe
+        # unmasked. That claim was wrong -- confirmed via GitHub's own actions/
+        # runner issue tracker: `-o pipefail` is only added when `shell: bash`
+        # is EXPLICITLY specified; with no `shell:` key (this job's case), only
+        # `-e` applies, `tee` always exits 0, and the whole pipeline's exit
+        # code was `tee`'s, not playwright's. Confirmed live and directly: PR
+        # #1723's own run 34742214978/34743574600 showed this job reporting
+        # "E2E Tests (Env-1, cross-repo): pass" while the real log underneath
+        # showed 19-20 failed Playwright tests (R-80/81/82's own spec among
+        # them) and zero "Process completed with exit code" messages anywhere
+        # in the raw job log -- meaning this job's pass/fail has NEVER
+        # reliably reflected whether the Env-1 specs actually passed, for any
+        # of the 17 sumeet_requirements this job exists for, since it was
+        # created. Fixed by setting pipefail explicitly, matching the pattern
+        # the credential-scan step below already used correctly.
+        run: |
+          set -o pipefail
+          bunx playwright test env1.spec.ts --workers=1 2>&1 | tee playwright-env1-ct.log
         env:
           E2E_PROJEXA_ORIGIN: http://localhost:3100
           E2E_ENV1_JOB: "true"
@@ -771,9 +788,13 @@ jobs:
         # `../playwright-env1-projexa.log` lands next to playwright-env1-ct.log
         # above (this job's default working directory, one level up from
         # projexa-checkout/) so the scan step below can find both with no
-        # working-directory override of its own. Same pipefail reasoning as
-        # the compliance-tracker step's own comment just above.
-        run: bunx playwright test env1.spec.ts 2>&1 | tee ../playwright-env1-projexa.log
+        # working-directory override of its own. pipefail set explicitly --
+        # see the compliance-tracker step's own comment above for why this
+        # was a real, confirmed-live bug without it (this job's pass/fail
+        # never reflected these tests' real outcome before this fix).
+        run: |
+          set -o pipefail
+          bunx playwright test env1.spec.ts 2>&1 | tee ../playwright-env1-projexa.log
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3100
 
