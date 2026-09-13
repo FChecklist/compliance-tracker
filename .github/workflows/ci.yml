@@ -570,8 +570,33 @@ jobs:
       # on IPv6-only hosts (there is no IPv4 address to prefer). Standard,
       # widely-used GitHub Actions workaround for this exact Supabase/IPv6 class
       # of failure.
-      - name: Prefer IPv4 over IPv6 (fixes Supabase IPv6/ENETUNREACH flakiness on this runner)
-        run: echo "precedence ::ffff:0:0/96 100" | sudo tee -a /etc/gai.conf
+      # 2026-09-13 correction: the /etc/gai.conf "precedence ::ffff:0:0/96 100"
+      # line originally tried here does NOT do what it looks like it does --
+      # that address block is IPv4-MAPPED IPv6 addresses specifically, not a
+      # general "prefer real A records over real AAAA records" switch, so it
+      # left ENETUNREACH firing identically on the next real CI run (PR #1723,
+      # run 34742214978: 69 ENETUNREACH occurrences, same 19-failed/5-passed
+      # pattern as before this step existed) -- confirmed live, not assumed.
+      # Real fix: bypass DNS's dual-stack address selection entirely for the
+      # one hostname that matters, by resolving its real IPv4 address once and
+      # pinning it in /etc/hosts (NSS "files" precedes "dns" on Ubuntu, so this
+      # wins regardless of gai.conf/glibc/runtime DNS-order quirks). Every
+      # Supabase project in this region shares the same pooler hostname
+      # (distinguished by the postgres.<ref> username, not the host), so one
+      # resolution covers this repo's own DATABASE_URL/APP_RUNTIME_DATABASE_URL
+      # and PROJEXA_DATABASE_URL alike.
+      - name: Force IPv4 for the Supabase pooler host (fixes IPv6 ENETUNREACH flakiness on this runner)
+        run: |
+          set -euo pipefail
+          HOST="aws-1-ap-south-1.pooler.supabase.com"
+          IP=$(getent ahostsv4 "$HOST" | awk '{print $1; exit}')
+          if [ -z "$IP" ]; then
+            echo "::error::Could not resolve an IPv4 address for $HOST -- cannot apply the /etc/hosts pin, failing loudly rather than silently continuing on IPv6"
+            exit 1
+          fi
+          echo "$IP $HOST" | sudo tee -a /etc/hosts
+          echo "Pinned $HOST -> $IP in /etc/hosts"
+          getent hosts "$HOST"
       - name: Checkout compliance-tracker
         uses: actions/checkout@v7
       - name: Checkout projexa (sibling dir)
