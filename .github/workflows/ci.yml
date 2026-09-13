@@ -611,10 +611,26 @@ jobs:
       # IP instead of name should reach the identical backend --
       # rejectUnauthorized:false (already set in projexa's own db/index.ts)
       # means certificate/hostname validation is not in play either way.
+      # 2026-09-13 THIRD correction: the hardcoded HOST above assumed the pre-
+      # R72/OR-7-fix hostname (aws-1-ap-south-1.pooler.supabase.com, still
+      # real and resolvable, confirmed via nslookup) -- but the owner reset
+      # PROJEXA_DATABASE_URL this same day, and this step's own safety check
+      # correctly caught that the actual secret no longer contains that exact
+      # string (run 34746433414 failed loudly here rather than silently
+      # proceeding on a stale assumption -- exactly what that check is for).
+      # Fix: parse the real hostname OUT of the secret at runtime instead of
+      # assuming it, so this survives any future password/host reset without
+      # needing another hardcoded-value fix. Never echoes the parsed URL or
+      # secret itself, only the extracted hostname (not sensitive) and the IP.
       - name: Force IPv4 for the Supabase pooler host (fixes IPv6 ENETUNREACH flakiness on this runner)
         run: |
           set -euo pipefail
-          HOST="aws-1-ap-south-1.pooler.supabase.com"
+          HOST=$(printf '%s' "${{ secrets.PROJEXA_DATABASE_URL }}" | sed -E 's#^[a-zA-Z]+://[^@]*@([^:/?]+).*#\1#')
+          if [ -z "$HOST" ] || [ "$HOST" = "${{ secrets.PROJEXA_DATABASE_URL }}" ]; then
+            echo "::error::Could not parse a hostname out of PROJEXA_DATABASE_URL (unexpected format) -- refusing to proceed"
+            exit 1
+          fi
+          echo "Parsed host from PROJEXA_DATABASE_URL: $HOST"
           IP=$(getent ahostsv4 "$HOST" | awk '{print $1; exit}')
           if [ -z "$IP" ]; then
             echo "::error::Could not resolve an IPv4 address for $HOST -- cannot rewrite PROJEXA_DATABASE_URL, failing loudly rather than silently continuing on IPv6"
@@ -623,7 +639,7 @@ jobs:
           echo "Resolved $HOST -> $IP"
           PINNED_URL=$(printf '%s' "${{ secrets.PROJEXA_DATABASE_URL }}" | sed "s/$HOST/$IP/")
           if [ "$PINNED_URL" = "${{ secrets.PROJEXA_DATABASE_URL }}" ]; then
-            echo "::error::PROJEXA_DATABASE_URL did not contain $HOST as expected -- refusing to proceed with an unmodified/unknown connection string"
+            echo "::error::Substitution had no effect -- refusing to proceed with an unmodified connection string"
             exit 1
           fi
           echo "PROJEXA_DATABASE_URL_PINNED=$PINNED_URL" >> "$GITHUB_ENV"
