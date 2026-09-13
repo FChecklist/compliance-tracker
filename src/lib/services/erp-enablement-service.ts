@@ -52,12 +52,60 @@ export async function isErpEnabledForOrgWithDb(db: TenantDb, orgId: string): Pro
   return isBranchEnabledForOrgWithDb(db, orgId, "erp")
 }
 
+// 2026-09-13 (R80/81/82 CI investigation, PR #1723): requireErpEnabled() had
+// NO memoization at all -- unlike construction-reports-service.ts's
+// ensureConstructionEnabled(), which the R67 F-10/R75 Part 3 investigation
+// already gave a 60s-per-org memo (with in-flight-promise dedup, so
+// concurrent callers share one check) for the identical reason. isErpEnabledForOrg()
+// opens its OWN withTenantContext transaction on the shared, application-wide
+// max:5 app_runtime pool (tenant-scoped.ts) -- so every one of
+// listSuppliers()/listCurrencies()/every other ERP-gated function's calls
+// spent a SECOND pooled connection re-answering "does this org have ERP?"
+// on top of the connection its own real query already needed.
+//
+// Confirmed as a real, live contributor (not guessed) via PR #1723's own
+// e2e-env1 job (run 34749520515, job 103703691366) once a separate,
+// unrelated PROJEXA_DATABASE_URL credential bug was fixed and compliance-
+// tracker's backend was reachable for the first time: /api/v1/projexa/vendors,
+// /api/v1/projexa/currencies and sibling ERP-gated routes were among many
+// that failed with "The construction data service did not respond in time"
+// (PROJEXA's own 8s client-side upstream budget expiring) under this job's
+// real (if CI-specific) concurrent load -- the same class of symptom R46/
+// R43_EXEC_02/D-06 already root-caused for this exact pool elsewhere in this
+// codebase. Same fix, same shape, same TTL, applied to the one enablement
+// check that never got it. Does not touch requireErpEnabled's REFUSAL
+// semantics (rule 1 below still applies) or any pool timeout.
+const ERP_ENABLEMENT_MEMO_TTL_MS = 60_000
+const erpEnablementMemo = new Map<string, { at: number; promise: Promise<boolean> }>()
+
+/** Test seam: `bun test` runs every file in one process, so the memo above would leak between files. */
+export function __resetErpEnablementMemo(): void {
+  erpEnablementMemo.clear()
+}
+
+// Mirrors construction-reports-service.ts's ensureConstructionEnabled(): a
+// REFUSAL (false) is never cached (rule 1 -- an org that just purchased ERP
+// must see it within the request that enables it, not up to 60s later), and
+// concurrent callers for the same org share the one in-flight check (rule 2
+// -- a burst of requests for the same org must not each open their own
+// enablement transaction).
+async function isErpEnabledForOrgMemoized(orgId: string): Promise<boolean> {
+  const hit = erpEnablementMemo.get(orgId)
+  if (hit && Date.now() - hit.at < ERP_ENABLEMENT_MEMO_TTL_MS) return hit.promise
+
+  const promise = isErpEnabledForOrg(orgId)
+  erpEnablementMemo.set(orgId, { at: Date.now(), promise })
+  const enabled = await promise
+  if (!enabled) erpEnablementMemo.delete(orgId)
+  return enabled
+}
+
 // Owner's exact wording (2026-07-13, OPEN-07 decision c): a polite,
 // specific 403 -- never a generic "Forbidden" -- naming the module the
 // capability actually lives in, so an admin knows what to purchase/enable.
 /** Shared 403 gate every ERP service/route calls first. */
 export async function requireErpEnabled(orgId: string): Promise<void> {
-  if (!(await isErpEnabledForOrg(orgId))) {
+  if (!(await isErpEnabledForOrgMemoized(orgId))) {
     throw new ServiceError(
       "This capability is not part of the Module your organization purchased. Please contact your organization's administrator. This capability is already in the ERP module.",
       403
