@@ -16,3 +16,17 @@
 6bc26140a1ca86c3475ba2a0e63287489ecf868b:e2e/r01-r02-boq-create-env1.spec.ts:jwt:29
 6bc26140a1ca86c3475ba2a0e63287489ecf868b:e2e/r32-boq-total-excludes-subtasks-env1.spec.ts:jwt:22
 6bc26140a1ca86c3475ba2a0e63287489ecf868b:e2e/r40-work-progress-weighted-subtask-env1.spec.ts:jwt:13
+
+# Narrowly-scoped exception, owner-approved directly, 2026-09-13 (R-C17,
+# Platform: Email Engine -- PR #1725). This is Svix's own PUBLICLY
+# DOCUMENTED example webhook secret (whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw,
+# from Svix's own webhook-signing documentation), used as a static test
+# fixture in two Bun tests that sign and verify a webhook payload with the
+# SAME algorithm the real verifyResendSvixSignature() function checks --
+# not a real credential, not connected to any live account. Gitleaks'
+# generic-api-key rule flags it purely on shape/entropy. Confirmed with the
+# owner before adding (see this session's own chat record) per this file's
+# standing rule above that new exceptions need direct owner sign-off, not
+# just PM/agent judgment.
+954fe0e8d3c6fe865740157712bb0d12c83ca24a:src/lib/webhooks/resend-svix-signature.test.ts:generic-api-key:12
+954fe0e8d3c6fe865740157712bb0d12c83ca24a:src/app/api/webhooks/resend-inbound/route.test.ts:generic-api-key:22
