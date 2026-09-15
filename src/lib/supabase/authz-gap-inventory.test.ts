@@ -278,7 +278,60 @@ const EXEMPT_ROUTES: Array<{ path: string; category: string; reason: string }> =
   {"path":"src/app/api/crm/leads/[id]/score/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G2: scoreLead() calls assertGate(canEditLead(role, lead.ownerId, userId)), owner-or-manager -- not visible to the grep. Falsifiability personally re-verified: disabling the gate line made 2 tests fail, restoring it made all 90 pass."},
   {"path":"src/app/api/crm/lost-reasons/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G2: POST calls requirePermissionForUser(dbUser, \"crm.lost_reasons.manage\") against a new manager-rank ERP_ACTION_ROLES entry, matching the sibling crm.pipeline_stages.manage mechanism; GET stays ungated by design (read access, matches this table's own convention)."},
   {"path":"src/app/api/crm/lost-reasons/[id]/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G2: PATCH calls requirePermissionForUser(dbUser, \"crm.lost_reasons.manage\"), same registry entry as crm/lost-reasons above."},
-  {"path":"src/app/api/crm/opportunities/[id]/analyze/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G2: analyzeOpportunity() calls assertGate(canEditOpportunity(role, opp.ownerId, userId)), owner-or-manager -- not visible to the grep."}
+  {"path":"src/app/api/crm/opportunities/[id]/analyze/route.ts","category":"SERVICE_LAYER_GATED","reason":"R75P2P5-G2: analyzeOpportunity() calls assertGate(canEditOpportunity(role, opp.ownerId, userId)), owner-or-manager -- not visible to the grep."},
+  //
+  // WO-DPDP-001 (2026-09-16): the entire dpdp/* mutating surface, same real
+  // reasoning as scripts/check-route-auth-guard.mjs's own dpdp exemption
+  // block (kept in sync with that one) -- dpdp.identity is a deliberately
+  // separate identity plane from compliance.users, so this grep's three
+  // named guard functions (which all read a compliance.users-backed
+  // dbUser/role) are structurally inapplicable, not omitted. Every
+  // SERVICE_LAYER_GATED route below calls requireDpdpSession() /
+  // requireDpdpIdentity(), the DPDP-side equivalent (verified by reading
+  // each handler directly, same as every other entry in this list) --
+  // several additionally check `.level === "owner"` inline for the
+  // "only the boss" actions the owner-supplied artefact specifies. The
+  // TOKEN_SCOPED ones are reached by an opaque bearer token in the URL, no
+  // session at all by design (Data Principal journeys / the free public
+  // org page, work order 4.5) -- the same class as this file's own
+  // client-portal/[token] entries above. PUBLIC_BY_DESIGN: request-link IS
+  // the sign-in mechanism (cannot itself require a session); logout reads
+  // its own cookie directly and no-ops harmlessly if absent.
+  {"path":"src/app/api/dpdp/auth/request-link/route.ts","category":"PUBLIC_BY_DESIGN","reason":"Issues a passwordless magic-link email; this IS the sign-in mechanism, so it cannot itself require a dpdp session."},
+  {"path":"src/app/api/dpdp/auth/logout/route.ts","category":"PUBLIC_BY_DESIGN","reason":"Reads its own session cookie directly and revokes it; a missing/absent cookie is a harmless no-op, not a privilege boundary."},
+  {"path":"src/app/api/dpdp/p/[token]/consent/route.ts","category":"TOKEN_SCOPED","reason":"Data Principal consent capture via an opaque bearer token in the URL (dpdp.consent_token), no account by design (work order 4.5) -- same class as this file's client-portal/[token] entries."},
+  {"path":"src/app/api/dpdp/p/[token]/grievance/route.ts","category":"TOKEN_SCOPED","reason":"Same consent-token gate as p/[token]/consent above -- resolveConsentToken() validates the token against dpdp.consent_token before anything is written."},
+  {"path":"src/app/api/dpdp/p/[token]/rights-request/route.ts","category":"TOKEN_SCOPED","reason":"Same consent-token gate as p/[token]/consent above."},
+  {"path":"src/app/api/dpdp/g/[slug]/rights-request/route.ts","category":"TOKEN_SCOPED","reason":"Reached from the org's free public page (dpdp.public_page), gated on that org's own published slug resolving to a live page -- no session by design, the public-facing \"ask them to delete my data\" entry point."},
+  {"path":"src/app/api/dpdp/organisations/route.ts","category":"SERVICE_LAYER_GATED","reason":"POST calls requireDpdpIdentity() (the org-bootstrap case has no active org yet); GET does too."},
+  {"path":"src/app/api/dpdp/organisations/switch/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpIdentity(), then switchDpdpActiveOrg() verifies the identity actually holds an active membership in the target org before switching."},
+  {"path":"src/app/api/dpdp/members/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession(); POST additionally requires `ctx.level === \"owner\"` inline (\"Only the boss can add people\")."},
+  {"path":"src/app/api/dpdp/members/[membershipId]/revoke/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() + inline `ctx.level === \"owner\"` check (\"Only the boss can remove people\")."},
+  {"path":"src/app/api/dpdp/data-map/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST."},
+  {"path":"src/app/api/dpdp/data-map/[locationId]/ask/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/data-map/[locationId]/confirm/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/obligations/[obligationId]/submit/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/obligations/[obligationId]/stuck/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/obligations/[obligationId]/not-my-job/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/obligations/[obligationId]/accept/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/obligations/[obligationId]/reject/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/obligations/[obligationId]/assign/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() + inline `ctx.level === \"owner\"` check (\"Only the boss can give a job to someone\")."},
+  {"path":"src/app/api/dpdp/artefacts/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST."},
+  {"path":"src/app/api/dpdp/artefacts/[artefactId]/accept/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/relationships/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST; POST additionally requires `ctx.level === \"owner\"` inline."},
+  {"path":"src/app/api/dpdp/relationships/[relationshipId]/sign/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession(); signRelationshipAgreement() additionally re-checks the relationship's fromOrg equals the caller's own org before allowing the signature."},
+  {"path":"src/app/api/dpdp/consent-campaigns/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/principal-groups/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST."},
+  {"path":"src/app/api/dpdp/rights-requests/[requestId]/answer/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/grievances/[grievanceId]/escalate/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/grievances/[grievanceId]/officer-decision/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/grievance-officer/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST; POST additionally requires `ctx.level === \"owner\"` inline."},
+  {"path":"src/app/api/dpdp/public-page/publish/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() + inline `ctx.level === \"owner\"` check."},
+  {"path":"src/app/api/dpdp/notices/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST; POST additionally requires `ctx.level === \"owner\"` inline."},
+  {"path":"src/app/api/dpdp/breach/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST."},
+  {"path":"src/app/api/dpdp/breach/[breachId]/board-notified/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/breach/[breachId]/individuals-notified/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
+  {"path":"src/app/api/dpdp/exposure/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST."}
 ]
 
 const KNOWN_OPEN_GAPS: Array<{ path: string; category: string; reason: string }> = []
@@ -378,9 +431,23 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
     // branch's own filesystem by actually running this test, not added on
     // paper -- the unprotected-and-not-exempt set is still empty, and the
     // sum invariant below (638 + 201 + 0 = 839) still holds.
-    expect(mutating.length).toBe(840) // +1 R-C17 resend-inbound webhook (new mutating POST route)
+    // WO-DPDP-001 (2026-09-16): +35 mutating route FILES, all under the new
+    // src/app/api/dpdp/** surface (one entry per file, matching this test's
+    // own per-file-not-per-verb convention -- e.g. relationships/route.ts
+    // exports both GET's sibling POST and is counted once). All 35 are
+    // EXEMPT (29 SERVICE_LAYER_GATED via requireDpdpSession()/
+    // requireDpdpIdentity(), 4 TOKEN_SCOPED via an opaque bearer token, 2
+    // PUBLIC_BY_DESIGN) -- none are grep-visible PROTECTED, since
+    // requireRole()/requireRoleOrScope()/requireReportsReadAccess() all
+    // read a compliance.users-backed dbUser/role that dpdp.identity, a
+    // deliberately separate plane, does not have. Re-measured directly
+    // against this branch's own filesystem by running this test, not added
+    // on paper: 840 + 35 = 875 mutating, 638 protected (unchanged -- none
+    // of the 35 are grep-protected), 202 + 35 = 237 exempt, 0 open gaps,
+    // and 638 + 237 + 0 = 875 still holds.
+    expect(mutating.length).toBe(875) // +35 WO-DPDP-001 dpdp/* mutating routes
     expect(protectedCount).toBe(638) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH; +1 R85A3 P6 cost-visibility config PATCH; +2 R85A3 P7 Excel round-trip diff/apply POSTs; +4 R85 A3v4 Phase 10 boq-scenarios routes
-    expect(EXEMPT_ROUTES.length).toBe(202) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep // +1 R-C17 resend-inbound webhook (Svix-signature-gated, INTERNAL_SECRET)
+    expect(EXEMPT_ROUTES.length).toBe(237) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep // +1 R-C17 resend-inbound webhook (Svix-signature-gated, INTERNAL_SECRET) // +35 WO-DPDP-001 dpdp/* routes (29 SERVICE_LAYER_GATED, 4 TOKEN_SCOPED, 2 PUBLIC_BY_DESIGN)
     expect(KNOWN_OPEN_GAPS.length).toBe(0)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
   })
