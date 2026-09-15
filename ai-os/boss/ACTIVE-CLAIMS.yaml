@@ -3270,6 +3270,52 @@ active:
       (FChecklist/projexa, separate repo), or any live Resend/DNS
       configuration (both explicitly owner-gated, see the PR description).
 
+  - session_label: "claude-desktop (Super Boss, interactive) -- R87 Stop Vercel preview-build spend (D158)"
+    claimed_at: "2026-09-13T (this session)"
+    claim: |
+      SCOPE: vercel.json in BOTH FChecklist/compliance-tracker (this repo) and
+      FChecklist/projexa (C:/cct/px on this machine), plus
+      src/lib/vercel-lockdown.test.ts and this repo's own CLAUDE.md (R76
+      section correction). No app/service code touched.
+
+      FOUND: git.deploymentEnabled's "*": false (R76, this repo) has been a
+      real, live no-op the whole time -- Vercel matches deploymentEnabled
+      branch keys as minimatch globs, bare "*" doesn't cross "/", and every
+      real branch in both repos is type/description (has a "/"). Confirmed
+      via live list_deployments on both Vercel projects
+      (team_Iqx3zyb7sDdsdzcNskCFFsHD): ~20 BLOCKED preview deployments each
+      in the sampled window, all target=null, all on feature/dependabot
+      branches, never main. This is the real cause of R87's build-count
+      spend.
+
+      FIX: git.deploymentEnabled removed (compliance-tracker); ignoreCommand
+      is now the sole gate in both repos -- exact-string branch check
+      (skip anything not literally "main") + a path filter on main
+      (skip *.md/*.jsonl/kt/**/ai-os/**/.github/**-only diffs). PROJEXA got
+      its first-ever vercel.json (had none before).
+
+      OWNER DECISION (asked directly, live in this session, both answers
+      recorded in this session's transcript): compliance-tracker's
+      OWNER_DEPLOY_APPROVAL gate (R76-RULING-01) is DROPPED -- main now
+      auto-deploys again on a real code change, on the owner's explicit
+      choice, not a unilateral rollback. PROJEXA gets the same branch/path
+      gate with no owner-approval layer at all (owner's separate choice for
+      that project).
+
+      PRs: FChecklist/compliance-tracker#1720, FChecklist/projexa#264. Both
+      open, not yet merged as of this claim -- move to recently_completed
+      once merged. Verification is logic-level only (fixture git repos,
+      plant-then-revert on the ignoreCommand) -- this session's GitHub
+      network access was too unreliable to complete the real
+      push-and-observe end-to-end proof G87-03 asks for; flagged as open in
+      both PR bodies.
+
+      NOT touched: the $1 spend cap / Pause Projects (left ON per G87-05),
+      any Vercel Cron job or ISR interval (G87-04: none found under 3600s in
+      either repo; compliance-tracker's existing 30 crons, one at
+      */15 * * * *, are unchanged), scripts/pre-deploy-gate.mjs,
+      sync-vercel-env.yml.
+
 recently_completed:
   - session_label: "claude-code (interactive, PM continuation session) -- R85 Addendum 3 v4 FINAL, PHASE 7: Excel round trip (D89, gates 7-01..7-12) [DONE, merged as PR #1715]"
     claimed_at: "2026-09-13T (this session)"

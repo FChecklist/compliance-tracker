@@ -2,13 +2,7 @@
   "installCommand": "bun install",
   "framework": "nextjs",
   "regions": ["bom1"],
-  "ignoreCommand": "sh -c '[ -n \"$OWNER_DEPLOY_APPROVAL\" ] && [ \"$OWNER_DEPLOY_APPROVAL\" = \"$(date -u +%Y-%m-%d)\" ] && exit 1; exit 0'",
-  "git": {
-    "deploymentEnabled": {
-      "*": false,
-      "main": false
-    }
-  },
+  "ignoreCommand": "sh -c 'test \"$VERCEL_GIT_COMMIT_REF\" = \"main\" || exit 0; git diff --quiet HEAD^ HEAD -- . \":(exclude)*.md\" \":(exclude)*.jsonl\" \":(exclude)kt/**\" \":(exclude)ai-os/**\" \":(exclude).github/**\" && exit 0; exit 1'",
   "crons": [
     { "path": "/api/internal/fm-ppm/generate-occurrences/run", "schedule": "0 2 * * *" },
     { "path": "/api/internal/loops/run", "schedule": "0 3 * * *" },
