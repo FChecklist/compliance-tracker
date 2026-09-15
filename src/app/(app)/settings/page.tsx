@@ -545,7 +545,13 @@ export default function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ApiKeySection />
+                {!profileLoaded ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : isAdmin ? (
+                  <ApiKeySection />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Only admins can view and manage API keys.</p>
+                )}
               </CardContent>
             </Card>
           )}
@@ -559,7 +565,13 @@ export default function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <WebhookSection />
+                {!profileLoaded ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : isAdmin ? (
+                  <WebhookSection />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Only admins can view and manage webhooks.</p>
+                )}
               </CardContent>
             </Card>
           )}

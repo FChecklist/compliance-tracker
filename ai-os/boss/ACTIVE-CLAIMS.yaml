@@ -60,6 +60,27 @@ active:
       Appending to schema.ts (shared 14k-line file) -- new content only, at the
       end of the file inside the existing dpdp section from PR #1733, not editing
       any other session's lines.
+  - session_label: "claude-code (interactive, Claude Desktop, Project Manager session, 2026-09-14) -- GAP-UI07 remaining half: admin-only UI gating + activity-log on API key/webhook mint"
+    claimed_at: "2026-09-14T (this session)"
+    claim: |
+      SCOPE: src/app/(app)/settings/page.tsx (ApiKeySection/WebhookSection render blocks),
+      src/app/api/settings/api-keys/route.ts, src/app/api/settings/webhooks/route.ts, and their
+      route.test.ts siblings. Branch: fix/gap-ui07-api-key-webhook-admin-gate (worktree
+      C:\ct\ct-gap-ui07, off origin/main @ 4760c244).
+
+      GAP: GAP-UI07-UNRESTRICTED-API-KEY-WEBHOOK-MINTING (ai-os/MASTER-TRACKER.yaml). The
+      requireRole(dbUser,"admin") backend gate on both routes was already fixed by a prior
+      session (confirmed live in code before claiming this). Two things are NOT yet fixed and
+      are this claim's actual scope: (1) settings/page.tsx renders ApiKeySection/WebhookSection
+      unconditionally for every user regardless of isAdmin, unlike sibling admin-only sections
+      (BrandingSection/BillingSection/SsoSection) in the same file which already gate correctly;
+      (2) neither POST handler calls logActivity() on key/webhook creation, so admin mint/register
+      actions leave no audit trail.
+
+      NOT touching: ERP_ACTION_ROLES or any other shared role-table structure (not needed for this
+      fix), any other MASTER-TRACKER gap. Verified via `gh pr list` + this file's own active/recently_completed
+      entries before claiming: no other active claim or merged PR covers this specific remaining scope.
+  - session_label: "claude-code (interactive, successor PM session, took handover from prior 'Project Manager' session local_9ded2765-995d-446e-ac58-eff36e1ad5ae mid-day 2026-09-11) -- R83 register integrity + continuation"
     claimed_at: "2026-09-11T23:15 IST (this session)"
     claim: |
       SCOPE: platform.sumeet_requirement_components / platform.sumeet_requirements (Supabase project
@@ -3268,6 +3289,52 @@ active:
       NOT touching: any other sumeet_requirements row, PROJEXA
       (FChecklist/projexa, separate repo), or any live Resend/DNS
       configuration (both explicitly owner-gated, see the PR description).
+
+  - session_label: "claude-desktop (Super Boss, interactive) -- R87 Stop Vercel preview-build spend (D158)"
+    claimed_at: "2026-09-13T (this session)"
+    claim: |
+      SCOPE: vercel.json in BOTH FChecklist/compliance-tracker (this repo) and
+      FChecklist/projexa (C:/cct/px on this machine), plus
+      src/lib/vercel-lockdown.test.ts and this repo's own CLAUDE.md (R76
+      section correction). No app/service code touched.
+
+      FOUND: git.deploymentEnabled's "*": false (R76, this repo) has been a
+      real, live no-op the whole time -- Vercel matches deploymentEnabled
+      branch keys as minimatch globs, bare "*" doesn't cross "/", and every
+      real branch in both repos is type/description (has a "/"). Confirmed
+      via live list_deployments on both Vercel projects
+      (team_Iqx3zyb7sDdsdzcNskCFFsHD): ~20 BLOCKED preview deployments each
+      in the sampled window, all target=null, all on feature/dependabot
+      branches, never main. This is the real cause of R87's build-count
+      spend.
+
+      FIX: git.deploymentEnabled removed (compliance-tracker); ignoreCommand
+      is now the sole gate in both repos -- exact-string branch check
+      (skip anything not literally "main") + a path filter on main
+      (skip *.md/*.jsonl/kt/**/ai-os/**/.github/**-only diffs). PROJEXA got
+      its first-ever vercel.json (had none before).
+
+      OWNER DECISION (asked directly, live in this session, both answers
+      recorded in this session's transcript): compliance-tracker's
+      OWNER_DEPLOY_APPROVAL gate (R76-RULING-01) is DROPPED -- main now
+      auto-deploys again on a real code change, on the owner's explicit
+      choice, not a unilateral rollback. PROJEXA gets the same branch/path
+      gate with no owner-approval layer at all (owner's separate choice for
+      that project).
+
+      PRs: FChecklist/compliance-tracker#1720, FChecklist/projexa#264. Both
+      open, not yet merged as of this claim -- move to recently_completed
+      once merged. Verification is logic-level only (fixture git repos,
+      plant-then-revert on the ignoreCommand) -- this session's GitHub
+      network access was too unreliable to complete the real
+      push-and-observe end-to-end proof G87-03 asks for; flagged as open in
+      both PR bodies.
+
+      NOT touched: the $1 spend cap / Pause Projects (left ON per G87-05),
+      any Vercel Cron job or ISR interval (G87-04: none found under 3600s in
+      either repo; compliance-tracker's existing 30 crons, one at
+      */15 * * * *, are unchanged), scripts/pre-deploy-gate.mjs,
+      sync-vercel-env.yml.
 
 recently_completed:
   - session_label: "claude-code (interactive, PM continuation session) -- R85 Addendum 3 v4 FINAL, PHASE 7: Excel round trip (D89, gates 7-01..7-12) [DONE, merged as PR #1715]"

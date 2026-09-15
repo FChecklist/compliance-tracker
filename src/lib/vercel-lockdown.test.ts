@@ -1,15 +1,29 @@
-// R76 (2026-09-06): Layer 3 of the Vercel deploy lockdown -- the layer that
-// survives forgetting. Same pattern as authz-gap-inventory.test.ts: a
-// checked-in test that fails CI the moment the config it protects drifts,
-// rather than relying on anyone remembering a rule.
+// R76 (2026-09-06) established this drift guard for the original all-branches-
+// blocked lockdown. R87 (2026-09-13, D158) revised the policy after finding a
+// real bug in that original config: git.deploymentEnabled's "*" key is a
+// minimatch glob that does NOT cross "/", so it silently never matched this
+// repo's own branch-naming convention (dependabot/..., chore/..., r85a3/...,
+// w-test/...) -- only the literal "main" key ever actually blocked anything.
+// Every non-main branch had been auto-deploying (then getting stopped later
+// by the $1 spend cap / Pause Projects) the entire time, which is what
+// produced the flood of BLOCKED preview deployments R87 was opened to fix.
 //
-// See platform.crr_ruling id R76-RULING-01 for the full policy this
-// enforces: Vercel is a customer-facing production surface only; a
-// deployment requires the owner to set OWNER_DEPLOY_APPROVAL to today's UTC
-// date in the Vercel dashboard; no session or agent may set that variable,
-// create a deployment, or weaken this file.
+// New policy (owner-approved live in this session, R87): git.deploymentEnabled
+// is dropped entirely (it was the buggy, glob-ambiguous mechanism) in favor of
+// a single, testable ignoreCommand that:
+//   1. Skips (exit 0) any branch that isn't literally "main" -- no previews
+//      build, full stop, regardless of what changed.
+//   2. On main, skips (exit 0) when the commit's diff touches only docs/
+//      governance paths (*.md, *.jsonl, kt/**, ai-os/**, .github/**).
+//   3. On main, proceeds (exit 1) when the diff touches real app code.
+// This is a real, deliberate loosening of R76-RULING-01's owner-approval gate
+// for main specifically (main now auto-deploys again on a real code change,
+// same as before R76) -- the owner chose this explicitly when asked, in
+// preference to keeping OWNER_DEPLOY_APPROVAL. Previews remain fully blocked
+// either way. See platform.claude_log's D158 row for the full record.
 import { describe, expect, test } from "bun:test"
-import { readFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 function readVercelJson() {
@@ -17,66 +31,107 @@ function readVercelJson() {
   return JSON.parse(raw)
 }
 
-describe("Vercel deploy lockdown (R76-RULING-01) -- Layer 1: nothing auto-deploys", () => {
-  test("git.deploymentEnabled exists", () => {
+function sh(cmd: string, cwd: string) {
+  const proc = Bun.spawnSync(["sh", "-c", cmd], { cwd })
+  if (proc.exitCode !== 0) {
+    throw new Error(`setup command failed: ${cmd}\n${proc.stderr?.toString()}`)
+  }
+}
+
+/** A throwaway git repo, isolated from this repo's own real history, so the
+ * ignoreCommand's `git diff HEAD^ HEAD` can be driven by controlled fixture
+ * commits instead of whatever this repo's actual last commit happens to be. */
+function makeRepo(): string {
+  const dir = mkdtempSync(join(tmpdir(), "vercel-lockdown-"))
+  sh("git init -q -b main", dir)
+  sh("git config user.email t@example.com", dir)
+  sh("git config user.name t", dir)
+  writeFileSync(join(dir, "README.md"), "base")
+  sh("git add -A && git commit -q -m base", dir)
+  return dir
+}
+
+function runIgnoreCommand(cmd: string, cwd: string, branch: string): number | null {
+  const proc = Bun.spawnSync(["sh", "-c", cmd], {
+    cwd,
+    env: { ...process.env, VERCEL_GIT_COMMIT_REF: branch },
+  })
+  return proc.exitCode
+}
+
+describe("Vercel deploy lockdown (R87/D158) -- ignoreCommand is the sole gate", () => {
+  test("git.deploymentEnabled is not relied upon (the buggy '*' glob mechanism is gone)", () => {
     const v = readVercelJson()
-    expect(v.git?.deploymentEnabled).toBeDefined()
+    expect(v.git).toBeUndefined()
   })
 
-  test("the wildcard branch key is present and false", () => {
-    const v = readVercelJson()
-    expect(v.git.deploymentEnabled["*"]).toBe(false)
-  })
-
-  test("no branch key anywhere in deploymentEnabled is set to true", () => {
-    const v = readVercelJson()
-    const entries = Object.entries(v.git.deploymentEnabled as Record<string, unknown>)
-    const enabledBranches = entries.filter(([, value]) => value === true).map(([key]) => key)
-    expect(enabledBranches, `these branches would auto-deploy: ${enabledBranches.join(", ")} -- see R76-RULING-01`).toEqual([])
-  })
-})
-
-describe("Vercel deploy lockdown (R76-RULING-01) -- Layer 2: the owner-approval gate", () => {
-  test("ignoreCommand exists", () => {
+  test("ignoreCommand exists and references VERCEL_GIT_COMMIT_REF", () => {
     const v = readVercelJson()
     expect(typeof v.ignoreCommand).toBe("string")
-    expect(v.ignoreCommand.length).toBeGreaterThan(0)
+    expect(v.ignoreCommand).toContain("VERCEL_GIT_COMMIT_REF")
   })
 
-  test("ignoreCommand references OWNER_DEPLOY_APPROVAL", () => {
+  test("a non-main branch is always skipped, even with a real src change", () => {
     const v = readVercelJson()
-    expect(v.ignoreCommand).toContain("OWNER_DEPLOY_APPROVAL")
-  })
-
-  test("ignoreCommand fails closed: unset/empty/wrong-date all cancel, only an exact UTC-date match proceeds", () => {
-    const v = readVercelJson()
-    const cmd = v.ignoreCommand as string
-    const run = (env: Record<string, string> | undefined) => {
-      const proc = Bun.spawnSync(["sh", "-c", cmd], { env: { ...process.env, ...env } })
-      return proc.exitCode
+    const dir = makeRepo()
+    try {
+      writeFileSync(join(dir, "app.ts"), "console.log(1)")
+      sh("git add -A && git commit -q -m 'feat: real change'", dir)
+      expect(runIgnoreCommand(v.ignoreCommand, dir, "feature/some-branch")).toBe(0)
+      expect(runIgnoreCommand(v.ignoreCommand, dir, "dependabot/npm_and_yarn/x-1.0.0")).toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
     }
-    const today = new Date().toISOString().slice(0, 10)
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+  })
 
-    expect(run({ OWNER_DEPLOY_APPROVAL: "" })).toBe(0) // unset/empty -> cancel
-    expect(run({ OWNER_DEPLOY_APPROVAL: yesterday })).toBe(0)
-    expect(run({ OWNER_DEPLOY_APPROVAL: tomorrow })).toBe(0)
-    expect(run({ OWNER_DEPLOY_APPROVAL: "not-a-date" })).toBe(0)
-    expect(run({ OWNER_DEPLOY_APPROVAL: today })).toBe(1) // exact match -> proceed
+  test("main + a docs/governance-only commit is skipped", () => {
+    const v = readVercelJson()
+    const dir = makeRepo()
+    try {
+      writeFileSync(join(dir, "NOTES.md"), "docs update")
+      writeFileSync(join(dir, "log.jsonl"), '{"a":1}\n')
+      sh("mkdir -p kt/sub ai-os/sub .github/workflows", dir)
+      writeFileSync(join(dir, "kt/sub/f.txt"), "kt note")
+      writeFileSync(join(dir, "ai-os/sub/f.txt"), "ai-os note")
+      writeFileSync(join(dir, ".github/workflows/f.yml"), "name: x")
+      sh("git add -A && git commit -q -m 'docs: governance-only change'", dir)
+      expect(runIgnoreCommand(v.ignoreCommand, dir, "main")).toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test("main + a real app-code change proceeds to build", () => {
+    const v = readVercelJson()
+    const dir = makeRepo()
+    try {
+      writeFileSync(join(dir, "src-app.ts"), "export const x = 1")
+      sh("git add -A && git commit -q -m 'fix: real app change'", dir)
+      expect(runIgnoreCommand(v.ignoreCommand, dir, "main")).toBe(1)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test("main + a mixed doc+app-code commit proceeds to build (docs-only exemption doesn't mask real changes)", () => {
+    const v = readVercelJson()
+    const dir = makeRepo()
+    try {
+      writeFileSync(join(dir, "NOTES.md"), "docs update")
+      writeFileSync(join(dir, "src-app.ts"), "export const x = 1")
+      sh("git add -A && git commit -q -m 'feat: mixed change'", dir)
+      expect(runIgnoreCommand(v.ignoreCommand, dir, "main")).toBe(1)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 
-describe("Vercel deploy lockdown (R76-RULING-01) -- guard the guard", () => {
+describe("Vercel deploy lockdown -- guard the guard", () => {
   test("this test file itself is wired into ci.yml's test job", () => {
-    // The repo's own test job runs `bun test --isolate` (or a glob that
-    // includes src/**), which already picks up every *.test.ts file under
-    // src/ -- confirmed by reading ci.yml's test step directly rather than
-    // assuming. This assertion exists so that if a FUTURE ci.yml rewrite
-    // narrows the test glob to exclude this file, THAT change trips this
-    // assertion (a self-referential file-existence check would be trivially
-    // true and prove nothing -- checking the ACTUAL ci.yml content is what
-    // makes deleting/narrowing the wiring itself get caught).
+    // Same rationale as the original R76 version of this test: check the
+    // ACTUAL ci.yml content, not just that this file exists, so a future
+    // narrowing of the test glob gets caught here.
     const ci = readFileSync(join(import.meta.dir, "..", "..", ".github", "workflows", "ci.yml"), "utf8")
     const testStep = ci.match(/bun test[^\n]*/)?.[0] ?? ""
     expect(testStep, "ci.yml's test job no longer runs a plain `bun test` invocation that would include this file").toContain("bun test")

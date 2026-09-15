@@ -3,6 +3,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, desc, inArray } from "drizzle-orm";
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
+import { logActivity } from "@/lib/audit";
 
 const VALID_EVENTS = [
   "item.created",
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
   if (response) return response;
   const roleErr = requireRole(dbUser, "admin");
   if (roleErr) return roleErr;
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 });
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 });
 
   try {
     const body = await request.json();
@@ -124,16 +125,29 @@ export async function POST(request: NextRequest) {
 
     const secret = generateSecret();
 
-    const created = await withTenantContext({ orgId }, (db) =>
-      db.insert(webhooks).values({
+    const created = await withTenantContext({ orgId }, async (db) => {
+      const rows = await db.insert(webhooks).values({
         name: name.trim(),
         url: url.trim(),
         secret,
         events: validEvents.join(","),
         isActive: true,
         orgId,
-      }).returning()
-    );
+      }).returning();
+
+      await logActivity({
+        tx: db,
+        action: "create",
+        entityType: "Webhook",
+        entityId: rows[0].id,
+        details: `Registered webhook "${rows[0].name}" -> ${rows[0].url} (events: ${rows[0].events})`,
+        orgId,
+        dbUser,
+        request,
+      });
+
+      return rows;
+    });
 
     return NextResponse.json(
       {
