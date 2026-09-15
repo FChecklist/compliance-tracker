@@ -5,6 +5,7 @@
 // org deliberately ADDING a second capability (e.g. a CA firm is also a
 // Processor for one client).
 import { and, eq } from "drizzle-orm"
+import { createId } from "@paralleldrive/cuid2"
 import { db, dpdpOrganisation, dpdpOrgCapability, dpdpMembership, dpdpIdentity, dpdpIdentityEmail } from "@/lib/db"
 import { withDpdpContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { logDpdpEvent } from "./dpdp-event-service"
@@ -100,6 +101,15 @@ export type InviteMemberInput = { orgId: string; actorIdentityId: string; email:
  * (which opens ITS OWN transaction) from inside another one is the exact
  * nested-withTenantContext bug class this repo has hit in production
  * before. Same established fix pattern as isBranchEnabledForOrgWithDb.
+ *
+ * Deliberately does NOT log a dpdp.event here (unlike every other write in
+ * this file) -- membership/identity/identity_email have no RLS, but
+ * dpdp.event does (org_id = dpdp.current_org_id()), and nameDpdpRelationship
+ * calls this with a `tx` whose context is the ACTOR's org while `input.orgId`
+ * is the COUNTERPART's (freshly created) org -- a real cross-tenant RLS
+ * mismatch, found live via scripts/tmp-dpdp-smoke-test.ts. inviteDpdpMember
+ * (below) logs the event itself, in its own correctly-scoped context, for
+ * the normal (non-nested) call path.
  */
 export async function inviteDpdpMemberWithDb(tx: TenantDb, input: InviteMemberInput) {
   const email = input.email.trim().toLowerCase()
@@ -122,12 +132,15 @@ export async function inviteDpdpMemberWithDb(tx: TenantDb, input: InviteMemberIn
     identityId, orgId: input.orgId, level: input.level, joinedVia: "invited", state: "pending",
   }).returning()
 
-  await logDpdpEvent({ orgId: input.orgId, actorIdentityId: input.actorIdentityId, actorLabel: "Owner", kind: "membership_invited", summary: `Invited ${email} as ${input.level}` }, tx)
   return membership
 }
 
 export async function inviteDpdpMember(input: InviteMemberInput) {
-  return withDpdpContext({ orgId: input.orgId }, (tx) => inviteDpdpMemberWithDb(tx, input))
+  return withDpdpContext({ orgId: input.orgId }, async (tx) => {
+    const membership = await inviteDpdpMemberWithDb(tx, input)
+    await logDpdpEvent({ orgId: input.orgId, actorIdentityId: input.actorIdentityId, actorLabel: "Owner", kind: "membership_invited", summary: `Invited ${input.email.trim().toLowerCase()} as ${input.level}` }, tx)
+    return membership
+  })
 }
 
 /** "Change the name against the job. Their link stops working the same minute." */
@@ -162,14 +175,23 @@ export async function assertDpdpRelationship(
 ) {
   const { dpdpRelationship } = await import("@/lib/db")
   const { inArray, isNull } = await import("drizzle-orm")
-  const rel = await db.query.dpdpRelationship.findFirst({
-    where: and(
-      eq(dpdpRelationship.fromOrg, actorOrgId),
-      eq(dpdpRelationship.toOrg, targetOrgId),
-      inArray(dpdpRelationship.kind, kinds),
-      isNull(dpdpRelationship.endedAt)
-    ),
-  })
+  // Must run under actorOrgId's own tenant context -- dpdp.relationship's
+  // RLS is `from_org = current_org_id() OR to_org = current_org_id()`, and
+  // the plain (unscoped) db client always has current_org_id() = NULL, so
+  // this lookup would silently find zero rows and ALWAYS throw regardless
+  // of whether a real relationship exists. Found by re-reading this
+  // function while fixing the sibling RETURNING/RLS bugs above, not yet
+  // hit by a test -- fixed before it shipped, not after.
+  const rel = await withDpdpContext({ orgId: actorOrgId }, (tx) =>
+    tx.query.dpdpRelationship.findFirst({
+      where: and(
+        eq(dpdpRelationship.fromOrg, actorOrgId),
+        eq(dpdpRelationship.toOrg, targetOrgId),
+        inArray(dpdpRelationship.kind, kinds),
+        isNull(dpdpRelationship.endedAt)
+      ),
+    })
+  )
   if (!rel) throw new ServiceError("No active relationship with that organisation", 403)
   return rel
 }
@@ -196,14 +218,32 @@ export type NameRelationshipInput = {
  */
 export async function nameDpdpRelationship(input: NameRelationshipInput) {
   return withDpdpContext({ orgId: input.actorOrgId }, async (tx) => {
-    let counterpart = await tx.query.dpdpOrganisation.findFirst({ where: eq(dpdpOrganisation.slug, await uniqueSlug(input.counterpartOrgName)) })
-    // uniqueSlug always returns a FRESH slug, so re-check by name instead --
-    // the above call is only used to seed a slug for a genuinely new row.
-    counterpart = await tx.query.dpdpOrganisation.findFirst({ where: eq(dpdpOrganisation.name, input.counterpartOrgName.trim()) }) ?? counterpart
+    // NOTE (known, non-security limitation): dpdp.organisation's SELECT
+    // policy is relationship-scoped -- this session cannot see a
+    // counterpart org another, unrelated client already created (no
+    // relationship exists between THIS actor and it yet), so naming the
+    // "same" real-world firm from two different clients creates two
+    // separate organisation rows rather than reusing one. Not a data leak
+    // (each session only ever sees/creates its own), just a product
+    // limitation -- fixing it would need a broader read grant on
+    // dpdp.organisation, which is a deliberate tenant-isolation trade-off
+    // for the Owner to make, not something to widen unilaterally here.
+    let counterpart = await tx.query.dpdpOrganisation.findFirst({ where: eq(dpdpOrganisation.name, input.counterpartOrgName.trim()) })
     if (!counterpart) {
+      // Explicit id/createdAt instead of `.returning()`: the counterpart's
+      // organisation row has no relationship to this session's org YET
+      // (the relationship row below is what creates one), so the SELECT
+      // half of RLS that `.returning()` implicitly performs would reject
+      // reading the row right back -- found live via
+      // scripts/tmp-dpdp-smoke-test.ts's org-creation path hitting the
+      // identical problem (drizzle/0421). The id is generated client-side
+      // by Drizzle's $defaultFn anyway, so we already have every field
+      // needed to construct the object without reading it back.
+      const id = createId()
+      const createdAt = new Date()
       const slug = await uniqueSlug(input.counterpartOrgName)
-      const [created] = await tx.insert(dpdpOrganisation).values({ name: input.counterpartOrgName.trim(), slug }).returning()
-      counterpart = created
+      await tx.insert(dpdpOrganisation).values({ id, name: input.counterpartOrgName.trim(), slug, createdAt })
+      counterpart = { id, name: input.counterpartOrgName.trim(), slug, sector: null, createdAt }
     }
 
     const fromOrg = input.kind === "advises" ? input.actorOrgId : counterpart.id

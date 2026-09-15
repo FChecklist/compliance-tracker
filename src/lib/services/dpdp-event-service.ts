@@ -25,7 +25,7 @@
 import { createHash } from "node:crypto"
 import { desc, eq } from "drizzle-orm"
 import { db, dpdpEvent } from "@/lib/db"
-import type { TenantDb } from "@/lib/db/tenant-scoped"
+import { withDpdpContext, type TenantDb } from "@/lib/db/tenant-scoped"
 
 export const DPDP_EVENT_KINDS = [
   "identity_signed_in", "organisation_created", "membership_invited", "membership_named_in_role",
@@ -114,10 +114,18 @@ export type ChainVerification = { ok: boolean; brokenAtEventId: string | null; c
  * script that check runs against, not a separate one-off.
  */
 export async function verifyDpdpEventChain(orgId: string): Promise<ChainVerification> {
-  const rows = await db.query.dpdpEvent.findMany({
-    where: eq(dpdpEvent.orgId, orgId),
-    orderBy: (t, { asc }) => [asc(t.occurredAt)],
-  })
+  // Must run under this org's own tenant context: dpdp.event's RLS is
+  // `org_id = dpdp.current_org_id()` (plus the bootstrap-only preauth
+  // INSERT policy, drizzle/0420) -- the plain, unscoped `db` client always
+  // has current_org_id() = NULL, so this query would silently return zero
+  // rows regardless of how many events actually exist. Found live via
+  // scripts/tmp-dpdp-smoke-test.ts.
+  const rows = await withDpdpContext({ orgId }, (tx) =>
+    tx.query.dpdpEvent.findMany({
+      where: eq(dpdpEvent.orgId, orgId),
+      orderBy: (t, { asc }) => [asc(t.occurredAt)],
+    })
+  )
   let prevHash: string | null = null
   for (const row of rows) {
     const expected = computeDpdpEventHash({
