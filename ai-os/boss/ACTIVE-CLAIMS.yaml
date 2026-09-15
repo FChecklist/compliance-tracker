@@ -40,6 +40,26 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, Claude Desktop, Project Manager session, 2026-09-14) -- GAP-UI07 remaining half: admin-only UI gating + activity-log on API key/webhook mint"
+    claimed_at: "2026-09-14T (this session)"
+    claim: |
+      SCOPE: src/app/(app)/settings/page.tsx (ApiKeySection/WebhookSection render blocks),
+      src/app/api/settings/api-keys/route.ts, src/app/api/settings/webhooks/route.ts, and their
+      route.test.ts siblings. Branch: fix/gap-ui07-api-key-webhook-admin-gate (worktree
+      C:\ct\ct-gap-ui07, off origin/main @ 4760c244).
+
+      GAP: GAP-UI07-UNRESTRICTED-API-KEY-WEBHOOK-MINTING (ai-os/MASTER-TRACKER.yaml). The
+      requireRole(dbUser,"admin") backend gate on both routes was already fixed by a prior
+      session (confirmed live in code before claiming this). Two things are NOT yet fixed and
+      are this claim's actual scope: (1) settings/page.tsx renders ApiKeySection/WebhookSection
+      unconditionally for every user regardless of isAdmin, unlike sibling admin-only sections
+      (BrandingSection/BillingSection/SsoSection) in the same file which already gate correctly;
+      (2) neither POST handler calls logActivity() on key/webhook creation, so admin mint/register
+      actions leave no audit trail.
+
+      NOT touching: ERP_ACTION_ROLES or any other shared role-table structure (not needed for this
+      fix), any other MASTER-TRACKER gap. Verified via `gh pr list` + this file's own active/recently_completed
+      entries before claiming: no other active claim or merged PR covers this specific remaining scope.
   - session_label: "claude-code (interactive, successor PM session, took handover from prior 'Project Manager' session local_9ded2765-995d-446e-ac58-eff36e1ad5ae mid-day 2026-09-11) -- R83 register integrity + continuation"
     claimed_at: "2026-09-11T23:15 IST (this session)"
     claim: |

@@ -28,6 +28,7 @@
 // re-testing the role gate -- see access-control gate coverage precedent in
 // branding/route.test.ts if that's ever needed for this route).
 import { describe, test, expect, mock } from "bun:test"
+import { apiKeys, auditLogs } from "@/lib/db"
 
 function dbUser() {
   return { id: "user-1", orgId: "org-1" } as any
@@ -42,7 +43,15 @@ function makeRequest(body: unknown): Request {
 }
 
 function mockModules() {
-  const insertedValues: any[] = []
+  // Real @/lib/db is used (not mocked) so apiKeys/auditLogs are the actual
+  // schema table objects -- lets this test tell the two inserts below apart
+  // by table identity, and avoids re-mocking every export other real modules
+  // in the import graph (e.g. @/lib/audit -> @/lib/services/session-limit-
+  // service) transitively need from "@/lib/db". Safe: db.ts/db/index.ts only
+  // opens its Postgres connection lazily on first real query, never at
+  // import time (see db/index.ts's own header comment), so importing the
+  // real schema here never touches a live DB.
+  const insertCalls: { table: unknown; values: any }[] = []
   mock.module("@/lib/supabase/auth-guard", () => ({
     requireAuth: mock(async () => ({ response: null, dbUser: dbUser(), orgId: "org-1" })),
     requireRole: mock(() => null),
@@ -51,13 +60,12 @@ function mockModules() {
     generateApiKey: mock(() => "vk_faketestkey1234567890"),
     hashSHA256: mock(async () => "fake-hash"),
   }))
-  mock.module("@/lib/db", () => ({ apiKeys: {} }))
   mock.module("@/lib/db/tenant-scoped", () => ({
     withTenantContext: mock(async (_ctx: unknown, fn: (db: any) => any) =>
       fn({
-        insert: () => ({
+        insert: (table: unknown) => ({
           values: (v: any) => {
-            insertedValues.push(v)
+            insertCalls.push({ table, values: v })
             return {
               returning: async () => [
                 {
@@ -75,7 +83,7 @@ function mockModules() {
       })
     ),
   }))
-  return insertedValues
+  return insertCalls
 }
 
 describe("POST /api/settings/api-keys (scopes normalization)", () => {
@@ -134,5 +142,30 @@ describe("POST /api/settings/api-keys (scopes normalization)", () => {
     expect(res.status).toBe(201)
     const body = await res.json()
     expect(body.scopes).toBe("read:reports")
+  })
+})
+
+// GAP-UI07 remaining half (2026-09-14): minting an API key previously left no
+// audit trail at all -- an admin's own key creation was invisible on the
+// org's /audit page. logActivity() is now called inside the same
+// withTenantContext transaction as the insert (see route.ts), so a create
+// and its audit row either both commit or both roll back together.
+describe("POST /api/settings/api-keys (audit log)", () => {
+  test("writes an auditLogs row (entityType ApiKey) in the same tx as the key insert", async () => {
+    const insertCalls = mockModules()
+    const { POST } = await import("./route")
+    const res = await POST(makeRequest({ name: "Audited Key", scopes: "read" }) as any)
+    expect(res.status).toBe(201)
+
+    const auditInsert = insertCalls.find((c) => c.table === auditLogs)
+    expect(auditInsert).toBeDefined()
+    expect(auditInsert!.values.action).toBe("create")
+    expect(auditInsert!.values.entityType).toBe("ApiKey")
+    expect(auditInsert!.values.entityId).toBe("key-1")
+    expect(auditInsert!.values.orgId).toBe("org-1")
+    expect(auditInsert!.values.userId).toBe("user-1")
+
+    const keyInsert = insertCalls.find((c) => c.table === apiKeys)
+    expect(keyInsert).toBeDefined()
   })
 })

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { desc } from "drizzle-orm";
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 import { hashSHA256, generateApiKey } from "@/lib/api-keys";
+import { logActivity } from "@/lib/audit";
 
 // R66 gap-closure (code-quality inspection 2026-09-01, critical finding):
 // neither handler in this file previously called requireRole, so any
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
   if (response) return response;
   const roleErr = requireRole(dbUser, "admin");
   if (roleErr) return roleErr;
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 });
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 });
 
   try {
     const body = await request.json();
@@ -93,16 +94,29 @@ export async function POST(request: NextRequest) {
     const keyHash = await hashSHA256(rawKey);
     const keyPrefix = rawKey.substring(0, 8) + "...";
 
-    const created = await withTenantContext({ orgId }, (db) =>
-      db.insert(apiKeys).values({
+    const created = await withTenantContext({ orgId }, async (db) => {
+      const rows = await db.insert(apiKeys).values({
         name: name.trim(),
         keyHash,
         keyPrefix,
         orgId,
         scopes: validScopes.join(","),
         isActive: true,
-      }).returning()
-    );
+      }).returning();
+
+      await logActivity({
+        tx: db,
+        action: "create",
+        entityType: "ApiKey",
+        entityId: rows[0].id,
+        details: `Created API key "${rows[0].name}" (scopes: ${rows[0].scopes})`,
+        orgId,
+        dbUser,
+        request,
+      });
+
+      return rows;
+    });
 
     // Return the FULL key ONLY on creation
     return NextResponse.json(
