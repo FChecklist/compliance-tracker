@@ -2892,6 +2892,55 @@
       "when": 1789283128985,
       "tag": "0598_r_c17_email_engine_alias_and_inbound_log",
       "breakpoints": true
+    },
+    {
+      "idx": 415,
+      "version": "7",
+      "when": 1789479993150,
+      "tag": "0415_dpdp_phase1_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 416,
+      "version": "7",
+      "when": 1789480500000,
+      "tag": "0416_dpdp_fix_function_search_path",
+      "breakpoints": true
+    },
+    {
+      "idx": 417,
+      "version": "7",
+      "when": 1789492965212,
+      "tag": "0417_dpdp_phase2_auth_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 418,
+      "version": "7",
+      "when": 1789493200000,
+      "tag": "0418_dpdp_session_nullable_active_org",
+      "breakpoints": true
+    },
+    {
+      "idx": 419,
+      "version": "7",
+      "when": 1789494900000,
+      "tag": "0419_dpdp_organisation_insert_policy_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 420,
+      "version": "7",
+      "when": 1789495200000,
+      "tag": "0420_dpdp_bootstrap_rls_fixes",
+      "breakpoints": true
+    },
+    {
+      "idx": 421,
+      "version": "7",
+      "when": 1789495300000,
+      "tag": "0421_dpdp_organisation_preauth_select",
+      "breakpoints": true
     }
   ]
 }

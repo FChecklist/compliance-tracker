@@ -1,0 +1,23 @@
+-- WO-DPDP-001 Phase 2: fourth instance of the same bug class as 0419/0420,
+-- found live via scripts/tmp-dpdp-smoke-test.ts (not committed -- a
+-- one-off verification script, deleted after use).
+--
+-- `.returning()` on an INSERT implicitly re-reads the row through the
+-- table's SELECT policy (documented Postgres RLS behaviour, confirmed
+-- empirically: the same INSERT succeeds without RETURNING and fails with
+-- it). createDpdpOrganisation's bootstrap insert runs with NO tenant
+-- context at all (current_org_id() IS NULL) and uses `.returning()` --
+-- 0419's INSERT policy allowed the write, but nothing allowed reading it
+-- straight back.
+--
+-- Scoped narrowly to the SAME "no context at all" bootstrap condition as
+-- the sibling INSERT/event policies, NOT a general "any session can read
+-- any org" relaxation -- a broader `USING (true)` was considered and
+-- REJECTED (this session's own auto-mode classifier correctly flagged it
+-- as a real tenant-isolation weakening; the equivalent problem on the
+-- nameDpdpRelationship cross-org path, where the session DOES have a
+-- context just not one that matches yet, was fixed in application code
+-- instead -- see dpdp-organisation-service.ts's nameDpdpRelationship,
+-- which now avoids `.returning()` entirely for that insert).
+CREATE POLICY app_runtime_preauth_read_org ON dpdp.organisation FOR SELECT TO app_runtime
+  USING (dpdp.current_org_id() IS NULL);

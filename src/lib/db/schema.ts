@@ -14443,3 +14443,545 @@ export const memoryVersions = complianceSchemaDB.table('memory_versions', {
   promptHash: text('prompt_hash'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── DPDP (VERIDIAN's DPDP Act 2023 compliance product) ───────────────────
+// WO-DPDP-001 (15 Sep 2026), Phase 1, as amended by AMENDMENT A1 (15 Sep
+// 2026): this product is built inside compliance-tracker rather than a
+// separate repo, specifically BECAUSE this app is the platform repo and
+// projexa-ai.com is served by the separate FChecklist/projexa repo -- so
+// there is no route/product collision to avoid. The one thing A1 still
+// requires unconditionally: a dedicated `dpdp` schema, never `compliance`
+// or `platform`. Everything below lives in dpdpSchemaDB for that reason,
+// even though it is defined in the same file as the compliance schema
+// (this file's own header comment already explains why compliance and
+// platform share one file on one database -- the same reasoning applies
+// here: one Supabase project, compartmentalized by schema, not by database).
+//
+// dpdp.organisation is DELIBERATELY a separate table from
+// compliance.organisations, not a reuse of it -- a DPDP Fiduciary/Advisor/
+// Processor/Auditor is a different membership and relationship model
+// (capability-as-a-property-of-org, role-as-a-property-of-relationship,
+// Data Principals who never get an account) that does not map onto
+// compliance's client/branch hierarchy. What IS reused is the pattern, not
+// the table: withDpdpContext below is withTenantContext's sibling, same
+// pool, same nesting guard, same idle-in-transaction net -- see
+// tenant-scoped.ts.
+export const dpdpSchemaDB = pgSchema('dpdp')
+
+// ─── DPDP: enums (only where the work order specified a closed ENUM(...);
+// every other state/kind column below is plain text, validated in the
+// service layer -- same posture this file already takes for gstin/
+// panNumber/cinNumber on `organisations` above) ────────────────────────
+export const dpdpCapabilityEnum = dpdpSchemaDB.enum('capability', ['advisor', 'fiduciary', 'processor', 'auditor'])
+export const dpdpMembershipLevelEnum = dpdpSchemaDB.enum('membership_level', ['owner', 'staff'])
+export const dpdpMembershipStateEnum = dpdpSchemaDB.enum('membership_state', ['active', 'pending', 'revoked'])
+export const dpdpJoinedViaEnum = dpdpSchemaDB.enum('joined_via', ['created', 'invited', 'code', 'named_in_role', 'domain'])
+export const dpdpRelationshipKindEnum = dpdpSchemaDB.enum('relationship_kind', ['advises', 'processes_for', 'audits', 'adjudicates'])
+export const dpdpHolderKindEnum = dpdpSchemaDB.enum('holder_kind', ['internal_person', 'processor_org'])
+export const dpdpLocationStateEnum = dpdpSchemaDB.enum('location_state', ['unknown', 'asked', 'confirmed', 'blocked_no_agreement'])
+export const dpdpProofKindEnum = dpdpSchemaDB.enum('proof_kind', ['doc', 'photo', 'declaration'])
+export const dpdpAnswerableByEnum = dpdpSchemaDB.enum('answerable_by', ['internal', 'processor', 'either'])
+export const dpdpArtefactLifecycleEnum = dpdpSchemaDB.enum('artefact_lifecycle_state', ['TRANSIENT', 'CANDIDATE', 'CONFIRMED', 'ACTIVE', 'SUPERSEDED', 'ARCHIVED'])
+export const dpdpAppointmentModeEnum = dpdpSchemaDB.enum('appointment_mode', ['board_resolution', 'office_order', 'outsourced'])
+export const dpdpVerifiedViaEnum = dpdpSchemaDB.enum('verified_via', ['domain', 'gst', 'cin', 'document'])
+export const dpdpReferralOutcomeEnum = dpdpSchemaDB.enum('referral_outcome', ['signed_up', 'chose_band', 'free_only', 'blocked'])
+
+// ─── DPDP 4.1: organisations and identity ──────────────────────────────
+export const dpdpOrganisation = dpdpSchemaDB.table('organisation', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  sector: text('sector'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Every org gets 'fiduciary' automatically (work order 4.1) -- enforced in
+// the migration's post-insert trigger on dpdp.organisation, not here; this
+// table is just the storage. An org MAY hold several capability rows.
+export const dpdpOrgCapability = dpdpSchemaDB.table('org_capability', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  capability: dpdpCapabilityEnum('capability').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  orgCapabilityUnique: unique('dpdp_org_capability_org_capability_key').on(t.orgId, t.capability),
+}))
+
+// A Data Principal (4.5 below) NEVER gets a row here. This is only for
+// people who actually operate the product: Advisor/Fiduciary/Processor/
+// Auditor staff.
+export const dpdpIdentity = dpdpSchemaDB.table('identity', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  primaryEmail: text('primary_email').notNull().unique(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at'),
+})
+
+// email is an ATTRIBUTE of an identity, never the identity itself (work
+// order 4.1) -- an identity can accumulate verified addresses over time
+// without changing its primary key.
+export const dpdpIdentityEmail = dpdpSchemaDB.table('identity_email', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  identityId: text('identity_id').notNull(),
+  email: text('email').notNull().unique(),
+  verifiedAt: timestamp('verified_at'),
+  isPrimary: boolean('is_primary').notNull().default(false),
+})
+
+export const dpdpMembership = dpdpSchemaDB.table('membership', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  identityId: text('identity_id').notNull(),
+  orgId: text('org_id').notNull(),
+  level: dpdpMembershipLevelEnum('level').notNull(),
+  // Never set at join time -- only by a later explicit act (work order
+  // 4.1's own constraint list). Enforced by a trigger in the migration,
+  // not just this default; the default here only covers Drizzle-side
+  // inserts, the trigger covers every insert path including a future
+  // direct-SQL one.
+  canSign: boolean('can_sign').notNull().default(false),
+  state: dpdpMembershipStateEnum('state').notNull().default('active'),
+  joinedVia: dpdpJoinedViaEnum('joined_via').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  revokedAt: timestamp('revoked_at'),
+}, (t) => ({
+  identityOrgUnique: unique('dpdp_membership_identity_org_key').on(t.identityId, t.orgId),
+}))
+
+// Role is a property of the RELATIONSHIP, not the org (work order 4.1).
+// processes_for/audits rows cannot be self-declared -- the migration's
+// trigger requires the inserting session's org to equal to_org.
+export const dpdpRelationship = dpdpSchemaDB.table('relationship', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  fromOrg: text('from_org').notNull(),
+  toOrg: text('to_org').notNull(),
+  kind: dpdpRelationshipKindEnum('kind').notNull(),
+  agreementSignedAt: timestamp('agreement_signed_at'),
+  scope: text('scope'),
+  startedAt: timestamp('started_at').notNull().defaultNow(),
+  endedAt: timestamp('ended_at'),
+})
+
+// ─── DPDP 4.2: the data map -- the product's core artefact ─────────────
+export const dpdpDataCategory = dpdpSchemaDB.table('data_category', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  category: text('category').notNull(),
+  subjectGroup: text('subject_group'),
+  isChildrenData: boolean('is_children_data').notNull().default(false),
+})
+
+// path_text accepts a Windows share, a UNC path, or "HR Room · Almirah 2 ·
+// Shelf B" equally -- paper is a location (work order 4.2). Deliberately
+// free text, never parsed as a real filesystem path.
+export const dpdpDataLocation = dpdpSchemaDB.table('data_location', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  categoryId: text('category_id').notNull(),
+  systemName: text('system_name'),
+  pathText: text('path_text'),
+  physicalLocation: text('physical_location'),
+  holderKind: dpdpHolderKindEnum('holder_kind').notNull(),
+  holderPersonId: text('holder_person_id'),
+  holderOrgId: text('holder_org_id'),
+  state: dpdpLocationStateEnum('state').notNull().default('unknown'),
+  confirmedBy: text('confirmed_by'),
+  confirmedAt: timestamp('confirmed_at'),
+  askedAt: timestamp('asked_at'),
+})
+
+// ─── DPDP 4.3: obligation library -- versioned ──────────────────────────
+export const dpdpLibraryVersion = dpdpSchemaDB.table('library_version', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  version: text('version').notNull().unique(),
+  releasedOn: date('released_on').notNull(),
+  changelog: text('changelog'),
+  isCurrent: boolean('is_current').notNull().default(false),
+})
+
+export const dpdpObligationTemplate = dpdpSchemaDB.table('obligation_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  libraryVersionId: text('library_version_id').notNull(),
+  key: text('key').notNull(),
+  name: text('name').notNull(),
+  plainText: text('plain_text').notNull(),
+  sectionRef: text('section_ref'),
+  proofKind: dpdpProofKindEnum('proof_kind').notNull(),
+  defaultDays: integer('default_days').notNull(),
+  recurrence: text('recurrence').notNull().default('none'), // 'none'|'quarterly'|'annual' -- deliberately free text, not complianceSchemaDB's recurrenceTypeEnum (that enum's value set doesn't match this product's cadence and the two domains must stay decoupled per A1)
+  proofExpiryDays: integer('proof_expiry_days'),
+  answerableBy: dpdpAnswerableByEnum('answerable_by').notNull(),
+  roleTag: text('role_tag'),
+  appliesWhen: jsonb('applies_when'),
+  feedsDocuments: text('feeds_documents').array(),
+}, (t) => ({
+  libraryVersionKeyUnique: unique('dpdp_obligation_template_version_key_key').on(t.libraryVersionId, t.key),
+}))
+
+// A file records the library version it was built on (work order 4.3).
+// Files on an older version are flagged for re-check, never silently
+// migrated -- that re-check is a service-layer job comparing
+// libraryVersionUsed against library_version.is_current, not a DB object.
+export const dpdpObligation = dpdpSchemaDB.table('obligation', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  templateId: text('template_id').notNull(),
+  libraryVersionUsed: text('library_version_used').notNull(),
+  assignedPersonId: text('assigned_person_id'),
+  assignedProcessorOrgId: text('assigned_processor_org_id'),
+  dueOn: date('due_on').notNull(),
+  state: text('state').notNull().default('open'), // 'open'|'submitted'|'closed'|'not_applicable'
+  progressDone: integer('progress_done').notNull().default(0),
+  progressTotal: integer('progress_total').notNull().default(1),
+  naReason: text('na_reason'),
+  closedAt: timestamp('closed_at'),
+  closedBy: text('closed_by'),
+})
+
+// ─── DPDP 4.4: evidence -- bitemporal, per IMG-001/002/003/004 ──────────
+// IMG-001 (append-only): enforced in the migration via column-level GRANT
+// -- app_runtime gets UPDATE only on (effective_to, superseded_by_id,
+// lifecycle_state, updated_at, redacted_at, redacted_by, redaction_reason).
+// Every other column, including every t_* timestamp, has no UPDATE grant
+// at all, so an attempt to change filename/sha256/t_activity fails at the
+// database with a permission error -- not app logic that could be bypassed
+// by a raw query. This is the same "grant shape enforces the invariant"
+// pattern this file already uses for memoryVersions above.
+// IMG-002 (as-of recall): effective_from <= as_of AND (effective_to IS
+// NULL OR effective_to > as_of) is a query pattern the service layer runs
+// against this table -- no special DB object needed beyond these columns.
+// IMG-003: SUPERSEDED requires superseded_by_id -- a CHECK constraint in
+// the migration.
+// IMG-004 (erasure = redaction in place, never row closure): the
+// redacted* columns below are the mechanism. Whether/when to actually USE
+// them on a given row is B4 in the work order -- "lawyer-reviewed
+// document", explicitly reserved to Rajat/counsel, NOT decided by this
+// migration. The mechanism exists; the legal policy for invoking it does
+// not yet.
+export const dpdpArtefact = dpdpSchemaDB.table('artefact', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  obligationId: text('obligation_id').notNull(),
+  orgId: text('org_id').notNull(),
+  filename: text('filename').notNull(),
+  mime: text('mime'),
+  sizeBytes: integer('size_bytes'),
+  sha256: text('sha256'),
+  tActivity: timestamp('t_activity'),         // when the thing actually happened (valid time)
+  tDocumentStated: timestamp('t_document_stated'), // date written on the face of a document
+  tExif: timestamp('t_exif'),                 // camera timestamp, read from the file
+  tFileModified: timestamp('t_file_modified'),
+  tUploaded: timestamp('t_uploaded').notNull().defaultNow(), // transaction time
+  tSubmitted: timestamp('t_submitted'),
+  tAccepted: timestamp('t_accepted'),
+  effectiveFrom: timestamp('effective_from').notNull().defaultNow(),
+  effectiveTo: timestamp('effective_to'),
+  supersededById: text('superseded_by_id'),
+  lifecycleState: dpdpArtefactLifecycleEnum('lifecycle_state').notNull().default('TRANSIENT'),
+  device: text('device'),
+  geo: text('geo'),
+  uploadedBy: text('uploaded_by'),
+  acceptedBy: text('accepted_by'),
+  redactedAt: timestamp('redacted_at'),
+  redactedBy: text('redacted_by'),
+  redactionReason: text('redaction_reason'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// A gap between t_activity and t_exif raises a flag. Flag, never reject --
+// the artefact is kept either way (work order 4.4).
+export const dpdpArtefactFlag = dpdpSchemaDB.table('artefact_flag', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  artefactId: text('artefact_id').notNull(),
+  kind: text('kind').notNull(),
+  detail: text('detail'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── DPDP 4.5: Data Principals -- a separate plane, never accounts ─────
+// Hard rule (work order 4.5): a Data Principal NEVER gets a row in
+// dpdp.identity or dpdp.membership. Every table below is reachable only
+// via a single-use token, never a login.
+export const dpdpPrincipalGroup = dpdpSchemaDB.table('principal_group', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  label: text('label').notNull(),
+  estCount: integer('est_count'),
+})
+
+export const dpdpConsentCampaign = dpdpSchemaDB.table('consent_campaign', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  groupId: text('group_id').notNull(),
+  noticeVersionId: text('notice_version_id').notNull(),
+  sentAt: timestamp('sent_at'),
+  channel: text('channel').notNull().default('email'),
+})
+
+// contact_hash + the org's own reference is deliberate: never store a
+// principal's name/phone/email in plaintext where avoidable (work order
+// 4.5).
+export const dpdpConsentToken = dpdpSchemaDB.table('consent_token', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  campaignId: text('campaign_id').notNull(),
+  token: text('token').notNull().unique(),
+  contactHash: text('contact_hash').notNull(),
+  openedAt: timestamp('opened_at'),
+  actedAt: timestamp('acted_at'),
+  expiresAt: timestamp('expires_at').notNull(),
+})
+
+// Withdrawal must be one tap on the same page as granting (S.6) -- a new
+// row with granted=false and withdrawnAt set, never an UPDATE of the
+// granting row (append-style, matching this product's "nothing is ever
+// deleted" rule everywhere else).
+export const dpdpConsentRecord = dpdpSchemaDB.table('consent_record', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  tokenId: text('token_id').notNull(),
+  purposeKey: text('purpose_key').notNull(),
+  granted: boolean('granted').notNull(),
+  noticeVersionId: text('notice_version_id').notNull(),
+  language: text('language').notNull().default('en'),
+  recordedAt: timestamp('recorded_at').notNull().defaultNow(),
+  withdrawnAt: timestamp('withdrawn_at'),
+})
+
+export const dpdpRightsRequest = dpdpSchemaDB.table('rights_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ref: text('ref').notNull().unique(),
+  kind: text('kind').notNull(), // e.g. 'access'|'correction'|'erasure'|'nominate' -- not closed-enum in the work order
+  arrivedVia: text('arrived_via').notNull(),
+  receivedAt: timestamp('received_at').notNull().defaultNow(),
+  dueAt: timestamp('due_at').notNull(), // received_at + 90d, computed at insert time by the service layer
+  state: text('state').notNull().default('open'),
+  answeredAt: timestamp('answered_at'),
+  answerText: text('answer_text'),
+})
+
+// A grievance determination is immutable once written, by anyone,
+// including its author (work order 4.5) -- officerDecision/
+// reviewerDetermination are write-once at the service layer; the DB-level
+// enforcement (column-level grant, same shape as dpdp.artefact) is a
+// follow-up once the write paths exist, tracked, not yet applied here.
+export const dpdpGrievance = dpdpSchemaDB.table('grievance', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ref: text('ref').notNull().unique(),
+  summary: text('summary').notNull(),
+  tier: smallint('tier').notNull().default(1),
+  officerDueAt: timestamp('officer_due_at').notNull(), // +30d
+  reviewerDueAt: timestamp('reviewer_due_at'), // +30d, set only once escalated to tier 2
+  state: text('state').notNull().default('open'),
+  officerDecision: text('officer_decision'),
+  reviewerDetermination: text('reviewer_determination'),
+  reviewerIdentityId: text('reviewer_identity_id'),
+})
+
+// ─── DPDP 4.6: governance and publication ───────────────────────────────
+export const dpdpGrievanceOfficer = dpdpSchemaDB.table('grievance_officer', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  personName: text('person_name').notNull(),
+  email: text('email').notNull(),
+  phone: text('phone'),
+  address: text('address'),
+  appointmentMode: dpdpAppointmentModeEnum('appointment_mode').notNull(),
+  resolutionRef: text('resolution_ref'),
+  resolutionText: text('resolution_text'),
+  signatories: text('signatories').array(),
+  publishedSince: timestamp('published_since').notNull().defaultNow(),
+  supersededAt: timestamp('superseded_at'),
+})
+
+// Must be generatable for an org with no domain and no website --
+// verification falls back to GST/CIN/a registration document (work order
+// 4.6). Domain verification cannot be the only path.
+export const dpdpPublicPage = dpdpSchemaDB.table('public_page', {
+  orgId: text('org_id').primaryKey(),
+  slug: text('slug').notNull().unique(),
+  isLive: boolean('is_live').notNull().default(false),
+  verifiedVia: dpdpVerifiedViaEnum('verified_via'),
+  lastGeneratedAt: timestamp('last_generated_at'),
+})
+
+export const dpdpNoticeVersion = dpdpSchemaDB.table('notice_version', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  docKind: text('doc_kind').notNull(),
+  version: text('version').notNull(),
+  releasedOn: date('released_on').notNull(),
+  effectiveFrom: timestamp('effective_from').notNull(),
+  effectiveTo: timestamp('effective_to'),
+  languages: text('languages').array(),
+  approvedBy: text('approved_by'),
+  state: text('state').notNull().default('draft'), // 'draft'|'live'|'superseded'
+}, (t) => ({
+  orgDocVersionUnique: unique('dpdp_notice_version_org_kind_version_key').on(t.orgId, t.docKind, t.version),
+}))
+
+export const dpdpBreach = dpdpSchemaDB.table('breach', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  becameAwareAt: timestamp('became_aware_at').notNull().defaultNow(),
+  deadlineAt: timestamp('deadline_at').notNull(), // became_aware_at + 72h, computed at insert time
+  scopePersonCount: integer('scope_person_count'),
+  boardNotifiedAt: timestamp('board_notified_at'),
+  individualsNotifiedAt: timestamp('individuals_notified_at'),
+  state: text('state').notNull().default('open'),
+})
+
+// ─── DPDP 4.7: the record ───────────────────────────────────────────────
+// hash = sha256(prev_hash || canonical(row)), computed by the service
+// layer at insert time (same shape as this file's other hash-chained
+// tables) so the chain is verifiable without trusting the vendor.
+// daily_seal.head_hash is written to object storage OUTSIDE this database
+// by a scheduled job -- the row below records that it happened and where,
+// it is not itself the tamper-proofing.
+export const dpdpEvent = dpdpSchemaDB.table('event', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  actorIdentityId: text('actor_identity_id'),
+  actorLabel: text('actor_label').notNull(), // human-readable name, kept even if the identity is later revoked
+  kind: text('kind').notNull(), // one of the 39 event kinds enumerated in the artefact's "Every event type" screen -- see dpdp-events.ts once Phase 2 lands
+  summary: text('summary').notNull(),
+  detail: text('detail'),
+  route: text('route'),
+  device: text('device'),
+  occurredAt: timestamp('occurred_at').notNull().defaultNow(),
+  prevHash: text('prev_hash'),
+  hash: text('hash').notNull(),
+  sealedInBatch: text('sealed_in_batch'),
+})
+
+// 13-month retention, high volume, deliberately separate from dpdp.event
+// (work order 4.7: "the record is permanent and human-readable; the
+// access log is 13 months and high-volume"). The event log is itself
+// personal data with a stated retention and lawful basis -- both live on
+// this table's own row, not asserted only in a comment.
+export const dpdpAccessLog = dpdpSchemaDB.table('access_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  actorLabel: text('actor_label').notNull(),
+  what: text('what').notNull(),
+  basis: text('basis').notNull(),
+  touchedPersonalData: boolean('touched_personal_data').notNull().default(false),
+  at: timestamp('at').notNull().defaultNow(),
+})
+
+export const dpdpDailySeal = dpdpSchemaDB.table('daily_seal', {
+  sealDate: date('seal_date').primaryKey(),
+  headHash: text('head_hash').notNull(),
+  entryCount: integer('entry_count').notNull(),
+  writtenAt: timestamp('written_at').notNull().defaultNow(),
+})
+
+// ─── DPDP 4.8: commercial ────────────────────────────────────────────────
+export const dpdpExposureEstimate = dpdpSchemaDB.table('exposure_estimate', {
+  orgId: text('org_id').primaryKey(),
+  employees: integer('employees').notNull().default(0),
+  customers: integer('customers').notNull().default(0),
+  applicants: integer('applicants').notNull().default(0),
+  cctvMonthly: integer('cctv_monthly').notNull().default(0),
+  other: integer('other').notNull().default(0),
+  vendorCount: integer('vendor_count').notNull().default(0),
+  vendorStaffEach: integer('vendor_staff_each').notNull().default(0),
+  advisorCount: integer('advisor_count').notNull().default(0),
+  computedTotal: integer('computed_total').notNull().default(0),
+  band: text('band'),
+})
+
+// Left empty and seeded only with band boundaries (work order #11) -- the
+// band PRICES (annual_paise) are explicitly reserved to Rajat. Do not
+// populate annual_paise from this migration.
+export const dpdpBand = dpdpSchemaDB.table('band', {
+  key: text('key').primaryKey(),
+  floor: integer('floor').notNull(),
+  ceiling: integer('ceiling'),
+  annualPaise: integer('annual_paise'),
+  isNgoHalf: boolean('is_ngo_half').notNull().default(false),
+})
+
+export const dpdpSubscription = dpdpSchemaDB.table('subscription', {
+  orgId: text('org_id').primaryKey(),
+  bandKey: text('band_key'),
+  seatsUsed: integer('seats_used').notNull().default(0),
+  trialEndsAt: timestamp('trial_ends_at'),
+  state: text('state').notNull().default('trial'),
+})
+
+export const dpdpReferral = dpdpSchemaDB.table('referral', {
+  identityId: text('identity_id').primaryKey(),
+  code: text('code').notNull().unique(),
+  consentedAt: timestamp('consented_at'),
+  state: text('state').notNull().default('active'),
+})
+
+// Referral blocks (work order 4.8) are enforced in SQL by a trigger in the
+// migration, not here -- this table is the storage the trigger writes
+// outcome/block_reason into:
+//   - same advisor on both sides -> blocked, reason shared_advisor (the
+//     single most important guard -- protects the CA channel)
+//   - same identity administering both orgs -> blocked, reason self_referral
+//   - referred org still on free tier -> free_only, zero credit
+//   - advisor-org staff referring their own firm's client -> credit the
+//     firm, not the person
+//   - cap 12 credit-months per identity per year
+export const dpdpReferralEvent = dpdpSchemaDB.table('referral_event', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  referralId: text('referral_id').notNull(),
+  referredOrgId: text('referred_org_id').notNull(),
+  at: timestamp('at').notNull().defaultNow(),
+  outcome: dpdpReferralOutcomeEnum('outcome').notNull(),
+  blockReason: text('block_reason'),
+  creditMonths: integer('credit_months').notNull().default(0),
+})
+
+// ─── DPDP Phase 2: passwordless magic-link auth for dpdp.identity ───────
+// Deliberately NOT compliance.users / Supabase Auth -- work order 4.1/4.5
+// and Phase 2 point 3 both require a fully separate identity plane with no
+// password field anywhere. Single-use, 15-minute expiry (work order Phase
+// 2 point 3); session length is a separate, longer-lived signed cookie
+// issued once a token here is consumed (see dpdp-session.ts).
+export const dpdpLoginToken = dpdpSchemaDB.table('login_token', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  identityId: text('identity_id').notNull(),
+  tokenHash: text('token_hash').notNull().unique(), // sha256(raw token) -- the raw value is only ever in the emailed link
+  requestedOrgId: text('requested_org_id'), // which org tab the link should land the user on, if known at request time
+  expiresAt: timestamp('expires_at').notNull(),
+  consumedAt: timestamp('consumed_at'),
+  reuseAttemptedAt: timestamp('reuse_attempted_at'), // B1: "reuse of a spent link is logged as an attempt and refused"
+  requestIp: text('request_ip'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// The actual logged-in session, once a login_token above has been consumed.
+// Deliberately an OPAQUE DB-stored token validated by hash lookup, matching
+// this codebase's own established pattern for every non-Supabase-Auth
+// session in the repo (firmClientPortalLinks, org-join-codes, invite
+// links) rather than introducing a JWT library this repo has never used.
+// "Their link stops working the same minute" (work order, People screen) =
+// revokedAt; "session expiry by level" (Phase 2 point 3) = expiresAt, set
+// shorter for a can_sign membership than a plain staff one at issuance time.
+export const dpdpSession = dpdpSchemaDB.table('session', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  identityId: text('identity_id').notNull(),
+  // Nullable: a brand-new identity with zero organisations yet still needs
+  // a session to reach the "create an organisation" step (there is no
+  // other authenticated surface for that step to run on) -- see
+  // dpdp-auth-service.ts's verifyDpdpMagicLink for the "org bootstrap"
+  // case this null state exists for.
+  activeOrgId: text('active_org_id'),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+  lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const dpdpPartner = dpdpSchemaDB.table('partner', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  email: text('email').notNull().unique(),
+  kind: text('kind').notNull(),
+  describesSelf: text('describes_self'),
+  code: text('code').notNull().unique(),
+  attributionDays: integer('attribution_days').notNull().default(90),
+  state: text('state').notNull().default('active'),
+})
