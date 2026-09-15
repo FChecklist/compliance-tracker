@@ -14,6 +14,13 @@ export interface EmailPayload {
   to: string
   subject: string
   html: string
+  // WO-DPDP-001 Phase 2 point 4: each org gets its own reply alias
+  // (`<slug>-<tag>@veridian-aios.com`) so an inbound reply files against the
+  // obligation it came from. Optional and additive -- every existing call
+  // site with neither field keeps using the global FROM constant exactly
+  // as before.
+  from?: string
+  replyTo?: string
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<void> {
@@ -22,7 +29,8 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
     console.warn("[email] RESEND_API_KEY not set — email skipped:", payload.subject)
     return
   }
-  const { error } = await client.emails.send({ from: FROM, ...payload })
+  const { from, replyTo, ...rest } = payload
+  const { error } = await client.emails.send({ from: from ?? FROM, ...(replyTo ? { replyTo } : {}), ...rest })
   if (error) console.error("[email] send error:", error)
 }
 

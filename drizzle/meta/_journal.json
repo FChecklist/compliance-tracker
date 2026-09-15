@@ -2906,6 +2906,20 @@
       "when": 1789480500000,
       "tag": "0416_dpdp_fix_function_search_path",
       "breakpoints": true
+    },
+    {
+      "idx": 417,
+      "version": "7",
+      "when": 1789492965212,
+      "tag": "0417_dpdp_phase2_auth_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 418,
+      "version": "7",
+      "when": 1789493200000,
+      "tag": "0418_dpdp_session_nullable_active_org",
+      "breakpoints": true
     }
   ]
 }

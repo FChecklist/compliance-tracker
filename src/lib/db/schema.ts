@@ -14934,6 +14934,48 @@ export const dpdpReferralEvent = dpdpSchemaDB.table('referral_event', {
   creditMonths: integer('credit_months').notNull().default(0),
 })
 
+// ─── DPDP Phase 2: passwordless magic-link auth for dpdp.identity ───────
+// Deliberately NOT compliance.users / Supabase Auth -- work order 4.1/4.5
+// and Phase 2 point 3 both require a fully separate identity plane with no
+// password field anywhere. Single-use, 15-minute expiry (work order Phase
+// 2 point 3); session length is a separate, longer-lived signed cookie
+// issued once a token here is consumed (see dpdp-session.ts).
+export const dpdpLoginToken = dpdpSchemaDB.table('login_token', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  identityId: text('identity_id').notNull(),
+  tokenHash: text('token_hash').notNull().unique(), // sha256(raw token) -- the raw value is only ever in the emailed link
+  requestedOrgId: text('requested_org_id'), // which org tab the link should land the user on, if known at request time
+  expiresAt: timestamp('expires_at').notNull(),
+  consumedAt: timestamp('consumed_at'),
+  reuseAttemptedAt: timestamp('reuse_attempted_at'), // B1: "reuse of a spent link is logged as an attempt and refused"
+  requestIp: text('request_ip'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// The actual logged-in session, once a login_token above has been consumed.
+// Deliberately an OPAQUE DB-stored token validated by hash lookup, matching
+// this codebase's own established pattern for every non-Supabase-Auth
+// session in the repo (firmClientPortalLinks, org-join-codes, invite
+// links) rather than introducing a JWT library this repo has never used.
+// "Their link stops working the same minute" (work order, People screen) =
+// revokedAt; "session expiry by level" (Phase 2 point 3) = expiresAt, set
+// shorter for a can_sign membership than a plain staff one at issuance time.
+export const dpdpSession = dpdpSchemaDB.table('session', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  identityId: text('identity_id').notNull(),
+  // Nullable: a brand-new identity with zero organisations yet still needs
+  // a session to reach the "create an organisation" step (there is no
+  // other authenticated surface for that step to run on) -- see
+  // dpdp-auth-service.ts's verifyDpdpMagicLink for the "org bootstrap"
+  // case this null state exists for.
+  activeOrgId: text('active_org_id'),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+  lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const dpdpPartner = dpdpSchemaDB.table('partner', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   email: text('email').notNull().unique(),
