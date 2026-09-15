@@ -489,6 +489,54 @@ export async function withTenantContext<T>(
   })
 }
 
+// WO-DPDP-001 Phase 1 / Amendment A1 -- withTenantContext's sibling for the
+// dpdp schema. Reuses the PATTERN (same pool via getRawDb(), same
+// AsyncLocalStorage nesting guard, same idle-in-transaction reporting) --
+// Amendment A1 asked for this to be "shared... deliberately", and the
+// nesting guard specifically has to be shared: a dpdp transaction and a
+// compliance transaction draw from the SAME 20-connection app_runtime pool,
+// so one nested inside the other is exactly the same connection-exhaustion
+// bug this file's own R67 F-12 history describes, regardless of which
+// schema either side belongs to. What is NOT reused: the GUC names and the
+// RLS-reading function -- `app.dpdp_org_id` / `dpdp.current_org_id()` are
+// separate from `app.current_org_id` / `compliance.current_org_id()`,
+// per Amendment A1's "separate RLS policies" requirement (drizzle/
+// 0415_dpdp_phase1_schema.sql).
+export type DpdpTenantContext = {
+  orgId: string
+  identityId?: string
+}
+
+/**
+ * Runs `fn` inside a transaction scoped to `context` via the `app.dpdp_org_id`
+ * / `app.dpdp_identity_id` Postgres GUCs, read by `dpdp.current_org_id()` --
+ * see withTenantContext's own doc comment above for why `set_config(...)`
+ * and not `SET LOCAL`, and why every query here runs as `app_runtime` with
+ * no RLS bypass.
+ */
+export async function withDpdpContext<T>(
+  context: DpdpTenantContext,
+  fn: (tx: TenantDb) => Promise<T>
+): Promise<T> {
+  assertNotNested({ orgId: context.orgId })
+  const db = getRawDb()
+  const stack = captureStack()
+  return tenantTransactionStore.run({ orgId: context.orgId, enteredAt: new Date().toISOString(), stack }, async () => {
+    try {
+      return await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.dpdp_org_id', ${context.orgId}, true)`)
+        if (context.identityId) {
+          await tx.execute(sql`SELECT set_config('app.dpdp_identity_id', ${context.identityId}, true)`)
+        }
+        return fn(tx)
+      })
+    } catch (error) {
+      reportIdleTransactionTermination(error, extractRouteFromStack(stack))
+      throw error
+    }
+  })
+}
+
 // R67 F-16 (R-233) -- THE POOL PROBE.
 //
 // During the 2026-09-02 incident the only way to see the pool's state was to
