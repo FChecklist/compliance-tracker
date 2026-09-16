@@ -2983,6 +2983,20 @@
       "when": 1789541912511,
       "tag": "0427_dpdp_membership_scoped_email",
       "breakpoints": true
+    },
+    {
+      "idx": 428,
+      "version": "7",
+      "when": 1789541913511,
+      "tag": "0599_dpdp_grant_app_runtime_task_email_token",
+      "breakpoints": true
+    },
+    {
+      "idx": 429,
+      "version": "7",
+      "when": 1789541914511,
+      "tag": "0600_dpdp_fix_email_token_update_policy_org_scoped",
+      "breakpoints": true
     }
   ]
 }
