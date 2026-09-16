@@ -14588,6 +14588,12 @@ export const dpdpDataLocation = dpdpSchemaDB.table('data_location', {
   askedAt: timestamp('asked_at'),
 })
 
+// WO-DPDP-005 Section 1 (owner decision, 16 Sep 2026): the three proof
+// modes, shared by obligation_template (which mode a duty defaults to)
+// and artefact (which mode a given upload actually used) -- declared once
+// here since both tables reference it.
+export const dpdpProofModeEnum = dpdpSchemaDB.enum('proof_mode', ['declare', 'fingerprint', 'hold'])
+
 // ─── DPDP 4.3: obligation library -- versioned ──────────────────────────
 export const dpdpLibraryVersion = dpdpSchemaDB.table('library_version', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -14612,6 +14618,7 @@ export const dpdpObligationTemplate = dpdpSchemaDB.table('obligation_template', 
   roleTag: text('role_tag'),
   appliesWhen: jsonb('applies_when'),
   feedsDocuments: text('feeds_documents').array(),
+  proofMode: dpdpProofModeEnum('proof_mode').notNull().default('declare'), // WO-DPDP-005 1: which of the 3 proof modes this duty defaults to
 }, (t) => ({
   libraryVersionKeyUnique: unique('dpdp_obligation_template_version_key_key').on(t.libraryVersionId, t.key),
 }))
@@ -14656,6 +14663,19 @@ export const dpdpObligation = dpdpSchemaDB.table('obligation', {
 // document", explicitly reserved to Rajat/counsel, NOT decided by this
 // migration. The mechanism exists; the legal policy for invoking it does
 // not yet.
+// WO-DPDP-005 Section 1 (owner decision, 16 Sep 2026, reverses WO-003
+// 4.5's Supabase-Storage model): "we keep proof that a document existed.
+// We do not keep the document." Confirmed before writing this that
+// nothing in this codebase ever actually built durable storage for
+// dpdp artefacts -- src/app/api/dpdp/artefacts/route.ts's own pre-existing
+// comment says the file bytes were always "out of scope for this route" --
+// so this is a clean addition, not a reversal of anything that shipped.
+// storagePath stays nullable and is only ever meant to be set for
+// proofMode='hold' (and only for the ~30-day review window) -- the CHECK
+// constraint in 0426 makes 'never_stored'+a storage path impossible at
+// the database level, not just by convention.
+export const dpdpStorageStateEnum = dpdpSchemaDB.enum('storage_state', ['never_stored', 'held', 'deleted'])
+
 export const dpdpArtefact = dpdpSchemaDB.table('artefact', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   obligationId: text('obligation_id').notNull(),
@@ -14683,6 +14703,11 @@ export const dpdpArtefact = dpdpSchemaDB.table('artefact', {
   redactedBy: text('redacted_by'),
   redactionReason: text('redaction_reason'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  proofMode: dpdpProofModeEnum('proof_mode').notNull().default('declare'),
+  storageState: dpdpStorageStateEnum('storage_state').notNull().default('never_stored'),
+  deletedAt: timestamp('deleted_at'),
+  clientLocation: text('client_location'), // where the user says the original lives, for the yearly refresh to re-confirm
+  storagePath: text('storage_path'), // only ever non-null for proofMode='hold', only for the review window -- see 0426's CHECK constraint
 })
 
 // A gap between t_activity and t_exif raises a flag. Flag, never reject --
@@ -14773,6 +14798,45 @@ export const dpdpGrievance = dpdpSchemaDB.table('grievance', {
   officerDecision: text('officer_decision'),
   reviewerDetermination: text('reviewer_determination'),
   reviewerIdentityId: text('reviewer_identity_id'),
+})
+
+// WO-DPDP-005 Section 2: "erasure is coordination, not deletion." We do
+// not touch client systems -- we know every place data sits, ask whoever
+// controls each place, collect confirmations, and prove it afterwards.
+// Places are generated from the data map (dpdp.data_location), one per
+// erasure_place row, keyed to the location it came from.
+export const dpdpErasurePlaceTypeEnum = dpdpSchemaDB.enum('erasure_place_type', ['app', 'folder', 'email', 'paper', 'vendor', 'backup', 'law'])
+export const dpdpErasurePlaceStateEnum = dpdpSchemaDB.enum('erasure_place_state', ['waiting', 'done', 'cannot', 'lawful_hold'])
+
+export const dpdpErasureRequest = dpdpSchemaDB.table('erasure_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  rightsRequestId: text('rights_request_id').notNull(),
+  receivedAt: timestamp('received_at').notNull().defaultNow(),
+  dueAt: timestamp('due_at').notNull(), // +90d
+  state: text('state').notNull().default('open'),
+})
+
+export const dpdpErasurePlace = dpdpSchemaDB.table('erasure_place', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  erasureId: text('erasure_id').notNull(),
+  dataLocationId: text('data_location_id').notNull(),
+  placeType: dpdpErasurePlaceTypeEnum('place_type').notNull(),
+  holderPersonId: text('holder_person_id'),
+  holderOrgId: text('holder_org_id'),
+  state: dpdpErasurePlaceStateEnum('state').notNull().default('waiting'),
+  confirmedBy: text('confirmed_by'),
+  confirmedAt: timestamp('confirmed_at'),
+  methodNote: text('method_note'),
+  refusalLaw: text('refusal_law'), // required when state='lawful_hold' or 'cannot' -- enforced in the service layer, "a lawful refusal is an answer, not a failure"
+})
+
+export const dpdpErasureAnswer = dpdpSchemaDB.table('erasure_answer', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  erasureId: text('erasure_id').notNull(),
+  sentAt: timestamp('sent_at').notNull().defaultNow(),
+  body: text('body').notNull(), // drafted from the place list: what was deleted, what was kept, which law requires it, the backup-restore position
+  sentBy: text('sent_by').notNull(),
 })
 
 // ─── DPDP 4.6: governance and publication ───────────────────────────────
@@ -14974,6 +15038,46 @@ export const dpdpSession = dpdpSchemaDB.table('session', {
   revokedAt: timestamp('revoked_at'),
   lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// WO-DPDP-005 Section 3: "email is the interface, not a notification."
+// One row per task; the email and the dashboard render the SAME rows --
+// answering in either updates this same record, which is why answeredVia
+// exists ("when an auditor asks how a confirmation was obtained, the
+// distinction matters").
+export const dpdpTaskAnswerEnum = dpdpSchemaDB.enum('task_answer', ['yes', 'no'])
+export const dpdpTaskAnsweredViaEnum = dpdpSchemaDB.enum('task_answered_via', ['email', 'app'])
+
+export const dpdpTask = dpdpSchemaDB.table('task', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  obligationId: text('obligation_id').notNull(),
+  seq: integer('seq').notNull(),
+  text: text('text').notNull(),
+  subtext: text('subtext'),
+  optionYes: text('option_yes').notNull(),
+  optionNo: text('option_no').notNull(),
+  answer: dpdpTaskAnswerEnum('answer'),
+  answeredBy: text('answered_by'),
+  answeredAt: timestamp('answered_at'),
+  answeredVia: dpdpTaskAnsweredViaEnum('answered_via'),
+  tokenId: text('token_id'),
+})
+
+// One use, one action, one address, 48 hours (WO-DPDP-005 3). Deliberately
+// the same opaque-token-hash shape as login_token/session/consent_token --
+// this file's own established pattern for every non-Supabase-Auth token.
+export const dpdpEmailTokenActionEnum = dpdpSchemaDB.enum('email_token_action', ['yes', 'no', 'sign_in'])
+
+export const dpdpEmailToken = dpdpSchemaDB.table('email_token', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  taskId: text('task_id').notNull(),
+  identityId: text('identity_id').notNull(),
+  action: dpdpEmailTokenActionEnum('action').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  issuedAt: timestamp('issued_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(), // +48h
+  usedAt: timestamp('used_at'),
 })
 
 export const dpdpPartner = dpdpSchemaDB.table('partner', {

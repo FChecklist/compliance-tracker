@@ -2969,6 +2969,13 @@
       "when": 1789539352417,
       "tag": "0425_dpdp_projection_function",
       "breakpoints": true
+    },
+    {
+      "idx": 426,
+      "version": "7",
+      "when": 1789541577746,
+      "tag": "0426_dpdp_proof_modes_erasure_tasks",
+      "breakpoints": true
     }
   ]
 }
