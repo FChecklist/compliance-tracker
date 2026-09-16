@@ -40,9 +40,26 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive, Claude Desktop, WO-DPDP-002, continuing WO-DPDP-001 + AMENDMENT A1) -- new DPDP Act 2023 compliance product, built inside compliance-tracker per the Owner's explicit amendment (not a separate repo -- projexa-ai.com is served by FChecklist/projexa, no collision)"
-    claimed_at: "2026-09-16T (this session, refreshed from the 2026-09-15 entry -- same engagement, not a new/competing session)"
+  - session_label: "claude-code (interactive, Claude Desktop, WO-DPDP-002, continuing WO-DPDP-001 + AMENDMENT A1 -- and a mid-implementation handoff FROM session 'ct-ca', which moved to PROJEXA-AI.COM) -- new DPDP Act 2023 compliance product, built inside compliance-tracker per the Owner's explicit amendment (not a separate repo -- projexa-ai.com is served by FChecklist/projexa, no collision)"
+    claimed_at: "2026-09-16T, refreshed again after taking the ct-ca handoff (owner confirmed live, in chat, that he told ct-ca to hand off to this session) -- same engagement, not a new/competing session"
     claim: |
+      HANDOFF FROM ct-ca (2026-09-16, owner-confirmed live in chat): ct-ca was
+      given veridian-complete_17.html (a newer spec revision than this session
+      started from) and diffed it against the real built module, scoping the
+      delta into Tier 1 (UI-only: /dpdp/proof, /dpdp/attest, /dpdp/outbox,
+      /dpdp/edge, /dpdp/mydata), Tier 2 (backend exists or is being added,
+      UI/routes/nav don't yet: /dpdp/refer, /dpdp/partner, /dpdp/access-log,
+      DpdpShell.tsx per-capability nav) and Tier 3 (net-new schema: auditor
+      credentials + an auditor marketplace -- owner explicitly said NOT to
+      touch this yet). ct-ca completed only dpdp-referral-service.ts's
+      getOrCreateMyReferral/listMyReferralActivity and the new
+      dpdp-partner-service.ts (both reviewed and accepted as-is by this
+      session, committed) before being redirected to PROJEXA-AI.COM --
+      everything else in Tier 1/2 (9 new routes, ~9 new pages, the nav
+      restructure, wiring `?ref=` consumption into org creation) is still
+      open and now this session's scope. Full detail in ct-ca's own handoff
+      message (this session's transcript, not duplicated here).
+
       SCOPE: everything under a new `dpdp` Postgres schema (pcrjmlpuqsbocqfwoxod),
       routes under src/app/api/dpdp/** and src/app/dpdp/(app)/**, src/lib/services/dpdp-*.ts,
       src/lib/db/dpdp-* helpers, and the withDpdpContext addition to
