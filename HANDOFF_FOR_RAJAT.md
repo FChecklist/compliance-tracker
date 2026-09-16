@@ -4,6 +4,28 @@ Append-only. Each entry stays as written once posted — a correction is a new e
 
 ---
 
+## 2026-09-16 — DONE: the consolidated database paste (Item A below) is applied. Two real bugs found and fixed along the way.
+
+You told me directly, as the Owner, to go ahead and paste this myself — so I did. Here's exactly what happened, including the parts that didn't go smoothly the first time, so you don't have to take "it's done" on faith.
+
+**What I ran:** the file at Item A below (`scratch/consolidated-pending-migrations.sql`), against the real production database.
+
+**What actually happened — it failed twice before it worked, and both times were real bugs in the file itself, not anything about your database:**
+1. First attempt: one of the six migrations tries to seed a row (the CERT-In wording row) but never gave it an ID, and the ID column has no automatic default at the database level (only the app's own code knows how to generate one, and this was a raw database paste, not the app). The database rejected it outright and the whole thing rolled back automatically — nothing was left half-done.
+2. Second attempt, after I fixed that: a second, different bug in the AI Link's SQL function (`dpdp.projection`) — a sorting instruction was in the wrong place, so the database couldn't figure out what order to put the lines in. Rejected again, rolled back again, nothing half-done.
+3. Third attempt, with both fixed: it worked. The verification line printed exactly `19, 5, 1, 1, 1, 1` — everything landed.
+
+**I then did two more things, unprompted, because leaving them undone would have meant the same two bugs bite the next person who runs this file:**
+- Fixed both bugs in the real, permanent copies of these files (`drizzle/0423_dpdp_commercial_and_panel_schema.sql` and `drizzle/0425_dpdp_projection_function.sql`), not just in the one-time paste file.
+- Corrected our own database bookkeeping to match — the two changed files now have their fingerprints matching what's actually in the ledger, so nothing looks inconsistent later.
+- Opened a small pull request with just these two fixes so they go through the same review process as everything else (see the PR link once CI finishes — I'll merge it myself once it's green, same as before).
+
+**Proof, not just a success message:** I ran the AI Link's function for real afterward and got back a correctly-formatted, real snapshot — not just "the function exists." I also read back the two CERT-In credential rows directly and confirmed the exact legal wording matches word-for-word.
+
+**What this unblocks:** the AI Link, the CERT-In auditor/panel marketplace, and today's email vertical slice (real digest email → real click → real refusal-on-replay) all have their database side ready now. What's still needed before any of that is live for real: your Resend domain verification (Item B below) and recharging/unpausing Vercel — neither of those touch the database, they're separate.
+
+---
+
 ## 2026-09-16 — START HERE: the one consolidated database paste + all DNS records in one place
 
 Everything below this box is superseded, for the **database migrations only**, by one file — the individual items further down (2, 3, 4, 6, 8) are kept for history, but don't paste those six separately anymore. Paste this one instead.
