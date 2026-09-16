@@ -141,6 +141,21 @@ if (collisions.length > 0) {
 
 // Also check: does a new file's number collide with an EXISTING (already-committed) file?
 // This catches the case where PR A adds 0224_foo.sql and PR B independently adds 0224_bar.sql
+//
+// Found live (2026-09-16, PR #1735): `drizzle/meta/*_snapshot.json` (drizzle-
+// kit's own auto-generated metadata, one new file per `db:generate` run) uses
+// a totally independent, sequential numbering scheme that has nothing to do
+// with real migration numbers -- it just happens to collide by coincidence
+// once the snapshot counter passes whatever number a real migration file
+// also uses. Before this fix, that coincidence alone (e.g. drizzle/meta/
+// 0423_snapshot.json existing alongside drizzle/0423_dpdp_....sql) falsely
+// flagged every PR touching that migration number as a "collision," even
+// when the migration file itself was already the sole, unambiguous, long-
+// merged owner of that number. `git ls-tree` has no glob pathspec support
+// (confirmed directly: `:(glob)drizzle/*.sql` errors with "pathspec magic
+// not supported by this command"), so this filters drizzle/meta/* out in
+// JS, on the real path, before basename() would otherwise erase the
+// directory that distinguishes it from a real migration file.
 let allExistingFiles = []
 try {
   const mergeBase = mergeBaseWith(baseRef)
@@ -148,7 +163,9 @@ try {
     `git ls-tree -r --name-only ${mergeBase} -- drizzle/ 2>/dev/null`,
     { encoding: "utf8" }
   ).trim()
-  allExistingFiles = existing.split("\n").filter(Boolean).map(f => basename(f))
+  allExistingFiles = existing.split("\n").filter(Boolean)
+    .filter(f => !f.startsWith("drizzle/meta/"))
+    .map(f => basename(f))
 } catch {
   // Can't determine existing files, skip cross-check
   process.exit(0)

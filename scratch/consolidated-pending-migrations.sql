@@ -288,9 +288,17 @@ TO service_role;
 -- Seed: the ONE CERT-In credential row, exact_wording as the sole source
 -- of that sentence anywhere in this system (WO 4.10). dpdp_panel_service.ts
 -- must render from this row, never a hand-typed string.
-INSERT INTO "dpdp"."credential" (kind, issuer, region, applies_to, scope, exact_wording, no_scheme) VALUES
-  ('cert_in_empanelment', 'CERT-In', 'IN', 'org', 'Section 10 data audit', 'This Organization is empanelled by CERT-In for providing information Security Auditing Service', false),
-  ('dpdp_auditor', 'none', 'IN', 'both', 'Section 10 data audit', NULL, true)
+--
+-- id is explicit (gen_random_uuid()) rather than omitted: found live
+-- (2026-09-16, applying this migration for real) that this table's `id`
+-- column has no SQL-level DEFAULT -- the app's own createId() default only
+-- fires when Drizzle's own insert layer runs it in JS, never for a raw SQL
+-- INSERT like this one. Without it: "null value in column id... violates
+-- not-null constraint". Confirmed via a real rollback-then-retry, not
+-- assumed.
+INSERT INTO "dpdp"."credential" (id, kind, issuer, region, applies_to, scope, exact_wording, no_scheme) VALUES
+  (gen_random_uuid()::text, 'cert_in_empanelment', 'CERT-In', 'IN', 'org', 'Section 10 data audit', 'This Organization is empanelled by CERT-In for providing information Security Auditing Service', false),
+  (gen_random_uuid()::text, 'dpdp_auditor', 'none', 'IN', 'both', 'Section 10 data audit', NULL, true)
 ON CONFLICT DO NOTHING;
 
 
@@ -439,7 +447,14 @@ AS $$
   griev AS (
     SELECT count(*) AS n FROM dpdp.grievance WHERE org_id = p_org
   )
-  SELECT string_agg(line, E'\n') FROM (
+  -- ORDER BY belongs INSIDE string_agg's own argument list, not as a
+  -- trailing clause on the outer SELECT -- found live (2026-09-16, applying
+  -- this migration for real): with only an aggregate in the SELECT list and
+  -- no GROUP BY, Postgres collapses the FROM's 16 rows into one before
+  -- ORDER BY ord can run, so `ord` no longer resolves to anything ("column
+  -- t.ord must appear in the GROUP BY clause or be used in an aggregate
+  -- function"). Confirmed via a real rollback-then-retry, not assumed.
+  SELECT string_agg(line, E'\n' ORDER BY ord) FROM (
     VALUES
       (1, 'VERIDIAN · DPDP position for ' || coalesce((SELECT name FROM org), 'this organisation')),
       (2, 'Snapshot ' || to_char(p_asof, 'YYYY-MM-DD') || ' · read-only · no personal data'),
@@ -457,8 +472,7 @@ AS $$
       (14, '  targetKey must be a real duty reference already in this snapshot.'),
       (15, '  Nothing else parses. The person pastes this back and approves'),
       (16, '  each line themselves before anything moves.')
-  ) AS t(ord, line)
-  ORDER BY ord;
+  ) AS t(ord, line);
 $$;
 --> statement-breakpoint
 -- SECURITY DEFINER functions default to EXECUTE granted to PUBLIC in
@@ -738,9 +752,9 @@ TO service_role;
 -- ============================================================
 INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES
   ('2586de5c04bdead4a14199112c2ca6f39b402d178d94497c6061760fe077c481', 1789495400000),
-  ('c844cae4794ad855c65f7e58487800f3f96b7bdd3413c33357bf1bc666058ce2', 1789538112094),
+  ('d9aa24ee6e2dba7f0a2127e5403f20c507594b7370873a5a3641643368f30148', 1789538112094),
   ('c8be9b12621dc11d2b557fb72038787916ec5bc6052a6faa60010242d889019f', 1789539351417),
-  ('e72f89547fb68d52d4527ea1f49d91339cc98cb165702768ee6e60aca9b23828', 1789539352417),
+  ('f9b776ff01f275adfc72b8b112cb234aa38aeb6b66e5958a41bed18cd51d7066', 1789539352417),
   ('c26e1415281de95743715821b4e77f4224aec0be0e0e88c3da1b027b518b3804', 1789541577746),
   ('c92d5a8e86bfad4c86911f9d5d184359124a86936610c0b7994d925fb0f88cb6', 1789541912511)
 ON CONFLICT DO NOTHING;

@@ -50,7 +50,14 @@ AS $$
   griev AS (
     SELECT count(*) AS n FROM dpdp.grievance WHERE org_id = p_org
   )
-  SELECT string_agg(line, E'\n') FROM (
+  -- ORDER BY belongs INSIDE string_agg's own argument list, not as a
+  -- trailing clause on the outer SELECT -- found live (2026-09-16, applying
+  -- this migration for real): with only an aggregate in the SELECT list and
+  -- no GROUP BY, Postgres collapses the FROM's 16 rows into one before
+  -- ORDER BY ord can run, so `ord` no longer resolves to anything ("column
+  -- t.ord must appear in the GROUP BY clause or be used in an aggregate
+  -- function"). Confirmed via a real rollback-then-retry, not assumed.
+  SELECT string_agg(line, E'\n' ORDER BY ord) FROM (
     VALUES
       (1, 'VERIDIAN · DPDP position for ' || coalesce((SELECT name FROM org), 'this organisation')),
       (2, 'Snapshot ' || to_char(p_asof, 'YYYY-MM-DD') || ' · read-only · no personal data'),
@@ -68,8 +75,7 @@ AS $$
       (14, '  targetKey must be a real duty reference already in this snapshot.'),
       (15, '  Nothing else parses. The person pastes this back and approves'),
       (16, '  each line themselves before anything moves.')
-  ) AS t(ord, line)
-  ORDER BY ord;
+  ) AS t(ord, line);
 $$;
 --> statement-breakpoint
 -- SECURITY DEFINER functions default to EXECUTE granted to PUBLIC in

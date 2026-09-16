@@ -154,7 +154,15 @@ TO service_role;
 -- Seed: the ONE CERT-In credential row, exact_wording as the sole source
 -- of that sentence anywhere in this system (WO 4.10). dpdp_panel_service.ts
 -- must render from this row, never a hand-typed string.
-INSERT INTO "dpdp"."credential" (kind, issuer, region, applies_to, scope, exact_wording, no_scheme) VALUES
-  ('cert_in_empanelment', 'CERT-In', 'IN', 'org', 'Section 10 data audit', 'This Organization is empanelled by CERT-In for providing information Security Auditing Service', false),
-  ('dpdp_auditor', 'none', 'IN', 'both', 'Section 10 data audit', NULL, true)
+--
+-- id is explicit (gen_random_uuid()) rather than omitted: found live
+-- (2026-09-16, applying this migration for real) that this table's `id`
+-- column has no SQL-level DEFAULT -- the app's own createId() default only
+-- fires when Drizzle's own insert layer runs it in JS, never for a raw SQL
+-- INSERT like this one. Without it: "null value in column id... violates
+-- not-null constraint". Confirmed via a real rollback-then-retry, not
+-- assumed.
+INSERT INTO "dpdp"."credential" (id, kind, issuer, region, applies_to, scope, exact_wording, no_scheme) VALUES
+  (gen_random_uuid()::text, 'cert_in_empanelment', 'CERT-In', 'IN', 'org', 'Section 10 data audit', 'This Organization is empanelled by CERT-In for providing information Security Auditing Service', false),
+  (gen_random_uuid()::text, 'dpdp_auditor', 'none', 'IN', 'both', 'Section 10 data audit', NULL, true)
 ON CONFLICT DO NOTHING;
