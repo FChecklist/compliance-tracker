@@ -46,9 +46,18 @@ d("dpdp.artefact append-only (real DB, real GRANTs)", () => {
 
   test("app_runtime cannot update a content column (filename) -- real Postgres permission error", async () => {
     if (!hasDb) return
-    await expect(
-      withDpdpContext({ orgId }, (tx) => tx.update(dpdpArtefact).set({ filename: "swapped.pdf" }).where(eq(dpdpArtefact.id, artefactId))),
-    ).rejects.toThrow(/permission denied/i)
+    // drizzle-orm wraps the driver error in a generic "Failed query: ..."
+    // DrizzleQueryError -- the real Postgres message (D2's required
+    // "failing UPDATE, error text") is on .cause, not .message.
+    let caught: unknown
+    try {
+      await withDpdpContext({ orgId }, (tx) => tx.update(dpdpArtefact).set({ filename: "swapped.pdf" }).where(eq(dpdpArtefact.id, artefactId)))
+    } catch (error) {
+      caught = error
+    }
+    expect(caught).toBeInstanceOf(Error)
+    const cause = (caught as Error).cause
+    expect(String((cause as Error)?.message ?? cause)).toMatch(/permission denied/i)
   }, 30_000)
 
   test("app_runtime CAN update the redaction columns -- the row and its id stay, only redaction fields change", async () => {

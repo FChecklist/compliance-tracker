@@ -19,8 +19,21 @@ import { beforeAll, describe, expect, mock, test } from "bun:test"
 
 const hasDb = !!process.env.DATABASE_URL
 
-const realEmailModule = await import("@/lib/email")
-await mock.module("@/lib/email", () => ({ ...realEmailModule, sendEmail: async () => {} }))
+// A fully synthetic mock, defined BEFORE anything imports the real module --
+// not "import the real module, then mock over it" (that pattern left the
+// real sendEmail() reachable in an earlier version of this file, which
+// meant a real, unmocked network call to Resend on every run, occasionally
+// hanging for minutes on this environment's flaky egress rather than
+// actually being mocked out).
+await mock.module("@/lib/email", () => ({
+  FROM: "test@example.test",
+  sendEmail: async () => {},
+  emailTemplate: (title: string, body: string) => `${title}: ${body}`,
+  notifyAssigned: async () => {},
+  notifyOverdue: async () => {},
+  notifyDeadlineApproaching: async () => {},
+  notifyNewComment: async () => {},
+}))
 
 const { requestDpdpMagicLink, verifyDpdpMagicLink } = await import("./dpdp-auth-service")
 const { db, dpdpLoginToken, dpdpIdentityEmail, dpdpIdentity } = await import("@/lib/db")

@@ -20,8 +20,9 @@
 // Neither check requires the referred org's own tenant context (referral/
 // referral_event carry no RLS -- 0415 lists both as cross-org-by-design), so
 // this runs on the plain `db` client, no withDpdpContext needed.
-import { and, eq, isNull } from "drizzle-orm"
-import { db, dpdpMembership, dpdpReferral, dpdpReferralEvent, dpdpRelationship } from "@/lib/db"
+import { and, desc, eq, isNull } from "drizzle-orm"
+import { createId } from "@paralleldrive/cuid2"
+import { db, dpdpMembership, dpdpOrganisation, dpdpReferral, dpdpReferralEvent, dpdpRelationship } from "@/lib/db"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -74,4 +75,56 @@ export async function recordReferralAttempt(code: string, referredOrgId: string)
   })
 
   return { referralIdentityId: referral.identityId, blocked: reason !== null, reason }
+}
+
+// ─── Surfacing the referral programme to the person who owns a code ─────
+// (dpdp UI delta, veridian-complete.html "🎁 Refer and earn"). Everything
+// above this line existed before and is unchanged; getOrCreateMyReferral/
+// listMyReferralActivity are the missing "I agree — give me my code" and
+// "who used it" reads a real page needs -- dpdp.referral/referral_event
+// carry no RLS (see this file's own header), so these run on the plain
+// `db` client like recordReferralAttempt does.
+function randomReferralCode(): string {
+  // 8 chars, unambiguous alphabet (no 0/O/1/I) -- read aloud over a phone
+  // call without spelling confusion, same reason order/invoice reference
+  // codes elsewhere in this codebase avoid those characters.
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+  let out = ""
+  const raw = createId()
+  for (let i = 0; i < 8; i++) out += alphabet[raw.charCodeAt(i % raw.length) % alphabet.length]
+  return out
+}
+
+async function uniqueReferralCode(): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = randomReferralCode()
+    const clash = await db.query.dpdpReferral.findFirst({ where: eq(dpdpReferral.code, code) })
+    if (!clash) return code
+  }
+  // Astronomically unlikely with an 8-char code space, but fail loudly
+  // rather than silently insert a colliding code if it ever happens.
+  throw new ServiceError("Could not generate a referral code, try again", 500)
+}
+
+/** "I agree — give me my code": idempotent -- an identity that already has a code just gets it back. */
+export async function getOrCreateMyReferral(identityId: string) {
+  const existing = await db.query.dpdpReferral.findFirst({ where: eq(dpdpReferral.identityId, identityId) })
+  if (existing) return existing
+  const code = await uniqueReferralCode()
+  const [row] = await db.insert(dpdpReferral).values({ identityId, code, consentedAt: new Date() }).returning()
+  return row
+}
+
+export type ReferralActivityRow = typeof dpdpReferralEvent.$inferSelect & { orgName: string }
+
+/** "Who used it" -- the referral row (if any) plus every attempt against its code, newest first, with the referred org's name resolved for display. */
+export async function listMyReferralActivity(identityId: string): Promise<{ referral: typeof dpdpReferral.$inferSelect | null; events: ReferralActivityRow[] }> {
+  const referral = await db.query.dpdpReferral.findFirst({ where: eq(dpdpReferral.identityId, identityId) })
+  if (!referral) return { referral: null, events: [] }
+  const events = await db.query.dpdpReferralEvent.findMany({ where: eq(dpdpReferralEvent.referralId, referral.identityId), orderBy: [desc(dpdpReferralEvent.at)] })
+  const withOrgNames = await Promise.all(events.map(async (e) => {
+    const org = await db.query.dpdpOrganisation.findFirst({ where: eq(dpdpOrganisation.id, e.referredOrgId) })
+    return { ...e, orgName: org?.name ?? "(organisation removed)" }
+  }))
+  return { referral, events: withOrgNames }
 }
