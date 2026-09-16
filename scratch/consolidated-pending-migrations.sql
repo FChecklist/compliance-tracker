@@ -606,7 +606,18 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
 -- email_token has no org_id of its own (scoped through task_id ->
 -- task.org_id); the public email-click route needs no context to look
 -- itself up and mark itself used, same preauth shape as above.
+--
+-- app_runtime_via_task_org alone is NOT enough: the very first lookup on a
+-- click (find the row by token hash, before anything is known about which
+-- org it belongs to) runs with NO context set, so current_org_id() is
+-- NULL and that policy's EXISTS(...) never matches -- found while writing
+-- the vertical-slice click handler, before this migration ever went live,
+-- by re-reading the RLS this file itself defines rather than assuming it
+-- was already covered by the org-scoped policy below.
 ALTER TABLE "dpdp"."email_token" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+DO $$ BEGIN
+  CREATE POLICY app_runtime_preauth_lookup ON "dpdp"."email_token" FOR SELECT TO app_runtime USING (dpdp.current_org_id() IS NULL);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
 DO $$ BEGIN
   CREATE POLICY app_runtime_via_task_org ON "dpdp"."email_token" FOR SELECT TO app_runtime
     USING (EXISTS (SELECT 1 FROM dpdp.task t WHERE t.id = task_id AND t.org_id = dpdp.current_org_id()));
@@ -730,7 +741,7 @@ INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES
   ('c844cae4794ad855c65f7e58487800f3f96b7bdd3413c33357bf1bc666058ce2', 1789538112094),
   ('c8be9b12621dc11d2b557fb72038787916ec5bc6052a6faa60010242d889019f', 1789539351417),
   ('e72f89547fb68d52d4527ea1f49d91339cc98cb165702768ee6e60aca9b23828', 1789539352417),
-  ('6f5fa4e822fe346c15c3a55edf242ac6865d8afa25a96564910a0c25648ffab5', 1789541577746),
+  ('c26e1415281de95743715821b4e77f4224aec0be0e0e88c3da1b027b518b3804', 1789541577746),
   ('c92d5a8e86bfad4c86911f9d5d184359124a86936610c0b7994d925fb0f88cb6', 1789541912511)
 ON CONFLICT DO NOTHING;
 

@@ -117,7 +117,18 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
 -- email_token has no org_id of its own (scoped through task_id ->
 -- task.org_id); the public email-click route needs no context to look
 -- itself up and mark itself used, same preauth shape as above.
+--
+-- app_runtime_via_task_org alone is NOT enough: the very first lookup on a
+-- click (find the row by token hash, before anything is known about which
+-- org it belongs to) runs with NO context set, so current_org_id() is
+-- NULL and that policy's EXISTS(...) never matches -- found while writing
+-- the vertical-slice click handler, before this migration ever went live,
+-- by re-reading the RLS this file itself defines rather than assuming it
+-- was already covered by the org-scoped policy below.
 ALTER TABLE "dpdp"."email_token" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+DO $$ BEGIN
+  CREATE POLICY app_runtime_preauth_lookup ON "dpdp"."email_token" FOR SELECT TO app_runtime USING (dpdp.current_org_id() IS NULL);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
 DO $$ BEGIN
   CREATE POLICY app_runtime_via_task_org ON "dpdp"."email_token" FOR SELECT TO app_runtime
     USING (EXISTS (SELECT 1 FROM dpdp.task t WHERE t.id = task_id AND t.org_id = dpdp.current_org_id()));

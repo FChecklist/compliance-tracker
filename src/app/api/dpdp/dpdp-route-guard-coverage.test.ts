@@ -53,6 +53,7 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
   "src/app/api/dpdp/p/[token]/grievance/route.ts": { category: "TOKEN_SCOPED", why: "consent-token link, no account" },
   "src/app/api/dpdp/p/[token]/rights-request/route.ts": { category: "TOKEN_SCOPED", why: "consent-token link, no account" },
   "src/app/api/dpdp/ai/[token]/route.ts": { category: "TOKEN_SCOPED", why: "AI Link -- public, read-only, no session, no personal data (WO-DPDP-004 5.10)" },
+  "src/app/api/dpdp/task-link/[token]/route.ts": { category: "TOKEN_SCOPED", why: "the email-click vertical slice (WO-DPDP-005/007) -- membership-scoped token IS the auth, no session" },
   "src/app/api/dpdp/members/route.ts": { category: "OWNER_ONLY", why: "naming who does what is an owner action (People screen)" },
   "src/app/api/dpdp/members/[membershipId]/revoke/route.ts": { category: "OWNER_ONLY", why: "revoking a member is an owner action" },
   "src/app/api/dpdp/relationships/route.ts": { category: "OWNER_ONLY", why: "naming an outside firm is an owner action" },
