@@ -8,7 +8,13 @@ function getResend(): Resend | null {
   return resend
 }
 
-export const FROM = process.env.EMAIL_FROM ?? "VERIDIAN AI <noreply@veridian-compliance.ai>"
+// Confirmed live and wrong (TEST_REPORT.md, WO-DPDP-003 §6): a real send
+// attempt against production failed with "The veridian-compliance.ai
+// domain is not verified..." -- that domain is a stale pre-rebrand name,
+// not even the one the work orders specify. WO-DPDP-007 §1's own
+// subdomain split is send.veridian-aios.com for every automated send,
+// never the bare/root domain and never this old name.
+export const FROM = process.env.EMAIL_FROM ?? "VERIDIAN AI <noreply@send.veridian-aios.com>"
 
 export interface EmailPayload {
   to: string
