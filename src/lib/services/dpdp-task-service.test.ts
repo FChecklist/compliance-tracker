@@ -34,7 +34,30 @@ const { db, dpdpOrganisation, dpdpIdentity, dpdpIdentityEmail, dpdpMembership, d
 const { withDpdpContext } = await import("@/lib/db/tenant-scoped")
 const { eq } = await import("drizzle-orm")
 
-const hasDb = !!process.env.DATABASE_URL
+// Probe-and-skip, not env-presence-and-skip -- same pattern as
+// instb-f4-f5-declared-scope.test.ts (R81_F25): CI sets a PLACEHOLDER
+// DATABASE_URL (postgresql://postgres:placeholder@localhost:5432/postgres)
+// purely so module-load-time DB-client construction doesn't throw, but
+// nothing is actually listening there -- a bare `!!DATABASE_URL` check
+// can't tell that apart from a real connection string, so this suite ran
+// for real against a dead socket in CI and failed, rather than skipping.
+async function probeDpdpDatabase(): Promise<boolean> {
+  if (!process.env.DATABASE_URL) return false
+  const postgres = (await import("postgres")).default
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const probe = postgres(process.env.DATABASE_URL, { prepare: false, ssl: { rejectUnauthorized: false }, max: 1, connect_timeout: 8, idle_timeout: 1 })
+    try {
+      await probe`select 1`
+      await probe.end({ timeout: 5 })
+      return true
+    } catch {
+      try { await probe.end({ timeout: 5 }) } catch {}
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 500))
+    }
+  }
+  return false
+}
+const hasDb = await probeDpdpDatabase()
 const d = hasDb ? describe : describe.skip
 
 d("the WO-DPDP-005/007 vertical slice, end to end (real DB)", () => {

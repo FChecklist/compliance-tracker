@@ -329,6 +329,17 @@ const EXEMPT_ROUTES: Array<{ path: string; category: string; reason: string }> =
   {"path":"src/app/api/dpdp/public-page/publish/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() + inline `ctx.level === \"owner\"` check."},
   {"path":"src/app/api/dpdp/notices/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST; POST additionally requires `ctx.level === \"owner\"` inline."},
   {"path":"src/app/api/dpdp/breach/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST."},
+  // WO-DPDP-002/003/004 (2026-09-16): 7 more dpdp/* mutating routes added
+  // after the original WO-DPDP-001 sweep above, same reasoning -- dpdp has
+  // its own separate auth plane and this grep-based classifier cannot see
+  // requireDpdpSession()/requireDpdpSigner() as a real gate.
+  {"path":"src/app/api/dpdp/referral/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST."},
+  {"path":"src/app/api/dpdp/partner/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST."},
+  {"path":"src/app/api/dpdp/attest/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSigner() (can_sign, not level===\"owner\" -- WO-DPDP-003 3) on both GET and POST."},
+  {"path":"src/app/api/dpdp/ai-link/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST."},
+  {"path":"src/app/api/dpdp/ai-work/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST."},
+  {"path":"src/app/api/dpdp/ai-work/[proposalId]/apply/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession(), then applyAiProposal() re-checks the proposal's org against the caller's active org."},
+  {"path":"src/app/api/dpdp/ai-work/[proposalId]/discard/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession(), then discardAiProposal() re-checks the proposal's org against the caller's active org."},
   {"path":"src/app/api/dpdp/breach/[breachId]/board-notified/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
   {"path":"src/app/api/dpdp/breach/[breachId]/individuals-notified/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession()."},
   {"path":"src/app/api/dpdp/exposure/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession() on both GET and POST."}
@@ -445,9 +456,9 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
     // on paper: 840 + 35 = 875 mutating, 638 protected (unchanged -- none
     // of the 35 are grep-protected), 202 + 35 = 237 exempt, 0 open gaps,
     // and 638 + 237 + 0 = 875 still holds.
-    expect(mutating.length).toBe(875) // +35 WO-DPDP-001 dpdp/* mutating routes
+    expect(mutating.length).toBe(882) // +35 WO-DPDP-001 dpdp/* mutating routes, +7 WO-DPDP-002/003/004 dpdp/* mutating routes
     expect(protectedCount).toBe(638) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH; +1 R85A3 P6 cost-visibility config PATCH; +2 R85A3 P7 Excel round-trip diff/apply POSTs; +4 R85 A3v4 Phase 10 boq-scenarios routes
-    expect(EXEMPT_ROUTES.length).toBe(237) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep // +1 R-C17 resend-inbound webhook (Svix-signature-gated, INTERNAL_SECRET) // +35 WO-DPDP-001 dpdp/* routes (29 SERVICE_LAYER_GATED, 4 TOKEN_SCOPED, 2 PUBLIC_BY_DESIGN)
+    expect(EXEMPT_ROUTES.length).toBe(244) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep // +1 R-C17 resend-inbound webhook (Svix-signature-gated, INTERNAL_SECRET) // +35 WO-DPDP-001 dpdp/* routes (29 SERVICE_LAYER_GATED, 4 TOKEN_SCOPED, 2 PUBLIC_BY_DESIGN) // +7 WO-DPDP-002/003/004 dpdp/* routes (all SERVICE_LAYER_GATED)
     expect(KNOWN_OPEN_GAPS.length).toBe(0)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
   })

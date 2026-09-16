@@ -47,7 +47,26 @@ describe("ALLOWED_VERBS", () => {
   })
 })
 
-const hasDb = !!process.env.DATABASE_URL
+// Probe-and-skip, not env-presence-and-skip -- see dpdp-task-service.test.ts's
+// probeDpdpDatabase for why (CI's placeholder DATABASE_URL is truthy but
+// nothing is listening there).
+async function probeDpdpDatabase(): Promise<boolean> {
+  if (!process.env.DATABASE_URL) return false
+  const postgres = (await import("postgres")).default
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const probe = postgres(process.env.DATABASE_URL, { prepare: false, ssl: { rejectUnauthorized: false }, max: 1, connect_timeout: 8, idle_timeout: 1 })
+    try {
+      await probe`select 1`
+      await probe.end({ timeout: 5 })
+      return true
+    } catch {
+      try { await probe.end({ timeout: 5 }) } catch {}
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 500))
+    }
+  }
+  return false
+}
+const hasDb = await probeDpdpDatabase()
 const d = hasDb ? describe : describe.skip
 
 d("classifyProposedLine (real DB, read-only)", () => {

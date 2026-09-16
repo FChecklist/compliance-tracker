@@ -3,6 +3,9 @@
 // wording other than the exact sentence. No revenue field exists on
 // panel_firm."
 import { describe, expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+import { execFileSync } from "node:child_process"
 import { dpdpPanelFirm } from "@/lib/db"
 import { wasCredentialCurrentOn } from "./dpdp-panel-service"
 
@@ -18,8 +21,8 @@ describe("the CERT-In exact wording", () => {
   const EXACT = "This Organization is empanelled by CERT-In for providing information Security Auditing Service"
 
   test("renderCertInWording's only data source is the seeded row -- verified by reading the migration that seeds it, not by trusting a copy of the string here", () => {
-    const migration = require("node:fs").readFileSync(
-      require("node:path").join(process.cwd(), "drizzle/0423_dpdp_commercial_and_panel_schema.sql"),
+    const migration = readFileSync(
+      join(process.cwd(), "drizzle/0423_dpdp_commercial_and_panel_schema.sql"),
       "utf8",
     )
     expect(migration).toContain(EXACT)
@@ -30,7 +33,6 @@ describe("the CERT-In exact wording", () => {
   })
 
   test("no file under src/ (other than this test itself) hardcodes the sentence -- dpdp-panel-service.ts must read it from the database, never a hand-typed copy that could drift", () => {
-    const { execFileSync } = require("node:child_process")
     let hits: string[] = []
     try {
       hits = execFileSync("git", ["grep", "-il", "empanelled by CERT-In", "--", "src/"], { cwd: process.cwd() })

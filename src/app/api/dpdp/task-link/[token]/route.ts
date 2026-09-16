@@ -16,13 +16,17 @@ function page(title: string, body: string, ok: boolean) {
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params
-  const result = await answerTaskViaEmailToken(token)
-  if (!result.ok) {
-    return new NextResponse(page("Nothing has changed", result.reason, false), { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } })
+  try {
+    const { token } = await params
+    const result = await answerTaskViaEmailToken(token)
+    if (!result.ok) {
+      return new NextResponse(page("Nothing has changed", result.reason, false), { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } })
+    }
+    return new NextResponse(
+      page("Recorded", `Your answer ("${result.answer === "yes" ? "yes" : "no"}") has been saved and dated. You do not need to do anything else.`, true),
+      { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
+    )
+  } catch {
+    return new NextResponse(page("Something went wrong", "This link could not be opened. Please try again in a moment.", false), { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } })
   }
-  return new NextResponse(
-    page("Recorded", `Your answer ("${result.answer === "yes" ? "yes" : "no"}") has been saved and dated. You do not need to do anything else.`, true),
-    { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
-  )
 }
