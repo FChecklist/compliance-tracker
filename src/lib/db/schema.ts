@@ -14985,3 +14985,91 @@ export const dpdpPartner = dpdpSchemaDB.table('partner', {
   attributionDays: integer('attribution_days').notNull().default(90),
   state: text('state').notNull().default('active'),
 })
+
+// ─── WO-DPDP-003 4.9/4.10: commercial (file packs, custody, partner sales)
+// and the CERT-In-constrained auditor/cyber panel. All net-new (0415-0421
+// only modeled organisation/relationship/referral/partner) -- confirmed by
+// grep before writing this.
+export const dpdpFilePack = dpdpSchemaDB.table('file_pack', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  packSize: integer('pack_size').notNull(),
+  filesRemaining: integer('files_remaining').notNull(),
+  purchasedAt: timestamp('purchased_at').notNull().defaultNow(),
+  // "Unused pack files roll over one year" (WO 4.9) -- expiresAt is that
+  // rollover boundary, not a hard cutoff the app deletes on.
+  expiresAt: timestamp('expires_at'),
+})
+
+// "10-year custody, ₹1,500/file, paid once -- the work plus the proof held
+// ten years" (WO 4.9). One row per artefact placed into custody.
+export const dpdpCustody = dpdpSchemaDB.table('custody', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  obligationFileId: text('obligation_file_id').notNull(),
+  termYears: integer('term_years').notNull().default(10),
+  paidAt: timestamp('paid_at'),
+  keepUntil: timestamp('keep_until'),
+})
+
+export const dpdpPartnerSale = dpdpSchemaDB.table('partner_sale', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  partnerId: text('partner_id').notNull(),
+  orgId: text('org_id').notNull(),
+  at: timestamp('at').notNull().defaultNow(),
+  state: text('state').notNull().default('pending'), // 'pending'|'paid'|'reversed'
+  commissionPaise: integer('commission_paise').notNull(),
+  recurs: boolean('recurs').notNull().default(true),
+})
+
+export const dpdpCredentialRegionEnum = dpdpSchemaDB.enum('credential_region', ['IN', 'EU', 'US', 'GLOBAL'])
+export const dpdpCredentialAppliesToEnum = dpdpSchemaDB.enum('credential_applies_to', ['org', 'person', 'both'])
+export const dpdpFirmCredStateEnum = dpdpSchemaDB.enum('firm_cred_state', ['declared', 'evidence', 'expired'])
+
+// "We take no commission, listing fee or paid placement from any panel
+// firm... there is no revenue field on panel_firm" (WO 4.10) -- enforced
+// structurally by this table genuinely having none, not just by convention;
+// dpdp-panel-service.test.ts asserts this column set directly so a future
+// edit can't quietly add one back.
+export const dpdpPanelFirm = dpdpSchemaDB.table('panel_firm', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  city: text('city'),
+  since: date('since'),
+  headcount: integer('headcount'),
+  responseSla: text('response_sla'),
+  jobsViaUs: integer('jobs_via_us').notNull().default(0),
+})
+
+// exactWording is the ONLY place the literal CERT-In sentence may ever be
+// stored -- see dpdp-panel-service.ts's CERT_IN_EXACT_WORDING constant,
+// which this table's seed row must equal verbatim (WO 4.10: "the app must
+// make any other phrasing impossible").
+export const dpdpCredential = dpdpSchemaDB.table('credential', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  kind: text('kind').notNull(),
+  issuer: text('issuer').notNull(),
+  region: dpdpCredentialRegionEnum('region').notNull(),
+  appliesTo: dpdpCredentialAppliesToEnum('applies_to').notNull(),
+  scope: text('scope'),
+  exactWording: text('exact_wording'),
+  noScheme: boolean('no_scheme').notNull().default(false),
+})
+
+export const dpdpFirmCred = dpdpSchemaDB.table('firm_cred', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  firmId: text('firm_id').notNull(),
+  credentialId: text('credential_id').notNull(),
+  expiresOn: date('expires_on'),
+  state: dpdpFirmCredStateEnum('state').notNull().default('declared'),
+  artefactId: text('artefact_id'),
+})
+
+export const dpdpPanelRequest = dpdpSchemaDB.table('panel_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  firmId: text('firm_id').notNull(),
+  requestedAt: timestamp('requested_at').notNull().defaultNow(),
+  respondedAt: timestamp('responded_at'),
+})

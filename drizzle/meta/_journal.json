@@ -2948,6 +2948,13 @@
       "when": 1789495400000,
       "tag": "0422_dpdp_obligation_write_restrict_auditors",
       "breakpoints": true
+    },
+    {
+      "idx": 423,
+      "version": "7",
+      "when": 1789538112094,
+      "tag": "0423_dpdp_commercial_and_panel_schema",
+      "breakpoints": true
     }
   ]
 }
