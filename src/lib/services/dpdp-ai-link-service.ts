@@ -19,10 +19,9 @@
 // to plpgsql is real, separate work (a DDL migration, its own review) that
 // this pass did not have room for.
 import { randomBytes } from "node:crypto"
-import { eq, and, count, isNull, gt } from "drizzle-orm"
+import { eq, and, count, isNull, gt, sql } from "drizzle-orm"
 import {
-  db, dpdpAiLink, dpdpAiLinkRead, dpdpAiProposal, dpdpAiProposalLine, dpdpObligation, dpdpObligationTemplate,
-  dpdpDataCategory, dpdpDataLocation, dpdpRelationship, dpdpRightsRequest, dpdpGrievance, dpdpOrganisation, dpdpNoticeVersion,
+  db, dpdpAiLink, dpdpAiLinkRead, dpdpAiProposal, dpdpAiProposalLine, dpdpObligation, dpdpNoticeVersion,
 } from "@/lib/db"
 import { withDpdpContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { logDpdpEvent } from "./dpdp-event-service"
@@ -95,47 +94,20 @@ export async function resolveAiLinkSnapshot(rawToken: string, userAgent?: string
   return buildAiSnapshot(link.orgId)
 }
 
-/** The plain-text status report an external AI reads. Counts and states only -- see this file's own header. */
-export async function buildAiSnapshot(orgId: string): Promise<string> {
-  return withDpdpContext({ orgId }, async (tx) => {
-    const org = await tx.query.dpdpOrganisation.findFirst({ where: eq(dpdpOrganisation.id, orgId) })
-    const obligations = await tx.query.dpdpObligation.findMany({ where: eq(dpdpObligation.orgId, orgId) })
-    const open = obligations.filter((o) => o.state === "open")
-    const late = open.filter((o) => new Date(o.dueOn) < new Date())
-
-    const categories = await tx.query.dpdpDataCategory.findMany({ where: eq(dpdpDataCategory.orgId, orgId) })
-    let located = 0
-    for (const c of categories) {
-      const loc = await tx.query.dpdpDataLocation.findFirst({ where: eq(dpdpDataLocation.categoryId, c.id) })
-      if (loc?.state === "confirmed") located++
-    }
-
-    const relationships = await tx.query.dpdpRelationship.findMany({ where: eq(dpdpRelationship.fromOrg, orgId) })
-    const signed = relationships.filter((r) => r.agreementSignedAt).length
-
-    const [rightsOpen] = await tx.select({ n: count() }).from(dpdpRightsRequest).where(and(eq(dpdpRightsRequest.orgId, orgId), isNull(dpdpRightsRequest.answeredAt)))
-    const [grievancesOpen] = await tx.select({ n: count() }).from(dpdpGrievance).where(eq(dpdpGrievance.orgId, orgId))
-
-    const lines = [
-      `VERIDIAN · DPDP position for ${org?.name ?? "this organisation"}`,
-      `Snapshot ${new Date().toISOString().slice(0, 10)} · read-only · no personal data`,
-      "",
-      `DUTIES  ${obligations.length} total · ${obligations.filter((o) => o.state === "closed").length} done · ${late.length} late`,
-      `DATA MAP  ${categories.length} categories · ${located} located · ${categories.length - located} unknown`,
-      `OUTSIDE FIRMS  ${relationships.length} · agreements signed ${signed}`,
-      `OPEN REQUESTS  ${rightsOpen?.n ?? 0}`,
-      `COMPLAINTS  ${grievancesOpen?.n ?? 0}`,
-      "",
-      "HOW TO REPLY",
-      "  Output a VERIDIAN-INSTRUCTIONS block: one JSON array of proposed",
-      "  lines, each { verb, targetKey, payload }.",
-      "  verb is one of: ASSIGN, SET_DUE, NOTE, MARK_NA (reason required), DRAFT.",
-      "  targetKey must be a real duty reference already in this snapshot.",
-      "  Nothing else parses. The person pastes this back and approves",
-      "  each line themselves before anything moves.",
-    ]
-    return lines.join("\n")
-  })
+/**
+ * The plain-text status report an external AI reads -- delegates entirely
+ * to dpdp.projection(), a real Postgres SQL function (migration 0425), per
+ * WO-DPDP-006 Section 2's explicit correction: "the exclusion of personal
+ * data is a security boundary, not a formatting preference," so it must
+ * be enforced by the function itself (which never references a
+ * personal-data column, at all, in its body), not by this app-code call
+ * site being careful. No withDpdpContext here: the function is SECURITY
+ * DEFINER and filters by the p_org parameter directly, not RLS/
+ * current_org_id() -- it needs no tenant context to call correctly.
+ */
+export async function buildAiSnapshot(orgId: string, asOf: Date = new Date()): Promise<string> {
+  const [row] = await db.execute<{ projection: string }>(sql`select dpdp.projection(${orgId}, ${asOf.toISOString()}::timestamptz) as projection`)
+  return row?.projection ?? ""
 }
 
 // ─── AI proposals: the four/five verbs, strictly allowlisted ────────────

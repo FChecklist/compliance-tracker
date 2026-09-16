@@ -74,6 +74,37 @@ I'll independently re-verify the actual result myself the next time I have a tur
 
 ---
 
+## 2026-09-16 — Item 6: the real `dpdp.projection()` database function (WO-DPDP-006 §2)
+
+**What I was trying to do:** replace the JS version of the AI-status snapshot with a real database function, per your correction that the personal-data exclusion has to be a security boundary, not app-code discipline.
+
+**Where I paste it:** same place — Supabase SQL Editor → paste → Run.
+
+**The exact SQL:** the full contents of [`drizzle/0425_dpdp_projection_function.sql`](drizzle/0425_dpdp_projection_function.sql), committed alongside this file.
+
+**What you should see if it worked:** "Success. No rows returned." I've already written the fuzz test you asked for (seeds realistic fake names/emails/phone numbers, proves none of it can appear in the output) — it's committed and currently fails on the one check that says "the function exists," exactly as expected, because it isn't live yet. Once you paste this, tell me and I'll re-run it for real proof.
+
+---
+
+## 2026-09-16 — Item 5: Resend domain verification (WO-DPDP-006 §1) — outranks everything else
+
+**What I was trying to do:** get you the exact DNS records to paste, so magic-link sign-in actually works.
+
+**What I found:** the API key already in this project (`RESEND_API_KEY`) is a "sending-only" key — Resend itself refuses to let it read or manage domains ("This API key is restricted to only send emails"). I cannot fetch or generate the exact DKIM values without you logging into the Resend dashboard yourself, which is also exactly the kind of "live human login I can't delegate" your own work order reserves to you. I'm not able to do this step for you beyond giving you the general shape — I don't have a way to see the exact keys Resend will generate until you add the domain there.
+
+**What to actually do, step by step:**
+1. Go to resend.com → log in → **Domains** → **Add Domain**.
+2. Type in: `mail.veridian-aios.com` (a subdomain dedicated to sending, not the bare `veridian-aios.com` — this is Resend's own recommended practice and matches WO-DPDP-006 §B10's "dedicated sending subdomain").
+3. Resend will show you a table of DNS records to add — typically 3 CNAME records (for DKIM) and sometimes an MX + TXT (for SPF). **These exact values are generated fresh by Resend when you add the domain — I cannot predict or fabricate them.**
+4. Go to wherever `veridian-aios.com`'s DNS is managed (your domain registrar, or Vercel if the domain is managed there) and add each record exactly as Resend shows it — same type (CNAME/TXT/MX), same "Name/Host" value, same "Value" value.
+5. Come back to Resend's Domains page and click **Verify**. DNS can take a few minutes to a few hours to propagate.
+6. **What you should see when it's worked:** the domain's status in Resend changes from "Pending" to "Verified" (usually a green checkmark).
+7. Once verified, tell me, and I will change this app's `EMAIL_FROM` setting to send from `noreply@mail.veridian-aios.com` instead of the current, unverified `veridian-compliance.ai`.
+
+**One-command check I can run afterwards to prove delivery end to end:** once you confirm it's verified, ask me to run the check — I'll trigger a real magic-link request to a real inbox you control and confirm the email actually lands (not just that the API call succeeded), the same way I found this bug in the first place.
+
+---
+
 ## 2026-09-16 — Item 4: the AI Link feature's database tables (WO-DPDP-004)
 
 **What I was trying to do, in one sentence:** Add 4 more new database tables for the "AI Link" feature — the thing that lets you paste a link into ChatGPT or Claude so it can read your compliance status and suggest changes, which you then approve yourself.
