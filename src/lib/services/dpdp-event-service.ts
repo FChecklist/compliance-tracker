@@ -40,6 +40,8 @@ export const DPDP_EVENT_KINDS = [
   "breach_reported", "breach_board_notified", "breach_individuals_notified",
   "notice_published", "grievance_officer_appointed", "public_page_published",
   "attestation_signed", "audit_finding_written",
+  "ai_proposal_applied", "ai_proposal_discarded",
+  "task_answered", "task_answer_refused",
 ] as const
 export type DpdpEventKind = (typeof DPDP_EVENT_KINDS)[number]
 

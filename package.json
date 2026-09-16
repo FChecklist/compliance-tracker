@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
+    "prepare": "node scripts/install-git-hooks.mjs",
     "predev": "node scripts/generate-protected-routes.mjs && node scripts/generate-prompt-template-dependents.mjs",
     "prebuild": "node scripts/generate-protected-routes.mjs && node scripts/generate-prompt-template-dependents.mjs",
     "dev": "next dev -p 3000 2>&1 | tee dev.log",

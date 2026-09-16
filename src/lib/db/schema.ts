@@ -14588,6 +14588,12 @@ export const dpdpDataLocation = dpdpSchemaDB.table('data_location', {
   askedAt: timestamp('asked_at'),
 })
 
+// WO-DPDP-005 Section 1 (owner decision, 16 Sep 2026): the three proof
+// modes, shared by obligation_template (which mode a duty defaults to)
+// and artefact (which mode a given upload actually used) -- declared once
+// here since both tables reference it.
+export const dpdpProofModeEnum = dpdpSchemaDB.enum('proof_mode', ['declare', 'fingerprint', 'hold'])
+
 // ─── DPDP 4.3: obligation library -- versioned ──────────────────────────
 export const dpdpLibraryVersion = dpdpSchemaDB.table('library_version', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -14612,6 +14618,7 @@ export const dpdpObligationTemplate = dpdpSchemaDB.table('obligation_template', 
   roleTag: text('role_tag'),
   appliesWhen: jsonb('applies_when'),
   feedsDocuments: text('feeds_documents').array(),
+  proofMode: dpdpProofModeEnum('proof_mode').notNull().default('declare'), // WO-DPDP-005 1: which of the 3 proof modes this duty defaults to
 }, (t) => ({
   libraryVersionKeyUnique: unique('dpdp_obligation_template_version_key_key').on(t.libraryVersionId, t.key),
 }))
@@ -14656,6 +14663,19 @@ export const dpdpObligation = dpdpSchemaDB.table('obligation', {
 // document", explicitly reserved to Rajat/counsel, NOT decided by this
 // migration. The mechanism exists; the legal policy for invoking it does
 // not yet.
+// WO-DPDP-005 Section 1 (owner decision, 16 Sep 2026, reverses WO-003
+// 4.5's Supabase-Storage model): "we keep proof that a document existed.
+// We do not keep the document." Confirmed before writing this that
+// nothing in this codebase ever actually built durable storage for
+// dpdp artefacts -- src/app/api/dpdp/artefacts/route.ts's own pre-existing
+// comment says the file bytes were always "out of scope for this route" --
+// so this is a clean addition, not a reversal of anything that shipped.
+// storagePath stays nullable and is only ever meant to be set for
+// proofMode='hold' (and only for the ~30-day review window) -- the CHECK
+// constraint in 0426 makes 'never_stored'+a storage path impossible at
+// the database level, not just by convention.
+export const dpdpStorageStateEnum = dpdpSchemaDB.enum('storage_state', ['never_stored', 'held', 'deleted'])
+
 export const dpdpArtefact = dpdpSchemaDB.table('artefact', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   obligationId: text('obligation_id').notNull(),
@@ -14683,6 +14703,11 @@ export const dpdpArtefact = dpdpSchemaDB.table('artefact', {
   redactedBy: text('redacted_by'),
   redactionReason: text('redaction_reason'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  proofMode: dpdpProofModeEnum('proof_mode').notNull().default('declare'),
+  storageState: dpdpStorageStateEnum('storage_state').notNull().default('never_stored'),
+  deletedAt: timestamp('deleted_at'),
+  clientLocation: text('client_location'), // where the user says the original lives, for the yearly refresh to re-confirm
+  storagePath: text('storage_path'), // only ever non-null for proofMode='hold', only for the review window -- see 0426's CHECK constraint
 })
 
 // A gap between t_activity and t_exif raises a flag. Flag, never reject --
@@ -14773,6 +14798,45 @@ export const dpdpGrievance = dpdpSchemaDB.table('grievance', {
   officerDecision: text('officer_decision'),
   reviewerDetermination: text('reviewer_determination'),
   reviewerIdentityId: text('reviewer_identity_id'),
+})
+
+// WO-DPDP-005 Section 2: "erasure is coordination, not deletion." We do
+// not touch client systems -- we know every place data sits, ask whoever
+// controls each place, collect confirmations, and prove it afterwards.
+// Places are generated from the data map (dpdp.data_location), one per
+// erasure_place row, keyed to the location it came from.
+export const dpdpErasurePlaceTypeEnum = dpdpSchemaDB.enum('erasure_place_type', ['app', 'folder', 'email', 'paper', 'vendor', 'backup', 'law'])
+export const dpdpErasurePlaceStateEnum = dpdpSchemaDB.enum('erasure_place_state', ['waiting', 'done', 'cannot', 'lawful_hold'])
+
+export const dpdpErasureRequest = dpdpSchemaDB.table('erasure_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  rightsRequestId: text('rights_request_id').notNull(),
+  receivedAt: timestamp('received_at').notNull().defaultNow(),
+  dueAt: timestamp('due_at').notNull(), // +90d
+  state: text('state').notNull().default('open'),
+})
+
+export const dpdpErasurePlace = dpdpSchemaDB.table('erasure_place', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  erasureId: text('erasure_id').notNull(),
+  dataLocationId: text('data_location_id').notNull(),
+  placeType: dpdpErasurePlaceTypeEnum('place_type').notNull(),
+  holderPersonId: text('holder_person_id'),
+  holderOrgId: text('holder_org_id'),
+  state: dpdpErasurePlaceStateEnum('state').notNull().default('waiting'),
+  confirmedBy: text('confirmed_by'),
+  confirmedAt: timestamp('confirmed_at'),
+  methodNote: text('method_note'),
+  refusalLaw: text('refusal_law'), // required when state='lawful_hold' or 'cannot' -- enforced in the service layer, "a lawful refusal is an answer, not a failure"
+})
+
+export const dpdpErasureAnswer = dpdpSchemaDB.table('erasure_answer', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  erasureId: text('erasure_id').notNull(),
+  sentAt: timestamp('sent_at').notNull().defaultNow(),
+  body: text('body').notNull(), // drafted from the place list: what was deleted, what was kept, which law requires it, the backup-restore position
+  sentBy: text('sent_by').notNull(),
 })
 
 // ─── DPDP 4.6: governance and publication ───────────────────────────────
@@ -14976,6 +15040,98 @@ export const dpdpSession = dpdpSchemaDB.table('session', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// WO-DPDP-005 Section 3: "email is the interface, not a notification."
+// One row per task; the email and the dashboard render the SAME rows --
+// answering in either updates this same record, which is why answeredVia
+// exists ("when an auditor asks how a confirmation was obtained, the
+// distinction matters").
+export const dpdpTaskAnswerEnum = dpdpSchemaDB.enum('task_answer', ['yes', 'no'])
+export const dpdpTaskAnsweredViaEnum = dpdpSchemaDB.enum('task_answered_via', ['email', 'app'])
+
+export const dpdpTask = dpdpSchemaDB.table('task', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  obligationId: text('obligation_id').notNull(),
+  seq: integer('seq').notNull(),
+  text: text('text').notNull(),
+  subtext: text('subtext'),
+  optionYes: text('option_yes').notNull(),
+  optionNo: text('option_no').notNull(),
+  answer: dpdpTaskAnswerEnum('answer'),
+  answeredBy: text('answered_by'),
+  answeredAt: timestamp('answered_at'),
+  answeredVia: dpdpTaskAnsweredViaEnum('answered_via'),
+  tokenId: text('token_id'),
+})
+
+// One use, one action, one address, 48 hours (WO-DPDP-005 3). Deliberately
+// the same opaque-token-hash shape as login_token/session/consent_token --
+// this file's own established pattern for every non-Supabase-Auth token.
+export const dpdpEmailTokenActionEnum = dpdpSchemaDB.enum('email_token_action', ['yes', 'no', 'sign_in'])
+
+// WO-DPDP-007 4.3: "the token is the enforcement, not a check." membershipId
+// is NOT NULL, and a trigger (0427) rejects any insert where the token's
+// task doesn't belong to that membership's own organisation -- forwarding
+// a task link to someone at a DIFFERENT organisation fails structurally,
+// not because a rule caught it.
+export const dpdpEmailToken = dpdpSchemaDB.table('email_token', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  taskId: text('task_id').notNull(),
+  identityId: text('identity_id').notNull(),
+  membershipId: text('membership_id').notNull(),
+  action: dpdpEmailTokenActionEnum('action').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  issuedAt: timestamp('issued_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(), // +48h
+  usedAt: timestamp('used_at'),
+})
+
+// WO-DPDP-007 Section 2: inbound replies, parsed by the provider into JSON
+// (never raw MIME parsed here) and routed by membership_id (not
+// identity_id -- "that single choice is what makes everything in Section
+// 4 work"). Personal data in a reply body must land in this India-hosted
+// table directly, never pass through a US mailbox first (WO's own DPDP
+// note) -- there is deliberately no Google-mail code path anywhere near
+// this table.
+export const dpdpInboundMessage = dpdpSchemaDB.table('inbound_message', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  membershipId: text('membership_id'), // nullable: an unresolvable address is discarded, not rejected outright -- see discardedReason
+  taskId: text('task_id'),
+  receivedAt: timestamp('received_at').notNull().defaultNow(),
+  fromAddress: text('from_address').notNull(),
+  bodyStripped: text('body_stripped'), // quoted text/signatures stripped before filing
+  rawRetainedUntil: timestamp('raw_retained_until'), // +30 days, then the raw body is dropped
+  actionTaken: text('action_taken'), // e.g. 'comment'|'answered_yes'|'answered_no' -- free text, small enum not worth a migration yet
+  discardedReason: text('discarded_reason'), // set when membershipId/taskId didn't resolve to anything live
+})
+
+// WO-DPDP-007 4.2: caps sends per identity, never per membership -- "three
+// memberships must never mean three emails a day." One row per actual
+// send event (not per membership), so "did Anil get one email or three
+// today" is a real, checkable fact.
+export const dpdpDigestFormatEnum = dpdpSchemaDB.enum('digest_format', ['single', 'batched'])
+
+export const dpdpDigestSend = dpdpSchemaDB.table('digest_send', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  identityId: text('identity_id').notNull(),
+  sentAt: timestamp('sent_at').notNull().defaultNow(),
+  membershipIds: text('membership_ids').array().notNull(),
+  format: dpdpDigestFormatEnum('format').notNull(),
+})
+
+// WO-DPDP-007 4.4: "a CA who is also a director of a client cannot review
+// his own company's evidence." Detectable the moment the review is
+// attempted -- refused, and the refusal recorded, which "is worth more to
+// an auditor than a silent allow: it shows the control exists and fired."
+export const dpdpIndependenceBlock = dpdpSchemaDB.table('independence_block', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  membershipId: text('membership_id').notNull(),
+  targetOrgId: text('target_org_id').notNull(),
+  attemptedAt: timestamp('attempted_at').notNull().defaultNow(),
+  action: text('action').notNull(),
+  reason: text('reason').notNull(),
+})
+
 export const dpdpPartner = dpdpSchemaDB.table('partner', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   email: text('email').notNull().unique(),
@@ -14984,4 +15140,163 @@ export const dpdpPartner = dpdpSchemaDB.table('partner', {
   code: text('code').notNull().unique(),
   attributionDays: integer('attribution_days').notNull().default(90),
   state: text('state').notNull().default('active'),
+})
+
+// ─── WO-DPDP-003 4.9/4.10: commercial (file packs, custody, partner sales)
+// and the CERT-In-constrained auditor/cyber panel. All net-new (0415-0421
+// only modeled organisation/relationship/referral/partner) -- confirmed by
+// grep before writing this.
+export const dpdpFilePack = dpdpSchemaDB.table('file_pack', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  packSize: integer('pack_size').notNull(),
+  filesRemaining: integer('files_remaining').notNull(),
+  purchasedAt: timestamp('purchased_at').notNull().defaultNow(),
+  // "Unused pack files roll over one year" (WO 4.9) -- expiresAt is that
+  // rollover boundary, not a hard cutoff the app deletes on.
+  expiresAt: timestamp('expires_at'),
+})
+
+// "10-year custody, ₹1,500/file, paid once -- the work plus the proof held
+// ten years" (WO 4.9). One row per artefact placed into custody.
+export const dpdpCustody = dpdpSchemaDB.table('custody', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  obligationFileId: text('obligation_file_id').notNull(),
+  termYears: integer('term_years').notNull().default(10),
+  paidAt: timestamp('paid_at'),
+  keepUntil: timestamp('keep_until'),
+})
+
+export const dpdpPartnerSale = dpdpSchemaDB.table('partner_sale', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  partnerId: text('partner_id').notNull(),
+  orgId: text('org_id').notNull(),
+  at: timestamp('at').notNull().defaultNow(),
+  state: text('state').notNull().default('pending'), // 'pending'|'paid'|'reversed'
+  commissionPaise: integer('commission_paise').notNull(),
+  recurs: boolean('recurs').notNull().default(true),
+})
+
+export const dpdpCredentialRegionEnum = dpdpSchemaDB.enum('credential_region', ['IN', 'EU', 'US', 'GLOBAL'])
+export const dpdpCredentialAppliesToEnum = dpdpSchemaDB.enum('credential_applies_to', ['org', 'person', 'both'])
+export const dpdpFirmCredStateEnum = dpdpSchemaDB.enum('firm_cred_state', ['declared', 'evidence', 'expired'])
+
+// "We take no commission, listing fee or paid placement from any panel
+// firm... there is no revenue field on panel_firm" (WO 4.10) -- enforced
+// structurally by this table genuinely having none, not just by convention;
+// dpdp-panel-service.test.ts asserts this column set directly so a future
+// edit can't quietly add one back.
+export const dpdpPanelFirm = dpdpSchemaDB.table('panel_firm', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  city: text('city'),
+  since: date('since'),
+  headcount: integer('headcount'),
+  responseSla: text('response_sla'),
+  jobsViaUs: integer('jobs_via_us').notNull().default(0),
+})
+
+// exactWording is the ONLY place the literal CERT-In sentence may ever be
+// stored -- see dpdp-panel-service.ts's CERT_IN_EXACT_WORDING constant,
+// which this table's seed row must equal verbatim (WO 4.10: "the app must
+// make any other phrasing impossible").
+export const dpdpCredential = dpdpSchemaDB.table('credential', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  kind: text('kind').notNull(),
+  issuer: text('issuer').notNull(),
+  region: dpdpCredentialRegionEnum('region').notNull(),
+  appliesTo: dpdpCredentialAppliesToEnum('applies_to').notNull(),
+  scope: text('scope'),
+  exactWording: text('exact_wording'),
+  noScheme: boolean('no_scheme').notNull().default(false),
+})
+
+export const dpdpFirmCred = dpdpSchemaDB.table('firm_cred', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  firmId: text('firm_id').notNull(),
+  credentialId: text('credential_id').notNull(),
+  expiresOn: date('expires_on'),
+  state: dpdpFirmCredStateEnum('state').notNull().default('declared'),
+  artefactId: text('artefact_id'),
+})
+
+export const dpdpPanelRequest = dpdpSchemaDB.table('panel_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  firmId: text('firm_id').notNull(),
+  requestedAt: timestamp('requested_at').notNull().defaultNow(),
+  respondedAt: timestamp('responded_at'),
+})
+
+// WO-DPDP-004 Section 5.10 -- "The AI Link". Schema per that section
+// exactly (superseding this session's own earlier, simpler draft, which
+// was never applied to production -- clean replacement, not a migration
+// on top of a migration).
+//
+// `token` is stored in PLAIN TEXT, deliberately, per the WO's own security
+// model: "the link carries no authority... a leaked or malicious link is
+// an annoyance, not a breach... do not add a signing secret that would
+// make the link itself authoritative." Every other opaque token in this
+// file (login_token/session/consent_token) is a real credential and is
+// hashed; this one is a read-only capability whose only "risk" if leaked
+// is someone else being able to read the same non-personal projection --
+// explicitly not something this schema tries to harden beyond what the
+// spec asks for.
+export const dpdpAiLink = dpdpSchemaDB.table('ai_link', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  identityId: text('identity_id').notNull(),
+  token: text('token').notNull().unique(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+})
+
+// "Reads are logged with user-agent family and IP prefix only" -- never
+// the full IP (a personal-data-adjacent value for a natural person), never
+// a raw user-agent string (fingerprinting surface) -- see
+// dpdp-ai-link-service.ts's classifyUserAgent()/ipPrefix() for where those
+// are actually reduced before this table ever sees them.
+export const dpdpAiLinkRead = dpdpSchemaDB.table('ai_link_read', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  linkId: text('link_id').notNull(),
+  at: timestamp('at').notNull().defaultNow(),
+  userAgentFamily: text('user_agent_family'),
+  ipPrefix: text('ip_prefix'),
+})
+
+export const dpdpAiProposalStateEnum = dpdpSchemaDB.enum('ai_proposal_state', ['pending', 'applied', 'discarded', 'expired'])
+
+// One row per pasted-back AI proposal (the URL/text the user brings back
+// from their AI chat). `raw` is kept verbatim, permanently -- "refused
+// lines are recorded too, so anyone auditing can see what the AI tried"
+// requires the original text to still exist, not just the parsed lines.
+export const dpdpAiProposal = dpdpSchemaDB.table('ai_proposal', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ref: text('ref').notNull(),
+  sourceLabel: text('source_label').notNull(),
+  arrivedAt: timestamp('arrived_at').notNull().defaultNow(),
+  raw: text('raw').notNull(),
+  state: dpdpAiProposalStateEnum('state').notNull().default('pending'),
+})
+
+// Only five verbs ever parse: ASSIGN, SET_DUE, NOTE, MARK_NA, DRAFT (WO
+// 5.10). Everything else -- and anything referencing an unknown
+// target_key -- is a row here with allowed=false and a refusal_reason,
+// never silently dropped, so the "what it asked for and cannot have"
+// section of the review screen has real data to render.
+export const dpdpAiProposalLine = dpdpSchemaDB.table('ai_proposal_line', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  proposalId: text('proposal_id').notNull(),
+  seq: integer('seq').notNull(),
+  verb: text('verb').notNull(),
+  targetKey: text('target_key').notNull(),
+  payload: jsonb('payload'),
+  allowed: boolean('allowed').notNull(),
+  refusalReason: text('refusal_reason'),
+  approved: boolean('approved').notNull().default(false),
+  appliedAt: timestamp('applied_at'),
 })

@@ -263,6 +263,24 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   "src/app/api/dpdp/exposure/route.ts",
   "src/app/api/dpdp/events/route.ts",
   "src/app/api/dpdp/events/verify/route.ts",
+  // WO-DPDP-002/003/004 (2026-09-16): 12 more dpdp/* routes added after the
+  // original WO-DPDP-001 sweep above -- same reasoning, dpdp's own separate
+  // auth plane (requireDpdpSession()/requireDpdpSigner(), or deliberately
+  // public/token-scoped), never this app's requireAuth(). Kept in sync with
+  // authz-gap-inventory.test.ts's own EXEMPT_ROUTES additions from the same
+  // commit.
+  "src/app/api/dpdp/referral/route.ts",
+  "src/app/api/dpdp/partner/route.ts",
+  "src/app/api/dpdp/attest/route.ts",
+  "src/app/api/dpdp/proof/route.ts",
+  "src/app/api/dpdp/access-log/route.ts",
+  "src/app/api/dpdp/mydata/route.ts",
+  "src/app/api/dpdp/ai-link/route.ts",
+  "src/app/api/dpdp/ai-work/route.ts",
+  "src/app/api/dpdp/ai-work/[proposalId]/apply/route.ts",
+  "src/app/api/dpdp/ai-work/[proposalId]/discard/route.ts",
+  "src/app/api/dpdp/ai/[token]/route.ts", // public, token-in-URL, no session -- same TOKEN_SCOPED shape as p/[token]/route.ts above
+  "src/app/api/dpdp/task-link/[token]/route.ts", // public, token-in-URL, no session -- the email-click vertical slice (WO-DPDP-005/007)
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail

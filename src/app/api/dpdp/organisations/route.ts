@@ -5,6 +5,7 @@ import { instantiateObligationsForOrg } from "@/lib/services/dpdp-obligation-ser
 import { ensureDraftObligationLibrarySeeded } from "@/lib/services/dpdp-obligation-library"
 import { switchDpdpActiveOrg } from "@/lib/services/dpdp-auth-service"
 import { dpdpErrorResponse } from "@/lib/services/dpdp-route-helpers"
+import { recordReferralAttempt } from "@/lib/services/dpdp-referral-service"
 
 // "Open the account -- one person, free forever." Uses requireDpdpIdentity
 // (session only, no org required yet) because THIS is the route that
@@ -24,6 +25,19 @@ export async function POST(request: NextRequest) {
     // no new cookie needed, the existing one's underlying row just gets a
     // real active_org_id instead of null.
     await switchDpdpActiveOrg(result.ctx.sessionId, result.ctx.identityId, org.id)
+
+    // ?ref=CODE (WO-DPDP-003 4.9) -- best-effort, never fatal to org
+    // creation. A bad/unknown code, or a conflict (self_referral/
+    // shared_advisor), is recordReferralAttempt's own job to classify and
+    // log; this route doesn't need to know or react to the outcome.
+    const refCode = body?.referralCode ?? request.nextUrl.searchParams.get("ref")
+    if (refCode) {
+      try {
+        await recordReferralAttempt(String(refCode), org.id)
+      } catch {
+        // Unknown/inactive code -- not the new org's problem.
+      }
+    }
 
     return NextResponse.json({ organisation: org }, { status: 201 })
   } catch (error) {

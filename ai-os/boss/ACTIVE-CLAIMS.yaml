@@ -40,22 +40,76 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive, Claude Desktop, WO-DPDP-001 + AMENDMENT A1) -- new DPDP Act 2023 compliance product, built inside compliance-tracker per the Owner's explicit amendment (not a separate repo -- projexa-ai.com is served by FChecklist/projexa, no collision)"
-    claimed_at: "2026-09-15T (this session)"
+  - session_label: "claude-code (interactive, Claude Desktop, WO-DPDP-002, continuing WO-DPDP-001 + AMENDMENT A1 -- and a mid-implementation handoff FROM session 'ct-ca', which moved to PROJEXA-AI.COM) -- new DPDP Act 2023 compliance product, built inside compliance-tracker per the Owner's explicit amendment (not a separate repo -- projexa-ai.com is served by FChecklist/projexa, no collision)"
+    claimed_at: "2026-09-16T, refreshed again after taking the ct-ca handoff (owner confirmed live, in chat, that he told ct-ca to hand off to this session) -- same engagement, not a new/competing session"
     claim: |
+      HANDOFF FROM ct-ca (2026-09-16, owner-confirmed live in chat): ct-ca was
+      given veridian-complete_17.html (a newer spec revision than this session
+      started from) and diffed it against the real built module, scoping the
+      delta into Tier 1 (UI-only: /dpdp/proof, /dpdp/attest, /dpdp/outbox,
+      /dpdp/edge, /dpdp/mydata), Tier 2 (backend exists or is being added,
+      UI/routes/nav don't yet: /dpdp/refer, /dpdp/partner, /dpdp/access-log,
+      DpdpShell.tsx per-capability nav) and Tier 3 (net-new schema: auditor
+      credentials + an auditor marketplace -- owner explicitly said NOT to
+      touch this yet). ct-ca completed only dpdp-referral-service.ts's
+      getOrCreateMyReferral/listMyReferralActivity and the new
+      dpdp-partner-service.ts (both reviewed and accepted as-is by this
+      session, committed) before being redirected to PROJEXA-AI.COM --
+      everything else in Tier 1/2 (9 new routes, ~9 new pages, the nav
+      restructure, wiring `?ref=` consumption into org creation) is still
+      open and now this session's scope. Full detail in ct-ca's own handoff
+      message (this session's transcript, not duplicated here).
+
       SCOPE: everything under a new `dpdp` Postgres schema (pcrjmlpuqsbocqfwoxod),
-      routes under src/app/api/dpdp/** and src/app/(app)/dpdp/**, src/lib/services/dpdp-*.ts,
+      routes under src/app/api/dpdp/** and src/app/dpdp/(app)/**, src/lib/services/dpdp-*.ts,
       src/lib/db/dpdp-* helpers, and the withDpdpContext addition to
       src/lib/db/tenant-scoped.ts. Does NOT touch compliance.* or platform.* tables,
       PROJEXA's proxy routes, or any existing route outside the dpdp/* namespace.
+      Also covers repo-root dev-tooling additions made as part of WO-DPDP-002's
+      pre-flight gates (P2): scripts/install-git-hooks.mjs, .githooks/pre-commit,
+      package.json's "prepare" script -- these are generic, not dpdp-scoped, but
+      claimed here since this session added them.
 
-      Phase 1 (schema) already merged/open: PR #1733 (dpdp/phase1-schema-foundation) --
-      32 tables, RLS, triggers, withDpdpContext. Now proceeding into Phase 2
-      (services, passwordless magic-link auth for dpdp.identity, routes, UI ported
-      from the owner-supplied veridian-complete.html spec) per explicit owner
-      instruction to complete the project end to end. Vercel deploy/domain move
-      (Phase 4) is explicitly OUT of this claim's scope -- R76's Vercel lockdown
-      stays in force; not deploying regardless of "end to end" phrasing.
+      Phase 1 (schema) + Phase 2 (services, passwordless magic-link auth,
+      routes, UI ported from the owner-supplied veridian-complete.html spec)
+      both merged (PR #1733 and later). 44 route.ts files and 21 page.tsx
+      files now exist under the dpdp namespace, matching most of
+      veridian-complete.html's views. NOT yet done, and the actual focus of
+      WO-DPDP-002: only 1 of 44 routes has a route.test.ts, only 3 dpdp
+      service files have tests -- Section 4 of WO-DPDP-002 (schema/RLS/auth/
+      route/principal/email/chain/referral test layers + TEST_REPORT.md) is
+      the real remaining gap, not net-new schema/UI work. Also open: the
+      Section 5 blast-radius question (PROJEXA vs veridian-aios.com on one
+      Vercel deploy) and Section 7 deliverables (cloudflared tunnel, preview
+      URL, TEST_REPORT.md) for an external (Claude chat) review.
+
+      WO-DPDP-002 Pre-flight gates, resolved this session (2026-09-16):
+      P1 (migration ledger 112 entries behind) -- verified 111/112 already
+      live in production (cross-checked against supabase_migrations.schema_migrations
+      and, for 4 name-mismatches, directly against information_schema/pg_policies/
+      pg_class), exactly 1 (0335_crm_accounts_ai_and_bridge_columns) was a real
+      additive-only gap. The actual DB write (both the one real ALTER TABLE and
+      the ledger backfill INSERT) is blocked by Claude Code's own "Production
+      Deploy" auto-mode classifier -- per WO-DPDP-002 Section 1, did not retry
+      through a different tool; exact ready-to-paste SQL is in
+      HANDOFF_FOR_RAJAT.md + scratch/migration-ledger-backfill.sql for the
+      Owner to run in the Supabase SQL editor. P2 (hardcoded secret) -- the
+      key itself was already rotated and the leaking script already fixed in
+      a prior session (claude_log id 115, FChecklist/projexa PR #191, merged
+      2026-08-27); this session added the missing pre-commit half (gitleaks
+      already ran in CI). One related item from that same claude_log entry
+      is still open and NOT acted on here (correctly, per that session's own
+      judgment): 11 real Supabase Auth test accounts on evpckeuxgvahguwsaeul
+      still share a plaintext password that was public on GitHub since
+      2026-07-19 -- flagged to the Owner again in this session's report, not
+      rotated, since changing a real account credential is a different class
+      of action than an API key and needs the Owner's own decision. P3
+      (Supabase project region/health) -- confirmed ap-south-1, ACTIVE_HEALTHY.
+
+      Vercel deploy/domain move (Phase 4) is explicitly OUT of this claim's
+      scope -- R76/R87's Vercel lockdown stays in force; not deploying
+      regardless of "end to end" phrasing, and WO-DPDP-002 Section 6 itself
+      gates going live on the Owner's own recharge + explicit confirmation.
 
       Appending to schema.ts (shared 14k-line file) -- new content only, at the
       end of the file inside the existing dpdp section from PR #1733, not editing

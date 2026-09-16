@@ -7,17 +7,26 @@ import { dpdpFetch } from "../../_lib/api"
 type NavItem = { href: string; label: string }
 type NavGroup = { label: string; items: NavItem[] }
 
+// WO-DPDP-003 Section 5.1: "Sidebar order starts: Dashboard → 🛡️ Proof → …"
+// and per-capability navigation (advisor/fiduciary/processor/auditor), not
+// one unified fiduciary-style menu. `capabilities` is an org's set (an org
+// can hold more than one, e.g. a CA firm that also processes for a
+// client), so groups add per capability rather than picking one branch.
 function navFor(level: "owner" | "staff", capabilities: string[]): NavGroup[] {
+  const isAdvisor = capabilities.includes("advisor")
+  const isProcessor = capabilities.includes("processor")
+  const isAuditor = capabilities.includes("auditor")
+
   const groups: NavGroup[] = [
-    { label: "Start here", items: [{ href: "/dpdp/home", label: "Home" }, { href: "/dpdp/lifecycle", label: "Where we are" }] },
+    { label: "Start here", items: [{ href: "/dpdp/home", label: "Home" }, { href: "/dpdp/proof", label: "🛡️ Proof" }, { href: "/dpdp/lifecycle", label: "Where we are" }] },
   ]
 
   if (level === "owner") {
     groups.push({
-      label: "Our practice",
+      label: isAdvisor ? "Our practice" : "Our fiduciary duties",
       items: [
         { href: "/dpdp/data-map", label: "Where our data is" },
-        { href: "/dpdp/people", label: "Our people" },
+        { href: isAdvisor ? "/dpdp/people?as=team" : "/dpdp/people", label: isAdvisor ? "Our people" : "Our people" },
         { href: "/dpdp/relationships", label: "Outside firms" },
       ],
     })
@@ -39,15 +48,31 @@ function navFor(level: "owner" | "staff", capabilities: string[]): NavGroup[] {
       ],
     })
     groups.push({ label: "The to-do list", items: [{ href: "/dpdp/obligations", label: "Everyone's jobs" }, { href: "/dpdp/review", label: "Things to check" }, { href: "/dpdp/exposure", label: "Work out what you hold" }] })
+    groups.push({ label: "Finishing", items: [{ href: "/dpdp/attest", label: "✍️ Confirm and sign off" }] })
   } else {
-    groups.push({ label: "My jobs", items: [{ href: "/dpdp/obligations?mine=1", label: "My jobs" }] })
+    groups.push({ label: "My jobs", items: [{ href: "/dpdp/obligations?mine=1", label: "My jobs" }, { href: "/dpdp/mydata", label: "What you hold about me" }] })
   }
 
-  if (capabilities.includes("processor") || capabilities.includes("auditor") || capabilities.includes("advisor")) {
-    groups.push({ label: "Who we work for", items: [{ href: "/dpdp/relationships?as=served", label: "Who we work for" }] })
+  if (isAdvisor || isProcessor || isAuditor) {
+    groups.push({
+      label: isAuditor ? "Audits" : "Who we work for",
+      items: [{ href: "/dpdp/relationships?as=served", label: isAuditor ? "What we're auditing" : "Who we work for" }],
+    })
+  }
+  if (isAuditor) {
+    groups.push({ label: "Independence", items: [{ href: "/dpdp/access-log", label: "👁️ Who looked at what" }] })
   }
 
-  groups.push({ label: "Always", items: [{ href: "/dpdp/record", label: "Everything that happened" }] })
+  groups.push({
+    label: "Always",
+    items: [
+      { href: "/dpdp/record", label: "Everything that happened" },
+      { href: "/dpdp/ai-link", label: "🤖 AI Link" },
+      { href: "/dpdp/outbox", label: "Emails sent" },
+      { href: "/dpdp/edge", label: "If something goes wrong" },
+      { href: "/dpdp/refer", label: "🎁 Refer and earn" },
+    ],
+  })
   return groups
 }
 
@@ -92,6 +117,12 @@ export function DpdpShell({ orgName, level, capabilities, children }: { orgName:
         </nav>
         <main className="p-6 max-w-4xl">{children}</main>
       </div>
+      <Link
+        href="/dpdp/partner"
+        className="fixed left-3 bottom-3 bg-white border border-[#E6E2F5] rounded-full px-3 py-1.5 text-xs font-semibold text-[#564D77] shadow-sm hover:bg-[#F2ECFF]"
+      >
+        Partner programme
+      </Link>
     </div>
   )
 }
