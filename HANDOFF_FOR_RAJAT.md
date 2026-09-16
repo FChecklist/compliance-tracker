@@ -74,6 +74,18 @@ I'll independently re-verify the actual result myself the next time I have a tur
 
 ---
 
+## 2026-09-16 — Item 8: two more schema migrations (WO-DPDP-005 and WO-DPDP-007)
+
+**What they do, one line each:**
+- `drizzle/0426_dpdp_proof_modes_erasure_tasks.sql` — the "we don't keep your documents" model (three proof modes), the "erasure is coordination not deletion" tables, and the task/email-answer tables that make email the actual interface.
+- `drizzle/0427_dpdp_membership_scoped_email.sql` — makes sure a task link can never be used by someone at the wrong company (enforced by the database itself, not just app code), plus the tables for replies coming back in and for catching a conflict-of-interest (an auditor reviewing their own company).
+
+**Where/how:** same as the others — paste each file's contents into the Supabase SQL Editor and run. These two can go in any order relative to each other, but **both must go in after Item 3, 4, and 6** (they build on those).
+
+**What you should see:** "Success. No rows returned," for each.
+
+---
+
 ## 2026-09-16 — Item 6: the real `dpdp.projection()` database function (WO-DPDP-006 §2)
 
 **What I was trying to do:** replace the JS version of the AI-status snapshot with a real database function, per your correction that the personal-data exclusion has to be a security boundary, not app-code discipline.
