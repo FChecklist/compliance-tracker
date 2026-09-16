@@ -74,6 +74,20 @@ I'll independently re-verify the actual result myself the next time I have a tur
 
 ---
 
+## 2026-09-16 — Item 4: the AI Link feature's database tables (WO-DPDP-004)
+
+**What I was trying to do, in one sentence:** Add 4 more new database tables for the "AI Link" feature — the thing that lets you paste a link into ChatGPT or Claude so it can read your compliance status and suggest changes, which you then approve yourself.
+
+**Where I paste it:** Same place — Supabase dashboard → `verdian-ai` project → SQL Editor → New query → paste the whole file → Run.
+
+**The exact SQL, ready to paste:** the full contents of [`drizzle/0424_dpdp_ai_link_and_proposals.sql`](drizzle/0424_dpdp_ai_link_and_proposals.sql), committed alongside this file.
+
+**What you should see if it worked:** "Success. No rows returned."
+
+**Note:** this can be pasted in the same sitting as Item 3 (they don't depend on each other) — two separate paste-and-runs, one after the other.
+
+---
+
 ## 2026-09-16 — Item 2: a real security gap found while writing tests (RLS policy, not urgent — nothing has exploited it)
 
 **What I found:** while writing the tests you asked for, I found — and then proved with a real test against the actual production database — that an "auditor" (an independent firm doing a read-only compliance check) can write/change a client's data at the database level right now, not just read it, even though the product is supposed to make auditors strictly read-only ("read everything, change nothing" is the entire point of that role). Today's actual screens don't happen to expose a way to click into this (I checked — the real button-click paths all have an extra, unrelated safety check that happens to block it as a side effect), but the underlying database permission itself does not enforce it, and I confirmed that directly: a real database write, running as an auditor, against a client's record, went through. I wrote the fix (a database migration file, `drizzle/0422_dpdp_obligation_write_restrict_auditors.sql`, already committed) and a test that proves both the current gap and the fix — I did not apply the fix to the live database myself, because Claude Code's own safety system blocked this one too (this is a security-policy change, a bigger deal than the columns from Item 1, and I did not push back against being blocked on this one).
