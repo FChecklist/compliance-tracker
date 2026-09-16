@@ -2955,6 +2955,13 @@
       "when": 1789538112094,
       "tag": "0423_dpdp_commercial_and_panel_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 424,
+      "version": "7",
+      "when": 1789539351417,
+      "tag": "0424_dpdp_ai_link_and_proposals",
+      "breakpoints": true
     }
   ]
 }

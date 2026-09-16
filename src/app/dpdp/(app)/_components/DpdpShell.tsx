@@ -67,6 +67,7 @@ function navFor(level: "owner" | "staff", capabilities: string[]): NavGroup[] {
     label: "Always",
     items: [
       { href: "/dpdp/record", label: "Everything that happened" },
+      { href: "/dpdp/ai-link", label: "🤖 AI Link" },
       { href: "/dpdp/outbox", label: "Emails sent" },
       { href: "/dpdp/edge", label: "If something goes wrong" },
       { href: "/dpdp/refer", label: "🎁 Refer and earn" },

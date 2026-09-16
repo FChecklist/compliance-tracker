@@ -15073,3 +15073,74 @@ export const dpdpPanelRequest = dpdpSchemaDB.table('panel_request', {
   requestedAt: timestamp('requested_at').notNull().defaultNow(),
   respondedAt: timestamp('responded_at'),
 })
+
+// WO-DPDP-004 Section 5.10 -- "The AI Link". Schema per that section
+// exactly (superseding this session's own earlier, simpler draft, which
+// was never applied to production -- clean replacement, not a migration
+// on top of a migration).
+//
+// `token` is stored in PLAIN TEXT, deliberately, per the WO's own security
+// model: "the link carries no authority... a leaked or malicious link is
+// an annoyance, not a breach... do not add a signing secret that would
+// make the link itself authoritative." Every other opaque token in this
+// file (login_token/session/consent_token) is a real credential and is
+// hashed; this one is a read-only capability whose only "risk" if leaked
+// is someone else being able to read the same non-personal projection --
+// explicitly not something this schema tries to harden beyond what the
+// spec asks for.
+export const dpdpAiLink = dpdpSchemaDB.table('ai_link', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  identityId: text('identity_id').notNull(),
+  token: text('token').notNull().unique(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+})
+
+// "Reads are logged with user-agent family and IP prefix only" -- never
+// the full IP (a personal-data-adjacent value for a natural person), never
+// a raw user-agent string (fingerprinting surface) -- see
+// dpdp-ai-link-service.ts's classifyUserAgent()/ipPrefix() for where those
+// are actually reduced before this table ever sees them.
+export const dpdpAiLinkRead = dpdpSchemaDB.table('ai_link_read', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  linkId: text('link_id').notNull(),
+  at: timestamp('at').notNull().defaultNow(),
+  userAgentFamily: text('user_agent_family'),
+  ipPrefix: text('ip_prefix'),
+})
+
+export const dpdpAiProposalStateEnum = dpdpSchemaDB.enum('ai_proposal_state', ['pending', 'applied', 'discarded', 'expired'])
+
+// One row per pasted-back AI proposal (the URL/text the user brings back
+// from their AI chat). `raw` is kept verbatim, permanently -- "refused
+// lines are recorded too, so anyone auditing can see what the AI tried"
+// requires the original text to still exist, not just the parsed lines.
+export const dpdpAiProposal = dpdpSchemaDB.table('ai_proposal', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ref: text('ref').notNull(),
+  sourceLabel: text('source_label').notNull(),
+  arrivedAt: timestamp('arrived_at').notNull().defaultNow(),
+  raw: text('raw').notNull(),
+  state: dpdpAiProposalStateEnum('state').notNull().default('pending'),
+})
+
+// Only five verbs ever parse: ASSIGN, SET_DUE, NOTE, MARK_NA, DRAFT (WO
+// 5.10). Everything else -- and anything referencing an unknown
+// target_key -- is a row here with allowed=false and a refusal_reason,
+// never silently dropped, so the "what it asked for and cannot have"
+// section of the review screen has real data to render.
+export const dpdpAiProposalLine = dpdpSchemaDB.table('ai_proposal_line', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  proposalId: text('proposal_id').notNull(),
+  seq: integer('seq').notNull(),
+  verb: text('verb').notNull(),
+  targetKey: text('target_key').notNull(),
+  payload: jsonb('payload'),
+  allowed: boolean('allowed').notNull(),
+  refusalReason: text('refusal_reason'),
+  approved: boolean('approved').notNull().default(false),
+  appliedAt: timestamp('applied_at'),
+})
