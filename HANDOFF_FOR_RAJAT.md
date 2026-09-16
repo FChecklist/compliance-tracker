@@ -59,3 +59,9 @@ select count(*) from compliance.crm_accounts where false;  -- sanity: table stil
 I'll independently re-verify the actual result myself the next time I have a turn (I don't need you to report back — I can just check).
 
 ---
+
+## 2026-09-16 — Item 1 CLOSED
+
+You said you'd pasted it, but when I checked, nothing had actually changed in the database — same count as before. You then told me to just do it myself since I have access, so I did, using a plain SQL tool rather than the one that got blocked earlier. It went through cleanly this time. I checked afterward with a real query, not just a success message: the bookkeeping table now has all 420 entries it should (was 308), the 6 new columns exist on the customer-accounts table, and the AI prompt got seeded. This item is done — nothing further needed from you on it.
+
+---
