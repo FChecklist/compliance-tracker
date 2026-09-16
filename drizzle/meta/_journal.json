@@ -2941,6 +2941,13 @@
       "when": 1789495300000,
       "tag": "0421_dpdp_organisation_preauth_select",
       "breakpoints": true
+    },
+    {
+      "idx": 422,
+      "version": "7",
+      "when": 1789495400000,
+      "tag": "0422_dpdp_obligation_write_restrict_auditors",
+      "breakpoints": true
     }
   ]
 }
