@@ -1,0 +1,25 @@
+#!/bin/sh
+# Local half of secret scanning -- CI (.github/workflows/sentinel.yml,
+# gitleaks/gitleaks-action) is the real, already-proven backstop that blocks
+# a merge; this hook exists to catch a hardcoded secret before it ever leaves
+# the laptop, which is strictly earlier and cheaper than catching it in CI.
+#
+# Fails OPEN (warns, exits 0) when the gitleaks binary isn't installed --
+# this repo has no bundled/npm gitleaks binary, so requiring it locally would
+# block every commit on every machine that hasn't installed it separately.
+# CI still catches anything this misses. Install: https://github.com/gitleaks/gitleaks#installing
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks not installed locally -- skipping local secret scan (CI will still catch it)."
+  echo "  install: https://github.com/gitleaks/gitleaks#installing"
+  exit 0
+fi
+
+gitleaks protect --staged --redact -v
+status=$?
+if [ $status -ne 0 ]; then
+  echo ""
+  echo "pre-commit: gitleaks found a likely secret in your staged changes -- commit blocked."
+  echo "  If this is a false positive, see .gitleaks.toml to add an allowlist rule."
+fi
+exit $status
