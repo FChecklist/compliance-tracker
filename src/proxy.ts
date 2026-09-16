@@ -87,7 +87,15 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
+  // dpdp/api/dpdp excluded: WO-DPDP-002 Section 5 (blast-radius) --
+  // dpdp-session.ts is a fully separate auth plane (its own `dpdp_session`
+  // cookie, own dpdp.identity/dpdp.session tables, never touches Supabase
+  // Auth), so this proxy's unconditional createServerClient()+getUser()
+  // call was a real, avoidable shared-fate risk: a Supabase Auth outage or
+  // misconfiguration affecting the rest of this app would otherwise also
+  // break every /dpdp page load, for no reason -- DPDP never needed this
+  // middleware's session-refresh/redirect behavior in the first place.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|logo.svg|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|logo.svg|robots.txt|dpdp|api/dpdp|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 }
