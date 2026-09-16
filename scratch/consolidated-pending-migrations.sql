@@ -692,8 +692,18 @@ ALTER TABLE "dpdp"."email_token" ADD COLUMN IF NOT EXISTS "membership_id" text N
 -- WO-007 4.3: "the token is the enforcement, not a check" -- a trigger,
 -- not a service-layer if-statement, so a future insert path that forgets
 -- to check this still cannot create a cross-organisation token.
+--
+-- SET search_path pins name resolution the same way 0416/0425 already do
+-- for this schema's other functions -- found live (2026-09-16, Supabase's
+-- own security advisor, function_search_path_mutable) that this one was
+-- the sole exception. Without it, this plpgsql function resolves dpdp.task/
+-- dpdp.membership via whatever search_path is active at call time rather
+-- than a pinned one, which is exactly the class of risk a trigger firing on
+-- every email_token insert should not carry, defense-in-depth regardless of
+-- SECURITY INVOKER vs DEFINER.
 CREATE OR REPLACE FUNCTION dpdp.email_token_membership_matches_task_org() RETURNS trigger
-  LANGUAGE plpgsql AS $$
+  LANGUAGE plpgsql
+  SET search_path = 'dpdp', 'pg_temp' AS $$
 DECLARE
   task_org text;
   member_org text;
@@ -756,7 +766,7 @@ INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES
   ('c8be9b12621dc11d2b557fb72038787916ec5bc6052a6faa60010242d889019f', 1789539351417),
   ('f9b776ff01f275adfc72b8b112cb234aa38aeb6b66e5958a41bed18cd51d7066', 1789539352417),
   ('c26e1415281de95743715821b4e77f4224aec0be0e0e88c3da1b027b518b3804', 1789541577746),
-  ('c92d5a8e86bfad4c86911f9d5d184359124a86936610c0b7994d925fb0f88cb6', 1789541912511)
+  ('92761b0d8fc0f7b216e031b674947596c8dff1d363a0117c08faff7eb7ef9a7e', 1789541912511)
 ON CONFLICT DO NOTHING;
 
 -- ============================================================

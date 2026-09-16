@@ -35,8 +35,18 @@ ALTER TABLE "dpdp"."email_token" ADD COLUMN "membership_id" text NOT NULL;--> st
 -- WO-007 4.3: "the token is the enforcement, not a check" -- a trigger,
 -- not a service-layer if-statement, so a future insert path that forgets
 -- to check this still cannot create a cross-organisation token.
+--
+-- SET search_path pins name resolution the same way 0416/0425 already do
+-- for this schema's other functions -- found live (2026-09-16, Supabase's
+-- own security advisor, function_search_path_mutable) that this one was
+-- the sole exception. Without it, this plpgsql function resolves dpdp.task/
+-- dpdp.membership via whatever search_path is active at call time rather
+-- than a pinned one, which is exactly the class of risk a trigger firing on
+-- every email_token insert should not carry, defense-in-depth regardless of
+-- SECURITY INVOKER vs DEFINER.
 CREATE OR REPLACE FUNCTION dpdp.email_token_membership_matches_task_org() RETURNS trigger
-  LANGUAGE plpgsql AS $$
+  LANGUAGE plpgsql
+  SET search_path = 'dpdp', 'pg_temp' AS $$
 DECLARE
   task_org text;
   member_org text;
