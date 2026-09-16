@@ -92,14 +92,26 @@ I'll independently re-verify the actual result myself the next time I have a tur
 
 **What I found:** the API key already in this project (`RESEND_API_KEY`) is a "sending-only" key — Resend itself refuses to let it read or manage domains ("This API key is restricted to only send emails"). I cannot fetch or generate the exact DKIM values without you logging into the Resend dashboard yourself, which is also exactly the kind of "live human login I can't delegate" your own work order reserves to you. I'm not able to do this step for you beyond giving you the general shape — I don't have a way to see the exact keys Resend will generate until you add the domain there.
 
-**What to actually do, step by step:**
-1. Go to resend.com → log in → **Domains** → **Add Domain**.
-2. Type in: `mail.veridian-aios.com` (a subdomain dedicated to sending, not the bare `veridian-aios.com` — this is Resend's own recommended practice and matches WO-DPDP-006 §B10's "dedicated sending subdomain").
-3. Resend will show you a table of DNS records to add — typically 3 CNAME records (for DKIM) and sometimes an MX + TXT (for SPF). **These exact values are generated fresh by Resend when you add the domain — I cannot predict or fabricate them.**
-4. Go to wherever `veridian-aios.com`'s DNS is managed (your domain registrar, or Vercel if the domain is managed there) and add each record exactly as Resend shows it — same type (CNAME/TXT/MX), same "Name/Host" value, same "Value" value.
-5. Come back to Resend's Domains page and click **Verify**. DNS can take a few minutes to a few hours to propagate.
-6. **What you should see when it's worked:** the domain's status in Resend changes from "Pending" to "Verified" (usually a green checkmark).
-7. Once verified, tell me, and I will change this app's `EMAIL_FROM` setting to send from `noreply@mail.veridian-aios.com` instead of the current, unverified `veridian-compliance.ai`.
+**Corrected per WO-DPDP-007 §1 — three separate subdomains, each with one job.** Do not put everything on one subdomain; the whole point is that a problem with automated mail can never touch your everyday inbox.
+
+| Subdomain | What it's for | Where |
+|---|---|---|
+| `veridian-aios.com` (the bare domain) | **Your everyday human email** — `rajat@`, `grievance@`, `partners@`, `hello@` | Google Workspace. Leave its MX record alone — don't touch it for any of this. |
+| `send.veridian-aios.com` | **Every automated email this app sends** (magic links, digests, everything) | Resend |
+| `reply.veridian-aios.com` | **Every reply that comes back in** | An inbound-email webhook (not Google — client personal data in a reply must never pass through a US mailbox) |
+
+**Step 1 — Resend (`send.veridian-aios.com`):**
+1. resend.com → log in → **Domains** → **Add Domain** → type `send.veridian-aios.com`.
+2. Resend shows a table of DNS records (usually 3 CNAME rows for DKIM, sometimes a TXT for SPF). **I cannot predict or fabricate these — Resend generates them fresh when you add the domain.**
+3. Add each one, exactly as shown, wherever `veridian-aios.com`'s DNS is managed (your registrar, or Vercel if DNS lives there).
+4. Click **Verify** in Resend. **What you should see:** the domain's status turns from "Pending" to "Verified."
+5. Tell me once it's verified — I'll switch `EMAIL_FROM` to send from `send.veridian-aios.com` instead of the current, unverified `veridian-compliance.ai`.
+
+**Step 2 — inbound (`reply.veridian-aios.com`):** this needs an inbound-email provider (e.g. a Resend inbound webhook, or Postmark/Mailgun's inbound routing) pointed at a webhook endpoint we build — I haven't built that endpoint yet (see the report), so there's nothing to verify on this one yet. I'll come back to you with exact MX records once the endpoint exists.
+
+**Step 3 — Google Postmaster Tools:** also not urgent yet (it matters once real volume starts) — I'll give you that verification record when we're closer to sending real traffic.
+
+**One-command check for Step 1, once verified:** ask me to run it — I'll trigger a real magic-link request to a real inbox you control and confirm the email actually lands.
 
 **One-command check I can run afterwards to prove delivery end to end:** once you confirm it's verified, ask me to run the check — I'll trigger a real magic-link request to a real inbox you control and confirm the email actually lands (not just that the API call succeeded), the same way I found this bug in the first place.
 

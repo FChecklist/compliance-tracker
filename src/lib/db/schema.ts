@@ -15069,15 +15069,67 @@ export const dpdpTask = dpdpSchemaDB.table('task', {
 // this file's own established pattern for every non-Supabase-Auth token.
 export const dpdpEmailTokenActionEnum = dpdpSchemaDB.enum('email_token_action', ['yes', 'no', 'sign_in'])
 
+// WO-DPDP-007 4.3: "the token is the enforcement, not a check." membershipId
+// is NOT NULL, and a trigger (0427) rejects any insert where the token's
+// task doesn't belong to that membership's own organisation -- forwarding
+// a task link to someone at a DIFFERENT organisation fails structurally,
+// not because a rule caught it.
 export const dpdpEmailToken = dpdpSchemaDB.table('email_token', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   taskId: text('task_id').notNull(),
   identityId: text('identity_id').notNull(),
+  membershipId: text('membership_id').notNull(),
   action: dpdpEmailTokenActionEnum('action').notNull(),
   tokenHash: text('token_hash').notNull().unique(),
   issuedAt: timestamp('issued_at').notNull().defaultNow(),
   expiresAt: timestamp('expires_at').notNull(), // +48h
   usedAt: timestamp('used_at'),
+})
+
+// WO-DPDP-007 Section 2: inbound replies, parsed by the provider into JSON
+// (never raw MIME parsed here) and routed by membership_id (not
+// identity_id -- "that single choice is what makes everything in Section
+// 4 work"). Personal data in a reply body must land in this India-hosted
+// table directly, never pass through a US mailbox first (WO's own DPDP
+// note) -- there is deliberately no Google-mail code path anywhere near
+// this table.
+export const dpdpInboundMessage = dpdpSchemaDB.table('inbound_message', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  membershipId: text('membership_id'), // nullable: an unresolvable address is discarded, not rejected outright -- see discardedReason
+  taskId: text('task_id'),
+  receivedAt: timestamp('received_at').notNull().defaultNow(),
+  fromAddress: text('from_address').notNull(),
+  bodyStripped: text('body_stripped'), // quoted text/signatures stripped before filing
+  rawRetainedUntil: timestamp('raw_retained_until'), // +30 days, then the raw body is dropped
+  actionTaken: text('action_taken'), // e.g. 'comment'|'answered_yes'|'answered_no' -- free text, small enum not worth a migration yet
+  discardedReason: text('discarded_reason'), // set when membershipId/taskId didn't resolve to anything live
+})
+
+// WO-DPDP-007 4.2: caps sends per identity, never per membership -- "three
+// memberships must never mean three emails a day." One row per actual
+// send event (not per membership), so "did Anil get one email or three
+// today" is a real, checkable fact.
+export const dpdpDigestFormatEnum = dpdpSchemaDB.enum('digest_format', ['single', 'batched'])
+
+export const dpdpDigestSend = dpdpSchemaDB.table('digest_send', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  identityId: text('identity_id').notNull(),
+  sentAt: timestamp('sent_at').notNull().defaultNow(),
+  membershipIds: text('membership_ids').array().notNull(),
+  format: dpdpDigestFormatEnum('format').notNull(),
+})
+
+// WO-DPDP-007 4.4: "a CA who is also a director of a client cannot review
+// his own company's evidence." Detectable the moment the review is
+// attempted -- refused, and the refusal recorded, which "is worth more to
+// an auditor than a silent allow: it shows the control exists and fired."
+export const dpdpIndependenceBlock = dpdpSchemaDB.table('independence_block', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  membershipId: text('membership_id').notNull(),
+  targetOrgId: text('target_org_id').notNull(),
+  attemptedAt: timestamp('attempted_at').notNull().defaultNow(),
+  action: text('action').notNull(),
+  reason: text('reason').notNull(),
 })
 
 export const dpdpPartner = dpdpSchemaDB.table('partner', {
