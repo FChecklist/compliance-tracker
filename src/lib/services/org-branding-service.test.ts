@@ -261,6 +261,7 @@ describe("resolvePreAuthBrandByHost (Stage 1: pre-authentication, domain-based r
       displayName: "PROJEXA",
       hostDomain: "projexa-ai.com",
       tagline: null,
+      branchKey: "projexa",
       ...overrides,
     }
   }
@@ -277,6 +278,21 @@ describe("resolvePreAuthBrandByHost (Stage 1: pre-authentication, domain-based r
     expect(result?.brandName).toBe("PROJEXA")
     expect(result?.productBranchId).toBe("branch-projexa")
     expect(findFirst).toHaveBeenCalled()
+  })
+
+  // Added 2026-09-17 alongside the root page's redirect fix (owner
+  // directive: a resolved brand host should land on its own marketing
+  // page, not /login) -- src/app/page.tsx's RETURN_MAP lookup depends on
+  // branchKey actually being on the returned object.
+  test("branchKey passes through on PreAuthBrand, for RETURN_MAP lookup by the root page", async () => {
+    const findFirst = mock(async () => productBranchRow({ branchKey: "office" }))
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    const result = await resolvePreAuthBrandByHost("veridian-aios.com")
+    expect(result?.branchKey).toBe("office")
   })
 
   // GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN (OCID-020 addendum,
