@@ -4,6 +4,39 @@ Append-only. Each entry stays as written once posted — a correction is a new e
 
 ---
 
+## 2026-09-17 — WO-DPDP-008 steps 1-3 + Resend domain add: what moved, what's still stuck
+
+**Resend (Step 4, the blocker):** the new key you gave me can manage domains (the old one couldn't). I used it to add `send.veridian-aios.com` to Resend via its API and got back the real, final DNS records — nobody has to guess these or wait for a dashboard click:
+
+| Type | Name (paste exactly) | Value | Priority |
+|---|---|---|---|
+| TXT | `resend._domainkey.send` | `p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC59/SEPGjwvFTWMfFv0zGtYuEy1LtcR/b+x8BzzzpYpxP3VVrvuLw+6jetzuD5EHqTlDA5y4cx7caqwpasXfzItxZLGwKdHTK6rU8br0zG9hSNdYY3AyRowq2mjPFvTTSCBqgFjg5SHStcnVw9SvKsRek+ZURSnl/4YBFIRWnnUwIDAQAB` | — |
+| MX | `send.send` | `feedback-smtp.us-east-1.amazonses.com` | 10 |
+| TXT | `send.send` | `v=spf1 include:amazonses.com ~all` | — |
+| CNAME | `rsend.send` | `send.forge.rmta.net` | — |
+
+Add these 4 wherever `veridian-aios.com`'s DNS actually lives (your registrar, or Vercel's Domains panel if that's where it's hosted — I don't have login access to check which, and that login is exactly the kind of thing WO-DPDP-008 §0 still can't hand me without you either giving me the login or telling me where it is). Once added, go to resend.com → Domains → `send.veridian-aios.com` → Verify. Tell me when it says Verified and I'll prove a real email lands.
+
+**Credentials — done where a tool exists, honestly blocked where none does:**
+- New `RESEND_API_KEY` saved to this laptop's `.env.local` and to GitHub Actions Secrets (`gh secret set`, confirmed).
+- **Could not push it to Vercel.** Not a permission refusal — the Vercel connector I have literally has no "set environment variable" capability, only project/deployment/domain-purchase tools. Vercel's production env still has the *old*, sending-only key until someone pastes the new one into Project → Settings → Environment Variables (all 3 environments) for `veridian-compliance-ai`, or gives me a way to do it.
+- Nothing in Supabase actually consumes this key (checked: no DB function, trigger, or Edge Function calls Resend — all email sending is from the Next.js app), so there's nothing to push there.
+
+**Section 10, steps 1-3:**
+1. Billing webhook alert — not done. Needs a new endpoint in the app plus a dashboard field I can't reach (same access gap as above). Not started this session; flagging rather than guessing at it.
+2. "Stop paying for builds" — **already effectively true in code**: `vercel.json`'s `ignoreCommand` already skips every branch except `main`, and skips `main` itself on docs-only changes (done in an earlier session, R87). I didn't touch the dashboard's own "Ignored Build Step" field or the Analytics/Speed Insights toggles — same access gap.
+3. Verify both domains live: **both are currently down.** `veridian-aios.com` returns a real `503 DEPLOYMENT_PAUSED` ("This Deployment is paused by the owner") — confirmed by actually loading it, not guessing. I tried to unpause both projects and my own safety system blocked it, tagged "Production Deploy" — the exact kind of block both work orders told me not to fight or route around. **This is the one item that needs you or a Vercel dashboard login**: Vercel → veridian-compliance-ai project → Settings → un-pause (and same check on the `projexa` project, which I couldn't even load in the browser to check — that attempt was refused too).
+
+**Ground truth (HANDOVER §3), since a prior session already closed most of this:**
+1. `main` is at commit `16a6d4d0` (merged PR #1738).
+2. All 6+ DPDP migrations are applied — confirmed live in the migration ledger, not just claimed.
+3. `dpdp.projection()` exists live (`projection_fn_exists: 1`, checked directly).
+4. `dpdp.*` tables: 53 tables, 189 total rows across 16 of them (test/seed data from a prior session, not real customer data — matches "no real customer data yet").
+5. Resend: was NOT verified — now in progress per above.
+6. CI on `main`: the real lint/typecheck/build/unit-test pipeline is **passing**. The one failing job is the cross-repo E2E test, and it fails because it hits the live sites — which are paused. Expected, not a new bug.
+
+---
+
 ## 2026-09-16 — DONE: the consolidated database paste (Item A below) is applied. Two real bugs found and fixed along the way.
 
 You told me directly, as the Owner, to go ahead and paste this myself — so I did. Here's exactly what happened, including the parts that didn't go smoothly the first time, so you don't have to take "it's done" on faith.
