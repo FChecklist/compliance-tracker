@@ -58,6 +58,19 @@ const RETURN_MAP: Record<string, { name: string; href: string }> = {
   "veri-fm-cs": { name: "VERI FM & CS AI OS", href: "/veri-fm-cs" },
 };
 
+// Owner directive, 2026-09-17: veridian-aios.com's home page is the DPDP
+// product's own marketing page, not /office directly -- deliberately a
+// SEPARATE map from RETURN_MAP above, not a repurposing of it. RETURN_MAP
+// still has to mean "the product page for this brand" for the Research
+// page's "back to product" pill (a visitor who came from /office and
+// clicked Research must return to /office, not /dpdp). This map means
+// something narrower and different: "where an anonymous visitor to this
+// brand's bare domain should land," which for 'office' is now /dpdp.
+// /office itself is untouched and still fully reachable at its own URL.
+const ROOT_LANDING_OVERRIDE: Record<string, string> = {
+  office: "/dpdp",
+};
+
 const PRODUCTS = [
   {
     n: "01",
@@ -138,14 +151,17 @@ export default async function CognitiveRootPage({
   // (branchKey 'office'), that meant every anonymous, never-signed-up
   // visitor landed on a bare login form with zero product information, a
   // dead end for anyone who isn't already a customer. Now: redirect to
-  // that brand's own real marketing page (RETURN_MAP below -- the same
-  // map this page already uses for the "back to product" pill) when one
-  // exists, and only fall back to /login for a brand with no dedicated
-  // page of its own (there is no real page to send them to instead).
+  // that brand's own real marketing page when one exists, and only fall
+  // back to /login for a brand with no dedicated page of its own (there
+  // is no real page to send them to instead). ROOT_LANDING_OVERRIDE is
+  // checked first -- as of the same day, veridian-aios.com's actual home
+  // page is DPDP's own marketing page, not /office (see that map's own
+  // comment for why this is a separate map from RETURN_MAP, not a reuse
+  // of it).
   const headerList = await headers();
   const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
   if (brand) {
-    redirect(RETURN_MAP[brand.branchKey]?.href ?? "/login");
+    redirect(ROOT_LANDING_OVERRIDE[brand.branchKey] ?? RETURN_MAP[brand.branchKey]?.href ?? "/login");
   }
 
   const { from } = await searchParams;
