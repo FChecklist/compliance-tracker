@@ -254,6 +254,11 @@ export interface PreAuthBrand {
   // callers must fall back to their own existing default copy, exactly
   // like `brandName`'s own null-means-platform-default contract.
   tagline: string | null
+  // Added 2026-09-17 (owner directive: a resolved-brand host's root page
+  // should show that brand's own marketing page, not jump straight to
+  // /login) -- lets the caller look up the right per-brand landing page
+  // (see src/app/page.tsx's RETURN_MAP) instead of the generic default.
+  branchKey: string
 }
 
 // Deliberately permissive host normalization (strip a trailing :port, lowercase)
@@ -304,10 +309,10 @@ export const resolvePreAuthBrandByHost = cache(async (host: string | null | unde
   try {
     const branch = await db.query.productBranches.findFirst({
       where: eq(sql`lower(${productBranches.hostDomain})`, normalized),
-      columns: { id: true, displayName: true, tagline: true },
+      columns: { id: true, displayName: true, tagline: true, branchKey: true },
     })
     if (!branch) return null
-    return { productBranchId: branch.id, brandName: branch.displayName, tagline: branch.tagline ?? null }
+    return { productBranchId: branch.id, brandName: branch.displayName, tagline: branch.tagline ?? null, branchKey: branch.branchKey }
   } catch {
     return null
   }

@@ -129,17 +129,23 @@ export default async function CognitiveRootPage({
   // AI OS — AI Cognitive Research") that does not honestly represent
   // PROJEXA, since no real PROJEXA marketing content exists anywhere in
   // this repo (its own separate marketing site is a genuinely different
-  // deployment/repo, out of this change's scope). The honest, minimal, real
-  // behavior for a resolved non-default brand host is to route straight to
-  // the real, correctly-branded entry point that DOES exist for it --
-  // /login (Stage 1 already wired there) -- rather than show this page's
-  // VERIDIAN-specific narrative under someone else's name. Unmatched host
-  // (the default/common case) renders this page exactly as before, with no
+  // deployment/repo, out of this change's scope). Unmatched host (the
+  // default/common case) renders this page exactly as before, with no
   // redirect at all.
+  //
+  // Corrected 2026-09-17 (owner directive): a resolved brand host used to
+  // route straight to /login unconditionally -- for veridian-aios.com
+  // (branchKey 'office'), that meant every anonymous, never-signed-up
+  // visitor landed on a bare login form with zero product information, a
+  // dead end for anyone who isn't already a customer. Now: redirect to
+  // that brand's own real marketing page (RETURN_MAP below -- the same
+  // map this page already uses for the "back to product" pill) when one
+  // exists, and only fall back to /login for a brand with no dedicated
+  // page of its own (there is no real page to send them to instead).
   const headerList = await headers();
   const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
   if (brand) {
-    redirect("/login");
+    redirect(RETURN_MAP[brand.branchKey]?.href ?? "/login");
   }
 
   const { from } = await searchParams;
