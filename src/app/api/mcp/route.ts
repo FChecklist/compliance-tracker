@@ -1,7 +1,16 @@
 /**
  * MCP Server 1 — Customer-Facing Compliance Data
  *
- * Edge runtime (Vercel). Speaks JSON-RPC 2.0 (MCP protocol).
+ * Node.js runtime (Vercel) as of 2026-09-17 -- was `runtime = 'edge'`
+ * (kept for latency: no DB import, Supabase JS client is fetch-based and
+ * Edge-compatible, hashSHA256 uses only Web Crypto). Reverted because
+ * Vercel's build failed with NOW_SANDBOX_WORKER_EDGE_FUNCTION_UNSUPPORTED_MODULES,
+ * reporting this function's bundle as pulling in node:child_process,
+ * node:crypto and node:fs -- not from anything this file or its imports
+ * use directly (verified by inspection), almost certainly the Sentry
+ * build wrapper's edge instrumentation (next.config.ts's withSentryConfig).
+ * Root-causing that interaction is separate follow-up work; unblocking
+ * production is not. Speaks JSON-RPC 2.0 (MCP protocol).
  * Auth (Wave 9/10): Bearer <vk_... key> → the same api_keys table Settings >
  * API Keys generates from, hashed and looked up here. Previously used a
  * separate mcp_access_codes token system with no relationship to any other
@@ -30,7 +39,7 @@
  * See MCP_PROTOCOL.md for the full (partly aspirational) flow specification.
  */
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
