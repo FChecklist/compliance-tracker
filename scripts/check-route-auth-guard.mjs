@@ -282,6 +282,7 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   "src/app/api/dpdp/ai/[token]/route.ts", // public, token-in-URL, no session -- same TOKEN_SCOPED shape as p/[token]/route.ts above
   "src/app/api/dpdp/task-link/[token]/route.ts", // public, token-in-URL, no session -- the email-click vertical slice (WO-DPDP-005/007)
   "src/app/api/forge/captcha/route.ts", // public, unauthenticated by design -- issues a math-captcha challenge for the anonymous FORGE lead-capture form; requiring auth would defeat its purpose (a visitor hasn't signed up yet). No DB access, no tenant data (forge-captcha.ts is pure).
+  "src/app/api/v1/openapi.json/route.ts", // public by design -- an API spec describing the contract shape isn't sensitive, and integration tooling needs to fetch it before it has a customer's key to authenticate anything else. Pure function over static zod schemas, no DB access.
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail
