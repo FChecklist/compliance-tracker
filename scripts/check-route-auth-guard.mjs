@@ -343,6 +343,20 @@ const SERVICE_ERROR_EXEMPTIONS = new Set([
   //     exemption pre-emptively.
   "src/lib/services/dpdp-event-service.ts",
   "src/lib/services/dpdp-exposure-service.ts",
+  //
+  // Pre-existing gap, surfaced 2026-09-17 by the root-domain redirect fix
+  // touching this file for the first time since this check existed -- not
+  // introduced by that change. Both exported functions DO touch the DB
+  // (resolveBranding, resolvePreAuthBrandByHost) but the file's own header
+  // comments (see resolvePreAuthBrandByHost's, in particular) already
+  // document a deliberate, pre-existing "never throws" design: a lookup
+  // failure (DB down, unmatched host) degrades to null -- the platform
+  // default branding -- rather than surfacing an error, specifically so a
+  // branding-lookup failure can never take down the public marketing/login
+  // pages that call it on every unauthenticated request. Introducing
+  // ServiceError here would mean deliberately breaking that already-argued
+  // fail-open posture, not filling a real gap.
+  "src/lib/services/org-branding-service.ts",
 ])
 
 const HTTP_HANDLER_RE = /export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/
