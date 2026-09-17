@@ -166,6 +166,7 @@ function Calculator() {
   return (
     <div className="mx-auto mt-5 max-w-[790px] rounded-[20px] border-[1.5px] border-[#E6E2F5] bg-white p-6 text-left shadow-[0_14px_44px_rgba(109,40,217,0.13)]">
       <div className="mb-3 text-center">
+        <div className="mb-1 text-sm font-bold uppercase tracking-wide text-[#6D28D9]">DPDP Calculator</div>
         <h3 className="text-xl font-bold">🧮 How much are you actually answerable for?</h3>
         <p className="mt-1 text-sm text-[#564D77]">Most organisations have never counted. Rough numbers are fine — the total is usually the surprise.</p>
       </div>
