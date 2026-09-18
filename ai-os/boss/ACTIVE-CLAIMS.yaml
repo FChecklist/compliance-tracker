@@ -40,6 +40,28 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, Claude Desktop, WO-DPDP-009) -- continuation of the existing DPDP claim below, not a new/competing engagement"
+    claimed_at: "2026-09-18T (this session)"
+    claim: |
+      SCOPE: same file/directory scope as the existing DPDP claim entry
+      immediately below (dpdp Postgres schema, src/app/api/dpdp/**,
+      src/app/dpdp/**, src/lib/services/dpdp-*.ts, src/lib/db/dpdp-*
+      helpers) plus, specifically for WO-DPDP-009: two new public route
+      segments src/app/dpdp-firm/page.tsx and src/app/dpdp-institution/page.tsx;
+      new dpdp.org_step table + src/app/dpdp/(app)/next-steps/page.tsx (the
+      12-step rail) + a DpdpShell.tsx nav-item insertion; new
+      dpdp.branch/dpdp.group/dpdp.group_member/dpdp.broadcast/
+      dpdp.broadcast_token/dpdp.broadcast_reply tables + a group/broadcast
+      UI and public token-reply route.
+
+      RULE FOR THIS WORK ORDER (owner-issued, WO-DPDP-009 Section 0):
+      everything is built and demoed LOCALLY (bun dev + cloudflared tunnel)
+      against the live Supabase DB. Work is committed to a feature branch
+      and CI is kept green, but nothing is deployed to Vercel and no PR is
+      merged to main until the owner reviews the tunnel URL and says so.
+
+      Does NOT touch compliance.* or platform.* tables, PROJEXA's proxy
+      routes, vercel.json, or any Vercel project/dashboard setting.
   - session_label: "claude-code (interactive, Claude Desktop, WO-DPDP-002, continuing WO-DPDP-001 + AMENDMENT A1 -- and a mid-implementation handoff FROM session 'ct-ca', which moved to PROJEXA-AI.COM) -- new DPDP Act 2023 compliance product, built inside compliance-tracker per the Owner's explicit amendment (not a separate repo -- projexa-ai.com is served by FChecklist/projexa, no collision)"
     claimed_at: "2026-09-16T, refreshed again after taking the ct-ca handoff (owner confirmed live, in chat, that he told ct-ca to hand off to this session) -- same engagement, not a new/competing session"
     claim: |
