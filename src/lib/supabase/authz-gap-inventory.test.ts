@@ -464,8 +464,18 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
     // count), not exempted and not a known gap. (v1/projexa/billing-claims/
     // route.ts is GET-only and is correctly excluded from `mutating`
     // entirely, same as boq-scenarios/[id]/route.ts above.)
-    expect(mutating.length).toBe(884) // +35 WO-DPDP-001 dpdp/* mutating routes, +7 WO-DPDP-002/003/004 dpdp/* mutating routes, +2 Sumeet #2 milestones routes
-    expect(protectedCount).toBe(640) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH; +1 R85A3 P6 cost-visibility config PATCH; +2 R85A3 P7 Excel round-trip diff/apply POSTs; +4 R85 A3v4 Phase 10 boq-scenarios routes; +2 Sumeet #2 milestones routes
+    // Sumeet requirement #3 follow-up (billing-milestones write UI,
+    // 2026-09-18): +2 more mutating route files --
+    // v1/projexa/billing-claims/[id]/route.ts's PATCH (draft/submit/approve/
+    // reject/invoice transitions). Wait -- that's one file; the second is
+    // this same phase's POST added to v1/projexa/billing-claims/route.ts
+    // itself (createProgressClaim), which the R-99/R-100 pass above had
+    // shipped GET-only. Both grep-visible PROTECTED the same way.
+    // (v1/projexa/tax-templates/route.ts is GET-only and is correctly
+    // excluded from `mutating` entirely, same as boq-scenarios/[id]/route.ts
+    // above.)
+    expect(mutating.length).toBe(886) // +35 WO-DPDP-001 dpdp/* mutating routes, +7 WO-DPDP-002/003/004 dpdp/* mutating routes, +2 Sumeet #2 milestones routes, +2 Sumeet #3 billing-claims routes
+    expect(protectedCount).toBe(642) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH; +1 R85A3 P6 cost-visibility config PATCH; +2 R85A3 P7 Excel round-trip diff/apply POSTs; +4 R85 A3v4 Phase 10 boq-scenarios routes; +2 Sumeet #2 milestones routes; +2 Sumeet #3 billing-claims routes
     expect(EXEMPT_ROUTES.length).toBe(244) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep // +1 R-C17 resend-inbound webhook (Svix-signature-gated, INTERNAL_SECRET) // +35 WO-DPDP-001 dpdp/* routes (29 SERVICE_LAYER_GATED, 4 TOKEN_SCOPED, 2 PUBLIC_BY_DESIGN) // +7 WO-DPDP-002/003/004 dpdp/* routes (all SERVICE_LAYER_GATED)
     expect(KNOWN_OPEN_GAPS.length).toBe(0)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)

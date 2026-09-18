@@ -145,7 +145,16 @@ export type GenerateInterimBillInput = {
  * constructionInterimBills.retentionAmount/netPayable, entirely separate
  * from the invoice's own taxable subtotal.
  */
-export async function generateInterimBill(ctx: ValuationContext & { dbUser: typeof users.$inferSelect }, input: GenerateInterimBillInput) {
+// dbUser is nullable -- a PROJEXA server-to-server call (requireAuthOrApiKey's
+// API-key branch) has none. apiKey carries that same call's real identity for
+// the one place this function needs it: createSalesInvoice()'s own
+// dbUser-or-apiKey discriminated union (Wave 9), reconstructed below at that
+// exact call site the same way sales-invoices/route.ts's POST handler
+// already does at its own route layer.
+export async function generateInterimBill(
+  ctx: ValuationContext & { dbUser: typeof users.$inferSelect | null; apiKey?: { id: string; name: string } },
+  input: GenerateInterimBillInput
+) {
   if (!input.boqId) throw new ServiceError("boqId is required", 400)
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
   if (!input.billDate) throw new ServiceError("billDate is required", 400)
@@ -209,7 +218,9 @@ export async function generateInterimBill(ctx: ValuationContext & { dbUser: type
     // as well (isErpEnabledForOrgWithDb), so the gate cannot open a second
     // transaction before the body is reached.
     const invoice = await createSalesInvoice(
-      { orgId: ctx.orgId, userId: ctx.userId, dbUser: ctx.dbUser },
+      ctx.dbUser
+        ? { orgId: ctx.orgId, userId: ctx.userId, dbUser: ctx.dbUser }
+        : { orgId: ctx.orgId, userId: ctx.userId, apiKey: ctx.apiKey ?? { id: ctx.userId, name: "api-key" } },
       { customerId: input.customerId, projectId: input.projectId, postingDate: input.billDate, items: invoiceItems },
       db
     )
