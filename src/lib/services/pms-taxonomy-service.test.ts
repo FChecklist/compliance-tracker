@@ -9,6 +9,7 @@
 /// <reference types="bun-types" />
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import { computeMilestoneCompletionPercentage, pickDefaultIssueTypeId } from "./pms-taxonomy-service"
+import * as realTenantScoped from "@/lib/db/tenant-scoped"
 
 describe("computeMilestoneCompletionPercentage", () => {
   test("a milestone with zero linked issues is 0% (documented choice: 0, not null -- matches construction-dashboard-service.ts's getProjectDashboard() defaulting progressPercent to 0 with no activities)", () => {
@@ -156,5 +157,120 @@ describe("resolveDefaultIssueTypeId / resolveDefaultStatusId -- the 60 s lookup 
     f33Statuses = [{ id: "status-of-another-project", isDefault: true, position: 0 }]
     expect(await resolveDefaultStatusId(db, F33_ORG, "a-different-project")).toBe("status-of-another-project")
     expect(f33StatusReads).toBe(2)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// updateMilestone -- Sumeet requirement #2 ("Timelines AND Milestones of a
+// project, both are different"). Real code path, only the DB layer mocked,
+// same convention as construction-boq-category-service.test.ts.
+// ---------------------------------------------------------------------------
+
+const MS_ORG = "org-milestone-update"
+
+type FakeMilestone = { id: string; orgId: string; projectId: string; name: string; description: string | null; targetDate: string | null; status: string }
+
+function buildMilestoneDb(options: { milestone?: FakeMilestone; linkedCompletions?: number[] }) {
+  const updates: unknown[] = []
+  const db = {
+    query: {
+      pmsMilestones: {
+        findFirst: mock(async () => options.milestone),
+      },
+      pmsIssues: {
+        findMany: mock(async () => (options.linkedCompletions ?? []).map((c) => ({ milestoneId: options.milestone?.id, completionPercentage: c }))),
+      },
+    },
+    update: () => ({
+      set: (v: unknown) => ({
+        where: () => ({
+          returning: async () => {
+            updates.push(v)
+            return [{ ...(options.milestone as object), ...(v as object) }]
+          },
+        }),
+      }),
+    }),
+  }
+  return { db, updates }
+}
+
+async function withMockedMilestoneDb<T>(fake: ReturnType<typeof buildMilestoneDb>, run: () => Promise<T>): Promise<T> {
+  await mock.module("@/lib/db/tenant-scoped", () => ({
+    ...realTenantScoped,
+    withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fake.db)),
+  }))
+  try {
+    return await run()
+  } finally {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  }
+}
+
+describe("updateMilestone", () => {
+  const EXISTING: FakeMilestone = {
+    id: "ms-1", orgId: MS_ORG, projectId: "proj-1", name: "Foundation complete",
+    description: null, targetDate: "2026-10-01", status: "planned",
+  }
+
+  test("updates name/description/targetDate and returns the row with a derived completionPercentage", async () => {
+    const fake = buildMilestoneDb({ milestone: EXISTING, linkedCompletions: [50, 100] })
+    const { updateMilestone } = await import("./pms-taxonomy-service")
+    const result = await withMockedMilestoneDb(fake, () =>
+      updateMilestone({ orgId: MS_ORG, userId: "u1", dbUser: undefined as never }, "ms-1", { name: "Foundation slab complete", targetDate: "2026-10-15" })
+    )
+    expect(result.name).toBe("Foundation slab complete")
+    expect(result.targetDate).toBe("2026-10-15")
+    // (50 + 100) / 2 = 75, derived -- never accepted as an input.
+    expect(result.completionPercentage).toBe(75)
+    expect(fake.updates).toEqual([{ name: "Foundation slab complete", targetDate: "2026-10-15" }])
+  })
+
+  test("status transitions to a real enum value (e.g. cancelled) -- the append-only equivalent of delete", async () => {
+    const fake = buildMilestoneDb({ milestone: EXISTING, linkedCompletions: [] })
+    const { updateMilestone } = await import("./pms-taxonomy-service")
+    const result = await withMockedMilestoneDb(fake, () =>
+      updateMilestone({ orgId: MS_ORG, userId: "u1", dbUser: undefined as never }, "ms-1", { status: "cancelled" })
+    )
+    expect(result.status).toBe("cancelled")
+    expect(fake.updates).toEqual([{ status: "cancelled" }])
+  })
+
+  test("*** an unknown status value is refused, never silently written *** -- ServiceError 400", async () => {
+    const fake = buildMilestoneDb({ milestone: EXISTING })
+    const { updateMilestone, ServiceError } = await import("./pms-taxonomy-service")
+    await expect(
+      withMockedMilestoneDb(fake, () =>
+        updateMilestone({ orgId: MS_ORG, userId: "u1", dbUser: undefined as never }, "ms-1", { status: "archived" as never })
+      )
+    ).rejects.toBeInstanceOf(ServiceError)
+    expect(fake.updates).toEqual([])
+  })
+
+  test("an empty name is refused rather than silently blanking the milestone", async () => {
+    const fake = buildMilestoneDb({ milestone: EXISTING })
+    const { updateMilestone, ServiceError } = await import("./pms-taxonomy-service")
+    await expect(
+      withMockedMilestoneDb(fake, () =>
+        updateMilestone({ orgId: MS_ORG, userId: "u1", dbUser: undefined as never }, "ms-1", { name: "   " })
+      )
+    ).rejects.toBeInstanceOf(ServiceError)
+    expect(fake.updates).toEqual([])
+  })
+
+  test("a milestone that does not exist (or belongs to another org) 404s rather than updating nothing silently", async () => {
+    const fake = buildMilestoneDb({ milestone: undefined })
+    const { updateMilestone, ServiceError } = await import("./pms-taxonomy-service")
+    let caught: unknown
+    try {
+      await withMockedMilestoneDb(fake, () =>
+        updateMilestone({ orgId: MS_ORG, userId: "u1", dbUser: undefined as never }, "ms-missing", { name: "New name" })
+      )
+    } catch (err) {
+      caught = err
+    }
+    expect(caught).toBeInstanceOf(ServiceError)
+    expect((caught as InstanceType<typeof ServiceError>).status).toBe(404)
   })
 })

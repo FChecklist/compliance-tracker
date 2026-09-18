@@ -40,6 +40,142 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, Claude Desktop, same session as PROJEXA-DECK-001/L1-remote-bridge above) -- Sumeet's 8 PROJEXA requirements: BOQ/timelines-vs-milestones/billing-milestones/scope/scope-change/BOQ-change/combined-analysis/P&L, Owner directive 2026-09-18, 3-phase plan approved verbatim (\"Proceed in that order, COMPLETE EVERYTHING, TEST, DEPLOY, MERGE\")"
+    claimed_at: "2026-09-18T (this session)"
+    claim: |
+      Phase 1 (fix /change-orders "no data" bug, item 5): INVESTIGATED,
+      NO CODE CHANGE NEEDED. Live-browser-confirmed the backend, service and
+      frontend are all correct -- the "bug" observed during the deck-build
+      pass was resolveSelectedProject()'s own documented, deliberate
+      first-project-fallback (project-selection.ts) landing on whichever
+      project happens to be first in the org's list when no ?projectId=/no
+      stored rail preference exists yet, combined with that particular
+      project (Business Bay Corporate HQ, alm_project_bizbay) genuinely
+      having zero seeded change orders (confirmed via a live fetch() in the
+      browser: {"changeOrders":[]}) while "Villa 21 - Whitefield" has two.
+      Not a defect; documented here rather than silently closed.
+
+      Phase 2 (real construction milestones, item 2's missing half): VERIDIAN
+      already had a complete, tested milestone entity (pms_milestones /
+      listMilestones / createMilestone / computeMilestoneCompletionPercentage
+      in pms-taxonomy-service.ts) already wired into PROJEXA's own Gantt
+      payload (schedule-service.ts's getGanttData()) -- the gap was purely a
+      missing WRITE surface reachable from PROJEXA (the only route,
+      /api/pms/milestones, is gated behind requirePmsEnabled(), which PROJEXA
+      has no proxy to). Added: updateMilestone() (name/description/
+      targetDate/status, never delete -- status:'cancelled' is the
+      append-only equivalent), ungated /api/v1/projexa/milestones
+      (GET/POST) + /api/v1/projexa/milestones/[id] (PATCH) matching the
+      schedule/gantt route's own "pms_issues/pms_milestones are PROJEXA's
+      generic substrate, not gated behind the PMS product branch" precedent.
+      PROJEXA side: /api/milestones + /api/milestones/[id] proxies, a real
+      MilestonesClient.tsx (list/create/status-change), wired as a 5th
+      Schedule tab (schedule-tabs.ts, ScheduleTabsClient.tsx) alongside
+      Timeline/Board/Phases/Time. Tests: pms-taxonomy-service.test.ts (5 new,
+      verify-then-revert proven), 2 new route.test.ts files (6 tests),
+      MilestonesClient.test.tsx (7 tests -- the create-form's text fields are
+      asserted via a pure buildMilestoneCreatePayload() helper, not typed
+      into, per this repo's own already-documented React-19+happy-dom
+      controlled-input limitation; the status <select> IS driven for real).
+
+      Phase 3 (Project 360 Analysis, item 7, wired with item 8's P&L): found
+      boq-analysis-service.ts's getProjectAnalysis/listOrgAnalysis (R85
+      Addendum 3 v4 Phase 9) ALREADY answers "did we make the margin we
+      quoted, and where did it go" (contract variance, cost variance vs
+      baseline, expected-vs-actual profit) with a real, tested route
+      (/v1/projexa/reports/boq-analysis) that PROJEXA had zero proxy to.
+      Added the PROJEXA proxy (/api/reports/boq-analysis) plus a second new
+      read-only surface for billing milestones (item 3, construction-billing-
+      workflow-service.ts's listBillingDueQueue -- also previously
+      unreachable from PROJEXA: new ungated /api/v1/projexa/billing-claims +
+      /api/billing-claims proxy). Built Project360Client.tsx (new
+      /analysis/project-360 page, listed from the existing /analysis screen
+      alongside its other 4 analytical screens per R67 E-27) combining ALL
+      FIVE domains on one screen: P&L (boq-analysis), change of BOQ
+      (contract variance/approved revisions), change of scope (change-orders
+      summary), milestones (Phase 2's new endpoint), billing milestones
+      (new endpoint), and timeline/critical-path (schedule/gantt). Tests:
+      billing-claims route.test.ts (2), Project360Client.test.tsx (3),
+      analysis-screens.test.ts updated (4->5 screens), nav-routes.test.ts
+      updated (new route + allowlist entry, same class as /dashboard/project).
+
+      NOT done in this pass: a write UI for billing milestones (draft/submit/
+      approve/reject/invoice) -- listBillingDueQueue is read-only by design
+      for the 360 view; the full progress-claim workflow UI is a separate,
+      larger, not-yet-scoped decision, same posture this file already takes
+      elsewhere for out-of-scope follow-ups.
+
+      File scope (compliance-tracker): src/lib/services/pms-taxonomy-
+      service.ts (+updateMilestone, +test), src/app/api/v1/projexa/
+      milestones/route.ts + [id]/route.ts (+tests), src/app/api/v1/projexa/
+      billing-claims/route.ts (+test). File scope (FChecklist/projexa): see
+      that repo's own ACTIVE-CLAIMS.yaml entry.
+  - session_label: "claude-code (interactive, Claude Desktop, PROJEXA-DECK-001) -- full PROJEXA user-manual PowerPoint with real local screenshots, per Owner work order dated 2026-09-18"
+    claimed_at: "2026-09-18T (this session)"
+    claim: |
+      Owner work order PROJEXA-DECK-001 (Downloads\PROJEXA-DECK-001.md): build a
+      screenshot-driven PowerPoint user manual for projexa-ai.com (production is
+      paused, so captured from the LOCAL PROJEXA dev server against the real
+      evpckeuxgvahguwsaeul Supabase project instead, per the work order's own
+      instruction). This compliance-tracker repo's role in that work is PASSIVE:
+      only its local dev server (`bun run dev`, port 3000) is running, because
+      PROJEXA's construction-domain screens proxy to it
+      (VERIDIAN_API_BASE_URL=http://localhost:3000/api/v1/projexa). NOT editing
+      any file in this repo, NOT touching compliance-tracker's own schema/data
+      beyond ordinary read queries against the already-seeded 'projexa_demo_org'
+      construction dataset via the Supabase MCP (compliance.projects /
+      compliance.construction_* tables, project_id='projexa_demo_project') and a
+      read of platform.sumeet_requirements (72 rows: 71 CLOSED, 1 OPEN) for the
+      deck's requirements-mapping section. All real file changes (the .mjs
+      capture script, the .pptx, screenshot PNGs, 3 new demo Supabase Auth users)
+      are in FChecklist/projexa or this session's own scratchpad -- see that
+      repo's own ai-os/boss/ACTIVE-CLAIMS.yaml entry for the real file scope.
+
+      COMPLETE (2026-09-18, same session): 112-slide deck delivered to the
+      Owner directly (SendUserFile), not a PR to this repo -- nothing to
+      merge. Real broken-screens list surfaced in the deck's own Part 5 and
+      in this session's report: /change-orders (2 real change orders not
+      rendering), /reports (Project Status Report shows dashes not real
+      figures), /site-diary (empty despite real Work Progress history for
+      the same project), /scope Filter+Export (visibly present, marked "Not
+      yet available"), /site-materials (silently redirects to /materials),
+      slow first-loads (10-20s+) on /labour /budgets /reports
+      /knowledge-base /meetings /mood-boards /settings /grc, and the Site
+      Engineer role auto-locking to a thin project ("Business Bay Corporate
+      HQ") rather than the richly-seeded "Villa 21 - Whitefield" -- not
+      root-caused (intentional role-scoping vs. bug, undetermined). Per the
+      Owner's own next instruction, none of these were fixed as part of this
+      task -- see the NEW entry immediately below for what came next.
+  - session_label: "claude-code (interactive, Claude Desktop, same session as PROJEXA-DECK-001 above) -- DPDP task-link GET-answers-immediately security fix, owner-flagged HIGH severity, standalone (not part of WO-DPDP-009)"
+    claimed_at: "2026-09-18T (this session)"
+    claim: |
+      Per the Owner's own verbatim instruction relayed in
+      HANDOUT-wo-dpdp-009-session-ct-4a.md (a different session's handoff,
+      found in Downloads by this session): "Fix the existing task-link route
+      the same way you proposed for broadcasts: GET renders a confirmation
+      page, POST records the answer... Do this before the WO-009 work, but
+      after the PROJEXA deck." Branch `fix/dpdp-task-link-get-confirmation`,
+      off origin/main @ d246b60d (NOT the WO-009 branch
+      `feat/wo-dpdp-009-editions-steps-groups`, which stays untouched, still
+      0 commits, per that session's own handout -- this fix is deliberately
+      its own standalone PR per the Owner's "standalone piece of work"
+      framing).
+      File scope: src/lib/services/dpdp-task-service.ts (new
+      previewTaskEmailToken(), read-only, zero writes -- answerTaskViaEmailToken
+      itself is UNCHANGED, still does the real mutation, now called only from
+      POST), src/app/api/dpdp/task-link/[token]/route.ts (GET now renders a
+      confirm-button page via previewTaskEmailToken; POST does the real
+      answerTaskViaEmailToken call the old GET used to do), plus two new/
+      extended test files: dpdp-task-service.test.ts (added a
+      GET-cannot-mutate falsifiability test, real DB) and the previously-
+      missing src/app/api/dpdp/task-link/[token]/route.test.ts (new, calls
+      the real exported GET/POST handlers against the real DB, proving 3
+      GETs in a row never answer the task and only POST does). NOT touching
+      dpdp-route-guard-coverage.test.ts's classification table (still
+      TOKEN_SCOPED, correctly -- this is a per-file, not per-verb, registry).
+      NOT touching WO-DPDP-009's own Phase 0 email_token RLS/45s-hang bug --
+      that is explicitly the NEXT piece of work after this, per the same
+      handout.
   - session_label: "claude-code (interactive, Claude Desktop, WO-DPDP-002, continuing WO-DPDP-001 + AMENDMENT A1 -- and a mid-implementation handoff FROM session 'ct-ca', which moved to PROJEXA-AI.COM) -- new DPDP Act 2023 compliance product, built inside compliance-tracker per the Owner's explicit amendment (not a separate repo -- projexa-ai.com is served by FChecklist/projexa, no collision)"
     claimed_at: "2026-09-16T, refreshed again after taking the ct-ca handoff (owner confirmed live, in chat, that he told ct-ca to hand off to this session) -- same engagement, not a new/competing session"
     claim: |

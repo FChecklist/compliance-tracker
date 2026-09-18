@@ -17,7 +17,13 @@ import {
   readScheduleLookup, writeScheduleLookup,
 } from "./schedule-lookup-cache"
 
-export type PmsContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
+// dbUser is optional/nullable to match the sibling PmsContext in
+// pms-issue-service.ts -- a PROJEXA server-to-server call authenticated by
+// API key (requireAuthOrApiKey's apiKey branch) has no dbUser at all, and
+// every function here that takes a PmsContext either doesn't read dbUser
+// (createMilestone/updateMilestone) or already accepts null (hasRole's own
+// signature is `typeof users.$inferSelect | null`).
+export type PmsContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect | null }
 
 const DEFAULT_STATUSES: Array<{ name: string; group: "backlog" | "unstarted" | "started" | "completed" | "cancelled"; position: number; isDefault?: boolean }> = [
   { name: "Backlog", group: "backlog", position: 0, isDefault: true },
@@ -281,6 +287,57 @@ export async function createMilestone(
     // A brand-new milestone has no linked issues yet -- 0 by construction,
     // kept explicit here so create/list response shapes always match.
     return { ...row, completionPercentage: 0 }
+  })
+}
+
+const MILESTONE_STATUSES = ["planned", "in_progress", "completed", "cancelled"] as const
+export type MilestoneStatus = (typeof MILESTONE_STATUSES)[number]
+
+export type MilestonePatch = {
+  name?: string
+  description?: string | null
+  targetDate?: string | null
+  status?: MilestoneStatus
+}
+
+/**
+ * Sumeet's requirement #2 ("Timelines AND Milestones -- both are different"):
+ * a milestone's own record (name/description/targetDate/status) needs to be
+ * editable after creation, same as every other real entity in this codebase
+ * (constructionChangeOrders, constructionProgressClaims, ...). No delete --
+ * this table has none, by the same "append-only, never hard-deleted"
+ * discipline the schedule task route documents for isArchived: a milestone
+ * that is no longer wanted is set to status:'cancelled', never removed, so
+ * the history a P&L/analysis view (Sumeet #7) might reference later is never
+ * silently destroyed.
+ *
+ * completionPercentage is NEVER accepted here -- it is always DERIVED from
+ * linked pms_issues (computeMilestoneCompletionPercentage), the same rule
+ * listMilestones() already enforces. Accepting it as an input would let two
+ * different numbers exist for the same fact, exactly the class of defect
+ * project-preference.ts's own header describes for "which project is this".
+ */
+export async function updateMilestone(ctx: PmsContext, milestoneId: string, patch: MilestonePatch) {
+  if (patch.name !== undefined && !patch.name.trim()) throw new ServiceError("name cannot be empty", 400)
+  if (patch.status !== undefined && !MILESTONE_STATUSES.includes(patch.status)) {
+    throw new ServiceError(`status must be one of: ${MILESTONE_STATUSES.join(", ")}`, 400)
+  }
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.pmsMilestones.findFirst({
+      where: and(eq(pmsMilestones.id, milestoneId), eq(pmsMilestones.orgId, ctx.orgId)),
+    })
+    if (!existing) throw new ServiceError("Milestone not found", 404)
+
+    const [row] = await db.update(pmsMilestones).set({
+      ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+      ...(patch.description !== undefined ? { description: patch.description || null } : {}),
+      ...(patch.targetDate !== undefined ? { targetDate: patch.targetDate || null } : {}),
+      ...(patch.status !== undefined ? { status: patch.status } : {}),
+    }).where(and(eq(pmsMilestones.id, milestoneId), eq(pmsMilestones.orgId, ctx.orgId))).returning()
+
+    const issueMap = await fetchIssueCompletionByMilestone(db, [row.id])
+    return { ...row, completionPercentage: computeMilestoneCompletionPercentage(issueMap.get(row.id) ?? []) }
   })
 }
 
