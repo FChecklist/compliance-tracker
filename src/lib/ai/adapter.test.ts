@@ -49,6 +49,45 @@ describe("assertAiProviderAllowed -- the M27 startup/per-request assertion", () 
   });
 });
 
+describe("assertAiProviderAllowed -- claude-cli-remote (the tunnelled bridge) is gated identically to claude-cli", () => {
+  // 2026-09-18, owner-directed: same subscription, reached over a Cloudflare
+  // Tunnel to the owner's own laptop instead of a local spawn, for exercising
+  // L1 on an environment (Vercel) that cannot spawn `claude` directly. The
+  // whole point of adding it as a third provider name rather than a flag on
+  // claude-cli was that NOTHING about the identity gate should need to
+  // change -- these tests are the proof that it didn't.
+  test("Rajat's own user id is allowed through, no throw", () => {
+    process.env.AI_PROVIDER = "claude-cli-remote";
+    process.env.RAJAT_USER_ID = "rajat_user_id_123";
+    expect(() => assertAiProviderAllowed("rajat_user_id_123")).not.toThrow();
+  });
+
+  test("a second identity is refused, exactly as it is for claude-cli", () => {
+    process.env.AI_PROVIDER = "claude-cli-remote";
+    process.env.RAJAT_USER_ID = "rajat_user_id_123";
+    expect(() => assertAiProviderAllowed("some_other_real_user_id")).toThrow(AiProviderRefusalError);
+  });
+
+  test("fails safe when RAJAT_USER_ID is unset, exactly as it does for claude-cli", () => {
+    process.env.AI_PROVIDER = "claude-cli-remote";
+    delete process.env.RAJAT_USER_ID;
+    expect(() => assertAiProviderAllowed("anyone")).toThrow(AiProviderRefusalError);
+  });
+
+  test("the L2 system-batch gate refuses claude-cli-remote too -- tunnelling doesn't create a multi-org escape hatch", () => {
+    process.env.AI_PROVIDER = "claude-cli-remote";
+    process.env.RAJAT_USER_ID = "rajat_user_id_123";
+    expect(() => assertAiProviderAllowedForSystemBatch("l2-nightly-analyse")).toThrow(AiProviderRefusalError);
+  });
+
+  test("getAiProvider resolves claude-cli-remote to an object exposing classify() and analyse()", () => {
+    process.env.AI_PROVIDER = "claude-cli-remote";
+    const provider = getAiProvider();
+    expect(typeof provider.classify).toBe("function");
+    expect(typeof provider.analyse).toBe("function");
+  });
+});
+
 describe("assertAiProviderAllowed -- openrouter has no per-user restriction", () => {
   test("any user id passes when AI_PROVIDER=openrouter, RAJAT_USER_ID irrelevant", () => {
     process.env.AI_PROVIDER = "openrouter";

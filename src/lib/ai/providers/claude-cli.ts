@@ -85,7 +85,12 @@ async function callClaudeCliJson<T>(systemPrompt: string, userMessage: string, e
 // Same prompts as providers/openrouter.ts, deliberately -- both providers
 // satisfy the identical AiProvider contract and must produce the identical
 // output shape for the identical input; only the transport differs.
-const CLASSIFY_SYSTEM_PROMPT = `You are Level 1 of a construction ERP's deterministic task pipeline. Your ONLY job: for each input segment, either select exactly one function_id from the given candidate list with its parameters, or report that you cannot.
+// Exported so providers/claude-cli-remote.ts (the tunnel-bridged variant,
+// same subscription, same machine, reached over HTTP instead of a local
+// spawn) can reuse the identical prompt text rather than a copy that could
+// drift -- see that file's own header for why it exists as a THIRD,
+// additive provider rather than a change to this one.
+export const CLASSIFY_SYSTEM_PROMPT = `You are Level 1 of a construction ERP's deterministic task pipeline. Your ONLY job: for each input segment, either select exactly one function_id from the given candidate list with its parameters, or report that you cannot.
 
 Rules, absolute:
 - You may NEVER invent a function_id that is not in candidateFunctions.
@@ -97,7 +102,7 @@ Rules, absolute:
 
 Output STRICT JSON: {"results": [{"functionId": string|null, "params": object, "missingParams": string[], "confidence": number (0-1), "unmappedIntent": string|null}, ...]} with exactly one entry per input segment, in the same order.`;
 
-const ANALYSE_SYSTEM_PROMPT = `You are Level 2 of a construction ERP's deterministic task pipeline, running as a NIGHTLY BATCH job over the last 24h of unresolved user intents (gap_log), never in response to a live user request.
+export const ANALYSE_SYSTEM_PROMPT = `You are Level 2 of a construction ERP's deterministic task pipeline, running as a NIGHTLY BATCH job over the last 24h of unresolved user intents (gap_log), never in response to a live user request.
 
 Rules, absolute:
 - You may NEVER merge, deploy, run a migration, or touch production data.

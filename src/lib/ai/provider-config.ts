@@ -23,9 +23,14 @@
 // this file that reaches a provider without also going through the gate.
 import type { PipelineLevelRole } from "./level-model-registry";
 
-export type AiProviderName = "claude-cli" | "openrouter";
+// "claude-cli-remote" (2026-09-18, owner-directed): the same subscription
+// as "claude-cli", reached over a Cloudflare Tunnel to the owner's own
+// laptop instead of a local spawn, so it can be selected for a level that
+// runs on Vercel (see providers/claude-cli-remote.ts for the full
+// reasoning, including why this does not change the ToS analysis).
+export type AiProviderName = "claude-cli" | "claude-cli-remote" | "openrouter";
 
-const KNOWN_PROVIDERS: readonly AiProviderName[] = ["claude-cli", "openrouter"];
+const KNOWN_PROVIDERS: readonly AiProviderName[] = ["claude-cli", "claude-cli-remote", "openrouter"];
 
 function isKnownProvider(value: string): value is AiProviderName {
   return (KNOWN_PROVIDERS as readonly string[]).includes(value);
