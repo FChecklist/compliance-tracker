@@ -294,6 +294,9 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   "src/app/api/v1/projexa/milestones/route.ts",
   "src/app/api/v1/projexa/milestones/[id]/route.ts",
   "src/app/api/v1/projexa/billing-claims/route.ts",
+  // Sumeet requirement (new, 2026-09-18, the 28-item exceptions report):
+  // same requireAuthOrApiKey family gap documented throughout this list.
+  "src/app/api/v1/projexa/exceptions/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail

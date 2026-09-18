@@ -6873,6 +6873,12 @@ export const erpPurchaseInvoiceItems = complianceSchemaDB.table('erp_purchase_in
   taxTemplateId: text('tax_template_id'),
   hsnSacCode: text('hsn_sac_code'), // Wave 65 -- see erp_sales_invoice_items' identical field for the snapshotting rationale
   purchaseOrderItemId: text('purchase_order_item_id'), // Wave 85 -- nullable, see erp_purchase_invoices.purchaseOrderId
+  // Sumeet requirement (new) #23 ("subcontractor invoices don't match the
+  // work"), Owner directive 2026-09-18. Nullable, same no-hard-FK convention
+  // as erp_purchase_order_items.boq_line_item_id above -- lets the
+  // deterministic check compare this invoice line's amount against that
+  // BOQ line's actual work-progress-billed value.
+  boqLineItemId: text('boq_line_item_id'),
 })
 
 // --- Assets ---
@@ -7105,6 +7111,12 @@ export const erpPurchaseOrderItems = complianceSchemaDB.table('erp_purchase_orde
   rate: numeric('rate').notNull().default('0'),
   amount: numeric('amount').notNull().default('0'),
   receivedQuantity: numeric('received_quantity').notNull().default('0'),
+  // Sumeet requirement (new) #18 ("material ordered without scope of work
+  // and BOQ"), Owner directive 2026-09-18. Nullable, no DB-level FK -- same
+  // convention as construction_material_issues.boq_line_item_id (a
+  // purchaser may genuinely not know which BOQ line a PO line belongs to
+  // yet, and a hard FK would make that honest "not yet" unrecordable).
+  boqLineItemId: text('boq_line_item_id'),
 })
 
 export const erpPurchaseReceipts = complianceSchemaDB.table('erp_purchase_receipts', {
@@ -10887,6 +10899,16 @@ export const constructionBoqs = complianceSchemaDB.table('construction_boqs', {
   evidenceArtefactRef: text('evidence_artefact_ref'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Sumeet requirement (new) #15/#16 ("approval from customer on new scope
+  // of work" / "... on new BOQ"), Owner directive 2026-09-18. approvedById/
+  // approvedAt above are the INTERNAL approval (an org user); these are a
+  // separate, deliberately distinct fact -- a BOQ can be internally approved
+  // with no customer sign-off on it at all, which is exactly the gap this
+  // requirement names. Mirrors constructionChangeOrders' own
+  // esignatureRequestId pattern (nullable, set once sent for signature).
+  customerApprovedById: text('customer_approved_by_id'),
+  customerApprovedAt: timestamp('customer_approved_at'),
+  customerEsignatureRequestId: text('customer_esignature_request_id'),
 })
 
 export const constructionBoqLineItems = complianceSchemaDB.table('construction_boq_line_items', {
@@ -11231,6 +11253,22 @@ export const constructionWorkProgressEntries = complianceSchemaDB.table('constru
   remarks: text('remarks'),
   recordedById: text('recorded_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // Sumeet requirement (new) #3/#4 ("site builds from the drawing but not
+  // confirmed" / "site builds from the old drawing"), Owner directive
+  // 2026-09-18. Nullable and additive -- a work-progress entry recorded
+  // before this existed, or against an activity with no drawing on record
+  // yet, simply has no drawing reference, which is the honest "not known"
+  // answer, not an error. drawingDocumentId points at the `documents` row
+  // (linkedEntityType/linkedEntityId's own polymorphic convention, Wave 61)
+  // the site team says they built this increment of work from; whether that
+  // document is still documents.isLatestVersion is the deterministic check
+  // for "built from the old drawing". drawingConfirmedAt/ById is a SEPARATE
+  // fact from "which drawing" -- a drawing can be named without anyone
+  // having actually confirmed it is the right one to build from yet, which
+  // is exactly what "not confirmed" means.
+  drawingDocumentId: text('drawing_document_id'),
+  drawingConfirmedById: text('drawing_confirmed_by_id'),
+  drawingConfirmedAt: timestamp('drawing_confirmed_at'),
 })
 
 // Interim/RA (Running Account) billing against a BoQ's work-progress %
@@ -11255,6 +11293,17 @@ export const constructionInterimBills = complianceSchemaDB.table('construction_i
   salesInvoiceId: text('sales_invoice_id'), // set once the erp_sales_invoices row is created in the same call
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // Sumeet requirement (new) #24 ("snags lost, retention held"), Owner
+  // directive 2026-09-18. retentionAmount above has always been a pure
+  // withholding figure with no release mechanism anywhere in this codebase
+  // -- these three columns are that release, nullable/additive so every
+  // existing bill (which has never been released) simply reads as "still
+  // held in full", the honest default. retentionReleasedAmount can be less
+  // than retentionAmount (a partial release), never asserted equal to it at
+  // the DB level -- the service layer is what actually enforces that.
+  retentionReleasedAmount: numeric('retention_released_amount'),
+  retentionReleasedAt: timestamp('retention_released_at'),
+  retentionReleasedById: text('retention_released_by_id'),
 })
 
 export const constructionInterimBillLineItems = complianceSchemaDB.table('construction_interim_bill_line_items', {
@@ -11379,6 +11428,17 @@ export const constructionLabourRoster = complianceSchemaDB.table('construction_l
   dailyRate: numeric('daily_rate').notNull().default('0'),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // Sumeet requirement (new) #21 ("manpower on paper, payroll disputes"),
+  // Owner directive 2026-09-18. This table deliberately has no userId/
+  // employeeId FK by original design (site labour is often unregistered
+  // gang members, not a system user) -- but that same design means site
+  // attendance and payroll (erp_payroll_runs/erp_payslips, keyed off
+  // employee_profiles.employee_id) can never be reconciled at all. Nullable
+  // and additive: a roster entry is only bridgeable to payroll once someone
+  // deliberately links it to a real employee profile; most rows will
+  // legitimately stay null (subcontracted gang labour has no payroll record
+  // in this system at all, which is a real fact, not a gap to chase).
+  employeeId: text('employee_id'),
 })
 
 export const constructionAttendance = complianceSchemaDB.table('construction_attendance', {
@@ -11769,6 +11829,54 @@ export const constructionPunchListItems = complianceSchemaDB.table('construction
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// Sumeet requirement (new) #10 ("work disputed with vendor"), Owner
+// directive 2026-09-18. New table -- no existing entity in this schema
+// represents a vendor/subcontractor disagreeing about the work or its
+// value (erp_supplier records the vendor itself, not a disagreement about
+// them). Modeled directly on constructionPunchListItems' own shape
+// (project-scoped, an open/resolved lifecycle, a free-text description) --
+// the closest existing precedent for "an issue tracked against a project
+// until someone closes it out".
+export const constructionDisputeStatusEnum = complianceSchemaDB.enum('construction_dispute_status', ['open', 'resolved'])
+
+export const constructionVendorDisputes = complianceSchemaDB.table('construction_vendor_disputes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  vendorId: text('vendor_id'), // nullable -- no hard FK, matches constructionLabourRoster.vendorId's own convention (an unregistered/informal vendor is a real, recordable case)
+  boqLineItemId: text('boq_line_item_id'), // nullable -- which BOQ line the dispute is about, when known
+  description: text('description').notNull(),
+  amountDisputed: numeric('amount_disputed'),
+  status: constructionDisputeStatusEnum('status').notNull().default('open'),
+  resolutionNote: text('resolution_note'),
+  raisedById: text('raised_by_id').notNull(),
+  raisedAt: timestamp('raised_at').notNull().defaultNow(),
+  resolvedAt: timestamp('resolved_at'),
+})
+
+// Sumeet requirement (new) #11/#12 ("work disputed by customer" / "customer
+// complained"), Owner directive 2026-09-18. New table, same reasoning as
+// constructionVendorDisputes above but for the customer side -- category
+// distinguishes a generic complaint (#12, any row) from one specifically
+// about disputed work (#11, category='work_dispute'), so one table answers
+// both requirements rather than inventing two near-identical ones.
+export const constructionComplaintSeverityEnum = complianceSchemaDB.enum('construction_complaint_severity', ['low', 'medium', 'high'])
+
+export const constructionCustomerComplaints = complianceSchemaDB.table('construction_customer_complaints', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  customerId: text('customer_id'), // nullable -- no hard FK, same posture as constructionProgressClaims.customerId's own erp_customers reference being a soft link elsewhere in this file
+  category: text('category').notNull().default('general'), // 'general' | 'work_dispute' | free text -- advisory, same posture as constructionPunchListItems.trade
+  description: text('description').notNull(),
+  severity: constructionComplaintSeverityEnum('severity').notNull().default('medium'),
+  status: constructionDisputeStatusEnum('status').notNull().default('open'),
+  resolutionNote: text('resolution_note'),
+  raisedById: text('raised_by_id').notNull(),
+  raisedAt: timestamp('raised_at').notNull().defaultNow(),
+  resolvedAt: timestamp('resolved_at'),
+})
+
 export const constructionChangeOrderStatusEnum = complianceSchemaDB.enum('construction_change_order_status', ['draft', 'pending_approval', 'approved', 'rejected'])
 
 export const constructionChangeOrders = complianceSchemaDB.table('construction_change_orders', {
@@ -11801,6 +11909,15 @@ export const constructionChangeOrders = complianceSchemaDB.table('construction_c
   // or edited after this field exists can be genuinely trade-scoped; see
   // computeInteriorVariationOrderAnalysis in report-engine-service.ts.
   trade: text('trade'),
+  // Sumeet requirement (new) #2 ("extra work done, never billed") and #6's
+  // own R-98 caveat (Owner directive 2026-09-18): an approved Change Order
+  // and the constructionBoqs revision it produced were, until now, two
+  // parallel, unlinked systems -- no field on either side named the other.
+  // Nullable and additive: an approved CO whose extra scope was never
+  // carried into a BOQ revision (or one that predates this column) has no
+  // linkage, which is itself a real, honestly-representable fact ("this
+  // approved change was never priced into the BOQ"), not an error state.
+  boqRevisionId: text('boq_revision_id'),
 })
 
 // ─── R65 gap-closure (report_definitions data_gap cluster, 8 reports:
