@@ -121,7 +121,16 @@ export type InvoiceApprovedClaimInput = { billDate: string; taxTemplateId: strin
  * generateInterimBill's own idempotency comes from billing only the
  * increment over previously-billed amounts).
  */
-export async function invoiceApprovedClaim(ctx: ClaimContext & { dbUser: typeof users.$inferSelect }, claimId: string, input: InvoiceApprovedClaimInput) {
+// dbUser is nullable for the same reason generateInterimBill's own is --
+// PROJEXA's real calling convention is a server-to-server API key, never a
+// per-human session (requireAuthOrApiKey's API-key branch has no dbUser).
+// apiKey is threaded through so generateInterimBill -> createSalesInvoice
+// can still attribute the invoice to a real identity in that case.
+export async function invoiceApprovedClaim(
+  ctx: ClaimContext & { dbUser: typeof users.$inferSelect | null; apiKey?: { id: string; name: string } },
+  claimId: string,
+  input: InvoiceApprovedClaimInput
+) {
   if (!input.billDate) throw new ServiceError("billDate is required", 400)
   if (!input.taxTemplateId) throw new ServiceError("taxTemplateId is required", 400)
 
@@ -132,7 +141,7 @@ export async function invoiceApprovedClaim(ctx: ClaimContext & { dbUser: typeof 
   if (existing.status !== "client_approved") throw new ServiceError(`Only a 'client_approved' claim can be invoiced (this one is '${existing.status}')`, 409)
 
   const { bill, invoice } = await generateInterimBill(
-    { orgId: ctx.orgId, userId: ctx.userId, dbUser: ctx.dbUser },
+    { orgId: ctx.orgId, userId: ctx.userId, dbUser: ctx.dbUser, apiKey: ctx.apiKey },
     {
       projectId: existing.projectId, boqId: existing.boqId, customerId: existing.customerId,
       billDate: input.billDate, retentionPercent: Number(existing.retentionPercent), taxTemplateId: input.taxTemplateId,
@@ -146,6 +155,24 @@ export async function invoiceApprovedClaim(ctx: ClaimContext & { dbUser: typeof 
     return row
   })
   return { claim: updated, bill, invoice }
+}
+
+/**
+ * Sumeet requirement #3 ("BILLING MILESTONES"): every progress claim for a
+ * project, whatever its status -- unlike listBillingDueQueue() below (SD-002's
+ * "Ready to Bill" worklist, which deliberately excludes 'invoiced' rows because
+ * that queue answers "what still needs billing action"). A real billing-
+ * milestones SCREEN needs the full history too, append-only per the Owner's
+ * own requirement -- an invoiced claim is still a real fact about this
+ * project's billing milestones, not something that stops existing once done.
+ */
+export async function listClaims(ctx: { orgId: string }, projectId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    return db.query.constructionProgressClaims.findMany({
+      where: and(eq(constructionProgressClaims.orgId, ctx.orgId), eq(constructionProgressClaims.projectId, projectId)),
+      orderBy: (t, { desc }) => desc(t.scheduledDate),
+    })
+  })
 }
 
 export type BillingDueQueueItem = Awaited<ReturnType<typeof listBillingDueQueue>>[number]

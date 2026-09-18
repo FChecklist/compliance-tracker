@@ -176,6 +176,25 @@ describe("listBillingDueQueue (SD-002 'Ready to Bill' worklist)", () => {
   })
 })
 
+describe("listClaims -- Sumeet requirement #3's real billing-milestones screen (unlike listBillingDueQueue, keeps invoiced rows)", () => {
+  test("returns every claim for the project regardless of status, including invoiced ones the due-queue drops", async () => {
+    const fakeDb = {
+      query: {
+        constructionProgressClaims: {
+          findMany: mock(async () => [
+            { id: "c1", projectId: "p1", status: "drafted", scheduledDate: "2026-08-01" },
+            { id: "c2", projectId: "p1", status: "invoiced", scheduledDate: "2026-07-01" },
+          ]),
+        },
+      },
+    }
+    await mock.module("@/lib/db/tenant-scoped", () => ({ ...realTenantScoped, withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)) }))
+    const { listClaims } = await import("./construction-billing-workflow-service")
+    const claims = await listClaims({ orgId: "org1" }, "p1") as { id: string }[]
+    expect(claims.map((c) => c.id).sort()).toEqual(["c1", "c2"])
+  })
+})
+
 describe("getClaimTimeline (SD-007 'Claim Timeline' document-flow trace)", () => {
   test("flags isStuck once a non-terminal claim has sat past the threshold with no progress", async () => {
     const oldDate = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000) // 20 days ago
