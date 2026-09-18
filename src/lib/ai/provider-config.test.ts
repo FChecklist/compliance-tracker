@@ -76,9 +76,9 @@ describe("resolveProviderForLevel -- dev/prod default and per-level override (P1
 });
 
 describe("resolveAllowedProviders -- the config-driven provider allowlist (P1.1)", () => {
-  test("defaults to both known providers when unset", () => {
+  test("defaults to all known providers when unset", () => {
     clearAll();
-    expect(resolveAllowedProviders().sort()).toEqual(["claude-cli", "openrouter"]);
+    expect(resolveAllowedProviders().sort()).toEqual(["claude-cli", "claude-cli-remote", "openrouter"]);
   });
 
   test("a configured allowlist narrows the set", () => {

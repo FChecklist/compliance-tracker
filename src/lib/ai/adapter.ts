@@ -8,7 +8,15 @@
 // per-level (see provider-config.ts) rather than one process-wide branch --
 //   AI_PROVIDER=claude-cli            <- global default, dev-phase (Rajat-only,
 //                                        see the identity gate below)
-//   AI_PROVIDER=openrouter            <- global default once set
+//   AI_PROVIDER=claude-cli-remote     <- same subscription, tunnelled to the
+//                                        owner's laptop (providers/claude-cli-
+//                                        remote.ts) -- for exercising L1/L2 on
+//                                        an environment that cannot spawn a
+//                                        local `claude` binary (Vercel), still
+//                                        gated to Rajat-only, still not for
+//                                        real end-user traffic
+//   AI_PROVIDER=openrouter            <- global default once set; the only
+//                                        provider meant for real end users
 //   AI_PROVIDER_PIPELINE_L1 / _L2     <- per-level override, takes precedence
 //                                        over AI_PROVIDER for that level only
 //   AI_ALLOWED_PROVIDERS              <- allowlist checked AFTER the above
@@ -92,11 +100,18 @@ function rajatUserId(): string | null {
  * every org in that loop is a different person. Set AI_PROVIDER=openrouter to
  * run L2.
  */
+// Both "claude-cli" and "claude-cli-remote" are the SAME individual
+// subscription for licensing purposes (see claude-cli-remote.ts's own
+// header) -- every gate below treats the two identically, deliberately.
+function isSubscriptionProvider(provider: AiProviderName): boolean {
+  return provider === "claude-cli" || provider === "claude-cli-remote";
+}
+
 export function assertAiProviderAllowedForSystemBatch(jobName: string, level: PipelineLevelRole = "pipeline_l2"): void {
   const provider = resolveProviderName(level);
-  if (provider !== "claude-cli") return; // openrouter has no per-user restriction
+  if (!isSubscriptionProvider(provider)) return; // openrouter has no per-user restriction
   console.error(
-    `[ai/adapter] provider "claude-cli" (level=${level}) refused system batch "${jobName}": a batch acts for every ` +
+    `[ai/adapter] provider "${provider}" (level=${level}) refused system batch "${jobName}": a batch acts for every ` +
     `organisation at once, so no single permitted account exists. Configure openrouter for this level to run it.`
   );
   throw new AiProviderRefusalError(NO_COMMENTARY_SENTENCE);
@@ -104,12 +119,12 @@ export function assertAiProviderAllowedForSystemBatch(jobName: string, level: Pi
 
 export function assertAiProviderAllowed(userId: string, level: PipelineLevelRole = "pipeline_l1"): void {
   const provider = resolveProviderName(level);
-  if (provider !== "claude-cli") return; // openrouter has no per-user restriction
+  if (!isSubscriptionProvider(provider)) return; // openrouter has no per-user restriction
 
   const allowed = rajatUserId();
   if (!allowed) {
     console.error(
-      "[ai/adapter] AI_PROVIDER=claude-cli but RAJAT_USER_ID is not configured -- refusing to serve AI rather than silently guessing who is allowed to use it."
+      `[ai/adapter] provider "${provider}" but RAJAT_USER_ID is not configured -- refusing to serve AI rather than silently guessing who is allowed to use it.`
     );
     // R67 B-05: a refusal must never be a dead end. R66 recorded a user
     // being told "... not available for this account." with no next step,
@@ -119,7 +134,7 @@ export function assertAiProviderAllowed(userId: string, level: PipelineLevelRole
   }
   if (userId !== allowed) {
     console.error(
-      `[ai/adapter] provider "claude-cli" (level=${level}) refused a request from user "${userId}" (only "${allowed}" is permitted). Anthropic's Claude Code policy permits OAuth/subscription auth for ordinary individual use only -- never to serve a request on behalf of a different person. Configure openrouter (globally via AI_PROVIDER, or for just this level via AI_PROVIDER_${level.toUpperCase()}) before this product serves anyone other than that one account.`
+      `[ai/adapter] provider "${provider}" (level=${level}) refused a request from user "${userId}" (only "${allowed}" is permitted). Anthropic's Claude Code policy permits OAuth/subscription auth for ordinary individual use only -- never to serve a request on behalf of a different person. Configure openrouter (globally via AI_PROVIDER, or for just this level via AI_PROVIDER_${level.toUpperCase()}) before this product serves anyone other than that one account.`
     );
     throw new AiProviderRefusalError(NO_COMMENTARY_SENTENCE);
   }
@@ -151,13 +166,18 @@ export function getAiProvider(level: PipelineLevelRole = "pipeline_l1"): AiProvi
 
   // Lazy require, not a static import -- providers/claude-cli.ts shells out
   // to a local binary that will never exist on Vercel; providers/openrouter.ts
-  // needs an API key that a claude-cli-only deployment may not have set.
-  // Neither module should be evaluated (and neither's env checks should run)
-  // for the provider that isn't selected.
+  // needs an API key that a claude-cli-only deployment may not have set;
+  // providers/claude-cli-remote.ts needs a tunnel URL + secret that only
+  // matter when this exact provider is selected. Neither module should be
+  // evaluated (and neither's env checks should run) for a provider that
+  // isn't selected.
   let provider: AiProvider;
   if (name === "openrouter") {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     provider = require("./providers/openrouter").openrouterProvider as AiProvider;
+  } else if (name === "claude-cli-remote") {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    provider = require("./providers/claude-cli-remote").claudeCliRemoteProvider as AiProvider;
   } else {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     provider = require("./providers/claude-cli").claudeCliProvider as AiProvider;
