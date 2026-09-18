@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive, Claude Desktop, same session as PROJEXA-DECK-001/L1-remote-bridge above) -- Sumeet's 8 PROJEXA requirements: BOQ/timelines-vs-milestones/billing-milestones/scope/scope-change/BOQ-change/combined-analysis/P&L, Owner directive 2026-09-18, 3-phase plan approved verbatim (\"Proceed in that order, COMPLETE EVERYTHING, TEST, DEPLOY, MERGE\")"
+  - session_label: "claude-code (interactive, Claude Desktop, same session as PROJEXA-DECK-001/L1-remote-bridge above) -- Sumeet's 8 PROJEXA requirements: BOQ/timelines-vs-milestones/billing-milestones/scope/scope-change/BOQ-change/combined-analysis/P&L, Owner directive 2026-09-18, 3-phase plan approved verbatim (\"Proceed in that order, COMPLETE EVERYTHING, TEST, DEPLOY, MERGE\") [DONE, merged as PR #1749 (compliance-tracker) + FChecklist/projexa PR #283]"
     claimed_at: "2026-09-18T (this session)"
     claim: |
       Phase 1 (fix /change-orders "no data" bug, item 5): INVESTIGATED,
