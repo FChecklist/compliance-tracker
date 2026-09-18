@@ -17,7 +17,13 @@ import {
   readScheduleLookup, writeScheduleLookup,
 } from "./schedule-lookup-cache"
 
-export type PmsContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
+// dbUser is optional/nullable to match the sibling PmsContext in
+// pms-issue-service.ts -- a PROJEXA server-to-server call authenticated by
+// API key (requireAuthOrApiKey's apiKey branch) has no dbUser at all, and
+// every function here that takes a PmsContext either doesn't read dbUser
+// (createMilestone/updateMilestone) or already accepts null (hasRole's own
+// signature is `typeof users.$inferSelect | null`).
+export type PmsContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect | null }
 
 const DEFAULT_STATUSES: Array<{ name: string; group: "backlog" | "unstarted" | "started" | "completed" | "cancelled"; position: number; isDefault?: boolean }> = [
   { name: "Backlog", group: "backlog", position: 0, isDefault: true },

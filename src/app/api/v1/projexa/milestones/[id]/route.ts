@@ -20,6 +20,7 @@ async function PATCH_impl(request: NextRequest, { params }: { params: Promise<{ 
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
   const { id } = await params
 
   try {
@@ -30,7 +31,7 @@ async function PATCH_impl(request: NextRequest, { params }: { params: Promise<{ 
       targetDate: body.targetDate,
       status: body.status,
     }
-    const milestone = await updateMilestone({ orgId: ctx.orgId, userId: ctx.dbUser?.id ?? ctx.apiKey!.id, dbUser: ctx.dbUser }, id, patch)
+    const milestone = await updateMilestone({ orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }, id, patch)
     return NextResponse.json(milestone)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
