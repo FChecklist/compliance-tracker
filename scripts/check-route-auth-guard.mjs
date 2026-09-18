@@ -294,6 +294,11 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   "src/app/api/v1/projexa/milestones/route.ts",
   "src/app/api/v1/projexa/milestones/[id]/route.ts",
   "src/app/api/v1/projexa/billing-claims/route.ts",
+  // Sumeet requirement #3 follow-up (billing-milestones write UI,
+  // 2026-09-18): same requireAuthOrApiKey family gap, on the two new route
+  // files this phase adds.
+  "src/app/api/v1/projexa/billing-claims/[id]/route.ts",
+  "src/app/api/v1/projexa/tax-templates/route.ts",
   // Sumeet requirement (new, 2026-09-18, the 28-item exceptions report):
   // same requireAuthOrApiKey family gap documented throughout this list.
   "src/app/api/v1/projexa/exceptions/route.ts",
