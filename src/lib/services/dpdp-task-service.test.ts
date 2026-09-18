@@ -29,7 +29,7 @@ await mock.module("@/lib/email", () => ({
   notifyNewComment: async () => {},
 }))
 
-const { createTask, sendTaskDigestEmail, answerTaskViaEmailToken } = await import("./dpdp-task-service")
+const { createTask, sendTaskDigestEmail, answerTaskViaEmailToken, previewTaskEmailToken } = await import("./dpdp-task-service")
 const { db, dpdpOrganisation, dpdpIdentity, dpdpIdentityEmail, dpdpMembership, dpdpLibraryVersion, dpdpObligationTemplate, dpdpObligation, dpdpEmailToken, dpdpTask, dpdpEvent } = await import("@/lib/db")
 const { withDpdpContext } = await import("@/lib/db/tenant-scoped")
 const { eq } = await import("drizzle-orm")
@@ -65,6 +65,7 @@ d("the WO-DPDP-005/007 vertical slice, end to end (real DB)", () => {
   let identityId: string
   let membershipId: string
   let taskId: string
+  let obligationId: string
 
   beforeAll(async () => {
     if (!hasDb) return
@@ -83,6 +84,7 @@ d("the WO-DPDP-005/007 vertical slice, end to end (real DB)", () => {
       const [lib] = await tx.insert(dpdpLibraryVersion).values({ version: `slice-${suffix}`, releasedOn: new Date().toISOString().slice(0, 10) }).returning()
       const [tpl] = await tx.insert(dpdpObligationTemplate).values({ libraryVersionId: lib.id, key: `slice_${suffix}`, name: "Put the CCTV notice up", plainText: "test", proofKind: "declaration", defaultDays: 30, answerableBy: "internal" }).returning()
       const [obligation] = await tx.insert(dpdpObligation).values({ orgId, templateId: tpl.id, libraryVersionUsed: lib.id, dueOn: new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10) }).returning()
+      obligationId = obligation.id
 
       const task = await createTask({ orgId, obligationId: obligation.id, seq: 1, text: "Put the CCTV notice up at both gates", optionYes: "✓ Completed", optionNo: "⏳ Pending" }, tx)
       taskId = task.id
@@ -134,6 +136,44 @@ d("the WO-DPDP-005/007 vertical slice, end to end (real DB)", () => {
     // The task itself did not change a second time.
     const taskAfter = await withDpdpContext({ orgId }, (tx) => tx.query.dpdpTask.findFirst({ where: eq(dpdpTask.id, taskId) }))
     expect(taskAfter!.answeredAt!.getTime()).toBe(task!.answeredAt!.getTime())
+  }, 45_000)
+
+  test("previewTaskEmailToken (the GET confirmation page) never mutates anything -- HIGH-severity fix, 2026-09-18: an email scanner/prefetcher must be able to GET this link any number of times with zero effect", async () => {
+    if (!hasDb) return
+    // A fresh task of its own (not the shared `taskId`, which the first test
+    // above already answers) -- this test's own falsifiability check needs a
+    // genuinely pristine, unanswered task to prove GET didn't touch it.
+    const ownTask = await createTask({ orgId, obligationId, seq: 2, text: "Preview-only test task", optionYes: "Yes", optionNo: "No" })
+    const { issueTaskEmailToken } = await import("./dpdp-task-service")
+    const previewToken = await issueTaskEmailToken(orgId, ownTask.id, membershipId, identityId, "yes")
+
+    // Simulate a scanner hitting the link 3 times before a human ever opens it.
+    for (let i = 0; i < 3; i++) {
+      const preview = await previewTaskEmailToken(previewToken.raw)
+      expect(preview).toEqual({ ok: true, action: "yes" })
+    }
+
+    // Falsifiability: the token is still unspent and the task is still
+    // unanswered after 3 GETs -- if previewTaskEmailToken secretly mutated
+    // anything, this would fail here.
+    const tokenRows = await withDpdpContext({ orgId }, (tx) => tx.query.dpdpEmailToken.findMany({ where: eq(dpdpEmailToken.taskId, ownTask.id) }))
+    const thisTokenRow = tokenRows.find((t) => t.action === "yes" && t.usedAt === null)
+    expect(thisTokenRow).toBeDefined()
+
+    const taskAfterPreviews = await withDpdpContext({ orgId }, (tx) => tx.query.dpdpTask.findFirst({ where: eq(dpdpTask.id, ownTask.id) }))
+    expect(taskAfterPreviews!.answer).toBeNull()
+    expect(taskAfterPreviews!.answeredAt).toBeNull()
+
+    // Only the real POST-equivalent call (answerTaskViaEmailToken) actually
+    // answers it -- and it still works exactly as before.
+    const confirmed = await answerTaskViaEmailToken(previewToken.raw)
+    expect(confirmed).toEqual({ ok: true, taskId: ownTask.id, answer: "yes" })
+
+    // And once spent, the preview honestly reports it as used rather than
+    // throwing or (worse) silently succeeding again.
+    const previewAfterSpend = await previewTaskEmailToken(previewToken.raw)
+    expect(previewAfterSpend.ok).toBe(false)
+    if (!previewAfterSpend.ok) expect(previewAfterSpend.reason).toContain("already been used")
   }, 45_000)
 
   test("a token for membership A cannot be issued against a DIFFERENT organisation's task -- the database trigger refuses it (WO-007 4.3)", async () => {
