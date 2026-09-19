@@ -170,6 +170,9 @@ beforeEach(() => {
       apiKey: null,
     })),
     requireRoleOrScope: mock(() => null),
+    resolveActingUser: mock(async (ctx: { dbUser: unknown }) => ({ user: ctx.dbUser, error: null })),
+    readActingUserId: mock(() => null),
+    readActingUserEmail: mock(() => null),
   }))
   mock.module("@/lib/db/tenant-scoped", () => ({
     withTenantContext: mock(async (_ctx: unknown, fn: (db: unknown) => unknown) => fn(makeFakeDb())),
