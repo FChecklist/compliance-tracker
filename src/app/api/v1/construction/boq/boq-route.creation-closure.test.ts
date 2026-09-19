@@ -98,6 +98,9 @@ beforeEach(() => {
     ROLE_RANK,
     requireAuthOrApiKey: mock(async () => ({ response: null, orgId: ORG_ID, dbUser: { id: "user-1" }, apiKey: null })),
     requireRoleOrScope: mock(() => null),
+    resolveActingUser: mock(async (ctx: { dbUser: unknown }) => ({ user: ctx.dbUser, error: null })),
+    readActingUserId: mock(() => null),
+    readActingUserEmail: mock(() => null),
   }))
   mock.module("@/lib/db/tenant-scoped", () => ({
     withTenantContext: mock(async (_ctx: unknown, fn: (db: any) => any) => {

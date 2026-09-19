@@ -4,7 +4,7 @@
 // requireRoleOrScope so an API-key caller is gated on a real write scope
 // instead (matching every other v1 write route's own convention).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import { approveBoq, ServiceError } from "@/lib/services/construction-boq-service"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -16,7 +16,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     const { id } = await params
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+    // Same fix, same root cause, as the sibling create route
+    // (v1/construction/boq/route.ts POST) -- found by the same Playwright
+    // spec: without this, `ctx.apiKey!.id` made every PROJEXA-originated
+    // approval resolve to the SAME actor as every create, so approveBoq's
+    // own self-approval guard ("You cannot approve a BOQ you created
+    // yourself") fired for every PROJEXA approval regardless of which two
+    // real, different users actually clicked Create and Approve.
+    const { user: actingUser } = await resolveActingUser(ctx, readActingUserEmail(request), readActingUserId(request))
+    const actorId = actingUser?.id ?? ctx.dbUser?.id ?? ctx.apiKey!.id
     const boq = await approveBoq({ orgId: ctx.orgId, userId: actorId }, id)
     return NextResponse.json(boq)
   } catch (error) {
