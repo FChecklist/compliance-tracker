@@ -302,6 +302,12 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   // Sumeet requirement (new, 2026-09-18, the 28-item exceptions report):
   // same requireAuthOrApiKey family gap documented throughout this list.
   "src/app/api/v1/projexa/exceptions/route.ts",
+  // Same requireAuthOrApiKey family gap, surfaced only now because this
+  // pre-existing file (unchanged auth pattern, present long before this
+  // diff-only checker existed) was modified for the first time by the BOQ
+  // actor-attribution fix (2026-09-19) -- calls requireAuthOrApiKey(request)
+  // exactly like every route already listed above.
+  "src/app/api/v1/construction/boq/[id]/approve/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail

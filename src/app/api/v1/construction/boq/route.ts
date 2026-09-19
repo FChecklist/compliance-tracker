@@ -2,7 +2,7 @@
 // external client) targets instead of the internal /api/construction/*
 // routes, which can change without notice. Same service calls either way.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import { listBoqs, parseBoqInclude, createBoq, ServiceError } from "@/lib/services/construction-boq-service"
 import { withRouteTiming } from "@/lib/route-timing"
 // R85 Addendum 3 v4 Phase 6 (gates 6-01/6-03a): THE ONE GATE every BOQ read
@@ -83,10 +83,20 @@ async function POST_impl(request: NextRequest) {
 
   try {
     const body = await request.json()
-    // External API-key callers have no real user id -- record the key's id
-    // so createdById still shows who/what created this row, rather than
-    // leaving it null or throwing.
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+    // R42 seq22 / R67 WS-H (D-05) fix class, missed instance found via the
+    // Sumeet billing-milestones Playwright gap-closure sweep (2026-09-19):
+    // `ctx.apiKey!.id` is an api_keys.id, not a real compliance.users.id --
+    // PROJEXA's real proxy always authenticates with a shared per-org API
+    // key, so createdById was silently the SAME single value for every BOQ
+    // ever created through PROJEXA regardless of which real user clicked
+    // Create, and approveBoq's self-approval guard could therefore never
+    // distinguish two different PROJEXA users (see the sibling approve
+    // route's own fix, same root cause). Resolves the real acting user via
+    // the X-Acting-User/X-Acting-User-Email headers PROJEXA now sends,
+    // falling back to the api key id only when neither header is present
+    // (a genuine external API-key-only integration).
+    const { user: actingUser } = await resolveActingUser(ctx, readActingUserEmail(request), readActingUserId(request))
+    const actorId = actingUser?.id ?? ctx.dbUser?.id ?? ctx.apiKey!.id
     const result = await createBoq({ orgId: ctx.orgId, userId: actorId }, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
