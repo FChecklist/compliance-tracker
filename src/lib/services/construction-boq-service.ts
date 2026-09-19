@@ -16,7 +16,7 @@
 // work. compareBoq() reuses the same pure helper so its warnings and the
 // creation-time block can never drift out of sync with each other.
 import {
-  constructionBoqs, constructionBoqLineItems, constructionWorkProgressEntries, projects,
+  constructionBoqs, constructionBoqLineItems, constructionWorkProgressEntries, projects, constructionChangeOrders,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm"
@@ -1387,11 +1387,48 @@ async function getBoqRow(db: TenantDb, boqId: string) {
 export async function createBoqRevision(
   ctx: BoqContext,
   parentBoqId: string,
-  input: { title?: string; lineItems?: BoqLineItemInput[]; allowScopeReductionOverride?: boolean }
+  input: {
+    title?: string
+    lineItems?: BoqLineItemInput[]
+    allowScopeReductionOverride?: boolean
+    /**
+     * R-98 fix (2026-09-19, Owner-authorized): the real, additive link this
+     * revision resulted from an approved Change Order's extra scope --
+     * constructionChangeOrders.boqRevisionId (schema.ts ~11920) exists
+     * specifically for this and was never populated by any write path
+     * before now. Optional and additive: a revision created without one
+     * (the normal case -- most revisions have no change order behind them)
+     * behaves exactly as before. Only an ALREADY-APPROVED change order may
+     * be linked (a draft/pending one has no confirmed scope to carry
+     * forward yet), and each change order may only ever be linked once (its
+     * own column has no unique constraint, but re-linking a second revision
+     * to the same change order would make "which BOQ change resulted from
+     * this CO" ambiguous, which is exactly what this column exists to make
+     * unambiguous).
+     */
+    sourceChangeOrderId?: string
+  }
 ) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const parent = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, parentBoqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!parent) throw new ServiceError("Parent BOQ not found", 404)
+
+    // R-98: validated BEFORE any of this revision's own work, so a bad
+    // sourceChangeOrderId fails fast with a clear 404/400/409 rather than
+    // after line items have already been inserted.
+    let sourceChangeOrder: typeof constructionChangeOrders.$inferSelect | undefined
+    if (input.sourceChangeOrderId) {
+      sourceChangeOrder = await db.query.constructionChangeOrders.findFirst({
+        where: and(eq(constructionChangeOrders.id, input.sourceChangeOrderId), eq(constructionChangeOrders.orgId, ctx.orgId)),
+      })
+      if (!sourceChangeOrder) throw new ServiceError("Change order not found", 404)
+      if (sourceChangeOrder.status !== "approved") {
+        throw new ServiceError(`Only an approved change order can be linked to a BOQ revision -- this one is "${sourceChangeOrder.status}"`, 400)
+      }
+      if (sourceChangeOrder.boqRevisionId) {
+        throw new ServiceError(`Change Order #${sourceChangeOrder.number} is already linked to a BOQ revision (${sourceChangeOrder.boqRevisionId})`, 409)
+      }
+    }
 
     // E-128 (real bug, found while investigating duplicate (project_id,
     // version) rows): nothing previously stopped this function from being
@@ -1474,6 +1511,14 @@ export async function createBoqRevision(
     }
 
     await db.update(constructionBoqs).set({ status: "superseded", updatedAt: new Date() }).where(eq(constructionBoqs.id, parent.id))
+
+    // R-98: the real link, set inside the SAME transaction as the revision
+    // itself -- an error after this point rolls the link back along with
+    // everything else, so a Change Order can never end up pointing at a
+    // revision that failed to fully persist.
+    if (sourceChangeOrder) {
+      await db.update(constructionChangeOrders).set({ boqRevisionId: boq.id }).where(eq(constructionChangeOrders.id, sourceChangeOrder.id))
+    }
 
     return getBoqRow(db, boq.id)
   }).then((row) => {

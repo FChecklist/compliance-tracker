@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import {
   getChangeOrder, submitChangeOrderForApproval, ServiceError,
 } from "@/lib/services/construction-change-order-service"
@@ -35,10 +35,21 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const body = await request.json()
 
     if (body.action === "submit") {
-      // Real e-signature dispatch needs a real user identity to attribute
-      // the request to -- an API key alone (no dbUser) can't submit one.
-      if (!ctx.dbUser) return NextResponse.json({ error: "Submitting for approval requires a real user session, not an API key" }, { status: 400 })
-      const changeOrder = await submitChangeOrderForApproval({ orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }, id, body.signers ?? [])
+      // R-97 fix (2026-09-19, Owner-authorized): real e-signature dispatch
+      // needs a real user identity to attribute the request to -- an API
+      // key ALONE (no dbUser, no acting-user headers) still can't submit
+      // one, but a PROJEXA-proxied call now resolves a REAL person the same
+      // way cost-visibility-service.ts's resolveRoleForCostVisibility()
+      // already does (X-Acting-User / X-Acting-User-Email -> a real
+      // compliance.users row), rather than blanket-refusing every
+      // API-key-authenticated caller. This was previously unconditional --
+      // `ctx.dbUser` is ALWAYS null for PROJEXA's shared-API-key calls
+      // (requireAuthOrApiKey's own fast API-key path, auth-guard.ts ~line
+      // 424), so "Send for Approval" could never succeed from PROJEXA's
+      // real UI for any user, on any change order.
+      const acting = await resolveActingUser(ctx, readActingUserEmail(request), readActingUserId(request))
+      if (acting.error) return acting.error
+      const changeOrder = await submitChangeOrderForApproval({ orgId: ctx.orgId, userId: acting.user!.id, dbUser: acting.user! }, id, body.signers ?? [])
       return NextResponse.json(changeOrder)
     }
     // action === "approve"/"reject" was deliberately removed here (this

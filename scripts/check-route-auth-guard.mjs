@@ -308,6 +308,12 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   // actor-attribution fix (2026-09-19) -- calls requireAuthOrApiKey(request)
   // exactly like every route already listed above.
   "src/app/api/v1/construction/boq/[id]/approve/route.ts",
+  // Same requireAuthOrApiKey family gap, surfaced only now because this
+  // pre-existing file (unchanged auth pattern) was modified for the first
+  // time by the R-97 acting-user-resolution fix (2026-09-19) -- calls
+  // requireAuthOrApiKey(request) exactly like every route already listed
+  // above; verified directly, not inferred from the header comment.
+  "src/app/api/v1/projexa/change-orders/[id]/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail
