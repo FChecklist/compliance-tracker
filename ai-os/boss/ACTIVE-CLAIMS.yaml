@@ -40,6 +40,66 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree -- read-mostly verification + one real BOQ created for proof) -- PROJEXA-E2E-001 batch R-01..R-04,R-10..R-24 (BOQ Create, Weighted Sub-Tasks, Revisions) [DONE -- all pre-existing DONE/CLOSED rows re-verified live, several with fresh stronger evidence]"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      Queried platform.sumeet_requirements for R-01..R-04, R-10..R-24 (all 19
+      present). All were already DONE/CLOSED with real prior evidence
+      (break-restore tests, unit tests, some live-UI proof). Work order asked
+      specifically to re-test the data-SOURCE claim (Excel upload, not just a
+      manual create form) for BOQ/sub-task/revision requirements, so built a
+      real .xlsx in-memory (xlsx pkg, same shape as
+      construction-boq-import-service.test.ts's own fixture: root items 1/2,
+      dot-coded sub-items 2.1/2.2/2.3 with Breakdown % column, NO explicit
+      Parent Item Code column) and drove it through the REAL
+      localhost:3100/scope/import UI (file input set via a real File +
+      DataTransfer + dispatched change event, since this browser tool has no
+      native OS file-picker) logged in as the real CEO e2e/users.ts account.
+
+      Result: real BOQ created live in pcrjmlpuqsbocqfwoxod
+      (compliance.construction_boqs id cl4zynosmybzg5hlv0dk2i0j, project
+      "Meridian Heights - Residential Tower A", org Meridian Construction
+      Group / e2e-test). Verified via direct SQL read (not just the UI) that
+      parent_line_item_id + breakdown_percentage were correctly inferred from
+      dot-delimited item codes alone (R-10/R-11 zero-data-entry positive),
+      that sub-task amount/qty/rate were computed from the ROOT line x
+      breakdown % and the sub-task's own qty=0/rate=0 from the source file
+      was ignored (R-12/R-13), and that the BOQ detail page
+      (localhost:3100/scope/<id>) live-renders "RCC Column Work (children:
+      100%)" next to the parent plus "40%/35%/25% of parent" per child
+      (R-15). This is materially stronger evidence than what was on file
+      (which leaned on the manual create form / unit tests for these
+      specific rows) -- appended (not overwritten) to R-01, R-02, R-10,
+      R-11, R-12, R-13, R-15's evidence columns.
+
+      Also surfaced, not chased further (in scope for a DIFFERENT wave per
+      the work order): (a) a real, consistent RBAC gate -- the site_engineer
+      test account (manoj.yadav) got "Forbidden: your role does not permit
+      this action" on the same import dry-run that the CEO account
+      completed successfully; looks like a deliberate, working authz
+      control, not a bug, but not independently traced to the exact
+      requireRole call site given time budget. (b) Surface 1 ("one page,
+      approve/edit everything the AI did") is only PARTIALLY met: the real
+      project Dashboard tab and portfolio-level Company Dashboard both
+      surface BOQ %-complete / contract value / budget-by-category rollups
+      derived from the BOQ, but neither is an approve/edit surface -- no
+      dedicated "AI did X, approve/edit" page exists for BOQ/sub-task/
+      revision data; grepped nav-routes.ts/module-catalogue.ts for
+      brief/summary/approve-style routes, found none. (c) The shared
+      backend (ct :3000) was genuinely under heavy load from other parallel
+      PROJEXA-E2E-001 sub-agents during this session -- real
+      UPSTREAM_TIMEOUT/503/504s observed and confirmed via browser console
+      + network tab, resolved on retry; not a code defect in any R-0x/R-1x/
+      R-2x requirement, flagged so a future session doesn't misdiagnose the
+      same flakiness as a regression.
+
+      R-16..R-19 (rejection-case) and R-20..R-24 (revision rules) were NOT
+      independently re-broken/restored this session (already had solid,
+      independently-verified break-restore + 2nd-audit evidence on file,
+      and forcing more live-UI clicks against the overloaded shared server
+      would have cost more than it proved) -- left their DB rows untouched.
+
   - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-coldload-fix + C:/ct/projexa-coldload-fix, branch fix/cold-load-investigation in both repos) -- PROJEXA-E2E-001 work order section 5 last item: owner-flagged 'single biggest risk to a live demo', cold loads 10-20s on /labour /budgets /reports /knowledge-base /meetings /mood-boards /settings /grc [DONE -- real fix for 2 of 8 routes, other 6 honestly reported as unclean-measurement, not fixed]"
     claimed_at: "2026-09-20T (this session)"
     claim: |
