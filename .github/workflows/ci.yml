@@ -2,6 +2,24 @@ name: CI
 on:
   push: { branches: [main] }
   pull_request: { branches: [main] }
+  # PROJEXA-E2E-001 / R-B2 (2026-09-20): manual dispatch, additive only --
+  # push/pull_request above are unchanged and still always resolve
+  # projexa_ref to its default ('main') via the checkout step's own
+  # fallback, so this does not alter this workflow's existing behaviour on
+  # any push or PR. Added because e2e-env1 (below) is the ONLY CI job that
+  # ever exercises a projexa e2e spec's actual assertions, and it always
+  # checked out projexa's `main` -- there was no way to get a real, green,
+  # observable run of this job against an UNMERGED projexa branch, which is
+  # exactly what a projexa-only PR (e.g. extending an *-env1.spec.ts file)
+  # needs before merge. `gh workflow run ci.yml --ref <this-branch>
+  # -f projexa_ref=<projexa-branch>` now makes that possible without
+  # touching push/pull_request semantics at all.
+  workflow_dispatch:
+    inputs:
+      projexa_ref:
+        description: "projexa ref (branch or SHA) to check out for e2e-env1 -- defaults to main, same as every push/PR run"
+        required: false
+        default: main
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -791,7 +809,14 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: FChecklist/projexa
-          ref: main
+          # PROJEXA-E2E-001 / R-B2: resolves to 'main' on every push/PR run
+          # (github.event.inputs is only populated on workflow_dispatch, and
+          # this workflow's own `default: main` input above covers a
+          # dispatch with no explicit projexa_ref too) -- unchanged
+          # behaviour except when someone deliberately dispatches this
+          # workflow with a different projexa_ref to test an unmerged
+          # projexa branch's own e2e spec content.
+          ref: ${{ github.event.inputs.projexa_ref || 'main' }}
           path: projexa-checkout
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
