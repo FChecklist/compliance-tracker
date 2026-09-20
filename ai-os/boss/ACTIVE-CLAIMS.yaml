@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-r50-dashboard-fix + C:/ct/projexa-r50-dashboard-fix, branch fix/r50-dashboard-cost-visibility in both repos) -- PROJEXA-E2E-001 / platform.sumeet_requirements R-50 REOPENED gap: Project Dashboard (GET /api/dashboard/project/[id] in projexa -> VERIDIAN /api/v1/projexa/dashboard/[projectId] and the sibling org-level /api/v1/projexa/dashboard) leaks budget/revenue/expenses to client_viewer with zero redaction"
+  - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-r50-dashboard-fix + C:/ct/projexa-r50-dashboard-fix, branch fix/r50-dashboard-cost-visibility in both repos) -- PROJEXA-E2E-001 / platform.sumeet_requirements R-50 REOPENED gap: Project Dashboard (GET /api/dashboard/project/[id] in projexa -> VERIDIAN /api/v1/projexa/dashboard/[projectId] and the sibling org-level /api/v1/projexa/dashboard) leaks budget/revenue/expenses to client_viewer with zero redaction [DONE -- real fix in both repos, live-verified against karan.malhotra (client_viewer, redacted) and arjun.mehta (admin, still sees real figures), PRs FChecklist/compliance-tracker#1769 + FChecklist/projexa#309, open/unmerged]"
     claimed_at: "2026-09-20T (this session)"
     claim: |
       Root cause found: src/app/api/v1/projexa/dashboard/[projectId]/route.ts
@@ -66,6 +66,7 @@ active:
       boq/[id]/route.ts, boq/[id]/compare/route.ts, or cost-visibility-
       service.ts (a separate, already-correct gate for BOQ project-side
       fields, not the dashboard's budget/revenue/expenses fields).
+  - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-coldload-fix + C:/ct/projexa-coldload-fix, branch fix/cold-load-investigation in both repos) -- PROJEXA-E2E-001 work order section 5 last item: owner-flagged 'single biggest risk to a live demo', cold loads 10-20s on /labour /budgets /reports /knowledge-base /meetings /mood-boards /settings /grc [DONE -- real fix for 2 of 8 routes, other 6 honestly reported as unclean-measurement, not fixed]"
     claimed_at: "2026-09-20T (this session)"
     claim: |
       RESULT: measured real cold (first hit) vs warm (retry) load time for all
