@@ -14,6 +14,12 @@ on:
   # needs before merge. `gh workflow run ci.yml --ref <this-branch>
   # -f projexa_ref=<projexa-branch>` now makes that possible without
   # touching push/pull_request semantics at all.
+  #
+  # MERGE NOTE (PROJEXA-E2E-001, 2026-09-20): PR #1760 (R-95) independently
+  # ported this identical capability verbatim onto its own branch before
+  # this PR (#1759, R-B2, the original) merged. Kept this original version
+  # since the two are functionally identical (same inputs, same checkout
+  # step change below) -- no capability was dropped.
   workflow_dispatch:
     inputs:
       projexa_ref:
