@@ -40,6 +40,28 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, worktree goofy-northcutt-3d4a48) -- e2e-env1 CI job reliability: fix/quarantine 5 flaky projexa Env-1 specs + timeout-minutes, handoff from a peer session closing platform.sumeet_requirements row R-B2 (work order PROJEXA-E2E-001)"
+    claimed_at: "2026-09-20T (this session)"
+    claim: |
+      SCOPE: .github/workflows/ci.yml (the e2e-env1 job only, ~line 460 --
+      timeout-minutes and its stale "~9-10 minutes" comment), and 5 flaky
+      FChecklist/projexa e2e/*-env1.spec.ts files: r41-r42-r43-work-progress-
+      report-columns-env1.spec.ts (strict-mode dup wpr-caption locator),
+      r80-r81-r82-copilot-pill-chain-env1.spec.ts (module strip short-render
+      on 8/24 iterations), sumeet-billing-milestones-env1.spec.ts (Drafted
+      status badge timeout), sumeet-exceptions-env1.spec.ts (waitForResponse
+      timeout), sumeet-project-workspace-env1.spec.ts (Insights/Project 360
+      P&L card waitForResponse timeout). Handoff note (not yet independently
+      re-verified by this session) also references an unmerged
+      compliance-tracker PR #1759 (branch ci/e2e-env1-projexa-ref-dispatch,
+      additive projexa_spec_grep workflow_dispatch input) -- will check its
+      current state before assuming it's still open/unmerged.
+
+      NOT touching: R-B2 itself (already closed by the handoff session),
+      any other sumeet_requirements row, any PROJEXA screen/feature code
+      outside these 5 spec files unless the root cause is a genuine app bug
+      the spec is correctly catching (in which case will say so explicitly
+      rather than silently loosening the test).
   - session_label: "PROJEXA deck review [2947c8] (Claude Desktop, interactive) -- Owner directive 2026-09-19, relayed from a peer session ('Single-screen project management UI concepts [e7d437]'): implement 'Merge 6 -- Ledger Dashboard + Row Updates', a new single-project-workspace page consolidating Progress/Site Diary/BOQ/Timeline/Milestones/Scope & Change Orders/RFIs/Billing Milestones/Resources/Records/Insights into one scrollable page with nav-pill anchors, real role-aware visibility (owner/admin/pm/site_engineer/member/client_viewer + cost-visibility grant), reusing existing components/services only (BoqDualViewGrid, ChangeOrdersClient, BillingMilestonesClient, boq-analysis-service, exceptions engine, etc.) -- purely additive, no existing route/page/component removed or changed in behavior."
     claimed_at: "2026-09-19T (this session)"
     claim: |
