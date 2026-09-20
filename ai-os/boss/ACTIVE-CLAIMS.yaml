@@ -3845,6 +3845,58 @@ active:
       code changes expected (only compliance-tracker's own
       construction-boq-service.ts / CI workflow if a real fix is needed).
 
+  - session_label: "claude-code (interactive, isolated worktree TBD under C:/ct/, branch TBD) -- PROJEXA-E2E-001 work order section 4: generic report drill-down gap. Prior sweep (merged PR #306) found real drill-down exists on only 2 of ~22 REPORT_REGISTRY reports (BudgetActualClient/BudgetAnalyticalClient -> /scope/{boqId}); ReportOutput.tsx (generic renderer, ~16-18 reports) and ProjectStatusCard.tsx have zero Link/href. Building real drill-down for ReportOutput.tsx's generic rendering path + ProjectStatusCard.tsx's key figures, wherever the backend payload carries a linkable id; noting (not fabricating) backend gaps where it doesn't."
+    claimed_at: "2026-09-21T (this session)"
+    claim: |
+      Scope: FChecklist/projexa repo only -- src/components/reports/ReportOutput.tsx,
+      src/components/reports/ProjectStatusCard.tsx, and any REPORT_REGISTRY-adjacent
+      report client components that need a linkable id threaded through. Reading (not
+      necessarily changing) compliance-tracker's construction-reports-service.ts /
+      REPORT_REGISTRY to see what ids each report's payload already carries. No merge
+      to main; isolated worktree; GitHub CI + live Supabase pcrjmlpuqsbocqfwoxod only,
+      never Vercel; e2e/users.ts test accounts only, no real credentials touched.
+      Not claiming any other PROJEXA-E2E-001 sub-task area.
+
+  - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-coldload-remaining + C:/ct/projexa-coldload-remaining, branch fix/cold-load-remaining-6-routes in both repos) -- PROJEXA-E2E-001 work order section 5 LAST item, continuation of the 2026-09-20 cold-load investigation (see the recently_completed entry with session_label containing 'fix/cold-load-investigation'): clean re-measurement of the 6 routes that session could NOT cleanly attribute (/labour /budgets /reports /knowledge-base /settings /grc) plus 1-2 control routes, then fix whatever has a real identifiable cause."
+    claimed_at: "2026-09-21T (this session)"
+    claim: |
+      Reusing the SHARED dev servers (compliance-tracker :3000, projexa
+      :3100 -- both just refreshed with current merged code per this
+      session's own instructions), not starting new ones. RAM checked
+      before starting: 0.3-0.45GB free of 7.82GB, i.e. WORSE than the
+      ~0.9GB this session was told to expect and comparably bad to the
+      prior session's 0.2-0.5GB -- noting this honestly up front per the
+      task's own instruction to report degraded conditions rather than
+      push through noisy data; will re-check periodically and report
+      actual numbers either way rather than force a conclusion.
+
+      NOTE: this session's own ACTIVE-CLAIMS.yaml edit process briefly and
+      accidentally discarded the drill-down-gap claim entry directly above
+      (a `git checkout --` run against this SHARED, non-worktree checkout
+      to back out an edit made in the wrong location, not realizing another
+      concurrent session had an uncommitted claim sitting in this same
+      shared file) -- caught immediately by re-diffing before any push,
+      and restored verbatim from this session's own prior tool-read output
+      before adding this entry. Recorded here per this file's own honesty
+      norm rather than silently fixed. Lesson applied for the rest of this
+      session: never run a discarding git command against the shared
+      C:/ct/ct or C:/ct/projexa checkouts, only against this session's own
+      isolated worktrees.
+
+      File scope, pending actual root-cause findings (updating once
+      confirmed): likely compliance-tracker src/app/(app)/{labour,budgets,
+      reports,knowledge-base,settings,grc}/page.tsx-equivalent data-fetch
+      paths and/or projexa src/app/(app)/{labour,budgets,reports,
+      knowledge-base,settings,grc}/page.tsx + matching *Client.tsx,
+      src/lib/module-list-source.ts (same pattern already used for
+      meetings/mood-boards). NOT touching /meetings or /mood-boards
+      (already fixed and merged) or any other PROJEXA-E2E-001 sub-task
+      area (dashboard redaction, exceptions drill-down, BOQ unit fix,
+      report drill-down gap above -- all separate active/recently-completed
+      claims). No merge to main; GitHub CI + live Supabase
+      pcrjmlpuqsbocqfwoxod only, never Vercel; e2e/users.ts test accounts
+      only (arjun.mehta CEO account), no real credentials touched.
+
 recently_completed:
   - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-r50-dashboard-fix + C:/ct/projexa-r50-dashboard-fix, branches fix/r50-dashboard-cost-visibility) -- PROJEXA-E2E-001 / platform.sumeet_requirements R-50 REOPENED gap: Project Dashboard leaks budget/revenue/expenses to client_viewer via PROJEXA's API key, PLUS the E2E-Env1 CI regression the fix itself caused [DONE, MERGED, CLOSED -- compliance-tracker#1769 + projexa#309 both merged to main, R-50 re-closed in platform.sumeet_requirements with genuine on-main green evidence]"
     claimed_at: "2026-09-20T (prior session)"
