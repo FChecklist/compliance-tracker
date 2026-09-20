@@ -96,6 +96,33 @@ export async function sendTaskDigestEmail(orgId: string, taskId: string, members
   return { taskId, sentTo: toEmail }
 }
 
+export type PreviewTaskTokenResult = { ok: true; action: "yes" | "no" } | { ok: false; reason: string }
+
+/**
+ * Read-only preview for the task-link confirmation page (GET). Runs the
+ * same validity checks as answerTaskViaEmailToken (found, not used, not
+ * expired, a real yes/no action) but never writes anything -- no usedAt,
+ * no task update, no event log. An email scanner or corporate security
+ * gateway that GETs this link before a human opens the message therefore
+ * cannot cause any observable effect; only a real POST (the confirmation
+ * button's form submit) calls answerTaskViaEmailToken below.
+ */
+export async function previewTaskEmailToken(rawToken: string): Promise<PreviewTaskTokenResult> {
+  const tokenHash = hashToken(rawToken)
+  const tokenRow = await db.query.dpdpEmailToken.findFirst({ where: eq(dpdpEmailToken.tokenHash, tokenHash) })
+  if (!tokenRow) return { ok: false, reason: "This link is not valid." }
+
+  const membership = await db.query.dpdpMembership.findFirst({ where: eq(dpdpMembership.id, tokenRow.membershipId) })
+  if (!membership) return { ok: false, reason: "This link is not valid." }
+
+  if (tokenRow.usedAt) return { ok: false, reason: "This link has already been used. Nothing has changed." }
+  if (tokenRow.expiresAt < new Date()) return { ok: false, reason: "This link has expired. Ask for a new one." }
+  if (tokenRow.action !== "yes" && tokenRow.action !== "no") {
+    return { ok: false, reason: "This kind of action needs a fresh sign-in, not a one-click link." }
+  }
+  return { ok: true, action: tokenRow.action }
+}
+
 export type AnswerTaskResult = { ok: true; taskId: string; answer: "yes" | "no" } | { ok: false; reason: string }
 
 /**
