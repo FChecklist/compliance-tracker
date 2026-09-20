@@ -40,6 +40,66 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree -- read-mostly verification + one real BOQ created for proof) -- PROJEXA-E2E-001 batch R-01..R-04,R-10..R-24 (BOQ Create, Weighted Sub-Tasks, Revisions) [DONE -- all pre-existing DONE/CLOSED rows re-verified live, several with fresh stronger evidence]"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      Queried platform.sumeet_requirements for R-01..R-04, R-10..R-24 (all 19
+      present). All were already DONE/CLOSED with real prior evidence
+      (break-restore tests, unit tests, some live-UI proof). Work order asked
+      specifically to re-test the data-SOURCE claim (Excel upload, not just a
+      manual create form) for BOQ/sub-task/revision requirements, so built a
+      real .xlsx in-memory (xlsx pkg, same shape as
+      construction-boq-import-service.test.ts's own fixture: root items 1/2,
+      dot-coded sub-items 2.1/2.2/2.3 with Breakdown % column, NO explicit
+      Parent Item Code column) and drove it through the REAL
+      localhost:3100/scope/import UI (file input set via a real File +
+      DataTransfer + dispatched change event, since this browser tool has no
+      native OS file-picker) logged in as the real CEO e2e/users.ts account.
+
+      Result: real BOQ created live in pcrjmlpuqsbocqfwoxod
+      (compliance.construction_boqs id cl4zynosmybzg5hlv0dk2i0j, project
+      "Meridian Heights - Residential Tower A", org Meridian Construction
+      Group / e2e-test). Verified via direct SQL read (not just the UI) that
+      parent_line_item_id + breakdown_percentage were correctly inferred from
+      dot-delimited item codes alone (R-10/R-11 zero-data-entry positive),
+      that sub-task amount/qty/rate were computed from the ROOT line x
+      breakdown % and the sub-task's own qty=0/rate=0 from the source file
+      was ignored (R-12/R-13), and that the BOQ detail page
+      (localhost:3100/scope/<id>) live-renders "RCC Column Work (children:
+      100%)" next to the parent plus "40%/35%/25% of parent" per child
+      (R-15). This is materially stronger evidence than what was on file
+      (which leaned on the manual create form / unit tests for these
+      specific rows) -- appended (not overwritten) to R-01, R-02, R-10,
+      R-11, R-12, R-13, R-15's evidence columns.
+
+      Also surfaced, not chased further (in scope for a DIFFERENT wave per
+      the work order): (a) a real, consistent RBAC gate -- the site_engineer
+      test account (manoj.yadav) got "Forbidden: your role does not permit
+      this action" on the same import dry-run that the CEO account
+      completed successfully; looks like a deliberate, working authz
+      control, not a bug, but not independently traced to the exact
+      requireRole call site given time budget. (b) Surface 1 ("one page,
+      approve/edit everything the AI did") is only PARTIALLY met: the real
+      project Dashboard tab and portfolio-level Company Dashboard both
+      surface BOQ %-complete / contract value / budget-by-category rollups
+      derived from the BOQ, but neither is an approve/edit surface -- no
+      dedicated "AI did X, approve/edit" page exists for BOQ/sub-task/
+      revision data; grepped nav-routes.ts/module-catalogue.ts for
+      brief/summary/approve-style routes, found none. (c) The shared
+      backend (ct :3000) was genuinely under heavy load from other parallel
+      PROJEXA-E2E-001 sub-agents during this session -- real
+      UPSTREAM_TIMEOUT/503/504s observed and confirmed via browser console
+      + network tab, resolved on retry; not a code defect in any R-0x/R-1x/
+      R-2x requirement, flagged so a future session doesn't misdiagnose the
+      same flakiness as a regression.
+
+      R-16..R-19 (rejection-case) and R-20..R-24 (revision rules) were NOT
+      independently re-broken/restored this session (already had solid,
+      independently-verified break-restore + 2nd-audit evidence on file,
+      and forcing more live-UI clicks against the overloaded shared server
+      would have cost more than it proved) -- left their DB rows untouched.
+
   - session_label: "claude-code (sub-agent, isolated worktree C:/ct/ct-worktrees/fix-boq-unit-child-exemption, branch fix/boq-unit-required-child-exemption) -- PROJEXA-E2E-001 sub-task: fix the R-70 regression a sibling verification pass found and recorded (real Sumeet-shaped BOQ import 400s on the real commit -- construction-boq-service.ts's validateLineItemInputs() required `unit` on every line unconditionally, with no child exemption unlike the adjacent quantity/rate check) [DONE, real fix + live-verified against Supabase pcrjmlpuqsbocqfwoxod, PR left OPEN/UNMERGED per owner's ground rules]"
     claimed_at: "2026-09-20T (this session)"
     completed_at: "2026-09-20T (this session)"
@@ -171,6 +231,28 @@ active:
       starved to near-zero CPU progress by this machine's contention and had
       to be killed rather than waited out -- relying on CI's typecheck job (a
       clean runner) for that signal; CI status pending as of this entry.
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- investigate PROJEXA's /site-diary 'Empty while Work Progress holds the same history' (work order section 5 item 3)"
+    claimed_at: "2026-09-20T (this session)"
+    claim: |
+      Worktrees: C:\ct\ct-sitediary-fix (branch chore/active-claims-r97-site-diary,
+      this claim commit) and C:\ct\projexa-sitediary-fix (branch
+      fix/site-diary-empty) -- both isolated from the shared C:\ct\ct /
+      C:\ct\projexa checkouts other parallel sessions are using.
+      Investigating whether this is the same project-resolution/fallback bug
+      class as /change-orders (PROJEXA PR #299) or the same response-shape
+      mismatch as /reports (PROJEXA PR #300), or a third, different cause.
+      Initial read: compliance-tracker's construction-site-diary-service.ts
+      (constructionSiteDiaries table) is a genuinely SEPARATE table from
+      constructionWorkProgressEntries, not derived from it -- live Supabase
+      query confirms projexa_demo_project ("Villa 21 - Whitefield") has 5 real
+      site-diary rows and 35 work-progress rows, so the table is NOT
+      structurally empty for the demo project. Still verifying with a live
+      local run (bun dev, port 3100) which project each screen actually
+      resolves to before concluding root cause. Will update this claim to
+      recently_completed with the real finding once done. File scope TBD
+      until root cause confirmed -- likely PROJEXA-side only
+      (src/lib/project-selection.ts / SiteDiaryClient.tsx), matching the
+      established pattern from R-97/#299 and #300, but not yet certain.
   - session_label: "PROJEXA deck review [2947c8] (Claude Desktop, interactive) -- Owner directive 2026-09-19, relayed from a peer session ('Single-screen project management UI concepts [e7d437]'): implement 'Merge 6 -- Ledger Dashboard + Row Updates', a new single-project-workspace page consolidating Progress/Site Diary/BOQ/Timeline/Milestones/Scope & Change Orders/RFIs/Billing Milestones/Resources/Records/Insights into one scrollable page with nav-pill anchors, real role-aware visibility (owner/admin/pm/site_engineer/member/client_viewer + cost-visibility grant), reusing existing components/services only (BoqDualViewGrid, ChangeOrdersClient, BillingMilestonesClient, boq-analysis-service, exceptions engine, etc.) -- purely additive, no existing route/page/component removed or changed in behavior."
     claimed_at: "2026-09-19T (this session)"
     claim: |
@@ -3725,6 +3807,270 @@ active:
       construction-boq-service.ts / CI workflow if a real fix is needed).
 
 recently_completed:
+  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree -- read-only re-confirm verification) -- PROJEXA-E2E-001 Part 1: R-92..R-100 spot-check re-confirm + Part 2: 31-item/28-item exceptions directive reconciliation [DONE -- browser click-through blocked by a real, extended shared-backend outage; substituted code/git/direct-DB verification instead, and found 2 new real bugs]"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-21T (this session)"
+    claim: |
+      REAL, EXTENDED BLOCKER, recorded honestly rather than silently waited
+      out: localhost:3000 (shared compliance-tracker dev server) returned a
+      consistent 500 ("Internal Server Error" / "The construction data
+      service did not respond in time") for the ENTIRE session -- 35+
+      independent real health checks (curl + actual browser navigation)
+      across ~25+ minutes, spanning a calendar-day boundary. System RAM was
+      measured at 1.05GB free of 7.82GB total mid-session (PowerShell
+      Get-CimInstance Win32_OperatingSystem), consistent with the work
+      order's own "may be under load from sibling agents" warning and this
+      machine's documented 8GB constraint. A coordinator message mid-session
+      claimed the server had crashed (Turbopack postcss loader crash under
+      RAM pressure) and been restarted/confirmed responding -- my own
+      direct checks AFTER that message still showed 500 on every one of 22
+      further consecutive attempts, so that claim is recorded here as
+      NOT independently confirmed, not accepted on say-so alone.
+
+      Given the owner's own "faster/lighter" directive and that the outage
+      never lifted, substituted code+data-level re-confirmation for the
+      blocked browser click-through, rather than either fabricating a
+      click-through or stalling indefinitely:
+        - Part 1 (R-92..R-100): confirmed via `git merge-base
+          --is-ancestor <closing commit> HEAD` in projexa that each row's
+          closing commit is (or is not) actually reachable from `main`,
+          which is what localhost:3100 actually serves (PROJEXA-E2E-001
+          forbids merging fix PRs to main, so "CLOSED in the tracker" and
+          "visible on the running app" can genuinely differ). R-92/93/94/
+          95/98/99/100's closing code IS on main. R-96's ADDENDUM
+          filter/export fix (PR #303, commit 46d1107) and R-97's 2026-09-20
+          correction (PR #299, commit a9fa2aeb) are BOTH confirmed still
+          unmerged -- verified directly in the live ScopeClient.tsx
+          (disabled "(Not yet available)" Filter/Export buttons, lines
+          322-326) that the pre-fix state is what a live user sees today.
+          Real backing data reconfirmed via direct SQL against
+          pcrjmlpuqsbocqfwoxod for org 4ecc472f-4152-4310-ae8d-cf8b7c52ab6d
+          / project dd486dad-9119-4d9a-a9d9-cf0ee0cc9e04 ("Meridian
+          Heights - Residential Tower A": 2970 BOQs, 683 progress entries,
+          26 change orders, 24 punch-list items, 16 site diaries, 7 roster
+          entries). platform.sumeet_requirements R-92/93/94/95/98/99/100
+          got an added "browser-verification-blocked" note; R-96/R-97 got
+          the unmerged-PR nuance recorded explicitly. No status was
+          silently flipped to a stronger claim than what was actually
+          checked.
+        - Part 2 (exceptions directive): reconciled 31 vs 28 from
+          construction-exceptions-service.ts's own header (owner's 31 items
+          minus 3 meta-statements, #29-31, not individually testable) and
+          the commit that built it (6d531f53, "28-item... for Sumeet's
+          31-item PROJEXA requirement") -- no separate "31" reference found
+          in platform.sumeet_spec/build_plan/crr_ruling, this is the real
+          origin. Bypassed the dead HTTP layer entirely and called
+          getProjectExceptions() directly (bun run, scratch script deleted
+          after use, same precedent as the sibling /site-diary sub-task's
+          scratch-verify-site-diary.ts) against the live DB for Meridian
+          Heights -- confirmed it genuinely computes: 15 of 29 checks
+          flagged with real record ids/details (real overdue snags,
+          real stuck/self-approved-adjacent change orders, real missing
+          diary dates, real unlinked roster entries, etc.), not an
+          empty/broken report.
+
+      TWO REAL BUGS FOUND, both flagged via spawn_task rather than fixed
+      in-session (out of this read-only verification pass's scope):
+        1. getProjectExceptions() returns 29 array entries, not 28 --
+          item #24 ("Snags lost, retention held") is push()'d TWICE under
+          the SAME item number (lines ~556-557), unlike every other
+          shared-detector pair in the file (#1/#8 etc.), which push under
+          TWO DIFFERENT numbers. This contradicts the "28-item" branding
+          everywhere and will fail e2e/sumeet-exceptions-env1.spec.ts's own
+          hard `expect(checks.length,...).toBe(28)` assertion against real
+          data (the compliance-tracker unit test does not catch it --
+          it only checks `toContain`, not array length or uniqueness).
+        2. ExceptionsClient.tsx has ZERO navigation (no href/Link/onClick
+          beyond the accordion toggle) from a flagged record to the real
+          record it names, despite the record id being present in the
+          payload and the feature's own header comment implying a fix
+          path back to "that record's own screen". True since the
+          feature's only commit (b604d0d) -- not a regression.
+  - session_label: "claude-code (sub-agent, interactive, shared dev servers ct:3000 + projexa:3100, no worktree, no code changes) -- PROJEXA-E2E-001 batch R-B1,R-B2 (Gate) + R-C01..R-C17 (Modules: Permits, Drawings & 3D, Documents, MoMs, Manpower, Material, Budget, Schedule, Reports, Design Studio, Scope/Variations x2, Export/Share, Institutional Memory/CRR, Email Engine) [DONE -- all rows re-confirmed via source+live-Supabase, one genuine infra finding (localhost:3000 dev server crashed, not code), one investigated-and-cleared false alarm (R-C16 test flake, root-caused to RAM starvation)]"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      Scope: platform.sumeet_requirements rows R-B1, R-B2, R-C01..R-C17
+      (Supabase pcrjmlpuqsbocqfwoxod). Confirmed R-C05/R-C06 absent from the
+      register (as the work order expected) and R-C17 already correctly
+      OPEN (owner DNS/MX action pending) -- not re-opened; only re-verified
+      the code-side pieces (user_email_addresses/inbound_email_messages
+      tables in src/lib/db/schema.ts, src/app/api/webhooks/resend-inbound/
+      route.ts, email-alias-service.ts) still exist and are wired exactly
+      as the row's own SCOPED note describes. All other rows were already
+      CLOSED with recent (2026-09-10 through 2026-09-20, several same-day)
+      live-production evidence from prior sessions this same work order.
+
+      GENUINE INFRA FINDING, not a code bug in any of this batch's rows:
+      localhost:3000 (compliance-tracker, the shared backend both this repo
+      and PROJEXA's /api/v1/projexa/* proxy depend on) was found FULLY
+      CRASHED for the entire session, every route (page or API) returning
+      the identical Next/Turbopack dev-bundler error ("Node.js subprocess
+      crashed while evaluating loaders [postcss]: failed to receive
+      message", __NEXT_ERROR_CODE E394), reproduced consistently across 4
+      retries over several minutes with waits in between (not the milder
+      "retry once, it clears" 503/UPSTREAM_TIMEOUT category the work
+      order's ground rules pre-authorized -- this one never cleared).
+      PowerShell `Get-Process` itself stalled 120s+ mid-session;
+      `Get-CimInstance Win32_OperatingSystem` showed ~452MB free of 8GB
+      total at the time -- consistent with this being genuine RAM
+      starvation from concurrent sibling-agent load on this shared 8GB
+      box, not a code regression. Did NOT restart the shared server (ground
+      rules: reuse, don't start your own; a crashed-but-shared server the
+      next session depends on is a live/other-session risk to touch
+      unilaterally) -- flagging here instead so the next session knows
+      localhost:3000 may need a manual restart, and isn't surprised by a
+      wall of identical 500s.
+
+      Because of that outage, could not click through localhost:3100 UI or
+      call localhost:3000 APIs live this session. Verification instead
+      used: (a) fresh Supabase SQL directly against pcrjmlpuqsbocqfwoxod
+      confirming real, populated tables behind every row in scope
+      (documents category=permit: 9 rows incl. a real 192-byte PDF fixture
+      with permitAuthority/permitNumber/issueDate metadata from R60's own
+      re-verify pass; category in (drawing,drawing_3d): 16; documents
+      total: 242; veri_meetings: 41; construction_site_instructions: 4;
+      report_share_links: 7; construction_materials: 30;
+      construction_material_receipts: 5; construction_boq_line_items with
+      vendor_id set: 3; user_email_addresses: 0, expected -- R-C17 has no
+      real provisioning yet, correctly still OPEN); (b) fresh grep/glob
+      confirmation that every route cited in each row's `route`/evidence
+      column still exists in current source (permits, drawings, documents,
+      materials/receipts, labour-roster, attendance, meetings/MoMs,
+      schedule tasks/baselines, timesheets, site-instructions, reports
+      share -- several now live under versioned /api/v1/projexa/* or
+      /api/v1/construction/* aliases rather than the exact literal path an
+      older evidence string recorded, which is expected drift, not
+      missing functionality).
+
+      INVESTIGATED, NOT JUST FLAGGED (per this wave's own bar from R-50/
+      R-70): R-C16's capture.test.ts (`bun test --isolate`) showed 2/6
+      tests failing on first run (uploadCalls.length received 2, expected
+      1 -- looked exactly like a real dedup regression). Read capture.ts's
+      actual dedup logic line-by-line first (pre-check SELECT strictly
+      before any storage.upload call, so upload cannot legitimately run
+      twice per createSourceObject) -- logic looked correct, so treated the
+      failure as suspicious rather than assuming a bug. Root-caused to the
+      same RAM-starvation condition above: Bun's default 5000ms per-test
+      timeout fired while the (fully in-memory-mocked, no real DB/network)
+      test was still genuinely running under event-loop starvation: Bun
+      does not hard-cancel the still-pending work, so it kept executing in
+      the background and polluted the next test's shared module-level
+      uploadCalls array. Proof: re-ran the IDENTICAL file, zero code
+      changes, with `--timeout 60000` -- 6/6 pass, 13.44s total (vs. 62s
+      wall-clock for the failing 5000ms-timeout run). recall.test.ts:
+      14/14 pass clean on the first run. Appended this finding to R-C16's
+      evidence column in platform.sumeet_requirements (real new verified
+      evidence on a row actually checked, per this task's own update
+      rule) -- did not change its status (already correctly CLOSED,
+      narrowed-scope ruling stands).
+
+      NOT touched: any code, any worktree, any other sumeet_requirements
+      row's status/closure_state (only R-C16's evidence column gained an
+      append). No password/credential actions of any kind.
+
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 batch) -- light re-verification pass over platform.sumeet_requirements R-60/61/62/63/70/71/72/80/81/82/90/91 (Currency, Import, Selection Layer, Assistant, Error Visibility) plus R-A1..R-A7 (Security/Legal) [DONE, read-only against the shared dev servers + live Supabase, no code changes, no PRs -- one real new regression found and recorded (R-70: a real Sumeet-shaped BOQ with blank Unit on unlabeled sub-task rows, this repo's own canonical test fixture shape, passes the dry-run import preview clean but 400s on the real commit -- construction-boq-service.ts's unit-required check has no child exemption, unlike its own adjacent qty/rate exemption); all other rows re-confirmed live or left as-is with honest notes, including two transient 503 UPSTREAM_TIMEOUTs (shared-server load under this work order's concurrency, not new regressions, both cleared on retry)"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      Scope: read-only verification against the already-running shared dev
+      servers (compliance-tracker :3000, FChecklist/projexa :3100) and live
+      Supabase pcrjmlpuqsbocqfwoxod. No code changes, no worktree needed.
+
+      Import (R-70/71/72): built a real xlsx fixture matching
+      construction-boq-import-service.test.ts's own "Sumeet real-file shape"
+      describe block exactly (blank Unit on Frame/Gypsum Board/Taping
+      sub-task rows, one malformed Qty cell). Ran it through the real
+      /api/scope/import route both as a dry-run preview (clean: sub-tasks
+      correctly attach with breakdown % 30/40/30 -> F2/F3-derived rate/
+      amount all correct; malformed row correctly flagged blocking and
+      excluded; category headers correctly skipped) and as a real commit
+      (400 "line item 2: unit is required" -- construction-boq-service.ts's
+      validateLineItemInputs() unconditionally requires unit on every line,
+      with no child exemption unlike the quantity/rate check 15 lines below
+      it). Confirmed nothing partial was written (0 matching rows in
+      compliance.construction_boqs). R-71/R-72 themselves reconfirmed
+      correct by this same test. Full repro in platform.sumeet_requirements
+      R-70's evidence field.
+
+      Currency (R-60/61/62/63): reconfirmed live, AED renders throughout
+      /scope and /dashboard for the demo org, no rupee anywhere observed.
+
+      Selection Layer/Assistant (R-80/81/82): spot-checked via real POST
+      /api/assistant, get_construction_project_dashboard on a real project.
+      Two transient 503 UPSTREAM_TIMEOUTs (consistent with the
+      already-documented R83 shared-server pool-contention artifact, not a
+      new regression) then a clean 201 with real project-specific data on
+      retry.
+
+      Error Visibility (R-90/91): reconfirmed live via real PATCH
+      /api/scope/line-items/[id] with budgetPercentage:150 -> the real,
+      specific backend message ("budgetPercentage must be between 0 and
+      100"), not a generic wrapper.
+
+      Security/Legal (R-A1..R-A7): not re-tested live per the work order's
+      own instruction (these are already-closed rows with specific
+      irreversible evidence -- password/PAT rotation, repo visibility).
+      Spot-checked R-A6 (nanoid CVE fix) by confirming node_modules/nanoid
+      resolves to 3.3.18 (patched) in this repo's own install -- consistent
+      with the row's evidence.
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 batch) -- light re-verification pass over platform.sumeet_requirements R-30/31/32/33/40..48/50/51/52 (BOQ View, Reports Roll-up, Work Progress, Dashboard) [DONE, read-only against the shared dev servers + live Supabase, no code changes, no PRs -- one real new REGRESSION found and recorded (R-50 REOPENED: Project Dashboard leaks real budget/revenue/expense figures to client_viewer with zero redaction, even though the BOQ dual-view page's own Internal/Customer toggle correctly hides the same figures -- a different, ungated code path); all other rows re-confirmed live or left as-is with honest notes (R-40/48 zero-entry bar not met, still manual typing)"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      Read-only verification against the already-running shared dev servers
+      (compliance-tracker :3000, FChecklist/projexa :3100) and live Supabase
+      pcrjmlpuqsbocqfwoxod. No code changes made (verification-only wave).
+
+      RESULT: R-30/31/32 (BOQ view: line items, sub-task indentation+%-of-
+      parent labels, root-only total) re-confirmed live via a real
+      hierarchical BOQ (RB2-1789443887787: root qty100xrate50=5000, 3
+      children 40/35/25% summing to 5000 of their own -- total correctly
+      reads 5000, not 10000). R-33/R-52 (latest-only roll-up) re-confirmed by
+      finding the project's actual "latest" BOQ (version DESC, createdAt
+      DESC) via direct SQL and cross-checking it against the dashboard API's
+      earnedValue=0/percentByValue=0 -- genuinely 0 real work-progress rows
+      link to that specific BOQ's line items (confirmed by count query), so
+      the 0 is correct latest-only behavior, not a bug -- flagged as a
+      dev-environment-pollution artifact (this project alone carries 2969
+      BOQ revisions from years of E2E runs), not a regression.
+
+      R-40..R-48 (Work Progress): the Log Work Progress form still requires
+      typed Activity/BOQ line/Date/Qty/%complete (zero-entry bar NOT met);
+      real Site-photo field still exists and is genuinely wired to an
+      offline queue + upload (R-48 intact) but is documentation-only, no
+      OCR/extraction. Separately (not new, but re-surfaced): the page's
+      global composer "Attach photos" quick action is a self-documented
+      dead end (card-catalogue.ts's own R67 C-08 comment: "no photo
+      endpoint in either repo") routing to /documents/upload instead of the
+      progress entry -- two different "attach a photo" UI affordances on
+      one screen, only one of which actually works.
+
+      REAL NEW GAP FOUND on R-50 (Dashboard dual-view money model): the
+      BOQ-page's Internal/Customer-preview toggle still correctly hides all
+      project-cost figures (re-confirmed live). But the separate Project
+      Dashboard screen/API (/api/dashboard/project/[id],
+      DashboardProjectClient.tsx -- NOT applyCostVisibility()) leaks real
+      project-cost figures (budget, revenue, expenses) to the client_viewer
+      role with zero redaction -- verified twice, independently, logged in
+      as the real e2e/users.ts clientViewer account (karan.malhotra): once
+      via direct API fetch (byte-identical response to the site_engineer
+      role's own fetch) and once via the rendered page (a "Budget vs
+      actual ... budget AED 1,250.00" tile, plainly visible). This
+      contradicts R-50's own requirement text ("client_viewer can never be
+      granted cost visibility, by any setting, any role, or any share
+      token"). Not fixed this pass (verification-only work order);
+      platform.sumeet_requirements row R-50 reopened (closure_state OPEN,
+      the schema's check constraint doesn't have a PARTIAL value) with the
+      finding recorded in its evidence field rather than silently re-closed.
+      Flagged as a real follow-up task for a dev session, not attempted
+      here.
+
+      File scope: none (no code edited). DB scope: platform.sumeet_
+      requirements rows R-30/R-31/R-32/R-40/R-48/R-50 updated with new
+      evidence/timestamps (see each row's own evidence field for the exact
+      text). R-33/41/42/43/44/45/46/47/51/52 left as-is -- spot-checked
+      live or via source read, no discrepancy found, no update needed.
   - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- investigate + fix PROJEXA's /site-diary 'Empty while Work Progress holds the same history' (work order section 5 item 3) [DONE, work complete -- fix lives in FChecklist/projexa, this repo touched read-only. PR left OPEN/UNMERGED per owner's ground rules]"
     claimed_at: "2026-09-20T (this session)"
     completed_at: "2026-09-20T (this session)"
@@ -3952,6 +4298,46 @@ recently_completed:
       NOT touched: R-B2 itself (already closed by the handoff session),
       any other sumeet_requirements row, any PROJEXA screen/feature code
       outside what's listed above.
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- investigate + fix PROJEXA's /site-diary 'Empty while Work Progress holds the same history' (work order section 5 item 3) [DONE, work complete -- fix lives in FChecklist/projexa, this repo touched read-only. PR left OPEN/UNMERGED per owner's ground rules]"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      This repo's role was read-only verification, same posture as the
+      sibling /change-orders sub-task. Ruled out both prior sub-tasks' bug
+      classes before concluding: NOT the /reports response-shape mismatch
+      (PR #300, a dropped format=legacy query param); NOT a genuinely
+      unwired/never-built feature either -- construction-site-diary-
+      service.ts's constructionSiteDiaries table is a real, separate,
+      already-wired table (one row per project per day: weather/workDone/
+      visitors/issues/instructions/materialReceived/labourCount/remarks),
+      not derived from constructionWorkProgressEntries.
+
+      Verified via a scratch script (scratch-verify-site-diary.ts, deleted
+      after use, not committed) calling listSiteDiaries() and
+      listProgressEntries() directly (bypassing HTTP/auth) against the live
+      Supabase project pcrjmlpuqsbocqfwoxod: org=projexa_demo_org,
+      project=projexa_demo_project ("Villa 21 - Whitefield") genuinely has 5
+      real site-diary rows and 35 real work-progress rows; org's
+      alphabetically-first project alm_project_bizbay ("Business Bay
+      Corporate HQ", the same project R-97/#299 already found for
+      /change-orders) has 0 of both. Confirmed via direct SQL that the 5
+      Villa 21 diary rows are correctly org-scoped (org_id=projexa_demo_org
+      on every row) -- not an RLS/org-mismatch bug either. This repo's
+      data/service/route layers (src/app/api/v1/projexa/site-diary/route.ts,
+      src/app/api/v1/construction/site-diary/route.ts) were never at fault.
+
+      Real fix (same project-resolution/fallback bug class as /change-orders,
+      PR #299 -- site-diary/page.tsx used the older resolveSelectedProject()
+      directly, same as change-orders before its fix, while /work-progress
+      uses the newer resolveProjectForModule(), which can honour an explicit
+      ?projectId= from a project-scoped link without writing the rail's
+      remembered-project cookie, explaining the reported asymmetry) lives
+      entirely in FChecklist/projexa PR #301 (commit 425deec) -- see that
+      repo's own ACTIVE-CLAIMS.yaml for the full file scope and root-cause
+      writeup. platform.sumeet_requirements checked for a relevant row
+      (requirement/evidence/route/file_path all searched for
+      site-diary/SiteDiary) -- none exists, so nothing to update there. Did
+      NOT touch this repo's own code (no fix needed here).
   - session_label: "claude-code (interactive, PM continuation session) -- R85 Addendum 3 v4 FINAL, PHASE 7: Excel round trip (D89, gates 7-01..7-12) [DONE, merged as PR #1715]"
     claimed_at: "2026-09-13T (this session)"
     merged_as: "FChecklist/compliance-tracker PR #1715 (squash-merged, merge commit a39f2b1a)."
