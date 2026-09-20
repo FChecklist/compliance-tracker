@@ -445,6 +445,16 @@ describe("getProjectExceptions", () => {
     for (const n of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]) {
       expect(itemNumbers).toContain(n)
     }
+    // Regression guard for a real bug (fixed 2026-09-21): #24 used to be
+    // push()'d twice under the same number (two different detectors --
+    // overdue snags and retention-held -- merged into one owner item), which
+    // silently inflated the array to 29 entries while still passing a bare
+    // `toContain` check on every number 1-28. Assert both the exact count
+    // AND that every item number is genuinely unique, so a future
+    // reintroduction of a duplicate push() is caught here, not just by the
+    // separate cross-repo e2e spec's hard `toBe(28)` assertion.
+    expect(checks).toHaveLength(28)
+    expect(new Set(itemNumbers).size).toBe(28)
     // #1 and #8 share one detector -- proven by both being false together on an empty project.
     expect(checks.find((c) => c.item === 1)!.flagged).toBe(false)
     expect(checks.find((c) => c.item === 8)!.flagged).toBe(false)
