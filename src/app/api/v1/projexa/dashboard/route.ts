@@ -1,10 +1,41 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, hasRole } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import { getOrgDashboard, getProjectDashboards, ServiceError } from "@/lib/services/construction-dashboard-service"
 import { withRouteTiming } from "@/lib/route-timing"
+import { ROLE_RANK, type UserRole } from "@/lib/supabase/role-rank"
 
 /** Cap on ?projectIds= -- a portfolio view, not an unbounded fan-out. */
 const MAX_BATCH_PROJECTS = 50
+
+// R-50 REOPENED FIX (platform.sumeet_requirements) -- see the sibling
+// [projectId]/route.ts's own header for the full story: both redaction
+// branches below used to gate on `ctx.dbUser && !hasRole(ctx.dbUser,
+// "manager")`, which never fires for a PROJEXA-proxied request because
+// PROJEXA authenticates with a single shared per-org API key and ctx.dbUser
+// is therefore ALWAYS null -- unconditionally leaking budget/revenue/
+// expenses/projectValue/earnedValue/percentByValue/contractValue to every
+// PROJEXA role, including client_viewer. Same fix, same mechanism (D-05
+// identity bridge via resolveActingUser()/X-Acting-User(-Email)), applied to
+// both this route's batch (?projectIds=) branch and its org-summary branch,
+// not just the single-project sibling -- leaving either branch on the old
+// check would have let client_viewer read the identical figures straight
+// through this route instead.
+async function resolveRoleForFinancialVisibility(
+  request: Request,
+  ctx: Awaited<ReturnType<typeof requireAuthOrApiKey>>
+): Promise<UserRole | null> {
+  if (ctx.dbUser) return (ctx.dbUser.role as UserRole | undefined) ?? null
+  if (!ctx.apiKey) return null
+  const acting = await resolveActingUser(ctx, readActingUserEmail(request), readActingUserId(request))
+  return (acting.user?.role as UserRole | undefined) ?? null
+}
+
+/** Same "manager" floor F059/R48 always used, just evaluated against a
+ * resolved role value instead of requiring a live dbUser record. */
+function hasFinancialVisibility(role: UserRole | null): boolean {
+  if (!role) return false
+  return (ROLE_RANK[role] ?? 0) >= ROLE_RANK.manager
+}
 
 // R67 F-28 (R-249): the exported handler is unchanged in shape -- both CI
 // route guards read it with a regex -- and delegates to its original body so
@@ -55,7 +86,8 @@ async function GET_impl(request: NextRequest) {
       const dashboards = await getProjectDashboards({ orgId: ctx.orgId }, ids)
       // Same redaction rule the org summary and the single-project route
       // already apply (R48 F059): a member sees task counts, not money.
-      if (ctx.dbUser && !hasRole(ctx.dbUser, "manager")) {
+      const batchFinancialRole = await resolveRoleForFinancialVisibility(request, ctx)
+      if (!hasFinancialVisibility(batchFinancialRole)) {
         return NextResponse.json({
           dashboards: dashboards.map((d) => ({
             ...d,
@@ -103,7 +135,8 @@ async function GET_impl(request: NextRequest) {
     // to this list is exactly how F059 happened the first time.
     // progressPercent, tasksDue/tasksLate and hasSchedule are NOT money and
     // stay visible: a site engineer still needs their own schedule.
-    if (ctx.dbUser && !hasRole(ctx.dbUser, "manager")) {
+    const summaryFinancialRole = await resolveRoleForFinancialVisibility(request, ctx)
+    if (!hasFinancialVisibility(summaryFinancialRole)) {
       return NextResponse.json({
         ...summary,
         // R67 E-06: the ledger sum is a financial figure too, and so is the
