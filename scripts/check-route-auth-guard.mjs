@@ -314,6 +314,21 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   // requireAuthOrApiKey(request) exactly like every route already listed
   // above; verified directly, not inferred from the header comment.
   "src/app/api/v1/projexa/change-orders/[id]/route.ts",
+  //
+  // R-50 REOPENED FIX (platform.sumeet_requirements, 2026-09-20): same
+  // requireAuthOrApiKey family gap documented throughout this list -- both
+  // routes call requireAuthOrApiKey(request) (confirmed by reading each
+  // handler directly), matching every other /v1/projexa/* route in this
+  // file's exemption list, which DOES call requireAuth() internally for a
+  // session caller and validates a Bearer API key on the other path. This
+  // fix pass added a NEW resolveRoleForFinancialVisibility() helper to each
+  // file (also using requireAuthOrApiKey/resolveActingUser, never a second
+  // auth mechanism), which is what put these two pre-existing files in a
+  // diff for the first time since this checker went live. Not fixed here
+  // for the same reason every entry above gives: widening REQUIRE_AUTH_RE
+  // is a shared-CI-guardrail change, out of this fix's own scope.
+  "src/app/api/v1/projexa/dashboard/[projectId]/route.ts",
+  "src/app/api/v1/projexa/dashboard/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail

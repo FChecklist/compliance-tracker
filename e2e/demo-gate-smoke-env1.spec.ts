@@ -472,6 +472,36 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   // never renders it. Real root cause, not the pre-existing "stray row"
   // condition documented above (that row is real and separate; it did not
   // cause this specific failure).
+  //
+  // R-50 REOPENED CI fallout (PROJEXA-E2E-001, 2026-09-21): the SAME KD-15
+  // cold-compile margin issue R80 already documented and fixed above hit a
+  // DIFFERENT route here. /api/projects/overview is this test's FIRST-EVER
+  // call into compliance-tracker's /api/v1/projexa/dashboard (the org-level
+  // aggregate) -- the warm-up loop above only ever touches the cheap
+  // /api/projects list, which is a separate route (see the R75 Part 5
+  // comment above). Confirmed directly from a real CI run (compliance-
+  // tracker run 35533547202, dispatched against this PR + the companion
+  // projexa fix branch together): PROJEXA's own server log shows
+  // `[veridian] VERIDIAN request timed out after 8000ms:
+  // http://localhost:3000/api/v1/projexa/dashboard` immediately before this
+  // exact call 503'd, with upstreamMs:8001 -- a margin miss by about 1ms
+  // over PROJEXA's own 8s upstream timeout (VERIDIAN_FETCH_TIMEOUT_MS), not
+  // an authorization/redaction bug: R-50's fail-closed gate
+  // (resolveActingUser()) was independently confirmed, live, against real
+  // Supabase data to resolve democeo@projexa-ai.com to the org's real admin
+  // user (see compliance-tracker PR #1769's own body for the before/after
+  // figures). This route now does one extra real query on its cold hit (the
+  // acting-user compliance.users lookup R-50 added) on top of the existing
+  // cold-compile/cold-pool cost R80 already measured -- enough to tip an
+  // already-marginal cold path over the timeout it used to just barely clear.
+  // Same non-masking warm-up pattern as above: no timeout or assertion below
+  // is relaxed by this loop, and the real call still has to succeed and
+  // return the right value on its own immediately after it.
+  for (let i = 0; i < 8; i++) {
+    if ((await apiRequest.get("/api/projects/overview")).ok()) break;
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+
   const dashboardProjectsRes = await apiRequest.get("/api/projects/overview");
   expect(dashboardProjectsRes.ok()).toBeTruthy();
   const { projects: refreshedProjects } = await dashboardProjectsRes.json();

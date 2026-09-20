@@ -9,6 +9,14 @@
 // the service layer are both mocked, proving the route's own wiring, not a
 // live DB.
 import { describe, test, expect, mock } from "bun:test"
+// R-50 REOPENED FIX: the route no longer imports hasRole() -- it resolves a
+// financial-visibility role via resolveActingUser() (the D-05 identity
+// bridge) so a PROJEXA API-key caller is checked too, not just a session
+// caller. mock.module() must spread the REAL module first or the route's
+// real (non-role-gate) imports -- resolveActingUser/readActingUserId/
+// readActingUserEmail -- silently disappear at module-link time, exactly the
+// regression class boq-route.client-boundary.test.ts's own header documents.
+import * as realAuthGuard from "@/lib/supabase/auth-guard"
 
 class ServiceError extends Error {
   status: number
@@ -18,25 +26,43 @@ class ServiceError extends Error {
   }
 }
 
-function mockAuth(ctx: { orgId: string | null; response?: Response | null; roleErr?: Response | null; isManager?: boolean }) {
+function mockAuth(ctx: {
+  orgId: string | null
+  response?: Response | null
+  roleErr?: Response | null
+  /** Session (dbUser) caller's rank -- default true/"manager", matching this
+   * file's original convention. Ignored when apiKeyOnly is set. */
+  isManager?: boolean
+  /** PROJEXA-style caller: a shared per-org API key, no session dbUser. */
+  apiKeyOnly?: boolean
+  /** The role resolveActingUser() resolves to for an apiKeyOnly caller (via
+   * PROJEXA's X-Acting-User/X-Acting-User-Email headers) -- undefined/null
+   * means resolution failed (no headers, unmapped id), which the route's
+   * fail-closed default must treat as "no financial visibility". */
+  actingRole?: string | null
+}) {
   mock.module("@/lib/supabase/auth-guard", () => ({
+    ...realAuthGuard,
     requireAuthOrApiKey: mock(async () => ({
       orgId: ctx.orgId,
-      dbUser: ctx.orgId ? { id: "user-1" } : null,
-      apiKey: null,
+      dbUser: ctx.apiKeyOnly
+        ? null
+        : ctx.orgId
+          ? { id: "user-1", role: (ctx.isManager ?? true) ? "manager" : "member" }
+          : null,
+      apiKey: ctx.apiKeyOnly ? { id: "key-1", name: "test key", scopes: ["read", "write"] } : null,
       response: ctx.response ?? null,
     })),
     requireRoleOrScope: mock(() => ctx.roleErr ?? null),
-    // R48 gap-closure (2026-08-30, F059): the route now also imports
-    // hasRole() to redact financial fields below "manager" rank. These
-    // tests are about the org-resolution/role-gate guards above, not the
-    // redaction feature itself, so the mock defaults to true -- every
-    // existing assertion here (checking the full, unredacted
-    // getOrgDashboard result is returned) keeps its original meaning.
-    // R67 E-01/E-21 fix pass: isManager:false opts a test into the redaction
-    // branch, so this route and its /api/construction/dashboard sibling
-    // (which drifted on spendOverValue) are each pinned by a real test.
-    hasRole: mock(() => ctx.isManager ?? true),
+    // R48 gap-closure (2026-08-30, F059) x R-50 REOPENED FIX: the redaction
+    // floor is "manager" rank, evaluated against whichever role the route
+    // resolves -- ctx.dbUser.role directly for a session caller, or this
+    // mock's `actingRole` (standing in for a real resolveActingUser() DB
+    // lookup) for an apiKeyOnly caller, exactly like PROJEXA's real traffic.
+    resolveActingUser: mock(async () => ({
+      user: ctx.actingRole ? { id: "acting-1", role: ctx.actingRole } : null,
+      error: null,
+    })),
   }))
 }
 
@@ -58,12 +84,15 @@ function mockService(implOverride?: () => Promise<unknown>, batchImpl?: (ctx: { 
   return getOrgDashboard
 }
 
-function getRequest(search = "") {
+function getRequest(search = "", headers: Record<string, string> = {}) {
   // Plain Request has no .nextUrl (that's a Next.js-specific NextRequest
   // extension) -- requireAuthOrApiKey is mocked above and never inspects
   // the request object itself, so a minimal stand-in carrying just the
-  // .nextUrl the route body actually reads is enough here.
-  return { nextUrl: new URL(`http://localhost/api/v1/projexa/dashboard${search}`) }
+  // .nextUrl the route body actually reads is enough here. `.headers` is a
+  // REAL Headers object (not mocked) because readActingUserId/
+  // readActingUserEmail are the real, unmocked functions (spread in via
+  // ...realAuthGuard above) and call request.headers.get(...) directly.
+  return { nextUrl: new URL(`http://localhost/api/v1/projexa/dashboard${search}`), headers: new Headers(headers) }
 }
 
 describe("GET /api/v1/projexa/dashboard", () => {
@@ -210,6 +239,83 @@ describe("GET /api/v1/projexa/dashboard", () => {
     expect(row.hasSchedule).toBe(true)
     expect(row.name).toBe("Cedar")
   })
+
+  // R-50 REOPENED (platform.sumeet_requirements): a real, confirmed-live gap.
+  // The OLD code gated redaction on `ctx.dbUser && !hasRole(ctx.dbUser,
+  // "manager")` -- PROJEXA authenticates every call with a single shared
+  // per-org API key, so ctx.dbUser was ALWAYS null for a PROJEXA-proxied
+  // request and that `&&` never fired, for ANY role. This is the regression
+  // test: it fails against the pre-fix logic (an apiKeyOnly caller got the
+  // full, unredacted summary unconditionally) and passes against the fix
+  // (a real role is resolved via resolveActingUser(), and the SAME "manager"
+  // floor F059 always used is applied to it).
+  test("R-50: an API-key (PROJEXA) caller resolving to client_viewer is redacted -- the hard floor holds over the real proxy path, not just a session", async () => {
+    mockAuth({ orgId: "org-1", apiKeyOnly: true, actingRole: "client_viewer" })
+    mockService(async () => ({
+      totalProjects: 1,
+      totalBudget: 900000,
+      totalRevenue: 450000,
+      totalExpenses: 120000,
+      projects: [{
+        id: "p-1", name: "Cedar Heights Villa",
+        revenue: 450000, expenses: 700000, value: 600000, budget: 900000,
+        earnedValue: 300000, percentByValue: 50, percentByActivity: 46,
+      }],
+    }))
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest("", { "x-acting-user-email": "karan.malhotra@example.com" }) as any)
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.totalBudget).toBeNull()
+    expect(body.totalRevenue).toBeNull()
+    expect(body.totalExpenses).toBeNull()
+    expect(body.financialsRedacted).toBe(true)
+    expect(body.projects[0].revenue).toBeNull()
+    expect(body.projects[0].earnedValue).toBeNull()
+    expect(body.projects[0].percentByActivity).toBe(46) // not money -- stays
+  })
+
+  test("R-50: an API-key (PROJEXA) caller resolving to a manager/CEO-tier role sees the real figures -- the fix does not over-broaden the gate", async () => {
+    mockAuth({ orgId: "org-1", apiKeyOnly: true, actingRole: "manager" })
+    mockService(async () => ({
+      totalProjects: 1,
+      totalBudget: 900000,
+      totalRevenue: 450000,
+      totalExpenses: 120000,
+      projects: [{ id: "p-1", name: "Cedar Heights Villa", revenue: 450000, budget: 900000 }],
+    }))
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest("", { "x-acting-user-email": "ceo@example.com" }) as any)
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.totalBudget).toBe(900000)
+    expect(body.totalRevenue).toBe(450000)
+    expect(body.projects[0].revenue).toBe(450000)
+    expect(body.financialsRedacted).toBeUndefined()
+  })
+
+  test("R-50: an API-key caller with NO resolvable acting user (no headers, unmapped id) fails closed -- redacted, not an error", async () => {
+    mockAuth({ orgId: "org-1", apiKeyOnly: true, actingRole: null })
+    mockService(async () => ({
+      totalProjects: 1,
+      totalBudget: 900000,
+      totalRevenue: 450000,
+      totalExpenses: 120000,
+      projects: [{ id: "p-1", name: "Cedar", revenue: 450000, budget: 900000 }],
+    }))
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest() as any)
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.totalBudget).toBeNull()
+    expect(body.financialsRedacted).toBe(true)
+  })
 })
 
 // R67 F-27 (audit recommendation R-243) -- ?projectIds= answers a portfolio in
@@ -282,12 +388,7 @@ describe("GET /api/v1/projexa/dashboard?projectIds=", () => {
   })
 
   test("a below-manager caller gets task counts but no money -- the same F059 redaction the other two shapes apply", async () => {
-    mockAuth({ orgId: "org-1" })
-    mock.module("@/lib/supabase/auth-guard", () => ({
-      requireAuthOrApiKey: mock(async () => ({ orgId: "org-1", dbUser: { id: "user-1" }, apiKey: null, response: null })),
-      requireRoleOrScope: mock(() => null),
-      hasRole: mock(() => false),
-    }))
+    mockAuth({ orgId: "org-1", isManager: false })
     mockService(undefined, async () => [DASHBOARD])
 
     const { GET } = await import("./route")
@@ -303,6 +404,40 @@ describe("GET /api/v1/projexa/dashboard?projectIds=", () => {
     expect(body.dashboards[0].taskCount).toBe(4)
     expect(body.dashboards[0].delayedTaskCount).toBe(1)
   })
+
+  // R-50 REOPENED: the same real gap as the org-summary shape above, on the
+  // batch/?projectIds= shape -- leaving this branch on the old
+  // `ctx.dbUser && !hasRole(...)` check would have let client_viewer read
+  // the identical figures straight through this endpoint even after the
+  // org-summary branch was fixed.
+  test("R-50: an API-key (PROJEXA) caller resolving to client_viewer is redacted on the batch shape too", async () => {
+    mockAuth({ orgId: "org-1", apiKeyOnly: true, actingRole: "client_viewer" })
+    mockService(undefined, async () => [DASHBOARD])
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest("?projectIds=p-1", { "x-acting-user-email": "karan.malhotra@example.com" }) as any)
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.dashboards[0].budget).toBeNull()
+    expect(body.dashboards[0].revenue).toBeNull()
+    expect(body.dashboards[0].earnedValue).toBeNull()
+    expect(body.dashboards[0].contractValue).toBeNull()
+    expect(body.dashboards[0].taskCount).toBe(4) // not money -- stays
+  })
+
+  test("R-50: an API-key (PROJEXA) caller resolving to manager sees the real batch figures", async () => {
+    mockAuth({ orgId: "org-1", apiKeyOnly: true, actingRole: "manager" })
+    mockService(undefined, async () => [DASHBOARD])
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest("?projectIds=p-1", { "x-acting-user-email": "ceo@example.com" }) as any)
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.dashboards[0].budget).toBe(100)
+    expect(body.dashboards[0].revenue).toBe(200)
+  })
 })
 
 // R67 F-27 (audit recommendation R-243) -- ?projectIds= answers a portfolio in
@@ -375,12 +510,7 @@ describe("GET /api/v1/projexa/dashboard?projectIds=", () => {
   })
 
   test("a below-manager caller gets task counts but no money -- the same F059 redaction the other two shapes apply", async () => {
-    mockAuth({ orgId: "org-1" })
-    mock.module("@/lib/supabase/auth-guard", () => ({
-      requireAuthOrApiKey: mock(async () => ({ orgId: "org-1", dbUser: { id: "user-1" }, apiKey: null, response: null })),
-      requireRoleOrScope: mock(() => null),
-      hasRole: mock(() => false),
-    }))
+    mockAuth({ orgId: "org-1", isManager: false })
     mockService(undefined, async () => [DASHBOARD])
 
     const { GET } = await import("./route")

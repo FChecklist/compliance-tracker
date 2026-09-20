@@ -40,6 +40,32 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-r50-dashboard-fix + C:/ct/projexa-r50-dashboard-fix, branch fix/r50-dashboard-cost-visibility in both repos) -- PROJEXA-E2E-001 / platform.sumeet_requirements R-50 REOPENED gap: Project Dashboard (GET /api/dashboard/project/[id] in projexa -> VERIDIAN /api/v1/projexa/dashboard/[projectId] and the sibling org-level /api/v1/projexa/dashboard) leaks budget/revenue/expenses to client_viewer with zero redaction [DONE -- real fix in both repos, live-verified against karan.malhotra (client_viewer, redacted) and arjun.mehta (admin, still sees real figures), PRs FChecklist/compliance-tracker#1769 + FChecklist/projexa#309, open/unmerged]"
+    claimed_at: "2026-09-20T (this session)"
+    claim: |
+      Root cause found: src/app/api/v1/projexa/dashboard/[projectId]/route.ts
+      and src/app/api/v1/projexa/dashboard/route.ts both gate financial
+      redaction on `ctx.dbUser && !hasRole(ctx.dbUser, "manager")` -- but
+      PROJEXA authenticates every call with a single shared per-org API key
+      (ctx.apiKey), so ctx.dbUser is ALWAYS null for a PROJEXA-proxied
+      request and this condition never fires, for ANY role including
+      client_viewer. This is the exact same class of bug
+      v1/construction/boq/[id]/route.ts's resolveRoleForCostVisibility
+      already fixed for the BOQ dual-view read path (D-05 identity bridge:
+      resolveActingUser() + X-Acting-User/X-Acting-User-Email headers) --
+      applying the SAME real mechanism here, not a new/weaker one.
+
+      File scope (compliance-tracker): src/app/api/v1/projexa/dashboard/
+      [projectId]/route.ts, src/app/api/v1/projexa/dashboard/route.ts (+
+      their route.test.ts siblings). File scope (projexa): src/app/api/
+      dashboard/project/[projectId]/route.ts (forward actingUserId/
+      actingUserEmail, mirroring src/app/api/scope/[id]/route.ts's existing
+      pattern). NOT touching construction-dashboard-service.ts itself
+      (getOrgDashboard/getProjectDashboard(s) already compute the right
+      figures; this is a visibility-gate bug, not a data bug), boq/route.ts,
+      boq/[id]/route.ts, boq/[id]/compare/route.ts, or cost-visibility-
+      service.ts (a separate, already-correct gate for BOQ project-side
+      fields, not the dashboard's budget/revenue/expenses fields).
   - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-worktrees/wo-exceptions-fix + C:/ct/projexa-worktrees/wo-exceptions-fix, branch wo/exceptions-item24-and-navigation + wo/exceptions-drilldown-navigation) -- PROJEXA-E2E-001: direct fix (not deferred) for the 2 real bugs found by the R-92..R-100/31-vs-28 exceptions reconciliation session (2026-09-20/21) -- Bug 1: construction-exceptions-service.ts getProjectExceptions() 29-vs-28 array-length bug (item #24 push()'d twice under the same number); Bug 2: ExceptionsClient.tsx had zero drill-down navigation from a flagged exception to the real record it names [DONE -- both fixed, unit/component tests green locally, PRs open/unmerged pending real CI e2e verification]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
