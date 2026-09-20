@@ -40,24 +40,69 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive, isolated worktrees C:\ct\ct-coldload-fix + C:\ct\projexa-coldload-fix, branch fix/cold-load-investigation in both repos) -- PROJEXA-E2E-001 work order section 5 last item: owner-flagged 'single biggest risk to a live demo', cold loads 10-20s on /labour /budgets /reports /knowledge-base /meetings /mood-boards /settings /grc"
+  - session_label: "claude-code (interactive, isolated worktrees C:\ct\ct-coldload-fix + C:\ct\projexa-coldload-fix, branch fix/cold-load-investigation in both repos) -- PROJEXA-E2E-001 work order section 5 last item: owner-flagged 'single biggest risk to a live demo', cold loads 10-20s on /labour /budgets /reports /knowledge-base /meetings /mood-boards /settings /grc [DONE -- real fix for 2 of 8 routes, other 6 honestly reported as unclean-measurement, not fixed]"
     claimed_at: "2026-09-20T (this session)"
     claim: |
-      SCOPE: investigating real cold-load latency on the 8 PROJEXA routes named
-      above (first observed by the PROJEXA-DECK-001 session on 2026-09-18, NOT
-      fixed there per owner instruction -- see that session's own entry further
-      down in this file). Real, repeatable timing measurements first (dev-server
-      first-compile-lag vs. a genuine shared-cause bug), then a fix at the
-      shared root cause if one is found. NOT reusing the r67/f1-performance-1 /
-      r67/f2-performance-2 lanes' claim (2026-09-02/03, already merged) since
-      those are historical/completed -- but re-reading their scope first since
-      this exact symptom persisting AFTER that lane merged is itself a real
-      data point. File scope TBD until root cause is found; will narrow this
-      entry once known. Ground rules: local bun dev + live Supabase
-      (pcrjmlpuqsbocqfwoxod) + GitHub CI only, never touching Vercel; PR opened
-      and left OPEN/UNMERGED per the owner's ground rules for this work order
-      (a separate agent is running a merge campaign on the shared C:\ct\ct /
-      C:\ct\projexa checkouts).
+      RESULT: measured real cold (first hit) vs warm (retry) load time for all
+      8 owner-named routes plus 2 control routes (/dashboard, /documents, NOT on
+      the owner's list) via Playwright against local dev servers (compliance-
+      tracker :3010, projexa :3110, non-default ports to avoid colliding with
+      the parallel merge-campaign agent's servers on :3000/:3100) and the real
+      Supabase project pcrjmlpuqsbocqfwoxod, logged in as the real CEO E2E
+      account (e2e/users.ts).
+
+      Numbers (cold -> warm, same dev-server process): /dashboard(control)
+      29.5s->13.1s, /documents(control) 58.2s->16.1s, /labour 37.5s->24.8s,
+      /budgets 91.3s->16.3s, /reports 130.4s->23.4s, /knowledge-base
+      12.3s->16.1s, /meetings 48.5s->3.1s (15.6x, largest ratio in the
+      dataset), /mood-boards 40.8s->11.2s (3.6x), /settings 35.5s->20.0s,
+      /grc 16.6s->4.9s.
+
+      HONESTLY REPORTED, NOT GLOSSED OVER: this machine was under extreme,
+      unrelated resource contention for the whole run (multiple other
+      concurrent Claude Code sessions + several `bun install` processes; free
+      RAM measured 0.2-0.5GB of 7.8GB throughout) -- confirmed by the fact that
+      the two CONTROL routes, not named by the owner, show comparably bad or
+      worse numbers than several of the 8 flagged ones. Could NOT cleanly
+      conclude anything about /labour, /budgets, /reports, /settings,
+      /knowledge-base, /grc from this run and did not force a fix onto any of
+      them without real evidence -- a clean re-measurement on an unloaded
+      machine is the honest next step for those six.
+
+      COULD conclude with confidence, from reading the code (not just noisy
+      timing): /meetings and /mood-boards are the only 2 of the 8 whose
+      page.tsx never received the streaming+cache treatment this same
+      codebase already proved out on 5 sibling module-list screens (/labour,
+      /reports, /documents, /budgets, MOMs) under R67 F-18/F-30 -- both blocked
+      the WHOLE page (title included, no <Suspense>) on an uncached
+      resolveSelectedProject(), then fired a SECOND client-side fetch after
+      hydration. This also matches the data: these two have the largest
+      cold/warm ratios of all 8, i.e. the most first-hit-only cost.
+
+      FIXED (FChecklist/projexa PR #307, open/unmerged per ground rules):
+      applied the identical, already-shipped pattern (documents/page.tsx +
+      DocumentsClient.tsx + module-list-source.ts's createModuleList) to both
+      routes. File scope, all in FChecklist/projexa:
+        src/lib/module-list-source.ts (new fetchMeetingsList/
+          fetchMoodBoardsList, 30s cached+tagged)
+        src/app/(app)/meetings/page.tsx, src/app/(app)/mood-boards/page.tsx
+          (Suspense streaming, cached project resolution, server-fetched list)
+        src/components/MeetingsClient.tsx, src/components/MoodBoardsClient.tsx
+          (converted to the shared useListRead() hook + `initial` prop)
+        src/components/MeetingsClient.test.tsx (NEW),
+          src/components/MoodBoardsClient.test.tsx (NEW) -- 16/16 pass locally,
+          assert the real regression (zero fetch calls when `initial` is
+          server-seeded) plus the standard four branches
+        src/app/api/meetings/route.ts, src/app/api/mood-boards/route.ts
+          (POST now revalidateTag()s on create, matching moms/documents'
+          own convention)
+      Zero compliance-tracker (this repo) file changes -- the backend
+      /api/v1/projexa/meetings and /mood-boards routes were already fine; the
+      whole defect and fix live in the frontend/proxy layer.
+      eslint clean; `tsc --noEmit` attempted locally but the process was
+      starved to near-zero CPU progress by this machine's contention and had
+      to be killed rather than waited out -- relying on CI's typecheck job (a
+      clean runner) for that signal; CI status pending as of this entry.
   - session_label: "PROJEXA deck review [2947c8] (Claude Desktop, interactive) -- Owner directive 2026-09-19, relayed from a peer session ('Single-screen project management UI concepts [e7d437]'): implement 'Merge 6 -- Ledger Dashboard + Row Updates', a new single-project-workspace page consolidating Progress/Site Diary/BOQ/Timeline/Milestones/Scope & Change Orders/RFIs/Billing Milestones/Resources/Records/Insights into one scrollable page with nav-pill anchors, real role-aware visibility (owner/admin/pm/site_engineer/member/client_viewer + cost-visibility grant), reusing existing components/services only (BoqDualViewGrid, ChangeOrdersClient, BillingMilestonesClient, boq-analysis-service, exceptions engine, etc.) -- purely additive, no existing route/page/component removed or changed in behavior."
     claimed_at: "2026-09-19T (this session)"
     claim: |
