@@ -13,7 +13,7 @@ import {
   buildBoqListRows,
   computeHierarchicalAmount, deriveLineItemQuantityAndRate, diffLineItems, computeTotalVariation, findScopeReductionViolations,
   resolveProgressByLineItem, resolveProgressDetailByLineItem, toLineItemInput, parseBoqInclude,
-  buildScopeReductionConflicts, type LineItemProgress,
+  buildScopeReductionConflicts, validateLineItemInputs, type LineItemProgress,
   ServiceError, type BoqLineItemInput, type BoqLineItemRow, type ChangedLineItem,
 } from "./construction-boq-service"
 
@@ -96,6 +96,67 @@ describe("computeHierarchicalAmount -- Sub-Task Amount = Main QTY * Main RATE * 
     const b: BoqLineItemInput = { itemCode: "B", parentItemCode: "A", breakdownPercentage: 50, description: "B", unit: "cum", quantity: 0, rate: 0 }
     const byCode = new Map([["A", a], ["B", b]])
     expect(() => computeHierarchicalAmount(a, byCode)).toThrow(ServiceError)
+  })
+})
+
+// R-70 regression fix: validateLineItemInputs() required `unit` on every
+// line unconditionally, unlike the adjacent quantity/rate check 15 lines
+// below it, which already exempts a child/sub-task row (its qty/rate are
+// DERIVED from the root, not independently entered). Sumeet's real BoQ
+// export ("Sample Scope with Sub Task.xlsx", see construction-boq-import-
+// service.test.ts's "Sumeet real-file shape" describe block) leaves UNIT
+// blank on every unlabeled sub-task row -- only the root task row carries a
+// real unit -- so a real commit (POST /api/scope/import) 400'd on "line item
+// 2: unit is required" even though the dry-run preview (which never calls
+// this function) reported the file clean. Unlike qty/rate, a child's unit
+// IS stored verbatim (insertLineItems does not derive/override it), so the
+// TYPE check stays unconditional -- only the non-empty REQUIREDNESS is
+// exempted for children.
+describe("validateLineItemInputs -- unit required on roots, optional (but still type-checked) on children (R-70)", () => {
+  test("a child/sub-task line with a blank unit now passes (previously threw 'unit is required')", () => {
+    const items: BoqLineItemInput[] = [
+      { itemCode: "1.01", description: "Partition wall", unit: "Sqm", quantity: 472, rate: 108 },
+      { itemCode: "1.01.1", parentItemCode: "1.01", breakdownPercentage: 30, description: "Frame 01", unit: "", quantity: 0, rate: 0 },
+    ]
+    expect(() => validateLineItemInputs(items)).not.toThrow()
+  })
+
+  test("a root line with a blank unit still throws -- unit is required at the root", () => {
+    const items: BoqLineItemInput[] = [
+      { itemCode: "1.01", description: "Partition wall", unit: "", quantity: 472, rate: 108 },
+    ]
+    expect(() => validateLineItemInputs(items)).toThrow(/unit is required/)
+  })
+
+  test("a root line with a missing (undefined) unit still throws -- undefined fails the type check before the requiredness check is even reached", () => {
+    const items = [
+      { itemCode: "1.01", description: "Partition wall", quantity: 472, rate: 108 },
+    ] as unknown as BoqLineItemInput[]
+    expect(() => validateLineItemInputs(items)).toThrow(/unit must be a string/)
+  })
+
+  test("a child line with a real, non-blank unit is accepted and used as-is -- children are not blanket-exempted from validation, only from the requiredness rule", () => {
+    const items: BoqLineItemInput[] = [
+      { itemCode: "1.01", description: "Partition wall", unit: "Sqm", quantity: 472, rate: 108 },
+      { itemCode: "1.01.1", parentItemCode: "1.01", breakdownPercentage: 30, description: "Frame 01", unit: "nos", quantity: 0, rate: 0 },
+    ]
+    expect(() => validateLineItemInputs(items)).not.toThrow()
+  })
+
+  test("a non-string unit is always rejected, root or child -- the type check is NOT exempted for children, only the requiredness is", () => {
+    const rootBad = [{ description: "Partition wall", unit: 5, quantity: 472, rate: 108 }] as unknown as BoqLineItemInput[]
+    expect(() => validateLineItemInputs(rootBad)).toThrow(/unit must be a string/)
+
+    const childBad = [
+      { itemCode: "1.01", description: "Partition wall", unit: "Sqm", quantity: 472, rate: 108 },
+      { itemCode: "1.01.1", parentItemCode: "1.01", breakdownPercentage: 30, description: "Frame 01", unit: 5, quantity: 0, rate: 0 },
+    ] as unknown as BoqLineItemInput[]
+    expect(() => validateLineItemInputs(childBad)).toThrow(/unit must be a string/)
+  })
+
+  test("description is still required on both roots and children -- this fix only touches the unit check", () => {
+    const items = [{ itemCode: "1.01", description: "", unit: "Sqm", quantity: 472, rate: 108 }] as BoqLineItemInput[]
+    expect(() => validateLineItemInputs(items)).toThrow(/description is required/)
   })
 })
 
