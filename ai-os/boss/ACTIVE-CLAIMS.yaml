@@ -40,32 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree -- read-only re-confirm verification) -- PROJEXA-E2E-001 Part 1: R-92..R-100 spot-check re-confirm + Part 2: 31-item/28-item exceptions directive reconciliation and live verification [IN PROGRESS]"
-    claimed_at: "2026-09-20T (this session)"
-    claim: |
-      Work order PROJEXA-E2E-001, owner asked for a FASTER/LIGHTER
-      re-confirm pass (not from-scratch audit): Part 1 spot-checks ONE live
-      click-through per R-92..R-100 (all currently CLOSED per prior
-      2026-09-18 session) against localhost:3100 to confirm closure
-      evidence still holds. Part 2 reconciles the owner's "31-item
-      exceptions directive" against ExceptionsClient.tsx's own "28-item"
-      header claim (checking platform.sumeet_spec/build_plan/crr_ruling for
-      any prior "31" reference) and live-verifies the /exceptions feature
-      (detectors firing on real data, flagged items linking back to real
-      records) for at least 2-3 flagged items across different detector
-      types. Read-only against both repos unless something looks genuinely
-      wrong, in which case will go deep per the work order's own
-      instruction. Reusing shared dev servers on :3000/:3100, no worktree
-      planned. Noting prior sibling-session finding (recently_completed,
-      /site-diary sub-task): org alm_project_bizbay / "Business Bay
-      Corporate HQ" is empty (0 rows) for several construction tables --
-      will prefer org projexa_demo_org / project projexa_demo_project
-      ("Villa 21 - Whitefield") for any live-data verification instead.
-      Also noting the already-documented /api/exceptions perf issue
-      (getProjectExceptions() 24 sequential detectors, slow/flaky in CI)
-      -- expect this in manual UI testing too, will retry once before
-      concluding broken per this work order's shared-server-contention
-      ground rule.
   - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree -- read-mostly verification + one real BOQ created for proof) -- PROJEXA-E2E-001 batch R-01..R-04,R-10..R-24 (BOQ Create, Weighted Sub-Tasks, Revisions) [DONE -- all pre-existing DONE/CLOSED rows re-verified live, several with fresh stronger evidence]"
     claimed_at: "2026-09-20T (this session)"
     completed_at: "2026-09-20T (this session)"
@@ -3753,6 +3727,85 @@ active:
       sync-vercel-env.yml.
 
 recently_completed:
+  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree -- read-only re-confirm verification) -- PROJEXA-E2E-001 Part 1: R-92..R-100 spot-check re-confirm + Part 2: 31-item/28-item exceptions directive reconciliation [DONE -- browser click-through blocked by a real, extended shared-backend outage; substituted code/git/direct-DB verification instead, and found 2 new real bugs]"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-21T (this session)"
+    claim: |
+      REAL, EXTENDED BLOCKER, recorded honestly rather than silently waited
+      out: localhost:3000 (shared compliance-tracker dev server) returned a
+      consistent 500 ("Internal Server Error" / "The construction data
+      service did not respond in time") for the ENTIRE session -- 35+
+      independent real health checks (curl + actual browser navigation)
+      across ~25+ minutes, spanning a calendar-day boundary. System RAM was
+      measured at 1.05GB free of 7.82GB total mid-session (PowerShell
+      Get-CimInstance Win32_OperatingSystem), consistent with the work
+      order's own "may be under load from sibling agents" warning and this
+      machine's documented 8GB constraint. A coordinator message mid-session
+      claimed the server had crashed (Turbopack postcss loader crash under
+      RAM pressure) and been restarted/confirmed responding -- my own
+      direct checks AFTER that message still showed 500 on every one of 22
+      further consecutive attempts, so that claim is recorded here as
+      NOT independently confirmed, not accepted on say-so alone.
+
+      Given the owner's own "faster/lighter" directive and that the outage
+      never lifted, substituted code+data-level re-confirmation for the
+      blocked browser click-through, rather than either fabricating a
+      click-through or stalling indefinitely:
+        - Part 1 (R-92..R-100): confirmed via `git merge-base
+          --is-ancestor <closing commit> HEAD` in projexa that each row's
+          closing commit is (or is not) actually reachable from `main`,
+          which is what localhost:3100 actually serves (PROJEXA-E2E-001
+          forbids merging fix PRs to main, so "CLOSED in the tracker" and
+          "visible on the running app" can genuinely differ). R-92/93/94/
+          95/98/99/100's closing code IS on main. R-96's ADDENDUM
+          filter/export fix (PR #303, commit 46d1107) and R-97's 2026-09-20
+          correction (PR #299, commit a9fa2aeb) are BOTH confirmed still
+          unmerged -- verified directly in the live ScopeClient.tsx
+          (disabled "(Not yet available)" Filter/Export buttons, lines
+          322-326) that the pre-fix state is what a live user sees today.
+          Real backing data reconfirmed via direct SQL against
+          pcrjmlpuqsbocqfwoxod for org 4ecc472f-4152-4310-ae8d-cf8b7c52ab6d
+          / project dd486dad-9119-4d9a-a9d9-cf0ee0cc9e04 ("Meridian
+          Heights - Residential Tower A": 2970 BOQs, 683 progress entries,
+          26 change orders, 24 punch-list items, 16 site diaries, 7 roster
+          entries). platform.sumeet_requirements R-92/93/94/95/98/99/100
+          got an added "browser-verification-blocked" note; R-96/R-97 got
+          the unmerged-PR nuance recorded explicitly. No status was
+          silently flipped to a stronger claim than what was actually
+          checked.
+        - Part 2 (exceptions directive): reconciled 31 vs 28 from
+          construction-exceptions-service.ts's own header (owner's 31 items
+          minus 3 meta-statements, #29-31, not individually testable) and
+          the commit that built it (6d531f53, "28-item... for Sumeet's
+          31-item PROJEXA requirement") -- no separate "31" reference found
+          in platform.sumeet_spec/build_plan/crr_ruling, this is the real
+          origin. Bypassed the dead HTTP layer entirely and called
+          getProjectExceptions() directly (bun run, scratch script deleted
+          after use, same precedent as the sibling /site-diary sub-task's
+          scratch-verify-site-diary.ts) against the live DB for Meridian
+          Heights -- confirmed it genuinely computes: 15 of 29 checks
+          flagged with real record ids/details (real overdue snags,
+          real stuck/self-approved-adjacent change orders, real missing
+          diary dates, real unlinked roster entries, etc.), not an
+          empty/broken report.
+
+      TWO REAL BUGS FOUND, both flagged via spawn_task rather than fixed
+      in-session (out of this read-only verification pass's scope):
+        1. getProjectExceptions() returns 29 array entries, not 28 --
+          item #24 ("Snags lost, retention held") is push()'d TWICE under
+          the SAME item number (lines ~556-557), unlike every other
+          shared-detector pair in the file (#1/#8 etc.), which push under
+          TWO DIFFERENT numbers. This contradicts the "28-item" branding
+          everywhere and will fail e2e/sumeet-exceptions-env1.spec.ts's own
+          hard `expect(checks.length,...).toBe(28)` assertion against real
+          data (the compliance-tracker unit test does not catch it --
+          it only checks `toContain`, not array length or uniqueness).
+        2. ExceptionsClient.tsx has ZERO navigation (no href/Link/onClick
+          beyond the accordion toggle) from a flagged record to the real
+          record it names, despite the record id being present in the
+          payload and the feature's own header comment implying a fix
+          path back to "that record's own screen". True since the
+          feature's only commit (b604d0d) -- not a regression.
   - session_label: "claude-code (sub-agent, interactive, shared dev servers ct:3000 + projexa:3100, no worktree, no code changes) -- PROJEXA-E2E-001 batch R-B1,R-B2 (Gate) + R-C01..R-C17 (Modules: Permits, Drawings & 3D, Documents, MoMs, Manpower, Material, Budget, Schedule, Reports, Design Studio, Scope/Variations x2, Export/Share, Institutional Memory/CRR, Email Engine) [DONE -- all rows re-confirmed via source+live-Supabase, one genuine infra finding (localhost:3000 dev server crashed, not code), one investigated-and-cleared false alarm (R-C16 test flake, root-caused to RAM starvation)]"
     claimed_at: "2026-09-20T (this session)"
     completed_at: "2026-09-20T (this session)"
