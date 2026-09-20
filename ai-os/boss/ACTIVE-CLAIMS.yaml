@@ -3630,6 +3630,47 @@ recently_completed:
       unchanged). No application code touched in this repo. Both PRs left
       open/unmerged per the owner's PROJEXA-E2E-001 ground rules -- worktrees
       and local dev servers cleaned up, nothing left running.
+  - session_label: "claude-code (interactive, worktree goofy-northcutt-3d4a48) -- e2e-env1 CI job reliability: fix/quarantine 5 flaky projexa Env-1 specs + timeout-minutes, handoff from a peer session closing platform.sumeet_requirements row R-B2 (work order PROJEXA-E2E-001) [DONE, all 3 PRs merged: compliance-tracker #1761 + #1764, FChecklist/projexa #302]"
+    claimed_at: "2026-09-20T (this session)"
+    merged_as: "FChecklist/compliance-tracker PR #1761 (merge commit) + PR #1764 (merge commit) + PR #1766 (merge commit, this claim-status update itself). FChecklist/projexa PR #302 (merge commit, merged 2026-09-20T12:10:55Z, owner-directed)."
+    claim: |
+      compliance-tracker PR #1764: e2e-env1 timeout-minutes 25->40, backed
+      by 2 real measured full-run durations (26m27s run 35494363706,
+      27m33s run 35495301433, both previously CANCELLED by the old
+      budget). Also raises /api/exceptions's own upstream timeout
+      35s->60s as a companion fix (found during the investigation below).
+      Verified live on this same PR's own re-run after merge-base update:
+      the e2e-env1 job now runs to real completion (27m0s) instead of
+      being falsely cancelled.
+
+      FChecklist/projexa PR #302 (still open): the 5 flaky specs, each
+      independently CI-verified via the (separate, still-unmerged) PR
+      #1759's projexa_spec_grep workflow_dispatch input, not just claimed:
+      - r41-r42-r43-work-progress-report-columns-env1.spec.ts: FIXED
+        (a genuine transient double-mount of the wpr-caption element,
+        .first() applied) -- verified 7/7 passed.
+      - sumeet-billing-milestones-env1.spec.ts: FIXED (widened timeouts;
+        one flaky run was confirmed transient shared-project contention,
+        a clean re-run passed).
+      - r80-r81-r82-copilot-pill-chain-env1.spec.ts: NOT FIXED -- a
+        targeted retry fix was tried and DISPROVEN by a real before/after
+        CI run pair (identical 8/24 SHORT), reverted rather than kept.
+        New lead recorded in the file (a contiguous SHORT tail, not
+        scattered) for whoever picks this up next.
+      - sumeet-exceptions-env1.spec.ts / sumeet-project-workspace-env1.spec.ts
+        (Insights test): NOT FIXED -- root-caused to a genuine backend
+        performance issue (getProjectExceptions()'s 24 sequential
+        detectors), not a test bug. Its own upstream timeout has now been
+        raised 4 times total across this investigation (8s->20s->35s->60s)
+        and STILL loses the race in real CI verification every time,
+        timing out at exactly its own ceiling. Left honestly documented
+        as open in both spec files; real fix is very likely server-side
+        parallelization, not another timeout bump -- flagged, not silently
+        re-attempted a 5th time.
+
+      NOT touched: R-B2 itself (already closed by the handoff session),
+      any other sumeet_requirements row, any PROJEXA screen/feature code
+      outside what's listed above.
   - session_label: "claude-code (interactive, PM continuation session) -- R85 Addendum 3 v4 FINAL, PHASE 7: Excel round trip (D89, gates 7-01..7-12) [DONE, merged as PR #1715]"
     claimed_at: "2026-09-13T (this session)"
     merged_as: "FChecklist/compliance-tracker PR #1715 (squash-merged, merge commit a39f2b1a)."
