@@ -3582,6 +3582,46 @@ active:
       sync-vercel-env.yml.
 
 recently_completed:
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- investigate + fix PROJEXA's /site-diary 'Empty while Work Progress holds the same history' (work order section 5 item 3) [DONE, work complete -- fix lives in FChecklist/projexa, this repo touched read-only. PR left OPEN/UNMERGED per owner's ground rules]"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      This repo's role was read-only verification, same posture as the
+      sibling /change-orders sub-task. Ruled out both prior sub-tasks' bug
+      classes before concluding: NOT the /reports response-shape mismatch
+      (PR #300, a dropped format=legacy query param); NOT a genuinely
+      unwired/never-built feature either -- construction-site-diary-
+      service.ts's constructionSiteDiaries table is a real, separate,
+      already-wired table (one row per project per day: weather/workDone/
+      visitors/issues/instructions/materialReceived/labourCount/remarks),
+      not derived from constructionWorkProgressEntries.
+
+      Verified via a scratch script (scratch-verify-site-diary.ts, deleted
+      after use, not committed) calling listSiteDiaries() and
+      listProgressEntries() directly (bypassing HTTP/auth) against the live
+      Supabase project pcrjmlpuqsbocqfwoxod: org=projexa_demo_org,
+      project=projexa_demo_project ("Villa 21 - Whitefield") genuinely has 5
+      real site-diary rows and 35 real work-progress rows; org's
+      alphabetically-first project alm_project_bizbay ("Business Bay
+      Corporate HQ", the same project R-97/#299 already found for
+      /change-orders) has 0 of both. Confirmed via direct SQL that the 5
+      Villa 21 diary rows are correctly org-scoped (org_id=projexa_demo_org
+      on every row) -- not an RLS/org-mismatch bug either. This repo's
+      data/service/route layers (src/app/api/v1/projexa/site-diary/route.ts,
+      src/app/api/v1/construction/site-diary/route.ts) were never at fault.
+
+      Real fix (same project-resolution/fallback bug class as /change-orders,
+      PR #299 -- site-diary/page.tsx used the older resolveSelectedProject()
+      directly, same as change-orders before its fix, while /work-progress
+      uses the newer resolveProjectForModule(), which can honour an explicit
+      ?projectId= from a project-scoped link without writing the rail's
+      remembered-project cookie, explaining the reported asymmetry) lives
+      entirely in FChecklist/projexa PR #301 (commit 425deec) -- see that
+      repo's own ACTIVE-CLAIMS.yaml for the full file scope and root-cause
+      writeup. platform.sumeet_requirements checked for a relevant row
+      (requirement/evidence/route/file_path all searched for
+      site-diary/SiteDiary) -- none exists, so nothing to update there. Did
+      NOT touch this repo's own code (no fix needed here).
   - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- investigate + fix PROJEXA /reports Project Status Report showing dashes against a project with real BOQ/progress figures (work order section 5 item 2, called out again in section 4 as the single worst-weighted finding) [DONE, fix lives entirely in FChecklist/projexa, this repo touched read-only. PR left OPEN/UNMERGED per owner's ground rules]"
     claimed_at: "2026-09-20T (this session)"
     completed_at: "2026-09-20T (this session)"
