@@ -40,6 +40,24 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, isolated worktrees C:\ct\ct-coldload-fix + C:\ct\projexa-coldload-fix, branch fix/cold-load-investigation in both repos) -- PROJEXA-E2E-001 work order section 5 last item: owner-flagged 'single biggest risk to a live demo', cold loads 10-20s on /labour /budgets /reports /knowledge-base /meetings /mood-boards /settings /grc"
+    claimed_at: "2026-09-20T (this session)"
+    claim: |
+      SCOPE: investigating real cold-load latency on the 8 PROJEXA routes named
+      above (first observed by the PROJEXA-DECK-001 session on 2026-09-18, NOT
+      fixed there per owner instruction -- see that session's own entry further
+      down in this file). Real, repeatable timing measurements first (dev-server
+      first-compile-lag vs. a genuine shared-cause bug), then a fix at the
+      shared root cause if one is found. NOT reusing the r67/f1-performance-1 /
+      r67/f2-performance-2 lanes' claim (2026-09-02/03, already merged) since
+      those are historical/completed -- but re-reading their scope first since
+      this exact symptom persisting AFTER that lane merged is itself a real
+      data point. File scope TBD until root cause is found; will narrow this
+      entry once known. Ground rules: local bun dev + live Supabase
+      (pcrjmlpuqsbocqfwoxod) + GitHub CI only, never touching Vercel; PR opened
+      and left OPEN/UNMERGED per the owner's ground rules for this work order
+      (a separate agent is running a merge campaign on the shared C:\ct\ct /
+      C:\ct\projexa checkouts).
   - session_label: "PROJEXA deck review [2947c8] (Claude Desktop, interactive) -- Owner directive 2026-09-19, relayed from a peer session ('Single-screen project management UI concepts [e7d437]'): implement 'Merge 6 -- Ledger Dashboard + Row Updates', a new single-project-workspace page consolidating Progress/Site Diary/BOQ/Timeline/Milestones/Scope & Change Orders/RFIs/Billing Milestones/Resources/Records/Insights into one scrollable page with nav-pill anchors, real role-aware visibility (owner/admin/pm/site_engineer/member/client_viewer + cost-visibility grant), reusing existing components/services only (BoqDualViewGrid, ChangeOrdersClient, BillingMilestonesClient, boq-analysis-service, exceptions engine, etc.) -- purely additive, no existing route/page/component removed or changed in behavior."
     claimed_at: "2026-09-19T (this session)"
     claim: |
