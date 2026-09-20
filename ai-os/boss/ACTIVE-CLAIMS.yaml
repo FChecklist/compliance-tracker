@@ -40,7 +40,32 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-coldload-fix + C:/ct/projexa-coldload-fix, branch fix/cold-load-investigation in both repos) -- PROJEXA-E2E-001 work order section 5 last item: owner-flagged 'single biggest risk to a live demo', cold loads 10-20s on /labour /budgets /reports /knowledge-base /meetings /mood-boards /settings /grc [DONE -- real fix for 2 of 8 routes, other 6 honestly reported as unclean-measurement, not fixed]"
+  - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-r50-dashboard-fix + C:/ct/projexa-r50-dashboard-fix, branch fix/r50-dashboard-cost-visibility in both repos) -- PROJEXA-E2E-001 / platform.sumeet_requirements R-50 REOPENED gap: Project Dashboard (GET /api/dashboard/project/[id] in projexa -> VERIDIAN /api/v1/projexa/dashboard/[projectId] and the sibling org-level /api/v1/projexa/dashboard) leaks budget/revenue/expenses to client_viewer with zero redaction"
+    claimed_at: "2026-09-20T (this session)"
+    claim: |
+      Root cause found: src/app/api/v1/projexa/dashboard/[projectId]/route.ts
+      and src/app/api/v1/projexa/dashboard/route.ts both gate financial
+      redaction on `ctx.dbUser && !hasRole(ctx.dbUser, "manager")` -- but
+      PROJEXA authenticates every call with a single shared per-org API key
+      (ctx.apiKey), so ctx.dbUser is ALWAYS null for a PROJEXA-proxied
+      request and this condition never fires, for ANY role including
+      client_viewer. This is the exact same class of bug
+      v1/construction/boq/[id]/route.ts's resolveRoleForCostVisibility
+      already fixed for the BOQ dual-view read path (D-05 identity bridge:
+      resolveActingUser() + X-Acting-User/X-Acting-User-Email headers) --
+      applying the SAME real mechanism here, not a new/weaker one.
+
+      File scope (compliance-tracker): src/app/api/v1/projexa/dashboard/
+      [projectId]/route.ts, src/app/api/v1/projexa/dashboard/route.ts (+
+      their route.test.ts siblings). File scope (projexa): src/app/api/
+      dashboard/project/[projectId]/route.ts (forward actingUserId/
+      actingUserEmail, mirroring src/app/api/scope/[id]/route.ts's existing
+      pattern). NOT touching construction-dashboard-service.ts itself
+      (getOrgDashboard/getProjectDashboard(s) already compute the right
+      figures; this is a visibility-gate bug, not a data bug), boq/route.ts,
+      boq/[id]/route.ts, boq/[id]/compare/route.ts, or cost-visibility-
+      service.ts (a separate, already-correct gate for BOQ project-side
+      fields, not the dashboard's budget/revenue/expenses fields).
     claimed_at: "2026-09-20T (this session)"
     claim: |
       RESULT: measured real cold (first hit) vs warm (retry) load time for all
