@@ -40,7 +40,75 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-coldload-fix + C:/ct/projexa-coldload-fix, branch fix/cold-load-investigation in both repos) -- PROJEXA-E2E-001 work order section 5 last item: owner-flagged 'single biggest risk to a live demo', cold loads 10-20s on /labour /budgets /reports /knowledge-base /meetings /mood-boards /settings /grc [DONE -- real fix for 2 of 8 routes, other 6 honestly reported as unclean-measurement, not fixed]"
+  - session_label: "claude-code (sub-agent, isolated worktree C:/ct/ct-worktrees/fix-boq-unit-child-exemption, branch fix/boq-unit-required-child-exemption) -- PROJEXA-E2E-001 sub-task: fix the R-70 regression a sibling verification pass found and recorded (real Sumeet-shaped BOQ import 400s on the real commit -- construction-boq-service.ts's validateLineItemInputs() required `unit` on every line unconditionally, with no child exemption unlike the adjacent quantity/rate check) [DONE, real fix + live-verified against Supabase pcrjmlpuqsbocqfwoxod, PR left OPEN/UNMERGED per owner's ground rules]"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      Scope: src/lib/services/construction-boq-service.ts (validateLineItemInputs
+      only) + src/lib/services/construction-boq-service.test.ts (new describe
+      block). Checked ACTIVE-CLAIMS before starting: no other active: entry
+      claims construction-boq-service.ts at the time this session started; the
+      only related entry is the sibling verification pass's own
+      recently_completed record below (R-60..91 batch) which FOUND this bug
+      but did not fix it (explicitly flagged as a follow-up).
+
+      Fix: validateLineItemInputs()'s `unit` check (line ~309) now mirrors the
+      adjacent quantity/rate child-exemption pattern (line ~325) for
+      REQUIREDNESS only -- a child/sub-task row (parentItemCode set) may leave
+      `unit` blank, matching Sumeet's real BoQ export shape (blank UNIT on
+      every unlabeled sub-task row, per construction-boq-import-service.test.ts's
+      "Sumeet real-file shape" describe block). Unlike quantity/rate (which are
+      DERIVED from the root and so are not even type-checked for a child),
+      `unit` is stored verbatim by insertLineItems with no root-fallback, so
+      the TYPE check (`typeof item.unit !== "string"`) stays unconditional for
+      every row, root or child -- only the non-empty requiredness is exempted
+      for children. A root item's unit is still required exactly as before.
+
+      Tests added (construction-boq-service.test.ts, new describe block):
+      child blank unit passes, root blank unit still throws, root/missing
+      unit still throws (type check), child with a real non-blank unit is
+      accepted and used as-is (children are not blanket-exempted from
+      validation), non-string unit rejected on both root and child, and
+      description-required unaffected. 194/194 pass across all
+      construction-boq*.test.ts files (--isolate), including
+      construction-boq-import-service.test.ts's existing R-71 (malformed row)
+      and R-72 (column mapping) tests, unaffected.
+
+      LIVE VERIFICATION (real regression repro, real fix, real Supabase
+      pcrjmlpuqsbocqfwoxod, not a narrated claim): started a dev server on the
+      fix worktree (localhost:3057, own isolated port -- shared :3000 was
+      left untouched, still on main without this fix). Built a real xlsx
+      matching construction-boq-import-service.test.ts's own canonical
+      "Sumeet real-file shape" fixture exactly (root 1.01 + blank-UNIT
+      sub-tasks Frame 01/Gypsum Board, breakdown 30/70, plus a deliberately
+      malformed Qty row for the R-71 guard), against the real project
+      "Meridian Heights - Residential Tower A" (compliance.projects id
+      dd486dad-9119-4d9a-a9d9-cf0ee0cc9e04, org 4ecc472f-4152-4310-ae8d-cf8b7c52ab6d).
+      Dry-run (?dryRun=1) parsed clean (4 ready lines, malformed row correctly
+      flagged blocking). Real commit (POST, no dryRun) against the SAME
+      project's shared demo API key first 403'd as expected (that key is
+      deliberately read-only-clamped by KNOWN_DEMO_KEY_IDS in
+      api-key-auth.ts -- correct, pre-existing behaviour, not this bug) --
+      minted a temporary, properly-scoped (read,write) API key directly via
+      SQL (same hashSHA256 scheme api-keys.ts uses) for this one live test,
+      used it once, then deleted both the key and the test BOQ+line-items
+      afterward (confirmed 0 remaining rows). REAL COMMIT SUCCEEDED: HTTP 201,
+      4 line items landed in compliance.construction_boq_line_items -- root
+      1.01 (unit "Sqm", qty 472, rate 108, amount 50976), root 2.01 (unit
+      "Sqm", qty 80, rate 700, amount 56000), child "Frame 01" (unit "",
+      quantity 472 = root qty [F3], rate 32.4 = 108x30% [F2], amount 15292.8,
+      breakdown 30), child "Gypsum Board" (unit "", quantity 472, rate 75.6 =
+      108x70%, amount 35683.2, breakdown 70) -- the exact oracle figures from
+      the requirement's own evidence. The malformed row (R-71) and the 2
+      category headers were correctly excluded from the real commit too, not
+      just the dry-run preview.
+
+      platform.sumeet_requirements R-70 updated: closure_state stays CLOSED,
+      evidence appended with this fix cycle (was DONE -> regression found by
+      sibling pass -> now genuinely re-fixed and re-verified), closure_commit_sha
+      set to this PR's commit once pushed.
+
+
     claimed_at: "2026-09-20T (this session)"
     claim: |
       RESULT: measured real cold (first hit) vs warm (retry) load time for all
