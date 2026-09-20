@@ -388,6 +388,22 @@ const SERVICE_ERROR_EXEMPTIONS = new Set([
   // ServiceError here would mean deliberately breaking that already-argued
   // fail-open posture, not filling a real gap.
   "src/lib/services/org-branding-service.ts",
+  //
+  // Pre-existing gap, surfaced 2026-09-20 by an EOL-normalization commit
+  // touching this file for the first time since this check existed -- not
+  // introduced by that change (a pure whitespace/line-ending fix, zero
+  // content difference). This file's own header is explicit: it is
+  // fire-and-forget from the upload route, "same posture as
+  // automation-rule-service.ts's evaluateAndRunRules() -- extraction must
+  // never block or fail the upload it's enriching," so a thrown
+  // ServiceError propagating up to an HTTP response is never the intended
+  // shape here. Its real, checked failure-handling convention is
+  // recordIngestError() (writing compliance.crr_ingest_error, see
+  // chunkAndEmbedSourceObject's own two try/catch blocks) -- the
+  // established error-catalog mechanism for this file's specific
+  // background/async ingest-pipeline stages, doing the same job
+  // ServiceError does for a synchronous request handler.
+  "src/lib/services/document-extraction-service.ts",
 ])
 
 const HTTP_HANDLER_RE = /export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/
