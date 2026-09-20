@@ -3727,8 +3727,51 @@ active:
       sync-vercel-env.yml.
 
 recently_completed:
-  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 batch) -- light re-verification pass over platform.sumeet_requirements R-30/31/32/33/40..48/50/51/52 (BOQ View, Reports Roll-up, Work Progress, Dashboard) [DONE, read-only, no PRs -- one real new gap found and recorded in platform.sumeet_requirements (R-50 reopened), all other 15 rows re-confirmed or left as-is with honest notes]"
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 batch) -- light re-verification pass over platform.sumeet_requirements R-60/61/62/63/70/71/72/80/81/82/90/91 (Currency, Import, Selection Layer, Assistant, Error Visibility) plus R-A1..R-A7 (Security/Legal) [DONE, read-only against the shared dev servers + live Supabase, no code changes, no PRs -- one real new regression found and recorded (R-70: a real Sumeet-shaped BOQ with blank Unit on unlabeled sub-task rows, this repo's own canonical test fixture shape, passes the dry-run import preview clean but 400s on the real commit -- construction-boq-service.ts's unit-required check has no child exemption, unlike its own adjacent qty/rate exemption); all other rows re-confirmed live or left as-is with honest notes, including two transient 503 UPSTREAM_TIMEOUTs (shared-server load under this work order's concurrency, not new regressions, both cleared on retry)"
     claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      Scope: read-only verification against the already-running shared dev
+      servers (compliance-tracker :3000, FChecklist/projexa :3100) and live
+      Supabase pcrjmlpuqsbocqfwoxod. No code changes, no worktree needed.
+
+      Import (R-70/71/72): built a real xlsx fixture matching
+      construction-boq-import-service.test.ts's own "Sumeet real-file shape"
+      describe block exactly (blank Unit on Frame/Gypsum Board/Taping
+      sub-task rows, one malformed Qty cell). Ran it through the real
+      /api/scope/import route both as a dry-run preview (clean: sub-tasks
+      correctly attach with breakdown % 30/40/30 -> F2/F3-derived rate/
+      amount all correct; malformed row correctly flagged blocking and
+      excluded; category headers correctly skipped) and as a real commit
+      (400 "line item 2: unit is required" -- construction-boq-service.ts's
+      validateLineItemInputs() unconditionally requires unit on every line,
+      with no child exemption unlike the quantity/rate check 15 lines below
+      it). Confirmed nothing partial was written (0 matching rows in
+      compliance.construction_boqs). R-71/R-72 themselves reconfirmed
+      correct by this same test. Full repro in platform.sumeet_requirements
+      R-70's evidence field.
+
+      Currency (R-60/61/62/63): reconfirmed live, AED renders throughout
+      /scope and /dashboard for the demo org, no rupee anywhere observed.
+
+      Selection Layer/Assistant (R-80/81/82): spot-checked via real POST
+      /api/assistant, get_construction_project_dashboard on a real project.
+      Two transient 503 UPSTREAM_TIMEOUTs (consistent with the
+      already-documented R83 shared-server pool-contention artifact, not a
+      new regression) then a clean 201 with real project-specific data on
+      retry.
+
+      Error Visibility (R-90/91): reconfirmed live via real PATCH
+      /api/scope/line-items/[id] with budgetPercentage:150 -> the real,
+      specific backend message ("budgetPercentage must be between 0 and
+      100"), not a generic wrapper.
+
+      Security/Legal (R-A1..R-A7): not re-tested live per the work order's
+      own instruction (these are already-closed rows with specific
+      irreversible evidence -- password/PAT rotation, repo visibility).
+      Spot-checked R-A6 (nanoid CVE fix) by confirming node_modules/nanoid
+      resolves to 3.3.18 (patched) in this repo's own install -- consistent
+      with the row's evidence.
     completed_at: "2026-09-20T (this session)"
     claim: |
       Read-only verification against the already-running shared dev servers
