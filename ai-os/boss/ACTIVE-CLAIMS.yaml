@@ -3712,6 +3712,18 @@ active:
       */15 * * * *, are unchanged), scripts/pre-deploy-gate.mjs,
       sync-vercel-env.yml.
 
+  - session_label: "claude-code (interactive, existing isolated worktree C:/ct/ct-worktrees/fix-boq-unit-child-exemption, branch fix/boq-unit-required-child-exemption) -- PROJEXA-E2E-001 CI-failure investigation on compliance-tracker PR #1771 (R-70 unit-requiredness fix): CI's E2E Tests (Env-1, cross-repo) job now fails on r21-r24-boq-compare-variation-and-percentage-change-env1.spec.ts (BOQ compare page, unrelated assertion) -- determining real regression vs. environmental noise from concurrent PROJEXA-E2E-001 sessions sharing live Supabase pcrjmlpuqsbocqfwoxod, then getting a genuine green run. GROUND RULES: GitHub CI + live Supabase only, never Vercel; no merge to main; push additional commits to the EXISTING PR branch only."
+    claimed_at: "2026-09-21T (this session)"
+    claim: |
+      Scope: compliance-tracker PR #1771 / branch
+      fix/boq-unit-required-child-exemption only -- investigating the
+      r21-r24-boq-compare-variation-and-percentage-change-env1.spec.ts
+      failure in that PR's own CI run
+      (https://github.com/FChecklist/compliance-tracker/actions/runs/35530702425).
+      Not claiming any other PROJEXA-E2E-001 sub-task area. No projexa-repo
+      code changes expected (only compliance-tracker's own
+      construction-boq-service.ts / CI workflow if a real fix is needed).
+
 recently_completed:
   - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- investigate + fix PROJEXA's /site-diary 'Empty while Work Progress holds the same history' (work order section 5 item 3) [DONE, work complete -- fix lives in FChecklist/projexa, this repo touched read-only. PR left OPEN/UNMERGED per owner's ground rules]"
     claimed_at: "2026-09-20T (this session)"
