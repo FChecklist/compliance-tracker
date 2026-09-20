@@ -306,7 +306,24 @@ export function validateLineItemInputs(items: BoqLineItemInput[]): void {
     if (typeof item.description !== "string" || item.description.trim() === "") {
       throw new ServiceError(`${where}: description is required`, 400);
     }
-    if (typeof item.unit !== "string" || item.unit.trim() === "") {
+    // A child/sub-task row's unit is real, verbatim stored data (unlike
+    // quantity/rate below, which are DERIVED from the root at write time and
+    // so are not even type-checked here for a child) -- insertLineItems
+    // stores `item.unit` exactly as submitted, with no root-fallback. So a
+    // wrong TYPE is still rejected for every row, root or child. What is
+    // exempted for a child only is the REQUIREDNESS: Sumeet's real BoQ
+    // export ("Sample Scope with Sub Task.xlsx", see construction-boq-
+    // import-service.test.ts's "Sumeet real-file shape" describe block)
+    // leaves UNIT blank on every unlabeled sub-task row -- only the root
+    // task row carries a real unit. Blocking on that blank child cell was
+    // the R-70 regression: the dry-run preview (GET /api/scope/import) never
+    // calls this function, so the mismatch only ever surfaced on the real
+    // commit (POST), always at "line item 2" (the first sub-task row after
+    // Sumeet's root item 1.01).
+    if (typeof item.unit !== "string") {
+      throw new ServiceError(`${where}: unit must be a string`, 400);
+    }
+    if (!item.parentItemCode && item.unit.trim() === "") {
       throw new ServiceError(`${where}: unit is required`, 400);
     }
 
