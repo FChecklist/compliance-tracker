@@ -525,10 +525,26 @@ jobs:
     # every job silently inherited GitHub's 6-hour default. This is the one
     # job that genuinely can hang -- it boots two real dev servers and drives
     # a real browser against them -- and on a hang it would sit unnoticed for
-    # 6 hours before anyone saw a red run. 25 minutes gives real headroom over
-    # this job's own observed real duration (~9-10 minutes end to end) without
-    # masking a genuine hang for anywhere near that long.
-    timeout-minutes: 25
+    # 6 hours before anyone saw a red run.
+    #
+    # CORRECTED 2026-09-20 (handoff from a session closing sumeet_requirements
+    # R-B2, work order PROJEXA-E2E-001): the "~9-10 minutes end to end" figure
+    # above was stale -- both repos' *-env1.spec.ts count has grown
+    # substantially since that estimate was written, and both spec-running
+    # steps are serialized to --workers=1 (see their own comments above), so
+    # wall time scales roughly linearly with spec count. A genuinely full,
+    # unscoped run now measures 26m27s (run 35494363706) and 27m33s (run
+    # 35495301433) -- both CANCELLED by the old 25-minute budget, right as/
+    # after the real Playwright run itself finished, which made a genuinely
+    # broken PR and a genuinely fine PR look identical (both red) on this
+    # check. Two independent scoped runs via the projexa_spec_grep
+    # workflow_dispatch input (a single spec file each) measured 9m35s/9m37s
+    # -- consistent with the old comment's figure, confirming the estimate
+    # was accurate for a small subset, just never updated as the suite grew.
+    # 40 minutes gives ~45% headroom over the slower of the two full-run
+    # measurements above without masking a genuine hang for anywhere near as
+    # long as the inherited 6-hour default would.
+    timeout-minutes: 40
     steps:
       # Fail fast and loud, not 2 build+boot steps later, the moment OR-7/
       # OR-8 land wrong or get missed -- same "a missing required secret
