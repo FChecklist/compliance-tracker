@@ -3582,9 +3582,9 @@ active:
       sync-vercel-env.yml.
 
 recently_completed:
-  - session_label: "claude-code (interactive, worktree goofy-northcutt-3d4a48) -- e2e-env1 CI job reliability: fix/quarantine 5 flaky projexa Env-1 specs + timeout-minutes, handoff from a peer session closing platform.sumeet_requirements row R-B2 (work order PROJEXA-E2E-001) [compliance-tracker side DONE, merged as PR #1761 + PR #1764; FChecklist/projexa PR #302 still open for owner review]"
+  - session_label: "claude-code (interactive, worktree goofy-northcutt-3d4a48) -- e2e-env1 CI job reliability: fix/quarantine 5 flaky projexa Env-1 specs + timeout-minutes, handoff from a peer session closing platform.sumeet_requirements row R-B2 (work order PROJEXA-E2E-001) [DONE, all 3 PRs merged: compliance-tracker #1761 + #1764, FChecklist/projexa #302]"
     claimed_at: "2026-09-20T (this session)"
-    merged_as: "FChecklist/compliance-tracker PR #1761 (merge commit) + PR #1764 (merge commit). FChecklist/projexa PR #302 is NOT yet merged -- owner review still needed there."
+    merged_as: "FChecklist/compliance-tracker PR #1761 (merge commit) + PR #1764 (merge commit) + PR #1766 (merge commit, this claim-status update itself). FChecklist/projexa PR #302 (merge commit, merged 2026-09-20T12:10:55Z, owner-directed)."
     claim: |
       compliance-tracker PR #1764: e2e-env1 timeout-minutes 25->40, backed
       by 2 real measured full-run durations (26m27s run 35494363706,
