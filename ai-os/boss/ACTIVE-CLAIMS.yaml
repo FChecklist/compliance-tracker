@@ -3891,8 +3891,6 @@ recently_completed:
 
   - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 batch) -- light re-verification pass over platform.sumeet_requirements R-60/61/62/63/70/71/72/80/81/82/90/91 (Currency, Import, Selection Layer, Assistant, Error Visibility) plus R-A1..R-A7 (Security/Legal) [DONE, read-only against the shared dev servers + live Supabase, no code changes, no PRs -- one real new regression found and recorded (R-70: a real Sumeet-shaped BOQ with blank Unit on unlabeled sub-task rows, this repo's own canonical test fixture shape, passes the dry-run import preview clean but 400s on the real commit -- construction-boq-service.ts's unit-required check has no child exemption, unlike its own adjacent qty/rate exemption); all other rows re-confirmed live or left as-is with honest notes, including two transient 503 UPSTREAM_TIMEOUTs (shared-server load under this work order's concurrency, not new regressions, both cleared on retry)"
     claimed_at: "2026-09-20T (this session)"
-  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 batch) -- light re-verification pass over platform.sumeet_requirements R-60/61/62/63/70/71/72/80/81/82/90/91 (Currency, Import, Selection Layer, Assistant, Error Visibility) plus R-A1..R-A7 (Security/Legal) [DONE, read-only against the shared dev servers + live Supabase, no code changes, no PRs -- one real new regression found and recorded (R-70: a real Sumeet-shaped BOQ with blank Unit on unlabeled sub-task rows, this repo's own canonical test fixture shape, passes the dry-run import preview clean but 400s on the real commit -- construction-boq-service.ts's unit-required check has no child exemption, unlike its own adjacent qty/rate exemption); all other rows re-confirmed live or left as-is with honest notes, including two transient 503 UPSTREAM_TIMEOUTs (shared-server load under this work order's concurrency, not new regressions, both cleared on retry)"
-    claimed_at: "2026-09-20T (this session)"
     completed_at: "2026-09-20T (this session)"
     claim: |
       Scope: read-only verification against the already-running shared dev
@@ -3936,6 +3934,8 @@ recently_completed:
       Spot-checked R-A6 (nanoid CVE fix) by confirming node_modules/nanoid
       resolves to 3.3.18 (patched) in this repo's own install -- consistent
       with the row's evidence.
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 batch) -- light re-verification pass over platform.sumeet_requirements R-30/31/32/33/40..48/50/51/52 (BOQ View, Reports Roll-up, Work Progress, Dashboard) [DONE, read-only against the shared dev servers + live Supabase, no code changes, no PRs -- one real new REGRESSION found and recorded (R-50 REOPENED: Project Dashboard leaks real budget/revenue/expense figures to client_viewer with zero redaction, even though the BOQ dual-view page's own Internal/Customer toggle correctly hides the same figures -- a different, ungated code path); all other rows re-confirmed live or left as-is with honest notes (R-40/48 zero-entry bar not met, still manual typing)"
+    claimed_at: "2026-09-20T (this session)"
     completed_at: "2026-09-20T (this session)"
     claim: |
       Read-only verification against the already-running shared dev servers
