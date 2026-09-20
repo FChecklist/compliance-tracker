@@ -3622,6 +3622,59 @@ recently_completed:
       (requirement/evidence/route/file_path all searched for
       site-diary/SiteDiary) -- none exists, so nothing to update there. Did
       NOT touch this repo's own code (no fix needed here).
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- investigate + fix PROJEXA /reports Project Status Report showing dashes against a project with real BOQ/progress figures (work order section 5 item 2, called out again in section 4 as the single worst-weighted finding) [DONE, fix lives entirely in FChecklist/projexa, this repo touched read-only. PR left OPEN/UNMERGED per owner's ground rules]"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      Checked FIRST whether this was the same project-resolution class of
+      bug /change-orders had (PR #299, sibling fix) -- it is NOT. Ruled out
+      directly, not assumed: this repo's own construction-dashboard-
+      service.ts/construction-reports-service.ts (projectStatusReport() ->
+      getProjectDashboard()) genuinely return real, non-null figures for
+      projexa_demo_project (Villa 21 - Whitefield, org projexa_demo_org) --
+      confirmed via a scratch script calling projectStatusReport() directly
+      against the live Supabase project (pcrjmlpuqsbocqfwoxod): budget
+      105062.5, contractValue 420250, revenue 0 (real, not missing),
+      expenses 178700, progressPercent 67, earnedValue 61569.2, etc. --
+      deleted after use, not committed. This repo's data/service/route
+      layers were never at fault.
+
+      Real root cause, found and fixed entirely in FChecklist/projexa: its
+      own GET /v1/projexa/reports/{name} route
+      (src/app/api/v1/projexa/reports/[reportName]/route.ts) already
+      answers correctly -- the defect is that PROJEXA's ReportsClient never
+      asked for the right shape. This repo's own R67 E-32/R-265 change
+      (commits 3f609ad8/2183526 in the reports-service history) flipped
+      this route's DEFAULT response body from each handler's own payload to
+      a generic { columns, rows, totals, currency } table, keeping the old
+      shape behind ?format=legacy specifically so existing consumers could
+      opt back in -- confirmed live via curl against a local dev server
+      with the real API key:
+      WITHOUT format=legacy -> {"columns":[...],"rows":[...]}
+      WITH format=legacy -> {"projectId":"projexa_demo_project","budget":105062.5,...}
+      PROJEXA's own report-destinations.ts generic fetch path (used by
+      ReportsClient.tsx's "Project Reports" tab for project-status and 16
+      other non-hosted reports) never appended format=legacy, so
+      ProjectStatusCard.tsx's data.contractValue/data.budget/etc. reads
+      landed on a shape with none of those keys at the top level and
+      rendered the en-dash EMPTY_VALUE for every field. PROJEXA's own E-32
+      follow-up commit had already migrated six OTHER consumers onto
+      format=legacy for the identical reason -- this was an uncaught
+      seventh instance of the same defect class, not a new kind of bug.
+
+      Fix (FChecklist/projexa PR #300, branch
+      fix/reports-project-status-dashes): reportDestination()'s generic
+      fetch path and ReportsClient.tsx's budget-variance breakup fetch both
+      now request format=legacy. New regression test in
+      ReportsClient.test.tsx doubles the real upstream behaviour (table
+      shape unless format=legacy) and asserts real figures render, not
+      dashes. CI: Lint/Type Check/Test/Migration guard/Secret Scanning all
+      green; Vercel shows "blocked" by design (ignoreCommand gate on a
+      non-main branch), not touched.
+
+      Did NOT touch this repo (compliance-tracker) -- no backend code
+      change needed, confirmed by direct verification rather than assumed
+      from the frontend fix alone.
   - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- re-investigate PROJEXA's /change-orders 'No change orders yet' (work order section 5 item 1) [DONE, work complete -- fix lives in FChecklist/projexa, this repo touched read-only. PR left OPEN/UNMERGED per owner's ground rules]"
     claimed_at: "2026-09-20T (this session)"
     completed_at: "2026-09-20T (this session)"
