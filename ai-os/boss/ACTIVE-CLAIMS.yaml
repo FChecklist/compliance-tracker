@@ -3645,6 +3645,192 @@ active:
       sync-vercel-env.yml.
 
 recently_completed:
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- investigate + fix PROJEXA's /site-diary 'Empty while Work Progress holds the same history' (work order section 5 item 3) [DONE, work complete -- fix lives in FChecklist/projexa, this repo touched read-only. PR left OPEN/UNMERGED per owner's ground rules]"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      This repo's role was read-only verification, same posture as the
+      sibling /change-orders sub-task. Ruled out both prior sub-tasks' bug
+      classes before concluding: NOT the /reports response-shape mismatch
+      (PR #300, a dropped format=legacy query param); NOT a genuinely
+      unwired/never-built feature either -- construction-site-diary-
+      service.ts's constructionSiteDiaries table is a real, separate,
+      already-wired table (one row per project per day: weather/workDone/
+      visitors/issues/instructions/materialReceived/labourCount/remarks),
+      not derived from constructionWorkProgressEntries.
+
+      Verified via a scratch script (scratch-verify-site-diary.ts, deleted
+      after use, not committed) calling listSiteDiaries() and
+      listProgressEntries() directly (bypassing HTTP/auth) against the live
+      Supabase project pcrjmlpuqsbocqfwoxod: org=projexa_demo_org,
+      project=projexa_demo_project ("Villa 21 - Whitefield") genuinely has 5
+      real site-diary rows and 35 real work-progress rows; org's
+      alphabetically-first project alm_project_bizbay ("Business Bay
+      Corporate HQ", the same project R-97/#299 already found for
+      /change-orders) has 0 of both. Confirmed via direct SQL that the 5
+      Villa 21 diary rows are correctly org-scoped (org_id=projexa_demo_org
+      on every row) -- not an RLS/org-mismatch bug either. This repo's
+      data/service/route layers (src/app/api/v1/projexa/site-diary/route.ts,
+      src/app/api/v1/construction/site-diary/route.ts) were never at fault.
+
+      Real fix (same project-resolution/fallback bug class as /change-orders,
+      PR #299 -- site-diary/page.tsx used the older resolveSelectedProject()
+      directly, same as change-orders before its fix, while /work-progress
+      uses the newer resolveProjectForModule(), which can honour an explicit
+      ?projectId= from a project-scoped link without writing the rail's
+      remembered-project cookie, explaining the reported asymmetry) lives
+      entirely in FChecklist/projexa PR #301 (commit 425deec) -- see that
+      repo's own ACTIVE-CLAIMS.yaml for the full file scope and root-cause
+      writeup. platform.sumeet_requirements checked for a relevant row
+      (requirement/evidence/route/file_path all searched for
+      site-diary/SiteDiary) -- none exists, so nothing to update there. Did
+      NOT touch this repo's own code (no fix needed here).
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- investigate + fix PROJEXA /reports Project Status Report showing dashes against a project with real BOQ/progress figures (work order section 5 item 2, called out again in section 4 as the single worst-weighted finding) [DONE, fix lives entirely in FChecklist/projexa, this repo touched read-only. PR left OPEN/UNMERGED per owner's ground rules]"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      Checked FIRST whether this was the same project-resolution class of
+      bug /change-orders had (PR #299, sibling fix) -- it is NOT. Ruled out
+      directly, not assumed: this repo's own construction-dashboard-
+      service.ts/construction-reports-service.ts (projectStatusReport() ->
+      getProjectDashboard()) genuinely return real, non-null figures for
+      projexa_demo_project (Villa 21 - Whitefield, org projexa_demo_org) --
+      confirmed via a scratch script calling projectStatusReport() directly
+      against the live Supabase project (pcrjmlpuqsbocqfwoxod): budget
+      105062.5, contractValue 420250, revenue 0 (real, not missing),
+      expenses 178700, progressPercent 67, earnedValue 61569.2, etc. --
+      deleted after use, not committed. This repo's data/service/route
+      layers were never at fault.
+
+      Real root cause, found and fixed entirely in FChecklist/projexa: its
+      own GET /v1/projexa/reports/{name} route
+      (src/app/api/v1/projexa/reports/[reportName]/route.ts) already
+      answers correctly -- the defect is that PROJEXA's ReportsClient never
+      asked for the right shape. This repo's own R67 E-32/R-265 change
+      (commits 3f609ad8/2183526 in the reports-service history) flipped
+      this route's DEFAULT response body from each handler's own payload to
+      a generic { columns, rows, totals, currency } table, keeping the old
+      shape behind ?format=legacy specifically so existing consumers could
+      opt back in -- confirmed live via curl against a local dev server
+      with the real API key:
+      WITHOUT format=legacy -> {"columns":[...],"rows":[...]}
+      WITH format=legacy -> {"projectId":"projexa_demo_project","budget":105062.5,...}
+      PROJEXA's own report-destinations.ts generic fetch path (used by
+      ReportsClient.tsx's "Project Reports" tab for project-status and 16
+      other non-hosted reports) never appended format=legacy, so
+      ProjectStatusCard.tsx's data.contractValue/data.budget/etc. reads
+      landed on a shape with none of those keys at the top level and
+      rendered the en-dash EMPTY_VALUE for every field. PROJEXA's own E-32
+      follow-up commit had already migrated six OTHER consumers onto
+      format=legacy for the identical reason -- this was an uncaught
+      seventh instance of the same defect class, not a new kind of bug.
+
+      Fix (FChecklist/projexa PR #300, branch
+      fix/reports-project-status-dashes): reportDestination()'s generic
+      fetch path and ReportsClient.tsx's budget-variance breakup fetch both
+      now request format=legacy. New regression test in
+      ReportsClient.test.tsx doubles the real upstream behaviour (table
+      shape unless format=legacy) and asserts real figures render, not
+      dashes. CI: Lint/Type Check/Test/Migration guard/Secret Scanning all
+      green; Vercel shows "blocked" by design (ignoreCommand gate on a
+      non-main branch), not touched.
+
+      Did NOT touch this repo (compliance-tracker) -- no backend code
+      change needed, confirmed by direct verification rather than assumed
+      from the frontend fix alone.
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- re-investigate PROJEXA's /change-orders 'No change orders yet' (work order section 5 item 1) [DONE, work complete -- fix lives in FChecklist/projexa, this repo touched read-only. PR left OPEN/UNMERGED per owner's ground rules]"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      This repo's role was read-only verification: reconciled
+      platform.sumeet_requirements row R-97's 2026-09-18 close (claimed
+      zero seeded change orders for the fallback project) against the
+      Owner's fresh 2026-09-20 screenshot (claims 2 real change orders
+      exist and aren't rendering) -- NOT a contradiction, both are the same
+      underlying mechanism (see below). Verified via a scratch script
+      calling src/lib/services/construction-change-order-service.ts's
+      listChangeOrders() directly (bypassing HTTP/auth) against the live
+      Supabase project pcrjmlpuqsbocqfwoxod, org=projexa_demo_org,
+      project=projexa_demo_project ("Villa 21 - Whitefield"): the query
+      genuinely returns both real rows
+      (pj_co_p1_2/wq8kxhhqht74ns0xgpn8c92s), so this repo's data/service/
+      route layers (src/app/api/v1/projexa/change-orders/route.ts) were
+      never at fault -- confirmed no extra filtering beyond
+      orgId+projectId. Also confirmed via compliance.projects that
+      "Business Bay Corporate HQ" (alm_project_bizbay, 0 seeded change
+      orders) sorts alphabetically FIRST among projexa_demo_org's 10 active
+      projects, and PROJEXA's GET /projects (src/lib/services/
+      construction-dashboard-service.ts's listProjectsForSelection, ORDER
+      BY name ASC) has no per-role project scoping -- which deterministically
+      explains PROJEXA's own resolveSelectedProject() first-project
+      fallback landing there for ANY fresh visitor with no ?projectId=/no
+      stored preference, not just the Site Engineer role R-97 originally
+      checked. The scratch verification script (scratch-verify-change-
+      orders.ts) was deleted after use, not committed. Real fix (naming
+      the resolved project + admitting "(auto-selected)", same convention
+      already shipped for PROJEXA's Documents/Labour/Drawings/MoMs pages)
+      lives entirely in FChecklist/projexa PR #299 (commit
+      a9fa2aeb2cbab93503be3229a7aa7e8bcf3058ac) -- see that repo's own
+      ACTIVE-CLAIMS.yaml for the full file scope. platform.sumeet_requirements
+      row R-97 updated with this finding (real, verified new information).
+      Did NOT touch this repo's own code (no fix needed here).
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- R-95 billing-milestones closure re-audit (platform.sumeet_requirements, id='R-95') [DONE, closed with a real green CI run; PRs open/unmerged: FChecklist/projexa#297, FChecklist/compliance-tracker#1760]"
+    claimed_at: "2026-09-20T (this session)"
+    claim: |
+      Investigated boq-analysis-service.ts's getProjectAnalysis/
+      getEffectiveContractValueForProject and construction-boq-service.ts's
+      submitBoq/approveBoq end to end (code review + a real local run
+      against the live pcrjmlpuqsbocqfwoxod Supabase project) -- found NO
+      backend logic defect. Root cause was the projexa e2e spec's own
+      timeouts (15s/10s waits, 75s whole-test budget) being tighter than
+      this program's established CI-latency standard (playwright.config.ts's
+      30s actionTimeout/navigationTimeout), compounded by this repo's own
+      extensively-documented "E2E Tests (Env-1, cross-repo)" GitHub Actions
+      latency history. Fixed across 3 commits on projexa branch
+      wo/r95-billing-milestones-boq-analysis-poll (ba5c900, 2b77541,
+      e39f543) -- each verified against a REAL, isolated GitHub Actions
+      dispatch (this repo's ci.yml workflow_dispatch, projexa_ref +
+      projexa_spec_grep inputs) before the next fix, not assumed. 3 real CI
+      failures hit and fixed one at a time (Drafted-badge timeout, then a
+      transient BOQ-creation failure, then whole-test-timeout from the sum
+      of the earlier per-step raises) before a genuine green run: compliance
+      -tracker workflow_dispatch run 35499299260, "E2E Tests (Env-1,
+      cross-repo)" job, "Run projexa Env-1 spec(s)" step: "6 passed"
+      including the real target test.
+
+      Process note: found a sibling R-B2 sub-task (same PROJEXA-E2E-001
+      umbrella) already using the shared C:\ct\ct / C:\ct\projexa checkouts
+      directly (not worktrees) with its own checked-out branch -- moved to
+      isolated worktrees (C:\ct\ct-worktrees\wo-r95-billing-milestones,
+      C:\ct\projexa-worktrees\wo-r95-billing-milestones) to avoid disrupting
+      it, and ported the sibling's own workflow_dispatch/projexa_ref design
+      onto this session's own branch after two of this session's own
+      dispatches got cancelled by concurrency-group collisions with the
+      sibling's repeated dispatches against their shared branch.
+
+      platform.sumeet_requirements R-95 updated directly (closure_state=
+      CLOSED, closure_commit_sha=e39f5437673554c1010338b86b369690a6e2d163,
+      closure_repo=projexa, closure_ci_run_id=35499299260, full root-cause/
+      fix history in status) -- a parallel coordinator independently
+      verified the same CI run and confirmed this same closure afterward.
+
+      File scope: FChecklist/projexa's e2e/sumeet-billing-milestones-env1.
+      spec.ts only (timeouts, no assertion logic changed). This repo:
+      ai-os/boss/ACTIVE-CLAIMS.yaml (this entry) + .github/workflows/ci.yml
+      (ported workflow_dispatch projexa_ref/projexa_spec_grep inputs, same
+      additive shape as the sibling's own, push/pull_request behaviour
+      unchanged). No application code touched in this repo. Both PRs left
+      open/unmerged per the owner's PROJEXA-E2E-001 ground rules -- worktrees
+      and local dev servers cleaned up, nothing left running.
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- R-B2 demo-gate content gap (platform.sumeet_requirements, id='R-B2'): extended projexa's e2e/rb2-boq-create-real-click-and-progress-dropdown-env1.spec.ts to cover TC-01/TC-11/TC-40/TC-90 via real UI clicks (previously only TC-10/TC-30), got 2 independent green CI runs. [DONE, work complete -- BOTH PRs left OPEN/UNMERGED per owner's ground rules, pending the owner's batch merge]"
+    claimed_at: "2026-09-20T (this session)"
+    merged_as: "NOT merged (deliberately) -- FChecklist/projexa PR #296 (branch fix/rb2-demo-gate-six-tcs-real-ui, commit b236009e) + FChecklist/compliance-tracker PR #1759 (branch ci/e2e-env1-projexa-ref-dispatch, commits b547e873/2f95c308). Both open, both green on their own real checks (projexa #296: lint/typecheck/test/build/migration-guard/secret-scan all pass; compliance-tracker #1759: lint/typecheck/build/unit-tests pass -- its own auto-triggered full-suite e2e-env1 check is red for reasons unrelated to this change, see platform.sumeet_requirements R-B2 evidence). R-B2 closed CLOSED in platform.sumeet_requirements with closure_commit_sha=b236009e, backed by 2 independent green e2e-env1 dispatch runs against the actual branch content (run 35496927476, run 35498320411, both 'Run projexa Env-1 spec(s): 8 passed')."
+    claim: |
+      Scope was: compliance-tracker's .github/workflows/ci.yml (additive
+      workflow_dispatch inputs projexa_ref + projexa_spec_grep on the
+      e2e-env1 job -- push/pull_request behaviour byte-for-byte unchanged)
+      and projexa's e2e/rb2-...-env1.spec.ts only. Owner does one batch
+      merge later per PROJEXA-E2E-001's ground rules.
   - session_label: "claude-code (interactive, worktree goofy-northcutt-3d4a48) -- e2e-env1 CI job reliability: fix/quarantine 5 flaky projexa Env-1 specs + timeout-minutes, handoff from a peer session closing platform.sumeet_requirements row R-B2 (work order PROJEXA-E2E-001) [DONE, all 3 PRs merged: compliance-tracker #1761 + #1764, FChecklist/projexa #302]"
     claimed_at: "2026-09-20T (this session)"
     merged_as: "FChecklist/compliance-tracker PR #1761 (merge commit) + PR #1764 (merge commit) + PR #1766 (merge commit, this claim-status update itself). FChecklist/projexa PR #302 (merge commit, merged 2026-09-20T12:10:55Z, owner-directed)."
