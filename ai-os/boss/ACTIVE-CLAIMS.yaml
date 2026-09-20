@@ -103,6 +103,28 @@ active:
       starved to near-zero CPU progress by this machine's contention and had
       to be killed rather than waited out -- relying on CI's typecheck job (a
       clean runner) for that signal; CI status pending as of this entry.
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- investigate PROJEXA's /site-diary 'Empty while Work Progress holds the same history' (work order section 5 item 3)"
+    claimed_at: "2026-09-20T (this session)"
+    claim: |
+      Worktrees: C:\ct\ct-sitediary-fix (branch chore/active-claims-r97-site-diary,
+      this claim commit) and C:\ct\projexa-sitediary-fix (branch
+      fix/site-diary-empty) -- both isolated from the shared C:\ct\ct /
+      C:\ct\projexa checkouts other parallel sessions are using.
+      Investigating whether this is the same project-resolution/fallback bug
+      class as /change-orders (PROJEXA PR #299) or the same response-shape
+      mismatch as /reports (PROJEXA PR #300), or a third, different cause.
+      Initial read: compliance-tracker's construction-site-diary-service.ts
+      (constructionSiteDiaries table) is a genuinely SEPARATE table from
+      constructionWorkProgressEntries, not derived from it -- live Supabase
+      query confirms projexa_demo_project ("Villa 21 - Whitefield") has 5 real
+      site-diary rows and 35 work-progress rows, so the table is NOT
+      structurally empty for the demo project. Still verifying with a live
+      local run (bun dev, port 3100) which project each screen actually
+      resolves to before concluding root cause. Will update this claim to
+      recently_completed with the real finding once done. File scope TBD
+      until root cause confirmed -- likely PROJEXA-side only
+      (src/lib/project-selection.ts / SiteDiaryClient.tsx), matching the
+      established pattern from R-97/#299 and #300, but not yet certain.
   - session_label: "PROJEXA deck review [2947c8] (Claude Desktop, interactive) -- Owner directive 2026-09-19, relayed from a peer session ('Single-screen project management UI concepts [e7d437]'): implement 'Merge 6 -- Ledger Dashboard + Row Updates', a new single-project-workspace page consolidating Progress/Site Diary/BOQ/Timeline/Milestones/Scope & Change Orders/RFIs/Billing Milestones/Resources/Records/Insights into one scrollable page with nav-pill anchors, real role-aware visibility (owner/admin/pm/site_engineer/member/client_viewer + cost-visibility grant), reusing existing components/services only (BoqDualViewGrid, ChangeOrdersClient, BillingMilestonesClient, boq-analysis-service, exceptions engine, etc.) -- purely additive, no existing route/page/component removed or changed in behavior."
     claimed_at: "2026-09-19T (this session)"
     claim: |
