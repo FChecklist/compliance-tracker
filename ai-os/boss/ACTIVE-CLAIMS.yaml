@@ -3752,29 +3752,92 @@ active:
       */15 * * * *, are unchanged), scripts/pre-deploy-gate.mjs,
       sync-vercel-env.yml.
 
-  - session_label: "claude-code (sub-agent, interactive, shared dev servers ct:3000 + projexa:3100, no worktree -- read-mostly re-verification, no code changes anticipated) -- PROJEXA-E2E-001 batch R-B1,R-B2 (Gate) + R-C01..R-C17 (Modules: Permits, Drawings & 3D, Documents, MoMs, Manpower, Material, Budget, Schedule, Reports, Design Studio, Scope/Variations x2, Export/Share, Institutional Memory/CRR, Email Engine)"
+recently_completed:
+  - session_label: "claude-code (sub-agent, interactive, shared dev servers ct:3000 + projexa:3100, no worktree, no code changes) -- PROJEXA-E2E-001 batch R-B1,R-B2 (Gate) + R-C01..R-C17 (Modules: Permits, Drawings & 3D, Documents, MoMs, Manpower, Material, Budget, Schedule, Reports, Design Studio, Scope/Variations x2, Export/Share, Institutional Memory/CRR, Email Engine) [DONE -- all rows re-confirmed via source+live-Supabase, one genuine infra finding (localhost:3000 dev server crashed, not code), one investigated-and-cleared false alarm (R-C16 test flake, root-caused to RAM starvation)]"
     claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
     claim: |
       Scope: platform.sumeet_requirements rows R-B1, R-B2, R-C01..R-C17
       (Supabase pcrjmlpuqsbocqfwoxod). Confirmed R-C05/R-C06 absent from the
       register (as the work order expected) and R-C17 already correctly
-      OPEN (owner DNS/MX action pending) -- not re-opening work on it, only
-      verifying the code-side pieces (user_email_addresses/
-      inbound_email_messages tables in src/lib/db/schema.ts,
-      src/app/api/webhooks/resend-inbound/route.ts) still exist and are
-      wired. All other rows in scope are already CLOSED with recent
-      (2026-09-10 through 2026-09-20) live-production evidence from prior
-      sessions this same work order -- doing a lighter re-verification pass
-      per the owner's "faster, lighter, trust direct observation" guidance:
-      spot-checking each module's real screen at localhost:3100 (or a
-      direct API call where clicking isn't practical) with a real
-      e2e/users.ts account, running R-C16's narrowed-scope tests
-      (capture.test.ts + recall.test.ts), and digging in rigorously ONLY if
-      something looks surprising/wrong (same bar the R-50/R-70 findings
-      used). No worktree opened unless a real code fix turns out to be
-      needed.
+      OPEN (owner DNS/MX action pending) -- not re-opened; only re-verified
+      the code-side pieces (user_email_addresses/inbound_email_messages
+      tables in src/lib/db/schema.ts, src/app/api/webhooks/resend-inbound/
+      route.ts, email-alias-service.ts) still exist and are wired exactly
+      as the row's own SCOPED note describes. All other rows were already
+      CLOSED with recent (2026-09-10 through 2026-09-20, several same-day)
+      live-production evidence from prior sessions this same work order.
 
-recently_completed:
+      GENUINE INFRA FINDING, not a code bug in any of this batch's rows:
+      localhost:3000 (compliance-tracker, the shared backend both this repo
+      and PROJEXA's /api/v1/projexa/* proxy depend on) was found FULLY
+      CRASHED for the entire session, every route (page or API) returning
+      the identical Next/Turbopack dev-bundler error ("Node.js subprocess
+      crashed while evaluating loaders [postcss]: failed to receive
+      message", __NEXT_ERROR_CODE E394), reproduced consistently across 4
+      retries over several minutes with waits in between (not the milder
+      "retry once, it clears" 503/UPSTREAM_TIMEOUT category the work
+      order's ground rules pre-authorized -- this one never cleared).
+      PowerShell `Get-Process` itself stalled 120s+ mid-session;
+      `Get-CimInstance Win32_OperatingSystem` showed ~452MB free of 8GB
+      total at the time -- consistent with this being genuine RAM
+      starvation from concurrent sibling-agent load on this shared 8GB
+      box, not a code regression. Did NOT restart the shared server (ground
+      rules: reuse, don't start your own; a crashed-but-shared server the
+      next session depends on is a live/other-session risk to touch
+      unilaterally) -- flagging here instead so the next session knows
+      localhost:3000 may need a manual restart, and isn't surprised by a
+      wall of identical 500s.
+
+      Because of that outage, could not click through localhost:3100 UI or
+      call localhost:3000 APIs live this session. Verification instead
+      used: (a) fresh Supabase SQL directly against pcrjmlpuqsbocqfwoxod
+      confirming real, populated tables behind every row in scope
+      (documents category=permit: 9 rows incl. a real 192-byte PDF fixture
+      with permitAuthority/permitNumber/issueDate metadata from R60's own
+      re-verify pass; category in (drawing,drawing_3d): 16; documents
+      total: 242; veri_meetings: 41; construction_site_instructions: 4;
+      report_share_links: 7; construction_materials: 30;
+      construction_material_receipts: 5; construction_boq_line_items with
+      vendor_id set: 3; user_email_addresses: 0, expected -- R-C17 has no
+      real provisioning yet, correctly still OPEN); (b) fresh grep/glob
+      confirmation that every route cited in each row's `route`/evidence
+      column still exists in current source (permits, drawings, documents,
+      materials/receipts, labour-roster, attendance, meetings/MoMs,
+      schedule tasks/baselines, timesheets, site-instructions, reports
+      share -- several now live under versioned /api/v1/projexa/* or
+      /api/v1/construction/* aliases rather than the exact literal path an
+      older evidence string recorded, which is expected drift, not
+      missing functionality).
+
+      INVESTIGATED, NOT JUST FLAGGED (per this wave's own bar from R-50/
+      R-70): R-C16's capture.test.ts (`bun test --isolate`) showed 2/6
+      tests failing on first run (uploadCalls.length received 2, expected
+      1 -- looked exactly like a real dedup regression). Read capture.ts's
+      actual dedup logic line-by-line first (pre-check SELECT strictly
+      before any storage.upload call, so upload cannot legitimately run
+      twice per createSourceObject) -- logic looked correct, so treated the
+      failure as suspicious rather than assuming a bug. Root-caused to the
+      same RAM-starvation condition above: Bun's default 5000ms per-test
+      timeout fired while the (fully in-memory-mocked, no real DB/network)
+      test was still genuinely running under event-loop starvation: Bun
+      does not hard-cancel the still-pending work, so it kept executing in
+      the background and polluted the next test's shared module-level
+      uploadCalls array. Proof: re-ran the IDENTICAL file, zero code
+      changes, with `--timeout 60000` -- 6/6 pass, 13.44s total (vs. 62s
+      wall-clock for the failing 5000ms-timeout run). recall.test.ts:
+      14/14 pass clean on the first run. Appended this finding to R-C16's
+      evidence column in platform.sumeet_requirements (real new verified
+      evidence on a row actually checked, per this task's own update
+      rule) -- did not change its status (already correctly CLOSED,
+      narrowed-scope ruling stands).
+
+      NOT touched: any code, any worktree, any other sumeet_requirements
+      row's status/closure_state (only R-C16's evidence column gained an
+      append). No password/credential actions of any kind.
+
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 batch) -- light re-verification pass over platform.sumeet_requirements R-60/61/62/63/70/71/72/80/81/82/90/91 (Currency, Import, Selection Layer, Assistant, Error Visibility) plus R-A1..R-A7 (Security/Legal) [DONE, read-only against the shared dev servers + live Supabase, no code changes, no PRs -- one real new regression found and recorded (R-70: a real Sumeet-shaped BOQ with blank Unit on unlabeled sub-task rows, this repo's own canonical test fixture shape, passes the dry-run import preview clean but 400s on the real commit -- construction-boq-service.ts's unit-required check has no child exemption, unlike its own adjacent qty/rate exemption); all other rows re-confirmed live or left as-is with honest notes, including two transient 503 UPSTREAM_TIMEOUTs (shared-server load under this work order's concurrency, not new regressions, both cleared on retry)"
+    claimed_at: "2026-09-20T (this session)"
   - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 batch) -- light re-verification pass over platform.sumeet_requirements R-60/61/62/63/70/71/72/80/81/82/90/91 (Currency, Import, Selection Layer, Assistant, Error Visibility) plus R-A1..R-A7 (Security/Legal) [DONE, read-only against the shared dev servers + live Supabase, no code changes, no PRs -- one real new regression found and recorded (R-70: a real Sumeet-shaped BOQ with blank Unit on unlabeled sub-task rows, this repo's own canonical test fixture shape, passes the dry-run import preview clean but 400s on the real commit -- construction-boq-service.ts's unit-required check has no child exemption, unlike its own adjacent qty/rate exemption); all other rows re-confirmed live or left as-is with honest notes, including two transient 503 UPSTREAM_TIMEOUTs (shared-server load under this work order's concurrency, not new regressions, both cleared on retry)"
     claimed_at: "2026-09-20T (this session)"
     completed_at: "2026-09-20T (this session)"
