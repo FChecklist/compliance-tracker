@@ -125,6 +125,19 @@ active:
       until root cause confirmed -- likely PROJEXA-side only
       (src/lib/project-selection.ts / SiteDiaryClient.tsx), matching the
       established pattern from R-97/#299 and #300, but not yet certain.
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 batch) -- light re-verification pass over platform.sumeet_requirements R-30/31/32/33/40..48/50/51/52 (BOQ View, Reports Roll-up, Work Progress, Dashboard), per the work order's section-per-batch division"
+    claimed_at: "2026-09-20T (this session)"
+    claim: |
+      Read-only verification against the already-running shared dev servers
+      (compliance-tracker :3000, FChecklist/projexa :3100) and live Supabase
+      pcrjmlpuqsbocqfwoxod -- no code changes expected unless a genuine new
+      bug is found, in which case a PR will be opened and left UNMERGED per
+      this work order's ground rules. All 16 rows in this batch are already
+      closure_state=CLOSED with substantial prior evidence (R74/R75/R86/R38
+      etc) -- this pass is a light spot-check per the owner's "go faster,
+      lighter verification" instruction, not a from-scratch re-proof. Will
+      update platform.sumeet_requirements only on rows actually re-checked
+      live this session.
   - session_label: "PROJEXA deck review [2947c8] (Claude Desktop, interactive) -- Owner directive 2026-09-19, relayed from a peer session ('Single-screen project management UI concepts [e7d437]'): implement 'Merge 6 -- Ledger Dashboard + Row Updates', a new single-project-workspace page consolidating Progress/Site Diary/BOQ/Timeline/Milestones/Scope & Change Orders/RFIs/Billing Milestones/Resources/Records/Insights into one scrollable page with nav-pill anchors, real role-aware visibility (owner/admin/pm/site_engineer/member/client_viewer + cost-visibility grant), reusing existing components/services only (BoqDualViewGrid, ChangeOrdersClient, BillingMilestonesClient, boq-analysis-service, exceptions engine, etc.) -- purely additive, no existing route/page/component removed or changed in behavior."
     claimed_at: "2026-09-19T (this session)"
     claim: |
