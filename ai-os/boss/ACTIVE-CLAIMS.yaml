@@ -305,6 +305,26 @@ active:
       NOT touching: ERP_ACTION_ROLES or any other shared role-table structure (not needed for this
       fix), any other MASTER-TRACKER gap. Verified via `gh pr list` + this file's own active/recently_completed
       entries before claiming: no other active claim or merged PR covers this specific remaining scope.
+  - session_label: "claude-code (interactive, worktree agent-a07a453492d68b86d, 2026-09-13) -- R-50 dual-view BOQ grid, first real Env-1 CI fallout (compliance-tracker run 34770621247 / job 103759924820)"
+    claimed_at: "2026-09-13T (this session)"
+    claim: |
+      SCOPE: e2e/r15-r30-r31-boq-view-env1.spec.ts, e2e/r50-boq-dual-view-grid-env1.spec.ts,
+      e2e/r40-work-progress-weighted-subtask-env1.spec.ts (both repos' e2e/, and PROJEXA's
+      src/components/ScopeObjectClient.tsx). Investigating 3 real CI failures from R-50 Phase 2's
+      (PROJEXA PR #270 / compliance-tracker PR #1727) first real Env-1 run against real data:
+      (1) a Playwright strict-mode violation in r15-r30-r31 now that BoqDualViewGrid coexists with
+      the pre-existing legacy grid on /scope/[id] -- FIXED, PROJEXA PR #274 merged (scoped the
+      older spec's locators to a new `boq-legacy-detail-grid` testid); (2) r50's own contract-lock
+      test asserting a pre-confirmation edit should succeed but observing a non-ok response --
+      under investigation (compliance.boq_baseline has 0 rows live, so the lock-check itself
+      cannot be firing; added a real status/body diagnostic to the test, PROJEXA PR #274, pending
+      a fresh CI run to see the real cause); (3) e2e/r40-work-progress-weighted-subtask-env1.spec.ts's
+      first-ever real run hit a 503 on POST /api/work-progress -- checking reproducibility before
+      concluding flake vs real bug.
+
+      NOT touching: platform.sumeet_requirements / sumeet_requirement_components (reporting
+      findings only, per this task's own instruction -- PM applies any DB write after independent
+      re-verification).
   - session_label: "claude-code (interactive, successor PM session, took handover from prior 'Project Manager' session local_9ded2765-995d-446e-ac58-eff36e1ad5ae mid-day 2026-09-11) -- R83 register integrity + continuation"
     claimed_at: "2026-09-11T23:15 IST (this session)"
     claim: |

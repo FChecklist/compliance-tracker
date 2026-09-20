@@ -103,6 +103,16 @@ test("R-40: recording partial progress against a weighted sub-task rolls up corr
       percentComplete: 50,
     },
   });
+  // DIAGNOSTIC (2026-09-13, real-CI fallout investigation, this test's first
+  // ever Env-1 run hit a 503 here): a bare status assertion gives no way to
+  // tell a transient upstream timeout (this codebase's own CLAUDE.md
+  // documents a real, reproducible class of these under this exact CI job --
+  // see the R74/R75/R83 ensureConstructionEnabled()/pool-contention notes)
+  // apart from a real, reproducible bug. Log the body on a non-201 so a
+  // future failure is diagnosable from the CI log alone.
+  if (progressRes.status() !== 201) {
+    console.log(`R40_PROGRESS_POST_FAILURE status=${progressRes.status()} body=${await progressRes.text()}`);
+  }
   expect(progressRes.status(), "R-40: a partial progress entry against a weighted sub-task must be recorded (201)").toBe(201);
 
   const reportRes = await apiRequest.get(
