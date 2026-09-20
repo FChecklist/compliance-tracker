@@ -3582,6 +3582,15 @@ active:
       sync-vercel-env.yml.
 
 recently_completed:
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- R-B2 demo-gate content gap (platform.sumeet_requirements, id='R-B2'): extended projexa's e2e/rb2-boq-create-real-click-and-progress-dropdown-env1.spec.ts to cover TC-01/TC-11/TC-40/TC-90 via real UI clicks (previously only TC-10/TC-30), got 2 independent green CI runs. [DONE, work complete -- BOTH PRs left OPEN/UNMERGED per owner's ground rules, pending the owner's batch merge]"
+    claimed_at: "2026-09-20T (this session)"
+    merged_as: "NOT merged (deliberately) -- FChecklist/projexa PR #296 (branch fix/rb2-demo-gate-six-tcs-real-ui, commit b236009e) + FChecklist/compliance-tracker PR #1759 (branch ci/e2e-env1-projexa-ref-dispatch, commits b547e873/2f95c308). Both open, both green on their own real checks (projexa #296: lint/typecheck/test/build/migration-guard/secret-scan all pass; compliance-tracker #1759: lint/typecheck/build/unit-tests pass -- its own auto-triggered full-suite e2e-env1 check is red for reasons unrelated to this change, see platform.sumeet_requirements R-B2 evidence). R-B2 closed CLOSED in platform.sumeet_requirements with closure_commit_sha=b236009e, backed by 2 independent green e2e-env1 dispatch runs against the actual branch content (run 35496927476, run 35498320411, both 'Run projexa Env-1 spec(s): 8 passed')."
+    claim: |
+      Scope was: compliance-tracker's .github/workflows/ci.yml (additive
+      workflow_dispatch inputs projexa_ref + projexa_spec_grep on the
+      e2e-env1 job -- push/pull_request behaviour byte-for-byte unchanged)
+      and projexa's e2e/rb2-...-env1.spec.ts only. Owner does one batch
+      merge later per PROJEXA-E2E-001's ground rules.
   - session_label: "claude-code (interactive, worktree goofy-northcutt-3d4a48) -- e2e-env1 CI job reliability: fix/quarantine 5 flaky projexa Env-1 specs + timeout-minutes, handoff from a peer session closing platform.sumeet_requirements row R-B2 (work order PROJEXA-E2E-001) [DONE, all 3 PRs merged: compliance-tracker #1761 + #1764, FChecklist/projexa #302]"
     claimed_at: "2026-09-20T (this session)"
     merged_as: "FChecklist/compliance-tracker PR #1761 (merge commit) + PR #1764 (merge commit) + PR #1766 (merge commit, this claim-status update itself). FChecklist/projexa PR #302 (merge commit, merged 2026-09-20T12:10:55Z, owner-directed)."
