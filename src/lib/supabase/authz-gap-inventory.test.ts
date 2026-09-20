@@ -303,6 +303,7 @@ const EXEMPT_ROUTES: Array<{ path: string; category: string; reason: string }> =
   {"path":"src/app/api/dpdp/p/[token]/grievance/route.ts","category":"TOKEN_SCOPED","reason":"Same consent-token gate as p/[token]/consent above -- resolveConsentToken() validates the token against dpdp.consent_token before anything is written."},
   {"path":"src/app/api/dpdp/p/[token]/rights-request/route.ts","category":"TOKEN_SCOPED","reason":"Same consent-token gate as p/[token]/consent above."},
   {"path":"src/app/api/dpdp/g/[slug]/rights-request/route.ts","category":"TOKEN_SCOPED","reason":"Reached from the org's free public page (dpdp.public_page), gated on that org's own published slug resolving to a live page -- no session by design, the public-facing \"ask them to delete my data\" entry point."},
+  {"path":"src/app/api/dpdp/task-link/[token]/route.ts","category":"TOKEN_SCOPED","reason":"WO-DPDP-005/007 one-click task-answer email link, same shape as the p/[token]/* consent routes above -- no session by design, a real person clicks straight from their inbox. POST (added 2026-09-18, HIGH-severity fix) calls answerTaskViaEmailToken(), which validates the token before writing; GET is now read-only (previewTaskEmailToken()) precisely so a mail-client link-prefetcher can no longer mutate state."},
   {"path":"src/app/api/dpdp/organisations/route.ts","category":"SERVICE_LAYER_GATED","reason":"POST calls requireDpdpIdentity() (the org-bootstrap case has no active org yet); GET does too."},
   {"path":"src/app/api/dpdp/organisations/switch/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpIdentity(), then switchDpdpActiveOrg() verifies the identity actually holds an active membership in the target org before switching."},
   {"path":"src/app/api/dpdp/members/route.ts","category":"SERVICE_LAYER_GATED","reason":"requireDpdpSession(); POST additionally requires `ctx.level === \"owner\"` inline (\"Only the boss can add people\")."},
@@ -474,9 +475,13 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
     // (v1/projexa/tax-templates/route.ts is GET-only and is correctly
     // excluded from `mutating` entirely, same as boq-scenarios/[id]/route.ts
     // above.)
-    expect(mutating.length).toBe(886) // +35 WO-DPDP-001 dpdp/* mutating routes, +7 WO-DPDP-002/003/004 dpdp/* mutating routes, +2 Sumeet #2 milestones routes, +2 Sumeet #3 billing-claims routes
+    // WO-DPDP-005/007 (2026-09-18, HIGH-severity fix): +1 mutating route file
+    // -- dpdp/task-link/[token]/route.ts's POST (GET used to answer the task
+    // directly; now GET only previews, POST answers). TOKEN_SCOPED, same
+    // shape as the p/[token]/* consent routes above.
+    expect(mutating.length).toBe(887) // +35 WO-DPDP-001 dpdp/* mutating routes, +7 WO-DPDP-002/003/004 dpdp/* mutating routes, +2 Sumeet #2 milestones routes, +2 Sumeet #3 billing-claims routes, +1 WO-DPDP-005/007 task-link/[token]
     expect(protectedCount).toBe(642) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH; +1 R85A3 P6 cost-visibility config PATCH; +2 R85A3 P7 Excel round-trip diff/apply POSTs; +4 R85 A3v4 Phase 10 boq-scenarios routes; +2 Sumeet #2 milestones routes; +2 Sumeet #3 billing-claims routes
-    expect(EXEMPT_ROUTES.length).toBe(244) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep // +1 R-C17 resend-inbound webhook (Svix-signature-gated, INTERNAL_SECRET) // +35 WO-DPDP-001 dpdp/* routes (29 SERVICE_LAYER_GATED, 4 TOKEN_SCOPED, 2 PUBLIC_BY_DESIGN) // +7 WO-DPDP-002/003/004 dpdp/* routes (all SERVICE_LAYER_GATED)
+    expect(EXEMPT_ROUTES.length).toBe(245) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep // +1 R-C17 resend-inbound webhook (Svix-signature-gated, INTERNAL_SECRET) // +35 WO-DPDP-001 dpdp/* routes (29 SERVICE_LAYER_GATED, 4 TOKEN_SCOPED, 2 PUBLIC_BY_DESIGN) // +7 WO-DPDP-002/003/004 dpdp/* routes (all SERVICE_LAYER_GATED) // +1 WO-DPDP-005/007 task-link/[token] (TOKEN_SCOPED)
     expect(KNOWN_OPEN_GAPS.length).toBe(0)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)
   })
