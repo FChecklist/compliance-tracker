@@ -40,6 +40,21 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- R-B2 demo-gate content gap (platform.sumeet_requirements, id='R-B2'): extend projexa's e2e/rb2-boq-create-real-click-and-progress-dropdown-env1.spec.ts to cover TC-01/TC-11/TC-40/TC-90 via real UI clicks (it only had TC-10/TC-30) and get >=2 independent green CI runs before merge."
+    claimed_at: "2026-09-20T (this session)"
+    claim: |
+      Scope: this repo's .github/workflows/ci.yml ONLY (additive
+      workflow_dispatch input `projexa_ref` on the e2e-env1 job, so it can be
+      manually dispatched against an unmerged projexa branch instead of
+      always hardcoding projexa's `main` -- push/pull_request behaviour is
+      byte-for-byte unchanged), on branch
+      ci/e2e-env1-projexa-ref-dispatch. Companion projexa branch:
+      fix/rb2-demo-gate-six-tcs-real-ui (e2e/rb2-...-env1.spec.ts only).
+      Neither branch will be merged by this session -- both PRs are left
+      open per the owner's PROJEXA-E2E-001 ground rules (local dev + GitHub
+      CI + live Supabase only, no Vercel, no merge to main; the owner does
+      one batch merge later). Does not touch anything else this repo's
+      broader PROJEXA-E2E-001 claim (above/below) is already covering.
   - session_label: "PROJEXA deck review [2947c8] (Claude Desktop, interactive) -- Owner directive 2026-09-19, relayed from a peer session ('Single-screen project management UI concepts [e7d437]'): implement 'Merge 6 -- Ledger Dashboard + Row Updates', a new single-project-workspace page consolidating Progress/Site Diary/BOQ/Timeline/Milestones/Scope & Change Orders/RFIs/Billing Milestones/Resources/Records/Insights into one scrollable page with nav-pill anchors, real role-aware visibility (owner/admin/pm/site_engineer/member/client_viewer + cost-visibility grant), reusing existing components/services only (BoqDualViewGrid, ChangeOrdersClient, BillingMilestonesClient, boq-analysis-service, exceptions engine, etc.) -- purely additive, no existing route/page/component removed or changed in behavior."
     claimed_at: "2026-09-19T (this session)"
     claim: |
