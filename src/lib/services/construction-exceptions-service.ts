@@ -57,8 +57,28 @@ export { ServiceError }
 
 export type ExceptionsContext = { orgId: string }
 
+/**
+ * What real table `id` (or `linkId`, when present) refers to -- lets a UI
+ * build a real drill-down link to the record's own screen instead of just
+ * displaying a bare id. "date" means `id` is a calendar date, not a record
+ * (nothing to link to). A type with no real per-record screen in PROJEXA
+ * today (vendor_dispute, customer_complaint, invoice_item) is still tagged
+ * honestly rather than omitted, so a UI can show "no drill-down yet" instead
+ * of silently rendering a dead link.
+ */
+export type ExceptionRecordType =
+  | "change_order" | "boq" | "boq_line_item" | "work_progress_entry" | "site_diary"
+  | "material_issue" | "labour_roster" | "punch_list_item" | "interim_bill"
+  | "vendor_dispute" | "customer_complaint" | "invoice_item" | "date"
+
 /** One flagged record, always citing exactly which row and why -- never a bare count with no way to look at the evidence. */
-export type ExceptionRecord = { id: string; detail: string }
+export type ExceptionRecord = {
+  id: string
+  detail: string
+  recordType?: ExceptionRecordType
+  /** The id to actually navigate to, when it differs from `id` (e.g. a material ISSUE's own id vs. the MATERIAL its object screen is keyed by). Falls back to `id` when absent. */
+  linkId?: string
+}
 
 /** Sumeet's own item number/title, the deterministic boolean verdict, and the flagged rows (empty array = verdict false for every record checked). */
 export type ExceptionCheck = {
@@ -94,7 +114,7 @@ export async function findDiaryWithoutProgressEntry(db: TenantDb, orgId: string,
   )
   return diaries
     .filter((d) => d.workDone && d.workDone.trim().length > 0 && !progressDates.has(d.diaryDate))
-    .map((d) => ({ id: d.id, detail: `Diary ${d.diaryDate} records work done but no progress entry exists for that date` }))
+    .map((d) => ({ id: d.id, detail: `Diary ${d.diaryDate} records work done but no progress entry exists for that date`, recordType: "site_diary" as const }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -119,7 +139,7 @@ export async function findApprovedChangeOrdersNeverBilled(db: TenantDb, orgId: s
     const billed = await db.query.constructionInterimBillLineItems.findFirst({
       where: sql`${constructionInterimBillLineItems.boqLineItemId} IN (${sql.join(lineItems.map((l) => sql`${l.id}`), sql`, `)})`,
     })
-    if (!billed) out.push({ id: co.id, detail: `CO-${co.number} approved (cost impact ${co.costImpact}) and linked to a BOQ revision, but no interim bill has ever been raised against it` })
+    if (!billed) out.push({ id: co.id, detail: `CO-${co.number} approved (cost impact ${co.costImpact}) and linked to a BOQ revision, but no interim bill has ever been raised against it`, recordType: "change_order" })
   }
   return out
 }
@@ -136,7 +156,7 @@ export async function findUnconfirmedDrawingProgress(db: TenantDb, orgId: string
     ),
     columns: { id: true, entryDate: true, drawingDocumentId: true },
   })
-  return rows.map((r) => ({ id: r.id, detail: `Progress entry ${r.entryDate} built from drawing ${r.drawingDocumentId} with no confirmation on record` }))
+  return rows.map((r) => ({ id: r.id, detail: `Progress entry ${r.entryDate} built from drawing ${r.drawingDocumentId} with no confirmation on record`, recordType: "work_progress_entry" as const }))
 }
 
 export async function findOldDrawingProgress(db: TenantDb, orgId: string, projectId: string): Promise<ExceptionRecord[]> {
@@ -147,7 +167,7 @@ export async function findOldDrawingProgress(db: TenantDb, orgId: string, projec
   const out: ExceptionRecord[] = []
   for (const r of rows) {
     const doc = await db.query.documents.findFirst({ where: eq(documents.id, r.drawingDocumentId!), columns: { isLatestVersion: true, name: true } })
-    if (doc && !doc.isLatestVersion) out.push({ id: r.id, detail: `Progress entry ${r.entryDate} built from a superseded drawing (${doc.name})` })
+    if (doc && !doc.isLatestVersion) out.push({ id: r.id, detail: `Progress entry ${r.entryDate} built from a superseded drawing (${doc.name})`, recordType: "work_progress_entry" })
   }
   return out
 }
@@ -167,7 +187,7 @@ export async function findStuckApprovals(db: TenantDb, orgId: string, projectId:
     ),
     columns: { id: true, number: true, createdAt: true },
   })
-  return rows.map((r) => ({ id: r.id, detail: `CO-${r.number} has been pending_approval since ${r.createdAt.toISOString().slice(0, 10)}, over ${STUCK_APPROVAL_DAYS} days with no decision` }))
+  return rows.map((r) => ({ id: r.id, detail: `CO-${r.number} has been pending_approval since ${r.createdAt.toISOString().slice(0, 10)}, over ${STUCK_APPROVAL_DAYS} days with no decision`, recordType: "change_order" as const }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -180,7 +200,7 @@ export async function findSelfApprovedChangeOrders(db: TenantDb, orgId: string, 
     columns: { id: true, number: true, requestedById: true, approvedById: true },
   })
   return rows.filter((r) => r.approvedById && r.approvedById === r.requestedById)
-    .map((r) => ({ id: r.id, detail: `CO-${r.number} was approved by the same person who requested it -- no independent approval` }))
+    .map((r) => ({ id: r.id, detail: `CO-${r.number} was approved by the same person who requested it -- no independent approval`, recordType: "change_order" as const }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -203,7 +223,7 @@ export async function findWorkWithoutApprovedBoq(db: TenantDb, orgId: string, pr
       status = boq?.status ?? "unknown"
       boqStatusCache.set(line.boqId, status)
     }
-    if (status !== "approved") out.push({ id: e.id, detail: `Progress entry ${e.entryDate} recorded against a BOQ line whose BOQ status is '${status}', not approved` })
+    if (status !== "approved") out.push({ id: e.id, detail: `Progress entry ${e.entryDate} recorded against a BOQ line whose BOQ status is '${status}', not approved`, recordType: "work_progress_entry" })
   }
   return out
 }
@@ -221,7 +241,12 @@ export async function findProgressNeverBilled(db: TenantDb, orgId: string, proje
   const out: ExceptionRecord[] = []
   for (const lineId of lineIds) {
     const billed = await db.query.constructionInterimBillLineItems.findFirst({ where: eq(constructionInterimBillLineItems.boqLineItemId, lineId) })
-    if (!billed) out.push({ id: lineId, detail: `BOQ line ${lineId} has logged progress but no interim bill has ever been raised against it` })
+    if (!billed) {
+      // A BOQ line item has no object screen of its own -- link to its
+      // parent BOQ (the real, addressable "scope" screen) instead.
+      const line = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, lineId), columns: { boqId: true } })
+      out.push({ id: lineId, detail: `BOQ line ${lineId} has logged progress but no interim bill has ever been raised against it`, recordType: "boq_line_item", linkId: line?.boqId })
+    }
   }
   return out
 }
@@ -234,7 +259,10 @@ export async function findOpenVendorDisputes(db: TenantDb, orgId: string, projec
     where: and(eq(constructionVendorDisputes.orgId, orgId), eq(constructionVendorDisputes.projectId, projectId), eq(constructionVendorDisputes.status, "open")),
     columns: { id: true, description: true, amountDisputed: true },
   })
-  return rows.map((r) => ({ id: r.id, detail: `Open vendor dispute: ${r.description}${r.amountDisputed ? ` (${r.amountDisputed} disputed)` : ""}` }))
+  // No vendor-dispute object screen exists in PROJEXA today -- tagged
+  // "vendor_dispute" so a UI can honestly show "no drill-down yet" rather
+  // than render a link to a page that doesn't exist.
+  return rows.map((r) => ({ id: r.id, detail: `Open vendor dispute: ${r.description}${r.amountDisputed ? ` (${r.amountDisputed} disputed)` : ""}`, recordType: "vendor_dispute" as const }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -250,7 +278,9 @@ export async function findOpenCustomerComplaints(db: TenantDb, orgId: string, pr
     ),
     columns: { id: true, description: true, severity: true, category: true },
   })
-  return rows.map((r) => ({ id: r.id, detail: `Open complaint (${r.severity}, ${r.category}): ${r.description}` }))
+  // No customer-complaint object screen exists in PROJEXA today -- same
+  // honest-tagging reasoning as findOpenVendorDisputes above.
+  return rows.map((r) => ({ id: r.id, detail: `Open complaint (${r.severity}, ${r.category}): ${r.description}`, recordType: "customer_complaint" as const }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -262,7 +292,7 @@ export async function findNewBoqRevisions(db: TenantDb, orgId: string, projectId
     where: and(eq(constructionBoqs.orgId, orgId), eq(constructionBoqs.projectId, projectId), isNotNull(constructionBoqs.parentBoqId)),
     columns: { id: true, version: true, title: true, createdAt: true },
   })
-  return rows.map((r) => ({ id: r.id, detail: `BOQ revision v${r.version} ("${r.title}") created ${r.createdAt.toISOString().slice(0, 10)}` }))
+  return rows.map((r) => ({ id: r.id, detail: `BOQ revision v${r.version} ("${r.title}") created ${r.createdAt.toISOString().slice(0, 10)}`, recordType: "boq" as const }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -274,7 +304,7 @@ export async function findBoqWithoutCustomerApproval(db: TenantDb, orgId: string
     where: and(eq(constructionBoqs.orgId, orgId), eq(constructionBoqs.projectId, projectId), eq(constructionBoqs.status, "approved"), isNull(constructionBoqs.customerApprovedAt)),
     columns: { id: true, version: true, title: true },
   })
-  return rows.map((r) => ({ id: r.id, detail: `BOQ v${r.version} ("${r.title}") is internally approved with no customer approval on record` }))
+  return rows.map((r) => ({ id: r.id, detail: `BOQ v${r.version} ("${r.title}") is internally approved with no customer approval on record`, recordType: "boq" as const }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -286,7 +316,7 @@ export async function findApprovalsWithoutBoqComparison(db: TenantDb, orgId: str
     where: and(eq(constructionChangeOrders.orgId, orgId), eq(constructionChangeOrders.projectId, projectId), eq(constructionChangeOrders.status, "approved"), isNull(constructionChangeOrders.boqRevisionId)),
     columns: { id: true, number: true },
   })
-  return rows.map((r) => ({ id: r.id, detail: `CO-${r.number} was approved with no BOQ revision ever linked to it` }))
+  return rows.map((r) => ({ id: r.id, detail: `CO-${r.number} was approved with no BOQ revision ever linked to it`, recordType: "change_order" as const }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -306,9 +336,11 @@ export async function findApprovalsWithoutBoqComparison(db: TenantDb, orgId: str
 export async function findMaterialWithoutBoqLine(db: TenantDb, orgId: string, projectId: string): Promise<ExceptionRecord[]> {
   const issues = await db.query.constructionMaterialIssues.findMany({
     where: and(eq(constructionMaterialIssues.orgId, orgId), eq(constructionMaterialIssues.projectId, projectId), isNull(constructionMaterialIssues.boqLineItemId)),
-    columns: { id: true, issuedDate: true, quantity: true },
+    columns: { id: true, issuedDate: true, quantity: true, materialId: true },
   })
-  return issues.map((r) => ({ id: r.id, detail: `Material issued ${r.issuedDate} (qty ${r.quantity}) with no BOQ line recorded` }))
+  // A material ISSUE has no object screen of its own -- link to the
+  // MATERIAL it issued (the real, addressable /materials/[id] screen).
+  return issues.map((r) => ({ id: r.id, detail: `Material issued ${r.issuedDate} (qty ${r.quantity}) with no BOQ line recorded`, recordType: "material_issue" as const, linkId: r.materialId }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -334,7 +366,7 @@ export async function findLateOrDuplicateMaterial(db: TenantDb, orgId: string, p
     for (let i = 1; i < sorted.length; i++) {
       const days = (new Date(sorted[i].issuedDate).getTime() - new Date(sorted[i - 1].issuedDate).getTime()) / 86_400_000
       if (days <= DUPLICATE_MATERIAL_WINDOW_DAYS) {
-        out.push({ id: sorted[i].id, detail: `Material ${materialId} issued again ${sorted[i].issuedDate}, only ${days}d after the previous issue -- possible duplicate order` })
+        out.push({ id: sorted[i].id, detail: `Material ${materialId} issued again ${sorted[i].issuedDate}, only ${days}d after the previous issue -- possible duplicate order`, recordType: "material_issue", linkId: materialId })
       }
     }
   }
@@ -349,7 +381,7 @@ export async function findLateOrDuplicateMaterial(db: TenantDb, orgId: string, p
       columns: { entryDate: true },
     })
     if (earliestProgress && i.issuedDate > earliestProgress.entryDate) {
-      out.push({ id: i.id, detail: `Material issued ${i.issuedDate} for an activity that already had progress logged from ${earliestProgress.entryDate} -- arrived late` })
+      out.push({ id: i.id, detail: `Material issued ${i.issuedDate} for an activity that already had progress logged from ${earliestProgress.entryDate} -- arrived late`, recordType: "material_issue", linkId: i.materialId })
     }
   }
   return out
@@ -372,7 +404,7 @@ export async function findMissingDailyReports(db: TenantDb, orgId: string, proje
   const out: ExceptionRecord[] = []
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const iso = d.toISOString().slice(0, 10)
-    if (!diaryDates.has(iso)) out.push({ id: iso, detail: `No site diary filed for ${iso}` })
+    if (!diaryDates.has(iso)) out.push({ id: iso, detail: `No site diary filed for ${iso}`, recordType: "date" })
   }
   return out
 }
@@ -386,7 +418,7 @@ export async function findUnlinkedRoster(db: TenantDb, orgId: string, projectId:
     where: and(eq(constructionLabourRoster.orgId, orgId), eq(constructionLabourRoster.projectId, projectId), eq(constructionLabourRoster.isActive, true), isNull(constructionLabourRoster.employeeId)),
     columns: { id: true, name: true },
   })
-  return rows.map((r) => ({ id: r.id, detail: `Roster entry "${r.name}" has no linked employee profile -- cannot be reconciled against payroll` }))
+  return rows.map((r) => ({ id: r.id, detail: `Roster entry "${r.name}" has no linked employee profile -- cannot be reconciled against payroll`, recordType: "labour_roster" as const }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -407,7 +439,7 @@ export async function findAmbiguousBoqVersions(db: TenantDb, orgId: string, proj
   const out: ExceptionRecord[] = []
   for (const b of boqs) {
     if (b.parentBoqId && boqs.some((other) => other.id === b.parentBoqId)) {
-      out.push({ id: b.id, detail: `BOQ v${b.version} and its own parent are BOTH status='approved' -- the revision chain's invariant is violated` })
+      out.push({ id: b.id, detail: `BOQ v${b.version} and its own parent are BOTH status='approved' -- the revision chain's invariant is violated`, recordType: "boq" })
     }
   }
   return out
@@ -430,7 +462,10 @@ export async function findMismatchedSubcontractorInvoices(db: TenantDb, orgId: s
     const billed = await db.query.constructionInterimBillLineItems.findFirst({ where: eq(constructionInterimBillLineItems.boqLineItemId, item.boqLineItemId!), orderBy: (t, { desc }) => desc(t.cumulativeAmount) })
     const billedAmount = billed ? Number(billed.cumulativeAmount) : 0
     if (Number(item.amount) > billedAmount) {
-      out.push({ id: item.id, detail: `Subcontractor invoice line (${item.amount}) exceeds this BOQ line's cumulative billed-to-customer amount (${billedAmount})` })
+      // No subcontractor-invoice object screen exists in PROJEXA today --
+      // same honest-tagging reasoning as the vendor-dispute/customer-
+      // complaint detectors above.
+      out.push({ id: item.id, detail: `Subcontractor invoice line (${item.amount}) exceeds this BOQ line's cumulative billed-to-customer amount (${billedAmount})`, recordType: "invoice_item" })
     }
   }
   return out
@@ -446,7 +481,7 @@ export async function findOverdueSnags(db: TenantDb, orgId: string, projectId: s
     where: and(eq(constructionPunchListItems.orgId, orgId), eq(constructionPunchListItems.projectId, projectId), ne(constructionPunchListItems.status, "verified_closed"), lt(constructionPunchListItems.dueDate, today)),
     columns: { id: true, number: true, description: true, dueDate: true },
   })
-  return rows.map((r) => ({ id: r.id, detail: `Snag #${r.number} ("${r.description}") was due ${r.dueDate} and is still not verified closed` }))
+  return rows.map((r) => ({ id: r.id, detail: `Snag #${r.number} ("${r.description}") was due ${r.dueDate} and is still not verified closed`, recordType: "punch_list_item" as const }))
 }
 
 export async function findRetentionHeldDespiteSnagsClosed(db: TenantDb, orgId: string, projectId: string): Promise<ExceptionRecord[]> {
@@ -458,7 +493,7 @@ export async function findRetentionHeldDespiteSnagsClosed(db: TenantDb, orgId: s
   })
   return bills
     .filter((b) => Number(b.retentionReleasedAmount ?? 0) < Number(b.retentionAmount))
-    .map((b) => ({ id: b.id, detail: `Interim bill #${b.billNumber} still holds ${Number(b.retentionAmount) - Number(b.retentionReleasedAmount ?? 0)} retention, despite every snag on this project being verified closed` }))
+    .map((b) => ({ id: b.id, detail: `Interim bill #${b.billNumber} still holds ${Number(b.retentionAmount) - Number(b.retentionReleasedAmount ?? 0)} retention, despite every snag on this project being verified closed`, recordType: "interim_bill" as const }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -474,7 +509,7 @@ export async function findApprovalsWithoutEvidence(db: TenantDb, orgId: string, 
   const out: ExceptionRecord[] = []
   for (const co of orders) {
     const evidence = await db.query.documents.findFirst({ where: and(eq(documents.orgId, orgId), eq(documents.linkedEntityType, "construction_change_order"), eq(documents.linkedEntityId, co.id)) })
-    if (!evidence) out.push({ id: co.id, detail: `CO-${co.number} was approved with no evidence document attached to it` })
+    if (!evidence) out.push({ id: co.id, detail: `CO-${co.number} was approved with no evidence document attached to it`, recordType: "change_order" })
   }
   return out
 }
@@ -497,7 +532,7 @@ export async function findProgressRegressions(db: TenantDb, orgId: string, proje
     const sorted = [...rows].sort((a, b) => (a.entryDate === b.entryDate ? a.createdAt.getTime() - b.createdAt.getTime() : a.entryDate < b.entryDate ? -1 : 1))
     for (let i = 1; i < sorted.length; i++) {
       if (Number(sorted[i].percentComplete) < Number(sorted[i - 1].percentComplete)) {
-        out.push({ id: sorted[i].id, detail: `Progress entry ${sorted[i].entryDate} reports ${sorted[i].percentComplete}%, lower than the ${sorted[i - 1].percentComplete}% already reported on ${sorted[i - 1].entryDate}` })
+        out.push({ id: sorted[i].id, detail: `Progress entry ${sorted[i].entryDate} reports ${sorted[i].percentComplete}%, lower than the ${sorted[i - 1].percentComplete}% already reported on ${sorted[i - 1].entryDate}`, recordType: "work_progress_entry" })
       }
     }
   }
@@ -553,8 +588,19 @@ export async function getProjectExceptions(ctx: ExceptionsContext, projectId: st
     push(22, "Multiple versions of the BOQ -- which one is final, which is worked upon", "A BOQ revision chain violation (a row and its own parent both status='approved')", await findAmbiguousBoqVersions(db, ctx.orgId, projectId))
     push(23, "Subcontractor invoices don't match the work", "A subcontractor invoice line's amount exceeds its BOQ line's cumulative billed-to-customer amount", await findMismatchedSubcontractorInvoices(db, ctx.orgId, projectId))
 
-    push(24, "Snags lost, retention held", "Overdue, not-yet-verified-closed punch list items", await findOverdueSnags(db, ctx.orgId, projectId))
-    push(24, "Snags lost, retention held (retention half)", "Retention still held on an interim bill despite every snag being verified closed", await findRetentionHeldDespiteSnagsClosed(db, ctx.orgId, projectId))
+    // #24 is a SINGLE owner-facing item answered by TWO different detectors
+    // (unlike the shared-detector pairs above, which are the opposite: ONE
+    // detector reused under TWO DIFFERENT owner item numbers). Both results
+    // are merged into one push under item 24 -- fixed 2026-09-21 after a
+    // real bug where this used to push(24, ...) TWICE, producing 29 array
+    // entries instead of the documented 28 (each detector's own records
+    // keep their own `detail` text, so a reader can still tell "overdue
+    // snag" flags apart from "retention still held" flags within the one
+    // merged item).
+    push(24, "Snags lost, retention held", "Overdue, not-yet-verified-closed punch list items, OR retention still held on an interim bill despite every snag being verified closed", [
+      ...await findOverdueSnags(db, ctx.orgId, projectId),
+      ...await findRetentionHeldDespiteSnagsClosed(db, ctx.orgId, projectId),
+    ])
 
     push(25, "The user decides from memory", "Change order approved with no evidence document attached", await findApprovalsWithoutEvidence(db, ctx.orgId, projectId))
     push(27, "The user doesn't remember", "Same detector as #18: material issued with no BOQ line recorded", materialNoLine)
