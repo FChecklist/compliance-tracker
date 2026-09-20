@@ -3871,34 +3871,112 @@ active:
       code changes expected (only compliance-tracker's own
       construction-boq-service.ts / CI workflow if a real fix is needed).
 
-  - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-coldload-remaining + C:/ct/projexa-coldload-remaining, branch fix/cold-load-remaining-6-routes in both repos) -- PROJEXA-E2E-001 work order section 5 LAST item, continuation of the 2026-09-20 cold-load investigation (see the recently_completed entry with session_label containing 'fix/cold-load-investigation'): clean re-measurement of the 6 routes that session could NOT cleanly attribute (/labour /budgets /reports /knowledge-base /settings /grc) plus 1-2 control routes, then fix whatever has a real identifiable cause."
-    claimed_at: "2026-09-21T (this session)"
-    claim: |
-      Reusing the SHARED dev servers (compliance-tracker :3000, projexa
-      :3100 -- both just refreshed with current merged code per this
-      session's own instructions), not starting new ones. RAM checked
-      before starting: 0.3-0.45GB free of 7.82GB, i.e. WORSE than the
-      ~0.9GB this session was told to expect and comparably bad to the
-      prior session's 0.2-0.5GB -- noting this honestly up front per the
-      task's own instruction to report degraded conditions rather than
-      push through noisy data; will re-check periodically and report
-      actual numbers either way rather than force a conclusion.
-
-      File scope, pending actual root-cause findings (updating once
-      confirmed): likely compliance-tracker src/app/(app)/{labour,budgets,
-      reports,knowledge-base,settings,grc}/page.tsx-equivalent data-fetch
-      paths and/or projexa src/app/(app)/{labour,budgets,reports,
-      knowledge-base,settings,grc}/page.tsx + matching *Client.tsx,
-      src/lib/module-list-source.ts (same pattern already used for
-      meetings/mood-boards). NOT touching /meetings or /mood-boards
-      (already fixed and merged) or any other PROJEXA-E2E-001 sub-task
-      area (dashboard redaction, exceptions drill-down, BOQ unit fix,
-      report drill-down gap -- all separate active/recently-completed
-      claims). No merge to main; GitHub CI + live Supabase
-      pcrjmlpuqsbocqfwoxod only, never Vercel; e2e/users.ts test accounts
-      only (arjun.mehta CEO account), no real credentials touched.
-
 recently_completed:
+  - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-coldload-remaining + C:/ct/projexa-coldload-remaining, branch fix/cold-load-remaining-6-routes in both repos) -- PROJEXA-E2E-001 work order section 5 LAST item, continuation of the 2026-09-20 cold-load investigation: clean re-measurement of the 6 routes that session could NOT cleanly attribute (/labour /budgets /reports /knowledge-base /settings /grc) plus control routes, then fix whatever has a real identifiable cause [DONE -- real fixes for 3 of 6 (settings, knowledge-base, grc), 3 of 6 (labour, budgets/finance-budgets, reports) confirmed via source read to ALREADY have the R67 fix, PRs open/unmerged]"
+    claimed_at: "2026-09-21T (this session)"
+    completed_at: "2026-09-21T (this session)"
+    claim: |
+      RAM checked throughout: 0.23-0.65GB free of 7.82GB the whole session
+      -- worse than the ~0.9GB this session was told to expect, comparable
+      to the prior session's 0.2-0.5GB. Reused the shared dev servers
+      (never started new ones) via a lightweight HTTP-client harness
+      (PowerShell + a reused Playwright storageState cookie from
+      playwright/.auth/ceo.json, NOT a new browser/Playwright process) to
+      keep this session's own RAM footprint minimal.
+
+      REAL FINDING, independent of the 6-route task: the shared projexa
+      dev server (:3100) had a genuine, confirmed Turbopack dev-only
+      regression mid-session -- EVERY 2+-level nested route (page or API)
+      404'd (verified via 7 unrelated routes: /finance/budgets,
+      /accounting/journal-entries, /accounting/companies, /meetings/[id],
+      /mood-boards/[id], plus API routes /api/organization/currency,
+      /api/org/repair) while every 1-level route worked fine -- matching
+      this codebase's own documented "clear .next + restart" class of
+      defect, not a code bug. Did NOT restart the shared server myself
+      (other sessions depend on it); the coordinator restarted it
+      independently mid-session for an unrelated reason, which incidentally
+      confirmed the diagnosis (/finance/budgets went from 404 to a real 200
+      once restarted).
+
+      REAL NUMBERS (cold -> warm, HTTP-only harness, shell/TTFB time --
+      see caveat below for client-only-fetch routes), post-restart:
+      /dashboard(control) 30.4s->11.3s, /documents(control) 6.3s->0.9s,
+      /labour 15.7s->34.8s (warm SLOWER than cold -- real background-
+      compile contention right after the restart, not a clean signal),
+      /finance/budgets (the real target of the /budgets redirect) 4.0s->
+      0.3s, /reports 2.3s->1.0s, /knowledge-base(shell) 2.4s->0.8s,
+      /settings(shell) 9.0s->2.5s, /grc(shell) 2.3s->1.3s. CAVEAT, stated
+      up front rather than glossed over: knowledge-base/settings/grc's
+      PRE-FIX page.tsx had NO server data fetch at all, so this HTTP-only
+      method only measures the empty shell, not the real client-fetch-
+      after-hydration cost that gated actual usable content -- confirmed
+      separately via direct API-endpoint timing (GET /api/organization
+      0.2-0.3s, /api/org-members 0.2s, /api/organization/currency 0.7s,
+      /api/org/repair 0.3s, /api/org/invites 0.3s, /api/integrations/
+      google-sheets/status 1-2s, /api/scope/categories 1-2s,
+      /api/organization/email-schedule 0.3-1.2s, /api/knowledge-base
+      1.2-3.5s, /api/grc-dashboard 3.3-6.9s) -- each individually fast in
+      isolation on a freshly-restarted, momentarily-uncontended server, but
+      architecturally exposed to full-cost repetition on every navigation
+      (zero SSR, zero cache) and to compounding under real concurrent load
+      (this session's OWN earlier pre-restart run of these same API
+      endpoints hit real 401/500/503s under RAM/contention, not just
+      slowness).
+
+      CONCLUSION, from code + the numbers above, not forced: /labour,
+      /finance/budgets, /reports already have the R67 F-18/F-30/F-08
+      Suspense-streaming+cache fix (confirmed by reading current source,
+      not assumed) -- their large cold/warm ratios are Turbopack dev-
+      compile-lag (this codebase's own documented, retry-resolves artifact),
+      not an architecture gap. /settings, /knowledge-base, /grc's DEFAULT
+      dashboard tab did NOT have the fix (client-only fetch after
+      hydration, zero SSR/cache) -- FIXED, real code + tests (see below).
+      Backend: getGrcDashboard() (risk-register-service.ts) additionally
+      had a REAL 4-way withTenantContext fan-out (listRisks/
+      listAuditEngagements/listPolicies/listVendorRiskProfiles each opening
+      their own transaction via Promise.all) -- a genuine pool-pressure
+      multiplier under concurrent load matching CLAUDE.md's own R74/R75
+      documented risk class -- FIXED to one shared transaction via the
+      established *WithDb pattern (isBranchEnabledForOrgWithDb precedent).
+      This fix's FIRST version introduced a fresh nested-withTenantContext
+      regression of its own (resolveModuleRule called from inside the
+      shared handle) -- caught immediately by this repo's own standing
+      guard (src/lib/db/tenant-nesting-guard.test.ts) in CI, not missed;
+      fixed properly by resolving severity bands as a true sibling call
+      outside the shared handle.
+
+      Every new client-side fix (SettingsClient/KnowledgeBaseClient/
+      GrcClient) has its own new *.test.tsx proving `initial`-prop
+      server-seeding eliminates the client fetch, with a real falsifiability
+      check on every one (revert the guard, confirm the test fails,
+      restore, confirm green) -- same standard as this codebase's own
+      R-80/assistant-route precedent. The backend fix has an equivalent
+      withTenantContext call-count/depth tracker test with the same
+      falsifiability proof (4 -> 1).
+
+      PRs: FChecklist/compliance-tracker#1773 (backend fan-out fix + this
+      claim commit), FChecklist/projexa#311 (frontend SSR conversions).
+      CI on both: Type Check/Build/Lint/Unit Tests/Test all green on both
+      repos. The one remaining flaky signal is compliance-tracker#1773's
+      "E2E Tests (Env-1, cross-repo)" job -- 3 failures, ALL independently
+      confirmed unrelated to this change by reading its own logs
+      (r80-r81-r82-copilot-pill-chain-env1.spec.ts's own module-strip
+      flake, and two exceptions-API 503s in sumeet-exceptions-env1.spec.ts
+      / sumeet-project-workspace-env1.spec.ts -- neither settings,
+      knowledge-base, grc, nor risk-register-service.ts appear anywhere in
+      either failure's trace, and the build step that compiles every
+      changed route succeeded on both repos before the E2E run even
+      started). Consistent with this same job's own documented flakiness
+      under concurrent PROJEXA-E2E-001 session load elsewhere in this file.
+      Left open/unmerged per this session's ground rules either way.
+
+      NOT touched: /meetings or /mood-boards (already fixed and merged) or
+      any other PROJEXA-E2E-001 sub-task area (dashboard redaction,
+      exceptions drill-down, BOQ unit fix, report drill-down gap -- all
+      separate claims). No merge to main; GitHub CI + live Supabase
+      pcrjmlpuqsbocqfwoxod only, never Vercel; e2e/users.ts test accounts
+      only (arjun.mehta CEO account via a reused Playwright storageState
+      cookie, no password touched).
   - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree -- read-only re-confirm verification) -- PROJEXA-E2E-001 Part 1: R-92..R-100 spot-check re-confirm + Part 2: 31-item/28-item exceptions directive reconciliation [DONE -- browser click-through blocked by a real, extended shared-backend outage; substituted code/git/direct-DB verification instead, and found 2 new real bugs]"
     claimed_at: "2026-09-20T (this session)"
     completed_at: "2026-09-21T (this session)"
