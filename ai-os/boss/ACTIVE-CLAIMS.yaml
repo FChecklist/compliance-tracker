@@ -125,19 +125,6 @@ active:
       until root cause confirmed -- likely PROJEXA-side only
       (src/lib/project-selection.ts / SiteDiaryClient.tsx), matching the
       established pattern from R-97/#299 and #300, but not yet certain.
-  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 batch) -- light re-verification pass over platform.sumeet_requirements R-30/31/32/33/40..48/50/51/52 (BOQ View, Reports Roll-up, Work Progress, Dashboard), per the work order's section-per-batch division"
-    claimed_at: "2026-09-20T (this session)"
-    claim: |
-      Read-only verification against the already-running shared dev servers
-      (compliance-tracker :3000, FChecklist/projexa :3100) and live Supabase
-      pcrjmlpuqsbocqfwoxod -- no code changes expected unless a genuine new
-      bug is found, in which case a PR will be opened and left UNMERGED per
-      this work order's ground rules. All 16 rows in this batch are already
-      closure_state=CLOSED with substantial prior evidence (R74/R75/R86/R38
-      etc) -- this pass is a light spot-check per the owner's "go faster,
-      lighter verification" instruction, not a from-scratch re-proof. Will
-      update platform.sumeet_requirements only on rows actually re-checked
-      live this session.
   - session_label: "PROJEXA deck review [2947c8] (Claude Desktop, interactive) -- Owner directive 2026-09-19, relayed from a peer session ('Single-screen project management UI concepts [e7d437]'): implement 'Merge 6 -- Ledger Dashboard + Row Updates', a new single-project-workspace page consolidating Progress/Site Diary/BOQ/Timeline/Milestones/Scope & Change Orders/RFIs/Billing Milestones/Resources/Records/Insights into one scrollable page with nav-pill anchors, real role-aware visibility (owner/admin/pm/site_engineer/member/client_viewer + cost-visibility grant), reusing existing components/services only (BoqDualViewGrid, ChangeOrdersClient, BillingMilestonesClient, boq-analysis-service, exceptions engine, etc.) -- purely additive, no existing route/page/component removed or changed in behavior."
     claimed_at: "2026-09-19T (this session)"
     claim: |
@@ -3680,6 +3667,63 @@ active:
       sync-vercel-env.yml.
 
 recently_completed:
+  - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 batch) -- light re-verification pass over platform.sumeet_requirements R-30/31/32/33/40..48/50/51/52 (BOQ View, Reports Roll-up, Work Progress, Dashboard) [DONE, read-only, no PRs -- one real new gap found and recorded in platform.sumeet_requirements (R-50 reopened), all other 15 rows re-confirmed or left as-is with honest notes]"
+    claimed_at: "2026-09-20T (this session)"
+    completed_at: "2026-09-20T (this session)"
+    claim: |
+      Read-only verification against the already-running shared dev servers
+      (compliance-tracker :3000, FChecklist/projexa :3100) and live Supabase
+      pcrjmlpuqsbocqfwoxod. No code changes made (verification-only wave).
+
+      RESULT: R-30/31/32 (BOQ view: line items, sub-task indentation+%-of-
+      parent labels, root-only total) re-confirmed live via a real
+      hierarchical BOQ (RB2-1789443887787: root qty100xrate50=5000, 3
+      children 40/35/25% summing to 5000 of their own -- total correctly
+      reads 5000, not 10000). R-33/R-52 (latest-only roll-up) re-confirmed by
+      finding the project's actual "latest" BOQ (version DESC, createdAt
+      DESC) via direct SQL and cross-checking it against the dashboard API's
+      earnedValue=0/percentByValue=0 -- genuinely 0 real work-progress rows
+      link to that specific BOQ's line items (confirmed by count query), so
+      the 0 is correct latest-only behavior, not a bug -- flagged as a
+      dev-environment-pollution artifact (this project alone carries 2969
+      BOQ revisions from years of E2E runs), not a regression.
+
+      R-40..R-48 (Work Progress): the Log Work Progress form still requires
+      typed Activity/BOQ line/Date/Qty/%complete (zero-entry bar NOT met);
+      real Site-photo field still exists and is genuinely wired to an
+      offline queue + upload (R-48 intact) but is documentation-only, no
+      OCR/extraction. Separately (not new, but re-surfaced): the page's
+      global composer "Attach photos" quick action is a self-documented
+      dead end (card-catalogue.ts's own R67 C-08 comment: "no photo
+      endpoint in either repo") routing to /documents/upload instead of the
+      progress entry -- two different "attach a photo" UI affordances on
+      one screen, only one of which actually works.
+
+      REAL NEW GAP FOUND on R-50 (Dashboard dual-view money model): the
+      BOQ-page's Internal/Customer-preview toggle still correctly hides all
+      project-cost figures (re-confirmed live). But the separate Project
+      Dashboard screen/API (/api/dashboard/project/[id],
+      DashboardProjectClient.tsx -- NOT applyCostVisibility()) leaks real
+      project-cost figures (budget, revenue, expenses) to the client_viewer
+      role with zero redaction -- verified twice, independently, logged in
+      as the real e2e/users.ts clientViewer account (karan.malhotra): once
+      via direct API fetch (byte-identical response to the site_engineer
+      role's own fetch) and once via the rendered page (a "Budget vs
+      actual ... budget AED 1,250.00" tile, plainly visible). This
+      contradicts R-50's own requirement text ("client_viewer can never be
+      granted cost visibility, by any setting, any role, or any share
+      token"). Not fixed this pass (verification-only work order);
+      platform.sumeet_requirements row R-50 reopened (closure_state OPEN,
+      the schema's check constraint doesn't have a PARTIAL value) with the
+      finding recorded in its evidence field rather than silently re-closed.
+      Flagged as a real follow-up task for a dev session, not attempted
+      here.
+
+      File scope: none (no code edited). DB scope: platform.sumeet_
+      requirements rows R-30/R-31/R-32/R-40/R-48/R-50 updated with new
+      evidence/timestamps (see each row's own evidence field for the exact
+      text). R-33/41/42/43/44/45/46/47/51/52 left as-is -- spot-checked
+      live or via source read, no discrepancy found, no update needed.
   - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 sub-task) -- investigate + fix PROJEXA's /site-diary 'Empty while Work Progress holds the same history' (work order section 5 item 3) [DONE, work complete -- fix lives in FChecklist/projexa, this repo touched read-only. PR left OPEN/UNMERGED per owner's ground rules]"
     claimed_at: "2026-09-20T (this session)"
     completed_at: "2026-09-20T (this session)"
