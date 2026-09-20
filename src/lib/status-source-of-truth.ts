@@ -28,7 +28,7 @@
 //
 // Reuses this repo's established js-yaml parsing pattern (see
 // scripts/check-asset-registry-coverage.mjs / check-metadata-index-coverage.mjs):
-// `import yaml from "js-yaml"`, `yaml.load(await readFile(...))`.
+// `import * as yaml from "js-yaml"`, `yaml.load(await readFile(...))`.
 //
 // GAP-UNIFIED-SOT-REMAINDER slice (d), additive: `auditFindingsSummary`
 // below is a pass/fail/pending rollup of compliance.audit_protocol_findings
@@ -43,7 +43,7 @@
 // which worked fine before this table existed.
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-import yaml from "js-yaml"
+import * as yaml from "js-yaml"
 import { db, auditProtocolFindings } from "@/lib/db"
 
 export const MASTER_TRACKER_FILE = "ai-os/MASTER-TRACKER.yaml"

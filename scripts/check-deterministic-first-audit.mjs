@@ -38,7 +38,7 @@
 
 import { execSync } from "child_process"
 import { readFileSync } from "fs"
-import yaml from "js-yaml"
+import * as yaml from "js-yaml"
 
 const MANIFEST_FILE = "ai-os/registry/deterministic-first-audit-log.yaml"
 export const CALL_RE = /\bcallLLM\(|\bcallLLMJson\(|\bcallLLMVision\(/
