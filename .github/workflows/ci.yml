@@ -20,6 +20,10 @@ on:
         description: "projexa ref (branch or SHA) to check out for e2e-env1 -- defaults to main, same as every push/PR run"
         required: false
         default: main
+      projexa_spec_grep:
+        description: "substring/regex passed to `playwright test` for projexa's own Env-1 specs -- defaults to env1.spec.ts (every spec, same as every push/PR run). Narrow this (e.g. 'rb2') on a manual dispatch to get a real, targeted green run for one spec's own new content without also re-running this job's other, already-flaky/independent specs."
+        required: false
+        default: env1.spec.ts
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -1026,7 +1030,7 @@ jobs:
         # never reflected these tests' real outcome before this fix).
         run: |
           set -o pipefail
-          bunx playwright test env1.spec.ts --workers=1 2>&1 | tee ../playwright-env1-projexa.log
+          bunx playwright test "${{ github.event.inputs.projexa_spec_grep || 'env1.spec.ts' }}" --workers=1 2>&1 | tee ../playwright-env1-projexa.log
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3100
 
