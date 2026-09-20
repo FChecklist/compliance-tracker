@@ -40,6 +40,32 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree -- read-only re-confirm verification) -- PROJEXA-E2E-001 Part 1: R-92..R-100 spot-check re-confirm + Part 2: 31-item/28-item exceptions directive reconciliation and live verification [IN PROGRESS]"
+    claimed_at: "2026-09-20T (this session)"
+    claim: |
+      Work order PROJEXA-E2E-001, owner asked for a FASTER/LIGHTER
+      re-confirm pass (not from-scratch audit): Part 1 spot-checks ONE live
+      click-through per R-92..R-100 (all currently CLOSED per prior
+      2026-09-18 session) against localhost:3100 to confirm closure
+      evidence still holds. Part 2 reconciles the owner's "31-item
+      exceptions directive" against ExceptionsClient.tsx's own "28-item"
+      header claim (checking platform.sumeet_spec/build_plan/crr_ruling for
+      any prior "31" reference) and live-verifies the /exceptions feature
+      (detectors firing on real data, flagged items linking back to real
+      records) for at least 2-3 flagged items across different detector
+      types. Read-only against both repos unless something looks genuinely
+      wrong, in which case will go deep per the work order's own
+      instruction. Reusing shared dev servers on :3000/:3100, no worktree
+      planned. Noting prior sibling-session finding (recently_completed,
+      /site-diary sub-task): org alm_project_bizbay / "Business Bay
+      Corporate HQ" is empty (0 rows) for several construction tables --
+      will prefer org projexa_demo_org / project projexa_demo_project
+      ("Villa 21 - Whitefield") for any live-data verification instead.
+      Also noting the already-documented /api/exceptions perf issue
+      (getProjectExceptions() 24 sequential detectors, slow/flaky in CI)
+      -- expect this in manual UI testing too, will retry once before
+      concluding broken per this work order's shared-server-contention
+      ground rule.
   - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree -- read-mostly verification + one real BOQ created for proof) -- PROJEXA-E2E-001 batch R-01..R-04,R-10..R-24 (BOQ Create, Weighted Sub-Tasks, Revisions) [DONE -- all pre-existing DONE/CLOSED rows re-verified live, several with fresh stronger evidence]"
     claimed_at: "2026-09-20T (this session)"
     completed_at: "2026-09-20T (this session)"
@@ -3725,6 +3751,28 @@ active:
       either repo; compliance-tracker's existing 30 crons, one at
       */15 * * * *, are unchanged), scripts/pre-deploy-gate.mjs,
       sync-vercel-env.yml.
+
+  - session_label: "claude-code (sub-agent, interactive, shared dev servers ct:3000 + projexa:3100, no worktree -- read-mostly re-verification, no code changes anticipated) -- PROJEXA-E2E-001 batch R-B1,R-B2 (Gate) + R-C01..R-C17 (Modules: Permits, Drawings & 3D, Documents, MoMs, Manpower, Material, Budget, Schedule, Reports, Design Studio, Scope/Variations x2, Export/Share, Institutional Memory/CRR, Email Engine)"
+    claimed_at: "2026-09-20T (this session)"
+    claim: |
+      Scope: platform.sumeet_requirements rows R-B1, R-B2, R-C01..R-C17
+      (Supabase pcrjmlpuqsbocqfwoxod). Confirmed R-C05/R-C06 absent from the
+      register (as the work order expected) and R-C17 already correctly
+      OPEN (owner DNS/MX action pending) -- not re-opening work on it, only
+      verifying the code-side pieces (user_email_addresses/
+      inbound_email_messages tables in src/lib/db/schema.ts,
+      src/app/api/webhooks/resend-inbound/route.ts) still exist and are
+      wired. All other rows in scope are already CLOSED with recent
+      (2026-09-10 through 2026-09-20) live-production evidence from prior
+      sessions this same work order -- doing a lighter re-verification pass
+      per the owner's "faster, lighter, trust direct observation" guidance:
+      spot-checking each module's real screen at localhost:3100 (or a
+      direct API call where clicking isn't practical) with a real
+      e2e/users.ts account, running R-C16's narrowed-scope tests
+      (capture.test.ts + recall.test.ts), and digging in rigorously ONLY if
+      something looks surprising/wrong (same bar the R-50/R-70 findings
+      used). No worktree opened unless a real code fix turns out to be
+      needed.
 
 recently_completed:
   - session_label: "claude-code (sub-agent, PROJEXA-E2E-001 batch) -- light re-verification pass over platform.sumeet_requirements R-60/61/62/63/70/71/72/80/81/82/90/91 (Currency, Import, Selection Layer, Assistant, Error Visibility) plus R-A1..R-A7 (Security/Legal) [DONE, read-only against the shared dev servers + live Supabase, no code changes, no PRs -- one real new regression found and recorded (R-70: a real Sumeet-shaped BOQ with blank Unit on unlabeled sub-task rows, this repo's own canonical test fixture shape, passes the dry-run import preview clean but 400s on the real commit -- construction-boq-service.ts's unit-required check has no child exemption, unlike its own adjacent qty/rate exemption); all other rows re-confirmed live or left as-is with honest notes, including two transient 503 UPSTREAM_TIMEOUTs (shared-server load under this work order's concurrency, not new regressions, both cleared on retry)"
