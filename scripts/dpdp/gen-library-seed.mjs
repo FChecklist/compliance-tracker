@@ -163,7 +163,7 @@ const footer = `\nON CONFLICT (library_version_id, key) DO NOTHING;
 -- shared/global, so there is nothing org-specific to wire up yet.
 `;
 
-const fs = require('fs');
+const { writeFileSync } = await import('fs');
 const out = header + values + footer;
-fs.writeFileSync(process.argv[2] || 'out.sql', out);
+writeFileSync(process.argv[2] || 'out.sql', out);
 console.log(`Generated ${rows.length} rows (${firmCount} firm + ${instCount} institution) -> ${process.argv[2]}`);

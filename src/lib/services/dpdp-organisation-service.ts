@@ -248,7 +248,7 @@ export async function nameDpdpRelationship(input: NameRelationshipInput) {
       const createdAt = new Date()
       const slug = await uniqueSlug(input.counterpartOrgName)
       await tx.insert(dpdpOrganisation).values({ id, name: input.counterpartOrgName.trim(), slug, createdAt })
-      counterpart = { id, name: input.counterpartOrgName.trim(), slug, sector: null, createdAt }
+      counterpart = { id, name: input.counterpartOrgName.trim(), slug, sector: null, createdAt, product: null, setUpByMembershipId: null, ownerConfirmedAt: null }
     }
 
     const fromOrg = input.kind === "advises" ? input.actorOrgId : counterpart.id

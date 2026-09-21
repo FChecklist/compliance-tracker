@@ -7,10 +7,13 @@ import { eq, inArray } from "drizzle-orm"
 import { dpdpObligation, dpdpObligationTemplate, dpdpIdentity, dpdpStaffGroup, dpdpOrganisation } from "@/lib/db"
 import { withDpdpContext } from "@/lib/db/tenant-scoped"
 import type { ObligationRow } from "@/lib/dpdp-onepage/view-model"
+import { ServiceError } from "./compliance-service"
+export { ServiceError }
 
 export async function getOnePageData(orgId: string, viewerIdentityId: string) {
   return withDpdpContext({ orgId }, async (tx) => {
     const org = await tx.query.dpdpOrganisation.findFirst({ where: eq(dpdpOrganisation.id, orgId) })
+    if (!org) throw new ServiceError("Organisation not found", 404)
     const obligations = await tx.query.dpdpObligation.findMany({ where: eq(dpdpObligation.orgId, orgId) })
 
     const templateIds = [...new Set(obligations.map((o) => o.templateId))]
