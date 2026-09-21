@@ -342,6 +342,23 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   // gives: widening REQUIRE_AUTH_RE is a shared-CI-guardrail change, out of
   // this fix's own scope.
   "src/app/api/v1/projexa/tasks/[id]/route.ts",
+  //
+  // PROJEXA-E2E-001 surface-4 (email) fix (2026-09-21): same
+  // requireAuthOrApiKey family gap documented throughout this list -- all
+  // three call requireAuthOrApiKey(request) (confirmed by reading each
+  // handler directly, unchanged by this fix), matching every other
+  // /v1/projexa/* route in this file's exemption list, which DOES call
+  // requireAuth() internally for a session caller and validates a Bearer
+  // API key on the other path. This fix pass added a call to the NEW
+  // resolveWriteActorId() helper (auth-guard.ts) to each file's PATCH
+  // handler (also using requireAuthOrApiKey, never a second auth
+  // mechanism), which is what put these three pre-existing files in a diff
+  // for the first time since this checker went live. Not fixed here for
+  // the same reason every entry above gives: widening REQUIRE_AUTH_RE is a
+  // shared-CI-guardrail change, out of this fix's own scope.
+  "src/app/api/v1/projexa/rfis/[id]/route.ts",
+  "src/app/api/v1/projexa/submittals/[id]/route.ts",
+  "src/app/api/v1/projexa/punch-list/[id]/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail

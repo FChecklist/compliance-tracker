@@ -5,7 +5,7 @@
 // never a raw status write, so an invalid transition is refused by the
 // service layer's own CLAIM_TRANSITIONS table, not re-implemented here.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveWriteActorId } from "@/lib/supabase/auth-guard"
 import {
   draftClaim, submitClaim, approveClaim, rejectClaim, invoiceApprovedClaim, getClaimTimeline, ServiceError,
 } from "@/lib/services/construction-billing-workflow-service"
@@ -34,7 +34,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
   const { id } = await params
 
   try {
@@ -43,6 +42,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: `action must be one of: ${ACTIONS.join(", ")}` }, { status: 400 })
     }
 
+    // PROJEXA-E2E-001 surface-4 fix: see rfis/[id]/route.ts's identical
+    // comment and resolveWriteActorId's own header in auth-guard.ts.
+    const acting = await resolveWriteActorId(request, ctx)
+    if (acting.error) return acting.error
+    const actorId = acting.actorId
     const claimCtx = { orgId: ctx.orgId, userId: actorId }
     let result: unknown
     switch (body.action as (typeof ACTIONS)[number]) {
