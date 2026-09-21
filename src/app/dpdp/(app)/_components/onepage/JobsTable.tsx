@@ -1,6 +1,6 @@
 "use client"
 
-import { LAWS, PARTS, SENSITIVE_DATA_TYPES, avatarColor, avatarInitial, blocked, daysLate, dueStatus, isToday, type ObligationRow, type ViewerContext } from "@/lib/dpdp-onepage/view-model"
+import { LAWS, PARTS, SENSITIVE_DATA_TYPES, avatarColor, avatarInitial, blocked, daysLate, dueStatus, isToday, type ObligationRow, type PartSummary, type ViewerContext } from "@/lib/dpdp-onepage/view-model"
 
 function Avatar({ email, small }: { email: string; small?: boolean }) {
   const size = small ? 20 : 26
@@ -106,9 +106,11 @@ function StampOrAction({
 }
 
 export function JobsTable({
-  rows, viewer, staffView, now = new Date(), onMarkYes,
+  rows, allRows, partSummaries, viewer, staffView, now = new Date(), onMarkYes,
 }: {
-  rows: ObligationRow[]
+  rows: ObligationRow[] // the currently chip-filtered rows to render in the table body
+  allRows: ObligationRow[] // the full, unfiltered set -- for blocked()/dependency lookups, which must see rows even when a filter hides them
+  partSummaries: PartSummary[] // stable "X of Y done" counts per part, independent of the active filter chip (spec's own vTasks(): computed once from the full row set, not the filtered `shown` subset)
   viewer: ViewerContext
   staffView?: boolean // narrower table for staff/parents (WO §3: "Narrow table for staff and parents")
   now?: Date
@@ -119,6 +121,7 @@ export function JobsTable({
     if (!byPart.has(r.part)) byPart.set(r.part, [])
     byPart.get(r.part)!.push(r)
   }
+  const summaryByPart = new Map(partSummaries.map((p) => [p.n, p]))
 
   if (!rows.length) {
     return <div className="text-center py-6" style={{ color: "var(--dpdp-ink3)" }}>Nothing here.</div>
@@ -136,7 +139,7 @@ export function JobsTable({
         </thead>
         <tbody>
           {PARTS.filter((p) => byPart.has(p.n)).map((p) => (
-            <PartGroup key={p.n} part={p} rows={byPart.get(p.n)!} viewer={viewer} allRows={rows} now={now} staffView={staffView} onMarkYes={onMarkYes} />
+            <PartGroup key={p.n} part={p} rows={byPart.get(p.n)!} summary={summaryByPart.get(p.n)} viewer={viewer} allRows={allRows} now={now} staffView={staffView} onMarkYes={onMarkYes} />
           ))}
         </tbody>
       </table>
@@ -145,9 +148,15 @@ export function JobsTable({
 }
 
 function PartGroup({
-  part, rows, viewer, allRows, now, staffView, onMarkYes,
-}: { part: { n: number; name: string; color: string }; rows: ObligationRow[]; viewer: ViewerContext; allRows: ObligationRow[]; now: Date; staffView?: boolean; onMarkYes?: (id: string) => void }) {
-  const done = rows.filter((r) => r.yes).length
+  part, rows, summary, viewer, allRows, now, staffView, onMarkYes,
+}: { part: { n: number; name: string; color: string }; rows: ObligationRow[]; summary?: PartSummary; viewer: ViewerContext; allRows: ObligationRow[]; now: Date; staffView?: boolean; onMarkYes?: (id: string) => void }) {
+  // summary.done/all is the stable, na-excluding count from the FULL row
+  // set (partsForRows), not derived from `rows` (which is whatever the
+  // active filter chip happens to show) -- found live: with a chip other
+  // than "All" active, or an area marked na, deriving from `rows` gave a
+  // wrong/inconsistent count against PartsTrack's own ring for the same part.
+  const done = summary?.done ?? rows.filter((r) => r.yes).length
+  const total = summary?.all ?? rows.length
   let n = 0
   return (
     <>
@@ -155,7 +164,7 @@ function PartGroup({
         <tr>
           <td colSpan={9} style={{ background: `color-mix(in srgb, ${part.color} 7%, #fff)`, color: part.color, fontFamily: "Sora, sans-serif", fontWeight: 700, fontSize: 13.5, padding: "10px 14px", borderLeft: `4px solid ${part.color}` }}>
             Part {part.n} · {part.name}
-            <span className="ml-2.5" style={{ fontFamily: "inherit", fontWeight: 500, fontSize: 12, color: "var(--dpdp-ink3)" }}>{done} of {rows.length} done</span>
+            <span className="ml-2.5" style={{ fontFamily: "inherit", fontWeight: 500, fontSize: 12, color: "var(--dpdp-ink3)" }}>{done} of {total} done</span>
           </td>
         </tr>
       )}

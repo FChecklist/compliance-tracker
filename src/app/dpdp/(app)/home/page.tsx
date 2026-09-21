@@ -1,12 +1,13 @@
 import { getDpdpAuthContext } from "@/lib/services/dpdp-session"
-import { getOnePageData, getPolicyArtefacts, listOnePageHistory } from "@/lib/services/dpdp-onepage-service"
+import { areasForProduct, getOnePageData, getPolicyArtefacts, listOnePageHistory } from "@/lib/services/dpdp-onepage-service"
 import { OnePageView } from "../_components/onepage/OnePageView"
 import { Timeline } from "../_components/onepage/Timeline"
 import { PolicySection } from "../_components/onepage/PolicySection"
-import { markOnePageJobDone } from "./actions"
+import { FirstVisitWizard } from "../_components/onepage/FirstVisitWizard"
+import { markOnePageJobDone, saveFirstVisitAssignments } from "./actions"
 import type { ViewerContext } from "@/lib/dpdp-onepage/view-model"
 
-// WO-DPDP-010 §3: the one-page-per-role experience replaces this page's
+// WO-DPDP-010 §3/§4: the one-page-per-role experience replaces this page's
 // previous separate owner-dashboard/staff-todo branches. Coordinator/
 // Grievance-Officer/CA/parent role detection (beyond the DB's plain
 // owner/staff membership level) is not yet built -- tracked as a known gap,
@@ -16,8 +17,20 @@ export default async function DpdpHomePage() {
   const ctx = await getDpdpAuthContext()
   if (!ctx) return null
 
-  const { org, rows, viewerEmail } = await getOnePageData(ctx.orgId, ctx.identityId)
+  const { org, rows, viewerEmail, firstVisitSeenAt, membershipId } = await getOnePageData(ctx.orgId, ctx.identityId)
   const viewer: ViewerContext = { kind: ctx.level === "owner" ? "owner" : "staff", me: viewerEmail }
+
+  // WO-DPDP-010 §4: first visit, owner only for now (coordinator/GO/CA/
+  // parent first-visit screens are a separate, not-yet-built gap -- see the
+  // header comment above and ACTIVE-CLAIMS.yaml).
+  if (viewer.kind === "owner" && !firstVisitSeenAt && membershipId) {
+    const areas = await areasForProduct((org.product as "firm" | "institution") ?? "firm")
+    async function handleComplete(assignments: Array<{ area: string; emails: string[]; na: boolean }>) {
+      "use server"
+      await saveFirstVisitAssignments(membershipId!, assignments)
+    }
+    return <FirstVisitWizard orgName={org.name} rows={rows} areas={areas} ownerEmail={viewerEmail} onComplete={handleComplete} />
+  }
 
   if (viewer.kind === "staff") {
     return <OnePageView orgName={org.name} rows={rows} viewer={viewer} onMarkYes={markOnePageJobDone} />
