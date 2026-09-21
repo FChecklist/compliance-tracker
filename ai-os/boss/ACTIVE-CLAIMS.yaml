@@ -5004,9 +5004,28 @@ recently_completed:
       own file, already correct and tested -- this pass only wires its existing exports
       in), cost-visibility-service.ts, or any v1 route (already correctly gated by
       Phase 6).
-  - session_label: "claude-code (interactive, worktree quirky-hawking-39d255) -- root-cause + fix for the 2 real, twice-reproduced sumeet-exceptions-env1.spec.ts / sumeet-project-workspace-env1.spec.ts 503s (getProjectExceptions timing out at its own 60000ms ceiling, CI runs 35539074336/35539395740, unrelated to the R-50 dashboard-redaction fix they were spotted next to). Also assesses the r80-r81-r82-copilot-pill-chain-env1.spec.ts flake (#3) for relatedness."
+  - session_label: "claude-code (interactive, worktree quirky-hawking-39d255) -- root-cause + fix for the 2 real, twice-reproduced sumeet-exceptions-env1.spec.ts / sumeet-project-workspace-env1.spec.ts 503s (getProjectExceptions timing out at its own 60000ms ceiling, CI runs 35539074336/35539395740, unrelated to the R-50 dashboard-redaction fix they were spotted next to). Also assesses the r80-r81-r82-copilot-pill-chain-env1.spec.ts flake (#3) for relatedness. [DONE, fix pushed -- FChecklist/compliance-tracker PR #1777 OPEN, left unmerged pending owner review/e2e re-verification, same ground rules as this file's other PROJEXA-E2E-001 entries]"
     claimed_at: "2026-09-21T (this session)"
+    completed_at: "2026-09-21T (this session)"
+    merged_as: "NOT merged (deliberately, pending owner review) -- FChecklist/compliance-tracker PR #1777 (branch claude/quirky-hawking-39d255). Unit tests (53/53, including 7 new regression guards) and full-repo typecheck both verified green locally before push; the cross-repo e2e-env1 job itself will run automatically on the PR."
     claim: |
+      CONCRETE EVIDENCE (added after a read-only Supabase MCP check against
+      the live demo project pcrjmlpuqsbocqfwoxod, project id
+      dd486dad-9119-4d9a-a9d9-cf0ee0cc9e04): 809 work-progress entries with
+      a non-null boqLineItemId (all also percentComplete>0), 26 change
+      orders, 6510 BOQ line items via this project's own BOQs, 0 material
+      issues, 0 linked invoice items. This means findWorkWithoutApprovedBoq
+      alone was running ~1,600 sequential round-trips before this fix (2
+      extra queries x 809 entries), with findProgressNeverBilled adding a
+      similar amount on the same distinct-lineId set -- more than enough on
+      its own to blow the 60s ceiling regardless of network latency
+      variance. material_issues/invoice_items being 0 on THIS project means
+      #19/#23's fixes aren't what saved this specific project's own request,
+      but they're real, live bugs (confirmed by direct code reading, not
+      row-count-dependent) that would hit the same wall on any project that
+      does have that data, so both were fixed anyway rather than left for a
+      future incident.
+
       Confirmed via the CI job's own log (job 106154748041): `/api/exceptions`
       itself logs upstreamMs=60001/status=503 on the real demo project --
       genuinely 10-30x slower than every comparable route in the same run
