@@ -90,6 +90,24 @@ active:
       PR open/unmerged for the owner's batch merge per standing ground
       rules.
 
+  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree unless a real bug is found) -- PROJEXA-E2E-001 work order section 2 item 4 ('Email'): verify the real current state of both the one-click emailActionToken flow (RFI/submittal/punch-list/billing-claim actions) and the start/end-of-day digest + reply-by-email system (src/lib/email/{digest,reply-parser,schedule-service}.ts, src/lib/services/{email-token-service,digest-item-service,digest-item-dispatcher}.ts, src/app/api/email/** in FChecklist/projexa), verify token/DB correctness directly, and prove cross-surface consistency (email action -> visible on web ERP screen) [IN PROGRESS]"
+    claimed_at: "2026-09-21T (this session)"
+    claim: |
+      File scope (read-mostly verification, PROJEXA repo C:\ct\projexa):
+      src/lib/email/digest.ts, src/lib/email/reply-parser.ts,
+      src/lib/email/schedule-service.ts, src/lib/services/email-token-
+      service.ts, src/lib/services/digest-item-service.ts,
+      src/lib/services/digest-item-dispatcher.ts,
+      src/app/api/email/inbound/route.ts, src/app/api/email/send-digest/
+      route.ts, src/app/api/email/[token]/route.ts,
+      src/app/api/internal/email-digest-cadence/run/route.ts,
+      src/app/api/organization/email-schedule/route.ts,
+      src/components/DailyDigestCard.tsx. No compliance-tracker file scope
+      expected unless a bug is found there (this surface's own logic lives
+      entirely in projexa, per a first read of the tree). Will move to
+      recently_completed with real findings once done. Will escalate to an
+      isolated worktree only if live verification finds a real bug that
+      needs a code fix.
   - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree unless a real bug is found) -- PROJEXA-E2E-001 work order section 2 item 3 ('AI link'): verify the real current state of WO-PROJEXA-AI-LINK-001 (org_ai_link token -> public GET /api/ai/[token] -> ai_link_projection() SECURITY DEFINER SQL function -> verb-allowlisted apply flow at /api/ai/apply), generate a real link via the running app, hit it directly, verify tenant isolation + personal-data exclusion + verb allowlist enforcement, and set up a cloudflared tunnel to localhost:3100 so the Owner can test pasting it into a real external chat engine [IN PROGRESS]"
     claimed_at: "2026-09-21T (this session)"
     claim: |
