@@ -5041,6 +5041,113 @@ recently_completed:
       own file, already correct and tested -- this pass only wires its existing exports
       in), cost-visibility-service.ts, or any v1 route (already correctly gated by
       Phase 6).
+  - session_label: "claude-code (interactive, worktree quirky-hawking-39d255) -- root-cause + fix for the 2 real, twice-reproduced sumeet-exceptions-env1.spec.ts / sumeet-project-workspace-env1.spec.ts 503s (getProjectExceptions timing out at its own 60000ms ceiling, CI runs 35539074336/35539395740, unrelated to the R-50 dashboard-redaction fix they were spotted next to). Also assesses the r80-r81-r82-copilot-pill-chain-env1.spec.ts flake (#3) for relatedness. [DONE, fix pushed -- FChecklist/compliance-tracker PR #1777 OPEN, left unmerged pending owner review/e2e re-verification, same ground rules as this file's other PROJEXA-E2E-001 entries]"
+    claimed_at: "2026-09-21T (this session)"
+    completed_at: "2026-09-21T (this session)"
+    merged_as: "NOT merged (deliberately, pending owner review) -- FChecklist/compliance-tracker PR #1777 (branch claude/quirky-hawking-39d255). Unit tests (53/53, including 7 new regression guards) and full-repo typecheck both verified green locally before push."
+    real_ci_verification: |
+      REAL, LIVE CI VERIFICATION (not just local unit tests) -- two runs:
+      (1) A workflow_dispatch scoped via projexa_spec_grep to only the 2
+      originally-failing spec files (run 35558685807) showed both ORIGINAL
+      top-level failures now GREEN (/api/exceptions: upstreamMs 60001->
+      22357/22129, status 503->200) -- but surfaced 2 DIFFERENT downstream
+      failures (Billing Milestones "no approved BOQ yet", Insights P&L card
+      not found). Investigated before declaring victory, not assumed benign.
+      (2) The PR's own AUTOMATIC full-suite run (35557912027, job
+      106206562574 -- correct spec order, same as a real push to main) then
+      showed all 46 compliance-tracker Env-1 specs GREEN, INCLUDING both of
+      those same 2 tests that failed in the scoped run (Billing Milestones
+      at :189, Insights at :212) -- proving (1)'s 2 extra failures were a
+      test-ORDERING artifact of narrowing the run (the shared demo project's
+      approved BOQ / P&L data normally gets set up by earlier specs in the
+      full suite, which the scoped run skipped), not a real regression from
+      this fix. /api/exceptions completed at upstreamMs 18760-20544,
+      status 200, in all 3 real calls logged in that run.
+      The ONLY failure in the full, correctly-ordered run (2) was
+      r80-r81-r82-copilot-pill-chain-env1.spec.ts:82:5 -- the SAME
+      already-documented, independent flake assessed above, confirming that
+      assessment rather than just asserting it once.
+    claim: |
+      CONCRETE EVIDENCE (added after a read-only Supabase MCP check against
+      the live demo project pcrjmlpuqsbocqfwoxod, project id
+      dd486dad-9119-4d9a-a9d9-cf0ee0cc9e04): 809 work-progress entries with
+      a non-null boqLineItemId (all also percentComplete>0), 26 change
+      orders, 6510 BOQ line items via this project's own BOQs, 0 material
+      issues, 0 linked invoice items. This means findWorkWithoutApprovedBoq
+      alone was running ~1,600 sequential round-trips before this fix (2
+      extra queries x 809 entries), with findProgressNeverBilled adding a
+      similar amount on the same distinct-lineId set -- more than enough on
+      its own to blow the 60s ceiling regardless of network latency
+      variance. material_issues/invoice_items being 0 on THIS project means
+      #19/#23's fixes aren't what saved this specific project's own request,
+      but they're real, live bugs (confirmed by direct code reading, not
+      row-count-dependent) that would hit the same wall on any project that
+      does have that data, so both were fixed anyway rather than left for a
+      future incident.
+
+      Confirmed via the CI job's own log (job 106154748041): `/api/exceptions`
+      itself logs upstreamMs=60001/status=503 on the real demo project --
+      genuinely 10-30x slower than every comparable route in the same run
+      (1.6-7s), not a Next.js cold-compile artifact. Root-caused to real N+1
+      query patterns (1-3 extra DB round-trips PER ROW, not per request) in 6
+      of getProjectExceptions()'s 24 detectors in
+      src/lib/services/construction-exceptions-service.ts:
+      findApprovedChangeOrdersNeverBilled (#2), findOldDrawingProgress (#4),
+      findWorkWithoutApprovedBoq (#7), findProgressNeverBilled (#9), the
+      "late" half of findLateOrDuplicateMaterial (#19), and
+      findMismatchedSubcontractorInvoices (#23, worst case: 3 queries per
+      invoice line, plus it scanned invoice items with no project/org scope
+      at all before this fix). Confirms and completes the 2026-09-20
+      investigation below (line ~4555) that correctly identified "getProjectExceptions()'s
+      24 sequential detectors" as the real bottleneck but had not yet
+      isolated which detectors or implemented a fix -- 4 timeout bumps
+      (8s->20s->35s->60s) on that investigation's own admission never fixed
+      it because the problem was never the timeout budget.
+
+      Fix: batched each flagged detector to O(1)-O(3) queries total
+      regardless of row count (fetch the full ID set once, do an IN-clause
+      lookup for the dependent table once, cross-reference in memory) --
+      same sequential-detector-call structure and single-transaction
+      withTenantContext model preserved (NOT switched to Promise.all --
+      that would reopen the exact pool-contention/nested-transaction risk
+      class this file's own header comment and CLAUDE.md's R74/R75 sections
+      already warn against; a batched query count that no longer scales
+      with N needed no concurrency change at all).
+      findMismatchedSubcontractorInvoices also now starts from the
+      project's own BOQs instead of scanning erp_purchase_invoice_items
+      with no org/project filter at all, which was both slower and an
+      unnecessary widening of what it read.
+
+      Added a query-count regression-guard test per fixed detector
+      (construction-exceptions-service.test.ts) asserting a bounded,
+      N-independent number of query calls at N=25 rows -- these fail
+      immediately if a future edit reintroduces a per-row query, the same
+      falsifiability standard as this codebase's other regression guards.
+
+      Pill-chain flake (#3, r80-r81-r82-copilot-pill-chain-env1.spec.ts):
+      independent of this fix. Confirmed via the same job log -- the
+      pill-chain failure fires at 22:00:21, the exceptions 503s at
+      22:07-22:13, and the pill-chain test's own R81_D603_R81_MODULECHAIN
+      status=503 is a single early call in a materially different flow
+      (module-chain population), not /api/exceptions. Already independently
+      investigated 2026-09-20 (line ~4577 below): a targeted retry fix was
+      tried and disproven by a real before/after CI pair (identical 8/24
+      SHORT), reverted rather than kept, with a lead left in the spec file
+      itself. That spec file lives in FChecklist/projexa (not this repo, not
+      touched here) -- not re-attempted a 5th time per that session's own
+      documented reasoning; still open, still someone else's next pickup.
+
+      File scope: src/lib/services/construction-exceptions-service.ts (6
+      detector functions rewritten, no signature/behavior change -- same
+      inputs/outputs, existing unit tests in
+      construction-exceptions-service.test.ts all still pass unmodified) +
+      new query-count tests in that same test file. No schema, route, or
+      auth changes. Did NOT touch the "late" duplicate-detection half of
+      #19 (pure in-memory, no DB calls, nothing to fix), findMissingDailyReports
+      (#20/#26, pure in-memory date-range loop), findAmbiguousBoqVersions
+      (#22, pure in-memory after one query), or findProgressRegressions
+      (#28, pure in-memory after one query) -- none of those have a per-row
+      query.
 # =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
