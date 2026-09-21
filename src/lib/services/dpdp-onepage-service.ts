@@ -96,7 +96,13 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
     const isCoordinator = sortedObligations.some((o) => coordTemplateIds.has(o.templateId) && o.state !== "not_applicable" && emailByIdentityId.get(o.assignedPersonId ?? "") === viewerEmail)
     const detectedRoleKind: RoleKind | null = isGO ? "go" : isCoordinator ? "coord" : null
 
-    return { org, rows, viewerEmail, obligationById, firstVisitSeenAt: membership?.firstVisitSeenAt ?? null, membershipId: membership?.id ?? null, detectedRoleKind }
+    return {
+      org, rows, viewerEmail, obligationById,
+      firstVisitSeenAt: membership?.firstVisitSeenAt ?? null,
+      saidNotMeAt: membership?.saidNotMeAt ?? null,
+      membershipId: membership?.id ?? null,
+      detectedRoleKind,
+    }
   })
 }
 
@@ -224,6 +230,40 @@ export async function completeOwnerFirstVisit(
     }
 
     await tx.update(dpdpMembership).set({ firstVisitSeenAt: new Date() }).where(eq(dpdpMembership.id, membershipId))
+  })
+}
+
+/**
+ * WO-DPDP-010 §4 "First visit, for every role" -- the generic welcome screen
+ * for anyone who was NAMED into a role (Grievance Officer, DPDP coordinator,
+ * or any other assigned area) but isn't the client owner: confirms they've
+ * seen it, same firstVisitSeenAt gate home/page.tsx already uses for the
+ * owner's own wizard.
+ */
+export async function acknowledgeRoleWelcome(orgId: string, actorIdentityId: string, actorLabel: string, membershipId: string) {
+  return withDpdpContext({ orgId }, async (tx) => {
+    await tx.update(dpdpMembership).set({ firstVisitSeenAt: new Date() }).where(eq(dpdpMembership.id, membershipId))
+    await logDpdpEvent({ orgId, actorIdentityId, actorLabel, kind: "membership_first_visit_acknowledged", summary: `${actorLabel} saw their DPDP jobs for the first time` }, tx)
+  })
+}
+
+/**
+ * The welcome screen's "This isn't me" escape hatch: the org named the wrong
+ * email for a role. Sets BOTH firstVisitSeenAt (so the welcome screen itself
+ * doesn't loop) and saidNotMeAt, and logs it so it's visible in the owner's
+ * History -- this is the only signal the owner gets that a reassignment is
+ * needed, since there's no separate notification/inbox for it yet.
+ * home/page.tsx re-checks saidNotMeAt against the viewer's CURRENT live
+ * assignment count on every load, not a one-time flag: once the owner
+ * reassigns the jobs away from this person, myAssignedCount naturally drops
+ * to 0 and the "waiting on the owner" screen stops showing itself, with no
+ * separate code path needed to clear saidNotMeAt.
+ */
+export async function flagNotMe(orgId: string, actorIdentityId: string, actorLabel: string, membershipId: string) {
+  return withDpdpContext({ orgId }, async (tx) => {
+    const now = new Date()
+    await tx.update(dpdpMembership).set({ firstVisitSeenAt: now, saidNotMeAt: now }).where(eq(dpdpMembership.id, membershipId))
+    await logDpdpEvent({ orgId, actorIdentityId, actorLabel, kind: "membership_said_not_me", summary: `${actorLabel} said this isn't them -- needs reassigning` }, tx)
   })
 }
 
