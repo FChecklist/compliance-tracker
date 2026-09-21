@@ -3970,6 +3970,34 @@ recently_completed:
            history already named (a real Playwright browser context needs
            RAM this session did not have either). Disclosed honestly per
            this file's own standard rather than silently skipped or faked.
+
+      FINAL CI STATUS (both PRs, re-checked after pushing every fix):
+      compliance-tracker#1781 -- every job green except two: (a) "Vercel"
+      shows "Deployment was blocked", which is the R87 ignoreCommand gate
+      working as designed on a non-main branch, not a real failure (see
+      this file's own header, R87 correction); (b) "E2E Tests (Env-1,
+      cross-repo)" failed with 6 spec failures -- checked each one
+      individually: r80-r81-r82-copilot-pill-chain, rb2-boq-create (x2),
+      sumeet-billing-milestones, sumeet-boq-revision,
+      sumeet-project-360-analysis, sumeet-project-workspace. ZERO of the 6
+      reference pipeline_tasks, tasks/[id], ai-link, or ai/apply anywhere
+      in their failure text (grepped the full job log) -- every one is
+      about BOQ/billing/dashboard/copilot-pill UI this PR's diff never
+      touches. This is the same class of pre-existing, concurrent-load
+      E2E flakiness this file's own history already documents repeatedly
+      (e.g. the coldload-remaining-6-routes entry below citing "3 failures,
+      ALL independently confirmed unrelated to this change"), not a
+      regression from this fix. A real, in-diff issue WAS found and fixed
+      along the way, not glossed over: this PR's own new PATCH route
+      needed (a) an exemption added to check-route-auth-guard.mjs's
+      ROUTE_AUTH_EXEMPTIONS (same requireAuthOrApiKey-vs-requireAuth()
+      regex false positive documented throughout that file) and (b) the
+      authz-gap-inventory.test.ts drift guard's headline counts bumped
+      (887->888 mutating, 642->643 protected) -- both fixed, both
+      re-verified locally before pushing, both now green in CI.
+      projexa#315 -- fully green (Build/Lint/Migration guard/Secret
+      Scanning/Test/Type Check all pass; "Vercel" is the same expected
+      block; "Perf budget" shows "skipping", not a failure).
   - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-coldload-remaining + C:/ct/projexa-coldload-remaining, branch fix/cold-load-remaining-6-routes in both repos) -- PROJEXA-E2E-001 work order section 5 LAST item, continuation of the 2026-09-20 cold-load investigation: clean re-measurement of the 6 routes that session could NOT cleanly attribute (/labour /budgets /reports /knowledge-base /settings /grc) plus control routes, then fix whatever has a real identifiable cause [DONE -- real fixes for 3 of 6 (settings, knowledge-base, grc), 3 of 6 (labour, budgets/finance-budgets, reports) confirmed via source read to ALREADY have the R67 fix, PRs open/unmerged]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
