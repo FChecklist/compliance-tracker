@@ -9,16 +9,17 @@ import type { ViewerContext } from "@/lib/dpdp-onepage/view-model"
 
 // WO-DPDP-010 §3/§4: the one-page-per-role experience replaces this page's
 // previous separate owner-dashboard/staff-todo branches. Coordinator/
-// Grievance-Officer/CA/parent role detection (beyond the DB's plain
-// owner/staff membership level) is not yet built -- tracked as a known gap,
-// not silently guessed at -- so today every non-owner membership renders as
-// "staff" (the spec's own narrowest, safest role view).
+// Grievance-Officer detection is answered by getOnePageData's
+// detectedRoleKind (does any of THIS org's obligations tagged with that
+// role actually name this viewer's email) rather than a DB identity field
+// -- CA/parent detection is still a separate, not-yet-built gap (there is
+// no CA-firm or parent-token concept wired into this route yet).
 export default async function DpdpHomePage() {
   const ctx = await getDpdpAuthContext()
   if (!ctx) return null
 
-  const { org, rows, viewerEmail, firstVisitSeenAt, membershipId } = await getOnePageData(ctx.orgId, ctx.identityId)
-  const viewer: ViewerContext = { kind: ctx.level === "owner" ? "owner" : "staff", me: viewerEmail }
+  const { org, rows, viewerEmail, firstVisitSeenAt, membershipId, detectedRoleKind } = await getOnePageData(ctx.orgId, ctx.identityId)
+  const viewer: ViewerContext = { kind: ctx.level === "owner" ? "owner" : (detectedRoleKind ?? "staff"), me: viewerEmail }
 
   // WO-DPDP-010 §4: first visit, owner only for now (coordinator/GO/CA/
   // parent first-visit screens are a separate, not-yet-built gap -- see the
