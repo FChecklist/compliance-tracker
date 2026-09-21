@@ -40,6 +40,167 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100 for verification, isolated worktree C:/ct/ct-email-ci-fix branch fix/email-reply-actor-attribution for the CI fix) -- PROJEXA-E2E-001 work order section 2 item 4 ('Email'), FRESH RESTART re-verification: a prior attempt at this exact item was killed mid-way by a connection drop (infra issue), so this session re-derived everything from scratch per its own instructions rather than trusting the prior attempt's local-only, unpushed claim-closure commits [DONE -- both systems independently re-confirmed real/merged/working; found and fixed a genuine CI regression on the prior attempt's own still-open PR #1779]"
+    claimed_at: "2026-09-21T (this session)"
+    completed_at: "2026-09-21T (this session)"
+    claim: |
+      CONTEXT: this session found local `main` in the shared C:\ct\ct checkout
+      already had 3 unpushed commits (c8f8f56e AI-link claim registration,
+      c8728fbb email claim registration, ebc64712 email claim closure) from
+      what is almost certainly the "killed mid-way" prior attempt -- it had
+      genuinely completed real, externally-verifiable work (PR #1779 exists
+      on GitHub with real commits/diff/live-DB changes) but died before
+      pushing its own bookkeeping commit, per this file's own protocol. Per
+      this task's explicit instruction to treat that prior attempt as
+      untrusted and re-derive from scratch, this session independently
+      re-read all the code, re-queried the live DB directly, and treated the
+      prior report as a lead to verify, not ground truth -- rather than
+      simply rubber-stamping it. (Merged the 3 pre-existing local commits
+      forward via a normal `git pull origin main` alongside this session's
+      own work, since they were independently confirmed accurate; did not
+      invent or assume anything from them without checking.)
+
+      WHAT'S ACTUALLY BUILT (independently re-confirmed by reading the code
+      directly in FChecklist/projexa, `git merge-base --is-ancestor` against
+      origin/main): (1) the one-click emailActionToken flow
+      (email-token-service.ts, GET /api/email/[token]) is TODO-ONLY
+      (mark_done/reassign_ping/note_ack) -- no one-click link for
+      RFI/submittal/punch-list/billing-claim. (2) The org-configurable
+      start/end-of-day digest + reply-by-email system (digest.ts/
+      reply-parser.ts/schedule-service.ts/digest-item-service.ts/
+      digest-item-dispatcher.ts, POST /api/email/inbound webhook) is real
+      and IS where RFI/submittal/punch-list/billing-claim items are
+      actionable -- reply-only, never one-click, in Phase 1 (digest.ts's own
+      comment says so).
+
+      LIVE RE-VERIFICATION, independent of the prior session's own (this
+      session did NOT just re-read the prior report's numbers -- queried the
+      real tables directly via the Supabase MCP against evpckeuxgvahguwsaeul,
+      org "Meridian Construction Group" 42d7bac5-ffe1-4e10-a783-deaa90f8ce03):
+      email_action_token has 3 real rows, one genuinely used_at-stamped
+      (single-use semantics real, not simulated); email_digest_delivery has
+      1 real row (reply_token SJFNoQFO5FJMVB3D, membership 5566bc0a...);
+      email_digest_item has 3 real rows under that delivery -- ref 1 (todo,
+      consumed, applied_verb "done"), ref 2 (todo, unconsumed), ref 3 (rfi
+      entity_id 3b5b9ad9-b188-41ce-a746-5f1e623f3fb1, consumed, applied_verb
+      "answer", payload "Use grade-40 rebar per structural revision RFI-6
+      reply"). CROSS-SURFACE CONSISTENCY, checked at the DB layer directly
+      (not just re-trusting the prior session's browser screenshot): both
+      todos (19a35760.../4d865722...) show done=true in the live `todos`
+      table; compliance.construction_rfis id 3b5b9ad9... (pcrjmlpuqsbocqfwoxod)
+      shows status="answered", answer="Use grade-40 rebar per structural
+      revision RFI-6 reply", answered_at 2026-09-21 03:46:32Z, answered_by_id
+      resolving to compliance.api_keys "PROJEXA (provisioned, R60 E-137
+      fix)" NOT a real compliance.users row -- independently re-confirms the
+      actor-misattribution bug the prior session reported was real (this
+      timestamp predates PR #1779's own fix commit, so this specific row
+      still reflects the pre-fix state, as expected -- re-testing live
+      end-to-end against the merged fix was not attempted, see below).
+      Attempted a live-UI cross-check on top of the DB proof (localhost:3100
+      /rfis, /dashboard as arjun.mehta, already an authenticated shared
+      session) -- genuinely blocked by real, current shared-backend (:3000)
+      overload, NOT a code defect: repeated 500s/503s, console showed actual
+      "[veridian] VERIDIAN request timed out after 8000ms" /
+      "construction data service did not respond in time" errors on
+      /api/v1/projexa/* proxied calls, reproduced on 2 retries across 2
+      different pages (/rfis, /dashboard) a few minutes apart -- consistent
+      with this task's own stated warning (6+ concurrent sessions on this
+      box) and with the exact same class of transient failure other
+      parallel PROJEXA-E2E-001 sessions logged today. Did not keep hammering
+      the shared server past a reasonable retry count. The DB-level proof
+      above is the stronger check regardless (the RFIs screen would just be
+      re-reading the same construction_rfis row this session already read
+      directly).
+
+      REAL BUG FOUND AND FIXED THIS SESSION (distinct from the actor-
+      attribution bug the prior attempt already found and fixed in PR
+      #1779's original commits): re-running `gh pr checks 1779` on the
+      still-open PR found its Unit Tests job genuinely FAILING on GitHub
+      Actions (not a stale/cached result -- a real run ~30min old at
+      discovery time), 6 failures, all
+      "@/app/api/v1/projexa/{rfis,submittals,punch-list}/[id]/route: import
+      failed -- Export named 'resolveWriteActorId' not found in module
+      ...auth-guard.ts". Root cause: PR #1779 added a new named export
+      (resolveWriteActorId) to auth-guard.ts and had these 3 routes import
+      it, but src/lib/supabase/instb-authz-gate-full-sweep.test.ts's own
+      mock.module("@/lib/supabase/auth-guard", ...) replaces that module's
+      ENTIRE export set and was never updated to re-provide the new export
+      -- the exact D-05 gotcha that test file's own header comment already
+      documents for readActingUserId/resolveActingUser, recurring because
+      the PR's author didn't know to extend it for their own new export.
+      This is a real gap in the prior session's own "70/70 tests green"
+      claim -- likely true LOCALLY at the time (that command only ran the
+      4 directly-touched route.test.ts files + auth-guard.test.ts, not the
+      separate, generated, 654-group DOD-C7 full sweep this bug actually
+      lives in) but the PR's real GitHub Actions CI run (`bun test
+      --isolate` over the WHOLE suite) caught it regardless, and by the time
+      this session checked, CI was genuinely red.
+
+      FIX (same isolated worktree/branch as the original fix, reused rather
+      than duplicated -- C:/ct/ct-worktrees/fix-email-reply-actor-attribution,
+      branch fix/email-reply-actor-attribution, commit a64e0d77, pushed
+      directly onto PR #1779, not a new PR): added fakeResolveWriteActorId
+      (mirrors the real function's dbUser-present branch, the only branch
+      this sweep's synthetic fixtures ever reach, same reasoning already
+      used for fakeResolveActingUser) and wired it into the mock's export
+      set. Verified locally (--isolate): DOD-C7 sweep's 3 import failures
+      gone (1308 pass / 1 unrelated pre-existing local-only flake --
+      @/app/api/conversations/route, present in the sweep's own committed
+      dod-c7-sweep-result.json BEFORE this fix too, and not among CI's own
+      6 reported failures, so confirmed not caused by or in scope for this
+      change); the PR's own 5 directly-touched test files still 70/70. Pushed,
+      re-ran `gh pr checks 1779`: Unit Tests now PASS, Type Check/Build/Lint/
+      E2E Tests/every other check green; only Vercel fails (expected --
+      blocked by this repo's own deploy-gate policy on a non-main branch,
+      not a defect). E2E Tests (Env-1, cross-repo) was still pending at
+      last check.
+
+      NOT independently re-tested end-to-end: a real delivered email
+      landing in a real external inbox (RESEND_API_KEY/DNS still not
+      configured, per send.ts's own header -- unchanged from the prior
+      session's finding, an infra gap not a code gap); re-running the full
+      live reply-simulation AFTER PR #1779's fix is merged, to see a FRESH
+      RFI answer attributed to a real person rather than re-reading the
+      pre-fix row already in the DB (the fix's correctness was instead
+      verified via its own real, specific unit tests in auth-guard.test.ts
+      -- dbUser-present, apiKey+no-header, apiKey+header-resolves-to-real-
+      person, apiKey+header-resolves-to-nobody -- rather than a second live
+      round-trip, given PR #1779 is still open/unmerged and CI now proves
+      the logic).
+
+      CROSS-CHECK ON THE TWO PEER-CLAIMED FILES (per this task's own
+      instruction, NOT edited): src/lib/email/digest.ts has real,
+      uncommitted, staged local changes in the shared checkout
+      (MAX_PROJECTS ranking-by-open-item-count fix, ranking logic now
+      present but cap still 3) plus a new staged
+      digest-project-ranking.test.ts -- confirms a peer session is genuinely
+      and currently mid-fix on the MAX_PROJECTS bug the prior session
+      flagged via spawn_task; left entirely untouched.
+      src/app/api/email/[token]/route.ts was read (not edited) and confirmed
+      to still consume-and-apply in a single GET with no confirm step (the
+      GET-mutates issue the prior session also flagged via spawn_task) --
+      also left untouched, noted as already claimed.
+
+      platform.sumeet_requirements: re-checked directly (queried for
+      email/digest-related rows) -- only R-C17 (compliance-tracker's own,
+      separate per-user email-alias/inbound-webhook engine) matches
+      "email", nothing maps to PROJEXA's digest/reply/token system. Table
+      not touched, consistent with the prior session's own conclusion.
+  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree unless a real bug is found) -- PROJEXA-E2E-001 work order section 2 item 3 ('AI link'): verify the real current state of WO-PROJEXA-AI-LINK-001 (org_ai_link token -> public GET /api/ai/[token] -> ai_link_projection() SECURITY DEFINER SQL function -> verb-allowlisted apply flow at /api/ai/apply), generate a real link via the running app, hit it directly, verify tenant isolation + personal-data exclusion + verb allowlist enforcement, and set up a cloudflared tunnel to localhost:3100 so the Owner can test pasting it into a real external chat engine [IN PROGRESS]"
+    claimed_at: "2026-09-21T (this session)"
+    claim: |
+      File scope (read-mostly verification, PROJEXA repo C:\ct\projexa):
+      src/lib/services/ai-link-service.ts, src/app/api/ai-link/route.ts,
+      src/app/api/ai/[token]/route.ts, src/app/api/ai/apply/route.ts,
+      src/components/shell/AiLinkButton.tsx, drizzle/0023_ai_link_and_email.sql
+      (public.org_ai_link + public.ai_link_projection() on Supabase project
+      evpckeuxgvahguwsaeul -- PROJEXA's own DB, per CLAUDE.md's explicit
+      two-Supabase-project warning; construction data itself is proxied
+      read-only from compliance-tracker via callVeridianResult, no
+      compliance-tracker file scope expected unless a bug is found there).
+      Will move to recently_completed with real findings once done. Will
+      escalate to an isolated worktree only if live verification finds a
+      real bug that needs a code fix.
   - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/goofy-northcutt-3d4a48, branch claude/objective-curran-88115b) -- check-closure-citation-skips.mjs failure investigation: turned out to be a stale script mirror, not stale DB rows [DONE -- PR open/unmerged pending owner's batch merge]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
@@ -3948,6 +4109,134 @@ active:
       only (arjun.mehta CEO account), no real credentials touched.
 
 recently_completed:
+  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100 for verification, isolated worktree C:/ct/ct-worktrees/fix-email-reply-actor-attribution for the fix) -- PROJEXA-E2E-001 work order section 2 item 4 ('Email'): verify the one-click emailActionToken flow and the start/end-of-day digest + reply-by-email system, prove cross-surface consistency, fix a real attribution bug found along the way [DONE -- both systems confirmed real/merged/working; RFI/submittal/punch-list/billing-claim reply actions were being misattributed to the shared API key, fixed and live-verified; PR open/unmerged]"
+    claimed_at: "2026-09-21T (this session)"
+    completed_at: "2026-09-21T (this session)"
+    claim: |
+      WHAT'S ACTUALLY BUILT (both confirmed merged to projexa's `main`, not
+      a stale branch -- `git merge-base --is-ancestor <head commit>
+      origin/main` on both): (1) the one-click emailActionToken flow
+      (email-token-service.ts, GET /api/email/[token]) is TODO-ONLY
+      (mark_done/reassign_ping/note_ack) -- there is NO one-click link for
+      RFI/submittal/punch-list/billing-claim, contrary to this claim's own
+      original wording (which was carried over from the work order's
+      Context section and was simply wrong; corrected here from reading the
+      real code, not assumed). (2) The org-configurable start/end-of-day
+      digest + reply-by-email system (digest.ts/reply-parser.ts/schedule-
+      service.ts/digest-item-service.ts/digest-item-dispatcher.ts,
+      inbound webhook) IS real and IS where RFI/submittal/punch-list/
+      billing-claim items are actionable -- but reply-only, never one-click,
+      in Phase 1 (digest.ts's own comment says so).
+
+      LIVE VERIFICATION, all against real Supabase data (org "Meridian
+      Construction Group" / project "Meridian Heights - Residential Tower
+      A", evpckeuxgvahguwsaeul + pcrjmlpuqsbocqfwoxod), via the shared
+      logged-in arjun.mehta browser session + direct SQL + a scratch script
+      (bun run, deleted after use) calling the real service functions
+      directly where the HTTP layer is env-gated locally (no
+      RESEND_API_KEY/POSTMARK_INBOUND_USERNAME+PASSWORD/CRON_SECRET in
+      .env.local -- confirmed missing, not a bug, `sendEmail()` gracefully
+      no-ops exactly as designed):
+        - Triggered a real digest (POST /api/email/send-digest) -- real
+          emailDigestDelivery + emailDigestItem rows created.
+        - Simulated a real inbound reply (bypassing the Postmark-webhook
+          HTTP layer's local auth gate, calling parseReply/
+          consumeDigestItem/applyDigestItemVerb directly -- same functions
+          the real route calls) with a multi-line reply ("1 done", "3
+          answer: ...", plus unmatched freeform text) -- parseReply
+          correctly matched 2 numbered items and folded the rest into
+          dailyReportNote text; consumeDigestItem's atomic claim worked;
+          the todo really flipped to done=true and the RFI really flipped
+          to status=answered with the real answer text stored.
+        - CROSS-SURFACE CONSISTENCY (the work order's own most-important
+          check): confirmed the RFI's new "answered" status on the REAL
+          PROJEXA RFIs screen (localhost:3100) immediately after, not just
+          in the DB.
+        - Tested the one-click token flow via the real public route
+          twice on the same token: first GET 200 "Done" (todo done=true),
+          second GET 410 "already used" -- both outcomes logged to
+          security_audit_log as designed.
+        - Tested the cadence engine (runDigestCadence, real PUT to
+          /api/organization/email-schedule first) with a forced `now`:
+          correctly claimed+processed the due slot once, and a second call
+          for the identical slot/day was a genuine no-op (0 processed) --
+          the INSERT...ON CONFLICT idempotency guard works. Cleaned up the
+          test schedule config afterward.
+
+      REAL BUG FOUND AND FIXED (not just flagged): digest-item-
+      dispatcher.ts's applyRfiVerb/applySubmittalVerb/applyPunchListVerb/
+      applyBillingMilestoneVerb send X-Acting-User/X-Acting-User-Email
+      headers specifically so a reply-driven change is attributed to the
+      real person -- but compliance-tracker's rfis/submittals/punch-list/
+      billing-claims [id] PATCH routes never read them, computing
+      `ctx.dbUser?.id ?? ctx.apiKey!.id` directly instead (ctx.dbUser is
+      ALWAYS null for a PROJEXA-proxied/shared-API-key request). Live-
+      verified the bug directly: answering RFI #6 via the real reply
+      pipeline stored answered_by_id = the org's compliance.api_keys.id
+      ("PROJEXA (provisioned, R60 E-137 fix)"), not arjun.mehta's
+      compliance.users.id. Same class of bug already fixed independently
+      for BOQ/dashboard/change-orders elsewhere in this codebase's history
+      -- not fixed here before now for these 4 specific routes.
+
+      FIX (compliance-tracker, isolated worktree
+      C:/ct/ct-worktrees/fix-email-reply-actor-attribution, branch
+      fix/email-reply-actor-attribution, PR #1779, OPEN/UNMERGED): new
+      resolveWriteActorId() in auth-guard.ts -- unchanged legacy fallback
+      (apiKey.id) when no acting-user signal is sent at all (so PROJEXA's
+      OWN existing UI-facing RFI/submittal/punch-list/billing-claim proxy
+      routes, which ALSO don't send these headers yet and were found to
+      have the identical gap for their own normal web-UI actions, are not
+      broken by this fix), but resolves the real compliance.users identity
+      whenever one is available. Applied to the 4 routes the email-reply
+      dispatcher actually calls (RFI's "close" and punch-list's "ready"
+      take no userId and are untouched). 70/70 new+existing tests green
+      (--isolate), tsc clean, eslint clean, authz-gap-inventory.test.ts and
+      vercel-lockdown.test.ts (auth-guard.ts is high-traffic) still green.
+      A second small commit on the same PR adds the 3 newly-touched routes
+      to check-route-auth-guard.mjs's documented requireAuthOrApiKey
+      exemption list (same pre-existing, already-CI-wired pattern every
+      other /v1/projexa/* route in that list already uses -- not a new
+      exception). CI green as of this entry (Vercel's own check
+      legitimately fails/is blocked on a non-main branch per this repo's
+      own deploy-gate policy -- expected, not a defect).
+
+      SCOPE BOUNDARY, surfaced not silently fixed: `grep -rln
+      "ctx.dbUser?.id ?? ctx.apiKey!.id" src/app/api/v1/projexa` finds the
+      identical pattern in ~70 OTHER route files (leads, opportunities,
+      quotations, procurement/*, schedule/*, documents, etc.) -- this
+      fix's scope was deliberately limited to the 4 routes the email
+      surface's own dispatcher calls; the other ~70 are a real, much
+      larger, separate systemic gap (flagged via spawn_task, not fixed
+      here).
+
+      OTHER FINDINGS, flagged via spawn_task rather than fixed in this
+      pass (each is its own follow-up, not silently dropped): (a)
+      digest.ts's collectDigestItems() caps project scanning at
+      MAX_PROJECTS=3 with no real ordering -- for this exact 18-project
+      E2E test org, the digest picked 3 empty E2E-BatchA fixture projects
+      and never surfaced "Meridian Heights"'s real 13 open RFIs/8 pending
+      submittals/7 open punch items; the code's own comment already
+      documents this as a deliberate Phase-1 cut. (b) GET /api/email/
+      [token] both consumes the token AND applies the action in one GET
+      (email scanner/prefetch risk) -- the same anti-pattern this codebase
+      already fixed as HIGH severity for DPDP's task-link route
+      (fix/dpdp-task-link-get-confirmation); worth the same GET-confirms/
+      POST-mutates split here, lower stakes than DPDP's but same shape.
+
+      NOT independently re-tested end-to-end: a real delivered email
+      landing in a real external inbox -- RESEND_API_KEY/DNS
+      (send.projexa-ai.com/reply.projexa-ai.com) are not configured
+      anywhere reachable from this session (send.ts's own header comment
+      confirms neither subdomain is live yet), so `sendEmail()` correctly
+      no-ops locally by design; this is an infrastructure/DNS gap already
+      documented in send.ts, not something this session could safely or
+      meaningfully force. Everything upstream of the actual SMTP send --
+      token/DB correctness, content generation, reply-parsing, the state
+      writes, and now correct attribution -- is proven against the real
+      DB, not simulated.
+
+      platform.sumeet_requirements: no single row maps cleanly to this
+      surface (per the work order's own note) -- not touched.
   - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-coldload-remaining + C:/ct/projexa-coldload-remaining, branch fix/cold-load-remaining-6-routes in both repos) -- PROJEXA-E2E-001 work order section 5 LAST item, continuation of the 2026-09-20 cold-load investigation: clean re-measurement of the 6 routes that session could NOT cleanly attribute (/labour /budgets /reports /knowledge-base /settings /grc) plus control routes, then fix whatever has a real identifiable cause [DONE -- real fixes for 3 of 6 (settings, knowledge-base, grc), 3 of 6 (labour, budgets/finance-budgets, reports) confirmed via source read to ALREADY have the R67 fix, PRs open/unmerged]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
