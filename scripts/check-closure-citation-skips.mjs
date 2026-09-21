@@ -2,12 +2,12 @@
 // R81 K5-08 -- a cited test must RUN, not merely be green.
 //
 // WHY THIS EXISTS, AND WHY THE OBVIOUS FIX WOULD NOT HAVE WORKED.
-// Six requirements (R-01, R-02, R-32, R-40, R-B1, R-B2) are recorded CLOSED in
-// platform.sumeet_requirements citing e2e/demo-gate-smoke.spec.ts. That spec
-// declares ONE test, covering TC-01/10/11/30/40, which asserts against REAL
-// PRODUCTION -- and at :230 it calls test.skip() when production answers
-// DEPLOYMENT_PAUSED or 503. Environment 2 (Vercel) is paused deliberately, so
-// the test skips itself on every run.
+// Six requirements (R-01, R-02, R-32, R-40, R-B1, R-B2) were originally recorded
+// CLOSED in platform.sumeet_requirements citing e2e/demo-gate-smoke.spec.ts. That
+// spec declared ONE test, covering TC-01/10/11/30/40, which asserted against REAL
+// PRODUCTION -- and called test.skip() when production answered DEPLOYMENT_PAUSED
+// or 503. Environment 2 (Vercel) is paused deliberately, so the test skipped
+// itself on every run.
 //
 // R81's first remedy for this was "make the citation gate look at CI outcome."
 // That was WRONG, and the CI log is what proved it: the E2E job reports
@@ -32,6 +32,22 @@
 //   3. Move the requirement out of CLOSED until one of the above is true.
 // Deleting the skip is NOT on that list: it would turn a self-aware skip into a
 // hard failure against a deliberately paused environment.
+//
+// CITATION UPDATE (citation-hygiene pass, 2026-09-21): demo-gate-smoke.spec.ts
+// was renamed to demo-gate-smoke-env1.spec.ts (2026-09-13), and R-01/R-02, R-32
+// and R-40 were separately each extracted into their own dedicated,
+// single-requirement spec per a PM "de-share the citation" decision -- see each
+// new file's own header comment. This array is updated to match. R-B2's real,
+// current closure evidence (per ai-os/boss/ACTIVE-CLAIMS.yaml) is a FChecklist/
+// projexa file (e2e/rb2-boq-create-real-click-and-progress-dropdown-env1.spec.ts,
+// closure_commit_sha=b236009e), not anything in this repo, so it is intentionally
+// left out of CITED below -- this script can only verify local file existence,
+// and a cross-repo citation is outside what the file-existence leg can check.
+// None of this touches the still-open SKIP_PATTERN/PROVEN_AGAINST question below
+// (Addendum B G2-02) -- the renamed/re-scoped files still contain their own
+// ENV-2-probe test.skip(), same as the original, so this update alone does not
+// make the check pass; it corrects the "does not exist" failure mode to the
+// already-known, already-documented "can skip itself" one.
 import fs from "node:fs"
 import path from "node:path"
 
@@ -42,15 +58,15 @@ const CT = path.resolve(import.meta.dirname, "..")
  * platform.sumeet_requirements.closure_test_path -- kept here rather than read
  * from the database on purpose: this must run in CI, where the platform schema
  * is not reachable (it is service_role-only, and PostgREST does not expose it).
- * A drifted entry is caught by the file-existence leg below.
+ * A drifted entry is caught by the file-existence leg below. R-B2 is
+ * deliberately absent -- see the CITATION UPDATE note above.
  */
 const CITED = [
-  { req: "R-01", spec: "e2e/demo-gate-smoke.spec.ts" },
-  { req: "R-02", spec: "e2e/demo-gate-smoke.spec.ts" },
-  { req: "R-32", spec: "e2e/demo-gate-smoke.spec.ts" },
-  { req: "R-40", spec: "e2e/demo-gate-smoke.spec.ts" },
-  { req: "R-B1", spec: "e2e/demo-gate-smoke.spec.ts" },
-  { req: "R-B2", spec: "e2e/demo-gate-smoke.spec.ts" },
+  { req: "R-01", spec: "e2e/r01-r02-boq-create-env1.spec.ts" },
+  { req: "R-02", spec: "e2e/r01-r02-boq-create-env1.spec.ts" },
+  { req: "R-32", spec: "e2e/r32-boq-total-excludes-subtasks-env1.spec.ts" },
+  { req: "R-40", spec: "e2e/r40-work-progress-weighted-subtask-env1.spec.ts" },
+  { req: "R-B1", spec: "e2e/demo-gate-smoke-env1.spec.ts" },
 ]
 
 // A citation may declare the environment that makes its spec actually execute.
