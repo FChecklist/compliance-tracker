@@ -3,17 +3,19 @@
 // assignedPersonId is an IDENTITY ID (see listMyObligations's own
 // `o.assignedPersonId === identityId` comparison), not an email -- this is
 // the join that turns it into the spec's flat "by: email" shape.
-import { desc, eq, inArray } from "drizzle-orm"
-import { dpdpObligation, dpdpObligationTemplate, dpdpIdentity, dpdpStaffGroup, dpdpOrganisation, dpdpEvent } from "@/lib/db"
+import { and, desc, eq, inArray } from "drizzle-orm"
+import { dpdpObligation, dpdpObligationTemplate, dpdpIdentity, dpdpStaffGroup, dpdpOrganisation, dpdpEvent, dpdpMembership } from "@/lib/db"
 import { withDpdpContext } from "@/lib/db/tenant-scoped"
 import type { ObligationRow } from "@/lib/dpdp-onepage/view-model"
 import { ServiceError } from "./compliance-service"
+import { logDpdpEvent } from "./dpdp-event-service"
 export { ServiceError }
 
 export async function getOnePageData(orgId: string, viewerIdentityId: string) {
   return withDpdpContext({ orgId }, async (tx) => {
     const org = await tx.query.dpdpOrganisation.findFirst({ where: eq(dpdpOrganisation.id, orgId) })
     if (!org) throw new ServiceError("Organisation not found", 404)
+    const membership = await tx.query.dpdpMembership.findFirst({ where: and(eq(dpdpMembership.identityId, viewerIdentityId), eq(dpdpMembership.orgId, orgId)) })
     const obligations = await tx.query.dpdpObligation.findMany({ where: eq(dpdpObligation.orgId, orgId) })
 
     const templateIds = [...new Set(obligations.map((o) => o.templateId))]
@@ -77,7 +79,118 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
       }
     })
 
-    return { org, rows, viewerEmail, obligationById }
+    return { org, rows, viewerEmail, obligationById, firstVisitSeenAt: membership?.firstVisitSeenAt ?? null, membershipId: membership?.id ?? null }
+  })
+}
+
+/**
+ * WO-DPDP-010 §4 "First visit, for every role" -- the client owner's
+ * 3-step wizard, steps 1+2 (step 3, policy upload, is folded into the
+ * always-visible PolicySection further down the page rather than gating
+ * completion, since it's explicitly optional in the spec).
+ *
+ * Deliberately does NOT call instantiateObligationsForOrg -- that already
+ * ran at org-creation time (WO-DPDP-001's "we build this with them"
+ * design, which ~20 existing admin pages already depend on existing
+ * immediately). Step 1 ("Create the list") is therefore a confirmation of
+ * something already true, not a new side effect -- the wizard's real work
+ * is step 2: assigning each roleTag area to a real person or group, which
+ * previously left every job unassigned until someone used the granular
+ * "assign" admin UI by hand.
+ */
+export async function areasForProduct(product: "firm" | "institution") {
+  // Reads only obligation_template -- shared reference data with grants but
+  // no RLS (see drizzle/0415's own note), so no tenant context is needed.
+  const { db: rawDb } = await import("@/lib/db")
+  const { getCurrentLibraryVersion } = await import("./dpdp-obligation-library")
+  const version = await getCurrentLibraryVersion()
+  const templates = await rawDb.query.dpdpObligationTemplate.findMany({
+    where: and(eq(dpdpObligationTemplate.libraryVersionId, version.id), eq(dpdpObligationTemplate.product, product)),
+  })
+  const seen = new Map<string, { area: string; jobs: string[]; isGroup: boolean }>()
+  for (const t of templates.sort((a, b) => a.key.localeCompare(b.key))) {
+    if (!t.roleTag || ["OWNER", "CAMGR", "CAPARTNER"].includes(t.roleTag)) continue
+    const isGroupJob = !!(t.appliesWhen as { grp?: boolean } | null)?.grp
+    if (!seen.has(t.roleTag)) seen.set(t.roleTag, { area: t.roleTag, jobs: [], isGroup: isGroupJob })
+    seen.get(t.roleTag)!.jobs.push(t.name)
+    if (isGroupJob) seen.get(t.roleTag)!.isGroup = true
+  }
+  return [...seen.values()]
+}
+
+export type AreaAssignment = { area: string; emails: string[]; na: boolean }
+
+/**
+ * Saves step 2's "who looks after what" answers: assigns every obligation
+ * whose template.roleTag matches an area to that area's person (or, for a
+ * group area, creates/updates a dpdp.staff_group and assigns to it), marks
+ * "doesn't apply" areas' obligations not_applicable, and marks this
+ * membership's first visit seen. History event per area, matching the
+ * spec's own "Named X as Y" / "Marked '...' as not applicable" copy.
+ */
+export async function completeOwnerFirstVisit(
+  orgId: string, actorIdentityId: string, actorLabel: string, membershipId: string, assignments: AreaAssignment[]
+) {
+  return withDpdpContext({ orgId }, async (tx) => {
+    const obligations = await tx.query.dpdpObligation.findMany({ where: eq(dpdpObligation.orgId, orgId) })
+    const templateIds = [...new Set(obligations.map((o) => o.templateId))]
+    const templates = templateIds.length ? await tx.query.dpdpObligationTemplate.findMany({ where: inArray(dpdpObligationTemplate.id, templateIds) }) : []
+    const templateById = new Map(templates.map((t) => [t.id, t]))
+    const { dpdpIdentityEmail } = await import("@/lib/db")
+
+    async function findOrCreateIdentityByEmail(rawEmail: string) {
+      const email = rawEmail.trim().toLowerCase()
+      const existingEmail = await tx.query.dpdpIdentityEmail.findFirst({ where: eq(dpdpIdentityEmail.email, email) })
+      if (existingEmail) return existingEmail.identityId
+      const [identity] = await tx.insert(dpdpIdentity).values({ primaryEmail: email }).returning()
+      await tx.insert(dpdpIdentityEmail).values({ identityId: identity.id, email, isPrimary: true })
+      return identity.id
+    }
+
+    for (const a of assignments) {
+      const matchingObligations = obligations.filter((o) => templateById.get(o.templateId)?.roleTag === a.area)
+      if (!matchingObligations.length) continue
+
+      if (a.na) {
+        for (const o of matchingObligations) await tx.update(dpdpObligation).set({ state: "not_applicable", naReason: "Marked ‘doesn’t apply’ at first visit" }).where(eq(dpdpObligation.id, o.id))
+        await logDpdpEvent({ orgId, actorIdentityId, actorLabel, kind: "obligation_not_my_job", summary: `Marked "${a.area}" as not applicable` }, tx)
+        continue
+      }
+      if (!a.emails.length) continue
+
+      const areaInfo = templateById.get(matchingObligations[0].templateId)
+      const isGroup = !!(areaInfo?.appliesWhen as { grp?: boolean } | null)?.grp
+      if (isGroup) {
+        let group = await tx.query.dpdpStaffGroup.findFirst({ where: and(eq(dpdpStaffGroup.orgId, orgId), eq(dpdpStaffGroup.label, a.area)) })
+        if (!group) { [group] = await tx.insert(dpdpStaffGroup).values({ orgId, label: a.area }).returning() }
+        const { dpdpStaffGroupMember } = await import("@/lib/db")
+        let memberCount = 0
+        for (const rawEmail of a.emails) {
+          if (!rawEmail.trim()) continue
+          const memberIdentityId = await findOrCreateIdentityByEmail(rawEmail)
+          let membership = await tx.query.dpdpMembership.findFirst({ where: and(eq(dpdpMembership.identityId, memberIdentityId), eq(dpdpMembership.orgId, orgId)) })
+          if (!membership) { [membership] = await tx.insert(dpdpMembership).values({ identityId: memberIdentityId, orgId, level: "staff", joinedVia: "named_in_role" }).returning() }
+          const existingGroupMember = await tx.query.dpdpStaffGroupMember.findFirst({ where: and(eq(dpdpStaffGroupMember.groupId, group!.id), eq(dpdpStaffGroupMember.membershipId, membership!.id)) })
+          if (!existingGroupMember) await tx.insert(dpdpStaffGroupMember).values({ groupId: group!.id, membershipId: membership!.id })
+          memberCount++
+        }
+        for (const o of matchingObligations) await tx.update(dpdpObligation).set({ assignedStaffGroupId: group!.id, progressTotal: memberCount || 1 }).where(eq(dpdpObligation.id, o.id))
+        await logDpdpEvent({ orgId, actorIdentityId, actorLabel, kind: "membership_named_in_role", summary: `Named ${memberCount} people to "${a.area}"` }, tx)
+        continue
+      }
+
+      const email = a.emails[0].trim().toLowerCase()
+      const identityId = await findOrCreateIdentityByEmail(email)
+      for (const o of matchingObligations) await tx.update(dpdpObligation).set({ assignedPersonId: identityId }).where(eq(dpdpObligation.id, o.id))
+      // fromArea jobs ("Name the Grievance Officer" / "Name a DPDP
+      // coordinator") are auto-done the moment the owner names someone,
+      // credited to the owner -- spec's own ex.fromArea behaviour.
+      const fromAreaObligations = matchingObligations.filter((o) => (templateById.get(o.templateId)?.appliesWhen as { fromArea?: boolean } | null)?.fromArea)
+      for (const o of fromAreaObligations) await tx.update(dpdpObligation).set({ state: "closed", progressDone: o.progressTotal, closedAt: new Date(), closedBy: actorIdentityId }).where(eq(dpdpObligation.id, o.id))
+      await logDpdpEvent({ orgId, actorIdentityId, actorLabel, kind: "membership_named_in_role", summary: `Named ${email} as ${a.area}` }, tx)
+    }
+
+    await tx.update(dpdpMembership).set({ firstVisitSeenAt: new Date() }).where(eq(dpdpMembership.id, membershipId))
   })
 }
 

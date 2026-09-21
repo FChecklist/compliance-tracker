@@ -64,6 +64,40 @@ export const SENSITIVE_DATA_TYPES = new Set([
   "Children’s photos", "Live location", "Category",
 ])
 
+export const GRIEVANCE_OFFICER_ROLE_TAG = "Grievance Officer (responsible for DPDP policy)"
+
+// veridian-dpdp.html's AREAHELP object, verbatim -- one line of plain-English
+// help text per area/roleTag. Copy is verbatim per WO §0; do not rewrite.
+export const AREA_HELP: Record<string, string> = {
+  [GRIEVANCE_OFFICER_ROLE_TAG]: "answers complaints and looks after the privacy policy — in a small organisation, usually the owner",
+  "DPDP coordinator": "keeps this moving and is the one your CA talks to — usually the owner or the office manager",
+  "Customer data": "the head of whichever team runs billing or sales",
+  "Staff records": "the head of HR, or whoever keeps staff files",
+  "Accounts": "the head of accounts",
+  "All staff": "every employee — paste all their emails; each answers for their own laptop and phone",
+  "Website firm": "the company that built or runs your website",
+  "Payroll firm": "the outside company that runs your payroll",
+  "Group company": "a sister or group company you share data with — legally a separate company",
+  "CCTV": "whoever is in charge of the cameras",
+  "IT & computers": "whoever looks after your computers, passwords and backups — often an outside IT person",
+  "Admission office": "the admission office — they hold most student records",
+  "Fees office": "the fees office",
+  "Teachers": "every teacher — paste all their emails",
+  "Transport in-charge": "whoever manages the buses and pickup lists",
+  "Bus firm": "the company that runs your school buses",
+  "School software firm": "the company behind your school ERP or app",
+}
+
+// veridian-dpdp.html's PREFILL object -- these areas start pre-filled with
+// the owner's own email in the "who looks after what" step.
+export const AREA_PREFILL_WITH_OWNER = new Set([GRIEVANCE_OFFICER_ROLE_TAG, "DPDP coordinator"])
+
+// veridian-dpdp.html's CANNA object -- areas that can be marked "we don't
+// have this" during first visit.
+export const AREA_CAN_MARK_NA = new Set([
+  "Website firm", "Payroll firm", "Group company", "CCTV", "Bus firm", "School software firm", "Transport in-charge",
+])
+
 /** isToday(codes): true if any law code is SPDI ('s') or Aadhaar Act ('a') -- in force today, unlike DPDP ('d', from 13 May 2027). */
 export function isToday(codes: LawCode[] | null | undefined): boolean {
   return (codes ?? []).some((c) => c[0] === "s" || c[0] === "a")

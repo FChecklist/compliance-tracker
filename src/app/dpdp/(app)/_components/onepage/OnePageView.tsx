@@ -2,6 +2,7 @@
 
 import "./dpdp-onepage-tokens.css"
 import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { Seal } from "./Seal"
 import { DoThisNow } from "./DoThisNow"
 import { PartsTrack } from "./PartsTrack"
@@ -25,6 +26,7 @@ export function OnePageView({
   viewer: ViewerContext
   onMarkYes?: (obligationId: string) => Promise<void>
 }) {
+  const router = useRouter()
   const [filter, setFilter] = useState<FilterKey>("all")
   const [pending, startTransition] = useTransition()
   const now = new Date()
@@ -39,7 +41,15 @@ export function OnePageView({
 
   function handleMarkYes(id: string) {
     if (!onMarkYes) return
-    startTransition(() => { onMarkYes(id) })
+    // Both await AND router.refresh() are needed -- see
+    // FirstVisitWizard.tsx's identical fix for the full explanation.
+    // Without router.refresh(), invoking the server action directly (not
+    // through a <form>) leaves the DB write correct but the visible row
+    // unchanged until a manual reload.
+    startTransition(async () => {
+      await onMarkYes(id)
+      router.refresh()
+    })
   }
 
   return (
@@ -77,7 +87,7 @@ export function OnePageView({
         )}
 
         <div style={pending ? { opacity: 0.6, pointerEvents: "none" } : undefined}>
-          <JobsTable rows={filtered} viewer={viewer} staffView={staffView} now={now} onMarkYes={onMarkYes ? handleMarkYes : undefined} />
+          <JobsTable rows={filtered} allRows={visibleRows} partSummaries={parts} viewer={viewer} staffView={staffView} now={now} onMarkYes={onMarkYes ? handleMarkYes : undefined} />
         </div>
 
         <div className="text-center mt-7" style={{ fontSize: 12, color: "var(--dpdp-ink3)" }}>
