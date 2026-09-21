@@ -4460,18 +4460,43 @@ active:
       assignObligation() function has the identical membership-creation
       gap and should get the same fix in a follow-up.
 
+      PROGRESS, UPDATED AGAIN 2026-09-21 (same session, continued further,
+      isolated worktree C:/ct/ct-worktrees/wo-dpdp-010-role-welcome, branch
+      feat/wo-dpdp-010-role-welcome, PR #1794 open, CI in progress) -- the
+      generic "everyone invited" first-visit welcome screen for GO/
+      coordinator/any other named role, one of the ~5 remaining first-visit
+      flows listed above: RoleWelcome shows "{org} named you as {role} --
+      you have N jobs of your own" with a "Got it" button and a "This isn't
+      me" escape hatch. New service functions acknowledgeRoleWelcome()
+      (sets firstVisitSeenAt, logs a new membership_first_visit_acknowledged
+      event) and flagNotMe() (sets BOTH firstVisitSeenAt and saidNotMeAt,
+      logs membership_said_not_me -- the owner's only signal today that a
+      reassignment is needed, no separate notification inbox exists yet).
+      home/page.tsx shows a new NotMeWaiting screen instead of the jobs
+      view for as long as the person both said "this isn't me" AND still
+      has live jobs assigned to them -- recomputed from the real
+      obligations on every load, not a one-time flag, so it stops itself
+      the moment the owner reassigns the work away. Verified end-to-end
+      across 3 fresh live scenarios (not just the 2 new unit tests): the
+      welcome screen's role label/job count, the acknowledge path (History
+      shows "Staff saw their DPDP jobs for the first time"), and the
+      not-me path (waiting screen + logged event) all confirmed via real
+      browser sessions, zero console errors. Falsifiability checked the
+      same way as every other fix this session: stashed the implementation,
+      both new tests failed with the exact expected symptoms, restored,
+      both pass. Full DPDP suite: 41 pass, 0 fail, 71 assertions.
+
       STILL TO BUILD (large, not yet started): CA/parent role detection
       (no CA-firm or parent-token concept wired into the auth/membership
       model at all yet -- a bigger lift than GO/coordinator, which reused
       the existing roleTag mechanism), CA firm clients view, group-answer
-      UI, remaining first-visit wizards (owner-set-up-by-CA, CA partner's
-      3-step, the generic "everyone invited" screen for GO/coordinator/
-      other named roles -- ~5 more flows), the Monday email digest wired
-      to the new job model (the `sent` field is honestly hard-coded to 0
-      everywhere until this lands), the 70-check Playwright acceptance
-      suite, and Step 7's Vercel-ready-but-unmerged branch. This session is
-      continuing, not stopping, per the Owner's own explicit instruction in
-      chat.
+      UI, the owner-set-up-by-CA and CA partner's 3-step first-visit
+      wizards (the generic named-role wizard above is now done), the
+      Monday email digest wired to the new job model (the `sent` field is
+      honestly hard-coded to 0 everywhere until this lands), the 70-check
+      Playwright acceptance suite, and Step 7's Vercel-ready-but-unmerged
+      branch. This session is continuing, not stopping, per the Owner's
+      own explicit instruction in chat.
 
       NOT touching compliance.*/platform.* tables, PROJEXA's proxy routes,
       vercel.json, or any Vercel project/dashboard setting.
