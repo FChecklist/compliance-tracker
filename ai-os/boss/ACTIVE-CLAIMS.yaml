@@ -108,6 +108,23 @@ active:
       recently_completed with real findings once done. Will escalate to an
       isolated worktree only if live verification finds a real bug that
       needs a code fix.
+  - session_label: "claude-code (interactive, isolated worktree C:/ct/ct-actor-fix, branch fix/projexa-actor-self-approval-bypass) -- PROJEXA-E2E-001 follow-on to the 2026-09-21 actor-misattribution triage (GAP-PROJEXA-ACTOR-MISATTRIBUTION-SWEEP, ai-os/MASTER-TRACKER.yaml): implement fixes for the 13 HIGH-severity routes, starting with the 5 self-approval-fraud-check bypasses (change-orders POST create, scope/import BOQ create, submittals create+review, punch-list verify, quotations/[id]/revisions create), then working down the rest of the HIGH list [IN PROGRESS]"
+    claimed_at: "2026-09-21T (this session)"
+    claim: |
+      File scope: src/app/api/v1/projexa/{change-orders,scope/import,
+      submittals,submittals/[id],punch-list/[id],quotations/[id]/revisions}/
+      route.ts (+.test.ts siblings), src/lib/services/{construction-change-
+      order-service,construction-boq-service,construction-field-workflow-
+      service,erp-selling-service}.ts as needed, src/lib/supabase/
+      auth-guard.ts (reusing resolveWriteActorId() from the unmerged
+      fix/email-reply-actor-attribution branch after checking it for
+      soundness -- not reinventing it). Ground rules per PM assignment:
+      GitHub CI + live Supabase only, never Vercel, PRs opened but not
+      merged to main. Will move to recently_completed once the 5
+      self-approval routes are fixed+tested+PR'd, then continue to the
+      remaining 8 HIGH items (expenses, documents dispose, assistant
+      record_work_progress, leads, pill-usage, module-chain) or report back
+      partway per the PM's own checkpoint.
   - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree unless a real bug is found) -- PROJEXA-E2E-001 work order section 2 item 3 ('AI link'): verify the real current state of WO-PROJEXA-AI-LINK-001 (org_ai_link token -> public GET /api/ai/[token] -> ai_link_projection() SECURITY DEFINER SQL function -> verb-allowlisted apply flow at /api/ai/apply), generate a real link via the running app, hit it directly, verify tenant isolation + personal-data exclusion + verb allowlist enforcement, and set up a cloudflared tunnel to localhost:3100 so the Owner can test pasting it into a real external chat engine [IN PROGRESS]"
     claimed_at: "2026-09-21T (this session)"
     claim: |
