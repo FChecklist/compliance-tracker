@@ -12,7 +12,12 @@ class ServiceError extends Error {
   }
 }
 
-function mockAuth(ctx: { orgId: string | null; response?: Response | null; roleErr?: Response | null }) {
+function mockAuth(ctx: {
+  orgId: string | null
+  response?: Response | null
+  roleErr?: Response | null
+  resolveWriteActorId?: () => Promise<{ actorId: string | null; error: Response | null }>
+}) {
   mock.module("@/lib/supabase/auth-guard", () => ({
     requireAuthOrApiKey: mock(async () => ({
       orgId: ctx.orgId,
@@ -21,6 +26,12 @@ function mockAuth(ctx: { orgId: string | null; response?: Response | null; roleE
       response: ctx.response ?? null,
     })),
     requireRoleOrScope: mock(() => ctx.roleErr ?? null),
+    // PROJEXA-E2E-001 surface-4 fix: the route now resolves the acting
+    // actor through this helper (auth-guard.ts) instead of computing
+    // `ctx.dbUser?.id ?? ctx.apiKey!.id` itself -- default here mirrors the
+    // pre-fix dbUser fallback so every pre-existing test above (which
+    // asserts `userId: "user-1"`) keeps passing unchanged.
+    resolveWriteActorId: ctx.resolveWriteActorId ?? mock(async () => ({ actorId: "user-1", error: null })),
   }))
 }
 
@@ -156,5 +167,48 @@ describe("PATCH /api/v1/projexa/billing-claims/[id] -- state-machine transitions
     const res = await PATCH({ json: async () => ({ action: "draft" }) } as any, { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(409)
+  })
+})
+
+// PROJEXA-E2E-001 surface-4 (email): live testing of the digest reply-by-
+// email path found that this route (like rfis/submittals/punch-list's own
+// PATCH handlers) NEVER attributed a claim transition to the real acting
+// person -- it always used `ctx.dbUser?.id ?? ctx.apiKey!.id`, which for
+// every PROJEXA-proxied call (a shared per-org API key, ctx.dbUser always
+// null) meant approve/reject/draft/submit/invoice were attributed to the
+// API key's own row, not whoever actually approved/rejected it -- even
+// when a real acting-user identity WAS available (digest-item-
+// dispatcher.ts sends X-Acting-User/X-Acting-User-Email specifically so
+// this would resolve). Live-verified equivalent for the sibling RFI route:
+// answering an RFI via the real reply pipeline stored answered_by_id as
+// the org's api_keys.id, not the real person's compliance.users.id.
+describe("PATCH /api/v1/projexa/billing-claims/[id] -- real acting-user attribution (PROJEXA-E2E-001 surface-4 fix)", () => {
+  test("uses the resolved acting user's id, not a hardcoded/fallback id, when resolveWriteActorId resolves one", async () => {
+    const resolveWriteActorId = mock(async () => ({ actorId: "real-person-42", error: null }))
+    mockAuth({ orgId: "org-1", resolveWriteActorId })
+    const approveClaim = mock(async () => ({ id: "c1", status: "client_approved" }))
+    mockService({ approveClaim })
+
+    const { PATCH } = await import("./route")
+    const res = await PATCH({ json: async () => ({ action: "approve" }) } as any, { params: Promise.resolve({ id: "c1" }) })
+
+    expect(res.status).toBe(200)
+    // The claim is attributed to the REAL resolved person, never the
+    // shared API key -- this is the entire point of the fix.
+    expect(approveClaim).toHaveBeenCalledWith({ orgId: "org-1", userId: "real-person-42" }, "c1")
+  })
+
+  test("a caller whose acting-user signal fails to resolve is refused, never silently attributed to a fallback identity", async () => {
+    const refusal = new Response(JSON.stringify({ error: "USER_NOT_LINKED" }), { status: 400 })
+    const resolveWriteActorId = mock(async () => ({ actorId: null, error: refusal }))
+    mockAuth({ orgId: "org-1", resolveWriteActorId })
+    const approveClaim = mock(async () => ({ id: "c1", status: "client_approved" }))
+    mockService({ approveClaim })
+
+    const { PATCH } = await import("./route")
+    const res = await PATCH({ json: async () => ({ action: "approve" }) } as any, { params: Promise.resolve({ id: "c1" }) })
+
+    expect(res.status).toBe(400)
+    expect(approveClaim).not.toHaveBeenCalled()
   })
 })

@@ -95,6 +95,27 @@ async function fakeResolveActingUser(ctx: { dbUser?: FixtureUser | null; apiKey?
   return { user: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
 }
 
+// PROJEXA-E2E-001 surface-4 (email) fix regression, found 2026-09-21: the
+// same D-05 gotcha explained above bit again the moment fix/email-reply-
+// actor-attribution (PR #1779) added a NEW named export,
+// resolveWriteActorId, to auth-guard.ts and had rfis/submittals/punch-list's
+// [id] PATCH routes import it -- this mock's export set didn't re-provide
+// it, so all three routes' dynamic `import(entry.specifier)` failed outright
+// ("Export named 'resolveWriteActorId' not found"), which fails BOTH the
+// below-minimum and at-minimum subtests for each (the role gate itself was
+// never reached, the whole module failed to load). Live-reproduced via a
+// real `bun test --isolate` run of this file before this fix (see
+// kt-instb/dod-c7-sweep-result.json), matching PR #1779's own real, still-
+// open CI failure on GitHub Actions at the time this was found. Fake mirrors
+// resolveWriteActorId's real dbUser-present branch only -- the only branch
+// this sweep's synthetic fixtures ever reach (ctx.dbUser is always set here,
+// same reasoning as fakeResolveActingUser above).
+async function fakeResolveWriteActorId(_request: { headers: Headers }, ctx: { dbUser?: FixtureUser | null; apiKey?: unknown }) {
+  if (ctx?.dbUser) return { actorId: ctx.dbUser.id, error: null }
+  if (ctx?.apiKey) return { actorId: (ctx.apiKey as { id: string }).id, error: null }
+  return { actorId: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
+}
+
 beforeEach(() => {
   currentUser = null
   mock.module("@/lib/supabase/auth-guard", () => ({
@@ -108,6 +129,7 @@ beforeEach(() => {
     readActingUserId: fakeReadActingUserId,
     readActingUserEmail: () => null,
     resolveActingUser: fakeResolveActingUser,
+    resolveWriteActorId: fakeResolveWriteActorId,
   }))
 })
 

@@ -607,6 +607,51 @@ export async function resolveActingUser(
   return { user: actingUser, error: null }
 }
 
+// PROJEXA-E2E-001 surface-4 (email) fix, 2026-09-21: found via live testing
+// of the digest reply-by-email path (buildAndSendDigest ->
+// digest-item-dispatcher.ts's applyRfiVerb/applySubmittalVerb/
+// applyPunchListVerb/applyBillingMilestoneVerb) -- every one of
+// src/app/api/v1/projexa/{rfis,submittals,punch-list,billing-claims}/[id]/
+// route.ts's PATCH handlers computed `ctx.dbUser?.id ?? ctx.apiKey!.id` and
+// never called resolveActingUser() at all, so answeredById/reviewedById/
+// verifiedById/the billing-claim actor were ALWAYS the shared PROJEXA API
+// key's own compliance.api_keys row id, never the real person -- even
+// though digest-item-dispatcher.ts already sends X-Acting-User/
+// X-Acting-User-Email on every one of these calls specifically so a
+// reply-driven change would be attributed correctly (its own header
+// comment says so). Live-verified: answering RFI #6 via the real reply
+// pipeline stored answered_by_id = the org's compliance.api_keys.id, not
+// arjun.mehta's compliance.users.id.
+//
+// This helper is the fix, used by all 4 routes above. It is deliberately
+// NOT `resolveActingUser` called unconditionally -- PROJEXA's own existing
+// UI-facing proxies for these 4 entity types (src/app/api/{rfis,
+// submittals,punch-list,billing-claims}/[id]/route.ts in the PROJEXA repo)
+// do not send X-Acting-User(-Email) either, and never have; calling
+// resolveActingUser() unconditionally would turn today's "answer from the
+// RFI screen" into a hard 400 (`actorEmail is required...`) for every
+// existing caller. Instead: no acting-user signal at all -> unchanged
+// legacy fallback (apiKey.id, same as before this fix, a separate
+// pre-existing gap left for its own follow-up); an acting-user signal IS
+// present (the digest reply path, or any future caller that adopts it) ->
+// resolved for real, and a signal that fails to resolve is a hard error
+// (AR-04, fail loud) rather than a silent fallback to the API key.
+export async function resolveWriteActorId(
+  request: { headers: Headers },
+  ctx: CombinedAuthContext
+): Promise<{ actorId: string; error: null } | { actorId: null; error: NextResponse }> {
+  if (ctx.dbUser) return { actorId: ctx.dbUser.id, error: null }
+  const headerId = readActingUserId(request)
+  const headerEmail = readActingUserEmail(request)
+  if (!headerId && !headerEmail) {
+    if (!ctx.apiKey) return { actorId: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
+    return { actorId: ctx.apiKey.id, error: null }
+  }
+  const acting = await resolveActingUser(ctx, headerEmail, headerId)
+  if (acting.error) return { actorId: null, error: acting.error }
+  return { actorId: acting.user!.id, error: null }
+}
+
 // E-52 (R60/R62 sweep, platform.r43_faults fault_id LIKE 'E52_%'): the
 // house pattern this repo's v1 GET handlers kept repeating --
 // `if (!ctx.orgId) return NextResponse.json({ <empty shape> })` -- returns

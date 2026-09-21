@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveWriteActorId } from "@/lib/supabase/auth-guard"
 import { getRfi, answerRfi, closeRfi, ServiceError } from "@/lib/services/construction-field-workflow-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -28,13 +28,18 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
 
   try {
     const { id } = await params
     const body = await request.json()
     if (body.action === "answer") {
-      const rfi = await answerRfi({ orgId: ctx.orgId, userId: actorId }, id, body.answer)
+      // PROJEXA-E2E-001 surface-4 fix: resolve the real acting user when
+      // the caller sends one (e.g. digest-item-dispatcher.ts's reply-by-
+      // email path) instead of always attributing to the shared API key --
+      // see resolveWriteActorId's own header comment in auth-guard.ts.
+      const acting = await resolveWriteActorId(request, ctx)
+      if (acting.error) return acting.error
+      const rfi = await answerRfi({ orgId: ctx.orgId, userId: acting.actorId }, id, body.answer)
       return NextResponse.json(rfi)
     }
     if (body.action === "close") {
