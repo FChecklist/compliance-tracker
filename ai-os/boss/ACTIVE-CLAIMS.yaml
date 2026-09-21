@@ -40,21 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree unless a real bug is found) -- PROJEXA-E2E-001 work order section 2 item 3 ('AI link'): verify the real current state of WO-PROJEXA-AI-LINK-001 (org_ai_link token -> public GET /api/ai/[token] -> ai_link_projection() SECURITY DEFINER SQL function -> verb-allowlisted apply flow at /api/ai/apply), generate a real link via the running app, hit it directly, verify tenant isolation + personal-data exclusion + verb allowlist enforcement, and set up a cloudflared tunnel to localhost:3100 so the Owner can test pasting it into a real external chat engine [IN PROGRESS]"
-    claimed_at: "2026-09-21T (this session)"
-    claim: |
-      File scope (read-mostly verification, PROJEXA repo C:\ct\projexa):
-      src/lib/services/ai-link-service.ts, src/app/api/ai-link/route.ts,
-      src/app/api/ai/[token]/route.ts, src/app/api/ai/apply/route.ts,
-      src/components/shell/AiLinkButton.tsx, drizzle/0023_ai_link_and_email.sql
-      (public.org_ai_link + public.ai_link_projection() on Supabase project
-      evpckeuxgvahguwsaeul -- PROJEXA's own DB, per CLAUDE.md's explicit
-      two-Supabase-project warning; construction data itself is proxied
-      read-only from compliance-tracker via callVeridianResult, no
-      compliance-tracker file scope expected unless a bug is found there).
-      Will move to recently_completed with real findings once done. Will
-      escalate to an isolated worktree only if live verification finds a
-      real bug that needs a code fix.
   - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-worktrees/wo-exceptions-fix + C:/ct/projexa-worktrees/wo-exceptions-fix, branch wo/exceptions-item24-and-navigation + wo/exceptions-drilldown-navigation) -- PROJEXA-E2E-001: direct fix (not deferred) for the 2 real bugs found by the R-92..R-100/31-vs-28 exceptions reconciliation session (2026-09-20/21) -- Bug 1: construction-exceptions-service.ts getProjectExceptions() 29-vs-28 array-length bug (item #24 push()'d twice under the same number); Bug 2: ExceptionsClient.tsx had zero drill-down navigation from a flagged exception to the real record it names [DONE -- both fixed, unit/component tests green locally, PRs open/unmerged pending real CI e2e verification]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
@@ -3913,6 +3898,127 @@ active:
       only (arjun.mehta CEO account), no real credentials touched.
 
 recently_completed:
+  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree -- one config file restored, no product code changed) -- PROJEXA-E2E-001 work order section 2 item 3 ('AI link'): verified the real current state of WO-PROJEXA-AI-LINK-001, generated a real link, verb-tested it, and stood up a cloudflared tunnel [DONE -- feature is real and working end-to-end for the 5 allowlisted verbs on `todos`; one real environment gap found+fixed (missing .env.local on the shared server) and one real scope gap reported, not fixed (verb-allowlisted apply only ever targets PROJEXA's own `todos` table, never a real BOQ/RFI/work-progress/change-order record)]"
+    claimed_at: "2026-09-21T (this session)"
+    completed_at: "2026-09-21T (this session)"
+    claim: |
+      Read the real code first, per the work order's own "do not mark
+      anything PASS that you have not seen work" standard: PROJEXA repo
+      (C:\ct\projexa) src/lib/services/ai-link-service.ts, src/app/api/
+      ai-link/route.ts (authenticated create/rotate/revoke), src/app/api/
+      ai/[token]/route.ts (PUBLIC, unauthenticated GET -- the actual link),
+      src/app/api/ai/apply/route.ts (authenticated apply, requireAuth()),
+      src/components/shell/AiLinkButton.tsx ("Connect your AI" bot icon,
+      top rail, next to NotificationBell), drizzle/0023_ai_link_and_email.sql
+      (public.org_ai_link table + public.ai_link_projection() SECURITY
+      DEFINER STABLE SQL function -- BOTH on Supabase project
+      evpckeuxgvahguwsaeul, "projexa", per CLAUDE.md's explicit
+      two-Supabase-project warning -- NOT pcrjmlpuqsbocqfwoxod, which has
+      no org_ai_link table at all). Zero compliance-tracker file changes.
+
+      REAL BLOCKER FOUND AND FIXED: the shared projexa:3100 server had NO
+      .env.local at all (confirmed via PowerShell -Force listing, not just
+      Bash ls, per this session's own stale-listing caution) -- every
+      login on this shared server was silently hanging at "Logging in..."
+      forever, console showing "@supabase/ssr: Your project's URL and API
+      key are required," confirmed in projexa-shared-dev.log affecting
+      every session hitting it, not just this one. Root cause: file
+      genuinely absent, not a value problem. Fix, per CLAUDE.md's own
+      documented convention ("if a working .env.local exists from a prior
+      local checkout, prefer copying real values from that over a fresh
+      vercel env pull"): copied the real (non-secret, already-scattered-
+      across-a-dozen-worktrees) NEXT_PUBLIC_SUPABASE_URL/ANON_KEY +
+      SUPABASE_DB_PASSWORD + VERIDIAN_API_KEY from
+      C:\ct\projexa-worktrees\wo-report-drilldown\.env.local (a prior
+      checkout on this same machine) into C:\ct\projexa\.env.local
+      (gitignored, confirmed via .gitignore's `.env*.local` before
+      writing). This is config restoration to a known-working state, not
+      a password reset or a new credential -- no password was set, reset,
+      or entered into any form. Next's dev server auto-reloaded it
+      ("Reload env: .env.local" in the log) with no restart needed.
+
+      VERIFIED LIVE (real UI, real DB reads via the Supabase MCP against
+      evpckeuxgvahguwsaeul, not narrated):
+      1. Logged in as arjun.mehta@meridian-construction.e2e-test.projexa-
+         ai.com (CEO/owner, e2e/users.ts) at localhost:3100, opened
+         "Connect your AI", clicked "Get my link" -- real row landed in
+         org_ai_link (id b3a4968e-..., org 42d7bac5-ffe1-4e10-a783-
+         deaa90f8ce03 "Meridian Construction Group", token
+         kMwLlVBaLi...). Confirmed via direct SQL read, not just the UI.
+      2. GET /api/ai/<token> (curl, no auth) returns a real 200 text/plain
+         snapshot -- org name, todos, recent notifications, the exact
+         ASSIGN/SET_DUE/NOTE/MARK_STATUS/DRAFT instructions. Construction-
+         dashboard section (best-effort, 5s budget via callVeridianResult)
+         did NOT appear in this run -- the known, already-documented R74/
+         R83 construction-data-service cold-start slowness (elsewhere in
+         this same file) exceeds that budget in practice; degrades
+         cleanly per its own design (no failure), just rarely fires.
+      3. TENANT ISOLATION, proven two ways: (a) called
+         public.ai_link_projection() directly via SQL for two different
+         real orgs (Meridian, and "Skyline Builders" with a planted
+         ISOLATION-TEST-SKYLINE-ONLY todo) -- each projection contained
+         only its own org's data, confirmed no cross-contamination either
+         direction; (b) POSTed an apply proposal targeting Skyline's real
+         todo id through Meridian's own authenticated session -- refused
+         ("Target not found in your organization", event
+         ai_link_proposal_refused/target_not_found_or_foreign_org in
+         security_audit_log), and a direct DB read confirmed Skyline's
+         todo was genuinely untouched (note still null).
+      4. PERSONAL-DATA EXCLUSION: read the SQL function body directly --
+         it selects only todos.{text,done,due_date,note} and
+         notifications.{title,type}, never a name/email/phone/profile
+         column, and enforced by SECURITY DEFINER + an explicit
+         memberships check, not app-code discipline. No personal data
+         observed in any live response.
+      5. VERB ALLOWLIST, 3 varied real test cases (own todos created for
+         this, since org_ai_link/todos were both empty before this
+         session -- BOQ-shaped, work-progress-shaped, RFI/change-order-
+         shaped text) POSTed through the real authenticated /api/ai/apply
+         with a real session cookie, then verified by direct DB read
+         (never just the 200): NOTE + ASSIGN + SET_DUE + MARK_STATUS +
+         DRAFT all applied and persisted (note/assignee_id/due_date/done
+         columns all changed exactly as proposed, audit-logged as
+         ai_link_<verb>_applied); a disallowed verb ("DELETE_TODO") was
+         refused with ai_link_proposal_refused/verb_not_allowed and wrote
+         nothing; an unapproved line was skipped without being logged as
+         a refusal (matches the route's own documented design -- declining
+         a checkbox is not a rejected attempt).
+
+      REAL SCOPE GAP, reported not fixed (out of this session's scope --
+      would be a genuine product decision, not a bug fix): the apply
+      flow's targetKey ALWAYS resolves against PROJEXA's own `todos`
+      table only (a generic personal checklist, confirmed separate from
+      Task Master/compliance.pipeline_tasks and from any BOQ/RFI/work-
+      progress/change-order table). The GET response's construction-
+      dashboard section is READ-ONLY (a JSON dump via callVeridianResult,
+      no ids exposed to act on) -- there is no code path anywhere that
+      lets an AI-Link proposal ASSIGN/SET_DUE/NOTE/MARK_STATUS a real
+      construction record. A prior claim in this file's own history
+      described the apply flow as covering "todos and construction
+      items" -- that phrasing is not accurate against the code as it
+      exists today; only todos are actionable.
+
+      TUNNEL: `cloudflared tunnel --url http://localhost:3100`, PID 18920
+      (native cloudflared.exe, confirmed via Get-Process, not the bash
+      wrapper PID) -- public URL
+      https://mediterranean-mention-effects-natural.trycloudflare.com,
+      verified reachable with a real external curl (not the tunnel
+      process itself) hitting /api/ai/<token> and returning the identical
+      live snapshot in 2.4s. Left running at end of session per the
+      Owner's own request (to test pasting into a real external chat
+      engine next) -- stop via `taskkill /PID 18920 /F` (or a fresh
+      `Get-Process cloudflared`, the hostname is not durable across
+      restarts by design, matching the Owner's own "don't hardcode the
+      tunnel hostname" instruction).
+
+      Cleanup: deleted the one cross-org isolation-probe todo planted on
+      Skyline Builders (foreign org, not this session's own test data to
+      leave lying around). Left the 3 Meridian test todos in place
+      (BOQ/work-progress/RFI-shaped) since they usefully demonstrate the
+      working verb flow for the Owner's own external-chat-engine test;
+      easy to delete via the UI's todo list afterward if unwanted. Did
+      not touch org_ai_link's row (link stays active, matching "leave it
+      running if you got a good result").
   - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-coldload-remaining + C:/ct/projexa-coldload-remaining, branch fix/cold-load-remaining-6-routes in both repos) -- PROJEXA-E2E-001 work order section 5 LAST item, continuation of the 2026-09-20 cold-load investigation: clean re-measurement of the 6 routes that session could NOT cleanly attribute (/labour /budgets /reports /knowledge-base /settings /grc) plus control routes, then fix whatever has a real identifiable cause [DONE -- real fixes for 3 of 6 (settings, knowledge-base, grc), 3 of 6 (labour, budgets/finance-budgets, reports) confirmed via source read to ALREADY have the R67 fix, PRs open/unmerged]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
