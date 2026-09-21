@@ -69,7 +69,7 @@ const FAQ: [string, string][] = [
   ["What happens if you disappear?", "Your whole record exports in open formats with the fingerprints intact, and verifies without us. That is the point of building it this way."],
 ]
 
-function EmailCapture({ align = "center" }: { align?: "center" | "left" }) {
+function EmailCapture({ align = "center", edition }: { align?: "center" | "left"; edition?: DpdpEdition }) {
   const [email, setEmail] = useState("")
   const [sent, setSent] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -80,6 +80,16 @@ function EmailCapture({ align = "center" }: { align?: "center" | "left" }) {
     setBusy(true)
     setError(null)
     try {
+      // WO-DPDP-010 §6: which edition (firm vs institution) the signup came
+      // through -- read by the onboarding page to pre-select the product,
+      // since a magic link is a full round trip through the visitor's
+      // inbox and can't carry React state or a query param on its own.
+      // Real, known limitation: if the link is opened in a different
+      // browser/device than the one that requested it, this cookie won't
+      // be there -- onboarding's own product selector still lets the
+      // owner choose/correct it either way, so nothing is silently wrong,
+      // just not pre-filled.
+      if (edition) document.cookie = `dpdp_edition=${edition}; path=/; max-age=3600; SameSite=Lax`
       await dpdpFetch("/api/dpdp/auth/request-link", { method: "POST", body: JSON.stringify({ email }) })
       setSent(true)
     } catch (err) {
@@ -132,7 +142,7 @@ const OUTSIDE_ROWS: [string, string, string][] = [
   ["adv", "📊 CA, CS, legal or audit firms", "they hold your PAN, financials and staff records too"],
 ]
 
-function Calculator() {
+function Calculator({ edition }: { edition?: DpdpEdition }) {
   const [v, setV] = useState({ emp: 120, cust: 4800, app: 600, vis: 300, other: 0, vend: 6, vstaff: 3, adv: 2 })
   const own = v.emp + v.cust + v.app + v.vis + v.other
   const out = v.vend * v.vstaff + v.adv * 2
@@ -215,7 +225,7 @@ function Calculator() {
         <div className="mb-2 text-center text-sm font-semibold">
           See your own numbers on a real data map — free, in fifteen minutes
         </div>
-        <EmailCapture />
+        <EmailCapture edition={edition} />
         <p className="mt-2 text-center text-[11px] text-[#8E86AD]">
           🎟️ No card · 🔑 no password, ever · 🏠 stored in India · 📧 Gmail is fine
           <br />
@@ -226,7 +236,28 @@ function Calculator() {
   )
 }
 
-export function DpdpMarketingPage() {
+export type DpdpEdition = "firm" | "institution"
+
+// WO-DPDP-010 §6: edition-specific copy, kept to the minimum that
+// genuinely differs (the WO's own "Naming" rule -- e.g. "Part", never
+// "Step" -- applies to the product itself, not this pitch page). Existing
+// FEATURES/WE_DO/WE_DONT/SEGMENTS/FAQ copy above is real, carefully-written
+// content per this file's own header comment and stays shared/verbatim.
+const EDITION_COPY: Record<DpdpEdition, { badge: string; heroLine: string; forWhom: string }> = {
+  firm: {
+    badge: "an independent, third-party DPDP compliance record",
+    heroLine: "not just your DPDP policy.",
+    forWhom: "Built for a company, NGO, trading firm or a CA/CS/audit practice's own file.",
+  },
+  institution: {
+    badge: "an independent, third-party DPDP compliance record for schools",
+    heroLine: "not just a policy nobody reads.",
+    forWhom: "Built for a school handling students', parents' and staff's data — most of it belonging to minors.",
+  },
+}
+
+export function DpdpMarketingPage({ edition = "firm" }: { edition?: DpdpEdition } = {}) {
+  const copy = EDITION_COPY[edition]
   return (
     <div className="min-h-screen bg-[#FCFBFF] text-[#1F1B3A]">
       {/* nav */}
@@ -254,17 +285,17 @@ export function DpdpMarketingPage() {
       {/* hero + calculator */}
       <section id="calculator" className="px-5 pb-8 pt-9 text-center">
         <div className="mx-auto mb-4 inline-block rounded-full border border-[#E6E2F5] bg-white px-4 py-1.5 text-xs font-semibold text-[#564D77]">
-          ✦ VERIDIAN &nbsp;·&nbsp; <b>VERy INDIAN</b> &nbsp;·&nbsp; an independent, third-party DPDP compliance record
+          ✦ VERIDIAN &nbsp;·&nbsp; <b>VERy INDIAN</b> &nbsp;·&nbsp; {copy.badge}
         </div>
         <h1 className="font-heading text-4xl font-extrabold leading-tight sm:text-5xl">
           Your DPDP proof —
           <br />
           <span className="bg-gradient-to-r from-[#6D28D9] to-[#DB2777] bg-clip-text text-transparent">
-            not just your DPDP policy.
+            {copy.heroLine}
           </span>
         </h1>
-        <div className="mt-3 text-base text-[#564D77]">People move on. The proof stays.</div>
-        <Calculator />
+        <div className="mt-3 text-base text-[#564D77]">{copy.forWhom}</div>
+        <Calculator edition={edition} />
       </section>
 
       {/* penalty schedule band */}
@@ -360,7 +391,7 @@ export function DpdpMarketingPage() {
           <h2 className="text-2xl font-bold sm:text-3xl">Start with what you hold</h2>
           <p className="mt-2 text-sm text-[#564D77]">One email. No card. Fifteen minutes.</p>
           <div className="mx-auto mt-4 max-w-[430px]">
-            <EmailCapture />
+            <EmailCapture edition={edition} />
           </div>
         </section>
       </div>

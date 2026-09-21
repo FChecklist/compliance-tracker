@@ -479,8 +479,16 @@ describe("authz-gap inventory (R75 Phase 2 drift guard)", () => {
     // -- dpdp/task-link/[token]/route.ts's POST (GET used to answer the task
     // directly; now GET only previews, POST answers). TOKEN_SCOPED, same
     // shape as the p/[token]/* consent routes above.
-    expect(mutating.length).toBe(887) // +35 WO-DPDP-001 dpdp/* mutating routes, +7 WO-DPDP-002/003/004 dpdp/* mutating routes, +2 Sumeet #2 milestones routes, +2 Sumeet #3 billing-claims routes, +1 WO-DPDP-005/007 task-link/[token]
-    expect(protectedCount).toBe(642) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH; +1 R85A3 P6 cost-visibility config PATCH; +2 R85A3 P7 Excel round-trip diff/apply POSTs; +4 R85 A3v4 Phase 10 boq-scenarios routes; +2 Sumeet #2 milestones routes; +2 Sumeet #3 billing-claims routes
+    //
+    // PROJEXA-E2E-001 / WO-PROJEXA-AI-LINK-001 follow-up (2026-09-21): +1
+    // mutating route file -- v1/projexa/tasks/[id]/route.ts gained a PATCH
+    // (the GET already there is not a mutating verb and was never counted).
+    // Grep-visible PROTECTED, not exempted and not a known gap: it calls
+    // requireAuthOrApiKey() then requireRoleOrScope(ctx, "member", "write"),
+    // the same floor its own sibling POST on v1/projexa/tasks/route.ts
+    // already uses.
+    expect(mutating.length).toBe(888) // +35 WO-DPDP-001 dpdp/* mutating routes, +7 WO-DPDP-002/003/004 dpdp/* mutating routes, +2 Sumeet #2 milestones routes, +2 Sumeet #3 billing-claims routes, +1 WO-DPDP-005/007 task-link/[token], +1 AI-link follow-up tasks/[id] PATCH
+    expect(protectedCount).toBe(643) // +12 R75P2P5-G7 (FINAL) real requireRole() gates -- closes the entire authz-gap sweep, 0 KNOWN_OPEN_GAPS remain; +1 R80 BOQ header PATCH; +1 R85A3 P6 cost-visibility config PATCH; +2 R85A3 P7 Excel round-trip diff/apply POSTs; +4 R85 A3v4 Phase 10 boq-scenarios routes; +2 Sumeet #2 milestones routes; +2 Sumeet #3 billing-claims routes; +1 AI-link follow-up tasks/[id] PATCH
     expect(EXEMPT_ROUTES.length).toBe(245) // +7 R75P2P5-G2 CRM service-layer gates // +2 R75P2P5-G8 training/enrollments ownership-check fixes not visible to the requireRole() grep // +1 R-C17 resend-inbound webhook (Svix-signature-gated, INTERNAL_SECRET) // +35 WO-DPDP-001 dpdp/* routes (29 SERVICE_LAYER_GATED, 4 TOKEN_SCOPED, 2 PUBLIC_BY_DESIGN) // +7 WO-DPDP-002/003/004 dpdp/* routes (all SERVICE_LAYER_GATED) // +1 WO-DPDP-005/007 task-link/[token] (TOKEN_SCOPED)
     expect(KNOWN_OPEN_GAPS.length).toBe(0)
     expect(protectedCount + EXEMPT_ROUTES.length + KNOWN_OPEN_GAPS.length).toBe(mutating.length)

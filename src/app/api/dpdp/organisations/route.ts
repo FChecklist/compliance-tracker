@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireDpdpIdentity } from "@/lib/services/dpdp-session"
 import { createDpdpOrganisation, listOrganisationsForIdentity } from "@/lib/services/dpdp-organisation-service"
 import { instantiateObligationsForOrg } from "@/lib/services/dpdp-obligation-service"
-import { ensureDraftObligationLibrarySeeded } from "@/lib/services/dpdp-obligation-library"
 import { switchDpdpActiveOrg } from "@/lib/services/dpdp-auth-service"
 import { dpdpErrorResponse } from "@/lib/services/dpdp-route-helpers"
 import { recordReferralAttempt } from "@/lib/services/dpdp-referral-service"
@@ -16,9 +15,17 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const org = await createDpdpOrganisation({ identityId: result.ctx.identityId, name: body?.name ?? "", sector: body?.sector, extraCapabilities: body?.extraCapabilities })
+    // WO-DPDP-010: which library subset (firm's 31 jobs vs institution's 28)
+    // -- set by the /dpdp-firm or /dpdp-institution edition the signup came
+    // through; any other value collapses to 'firm', the pre-WO-010 default.
+    const product = body?.product === "institution" ? "institution" : "firm"
+    const org = await createDpdpOrganisation({ identityId: result.ctx.identityId, name: body?.name ?? "", sector: body?.sector, product, extraCapabilities: body?.extraCapabilities })
 
-    await ensureDraftObligationLibrarySeeded()
+    // ensureDraftObligationLibrarySeeded() (dpdp-obligation-library.ts) is no
+    // longer called here -- it seeded the now-superseded 10-item 0.1-draft
+    // library. dpdp.library_version.is_current now points at 0.2-wo010 (the
+    // real 59-job library, seeded as data by drizzle/0602), which
+    // instantiateObligationsForOrg already reads via getCurrentLibraryVersion().
     await instantiateObligationsForOrg(org.id, result.ctx.identityId)
 
     // The session that created this org now switches onto it in place --

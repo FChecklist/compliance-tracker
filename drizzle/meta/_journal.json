@@ -3011,6 +3011,27 @@
       "when": 1789755005432,
       "tag": "0431_rls_vendor_disputes_customer_complaints",
       "breakpoints": true
+    },
+    {
+      "idx": 432,
+      "version": "7",
+      "when": 1789998110669,
+      "tag": "0601_dpdp_wo010_one_page_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 433,
+      "version": "7",
+      "when": 1789998110670,
+      "tag": "0602_dpdp_wo010_library_seed",
+      "breakpoints": true
+    },
+    {
+      "idx": 434,
+      "version": "7",
+      "when": 1789998716667,
+      "tag": "0603_dpdp_wo010_organisation_product",
+      "breakpoints": true
     }
   ]
 }

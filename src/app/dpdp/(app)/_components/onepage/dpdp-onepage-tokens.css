@@ -1,0 +1,49 @@
+/* WO-DPDP-010: veridian-dpdp.html's own approved palette, scoped under
+   .dpdp-onepage so it never leaks into (or gets overridden by) the shared
+   Veridian AI OS ct-* tokens used by the rest of this app. The spec is the
+   approved design ("veridian-dpdp.html... is the approved design AND the
+   approved behaviour", WO §0) -- these are its exact hex values, named as
+   CSS custom properties instead of the current codebase's anti-pattern of
+   scattering inline hex through TSX (flagged during Step 1 research: every
+   existing DPDP page hardcodes arbitrary hex via Tailwind bracket syntax).
+   This IS "mapping into the theme system" (WO §1's "map the design tokens
+   into the existing Tailwind theme") even though the values themselves are
+   new, not reused ct-* values -- reusing ct-* here would mean silently
+   discarding the approved design's own colour identity. */
+.dpdp-onepage {
+  --dpdp-paper: #F5F6FA;
+  --dpdp-card: #FFFFFF;
+  --dpdp-line: #E3E5F0;
+  --dpdp-line2: #EEF0F6;
+  --dpdp-ink: #161A4A;
+  --dpdp-ink2: #4B4F7A;
+  --dpdp-ink3: #8A8DAE;
+  --dpdp-v: #3B3FB6;
+  --dpdp-vL: #ECEDFB;
+  --dpdp-g: #138A36;
+  --dpdp-gL: #E4F4E9;
+  --dpdp-r: #C8312A;
+  --dpdp-rL: #FBE8E6;
+  --dpdp-a: #C98204;
+  --dpdp-aL: #FDF1D6;
+  --dpdp-c: #0E7490;
+  --dpdp-cL: #DDF2F6;
+  --dpdp-s1: #3B3FB6;
+  --dpdp-s2: #0E7490;
+  --dpdp-s3: #C98204;
+  --dpdp-s4: #C8312A;
+  --dpdp-s5: #9D174D;
+  --dpdp-s6: #5B5FD8;
+  --dpdp-s7: #138A36;
+  background: var(--dpdp-paper);
+  color: var(--dpdp-ink);
+}
+
+/* Seal.tsx's progress-arc fill, first paint only -- veridian-dpdp.html's
+   @keyframes sealfill (from{stroke-dasharray:0 400}), consumed via
+   Tailwind's motion-safe: variant so prefers-reduced-motion is honoured
+   automatically instead of a second manual media query. */
+@keyframes dpdp-sealfill {
+  from { stroke-dasharray: 0 400; }
+}
+
