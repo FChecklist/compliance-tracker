@@ -37,7 +37,20 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
 
     const obligationById = new Map(obligations.map((o) => [o.id, o]))
 
-    const rows: ObligationRow[] = obligations.map((o) => {
+    // WO-DPDP-010: stable order matching the library's own intended
+    // sequence (template.key, e.g. "firm-01".."firm-31") -- the query
+    // itself has no ORDER BY, so without this the row order (and therefore
+    // the visible "#" numbering) can silently shift between renders/reloads
+    // whenever Postgres's own unordered result order changes, e.g. after an
+    // UPDATE. Found live while testing the Mark Yes action: the row being
+    // watched moved from position 1 to a different position mid-test.
+    const sortedObligations = [...obligations].sort((a, b) => {
+      const ka = templateById.get(a.templateId)?.key ?? ""
+      const kb = templateById.get(b.templateId)?.key ?? ""
+      return ka.localeCompare(kb)
+    })
+
+    const rows: ObligationRow[] = sortedObligations.map((o) => {
       const t = templateById.get(o.templateId)
       const isGroup = !!o.assignedStaffGroupId
       const by = isGroup
