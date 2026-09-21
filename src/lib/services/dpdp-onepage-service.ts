@@ -74,3 +74,35 @@ export async function listOnePageHistory(orgId: string, limit = 15) {
     tx.query.dpdpEvent.findMany({ where: eq(dpdpEvent.orgId, orgId), orderBy: desc(dpdpEvent.occurredAt), limit })
   )
 }
+
+/**
+ * WO-DPDP-010's "DPDP policy" section -- every version, no file bytes (WO
+ * §1's own "no document storage" rule; dpdp.artefact already enforces this
+ * at the DB grant level, see dpdp-artefact-service.ts's header). Finds the
+ * org's "Publish a privacy policy on the website" obligation (firm product
+ * only -- the institution library has no equivalent job, matching the
+ * spec's own "most schools don't have one, that's fine" framing) and
+ * returns its artefact history, oldest first so "current" is simply the
+ * last element.
+ */
+export async function getPolicyArtefacts(orgId: string) {
+  return withDpdpContext({ orgId }, async (tx) => {
+    // Find the specific "privacy policy" obligation by its template's key
+    // (firm-15) -- a plain filter since Drizzle's relational `with` can't
+    // join through obligation_template's business key in one query here.
+    const all = await tx.query.dpdpObligation.findMany({ where: eq(dpdpObligation.orgId, orgId) })
+    const templateIds = [...new Set(all.map((o) => o.templateId))]
+    const templates = templateIds.length ? await tx.query.dpdpObligationTemplate.findMany({ where: inArray(dpdpObligationTemplate.id, templateIds) }) : []
+    const policyTemplate = templates.find((t) => t.key === "firm-15")
+    const policyObligation = policyTemplate ? all.find((o) => o.templateId === policyTemplate.id) : undefined
+    if (!policyObligation) return { obligationId: null as string | null, versions: [] as Array<{ id: string; filename: string; uploadedAt: Date; uploadedBy: string; sha256: string; current: boolean }> }
+
+    const { dpdpArtefact } = await import("@/lib/db")
+    const artefacts = await tx.query.dpdpArtefact.findMany({ where: eq(dpdpArtefact.obligationId, policyObligation.id) })
+    const sorted = [...artefacts].sort((a, b) => (a.tUploaded?.getTime() ?? 0) - (b.tUploaded?.getTime() ?? 0))
+    return {
+      obligationId: policyObligation.id as string | null,
+      versions: sorted.map((a, i) => ({ id: a.id, filename: a.filename, uploadedAt: a.tUploaded ?? new Date(0), uploadedBy: a.uploadedBy ?? "unknown", sha256: a.sha256 ?? "", current: i === sorted.length - 1 })),
+    }
+  })
+}

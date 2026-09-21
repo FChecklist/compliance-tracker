@@ -1,7 +1,8 @@
 import { getDpdpAuthContext } from "@/lib/services/dpdp-session"
-import { getOnePageData, listOnePageHistory } from "@/lib/services/dpdp-onepage-service"
+import { getOnePageData, getPolicyArtefacts, listOnePageHistory } from "@/lib/services/dpdp-onepage-service"
 import { OnePageView } from "../_components/onepage/OnePageView"
 import { Timeline } from "../_components/onepage/Timeline"
+import { PolicySection } from "../_components/onepage/PolicySection"
 import { markOnePageJobDone } from "./actions"
 import type { ViewerContext } from "@/lib/dpdp-onepage/view-model"
 
@@ -22,10 +23,11 @@ export default async function DpdpHomePage() {
     return <OnePageView orgName={org.name} rows={rows} viewer={viewer} onMarkYes={markOnePageJobDone} />
   }
 
-  const history = await listOnePageHistory(ctx.orgId)
+  const [history, policy] = await Promise.all([listOnePageHistory(ctx.orgId), getPolicyArtefacts(ctx.orgId)])
   return (
     <>
       <OnePageView orgName={org.name} rows={rows} viewer={viewer} onMarkYes={markOnePageJobDone} />
+      {org.product === "firm" && <PolicySection versions={policy.versions} />}
       <div className="dpdp-onepage">
         <div className="max-w-[1240px] mx-auto px-5 pb-14">
           <div className="mb-3" style={{ fontFamily: "Sora, sans-serif", fontSize: 20, fontWeight: 700, color: "var(--dpdp-ink)" }}>🕘 History</div>
