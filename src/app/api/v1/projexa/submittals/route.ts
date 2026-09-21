@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveWriteActorId } from "@/lib/supabase/auth-guard"
 import { listSubmittals, createSubmittal, ServiceError } from "@/lib/services/construction-field-workflow-service"
 
 export async function GET(request: NextRequest) {
@@ -27,11 +27,16 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  // PROJEXA-E2E-001 actor-misattribution sweep: see submittals/[id]/route.ts's
+  // identical comment and resolveWriteActorId's own header in auth-guard.ts --
+  // submittedById feeds reviewSubmittal()'s isSelfApproval() check, so a
+  // misattributed creator id here defeats that self-approval gate.
+  const acting = await resolveWriteActorId(request, ctx)
+  if (acting.error) return acting.error
 
   try {
     const body = await request.json()
-    const submittal = await createSubmittal({ orgId: ctx.orgId, userId: actorId }, body)
+    const submittal = await createSubmittal({ orgId: ctx.orgId, userId: acting.actorId }, body)
     return NextResponse.json(submittal, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
