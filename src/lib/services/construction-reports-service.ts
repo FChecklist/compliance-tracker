@@ -2488,10 +2488,21 @@ export async function categoryProgressReportWithDb(db: TenantDb, ctx: { orgId: s
 }
 
 // 17. Project Completion Report -- overall completion % (reuses the dashboard figure) + category breakdown.
+//
+// PROJEXA-E2E-001 work order section 4 (2026-09-21): `boqId` is additive.
+// categoryProgressReport() already resolves the latest non-superseded BOQ to
+// attribute amounts by category (see categoryProgressReportWithDb above) and
+// already returns it on ITS OWN payload -- this report simply forwarded
+// `.categories` and silently dropped the id it had already computed. Adding
+// it costs no new query: it lets PROJEXA's ReportOutput drill-down link each
+// category row back to the BOQ that produced its amount (the same
+// `/scope/{boqId}` destination category-progress's own report already
+// wires), same as that sibling report. Every existing caller reads only
+// `overallPercentComplete`/`byCategory` and is unaffected by the extra key.
 export async function projectCompletionReport(ctx: { orgId: string }, projectId: string) {
   await ensureConstructionEnabled(ctx.orgId)
   const [dashboard, categoryBreakdown] = await Promise.all([getProjectDashboard(ctx, projectId), categoryProgressReport(ctx, projectId)])
-  return { overallPercentComplete: dashboard.progressPercent, byCategory: categoryBreakdown.categories }
+  return { overallPercentComplete: dashboard.progressPercent, byCategory: categoryBreakdown.categories, boqId: categoryBreakdown.boqId }
 }
 
 /**
@@ -2510,7 +2521,7 @@ export async function projectCompletionReportWithDb(db: TenantDb, ctx: { orgId: 
   ])
   const dashboard = dashboards[0]
   if (!dashboard) throw new ServiceError("Project not found", 404)
-  return { overallPercentComplete: dashboard.progressPercent, byCategory: categoryBreakdown.categories }
+  return { overallPercentComplete: dashboard.progressPercent, byCategory: categoryBreakdown.categories, boqId: categoryBreakdown.boqId }
 }
 
 // 18. Category BOQ Amounts Report -- BOQ line-item `amount` totaled per

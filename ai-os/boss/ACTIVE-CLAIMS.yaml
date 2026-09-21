@@ -40,32 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-r50-dashboard-fix + C:/ct/projexa-r50-dashboard-fix, branch fix/r50-dashboard-cost-visibility in both repos) -- PROJEXA-E2E-001 / platform.sumeet_requirements R-50 REOPENED gap: Project Dashboard (GET /api/dashboard/project/[id] in projexa -> VERIDIAN /api/v1/projexa/dashboard/[projectId] and the sibling org-level /api/v1/projexa/dashboard) leaks budget/revenue/expenses to client_viewer with zero redaction [DONE -- real fix in both repos, live-verified against karan.malhotra (client_viewer, redacted) and arjun.mehta (admin, still sees real figures), PRs FChecklist/compliance-tracker#1769 + FChecklist/projexa#309, open/unmerged]"
-    claimed_at: "2026-09-20T (this session)"
-    claim: |
-      Root cause found: src/app/api/v1/projexa/dashboard/[projectId]/route.ts
-      and src/app/api/v1/projexa/dashboard/route.ts both gate financial
-      redaction on `ctx.dbUser && !hasRole(ctx.dbUser, "manager")` -- but
-      PROJEXA authenticates every call with a single shared per-org API key
-      (ctx.apiKey), so ctx.dbUser is ALWAYS null for a PROJEXA-proxied
-      request and this condition never fires, for ANY role including
-      client_viewer. This is the exact same class of bug
-      v1/construction/boq/[id]/route.ts's resolveRoleForCostVisibility
-      already fixed for the BOQ dual-view read path (D-05 identity bridge:
-      resolveActingUser() + X-Acting-User/X-Acting-User-Email headers) --
-      applying the SAME real mechanism here, not a new/weaker one.
-
-      File scope (compliance-tracker): src/app/api/v1/projexa/dashboard/
-      [projectId]/route.ts, src/app/api/v1/projexa/dashboard/route.ts (+
-      their route.test.ts siblings). File scope (projexa): src/app/api/
-      dashboard/project/[projectId]/route.ts (forward actingUserId/
-      actingUserEmail, mirroring src/app/api/scope/[id]/route.ts's existing
-      pattern). NOT touching construction-dashboard-service.ts itself
-      (getOrgDashboard/getProjectDashboard(s) already compute the right
-      figures; this is a visibility-gate bug, not a data bug), boq/route.ts,
-      boq/[id]/route.ts, boq/[id]/compare/route.ts, or cost-visibility-
-      service.ts (a separate, already-correct gate for BOQ project-side
-      fields, not the dashboard's budget/revenue/expenses fields).
   - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-worktrees/wo-exceptions-fix + C:/ct/projexa-worktrees/wo-exceptions-fix, branch wo/exceptions-item24-and-navigation + wo/exceptions-drilldown-navigation) -- PROJEXA-E2E-001: direct fix (not deferred) for the 2 real bugs found by the R-92..R-100/31-vs-28 exceptions reconciliation session (2026-09-20/21) -- Bug 1: construction-exceptions-service.ts getProjectExceptions() 29-vs-28 array-length bug (item #24 push()'d twice under the same number); Bug 2: ExceptionsClient.tsx had zero drill-down navigation from a flagged exception to the real record it names [DONE -- both fixed, unit/component tests green locally, PRs open/unmerged pending real CI e2e verification]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
@@ -3871,6 +3845,58 @@ active:
       code changes expected (only compliance-tracker's own
       construction-boq-service.ts / CI workflow if a real fix is needed).
 
+  - session_label: "claude-code (interactive, isolated worktree TBD under C:/ct/, branch TBD) -- PROJEXA-E2E-001 work order section 4: generic report drill-down gap. Prior sweep (merged PR #306) found real drill-down exists on only 2 of ~22 REPORT_REGISTRY reports (BudgetActualClient/BudgetAnalyticalClient -> /scope/{boqId}); ReportOutput.tsx (generic renderer, ~16-18 reports) and ProjectStatusCard.tsx have zero Link/href. Building real drill-down for ReportOutput.tsx's generic rendering path + ProjectStatusCard.tsx's key figures, wherever the backend payload carries a linkable id; noting (not fabricating) backend gaps where it doesn't."
+    claimed_at: "2026-09-21T (this session)"
+    claim: |
+      Scope: FChecklist/projexa repo only -- src/components/reports/ReportOutput.tsx,
+      src/components/reports/ProjectStatusCard.tsx, and any REPORT_REGISTRY-adjacent
+      report client components that need a linkable id threaded through. Reading (not
+      necessarily changing) compliance-tracker's construction-reports-service.ts /
+      REPORT_REGISTRY to see what ids each report's payload already carries. No merge
+      to main; isolated worktree; GitHub CI + live Supabase pcrjmlpuqsbocqfwoxod only,
+      never Vercel; e2e/users.ts test accounts only, no real credentials touched.
+      Not claiming any other PROJEXA-E2E-001 sub-task area.
+
+  - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-coldload-remaining + C:/ct/projexa-coldload-remaining, branch fix/cold-load-remaining-6-routes in both repos) -- PROJEXA-E2E-001 work order section 5 LAST item, continuation of the 2026-09-20 cold-load investigation (see the recently_completed entry with session_label containing 'fix/cold-load-investigation'): clean re-measurement of the 6 routes that session could NOT cleanly attribute (/labour /budgets /reports /knowledge-base /settings /grc) plus 1-2 control routes, then fix whatever has a real identifiable cause."
+    claimed_at: "2026-09-21T (this session)"
+    claim: |
+      Reusing the SHARED dev servers (compliance-tracker :3000, projexa
+      :3100 -- both just refreshed with current merged code per this
+      session's own instructions), not starting new ones. RAM checked
+      before starting: 0.3-0.45GB free of 7.82GB, i.e. WORSE than the
+      ~0.9GB this session was told to expect and comparably bad to the
+      prior session's 0.2-0.5GB -- noting this honestly up front per the
+      task's own instruction to report degraded conditions rather than
+      push through noisy data; will re-check periodically and report
+      actual numbers either way rather than force a conclusion.
+
+      NOTE: this session's own ACTIVE-CLAIMS.yaml edit process briefly and
+      accidentally discarded the drill-down-gap claim entry directly above
+      (a `git checkout --` run against this SHARED, non-worktree checkout
+      to back out an edit made in the wrong location, not realizing another
+      concurrent session had an uncommitted claim sitting in this same
+      shared file) -- caught immediately by re-diffing before any push,
+      and restored verbatim from this session's own prior tool-read output
+      before adding this entry. Recorded here per this file's own honesty
+      norm rather than silently fixed. Lesson applied for the rest of this
+      session: never run a discarding git command against the shared
+      C:/ct/ct or C:/ct/projexa checkouts, only against this session's own
+      isolated worktrees.
+
+      File scope, pending actual root-cause findings (updating once
+      confirmed): likely compliance-tracker src/app/(app)/{labour,budgets,
+      reports,knowledge-base,settings,grc}/page.tsx-equivalent data-fetch
+      paths and/or projexa src/app/(app)/{labour,budgets,reports,
+      knowledge-base,settings,grc}/page.tsx + matching *Client.tsx,
+      src/lib/module-list-source.ts (same pattern already used for
+      meetings/mood-boards). NOT touching /meetings or /mood-boards
+      (already fixed and merged) or any other PROJEXA-E2E-001 sub-task
+      area (dashboard redaction, exceptions drill-down, BOQ unit fix,
+      report drill-down gap above -- all separate active/recently-completed
+      claims). No merge to main; GitHub CI + live Supabase
+      pcrjmlpuqsbocqfwoxod only, never Vercel; e2e/users.ts test accounts
+      only (arjun.mehta CEO account), no real credentials touched.
+
 recently_completed:
   - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-coldload-remaining + C:/ct/projexa-coldload-remaining, branch fix/cold-load-remaining-6-routes in both repos) -- PROJEXA-E2E-001 work order section 5 LAST item, continuation of the 2026-09-20 cold-load investigation: clean re-measurement of the 6 routes that session could NOT cleanly attribute (/labour /budgets /reports /knowledge-base /settings /grc) plus control routes, then fix whatever has a real identifiable cause [DONE -- real fixes for 3 of 6 (settings, knowledge-base, grc), 3 of 6 (labour, budgets/finance-budgets, reports) confirmed via source read to ALREADY have the R67 fix, PRs open/unmerged]"
     claimed_at: "2026-09-21T (this session)"
@@ -3977,6 +4003,105 @@ recently_completed:
       pcrjmlpuqsbocqfwoxod only, never Vercel; e2e/users.ts test accounts
       only (arjun.mehta CEO account via a reused Playwright storageState
       cookie, no password touched).
+  - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-r50-dashboard-fix + C:/ct/projexa-r50-dashboard-fix, branches fix/r50-dashboard-cost-visibility) -- PROJEXA-E2E-001 / platform.sumeet_requirements R-50 REOPENED gap: Project Dashboard leaks budget/revenue/expenses to client_viewer via PROJEXA's API key, PLUS the E2E-Env1 CI regression the fix itself caused [DONE, MERGED, CLOSED -- compliance-tracker#1769 + projexa#309 both merged to main, R-50 re-closed in platform.sumeet_requirements with genuine on-main green evidence]"
+    claimed_at: "2026-09-20T (prior session)"
+    completed_at: "2026-09-21T (this session)"
+    claim: |
+      PRIOR SESSION (root cause + initial fix): src/app/api/v1/projexa/
+      dashboard/[projectId]/route.ts and src/app/api/v1/projexa/dashboard/
+      route.ts both gated financial redaction on `ctx.dbUser &&
+      !hasRole(ctx.dbUser, "manager")` -- PROJEXA authenticates every call
+      with a single shared per-org API key (ctx.apiKey), so ctx.dbUser was
+      ALWAYS null for a PROJEXA-proxied request and this condition never
+      fired, for ANY role including client_viewer. Same class of bug
+      v1/construction/boq/[id]/route.ts's resolveRoleForCostVisibility
+      already fixed for the BOQ dual-view read path (D-05 identity bridge:
+      resolveActingUser() + X-Acting-User/X-Acting-User-Email headers) --
+      applied the same real mechanism here. Companion projexa fix forwards
+      actingUserId/actingUserEmail from the real logged-in PROJEXA session.
+      Both PRs opened, left unmerged per this work order's ground rules.
+
+      THIS SESSION (CI-regression follow-up, PROJEXA-E2E-001 work order):
+      PR #1769's own CI run (35529892290) failed "E2E Tests (Env-1,
+      cross-repo)" -- TC-40 in e2e/demo-gate-smoke-env1.spec.ts got `null`
+      instead of the real BOQ total. Checked TC-01/10/11/30/90 in the same
+      spec too: none hit the redacted dashboard routes, and TC-90 is
+      downstream of TC-40 in the same sequential test, so nothing else was
+      silently broken. Root cause (two layers, both confirmed by direct
+      evidence, not assumption):
+      (1) TC-40 authenticates via a real minted Supabase session
+      (democeo@projexa-ai.com) against PROJEXA's own app, which proxies to
+      compliance-tracker with the shared API key -- the companion fix that
+      forwards this caller's identity already existed (projexa PR #309) but
+      was UNMERGED, and ci.yml's e2e-env1 job defaults `projexa_ref` to
+      projexa's `main` on every push/PR run (confirmed in the job's own
+      checkout step: `repository: FChecklist/projexa, ref: main`), so the
+      automatic check could never go green until that companion PR merged --
+      a structural cross-repo-dependency limitation, not a code bug. Live-
+      verified via Supabase MCP (not assumed): democeo@projexa-ai.com
+      resolves to an active, admin-role compliance.users row in the same org
+      that owns the Oakwood demo project.
+      (2) A second, real, PR-#1769-caused regression: dispatching CI with
+      `projexa_ref=fix/r50-dashboard-cost-visibility` (the established
+      workflow_dispatch escape hatch this repo already has for exactly this
+      situation, same one R-B2/R-95 used) surfaced `/api/projects/overview`
+      intermittently 503ing -- PROJEXA's own server log showed `VERIDIAN
+      request timed out after 8000ms` on /api/v1/projexa/dashboard
+      immediately before the 503. resolveActingUser()'s added query tipped
+      an already-marginal cold path (R80/KD-15's own documented margin
+      issue) over PROJEXA's 8s upstream timeout. Fixed by extending the
+      exact same non-masking warm-up-retry pattern already used for
+      /api/projects to /api/projects/overview too (e2e/demo-gate-smoke-
+      env1.spec.ts only, +30 lines, no assertion/timeout relaxed, no app
+      code touched) -- pushed as commit eab0830b on the existing PR branch.
+
+      MID-SESSION COORDINATION: a parallel session/coordinator merged
+      main into this branch (auto-clean, ACTIVE-CLAIMS.yaml only) while
+      this session was mid-flight; verified independently via
+      `git merge-base --is-ancestor` that the fix commit survived, then
+      re-dispatched CI against the new tip rather than trusting the claim
+      blindly. Later, the coordinator reported a DIFFERENT CI run
+      (35536245442) showing the original null-vs-5000 symptom again and
+      asked for it to be checked rather than assumed unrelated -- dug in and
+      confirmed via the job's own checkout log that this was a
+      `pull_request`-triggered run (which always defaults projexa_ref to
+      main, per ci.yml's own documented behaviour), not a defect in the fix
+      -- confirmed further via direct blob-hash comparison (not a flaky
+      `git show` pipe, which gave a false-alarm truncated result the first
+      time) that compliance-tracker's own fix code was genuinely present and
+      correct at that exact commit, and via a direct content diff that
+      projexa's `main` genuinely lacked the header-forwarding code at that
+      point. Both PRs (#1769, #309) were then merged to their respective
+      mains by the coordinator/owner (verified independently: `gh pr view`
+      state=MERGED + `git merge-base --is-ancestor` onto origin/main for
+      both repos, not just trusted).
+
+      FINAL VERIFICATION, on main HEAD itself (not a feature branch): 3
+      independent CI runs since both merges (35536326159 pre-merge against
+      both feature branches directly, 35539074336 and 35539395740 post-
+      merge, the latter the real automatic push-triggered run at merge
+      commit 02fca741) all show compliance-tracker's own Env-1 batch
+      (includes demo-gate-smoke-env1.spec.ts) passing clean -- "4 passed",
+      zero failures, TC-40 holding with real figures. The E2E job's own
+      overall conclusion is still "failure" on the post-merge runs, but from
+      2 unrelated, identically-reproduced-twice failures (sumeet-exceptions-
+      env1.spec.ts + sumeet-project-workspace-env1.spec.ts, both "the real
+      exceptions API... got status 503") plus a pill-chain rendering flake
+      (r80-r81-r82-copilot-pill-chain-env1.spec.ts) -- none touch
+      dashboard/redaction code, confirmed unrelated, flagged as a separate
+      follow-up task (task_ce27db84) rather than folded into this row's
+      evidence or silently ignored.
+
+      platform.sumeet_requirements R-50 updated to closure_state=CLOSED,
+      citing CI run 35539395740, commit 02fca7415d9f133298cb19711057d2b816c8769a
+      (compliance-tracker) + 4b936bdee904cfed8a7bfcc8b1d5e89243ee6a9b (projexa).
+
+      File scope this session: e2e/demo-gate-smoke-env1.spec.ts only in
+      compliance-tracker (the warm-up fix); this file (ACTIVE-CLAIMS.yaml
+      governance close-out, separate small PR since main is protected and
+      the original PR branch is already merged); platform.sumeet_requirements
+      row R-50 (Supabase, via MCP). No application/route code touched this
+      session -- the redaction logic and header names were already correct.
   - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree -- read-only re-confirm verification) -- PROJEXA-E2E-001 Part 1: R-92..R-100 spot-check re-confirm + Part 2: 31-item/28-item exceptions directive reconciliation [DONE -- browser click-through blocked by a real, extended shared-backend outage; substituted code/git/direct-DB verification instead, and found 2 new real bugs]"
     claimed_at: "2026-09-20T (this session)"
     completed_at: "2026-09-21T (this session)"
