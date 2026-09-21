@@ -6,7 +6,8 @@
 import { and, desc, eq, inArray } from "drizzle-orm"
 import { dpdpObligation, dpdpObligationTemplate, dpdpIdentity, dpdpStaffGroup, dpdpOrganisation, dpdpEvent, dpdpMembership } from "@/lib/db"
 import { withDpdpContext } from "@/lib/db/tenant-scoped"
-import type { ObligationRow } from "@/lib/dpdp-onepage/view-model"
+import type { ObligationRow, RoleKind } from "@/lib/dpdp-onepage/view-model"
+import { GRIEVANCE_OFFICER_ROLE_TAG } from "@/lib/dpdp-onepage/view-model"
 import { ServiceError } from "./compliance-service"
 import { logDpdpEvent } from "./dpdp-event-service"
 export { ServiceError }
@@ -79,7 +80,23 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
       }
     })
 
-    return { org, rows, viewerEmail, obligationById, firstVisitSeenAt: membership?.firstVisitSeenAt ?? null, membershipId: membership?.id ?? null }
+    // WO-DPDP-010 §3/§4: coordinator/Grievance-Officer detection -- the DB's
+    // membership.level only ever says owner/staff (see dpdp-session.ts's
+    // own DpdpAuthContext type); GO/coordinator are roleTag values on
+    // obligations, not first-class identities, so "is this viewer the GO"
+    // is answered by asking whether any of THIS org's obligations with that
+    // roleTag are actually assigned to them -- not guessed from level.
+    // Owner is resolved by the caller (home/page.tsx already knows
+    // ctx.level) and always wins over this; a person could technically be
+    // both (e.g. the owner named themselves GO), but that's the caller's
+    // call, not this function's.
+    const goTemplateIds = new Set(templates.filter((t) => t.roleTag === GRIEVANCE_OFFICER_ROLE_TAG).map((t) => t.id))
+    const coordTemplateIds = new Set(templates.filter((t) => t.roleTag === "DPDP coordinator").map((t) => t.id))
+    const isGO = sortedObligations.some((o) => goTemplateIds.has(o.templateId) && o.state !== "not_applicable" && emailByIdentityId.get(o.assignedPersonId ?? "") === viewerEmail)
+    const isCoordinator = sortedObligations.some((o) => coordTemplateIds.has(o.templateId) && o.state !== "not_applicable" && emailByIdentityId.get(o.assignedPersonId ?? "") === viewerEmail)
+    const detectedRoleKind: RoleKind | null = isGO ? "go" : isCoordinator ? "coord" : null
+
+    return { org, rows, viewerEmail, obligationById, firstVisitSeenAt: membership?.firstVisitSeenAt ?? null, membershipId: membership?.id ?? null, detectedRoleKind }
   })
 }
 
@@ -147,6 +164,22 @@ export async function completeOwnerFirstVisit(
       return identity.id
     }
 
+    // Every real person this function names needs a dpdp.membership row in
+    // THIS org, not just an obligation.assigned_person_id pointing at their
+    // identity -- getDpdpAuthContext() (the only way anyone signs into
+    // /dpdp/home) requires a membership row to exist and returns null
+    // without one. Found live: a person named individually as Grievance
+    // Officer (the non-group branch below) got assigned_person_id set
+    // correctly but NO membership row, so they could never actually sign
+    // in to see the page they'd just been given jobs on -- the group
+    // branch already created one correctly; this was only missing here.
+    async function findOrCreateMembership(identityId: string) {
+      const existing = await tx.query.dpdpMembership.findFirst({ where: and(eq(dpdpMembership.identityId, identityId), eq(dpdpMembership.orgId, orgId)) })
+      if (existing) return existing
+      const [created] = await tx.insert(dpdpMembership).values({ identityId, orgId, level: "staff", joinedVia: "named_in_role" }).returning()
+      return created
+    }
+
     for (const a of assignments) {
       const matchingObligations = obligations.filter((o) => templateById.get(o.templateId)?.roleTag === a.area)
       if (!matchingObligations.length) continue
@@ -168,8 +201,7 @@ export async function completeOwnerFirstVisit(
         for (const rawEmail of a.emails) {
           if (!rawEmail.trim()) continue
           const memberIdentityId = await findOrCreateIdentityByEmail(rawEmail)
-          let membership = await tx.query.dpdpMembership.findFirst({ where: and(eq(dpdpMembership.identityId, memberIdentityId), eq(dpdpMembership.orgId, orgId)) })
-          if (!membership) { [membership] = await tx.insert(dpdpMembership).values({ identityId: memberIdentityId, orgId, level: "staff", joinedVia: "named_in_role" }).returning() }
+          const membership = await findOrCreateMembership(memberIdentityId)
           const existingGroupMember = await tx.query.dpdpStaffGroupMember.findFirst({ where: and(eq(dpdpStaffGroupMember.groupId, group!.id), eq(dpdpStaffGroupMember.membershipId, membership!.id)) })
           if (!existingGroupMember) await tx.insert(dpdpStaffGroupMember).values({ groupId: group!.id, membershipId: membership!.id })
           memberCount++
@@ -181,6 +213,7 @@ export async function completeOwnerFirstVisit(
 
       const email = a.emails[0].trim().toLowerCase()
       const identityId = await findOrCreateIdentityByEmail(email)
+      await findOrCreateMembership(identityId)
       for (const o of matchingObligations) await tx.update(dpdpObligation).set({ assignedPersonId: identityId }).where(eq(dpdpObligation.id, o.id))
       // fromArea jobs ("Name the Grievance Officer" / "Name a DPDP
       // coordinator") are auto-done the moment the owner names someone,
