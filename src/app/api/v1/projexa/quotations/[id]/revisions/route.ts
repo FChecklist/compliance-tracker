@@ -7,7 +7,7 @@
 // permission-service.ts utility (ERP_ACTION_ROLES["erp.quotations.revise"]
 // = "member") -- no behavior change.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, resolveWriteActorId } from "@/lib/supabase/auth-guard"
 import { requirePermission } from "@/lib/services/permission-service"
 import { createQuotationRevision, ServiceError, type QuotationItemInput } from "@/lib/services/erp-selling-service"
 
@@ -19,7 +19,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const roleErr = requirePermission(ctx, "erp.quotations.revise")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  // PROJEXA-E2E-001 actor-misattribution sweep: see resolveWriteActorId's own
+  // header in auth-guard.ts -- the new revision's createdById feeds
+  // updateQuotationStatus()'s 'approved'-transition isSelfApproval() check,
+  // so a misattributed creator id here defeats that gate for the revision.
+  const acting = await resolveWriteActorId(request, ctx)
+  if (acting.error) return acting.error
 
   try {
     const { id } = await params
@@ -28,8 +33,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       ? body.items.map((i: QuotationItemInput) => ({ itemId: i.itemId, description: i.description, quantity: i.quantity, rate: i.rate }))
       : undefined
     const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
+      ? { orgId: ctx.orgId, userId: acting.actorId, dbUser: ctx.dbUser }
+      : { orgId: ctx.orgId, userId: acting.actorId, apiKey: ctx.apiKey! }
     const revision = await createQuotationRevision(actorCtx, id, itemsOverride)
     return NextResponse.json(revision, { status: 201 })
   } catch (error) {

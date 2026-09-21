@@ -251,6 +251,70 @@ active:
       PR open/unmerged for the owner's batch merge per standing ground
       rules.
 
+  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree unless a real bug is found) -- PROJEXA-E2E-001 work order section 2 item 4 ('Email'): verify the real current state of both the one-click emailActionToken flow (RFI/submittal/punch-list/billing-claim actions) and the start/end-of-day digest + reply-by-email system (src/lib/email/{digest,reply-parser,schedule-service}.ts, src/lib/services/{email-token-service,digest-item-service,digest-item-dispatcher}.ts, src/app/api/email/** in FChecklist/projexa), verify token/DB correctness directly, and prove cross-surface consistency (email action -> visible on web ERP screen) [IN PROGRESS]"
+    claimed_at: "2026-09-21T (this session)"
+    claim: |
+      File scope (read-mostly verification, PROJEXA repo C:\ct\projexa):
+      src/lib/email/digest.ts, src/lib/email/reply-parser.ts,
+      src/lib/email/schedule-service.ts, src/lib/services/email-token-
+      service.ts, src/lib/services/digest-item-service.ts,
+      src/lib/services/digest-item-dispatcher.ts,
+      src/app/api/email/inbound/route.ts, src/app/api/email/send-digest/
+      route.ts, src/app/api/email/[token]/route.ts,
+      src/app/api/internal/email-digest-cadence/run/route.ts,
+      src/app/api/organization/email-schedule/route.ts,
+      src/components/DailyDigestCard.tsx. No compliance-tracker file scope
+      expected unless a bug is found there (this surface's own logic lives
+      entirely in projexa, per a first read of the tree). Will move to
+      recently_completed with real findings once done. Will escalate to an
+      isolated worktree only if live verification finds a real bug that
+      needs a code fix.
+  - session_label: "claude-code (interactive, isolated worktree C:/ct/ct-actor-fix, branch fix/projexa-actor-self-approval-bypass) -- PROJEXA-E2E-001 follow-on to the 2026-09-21 actor-misattribution triage (GAP-PROJEXA-ACTOR-MISATTRIBUTION-SWEEP, ai-os/MASTER-TRACKER.yaml): implement fixes for the 13 HIGH-severity routes -- the 5 self-approval-fraud-check bypasses (6 handlers) DONE, PR #1783 open (not merged); now moving to the remaining 7 HIGH items [IN PROGRESS]"
+    claimed_at: "2026-09-21T (this session)"
+    claim: |
+      DONE, PR OPEN (https://github.com/FChecklist/compliance-tracker/pull/1783,
+      not merged -- PM batch review): change-orders/route.ts POST,
+      scope/import/route.ts POST, submittals/route.ts POST, and
+      quotations/[id]/revisions/route.ts POST now resolve the real actor via
+      resolveWriteActorId() (reused from the merged fix/email-reply-actor-
+      attribution / #1779 -- checked for soundness first, not reinvented).
+      submittals/[id]/route.ts review and punch-list/[id]/route.ts verify
+      were already fixed by #1779 itself -- rebased onto it rather than
+      duplicating. 82/82 tests pass; falsifiability-checked on
+      change-orders/route.ts (plant-then-revert); live-Supabase-verified
+      via a direct handler call (no dev server -- machine was RAM-critical,
+      0.29GB free) against the real E2E test org "Meridian Construction
+      Group", confirming requestedById lands on the real person's id with a
+      real X-Acting-User-Email header and falls back to the API key id
+      without one -- independently re-read from the DB, not just the API
+      response. Test fixtures (rows + a temp API key) deleted after.
+      Caveat flagged in the PR: this compliance-tracker-side fix alone does
+      NOT close the fraud risk for real traffic today, since PROJEXA's own
+      route.ts proxies don't yet send the acting-user headers for these
+      entity types -- a PROJEXA-side follow-up is still needed.
+
+      Next: remaining 7 HIGH items (expenses, documents dispose, assistant
+      record_work_progress, leads, pill-usage, module-chain) -- same file
+      scope as before plus src/app/api/v1/projexa/{expenses,documents/[id]/
+      dispose,assistant,leads}/route.ts, src/app/api/v1/projexa/pill-usage/
+      route.ts, src/app/api/v1/projexa/module-chain/route.ts. Will move to
+      recently_completed once those are fixed+tested+PR'd, or report back
+      partway per the PM's own checkpoint.
+  - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree unless a real bug is found) -- PROJEXA-E2E-001 work order section 2 item 3 ('AI link'): verify the real current state of WO-PROJEXA-AI-LINK-001 (org_ai_link token -> public GET /api/ai/[token] -> ai_link_projection() SECURITY DEFINER SQL function -> verb-allowlisted apply flow at /api/ai/apply), generate a real link via the running app, hit it directly, verify tenant isolation + personal-data exclusion + verb allowlist enforcement, and set up a cloudflared tunnel to localhost:3100 so the Owner can test pasting it into a real external chat engine [IN PROGRESS]"
+    claimed_at: "2026-09-21T (this session)"
+    claim: |
+      File scope (read-mostly verification, PROJEXA repo C:\ct\projexa):
+      src/lib/services/ai-link-service.ts, src/app/api/ai-link/route.ts,
+      src/app/api/ai/[token]/route.ts, src/app/api/ai/apply/route.ts,
+      src/components/shell/AiLinkButton.tsx, drizzle/0023_ai_link_and_email.sql
+      (public.org_ai_link + public.ai_link_projection() on Supabase project
+      evpckeuxgvahguwsaeul -- PROJEXA's own DB, per CLAUDE.md's explicit
+      two-Supabase-project warning; construction data itself is proxied
+      read-only from compliance-tracker via callVeridianResult, no
+      compliance-tracker file scope expected unless a bug is found there).
+      Will move to recently_completed with real findings once done. Will
+      escalate to an isolated worktree only if live verification finds a
+      real bug that needs a code fix.
   - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-worktrees/wo-exceptions-fix + C:/ct/projexa-worktrees/wo-exceptions-fix, branch wo/exceptions-item24-and-navigation + wo/exceptions-drilldown-navigation) -- PROJEXA-E2E-001: direct fix (not deferred) for the 2 real bugs found by the R-92..R-100/31-vs-28 exceptions reconciliation session (2026-09-20/21) -- Bug 1: construction-exceptions-service.ts getProjectExceptions() 29-vs-28 array-length bug (item #24 push()'d twice under the same number); Bug 2: ExceptionsClient.tsx had zero drill-down navigation from a flagged exception to the real record it names [DONE -- both fixed, unit/component tests green locally, PRs open/unmerged pending real CI e2e verification]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
