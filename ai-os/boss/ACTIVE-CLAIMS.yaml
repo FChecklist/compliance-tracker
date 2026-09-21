@@ -4424,19 +4424,54 @@ active:
       verified fixed via the same live-session technique, not just code
       review.
 
-      STILL TO BUILD (large, not yet started): coordinator/Grievance-
-      Officer/CA/parent role detection (today every non-owner membership
-      renders as the staff view -- the DB's membership model only has
-      owner/staff levels, GO/coordinator are just roleTag values today, not
-      first-class identities the UI can detect), CA firm clients view,
-      group-answer UI, remaining first-visit wizards (owner-set-up-by-CA,
-      CA partner's 3-step, the generic "everyone invited" screen -- ~5 more
-      flows), /dpdp-firm and /dpdp-institution edition landing pages (in
-      progress next), the Monday email digest wired to the new job model
-      (the `sent` field is honestly hard-coded to 0 everywhere until this
-      lands), the 70-check Playwright acceptance suite, and Step 7's
-      Vercel-ready-but-unmerged branch. This session is continuing, not
-      stopping, per the Owner's own explicit instruction in chat.
+      PROGRESS, UPDATED AGAIN 2026-09-21 (same session, continued further)
+      -- PR #1791 merged: /dpdp-firm and /dpdp-institution edition landing
+      pages (WO Step 6), edition-aware hero copy on DpdpMarketingPage via a
+      dpdp_edition cookie set on email capture, onboarding pre-fills
+      product from that cookie. Deliberately did NOT re-skin the existing
+      hardcoded purple/pink FEATURES/FAQ/SEGMENTS content -- WO's own "copy
+      is verbatim" instruction plus time constraints, flagged not silently
+      dropped.
+
+      PROGRESS, UPDATED AGAIN 2026-09-21 (same session, continued further,
+      isolated worktree C:/ct/ct-worktrees/wo-dpdp-010-roles, branch
+      feat/wo-dpdp-010-role-detection, PR #1792 open) -- coordinator/
+      Grievance-Officer role detection, the first item on the "STILL TO
+      BUILD" list above: getOnePageData now derives detectedRoleKind by
+      checking whether the viewer's email is actually assigned to an
+      obligation tagged with the GO/coordinator role in this org;
+      home/page.tsx uses it to pick the correct ViewerContext.kind instead
+      of always falling back to "staff". A SECOND real bug found this way
+      (same class as PR #1789's three): completeOwnerFirstVisit's
+      individual-assignment branch (naming one person by email, not via a
+      staff group) set assignedPersonId but never created a dpdp.membership
+      row -- a newly-named GO/coordinator could never actually sign in,
+      since getDpdpAuthContext() requires a real membership row. Fixed with
+      a shared findOrCreateMembership() helper, used by both the group and
+      individual branches. Verified end-to-end: minted a real dpdp.session
+      for a freshly-created GO identity (via the real service functions,
+      fix in place), loaded /dpdp/home in a real browser, confirmed the
+      full manager view rendered with "As Grievance Officer" role-aware
+      copy and zero console errors -- not just the 2 new unit tests (36
+      total across the DPDP suite, 0 fail, 61 assertions, run against the
+      real dev/test Supabase project with --env-file=.env.local since
+      bun's own NODE_ENV=test convention skips .env.local by default).
+      NOTED, not fixed (pre-existing, out of this PR's scope): the older
+      assignObligation() function has the identical membership-creation
+      gap and should get the same fix in a follow-up.
+
+      STILL TO BUILD (large, not yet started): CA/parent role detection
+      (no CA-firm or parent-token concept wired into the auth/membership
+      model at all yet -- a bigger lift than GO/coordinator, which reused
+      the existing roleTag mechanism), CA firm clients view, group-answer
+      UI, remaining first-visit wizards (owner-set-up-by-CA, CA partner's
+      3-step, the generic "everyone invited" screen for GO/coordinator/
+      other named roles -- ~5 more flows), the Monday email digest wired
+      to the new job model (the `sent` field is honestly hard-coded to 0
+      everywhere until this lands), the 70-check Playwright acceptance
+      suite, and Step 7's Vercel-ready-but-unmerged branch. This session is
+      continuing, not stopping, per the Owner's own explicit instruction in
+      chat.
 
       NOT touching compliance.*/platform.* tables, PROJEXA's proxy routes,
       vercel.json, or any Vercel project/dashboard setting.
