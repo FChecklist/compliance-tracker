@@ -60,12 +60,30 @@ function severityFromScore(score: number, bands: SeverityBand[]): string {
   return score > highest.max ? highest.label : lowest.label
 }
 
-export async function listRisks(ctx: { orgId: string; dbUser?: typeof users.$inferSelect | null }) {
-  const [rows, resolvedMatrix] = await Promise.all([
-    withTenantContext({ orgId: ctx.orgId }, (db) => db.query.risks.findMany({ where: eq(risks.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.updatedAt) })),
-    resolveModuleRule("risks", "severity_matrix", { orgId: ctx.orgId }),
-  ])
-  const bands = (resolvedMatrix?.value as { bands?: SeverityBand[] } | undefined)?.bands ?? DEFAULT_SEVERITY_BANDS
+async function resolveSeverityBands(orgId: string): Promise<SeverityBand[]> {
+  const resolvedMatrix = await resolveModuleRule("risks", "severity_matrix", { orgId })
+  return (resolvedMatrix?.value as { bands?: SeverityBand[] } | undefined)?.bands ?? DEFAULT_SEVERITY_BANDS
+}
+
+// R75-pattern db-handle-accepting sibling (see CLAUDE.md's "nested
+// withTenantContext gotcha" / isBranchEnabledForOrgWithDb precedent): lets a
+// caller that already holds a tenant-scoped `db` reuse it instead of opening
+// a second connection/transaction.
+//
+// CAUGHT BY THE STANDING NESTING GUARD, FIXED (2026-09-21): the first version
+// of this function called resolveModuleRule("risks", "severity_matrix", ...)
+// itself, from inside the caller's already-open withTenantContext -- and
+// resolveModuleRule opens its OWN separate withTenantContext internally, so
+// that was exactly the nested-transaction gotcha this whole *WithDb pattern
+// exists to avoid, just introduced fresh by this refactor (the standing
+// `withTenantContext nesting` test caught it immediately in CI). Fixed by
+// requiring `bands` as a parameter instead: every caller resolves it via
+// resolveSeverityBands() OUTSIDE the shared handle (a sibling Promise.all,
+// same shape listRisks/getGrcDashboard already use elsewhere), so
+// resolveModuleRule's own transaction stays a sibling, never a child, of the
+// caller's.
+async function listRisksWithDb(db: TenantDb, ctx: { orgId: string; dbUser?: typeof users.$inferSelect | null }, bands: SeverityBand[]) {
+  const rows = await db.query.risks.findMany({ where: eq(risks.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.updatedAt) })
   // A Bearer-key caller (ctx.dbUser undefined) has no personal role/department
   // to scope by -- treat it the same as a broad-scope role (an API key is
   // already an org-level credential, not a personal one) rather than
@@ -84,6 +102,21 @@ export async function listRisks(ctx: { orgId: string; dbUser?: typeof users.$inf
     totalCount: rows.length,
     hiddenByScope: rows.length - visible.length,
   }
+}
+
+export async function listRisks(ctx: { orgId: string; dbUser?: typeof users.$inferSelect | null }) {
+  // resolveSeverityBands() is CALLED here, textually outside the
+  // withTenantContext callback below, so its own separate withTenantContext
+  // stays a sibling transaction, not a child of this one -- see
+  // listRisksWithDb's own comment (the standing nesting guard,
+  // src/lib/db/tenant-nesting-guard.test.ts, statically flags any call
+  // textually inside a withTenantContext callback whose callee itself opens
+  // a transaction). `await bandsPromise` inside the callback is just an
+  // await on an already-in-flight promise, not a new call site, so the
+  // parallelism this had before (rows query and bands resolution running
+  // concurrently) is preserved.
+  const bandsPromise = resolveSeverityBands(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => listRisksWithDb(db, ctx, await bandsPromise))
 }
 
 // Real-screen conversion (2026-08-30, PROJEXA GRC Object Page): no
@@ -207,10 +240,9 @@ export async function hasVerificationEvidence(db: TenantDb, orgId: string, contr
 // Audit Management (risk-based audit engagements + findings/CAPA)
 // ============================================================
 
-export async function listAuditEngagements(ctx: { orgId: string }) {
-  const rows = await withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.auditEngagements.findMany({ where: eq(auditEngagements.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt), with: { findings: true } })
-  )
+// R75-pattern db-handle-accepting sibling -- see listRisksWithDb's comment.
+async function listAuditEngagementsWithDb(db: TenantDb, ctx: { orgId: string }) {
+  const rows = await db.query.auditEngagements.findMany({ where: eq(auditEngagements.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt), with: { findings: true } })
   return rows.map((e) => ({
     id: e.id, name: e.name, auditType: e.auditType, status: e.status, coversRiskIds: e.coversRiskIds,
     findings: e.findings.map((f) => ({
@@ -218,6 +250,10 @@ export async function listAuditEngagements(ctx: { orgId: string }) {
       ownerId: f.ownerId, dueDate: f.dueDate?.toISOString() ?? null, retestResult: f.retestResult,
     })),
   }))
+}
+
+export async function listAuditEngagements(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) => listAuditEngagementsWithDb(db, ctx))
 }
 
 export async function createAuditEngagement(ctx: GrcActorCtx, input: { name: string; auditType?: string; coversRiskIds?: string[] }) {
@@ -268,9 +304,14 @@ export async function advanceAuditFindingCapaStatus(ctx: GrcActorCtx, findingId:
 // Policy Library (maker-checker publish workflow)
 // ============================================================
 
-export async function listPolicies(ctx: { orgId: string }) {
-  const rows = await withTenantContext({ orgId: ctx.orgId }, (db) => db.query.policies.findMany({ where: eq(policies.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.title) }))
+// R75-pattern db-handle-accepting sibling -- see listRisksWithDb's comment.
+async function listPoliciesWithDb(db: TenantDb, ctx: { orgId: string }) {
+  const rows = await db.query.policies.findMany({ where: eq(policies.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.title) })
   return rows.map((p) => ({ id: p.id, title: p.title, category: p.category, version: p.version, status: p.status, attestationRate: p.attestationRate, history: p.history }))
+}
+
+export async function listPolicies(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) => listPoliciesWithDb(db, ctx))
 }
 
 // Real-screen conversion (2026-08-30, PROJEXA GRC Object Page): no
@@ -333,9 +374,14 @@ export async function updatePolicy(ctx: GrcActorCtx, policyId: string, action: "
 // Vendor / Third-Party Risk
 // ============================================================
 
-export async function listVendorRiskProfiles(ctx: { orgId: string }) {
-  const rows = await withTenantContext({ orgId: ctx.orgId }, (db) => db.query.vendorRiskProfiles.findMany({ where: eq(vendorRiskProfiles.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.name) }))
+// R75-pattern db-handle-accepting sibling -- see listRisksWithDb's comment.
+async function listVendorRiskProfilesWithDb(db: TenantDb, ctx: { orgId: string }) {
+  const rows = await db.query.vendorRiskProfiles.findMany({ where: eq(vendorRiskProfiles.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.name) })
   return rows.map((v) => ({ id: v.id, name: v.name, riskTier: v.riskTier, riskScore: v.riskScore, riskFactors: v.riskFactors, certifications: v.certifications, lastAssessedDate: v.lastAssessedDate?.toISOString() ?? null }))
+}
+
+export async function listVendorRiskProfiles(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) => listVendorRiskProfilesWithDb(db, ctx))
 }
 
 export async function createVendorRiskProfile(ctx: GrcActorCtx, input: { name: string; riskTier?: string }) {
@@ -351,13 +397,38 @@ export async function createVendorRiskProfile(ctx: GrcActorCtx, input: { name: s
 // GRC Dashboard rollup -- risk heatmap + audit/policy/fraud status summary
 // ============================================================
 
+// PROJEXA-E2E-001 cold-load investigation (2026-09-21): this used to call
+// listRisks/listAuditEngagements/listPolicies/listVendorRiskProfiles
+// directly via Promise.all, which meant FOUR separate withTenantContext
+// calls -- four concurrent connections/transactions borrowed from the same
+// 5-connection pool -- for one dashboard read. Under real concurrent load
+// (several orgs/sessions hitting GRC at once, or just this one request
+// racing other in-flight queries) that leaves at most one spare connection
+// and risks exactly the pool-contention class CLAUDE.md's R74/R75 sections
+// document. Same fix pattern as isBranchEnabledForOrgWithDb /
+// budgetVsActualWithDb: one withTenantContext here, and the four *WithDb
+// siblings share that single handle (postgres.js pipelines queries on one
+// connection safely, per budgetVsActualWithDb's own Promise.all precedent).
+// NOT touched: resolveModuleRule("risks", "severity_matrix", ...) (called
+// via resolveSeverityBands below) still opens its own separate
+// withTenantContext -- it is a shared utility with many other call sites,
+// and giving it a WithDb variant too is a larger, separate change.
+// resolveSeverityBands() is called OUTSIDE the withTenantContext callback
+// below (a sibling Promise.all branch), same reasoning as listRisks' own
+// fix -- see listRisksWithDb's comment for why that specific placement
+// matters (the standing nesting guard,
+// src/lib/db/tenant-nesting-guard.test.ts, caught this exact call one
+// level too deep the first time this fix was written).
 export async function getGrcDashboard(ctx: { orgId: string }) {
-  const [riskData, engagements, policyRows, vendorRows] = await Promise.all([
-    listRisks({ orgId: ctx.orgId }),
-    listAuditEngagements({ orgId: ctx.orgId }),
-    listPolicies({ orgId: ctx.orgId }),
-    listVendorRiskProfiles({ orgId: ctx.orgId }),
-  ])
+  const bandsPromise = resolveSeverityBands(ctx.orgId)
+  const [riskData, engagements, policyRows, vendorRows] = await withTenantContext({ orgId: ctx.orgId }, async (db) =>
+    Promise.all([
+      listRisksWithDb(db, { orgId: ctx.orgId }, await bandsPromise),
+      listAuditEngagementsWithDb(db, { orgId: ctx.orgId }),
+      listPoliciesWithDb(db, { orgId: ctx.orgId }),
+      listVendorRiskProfilesWithDb(db, { orgId: ctx.orgId }),
+    ])
+  )
 
   const riskByCategory: Record<string, number> = {}
   const riskBySeverity: Record<string, number> = { low: 0, medium: 0, high: 0 }
