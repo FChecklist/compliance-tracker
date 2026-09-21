@@ -28,7 +28,7 @@
 // the form field has therefore already passed the write-role gate, which is
 // stricter than it needs to be but never weaker.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveWriteActorId } from "@/lib/supabase/auth-guard"
 import { parseBoqSpreadsheet, toPreviewRows, analyseBoqPreview, ServiceError, type BoqColumnMapping } from "@/lib/services/construction-boq-import-service"
 import { createBoq, createBoqRevision } from "@/lib/services/construction-boq-service"
 
@@ -119,6 +119,15 @@ export async function POST(request: NextRequest) {
   }
   // IF ctx.orgId is falsy THEN 400, never an empty/silent success (error E-52).
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  // PROJEXA-E2E-001 actor-misattribution sweep: see resolveWriteActorId's own
+  // header in auth-guard.ts -- createdById feeds construction-boq-service.ts's
+  // approveBoq() isSelfApproval() check, same bug class as the already-fixed
+  // BOQ cost-visibility gap. Resolved before the (potentially slow) file
+  // parse below so a bad acting-user signal 400s early. A dry run never
+  // reaches the write path this feeds, but resolving it unconditionally
+  // keeps this route's control flow the same shape regardless of dryRun.
+  const acting = await resolveWriteActorId(request, ctx)
+  if (acting.error) return acting.error
 
   try {
     const formData = await request.formData()
@@ -146,13 +155,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No usable line items found in this spreadsheet", warnings }, { status: 400 })
     }
 
-    // External API-key callers have no real user id -- record the key's id
-    // so createdById still shows who/what created this row, same as v1
-    // construction/boq's POST.
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
     const boq = parentBoqId
-      ? await createBoqRevision({ orgId: ctx.orgId, userId: actorId }, parentBoqId, { title, lineItems })
-      : await createBoq({ orgId: ctx.orgId, userId: actorId }, { projectId, title, lineItems })
+      ? await createBoqRevision({ orgId: ctx.orgId, userId: acting.actorId }, parentBoqId, { title, lineItems })
+      : await createBoq({ orgId: ctx.orgId, userId: acting.actorId }, { projectId, title, lineItems })
 
     // R67 lane D22 (item D-52): totalValue is what the import screen's receipt
     // line names ("BOQ <title> v<n> created - <lines> lines, <currency>
