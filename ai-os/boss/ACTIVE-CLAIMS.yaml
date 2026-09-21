@@ -108,22 +108,36 @@ active:
       recently_completed with real findings once done. Will escalate to an
       isolated worktree only if live verification finds a real bug that
       needs a code fix.
-  - session_label: "claude-code (interactive, isolated worktree C:/ct/ct-actor-fix, branch fix/projexa-actor-self-approval-bypass) -- PROJEXA-E2E-001 follow-on to the 2026-09-21 actor-misattribution triage (GAP-PROJEXA-ACTOR-MISATTRIBUTION-SWEEP, ai-os/MASTER-TRACKER.yaml): implement fixes for the 13 HIGH-severity routes, starting with the 5 self-approval-fraud-check bypasses (change-orders POST create, scope/import BOQ create, submittals create+review, punch-list verify, quotations/[id]/revisions create), then working down the rest of the HIGH list [IN PROGRESS]"
+  - session_label: "claude-code (interactive, isolated worktree C:/ct/ct-actor-fix, branch fix/projexa-actor-self-approval-bypass) -- PROJEXA-E2E-001 follow-on to the 2026-09-21 actor-misattribution triage (GAP-PROJEXA-ACTOR-MISATTRIBUTION-SWEEP, ai-os/MASTER-TRACKER.yaml): implement fixes for the 13 HIGH-severity routes -- the 5 self-approval-fraud-check bypasses (6 handlers) DONE, PR #1783 open (not merged); now moving to the remaining 7 HIGH items [IN PROGRESS]"
     claimed_at: "2026-09-21T (this session)"
     claim: |
-      File scope: src/app/api/v1/projexa/{change-orders,scope/import,
-      submittals,submittals/[id],punch-list/[id],quotations/[id]/revisions}/
-      route.ts (+.test.ts siblings), src/lib/services/{construction-change-
-      order-service,construction-boq-service,construction-field-workflow-
-      service,erp-selling-service}.ts as needed, src/lib/supabase/
-      auth-guard.ts (reusing resolveWriteActorId() from the unmerged
-      fix/email-reply-actor-attribution branch after checking it for
-      soundness -- not reinventing it). Ground rules per PM assignment:
-      GitHub CI + live Supabase only, never Vercel, PRs opened but not
-      merged to main. Will move to recently_completed once the 5
-      self-approval routes are fixed+tested+PR'd, then continue to the
-      remaining 8 HIGH items (expenses, documents dispose, assistant
-      record_work_progress, leads, pill-usage, module-chain) or report back
+      DONE, PR OPEN (https://github.com/FChecklist/compliance-tracker/pull/1783,
+      not merged -- PM batch review): change-orders/route.ts POST,
+      scope/import/route.ts POST, submittals/route.ts POST, and
+      quotations/[id]/revisions/route.ts POST now resolve the real actor via
+      resolveWriteActorId() (reused from the merged fix/email-reply-actor-
+      attribution / #1779 -- checked for soundness first, not reinvented).
+      submittals/[id]/route.ts review and punch-list/[id]/route.ts verify
+      were already fixed by #1779 itself -- rebased onto it rather than
+      duplicating. 82/82 tests pass; falsifiability-checked on
+      change-orders/route.ts (plant-then-revert); live-Supabase-verified
+      via a direct handler call (no dev server -- machine was RAM-critical,
+      0.29GB free) against the real E2E test org "Meridian Construction
+      Group", confirming requestedById lands on the real person's id with a
+      real X-Acting-User-Email header and falls back to the API key id
+      without one -- independently re-read from the DB, not just the API
+      response. Test fixtures (rows + a temp API key) deleted after.
+      Caveat flagged in the PR: this compliance-tracker-side fix alone does
+      NOT close the fraud risk for real traffic today, since PROJEXA's own
+      route.ts proxies don't yet send the acting-user headers for these
+      entity types -- a PROJEXA-side follow-up is still needed.
+
+      Next: remaining 7 HIGH items (expenses, documents dispose, assistant
+      record_work_progress, leads, pill-usage, module-chain) -- same file
+      scope as before plus src/app/api/v1/projexa/{expenses,documents/[id]/
+      dispose,assistant,leads}/route.ts, src/app/api/v1/projexa/pill-usage/
+      route.ts, src/app/api/v1/projexa/module-chain/route.ts. Will move to
+      recently_completed once those are fixed+tested+PR'd, or report back
       partway per the PM's own checkpoint.
   - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100, no worktree unless a real bug is found) -- PROJEXA-E2E-001 work order section 2 item 3 ('AI link'): verify the real current state of WO-PROJEXA-AI-LINK-001 (org_ai_link token -> public GET /api/ai/[token] -> ai_link_projection() SECURITY DEFINER SQL function -> verb-allowlisted apply flow at /api/ai/apply), generate a real link via the running app, hit it directly, verify tenant isolation + personal-data exclusion + verb allowlist enforcement, and set up a cloudflared tunnel to localhost:3100 so the Owner can test pasting it into a real external chat engine [IN PROGRESS]"
     claimed_at: "2026-09-21T (this session)"
