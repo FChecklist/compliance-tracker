@@ -5007,7 +5007,29 @@ recently_completed:
   - session_label: "claude-code (interactive, worktree quirky-hawking-39d255) -- root-cause + fix for the 2 real, twice-reproduced sumeet-exceptions-env1.spec.ts / sumeet-project-workspace-env1.spec.ts 503s (getProjectExceptions timing out at its own 60000ms ceiling, CI runs 35539074336/35539395740, unrelated to the R-50 dashboard-redaction fix they were spotted next to). Also assesses the r80-r81-r82-copilot-pill-chain-env1.spec.ts flake (#3) for relatedness. [DONE, fix pushed -- FChecklist/compliance-tracker PR #1777 OPEN, left unmerged pending owner review/e2e re-verification, same ground rules as this file's other PROJEXA-E2E-001 entries]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
-    merged_as: "NOT merged (deliberately, pending owner review) -- FChecklist/compliance-tracker PR #1777 (branch claude/quirky-hawking-39d255). Unit tests (53/53, including 7 new regression guards) and full-repo typecheck both verified green locally before push; the cross-repo e2e-env1 job itself will run automatically on the PR."
+    merged_as: "NOT merged (deliberately, pending owner review) -- FChecklist/compliance-tracker PR #1777 (branch claude/quirky-hawking-39d255). Unit tests (53/53, including 7 new regression guards) and full-repo typecheck both verified green locally before push."
+    real_ci_verification: |
+      REAL, LIVE CI VERIFICATION (not just local unit tests) -- two runs:
+      (1) A workflow_dispatch scoped via projexa_spec_grep to only the 2
+      originally-failing spec files (run 35558685807) showed both ORIGINAL
+      top-level failures now GREEN (/api/exceptions: upstreamMs 60001->
+      22357/22129, status 503->200) -- but surfaced 2 DIFFERENT downstream
+      failures (Billing Milestones "no approved BOQ yet", Insights P&L card
+      not found). Investigated before declaring victory, not assumed benign.
+      (2) The PR's own AUTOMATIC full-suite run (35557912027, job
+      106206562574 -- correct spec order, same as a real push to main) then
+      showed all 46 compliance-tracker Env-1 specs GREEN, INCLUDING both of
+      those same 2 tests that failed in the scoped run (Billing Milestones
+      at :189, Insights at :212) -- proving (1)'s 2 extra failures were a
+      test-ORDERING artifact of narrowing the run (the shared demo project's
+      approved BOQ / P&L data normally gets set up by earlier specs in the
+      full suite, which the scoped run skipped), not a real regression from
+      this fix. /api/exceptions completed at upstreamMs 18760-20544,
+      status 200, in all 3 real calls logged in that run.
+      The ONLY failure in the full, correctly-ordered run (2) was
+      r80-r81-r82-copilot-pill-chain-env1.spec.ts:82:5 -- the SAME
+      already-documented, independent flake assessed above, confirming that
+      assessment rather than just asserting it once.
     claim: |
       CONCRETE EVIDENCE (added after a read-only Supabase MCP check against
       the live demo project pcrjmlpuqsbocqfwoxod, project id
