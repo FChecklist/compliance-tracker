@@ -159,3 +159,22 @@ export async function listSubmittedForReview(orgId: string): Promise<ObligationW
   const all = await listObligations(orgId)
   return all.filter((o) => o.state === "submitted")
 }
+
+// WO-DPDP-010's one-page-per-role "Mark Yes" -- a single-step yes, distinct
+// from the older submit->accept two-step review workflow above (that
+// workflow still exists for the granular admin pages; this is the simpler
+// binary model veridian-dpdp.html specifies: "Mark Yes" closes the job
+// outright, gated only by the escalation chain (blocked() in the
+// view-model), never by a separate reviewer-accept step).
+export async function markObligationDone(orgId: string, actorIdentityId: string, actorLabel: string, obligationId: string) {
+  return withDpdpContext({ orgId }, async (tx) => {
+    const obligation = await loadObligationOrThrow(tx, orgId, obligationId)
+    if (obligation.dependsOnObligationId) {
+      const dep = await tx.query.dpdpObligation.findFirst({ where: eq(dpdpObligation.id, obligation.dependsOnObligationId) })
+      if (dep && dep.state !== "closed") throw new ServiceError("Waiting — the step before this one isn't done yet", 409)
+    }
+    const [updated] = await tx.update(dpdpObligation).set({ state: "closed", progressDone: obligation.progressTotal, closedAt: new Date(), closedBy: actorIdentityId }).where(eq(dpdpObligation.id, obligationId)).returning()
+    await logDpdpEvent({ orgId, actorIdentityId, actorLabel, kind: "obligation_accepted", summary: `Said Yes to "${(await tx.query.dpdpObligationTemplate.findFirst({ where: eq(dpdpObligationTemplate.id, obligation.templateId) }))?.name ?? "a job"}"` }, tx)
+    return updated
+  })
+}
