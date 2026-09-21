@@ -43,6 +43,33 @@ function fakeDb(data: Partial<Record<string, unknown[]>>) {
   return { query } as unknown as Parameters<typeof svc.findDiaryWithoutProgressEntry>[0]
 }
 
+/**
+ * Wraps a fakeDb to count every findMany/findFirst call per table, so a test
+ * can assert a detector's total DB round-trip count stays CONSTANT as the
+ * number of rows grows -- the real regression class fixed 2026-09-21 (see
+ * ai-os/boss/ACTIVE-CLAIMS.yaml): 6 detectors used to run 1-3 extra queries
+ * PER ROW, which is what actually caused getProjectExceptions() to time out
+ * at 60s on the real demo project's data volume, not a cold-start artifact.
+ * fakeDb's findMany/findFirst ignore `where` and return the whole configured
+ * table regardless of the filter passed -- fine here, since these tests only
+ * assert call COUNT, and the detectors' own in-memory cross-referencing
+ * (using each returned row's own foreign-key field) already re-derives
+ * correctness even though the fake never actually applies an IN-filter.
+ */
+function countCalls(db: ReturnType<typeof fakeDb>) {
+  const counts: Record<string, number> = {}
+  const wrapped = { query: {} as Record<string, { findMany: (...a: unknown[]) => Promise<unknown[]>; findFirst: (...a: unknown[]) => Promise<unknown> }> }
+  for (const table of Object.keys((db as unknown as { query: Record<string, unknown> }).query)) {
+    const real = (db as unknown as { query: Record<string, { findMany: (...a: unknown[]) => Promise<unknown[]>; findFirst: (...a: unknown[]) => Promise<unknown> }> }).query[table]
+    wrapped.query[table] = {
+      findMany: (...a: unknown[]) => { counts[`${table}.findMany`] = (counts[`${table}.findMany`] ?? 0) + 1; return real.findMany(...a) },
+      findFirst: (...a: unknown[]) => { counts[`${table}.findFirst`] = (counts[`${table}.findFirst`] ?? 0) + 1; return real.findFirst(...a) },
+    }
+  }
+  const total = () => Object.values(counts).reduce((a, b) => a + b, 0)
+  return { db: wrapped as unknown as ReturnType<typeof fakeDb>, counts, total }
+}
+
 // The service's own WHERE clauses do real filtering server-side (drizzle
 // SQL); this fake can't evaluate drizzle expressions, so each test supplies
 // pre-filtered rows that match what the real WHERE would have returned for
@@ -399,6 +426,89 @@ describe("findProgressRegressions (#28)", () => {
       ],
     })
     expect(await svc.findProgressRegressions(db as never, ORG, PROJECT)).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// N+1 regression guards (fixed 2026-09-21) -- 6 detectors used to run 1-3
+// extra DB round-trips PER ROW instead of a batched IN-clause lookup, which
+// was the real cause of getProjectExceptions() timing out at 60s on the real
+// demo project (ai-os/boss/ACTIVE-CLAIMS.yaml, 2026-09-21 entry). Each of
+// these asserts the total query-call count stays bounded and N-independent
+// at N=25 rows -- before this fix, N=25 would have produced roughly
+// 2N-3N extra calls on top of the base queries; these thresholds would fail
+// immediately if a future edit reintroduced a per-row query.
+// ---------------------------------------------------------------------------
+describe("N+1 regression guards", () => {
+  test("findApprovedChangeOrdersNeverBilled (#2): query count stays constant as N grows", async () => {
+    const N = 25
+    const orders = Array.from({ length: N }, (_, i) => ({ id: `co${i}`, number: i, boqRevisionId: `boq${i}`, costImpact: "5000" }))
+    const lineItems = Array.from({ length: N }, (_, i) => ({ id: `line${i}`, boqId: `boq${i}` }))
+    const { db, total } = countCalls(fakeDb({ constructionChangeOrders: orders, constructionBoqLineItems: lineItems, constructionInterimBillLineItems: [] }))
+    const result = await svc.findApprovedChangeOrdersNeverBilled(db as never, ORG, PROJECT)
+    expect(result).toHaveLength(N)
+    expect(total()).toBeLessThanOrEqual(3)
+  })
+
+  test("findOldDrawingProgress (#4): query count stays constant as N grows", async () => {
+    const N = 25
+    const rows = Array.from({ length: N }, (_, i) => ({ id: `e${i}`, entryDate: "2026-09-01", drawingDocumentId: `doc${i}` }))
+    const docs = Array.from({ length: N }, (_, i) => ({ id: `doc${i}`, isLatestVersion: false, name: `Plan ${i}` }))
+    const { db, total } = countCalls(fakeDb({ constructionWorkProgressEntries: rows, documents: docs }))
+    const result = await svc.findOldDrawingProgress(db as never, ORG, PROJECT)
+    expect(result).toHaveLength(N)
+    expect(total()).toBeLessThanOrEqual(2)
+  })
+
+  test("findWorkWithoutApprovedBoq (#7): query count stays constant as N grows", async () => {
+    const N = 25
+    const entries = Array.from({ length: N }, (_, i) => ({ id: `e${i}`, entryDate: "2026-09-01", boqLineItemId: `line${i}` }))
+    const lines = Array.from({ length: N }, (_, i) => ({ id: `line${i}`, boqId: `boq${i}` }))
+    const boqs = Array.from({ length: N }, (_, i) => ({ id: `boq${i}`, status: "draft" }))
+    const { db, total } = countCalls(fakeDb({ constructionWorkProgressEntries: entries, constructionBoqLineItems: lines, constructionBoqs: boqs }))
+    const result = await svc.findWorkWithoutApprovedBoq(db as never, ORG, PROJECT)
+    expect(result).toHaveLength(N)
+    expect(total()).toBeLessThanOrEqual(3)
+  })
+
+  test("findProgressNeverBilled (#9): query count stays constant as N grows", async () => {
+    const N = 25
+    const entries = Array.from({ length: N }, (_, i) => ({ boqLineItemId: `line${i}`, percentComplete: "40" }))
+    const { db, total } = countCalls(fakeDb({ constructionWorkProgressEntries: entries, constructionInterimBillLineItems: [], constructionBoqLineItems: [] }))
+    const result = await svc.findProgressNeverBilled(db as never, ORG, PROJECT)
+    expect(result).toHaveLength(N)
+    expect(total()).toBeLessThanOrEqual(3)
+  })
+
+  test("findLateOrDuplicateMaterial (#19) 'late' half: query count stays constant as N grows", async () => {
+    const N = 25
+    const issues = Array.from({ length: N }, (_, i) => ({ id: `mi${i}`, materialId: `mat${i}`, issuedDate: "2026-09-10", boqLineItemId: `line${i}` }))
+    const lines = Array.from({ length: N }, (_, i) => ({ id: `line${i}`, activityId: `act${i}` }))
+    const progress = Array.from({ length: N }, (_, i) => ({ entryDate: "2026-09-01", activityId: `act${i}` }))
+    const { db, total } = countCalls(fakeDb({ constructionMaterialIssues: issues, constructionBoqLineItems: lines, constructionWorkProgressEntries: progress }))
+    const result = await svc.findLateOrDuplicateMaterial(db as never, ORG, PROJECT)
+    expect(result.filter((r) => r.detail.includes("arrived late"))).toHaveLength(N)
+    expect(total()).toBeLessThanOrEqual(3)
+  })
+
+  test("findMismatchedSubcontractorInvoices (#23): query count stays constant as N grows", async () => {
+    const N = 25
+    const boqs = [{ id: "boq1", orgId: ORG, projectId: PROJECT }]
+    const lines = Array.from({ length: N }, (_, i) => ({ id: `line${i}`, boqId: "boq1" }))
+    const invoiceItems = Array.from({ length: N }, (_, i) => ({ id: `pii${i}`, boqLineItemId: `line${i}`, amount: "5000", invoiceId: `inv${i}` }))
+    const { db, total } = countCalls(fakeDb({ constructionBoqs: boqs, constructionBoqLineItems: lines, erpPurchaseInvoiceItems: invoiceItems, constructionInterimBillLineItems: [] }))
+    const result = await svc.findMismatchedSubcontractorInvoices(db as never, ORG, PROJECT)
+    expect(result).toHaveLength(N)
+    expect(total()).toBeLessThanOrEqual(4)
+  })
+
+  test("findApprovalsWithoutEvidence (#25): query count stays constant as N grows", async () => {
+    const N = 25
+    const orders = Array.from({ length: N }, (_, i) => ({ id: `co${i}`, number: i }))
+    const { db, total } = countCalls(fakeDb({ constructionChangeOrders: orders, documents: [] }))
+    const result = await svc.findApprovalsWithoutEvidence(db as never, ORG, PROJECT)
+    expect(result).toHaveLength(N)
+    expect(total()).toBeLessThanOrEqual(2)
   })
 })
 

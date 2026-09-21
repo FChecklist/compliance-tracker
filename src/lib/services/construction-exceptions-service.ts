@@ -132,13 +132,32 @@ export async function findApprovedChangeOrdersNeverBilled(db: TenantDb, orgId: s
     ),
     columns: { id: true, number: true, boqRevisionId: true, costImpact: true },
   })
+  if (orders.length === 0) return []
+  // Batched, not per-CO (fixed 2026-09-21 -- this used to run 2 extra
+  // queries PER change order, a real N+1 that was a direct contributor to
+  // getProjectExceptions() timing out at 60s on the real demo project, see
+  // ai-os/boss/ACTIVE-CLAIMS.yaml). One IN-lookup for every revision's line
+  // items, one more for which of those line items has ever been billed,
+  // then cross-referenced in memory.
+  const revisionIds = [...new Set(orders.map((o) => o.boqRevisionId!))]
+  const lineItems = await db.query.constructionBoqLineItems.findMany({
+    where: sql`${constructionBoqLineItems.boqId} IN (${sql.join(revisionIds.map((id) => sql`${id}`), sql`, `)})`,
+    columns: { id: true, boqId: true },
+  })
+  const lineItemIdsByBoq = new Map<string, string[]>()
+  for (const li of lineItems) lineItemIdsByBoq.set(li.boqId, [...(lineItemIdsByBoq.get(li.boqId) ?? []), li.id])
+  const allLineItemIds = lineItems.map((l) => l.id)
+  const billedLineItemIds = allLineItemIds.length === 0 ? new Set<string>() : new Set(
+    (await db.query.constructionInterimBillLineItems.findMany({
+      where: sql`${constructionInterimBillLineItems.boqLineItemId} IN (${sql.join(allLineItemIds.map((id) => sql`${id}`), sql`, `)})`,
+      columns: { boqLineItemId: true },
+    })).map((b) => b.boqLineItemId)
+  )
   const out: ExceptionRecord[] = []
   for (const co of orders) {
-    const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, co.boqRevisionId!), columns: { id: true } })
-    if (lineItems.length === 0) continue
-    const billed = await db.query.constructionInterimBillLineItems.findFirst({
-      where: sql`${constructionInterimBillLineItems.boqLineItemId} IN (${sql.join(lineItems.map((l) => sql`${l.id}`), sql`, `)})`,
-    })
+    const ids = lineItemIdsByBoq.get(co.boqRevisionId!) ?? []
+    if (ids.length === 0) continue
+    const billed = ids.some((id) => billedLineItemIds.has(id))
     if (!billed) out.push({ id: co.id, detail: `CO-${co.number} approved (cost impact ${co.costImpact}) and linked to a BOQ revision, but no interim bill has ever been raised against it`, recordType: "change_order" })
   }
   return out
@@ -164,9 +183,18 @@ export async function findOldDrawingProgress(db: TenantDb, orgId: string, projec
     where: and(eq(constructionWorkProgressEntries.orgId, orgId), eq(constructionWorkProgressEntries.projectId, projectId), isNotNull(constructionWorkProgressEntries.drawingDocumentId)),
     columns: { id: true, entryDate: true, drawingDocumentId: true },
   })
+  if (rows.length === 0) return []
+  // Batched, not per-row (fixed 2026-09-21, same N+1 class as the other
+  // detectors flagged in ai-os/boss/ACTIVE-CLAIMS.yaml's 2026-09-21 entry).
+  const docIds = [...new Set(rows.map((r) => r.drawingDocumentId!))]
+  const docs = await db.query.documents.findMany({
+    where: sql`${documents.id} IN (${sql.join(docIds.map((id) => sql`${id}`), sql`, `)})`,
+    columns: { id: true, isLatestVersion: true, name: true },
+  })
+  const docById = new Map(docs.map((d) => [d.id, d]))
   const out: ExceptionRecord[] = []
   for (const r of rows) {
-    const doc = await db.query.documents.findFirst({ where: eq(documents.id, r.drawingDocumentId!), columns: { isLatestVersion: true, name: true } })
+    const doc = docById.get(r.drawingDocumentId!)
     if (doc && !doc.isLatestVersion) out.push({ id: r.id, detail: `Progress entry ${r.entryDate} built from a superseded drawing (${doc.name})`, recordType: "work_progress_entry" })
   }
   return out
@@ -212,17 +240,27 @@ export async function findWorkWithoutApprovedBoq(db: TenantDb, orgId: string, pr
     where: and(eq(constructionWorkProgressEntries.orgId, orgId), eq(constructionWorkProgressEntries.projectId, projectId), isNotNull(constructionWorkProgressEntries.boqLineItemId)),
     columns: { id: true, entryDate: true, boqLineItemId: true },
   })
+  if (entries.length === 0) return []
+  // Batched, not per-entry (fixed 2026-09-21). The old boqStatusCache only
+  // deduped the SECOND query (boq status by boqId) -- the FIRST query (BOQ
+  // line by boqLineItemId) still ran once per entry, a real N+1.
+  const lineIds = [...new Set(entries.map((e) => e.boqLineItemId!))]
+  const lines = await db.query.constructionBoqLineItems.findMany({
+    where: sql`${constructionBoqLineItems.id} IN (${sql.join(lineIds.map((id) => sql`${id}`), sql`, `)})`,
+    columns: { id: true, boqId: true },
+  })
+  const boqIdByLineId = new Map(lines.map((l) => [l.id, l.boqId]))
+  const boqIds = [...new Set(lines.map((l) => l.boqId))]
+  const boqs = boqIds.length === 0 ? [] : await db.query.constructionBoqs.findMany({
+    where: sql`${constructionBoqs.id} IN (${sql.join(boqIds.map((id) => sql`${id}`), sql`, `)})`,
+    columns: { id: true, status: true },
+  })
+  const statusByBoqId = new Map(boqs.map((b) => [b.id, b.status]))
   const out: ExceptionRecord[] = []
-  const boqStatusCache = new Map<string, string>()
   for (const e of entries) {
-    const line = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, e.boqLineItemId!), columns: { boqId: true } })
-    if (!line) continue
-    let status = boqStatusCache.get(line.boqId)
-    if (status === undefined) {
-      const boq = await db.query.constructionBoqs.findFirst({ where: eq(constructionBoqs.id, line.boqId), columns: { status: true } })
-      status = boq?.status ?? "unknown"
-      boqStatusCache.set(line.boqId, status)
-    }
+    const boqId = boqIdByLineId.get(e.boqLineItemId!)
+    if (!boqId) continue
+    const status = statusByBoqId.get(boqId) ?? "unknown"
     if (status !== "approved") out.push({ id: e.id, detail: `Progress entry ${e.entryDate} recorded against a BOQ line whose BOQ status is '${status}', not approved`, recordType: "work_progress_entry" })
   }
   return out
@@ -238,14 +276,27 @@ export async function findProgressNeverBilled(db: TenantDb, orgId: string, proje
     columns: { boqLineItemId: true },
   })
   const lineIds = [...new Set(entries.map((e) => e.boqLineItemId!))]
+  if (lineIds.length === 0) return []
+  // Batched, not per-lineId (fixed 2026-09-21) -- this used to run up to 2
+  // extra queries per distinct BOQ line, a real N+1.
+  const billedLineItemIds = new Set(
+    (await db.query.constructionInterimBillLineItems.findMany({
+      where: sql`${constructionInterimBillLineItems.boqLineItemId} IN (${sql.join(lineIds.map((id) => sql`${id}`), sql`, `)})`,
+      columns: { boqLineItemId: true },
+    })).map((b) => b.boqLineItemId)
+  )
+  const unbilledLineIds = lineIds.filter((id) => !billedLineItemIds.has(id))
   const out: ExceptionRecord[] = []
-  for (const lineId of lineIds) {
-    const billed = await db.query.constructionInterimBillLineItems.findFirst({ where: eq(constructionInterimBillLineItems.boqLineItemId, lineId) })
-    if (!billed) {
-      // A BOQ line item has no object screen of its own -- link to its
-      // parent BOQ (the real, addressable "scope" screen) instead.
-      const line = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, lineId), columns: { boqId: true } })
-      out.push({ id: lineId, detail: `BOQ line ${lineId} has logged progress but no interim bill has ever been raised against it`, recordType: "boq_line_item", linkId: line?.boqId })
+  if (unbilledLineIds.length > 0) {
+    // A BOQ line item has no object screen of its own -- link to its
+    // parent BOQ (the real, addressable "scope" screen) instead.
+    const lines = await db.query.constructionBoqLineItems.findMany({
+      where: sql`${constructionBoqLineItems.id} IN (${sql.join(unbilledLineIds.map((id) => sql`${id}`), sql`, `)})`,
+      columns: { id: true, boqId: true },
+    })
+    const boqIdByLineId = new Map(lines.map((l) => [l.id, l.boqId]))
+    for (const lineId of unbilledLineIds) {
+      out.push({ id: lineId, detail: `BOQ line ${lineId} has logged progress but no interim bill has ever been raised against it`, recordType: "boq_line_item", linkId: boqIdByLineId.get(lineId) })
     }
   }
   return out
@@ -371,17 +422,40 @@ export async function findLateOrDuplicateMaterial(db: TenantDb, orgId: string, p
     }
   }
 
-  // Late: material issued after work-progress on its own linked activity had already started.
-  for (const i of issues.filter((r) => r.boqLineItemId)) {
-    const line = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, i.boqLineItemId!), columns: { activityId: true } })
-    if (!line?.activityId) continue
-    const earliestProgress = await db.query.constructionWorkProgressEntries.findFirst({
-      where: and(eq(constructionWorkProgressEntries.activityId, line.activityId), eq(constructionWorkProgressEntries.orgId, orgId)),
-      orderBy: (t, { asc }) => asc(t.entryDate),
-      columns: { entryDate: true },
+  // Late: material issued after work-progress on its own linked activity had
+  // already started. Batched, not per-issue (fixed 2026-09-21) -- this used
+  // to run up to 2 extra queries per material issue with a boqLineItemId, a
+  // real N+1.
+  const issuesWithLine = issues.filter((r) => r.boqLineItemId)
+  if (issuesWithLine.length > 0) {
+    const lineIds = [...new Set(issuesWithLine.map((i) => i.boqLineItemId!))]
+    const lines = await db.query.constructionBoqLineItems.findMany({
+      where: sql`${constructionBoqLineItems.id} IN (${sql.join(lineIds.map((id) => sql`${id}`), sql`, `)})`,
+      columns: { id: true, activityId: true },
     })
-    if (earliestProgress && i.issuedDate > earliestProgress.entryDate) {
-      out.push({ id: i.id, detail: `Material issued ${i.issuedDate} for an activity that already had progress logged from ${earliestProgress.entryDate} -- arrived late`, recordType: "material_issue", linkId: i.materialId })
+    const activityIdByLineId = new Map(lines.map((l) => [l.id, l.activityId]))
+    const activityIds = [...new Set(lines.map((l) => l.activityId).filter((a): a is string => !!a))]
+    const earliestByActivity = new Map<string, string>()
+    if (activityIds.length > 0) {
+      const progressRows = await db.query.constructionWorkProgressEntries.findMany({
+        where: and(
+          sql`${constructionWorkProgressEntries.activityId} IN (${sql.join(activityIds.map((id) => sql`${id}`), sql`, `)})`,
+          eq(constructionWorkProgressEntries.orgId, orgId)
+        ),
+        columns: { activityId: true, entryDate: true },
+      })
+      for (const p of progressRows) {
+        const cur = earliestByActivity.get(p.activityId)
+        if (cur === undefined || p.entryDate < cur) earliestByActivity.set(p.activityId, p.entryDate)
+      }
+    }
+    for (const i of issuesWithLine) {
+      const activityId = activityIdByLineId.get(i.boqLineItemId!)
+      if (!activityId) continue
+      const earliestDate = earliestByActivity.get(activityId)
+      if (earliestDate && i.issuedDate > earliestDate) {
+        out.push({ id: i.id, detail: `Material issued ${i.issuedDate} for an activity that already had progress logged from ${earliestDate} -- arrived late`, recordType: "material_issue", linkId: i.materialId })
+      }
     }
   }
   return out
@@ -452,15 +526,45 @@ export async function findAmbiguousBoqVersions(db: TenantDb, orgId: string, proj
 // the same work.
 // ─────────────────────────────────────────────────────────────────────────
 export async function findMismatchedSubcontractorInvoices(db: TenantDb, orgId: string, projectId: string): Promise<ExceptionRecord[]> {
-  const invoiceItems = await db.query.erpPurchaseInvoiceItems.findMany({ where: isNotNull(erpPurchaseInvoiceItems.boqLineItemId), columns: { id: true, boqLineItemId: true, amount: true, invoiceId: true } })
+  // Rebuilt 2026-09-21 (was the worst N+1 in this file: 3 extra queries PER
+  // INVOICE LINE, and it started from EVERY org's invoice items with a
+  // boqLineItemId set, not just this project's -- see
+  // ai-os/boss/ACTIVE-CLAIMS.yaml's 2026-09-21 entry). Now starts from this
+  // project's own BOQs (already org+project scoped) and works forward via
+  // batched IN-lookups, so it never reads a row outside this project.
+  const boqs = await db.query.constructionBoqs.findMany({
+    where: and(eq(constructionBoqs.orgId, orgId), eq(constructionBoqs.projectId, projectId)),
+    columns: { id: true },
+  })
+  if (boqs.length === 0) return []
+  const boqIds = boqs.map((b) => b.id)
+  const lines = await db.query.constructionBoqLineItems.findMany({
+    where: sql`${constructionBoqLineItems.boqId} IN (${sql.join(boqIds.map((id) => sql`${id}`), sql`, `)})`,
+    columns: { id: true },
+  })
+  if (lines.length === 0) return []
+  const lineIds = lines.map((l) => l.id)
+  const invoiceItems = await db.query.erpPurchaseInvoiceItems.findMany({
+    where: sql`${erpPurchaseInvoiceItems.boqLineItemId} IN (${sql.join(lineIds.map((id) => sql`${id}`), sql`, `)})`,
+    columns: { id: true, boqLineItemId: true, amount: true, invoiceId: true },
+  })
+  if (invoiceItems.length === 0) return []
+  const billedRows = await db.query.constructionInterimBillLineItems.findMany({
+    where: sql`${constructionInterimBillLineItems.boqLineItemId} IN (${sql.join(lineIds.map((id) => sql`${id}`), sql`, `)})`,
+    columns: { boqLineItemId: true, cumulativeAmount: true },
+  })
+  // The original per-item lookup ordered by cumulativeAmount desc and took
+  // the first row -- i.e. the MAX cumulative amount ever billed for that
+  // line. Reproduced here as an in-memory max reduction.
+  const maxBilledByLine = new Map<string, number>()
+  for (const b of billedRows) {
+    const amt = Number(b.cumulativeAmount)
+    const cur = maxBilledByLine.get(b.boqLineItemId)
+    if (cur === undefined || amt > cur) maxBilledByLine.set(b.boqLineItemId, amt)
+  }
   const out: ExceptionRecord[] = []
   for (const item of invoiceItems) {
-    const line = await db.query.constructionBoqLineItems.findFirst({ where: and(eq(constructionBoqLineItems.id, item.boqLineItemId!)), columns: { boqId: true } })
-    if (!line) continue
-    const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, line.boqId), eq(constructionBoqs.orgId, orgId), eq(constructionBoqs.projectId, projectId)) })
-    if (!boq) continue // not this org/project's BOQ line
-    const billed = await db.query.constructionInterimBillLineItems.findFirst({ where: eq(constructionInterimBillLineItems.boqLineItemId, item.boqLineItemId!), orderBy: (t, { desc }) => desc(t.cumulativeAmount) })
-    const billedAmount = billed ? Number(billed.cumulativeAmount) : 0
+    const billedAmount = maxBilledByLine.get(item.boqLineItemId!) ?? 0
     if (Number(item.amount) > billedAmount) {
       // No subcontractor-invoice object screen exists in PROJEXA today --
       // same honest-tagging reasoning as the vendor-dispute/customer-
@@ -506,12 +610,20 @@ export async function findApprovalsWithoutEvidence(db: TenantDb, orgId: string, 
     where: and(eq(constructionChangeOrders.orgId, orgId), eq(constructionChangeOrders.projectId, projectId), eq(constructionChangeOrders.status, "approved")),
     columns: { id: true, number: true },
   })
-  const out: ExceptionRecord[] = []
-  for (const co of orders) {
-    const evidence = await db.query.documents.findFirst({ where: and(eq(documents.orgId, orgId), eq(documents.linkedEntityType, "construction_change_order"), eq(documents.linkedEntityId, co.id)) })
-    if (!evidence) out.push({ id: co.id, detail: `CO-${co.number} was approved with no evidence document attached to it`, recordType: "change_order" })
-  }
-  return out
+  if (orders.length === 0) return []
+  // Batched, not per-CO (fixed 2026-09-21) -- this used to run one extra
+  // query per approved change order, a real N+1.
+  const orderIds = orders.map((o) => o.id)
+  const evidenceDocs = await db.query.documents.findMany({
+    where: and(
+      eq(documents.orgId, orgId), eq(documents.linkedEntityType, "construction_change_order"),
+      sql`${documents.linkedEntityId} IN (${sql.join(orderIds.map((id) => sql`${id}`), sql`, `)})`
+    ),
+    columns: { linkedEntityId: true },
+  })
+  const hasEvidence = new Set(evidenceDocs.map((d) => d.linkedEntityId))
+  return orders.filter((co) => !hasEvidence.has(co.id))
+    .map((co) => ({ id: co.id, detail: `CO-${co.number} was approved with no evidence document attached to it`, recordType: "change_order" as const }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -541,7 +653,24 @@ export async function findProgressRegressions(db: TenantDb, orgId: string, proje
 
 // ─────────────────────────────────────────────────────────────────────────
 // THE 28-ITEM REPORT, one project at a time. Sequential, not Promise.all,
-// same pool-contention reasoning as boq-analysis-service.ts's listOrgAnalysis.
+// same pool-contention reasoning as boq-analysis-service.ts's listOrgAnalysis
+// (this whole function runs inside ONE withTenantContext transaction/
+// connection -- Promise.all here would either serialize on the wire anyway
+// or, if changed to give each detector its own withTenantContext, reopen
+// the nested-transaction/pool-exhaustion risk class CLAUDE.md's R74/R75
+// sections document; it would not make this faster).
+//
+// REAL FIX for the 60s+ timeouts this route hit in production (2026-09-20/21,
+// see ai-os/boss/ACTIVE-CLAIMS.yaml) was NOT concurrency -- it was that 6 of
+// the 24 detectors below did 1-3 extra DB round-trips PER ROW (a real N+1),
+// which is what actually scaled with the demo project's real data volume.
+// Each was rewritten to a constant, N-independent number of batched
+// IN-clause queries: findApprovedChangeOrdersNeverBilled (#2),
+// findOldDrawingProgress (#4), findWorkWithoutApprovedBoq (#7),
+// findProgressNeverBilled (#9), findLateOrDuplicateMaterial's "late" half
+// (#19), findMismatchedSubcontractorInvoices (#23). See each function's own
+// comment for what changed. The sequential CALL ORDER between detectors is
+// unchanged -- only each detector's OWN internal round-trip count dropped.
 // ─────────────────────────────────────────────────────────────────────────
 export async function getProjectExceptions(ctx: ExceptionsContext, projectId: string): Promise<ExceptionCheck[]> {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
