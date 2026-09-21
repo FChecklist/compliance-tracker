@@ -330,6 +330,19 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   "src/app/api/v1/projexa/dashboard/[projectId]/route.ts",
   "src/app/api/v1/projexa/dashboard/route.ts",
   //
+  // PROJEXA-E2E-001 / WO-PROJEXA-AI-LINK-001 follow-up (2026-09-21): same
+  // requireAuthOrApiKey family gap documented throughout this list -- this
+  // file's new PATCH (and its pre-existing GET) both call
+  // requireAuthOrApiKey(request) (confirmed by reading the handler
+  // directly), which DOES call requireAuth() internally for a session
+  // caller and validates a Bearer API key on the other path, matching every
+  // other /v1/projexa/* route already exempted above. The new PATCH is what
+  // put this pre-existing file in a diff for the first time since this
+  // checker went live. Not fixed here for the same reason every entry above
+  // gives: widening REQUIRE_AUTH_RE is a shared-CI-guardrail change, out of
+  // this fix's own scope.
+  "src/app/api/v1/projexa/tasks/[id]/route.ts",
+  //
   // PROJEXA-E2E-001 surface-4 (email) fix (2026-09-21): same
   // requireAuthOrApiKey family gap documented throughout this list -- all
   // three call requireAuthOrApiKey(request) (confirmed by reading each
