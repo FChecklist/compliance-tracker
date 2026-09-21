@@ -3,8 +3,8 @@
 // assignedPersonId is an IDENTITY ID (see listMyObligations's own
 // `o.assignedPersonId === identityId` comparison), not an email -- this is
 // the join that turns it into the spec's flat "by: email" shape.
-import { eq, inArray } from "drizzle-orm"
-import { dpdpObligation, dpdpObligationTemplate, dpdpIdentity, dpdpStaffGroup, dpdpOrganisation } from "@/lib/db"
+import { desc, eq, inArray } from "drizzle-orm"
+import { dpdpObligation, dpdpObligationTemplate, dpdpIdentity, dpdpStaffGroup, dpdpOrganisation, dpdpEvent } from "@/lib/db"
 import { withDpdpContext } from "@/lib/db/tenant-scoped"
 import type { ObligationRow } from "@/lib/dpdp-onepage/view-model"
 import { ServiceError } from "./compliance-service"
@@ -66,4 +66,11 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
 
     return { org, rows, viewerEmail, obligationById }
   })
+}
+
+/** WO-DPDP-010's History timeline -- newest first, capped since the UI only ever shows the last 15 (spec's own vHistory()). Kept here (not dpdp-event-service.ts) rather than modifying a file with no ServiceError reference of its own. */
+export async function listOnePageHistory(orgId: string, limit = 15) {
+  return withDpdpContext({ orgId }, (tx) =>
+    tx.query.dpdpEvent.findMany({ where: eq(dpdpEvent.orgId, orgId), orderBy: desc(dpdpEvent.occurredAt), limit })
+  )
 }

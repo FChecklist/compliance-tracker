@@ -1,6 +1,7 @@
 import { getDpdpAuthContext } from "@/lib/services/dpdp-session"
-import { getOnePageData } from "@/lib/services/dpdp-onepage-service"
+import { getOnePageData, listOnePageHistory } from "@/lib/services/dpdp-onepage-service"
 import { OnePageView } from "../_components/onepage/OnePageView"
+import { Timeline } from "../_components/onepage/Timeline"
 import { markOnePageJobDone } from "./actions"
 import type { ViewerContext } from "@/lib/dpdp-onepage/view-model"
 
@@ -15,9 +16,22 @@ export default async function DpdpHomePage() {
   if (!ctx) return null
 
   const { org, rows, viewerEmail } = await getOnePageData(ctx.orgId, ctx.identityId)
-  if (!org) return null
-
   const viewer: ViewerContext = { kind: ctx.level === "owner" ? "owner" : "staff", me: viewerEmail }
 
-  return <OnePageView orgName={org.name} rows={rows} viewer={viewer} onMarkYes={markOnePageJobDone} />
+  if (viewer.kind === "staff") {
+    return <OnePageView orgName={org.name} rows={rows} viewer={viewer} onMarkYes={markOnePageJobDone} />
+  }
+
+  const history = await listOnePageHistory(ctx.orgId)
+  return (
+    <>
+      <OnePageView orgName={org.name} rows={rows} viewer={viewer} onMarkYes={markOnePageJobDone} />
+      <div className="dpdp-onepage">
+        <div className="max-w-[1240px] mx-auto px-5 pb-14">
+          <div className="mb-3" style={{ fontFamily: "Sora, sans-serif", fontSize: 20, fontWeight: 700, color: "var(--dpdp-ink)" }}>🕘 History</div>
+          <Timeline entries={history.map((h) => ({ who: h.actorLabel, what: h.summary, at: h.occurredAt, isNew: Date.now() - h.occurredAt.getTime() < 3_600_000 }))} />
+        </div>
+      </div>
+    </>
+  )
 }
