@@ -4270,6 +4270,106 @@ active:
       only (arjun.mehta CEO account), no real credentials touched.
 
 recently_completed:
+  - session_label: "claude-code (sub-agent, isolated worktrees C:/ct/ct-worktrees/fix-ai-link-pipeline-tasks + C:/ct/projexa-worktrees/fix-ai-link-pipeline-tasks, branch fix/ai-link-pipeline-tasks-repoint in both repos) -- PROJEXA-E2E-001 work order section 2 item 3 ('AI link'): fix (not just verify) the 2 real, confirmed bugs a sibling verification session found -- Bug 1: ai_link_projection()/apply route operated on the orphaned, UI-dead `todos` table instead of the real, live compliance.pipeline_tasks system (M24 Task Master); Bug 2: the snapshot never gave the reading AI a usable id (only the free-text label) [DONE -- both fixed, live-verified as far as this session's real infra constraints allowed, PRs open/unmerged]"
+    claimed_at: "2026-09-21T (this session)"
+    completed_at: "2026-09-21T (this session)"
+    claim: |
+      PRs: FChecklist/compliance-tracker#1781 (new PATCH /api/v1/projexa/
+      tasks/[id], restricted to status in {'to_do','done'}) +
+      FChecklist/projexa#315 (repoints [token]/route.ts + apply/route.ts to
+      pipeline_tasks via VERIDIAN's existing GET /tasks[/[id]], drops the
+      TODOS section from ai_link_projection() via new drizzle/0027, adds
+      [id: <real id>] rendering to the snapshot). Both left open/unmerged
+      per ground rules.
+
+      REAL FINDING (schema read, src/lib/db/schema.ts's pipelineTasks):
+      NO assignee_id, NO due_date, NO note/description column -- only
+      `status` is real. Verb-by-verb outcome: MARK_STATUS and DRAFT keep
+      working for real; ASSIGN/SET_DUE/NOTE are now honestly refused for a
+      pipeline_tasks target (no such field) rather than forced onto one
+      that doesn't exist -- exactly the work order's own fallback
+      instruction. MARK_STATUS's new PATCH is deliberately restricted to
+      'to_do'/'done' (a human sign-off's two plausible meanings) --
+      in_progress/waiting/blocked stay executor-exclusive, matching this
+      repo's own directive (§22/#27: software validates/authorizes/
+      executes/logs, AI must not directly mutate).
+
+      LIVE VERIFICATION, done as far as this session's real, measured
+      constraints allowed (not silently skipped, see below):
+        1. ai_link_projection() confirmed fixed LIVE via the Supabase MCP
+           (evpckeuxgvahguwsaeul) -- now returns ORGANIZATION + RECENT
+           NOTIFICATIONS only, no TODOS section. Also confirmed through the
+           real, running shared projexa:3100 server (unmodified app code)
+           by fetching a real, existing AI Link token for "Meridian
+           Construction Group" -- the live response has no TODOS section
+           (SQL fix live) and still says "targetKey is the id of a todo
+           shown above" (app-code fix not yet live there, as expected --
+           proves Bug 2 was real).
+        2. A real pipeline_tasks row was created live via the real,
+           unmodified POST /api/v1/projexa/tasks while the shared ct:3000
+           server was still healthy (id qzsnbaysgi5an90g52s8i5wc, org
+           4ecc472f-4152-4310-ae8d-cf8b7c52ab6d / Meridian Construction
+           Group).
+        3. The shared ct:3000 server then crashed mid-session (repeated
+           direct probes returned 500 on `/` itself -- the same documented
+           Turbopack/RAM-starvation class this file's own history already
+           names, unrelated to this change). This session's own measured
+           free RAM (0.05-0.43GB of 7.82GB throughout, driven by other
+           parallel sessions' processes, confirmed via
+           Get-CimInstance Win32_OperatingSystem at multiple points) made
+           starting an additional isolated dev server unsafe to attempt on
+           a shared machine other active sessions depend on -- so the new
+           PATCH endpoint's own route could not be exercised live over
+           HTTP. Per this session's ground rules (don't restart a shared
+           server), it was not restarted.
+        4. Substituted, not skipped: the exact UPDATE statement the new
+           PATCH issues (id+org_id scoped, RETURNING) was run directly
+           against the real row via the Supabase MCP and correctly
+           persisted (to_do confirmed, then done); a falsifiability check
+           (same statement, wrong org_id) touched ZERO rows, proving the
+           org-scope guard is real, not coincidental. Row left at
+           status='done'.
+        5. Both repos' route-level logic (parsing, [id: ...] rendering,
+           per-verb refusal reasons, org-scoped target lookup, the PATCH's
+           status allowlist and guards) is covered by realistic, passing
+           unit tests built against the exact live response shapes
+           captured in steps 1-2: 23/23 (ct, --isolate) + 34/34 (projexa,
+           --isolate).
+        6. Cross-surface Tasks-tab browser screenshot NOT obtained --
+           blocked by the same ct:3000 crash (Task Master's GET /api/tasks
+           proxies to it) and, independently, by the documented
+           storageState-vs-RAM constraint this file's own R75 Part 2
+           history already named (a real Playwright browser context needs
+           RAM this session did not have either). Disclosed honestly per
+           this file's own standard rather than silently skipped or faked.
+
+      FINAL CI STATUS (both PRs, re-checked after pushing every fix):
+      compliance-tracker#1781 -- every job green except two: (a) "Vercel"
+      shows "Deployment was blocked", which is the R87 ignoreCommand gate
+      working as designed on a non-main branch, not a real failure (see
+      this file's own header, R87 correction); (b) "E2E Tests (Env-1,
+      cross-repo)" failed with 6 spec failures -- checked each one
+      individually: r80-r81-r82-copilot-pill-chain, rb2-boq-create (x2),
+      sumeet-billing-milestones, sumeet-boq-revision,
+      sumeet-project-360-analysis, sumeet-project-workspace. ZERO of the 6
+      reference pipeline_tasks, tasks/[id], ai-link, or ai/apply anywhere
+      in their failure text (grepped the full job log) -- every one is
+      about BOQ/billing/dashboard/copilot-pill UI this PR's diff never
+      touches. This is the same class of pre-existing, concurrent-load
+      E2E flakiness this file's own history already documents repeatedly
+      (e.g. the coldload-remaining-6-routes entry below citing "3 failures,
+      ALL independently confirmed unrelated to this change"), not a
+      regression from this fix. A real, in-diff issue WAS found and fixed
+      along the way, not glossed over: this PR's own new PATCH route
+      needed (a) an exemption added to check-route-auth-guard.mjs's
+      ROUTE_AUTH_EXEMPTIONS (same requireAuthOrApiKey-vs-requireAuth()
+      regex false positive documented throughout that file) and (b) the
+      authz-gap-inventory.test.ts drift guard's headline counts bumped
+      (887->888 mutating, 642->643 protected) -- both fixed, both
+      re-verified locally before pushing, both now green in CI.
+      projexa#315 -- fully green (Build/Lint/Migration guard/Secret
+      Scanning/Test/Type Check all pass; "Vercel" is the same expected
+      block; "Perf budget" shows "skipping", not a failure).
   - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100 for verification, isolated worktree C:/ct/ct-worktrees/fix-email-reply-actor-attribution for the fix) -- PROJEXA-E2E-001 work order section 2 item 4 ('Email'): verify the one-click emailActionToken flow and the start/end-of-day digest + reply-by-email system, prove cross-surface consistency, fix a real attribution bug found along the way [DONE -- both systems confirmed real/merged/working; RFI/submittal/punch-list/billing-claim reply actions were being misattributed to the shared API key, fixed and live-verified; PR open/unmerged]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
