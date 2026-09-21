@@ -1,69 +1,39 @@
-import Link from "next/link"
 import { getDpdpAuthContext } from "@/lib/services/dpdp-session"
-import { listDataMap } from "@/lib/services/dpdp-data-map-service"
-import { listObligations, listMyObligations } from "@/lib/services/dpdp-obligation-service"
-import { listServedByOrg, listRelationshipsForOrg } from "@/lib/services/dpdp-relationship-service"
-import { listRightsRequests, listGrievances } from "@/lib/services/dpdp-principal-service"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { getOnePageData, getPolicyArtefacts, listOnePageHistory } from "@/lib/services/dpdp-onepage-service"
+import { OnePageView } from "../_components/onepage/OnePageView"
+import { Timeline } from "../_components/onepage/Timeline"
+import { PolicySection } from "../_components/onepage/PolicySection"
+import { markOnePageJobDone } from "./actions"
+import type { ViewerContext } from "@/lib/dpdp-onepage/view-model"
 
+// WO-DPDP-010 §3: the one-page-per-role experience replaces this page's
+// previous separate owner-dashboard/staff-todo branches. Coordinator/
+// Grievance-Officer/CA/parent role detection (beyond the DB's plain
+// owner/staff membership level) is not yet built -- tracked as a known gap,
+// not silently guessed at -- so today every non-owner membership renders as
+// "staff" (the spec's own narrowest, safest role view).
 export default async function DpdpHomePage() {
   const ctx = await getDpdpAuthContext()
   if (!ctx) return null
 
-  if (ctx.level === "staff") {
-    const mine = await listMyObligations(ctx.orgId, ctx.identityId)
-    const open = mine.filter((o) => o.state !== "closed")
-    return (
-      <div>
-        <h1 className="text-2xl font-bold mb-4">Good morning</h1>
-        <Card className="bg-gradient-to-r from-[#F2ECFF] to-[#CFFAFE] border-[#C4B5FD] mb-4">
-          <CardContent className="pt-6">
-            <div className="font-bold mb-1">{open.length ? `${open.length} thing(s) to do` : "Nothing to do"}</div>
-            <p className="text-sm text-[#564D77]">Each takes about four minutes.</p>
-            <Button asChild className="mt-3 bg-gradient-to-r from-[#6D28D9] to-[#9333EA]"><Link href="/dpdp/obligations?mine=1">Start →</Link></Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
+  const { org, rows, viewerEmail } = await getOnePageData(ctx.orgId, ctx.identityId)
+  const viewer: ViewerContext = { kind: ctx.level === "owner" ? "owner" : "staff", me: viewerEmail }
+
+  if (viewer.kind === "staff") {
+    return <OnePageView orgName={org.name} rows={rows} viewer={viewer} onMarkYes={markOnePageJobDone} />
   }
 
-  const [dataMap, obligations, served, relationships, rights, grievances] = await Promise.all([
-    listDataMap(ctx.orgId), listObligations(ctx.orgId), listServedByOrg(ctx.orgId), listRelationshipsForOrg(ctx.orgId),
-    listRightsRequests(ctx.orgId), listGrievances(ctx.orgId),
-  ])
-  const unknown = dataMap.filter((r) => !r.location || r.location.state === "unknown").length
-  const done = obligations.filter((o) => o.state === "closed").length
-  const openRights = rights.filter((r) => r.state === "open").length
-
+  const [history, policy] = await Promise.all([listOnePageHistory(ctx.orgId), getPolicyArtefacts(ctx.orgId)])
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Good morning</h1>
-      {unknown > 0 ? (
-        <Card className="bg-gradient-to-r from-[#F2ECFF] to-[#CFFAFE] border-[#C4B5FD] mb-4">
-          <CardContent className="pt-6">
-            <div className="font-bold mb-1">🗂️ Do this one thing next: find where {unknown} kinds of data are kept</div>
-            <p className="text-sm text-[#564D77]">You do not have to know the file paths yourself. Tell us who does, and we will ask them for you.</p>
-            <Button asChild className="mt-3 bg-gradient-to-r from-[#6D28D9] to-[#9333EA]"><Link href="/dpdp/data-map">Show me the list →</Link></Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="bg-[#DCFCE7] border-[#A7E8C3] mb-4">
-          <CardContent className="pt-6"><div className="font-bold">✅ All data found</div></CardContent>
-        </Card>
-      )}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        {[
-          ["Jobs to do", obligations.length],
-          ["Done", done],
-          ["Data we cannot find", unknown],
-          ["Outside firms", served.length + relationships.length],
-          ["People asking things", openRights],
-          ["Complaints", grievances.length],
-        ].map(([label, value]) => (
-          <Card key={label as string}><CardContent className="pt-6"><div className="text-2xl font-bold">{value as number}</div><div className="text-xs text-[#564D77]">{label}</div></CardContent></Card>
-        ))}
+    <>
+      <OnePageView orgName={org.name} rows={rows} viewer={viewer} onMarkYes={markOnePageJobDone} />
+      {org.product === "firm" && <PolicySection versions={policy.versions} />}
+      <div className="dpdp-onepage">
+        <div className="max-w-[1240px] mx-auto px-5 pb-14">
+          <div className="mb-3" style={{ fontFamily: "Sora, sans-serif", fontSize: 20, fontWeight: 700, color: "var(--dpdp-ink)" }}>🕘 History</div>
+          <Timeline entries={history.map((h) => ({ who: h.actorLabel, what: h.summary, at: h.occurredAt, isNew: Date.now() - h.occurredAt.getTime() < 3_600_000 }))} />
+        </div>
       </div>
-    </div>
+    </>
   )
 }

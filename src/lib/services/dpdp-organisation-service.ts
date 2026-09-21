@@ -32,6 +32,11 @@ export type CreateOrganisationInput = {
   identityId: string
   name: string
   sector?: string
+  // WO-DPDP-010: which library instantiateObligationsForOrg reads (31 firm
+  // jobs vs 28 institution jobs). Defaults to 'firm' -- the product every
+  // org used before this WO, and the /dpdp (no edition) signup path's
+  // implicit product.
+  product?: "firm" | "institution"
   extraCapabilities?: Array<"advisor" | "processor" | "auditor">
 }
 
@@ -48,7 +53,7 @@ export async function createDpdpOrganisation(input: CreateOrganisationInput) {
   const slug = await uniqueSlug(input.name)
 
   return db.transaction(async (tx) => {
-    const [org] = await tx.insert(dpdpOrganisation).values({ name: input.name.trim(), slug, sector: input.sector }).returning()
+    const [org] = await tx.insert(dpdpOrganisation).values({ name: input.name.trim(), slug, sector: input.sector, product: input.product ?? "firm" }).returning()
     // The auto_fiduciary_capability trigger already inserted the
     // 'fiduciary' row for `org` -- add any others requested.
     for (const capability of input.extraCapabilities ?? []) {
@@ -243,7 +248,7 @@ export async function nameDpdpRelationship(input: NameRelationshipInput) {
       const createdAt = new Date()
       const slug = await uniqueSlug(input.counterpartOrgName)
       await tx.insert(dpdpOrganisation).values({ id, name: input.counterpartOrgName.trim(), slug, createdAt })
-      counterpart = { id, name: input.counterpartOrgName.trim(), slug, sector: null, createdAt }
+      counterpart = { id, name: input.counterpartOrgName.trim(), slug, sector: null, createdAt, product: null, setUpByMembershipId: null, ownerConfirmedAt: null }
     }
 
     const fromOrg = input.kind === "advises" ? input.actorOrgId : counterpart.id
