@@ -4333,6 +4333,51 @@ active:
       pcrjmlpuqsbocqfwoxod only, never Vercel; e2e/users.ts test accounts
       only (arjun.mehta CEO account), no real credentials touched.
 
+  - session_label: "claude-code (interactive, Claude Desktop, WO-DPDP-010) -- SUPERSEDES the WO-DPDP-009 claim above (0 commits, still untouched per its own text): the Owner replaced WO-009's step-rail/multi-screen design with a new one-page-per-role spec (veridian-dpdp.html, delivered as WO-DPDP-010.md + the html file). Registered AFTER starting real work, not before -- against this file's own protocol (§2) -- flagged honestly rather than silently backdated."
+    claimed_at: "2026-09-21T (this session)"
+    claim: |
+      Isolated worktree C:/ct/ct-worktrees/wo-dpdp-010, branch
+      feat/wo-dpdp-010-one-page, off origin/main @ 53eaf09e. Local +
+      Supabase (pcrjmlpuqsbocqfwoxod) + GitHub only, per the WO's own
+      ground rules -- no Vercel preview/deploy, merge to main only once a
+      PR is fully green.
+
+      SCOPE: dpdp Postgres schema, src/app/dpdp/**, src/app/dpdp-firm/**,
+      src/app/dpdp-institution/**, src/lib/services/dpdp-*.ts. Same
+      general area as the (superseded) WO-DPDP-009 claim and the
+      standalone task-link-GET-fix claim above -- neither of those had any
+      commits on their branches, so nothing of theirs is being overwritten.
+
+      PROGRESS (first slice, schema + service layer -- commit f301b05d on
+      the branch above): obligation_template/obligation/membership/
+      organisation columns for the spec's job model (part/data_set/
+      data_types/law_codes/product/depends_on_key/depends_on_obligation_id/
+      assigned_staff_group_id/ca_role/first_visit_seen_at/said_not_me_at/
+      set_up_by_membership_id/owner_confirmed_at), 3 new tables
+      (staff_group/staff_group_member/obligation_group_answer) with RLS,
+      and the real 59-job library (31 firm + 28 institution) seeded
+      verbatim from veridian-dpdp.html's LIB as data (library_version
+      0.2-wo010, now is_current) -- NOT the old 10-item 0.1-draft
+      placeholder. instantiateObligationsForOrg now filters by org.product
+      and resolves the escalation chain to real per-org obligation ids. 4
+      new real-DB tests pass (dpdp-obligation-service.test.ts). Applied
+      live via Supabase MCP (direct TCP from this session was
+      intermittently timing out -- documented, not worked around
+      silently); ledger rows inserted with matching sha256 hashes so a
+      future `bun run db:migrate` sees them as already applied.
+
+      STILL TO BUILD (large, not yet started): the one-page-per-role
+      frontend (Seal/PartsTrack/StampPill/PersonBars/Timeline components,
+      first-visit wizards for ~13 roles, CA firm clients view, group-answer
+      UI), /dpdp-firm and /dpdp-institution edition landing pages, the
+      Monday email digest wired to the new job model, the 70-check
+      Playwright acceptance suite, and Step 7's Vercel-ready-but-unmerged
+      branch. This session is continuing, not stopping, per the Owner's own
+      explicit instruction in chat.
+
+      NOT touching compliance.*/platform.* tables, PROJEXA's proxy routes,
+      vercel.json, or any Vercel project/dashboard setting.
+
 recently_completed:
   - session_label: "claude-code (sub-agent, isolated worktrees C:/ct/ct-worktrees/fix-ai-link-pipeline-tasks + C:/ct/projexa-worktrees/fix-ai-link-pipeline-tasks, branch fix/ai-link-pipeline-tasks-repoint in both repos) -- PROJEXA-E2E-001 work order section 2 item 3 ('AI link'): fix (not just verify) the 2 real, confirmed bugs a sibling verification session found -- Bug 1: ai_link_projection()/apply route operated on the orphaned, UI-dead `todos` table instead of the real, live compliance.pipeline_tasks system (M24 Task Master); Bug 2: the snapshot never gave the reading AI a usable id (only the free-text label) [DONE -- both fixed, live-verified as far as this session's real infra constraints allowed, PRs open/unmerged]"
     claimed_at: "2026-09-21T (this session)"
