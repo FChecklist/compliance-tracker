@@ -14610,6 +14610,22 @@ export const dpdpOrganisation = dpdpSchemaDB.table('organisation', {
   slug: text('slug').notNull().unique(),
   sector: text('sector'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // WO-DPDP-010 §2 "Organisation": set when a CA firm used "Set it up for
+  // them" on the client's behalf (membership.id of the CA staff/manager who
+  // did it, not a foreign key -- same loosely-referenced convention as
+  // assignedPersonId elsewhere in this schema). ownerConfirmedAt is the
+  // client owner's own "Looks right -- confirm" act on first visit; NULL
+  // means either "set up by the owner directly" (never needed confirming)
+  // or "still waiting on the owner to confirm" -- disambiguated by whether
+  // setUpByMembershipId is set, per dpdp-organisation-service.ts.
+  setUpByMembershipId: text('set_up_by_membership_id'),
+  ownerConfirmedAt: timestamp('owner_confirmed_at'),
+  // WO-DPDP-010 §2 "Organisation: must support product" -- which library
+  // subset (firm's 31 jobs vs institution's 28) instantiateObligationsForOrg
+  // reads. Set once at signup from the /dpdp-firm or /dpdp-institution
+  // edition the org signed up through; never inferred from `sector` (free
+  // text, a different concept -- industry, not product).
+  product: text('product'), // 'firm' | 'institution'
 })
 
 // Every org gets 'fiduciary' automatically (work order 4.1) -- enforced in
@@ -14660,6 +14676,16 @@ export const dpdpMembership = dpdpSchemaDB.table('membership', {
   joinedVia: dpdpJoinedViaEnum('joined_via').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   revokedAt: timestamp('revoked_at'),
+  // WO-DPDP-010: only meaningful when this membership's org holds the
+  // 'advisor' capability (a CA firm) -- distinguishes manager/staff within
+  // that firm. The firm's partner is just level='owner'; there is no
+  // 'partner' value here. NULL everywhere else.
+  caRole: text('ca_role'),
+  // WO-DPDP-010 §4 "Welcome state": first-visit wizard state, per
+  // membership (never per identity -- one person can have seen the welcome
+  // screen for one role/org and not another).
+  firstVisitSeenAt: timestamp('first_visit_seen_at'),
+  saidNotMeAt: timestamp('said_not_me_at'),
 }, (t) => ({
   identityOrgUnique: unique('dpdp_membership_identity_org_key').on(t.identityId, t.orgId),
 }))
@@ -14736,6 +14762,21 @@ export const dpdpObligationTemplate = dpdpSchemaDB.table('obligation_template', 
   appliesWhen: jsonb('applies_when'),
   feedsDocuments: text('feeds_documents').array(),
   proofMode: dpdpProofModeEnum('proof_mode').notNull().default('declare'), // WO-DPDP-005 1: which of the 3 proof modes this duty defaults to
+  // WO-DPDP-010 §2/§3: columns the one-page-per-role table (veridian-dpdp.html's
+  // LIB) needs to render/filter directly -- part number, the sheet's "Data
+  // set"/"Data type"/"Law" columns, and the escalation dependency by key
+  // (resolved to a real obligation.depends_on_obligation_id at instantiation
+  // time, per org+library version -- see dpdp-obligation-library.ts).
+  // `product` is null for library-agnostic templates (there are none today;
+  // every real template is 'firm' or 'institution') and is intentionally NOT
+  // folded into appliesWhen (jsonb) because it needs to be a fast, indexable
+  // filter/group-by column, not a nested predicate.
+  product: text('product'), // 'firm' | 'institution'
+  part: integer('part').notNull().default(1), // 1-7, veridian-dpdp.html's PARTS
+  dataSet: text('data_set'),
+  dataTypes: text('data_types').array(),
+  lawCodes: text('law_codes').array(), // e.g. ['d:§8(9)','s:R5(9)'] -- law-code:section, veridian-dpdp.html's lawCell()
+  dependsOnKey: text('depends_on_key'), // another template's `key` in the SAME library_version_id
 }, (t) => ({
   libraryVersionKeyUnique: unique('dpdp_obligation_template_version_key_key').on(t.libraryVersionId, t.key),
 }))
@@ -14758,6 +14799,14 @@ export const dpdpObligation = dpdpSchemaDB.table('obligation', {
   naReason: text('na_reason'),
   closedAt: timestamp('closed_at'),
   closedBy: text('closed_by'),
+  // WO-DPDP-010 §2: "depends-on-job" (the chain: owner confirms -> CA
+  // manager checks -> CA partner signs -- this obligation gets no email
+  // until the one it points to is closed) and "person responsible (email OR
+  // a group)" -- assignedPersonId already covers the email case, this adds
+  // the group case. Both nullable; resolved from the template's
+  // dependsOnKey / product-library's group jobs at instantiation time.
+  dependsOnObligationId: text('depends_on_obligation_id'),
+  assignedStaffGroupId: text('assigned_staff_group_id'),
 })
 
 // ─── DPDP 4.4: evidence -- bitemporal, per IMG-001/002/003/004 ──────────
@@ -15417,3 +15466,39 @@ export const dpdpAiProposalLine = dpdpSchemaDB.table('ai_proposal_line', {
   approved: boolean('approved').notNull().default(false),
   appliedAt: timestamp('applied_at'),
 })
+
+// ─── WO-DPDP-010: one-page-per-role product -- group jobs ──────────────
+// veridian-dpdp.html's "Group" concept ("All staff"/"All teachers"): a job
+// can be assigned to a whole group instead of one person. Each member
+// answers PRIVATELY with one of three answers (spec's data-ga handler);
+// obligation.progressDone/progressTotal (already on the table above) is the
+// running "x of y have answered" count the UI reads -- this table is the
+// per-member attribution History needs ("who, when, what"), which a bare
+// counter can't provide.
+export const dpdpGroupAnswerEnum = dpdpSchemaDB.enum('group_answer', ['done', 'never_had_any', 'cannot'])
+
+export const dpdpStaffGroup = dpdpSchemaDB.table('staff_group', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  label: text('label').notNull(), // "All staff" | "All teachers" (free text -- an org may only ever have one, but not enforced here)
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const dpdpStaffGroupMember = dpdpSchemaDB.table('staff_group_member', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  groupId: text('group_id').notNull(),
+  membershipId: text('membership_id').notNull(),
+  addedAt: timestamp('added_at').notNull().defaultNow(),
+}, (t) => ({
+  groupMembershipUnique: unique('dpdp_staff_group_member_group_membership_key').on(t.groupId, t.membershipId),
+}))
+
+export const dpdpObligationGroupAnswer = dpdpSchemaDB.table('obligation_group_answer', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  obligationId: text('obligation_id').notNull(),
+  membershipId: text('membership_id').notNull(),
+  answer: dpdpGroupAnswerEnum('answer').notNull(),
+  answeredAt: timestamp('answered_at').notNull().defaultNow(),
+}, (t) => ({
+  obligationMembershipUnique: unique('dpdp_obligation_group_answer_obligation_membership_key').on(t.obligationId, t.membershipId),
+}))

@@ -4,7 +4,7 @@
 // (data-sub k="done"/"stuck"/"not", data-rev "ok"/"no") exactly -- do not
 // rename them without also updating the artefact reference.
 import { and, eq } from "drizzle-orm"
-import { dpdpObligation, dpdpObligationTemplate } from "@/lib/db"
+import { dpdpObligation, dpdpObligationTemplate, dpdpOrganisation } from "@/lib/db"
 import { withDpdpContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { logDpdpEvent } from "./dpdp-event-service"
 import { getCurrentLibraryVersion, listObligationTemplates } from "./dpdp-obligation-library"
@@ -25,9 +25,17 @@ function addDays(base: Date, days: number): Date {
  */
 export async function instantiateObligationsForOrg(orgId: string, actorIdentityId: string) {
   const version = await getCurrentLibraryVersion()
-  const templates = await listObligationTemplates(version.id)
+  const allTemplates = await listObligationTemplates(version.id)
 
   return withDpdpContext({ orgId }, async (tx) => {
+    const org = await tx.query.dpdpOrganisation.findFirst({ where: eq(dpdpOrganisation.id, orgId) })
+    if (!org) throw new ServiceError("Organisation not found", 404)
+    // WO-DPDP-010: the current library version holds BOTH products' templates
+    // together (31 firm + 28 institution) -- a template with product=null is
+    // library-agnostic (there are none today; every real WO-010 template is
+    // tagged) and is included for every org, matching pre-WO-010 behaviour.
+    const templates = allTemplates.filter((t) => t.product == null || t.product === org.product)
+
     const existing = await tx.query.dpdpObligation.findMany({ where: and(eq(dpdpObligation.orgId, orgId), eq(dpdpObligation.libraryVersionUsed, version.id)) })
     const haveTemplateIds = new Set(existing.map((o) => o.templateId))
     const toCreate = templates.filter((t) => !haveTemplateIds.has(t.id))
@@ -39,6 +47,20 @@ export async function instantiateObligationsForOrg(orgId: string, actorIdentityI
         orgId, templateId: t.id, libraryVersionUsed: version.id, dueOn: addDays(now, t.defaultDays).toISOString().slice(0, 10),
       }))
     ).returning()
+
+    // Resolve depends_on_key (a template-level key, e.g. "firm-30" depends on
+    // "firm-29") to a real depends_on_obligation_id on THIS org's instances,
+    // now that both sides of the dependency exist as obligation rows.
+    const byKey = new Map(templates.map((t) => [t.key, t]))
+    const obligationByTemplateId = new Map([...existing, ...created].map((o) => [o.templateId, o]))
+    for (const createdObligation of created) {
+      const template = templates.find((t) => t.id === createdObligation.templateId)
+      if (!template?.dependsOnKey) continue
+      const depTemplate = byKey.get(template.dependsOnKey)
+      const depObligation = depTemplate && obligationByTemplateId.get(depTemplate.id)
+      if (!depObligation) continue
+      await tx.update(dpdpObligation).set({ dependsOnObligationId: depObligation.id }).where(eq(dpdpObligation.id, createdObligation.id))
+    }
 
     await logDpdpEvent({ orgId, actorIdentityId, actorLabel: "system", kind: "obligation_assigned", summary: `${created.length} jobs opened from library ${version.version}` }, tx)
     return [...existing, ...created]
