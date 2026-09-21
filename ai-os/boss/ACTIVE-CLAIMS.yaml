@@ -4402,18 +4402,41 @@ active:
       critical, wait for it to clear naturally rather than closing sibling
       claude processes.
 
+      PROGRESS, UPDATED AGAIN 2026-09-21 (same session, continued further)
+      -- PR #1789 merged: the client-owner's First Visit wizard, steps 1+2
+      (step 3/policy is optional in the spec and already covered by the
+      always-visible PolicySection, so wizard completion isn't gated on
+      it). Gated on membership.firstVisitSeenAt rather than changing the
+      org-creation route's existing auto-instantiate-obligations behaviour
+      (~20 admin pages depend on that already existing; widening this PR's
+      blast radius to change it wasn't worth it for this slice). THREE more
+      real bugs found by actually clicking through the wizard on a live
+      dev server (not caught by typecheck or the unit-test suite): a
+      missing logDpdpEvent import (real crash on save), a React
+      startTransition/router.refresh() bug where a server-action DB write
+      genuinely succeeded but the UI kept showing stale state until a
+      manual reload (same root cause was already latent in PR #1786's own
+      Mark Yes button -- fixed both call sites together), and a part-count
+      inconsistency between PartsTrack's ring and JobsTable's own header
+      once any area gets marked not-applicable (JobsTable was re-deriving
+      its own count from the currently-filtered rows instead of the
+      already-correct stable count PartsTrack computes). All three
+      verified fixed via the same live-session technique, not just code
+      review.
+
       STILL TO BUILD (large, not yet started): coordinator/Grievance-
       Officer/CA/parent role detection (today every non-owner membership
       renders as the staff view -- the DB's membership model only has
       owner/staff levels, GO/coordinator are just roleTag values today, not
       first-class identities the UI can detect), CA firm clients view,
-      group-answer UI, first-visit wizards (~7 flows), /dpdp-firm and
-      /dpdp-institution edition landing pages, the Monday email digest
-      wired to the new job model (the `sent` field is honestly hard-coded
-      to 0 everywhere until this lands), the 70-check Playwright acceptance
-      suite, and Step 7's Vercel-ready-but-unmerged branch. This session is
-      continuing, not stopping, per the Owner's own explicit instruction in
-      chat.
+      group-answer UI, remaining first-visit wizards (owner-set-up-by-CA,
+      CA partner's 3-step, the generic "everyone invited" screen -- ~5 more
+      flows), /dpdp-firm and /dpdp-institution edition landing pages (in
+      progress next), the Monday email digest wired to the new job model
+      (the `sent` field is honestly hard-coded to 0 everywhere until this
+      lands), the 70-check Playwright acceptance suite, and Step 7's
+      Vercel-ready-but-unmerged branch. This session is continuing, not
+      stopping, per the Owner's own explicit instruction in chat.
 
       NOT touching compliance.*/platform.* tables, PROJEXA's proxy routes,
       vercel.json, or any Vercel project/dashboard setting.
