@@ -80,6 +80,143 @@ const TASK_ROW = {
   mode: "Projects",
 }
 
+/**
+ * A db whose update()/set()/where()/returning() chain records what it was
+ * asked to write and answers with `returning` -- mirrors mockDb() above but
+ * for a write instead of a read.
+ */
+function mockUpdateDb(returning: Record<string, unknown>[]) {
+  const captured = { orgIds: [] as string[], sets: [] as Record<string, unknown>[] }
+  const withTenantContext = mock(async (c: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => {
+    captured.orgIds.push(c.orgId)
+    const chain = {
+      where: () => chain,
+      returning: () => Promise.resolve(returning),
+    }
+    return fn({
+      update: () => ({
+        set: (arg: Record<string, unknown>) => {
+          captured.sets.push(arg)
+          return chain
+        },
+      }),
+    })
+  })
+  mock.module("@/lib/db/tenant-scoped", () => ({ withTenantContext }))
+  return captured
+}
+
+function patchRequest(body: unknown) {
+  return { json: async () => body } as never
+}
+
+describe("PATCH /api/v1/projexa/tasks/[id]", () => {
+  // Bug-fix context: this endpoint exists so PROJEXA's AI Link (a separate
+  // repo) can honestly map its MARK_STATUS verb onto a REAL pipeline_tasks
+  // field -- see this route file's own header for the full story and why
+  // only {to_do, done} are accepted.
+
+  test("a status outside {to_do, done} is refused before any db write", async () => {
+    mockAuth({ orgId: "org-1" })
+    const captured = mockUpdateDb([{ id: "task-1", status: "done", updatedAt: new Date() }])
+
+    const { PATCH } = await import("./route")
+    const res = await PATCH(patchRequest({ status: "blocked" }), { params: Promise.resolve({ id: "task-1" }) })
+    const body = (await res.json()) as { error: string }
+
+    expect(res.status).toBe(400)
+    expect(body.error).toContain("to_do, done")
+    expect(captured.orgIds).toHaveLength(0)
+  })
+
+  test("an in_progress/waiting claim is refused the same way -- those stay executor-exclusive", async () => {
+    mockAuth({ orgId: "org-1" })
+    const captured = mockUpdateDb([])
+
+    const { PATCH } = await import("./route")
+    const res = await PATCH(patchRequest({ status: "in_progress" }), { params: Promise.resolve({ id: "task-1" }) })
+
+    expect(res.status).toBe(400)
+    expect(captured.orgIds).toHaveLength(0)
+  })
+
+  test("marks a task done and returns the updated row", async () => {
+    mockAuth({ orgId: "org-1" })
+    const updatedAt = new Date("2026-09-21T00:00:00Z")
+    const captured = mockUpdateDb([{ id: "task-1", status: "done", updatedAt }])
+
+    const { PATCH } = await import("./route")
+    const res = await PATCH(patchRequest({ status: "done" }), { params: Promise.resolve({ id: "task-1" }) })
+    const body = (await res.json()) as { task: { id: string; status: string; updatedAt: string } }
+
+    expect(res.status).toBe(200)
+    expect(body.task).toEqual({ id: "task-1", status: "done", updatedAt: updatedAt.toISOString() })
+    expect(captured.sets[0]).toMatchObject({ status: "done" })
+    expect(captured.orgIds).toEqual(["org-1"])
+  })
+
+  test("reopens a task (to_do)", async () => {
+    mockAuth({ orgId: "org-1" })
+    mockUpdateDb([{ id: "task-1", status: "to_do", updatedAt: new Date() }])
+
+    const { PATCH } = await import("./route")
+    const res = await PATCH(patchRequest({ status: "to_do" }), { params: Promise.resolve({ id: "task-1" }) })
+    const body = (await res.json()) as { task: { status: string } }
+
+    expect(res.status).toBe(200)
+    expect(body.task.status).toBe("to_do")
+  })
+
+  test("a task id that resolves to nothing (wrong id or foreign org) is a 404, not a row belonging to someone else", async () => {
+    mockAuth({ orgId: "org-1" })
+    mockUpdateDb([])
+
+    const { PATCH } = await import("./route")
+    const res = await PATCH(patchRequest({ status: "done" }), { params: Promise.resolve({ id: "someone-elses-task" }) })
+    const body = (await res.json()) as { error: string }
+
+    expect(res.status).toBe(404)
+    expect(body.error).toBe("Task not found")
+  })
+
+  test("the 'member'/'write' floor runs before any write", async () => {
+    mockAuth({ orgId: "org-1", roleErr: new Response(JSON.stringify({ error: "Insufficient role" }), { status: 403 }) })
+    const captured = mockUpdateDb([{ id: "task-1", status: "done", updatedAt: new Date() }])
+
+    const { PATCH } = await import("./route")
+    const res = await PATCH(patchRequest({ status: "done" }), { params: Promise.resolve({ id: "task-1" }) })
+
+    expect(res.status).toBe(403)
+    expect(captured.orgIds).toHaveLength(0)
+  })
+
+  test("no resolvable org is a 400 before any write", async () => {
+    mockAuth({ orgId: null })
+    const captured = mockUpdateDb([{ id: "task-1", status: "done", updatedAt: new Date() }])
+
+    const { PATCH } = await import("./route")
+    const res = await PATCH(patchRequest({ status: "done" }), { params: Promise.resolve({ id: "task-1" }) })
+
+    expect(res.status).toBe(400)
+    expect(captured.orgIds).toHaveLength(0)
+  })
+
+  test("a non-JSON body is a 400, not a thrown error", async () => {
+    mockAuth({ orgId: "org-1" })
+    mockUpdateDb([])
+
+    const { PATCH } = await import("./route")
+    const badRequest = {
+      json: async () => {
+        throw new Error("bad json")
+      },
+    } as never
+    const res = await PATCH(badRequest, { params: Promise.resolve({ id: "task-1" }) })
+
+    expect(res.status).toBe(400)
+  })
+})
+
 describe("GET /api/v1/projexa/tasks/[id]", () => {
   test("returns the one task, under a `task` key", async () => {
     mockAuth({ orgId: "org-1" })
