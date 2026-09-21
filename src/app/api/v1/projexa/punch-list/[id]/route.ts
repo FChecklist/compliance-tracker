@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveWriteActorId } from "@/lib/supabase/auth-guard"
 import { getPunchListItem, markPunchListItemReadyForReview, verifyPunchListItemClosed, ServiceError } from "@/lib/services/construction-field-workflow-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -28,7 +28,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
 
   try {
     const { id } = await params
@@ -38,7 +37,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json(item)
     }
     if (body.action === "verify") {
-      const item = await verifyPunchListItemClosed({ orgId: ctx.orgId, userId: actorId }, id)
+      // PROJEXA-E2E-001 surface-4 fix: see rfis/[id]/route.ts's identical
+      // comment and resolveWriteActorId's own header in auth-guard.ts.
+      const acting = await resolveWriteActorId(request, ctx)
+      if (acting.error) return acting.error
+      const item = await verifyPunchListItemClosed({ orgId: ctx.orgId, userId: acting.actorId }, id)
       return NextResponse.json(item)
     }
     return NextResponse.json({ error: "action must be 'ready' or 'verify'" }, { status: 400 })

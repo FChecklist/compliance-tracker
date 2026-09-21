@@ -400,3 +400,66 @@ describe("resolveActingUser -- which binding is actually load-bearing today", ()
     expect(user!.id).toBe("veridian-user-linked")
   })
 })
+
+// PROJEXA-E2E-001 surface-4 (email) fix. Live testing of the digest reply-
+// by-email path (digest-item-dispatcher.ts, which sends X-Acting-User/
+// X-Acting-User-Email on every RFI/submittal/punch-list/billing-claim call
+// specifically so a reply-driven change is attributed to the real person)
+// found that none of those 4 routes' PATCH handlers ever read those
+// headers -- they computed `ctx.dbUser?.id ?? ctx.apiKey!.id` directly, so
+// every PROJEXA-proxied write was attributed to the shared org API key's
+// own row, never a real person. Live-verified directly against
+// pcrjmlpuqsbocqfwoxod: answering a real open RFI via the real reply
+// pipeline stored answered_by_id as the org's api_keys.id, not the real
+// replying user's compliance.users.id.
+//
+// resolveWriteActorId() is the fix, used by all 4 routes. These tests lock
+// in its 4 real branches directly (not through a route's own mock), same
+// harness as resolveActingUser's own coverage above.
+describe("resolveWriteActorId -- PROJEXA-E2E-001 surface-4 fix", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db", () => realDbModule)
+  })
+
+  test("a session caller's own dbUser wins outright, no DB lookup needed", async () => {
+    const { resolveWriteActorId } = await loadAuthGuardWithUserLookups([])
+    const ctx = { orgId: "org-1", dbUser: { id: "session-user" }, apiKey: null, response: null }
+    const { actorId, error } = await resolveWriteActorId({ headers: new Headers() }, ctx as never)
+    expect(error).toBeNull()
+    expect(actorId).toBe("session-user")
+  })
+
+  test("no acting-user signal at all falls back to the API key's own id -- unchanged legacy behaviour, so PROJEXA's existing UI proxies (which send no headers) are not broken by this fix", async () => {
+    const { resolveWriteActorId } = await loadAuthGuardWithUserLookups([])
+    const { actorId, error } = await resolveWriteActorId({ headers: new Headers() }, PROJEXA_ORG_KEY_CTX as never)
+    expect(error).toBeNull()
+    expect(actorId).toBe("key-1")
+  })
+
+  test("an X-Acting-User(-Email) signal that resolves is used -- the whole point of the fix", async () => {
+    const { resolveWriteActorId } = await loadAuthGuardWithUserLookups([{ id: "real-person-42", orgId: "org-1", isActive: true }])
+    const headers = new Headers({ "X-Acting-User": "supabase-user-1", "X-Acting-User-Email": "arjun@meridian.example" })
+    const { actorId, error } = await resolveWriteActorId({ headers }, PROJEXA_ORG_KEY_CTX as never)
+    expect(error).toBeNull()
+    expect(actorId).toBe("real-person-42")
+  })
+
+  test("an X-Acting-User signal that fails to resolve is refused, never silently attributed to the API key", async () => {
+    const { resolveWriteActorId } = await loadAuthGuardWithUserLookups([undefined])
+    const headers = new Headers({ "X-Acting-User": "supabase-user-with-no-veridian-row" })
+    const { actorId, error } = await resolveWriteActorId({ headers }, PROJEXA_ORG_KEY_CTX as never)
+    expect(actorId).toBeNull()
+    expect(error).not.toBeNull()
+    const body = await error!.json()
+    expect(body.code).toBe("USER_NOT_LINKED")
+  })
+
+  test("no acting-user signal and no API key (should not happen in practice) is Unauthorized, not a crash", async () => {
+    const { resolveWriteActorId } = await loadAuthGuardWithUserLookups([])
+    const ctx = { orgId: "org-1", dbUser: null, apiKey: null, response: null }
+    const { actorId, error } = await resolveWriteActorId({ headers: new Headers() }, ctx as never)
+    expect(actorId).toBeNull()
+    expect(error!.status).toBe(401)
+  })
+})
