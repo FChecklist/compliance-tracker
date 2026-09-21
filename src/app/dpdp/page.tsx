@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { getDpdpAuthContext, getDpdpIdentityContext } from "@/lib/services/dpdp-session"
-import { DpdpMarketingPage } from "./_components/DpdpMarketingPage"
+import { RootChooser } from "./_components/RootChooser"
 
 // Pre-existing gap, fixed in passing: every /dpdp/* route previously had
 // no metadata of its own, so it silently inherited the root layout's
@@ -19,11 +19,15 @@ export const metadata: Metadata = {
 // site root's own page.tsx had for /office before it was fixed the same
 // day. A visitor with any existing state (an active session, or a
 // half-finished onboarding) still redirects exactly as before; only the
-// true first-time case now renders the real marketing page instead.
+// true first-time case now renders something instead of a bare login form.
+//
+// WO-DPDP-010 §6: this used to render the full DpdpMarketingPage directly;
+// now it's the small root chooser ("carried from WO-009, smaller"), which
+// routes on to /dpdp-firm or /dpdp-institution for the real pitch.
 export default async function DpdpIndexPage() {
   const ctx = await getDpdpAuthContext()
   if (ctx) redirect("/dpdp/home")
   const identity = await getDpdpIdentityContext()
   if (identity) redirect("/dpdp/onboarding")
-  return <DpdpMarketingPage />
+  return <RootChooser />
 }
