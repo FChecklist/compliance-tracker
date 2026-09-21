@@ -40,17 +40,55 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/goofy-northcutt-3d4a48, branch claude/objective-curran-88115b) -- check-closure-citation-skips.mjs failure: 6 platform.sumeet_requirements rows (R-01, R-02, R-32, R-40, R-B1, R-B2) cite e2e/demo-gate-smoke.spec.ts, which was renamed/split (R81/R38 history) -- real file is e2e/demo-gate-smoke-env1.spec.ts, and R-01/R-02/R-32/R-40 now have their OWN dedicated per-requirement specs (e2e/r01-r02-boq-create-env1.spec.ts, e2e/r32-boq-total-excludes-subtasks-env1.spec.ts, e2e/r40-work-progress-weighted-subtask-env1.spec.ts) per a PM 'de-share the citation' decision. Investigating each row's actual coverage, correcting citation/closure_test_path fields (or demoting per R74-RULING-03 if coverage no longer holds), and updating check-closure-citation-skips.mjs's own CITED mirror array to match. [IN PROGRESS]"
+  - session_label: "claude-code (interactive, isolated worktree C:/ct/ct/.claude/worktrees/goofy-northcutt-3d4a48, branch claude/objective-curran-88115b) -- check-closure-citation-skips.mjs failure investigation: turned out to be a stale script mirror, not stale DB rows [DONE -- PR open/unmerged pending owner's batch merge]"
     claimed_at: "2026-09-21T (this session)"
+    completed_at: "2026-09-21T (this session)"
     claim: |
-      File scope: platform.sumeet_requirements rows R-01, R-02, R-32, R-40,
-      R-B1, R-B2 (Supabase project pcrjmlpuqsbocqfwoxod) -- citation/evidence
-      and closure_test_path fields only, no product code changes.
-      scripts/check-closure-citation-skips.mjs's CITED array, if the
-      per-row correction means its hardcoded mirror is now stale too.
-      Not touching any other PROJEXA-E2E-001/R-8x/R-9x work in flight above
-      or below this entry. Worktree/PR opened per repo convention, left
-      unmerged for the owner's batch merge per standing ground rules.
+      Original premise (from the task that started this): 6 platform.
+      sumeet_requirements rows (R-01, R-02, R-32, R-40, R-B1, R-B2) cite
+      e2e/demo-gate-smoke.spec.ts, which does not exist -- looked like a
+      stale DB citation after a rename.
+
+      Real finding: the DB rows were ALREADY CORRECT. Two real, merged PRs
+      had already fixed this weeks ago -- PR #1666 (commit 28cf473c,
+      2026-09-11, "de-share" R-01/R-02/R-32/R-40 into their own dedicated
+      specs: e2e/r01-r02-boq-create-env1.spec.ts, e2e/r32-boq-total-
+      excludes-subtasks-env1.spec.ts, e2e/r40-work-progress-weighted-
+      subtask-env1.spec.ts) and PR #1729 (commit 4760c244, 2026-09-14,
+      renamed demo-gate-smoke.spec.ts -> demo-gate-smoke-env1.spec.ts for
+      R-B1). R-B2's real citation is cross-repo: FChecklist/projexa's e2e/
+      rb2-boq-create-real-click-and-progress-dropdown-env1.spec.ts, commit
+      b236009e (2026-09-20, verified directly in that repo's own git log).
+
+      What was actually stale: scripts/check-closure-citation-skips.mjs's
+      own hardcoded CITED mirror array, never updated after PR #1666/#1729
+      merged -- so its own error output ("R-01 cites e2e/demo-gate-
+      smoke.spec.ts") was describing its stale self, not the DB, which is
+      almost certainly what the original bug report was reading. Fixed the
+      mirror to the 5 real in-repo paths; R-B2 intentionally left out of
+      it (cross-repo citation, this script can only file-check locally).
+
+      Verification: did NOT have Supabase MCP/service_role DB access this
+      session (app_runtime role via `vercel env pull` is RLS-blocked from
+      platform.sumeet_requirements; PostgREST refuses schema=platform with
+      PGRST106). Project manager session [88b2c2] ran the live SELECT and
+      reported all 6 rows already correct -- did not take that on faith:
+      independently cross-checked all 3 cited commit SHAs against real git
+      history in both compliance-tracker and FChecklist/projexa (all 3
+      real, dated, matching the claimed story exactly) before accepting
+      it. No DB write needed or made.
+
+      Script now correctly reports the 5 remaining rows' ALREADY-KNOWN,
+      ALREADY-TRACKED "can skip itself" condition (Addendum B G2-02,
+      continue-on-error:true in ci.yml) instead of a false "does not
+      exist" one -- did not attempt G2-02 itself (proving each spec
+      against environment 1 and recording PROVEN_AGAINST), that's
+      separately tracked, owner-sequenced work per ci.yml's own comment.
+
+      File scope: scripts/check-closure-citation-skips.mjs only. No
+      platform.sumeet_requirements write, no other product code touched.
+      PR open/unmerged for the owner's batch merge per standing ground
+      rules.
 
   - session_label: "claude-code (interactive, isolated worktrees C:/ct/ct-worktrees/wo-exceptions-fix + C:/ct/projexa-worktrees/wo-exceptions-fix, branch wo/exceptions-item24-and-navigation + wo/exceptions-drilldown-navigation) -- PROJEXA-E2E-001: direct fix (not deferred) for the 2 real bugs found by the R-92..R-100/31-vs-28 exceptions reconciliation session (2026-09-20/21) -- Bug 1: construction-exceptions-service.ts getProjectExceptions() 29-vs-28 array-length bug (item #24 push()'d twice under the same number); Bug 2: ExceptionsClient.tsx had zero drill-down navigation from a flagged exception to the real record it names [DONE -- both fixed, unit/component tests green locally, PRs open/unmerged pending real CI e2e verification]"
     claimed_at: "2026-09-21T (this session)"
