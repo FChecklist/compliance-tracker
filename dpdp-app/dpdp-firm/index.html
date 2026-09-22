@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      The "firm" edition landing (WO-DPDP-012 §1/§4): a complete public page --
+      every word is in this file, no JavaScript runs on it, and the copy is
+      verbatim from src/app/dpdp/_components/DpdpMarketingPage.tsx
+      (edition="firm") on the Next.js side. Two things from that page are
+      deliberately NOT here: the penalty-exposure calculator (it needs script
+      and is a separate decision) and the email-capture forms (they POST to a
+      Next.js-only API) -- their "Start free →" buttons became links to the
+      static app's own sign-in at /app/. scripts/check-public-surface.mjs
+      proves the rest after every build.
+    -->
+    <title>VERIDIAN DPDP for Businesses — Digital Personal Data Protection Act Compliance</title>
+    <meta name="description" content="A DPDP Act compliance record for companies, firms and NGOs, built to be checked, not taken on faith -- a tamper-evident audit trail, documents you never have to hand over." />
+    <link rel="canonical" href="https://app.veridian-aios.com/dpdp-firm/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="VERIDIAN DPDP" />
+    <meta property="og:locale" content="en_IN" />
+    <meta property="og:url" content="https://app.veridian-aios.com/dpdp-firm/" />
+    <meta property="og:title" content="VERIDIAN DPDP for Businesses — Digital Personal Data Protection Act Compliance" />
+    <meta property="og:description" content="A DPDP Act compliance record for companies, firms and NGOs, built to be checked, not taken on faith -- a tamper-evident audit trail, documents you never have to hand over." />
+    <link rel="preload" href="/fonts/sora-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/instrument-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/src/site.css" />
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://app.veridian-aios.com/#organization",
+          "name": "VERIDIAN",
+          "url": "https://veridian-aios.com/",
+          "contactPoint": [
+            { "@type": "ContactPoint", "contactType": "Grievance Officer", "email": "grievance@veridian-aios.com" },
+            { "@type": "ContactPoint", "contactType": "Partners", "email": "partners@veridian-aios.com" }
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://app.veridian-aios.com/#website",
+          "name": "VERIDIAN DPDP",
+          "url": "https://app.veridian-aios.com/",
+          "inLanguage": "en-IN",
+          "publisher": { "@id": "https://app.veridian-aios.com/#organization" }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "VERIDIAN DPDP",
+          "url": "https://app.veridian-aios.com/dpdp-firm/",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web browser",
+          "inLanguage": "en-IN",
+          "description": "A DPDP Act compliance record for companies, firms and NGOs, built to be checked, not taken on faith -- a tamper-evident audit trail, documents you never have to hand over.",
+          "audience": { "@type": "Audience", "audienceType": "Companies, NGOs, trading firms, and CA/CS/audit practices keeping their own file" },
+          "publisher": { "@id": "https://app.veridian-aios.com/#organization" }
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            { "@type": "Question", "name": "We run on Gmail. Does that matter?", "acceptedAnswer": { "@type": "Answer", "text": "No. Most Indian companies do. Sign-in is a link to whatever address you use — Gmail, Yahoo or your own domain." } },
+            { "@type": "Question", "name": "Has anybody actually been fined?", "acceptedAnswer": { "@type": "Answer", "text": "No. No penalty order has been issued in India to date, and the Board's members are not yet appointed. The date is the real thing, not the fear." } },
+            { "@type": "Question", "name": "We are small. Does this apply to us?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. There is no size exemption in the Act. A ten-person firm holding customer phone numbers is a Data Fiduciary." } },
+            { "@type": "Question", "name": "Do you touch our systems?", "acceptedAnswer": { "@type": "Answer", "text": "Never. We do not connect to your software, read your files or install anything. We record what you tell us and hold you to it." } },
+            { "@type": "Question", "name": "Do you keep our documents?", "acceptedAnswer": { "@type": "Answer", "text": "No. We keep a fingerprint, a name and a date. The document stays with you — which is why you must keep your own originals." } },
+            { "@type": "Question", "name": "Can you certify us as compliant?", "acceptedAnswer": { "@type": "Answer", "text": "No, and neither can anyone else. There is no government DPDP certification in India. We document and we record." } },
+            { "@type": "Question", "name": "What if we stop paying?", "acceptedAnswer": { "@type": "Answer", "text": "Your proof stays readable and exportable. You lose new entries, not old ones. We do not hold it hostage." } },
+            { "@type": "Question", "name": "What happens if you disappear?", "acceptedAnswer": { "@type": "Answer", "text": "Your whole record exports in open formats with the fingerprints intact, and verifies without us. That is the point of building it this way." } }
+          ]
+        }
+      ]
+    }
+    </script>
+  </head>
+  <body class="site">
+    <header class="nav">
+      <div class="nav-inner">
+        <div class="wordmark">VERIDIAN<span class="wordmark-sub">VERy INDIAN</span></div>
+        <div class="nav-actions">
+          <span class="nav-due">Compliance due 13 May 2027</span>
+          <a class="btn btn-sm" href="/app/">Start free →</a>
+          <a class="nav-signin" href="/app/">Sign in</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="pill">✦ VERIDIAN &nbsp;·&nbsp; <b>VERy INDIAN</b> &nbsp;·&nbsp; an independent, third-party DPDP compliance record</div>
+        <h1 class="hero-title">
+          Your DPDP proof —<br />
+          <span class="grad-text">not just your DPDP policy.</span>
+        </h1>
+        <p class="hero-sub">Built for a company, NGO, trading firm or a CA/CS/audit practice's own file.</p>
+        <p class="hero-cta"><a class="btn" href="/app/">Start free →</a></p>
+      </section>
+
+      <div class="band">
+        <div class="band-title">⚖️ The Schedule to the Act</div>
+        <div class="chips">
+          <div class="chip"><b class="font-heading">₹250 cr</b>S.8(5) security</div>
+          <div class="chip"><b class="font-heading">₹200 cr</b>S.8(6) breach notice</div>
+          <div class="chip"><b class="font-heading">₹200 cr</b>S.9 children</div>
+          <div class="chip"><b class="font-heading">₹150 cr</b>S.10 SDF</div>
+          <div class="chip"><b class="font-heading">₹50 cr</b>residual</div>
+          <div class="chip"><b class="font-heading">₹10,000</b>S.15 individual</div>
+        </div>
+        <div class="band-note">Ceilings per instance · the Board decides under S.33 · <b class="white">no penalty order has been issued in India to date</b></div>
+      </div>
+
+      <div class="container">
+        <section class="section">
+          <h2 class="section-title">Everything DPDP, in one place</h2>
+          <p class="section-sub">And the two things the law already requires you to publish are free, forever.</p>
+          <div class="grid grid-3">
+            <div class="card">
+              <span class="card-icon">🗂️</span>
+              <b class="card-title">Where your data actually is</b>
+              <span class="card-body">Not “we hold Aadhaar” — the folder, the software, the cupboard. Unknown ones get asked to whoever runs that system.</span>
+            </div>
+            <div class="card">
+              <span class="card-badge">FREE, ALWAYS</span>
+              <span class="card-icon">🎧</span>
+              <b class="card-title">A Grievance Officer, published</b>
+              <span class="card-body">Named, appointed properly, on a permanent page. Required by S.8(10).</span>
+            </div>
+            <div class="card">
+              <span class="card-badge">FREE, ALWAYS</span>
+              <span class="card-icon">🌐</span>
+              <b class="card-title">Your own public page</b>
+              <span class="card-body">For the 70% of Indian businesses who cannot edit their own website, or have none.</span>
+            </div>
+            <div class="card">
+              <span class="card-icon">📧</span>
+              <b class="card-title">One email a day, and it is the dashboard</b>
+              <span class="card-body">Your people answer yes or no from their inbox. Most never open the website at all.</span>
+            </div>
+            <div class="card">
+              <span class="card-icon">🤖</span>
+              <b class="card-title">An AI Link for any chatbox</b>
+              <span class="card-body">Paste it into ChatGPT and let it do the work. It can read, never change. You approve every suggestion.</span>
+            </div>
+            <div class="card">
+              <span class="card-icon">🛡️</span>
+              <b class="card-title">Proof that survives people</b>
+              <span class="card-body">Dated, unalterable, kept ten years. The IT man leaves; the record does not.</span>
+            </div>
+            <div class="card">
+              <span class="card-icon">🗄️</span>
+              <b class="card-title">We never keep your documents</b>
+              <span class="card-body">Fingerprints, names and dates. The file stays on your machine. We cannot lose what we never had.</span>
+            </div>
+            <div class="card">
+              <span class="card-icon">🗑️</span>
+              <b class="card-title">Deleting somebody, everywhere</b>
+              <span class="card-body">Their data is in seven places. We know each one, ask each holder, and prove it afterwards.</span>
+            </div>
+            <div class="card">
+              <span class="card-icon">📨</span>
+              <b class="card-title">Consent that people actually give</b>
+              <span class="card-body">Item by item, on a link. Withdrawing is the same tap as agreeing, because the law says it must be.</span>
+            </div>
+            <div class="card">
+              <span class="card-icon">🚨</span>
+              <b class="card-title">72 hours, planned in advance</b>
+              <span class="card-body">Who is affected, worked out from your data map in minutes rather than weeks.</span>
+            </div>
+            <div class="card">
+              <span class="card-icon">🧑‍⚖️</span>
+              <b class="card-title">Auditors and cyber firms, listed</b>
+              <span class="card-body">With what each is actually qualified for. We take no commission from any of them.</span>
+            </div>
+            <div class="card">
+              <span class="card-icon">🔗</span>
+              <b class="card-title">Your vendors, in the same system</b>
+              <span class="card-body">Free for them, walled off from each other, and blocked until they sign.</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">What we do, and where we stop</h2>
+          <p class="section-sub">Said plainly, because the people selling fear will not.</p>
+          <div class="grid grid-2">
+            <div class="card card-lg">
+              <span class="card-icon">✅</span>
+              <b class="card-title">We do</b>
+              <span class="card-body">Write down what you hold and where · turn the Act into duties with names and dates · chase them · check the proof · publish your officer and your notices · keep a record nobody can edit · answer people who ask</span>
+            </div>
+            <div class="card card-lg">
+              <span class="card-icon">🚫</span>
+              <b class="card-title">We do not</b>
+              <span class="card-body">Touch your systems · keep your documents · certify you as compliant · give legal advice · quote penalties at you · promise nobody will ever be fined</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">Four ways in</h2>
+          <p class="section-sub">Pricing after a short conversation, because the right number depends on what you hold.</p>
+          <div class="grid grid-4">
+            <div class="card">
+              <span class="card-icon">🏭</span>
+              <b class="card-title">A company, school or NGO</b>
+              <span class="card-body">Run it yourself from day one. Invite a CA later without redoing anything.</span>
+            </div>
+            <div class="card">
+              <span class="card-icon">📊</span>
+              <b class="card-title">A CA, CS, audit or legal firm</b>
+              <span class="card-body">No licence fee, ever. You pay per client file, after you have billed the client. Your own firm's file is free.</span>
+            </div>
+            <div class="card">
+              <span class="card-icon">🔗</span>
+              <b class="card-title">A web agency, payroll bureau or IT firm</b>
+              <span class="card-body">Free. Your clients attach you, you sign, you answer what only you know.</span>
+            </div>
+            <div class="card">
+              <span class="card-icon">🔎</span>
+              <b class="card-title">An auditor or cyber firm</b>
+              <span class="card-body">Listed on our panel with what you are actually qualified for. We take no commission from you.</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">Questions people actually ask</h2>
+          <div class="faq">
+            <div class="card">
+              <b class="faq-q">We run on Gmail. Does that matter?</b>
+              <p class="faq-a">No. Most Indian companies do. Sign-in is a link to whatever address you use — Gmail, Yahoo or your own domain.</p>
+            </div>
+            <div class="card">
+              <b class="faq-q">Has anybody actually been fined?</b>
+              <p class="faq-a">No. No penalty order has been issued in India to date, and the Board's members are not yet appointed. The date is the real thing, not the fear.</p>
+            </div>
+            <div class="card">
+              <b class="faq-q">We are small. Does this apply to us?</b>
+              <p class="faq-a">Yes. There is no size exemption in the Act. A ten-person firm holding customer phone numbers is a Data Fiduciary.</p>
+            </div>
+            <div class="card">
+              <b class="faq-q">Do you touch our systems?</b>
+              <p class="faq-a">Never. We do not connect to your software, read your files or install anything. We record what you tell us and hold you to it.</p>
+            </div>
+            <div class="card">
+              <b class="faq-q">Do you keep our documents?</b>
+              <p class="faq-a">No. We keep a fingerprint, a name and a date. The document stays with you — which is why you must keep your own originals.</p>
+            </div>
+            <div class="card">
+              <b class="faq-q">Can you certify us as compliant?</b>
+              <p class="faq-a">No, and neither can anyone else. There is no government DPDP certification in India. We document and we record.</p>
+            </div>
+            <div class="card">
+              <b class="faq-q">What if we stop paying?</b>
+              <p class="faq-a">Your proof stays readable and exportable. You lose new entries, not old ones. We do not hold it hostage.</p>
+            </div>
+            <div class="card">
+              <b class="faq-q">What happens if you disappear?</b>
+              <p class="faq-a">Your whole record exports in open formats with the fingerprints intact, and verifies without us. That is the point of building it this way.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section cta">
+          <h2 class="section-title">Start with what you hold</h2>
+          <p class="section-sub">One email. No card. Fifteen minutes.</p>
+          <p class="cta-action"><a class="btn" href="/app/">Start free →</a></p>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <b class="font-heading footer-brand">VERIDIAN · VERy INDIAN</b>
+      <p class="footer-tag">Your DPDP proof — not just your DPDP policy. People move on. The proof stays.</p>
+      <p class="footer-line">Grievance Officer: <b class="white">grievance@veridian-aios.com</b> &nbsp;·&nbsp; Partners: <b class="white">partners@veridian-aios.com</b></p>
+      <p class="footer-line">🏠 Stored in India &nbsp;·&nbsp; 🔑 no passwords &nbsp;·&nbsp; 🗄️ we never keep your documents</p>
+      <p class="footer-legal">We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one. Penalty figures are the Act's ceilings, decided by the Board under S.33.</p>
+    </footer>
+  </body>
+</html>
