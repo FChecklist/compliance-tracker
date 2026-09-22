@@ -102,23 +102,6 @@ active:
       report footers if any print/CSV surface exists in dpdp-app.
       NOT touching: public pages / facts file (Part 2 agent), supabase/
       functions/dpdp-ai-link (Part 1 agent), drizzle/0610.
-  - session_label: "claude-code (sub-agent of the WO-DPDP-011 PM session, isolated worktree .claude/worktrees/agent-a857aaaa79bf17252, branch feat/wo-dpdp-011-step6-acceptance-70 off feat/wo-dpdp-011-step5-remaining-items + origin/main) -- WO-DPDP-011 Step 6: the 70 acceptance checks (tlaw 18 / tfirst 28 / troles2 24) as Playwright tests against the built static app in mock mode [IN PROGRESS]"
-    claimed_at: "2026-09-22T (this session)"
-    claim: |
-      Scope, dpdp-app/ only: e2e/acceptance-70.spec.ts (new, exactly 70
-      tests LAW-01..18 / FIRST-01..28 / ROLES-01..24), e2e/ACCEPTANCE-70.md
-      (derivation table: id -> spec section/line -> assertion -> fixture),
-      spec/veridian-dpdp.html (the owner's one-page spec copied verbatim
-      into the repo as the "copy verbatim" source of truth), src/lib/
-      mock-client.ts (fixture = the spec's own LIB.firm/LIB.institution;
-      persona table; `?mock=<scenario>` seed switch; multi-org so a CA's
-      "Open" is real; dpdp_flag_not_me now stamps first_visit_seen_at as
-      0604 does) + mock-client.test.ts (pins every number the browser
-      suite hardcodes), e2e/README.md, .github/workflows/dpdp-app-ci.yml
-      (job name/comment only -- it already runs every e2e/*.spec.ts). No
-      real-client behaviour changes; no migration; no Vercel. One-line
-      edit to e2e/step5-by-role.spec.ts (school -> firm client, see the
-      finding in ACCEPTANCE-70.md).
   - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session, isolated worktree C:/ct/ct-cost001 branch wo/projexa-cost-001; heavy analysis delegated to Anthropic cloud agents per the owner's 2026-09-22 chat instruction, because this laptop was at ~0.84GB free RAM at session start) -- WORK_ORDER_PROJEXA-COST-001 v2 (issued 2026-09-22, KT rank 0.27, Drive 1kAsuZ0Dn3_Oxa0eaV-G0zdhsC6f3HFBN): Vercel bill must never exceed $20/month [IN PROGRESS]"
     claimed_at: "2026-09-22T06:05Z (this session)"
     claim: |
