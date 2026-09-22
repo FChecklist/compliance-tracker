@@ -61,15 +61,20 @@ jobs:
       - name: Bundle key scan (service_role must be 0; anon key only)
         run: node scripts/scan-bundle.mjs
 
-  # WO-DPDP-012 §6: a real browser drives the built site by accessible names
-  # only (dpdp-app/e2e/agent-by-role.spec.ts, see dpdp-app/e2e/README.md).
+  # A real browser drives the built site by accessible names only -- every
+  # spec in dpdp-app/e2e/ (see dpdp-app/e2e/README.md): WO-DPDP-012 §6's
+  # agent-by-role, WO-DPDP-011 Step 5's step5-by-role, and WO-DPDP-011 Step
+  # 6's acceptance-70 (the spec's 70 acceptance checks, one test each --
+  # dpdp-app/e2e/ACCEPTANCE-70.md). `bunx playwright test` below runs the
+  # whole e2e/ directory (playwright.config.ts testDir); a new spec there is
+  # picked up with no change here.
   # Separate job on purpose: it needs a Chromium and a mock-mode build, and
   # a failure here is "an assistant cannot find a step by role and name",
   # which is a different finding from the job above's "does not compile".
   # This job is the canonical run -- the laptop this project is developed
   # on cannot spare the RAM for a local browser.
   dpdp-app-e2e:
-    name: dpdp-app e2e (agent-by-role, Playwright chromium, mock mode)
+    name: dpdp-app e2e (agent-by-role + step5 + acceptance-70, Playwright chromium, mock mode)
     needs: dpdp-app
     runs-on: ubuntu-latest
     timeout-minutes: 15

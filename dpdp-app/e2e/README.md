@@ -1,6 +1,23 @@
-# dpdp-app/e2e -- the assistant-driven browser test (WO-DPDP-012 §6)
+# dpdp-app/e2e -- the browser tests
 
-## What this proves
+Three specs, one config (`../playwright.config.ts`), one CI job
+(`.github/workflows/dpdp-app-ci.yml`, `dpdp-app-e2e`) that runs every
+`*.spec.ts` here against the BUILT site in mock mode:
+
+| spec | what it proves |
+|---|---|
+| `agent-by-role.spec.ts` | WO-DPDP-012 §6 -- an assistant can drive the public site by accessible names alone, up to the email step (this file's own sections below) |
+| `step5-by-role.spec.ts` | WO-DPDP-011 Step 5 -- the remaining WO-010 screens, by role |
+| `acceptance-70.spec.ts` | WO-DPDP-011 Step 6 -- the spec's 70 acceptance checks (`LAW-01..18`, `FIRST-01..28`, `ROLES-01..24`), one test each; the derivation table is `ACCEPTANCE-70.md` |
+
+All three share one rule: every locator is `getByRole` / `getByLabel` /
+`getByText` / `getByTitle` with an accessible name. The spec they are
+checked against is `../spec/veridian-dpdp.html`, the owner's one-page product
+spec, copied verbatim. The mock (`../src/lib/mock-client.ts`) is seeded per
+test with `?mock=<scenario>` on `/app/` -- see `ACCEPTANCE-70.md`, "The
+mock", for the scenarios and what each world contains.
+
+## What agent-by-role proves
 
 WO-DPDP-012 §6, verbatim:
 
