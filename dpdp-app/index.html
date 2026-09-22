@@ -3,12 +3,76 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="robots" content="noindex, nofollow" />
-    <meta name="referrer" content="no-referrer" />
-    <title>VERIDIAN DPDP</title>
+    <!--
+      The root chooser (WO-DPDP-012 §1/§4): a complete public page -- every
+      word is in this file, no JavaScript runs on it, and the copy is verbatim
+      from src/app/dpdp/_components/RootChooser.tsx on the Next.js side. The
+      two edition links carry the same ?for= query the original does.
+      scripts/check-public-surface.mjs proves the above after every build.
+    -->
+    <title>VERIDIAN DPDP — Digital Personal Data Protection Act Compliance</title>
+    <meta name="description" content="A DPDP Act compliance record built to be checked, not taken on faith -- a tamper-evident audit trail, documents you never have to hand over, and an auditor marketplace that can't be gamed." />
+    <link rel="canonical" href="https://app.veridian-aios.com/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="VERIDIAN DPDP" />
+    <meta property="og:locale" content="en_IN" />
+    <meta property="og:url" content="https://app.veridian-aios.com/" />
+    <meta property="og:title" content="VERIDIAN DPDP — Digital Personal Data Protection Act Compliance" />
+    <meta property="og:description" content="A DPDP Act compliance record built to be checked, not taken on faith -- a tamper-evident audit trail, documents you never have to hand over, and an auditor marketplace that can't be gamed." />
+    <link rel="preload" href="/fonts/sora-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/instrument-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/src/site.css" />
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://app.veridian-aios.com/#organization",
+          "name": "VERIDIAN",
+          "url": "https://veridian-aios.com/",
+          "contactPoint": [
+            { "@type": "ContactPoint", "contactType": "Grievance Officer", "email": "grievance@veridian-aios.com" },
+            { "@type": "ContactPoint", "contactType": "Partners", "email": "partners@veridian-aios.com" }
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://app.veridian-aios.com/#website",
+          "name": "VERIDIAN DPDP",
+          "url": "https://app.veridian-aios.com/",
+          "inLanguage": "en-IN",
+          "publisher": { "@id": "https://app.veridian-aios.com/#organization" }
+        }
+      ]
+    }
+    </script>
   </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+  <body class="site">
+    <main class="chooser">
+      <div class="chooser-inner">
+        <div class="wordmark">VERIDIAN<span class="wordmark-sub">VERy INDIAN</span></div>
+        <h1 class="chooser-title">The DPDP Act asks every organisation for four things</h1>
+        <p class="lead">Know what data you hold. Tell people about it. Keep it safe.</p>
+        <p class="lead lead-last">Prove all three — with a record that outlasts the person who set it up.</p>
+        <div class="chooser-grid">
+          <a class="choice" href="/dpdp-firm/?for=clients">
+            <span class="choice-icon">🧑‍⚖️</span>
+            <b class="choice-title">I do this for clients</b>
+            <span class="choice-body">A CA, CS, audit or legal firm. Your own file is free, always.</span>
+          </a>
+          <a class="choice" href="/dpdp-firm/?for=us">
+            <span class="choice-icon">🏭</span>
+            <b class="choice-title">I do this for us</b>
+            <span class="choice-body">A company, NGO or firm of our own.</span>
+          </a>
+        </div>
+        <a class="link-violet" href="/dpdp-institution/">Running a school instead? →</a>
+        <div class="chooser-signin">
+          <!-- Points at the Next.js login for now: new-org onboarding is not on this static host yet (WO-DPDP-011 later step); switch to /app/ once it is. -->
+          <a href="https://veridian-aios.com/dpdp/login">Already have an account? Sign in</a>
+        </div>
+      </div>
+    </main>
   </body>
 </html>
