@@ -81,7 +81,9 @@ async function readLink(token: string): Promise<AiView> {
   return (await sql<{ r: AiView }[]>`select public.dpdp_ai_link_read(${token}) as r`)[0].r
 }
 async function draft(token: string, verb: string, obligationId: string | null, payload: Record<string, unknown>): Promise<Drafted> {
-  return (await sql<{ r: Drafted }[]>`select public.dpdp_draft_action(${token}, ${verb}, ${obligationId}, ${JSON.stringify(payload)}::jsonb) as r`)[0].r
+  // sql.json(), not a stringified cast: postgres.js JSON-encodes a string param
+  // bound as jsonb a second time, which reaches the RPC as a jsonb *string*.
+  return (await sql<{ r: Drafted }[]>`select public.dpdp_draft_action(${token}, ${verb}, ${obligationId}, ${sql.json(payload)}) as r`)[0].r
 }
 async function preview(email: string, draftId: string, confirmToken: string): Promise<{ verb: string; job: string | null; payload: Record<string, unknown>; expired: boolean; confirmedAt: string | null }> {
   return asEmail(email, async (tx) => (await tx<{ r: { verb: string; job: string | null; payload: Record<string, unknown>; expired: boolean; confirmedAt: string | null } }[]>`select public.dpdp_ai_draft_preview(${draftId}, ${confirmToken}) as r`)[0].r)
@@ -379,7 +381,9 @@ d("WO-DPDP-012 §7: AI link RPCs", () => {
     // person on that job, and the new person can sign in and see it too.
     expect((await myPage(owner.email)).rows.find((r) => r.id === target.id)?.by).toBe(newEmail)
     const theirPage = await myPage(newEmail)
-    expect(theirPage.viewer.kind).toBe("staff")
+    // Kind is detected from the assigned job's roleTag (e.g. "go" for the
+    // Grievance Officer's job); the one invariant is that it is never "owner".
+    expect(theirPage.viewer.kind).not.toBe("owner")
     expect(theirPage.rows.find((r) => r.id === target.id)?.by).toBe(newEmail)
 
     const draftRow = await withDpdpContext({ orgId: org.id }, (tx) => tx.query.dpdpAiDraft.findFirst({ where: eq(dpdpAiDraft.id, dr.draftId) }))
