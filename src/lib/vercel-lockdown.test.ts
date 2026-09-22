@@ -1,82 +1,171 @@
-// R76 (2026-09-06) established this drift guard for the original all-branches-
-// blocked lockdown. R87 (2026-09-13, D158) revised the policy to a branch-name
-// + docs-path ignoreCommand, then PROJEXA-E2E-001 (2026-09-20) revised it
-// again to a simpler VERCEL_ENV-based script that proceeded on
-// VERCEL_ENV=production so a Phase-B batch merge could go live in one build.
+// GO-LIVE PACK -- PROJEXA-COST-001 Step 3.3 / PROJEXA-NEXT-001 Step 6.1, prepared
+// 2026-09-22 on branch golive/cost001-vercel-json. DO NOT MERGE until the owner
+// says "go live" in chat: merging this re-enables real production builds on main.
 //
-// PROJEXA-E2E-001, continued (2026-09-21, owner directive, quoted verbatim):
-// "WE NEED TO SPEND MINIMUM VERCEL CREDITS ... THAN WE GO LIVE BY RECHARGING
-// VERCEL." Investigated first, not just applied blind: both projects'
-// `live` flag was already `false` and every deployment PROJEXA-E2E-001's own
-// merges to main had triggered (dpl_HbGeekZ7.../dpl_EwyTrQAQ...) showed
-// readyState=BLOCKED with target=null -- the project-pause/spend-cap
-// backstop documented in R87's own findings was in fact catching every one
-// of them, so no real build/compute was spent by those merges. Tightening
-// anyway, on the owner's explicit instruction, rather than relying on that
-// backstop as the only line of defense: ignoreCommand is now unconditional
-// -- `exit 0` on every ref, VERCEL_ENV included -- so nothing here can ever
-// reach a real build again until the owner recharges and says go live,
-// at which point THIS is the one line that changes back.
-import { describe, expect, test } from "bun:test"
-import { readFileSync } from "node:fs"
+// History of this guard: R76 (2026-09-06) blocked every branch; R87 (2026-09-13,
+// D158) replaced the buggy glob-based git.deploymentEnabled with a single
+// ignoreCommand that (1) skips any ref that is not literally "main", (2) on main
+// skips docs/governance-only diffs (*.md, *.jsonl, kt/**, ai-os/**, .github/**),
+// (3) on main proceeds for real application code; PROJEXA-E2E-001 (2026-09-20/21)
+// then locked everything to `exit 0` while Vercel credits were exhausted.
+//
+// This file restores the R87 gate and pins the cost work order's cron decisions:
+// the 10 KILL crons are gone from vercel.json, crr-catchup-worker runs every 30
+// minutes (the longest interval that meets the real 1-hour SLO in
+// platform.crr_spec CRR-090), and the remaining 18 MOVE rows stay here only until
+// their pg_cron / GitHub-runner replacements are live. Evidence that the gate
+// really skips previews came from the deployments list, not this test: 37 of 37
+// non-main preview deployments in the 17-19 Sep 2026 unpaused window were
+// CANCELED by the ignored build step (see the 2026-09-22 COST-001 handout).
+import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
+
+const KILLED_CRONS = [
+  "the-firm/deadline-digest",
+  "ai-performance-report",
+  "escalations-report",
+  "recommendations-report",
+  "risk-trends-report",
+  "routing-accuracy-report",
+  "cost-anomalies",
+  "idle-ai-capacity",
+  "role-quality-regression",
+  "crm-data-integrity",
+]
 
 function readVercelJson() {
   const raw = readFileSync(join(import.meta.dir, "..", "..", "vercel.json"), "utf8")
-  return JSON.parse(raw)
+  return JSON.parse(raw) as { git?: unknown; ignoreCommand: string; crons: Array<{ path: string; schedule: string }> }
 }
 
-function runIgnoreCommand(cmd: string, vercelEnv: string | undefined): number | null {
-  const env = { ...process.env }
-  if (vercelEnv === undefined) {
-    delete env.VERCEL_ENV
-  } else {
-    env.VERCEL_ENV = vercelEnv
+const gitEnv = {
+  ...process.env,
+  GIT_AUTHOR_NAME: "lockdown-test",
+  GIT_AUTHOR_EMAIL: "lockdown-test@example.invalid",
+  GIT_COMMITTER_NAME: "lockdown-test",
+  GIT_COMMITTER_EMAIL: "lockdown-test@example.invalid",
+}
+
+function git(cwd: string, ...args: string[]) {
+  const proc = Bun.spawnSync(["git", ...args], { cwd, env: gitEnv })
+  if (proc.exitCode !== 0) throw new Error(`git ${args.join(" ")} failed: ${proc.stderr.toString()}`)
+}
+
+/** A throwaway repo with one base commit touching both app code and docs. */
+function makeFixtureRepo(): string {
+  const dir = mkdtempSync(join(tmpdir(), "vercel-ignore-"))
+  git(dir, "init", "-q")
+  mkdirSync(join(dir, "src"), { recursive: true })
+  mkdirSync(join(dir, "ai-os"), { recursive: true })
+  writeFileSync(join(dir, "src", "app.ts"), "export const v = 1\n")
+  writeFileSync(join(dir, "README.md"), "# base\n")
+  writeFileSync(join(dir, "ai-os", "TRACKER.yaml"), "a: 1\n")
+  git(dir, "add", "-A")
+  git(dir, "commit", "-q", "-m", "base")
+  return dir
+}
+
+/** Adds a second commit so `git diff HEAD^ HEAD` has exactly these changes. */
+function commitChange(dir: string, files: Record<string, string>) {
+  for (const [rel, content] of Object.entries(files)) {
+    mkdirSync(join(dir, rel, ".."), { recursive: true })
+    writeFileSync(join(dir, rel), content)
   }
-  const proc = Bun.spawnSync(["sh", "-c", cmd], { env })
-  return proc.exitCode
+  git(dir, "add", "-A")
+  git(dir, "commit", "-q", "-m", "change")
 }
 
-describe("Vercel deploy lockdown (PROJEXA-E2E-001, 2026-09-21) -- ignoreCommand skips unconditionally", () => {
-  test("git.deploymentEnabled is not relied upon (still gone since R87)", () => {
-    const v = readVercelJson()
-    expect(v.git).toBeUndefined()
+/** Runs the real ignoreCommand inside the fixture repo. Vercel: exit 0 = skip, 1 = build. */
+function runIgnoreCommand(cmd: string, cwd: string, ref: string | undefined): number | null {
+  const env = { ...process.env }
+  delete env.VERCEL_GIT_COMMIT_REF
+  if (ref !== undefined) env.VERCEL_GIT_COMMIT_REF = ref
+  return Bun.spawnSync(["sh", "-c", cmd], { cwd, env }).exitCode
+}
+
+const fixtures: string[] = []
+function fixtureWith(files: Record<string, string>): string {
+  const dir = makeFixtureRepo()
+  commitChange(dir, files)
+  fixtures.push(dir)
+  return dir
+}
+
+let cmd = ""
+beforeAll(() => {
+  cmd = readVercelJson().ignoreCommand
+})
+afterAll(() => {
+  for (const dir of fixtures) rmSync(dir, { recursive: true, force: true })
+})
+
+describe("Vercel go-live gate (R87 branch + docs-path ignoreCommand, restored 2026-09-22)", () => {
+  test("git.deploymentEnabled is not relied upon (gone since R87 -- its '*' glob never matched a real branch)", () => {
+    expect(readVercelJson().git).toBeUndefined()
   })
 
-  test("ignoreCommand exists and does not branch on VERCEL_ENV, branch name, or git diff", () => {
-    const v = readVercelJson()
-    expect(typeof v.ignoreCommand).toBe("string")
-    expect(v.ignoreCommand).not.toContain("VERCEL_ENV")
-    expect(v.ignoreCommand).not.toContain("VERCEL_GIT_COMMIT_REF")
-    expect(v.ignoreCommand).not.toContain("git diff")
+  test("ignoreCommand is the branch + path gate, not the unconditional skip", () => {
+    expect(typeof cmd).toBe("string")
+    expect(cmd).toContain('"$VERCEL_GIT_COMMIT_REF" = "main" || exit 0')
+    expect(cmd).toContain("git diff --quiet HEAD^ HEAD")
+    for (const pattern of ["*.md", "*.jsonl", "kt/**", "ai-os/**", ".github/**"]) {
+      expect(cmd).toContain(`:(exclude)${pattern}`)
+    }
+    expect(cmd).not.toContain("VERCEL_ENV")
   })
 
-  test("VERCEL_ENV=production is skipped (exit 0) -- no build proceeds until the owner reverts this", () => {
-    const v = readVercelJson()
-    expect(runIgnoreCommand(v.ignoreCommand, "production")).toBe(0)
+  test("main + docs-only diff is skipped (exit 0)", () => {
+    const dir = fixtureWith({ "README.md": "# changed\n", "ai-os/TRACKER.yaml": "a: 2\n" })
+    expect(runIgnoreCommand(cmd, dir, "main")).toBe(0)
   })
 
-  test("VERCEL_ENV=preview is skipped (exit 0) -- every branch/PR build", () => {
-    const v = readVercelJson()
-    expect(runIgnoreCommand(v.ignoreCommand, "preview")).toBe(0)
+  test("main + application-code diff builds (exit 1)", () => {
+    const dir = fixtureWith({ "src/app.ts": "export const v = 2\n" })
+    expect(runIgnoreCommand(cmd, dir, "main")).toBe(1)
   })
 
-  test("VERCEL_ENV=development is skipped (exit 0)", () => {
-    const v = readVercelJson()
-    expect(runIgnoreCommand(v.ignoreCommand, "development")).toBe(0)
+  test("main + mixed docs and code diff builds (exit 1)", () => {
+    const dir = fixtureWith({ "README.md": "# changed\n", "src/app.ts": "export const v = 3\n" })
+    expect(runIgnoreCommand(cmd, dir, "main")).toBe(1)
   })
 
-  test("VERCEL_ENV unset is skipped (exit 0) -- fail closed, not open", () => {
+  test("any non-main ref is skipped (exit 0) even with application-code changes -- no preview builds", () => {
+    const dir = fixtureWith({ "src/app.ts": "export const v = 4\n" })
+    for (const ref of ["feat/thing", "dependabot/npm_and_yarn/next-16.3.5", "preview/demo", "Main", "main "]) {
+      expect(runIgnoreCommand(cmd, dir, ref), `ref ${JSON.stringify(ref)} must skip`).toBe(0)
+    }
+  })
+
+  test("ref unset is skipped (exit 0) -- fail closed, not open", () => {
+    const dir = fixtureWith({ "src/app.ts": "export const v = 5\n" })
+    expect(runIgnoreCommand(cmd, dir, undefined)).toBe(0)
+  })
+})
+
+describe("PROJEXA-COST-001 cron decisions pinned in vercel.json", () => {
+  test("the 10 KILL crons are no longer scheduled on Vercel", () => {
+    const paths = readVercelJson().crons.map((c) => c.path)
+    for (const killed of KILLED_CRONS) {
+      expect(paths.some((p) => p.includes(`/api/internal/${killed}/`)), `${killed} must be gone`).toBe(false)
+    }
+  })
+
+  test("crr-catchup-worker polls every 30 minutes (meets CRR-090's 1-hour SLO), never every 15", () => {
+    const crr = readVercelJson().crons.find((c) => c.path.includes("crr-catchup-worker"))
+    expect(crr?.schedule).toBe("*/30 * * * *")
+  })
+
+  test("19 crons remain: secrets-audit (KEEP) + the 18 MOVE rows awaiting their pg_cron / runner replacements", () => {
     const v = readVercelJson()
-    expect(runIgnoreCommand(v.ignoreCommand, undefined)).toBe(0)
+    expect(v.crons).toHaveLength(19)
+    expect(v.crons.some((c) => c.path.includes("secrets-audit"))).toBe(true)
   })
 })
 
 describe("Vercel deploy lockdown -- guard the guard", () => {
   test("this test file itself is wired into ci.yml's test job", () => {
-    // Same rationale as the original R76 version of this test: check the
-    // ACTUAL ci.yml content, not just that this file exists, so a future
-    // narrowing of the test glob gets caught here.
     const ci = readFileSync(join(import.meta.dir, "..", "..", ".github", "workflows", "ci.yml"), "utf8")
     const testStep = ci.match(/bun test[^\n]*/)?.[0] ?? ""
     expect(testStep, "ci.yml's test job no longer runs a plain `bun test` invocation that would include this file").toContain("bun test")
