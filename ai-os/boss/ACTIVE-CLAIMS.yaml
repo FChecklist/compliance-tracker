@@ -40,6 +40,26 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (sub-agent of the WO-DPDP-011 PM session, isolated worktree, branch feat/wo-dpdp-011-step3-owner-page) -- WO-DPDP-011 Step 3: owner page + owner first visit on the static app [PR OPEN, unrun DB-gated tests -- PM runs them locally]"
+    claimed_at: "2026-09-22T (this session)"
+    claim: |
+      Files: drizzle/0605_dpdp_wo011_step3_owner_rpc.sql (+ journal idx 436),
+      src/lib/services/dpdp-browser-rpc-step3.test.ts, dpdp-app/src/lib/
+      {api,mock-client,rpc-types}.ts, dpdp-app/src/components/onepage/
+      FirstVisitWizard.tsx (new port), dpdp-app/src/App.tsx.
+      RPCs added (public schema, SECURITY DEFINER, 0604 conventions):
+      dpdp_areas_for_product, dpdp_complete_owner_first_visit,
+      dpdp_assign_person (carries the WO-011 §4 membership fix),
+      dpdp_mark_not_applicable, dpdp_org_history; dpdp__append_event
+      CREATE OR REPLACEd with a per-org strictly-increasing occurred_at
+      (same signature/hash formula; needed because first-visit appends
+      several events inside one plpgsql loop).
+      NOT touching: dpdp-app's emailRedirectTo line, vite.config.ts,
+      index.html, dpdp-app/public/** (public-pages/MPA agent owns those),
+      any Next.js server-side DPDP code (WO-011 Step 0 freeze), any live DB
+      (the PM applies 0605 via the Supabase MCP and registers the ledger
+      row).
+
   - session_label: "claude-code (sub-agent of the WO-DPDP-011/012 orchestrating session, isolated worktree .claude/worktrees/agent-acac88474d769e70f, branch feat/wo-dpdp-012-public-static-pages off feat/wo-dpdp-011-static-app-scaffold = PR #1802) -- WO-DPDP-012 §1/§3/§4 on the STATIC app dpdp-app/: public pages as complete HTML, robots.txt + llms.txt + build-time sitemap, JSON-LD, self-hosted fonts [IN PROGRESS]"
     claimed_at: "2026-09-22T (this session)"
     claim: |
