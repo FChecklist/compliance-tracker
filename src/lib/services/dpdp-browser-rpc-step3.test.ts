@@ -306,7 +306,10 @@ d("WO-DPDP-011 Step 3: owner RPCs", () => {
     expect(h.find((x) => x.summary === `Marked "CCTV" as not applicable`)?.kind).toBe("obligation_not_my_job")
     expect(h.find((x) => x.summary.startsWith("Named "))?.kind).toBe("membership_named_in_role")
     expect(h[0].summary).toBe(`Marked "CCTV" as not applicable`)
-    for (const x of h) expect(x.actorLabel).toBe(owner.email)
+    // The four newest are this call's; the older two are the TS-seeded
+    // organisation_created / "jobs opened" events with their own labels.
+    for (const x of h.slice(0, 4)) expect(x.actorLabel).toBe(owner.email)
+    expect(h.length).toBe(chain.checked)
   }, 60_000)
 
   test("assign_person creates the missing membership (WO-011 §4 regression), is idempotent, and refuses closed / n/a jobs", async () => {
