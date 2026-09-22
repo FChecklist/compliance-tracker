@@ -18,6 +18,7 @@
   --dark-muted: #9d94c4;
   --green-bg: #dcfce7;
   --green: #059669;
+  --green-ink: #065f46;
   --grad: linear-gradient(90deg, #6d28d9, #db2777);
 }
 
@@ -69,7 +70,9 @@ b {
   font-size: 8px;
   font-weight: 600;
   letter-spacing: 0.2em;
-  color: var(--ink3);
+  /* --ink2, not --ink3: 8px text on white needs WCAG AA 4.5:1 (Lighthouse
+     12 color-contrast, live run 2026-09-22 -- --ink3 was 3.2:1). */
+  color: var(--ink2);
 }
 .btn {
   display: inline-block;
@@ -330,7 +333,9 @@ b {
   right: 12px;
   border-radius: 9999px;
   background: var(--green-bg);
-  color: var(--green);
+  /* --green-ink, not --green: #059669 on #dcfce7 is 3.4:1 (fails AA);
+     #065f46 is 7.1:1. src/lib/site-css-contrast.test.ts pins both pairs. */
+  color: var(--green-ink);
   padding: 2px 8px;
   font-size: 9px;
   font-weight: 800;
