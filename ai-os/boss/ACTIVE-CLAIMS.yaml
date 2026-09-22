@@ -69,6 +69,18 @@ active:
       list, functions/ai/*, e2e/step5-by-role.spec.ts). Additive only; the
       migration is NOT applied by this session. Does not touch 0606/0607/0608
       (open PRs #1813/#1815, already live) beyond calling their functions.
+  - session_label: "claude-code (sub-agent of the WO-DPDP-011 PM session, isolated worktree, branch feat/wo-dpdp-011-step5-remaining-items) -- WO-DPDP-011 Step 5: everything WO-010 left, on the static app only -- group answers, CA clients (+ Add a client / Set it up for them), owner review when the CA set it up, CA partner first visit, parent consent, /act/ + /unsubscribe/ + /p/ static pages, Copy AI link + #draft= confirm, /ai/<token> Pages Function proxy [PR OPEN, unrun DB-gated tests -- PM applies 0609 via MCP and runs them]"
+    claimed_at: "2026-09-22T (this session)"
+    claim: |
+      Scope: drizzle/0609_dpdp_wo011_step5_rpc.sql (journal idx 440) --
+      public.dpdp_answer_group / dpdp_my_clients / dpdp_create_client_org /
+      dpdp_org_setup / dpdp_owner_confirm_setup / dpdp_parent_consent_preview
+      / dpdp_parent_consent; src/lib/services/dpdp-browser-rpc-step5.test.ts;
+      dpdp-app/** (api.ts, mock-client.ts, rpc-types.ts, App.tsx, new
+      components, act/ unsubscribe/ p/ entries, public-surface.mjs PRIVATE
+      list, functions/ai/*, e2e/step5-by-role.spec.ts). Additive only; the
+      migration is NOT applied by this session. Does not touch 0606/0607/0608
+      (open PRs #1813/#1815, already live) beyond calling their functions.
   - session_label: "claude-code (cloud agent, isolated worktree, branch feat/wo-dpdp-011-step4-supabase-timer) -- WO-DPDP-011 Step 4: Supabase timer (Monday 06:00 IST digest, escalation, legal clocks, real emails-sent counts) [IN PROGRESS]"
     claimed_at: "2026-09-22T (this session)"
     claim: |
