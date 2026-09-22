@@ -1,0 +1,4 @@
+# Own config so `bun test` here never inherits the repo root's bunfig.toml
+# (whose preload is a DATABASE_URL guard that has no meaning for a static app).
+[test]
+root = "src"
