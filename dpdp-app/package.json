@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "build": "tsc --noEmit -p tsconfig.json && vite build && node scripts/build-sitemap.mjs && node scripts/check-public-surface.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "bun test",
     "lint": "eslint .",
-    "scan-bundle": "node scripts/scan-bundle.mjs"
+    "scan-bundle": "node scripts/scan-bundle.mjs",
+    "build:sitemap": "node scripts/build-sitemap.mjs",
+    "check:public-surface": "node scripts/check-public-surface.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

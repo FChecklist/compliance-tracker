@@ -1,8 +1,10 @@
 @import "tailwindcss";
+@import "./fonts.css";
 
-/* Font names are kept as the ported components declare them (Sora,
-   Instrument Sans); nothing loads them yet, so system fonts stand in. No
-   third-party <link>/<script> is allowed in index.html (WO-DPDP-011). */
+/* Sora and Instrument Sans -- the names the ported components declare --
+   are self-hosted from public/fonts/ (fonts.css, WO-DPDP-012 §1), so they
+   now resolve to real files. No third-party <link>/<script> is allowed in
+   app/index.html (WO-DPDP-011). */
 body {
   margin: 0;
   background: #f5f6fa;
