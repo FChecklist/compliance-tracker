@@ -3032,6 +3032,13 @@
       "when": 1789998716667,
       "tag": "0603_dpdp_wo010_organisation_product",
       "breakpoints": true
+    },
+    {
+      "idx": 435,
+      "version": "7",
+      "when": 1790056500000,
+      "tag": "0604_dpdp_wo011_step2_browser_rpc",
+      "breakpoints": true
     }
   ]
 }
