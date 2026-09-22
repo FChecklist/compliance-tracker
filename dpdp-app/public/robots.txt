@@ -1,0 +1,30 @@
+# app.veridian-aios.com -- WO-DPDP-012 §3. Explicit, not left to defaults.
+#
+# Public: the root chooser (/), /dpdp-firm/, /dpdp-institution/, and the
+# site's own CSS, JS and fonts under /assets/ and /fonts/.
+# Private: /app/ -- the signed-in one-page app. Never indexed, by any bot.
+#
+# This file must say the same thing as public/_headers (X-Robots-Tag over
+# HTTP) and the pages' own <meta name="robots">; src/lib/public-surface.mjs
+# is the one list all three are tested against.
+
+# Search and AI-assistant crawlers, each named: allowed on public paths,
+# kept out of the private prefix.
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: Applebot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-User
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+Allow: /
+Disallow: /app/
+
+# Everything else: the same public paths, the same private prefix.
+User-agent: *
+Allow: /
+Disallow: /app/
+
+Sitemap: https://app.veridian-aios.com/sitemap.xml

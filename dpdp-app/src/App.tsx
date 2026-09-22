@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { createDpdpClient, type DpdpClient } from "./lib/client"
-import { RpcFailure, acknowledgeWelcome, fetchMyPage, flagNotMe, markDone, viewerContext, type MyPage } from "./lib/api"
+import { RpcFailure, acknowledgeWelcome, completeOwnerFirstVisit, fetchAreas, fetchHistory, fetchMyPage, flagNotMe, markDone, viewerContext, type Area, type MyPage } from "./lib/api"
 import { readLanding, recallEmail, rememberEmail, type Landing } from "./lib/landing"
 import { OnePageView } from "./components/onepage/OnePageView"
+import { FirstVisitWizard } from "./components/onepage/FirstVisitWizard"
 import { RoleWelcome } from "./components/onepage/RoleWelcome"
 import { NotMeWaiting } from "./components/onepage/NotMeWaiting"
+import { Timeline, type HistoryEntry } from "./components/onepage/Timeline"
 import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, NoMembership, SignIn, type ResendState } from "./components/Screens"
 
 // WO-DPDP-011 Step 2 spike: one role, the whole loop -- sign in, own jobs
-// load, Mark Yes, reload shows it. Single page, no router: the phase below
-// is the entire navigation model.
+// load, Mark Yes, reload shows it. Step 3 adds the owner: first-visit wizard
+// and History. Single page, no router: the phase below is the entire
+// navigation model.
 type Phase =
   | { name: "booting" }
   | { name: "signed-out"; busy: boolean; error: string | null }
@@ -94,7 +97,7 @@ function Session({ client, landing }: { client: DpdpClient; landing: Landing }) 
   // own login form: membership is decided by dpdp_my_page after sign-in, not
   // by whether an auth.users row already exists.
   async function requestLink(address: string): Promise<string | null> {
-    const { error } = await client.auth.signInWithOtp({ email: address, options: { emailRedirectTo: window.location.origin } })
+    const { error } = await client.auth.signInWithOtp({ email: address, options: { emailRedirectTo: new URL("/app/", window.location.origin).href } })
     if (error) return error.message
     rememberEmail(address)
     return null
@@ -146,10 +149,14 @@ function Page({ client, page, refetch, email, onSignOut }: { client: DpdpClient;
   const { org, viewer: v, rows } = page
   const viewer = viewerContext(v)
 
-  // Same branching as src/app/dpdp/(app)/home/page.tsx on main, which is
-  // the source of truth for who sees which screen first.
+  // Same branching, in the same order, as src/app/dpdp/(app)/home/page.tsx
+  // on main, which is the source of truth for who sees which screen first.
   let body: ReactNode
-  if (viewer.kind !== "owner" && !v.firstVisitSeenAt && v.membershipId) {
+  if (viewer.kind === "owner" && !v.firstVisitSeenAt && v.membershipId) {
+    // WO-DPDP-010 §4: first visit, owner only for now (parent first-visit
+    // screens are a separate, not-yet-built gap).
+    body = <OwnerFirstVisit client={client} page={page} refetch={refetch} onSignOut={onSignOut} />
+  } else if (viewer.kind !== "owner" && !v.firstVisitSeenAt && v.membershipId) {
     const jobCount = rows.filter((r) => (r.by === v.email || (r.isGroup && r.viewerIsGroupMember)) && !r.na).length
     body = (
       <RoleWelcome
@@ -161,17 +168,17 @@ function Page({ client, page, refetch, email, onSignOut }: { client: DpdpClient;
   } else if (viewer.kind !== "owner" && v.saidNotMeAt && rows.some((r) => r.by === v.email && !r.na)) {
     body = <NotMeWaiting orgName={org.name} />
   } else {
-    // TODO(WO-011 Step 3): owner first visit -- FirstVisitWizard on main
-    // (viewer.kind === "owner" && !firstVisitSeenAt) is not ported yet; an
-    // owner on their first visit currently lands straight on the page.
-    // TODO(WO-011 Step 5): onAnswerGroup (group jobs), PolicySection and the
-    // Timeline history block have no RPC yet and are left unwired.
+    // TODO(WO-011 Step 5): onAnswerGroup (group jobs) and PolicySection
+    // have no RPC yet and are left unwired.
     body = (
-      <OnePageView
-        orgName={org.name} rows={rows} viewer={viewer} refetch={refetch}
-        onMarkYes={(id) => markDone(client, id)}
-        onAnswerGroup={undefined}
-      />
+      <>
+        <OnePageView
+          orgName={org.name} rows={rows} viewer={viewer} refetch={refetch}
+          onMarkYes={(id) => markDone(client, id)}
+          onAnswerGroup={undefined}
+        />
+        {viewer.kind !== "staff" && <History client={client} page={page} />}
+      </>
     )
   }
 
@@ -182,6 +189,72 @@ function Page({ client, page, refetch, email, onSignOut }: { client: DpdpClient;
         <button type="button" onClick={onSignOut} style={{ background: "transparent", color: "var(--dpdp-ink3)", textDecoration: "underline", padding: "4px 6px" }}>Sign out</button>
       </div>
       {body}
+    </div>
+  )
+}
+
+// The owner's first visit: home/page.tsx fetched areasForProduct() in the
+// same server render; here the wizard's rows come from dpdp_areas_for_product
+// once the page has loaded, and saving goes through
+// dpdp_complete_owner_first_visit, after which the page is refetched -- the
+// RPC stamped firstVisitSeenAt, so the refetched page no longer lands here.
+function OwnerFirstVisit({ client, page, refetch, onSignOut }: { client: DpdpClient; page: MyPage; refetch: () => Promise<void>; onSignOut: () => void }) {
+  const { org, viewer: v, rows } = page
+  const [areas, setAreas] = useState<Area[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchAreas(client, org.product).then(
+      (a) => { if (!cancelled) setAreas(a) },
+      (e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)) },
+    )
+    return () => { cancelled = true }
+  }, [client, org.product, attempt])
+
+  if (error) return <ErrorScreen message={error} onRetry={() => { setError(null); setAttempt((n) => n + 1) }} onSignOut={onSignOut} />
+  if (!areas) return <Loading />
+  return (
+    <FirstVisitWizard
+      orgName={org.name} rows={rows} areas={areas} ownerEmail={v.email} refetch={refetch}
+      onComplete={async (assignments) => { await completeOwnerFirstVisit(client, org.id, assignments) }}
+    />
+  )
+}
+
+// The History timeline (owner/coordinator/GO only, as on main). Re-read
+// whenever `page` changes, i.e. after every successful action's refetch, so
+// the entry for what was just done appears without a reload.
+function History({ client, page }: { client: DpdpClient; page: MyPage }) {
+  const [entries, setEntries] = useState<HistoryEntry[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchHistory(client, page.org.id).then(
+      (history) => {
+        if (cancelled) return
+        setError(null)
+        setEntries(history.map((h) => ({ who: h.actorLabel, what: h.summary, at: h.occurredAt, isNew: Date.now() - h.occurredAt.getTime() < 3_600_000 })))
+      },
+      (e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)) },
+    )
+    return () => { cancelled = true }
+  }, [client, page])
+
+  return (
+    <div className="dpdp-onepage">
+      <div className="max-w-[1240px] mx-auto px-5 pb-14">
+        <div className="mb-3" style={{ fontFamily: "Sora, sans-serif", fontSize: 20, fontWeight: 700, color: "var(--dpdp-ink)" }}>🕘 History</div>
+        {error ? (
+          <div role="alert" className="rounded-xl px-3.5 py-2.5" style={{ background: "var(--dpdp-rL)", color: "var(--dpdp-r)", fontSize: 13, fontWeight: 600 }}>{error}</div>
+        ) : entries === null ? (
+          <div className="p-4" style={{ color: "var(--dpdp-ink3)" }}>Loading…</div>
+        ) : (
+          <Timeline entries={entries} />
+        )}
+      </div>
     </div>
   )
 }
