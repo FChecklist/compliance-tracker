@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 import createNextIntlPlugin from "next-intl/plugin";
+// Relative, not "@/": next.config.ts is loaded before the app's tsconfig
+// path aliases apply, so the alias is not guaranteed to resolve here.
+import { dpdpPrivatePathHeaders } from "./src/lib/dpdp-public-surface";
 
 // PM decision rows 92 (UMR-20260806-145437-9e9a) + 93 (UMR-20260806-145437-
 // 3bed), parent UMR-20260806-101802-a350 (OCID-020 Z.AI GTM tranche 1,
@@ -135,6 +138,12 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // WO-DPDP-012 §2: X-Robots-Tag noindex + Referrer-Policy no-referrer
+      // on every private /dpdp path, with the two public exceptions
+      // overridden back. Must come AFTER the global block above -- Next
+      // applies last-matching-block-wins per header key (its own
+      // headers.md), and dpdp-public-surface.test.ts pins the order.
+      ...dpdpPrivatePathHeaders(),
     ];
   },
   // veridian-ui-kit migration (2026-07-19): @fchecklist/veridian-ui-kit
