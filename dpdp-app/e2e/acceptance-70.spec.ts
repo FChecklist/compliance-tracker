@@ -782,10 +782,11 @@ test.describe("troles2 -- roles", () => {
     await expect(joshi).toBeVisible()
     await expect(joshi.getByText("Company or firm · you set it up", { exact: true })).toBeVisible()
     await expect(joshi.getByText("0 of 31 done (0%)", { exact: true })).toBeVisible()
-    // drizzle/0609 records set_up_by on every client a CA creates, so its
-    // stage is "Waiting for the owner to confirm" even before an owner is
-    // named -- see ACCEPTANCE-70.md.
-    await expect(joshi.getByText("Waiting for the owner to confirm", { exact: true })).toBeVisible()
+    // drizzle/0612: a client created WITHOUT naming an owner has nobody who
+    // could confirm, so its stage reads "No owner named yet" (ACCEPTANCE-70.md
+    // finding 2, fixed); "Waiting for the owner to confirm" is ROLES-16's
+    // case, where an owner is named.
+    await expect(joshi.getByText("No owner named yet", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "← Back to my page", exact: true }).click()
     await expect(page.getByRole("button", { name: "🧾 My clients (2)", exact: true })).toBeVisible()
     await expect(page.getByText('Organisation "Joshi Motors" created', { exact: true })).toBeVisible()

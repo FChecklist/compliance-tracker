@@ -135,19 +135,20 @@ describe("the CA's clients (dpdp_my_clients / whereItIs, drizzle/0609's labels)"
     }
     expect((await createMockClient("owner-live").rpc("dpdp_my_clients")).data).toEqual([])
   })
-  test("every client a CA creates waits for its owner to confirm (0609 records set_up_by whether or not an owner was named)", async () => {
-    // drizzle/0609 dpdp_create_client_org:322 sets set_up_by_membership_id
-    // on EVERY CA-created org, and whereItIs:221 puts "Waiting for the
-    // owner to confirm" first -- so "Not started" is never what a CA sees
-    // for an org they made; the v3 mock's "Not started when no owner named"
-    // was the mock's own guess, not the SQL's.
+  test("a client a CA creates says 'No owner named yet' until an owner is named, then waits for that owner to confirm (drizzle/0612)", async () => {
+    // drizzle/0609 dpdp_create_client_org sets set_up_by_membership_id on
+    // EVERY CA-created org; 0612's whereItIs asks whether anybody exists who
+    // could confirm: no owner membership -> "No owner named yet", owner
+    // named but not yet confirmed -> "Waiting for the owner to confirm".
+    // "Not started" is never what a CA sees for an org they made until the
+    // owner has confirmed.
     const client = createMockClient("partner")
     await client.rpc("dpdp_create_client_org", { p_name: "Joshi Motors", p_product: "firm", p_owner_email: null })
     await client.rpc("dpdp_create_client_org", { p_name: "Verma Textiles", p_product: "firm", p_owner_email: "suresh@vermatex.example" })
     const clients = (await client.rpc("dpdp_my_clients")).data as CaClientWire[]
     expect(clients.map((c) => [c.org.name, c.whereItIs, c.total, c.setUpByMe])).toEqual([
       ["Mehta Traders", "In progress", 31, false],
-      ["Joshi Motors", "Waiting for the owner to confirm", 31, true],
+      ["Joshi Motors", "No owner named yet", 31, true],
       ["Verma Textiles", "Waiting for the owner to confirm", 31, true],
     ])
     // "Open" is a real page for that org, with the partner still the partner.
@@ -155,17 +156,18 @@ describe("the CA's clients (dpdp_my_clients / whereItIs, drizzle/0609's labels)"
     expect(opened.org.name).toBe("Joshi Motors")
     expect(opened.viewer).toMatchObject({ kind: "ca", caSub: "partner" })
   })
-  test("FINDING, not fixed here: a SCHOOL client a CA creates never appears in My clients (no CAPARTNER row exists in the institution library)", async () => {
-    // drizzle/0602's institution library (28 templates) has no CAMGR or
-    // CAPARTNER template -- its Part 7 is only the OWNER's "Sign off all the
-    // answers" -- so dpdp_create_client_org:327-330 assigns nothing to the
-    // caller, and dpdp_my_clients:236-250 (ca_sub null -> filtered out)
-    // drops the school the moment it is created. The v3 mock listed it
-    // anyway; this mock follows the SQL. See e2e/ACCEPTANCE-70.md.
+  test("a SCHOOL client a CA creates IS in My clients, as its partner (drizzle/0612 -- ACCEPTANCE-70.md finding 1, fixed)", async () => {
+    // drizzle/0602's institution library has no CAMGR or CAPARTNER template,
+    // so nothing is assigned to the caller; 0612's dpdp_my_clients counts the
+    // CA who set the org up (set_up_by_membership_id) as its partner
+    // regardless, so the school stays on the list from the moment it is made.
     const client = createMockClient("partner")
     await client.rpc("dpdp_create_client_org", { p_name: "Green Valley School", p_product: "institution", p_owner_email: "head@greenvalley.example" })
     const clients = (await client.rpc("dpdp_my_clients")).data as CaClientWire[]
-    expect(clients.map((c) => c.org.name)).toEqual(["Mehta Traders"])
+    expect(clients.map((c) => [c.org.name, c.caSub, c.setUpByMe, c.whereItIs])).toEqual([
+      ["Mehta Traders", "partner", false, "In progress"],
+      ["Green Valley School", "partner", true, "Waiting for the owner to confirm"],
+    ])
   })
 })
 
