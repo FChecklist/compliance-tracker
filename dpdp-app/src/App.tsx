@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { createDpdpClient, type DpdpClient } from "./lib/client"
 import { RpcFailure, acknowledgeWelcome, fetchMyPage, flagNotMe, markDone, viewerContext, type MyPage } from "./lib/api"
+import { readLanding, recallEmail, rememberEmail, type Landing } from "./lib/landing"
 import { OnePageView } from "./components/onepage/OnePageView"
 import { RoleWelcome } from "./components/onepage/RoleWelcome"
 import { NotMeWaiting } from "./components/onepage/NotMeWaiting"
-import { CheckYourEmail, ErrorScreen, Loading, NoMembership, SignIn } from "./components/Screens"
+import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, NoMembership, SignIn, type ResendState } from "./components/Screens"
 
 // WO-DPDP-011 Step 2 spike: one role, the whole loop -- sign in, own jobs
 // load, Mark Yes, reload shows it. Single page, no router: the phase below
@@ -12,35 +13,43 @@ import { CheckYourEmail, ErrorScreen, Loading, NoMembership, SignIn } from "./co
 type Phase =
   | { name: "booting" }
   | { name: "signed-out"; busy: boolean; error: string | null }
-  | { name: "check-your-email"; email: string }
+  | { name: "link-expired"; email: string | null; expired: boolean; busy: boolean; error: string | null }
+  | { name: "check-your-email"; email: string; resend: ResendState; error: string | null }
   | { name: "loading" }
   | { name: "app"; page: MyPage }
   | { name: "no-membership" }
   | { name: "error"; message: string }
 
+const SIGNED_OUT: Phase = { name: "signed-out", busy: false, error: null }
+
 export function App() {
-  const [client] = useState<DpdpClient | Error>(() => {
+  const [boot] = useState<{ landing: Landing; client: DpdpClient | Error }>(() => {
+    // The URL is read before the client exists: a success hash must be left
+    // for detectSessionInUrl, an error hash is consumed here (see landing.ts).
+    const landing = readLanding()
     try {
-      return createDpdpClient()
+      return { landing, client: createDpdpClient() }
     } catch (e) {
-      return e instanceof Error ? e : new Error(String(e))
+      return { landing, client: e instanceof Error ? e : new Error(String(e)) }
     }
   })
-  if (client instanceof Error) {
-    return <ErrorScreen message={client.message} onRetry={() => window.location.reload()} onSignOut={() => window.location.reload()} />
+  if (boot.client instanceof Error) {
+    return <ErrorScreen message={boot.client.message} onRetry={() => window.location.reload()} onSignOut={() => window.location.reload()} />
   }
-  return <Session client={client} />
+  return <Session client={boot.client} landing={boot.landing} />
 }
 
-function Session({ client }: { client: DpdpClient }) {
+function Session({ client, landing }: { client: DpdpClient; landing: Landing }) {
   const [phase, setPhase] = useState<Phase>({ name: "booting" })
-  const phaseName = useRef<Phase["name"]>("booting")
-  phaseName.current = phase.name
   const [email, setEmail] = useState<string | null>(null)
+  // Written only from the auth-event handler, never during render: whether
+  // this session's first page fetch has been kicked off, so supabase-js's
+  // SIGNED_IN re-emits on tab focus don't fetch the page again.
+  const fetchStarted = useRef(false)
 
   const load = useCallback(async () => {
     // Keep the page on screen during a refetch; only a first load blanks it.
-    if (phaseName.current !== "app") setPhase({ name: "loading" })
+    setPhase((p) => (p.name === "app" ? p : { name: "loading" }))
     try {
       const page = await fetchMyPage(client)
       setPhase({ name: "app", page })
@@ -59,33 +68,59 @@ function Session({ client }: { client: DpdpClient }) {
     const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
       setEmail(session?.user.email ?? null)
       if (!session) {
-        if (event === "INITIAL_SESSION" || event === "SIGNED_OUT") setPhase({ name: "signed-out", busy: false, error: null })
+        fetchStarted.current = false
+        if (event === "INITIAL_SESSION") {
+          setPhase(landing.linkError
+            ? { name: "link-expired", email: landing.emailHint ?? recallEmail(), expired: landing.linkError.expired, busy: false, error: null }
+            : SIGNED_OUT)
+        } else if (event === "SIGNED_OUT") {
+          setPhase(SIGNED_OUT)
+        }
         return
       }
-      // supabase-js re-emits SIGNED_IN on tab focus; only the first one
-      // (or INITIAL_SESSION on a reload) should trigger the fetch. It is
-      // deferred a tick because calling back into the client from inside
-      // its own auth callback can deadlock on the auth lock.
-      if ((event === "INITIAL_SESSION" || event === "SIGNED_IN") && phaseName.current !== "app" && phaseName.current !== "loading") {
+      if ((event === "INITIAL_SESSION" || event === "SIGNED_IN") && !fetchStarted.current) {
+        fetchStarted.current = true
+        // Deferred a tick because calling back into the client from inside
+        // its own auth callback can deadlock on the auth lock.
         setTimeout(() => void load(), 0)
       }
     })
     return () => subscription.unsubscribe()
-  }, [client, load])
+  }, [client, load, landing])
+
+  // emailRedirectTo is the bare origin on purpose: the address is remembered
+  // in localStorage (landing.ts) rather than written into the link's URL.
+  // shouldCreateUser is left at its default (true), matching the Next app's
+  // own login form: membership is decided by dpdp_my_page after sign-in, not
+  // by whether an auth.users row already exists.
+  async function requestLink(address: string): Promise<string | null> {
+    const { error } = await client.auth.signInWithOtp({ email: address, options: { emailRedirectTo: window.location.origin } })
+    if (error) return error.message
+    rememberEmail(address)
+    return null
+  }
 
   async function signIn(address: string) {
     setPhase({ name: "signed-out", busy: true, error: null })
-    // shouldCreateUser is left at its default (true), matching the Next app's
-    // own login form: membership is decided by dpdp_my_page after sign-in,
-    // not by whether an auth.users row already exists.
-    const { error } = await client.auth.signInWithOtp({ email: address, options: { emailRedirectTo: window.location.origin } })
-    if (error) setPhase({ name: "signed-out", busy: false, error: error.message })
-    else setPhase({ name: "check-your-email", email: address })
+    const err = await requestLink(address)
+    setPhase(err ? { name: "signed-out", busy: false, error: err } : { name: "check-your-email", email: address, resend: "idle", error: null })
+  }
+
+  async function sendFreshLink(address: string, expired: boolean) {
+    setPhase({ name: "link-expired", email: address, expired, busy: true, error: null })
+    const err = await requestLink(address)
+    setPhase(err ? { name: "link-expired", email: address, expired, busy: false, error: err } : { name: "check-your-email", email: address, resend: "idle", error: null })
+  }
+
+  async function resend(address: string) {
+    setPhase({ name: "check-your-email", email: address, resend: "sending", error: null })
+    const err = await requestLink(address)
+    setPhase({ name: "check-your-email", email: address, resend: err ? "idle" : "sent", error: err })
   }
 
   async function signOut() {
     await client.auth.signOut()
-    setPhase({ name: "signed-out", busy: false, error: null })
+    setPhase(SIGNED_OUT)
   }
 
   switch (phase.name) {
@@ -94,8 +129,10 @@ function Session({ client }: { client: DpdpClient }) {
       return <Loading />
     case "signed-out":
       return <SignIn onSubmit={signIn} busy={phase.busy} error={phase.error} />
+    case "link-expired":
+      return <LinkExpired email={phase.email} expired={phase.expired} busy={phase.busy} error={phase.error} onSend={(a) => sendFreshLink(a, phase.expired)} onUseAnother={() => setPhase(SIGNED_OUT)} />
     case "check-your-email":
-      return <CheckYourEmail email={phase.email} onUseAnother={() => setPhase({ name: "signed-out", busy: false, error: null })} />
+      return <CheckYourEmail email={phase.email} resend={phase.resend} error={phase.error} onResend={() => resend(phase.email)} onUseAnother={() => setPhase(SIGNED_OUT)} />
     case "no-membership":
       return <NoMembership email={email} onSignOut={signOut} />
     case "error":

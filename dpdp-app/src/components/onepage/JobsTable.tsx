@@ -107,8 +107,8 @@ function GroupAnswerButtons({ row, onAnswerGroup }: { row: ObligationRow; onAnsw
 }
 
 function StampOrAction({
-  row, allRows, viewer, mine, onMarkYes, onAnswerGroup,
-}: { row: ObligationRow; allRows: ObligationRow[]; viewer: ViewerContext; mine: boolean; onMarkYes?: (id: string) => void; onAnswerGroup?: (obligationId: string, answer: GroupAnswerKind) => void }) {
+  row, allRows, mine, onMarkYes, onAnswerGroup,
+}: { row: ObligationRow; allRows: ObligationRow[]; mine: boolean; onMarkYes?: (id: string) => void; onAnswerGroup?: (obligationId: string, answer: GroupAnswerKind) => void }) {
   if (row.na) return <span className="inline-block rounded-lg" style={{ fontSize: 12, fontWeight: 700, padding: "3px 11px", background: "#EFEFF4", color: "var(--dpdp-ink3)" }}>Doesn't apply</span>
   if (row.yes && row.answer === "n") return <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 11px", background: "var(--dpdp-rL)", color: "var(--dpdp-r)", borderRadius: 8, display: "inline-block" }}>No</span>
   if (row.yes) {
@@ -218,7 +218,7 @@ function PartGroup({
                 : <span className="inline-block rounded-[20px]" style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", background: "var(--dpdp-aL)", color: "#8A5A00" }}>nobody</span>}
             </td>
             <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}><DueCell row={row} now={now} /></td>
-            <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}><StampOrAction row={row} allRows={allRows} viewer={viewer} mine={mine} onMarkYes={onMarkYes} onAnswerGroup={onAnswerGroup} /></td>
+            <td style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}><StampOrAction row={row} allRows={allRows} mine={mine} onMarkYes={onMarkYes} onAnswerGroup={onAnswerGroup} /></td>
             <td className="text-center" style={{ padding: 12, borderBottom: "1px solid var(--dpdp-line2)" }}>{row.sent}</td>
           </tr>
         )

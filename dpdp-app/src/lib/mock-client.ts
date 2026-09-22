@@ -88,8 +88,9 @@ export function createMockClient(): DpdpClient {
         }
         save(state)
         // A real magic link is an inbox round trip; signing in on a later
-        // tick keeps the app's check-your-email state reachable in mock mode.
-        setTimeout(() => emit("SIGNED_IN"), 400)
+        // tick keeps the app's check-your-email state (and its "Send me a
+        // new link" button) reachable in mock mode.
+        setTimeout(() => emit("SIGNED_IN"), 1500)
         return { error: null }
       },
       async signOut() {
