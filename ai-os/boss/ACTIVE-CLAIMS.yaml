@@ -4486,17 +4486,51 @@ active:
       both new tests failed with the exact expected symptoms, restored,
       both pass. Full DPDP suite: 41 pass, 0 fail, 71 assertions.
 
-      STILL TO BUILD (large, not yet started): CA/parent role detection
-      (no CA-firm or parent-token concept wired into the auth/membership
-      model at all yet -- a bigger lift than GO/coordinator, which reused
-      the existing roleTag mechanism), CA firm clients view, group-answer
-      UI, the owner-set-up-by-CA and CA partner's 3-step first-visit
-      wizards (the generic named-role wizard above is now done), the
-      Monday email digest wired to the new job model (the `sent` field is
-      honestly hard-coded to 0 everywhere until this lands), the 70-check
-      Playwright acceptance suite, and Step 7's Vercel-ready-but-unmerged
-      branch. This session is continuing, not stopping, per the Owner's
-      own explicit instruction in chat.
+      PROGRESS, UPDATED AGAIN 2026-09-22 (same overall engagement, PR #1796
+      merged: group-job 3-answer flow for "All staff"/"All teachers",
+      real RLS-gap and stale-row-order bugs found+fixed, live-verified
+      with 2 real group members) then PR #1797 (CA firm clients dashboard
+      -- CA partner/manager detection reusing the existing GO/coordinator
+      roleTag mechanism, a new cross-org "My CA clients" page reusing the
+      already-existing switchDpdpActiveOrg/listOrganisationsForIdentity
+      infrastructure, 2 more real bugs found+fixed live: an RLS gap where
+      dpdp.obligation's own policy silently returned zero rows via a plain
+      db client that dpdp.membership's own more permissive policy let
+      through fine, and a stale-shared-layout-after-org-switch bug fixed
+      with router.refresh()).
+
+      *** WORK ORDER SUPERSEDED 2026-09-22: WO-DPDP-011 received (owner
+      zip, same KT folder) -- a FULL ARCHITECTURE PIVOT for DPDP: move the
+      whole product off the Next.js server (currently every page open/
+      click is a Vercel function call) into a STATIC, browser-executed
+      app talking DIRECTLY to Supabase via RLS + Postgres RPC functions,
+      hosted on Cloudflare Pages (near-zero Vercel usage is the owner's
+      explicit, stated goal -- see CLAUDE.md's own extensive R76 Vercel-
+      zero-spend-lockdown history for why this matters to this project).
+      WO-DPDP-011's own Step 0 is explicit: "Build no more server-side
+      DPDP features" going forward. PR #1797 above was already in flight
+      before this WO arrived, so finishing+merging it is that Step 0's
+      own "reconcile," not a violation of it -- but the STILL TO BUILD
+      list that used to sit here (CA/parent detection, group-answer UI,
+      etc.) is now STALE: WO-DPDP-011 §4 explicitly says to finish all of
+      it "on the new architecture only," not on the current Next.js one.
+      Do not pick up any new server-side DPDP feature (new API route, new
+      server action, new httpOnly-cookie-session code) from this point
+      without first checking whether WO-DPDP-011 has superseded it.
+
+      WO-DPDP-011's own Step 1 (architecture decision note: sign-in
+      mechanism choice, build tool choice, Cloudflare Pages plan, which
+      of the 51 existing API routes the new user path still needs) is
+      REQUIRED to be sent to the Owner before Step 2 (the go/no-go spike)
+      starts -- this is a real, deliberate human checkpoint in the work
+      order's own text, not a formality to route around under any
+      "complete everything" instruction. A parallel research workflow
+      (route-usage audit, static-export feasibility against the CURRENT
+      one-page code, Cloudflare Pages deployment mechanics) was run to
+      ground that note in fact rather than assumption; the note itself is
+      being written and sent to the Owner directly (chat), not merged as
+      a PR, since Step 1 produces a decision for the Owner to react to,
+      not a code change.
 
       NOT touching compliance.*/platform.* tables, PROJEXA's proxy routes,
       vercel.json, or any Vercel project/dashboard setting.
