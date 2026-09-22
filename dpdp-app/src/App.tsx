@@ -93,6 +93,20 @@ function Session({ client, landing, initialDraft }: { client: DpdpClient; landin
     }
   }, [client])
 
+  // A #draft= URL pasted into a tab that already has /app/ open is a
+  // same-document (hash-only) navigation: the app does not reboot, so the
+  // boot-time readDraftFragment() never sees it. Found by
+  // e2e/step5-by-role.spec.ts under WO-DPDP-011 Step 6 (ACCEPTANCE-70.md,
+  // finding 6). Same read, same clearing of the token from the address bar.
+  useEffect(() => {
+    const onHashChange = () => {
+      const d = readDraftFragment()
+      if (d) setDraft(d)
+    }
+    window.addEventListener("hashchange", onHashChange)
+    return () => window.removeEventListener("hashchange", onHashChange)
+  }, [])
+
   useEffect(() => {
     const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
       setEmail(session?.user.email ?? null)

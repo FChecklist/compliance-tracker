@@ -114,6 +114,26 @@ describe("scenario owner (a brand-new org) and client-owner (a CA set it up)", (
     expect(p.rows.filter((r) => r.by).map((r) => r.what)).toEqual(["Owner confirms all the answers are true", "CA manager checks the proof", "CA partner signs the file"])
     expect(p.rows.filter((r) => r.yes)).toHaveLength(0)
   })
+  test("owner: the wizard saved with only the prefilled GO/coordinator leaves 22 jobs with nobody (FIRST-09)", async () => {
+    // The GO area is 5 jobs (naming the GO, publishing their contact, the
+    // leak plan, the requests page, the complaints clock) and the
+    // coordinator area 1, so the prefilled owner holds 7 rows (with their
+    // own sign-off) and the CA holds 2: 31 - 7 - 2 = 22 have nobody.
+    const client = createMockClient("owner")
+    const GO = "Grievance Officer (responsible for DPDP policy)"
+    await client.rpc("dpdp_complete_owner_first_visit", { p_org_id: "org-mock", p_assignments: [{ area: GO, emails: [MOCK_OWNER], na: false }, { area: "DPDP coordinator", emails: [MOCK_OWNER], na: false }] })
+    const p = (await client.rpc("dpdp_my_page")).data as MyPagePayload
+    expect(p.rows.filter((r) => !r.by && !r.na)).toHaveLength(22)
+    expect(p.rows.filter((r) => r.by === MOCK_OWNER)).toHaveLength(7)
+  })
+  test("a plain form sign-in as client-owner@ lands in the CA-set-up world (step5-by-role.spec.ts relies on it)", async () => {
+    const client = createMockClient() // no scenario: the stored/fresh "owner" world
+    await client.auth.signInWithOtp({ email: "client-owner@example.test" })
+    const setup = (await client.rpc("dpdp_org_setup")).data as { setUpBy: { email: string } | null }
+    expect(setup.setUpBy?.email).toBe(MOCK_PARTNER)
+    const p = (await client.rpc("dpdp_my_page")).data as MyPagePayload
+    expect(p.viewer).toMatchObject({ email: "client-owner@example.test", kind: "owner", firstVisitSeenAt: null })
+  })
   test("client-owner: set up by the partner, not yet confirmed", async () => {
     const client = createMockClient("client-owner")
     const setup = (await client.rpc("dpdp_org_setup")).data as { setUpBy: { email: string } | null; ownerConfirmedAt: string | null }

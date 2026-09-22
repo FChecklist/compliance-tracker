@@ -362,11 +362,13 @@ test.describe("tfirst -- first visits", () => {
     await seed(page, "owner")
     await page.getByRole("button", { name: "✓ Create the list", exact: true }).click()
     await page.getByRole("button", { name: "✓ Save and send the first emails", exact: true }).click()
-    await expect(page.getByText("25 jobs have nobody looking after them", { exact: true })).toBeVisible() // 31 - the 3 chain steps - 3 the owner now holds
+    // 31 jobs - the 7 the prefilled owner now holds (the 5 GO-area jobs,
+    // naming the coordinator, their own sign-off) - the CA's 2 chain steps.
+    await expect(page.getByText("22 jobs have nobody looking after them", { exact: true })).toBeVisible()
     await expect(page.getByText("Type an email into each amber row — or mark it “doesn’t apply” if it is not relevant to you.", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Show me", exact: true }).click()
-    await expect(chip(page, "Nobody named", 25)).toBeVisible()
-    await expect(page.getByText("nobody", { exact: true })).toHaveCount(25)
+    await expect(chip(page, "Nobody named", 22)).toBeVisible()
+    await expect(page.getByText("nobody", { exact: true })).toHaveCount(22)
     await expect(row(page, OWNER_CONFIRMS)).toHaveCount(0) // the owner's own job is not in the "nobody" view
   })
 
@@ -758,7 +760,10 @@ test.describe("troles2 -- roles", () => {
     await expect(page.getByText("They get the list you set up and a “looks right — confirm” screen on their first visit.", { exact: true })).toBeVisible()
     await expect(page.getByText("The whole DPDP list is opened for them at once. Nothing is emailed to anybody yet.", { exact: true })).toBeVisible()
     await page.getByLabel("Client name", { exact: true }).fill("Joshi Motors")
-    await page.getByLabel("Owner’s email", { exact: true }).fill("not-an-address")
+    // An address the browser's own type=email check lets through (no dot
+    // is required by HTML) but the app's stricter rule refuses -- so it is
+    // the app's message, not the browser's bubble, that is asserted.
+    await page.getByLabel("Owner’s email", { exact: true }).fill("owner@localhost")
     await page.getByRole("button", { name: "Add a client", exact: true }).click()
     await expect(page.getByRole("alert")).toHaveText("That does not look like an email address — fix it or untick “Set it up for them”.")
     await expect(page.getByText("Joshi Motors")).toHaveCount(0) // not added
@@ -823,6 +828,10 @@ test.describe("troles2 -- roles", () => {
     await expect(page.getByRole("button", { name: "📋 Copy my AI Link", exact: true })).toBeVisible()
     await expect(page.getByRole("button", { name: "🤖 Make my AI Link", exact: true })).toHaveCount(0)
     await expect(page.getByText(/^Read-only · expires /)).toBeVisible()
+    // Recorded: History re-reads on the next page load (AiLinkButton does
+    // not refetch the page itself -- see ACCEPTANCE-70.md, finding 5).
+    await page.goto("/app/")
+    await expect(page.getByText("Signed in as")).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText("Made an AI link", { exact: true })).toBeVisible()
   })
 
@@ -889,6 +898,11 @@ test.describe("troles2 -- roles", () => {
 
   test("ROLES-23 /act/: a link works once; 'I can't' is recorded as stuck; a bad link is refused with no button", async ({ page }) => {
     await seed(page, "owner-live")
+    // "I can't" first: once the job is done, a later link for it honestly
+    // says "Already done" with nothing to press (the preview reports it).
+    await page.goto("/act/#mock-cannot")
+    await page.getByRole("button", { name: `Yes — record "I can't"`, exact: true }).click()
+    await expect(page.getByRole("heading", { level: 1, name: "Recorded, thank you", exact: true })).toBeVisible()
     await page.goto("/act/#mock-done")
     await page.getByRole("button", { name: 'Yes — record "Done"', exact: true }).click()
     await expect(page.getByRole("heading", { level: 1, name: "Recorded, thank you", exact: true })).toBeVisible()
@@ -896,8 +910,8 @@ test.describe("troles2 -- roles", () => {
     await expect(page.getByRole("heading", { level: 1, name: "This link can't be used", exact: true })).toBeVisible()
     await expect(page.getByRole("alert")).toHaveText("This link has already been used. Nothing has changed.")
     await page.goto("/act/#mock-cannot")
-    await page.getByRole("button", { name: `Yes — record "I can't"`, exact: true }).click()
-    await expect(page.getByRole("heading", { level: 1, name: "Recorded, thank you", exact: true })).toBeVisible()
+    await expect(page.getByRole("heading", { level: 1, name: "Already done", exact: true })).toBeVisible()
+    await expect(page.getByRole("button")).toHaveCount(0)
     await page.goto("/act/#not-a-token")
     await expect(page.getByRole("heading", { level: 1, name: "This link can't be used", exact: true })).toBeVisible()
     await expect(page.getByRole("button")).toHaveCount(0)

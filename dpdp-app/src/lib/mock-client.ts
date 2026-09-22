@@ -473,6 +473,10 @@ export function createMockClient(scenario?: string): DpdpClient {
       },
       async signInWithOtp({ email }) {
         const me = email.trim().toLowerCase()
+        // The owner whose CA set the org up: signing in as them with no
+        // `?mock=` is the review world (as the v3 mock had it), unless that
+        // world is already here (e.g. they confirmed it earlier this session).
+        if (me === MOCK_CLIENT_OWNER && state.orgs[HOME_ORG].ownerEmail !== MOCK_CLIENT_OWNER) state.orgs[HOME_ORG] = caSetUpHomeOrg()
         const org = home()
         // A persona (or the home org's owner) signs in as themself. Anyone
         // else becomes the home org's owner, as before: the owner's rows

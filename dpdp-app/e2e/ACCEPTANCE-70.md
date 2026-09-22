@@ -112,7 +112,7 @@ app does render them -- as each tag's `title`.
 | FIRST-06 | owner | `CANNA` 380, 583 "We don't have this", `.isna` 194 | 4 checkboxes only; ticking Payroll firm disables its box and moves the counter to 3 of 11 |
 | FIRST-07 | owner | `data-w2` 898-901: "These do not look like email addresses — fix them or clear the box" | the message names the area and value; nothing saved -- `/app/` is still step 1 |
 | FIRST-08 | owner | `data-w2` 902-910: `fromArea` → owner + yes 905; group 906; n/a 904/908; history "Named … as …" | wizard gone; GO job YES; Customer data → staff; group "All staff"; Payroll "Doesn't apply"; four History lines; still gone after `/app/` |
-| FIRST-09 | owner | "Not sure? Leave it empty — it shows amber" 576; `vNow` 542; `filt('nobody')` 502 | "25 jobs have nobody looking after them"; "Show me" → chip "Nobody named 25", 25 amber tags, the owner's own job not among them |
+| FIRST-09 | owner | "Not sure? Leave it empty — it shows amber" 576; `vNow` 542; `filt('nobody')` 502 | "22 jobs have nobody looking after them" (31 − the 7 the prefilled owner holds: the 5 GO-area jobs, naming the coordinator, their sign-off − the CA's 2); "Show me" → chip "Nobody named 22", 22 amber tags, the owner's own job not among them |
 | FIRST-10 | partner | `vCAWizard` step 1 721-730; `vWelcome` 785 "{who} added you as {role}" | "Welcome to VERIDIAN"; "… named you as their CA partner — you have 1 job …"; the 3-step rail; "Next — my clients"; "This isn’t me" |
 | FIRST-11 | partner | step 3 742-749 "Add your clients … (OPTIONAL)"; `vClients` 615-627 | "Your clients": Mehta Traders "As CA partner · 4 of 31 done · In progress"; "+ Add a client"; "Back" returns |
 | FIRST-12 | partner | step order 722 + `data-c3` 873-877; `data-got` 854 | "How it works" names the chain and "Waiting"; "Got it" → the jobs page with the partner's "Waiting" step; History "… saw their DPDP jobs for the first time"; never returns |
@@ -150,16 +150,16 @@ app does render them -- as each tag's `title`.
 | ROLES-11 | coord | `manager()` 491 includes coord; `vNow` 542 (`r.k!=='go'`) | the welcome names the DPDP coordinator; "1 job has nobody looking after it"; full page; one Mark Yes on the Accounts job |
 | ROLES-12 | partner | `vClients` 615-627: Client / Owner's email / Where it is / Work completed …; `stage()` 505-514 | "My clients (1)" → "My CA clients": headers Client / As / Done / Where it is; "CA partner"; "4 of 31 done (13%)"; "In progress"; "Open Mehta Traders"; back |
 | ROLES-13 | manager | 467 Manager; 776 "You check each client’s proof" | the same entry, labelled "CA manager", no "CA partner" |
-| ROLES-14 | partner | 618-620 "+ Add a client" (name, owner's email); 534 "Set it up for them"; 889 "Type a client name and a real email address" | the form's fields; ticking "Set it up for them — name the owner now" reveals "Owner’s email"; a bad address is refused; "Never mind" |
+| ROLES-14 | partner | 618-620 "+ Add a client" (name, owner's email); 534 "Set it up for them"; 889 "Type a client name and a real email address" | the form's fields; ticking "Set it up for them — name the owner now" reveals "Owner’s email"; a bad address is refused by the APP's message (`owner@localhost` -- HTML's own `type=email` check lets a dotless address through, the app's rule does not; a value the browser itself refuses never reaches the app); "Never mind" |
 | ROLES-15 | partner | 890-891 "{name} added. A link has gone to …"; `stage()` | the new row: "you set it up", 0 of 31, "Waiting for the owner to confirm" (see findings); "My clients (2)"; History |
 | ROLES-16 | partner | 534 "Set it up for them"; 939 "{owner} emailed to check it" | owner named → "Waiting for the owner to confirm"; History "Named … as owner" |
 | ROLES-17 | partner | `data-ca` 887 (pick a client) → 833 "📋 The list — {client}" | "Open Mehta Traders" → h1 "Mehta Traders", seal 4 of 31, the partner's step "Waiting", still signed in as the partner, "My clients (1)" still there |
-| ROLES-18 | owner-live | (WO-DPDP-012 §7, `AiLinkButton.tsx`) | "Make my AI Link" → one `https://app.veridian-aios.com/ai/<token>`; "Copy my AI Link"; the button is gone; History "Made an AI link" |
+| ROLES-18 | owner-live | (WO-DPDP-012 §7, `AiLinkButton.tsx`) | "Make my AI Link" → one `https://app.veridian-aios.com/ai/<token>`; "Copy my AI Link"; the button is gone; History "Made an AI link" -- read after `/app/` (finding 5) |
 | ROLES-19 | owner-live | (same) "shown once … the old link stops working" | after `/app/` only the button is back, no link; a new one says "your previous link no longer works" |
 | ROLES-20 | owner-live + `#draft=` | (WO-DPDP-012 §7, `DraftConfirm.tsx`) | the draft in full (What / Job / Note / For); token cleared from the URL; "Nothing has changed yet"; no History line; "Not now" leaves none |
 | ROLES-21 | owner-live + `#draft=` | (same) | "Confirm" → status + History "drafted by AI, confirmed by owner@example.test …"; the same link again is already confirmed, no Confirm button, one History line |
 | ROLES-22 | owner-live, `/act/#mock-done` | `vEmail` 690 "pressing Yes in it updates the list above", 693 `data-via="email"` | the preview names the job and "Opening this page has changed nothing."; `/app/` still open with no History line; press → "Recorded, thank you"; `/app/` YES + History |
-| ROLES-23 | owner-live, `/act/` | (drizzle/0606 single-use tokens) | used twice → "This link has already been used. Nothing has changed."; `#mock-cannot` records "Said they are stuck"; a bad link has no button |
+| ROLES-23 | owner-live, `/act/` | (drizzle/0606 single-use tokens; `alreadyDone` in the preview) | `#mock-cannot` first (records "Said they are stuck"), then `#mock-done`; used twice → "This link has already been used. Nothing has changed."; once the job is done a further link for it says "Already done" with nothing to press; a bad link has no button |
 | ROLES-24 | `/unsubscribe/#mock-unsub` | 694 "There is no off switch — a legal duty with a date does not stop" | nothing until the button; "Stopped" for that address, "Statutory notices … will still come"; no token → refused |
 
 Eight checks (FIRST-26..28, ROLES-18..21, 23) exercise screens the one-page
@@ -222,6 +222,23 @@ words suggest:
    showed the welcome again instead of the waiting screen, and FIRST-13/22/23
    would have been impossible to write honestly. Fixed in the mock (it now
    matches the SQL); no app change.
+5. **History does not show "Made an AI link" until the next page load.**
+   `AiLinkButton` calls `dpdp_create_ai_link` but never asks the page to
+   refetch, and `History` re-reads only when the page changes (its own
+   header comment says so). Every other action on the page refetches. Not
+   fixed here; ROLES-18 reads History after `/app/`. A one-line `refetch`
+   prop on `AiLinkButton` would close it.
+6. **A `#draft=` URL opened in a tab that already had `/app/` open showed
+   nothing** (found by `step5-by-role.spec.ts`'s draft test on this
+   branch's first CI run, which navigates `/app/` → `/app/#draft=…`): a
+   hash-only change is a same-document navigation, the app does not reboot,
+   and `readDraftFragment()` ran only at boot. A person pasting the AI's
+   draft URL into the tab they are already on would hit exactly this.
+   **Fixed in `App.tsx`** with a `hashchange` listener that does the same
+   read (and the same clearing of the token from the address bar) -- the
+   one app change in this PR, kept because it is a few lines on a Step 5
+   surface this branch already carries and the alternative was an
+   artificial navigation in the test.
 
 ## Running it
 
