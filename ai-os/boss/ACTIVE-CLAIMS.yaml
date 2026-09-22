@@ -40,6 +40,28 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (cloud agent, isolated worktree, branch feat/wo-dpdp-011-step4-supabase-timer) -- WO-DPDP-011 Step 4: Supabase timer (Monday 06:00 IST digest, escalation, legal clocks, real emails-sent counts) [IN PROGRESS]"
+    claimed_at: "2026-09-22T (this session)"
+    claim: |
+      SCOPE (branch-only; nothing applied or deployed by this session):
+      - drizzle/0606_dpdp_wo011_step4_timer.sql + journal idx 437: dpdp.email_send,
+        dpdp.email_preference, dpdp.email_action_token (RLS on, service_role only);
+        public.dpdp_my_page re-issued with a real `sent` count; dpdp.build_monday_digests,
+        dpdp.legal_clocks, dpdp.record_email_send/mark_email_send_result,
+        dpdp.issue_email_action_tokens, dpdp.apply_email_action (+ anon-callable
+        public.dpdp_apply_email_action / dpdp_preview_email_action / dpdp_unsubscribe),
+        service_role-only public.dpdp_timer_* wrappers, pg_cron jobs
+        dpdp-monday-digest (30 0 * * 1 UTC) and dpdp-legal-clocks (30 3 * * * UTC)
+        reading url/secret from vault.decrypted_secrets.
+      - supabase/functions/dpdp-monday-email/{index.ts,render.ts,README.md} (Deno Edge
+        Function, dry-run without RESEND_API_KEY, idempotent per membership+ISO week).
+      - src/lib/services/dpdp-timer.test.ts (DB-gated, unrun here) and
+        src/lib/services/dpdp-timer-render.test.ts (pure, run here).
+      NOT touching: dpdp-app/ (two other agents own it), any src/app/** route or server
+      action (WO-011 Step 0 freeze), drizzle/0605 (another agent, in parallel -- this
+      claim deliberately takes 0606/idx 437 and leaves 0605/idx 436 to them).
+      PM steps (vault secrets, function deploy, migration apply order) are in the PR body.
+
   - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session, isolated worktree C:/ct/ct-cost001 branch wo/projexa-cost-001; heavy analysis delegated to Anthropic cloud agents per the owner's 2026-09-22 chat instruction, because this laptop was at ~0.84GB free RAM at session start) -- WORK_ORDER_PROJEXA-COST-001 v2 (issued 2026-09-22, KT rank 0.27, Drive 1kAsuZ0Dn3_Oxa0eaV-G0zdhsC6f3HFBN): Vercel bill must never exceed $20/month [IN PROGRESS]"
     claimed_at: "2026-09-22T06:05Z (this session)"
     claim: |
