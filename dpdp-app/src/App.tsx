@@ -117,6 +117,19 @@ function Session({ client, landing, initialDraft }: { client: DpdpClient; landin
     return () => subscription.unsubscribe()
   }, [client, load, landing])
 
+  // A #draft= fragment can arrive AFTER load too: the person is already on
+  // /app/ and pastes the AI's draftUrl into the same tab, which is a
+  // hash-only navigation (no reload, no remount). Read and clear it exactly
+  // as the boot path does, so the confirm token never stays in the address.
+  useEffect(() => {
+    const onHashChange = () => {
+      const d = readDraftFragment()
+      if (d) setDraft(d)
+    }
+    window.addEventListener("hashchange", onHashChange)
+    return () => window.removeEventListener("hashchange", onHashChange)
+  }, [])
+
   // emailRedirectTo is the bare origin on purpose: the address is remembered
   // in localStorage (landing.ts) rather than written into the link's URL.
   // shouldCreateUser is left at its default (true), matching the Next app's
@@ -247,7 +260,7 @@ function Page({
           onMarkYes={(id) => markDone(client, id)}
           onAnswerGroup={async (id, answer) => { await answerGroup(client, id, answer) }}
         />
-        <AiLinkButton client={client} orgId={org.id} />
+        <AiLinkButton client={client} orgId={org.id} onMade={refetch} />
         {viewer.kind !== "staff" && <History client={client} page={page} />}
       </>
     )

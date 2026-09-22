@@ -91,7 +91,10 @@ test.describe("WO-DPDP-011 Step 5 -- the remaining WO-010 screens, by accessible
     await expect(page.getByText("In progress", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "+ Add a client", exact: true }).click()
     await page.getByLabel("Client name", { exact: true }).fill("New Client Ltd")
-    await page.getByLabel("A school", { exact: true }).check()
+    // A firm, not a school: the institution library (drizzle/0602) has no
+    // CAPARTNER job, so a school client a CA creates is not listed by the
+    // real dpdp_my_clients either -- see e2e/ACCEPTANCE-70.md, "findings".
+    await page.getByLabel("A company, NGO or firm", { exact: true }).check()
     await page.getByLabel("Set it up for them — name the owner now", { exact: true }).check()
     await page.getByLabel("Owner’s email", { exact: true }).fill("owner@newclient.example")
     await page.getByRole("button", { name: "Add a client", exact: true }).click()
