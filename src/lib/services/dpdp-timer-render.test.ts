@@ -9,7 +9,7 @@
 // sentence, statutory-only after unsubscribe).
 import { describe, expect, test } from "bun:test"
 import {
-  computeEscalation, domainOfFrom, escalationLines, isEmpty, listUnsubscribeHeaders, longDate, PLACEHOLDER,
+  computeEscalation, domainOfFrom, escalationLines, isDeliverableAddress, isEmpty, listUnsubscribeHeaders, longDate, PLACEHOLDER,
   renderDigest, renderLeakClock, renderRightsClock, sortJobs, statutorySubset, subjectFor,
   type Digest, type DigestJob, type RenderLinks,
 } from "../../../supabase/functions/dpdp-monday-email/render"
@@ -202,5 +202,14 @@ describe("legal clocks and RFC 8058 headers", () => {
     expect(domainOfFrom("VERIDIAN AI DPDP <dpdp@send.veridian-aios.com>")).toBe("send.veridian-aios.com")
     expect(domainOfFrom("dpdp@send.veridian-aios.com")).toBe("send.veridian-aios.com")
     expect(domainOfFrom("nonsense")).toBeNull()
+  })
+
+  test("reserved/test addresses are never deliverable; real ones are", () => {
+    for (const bad of ["owner@example.test", "x@sub.example.test", "a@foo.example", "b@bar.invalid", "c@localhost", "d@example.com", "e@mail.example.org", "nonsense", "@nowhere", "f@nodot"]) {
+      expect(isDeliverableAddress(bad)).toBe(false)
+    }
+    for (const good of ["rajat@veridian-aios.com", "CA.Partner@Firm.co.in", " owner@client-org.in "]) {
+      expect(isDeliverableAddress(good)).toBe(true)
+    }
   })
 })

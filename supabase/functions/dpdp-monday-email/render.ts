@@ -427,6 +427,24 @@ export function renderRightsClock(item: RightsClock, recipient: LegalRecipient, 
   return { subject, html: shell(title, html, links, "rights_clock"), text: textShell(title, `${body}\n\nSent to you as ${recipient.role}.`, links, "rights_clock") }
 }
 
+/**
+ * True only for an address a real mailbox could sit behind. Refuses the
+ * RFC 2606 / RFC 6761 reserved names (.test, .example, .invalid,
+ * .localhost, example.com/net/org) so the seeded @example.test tenants this
+ * repo's DB-gated tests create can never turn into real, bouncing sends the
+ * moment RESEND_API_KEY is set. Such recipients are recorded as skipped,
+ * never delivered.
+ */
+export function isDeliverableAddress(email: string): boolean {
+  const at = email.trim().toLowerCase().lastIndexOf("@")
+  if (at <= 0) return false
+  const domain = email.trim().toLowerCase().slice(at + 1)
+  if (!domain || !domain.includes(".")) return false
+  if (/(^|\.)(test|example|invalid|localhost)$/.test(domain)) return false
+  if (/^(example\.(com|net|org))$/.test(domain) || /\.example\.(com|net|org)$/.test(domain)) return false
+  return true
+}
+
 /** Builds the RFC 8058 pair. The https URL must accept a POST, so it is the Edge Function's own unsubscribe path, which 302s a human GET to the static page. */
 export function listUnsubscribeHeaders(httpsUrl: string, mailto: string | null): Record<string, string> {
   return {
