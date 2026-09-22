@@ -56,13 +56,17 @@
         <p class="lead">Know what data you hold. Tell people about it. Keep it safe.</p>
         <p class="lead lead-last">Prove all three — with a record that outlasts the person who set it up.</p>
         <div class="chooser-grid">
+          <!-- The emoji are decoration: aria-hidden keeps them out of each
+               link's accessible name, so an assistant (or a screen reader)
+               finds "I do this for clients", not "man judge I do this for
+               clients" (WO-DPDP-012 §6, proven by e2e/agent-by-role.spec.ts). -->
           <a class="choice" href="/dpdp-firm/?for=clients">
-            <span class="choice-icon">🧑‍⚖️</span>
+            <span class="choice-icon" aria-hidden="true">🧑‍⚖️</span>
             <b class="choice-title">I do this for clients</b>
             <span class="choice-body">A CA, CS, audit or legal firm. Your own file is free, always.</span>
           </a>
           <a class="choice" href="/dpdp-firm/?for=us">
-            <span class="choice-icon">🏭</span>
+            <span class="choice-icon" aria-hidden="true">🏭</span>
             <b class="choice-title">I do this for us</b>
             <span class="choice-body">A company, NGO or firm of our own.</span>
           </a>
