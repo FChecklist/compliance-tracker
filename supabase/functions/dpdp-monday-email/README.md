@@ -30,21 +30,27 @@ select name, created_at from vault.secrets where name in ('dpdp_timer_secret', '
 The migration's `cron.schedule(...)` reads both from `vault.decrypted_secrets`
 at run time; nothing is hard-coded in the repo.
 
-### 2. Function secrets (the same value as the vault bearer, plus mail settings)
+### 2. Function secrets — ALL OPTIONAL
 
-```sh
-supabase secrets set DPDP_TIMER_SECRET='<the same value as dpdp_timer_secret>'
-supabase secrets set APP_ORIGIN='https://app.veridian-aios.com'
-supabase secrets set DPDP_EMAIL_FROM='VERIDIAN AI DPDP <dpdp@send.veridian-aios.com>'
-# Only once Resend's domain is verified. Until then the function runs in DRY RUN.
-supabase secrets set RESEND_API_KEY='re_...'
-```
+The function runs with only the platform-injected env (`SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`, set by Supabase automatically — never set them
+yourself) plus Vault:
 
-`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected by Supabase into
-every Edge Function automatically; do not set them. Optional overrides:
-`DPDP_FUNCTION_URL` (defaults to `$SUPABASE_URL/functions/v1/dpdp-monday-email`),
-`DPDP_ACTION_PATH` (default `/act/`), `DPDP_UNSUBSCRIBE_PATH` (default
-`/unsubscribe/`).
+* **Bearer check.** If `DPDP_TIMER_SECRET` is set as a function secret it is
+  compared constant-time in the function. If it is NOT set, the function
+  calls `public.dpdp_timer_check_bearer(p_bearer)` (drizzle/0608, service_role
+  only) which compares sha256 digests against the same Vault secret
+  `dpdp_timer_secret` the cron reads. So step 1 alone is enough; nothing
+  needs `supabase secrets set`.
+* `APP_ORIGIN` defaults to `https://app.veridian-aios.com`.
+* `DPDP_EMAIL_FROM` defaults to `VERIDIAN AI DPDP <dpdp@send.veridian-aios.com>`.
+* `RESEND_API_KEY` absent = **dry run** (unchanged). Set it only once Resend's
+  domain is verified, via the dashboard (Edge Functions → Secrets) or
+  `supabase secrets set RESEND_API_KEY='re_...'` from a machine with a CLI token.
+
+Other optional overrides: `DPDP_FUNCTION_URL` (defaults to
+`$SUPABASE_URL/functions/v1/dpdp-monday-email`), `DPDP_ACTION_PATH` (default
+`/act/`), `DPDP_UNSUBSCRIBE_PATH` (default `/unsubscribe/`).
 
 ### 3. Deploy the function — with JWT verification OFF
 
@@ -58,15 +64,17 @@ supabase functions deploy dpdp-monday-email --no-verify-jwt
 (Via the Supabase MCP `deploy_edge_function`: pass `verify_jwt: false` and
 both files, `index.ts` + `render.ts`.)
 
-### 4. Apply the migration
+### 4. Apply the migrations
 
-`drizzle/0606_dpdp_wo011_step4_timer.sql` (journal idx 437). Apply through
-the Supabase MCP `apply_migration` (the project's established path), or
-`bun run db:migrate`. It is additive: three new `dpdp.*` tables, new
-functions, `public.dpdp_my_page` re-issued with the real `sent` count, and the
-two cron jobs. Applying before steps 1–3 is harmless — the cron would just
-post to a null URL and log a failure in `cron.job_run_details` until the
-secrets exist.
+`drizzle/0606_dpdp_wo011_step4_timer.sql` (journal idx 437) and then
+`drizzle/0608_dpdp_wo011_step4_bearer_check.sql` (idx 439 — the Vault bearer
+check the function falls back to when `DPDP_TIMER_SECRET` is unset). Apply
+through the Supabase MCP `apply_migration` (the project's established path),
+or `bun run db:migrate`. Both are additive: 0606 = three new `dpdp.*` tables,
+new functions, `public.dpdp_my_page` re-issued with the real `sent` count, and
+the two cron jobs; 0608 = one function + grant. Applying before steps 1–3 is
+harmless — the cron would just post to a null URL and log a failure in
+`cron.job_run_details` until the secrets exist.
 
 ### 5. Supabase Auth allowlist (owner action)
 

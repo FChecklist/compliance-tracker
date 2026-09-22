@@ -5,8 +5,13 @@
 //
 // SECURITY MODEL
 //   * Deployed with --no-verify-jwt (the cron sends a Vault secret, not a
-//     Supabase JWT). The bearer is checked here, constant-time, and an
-//     unset DPDP_TIMER_SECRET refuses everything (fail closed).
+//     Supabase JWT). The bearer is checked here: against DPDP_TIMER_SECRET
+//     (constant-time) when that function secret is set, otherwise through
+//     public.dpdp_timer_check_bearer (drizzle/0608, service_role only),
+//     which compares sha256 digests against the SAME Vault secret the cron
+//     reads -- so the function works with only the platform-injected env
+//     (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) plus Vault. A missing/short
+//     bearer, or no secret anywhere, refuses everything (fail closed).
 //   * The service-role client is used ONLY inside this function -- never
 //     shipped to a browser (WO-011 §0 limit 2). It reaches the dpdp.*
 //     logic through the public.dpdp_timer_* wrappers (PostgREST cannot
@@ -68,15 +73,26 @@ function constantTimeEqual(a: string, b: string): boolean {
   return diff === 0
 }
 
-function bearerOk(req: Request): boolean {
-  if (!TIMER_SECRET || TIMER_SECRET.length < 24) return false
-  const header = req.headers.get("authorization") ?? ""
-  const m = /^Bearer\s+(.+)$/i.exec(header.trim())
-  return !!m && constantTimeEqual(m[1], TIMER_SECRET)
-}
-
 function serviceClient(): SupabaseClient {
   return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+}
+
+/** Env secret if set; otherwise the Vault-backed RPC (0608). Never both, never neither. */
+async function bearerOk(req: Request): Promise<boolean> {
+  const header = req.headers.get("authorization") ?? ""
+  const m = /^Bearer\s+(.+)$/i.exec(header.trim())
+  const presented = m?.[1]?.trim() ?? ""
+  if (presented.length < 24) return false
+  if (TIMER_SECRET) return TIMER_SECRET.length >= 24 && constantTimeEqual(presented, TIMER_SECRET)
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return false
+  try {
+    const { data, error } = await serviceClient().rpc("dpdp_timer_check_bearer", { p_bearer: presented })
+    if (error) { console.error("dpdp_timer_check_bearer failed:", error.message); return false }
+    return data === true
+  } catch (e) {
+    console.error("dpdp_timer_check_bearer threw:", e instanceof Error ? e.message : String(e))
+    return false
+  }
 }
 
 async function rpc<T>(sb: SupabaseClient, fn: string, args: Record<string, unknown>): Promise<T> {
@@ -260,7 +276,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const url = new URL(req.url)
   if (url.searchParams.get("action") === "unsubscribe") return handleUnsubscribe(req, url)
   if (req.method !== "POST") return json({ error: "POST only" }, 405)
-  if (!bearerOk(req)) return json({ error: "unauthorised" }, 401)
+  if (!(await bearerOk(req))) return json({ error: "unauthorised" }, 401)
 
   let body: { job?: string; now?: string; orgId?: string; dryRun?: boolean } = {}
   try { body = await req.json() } catch { body = {} }
