@@ -29,7 +29,10 @@ const FUNCTION_NAME = "dpdp-ai-link"
 const LINK_GONE = "This link has expired or was revoked"
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-const APP_ORIGIN = (Deno.env.get("APP_ORIGIN") ?? "").replace(/\/+$/, "")
+// Defaults to the production static-app origin so the function works with
+// only the platform-injected env (function secrets cannot be set from the
+// PM's machine -- same reason as dpdp-monday-email).
+const APP_ORIGIN = (Deno.env.get("APP_ORIGIN") || "https://app.veridian-aios.com").replace(/\/+$/, "")
 const PUBLIC_BASE = `${SUPABASE_URL}/functions/v1/${FUNCTION_NAME}`
 
 // Simple per-IP rate limit, in memory, per isolate: 30 requests per rolling
