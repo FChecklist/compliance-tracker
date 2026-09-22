@@ -104,7 +104,7 @@ d("WO-DPDP-011 §3: cross-tenant calls that must fail", () => {
     // B's audit chain is untouched by any of the refused calls.
     const chain = await verifyDpdpEventChain(b.org.id)
     expect(chain.ok).toBe(true)
-  }, 90_000)
+  }, 240_000) // two full org builds per test; the pooler runs slowly when other DB-gated suites are in flight
 
   test("a staff member of org A cannot reach org B even though they are a real, active member somewhere", async () => {
     const suffix = crypto.randomUUID().slice(0, 8)
@@ -117,7 +117,7 @@ d("WO-DPDP-011 §3: cross-tenant calls that must fail", () => {
     expect(await refusal(staff.email, (tx) => tx`select public.dpdp_my_page(${b.org.id})`)).toMatch(/Not a member of this organisation/)
     expect(await refusal(staff.email, (tx) => tx`select public.dpdp_mark_done(${bRow!.id})`)).toMatch(REFUSED)
     expect(await stateOf(b.org.id, bRow!.id)).toBe("open")
-  }, 90_000)
+  }, 240_000) // two full org builds per test; the pooler runs slowly when other DB-gated suites are in flight
 
   test("a group member cannot answer a non-group job that is not theirs", async () => {
     const suffix = crypto.randomUUID().slice(0, 8)
@@ -138,7 +138,7 @@ d("WO-DPDP-011 §3: cross-tenant calls that must fail", () => {
     expect(nonGroup).toBeDefined()
     expect(await refusal(member.email, (tx) => tx`select public.dpdp_mark_done(${nonGroup!.id})`)).toMatch(/Not your job/)
     expect(await stateOf(a.org.id, nonGroup!.id)).toBe("open")
-  }, 90_000)
+  }, 240_000) // two full org builds per test; the pooler runs slowly when other DB-gated suites are in flight
 
   test("no claims: every write RPC is refused, not silently a no-op", async () => {
     const suffix = crypto.randomUUID().slice(0, 8)
