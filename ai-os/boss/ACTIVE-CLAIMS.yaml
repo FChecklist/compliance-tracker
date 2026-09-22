@@ -102,6 +102,24 @@ active:
       triggered, no Vercel setting or cron changed. Owner decisions 1-14
       listed in the handout. Step 4 NOT started (owner decision 13).
 
+      AMENDMENT 2026-09-22 ~07:30Z (owner in chat, verbatim: "merge PRs
+      once green, then continue AND KEEP WORKING"): scope extended to
+      PREPARE-ONLY artefacts, each on its own prep/* branch, reviewed by
+      this session before any PR: (a) supabase/prepared/cost001/*.sql --
+      pg_cron functions + commented cron.schedule for the 10 MOVE-SQL rows,
+      NEVER applied, NOT under drizzle/ or supabase/migrations/; (b)
+      .github/workflows/cost001-cron-runner.yml (workflow_dispatch only,
+      schedule commented out) + scripts/run-internal-cron.ts for the 7
+      MOVE-GHA rows; (c) scripts/check-db-role-posture.mjs (report-only
+      guard for the DATABASE_URL=app_runtime defect); (d)
+      scripts/static-export-inventory.mjs + ai-os inventory doc (input to
+      owner decision 13, Step 4); (e) branch golive/cost001-vercel-json:
+      vercel.json ignoreCommand restored to the R87 branch+path gate, the
+      11 KILL cron lines removed, crr-catchup-worker at */30, and
+      src/lib/vercel-lockdown.test.ts updated to match -- DO NOT MERGE
+      until the owner says "go live" in chat. Still NOT touching: any
+      other src/ file, any Vercel setting, DNS, or cron execution.
+
   - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100 for verification, isolated worktree C:/ct/ct-email-ci-fix branch fix/email-reply-actor-attribution for the CI fix) -- PROJEXA-E2E-001 work order section 2 item 4 ('Email'), FRESH RESTART re-verification: a prior attempt at this exact item was killed mid-way by a connection drop (infra issue), so this session re-derived everything from scratch per its own instructions rather than trusting the prior attempt's local-only, unpushed claim-closure commits [DONE -- both systems independently re-confirmed real/merged/working; found and fixed a genuine CI regression on the prior attempt's own still-open PR #1779]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
