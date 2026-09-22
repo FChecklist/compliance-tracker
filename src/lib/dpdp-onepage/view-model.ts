@@ -14,6 +14,12 @@
 
 export type LawCode = string // e.g. "d:§8(9)" -- law:section, law in {d,s,a,g}
 
+// WO-DPDP-010 §3 group jobs ("All staff"/"All teachers"): each member
+// answers PRIVATELY -- "done" (did the thing), "never_had_any" (doesn't
+// apply to them, e.g. no work laptop), "cannot" (blocked, needs help).
+// Matches dpdp.group_answer's own enum values exactly (schema.ts).
+export type GroupAnswerKind = "done" | "never_had_any" | "cannot"
+
 export type ObligationRow = {
   id: string
   part: number // 1-7
@@ -23,8 +29,10 @@ export type ObligationRow = {
   lawCodes: LawCode[] | null
   by: string | null // assigned person's email, or a group label (isGroup=true)
   isGroup: boolean
-  groupDone?: number // how many of the group have answered (only when isGroup)
+  groupDone?: number // how many of the group have ANSWERED (any of the 3 kinds), not how many said "done" -- the obligation closes once everyone has answered
   groupTotal?: number
+  viewerIsGroupMember?: boolean // only meaningful when isGroup -- is THIS viewer actually in the group, not just "is this a group job" (a group job is otherwise invisible to non-members, see getOnePageData)
+  myGroupAnswer?: GroupAnswerKind | null // THIS viewer's own prior answer, if any -- null means "hasn't answered yet"
   due: Date
   yes: boolean
   answer?: "y" | "n" // for consent-style yes/no jobs (parents)

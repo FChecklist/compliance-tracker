@@ -6,7 +6,7 @@ import { PolicySection } from "../_components/onepage/PolicySection"
 import { FirstVisitWizard } from "../_components/onepage/FirstVisitWizard"
 import { RoleWelcome } from "../_components/onepage/RoleWelcome"
 import { NotMeWaiting } from "../_components/onepage/NotMeWaiting"
-import { acknowledgeOnePageWelcome, flagOnePageNotMe, markOnePageJobDone, saveFirstVisitAssignments } from "./actions"
+import { acknowledgeOnePageWelcome, answerOnePageGroupJob, flagOnePageNotMe, markOnePageJobDone, saveFirstVisitAssignments } from "./actions"
 import type { ViewerContext } from "@/lib/dpdp-onepage/view-model"
 
 // WO-DPDP-010 §3/§4: the one-page-per-role experience replaces this page's
@@ -39,7 +39,7 @@ export default async function DpdpHomePage() {
   // "This isn't me" check below since acknowledging IS how saidNotMeAt gets
   // set in the first place.
   if (viewer.kind !== "owner" && !firstVisitSeenAt && membershipId) {
-    const jobCount = rows.filter((r) => r.by === viewerEmail && !r.na).length
+    const jobCount = rows.filter((r) => (r.by === viewerEmail || (r.isGroup && r.viewerIsGroupMember)) && !r.na).length
     async function handleAcknowledge() {
       "use server"
       await acknowledgeOnePageWelcome(membershipId!)
@@ -60,13 +60,13 @@ export default async function DpdpHomePage() {
   }
 
   if (viewer.kind === "staff") {
-    return <OnePageView orgName={org.name} rows={rows} viewer={viewer} onMarkYes={markOnePageJobDone} />
+    return <OnePageView orgName={org.name} rows={rows} viewer={viewer} onMarkYes={markOnePageJobDone} onAnswerGroup={answerOnePageGroupJob} />
   }
 
   const [history, policy] = await Promise.all([listOnePageHistory(ctx.orgId), getPolicyArtefacts(ctx.orgId)])
   return (
     <>
-      <OnePageView orgName={org.name} rows={rows} viewer={viewer} onMarkYes={markOnePageJobDone} />
+      <OnePageView orgName={org.name} rows={rows} viewer={viewer} onMarkYes={markOnePageJobDone} onAnswerGroup={answerOnePageGroupJob} />
       {org.product === "firm" && <PolicySection versions={policy.versions} />}
       <div className="dpdp-onepage">
         <div className="max-w-[1240px] mx-auto px-5 pb-14">
