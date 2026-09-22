@@ -214,6 +214,9 @@ for (const page of PUBLIC_PAGES) {
 // --------------------------------------------------------------- private pages
 for (const priv of PRIVATE_PAGES) {
   const label = priv.prefix
+  // Served by a Pages Function (functions/<prefix>/*): no HTML in dist/ to
+  // read; robots.txt / _headers / llms.txt below still cover the prefix.
+  if (priv.source === null) continue
   if (!has(priv.source)) {
     expect(false, `${label}: dist/${priv.source} missing`)
     continue

@@ -2,14 +2,17 @@
 #
 # Public: the root chooser (/), /dpdp-firm/, /dpdp-institution/, and the
 # site's own CSS, JS and fonts under /assets/ and /fonts/.
-# Private: /app/ -- the signed-in one-page app. Never indexed, by any bot.
+# Private: /app/ (the signed-in one-page app), /act/ and /unsubscribe/ (the
+# Monday email's one-click pages, token in the fragment), /p/ (the parent
+# consent page) and /ai/ (the AI link's read-only page). Never indexed, by
+# any bot.
 #
 # This file must say the same thing as public/_headers (X-Robots-Tag over
 # HTTP) and the pages' own <meta name="robots">; src/lib/public-surface.mjs
 # is the one list all three are tested against.
 
 # Search and AI-assistant crawlers, each named: allowed on public paths,
-# kept out of the private prefix.
+# kept out of the private prefixes.
 User-agent: Googlebot
 User-agent: Bingbot
 User-agent: Applebot
@@ -21,10 +24,18 @@ User-agent: PerplexityBot
 User-agent: Perplexity-User
 Allow: /
 Disallow: /app/
+Disallow: /act/
+Disallow: /unsubscribe/
+Disallow: /p/
+Disallow: /ai/
 
-# Everything else: the same public paths, the same private prefix.
+# Everything else: the same public paths, the same private prefixes.
 User-agent: *
 Allow: /
 Disallow: /app/
+Disallow: /act/
+Disallow: /unsubscribe/
+Disallow: /p/
+Disallow: /ai/
 
 Sitemap: https://app.veridian-aios.com/sitemap.xml
