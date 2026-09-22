@@ -4628,6 +4628,108 @@ active:
       OTHER session picking up DPDP work should read the KT note before
       doing anything -- do not start Step 2 on this session's behalf.
 
+      *** STEP 2 GO/NO-GO SPIKE: GO (2026-09-22, this session) ***. After
+      Step 1 was sent, the Owner's next instruction was "complete all the
+      WO-DPDP-010, WO-DPDP-011, WO-DPDP-012 ... complete all of it 100%"
+      (chat, 2026-09-22) -- treated as authorisation to proceed on this
+      session's own recommended Option A (Supabase Auth magic links); the
+      Owner did NOT separately say "A" or "B" in so many words, flagged
+      here rather than recorded as an explicit choice. The spike as the
+      WO defines it (one role: email link -> static page -> sign in ->
+      own jobs load -> Mark Yes -> log line -> reload shows it, Next.js
+      server OFF) and what actually happened, in order:
+      (1) SQL half -- drizzle/0604_dpdp_wo011_step2_browser_rpc.sql (PR
+      #1803): 3 helpers + 5 RPCs in the `public` schema (PostgREST only
+      exposes public/graphql_public/compliance on this project; `dpdp` is
+      NOT exposed, a direct call returns PGRST106), caller identified by
+      auth.jwt()->>'email' joined to dpdp.identity_email (lower() both
+      sides), SECURITY DEFINER with search_path=''; EXECUTE revoked from
+      public/anon, granted to authenticated (+app_runtime for tests).
+      The TS event hash chain (sha256(prevHash || canonical JSON, sorted
+      keys)) is ported to plpgsql by hand-assembling the canonical string
+      (json_build_object adds spaces, jsonb reorders keys -- either would
+      silently fork the chain); proven byte-identical because
+      verifyDpdpEventChain() in TS re-verifies an RPC-written event on
+      top of TS-written ones. Applied live via the Supabase MCP; journal
+      idx 435 / ledger id 438 (the ledger id sequence was behind max(id)
+      and needed a setval first -- pre-existing defect, noted). Committed
+      test src/lib/services/dpdp-browser-rpc.test.ts: 4 tests / 112
+      assertions green against the real DB (`bun test --isolate
+      --env-file=.env.local`); every RPC call runs inside ONE transaction
+      with a transaction-local set_config('request.jwt.claims'), exactly
+      as PostgREST does, because the transaction-mode pooler (6543)
+      discards session-level set_config between statements (found live:
+      3 tests failing 3 different ways from that one cause).
+      (2) Client half -- dpdp-app/ (Vite + React + TS, PR #1802; scaffold
+      built by an Anthropic cloud agent from this session's brief, then
+      reviewed and driven here): supabase-js with flowType 'implicit' +
+      detectSessionInUrl, so session tokens arrive ONLY in the URL
+      #fragment (never sent to any server, cleared on consumption) --
+      which is also how WO-DPDP-012 §2's "tokens into the # fragment"
+      rule is satisfied by construction on the new architecture; the
+      one-page components and view-model are ported byte-for-byte where
+      possible; root tsconfig/eslint now exclude dpdp-app/** (its own
+      toolchain); scripts/scan-bundle.mjs proves per build that
+      service_role never appears in dist/ and only the anon key does.
+      (3) The run, with port 3000 confirmed NOT listening: built with the
+      real VITE_SUPABASE_URL/ANON_KEY (scan: service_role=0, OK) -> `vite
+      preview` on 127.0.0.1:4173 (own PID 6464, stopped by PID+port
+      afterwards) -> sign-in page rendered, zero console errors -> a
+      magic link minted for the seeded owner
+      wo011-rpc-owner-6879036f@example.test via auth.admin.generateLink
+      (service-role key read from the root .env.local by a throwaway
+      local script, deleted afterwards, never in the bundle, never
+      printed) -> landed with #access_token, hash cleared after
+      consumption (length 0), "Signed in as" the owner, dpdp_my_page
+      returned the org's 31 jobs -> Mark Yes on one row -> "1 of 31" +
+      YES stamp -> full reload -> still "1 of 31" + YES -> DB re-read:
+      dpdp.obligation fbruoci3r32u8vqjahl1yp7l state=closed,
+      closed_by=owner identity; dpdp.event has a new obligation_accepted
+      row ("Said Yes to ...") whose prev_hash equals the prior event's
+      hash (chain intact, checked by SQL window function). VERDICT: GO.
+      (4) Two honest caveats, neither hidden: (a) the redirect allowlist
+      -- http://localhost:4173 is NOT on this project's Auth redirect
+      allowlist, so GoTrue silently substituted the Site URL
+      (https://verdian-ai.vercel.app) on the generated link; that
+      allowlist is an OWNER-only dashboard setting (no MCP tool changes
+      Auth config, and this session did not route around that). For the
+      spike, the ONE 302 hop GoTrue performs was done by a throwaway
+      script (fetch with redirect:'manual', reading the Location GoTrue
+      answered with) and the resulting fragment -- identical bytes to
+      what a browser would receive -- was opened on the local page.
+      OWNER ITEM: add the Cloudflare Pages origin (and
+      http://localhost:4173/** for local dev) under Authentication ->
+      URL Configuration -> Redirect URLs before Step 7. (b) Supabase caps
+      magic-link/OTP validity at 86400s = 24h (verified in Supabase's own
+      docs) -- shorter than the 48h the work order's Monday email
+      promises; the check-your-email screen is getting a one-click "send
+      me a new link" (cloud agent, same PR), and the Monday email copy
+      must say 24 hours, not 48. (5) Fixture note: the one row was
+      assigned to the owner by a direct SQL UPDATE on assigned_person_id
+      (no event appended -- a fixture, not the flow), because the Mark
+      Yes button only renders on rows assigned to the viewer and the
+      owner first-visit wizard / inline "type an email" assignment is
+      Step 3/5 work not yet ported. auth.users gained one row for that
+      @example.test address (no email is ever delivered to that domain).
+      (6) Gap found: dpdp-app/ has NO CI job at all (root Lint/Type
+      Check deliberately exclude it) -- a `dpdp-app` job (typecheck +
+      build + scan-bundle) is a Step 6 item, not optional.
+      (7) WO-DPDP-012 (SEO/AI-crawler discoverability, PUBLIC site only)
+      was received the same day; its §2 private-page lockdown (noindex
+      meta + X-Robots-Tag + robots.txt disallow + Referrer-Policy
+      no-referrer on /dpdp/* and /api/dpdp/*, public allow-list for
+      /dpdp, /dpdp/g/*, /dpdp-firm, /dpdp-institution) shipped FIRST as
+      the WO requires, PR #1800 merged, with
+      src/lib/dpdp-public-surface.test.ts as the drift guard; §1/§3-§8
+      are next (nothing legal is published before lawyer review, per the
+      WO's own text). NEXT: merge #1803 (SQL) and #1802 (client, after
+      the agent's two follow-ups land), then WO-011 Step 3 (owner page:
+      first-visit wizard + assignment RPCs), Step 4 (Supabase timer /
+      Monday email), Step 5 (remaining WO-010 items on the new
+      architecture ONLY), Step 6 (70 checks + cross-tenant tests +
+      bundle scan in CI), Step 7 (Cloudflare Pages ready-not-live; the
+      Pages project, DNS and the Training choice are OWNER actions).
+
       NOT touching compliance.*/platform.* tables, PROJEXA's proxy routes,
       vercel.json, or any Vercel project/dashboard setting.
 
