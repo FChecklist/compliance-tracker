@@ -23,3 +23,16 @@ export type MyPagePayload = {
 }
 
 export type OkPayload = { ok: true }
+
+// WO-DPDP-011 Step 3 (drizzle/0605): the owner's RPCs.
+
+/** One row of dpdp_areas_for_product -- the wizard's "who looks after what" table. */
+export type AreaPayload = { area: string; jobs: string[]; isGroup: boolean }
+
+/** One element of dpdp_complete_owner_first_visit's p_assignments. */
+export type AreaAssignmentWire = { area: string; emails: string[]; na: boolean }
+
+export type FirstVisitPayload = { ok: true; assigned: number; notApplicable: number }
+
+/** One dpdp.event row as dpdp_org_history returns it (newest first). occurredAt is ISO-8601 UTC. */
+export type HistoryEntryWire = { id: string; kind: string; summary: string; detail: string | null; actorLabel: string; occurredAt: string }
