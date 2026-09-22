@@ -4,8 +4,9 @@
 // (data-sub k="done"/"stuck"/"not", data-rev "ok"/"no") exactly -- do not
 // rename them without also updating the artefact reference.
 import { and, eq } from "drizzle-orm"
-import { dpdpObligation, dpdpObligationTemplate, dpdpOrganisation } from "@/lib/db"
+import { dpdpObligation, dpdpObligationTemplate, dpdpOrganisation, dpdpStaffGroupMember, dpdpObligationGroupAnswer, dpdpMembership } from "@/lib/db"
 import { withDpdpContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import type { GroupAnswerKind } from "@/lib/dpdp-onepage/view-model"
 import { logDpdpEvent } from "./dpdp-event-service"
 import { getCurrentLibraryVersion, listObligationTemplates } from "./dpdp-obligation-library"
 import { ServiceError } from "./compliance-service"
@@ -175,6 +176,54 @@ export async function markObligationDone(orgId: string, actorIdentityId: string,
     }
     const [updated] = await tx.update(dpdpObligation).set({ state: "closed", progressDone: obligation.progressTotal, closedAt: new Date(), closedBy: actorIdentityId }).where(eq(dpdpObligation.id, obligationId)).returning()
     await logDpdpEvent({ orgId, actorIdentityId, actorLabel, kind: "obligation_accepted", summary: `Said Yes to "${(await tx.query.dpdpObligationTemplate.findFirst({ where: eq(dpdpObligationTemplate.id, obligation.templateId) }))?.name ?? "a job"}"` }, tx)
+    return updated
+  })
+}
+
+/**
+ * WO-DPDP-010 §3 group jobs' 3-answer flow: each group member answers for
+ * THEMSELVES (schema.ts's own "answers PRIVATELY" comment on
+ * obligation_group_answer) -- "done", "never_had_any" (doesn't apply to
+ * them), or "cannot" (blocked, needs help). progressDone tracks how many
+ * members have answered AT ALL, not how many said "done" -- the job closes
+ * once everyone has answered, matching dpdp.obligation_group_answer's own
+ * header comment and view-model.ts's yesFor() (`groupDone >= groupTotal`).
+ * Upserts on the table's own (obligation_id, membership_id) unique
+ * constraint so changing your answer doesn't double-count progress.
+ */
+export async function answerGroupObligation(orgId: string, actorIdentityId: string, actorLabel: string, obligationId: string, answer: GroupAnswerKind) {
+  return withDpdpContext({ orgId }, async (tx) => {
+    const obligation = await loadObligationOrThrow(tx, orgId, obligationId)
+    if (!obligation.assignedStaffGroupId) throw new ServiceError("This job isn't assigned to a group", 400)
+    if (obligation.dependsOnObligationId) {
+      const dep = await tx.query.dpdpObligation.findFirst({ where: eq(dpdpObligation.id, obligation.dependsOnObligationId) })
+      if (dep && dep.state !== "closed") throw new ServiceError("Waiting — the step before this one isn't done yet", 409)
+    }
+    const membership = await tx.query.dpdpMembership.findFirst({ where: and(eq(dpdpMembership.identityId, actorIdentityId), eq(dpdpMembership.orgId, orgId)) })
+    if (!membership) throw new ServiceError("Not a member of this organisation", 403)
+    const groupMembership = await tx.query.dpdpStaffGroupMember.findFirst({ where: and(eq(dpdpStaffGroupMember.groupId, obligation.assignedStaffGroupId), eq(dpdpStaffGroupMember.membershipId, membership.id)) })
+    if (!groupMembership) throw new ServiceError("You aren't a member of the group this job is assigned to", 403)
+
+    const existingAnswer = await tx.query.dpdpObligationGroupAnswer.findFirst({ where: and(eq(dpdpObligationGroupAnswer.obligationId, obligationId), eq(dpdpObligationGroupAnswer.membershipId, membership.id)) })
+    if (existingAnswer) {
+      await tx.update(dpdpObligationGroupAnswer).set({ answer, answeredAt: new Date() }).where(eq(dpdpObligationGroupAnswer.id, existingAnswer.id))
+    } else {
+      await tx.insert(dpdpObligationGroupAnswer).values({ obligationId, membershipId: membership.id, answer })
+    }
+
+    const answeredCount = (await tx.query.dpdpObligationGroupAnswer.findMany({ where: eq(dpdpObligationGroupAnswer.obligationId, obligationId) })).length
+    const allAnswered = answeredCount >= obligation.progressTotal
+    const [updated] = await tx.update(dpdpObligation).set({
+      progressDone: answeredCount,
+      ...(allAnswered ? { state: "closed" as const, closedAt: new Date(), closedBy: actorIdentityId } : {}),
+    }).where(eq(dpdpObligation.id, obligationId)).returning()
+
+    const templateName = (await tx.query.dpdpObligationTemplate.findFirst({ where: eq(dpdpObligationTemplate.id, obligation.templateId) }))?.name ?? "a job"
+    await logDpdpEvent({
+      orgId, actorIdentityId, actorLabel,
+      kind: answer === "cannot" ? "task_answer_refused" : "task_answered",
+      summary: `${actorLabel} answered "${answer === "done" ? "Done" : answer === "never_had_any" ? "Doesn't apply to me" : "I can't"}" for "${templateName}" (${answeredCount} of ${obligation.progressTotal})`,
+    }, tx)
     return updated
   })
 }

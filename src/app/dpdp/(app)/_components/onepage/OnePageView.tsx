@@ -10,7 +10,7 @@ import { FilterChips } from "./FilterChips"
 import { JobsTable } from "./JobsTable"
 import {
   applyFilter, filterCounts, heroStats, partsForRows, vNow,
-  type FilterKey, type ObligationRow, type ViewerContext,
+  type FilterKey, type GroupAnswerKind, type ObligationRow, type ViewerContext,
 } from "@/lib/dpdp-onepage/view-model"
 
 // WO-DPDP-010 §3 "THE ONE PAGE, FOR EVERY ROLE": composes Hero (Seal + Do
@@ -19,12 +19,13 @@ import {
 // email preview, report, history) are separate, not yet built -- this is
 // the shared skeleton every role's page will extend.
 export function OnePageView({
-  orgName, rows, viewer, onMarkYes,
+  orgName, rows, viewer, onMarkYes, onAnswerGroup,
 }: {
   orgName: string
   rows: ObligationRow[]
   viewer: ViewerContext
   onMarkYes?: (obligationId: string) => Promise<void>
+  onAnswerGroup?: (obligationId: string, answer: GroupAnswerKind) => Promise<void>
 }) {
   const router = useRouter()
   const [filter, setFilter] = useState<FilterKey>("all")
@@ -32,7 +33,12 @@ export function OnePageView({
   const now = new Date()
 
   const staffView = viewer.kind === "staff" || viewer.kind === "parent"
-  const visibleRows = staffView ? rows.filter((r) => r.by === viewer.me || r.isGroup) : rows
+  // Real bug found while building the group-answer flow: `r.isGroup` alone
+  // showed EVERY group job (e.g. "All teachers") to EVERY staff member,
+  // including ones who aren't in that group -- viewerIsGroupMember (set
+  // server-side in getOnePageData, the only place that can know real group
+  // membership) is the actual gate.
+  const visibleRows = staffView ? rows.filter((r) => r.by === viewer.me || (r.isGroup && r.viewerIsGroupMember)) : rows
   const stats = heroStats(visibleRows)
   const now_ = vNow(visibleRows, viewer, now)
   const counts = filterCounts(visibleRows, viewer, now)
@@ -48,6 +54,14 @@ export function OnePageView({
     // unchanged until a manual reload.
     startTransition(async () => {
       await onMarkYes(id)
+      router.refresh()
+    })
+  }
+
+  function handleAnswerGroup(id: string, answer: GroupAnswerKind) {
+    if (!onAnswerGroup) return
+    startTransition(async () => {
+      await onAnswerGroup(id, answer)
       router.refresh()
     })
   }
@@ -87,7 +101,7 @@ export function OnePageView({
         )}
 
         <div style={pending ? { opacity: 0.6, pointerEvents: "none" } : undefined}>
-          <JobsTable rows={filtered} allRows={visibleRows} partSummaries={parts} viewer={viewer} staffView={staffView} now={now} onMarkYes={onMarkYes ? handleMarkYes : undefined} />
+          <JobsTable rows={filtered} allRows={visibleRows} partSummaries={parts} viewer={viewer} staffView={staffView} now={now} onMarkYes={onMarkYes ? handleMarkYes : undefined} onAnswerGroup={onAnswerGroup ? handleAnswerGroup : undefined} />
         </div>
 
         <div className="text-center mt-7" style={{ fontSize: 12, color: "var(--dpdp-ink3)" }}>

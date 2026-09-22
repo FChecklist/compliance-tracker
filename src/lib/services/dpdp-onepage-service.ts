@@ -4,9 +4,9 @@
 // `o.assignedPersonId === identityId` comparison), not an email -- this is
 // the join that turns it into the spec's flat "by: email" shape.
 import { and, desc, eq, inArray } from "drizzle-orm"
-import { dpdpObligation, dpdpObligationTemplate, dpdpIdentity, dpdpStaffGroup, dpdpOrganisation, dpdpEvent, dpdpMembership } from "@/lib/db"
+import { dpdpObligation, dpdpObligationTemplate, dpdpIdentity, dpdpStaffGroup, dpdpStaffGroupMember, dpdpObligationGroupAnswer, dpdpOrganisation, dpdpEvent, dpdpMembership } from "@/lib/db"
 import { withDpdpContext } from "@/lib/db/tenant-scoped"
-import type { ObligationRow, RoleKind } from "@/lib/dpdp-onepage/view-model"
+import type { GroupAnswerKind, ObligationRow, RoleKind } from "@/lib/dpdp-onepage/view-model"
 import { GRIEVANCE_OFFICER_ROLE_TAG } from "@/lib/dpdp-onepage/view-model"
 import { ServiceError } from "./compliance-service"
 import { logDpdpEvent } from "./dpdp-event-service"
@@ -38,6 +38,23 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
       : []
     const groupById = new Map(groups.map((g) => [g.id, g]))
 
+    // WO-DPDP-010 §3 group jobs: a group job is only visible/answerable to
+    // someone actually IN that group -- without this, home/page.tsx's
+    // staffView row filter (`r.isGroup` with no membership check) shows
+    // every group job to every staff member regardless of whether they're
+    // a member. viewerGroupIds is keyed off the viewer's OWN membership
+    // row, not their identity, since staff_group_member joins on
+    // membership_id (one membership per org, per dpdp.membership's own
+    // uniqueness).
+    const viewerGroupIds = membership && groupIds.length
+      ? new Set((await tx.query.dpdpStaffGroupMember.findMany({ where: and(inArray(dpdpStaffGroupMember.groupId, groupIds), eq(dpdpStaffGroupMember.membershipId, membership.id)) })).map((m) => m.groupId))
+      : new Set<string>()
+    const groupObligationIds = obligations.filter((o) => o.assignedStaffGroupId).map((o) => o.id)
+    const myGroupAnswers = membership && groupObligationIds.length
+      ? await tx.query.dpdpObligationGroupAnswer.findMany({ where: and(inArray(dpdpObligationGroupAnswer.obligationId, groupObligationIds), eq(dpdpObligationGroupAnswer.membershipId, membership.id)) })
+      : []
+    const myAnswerByObligationId = new Map(myGroupAnswers.map((a) => [a.obligationId, a.answer as GroupAnswerKind]))
+
     const obligationById = new Map(obligations.map((o) => [o.id, o]))
 
     // WO-DPDP-010: stable order matching the library's own intended
@@ -52,6 +69,14 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
       const kb = templateById.get(b.templateId)?.key ?? ""
       return ka.localeCompare(kb)
     })
+
+    // Split out of the row-mapping callback below purely to keep its own
+    // cyclomatic complexity under the repo's ESLint ceiling -- these two
+    // fields only matter for group rows, everything else stays undefined.
+    function resolveGroupViewerFields(isGroup: boolean, groupId: string | null, obligationId: string) {
+      if (!isGroup) return { viewerIsGroupMember: undefined, myGroupAnswer: undefined }
+      return { viewerIsGroupMember: viewerGroupIds.has(groupId!), myGroupAnswer: myAnswerByObligationId.get(obligationId) ?? null }
+    }
 
     const rows: ObligationRow[] = sortedObligations.map((o) => {
       const t = templateById.get(o.templateId)
@@ -70,6 +95,7 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
         isGroup,
         groupDone: isGroup ? o.progressDone : undefined,
         groupTotal: isGroup ? o.progressTotal : undefined,
+        ...resolveGroupViewerFields(isGroup, o.assignedStaffGroupId, o.id),
         due: new Date(o.dueOn),
         yes: o.state === "closed" || o.state === "submitted",
         na: o.state === "not_applicable",
