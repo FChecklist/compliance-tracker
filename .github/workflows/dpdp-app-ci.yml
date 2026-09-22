@@ -60,3 +60,47 @@ jobs:
 
       - name: Bundle key scan (service_role must be 0; anon key only)
         run: node scripts/scan-bundle.mjs
+
+  # WO-DPDP-012 §6: a real browser drives the built site by accessible names
+  # only (dpdp-app/e2e/agent-by-role.spec.ts, see dpdp-app/e2e/README.md).
+  # Separate job on purpose: it needs a Chromium and a mock-mode build, and
+  # a failure here is "an assistant cannot find a step by role and name",
+  # which is a different finding from the job above's "does not compile".
+  # This job is the canonical run -- the laptop this project is developed
+  # on cannot spare the RAM for a local browser.
+  dpdp-app-e2e:
+    name: dpdp-app e2e (agent-by-role, Playwright chromium, mock mode)
+    needs: dpdp-app
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: dpdp-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - name: Install Chromium for Playwright
+        run: bunx playwright install --with-deps chromium
+
+      # VITE_MOCK=1 (src/lib/client.ts) builds the sign-in against the
+      # in-memory client, so no Supabase URL or key exists anywhere in this
+      # job. The spec's sign-up stops at "check your email" by design; no
+      # email is ever sent.
+      - name: Build in mock mode
+        env:
+          VITE_MOCK: "1"
+        run: bun run build
+
+      - name: Drive the built site by accessible names only
+        run: bunx playwright test
+
+      - name: Upload Playwright HTML report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dpdp-app-playwright-report
+          path: dpdp-app/playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
