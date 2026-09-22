@@ -15410,14 +15410,28 @@ export const dpdpPanelRequest = dpdpSchemaDB.table('panel_request', {
 // is someone else being able to read the same non-personal projection --
 // explicitly not something this schema tries to harden beyond what the
 // spec asks for.
+//
+// WO-DPDP-012 §7 (drizzle/0607, 2026-09-22): the Supabase-path link (made by
+// public.dpdp_create_ai_link, read by public.dpdp_ai_link_read via the
+// dpdp-ai-link Edge Function) stores ONLY sha256(token) in tokenHash and
+// leaves `token` NULL -- hence `token` is nullable from 0607 on, with a
+// CHECK (token or token_hash) in the migration so no row has neither. Rows
+// from the pre-0607 Next.js path above keep their plaintext `token` and a
+// NULL tokenHash; the two paths never read each other's rows. membershipId
+// (not just identityId) because the approved design scopes the link to one
+// person IN one org; readCount/lastReadAt replace ai_link_read for this path.
 export const dpdpAiLink = dpdpSchemaDB.table('ai_link', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   identityId: text('identity_id').notNull(),
-  token: text('token').notNull().unique(),
+  membershipId: text('membership_id'),
+  token: text('token').unique(),
+  tokenHash: text('token_hash').unique(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   expiresAt: timestamp('expires_at').notNull(),
   revokedAt: timestamp('revoked_at'),
+  lastReadAt: timestamp('last_read_at'),
+  readCount: integer('read_count').notNull().default(0),
 })
 
 // "Reads are logged with user-agent family and IP prefix only" -- never
@@ -15465,6 +15479,31 @@ export const dpdpAiProposalLine = dpdpSchemaDB.table('ai_proposal_line', {
   refusalReason: text('refusal_reason'),
   approved: boolean('approved').notNull().default(false),
   appliedAt: timestamp('applied_at'),
+})
+
+// WO-DPDP-012 §7 (drizzle/0607): one row per action an AI DRAFTED through
+// the Supabase-path AI link. A draft changes nothing by itself -- only
+// public.dpdp_confirm_ai_draft (the person's own signed-in browser session,
+// which must be the draft's own membership, holding the confirm token whose
+// sha256 is confirmTokenHash) applies it. verb is CHECK-constrained in the
+// migration to the five approved verbs (ASSIGN, SET_DUE, NOTE, MARK_NA,
+// DRAFT); no other verb has a code path. Drafts expire 48h after creation.
+// No TS write path exists or should exist for this table -- it is written
+// and read by the 0607 RPCs only; declared here so the DB-gated test can
+// inspect rows under a tenant context.
+export const dpdpAiDraft = dpdpSchemaDB.table('ai_draft', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  aiLinkId: text('ai_link_id').notNull(),
+  membershipId: text('membership_id').notNull(),
+  orgId: text('org_id').notNull(),
+  verb: text('verb').notNull(),
+  obligationId: text('obligation_id'),
+  payload: jsonb('payload'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(),
+  confirmedAt: timestamp('confirmed_at'),
+  confirmedBy: text('confirmed_by'),
+  confirmTokenHash: text('confirm_token_hash').notNull().unique(),
 })
 
 // ─── WO-DPDP-010: one-page-per-role product -- group jobs ──────────────
