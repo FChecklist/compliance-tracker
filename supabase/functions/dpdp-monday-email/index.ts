@@ -35,7 +35,7 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
 import {
   type ActionLinks, type Digest, type LegalClocks, type LegalRecipient, type RenderLinks, type Rendered,
-  domainOfFrom, isEmpty, listUnsubscribeHeaders, renderDigest, renderLeakClock, renderRightsClock, statutorySubset,
+  domainOfFrom, isDeliverableAddress, isEmpty, listUnsubscribeHeaders, renderDigest, renderLeakClock, renderRightsClock, statutorySubset,
 } from "./render.ts"
 
 const env = (k: string): string => Deno.env.get(k) ?? ""
@@ -167,6 +167,14 @@ async function deliver(sb: SupabaseClient, d: Deliverable, dryRun: boolean, summ
       summary.failed++
       summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "failed", error: e instanceof Error ? e.message : String(e) })
     }
+    return
+  }
+
+  // Real send: a reserved/test address is recorded as skipped, never handed
+  // to Resend (see isDeliverableAddress in render.ts).
+  if (!isDeliverableAddress(d.to)) {
+    summary.skipped++
+    summary.details.push({ membershipId: d.membershipId, to: d.to, kind: d.kind, status: "skipped-test-address" })
     return
   }
 
