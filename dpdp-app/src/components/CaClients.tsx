@@ -50,7 +50,7 @@ export function AddClientForm({ onCreate, onCancel, refetch }: { onCreate: (c: N
   }
 
   return (
-    <form onSubmit={submit} className="rounded-2xl border p-5 flex flex-col gap-3.5 text-left" style={{ background: "var(--dpdp-card)", borderColor: "var(--dpdp-line)" }}>
+    <form onSubmit={submit} noValidate className="rounded-2xl border p-5 flex flex-col gap-3.5 text-left" style={{ background: "var(--dpdp-card)", borderColor: "var(--dpdp-line)" }}>
       <div>
         <label htmlFor="client-name" style={label}>Client name</label>
         <input id="client-name" name="client-name" type="text" required value={name} onChange={(e) => setName(e.target.value)} disabled={pending} placeholder="e.g. Mehta Traders" style={input} />

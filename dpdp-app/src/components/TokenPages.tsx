@@ -21,14 +21,22 @@ const quiet = { fontSize: 13, color: "var(--dpdp-ink3)", margin: "0 auto", maxWi
 
 function useTokenClient(): { client: DpdpClient | null; token: string | null; bootError: string | null } {
   const [boot] = useState(() => {
-    const token = readFragmentToken()
     try {
-      return { client: createDpdpClient(), token, bootError: null }
+      return { client: createDpdpClient(), bootError: null }
     } catch (e) {
-      return { client: null, token, bootError: e instanceof Error ? e.message : String(e) }
+      return { client: null, bootError: e instanceof Error ? e.message : String(e) }
     }
   })
-  return boot
+  // The token is state, not a one-off read: pasting a second email link into
+  // the same tab is a hash-only navigation (same document, no reload), and
+  // the page must judge the NEW token, not keep showing the old outcome.
+  const [token, setToken] = useState<string | null>(() => readFragmentToken())
+  useEffect(() => {
+    const onHashChange = () => setToken(readFragmentToken())
+    window.addEventListener("hashchange", onHashChange)
+    return () => window.removeEventListener("hashchange", onHashChange)
+  }, [])
+  return { client: boot.client, token, bootError: boot.bootError }
 }
 
 function Refused({ reason }: { reason: string }) {
@@ -67,6 +75,13 @@ function Busy({ pending, children }: { pending: boolean; children: ReactNode }) 
 // action spends the token and writes exactly what the in-app button does.
 export function ActPage() {
   const { client, token, bootError } = useTokenClient()
+  // Keyed by the token: a new token (a second email link opened in the same
+  // tab, a hash-only navigation) remounts the flow, so the previous link's
+  // outcome or refusal is never shown for this one.
+  return <ActFlow key={token ?? ""} client={client} token={token} bootError={bootError} />
+}
+
+function ActFlow({ client, token, bootError }: { client: DpdpClient | null; token: string | null; bootError: string | null }) {
   // No token in the fragment is decided before any effect runs: the page
   // opens straight on the refusal, nothing is fetched.
   const [preview, setPreview] = useState<EmailActionPreview | null>(() => (token ? null : { ok: false, reason: "This link is not valid." }))
