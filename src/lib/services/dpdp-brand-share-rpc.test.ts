@@ -51,7 +51,7 @@ const { instantiateObligationsForOrg } = await import("./dpdp-obligation-service
 const { verifyDpdpEventChain } = await import("./dpdp-event-service")
 const { db, dpdpIdentity, dpdpIdentityEmail, dpdpObligation, dpdpObligationTemplate, dpdpReferral } = await import("@/lib/db")
 const { withDpdpContext } = await import("@/lib/db/tenant-scoped")
-const { eq, inArray } = await import("drizzle-orm")
+const { eq, inArray, sql: dsql } = await import("drizzle-orm")
 
 const sql = postgres(process.env.DATABASE_URL ?? "", { prepare: false, ssl: { rejectUnauthorized: false }, max: 1 })
 afterAll(async () => { try { await sql.end({ timeout: 5 }) } catch {} })
@@ -106,9 +106,16 @@ async function measures(weeks: number): Promise<WeekRow[]> {
   const [{ result }] = await sql<{ result: WeekRow[] }[]>`select public.dpdp_brand_measures(${weeks}::int) as result`
   return result
 }
-// The raw rows, bypassing dpdp_org_history's shaping, so every column can be inspected.
+// The raw rows, bypassing dpdp_org_history's shaping, so every column can be
+// inspected. dpdp.event is RLS-scoped to current_org_id() (0604), so the
+// read runs under the org's tenant context -- the plain DATABASE_URL role
+// sees nothing otherwise (found live on the first run: the RPC had written
+// the row, the bare read returned 0).
 async function shareEvents(orgId: string): Promise<EventRow[]> {
-  return sql<EventRow[]>`select * from dpdp.event where org_id = ${orgId} and kind = 'share_press' order by occurred_at`
+  return withDpdpContext({ orgId }, async (tx) => {
+    const rows = await tx.execute(dsql`select * from dpdp.event where org_id = ${orgId} and kind = 'share_press' order by occurred_at`)
+    return rows as unknown as EventRow[]
+  })
 }
 function message(e: unknown) { return e instanceof Error ? e.message : String(e) }
 
