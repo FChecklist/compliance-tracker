@@ -4532,6 +4532,40 @@ active:
       a PR, since Step 1 produces a decision for the Owner to react to,
       not a code change.
 
+      *** STEP 1 SENT 2026-09-22, THIS SESSION NOW STOPPED AT THIS GATE
+      ***: full note in the DPDP KT folder ("WO-DPDP-011 Step 1 --
+      Architecture Decision Note.md") and in chat. Real findings, not
+      assumed: 56 API routes exist (not the WO's own assumed 51, verified
+      via a real recursive listing, not a glob); the current one-page UI
+      (home/page.tsx, actions.ts, every onepage/* component) calls ZERO
+      API routes today -- it's Server Components + Server Actions
+      straight to Drizzle, so porting is "convert Server Components/
+      Actions to client + supabase.rpc()", not "swap routes for RPCs";
+      only 7 routes (auth/onboarding/one-click-email/parent-consent) are
+      real dependencies of anything resembling the new path; 38 are
+      advanced-admin-only (stay, per the WO's own #2.7); 9 are dead
+      (called by neither -- a cleanup candidate independent of the
+      pivot). Static-export verdict: the current implementation CANNOT
+      be output:'export'-ed as-is (hits Cookies + Server Actions +
+      per-request auth branching, all separately unsupported per Next's
+      own bundled docs) -- a full client rewrite is required regardless
+      of target, so Vite (not Next output:'export') is recommended with
+      high confidence, as its own directory in this same repo (Cloudflare
+      Pages' monorepo support covers this, no second repo needed).
+      Cloudflare Pages mechanics (env var scoping, service-role-key
+      exclusion, custom domain, free-tier limits) are all researched and
+      low-risk. The ONE thing genuinely left to the Owner: sign-in
+      mechanism, Option A (Supabase Auth magic links -- merges
+      dpdp.identity into the platform's real auth.users, less custom
+      code) vs Option B (custom tokens + Edge Function exchange --
+      keeps dpdp.identity's deliberate separate-plane design intact,
+      more custom code to build/maintain). This session leans A given the
+      rewrite is total anyway, but is NOT deciding it unilaterally since
+      it reverses an earlier deliberate architectural choice. NO Step 2
+      work (the go/no-go spike) starts until the Owner answers. Any
+      OTHER session picking up DPDP work should read the KT note before
+      doing anything -- do not start Step 2 on this session's behalf.
+
       NOT touching compliance.*/platform.* tables, PROJEXA's proxy routes,
       vercel.json, or any Vercel project/dashboard setting.
 
