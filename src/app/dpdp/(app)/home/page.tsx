@@ -11,19 +11,19 @@ import type { ViewerContext } from "@/lib/dpdp-onepage/view-model"
 
 // WO-DPDP-010 §3/§4: the one-page-per-role experience replaces this page's
 // previous separate owner-dashboard/staff-todo branches. Coordinator/
-// Grievance-Officer detection is answered by getOnePageData's
-// detectedRoleKind (does any of THIS org's obligations tagged with that
-// role actually name this viewer's email) rather than a DB identity field
-// -- CA/parent detection is still a separate, not-yet-built gap (there is
-// no CA-firm or parent-token concept wired into this route yet).
+// Grievance-Officer/CA-partner/CA-manager detection is answered by
+// getOnePageData's detectedRoleKind (does any of THIS org's obligations
+// tagged with that role actually name this viewer's email) rather than a
+// DB identity field -- parent detection is still a separate, not-yet-built
+// gap (there is no parent-token concept wired into this route yet).
 export default async function DpdpHomePage() {
   const ctx = await getDpdpAuthContext()
   if (!ctx) return null
 
-  const { org, rows, viewerEmail, firstVisitSeenAt, saidNotMeAt, membershipId, detectedRoleKind } = await getOnePageData(ctx.orgId, ctx.identityId)
-  const viewer: ViewerContext = { kind: ctx.level === "owner" ? "owner" : (detectedRoleKind ?? "staff"), me: viewerEmail }
+  const { org, rows, viewerEmail, firstVisitSeenAt, saidNotMeAt, membershipId, detectedRoleKind, detectedCaSub } = await getOnePageData(ctx.orgId, ctx.identityId)
+  const viewer: ViewerContext = { kind: ctx.level === "owner" ? "owner" : (detectedRoleKind ?? "staff"), me: viewerEmail, caSub: detectedCaSub ?? undefined }
 
-  // WO-DPDP-010 §4: first visit, owner only for now (CA/parent first-visit
+  // WO-DPDP-010 §4: first visit, owner only for now (parent first-visit
   // screens are a separate, not-yet-built gap -- see ACTIVE-CLAIMS.yaml).
   if (viewer.kind === "owner" && !firstVisitSeenAt && membershipId) {
     const areas = await areasForProduct((org.product as "firm" | "institution") ?? "firm")
@@ -48,7 +48,7 @@ export default async function DpdpHomePage() {
       "use server"
       await flagOnePageNotMe(membershipId!)
     }
-    return <RoleWelcome orgName={org.name} roleKind={viewer.kind} jobCount={jobCount} onAcknowledge={handleAcknowledge} onNotMe={handleNotMe} />
+    return <RoleWelcome orgName={org.name} roleKind={viewer.kind} caSub={viewer.caSub} jobCount={jobCount} onAcknowledge={handleAcknowledge} onNotMe={handleNotMe} />
   }
 
   // Still assigned live jobs after saying "this isn't me" -- the owner

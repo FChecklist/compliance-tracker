@@ -12,6 +12,38 @@ import { ServiceError } from "./compliance-service"
 import { logDpdpEvent } from "./dpdp-event-service"
 export { ServiceError }
 
+// WO-DPDP-010 §3/§4: coordinator/Grievance-Officer/CA-partner/CA-manager
+// detection -- the DB's membership.level only ever says owner/staff (see
+// dpdp-session.ts's own DpdpAuthContext type); these are all roleTag
+// values on obligations, not first-class identities, so "is this viewer
+// the GO/coordinator/CA" is answered by asking whether any of THIS org's
+// obligations with that roleTag are actually assigned to them -- not
+// guessed from level. Owner is resolved by the caller (home/page.tsx
+// already knows ctx.level) and always wins over this; a person could
+// technically be more than one of these (e.g. the owner named themselves
+// GO), but that's the caller's call, not this function's -- ties here
+// just pick a fixed precedence order. A standalone function (not nested
+// inside getOnePageData) purely to keep that function's own cyclomatic
+// complexity under the repo's ESLint ceiling.
+function detectRoleFromObligations(
+  templates: Array<{ id: string; roleTag: string | null }>,
+  obligations: Array<{ templateId: string; state: string; assignedPersonId: string | null }>,
+  emailByIdentityId: Map<string, string>,
+  viewerEmail: string
+): { detectedRoleKind: RoleKind | null; detectedCaSub: "partner" | "manager" | null } {
+  function isAssignedRoleTag(roleTag: string): boolean {
+    const templateIds = new Set(templates.filter((t) => t.roleTag === roleTag).map((t) => t.id))
+    return obligations.some((o) => templateIds.has(o.templateId) && o.state !== "not_applicable" && emailByIdentityId.get(o.assignedPersonId ?? "") === viewerEmail)
+  }
+  const isGO = isAssignedRoleTag(GRIEVANCE_OFFICER_ROLE_TAG)
+  const isCoordinator = isAssignedRoleTag("DPDP coordinator")
+  const isCaPartner = isAssignedRoleTag("CAPARTNER")
+  const isCaManager = isAssignedRoleTag("CAMGR")
+  const detectedCaSub: "partner" | "manager" | null = isCaPartner ? "partner" : isCaManager ? "manager" : null
+  const detectedRoleKind: RoleKind | null = isGO ? "go" : isCoordinator ? "coord" : detectedCaSub ? "ca" : null
+  return { detectedRoleKind, detectedCaSub }
+}
+
 export async function getOnePageData(orgId: string, viewerIdentityId: string) {
   return withDpdpContext({ orgId }, async (tx) => {
     const org = await tx.query.dpdpOrganisation.findFirst({ where: eq(dpdpOrganisation.id, orgId) })
@@ -106,21 +138,7 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
       }
     })
 
-    // WO-DPDP-010 §3/§4: coordinator/Grievance-Officer detection -- the DB's
-    // membership.level only ever says owner/staff (see dpdp-session.ts's
-    // own DpdpAuthContext type); GO/coordinator are roleTag values on
-    // obligations, not first-class identities, so "is this viewer the GO"
-    // is answered by asking whether any of THIS org's obligations with that
-    // roleTag are actually assigned to them -- not guessed from level.
-    // Owner is resolved by the caller (home/page.tsx already knows
-    // ctx.level) and always wins over this; a person could technically be
-    // both (e.g. the owner named themselves GO), but that's the caller's
-    // call, not this function's.
-    const goTemplateIds = new Set(templates.filter((t) => t.roleTag === GRIEVANCE_OFFICER_ROLE_TAG).map((t) => t.id))
-    const coordTemplateIds = new Set(templates.filter((t) => t.roleTag === "DPDP coordinator").map((t) => t.id))
-    const isGO = sortedObligations.some((o) => goTemplateIds.has(o.templateId) && o.state !== "not_applicable" && emailByIdentityId.get(o.assignedPersonId ?? "") === viewerEmail)
-    const isCoordinator = sortedObligations.some((o) => coordTemplateIds.has(o.templateId) && o.state !== "not_applicable" && emailByIdentityId.get(o.assignedPersonId ?? "") === viewerEmail)
-    const detectedRoleKind: RoleKind | null = isGO ? "go" : isCoordinator ? "coord" : null
+    const { detectedRoleKind, detectedCaSub } = detectRoleFromObligations(templates, sortedObligations, emailByIdentityId, viewerEmail)
 
     return {
       org, rows, viewerEmail, obligationById,
@@ -128,6 +146,7 @@ export async function getOnePageData(orgId: string, viewerIdentityId: string) {
       saidNotMeAt: membership?.saidNotMeAt ?? null,
       membershipId: membership?.id ?? null,
       detectedRoleKind,
+      detectedCaSub,
     }
   })
 }
