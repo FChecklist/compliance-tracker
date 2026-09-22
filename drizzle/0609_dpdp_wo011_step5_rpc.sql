@@ -227,7 +227,7 @@ begin
       end,
       'dataLocations', c.data_locations,
       'ownerConfirmedAt', c.owner_confirmed_at,
-      'setUpByMe', (c.set_up_by = c.membership_id)
+      'setUpByMe', coalesce(c.set_up_by = c.membership_id, false)
     ) order by c.created_at, c.org_id), '[]'::jsonb)
   into v_out
   from (
