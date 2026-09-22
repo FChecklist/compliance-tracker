@@ -17,7 +17,22 @@ const VERB_LABEL: Record<AiDraftPreviewPayload["verb"], string> = {
   NOTE: "Add a note to a job",
   MARK_NA: "Mark a job as not applicable",
   DRAFT: "Draft a document",
+  // WO-DPDP-013 Part 1 (drizzle/0610): the Level 2 verbs. Only the first
+  // three execute on Confirm today (dpdp_confirm_ai_draft); the rest are
+  // recorded as drafts and the RPC refuses Confirm with a plain sentence --
+  // shown here BEFORE the button so nobody presses Confirm for nothing.
+  MARK_DONE: "Mark a job done",
+  OWNER_CONFIRM: "Confirm the list your CA set up",
+  ADD_PERSON: "Add a person by giving them a job",
+  MANAGER_CHECK: "CA manager checks the file",
+  PARTNER_SIGN: "CA partner signs the file",
+  DELETE: "Delete a job",
+  REMOVE_PERSON: "Remove a person from a job",
+  CHANGE_SIGNER: "Change who signs",
+  PUBLISH: "Publish",
+  EXPORT_PERSONAL_DATA: "Export personal data",
 }
+const EXECUTABLE_ON_CONFIRM = new Set<AiDraftPreviewPayload["verb"]>(["ASSIGN", "SET_DUE", "NOTE", "MARK_NA", "DRAFT", "MARK_DONE", "OWNER_CONFIRM", "ADD_PERSON"])
 const FIELD_LABEL: Record<string, string> = { email: "To", dueOn: "Due on", text: "Note", reason: "Reason", docKind: "Document" }
 
 export function DraftConfirm({ client, draft, onDone, onDismiss }: { client: DpdpClient; draft: DraftFragment; onDone: () => Promise<void>; onDismiss: () => void }) {
@@ -51,6 +66,7 @@ export function DraftConfirm({ client, draft, onDone, onDismiss }: { client: Dpd
 
   const fields = preview ? Object.entries(preview.payload ?? {}).filter(([, v]) => v !== null && v !== undefined && v !== "") : []
   const done = confirmed || !!preview?.confirmedAt
+  const executable = !preview || EXECUTABLE_ON_CONFIRM.has(preview.verb)
 
   return (
     <div className="dpdp-onepage">
@@ -75,13 +91,17 @@ export function DraftConfirm({ client, draft, onDone, onDismiss }: { client: Dpd
                 <p role="status" style={{ fontSize: 14, fontWeight: 600, color: "var(--dpdp-g)", margin: "0 0 10px" }}>Confirmed — History records &ldquo;drafted by AI, confirmed by you&rdquo;.</p>
               ) : preview.expired ? (
                 <p role="alert" style={{ fontSize: 14, fontWeight: 600, color: "var(--dpdp-r)", margin: "0 0 10px" }}>This draft has expired — ask the AI for a fresh one. Nothing has changed.</p>
+              ) : !executable ? (
+                <p role="alert" style={{ fontSize: 14, fontWeight: 600, color: "var(--dpdp-ink2)", margin: "0 0 10px", maxWidth: "72ch" }}>
+                  This kind of draft cannot be confirmed here yet — do it on your page. It is recorded so you know the AI asked. Nothing has changed.
+                </p>
               ) : (
                 <p style={{ fontSize: 13.5, color: "var(--dpdp-ink2)", margin: "0 0 14px", maxWidth: "72ch" }}>
                   Nothing has changed yet. It only happens if you press Confirm — under your name, not the AI&rsquo;s.
                 </p>
               )}
               <div className="flex gap-2.5 items-center flex-wrap">
-                {!done && !preview.expired && (
+                {!done && !preview.expired && executable && (
                   <button type="button" disabled={busy} onClick={confirm} className="font-bold text-white" style={{ background: "var(--dpdp-g)", fontSize: 14, padding: "11px 18px", borderRadius: 12, opacity: busy ? 0.6 : 1 }}>
                     {busy ? "Confirming…" : "Confirm"}
                   </button>
