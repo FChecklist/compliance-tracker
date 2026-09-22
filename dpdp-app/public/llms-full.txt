@@ -1,0 +1,88 @@
+# VERIDIAN DPDP — full text
+
+> An independent, third-party DPDP Act compliance record for Indian organisations — "Your DPDP proof, not just your DPDP policy." This is the full text of the public pages of app.veridian-aios.com. The signed-in app on the same host is private and is not described here.
+
+A plain note first: no major search engine has confirmed that it reads llms.txt or llms-full.txt. This file exists so that any assistant or crawler that does can find the right page without guessing. It carries only pages that exist today; there are no guides, articles or documentation pages yet.
+
+## Which edition is for you — https://app.veridian-aios.com/
+
+The DPDP Act asks every organisation for four things. Know what data you hold. Tell people about it. Keep it safe. Prove all three — with a record that outlasts the person who set it up.
+
+- I do this for clients: a CA, CS, audit or legal firm. Your own file is free, always. → https://app.veridian-aios.com/dpdp-firm/
+- I do this for us: a company, NGO or firm of our own. → https://app.veridian-aios.com/dpdp-firm/
+- Running a school instead? → https://app.veridian-aios.com/dpdp-institution/
+
+## VERIDIAN DPDP for Businesses — https://app.veridian-aios.com/dpdp-firm/
+
+Your DPDP proof — not just your DPDP policy. Built for a company, NGO, trading firm or a CA/CS/audit practice's own file. Compliance due 13 May 2027.
+
+## VERIDIAN DPDP for Schools — https://app.veridian-aios.com/dpdp-institution/
+
+Your DPDP proof — not just a policy nobody reads. Built for a school handling students', parents' and staff's data — most of it belonging to minors. Compliance due 13 May 2027.
+
+## What both edition pages say
+
+### The Schedule to the Act
+
+Ceilings per instance; the Board decides under S.33; no penalty order has been issued in India to date. ₹250 cr S.8(5) security · ₹200 cr S.8(6) breach notice · ₹200 cr S.9 children · ₹150 cr S.10 SDF · ₹50 cr residual · ₹10,000 S.15 individual.
+
+### Everything DPDP, in one place
+
+And the two things the law already requires you to publish are free, forever.
+
+- Where your data actually is: Not "we hold Aadhaar" — the folder, the software, the cupboard. Unknown ones get asked to whoever runs that system.
+- A Grievance Officer, published (free, always): Named, appointed properly, on a permanent page. Required by S.8(10).
+- Your own public page (free, always): For the 70% of Indian businesses who cannot edit their own website, or have none.
+- One email a day, and it is the dashboard: Your people answer yes or no from their inbox. Most never open the website at all.
+- An AI Link for any chatbox: Paste it into ChatGPT and let it do the work. It can read, never change. You approve every suggestion.
+- Proof that survives people: Dated, unalterable, kept ten years. The IT man leaves; the record does not.
+- We never keep your documents: Fingerprints, names and dates. The file stays on your machine. We cannot lose what we never had.
+- Deleting somebody, everywhere: Their data is in seven places. We know each one, ask each holder, and prove it afterwards.
+- Consent that people actually give: Item by item, on a link. Withdrawing is the same tap as agreeing, because the law says it must be.
+- 72 hours, planned in advance: Who is affected, worked out from your data map in minutes rather than weeks.
+- Auditors and cyber firms, listed: With what each is actually qualified for. We take no commission from any of them.
+- Your vendors, in the same system: Free for them, walled off from each other, and blocked until they sign.
+
+### What we do, and where we stop
+
+Said plainly, because the people selling fear will not.
+
+We do: write down what you hold and where · turn the Act into duties with names and dates · chase them · check the proof · publish your officer and your notices · keep a record nobody can edit · answer people who ask.
+
+We do not: touch your systems · keep your documents · certify you as compliant · give legal advice · quote penalties at you · promise nobody will ever be fined.
+
+### Four ways in
+
+Pricing after a short conversation, because the right number depends on what you hold. No prices are published.
+
+- A company, school or NGO: Run it yourself from day one. Invite a CA later without redoing anything.
+- A CA, CS, audit or legal firm: No licence fee, ever. You pay per client file, after you have billed the client. Your own firm's file is free.
+- A web agency, payroll bureau or IT firm: Free. Your clients attach you, you sign, you answer what only you know.
+- An auditor or cyber firm: Listed on our panel with what you are actually qualified for. We take no commission from you.
+
+### Questions people actually ask
+
+- We run on Gmail. Does that matter? — No. Most Indian companies do. Sign-in is a link to whatever address you use — Gmail, Yahoo or your own domain.
+- Has anybody actually been fined? — No. No penalty order has been issued in India to date, and the Board's members are not yet appointed. The date is the real thing, not the fear.
+- We are small. Does this apply to us? — Yes. There is no size exemption in the Act. A ten-person firm holding customer phone numbers is a Data Fiduciary.
+- Do you touch our systems? — Never. We do not connect to your software, read your files or install anything. We record what you tell us and hold you to it.
+- Do you keep our documents? — No. We keep a fingerprint, a name and a date. The document stays with you — which is why you must keep your own originals.
+- Can you certify us as compliant? — No, and neither can anyone else. There is no government DPDP certification in India. We document and we record.
+- What if we stop paying? — Your proof stays readable and exportable. You lose new entries, not old ones. We do not hold it hostage.
+- What happens if you disappear? — Your whole record exports in open formats with the fingerprints intact, and verifies without us. That is the point of building it this way.
+
+### Start with what you hold
+
+One email. No card. Fifteen minutes. Stored in India · no passwords · we never keep your documents.
+
+## Not on this site
+
+- The signed-in one-page app lives under /app/ on this host. It is private: not indexed, not for crawling, and not linked from here.
+- The per-organisation grievance pages and the penalty-exposure calculator are not on this host yet.
+
+## Contact
+
+- Grievance Officer: grievance@veridian-aios.com
+- Partners: partners@veridian-aios.com
+
+We are not a law firm and this is not legal advice. No DPDP certification exists in India and we do not offer one. Penalty figures are the Act's ceilings, decided by the Board under S.33.
