@@ -1,0 +1,62 @@
+# dpdp-app/ is its own Vite toolchain (WO-DPDP-011): the root Lint / Type
+# Check jobs deliberately exclude it (tsconfig `exclude`, eslint `ignores`),
+# so without this workflow nothing on a PR ever compiled, linted, tested or
+# key-scanned the static app. Found while proving the Step 2 spike.
+#
+# The bundle is built with placeholder public credentials on purpose: with
+# no VITE_SUPABASE_* at all, Rolldown folds createDpdpClient()'s guard into
+# an unconditional throw and drops supabase-js entirely, which makes the
+# key scan vacuous (scan-bundle.mjs now exits 3 "INCONCLUSIVE" for that
+# case). The placeholder key starts with "eyJ" so the scan sees exactly the
+# anon key's own references and nothing else.
+name: dpdp-app
+
+on:
+  pull_request:
+    paths:
+      - "dpdp-app/**"
+      - ".github/workflows/dpdp-app-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "dpdp-app/**"
+      - ".github/workflows/dpdp-app-ci.yml"
+
+concurrency:
+  group: dpdp-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dpdp-app:
+    name: dpdp-app (typecheck, lint, test, build, bundle key scan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: dpdp-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No committed env files under dpdp-app (only .env.example may exist)
+        working-directory: .
+        run: |
+          set -euo pipefail
+          bad=$(git ls-files 'dpdp-app/.env*' | grep -v '^dpdp-app/.env.example$' || true)
+          if [ -n "$bad" ]; then echo "committed env file(s) in dpdp-app:"; echo "$bad"; exit 1; fi
+          echo "ok: no env files committed"
+
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - run: bun run typecheck
+      - run: bun run lint
+      - run: bun test
+
+      - name: Build with placeholder public credentials
+        env:
+          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiJ9.ci-placeholder-anon-key.not-a-real-signature
+        run: bun run build
+
+      - name: Bundle key scan (service_role must be 0; anon key only)
+        run: node scripts/scan-bundle.mjs
