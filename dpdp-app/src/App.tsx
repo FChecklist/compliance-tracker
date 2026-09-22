@@ -17,6 +17,8 @@ import { OwnerReview } from "./components/OwnerReview"
 import { AiLinkButton } from "./components/AiLinkButton"
 import { DraftConfirm } from "./components/DraftConfirm"
 import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, NoMembership, SignIn, type ResendState } from "./components/Screens"
+import { BrandLine } from "./components/BrandLine"
+import { shareRoleFor } from "./lib/brand"
 
 // WO-DPDP-011 Step 2 spike: one role, the whole loop -- sign in, own jobs
 // load, Mark Yes, reload shows it. Step 3 added the owner: first-visit
@@ -53,7 +55,12 @@ export function App() {
     }
   })
   if (boot.client instanceof Error) {
-    return <ErrorScreen message={boot.client.message} onRetry={() => window.location.reload()} onSignOut={() => window.location.reload()} />
+    return (
+      <>
+        <BrandLine />
+        <ErrorScreen message={boot.client.message} onRetry={() => window.location.reload()} onSignOut={() => window.location.reload()} />
+      </>
+    )
   }
   return <Session client={boot.client} landing={boot.landing} initialDraft={boot.draft} />
 }
@@ -163,28 +170,46 @@ function Session({ client, landing, initialDraft }: { client: DpdpClient; landin
     await load()
   }
 
+  let screen: ReactNode
   switch (phase.name) {
     case "booting":
     case "loading":
-      return <Loading />
+      screen = <Loading />
+      break
     case "signed-out":
-      return <SignIn onSubmit={signIn} busy={phase.busy} error={phase.error} />
+      screen = <SignIn onSubmit={signIn} busy={phase.busy} error={phase.error} />
+      break
     case "link-expired":
-      return <LinkExpired email={phase.email} expired={phase.expired} busy={phase.busy} error={phase.error} onSend={(a) => sendFreshLink(a, phase.expired)} onUseAnother={() => setPhase(SIGNED_OUT)} />
+      screen = <LinkExpired email={phase.email} expired={phase.expired} busy={phase.busy} error={phase.error} onSend={(a) => sendFreshLink(a, phase.expired)} onUseAnother={() => setPhase(SIGNED_OUT)} />
+      break
     case "check-your-email":
-      return <CheckYourEmail email={phase.email} resend={phase.resend} error={phase.error} onResend={() => resend(phase.email)} onUseAnother={() => setPhase(SIGNED_OUT)} />
+      screen = <CheckYourEmail email={phase.email} resend={phase.resend} error={phase.error} onResend={() => resend(phase.email)} onUseAnother={() => setPhase(SIGNED_OUT)} />
+      break
     case "no-membership":
-      return <NoMembership email={email} onSignOut={signOut} />
+      screen = <NoMembership email={email} onSignOut={signOut} />
+      break
     case "error":
-      return <ErrorScreen message={phase.message} onRetry={load} onSignOut={signOut} />
+      screen = <ErrorScreen message={phase.message} onRetry={load} onSignOut={signOut} />
+      break
     case "app":
-      return (
+      screen = (
         <Page
           client={client} page={phase.page} clients={phase.clients} refetch={load} email={email} onSignOut={signOut}
           view={view} onView={setView} onOpenOrg={openOrg} draft={draft} onDraftDone={() => setDraft(null)}
         />
       )
+      break
   }
+
+  // WO-DPDP-014 §2/§3: the brand line above every phase of /app/; the share
+  // ask only once the page is loaded AND the viewer is a decision-maker.
+  const shareRole = phase.name === "app" ? shareRoleFor(phase.page.viewer) : null
+  return (
+    <>
+      <BrandLine share={phase.name === "app" && shareRole ? { client, orgId: phase.page.org.id, role: shareRole } : null} />
+      {screen}
+    </>
+  )
 }
 
 function Page({
