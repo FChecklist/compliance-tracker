@@ -43,6 +43,7 @@
     "**/*.test.ts",
     "**/*.test.tsx",
     "playwright.config.ts",
-    "projexa-checkout"
+    "projexa-checkout",
+    "dpdp-app"
   ]
 }
