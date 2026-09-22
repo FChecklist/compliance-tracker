@@ -34,8 +34,22 @@ export const REQUIRED_BOTS = [
 
 /** Private URL prefixes: never indexed, never crawled, no referrer, never
  * cached. `source` is the HTML entry (relative to dpdp-app/) that serves
- * the prefix. */
-export const PRIVATE_PAGES = [{ prefix: "/app/", source: "app/index.html" }]
+ * the prefix, or null when a Cloudflare Pages Function serves it instead
+ * (functions/<prefix>/*, no HTML of its own -- the function sets the same
+ * headers itself, since _headers only applies to static assets). */
+export const PRIVATE_PAGES = [
+  { prefix: "/app/", source: "app/index.html" },
+  // WO-DPDP-011 §2.3 / Step 5: the one-click confirmation page from the
+  // Monday email (token in the #fragment), and the unsubscribe page.
+  { prefix: "/act/", source: "act/index.html" },
+  { prefix: "/unsubscribe/", source: "unsubscribe/index.html" },
+  // WO-DPDP-011 §4: the parent consent page (consent token in the #fragment).
+  { prefix: "/p/", source: "p/index.html" },
+  // WO-DPDP-012 §7: the AI link's human-readable page, proxied from the
+  // Edge Function by functions/ai/[token].ts so it is served with a real
+  // text/html content-type from this host.
+  { prefix: "/ai/", source: null },
+]
 
 // Copy shared by both edition landing pages, verbatim from
 // src/app/dpdp/_components/DpdpMarketingPage.tsx on the Next.js side. The

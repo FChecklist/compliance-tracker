@@ -3067,6 +3067,13 @@
       "when": 1790067000000,
       "tag": "0608_dpdp_wo011_step4_bearer_check",
       "breakpoints": true
+    },
+    {
+      "idx": 440,
+      "version": "7",
+      "when": 1790068000000,
+      "tag": "0609_dpdp_wo011_step5_rpc",
+      "breakpoints": true
     }
   ]
 }

@@ -12,7 +12,8 @@ export interface PublicPage {
 
 export interface PrivatePage {
   readonly prefix: string
-  readonly source: string
+  /** HTML entry relative to dpdp-app/, or null when a Pages Function serves the prefix. */
+  readonly source: string | null
 }
 
 export interface RobotsGroup {

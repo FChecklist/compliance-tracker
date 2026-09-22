@@ -141,10 +141,10 @@ export function FirstVisitWizard({
                       </div>
                       <div>
                         {a.isGroup ? (
-                          <textarea rows={2} value={ans.emails} onChange={(e) => setEmails(a.area, e.target.value)} placeholder="paste every email, separated by commas" disabled={ans.na}
+                          <textarea rows={2} aria-label={a.area} value={ans.emails} onChange={(e) => setEmails(a.area, e.target.value)} placeholder="paste every email, separated by commas" disabled={ans.na}
                             className="w-full" style={{ padding: "11px 13px", border: "1px solid var(--dpdp-line)", borderRadius: 12, fontSize: 14, opacity: ans.na ? 0.35 : 1 }} />
                         ) : (
-                          <input type="email" value={ans.emails} onChange={(e) => setEmails(a.area, e.target.value)} placeholder="name@example.com" disabled={ans.na}
+                          <input type="email" aria-label={a.area} value={ans.emails} onChange={(e) => setEmails(a.area, e.target.value)} placeholder="name@example.com" disabled={ans.na}
                             className="w-full" style={{ padding: "11px 13px", border: "1px solid var(--dpdp-line)", borderRadius: 12, fontSize: 14, opacity: ans.na ? 0.35 : 1 }} />
                         )}
                         <div style={{ fontSize: 11.5, color: "var(--dpdp-ink3)", marginTop: 4 }}>{a.jobs.length} job{a.jobs.length !== 1 ? "s" : ""}: {a.jobs.slice(0, 3).join(" · ")}{a.jobs.length > 3 ? ` — and ${a.jobs.length - 3} more` : ""}</div>

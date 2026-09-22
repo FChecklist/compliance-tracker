@@ -46,7 +46,9 @@ describe("public-surface.mjs: the one list", () => {
   test("no public page sits under a private prefix, and every private source exists", () => {
     for (const priv of PRIVATE_PAGES) {
       expect(priv.prefix.endsWith("/")).toBe(true)
-      expect(existsSync(join(root, priv.source))).toBe(true)
+      // A null source is a Pages Function: its handler must exist instead.
+      if (priv.source === null) expect(existsSync(join(root, "functions", priv.prefix.replace(/^\/|\/$/g, "")))).toBe(true)
+      else expect(existsSync(join(root, priv.source))).toBe(true)
       for (const pub of PUBLIC_PAGES) expect(pub.path.startsWith(priv.prefix)).toBe(false)
     }
   })
@@ -162,6 +164,7 @@ describe("page sources", () => {
 
   test("private: noindex + no-referrer meta, no canonical", () => {
     for (const priv of PRIVATE_PAGES) {
+      if (priv.source === null) continue
       const html = read(priv.source)
       expect(html).toContain('<meta name="robots" content="noindex, nofollow" />')
       expect(html).toContain('<meta name="referrer" content="no-referrer" />')
