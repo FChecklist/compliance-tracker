@@ -1,0 +1,90 @@
+name: DB Role Posture (report-only)
+
+# WHAT THIS IS. A read-only check of which Postgres role each of this repo's
+# connection strings ACTUALLY authenticates as, and whether that role bypasses
+# row-level security -- compared against the posture the code assumes. Runs
+# scripts/check-db-role-posture.mjs (one `select current_user, ...` per
+# configured string; never prints a URL or password) and uploads its --json
+# output as a run artifact.
+#
+# WHY REPORT-ONLY, DELIBERATELY. The live posture is currently WRONG, and it is
+# known to be wrong: DATABASE_URL -- documented in src/lib/db/tenant-scoped.ts:7-9
+# and src/lib/orchestra-execution-logger.ts:136-138 as the RLS-bypassing
+# `postgres` role -- has authenticated as `app_runtime` (rolbypassrls=false) in
+# production since roughly 2026-08-21..23, so every cross-org raw-`db` read
+# (all 29 /api/internal/* Vercel crons, admin reports such as
+# /api/orchestra/routing-accuracy) silently returns 0 rows. Verified live
+# 2026-09-22; full evidence, blast radius and the two remediation options are in
+# ai-os/DB_ROLE_POSTURE_2026-09-22.md. Which way to fix it (restore a BYPASSRLS
+# role behind DATABASE_URL, or keep app_runtime and give each cross-org read its
+# own SECURITY DEFINER function) is an OWNER decision that has not been made.
+# Until it is, an enforcing run would be red on every single execution and
+# teach everyone to ignore it. So this job reports and never fails
+# (`--report-only` exits 0; `continue-on-error: true` belts-and-braces on top).
+# Read the job log / artifact; a run that says "0 mismatch" is the signal that
+# the decision has been applied.
+#
+# HOW TO FLIP IT TO ENFORCING (do all of these in the SAME PR as the fix):
+#   1. Apply the owner's decision. If the decision is to KEEP app_runtime
+#      behind DATABASE_URL, first change EXPECTED_POSTURE.DATABASE_URL.bypassrls
+#      to false in scripts/check-db-role-posture.mjs AND rewrite the two code
+#      comments it names (the script's STALE_COMMENTS list). The expected table
+#      and the comments must never disagree.
+#   2. Remove `--report-only` from both `run:` lines below.
+#   3. Remove both `continue-on-error: true` lines below.
+#   4. Uncomment the `schedule:` block so it runs weekly without a human
+#      remembering to dispatch it.
+#   5. Optionally wire the same script into ci.yml as a PR gate (NOT done here:
+#      this workflow was added without touching ci.yml, on purpose).
+#
+# SECRETS. Only secret NAMES appear here. `secrets.DATABASE_URL` and
+# `secrets.APP_RUNTIME_DATABASE_URL` already exist (ci.yml's e2e-env1 job
+# verifies both). PROVISIONING_DATABASE_URL is not a repo secret today, so the
+# script reports it as "not set" (which is not a failure).
+#
+# THIS JOB NEVER DEPLOYS ANYTHING and never touches Vercel -- it is a GitHub
+# Actions job talking read-only to Supabase (R76-RULING-01 is unaffected).
+on:
+  workflow_dispatch: {}
+  # Weekly, Monday 06:00 UTC. Left commented out on purpose while the posture
+  # is known-wrong (see header) -- a scheduled report nobody asked for is
+  # noise; a scheduled ENFORCING check after the fix is a guard. Uncomment as
+  # step 4 of the flip-to-enforcing procedure above.
+  # schedule:
+  #   - cron: "0 6 * * 1"
+
+jobs:
+  posture:
+    name: Report which Postgres role each connection string authenticates as
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - name: Human-readable posture table (report-only, never fails the job)
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APP_RUNTIME_DATABASE_URL: ${{ secrets.APP_RUNTIME_DATABASE_URL }}
+        run: node scripts/check-db-role-posture.mjs --report-only
+
+      - name: JSON posture report (report-only)
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APP_RUNTIME_DATABASE_URL: ${{ secrets.APP_RUNTIME_DATABASE_URL }}
+        run: |
+          node scripts/check-db-role-posture.mjs --report-only --json > db-role-posture.json
+          echo "--- db-role-posture.json ---"
+          cat db-role-posture.json
+
+      - name: Upload JSON report as a run artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-role-posture
+          path: db-role-posture.json
+          if-no-files-found: warn
+          retention-days: 90
