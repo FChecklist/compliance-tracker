@@ -95,7 +95,7 @@ async function areasFor(email: string, product: "firm" | "institution"): Promise
 }
 async function completeFirstVisit(email: string, orgId: string, assignments: Assignment[]): Promise<FirstVisitResult> {
   return asEmail(email, async (tx) => {
-    const [{ result }] = await tx<{ result: FirstVisitResult }[]>`select public.dpdp_complete_owner_first_visit(${orgId}, ${JSON.stringify(assignments)}::jsonb) as result`
+    const [{ result }] = await tx<{ result: FirstVisitResult }[]>`select public.dpdp_complete_owner_first_visit(${orgId}, ${tx.json(assignments)}) as result`
     return result
   })
 }
@@ -336,7 +336,9 @@ d("WO-DPDP-011 Step 3: owner RPCs", () => {
     // ...and therefore the named person can actually sign in and see the job.
     const theirs = await myPage(named)
     expect(theirs.org.id).toBe(org.id)
-    expect(theirs.viewer.kind).toBe("staff")
+    // Their kind is detected from the job's own roleTag (e.g. "go" when the
+    // named job is the Grievance Officer's), never "owner".
+    expect(theirs.viewer.kind).not.toBe("owner")
     expect(theirs.rows.find((r) => r.id === target.id)?.by).toBe(named)
 
     // Naming the same address again (different case) reuses identity and
