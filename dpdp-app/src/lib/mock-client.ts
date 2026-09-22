@@ -326,6 +326,9 @@ function whereItIs(org: OrgState): string {
   const done = live.filter((r) => r.yes).length
   const openOther = live.filter((r) => !r.yes && !NOT_AN_AREA.has(r.area)).length
   const openMgr = live.filter((r) => !r.yes && r.area === "CAMGR").length
+  // drizzle/0612: an org a CA set up with no owner named yet cannot be
+  // "waiting for the owner" -- nobody exists to confirm.
+  if (org.setUpBy && !org.ownerConfirmedAt && !org.ownerEmail) return "No owner named yet"
   if (org.setUpBy && !org.ownerConfirmedAt) return "Waiting for the owner to confirm"
   if (done === 0) return "Not started"
   if (live.length > 0 && done === live.length) return "Signed off"
@@ -648,9 +651,12 @@ export function createMockClient(scenario?: string): DpdpClient {
           for (const org of Object.values(state.orgs)) {
             if (!org.client) continue
             const who = viewerIn(org, me)
-            if (who?.kind !== "ca" || !who.caSub) continue
+            // drizzle/0612: the CA who set the org up is its partner even when
+            // the product's library has no CA-tagged job (a school).
+            const caSub = who?.kind === "ca" && who.caSub ? who.caSub : org.setUpBy?.email === me ? "partner" : null
+            if (!caSub) continue
             const live = org.rows.filter((r) => !r.na)
-            out.push({ org: { id: org.id, name: org.name, product: org.product }, caSub: who.caSub, done: live.filter((r) => r.yes).length, total: live.length, whereItIs: whereItIs(org), dataLocations: 0, ownerConfirmedAt: org.ownerConfirmedAt, setUpByMe: org.setUpBy?.email === me })
+            out.push({ org: { id: org.id, name: org.name, product: org.product }, caSub, done: live.filter((r) => r.yes).length, total: live.length, whereItIs: whereItIs(org), dataLocations: 0, ownerConfirmedAt: org.ownerConfirmedAt, setUpByMe: org.setUpBy?.email === me })
           }
           return ok(out)
         }
