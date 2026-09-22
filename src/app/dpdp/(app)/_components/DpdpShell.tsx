@@ -12,7 +12,7 @@ type NavGroup = { label: string; items: NavItem[] }
 // one unified fiduciary-style menu. `capabilities` is an org's set (an org
 // can hold more than one, e.g. a CA firm that also processes for a
 // client), so groups add per capability rather than picking one branch.
-function navFor(level: "owner" | "staff", capabilities: string[]): NavGroup[] {
+function navFor(level: "owner" | "staff", capabilities: string[], caClientCount: number): NavGroup[] {
   const isAdvisor = capabilities.includes("advisor")
   const isProcessor = capabilities.includes("processor")
   const isAuditor = capabilities.includes("auditor")
@@ -20,6 +20,14 @@ function navFor(level: "owner" | "staff", capabilities: string[]): NavGroup[] {
   const groups: NavGroup[] = [
     { label: "Start here", items: [{ href: "/dpdp/home", label: "Home" }, { href: "/dpdp/proof", label: "🛡️ Proof" }, { href: "/dpdp/lifecycle", label: "Where we are" }] },
   ]
+
+  // WO-DPDP-010 §3 "CA firm view": shown for ANY identity named CA manager/
+  // partner on at least one client org, regardless of their level/
+  // capabilities in the CURRENT org -- this is a cross-org fact about the
+  // person, not something the current org's own nav config could know.
+  if (caClientCount > 0) {
+    groups.push({ label: "CA firm", items: [{ href: "/dpdp/ca-clients", label: `🧾 My clients (${caClientCount})` }] })
+  }
 
   if (level === "owner") {
     groups.push({
@@ -76,10 +84,10 @@ function navFor(level: "owner" | "staff", capabilities: string[]): NavGroup[] {
   return groups
 }
 
-export function DpdpShell({ orgName, level, capabilities, children }: { orgName: string; level: "owner" | "staff"; capabilities: string[]; children: React.ReactNode }) {
+export function DpdpShell({ orgName, level, capabilities, caClientCount = 0, children }: { orgName: string; level: "owner" | "staff"; capabilities: string[]; caClientCount?: number; children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const groups = navFor(level, capabilities)
+  const groups = navFor(level, capabilities, caClientCount)
 
   async function logout() {
     await dpdpFetch("/api/dpdp/auth/logout", { method: "POST" })
