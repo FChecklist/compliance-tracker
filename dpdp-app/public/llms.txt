@@ -1,0 +1,39 @@
+# VERIDIAN DPDP
+
+> An independent, third-party DPDP Act compliance record for Indian organisations — "Your DPDP proof, not just your DPDP policy." This is the public front door of app.veridian-aios.com. The signed-in app on the same host is private and is not described here.
+
+A plain note first: no major search engine has confirmed that it reads llms.txt or llms-full.txt. This file exists so that any assistant or crawler that does can find the right page without guessing. It lists only pages that exist today; there are no guides, articles or documentation pages yet.
+
+## What VERIDIAN DPDP is
+
+India's Digital Personal Data Protection Act asks every organisation for four things: know what data you hold, tell people about it, keep it safe, and prove all three — with a record that outlasts the person who set it up. VERIDIAN DPDP is that record. Compliance is due 13 May 2027.
+
+What we do: write down what you hold and where · turn the Act into duties with names and dates · chase them · check the proof · publish your officer and your notices · keep a record nobody can edit · answer people who ask.
+
+What we do not: touch your systems · keep your documents · certify you as compliant · give legal advice · quote penalties at you · promise nobody will ever be fined.
+
+## Who it is for
+
+- A company, school or NGO: run it yourself from day one, and invite a CA later without redoing anything.
+- A CA, CS, audit or legal firm: no licence fee, ever; you pay per client file, after you have billed the client, and your own firm's file is free.
+- A web agency, payroll bureau or IT firm: free; your clients attach you, you sign, you answer what only you know.
+- An auditor or cyber firm: listed on our panel with what you are actually qualified for; we take no commission from you.
+
+## Pages
+
+- [Which edition is for you](https://app.veridian-aios.com/): the root chooser — "I do this for clients", "I do this for us", or running a school instead.
+- [VERIDIAN DPDP for Businesses](https://app.veridian-aios.com/dpdp-firm/): for a company, NGO, trading firm or a CA/CS/audit practice's own file. What is on it: everything DPDP in one place (twelve things the record covers), what we do and where we stop, four ways in, and the questions people actually ask.
+- [VERIDIAN DPDP for Schools](https://app.veridian-aios.com/dpdp-institution/): the same product for a school handling students', parents' and staff's data — most of it belonging to minors.
+
+## Not on this site
+
+- No prices are published. Pricing after a short conversation, because the right number depends on what you hold.
+- The signed-in one-page app lives under /app/ on this host. It is private: not indexed, not for crawling, and not linked from here.
+- No penalty order has been issued under the Act in India to date. No government DPDP certification exists in India, and we do not offer one.
+
+## Contact
+
+- Grievance Officer: grievance@veridian-aios.com
+- Partners: partners@veridian-aios.com
+
+We are not a law firm and this is not legal advice.

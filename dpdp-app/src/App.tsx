@@ -94,7 +94,7 @@ function Session({ client, landing }: { client: DpdpClient; landing: Landing }) 
   // own login form: membership is decided by dpdp_my_page after sign-in, not
   // by whether an auth.users row already exists.
   async function requestLink(address: string): Promise<string | null> {
-    const { error } = await client.auth.signInWithOtp({ email: address, options: { emailRedirectTo: window.location.origin } })
+    const { error } = await client.auth.signInWithOtp({ email: address, options: { emailRedirectTo: new URL("/app/", window.location.origin).href } })
     if (error) return error.message
     rememberEmail(address)
     return null
