@@ -1,0 +1,11 @@
+# app.veridian-aios.com -- Cloudflare Pages redirects (WO-DPDP-013 v2 §2.4).
+# Format: <source> <destination> <status>. src/lib/redirects.test.ts parses
+# this file and pins both rules, with and without the trailing slash.
+
+# The institution edition is singular -- owner decision, 18 Sep 2026.
+/dpdp-institutions   /dpdp-institution/   301
+/dpdp-institutions/  /dpdp-institution/   301
+
+# /home is the root chooser.
+/home                /                    301
+/home/               /                    301
