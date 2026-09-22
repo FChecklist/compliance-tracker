@@ -40,6 +40,32 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (sub-agent of the WO-DPDP-011/012 orchestrating session, isolated worktree .claude/worktrees/agent-acac88474d769e70f, branch feat/wo-dpdp-012-public-static-pages off feat/wo-dpdp-011-static-app-scaffold = PR #1802) -- WO-DPDP-012 §1/§3/§4 on the STATIC app dpdp-app/: public pages as complete HTML, robots.txt + llms.txt + build-time sitemap, JSON-LD, self-hosted fonts [IN PROGRESS]"
+    claimed_at: "2026-09-22T (this session)"
+    claim: |
+      SCOPE -- dpdp-app/ only (the Vite static app WO-DPDP-011 §2.1 moves to
+      Cloudflare Pages at app.veridian-aios.com; Vercel stays at zero):
+      - Vite multi-page build: the SPA entry moves from dpdp-app/index.html to
+        dpdp-app/app/index.html (served at /app/, noindex); new complete-HTML
+        public pages dpdp-app/index.html (root chooser),
+        dpdp-app/dpdp-firm/index.html, dpdp-app/dpdp-institution/index.html --
+        copy verbatim from src/app/dpdp/_components/RootChooser.tsx and
+        DpdpMarketingPage.tsx (read only; those Next.js files are NOT edited).
+      - dpdp-app/public/: robots.txt, _headers, llms.txt, llms-full.txt,
+        fonts/ (Sora + Instrument Sans latin woff2 + their OFL texts).
+      - dpdp-app/src/lib/public-surface.mjs (+ .d.mts + .test.ts): the one
+        list of public/private paths; dpdp-app/scripts/build-sitemap.mjs,
+        dpdp-app/scripts/check-public-surface.mjs; dpdp-app/vite.config.ts,
+        package.json (build script), eslint.config.js, src/site.css,
+        src/fonts.css, src/index.css.
+      - dpdp-app/src/App.tsx: ONLY the `emailRedirectTo` expression
+        (origin -> /app/). Another agent owns App.tsx's page-branching and
+        src/components/onepage/* concurrently -- not touched here.
+      NOT touching: dpdp-app/src/lib/api.ts, mock-client.ts,
+      src/components/onepage/*, any Next.js page, vercel.json, drizzle/,
+      src/lib/services/. No deploy anywhere. NOT building /g/<slug> or the
+      penalty calculator (dynamic; a separate decision, stated in the PR).
+
   - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session, isolated worktree C:/ct/ct-cost001 branch wo/projexa-cost-001; heavy analysis delegated to Anthropic cloud agents per the owner's 2026-09-22 chat instruction, because this laptop was at ~0.84GB free RAM at session start) -- WORK_ORDER_PROJEXA-COST-001 v2 (issued 2026-09-22, KT rank 0.27, Drive 1kAsuZ0Dn3_Oxa0eaV-G0zdhsC6f3HFBN): Vercel bill must never exceed $20/month [IN PROGRESS]"
     claimed_at: "2026-09-22T06:05Z (this session)"
     claim: |
