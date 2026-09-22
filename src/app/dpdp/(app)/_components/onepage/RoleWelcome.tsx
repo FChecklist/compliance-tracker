@@ -8,6 +8,7 @@ import type { RoleKind } from "@/lib/dpdp-onepage/view-model"
 const ROLE_LABEL: Partial<Record<RoleKind, string>> = {
   go: "Grievance Officer",
   coord: "DPDP coordinator",
+  ca: "CA",
 }
 
 // WO-DPDP-010 §4 "First visit, for every role" -- the generic welcome screen
@@ -16,10 +17,11 @@ const ROLE_LABEL: Partial<Record<RoleKind, string>> = {
 // been named, and give them an escape hatch if the org named the wrong
 // person.
 export function RoleWelcome({
-  orgName, roleKind, jobCount, onAcknowledge, onNotMe,
+  orgName, roleKind, caSub, jobCount, onAcknowledge, onNotMe,
 }: {
   orgName: string
   roleKind: RoleKind
+  caSub?: "partner" | "manager" | "staff"
   jobCount: number
   onAcknowledge: () => Promise<void>
   onNotMe: () => Promise<void>
@@ -27,7 +29,7 @@ export function RoleWelcome({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [confirmingNotMe, setConfirmingNotMe] = useState(false)
-  const roleLabel = ROLE_LABEL[roleKind]
+  const roleLabel = roleKind === "ca" && (caSub === "partner" || caSub === "manager") ? `CA ${caSub}` : ROLE_LABEL[roleKind]
 
   function runAndRefresh(action: () => Promise<void>) {
     startTransition(async () => {
