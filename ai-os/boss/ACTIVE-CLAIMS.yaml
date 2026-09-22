@@ -40,6 +40,48 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session, isolated worktree C:/ct/ct-cost001 branch wo/projexa-cost-001; heavy analysis delegated to Anthropic cloud agents per the owner's 2026-09-22 chat instruction, because this laptop was at ~0.84GB free RAM at session start) -- WORK_ORDER_PROJEXA-COST-001 v2 (issued 2026-09-22, KT rank 0.27, Drive 1kAsuZ0Dn3_Oxa0eaV-G0zdhsC6f3HFBN): Vercel bill must never exceed $20/month [IN PROGRESS]"
+    claimed_at: "2026-09-22T06:05Z (this session)"
+    claim: |
+      SCOPE -- research + branch-only preparation, per the work order's own
+      "prepare, do not execute" rule for every step below:
+      - Step 2: classify all 30 Vercel crons (29 in compliance-tracker's
+        vercel.json on main, 1 in projexa's) as MOVE / KEEP / KILL for a
+        Supabase pg_cron migration, with a crr-catchup-worker (*/15 * * * *)
+        deep-dive. Deliverable: a plan table for the owner. NO cron moves, NO
+        vercel.json edit in either repo, until the owner approves the plan in
+        chat.
+      - Step 3: preview-vs-production build evidence from the real Vercel
+        deployments list + a preview-deployment policy proposal; GitHub
+        Actions minutes report.
+      - Step 5: Vercel Spend Management recommendation. Dashboard-only; the
+        owner sets it. This session sets nothing.
+      - Step 6: FOCUS charge-data re-measure (one UTC day per call) after the
+        owner turns Speed Insights Plus off.
+      - KT INDEX WRITER CLAIM: for the duration of this entry, this session is
+        the ONE writer of 00_KT_MASTER_INDEX.csv (Drive
+        1a0KmSuV3a3Iza1xQ05dQWMhpONE5SLtn, folder
+        1vJdIG_4w2eMjgsSn3ofHGy4ylgBIhKXp) and its local mirror
+        (projexa/R80_PART7_KT/). Inserting ranks 0.24 + 0.25 (text from
+        HANDOUT_2026-09-21_CLAUDE_CHAT_AUDIT_AND_NEXT_STEPS.md section 8, per
+        NEXT-001 Step 0.1) and 0.26 + 0.27 (COST-001 v1 SUPERSEDED / v2
+        CANONICAL, rows supplied verbatim by the owner in chat 2026-09-22).
+        Any other session that needs to write the index: wait for this entry
+        to move to recently_completed, then re-read the live index first.
+      NOT touching: any Vercel project/dashboard setting (Speed Insights,
+      Web Analytics, Spend Management are owner-only per the work order's
+      own text -- this session only READS them and reports), vercel.json in
+      either repo, any cron route, any DNS record, anything under src/.
+      Step 4 (Next.js static export + browser-direct-to-Supabase) is
+      sequenced by the work order WITH PROJEXA-NEXT-001 Step 2 and is NOT
+      started under this claim. Note for whoever does pick Step 4 up:
+      WO-DPDP-011's own Step 1 architecture note (2026-09-22, this repo PR
+      #1799, Drive doc "WO-DPDP-011 Step 1 -- Architecture Decision Note")
+      already contains a static-export verdict + Cloudflare Pages plan for
+      compliance-tracker -- read it first; do not re-derive it.
+      Files this claim touches: this file (this entry), the KT index (Drive
+      + local mirror), new KT handout(s) at end of session. No product code.
+
   - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100 for verification, isolated worktree C:/ct/ct-email-ci-fix branch fix/email-reply-actor-attribution for the CI fix) -- PROJEXA-E2E-001 work order section 2 item 4 ('Email'), FRESH RESTART re-verification: a prior attempt at this exact item was killed mid-way by a connection drop (infra issue), so this session re-derived everything from scratch per its own instructions rather than trusting the prior attempt's local-only, unpushed claim-closure commits [DONE -- both systems independently re-confirmed real/merged/working; found and fixed a genuine CI regression on the prior attempt's own still-open PR #1779]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
