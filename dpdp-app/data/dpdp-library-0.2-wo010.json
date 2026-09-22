@@ -1,0 +1,1705 @@
+{
+  "version": "0.2-wo010",
+  "exportedAt": "2026-09-22T06:52:07.283Z",
+  "templates": [
+    {
+      "id": "tmpl_firm_01",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-01",
+      "name": "Name the Grievance Officer (responsible for DPDP policy)",
+      "plain_text": "Name the Grievance Officer (responsible for DPDP policy)",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 4,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Grievance Officer (responsible for DPDP policy)",
+      "applies_when": {
+        "fromArea": true
+      },
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 1,
+      "data_set": "Whole organisation",
+      "data_types": null,
+      "law_codes": [
+        "d:§8(9)",
+        "d:§8(10)",
+        "s:R5(9)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_02",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-02",
+      "name": "Name a DPDP coordinator",
+      "plain_text": "Name a DPDP coordinator",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 4,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "DPDP coordinator",
+      "applies_when": {
+        "fromArea": true
+      },
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 1,
+      "data_set": "Whole organisation",
+      "data_types": null,
+      "law_codes": [
+        "g:"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_03",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-03",
+      "name": "Publish the Grievance Officer’s name and contact — on your website or a free VERIDIAN page",
+      "plain_text": "Publish the Grievance Officer’s name and contact — on your website or a free VERIDIAN page",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 10,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Grievance Officer (responsible for DPDP policy)",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 1,
+      "data_set": "Whole organisation",
+      "data_types": null,
+      "law_codes": [
+        "d:§8(9)",
+        "d:R9",
+        "s:R5(9)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_04",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-04",
+      "name": "Write down where it is kept, why you need it, and who can open it",
+      "plain_text": "Write down where it is kept, why you need it, and who can open it",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 10,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Customer data",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 2,
+      "data_set": "Customers",
+      "data_types": [
+        "Name",
+        "Phone",
+        "Email",
+        "Address",
+        "PAN",
+        "Bank details"
+      ],
+      "law_codes": [
+        "d:§4",
+        "d:§8(4)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_05",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-05",
+      "name": "Write down where it is kept, why you need it, and who can open it",
+      "plain_text": "Write down where it is kept, why you need it, and who can open it",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 10,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Staff records",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 2,
+      "data_set": "Employees",
+      "data_types": [
+        "Name",
+        "PAN",
+        "Aadhaar",
+        "Bank account",
+        "Salary",
+        "Photo",
+        "Medical"
+      ],
+      "law_codes": [
+        "d:§7(i)",
+        "d:§8(4)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_06",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-06",
+      "name": "Write down where it is kept, why you need it, and who can open it",
+      "plain_text": "Write down where it is kept, why you need it, and who can open it",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Staff records",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 2,
+      "data_set": "Job applicants",
+      "data_types": [
+        "Name",
+        "CV",
+        "Phone",
+        "Email"
+      ],
+      "law_codes": [
+        "d:§4",
+        "d:§8(4)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_07",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-07",
+      "name": "Write down where it is kept, why you need it, and who can open it",
+      "plain_text": "Write down where it is kept, why you need it, and who can open it",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "processor",
+      "role_tag": "Website firm",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 2,
+      "data_set": "Website visitors",
+      "data_types": [
+        "Name",
+        "Phone",
+        "Email",
+        "Cookies"
+      ],
+      "law_codes": [
+        "d:§4",
+        "d:§8(4)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_08",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-08",
+      "name": "Write down where the recordings are kept and for how long",
+      "plain_text": "Write down where the recordings are kept and for how long",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "CCTV",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 2,
+      "data_set": "CCTV",
+      "data_types": [
+        "Video of staff and visitors"
+      ],
+      "law_codes": [
+        "d:§4",
+        "d:§8(7)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_09",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-09",
+      "name": "Write down where fingerprints or face scans are stored and who can open them",
+      "plain_text": "Write down where fingerprints or face scans are stored and who can open them",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Staff records",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 2,
+      "data_set": "Attendance machine",
+      "data_types": [
+        "Fingerprint",
+        "Face"
+      ],
+      "law_codes": [
+        "d:§8(5)",
+        "s:R3"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_10",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-10",
+      "name": "Write down how long each is kept — keep only what tax and labour law require, delete the rest",
+      "plain_text": "Write down how long each is kept — keep only what tax and labour law require, delete the rest",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 14,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Accounts",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 2,
+      "data_set": "All data sets",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§8(7)",
+        "d:R8"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_11",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-11",
+      "name": "Give a privacy notice when you collect their data — on the form, invoice or website",
+      "plain_text": "Give a privacy notice when you collect their data — on the form, invoice or website",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 14,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Customer data",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 3,
+      "data_set": "Customers",
+      "data_types": [
+        "All of the above"
+      ],
+      "law_codes": [
+        "d:§5",
+        "d:R3",
+        "s:R5(3)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_12",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-12",
+      "name": "Take consent before sending marketing messages — and make stopping as easy as starting",
+      "plain_text": "Take consent before sending marketing messages — and make stopping as easy as starting",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 14,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Customer data",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 3,
+      "data_set": "Customers",
+      "data_types": [
+        "Phone",
+        "Email"
+      ],
+      "law_codes": [
+        "d:§6(1)",
+        "d:§6(4)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_13",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-13",
+      "name": "Tell staff what you hold and why — no consent is needed for employment",
+      "plain_text": "Tell staff what you hold and why — no consent is needed for employment",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 14,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Staff records",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 3,
+      "data_set": "Employees",
+      "data_types": [
+        "All of the above"
+      ],
+      "law_codes": [
+        "d:§5",
+        "d:§7(i)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_14",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-14",
+      "name": "Take written consent for sensitive data",
+      "plain_text": "Take written consent for sensitive data",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 10,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Staff records",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 3,
+      "data_set": "Employees",
+      "data_types": [
+        "Fingerprint",
+        "Medical",
+        "Bank account"
+      ],
+      "law_codes": [
+        "s:R5(1)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_15",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-15",
+      "name": "Publish a privacy policy on the website",
+      "plain_text": "Publish a privacy policy on the website",
+      "section_ref": null,
+      "proof_kind": "doc",
+      "default_days": 10,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "processor",
+      "role_tag": "Website firm",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 3,
+      "data_set": "Website visitors",
+      "data_types": [
+        "Cookies",
+        "Form data"
+      ],
+      "law_codes": [
+        "s:R4",
+        "d:§5",
+        "d:R3"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_16",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-16",
+      "name": "Put up a notice wherever there is a camera",
+      "plain_text": "Put up a notice wherever there is a camera",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 10,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "CCTV",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 3,
+      "data_set": "CCTV",
+      "data_types": [
+        "Video"
+      ],
+      "law_codes": [
+        "d:§5"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_17",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-17",
+      "name": "Mask Aadhaar copies — keep only the last 4 digits visible",
+      "plain_text": "Mask Aadhaar copies — keep only the last 4 digits visible",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 10,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Staff records",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 4,
+      "data_set": "Employees · Customers",
+      "data_types": [
+        "Aadhaar"
+      ],
+      "law_codes": [
+        "a:§29",
+        "d:§8(5)",
+        "d:R6"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_18",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-18",
+      "name": "Passwords on every computer, access only for those who need it, regular backups",
+      "plain_text": "Passwords on every computer, access only for those who need it, regular backups",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 14,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "IT & computers",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 4,
+      "data_set": "All data sets",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§8(5)",
+        "d:R6",
+        "s:R8"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_19",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-19",
+      "name": "Keep a record of who opened personal data — for at least one year",
+      "plain_text": "Keep a record of who opened personal data — for at least one year",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 21,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "IT & computers",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 4,
+      "data_set": "All data sets",
+      "data_types": [
+        "Access logs"
+      ],
+      "law_codes": [
+        "d:R6(1)(c)",
+        "d:R8(3)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_20",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-20",
+      "name": "Write down what to do if data leaks — tell the Board and every person affected, full report within 72 hours",
+      "plain_text": "Write down what to do if data leaks — tell the Board and every person affected, full report within 72 hours",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 21,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Grievance Officer (responsible for DPDP policy)",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 4,
+      "data_set": "All data sets",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§8(6)",
+        "d:R7"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_21",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-21",
+      "name": "Check your own laptop and phone for customer data — never forward it on personal WhatsApp",
+      "plain_text": "Check your own laptop and phone for customer data — never forward it on personal WhatsApp",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "All staff",
+      "applies_when": {
+        "grp": true
+      },
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 4,
+      "data_set": "Everyone",
+      "data_types": [
+        "Customer data on personal devices"
+      ],
+      "law_codes": [
+        "d:§8(5)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_22",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-22",
+      "name": "Website firm signs the data agreement",
+      "plain_text": "Website firm signs the data agreement",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "processor",
+      "role_tag": "Website firm",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 5,
+      "data_set": "Website visitors",
+      "data_types": [
+        "Enquiries"
+      ],
+      "law_codes": [
+        "d:§8(2)",
+        "d:R6(1)(f)",
+        "s:R7"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_23",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-23",
+      "name": "Payroll firm signs the data agreement",
+      "plain_text": "Payroll firm signs the data agreement",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "processor",
+      "role_tag": "Payroll firm",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 5,
+      "data_set": "Employees",
+      "data_types": [
+        "Bank account",
+        "PAN",
+        "Salary"
+      ],
+      "law_codes": [
+        "d:§8(2)",
+        "d:R6(1)(f)",
+        "s:R7"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_24",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-24",
+      "name": "Group company signs a data-sharing agreement",
+      "plain_text": "Group company signs a data-sharing agreement",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "processor",
+      "role_tag": "Group company",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 5,
+      "data_set": "Customers · Employees",
+      "data_types": [
+        "Shared records"
+      ],
+      "law_codes": [
+        "d:§8(2)",
+        "s:R7"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_25",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-25",
+      "name": "Check where your software keeps data — Tally, Zoho, Google — and whether it is outside India",
+      "plain_text": "Check where your software keeps data — Tally, Zoho, Google — and whether it is outside India",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 21,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "IT & computers",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 5,
+      "data_set": "All data sets",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§8(2)",
+        "d:§16",
+        "d:R15"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_26",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-26",
+      "name": "Publish how people can ask to see, correct or delete their data",
+      "plain_text": "Publish how people can ask to see, correct or delete their data",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 21,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Grievance Officer (responsible for DPDP policy)",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 6,
+      "data_set": "All data sets",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§11",
+        "d:§12",
+        "d:R14(1)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_27",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-27",
+      "name": "Answer every complaint within 90 days — within one month under today’s law",
+      "plain_text": "Answer every complaint within 90 days — within one month under today’s law",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 21,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Grievance Officer (responsible for DPDP policy)",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 6,
+      "data_set": "All data sets",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§13",
+        "d:R14(3)",
+        "s:R5(9)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_28",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-28",
+      "name": "Delete a customer’s data when they ask or when it is no longer needed — and tell anyone you shared it with",
+      "plain_text": "Delete a customer’s data when they ask or when it is no longer needed — and tell anyone you shared it with",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 21,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Customer data",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 6,
+      "data_set": "Customers",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§8(7)",
+        "d:§12(3)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_29",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-29",
+      "name": "Owner confirms all the answers are true",
+      "plain_text": "Owner confirms all the answers are true",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 25,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "OWNER",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 7,
+      "data_set": "Whole organisation",
+      "data_types": null,
+      "law_codes": [
+        "d:§8(1)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_firm_30",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-30",
+      "name": "CA manager checks the proof",
+      "plain_text": "CA manager checks the proof",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 27,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "CAMGR",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 7,
+      "data_set": "Whole organisation",
+      "data_types": null,
+      "law_codes": [
+        "g:"
+      ],
+      "depends_on_key": "firm-29"
+    },
+    {
+      "id": "tmpl_firm_31",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "firm-31",
+      "name": "CA partner signs the file",
+      "plain_text": "CA partner signs the file",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 30,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "CAPARTNER",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "firm",
+      "part": 7,
+      "data_set": "Whole organisation",
+      "data_types": null,
+      "law_codes": [
+        "g:"
+      ],
+      "depends_on_key": "firm-30"
+    },
+    {
+      "id": "tmpl_institution_01",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-01",
+      "name": "Name the Grievance Officer (responsible for DPDP policy)",
+      "plain_text": "Name the Grievance Officer (responsible for DPDP policy)",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 4,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Grievance Officer (responsible for DPDP policy)",
+      "applies_when": {
+        "fromArea": true
+      },
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 1,
+      "data_set": "Whole school",
+      "data_types": null,
+      "law_codes": [
+        "d:§8(9)",
+        "d:§8(10)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_02",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-02",
+      "name": "Name a DPDP coordinator",
+      "plain_text": "Name a DPDP coordinator",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 4,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "DPDP coordinator",
+      "applies_when": {
+        "fromArea": true
+      },
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 1,
+      "data_set": "Whole school",
+      "data_types": null,
+      "law_codes": [
+        "g:"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_03",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-03",
+      "name": "Publish the Grievance Officer’s name and contact — on the school website or a free VERIDIAN page",
+      "plain_text": "Publish the Grievance Officer’s name and contact — on the school website or a free VERIDIAN page",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 10,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Grievance Officer (responsible for DPDP policy)",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 1,
+      "data_set": "Whole school",
+      "data_types": null,
+      "law_codes": [
+        "d:§8(9)",
+        "d:R9"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_04",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-04",
+      "name": "Write down where it is kept — ERP, admission files, UDISE+ — and who can open it",
+      "plain_text": "Write down where it is kept — ERP, admission files, UDISE+ — and who can open it",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 10,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Admission office",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 2,
+      "data_set": "Students",
+      "data_types": [
+        "Name",
+        "Date of birth",
+        "Photo",
+        "Address",
+        "Aadhaar",
+        "Marks",
+        "Attendance",
+        "Health",
+        "Category"
+      ],
+      "law_codes": [
+        "d:§4",
+        "d:§8(4)",
+        "d:§9"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_05",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-05",
+      "name": "Write down where it is kept and who can open it",
+      "plain_text": "Write down where it is kept and who can open it",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 10,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Fees office",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 2,
+      "data_set": "Parents",
+      "data_types": [
+        "Name",
+        "Phone",
+        "Email",
+        "Occupation",
+        "Income"
+      ],
+      "law_codes": [
+        "d:§4",
+        "d:§8(4)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_06",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-06",
+      "name": "Write down where it is kept and who can open it",
+      "plain_text": "Write down where it is kept and who can open it",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 10,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Staff records",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 2,
+      "data_set": "Staff",
+      "data_types": [
+        "Name",
+        "PAN",
+        "Aadhaar",
+        "Bank account",
+        "Salary",
+        "Medical"
+      ],
+      "law_codes": [
+        "d:§7(i)",
+        "d:§8(4)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_07",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-07",
+      "name": "Write down where they are — school phones, website, magazine, Instagram",
+      "plain_text": "Write down where they are — school phones, website, magazine, Instagram",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "DPDP coordinator",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 2,
+      "data_set": "Photos & videos",
+      "data_types": [
+        "Children’s photos",
+        "Videos"
+      ],
+      "law_codes": [
+        "d:§8(4)",
+        "d:§9"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_08",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-08",
+      "name": "Write down what the bus system records and who can see it",
+      "plain_text": "Write down what the bus system records and who can see it",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Transport in-charge",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 2,
+      "data_set": "School buses",
+      "data_types": [
+        "Live location",
+        "Pickup address",
+        "Parent phone"
+      ],
+      "law_codes": [
+        "d:§8(4)",
+        "d:§9(3)",
+        "d:R12"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_09",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-09",
+      "name": "Write down where recordings are kept and for how long",
+      "plain_text": "Write down where recordings are kept and for how long",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "CCTV",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 2,
+      "data_set": "CCTV",
+      "data_types": [
+        "Video of children and staff"
+      ],
+      "law_codes": [
+        "d:§4",
+        "d:§8(7)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_10",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-10",
+      "name": "Write down how long each is kept — admission and TC registers as your board requires; delete the rest",
+      "plain_text": "Write down how long each is kept — admission and TC registers as your board requires; delete the rest",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 14,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Admission office",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 2,
+      "data_set": "All data sets",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§8(7)",
+        "d:R8"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_11",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-11",
+      "name": "Take verifiable consent from a parent at admission — the school exemption covers only tracking for learning and safety, not admission data",
+      "plain_text": "Take verifiable consent from a parent at admission — the school exemption covers only tracking for learning and safety, not admission data",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 14,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Admission office",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 3,
+      "data_set": "Students",
+      "data_types": [
+        "All of the above"
+      ],
+      "law_codes": [
+        "d:§9(1)",
+        "d:R10",
+        "d:R12"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_12",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-12",
+      "name": "Take a separate Yes or No from parents for photos on the website, magazine and social media",
+      "plain_text": "Take a separate Yes or No from parents for photos on the website, magazine and social media",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 14,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "DPDP coordinator",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 3,
+      "data_set": "Photos & videos",
+      "data_types": [
+        "Children’s photos"
+      ],
+      "law_codes": [
+        "d:§6",
+        "d:§9(1)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_13",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-13",
+      "name": "Give parents a notice — what you hold, why, and how to complain",
+      "plain_text": "Give parents a notice — what you hold, why, and how to complain",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 14,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "DPDP coordinator",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 3,
+      "data_set": "Parents",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§5",
+        "d:R3"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_14",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-14",
+      "name": "Tell staff what you hold and why — no consent is needed for employment",
+      "plain_text": "Tell staff what you hold and why — no consent is needed for employment",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 14,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Staff records",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 3,
+      "data_set": "Staff",
+      "data_types": [
+        "All of the above"
+      ],
+      "law_codes": [
+        "d:§5",
+        "d:§7(i)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_15",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-15",
+      "name": "Put up a notice wherever there is a camera",
+      "plain_text": "Put up a notice wherever there is a camera",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 10,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "CCTV",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 3,
+      "data_set": "CCTV",
+      "data_types": [
+        "Video"
+      ],
+      "law_codes": [
+        "d:§5"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_16",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-16",
+      "name": "Mask Aadhaar copies — keep only the last 4 digits visible",
+      "plain_text": "Mask Aadhaar copies — keep only the last 4 digits visible",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 10,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Admission office",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 4,
+      "data_set": "Students · Staff",
+      "data_types": [
+        "Aadhaar"
+      ],
+      "law_codes": [
+        "a:§29",
+        "d:§8(5)",
+        "d:R6"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_17",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-17",
+      "name": "Passwords on the ERP and every office computer, access only for those who need it, backups",
+      "plain_text": "Passwords on the ERP and every office computer, access only for those who need it, backups",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 14,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "IT & computers",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 4,
+      "data_set": "All data sets",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§8(5)",
+        "d:R6"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_18",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-18",
+      "name": "Keep a record of who opened student data — for at least one year",
+      "plain_text": "Keep a record of who opened student data — for at least one year",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 21,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "IT & computers",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 4,
+      "data_set": "All data sets",
+      "data_types": [
+        "Access logs"
+      ],
+      "law_codes": [
+        "d:R6(1)(c)",
+        "d:R8(3)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_19",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-19",
+      "name": "Write down what to do if data leaks — tell the Board and every family affected, full report within 72 hours",
+      "plain_text": "Write down what to do if data leaks — tell the Board and every family affected, full report within 72 hours",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 21,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Grievance Officer (responsible for DPDP policy)",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 4,
+      "data_set": "All data sets",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§8(6)",
+        "d:R7"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_20",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-20",
+      "name": "Check your own laptop and phone for student photos and marks — never share them on personal WhatsApp",
+      "plain_text": "Check your own laptop and phone for student photos and marks — never share them on personal WhatsApp",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Teachers",
+      "applies_when": {
+        "grp": true
+      },
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 4,
+      "data_set": "Teachers",
+      "data_types": [
+        "Children’s photos",
+        "Marks"
+      ],
+      "law_codes": [
+        "d:§8(5)",
+        "d:§9"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_21",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-21",
+      "name": "No ads, profiling or tracking of children beyond learning and safety",
+      "plain_text": "No ads, profiling or tracking of children beyond learning and safety",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 21,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "DPDP coordinator",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 4,
+      "data_set": "Students",
+      "data_types": [
+        "Behaviour",
+        "Online activity"
+      ],
+      "law_codes": [
+        "d:§9(3)",
+        "d:R12"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_22",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-22",
+      "name": "Bus firm signs the data agreement — location only during the journey, only for safety",
+      "plain_text": "Bus firm signs the data agreement — location only during the journey, only for safety",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "processor",
+      "role_tag": "Bus firm",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 5,
+      "data_set": "School buses",
+      "data_types": [
+        "Live location"
+      ],
+      "law_codes": [
+        "d:§8(2)",
+        "d:R12"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_23",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-23",
+      "name": "School software firm signs the data agreement",
+      "plain_text": "School software firm signs the data agreement",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 12,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "processor",
+      "role_tag": "School software firm",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 5,
+      "data_set": "Students · Parents",
+      "data_types": [
+        "Marks",
+        "Attendance",
+        "Fees"
+      ],
+      "law_codes": [
+        "d:§8(2)",
+        "d:R6(1)(f)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_24",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-24",
+      "name": "Check where your apps keep data — ERP, fee app, WhatsApp groups — and whether it is outside India",
+      "plain_text": "Check where your apps keep data — ERP, fee app, WhatsApp groups — and whether it is outside India",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 21,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "IT & computers",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 5,
+      "data_set": "All data sets",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§8(2)",
+        "d:§16",
+        "d:R15"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_25",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-25",
+      "name": "Publish how parents can ask to see, correct or delete their child’s data",
+      "plain_text": "Publish how parents can ask to see, correct or delete their child’s data",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 21,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Grievance Officer (responsible for DPDP policy)",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 6,
+      "data_set": "All data sets",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§11",
+        "d:§12",
+        "d:R14(1)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_26",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-26",
+      "name": "Answer every complaint within 90 days",
+      "plain_text": "Answer every complaint within 90 days",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 21,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Grievance Officer (responsible for DPDP policy)",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 6,
+      "data_set": "All data sets",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§13",
+        "d:R14(3)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_27",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-27",
+      "name": "Delete a student’s data when it is no longer needed — keep the registers your board requires",
+      "plain_text": "Delete a student’s data when it is no longer needed — keep the registers your board requires",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 21,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "Admission office",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 6,
+      "data_set": "Students",
+      "data_types": [
+        "All"
+      ],
+      "law_codes": [
+        "d:§8(7)",
+        "d:§12(3)"
+      ],
+      "depends_on_key": null
+    },
+    {
+      "id": "tmpl_institution_28",
+      "library_version_id": "dpdp_lib_0_2_wo010",
+      "key": "institution-28",
+      "name": "Sign off all the answers",
+      "plain_text": "Sign off all the answers",
+      "section_ref": null,
+      "proof_kind": "declaration",
+      "default_days": 25,
+      "recurrence": "none",
+      "proof_expiry_days": null,
+      "answerable_by": "internal",
+      "role_tag": "OWNER",
+      "applies_when": null,
+      "feeds_documents": null,
+      "proof_mode": "declare",
+      "product": "institution",
+      "part": 7,
+      "data_set": "Whole school",
+      "data_types": null,
+      "law_codes": [
+        "d:§8(1)"
+      ],
+      "depends_on_key": null
+    }
+  ]
+}
