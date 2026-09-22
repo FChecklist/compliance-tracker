@@ -31,8 +31,12 @@ export default defineConfig({
   build: {
     sourcemap: false,
     rollupOptions: {
+      // A private prefix served by a Pages Function (source: null) has no
+      // HTML to build; everything else is an entry.
       input: Object.fromEntries(
-        [...PUBLIC_PAGES, ...PRIVATE_PAGES].map((p) => [p.source.replace(/\/?index\.html$/, "") || "home", here(p.source)]),
+        [...PUBLIC_PAGES, ...PRIVATE_PAGES]
+          .filter((p): p is typeof p & { source: string } => p.source !== null)
+          .map((p) => [p.source.replace(/\/?index\.html$/, "") || "home", here(p.source)]),
       ),
     },
   },
