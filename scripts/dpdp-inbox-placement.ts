@@ -10,7 +10,7 @@
 // Needs RESEND_API_KEY in the environment (root .env.local). Sends exactly
 // three emails, all marked [placement A|B|C] in the subject. Nothing is
 // written to the database.
-import { renderDigest, type Digest, type DigestJob, type RenderLinks } from "../supabase/functions/dpdp-monday-email/render.ts"
+import { renderDigest, type Digest, type DigestJob, type RenderLinks } from "../supabase/functions/dpdp-monday-email/render"
 
 const to = process.argv[2]
 if (!to || !to.includes("@")) { console.error("usage: bun run scripts/dpdp-inbox-placement.ts <to-address>"); process.exit(2) }
