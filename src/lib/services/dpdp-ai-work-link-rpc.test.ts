@@ -121,7 +121,7 @@ async function jobs(token: string, filters: Record<string, unknown> = {}): Promi
   return (await sql<{ r: Job[] }[]>`select public.dpdp_ai_link_jobs(${token}, ${sql.json(filters)}) as r`)[0].r
 }
 async function job(token: string, id: string) {
-  return (await sql<{ r: Job & { plainText: string; emailsSent: number; history: HistoryEntry[]; aiActions: unknown[] } }[]>`select public.dpdp_ai_link_job(${token}, ${id}) as r`)[0].r
+  return (await sql<{ r: Job & { plainText: string; roleTag: string | null; emailsSent: number; history: HistoryEntry[]; aiActions: unknown[] } }[]>`select public.dpdp_ai_link_job(${token}, ${id}) as r`)[0].r
 }
 async function law(token: string, code: string) {
   return (await sql<{ r: { code: string; inForceToday: boolean; legalDuty: boolean; jobs: Array<{ id: string }> } }[]>`select public.dpdp_ai_link_law(${token}, ${code}) as r`)[0].r
@@ -343,7 +343,21 @@ d("WO-DPDP-013 Part 1: the AI work link", () => {
     expect((await context(link.token)).verbs.level1).toEqual([...LEVEL1])
     const rows = await jobs(link.token)
     const open = rows.filter((r) => !r.isGroup && !r.yes && !r.na)
-    const [noteRow, dueRow, assignRow, naRow] = open
+    // Only ROLE-FREE jobs are handed around below: giving the staff member a
+    // role-tagged job (DPDP coordinator, Grievance Officer, CA) would make
+    // them that role -- dpdp__viewer_kind follows the jobs a person holds --
+    // and a coordinator sees the whole org, which the staff assertions at
+    // the end of this test rely on NOT being the case (found on the first
+    // live run: the positional pick landed on the coordinator's job).
+    // role_tag also carries plain AREA names ("Customer data" ...), which
+    // change nobody's kind -- only these four do (0607 dpdp__viewer_kind).
+    const ROLE_TAGS = new Set(["DPDP coordinator", "Grievance Officer (responsible for DPDP policy)", "CAPARTNER", "CAMGR"])
+    const plain: typeof open = []
+    for (const r of open) {
+      if (plain.length >= 4) break
+      if (!ROLE_TAGS.has((await job(link.token, r.id)).roleTag ?? "")) plain.push(r)
+    }
+    const [noteRow, dueRow, assignRow, naRow] = plain
     expect(naRow).toBeDefined()
 
     const note = await action(link.token, "NOTE", noteRow.id, { text: "Vendor agreement signed on 20 Sep" })
@@ -409,7 +423,14 @@ d("WO-DPDP-013 Part 1: the AI work link", () => {
     expect(mine.byIsYou).toBe(true)
     expect(await refuse(() => action(staffLink.token, "SET_DUE", mine.id, { dueOn: "2027-01-01" }))).toContain("Only the owner")
     expect(await refuse(() => action(staffLink.token, "ASSIGN", mine.id, { email: owner.email }))).toContain("Only the owner")
-    expect(await refuse(() => action(staffLink.token, "NOTE", dueRow.id, { text: "not mine" }))).toContain("not one this link can see")
+    // A job that is genuinely not theirs: the first visit gave this staff
+    // member every "Customer data" job (and ASSIGN above gave them one more),
+    // so pick by assignment, not by position in the owner's list -- the
+    // first live run picked dueRow, which happened to be one of theirs.
+    const notMine = (await jobs(link.token)).find((r) => !r.isGroup && !r.na && r.by !== staff.email)!
+    expect(notMine).toBeDefined()
+    expect((await jobs(staffLink.token)).some((r) => r.id === notMine.id)).toBe(false) // the staff view really excludes it
+    expect(await refuse(() => action(staffLink.token, "NOTE", notMine.id, { text: "not mine" }))).toContain("not one this link can see")
     const staffNote = await action(staffLink.token, "NOTE", mine.id, { text: "Started on this" })
     expect(staffNote.recorded).toBe(`by ${staff.email} via AI assistant -- added a note to "${mine.what}"`)
     expect((await actions(org.id)).find((a) => a.id === staffNote.actionId)?.membershipId).toBe(staffMembershipId)
