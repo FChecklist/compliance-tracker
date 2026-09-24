@@ -28,10 +28,19 @@ export interface HeaderRule {
   unset: string[]
 }
 
+export interface HiddenPage {
+  readonly prefix: string
+  readonly source: string
+}
+
+import type { Facts } from "./facts.mjs"
+
 export declare const SITE_ORIGIN: string
+export declare const FACTS: Facts
 export declare const REQUIRED_BOTS: readonly string[]
 export declare const PRIVATE_PAGES: readonly PrivatePage[]
 export declare const PUBLIC_PAGES: readonly PublicPage[]
+export declare const HIDDEN_PAGES: readonly HiddenPage[]
 export declare function pageUrl(path: string): string
 export declare function isW3cDatetime(s: string): boolean
 export declare function renderSitemap(entries: ReadonlyArray<{ path: string; lastmod: string }>): string

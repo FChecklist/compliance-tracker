@@ -20,6 +20,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import {
+  HIDDEN_PAGES,
   PRIVATE_PAGES,
   PUBLIC_PAGES,
   REQUIRED_BOTS,
@@ -101,13 +102,24 @@ function linkHref(html, rel) {
 const isSameOrigin = (url) => (url.startsWith("/") && !url.startsWith("//")) || url.startsWith("#") || url.startsWith("data:")
 
 // Owner rule: no price on public pages -- so no price-shaped key anywhere in
-// the structured data either, whatever it is nested under.
+// the structured data either, whatever it is nested under. WO-DPDP-013 v2
+// §2.1 adds "no ratings": no aggregateRating/review/ratingValue either.
 function priceKeys(value, path = "$", out = []) {
   if (Array.isArray(value)) value.forEach((v, i) => priceKeys(v, `${path}[${i}]`, out))
   else if (value && typeof value === "object") {
     for (const [k, v] of Object.entries(value)) {
       if (/^(offers?|price|priceCurrency|priceRange|priceSpecification|lowPrice|highPrice)$/i.test(k)) out.push(`${path}.${k}`)
       priceKeys(v, `${path}.${k}`, out)
+    }
+  }
+  return out
+}
+function ratingKeys(value, path = "$", out = []) {
+  if (Array.isArray(value)) value.forEach((v, i) => ratingKeys(v, `${path}[${i}]`, out))
+  else if (value && typeof value === "object") {
+    for (const [k, v] of Object.entries(value)) {
+      if (/^(aggregateRating|review|reviews|ratingValue|ratingCount|reviewCount|bestRating|worstRating)$/i.test(k)) out.push(`${path}.${k}`)
+      ratingKeys(v, `${path}.${k}`, out)
     }
   }
   return out
@@ -185,6 +197,8 @@ for (const page of PUBLIC_PAGES) {
   }
   const bad = priceKeys(nodes)
   expect(bad.length === 0, `${label}: JSON-LD carries price/offer keys (${bad.join(", ")}) -- owner rule: no price on public pages`)
+  const rated = ratingKeys(nodes)
+  expect(rated.length === 0, `${label}: JSON-LD carries rating/review keys (${rated.join(", ")}) -- WO-DPDP-013 v2 §2.1: no ratings`)
   if (page.jsonLd.includes("FAQPage")) {
     const questions = nodes.find((n) => n["@type"] === "FAQPage")?.mainEntity ?? []
     expect(questions.length > 0, `${label}: FAQPage has no mainEntity`)
@@ -226,6 +240,27 @@ for (const priv of PRIVATE_PAGES) {
   expect(meta(html, "name", "robots") === "noindex, nofollow", `${label}: <meta name="robots" content="noindex, nofollow"> missing`)
   expect(meta(html, "name", "referrer") === "no-referrer", `${label}: <meta name="referrer" content="no-referrer"> missing`)
   expect(linkHref(html, "canonical") === null, `${label}: a private page must not declare a canonical`)
+  checkCrossOrigin(label, html)
+}
+
+// ---------------------------------------------------------------- hidden pages
+// WO-DPDP-013 v2 §2.1: built but hidden (/proof/ until the owner switches
+// it on). Not a private prefix: noindex meta + X-Robots-Tag, no canonical,
+// absent from the sitemap and llms*.txt (checked below), and still a
+// complete no-script page like the public ones.
+for (const hidden of HIDDEN_PAGES) {
+  const label = `${hidden.prefix} (hidden)`
+  if (!has(hidden.source)) {
+    expect(false, `${label}: dist/${hidden.source} missing -- "built and hidden", not "not built"`)
+    continue
+  }
+  const html = read(hidden.source)
+  expect(/<html\b[^>]*\slang="en-IN"/i.test(html), `${label}: <html lang="en-IN"> missing`)
+  expect(meta(html, "name", "robots") === "noindex, nofollow", `${label}: <meta name="robots" content="noindex, nofollow"> missing`)
+  expect(linkHref(html, "canonical") === null, `${label}: a hidden page must not declare a canonical`)
+  expect(meta(html, "property", "og:url") === null, `${label}: a hidden page must not carry Open Graph tags`)
+  const scripts = tagsOf(html, /<script\b[^>]*>/gi).filter((t) => !/type="application\/ld\+json"/i.test(t))
+  expect(scripts.length === 0, `${label}: hidden page has ${scripts.length} <script> tag(s) besides JSON-LD`)
   checkCrossOrigin(label, html)
 }
 
@@ -290,6 +325,7 @@ if (has("sitemap.xml")) {
   const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
   const want = PUBLIC_PAGES.map((p) => pageUrl(p.path))
   expect(locs.length === want.length && want.every((u) => locs.includes(u)), `sitemap.xml lists ${JSON.stringify(locs)}, expected exactly ${JSON.stringify(want)}`)
+  for (const hidden of HIDDEN_PAGES) expect(!xml.includes(hidden.prefix), `sitemap.xml: names the hidden page ${hidden.prefix}`)
   const lastmods = [...xml.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1])
   expect(lastmods.length === locs.length, "sitemap.xml: every <url> needs a <lastmod>")
   for (const m of lastmods) expect(isW3cDatetime(m), `sitemap.xml: lastmod "${m}" is not a W3C datetime`)
@@ -315,6 +351,12 @@ if (has("_headers")) {
     expect(h["referrer-policy"] === "strict-origin-when-cross-origin", `_headers: ${pub.path} gets Referrer-Policy "${h["referrer-policy"]}"`)
     expect(h["x-content-type-options"] === "nosniff", `_headers: ${pub.path} lacks X-Content-Type-Options: nosniff`)
   }
+  for (const hidden of HIDDEN_PAGES) {
+    for (const path of [hidden.prefix, `${hidden.prefix}index.html`]) {
+      const h = resolveHeaders(rules, path)
+      expect(h["x-robots-tag"] === "noindex, nofollow", `_headers: hidden ${path} gets X-Robots-Tag "${h["x-robots-tag"]}", expected "noindex, nofollow"`)
+    }
+  }
 }
 
 // ------------------------------------------------------------------- llms.txt
@@ -324,6 +366,7 @@ for (const f of ["llms.txt", "llms-full.txt"]) {
   const body = read(f)
   for (const pub of PUBLIC_PAGES) expect(body.includes(pageUrl(pub.path)), `${f}: does not list ${pageUrl(pub.path)}`)
   for (const priv of PRIVATE_PAGES) expect(!body.includes(pageUrl(priv.prefix)), `${f}: names the private URL ${pageUrl(priv.prefix)}`)
+  for (const hidden of HIDDEN_PAGES) expect(!body.includes(hidden.prefix), `${f}: names the hidden page ${hidden.prefix}`)
   expect(/no major search engine has confirmed/i.test(body), `${f}: lacks the honesty note WO-012 §3 asks for`)
 }
 
@@ -333,4 +376,4 @@ if (failures.length) {
   for (const f of failures) console.error(`  - ${f}`)
   process.exit(1)
 }
-console.log(`check-public-surface: OK -- ${checks} checks passed across ${PUBLIC_PAGES.length} public and ${PRIVATE_PAGES.length} private page(s) in ${relative(process.cwd(), dist) || "."}`)
+console.log(`check-public-surface: OK -- ${checks} checks passed across ${PUBLIC_PAGES.length} public, ${HIDDEN_PAGES.length} hidden and ${PRIVATE_PAGES.length} private page(s) in ${relative(process.cwd(), dist) || "."}`)
