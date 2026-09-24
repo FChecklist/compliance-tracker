@@ -8,8 +8,8 @@
 // first, with the number that moved. No DOM, no browser: bun has no
 // localStorage or window, and the mock treats both as optional.
 import { describe, expect, test } from "bun:test"
-import { LIBRARY, MOCK_MEMBERS, MOCK_OWNER, MOCK_PARTNER, MOCK_STAFF, createMockClient } from "./mock-client"
-import type { CaClientWire, MyPagePayload } from "./rpc-types"
+import { LIBRARY, MOCK_MEMBERS, MOCK_OWNER, MOCK_PARTNER, MOCK_STAFF, MOCK_UNDO_ACTION, createMockClient } from "./mock-client"
+import type { AiActionUndoPayload, AiLinkListItem, AiLinkWarning, AiWorkLinkCreated, CaClientWire, MyPagePayload } from "./rpc-types"
 import { isToday } from "@/lib/dpdp-onepage/view-model"
 
 async function page(scenario: string, orgId?: string): Promise<MyPagePayload> {
@@ -178,5 +178,90 @@ describe("not me (drizzle/0604's dpdp_flag_not_me stamps both dates)", () => {
     const p = (await client.rpc("dpdp_my_page")).data as MyPagePayload
     expect(p.viewer.firstVisitSeenAt).not.toBeNull()
     expect(p.viewer.saidNotMeAt).not.toBeNull()
+  })
+})
+
+// WO-DPDP-013 Part 1 (drizzle/0610): the AI WORK link -- the Copy-AI-link
+// screen (AiWorkLink.tsx) consumes exactly these five RPCs.
+describe("dpdp_ai_link_warning (the counts in the WO-013 §1.1 sentence)", () => {
+  test("owner-live: 31 jobs (every row, na or not) and 13 distinct people (10 named individuals + 3 group members)", async () => {
+    const client = createMockClient("owner-live")
+    const w = (await client.rpc("dpdp_ai_link_warning")).data as AiLinkWarning
+    // 31: LIBRARY.firm.length itself (pinned above). 13: the owner + GO +
+    // coordinator/accounts + customer-data + staff-records + website firm +
+    // CCTV + IT + CA manager + CA partner (10 distinct named individuals,
+    // LIVE_AREAS + the sign-off chain) + the 3-member "All staff" group.
+    expect(w).toEqual({ jobs: 31, people: 13 })
+  })
+  test("a brand-new org: every job still counts, but only the owner and the sign-off chain are named", async () => {
+    const w = (await createMockClient("owner").rpc("dpdp_ai_link_warning")).data as AiLinkWarning
+    expect(w).toEqual({ jobs: 31, people: 3 }) // owner + CA manager + CA partner
+  })
+})
+
+describe("dpdp_ai_link_create / dpdp_ai_link_list / dpdp_ai_link_revoke", () => {
+  test("create returns the token exactly once, with the level/hideEmails/label/warning-counts it was asked for", async () => {
+    const client = createMockClient("owner-live")
+    const created = (await client.rpc("dpdp_ai_link_create", { p_level: 1, p_hide_emails: true, p_days: 1, p_label: "ChatGPT" })).data as AiWorkLinkCreated
+    expect(created).toMatchObject({ level: 1, hideEmails: true, label: "ChatGPT", jobs: 31, people: 13 })
+    expect(created.token).toMatch(/^mock-work-link-1-/)
+    expect(new Date(created.expiresAt).getTime()).toBeGreaterThan(Date.now())
+    expect(new Date(created.expiresAt).getTime()).toBeLessThan(Date.now() + 2 * 86_400_000) // 1 day, not 7 or 30
+  })
+  test("default level 0, hideEmails false, 7 days, no label", async () => {
+    const created = (await createMockClient("owner-live").rpc("dpdp_ai_link_create", {})).data as AiWorkLinkCreated
+    expect(created).toMatchObject({ level: 0, hideEmails: false, label: null })
+    const days = Math.round((new Date(created.expiresAt).getTime() - Date.now()) / 86_400_000)
+    expect(days).toBe(7)
+  })
+  test("list shows every link newest first, active while neither revoked nor expired; revoke is recorded and re-read as inactive", async () => {
+    const client = createMockClient("owner-live")
+    await client.rpc("dpdp_ai_link_create", { p_label: "First" })
+    const second = (await client.rpc("dpdp_ai_link_create", { p_label: "Second" })).data as AiWorkLinkCreated
+    let list = (await client.rpc("dpdp_ai_link_list")).data as AiLinkListItem[]
+    expect(list.map((l) => l.label)).toEqual(["Second", "First"]) // newest first
+    expect(list.every((l) => l.active)).toBe(true)
+    expect(list.map((l) => l.callCount)).toEqual([0, 0])
+
+    const revoked = await client.rpc("dpdp_ai_link_revoke", { p_id: second.linkId })
+    expect(revoked.data).toEqual({ ok: true })
+    list = (await client.rpc("dpdp_ai_link_list")).data as AiLinkListItem[]
+    const secondRow = list.find((l) => l.label === "Second")!
+    expect(secondRow.active).toBe(false)
+    expect(secondRow.revokedAt).not.toBeNull()
+    expect(list.find((l) => l.label === "First")!.active).toBe(true) // the other link is untouched
+
+    // Idempotent: revoking an already-revoked link is still ok:true.
+    expect((await client.rpc("dpdp_ai_link_revoke", { p_id: second.linkId })).data).toEqual({ ok: true })
+    // An id that never existed at all is a real refusal, not a silent no-op.
+    expect((await client.rpc("dpdp_ai_link_revoke", { p_id: "nope" })).error?.message).toBe("Link not found")
+  })
+  test("a link made for one org does not appear in another org's list", async () => {
+    const partner = createMockClient("partner")
+    const clients = (await partner.rpc("dpdp_my_clients")).data as CaClientWire[]
+    const clientOrgId = clients[0].org.id
+    await partner.rpc("dpdp_ai_link_create", { p_org_id: clientOrgId, p_label: "For the client" })
+    const homeList = (await partner.rpc("dpdp_ai_link_list")).data as AiLinkListItem[]
+    expect(homeList).toEqual([])
+    const clientList = (await partner.rpc("dpdp_ai_link_list", { p_org_id: clientOrgId })).data as AiLinkListItem[]
+    expect(clientList.map((l) => l.label)).toEqual(["For the client"])
+  })
+})
+
+describe("dpdp_ai_action_undo (`/app/#undo=mock-action.mock-undo`)", () => {
+  test("the fixed mock action undoes once, then refuses a second time", async () => {
+    const client = createMockClient("owner-live")
+    const result = (await client.rpc("dpdp_ai_action_undo", { p_action_id: MOCK_UNDO_ACTION.actionId, p_undo_token: MOCK_UNDO_ACTION.undoToken })).data as AiActionUndoPayload
+    expect(result).toMatchObject({ ok: true, verb: "NOTE" })
+    expect(typeof result.jobId).toBe("string")
+    const again = await client.rpc("dpdp_ai_action_undo", { p_action_id: MOCK_UNDO_ACTION.actionId, p_undo_token: MOCK_UNDO_ACTION.undoToken })
+    expect(again.error?.message).toBe("This has already been undone")
+  })
+  test("a wrong id or token is refused, not silently accepted", async () => {
+    const client = createMockClient("owner-live")
+    const wrongId = await client.rpc("dpdp_ai_action_undo", { p_action_id: "not-mock-action", p_undo_token: MOCK_UNDO_ACTION.undoToken })
+    expect(wrongId.error?.message).toBe("This undo link is not valid")
+    const wrongToken = await client.rpc("dpdp_ai_action_undo", { p_action_id: MOCK_UNDO_ACTION.actionId, p_undo_token: "not-mock-undo" })
+    expect(wrongToken.error?.message).toBe("This undo link is not valid")
   })
 })
