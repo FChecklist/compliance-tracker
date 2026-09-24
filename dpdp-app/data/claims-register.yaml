@@ -1,0 +1,127 @@
+# data/claims-register.yaml -- the Claims Register (WO-DPDP-013 v2 §0 rule 3).
+#
+# "No unproven claims ('best', 'only', 'world class', 'guarantees',
+# 'certified'). Claims live in a Claims Register with evidence and owner +
+# legal approval; a build test fails on any banned word outside an approved
+# claim."
+#
+# How it is enforced (scripts/check-claims.mjs, run inside `bun run build`
+# after check-public-surface; src/lib/claims-register.test.ts runs the same
+# code against the committed sources):
+#
+#   1. Every public surface in dist/ is read: the public pages (visible text,
+#      meta description, Open Graph, every string inside the JSON-LD), the
+#      hidden /proof/ page, /for-ai.md, /llms.txt, /llms-full.txt and
+#      /facts.json.
+#   2. The text is split into sentences. Any sentence containing a banned
+#      word (whole word, case-insensitive; "#1" and "100%" literally) FAILS
+#      the build unless that exact sentence is either
+#        (a) a `claims` entry with owner_approved: true AND legal_approved:
+#            true, or
+#        (b) a `fact_exceptions` entry -- a sentence in which the banned word
+#            is a disclaimer ("no DPDP certification exists in India") or an
+#            ordinary word ("what only you know"), not a claim.
+#      Matching is on the whole sentence after whitespace is collapsed, so a
+#      new sentence with a banned word, however similar, fails until it is
+#      registered here.
+#
+# `legal_approved` stays false on every claim until a lawyer signs; while it
+# is false, a claim that carries a banned word cannot appear on any public
+# surface at all. Claims WITHOUT a banned word (e.g. "For India, by India")
+# are registered for the evidence trail and are not build-gated.
+
+version: 1
+
+banned_words:
+  - best
+  - only
+  - world class
+  - world-class
+  - guarantee
+  - guarantees
+  - guaranteed
+  - certified
+  - certification
+  - "#1"
+  - leading
+  - unmatched
+  - fastest
+  - "100%"
+  # WO-DPDP-014 §1: "Never write 'Made in India' -- it has a specific meaning
+  # in Indian public procurement." Banned outright; no exception may list it.
+  - Made in India
+
+# Sentences in which a banned word is a fact, a disclaimer, or an ordinary
+# word. Each is exact (whitespace-collapsed). `words` names the banned word(s)
+# the sentence contains; `why` says why it is not a claim.
+fact_exceptions:
+  - sentence: no DPDP certification exists in India
+    words: [certification]
+    kind: fact
+    why: The phrase WO-DPDP-013 v2 itself names as a fact, not a claim.
+  - sentence: "It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents."
+    words: [certification, guarantee]
+    kind: disclaimer
+    why: WO-DPDP-013 v2 §2.2, verbatim -- the one line of what VERIDIAN does NOT do. Both banned words are negated.
+  - sentence: "It does not certify compliance — no DPDP certification exists in India — and it does not guarantee an outcome."
+    words: [certification, guarantee]
+    kind: disclaimer
+    why: WO-DPDP-013 v2 §1.3-A, verbatim (Part 1 manual, section A, fifth paragraph). Both banned words are negated.
+  - sentence: "There is no government DPDP certification in India."
+    words: [certification]
+    kind: disclaimer
+    why: FAQ answer on /dpdp-firm/ and /dpdp-institution/ ("Can you certify us as compliant?"), verbatim from the Next.js landing. Negated.
+  - sentence: "No DPDP certification exists in India and we do not offer one."
+    words: [certification]
+    kind: disclaimer
+    why: Footer legal line on /dpdp-firm/ and /dpdp-institution/, verbatim from the Next.js landing. Negated.
+  - sentence: "Your clients attach you, you sign, you answer what only you know."
+    words: [only]
+    kind: ordinary-word
+    why: "\"only\" as in \"what only you know\" -- not \"the only\" anything. Card on /dpdp-firm/ and /dpdp-institution/ (\"A web agency, payroll bureau or IT firm\"), verbatim from the Next.js landing."
+
+# Claims: sentences that assert something strong about VERIDIAN, each with
+# the evidence behind it. `words` lists any banned word the sentence
+# contains (build-gated while legal_approved is false); an empty list means
+# the claim is recorded for its evidence trail and is not build-gated.
+claims:
+  - id: CLM-001
+    sentence: For India, by India
+    words: []
+    where: The brand line (WO-DPDP-014 §1), on every page, email footer and report.
+    evidence: Built and owned by an Indian founder and company -- owner statement, WO-DPDP-014 §1. The company is SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, CIN U74999UP2017PTC098453, incorporated in India under the Companies Act, 2013 (src/app/disclaimer/page.tsx).
+    owner_approved: true
+    approved_on: "2026-09-22"
+    legal_approved: false
+  - id: CLM-002
+    sentence: "Built for India's DPDP Act."
+    words: []
+    where: The brand line (WO-DPDP-014 §1).
+    evidence: The job library (data/dpdp-library-0.2-wo010.json) maps every job to a section of the DPDP Act 2023, a DPDP Rule 2025 or an SPDI Rule 2011 provision (law_codes); the product exists for no other purpose (WO-DPDP-013 v2 §1.3-A, "purpose-built").
+    owner_approved: true
+    approved_on: "2026-09-22"
+    legal_approved: false
+  - id: CLM-003
+    sentence: "Each answer is recorded with a date and cannot be edited, building the proof an organisation needs."
+    words: []
+    where: The fact block on every public page; /about/; /for-ai/ (WO-DPDP-013 v2 §2.2).
+    evidence: Append-only event log dpdp.event with a hash chain (dpdp-app/DEPLOY.md go-live check 7, "an intact chain"; src/lib/services/dpdp-cross-tenant-rpc.test.ts).
+    owner_approved: true
+    approved_on: "2026-09-22"
+    legal_approved: false
+  - id: CLM-004
+    sentence: "Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027."
+    words: []
+    where: The fact block on every public page; /about/; /for-ai/ (WO-DPDP-013 v2 §2.2).
+    evidence: Every template in data/dpdp-library-0.2-wo010.json carries law_codes ("d:§…" for the Act, "r:…" for the Rules, "s:…" for SPDI); src/lib/facts.test.ts counts them.
+    owner_approved: true
+    approved_on: "2026-09-22"
+    legal_approved: false
+  - id: CLM-005
+    sentence: "Every CA firm whose clients hold personal data will need to show DPDP compliance by 13 May 2027 — VERIDIAN is built for exactly that work."
+    words: []
+    where: /about/; /for-ai/ (WO-DPDP-013 v2 §2.2).
+    evidence: Owner statement, WO-DPDP-013 v2 §2.2. The date is the DPDP Rules 2025 commencement the public pages already carry ("Compliance due 13 May 2027"). Legal review pending.
+    owner_approved: true
+    approved_on: "2026-09-22"
+    legal_approved: false

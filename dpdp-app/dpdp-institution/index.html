@@ -14,15 +14,15 @@
       links (to the Next.js login, see the nav comment). scripts/check-public-surface.mjs
       proves the rest after every build.
     -->
-    <title>VERIDIAN DPDP for Schools — Digital Personal Data Protection Act Compliance</title>
-    <meta name="description" content="A DPDP Act compliance record built for schools -- students', parents' and staff's data, most of it belonging to minors, with a tamper-evident audit trail and no documents handed over." />
+    <title>VERIDIAN · VERy INDIAN — DPDP Act Compliance for Schools</title>
+    <meta name="description" content="VERIDIAN is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and schools and institutions." />
     <link rel="canonical" href="https://app.veridian-aios.com/dpdp-institution/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="VERIDIAN DPDP" />
     <meta property="og:locale" content="en_IN" />
     <meta property="og:url" content="https://app.veridian-aios.com/dpdp-institution/" />
-    <meta property="og:title" content="VERIDIAN DPDP for Schools — Digital Personal Data Protection Act Compliance" />
-    <meta property="og:description" content="A DPDP Act compliance record built for schools -- students', parents' and staff's data, most of it belonging to minors, with a tamper-evident audit trail and no documents handed over." />
+    <meta property="og:title" content="VERIDIAN · VERy INDIAN — DPDP Act Compliance for Schools" />
+    <meta property="og:description" content="VERIDIAN is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and schools and institutions." />
     <link rel="preload" href="/fonts/sora-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/instrument-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/src/site.css" />
@@ -36,9 +36,23 @@
           "name": "VERIDIAN",
           "url": "https://veridian-aios.com/",
           "contactPoint": [
-            { "@type": "ContactPoint", "contactType": "Grievance Officer", "email": "grievance@veridian-aios.com" },
-            { "@type": "ContactPoint", "contactType": "Partners", "email": "partners@veridian-aios.com" }
-          ]
+            {
+              "@type": "ContactPoint",
+              "contactType": "Grievance Officer",
+              "email": "grievance@veridian-aios.com"
+            },
+            {
+              "@type": "ContactPoint",
+              "contactType": "Partners",
+              "email": "partners@veridian-aios.com"
+            }
+          ],
+          "legalName": "SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED",
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "B-1105, Plot No. 14, Shipra Krishna Vista, Ahinsa Khand-1, Indirapuram, Ghaziabad, Uttar Pradesh 201014, India",
+            "addressCountry": "IN"
+          }
         },
         {
           "@type": "WebSite",
@@ -46,7 +60,9 @@
           "name": "VERIDIAN DPDP",
           "url": "https://app.veridian-aios.com/",
           "inLanguage": "en-IN",
-          "publisher": { "@id": "https://app.veridian-aios.com/#organization" }
+          "publisher": {
+            "@id": "https://app.veridian-aios.com/#organization"
+          }
         },
         {
           "@type": "SoftwareApplication",
@@ -55,21 +71,82 @@
           "applicationCategory": "BusinessApplication",
           "operatingSystem": "Web browser",
           "inLanguage": "en-IN",
-          "description": "A DPDP Act compliance record built for schools -- students', parents' and staff's data, most of it belonging to minors, with a tamper-evident audit trail and no documents handed over.",
-          "audience": { "@type": "Audience", "audienceType": "Schools handling students', parents' and staff's personal data" },
-          "publisher": { "@id": "https://app.veridian-aios.com/#organization" }
+          "description": "VERIDIAN is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and schools and institutions.",
+          "audience": {
+            "@type": "Audience",
+            "audienceType": "Schools handling students', parents' and staff's personal data"
+          },
+          "publisher": {
+            "@id": "https://app.veridian-aios.com/#organization"
+          }
         },
         {
           "@type": "FAQPage",
           "mainEntity": [
-            { "@type": "Question", "name": "We run on Gmail. Does that matter?", "acceptedAnswer": { "@type": "Answer", "text": "No. Most Indian companies do. Sign-in is a link to whatever address you use — Gmail, Yahoo or your own domain." } },
-            { "@type": "Question", "name": "Has anybody actually been fined?", "acceptedAnswer": { "@type": "Answer", "text": "No. No penalty order has been issued in India to date, and the Board's members are not yet appointed. The date is the real thing, not the fear." } },
-            { "@type": "Question", "name": "We are small. Does this apply to us?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. There is no size exemption in the Act. A ten-person firm holding customer phone numbers is a Data Fiduciary." } },
-            { "@type": "Question", "name": "Do you touch our systems?", "acceptedAnswer": { "@type": "Answer", "text": "Never. We do not connect to your software, read your files or install anything. We record what you tell us and hold you to it." } },
-            { "@type": "Question", "name": "Do you keep our documents?", "acceptedAnswer": { "@type": "Answer", "text": "No. We keep a fingerprint, a name and a date. The document stays with you — which is why you must keep your own originals." } },
-            { "@type": "Question", "name": "Can you certify us as compliant?", "acceptedAnswer": { "@type": "Answer", "text": "No, and neither can anyone else. There is no government DPDP certification in India. We document and we record." } },
-            { "@type": "Question", "name": "What if we stop paying?", "acceptedAnswer": { "@type": "Answer", "text": "Your proof stays readable and exportable. You lose new entries, not old ones. We do not hold it hostage." } },
-            { "@type": "Question", "name": "What happens if you disappear?", "acceptedAnswer": { "@type": "Answer", "text": "Your whole record exports in open formats with the fingerprints intact, and verifies without us. That is the point of building it this way." } }
+            {
+              "@type": "Question",
+              "name": "We run on Gmail. Does that matter?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. Most Indian companies do. Sign-in is a link to whatever address you use — Gmail, Yahoo or your own domain."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Has anybody actually been fined?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. No penalty order has been issued in India to date, and the Board's members are not yet appointed. The date is the real thing, not the fear."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "We are small. Does this apply to us?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. There is no size exemption in the Act. A ten-person firm holding customer phone numbers is a Data Fiduciary."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Do you touch our systems?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Never. We do not connect to your software, read your files or install anything. We record what you tell us and hold you to it."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Do you keep our documents?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. We keep a fingerprint, a name and a date. The document stays with you — which is why you must keep your own originals."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can you certify us as compliant?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No, and neither can anyone else. There is no government DPDP certification in India. We document and we record."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "What if we stop paying?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Your proof stays readable and exportable. You lose new entries, not old ones. We do not hold it hostage."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "What happens if you disappear?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Your whole record exports in open formats with the fingerprints intact, and verifies without us. That is the point of building it this way."
+              }
+            }
           ]
         }
       ]
@@ -77,6 +154,12 @@
     </script>
   </head>
   <body class="site">
+    <!-- BEGIN generated: brand-line -->
+    <div class="brand-line">
+      <p class="brand-line-text"><span class="brand-line-full">VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India.</span><span class="brand-line-short">VERIDIAN · VERy INDIAN · For India, by India</span></p>
+      <a class="brand-line-share" href="https://veridian-aios.com/">Know a firm that needs this? Share VERIDIAN</a>
+    </div>
+    <!-- END generated: brand-line -->
     <header class="nav">
       <div class="nav-inner">
         <div class="wordmark">VERIDIAN<span class="wordmark-sub">VERy INDIAN</span></div>
@@ -114,6 +197,25 @@
       </div>
 
       <div class="container">
+        <!-- The fact block (WO-DPDP-013 v2 §2.1) and the brand line at the top
+             are generated from data/veridian-facts.yaml by
+             scripts/generate-public-facts.mjs -- edit the facts file, not this.
+             So are <title>, the meta description, the Open Graph tags and the
+             Organization + SoftwareApplication JSON-LD nodes. -->
+        <!-- BEGIN generated: facts -->
+        <section class="facts" aria-labelledby="facts-title">
+          <h2 class="facts-title" id="facts-title">What VERIDIAN is</h2>
+          <p class="facts-line">VERIDIAN is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and schools and institutions.</p>
+          <p class="facts-for"><b>Who it is for:</b> CA, CS, audit and legal firms · their clients · schools and institutions</p>
+          <ul class="facts-list">
+            <li>It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.</li>
+            <li>Each answer is recorded with a date and cannot be edited, building the proof an organisation needs.</li>
+            <li>Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.</li>
+          </ul>
+          <p class="facts-not">It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.</p>
+          <p class="facts-links"><a href="/about/">About VERIDIAN</a> · <a href="/for-ai/">Fact sheet for AI systems</a></p>
+        </section>
+        <!-- END generated: facts -->
         <section class="section">
           <h2 class="section-title">Everything DPDP, in one place</h2>
           <p class="section-sub">And the two things the law already requires you to publish are free, forever.</p>
