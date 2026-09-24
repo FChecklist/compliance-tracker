@@ -40,6 +40,24 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (sub-agent of the DPDP PM session, isolated worktree .claude/worktrees/agent-ad9d429e60039f5d4, branch feat/wo-dpdp-013-part1-ai-work-link off origin/main) -- WO-DPDP-013 v2 PART 1 (the inside door), §4 items 3/4/5: authority levels + ai_link_call/ai_action tables + the 12 public.dpdp_ai_link_* RPCs (drizzle/0610), the Edge Function API router, the generated manual (facts.ts + api-definition.ts + manual.ts), the /ai/<token>/* Pages Function proxy; plus WO-DPDP-014 brand line in the manual header and report footers [IN PROGRESS]"
+    claimed_at: "2026-09-22T (this session)"
+    claim: |
+      Scope: drizzle/0610_dpdp_wo013_ai_work_link.sql (+ _journal.json
+      entry, idx 441), src/lib/db/schema.ts (dpdpAiLink new columns,
+      dpdpAiLinkCall, dpdpAiAction -- additive), supabase/functions/
+      dpdp-ai-link/* (index.ts router, router.ts, manual.ts, facts.ts,
+      api-definition.ts, law.ts, README.md), dpdp-app/functions/ai/*
+      (catch-all proxy), dpdp-app/src/lib/{rpc-types,api}.ts +
+      components/DraftConfirm.tsx (Level 2 verbs only), tests under
+      src/lib/services/dpdp-ai-work-link-rpc.test.ts (DB-gated, unrun by
+      the author -- the PM applies 0610 via MCP and runs it),
+      dpdp-ai-manual.test.ts, dpdp-ai-link-router.test.ts,
+      dpdp-app/src/lib/ai-proxy.test.ts. NOT in scope (other agents):
+      the Copy-AI-link screen in dpdp-app, veridian-facts.yaml and every
+      Part 2 public page. No Vercel, no live DB, no deploy.
+  - session_label: "claude-code (sub-agent of the WO-DPDP-011 PM session, isolated worktree .claude/worktrees/agent-a857aaaa79bf17252, branch feat/wo-dpdp-011-step6-acceptance-70 off feat/wo-dpdp-011-step5-remaining-items + origin/main) -- WO-DPDP-011 Step 6: the 70 acceptance checks (tlaw 18 / tfirst 28 / troles2 24) as Playwright tests against the built static app in mock mode [IN PROGRESS]"
+    claimed_at: "2026-09-22T (this session)"
   - session_label: "claude-code (sub-agent of the DPDP PM session, isolated worktree, branch feat/wo-dpdp-013-part2-public-door) -- WO-DPDP-013 v2 Part 2 'the public fact door' + shared-rule tests, plus WO-DPDP-014 §1/§4/§6 items that live in the facts file and the public pages [IN PROGRESS]"
     claimed_at: "2026-09-22T17:05+05:30"
     claim: |
