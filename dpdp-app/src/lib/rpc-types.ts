@@ -140,3 +140,14 @@ export type AiDraftPreviewPayload = {
   confirmedAt: string | null
 }
 export type AiDraftConfirmPayload = { ok: true; verb: string; obligationId: string | null }
+
+// WO-DPDP-014 §3/§7 (drizzle/0611): the share action.
+
+/** Who may share with a referral code (WO-014 §3): the owner/principal, a CA partner, a CA manager. */
+export type ShareRoleWire = "owner" | "partner" | "manager"
+
+/** dpdp_my_referral_code: the caller's own dpdp.referral code (8 chars, unambiguous alphabet), made on first ask. Refused for every other role. */
+export type ReferralCodePayload = { code: string; role: ShareRoleWire }
+
+/** dpdp_record_share_press: one share_press event appended; the role it was recorded under. */
+export type SharePressPayload = { ok: true; role: ShareRoleWire }
