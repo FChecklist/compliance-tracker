@@ -199,3 +199,26 @@ describe("yesFor (group jobs)", () => {
     expect(yesFor(r, owner)).toBe(false)
   })
 })
+
+describe("vNow for a group member (ACCEPTANCE-70.md finding: 'Nothing for you this week' while the group job waited for them)", () => {
+  const member: ViewerContext = { kind: "staff", me: "asha@example.test" }
+  const groupJob = (mine: Partial<ObligationRow>) => row({ id: "g1", by: "All staff", isGroup: true, groupTotal: 3, groupDone: 1, viewerIsGroupMember: true, ...mine })
+
+  test("an unanswered group job is the member's job to do", () => {
+    const now = vNow([groupJob({ myGroupAnswer: null })], member, NOW)
+    expect(now.title).toBe("You have 1 job to do")
+    expect(now.action).toBe("mine")
+  })
+  test("once the member has answered, their week is clear even though colleagues have not", () => {
+    const now = vNow([groupJob({ myGroupAnswer: "done", groupDone: 1 })], member, NOW)
+    expect(now.title).toBe("Nothing for you this week")
+  })
+  test("a group job of a group the viewer is NOT in never counts as theirs", () => {
+    const now = vNow([groupJob({ myGroupAnswer: null, viewerIsGroupMember: false })], member, NOW)
+    expect(now.title).toBe("Nothing for you this week")
+  })
+  test("yesFor: the member's own answer decides, not the group total", () => {
+    expect(yesFor(groupJob({ myGroupAnswer: "cannot", groupDone: 1 }), member)).toBe(true)
+    expect(yesFor(groupJob({ myGroupAnswer: null, groupDone: 3 }), member)).toBe(false)
+  })
+})

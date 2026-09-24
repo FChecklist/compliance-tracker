@@ -326,6 +326,9 @@ function whereItIs(org: OrgState): string {
   const done = live.filter((r) => r.yes).length
   const openOther = live.filter((r) => !r.yes && !NOT_AN_AREA.has(r.area)).length
   const openMgr = live.filter((r) => !r.yes && r.area === "CAMGR").length
+  // drizzle/0612: an org a CA set up with no owner named yet cannot be
+  // "waiting for the owner" -- nobody exists to confirm.
+  if (org.setUpBy && !org.ownerConfirmedAt && !org.ownerEmail) return "No owner named yet"
   if (org.setUpBy && !org.ownerConfirmedAt) return "Waiting for the owner to confirm"
   if (done === 0) return "Not started"
   if (live.length > 0 && done === live.length) return "Signed off"
@@ -397,7 +400,15 @@ export function createMockClient(scenario?: string): DpdpClient {
       rows: org.rows.map((r) => toWire(org, r, me)),
     }
   }
-  const emailActionRow = () => home().rows.find((r) => r.area === "OWNER")!
+  // A real Monday email mints one token PER JOB (drizzle/0606
+  // dpdp.issue_email_action_tokens): the "done" and "cannot" mock tokens are
+  // therefore two different jobs, so recording Done on one never makes the
+  // other read "already done".
+  const emailActionRow = (action: "done" | "cannot" = "done") => {
+    const rows = home().rows
+    if (action === "cannot") return rows.find((r) => r.area !== "OWNER" && !r.yes && !!r.by) ?? rows.find((r) => r.area !== "OWNER")!
+    return rows.find((r) => r.area === "OWNER")!
+  }
   const draftRow = () => home().rows.find((r) => r.area === "Customer data")!
 
   // The token functions (drizzle/0606 + 0609's parent consent) need no
@@ -411,7 +422,7 @@ export function createMockClient(scenario?: string): DpdpClient {
         const action = token === MOCK_TOKENS.done ? "done" : token === MOCK_TOKENS.cannot ? "cannot" : null
         if (!action) return ok({ ok: false, reason: "This link is not valid." })
         if (state.spentTokens.includes(token)) return ok({ ok: false, reason: "This link has already been used. Nothing has changed." })
-        const row = emailActionRow()
+        const row = emailActionRow(action)
         return ok({ ok: true, action, what: row.what, orgName: org.name, isGroup: false, alreadyDone: row.yes })
       }
       case "dpdp_apply_email_action": {
@@ -419,7 +430,7 @@ export function createMockClient(scenario?: string): DpdpClient {
         if (!action) return ok({ ok: false, reason: "This link is not valid." })
         if (state.spentTokens.includes(token)) return ok({ ok: false, reason: "This link has already been used. Nothing has changed." })
         if (String(args?.p_answer) !== action) return ok({ ok: false, reason: "This link does not match that answer." })
-        const row = emailActionRow()
+        const row = emailActionRow(action)
         state.spentTokens.push(token)
         if (row.yes) {
           save(state)
@@ -483,6 +494,11 @@ export function createMockClient(scenario?: string): DpdpClient {
           if (org.viewers[previous]) { org.viewers[me] = org.viewers[previous]; delete org.viewers[previous] }
           org.ownerEmail = me
         }
+        // The client-owner persona IS "the owner whose CA set the org up"
+        // (drizzle/0609 dpdp_org_setup): a sign-in through the form seeds
+        // the same world `?mock=client-owner` does, so the review screen
+        // (OwnerReview) is reachable without the seed query string.
+        if (me === MOCK_CLIENT_OWNER && !org.setUpBy) state.orgs[HOME_ORG] = caSetUpHomeOrg()
         state.signedInAs = me
         save(state)
         // A real magic link is an inbox round trip; signing in on a later
@@ -648,9 +664,12 @@ export function createMockClient(scenario?: string): DpdpClient {
           for (const org of Object.values(state.orgs)) {
             if (!org.client) continue
             const who = viewerIn(org, me)
-            if (who?.kind !== "ca" || !who.caSub) continue
+            // drizzle/0612: the CA who set the org up is its partner even when
+            // the product's library has no CA-tagged job (a school).
+            const caSub = who?.kind === "ca" && who.caSub ? who.caSub : org.setUpBy?.email === me ? "partner" : null
+            if (!caSub) continue
             const live = org.rows.filter((r) => !r.na)
-            out.push({ org: { id: org.id, name: org.name, product: org.product }, caSub: who.caSub, done: live.filter((r) => r.yes).length, total: live.length, whereItIs: whereItIs(org), dataLocations: 0, ownerConfirmedAt: org.ownerConfirmedAt, setUpByMe: org.setUpBy?.email === me })
+            out.push({ org: { id: org.id, name: org.name, product: org.product }, caSub, done: live.filter((r) => r.yes).length, total: live.length, whereItIs: whereItIs(org), dataLocations: 0, ownerConfirmedAt: org.ownerConfirmedAt, setUpByMe: org.setUpBy?.email === me })
           }
           return ok(out)
         }

@@ -362,11 +362,16 @@ test.describe("tfirst -- first visits", () => {
     await seed(page, "owner")
     await page.getByRole("button", { name: "✓ Create the list", exact: true }).click()
     await page.getByRole("button", { name: "✓ Save and send the first emails", exact: true }).click()
-    await expect(page.getByText("25 jobs have nobody looking after them", { exact: true })).toBeVisible() // 31 - the 3 chain steps - 3 the owner now holds
+    // 31 jobs - the 2 the mock seeds as already done - the 3 chain steps
+    // (owner / manager / partner) - the 4 more the prefilled Grievance
+    // Officer + DPDP coordinator areas hand the owner = 22 (the "Mine 5"
+    // chip is the owner's chain step plus those 4). Measured on the built
+    // site, not derived: the first cut of this check assumed 25.
+    await expect(page.getByText("22 jobs have nobody looking after them", { exact: true })).toBeVisible()
     await expect(page.getByText("Type an email into each amber row — or mark it “doesn’t apply” if it is not relevant to you.", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "Show me", exact: true }).click()
-    await expect(chip(page, "Nobody named", 25)).toBeVisible()
-    await expect(page.getByText("nobody", { exact: true })).toHaveCount(25)
+    await expect(chip(page, "Nobody named", 22)).toBeVisible()
+    await expect(page.getByText("nobody", { exact: true })).toHaveCount(22)
     await expect(row(page, OWNER_CONFIRMS)).toHaveCount(0) // the owner's own job is not in the "nobody" view
   })
 
@@ -777,10 +782,11 @@ test.describe("troles2 -- roles", () => {
     await expect(joshi).toBeVisible()
     await expect(joshi.getByText("Company or firm · you set it up", { exact: true })).toBeVisible()
     await expect(joshi.getByText("0 of 31 done (0%)", { exact: true })).toBeVisible()
-    // drizzle/0609 records set_up_by on every client a CA creates, so its
-    // stage is "Waiting for the owner to confirm" even before an owner is
-    // named -- see ACCEPTANCE-70.md.
-    await expect(joshi.getByText("Waiting for the owner to confirm", { exact: true })).toBeVisible()
+    // drizzle/0612: a client created WITHOUT naming an owner has nobody who
+    // could confirm, so its stage reads "No owner named yet" (ACCEPTANCE-70.md
+    // finding 2, fixed); "Waiting for the owner to confirm" is ROLES-16's
+    // case, where an owner is named.
+    await expect(joshi.getByText("No owner named yet", { exact: true })).toBeVisible()
     await page.getByRole("button", { name: "← Back to my page", exact: true }).click()
     await expect(page.getByRole("button", { name: "🧾 My clients (2)", exact: true })).toBeVisible()
     await expect(page.getByText('Organisation "Joshi Motors" created', { exact: true })).toBeVisible()
