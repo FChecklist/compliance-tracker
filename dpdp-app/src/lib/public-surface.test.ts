@@ -55,10 +55,11 @@ describe("public-surface.mjs: the one list", () => {
 
   test("the edition landings are public on the Next.js host too (src/lib/dpdp-public-surface.ts)", () => {
     const nextJsAllow: readonly string[] = DPDP_PUBLIC_ALLOW
-    for (const pub of PUBLIC_PAGES) {
-      if (pub.path === "/") continue
-      expect(nextJsAllow).toContain(pub.path.replace(/\/$/, ""))
-    }
+    // Only the edition landings exist on both hosts. /about/ and /for-ai/
+    // (WO-DPDP-013 v2) are generated on this static host only.
+    const landings = PUBLIC_PAGES.filter((p) => p.path.startsWith("/dpdp-"))
+    expect(landings.map((p) => p.path)).toEqual(["/dpdp-firm/", "/dpdp-institution/"])
+    for (const pub of landings) expect(nextJsAllow).toContain(pub.path.replace(/\/$/, ""))
   })
 })
 

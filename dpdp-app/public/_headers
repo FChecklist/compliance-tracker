@@ -57,3 +57,13 @@
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer
   Cache-Control: no-store
+
+# /proof/ (WO-DPDP-013 v2 §2.1) is built but hidden until the owner switches
+# facts.proof.enabled on in data/veridian-facts.yaml. The block between the
+# two markers is written by scripts/generate-public-facts.mjs -- do not edit
+# it by hand.
+# BEGIN generated: proof
+# facts.proof.enabled is false: /proof/ is built but hidden (WO-DPDP-013 v2 §2.1).
+/proof/*
+  X-Robots-Tag: noindex, nofollow
+# END generated: proof
