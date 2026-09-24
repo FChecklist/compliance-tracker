@@ -3074,6 +3074,13 @@
       "when": 1790068000000,
       "tag": "0609_dpdp_wo011_step5_rpc",
       "breakpoints": true
+    },
+    {
+      "idx": 443,
+      "version": "7",
+      "when": 1790071000000,
+      "tag": "0612_dpdp_wo010_my_clients_stage_fix",
+      "breakpoints": true
     }
   ]
 }

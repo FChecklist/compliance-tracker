@@ -1,13 +1,13 @@
 /// <reference types="bun-types" />
-// WO-DPDP-014 §2: the brand line's text is at least 12px with contrast at
-// least 4.5:1 (WCAG 2 AA), and WO-DPDP-012 §1's Lighthouse color-contrast
-// audit applies to the generated fact pages too. This test parses site.css
-// itself -- no browser -- and pins the brand line's two pairs (white on
-// --ink, the --a accent on --ink) and the fact block's text, so a token
-// change that quietly drops below AA fails CI instead of the next
-// Lighthouse run. The helpers are the same shape as the sibling test on
-// origin/fix/wo-dpdp-012-public-page-contrast (.wordmark-sub, .card-badge)
-// so the two merge as one file.
+// WO-DPDP-012 §1 + WO-DPDP-014 §2: the public pages must pass Lighthouse's
+// accessibility color-contrast audit (WCAG 2 AA, 4.5:1 for normal text),
+// and the brand line's text must also clear that bar at >= 12px. A live
+// Lighthouse 12 run on 2026-09-22 scored a11y 89-90 on all three pages
+// with exactly one failing audit: `.wordmark-sub` (--ink3 on white, 3.2:1)
+// and `.card-badge` (--green on --green-bg, 3.4:1). This test parses
+// site.css itself -- no browser -- and pins the fixed pairs plus the new
+// brand-line/fact-page pairs, so a token change that quietly drops below
+// AA fails CI instead of the next Lighthouse run.
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -65,6 +65,35 @@ export function contrastRatio(fg: string, bg: string): number {
 }
 
 const AA = 4.5
+
+describe("WO-DPDP-012 §1: public-page text meets WCAG AA contrast (Lighthouse color-contrast)", () => {
+  const vars = rootVars()
+
+  test("the contrast function agrees with the WCAG reference (black on white = 21:1, white on white = 1:1)", () => {
+    expect(contrastRatio("#000000", "#ffffff")).toBeCloseTo(21, 1)
+    expect(contrastRatio("#ffffff", "#ffffff")).toBe(1)
+  })
+
+  test(".wordmark-sub (the 8px 'DPDP' under the wordmark) on the white nav/chooser card is >= 4.5:1", () => {
+    const fg = resolve(ruleProp(".wordmark-sub", "color"), vars)
+    expect(contrastRatio(fg, "#ffffff")).toBeGreaterThanOrEqual(AA)
+    // and on the page background too, in case the card ever goes transparent
+    expect(contrastRatio(fg, vars.bg)).toBeGreaterThanOrEqual(AA)
+  })
+
+  test(".card-badge text on its own badge background is >= 4.5:1", () => {
+    const fg = resolve(ruleProp(".card-badge", "color"), vars)
+    const bg = resolve(ruleProp(".card-badge", "background"), vars)
+    expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(AA)
+  })
+
+  test("the tokens Lighthouse flagged stay documented as NOT AA on their old backgrounds (so nobody 'restores' them by accident)", () => {
+    // If either of these starts passing, the token itself changed -- fine, but
+    // then the two rules above no longer need their own colours; revisit.
+    expect(contrastRatio(vars.ink3, "#ffffff")).toBeLessThan(AA)
+    expect(contrastRatio(vars.green, vars["green-bg"])).toBeLessThan(AA)
+  })
+})
 
 describe("WO-DPDP-014 §2: the brand line meets WCAG AA contrast and the 12px floor", () => {
   const vars = rootVars()
