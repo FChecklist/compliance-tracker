@@ -60,6 +60,14 @@ export type Digest = {
   email: string
   level: "owner" | "staff"
   roleKind: "owner" | "coord" | "staff"
+  /**
+   * WO-DPDP-014 §3/§4: a CA partner or manager is a decision-maker too.
+   * dpdp.build_monday_digests (drizzle/0606) does not emit this today --
+   * its roleKind is owner/coord/staff only -- so until a migration adds it
+   * the share ask reaches owners alone. Optional so that migration needs
+   * no change here.
+   */
+  caSub?: "partner" | "manager" | null
   weekKey: string // IYYY-Wnn (IST)
   today: string // YYYY-MM-DD (IST)
   unsubscribed: boolean
@@ -87,6 +95,21 @@ export type RenderLinks = {
 export type Rendered = { subject: string; html: string; text: string }
 
 export type EmailKind = "monday_digest" | "escalation" | "leak_clock" | "rights_clock" | "statutory"
+
+// WO-DPDP-014 §1/§4/§5: the brand line, footer only, plain small text, on
+// every email; the share ask only in a Monday digest to a decision-maker,
+// never in a legal-clock email, never in the preview text. Byte-identical
+// to dpdp-app/src/lib/brand.ts -- src/lib/services/dpdp-timer-render.test.ts
+// imports both and asserts equality, so neither can drift.
+export const BRAND_LINE_FULL = "VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India."
+export const BRAND_LINE_SHORT = "VERIDIAN · VERy INDIAN · For India, by India"
+export const SHARE_ASK = "Know a firm that needs this? Share VERIDIAN"
+export const PUBLIC_SITE = "https://veridian-aios.com/"
+
+/** WO-014 §3's table, for the email: owner/principal, CA partner, CA manager. */
+export function isDecisionMaker(digest: Pick<Digest, "level" | "caSub">): boolean {
+  return digest.level === "owner" || digest.caSub === "partner" || digest.caSub === "manager"
+}
 
 /** Placeholders a dry run leaves in the recorded body so no credential is ever stored. */
 export const PLACEHOLDER = {
@@ -272,13 +295,34 @@ function jobText(job: DigestJob, digest: Digest, links: RenderLinks, withButtons
   return [head, meta, ...lines, ...buttons].join("\n")
 }
 
-function shell(title: string, bodyHtml: string, links: RenderLinks, kind: EmailKind): string {
+// WO-014 §5: the preview text an inbox shows is the person's jobs (the
+// subject line already IS that sentence), never the brand line -- a hidden
+// preheader pins it, since without one Gmail/Outlook would show the first
+// visible words of the body instead.
+function preheader(text: string): string {
+  return `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#fff;opacity:0;">${esc(text)}</div>`
+}
+
+/** WO-014 §4/§5: the footer lines -- brand line always; share ask only when `shareAsk` (a Monday digest to a decision-maker). */
+function brandFooterHtml(shareAsk: boolean): string {
+  const ask = shareAsk
+    ? `<p style="color:#94A3B8;font-size:12px;margin:4px 0 0;">${esc(SHARE_ASK)}: <a href="${esc(PUBLIC_SITE)}" style="color:#94A3B8;">${esc(PUBLIC_SITE.replace(/^https:\/\//, "").replace(/\/$/, ""))}</a></p>`
+    : ""
+  return `<p style="color:#94A3B8;font-size:12px;margin:0 0 4px;">${esc(BRAND_LINE_FULL)}</p>${ask}`
+}
+function brandFooterText(shareAsk: boolean): string[] {
+  return shareAsk ? [BRAND_LINE_FULL, `${SHARE_ASK}: ${PUBLIC_SITE}`] : [BRAND_LINE_FULL]
+}
+
+function shell(title: string, bodyHtml: string, links: RenderLinks, kind: EmailKind, preview: string, shareAsk = false): string {
   const signIn = links.signIn ?? PLACEHOLDER.signIn
   const unsubscribe = links.unsubscribeUrl ?? PLACEHOLDER.unsubscribe
-  const footerUnsub = kind === "leak_clock" || kind === "rights_clock"
+  const legal = kind === "leak_clock" || kind === "rights_clock"
+  const footerUnsub = legal
     ? `This is a statutory notice; it is sent even if you have stopped the weekly email.`
     : `<a href="${esc(unsubscribe)}" style="color:#94A3B8;">Stop these weekly emails</a> — you will still get statutory notices.`
   return `<!DOCTYPE html><html lang="en"><body style="font-family:Inter,Arial,sans-serif;background:#FFFDF9;margin:0;padding:32px 16px;">
+${preheader(preview)}
 <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;border:1px solid #E2E8F0;overflow:hidden;">
   <div style="background:#1C2B3A;padding:20px 24px;"><span style="color:#F5820A;font-size:18px;font-weight:700;letter-spacing:-0.5px;">VERIDIAN AI</span> <span style="color:#CBD5E1;font-size:13px;margin-left:8px;">DPDP</span></div>
   <div style="padding:24px;">
@@ -291,16 +335,18 @@ function shell(title: string, bodyHtml: string, links: RenderLinks, kind: EmailK
     </div>
   </div>
   <div style="background:#F8FAFC;padding:14px 24px;border-top:1px solid #E2E8F0;">
-    <p style="color:#94A3B8;font-size:12px;margin:0;">VERIDIAN AI — One Portal. One Truth. · ${footerUnsub}</p>
+    ${brandFooterHtml(shareAsk && !legal)}
+    <p style="color:#94A3B8;font-size:12px;margin:4px 0 0;">VERIDIAN AI — One Portal. One Truth. · ${footerUnsub}</p>
   </div>
 </div>
 </body></html>`
 }
 
-function textShell(title: string, bodyText: string, links: RenderLinks, kind: EmailKind): string {
+function textShell(title: string, bodyText: string, links: RenderLinks, kind: EmailKind, shareAsk = false): string {
   const signIn = links.signIn ?? PLACEHOLDER.signIn
   const unsubscribe = links.unsubscribeUrl ?? PLACEHOLDER.unsubscribe
-  const footer = kind === "leak_clock" || kind === "rights_clock"
+  const legal = kind === "leak_clock" || kind === "rights_clock"
+  const footer = legal
     ? "This is a statutory notice; it is sent even if you have stopped the weekly email."
     : `Stop these weekly emails (statutory notices continue): ${unsubscribe}`
   return [
@@ -314,6 +360,7 @@ function textShell(title: string, bodyText: string, links: RenderLinks, kind: Em
     SIGN_IN_COPY,
     `Or go to ${links.appHome} and press "Send me a new link".`,
     ``,
+    ...brandFooterText(shareAsk && !legal),
     footer,
   ].join("\n")
 }
@@ -365,10 +412,13 @@ export function renderDigest(digest: Digest, links: RenderLinks, kind: "monday_d
   }
 
   const title = digest.level === "owner" ? `${digest.orgName} — DPDP this week` : "Your DPDP jobs this week"
+  // WO-014 §4: the share ask only in the Monday digest (not the statutory-
+  // only one an unsubscribed person gets) and only to a decision-maker.
+  const shareAsk = kind === "monday_digest" && isDecisionMaker(digest)
   return {
     subject,
-    html: shell(title, htmlParts.join("\n"), links, kind),
-    text: textShell(title, textParts.join("\n"), links, kind),
+    html: shell(title, htmlParts.join("\n"), links, kind, subject, shareAsk),
+    text: textShell(title, textParts.join("\n"), links, kind, shareAsk),
   }
 }
 
@@ -414,7 +464,7 @@ export function renderLeakClock(item: LeakClock, recipient: LegalRecipient, link
   const body = `A data leak was recorded at ${item.orgName}${item.scopePersonCount ? ` (about ${item.scopePersonCount} people)` : ""}. ${left} Still to do: ${todo}. Open the page, do it, and mark it done there — this notice repeats daily until it is.`
   const title = overdue ? "The 72-hour leak clock has run out" : "A data leak is on its 72-hour clock"
   const html = `<p style="color:#991B1B;font-size:14px;line-height:1.6;margin:0 0 12px;">${esc(body)}</p><p style="color:#64748B;font-size:13px;">Sent to you as ${esc(recipient.role)}.</p>`
-  return { subject, html: shell(title, html, links, "leak_clock"), text: textShell(title, `${body}\n\nSent to you as ${recipient.role}.`, links, "leak_clock") }
+  return { subject, html: shell(title, html, links, "leak_clock", subject), text: textShell(title, `${body}\n\nSent to you as ${recipient.role}.`, links, "leak_clock") }
 }
 
 export function renderRightsClock(item: RightsClock, recipient: LegalRecipient, links: RenderLinks): Rendered {
@@ -424,7 +474,7 @@ export function renderRightsClock(item: RightsClock, recipient: LegalRecipient, 
   const body = `A ${item.kind} request (${item.ref}) received on ${esc(item.receivedAt.slice(0, 10))} has not been answered. ${left} Open the page and answer it — this notice repeats daily until it is answered.`
   const title = overdue ? "A rights request is past its 90-day limit" : "A rights request is close to its 90-day limit"
   const html = `<p style="color:#991B1B;font-size:14px;line-height:1.6;margin:0 0 12px;">${esc(body)}</p><p style="color:#64748B;font-size:13px;">Sent to you as ${esc(recipient.role)}.</p>`
-  return { subject, html: shell(title, html, links, "rights_clock"), text: textShell(title, `${body}\n\nSent to you as ${recipient.role}.`, links, "rights_clock") }
+  return { subject, html: shell(title, html, links, "rights_clock", subject), text: textShell(title, `${body}\n\nSent to you as ${recipient.role}.`, links, "rights_clock") }
 }
 
 /**
