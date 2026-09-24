@@ -1,6 +1,9 @@
 import type { AuthListener, AuthSession, DpdpClient, RpcResult } from "./client"
 import type { GroupAnswerKind } from "@/lib/dpdp-onepage/view-model"
-import type { AreaAssignmentWire, AreaPayload, CaClientWire, HistoryEntryWire, MyPagePayload, MyPageRowWire, OrgSetupPayload, ViewerKind } from "./rpc-types"
+import type {
+  AiLinkListItem, AiLinkWarning, AiWorkLinkCreated, AreaAssignmentWire, AreaPayload, CaClientWire, HistoryEntryWire, MyPagePayload, MyPageRowWire,
+  OrgSetupPayload, ViewerKind,
+} from "./rpc-types"
 
 // VITE_MOCK=1: an in-memory stand-in for the public.dpdp_* RPCs so the
 // whole loop (sign in -> owner's first-visit wizard -> jobs load -> Mark
@@ -48,6 +51,8 @@ export const MOCK_MEMBERS = ["member@example.test", "member2@example.test", "mem
 // The fragment tokens the token pages accept in mock mode.
 export const MOCK_TOKENS = { done: "mock-done", cannot: "mock-cannot", unsubscribe: "mock-unsub", parent: "mock-parent" } as const
 export const MOCK_DRAFT = { draftId: "mock-draft", confirmToken: "mock-confirm" } as const
+// WO-DPDP-013 Part 1 (drizzle/0610): `/app/#undo=<actionId>.<undoToken>`.
+export const MOCK_UNDO_ACTION = { actionId: "mock-action", undoToken: "mock-undo" } as const
 
 export const MOCK_SCENARIOS = ["owner", "owner-live", "client-owner", "partner", "manager", "go", "coord", "staff", "hr", "member", "member2", "member3"] as const
 export type MockScenario = (typeof MOCK_SCENARIOS)[number]
@@ -187,16 +192,26 @@ type StoredRow = {
   by: string | null; isGroup: boolean; due: string; yes: boolean; na: boolean; dependsOnObligationId: string | null
 }
 type ViewerFlags = { firstVisitSeenAt: string | null; saidNotMeAt: string | null }
+// WO-DPDP-013 Part 1 (drizzle/0610): one dpdp.ai_link row, the shape
+// dpdp_ai_link_list reads back. The token itself is never stored here (the
+// real RPC keeps only its sha256) -- callers only ever see it once, from
+// dpdp_ai_link_create's own return value.
+type AiWorkLinkRecord = {
+  id: string; label: string | null; level: 0 | 1; hideEmails: boolean
+  createdAt: string; expiresAt: string; revokedAt: string | null; lastUsedAt: string | null; callCount: number
+}
 type OrgState = {
   id: string; name: string; product: "firm" | "institution"; ownerEmail: string; client: boolean
   rows: StoredRow[]; groupMembers: string[]; groupAnswers: Record<string, Record<string, GroupAnswerKind>>
   history: HistoryEntryWire[]; setUpBy: { membershipId: string; email: string } | null; ownerConfirmedAt: string | null
   viewers: Record<string, ViewerFlags>
+  aiWorkLinks: AiWorkLinkRecord[]
 }
 type State = {
   signedInAs: string | null
   orgs: Record<string, OrgState>
   spentTokens: string[]; consentAnswered: boolean; unsubscribed: boolean; draftConfirmed: boolean; aiLinks: number
+  aiWorkLinkSeq: number; aiActionUndone: boolean
 }
 
 function daysFromNow(n: number): string {
@@ -244,7 +259,7 @@ function makeOrg(id: string, name: string, product: "firm" | "institution", o: M
   for (const e of o.seenBy ?? []) viewers[e] = { firstVisitSeenAt: daysFromNow(-1), saidNotMeAt: null }
   return {
     id, name, product, ownerEmail: o.owner, client: o.client ?? false, rows, groupMembers: [...(o.group ?? [])], groupAnswers: {},
-    history: [], setUpBy: o.setUpBy ?? null, ownerConfirmedAt: o.ownerConfirmedAt ?? null, viewers,
+    history: [], setUpBy: o.setUpBy ?? null, ownerConfirmedAt: o.ownerConfirmedAt ?? null, viewers, aiWorkLinks: [],
   }
 }
 
@@ -274,7 +289,10 @@ function clientOrg(): OrgState {
 }
 
 function fresh(): State {
-  return { signedInAs: null, orgs: { [HOME_ORG]: freshHomeOrg(MOCK_OWNER), [CLIENT_ORG]: clientOrg() }, spentTokens: [], consentAnswered: false, unsubscribed: false, draftConfirmed: false, aiLinks: 0 }
+  return {
+    signedInAs: null, orgs: { [HOME_ORG]: freshHomeOrg(MOCK_OWNER), [CLIENT_ORG]: clientOrg() }, spentTokens: [], consentAnswered: false,
+    unsubscribed: false, draftConfirmed: false, aiLinks: 0, aiWorkLinkSeq: 0, aiActionUndone: false,
+  }
 }
 
 /** The world `?mock=<scenario>` seeds, signed in as that scenario's persona. */
@@ -335,6 +353,22 @@ function whereItIs(org: OrgState): string {
   if (openOther === 0 && openMgr === 0) return "Ready to sign"
   if (openOther === 0) return "With the CA manager"
   return "In progress"
+}
+
+// WO-DPDP-013 Part 1 (drizzle/0610) dpdp_ai_link_warning: what the sentence
+// before "Copy link" reports -- every job in this org's view (an AI link is
+// scoped to the whole membership, not just the live ones), and every real
+// person a job names or a group carries, deduplicated. The real RPC's own
+// formula is server-side and may count differently; this is a deterministic
+// stand-in, not a claim about drizzle/0610's SQL.
+function warningFor(org: OrgState): AiLinkWarning {
+  const people = new Set<string>()
+  if (org.ownerEmail) people.add(org.ownerEmail)
+  for (const r of org.rows) {
+    if (!r.isGroup && r.by) people.add(r.by)
+  }
+  for (const m of org.groupMembers) people.add(m)
+  return { jobs: org.rows.length, people: people.size }
 }
 
 export function createMockClient(scenario?: string): DpdpClient {
@@ -742,6 +776,70 @@ export function createMockClient(scenario?: string): DpdpClient {
           log(home(), "ai_draft_confirmed", `drafted by AI, confirmed by ${me} -- added a note to "${row.what}"`)
           save(state)
           return ok({ ok: true, verb: "NOTE", obligationId: row.id })
+        }
+        // --- WO-DPDP-013 Part 1 (drizzle/0610): the AI WORK link -- the
+        // Copy-AI-link screen (AiWorkLink.tsx, WO-013 §4 item 6). ---
+        case "dpdp_ai_link_warning": {
+          const org = orgOf(args?.p_org_id) ?? home()
+          return ok(warningFor(org))
+        }
+        case "dpdp_ai_link_create": {
+          const org = orgOf(args?.p_org_id) ?? home()
+          const level = (Number(args?.p_level) === 1 ? 1 : 0) as 0 | 1
+          const hideEmails = !!args?.p_hide_emails
+          const rawDays = Number(args?.p_days)
+          const days = (rawDays === 1 || rawDays === 30 ? rawDays : 7) as 1 | 7 | 30
+          const labelValue = (args?.p_label ? String(args.p_label).trim() : "") || null
+          const n = ++state.aiWorkLinkSeq
+          const id = `wlink-${n}`
+          const token = `mock-work-link-${n}-${Math.random().toString(36).slice(2, 10)}`
+          const createdAt = new Date().toISOString()
+          const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString()
+          const w = warningFor(org)
+          const record: AiWorkLinkRecord = { id, label: labelValue, level, hideEmails, createdAt, expiresAt, revokedAt: null, lastUsedAt: null, callCount: 0 }
+          org.aiWorkLinks.unshift(record)
+          log(org, "ai_work_link_created", "Made an AI link", `Level ${level}${hideEmails ? ", other people's emails hidden" : ""}, expires ${expiresAt.slice(0, 16).replace("T", " ")} UTC`)
+          save(state)
+          const created: AiWorkLinkCreated = { linkId: id, token, level, hideEmails, label: labelValue, expiresAt, jobs: w.jobs, people: w.people }
+          return ok(created)
+        }
+        case "dpdp_ai_link_list": {
+          const org = orgOf(args?.p_org_id) ?? home()
+          const now = Date.now()
+          const out: AiLinkListItem[] = org.aiWorkLinks.map((l) => ({
+            id: l.id, label: l.label, level: l.level, hideEmails: l.hideEmails, createdAt: l.createdAt, expiresAt: l.expiresAt,
+            revokedAt: l.revokedAt, lastUsedAt: l.lastUsedAt, callCount: l.callCount,
+            active: !l.revokedAt && new Date(l.expiresAt).getTime() > now,
+          }))
+          return ok(out)
+        }
+        case "dpdp_ai_link_revoke": {
+          const id = String(args?.p_id ?? "")
+          for (const org of Object.values(state.orgs)) {
+            const link = org.aiWorkLinks.find((l) => l.id === id)
+            if (!link) continue
+            if (!link.revokedAt) {
+              link.revokedAt = new Date().toISOString()
+              log(org, "ai_work_link_revoked", `Revoked an AI link${link.label ? ` ("${link.label}")` : ""}`)
+              save(state)
+            }
+            return ok({ ok: true })
+          }
+          // Idempotent per api.ts's own doc comment -- but an id that never
+          // existed at all is still a real refusal, not a silent no-op.
+          return fail("Link not found")
+        }
+        case "dpdp_ai_action_undo": {
+          const actionId = String(args?.p_action_id ?? "")
+          const undoToken = String(args?.p_undo_token ?? "")
+          if (actionId !== MOCK_UNDO_ACTION.actionId || undoToken !== MOCK_UNDO_ACTION.undoToken) return fail("This undo link is not valid")
+          if (state.aiActionUndone) return fail("This has already been undone")
+          const org = home()
+          const row = draftRow()
+          state.aiActionUndone = true
+          log(org, "ai_action_undone", `Undid an AI assistant's change to "${row.what}" (by ${me})`)
+          save(state)
+          return ok({ ok: true, verb: "NOTE", jobId: row.id })
         }
         default:
           return fail(`Unknown RPC ${fn}`)

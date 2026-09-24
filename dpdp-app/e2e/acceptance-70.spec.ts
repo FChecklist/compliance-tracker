@@ -821,27 +821,35 @@ test.describe("troles2 -- roles", () => {
     await expect(page.getByRole("button", { name: "🧾 My clients (1)", exact: true })).toBeVisible()
   })
 
-  test("ROLES-18 '🤖 Make my AI Link': the link is shown once, on this host's /ai/, with 'Copy my AI Link', and is recorded", async ({ page }) => {
+  // WO-DPDP-013 §4 item 6: AiWorkLink.tsx replaces AiLinkButton.tsx --
+  // "Copy link" now creates a Level 0 link with the data warning shown
+  // first (e2e/ai-work-link.spec.ts covers the warning/levels/list/revoke/
+  // undo screen in full); these two checks keep ROLES-18/19's original
+  // claims re-verified against the new screen (see ACCEPTANCE-70.md).
+  test("ROLES-18 'Copy link': the link is shown once, on this host's /ai/, with 'Copy', and is recorded", async ({ page }) => {
     await seed(page, "owner-live")
-    await expect(page.getByText("Shown once, then only you have it. Any earlier link stops working.", { exact: true })).toBeVisible()
-    await page.getByRole("button", { name: "🤖 Make my AI Link", exact: true }).click()
+    await expect(page.getByRole("heading", { name: "🤖 AI work link", exact: true })).toBeVisible()
+    await page.getByRole("button", { name: "Copy link", exact: true }).click()
     await expect(page.getByText(/^https:\/\/app\.veridian-aios\.com\/ai\/[A-Za-z0-9_-]+$/)).toBeVisible()
-    await expect(page.getByRole("button", { name: "📋 Copy my AI Link", exact: true })).toBeVisible()
-    await expect(page.getByRole("button", { name: "🤖 Make my AI Link", exact: true })).toHaveCount(0)
-    await expect(page.getByText(/^Read-only · expires /)).toBeVisible()
+    await expect(page.getByRole("button", { name: "📋 Copy", exact: true })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Copy link", exact: true })).toHaveCount(0)
+    await expect(page.getByText(/^Level 0 · Read, analyse, report · expires /)).toBeVisible()
     await expect(page.getByText("Made an AI link", { exact: true })).toBeVisible()
   })
 
-  test("ROLES-19 the AI link is never shown again: after a reload only the button is back, and a new link says the previous one no longer works", async ({ page }) => {
+  test("ROLES-19 the AI link is never shown again after reload; a second link does not revoke the first (WO-013 §1.1)", async ({ page }) => {
     await seed(page, "owner-live")
-    await page.getByRole("button", { name: "🤖 Make my AI Link", exact: true }).click()
+    await page.getByRole("button", { name: "Copy link", exact: true }).click()
     await expect(page.getByText(/^https:\/\/app\.veridian-aios\.com\/ai\//)).toBeVisible()
     await page.goto("/app/")
     await expect(page.getByText("Signed in as")).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText(/^https:\/\/app\.veridian-aios\.com\/ai\//)).toHaveCount(0)
-    await expect(page.getByRole("button", { name: "🤖 Make my AI Link", exact: true })).toBeVisible()
-    await page.getByRole("button", { name: "🤖 Make my AI Link", exact: true }).click()
-    await expect(page.getByText(/· your previous link no longer works$/)).toBeVisible()
+    await expect(page.getByRole("button", { name: "Copy link", exact: true })).toBeVisible()
+    await page.getByRole("button", { name: "Copy link", exact: true }).click()
+    await expect(page.getByText(/^https:\/\/app\.veridian-aios\.com\/ai\//)).toBeVisible()
+    // Both links now exist, neither auto-revoked -- "Your AI links" lists two.
+    await expect(page.getByRole("heading", { name: "Your AI links", exact: true })).toBeVisible()
+    await expect(page.getByRole("button", { name: /^Revoke/ })).toHaveCount(2)
   })
 
   test("ROLES-20 '#draft=': 'An AI drafted something for you to confirm' -- shown in full, 'Nothing has changed yet', and 'Not now' changes nothing", async ({ page }) => {

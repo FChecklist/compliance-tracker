@@ -154,8 +154,8 @@ app does render them -- as each tag's `title`.
 | ROLES-15 | partner | 890-891 "{name} added. A link has gone to …"; `stage()` | the new row: "you set it up", 0 of 31, "Waiting for the owner to confirm" (see findings); "My clients (2)"; History |
 | ROLES-16 | partner | 534 "Set it up for them"; 939 "{owner} emailed to check it" | owner named → "Waiting for the owner to confirm"; History "Named … as owner" |
 | ROLES-17 | partner | `data-ca` 887 (pick a client) → 833 "📋 The list — {client}" | "Open Mehta Traders" → h1 "Mehta Traders", seal 4 of 31, the partner's step "Waiting", still signed in as the partner, "My clients (1)" still there |
-| ROLES-18 | owner-live | (WO-DPDP-012 §7, `AiLinkButton.tsx`) | "Make my AI Link" → one `https://app.veridian-aios.com/ai/<token>`; "Copy my AI Link"; the button is gone; History "Made an AI link" |
-| ROLES-19 | owner-live | (same) "shown once … the old link stops working" | after `/app/` only the button is back, no link; a new one says "your previous link no longer works" |
+| ROLES-18 | owner-live | (WO-DPDP-013 §4 item 6, `AiWorkLink.tsx` -- supersedes WO-DPDP-012 §7's `AiLinkButton.tsx`, retired) | "Copy link" → one `https://app.veridian-aios.com/ai/<token>`; "Copy"; the create form is gone, replaced by the link + Copy; History "Made an AI link" |
+| ROLES-19 | owner-live | (same) "shown once" | after `/app/` only the create form is back, no link shown; making a SECOND link does not revoke the first (WO-013 §1.1 drops the old "any earlier link stops working" rule -- links now coexist, each independently listed and revocable under "Your AI links") |
 | ROLES-20 | owner-live + `#draft=` | (WO-DPDP-012 §7, `DraftConfirm.tsx`) | the draft in full (What / Job / Note / For); token cleared from the URL; "Nothing has changed yet"; no History line; "Not now" leaves none |
 | ROLES-21 | owner-live + `#draft=` | (same) | "Confirm" → status + History "drafted by AI, confirmed by owner@example.test …"; the same link again is already confirmed, no Confirm button, one History line |
 | ROLES-22 | owner-live, `/act/#mock-done` | `vEmail` 690 "pressing Yes in it updates the list above", 693 `data-via="email"` | the preview names the job and "Opening this page has changed nothing."; `/app/` still open with no History line; press → "Recorded, thank you"; `/app/` YES + History |
@@ -167,7 +167,11 @@ spec predates -- they come from WO-DPDP-011 (sign-in, token pages) and
 WO-DPDP-012 §7 (AI link, draft confirm) and are the checks the Step 6 brief
 lists by name. Their copy is asserted against the app's own screens
 (`Screens.tsx`, `TokenPages.tsx`, `AiLinkButton.tsx`, `DraftConfirm.tsx`),
-with the spec principle each instantiates cited above.
+with the spec principle each instantiates cited above. ROLES-18/19 were
+updated 2026-09-24 (WO-DPDP-013 §4 item 6) when `AiLinkButton.tsx`'s
+single-link screen was replaced by `AiWorkLink.tsx`'s authority-level screen;
+the assertions above are the current, re-verified behaviour, not the
+original spec's.
 
 ## Honesty notes -- what is not asserted, and why
 
