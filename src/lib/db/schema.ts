@@ -15410,14 +15410,84 @@ export const dpdpPanelRequest = dpdpSchemaDB.table('panel_request', {
 // is someone else being able to read the same non-personal projection --
 // explicitly not something this schema tries to harden beyond what the
 // spec asks for.
+//
+// WO-DPDP-012 §7 (drizzle/0607, 2026-09-22): the Supabase-path link (made by
+// public.dpdp_create_ai_link, read by public.dpdp_ai_link_read via the
+// dpdp-ai-link Edge Function) stores ONLY sha256(token) in tokenHash and
+// leaves `token` NULL -- hence `token` is nullable from 0607 on, with a
+// CHECK (token or token_hash) in the migration so no row has neither. Rows
+// from the pre-0607 Next.js path above keep their plaintext `token` and a
+// NULL tokenHash; the two paths never read each other's rows. membershipId
+// (not just identityId) because the approved design scopes the link to one
+// person IN one org; readCount/lastReadAt replace ai_link_read for this path.
 export const dpdpAiLink = dpdpSchemaDB.table('ai_link', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   identityId: text('identity_id').notNull(),
-  token: text('token').notNull().unique(),
+  membershipId: text('membership_id'),
+  token: text('token').unique(),
+  tokenHash: text('token_hash').unique(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   expiresAt: timestamp('expires_at').notNull(),
   revokedAt: timestamp('revoked_at'),
+  lastReadAt: timestamp('last_read_at'),
+  readCount: integer('read_count').notNull().default(0),
+  // WO-DPDP-013 Part 1 (drizzle/0610): the AI WORK link. authorityLevel 0
+  // (read/analyse/report, always on) or 1 (NOTE/SET_DUE/ASSIGN/MARK_NA
+  // applied directly, off by default, chosen per link); Level 2 is never a
+  // link property -- it is always a draft. hideEmails shows other people's
+  // roles instead of their emails on every endpoint. lastUsedAt/callCount
+  // are maintained by public.dpdp_ai_link_log_call on EVERY API call.
+  authorityLevel: smallint('authority_level').notNull().default(0),
+  hideEmails: boolean('hide_emails').notNull().default(false),
+  createdByMembershipId: text('created_by_membership_id'),
+  label: text('label'),
+  lastUsedAt: timestamp('last_used_at'),
+  callCount: integer('call_count').notNull().default(0),
+})
+
+// WO-DPDP-013 Part 1 (drizzle/0610): EVERY API call on an AI work link,
+// whatever it returned. Append-only (a trigger refuses DELETE and any
+// UPDATE other than completing a pending row's status/bytes/finishedAt
+// once). linkId is null only when the token matched no link at all. No TS
+// write path -- written by public.dpdp_ai_link_log_call /
+// dpdp_ai_link_log_call_result only; declared so the DB-gated test can
+// count rows under a tenant context.
+export const dpdpAiLinkCall = dpdpSchemaDB.table('ai_link_call', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  linkId: text('link_id'),
+  orgId: text('org_id'),
+  method: text('method').notNull(),
+  path: text('path').notNull(),
+  status: integer('status'),
+  bytes: integer('bytes'),
+  calledAt: timestamp('called_at').notNull().defaultNow(),
+  finishedAt: timestamp('finished_at'),
+})
+
+// WO-DPDP-013 Part 1 (drizzle/0610): one row per Level 1 action an AI
+// applied through a work link (public.dpdp_ai_link_action), under the
+// link's own person's authority. `previous` is what the job looked like
+// before, so public.dpdp_ai_action_undo (the signed-in person, within
+// undoableUntil = appliedAt + 24h, holding the token whose sha256 is
+// undoTokenHash) can put it back. digestPending is the flag the Monday
+// digest reads (public.dpdp_timer_ai_actions_for_digest). verb is
+// CHECK-constrained to NOTE / SET_DUE / ASSIGN / MARK_NA in the migration.
+export const dpdpAiAction = dpdpSchemaDB.table('ai_action', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  linkId: text('link_id').notNull(),
+  membershipId: text('membership_id').notNull(),
+  orgId: text('org_id').notNull(),
+  verb: text('verb').notNull(),
+  obligationId: text('obligation_id').notNull(),
+  value: jsonb('value').notNull().default({}),
+  previous: jsonb('previous'),
+  appliedAt: timestamp('applied_at').notNull().defaultNow(),
+  undoableUntil: timestamp('undoable_until').notNull(),
+  undoTokenHash: text('undo_token_hash').unique(),
+  undoneAt: timestamp('undone_at'),
+  digestPending: boolean('digest_pending').notNull().default(true),
+  digestedAt: timestamp('digested_at'),
 })
 
 // "Reads are logged with user-agent family and IP prefix only" -- never
@@ -15465,6 +15535,31 @@ export const dpdpAiProposalLine = dpdpSchemaDB.table('ai_proposal_line', {
   refusalReason: text('refusal_reason'),
   approved: boolean('approved').notNull().default(false),
   appliedAt: timestamp('applied_at'),
+})
+
+// WO-DPDP-012 §7 (drizzle/0607): one row per action an AI DRAFTED through
+// the Supabase-path AI link. A draft changes nothing by itself -- only
+// public.dpdp_confirm_ai_draft (the person's own signed-in browser session,
+// which must be the draft's own membership, holding the confirm token whose
+// sha256 is confirmTokenHash) applies it. verb is CHECK-constrained in the
+// migration to the five approved verbs (ASSIGN, SET_DUE, NOTE, MARK_NA,
+// DRAFT); no other verb has a code path. Drafts expire 48h after creation.
+// No TS write path exists or should exist for this table -- it is written
+// and read by the 0607 RPCs only; declared here so the DB-gated test can
+// inspect rows under a tenant context.
+export const dpdpAiDraft = dpdpSchemaDB.table('ai_draft', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  aiLinkId: text('ai_link_id').notNull(),
+  membershipId: text('membership_id').notNull(),
+  orgId: text('org_id').notNull(),
+  verb: text('verb').notNull(),
+  obligationId: text('obligation_id'),
+  payload: jsonb('payload'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(),
+  confirmedAt: timestamp('confirmed_at'),
+  confirmedBy: text('confirmed_by'),
+  confirmTokenHash: text('confirm_token_hash').notNull().unique(),
 })
 
 // ─── WO-DPDP-010: one-page-per-role product -- group jobs ──────────────
