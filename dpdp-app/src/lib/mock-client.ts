@@ -2,7 +2,7 @@ import type { AuthListener, AuthSession, DpdpClient, RpcResult } from "./client"
 import type { GroupAnswerKind } from "@/lib/dpdp-onepage/view-model"
 import type {
   AiLinkListItem, AiLinkWarning, AiWorkLinkCreated, AreaAssignmentWire, AreaPayload, CaClientWire, HistoryEntryWire, MyPagePayload, MyPageRowWire,
-  OrgSetupPayload, ViewerKind,
+  OrgSetupPayload, ShareRoleWire, ViewerKind,
 } from "./rpc-types"
 
 // VITE_MOCK=1: an in-memory stand-in for the public.dpdp_* RPCs so the
@@ -53,6 +53,11 @@ export const MOCK_TOKENS = { done: "mock-done", cannot: "mock-cannot", unsubscri
 export const MOCK_DRAFT = { draftId: "mock-draft", confirmToken: "mock-confirm" } as const
 // WO-DPDP-013 Part 1 (drizzle/0610): `/app/#undo=<actionId>.<undoToken>`.
 export const MOCK_UNDO_ACTION = { actionId: "mock-action", undoToken: "mock-undo" } as const
+// WO-DPDP-014: the referral code every mock decision-maker gets (8 chars,
+// the real code's alphabet -- no 0/O/1/I), and the share_press event's
+// role labels, exactly as drizzle/0611 writes them.
+export const MOCK_REFERRAL_CODE = "MOCK1234"
+export const SHARE_ROLE_LABEL: Record<ShareRoleWire, string> = { owner: "Owner", partner: "CA partner", manager: "CA manager" }
 
 export const MOCK_SCENARIOS = ["owner", "owner-live", "client-owner", "partner", "manager", "go", "coord", "staff", "hr", "member", "member2", "member3"] as const
 export type MockScenario = (typeof MOCK_SCENARIOS)[number]
@@ -433,6 +438,15 @@ export function createMockClient(scenario?: string): DpdpClient {
       viewer: { email: me, kind: who.kind, caSub: who.caSub, firstVisitSeenAt: f.firstVisitSeenAt, saidNotMeAt: f.saidNotMeAt, membershipId: `m-${org.id}-${me}` },
       rows: org.rows.map((r) => toWire(org, r, me)),
     }
+  }
+  // drizzle/0611's decision-maker gate: the org's owner, or a CA partner /
+  // manager named on its sign-off chain. Everyone else is refused with the
+  // RPC's own words -- coordinator, GO, staff, vendor, parent never share.
+  const shareRoleIn = (org: OrgState, me: string): ShareRoleWire | null => {
+    const who = viewerIn(org, me)
+    if (who?.kind === "owner") return "owner"
+    if (who?.kind === "ca" && who.caSub) return who.caSub
+    return null
   }
   // A real Monday email mints one token PER JOB (drizzle/0606
   // dpdp.issue_email_action_tokens): the "done" and "cannot" mock tokens are
@@ -840,6 +854,24 @@ export function createMockClient(scenario?: string): DpdpClient {
           log(org, "ai_action_undone", `Undid an AI assistant's change to "${row.what}" (by ${me})`)
           save(state)
           return ok({ ok: true, verb: "NOTE", jobId: row.id })
+        }
+        // --- WO-DPDP-014 §3/§7 (drizzle/0611) ---
+        case "dpdp_my_referral_code": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          const role = shareRoleIn(org, me)
+          if (!role) return fail("Only the owner, a CA partner or a CA manager can share a referral code")
+          return ok({ code: MOCK_REFERRAL_CODE, role })
+        }
+        case "dpdp_record_share_press": {
+          const org = orgOf(args?.p_org_id)
+          if (!org || !viewerIn(org, me)) return fail("Not a member of this organisation")
+          const role = shareRoleIn(org, me)
+          if (!role) return fail("Only the owner, a CA partner or a CA manager can share a referral code")
+          // No email anywhere in the event: the actor is the role label.
+          log(org, "share_press", `${SHARE_ROLE_LABEL[role]} pressed Share`, role, SHARE_ROLE_LABEL[role])
+          save(state)
+          return ok({ ok: true, role })
         }
         default:
           return fail(`Unknown RPC ${fn}`)
