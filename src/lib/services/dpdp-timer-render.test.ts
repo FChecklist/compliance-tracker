@@ -9,10 +9,14 @@
 // sentence, statutory-only after unsubscribe).
 import { describe, expect, test } from "bun:test"
 import {
+  BRAND_LINE_FULL, BRAND_LINE_SHORT, PUBLIC_SITE, SHARE_ASK, isDecisionMaker,
   computeEscalation, domainOfFrom, escalationLines, isDeliverableAddress, isEmpty, listUnsubscribeHeaders, longDate, PLACEHOLDER,
   renderDigest, renderLeakClock, renderRightsClock, sortJobs, statutorySubset, subjectFor,
   type Digest, type DigestJob, type RenderLinks,
 } from "../../../supabase/functions/dpdp-monday-email/render"
+// WO-DPDP-014: the private app's own copy of the three lines -- plain TS,
+// no imports, so it loads straight across the tree here.
+import * as appBrand from "../../../dpdp-app/src/lib/brand"
 
 function job(over: Partial<DigestJob> & { obligationId: string }): DigestJob {
   const base: DigestJob = {
@@ -170,6 +174,118 @@ describe("the Monday email's copy", () => {
     expect(subjectFor(digest({ level: "owner", roleKind: "owner", jobs: [job({ obligationId: "a", isMine: false, daysLate: 2 }), job({ obligationId: "b", isMine: false })] }))).toBe("Acme & Co: DPDP this week — 2 open jobs, 1 late")
     expect(subjectFor(digest({ statutoryOnly: true, jobs: [job({ obligationId: "a", requiredToday: true, daysLate: 1 })] }), "statutory")).toBe("Acme & Co: 1 job required by today's law (1 late)")
     expect(longDate("2026-09-21")).toBe("21 September 2026")
+  })
+})
+
+// WO-DPDP-014 §4/§5 -- the brand line in every footer, the share ask only
+// to decision-makers on the Monday digest, never in a legal clock, never in
+// the preview text.
+describe("WO-DPDP-014 -- the brand line in email footers", () => {
+  const stripTags = (html: string) => html.replace(/<style[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+  const ownerDigest = () => digest({ level: "owner", roleKind: "owner", email: "owner@example.test", jobs: [job({ obligationId: "j1", isMine: false, assigneeEmail: "staff@example.test", what: "Mask Aadhaar copies" })] })
+  const staffDigest = () => digest({ jobs: [job({ obligationId: "j1", what: "Put up a notice wherever there is a camera" }), job({ obligationId: "j2", what: "Mask Aadhaar copies" })] })
+
+  test("the email's constants are byte-identical to dpdp-app/src/lib/brand.ts", () => {
+    expect(BRAND_LINE_FULL).toBe(appBrand.BRAND_LINE_FULL)
+    expect(BRAND_LINE_SHORT).toBe(appBrand.BRAND_LINE_SHORT)
+    expect(SHARE_ASK).toBe(appBrand.SHARE_ASK)
+    expect(PUBLIC_SITE).toBe(appBrand.PUBLIC_SITE)
+    expect(BRAND_LINE_FULL).toBe("VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India.")
+  })
+
+  test("decision-maker = owner, or a CA partner/manager when the digest carries caSub (0606 does not, yet)", () => {
+    expect(isDecisionMaker({ level: "owner" })).toBe(true)
+    expect(isDecisionMaker({ level: "staff" })).toBe(false)
+    expect(isDecisionMaker({ level: "staff", caSub: null })).toBe(false)
+    expect(isDecisionMaker({ level: "staff", caSub: "partner" })).toBe(true)
+    expect(isDecisionMaker({ level: "staff", caSub: "manager" })).toBe(true)
+  })
+
+  test("every digest carries the brand line once, in the footer, after the last job", () => {
+    for (const d of [ownerDigest(), staffDigest()]) {
+      const out = renderDigest(d, live)
+      expect(out.html.split(BRAND_LINE_FULL)).toHaveLength(2)
+      expect(out.text.split(BRAND_LINE_FULL)).toHaveLength(2)
+      expect(out.html.indexOf(BRAND_LINE_FULL)).toBeGreaterThan(out.html.lastIndexOf("Mask Aadhaar copies"))
+      expect(out.text.indexOf(BRAND_LINE_FULL)).toBeGreaterThan(out.text.lastIndexOf("Mask Aadhaar copies"))
+      // Plain small text, no banner, no button, no image for it.
+      const footerHtml = out.html.slice(out.html.indexOf(BRAND_LINE_FULL) - 120, out.html.indexOf(BRAND_LINE_FULL))
+      expect(footerHtml).toContain("font-size:12px")
+      expect(out.html).not.toMatch(/<img/i)
+      expect(out.subject).not.toContain("VERy INDIAN")
+    }
+  })
+
+  test("the share ask goes to the owner's Monday digest only -- with the public site and no referral code", () => {
+    const owner = renderDigest(ownerDigest(), live)
+    expect(owner.html).toContain(SHARE_ASK)
+    expect(owner.html).toContain(`href="${PUBLIC_SITE}"`)
+    expect(owner.text).toContain(`${SHARE_ASK}: ${PUBLIC_SITE}`)
+    expect(owner.html).not.toContain("?ref=")
+    expect(owner.text).not.toContain("?ref=")
+    // The ask sits under the brand line, in the footer.
+    expect(owner.html.indexOf(SHARE_ASK)).toBeGreaterThan(owner.html.indexOf(BRAND_LINE_FULL))
+    expect(owner.text.indexOf(SHARE_ASK)).toBeGreaterThan(owner.text.indexOf(BRAND_LINE_FULL))
+
+    const staff = renderDigest(staffDigest(), live)
+    expect(staff.html).not.toContain(SHARE_ASK)
+    expect(staff.text).not.toContain(SHARE_ASK)
+    expect(staff.html).not.toContain(PUBLIC_SITE)
+
+    const coord = renderDigest(digest({ roleKind: "coord", email: "coord@example.test", jobs: [job({ obligationId: "j1" })] }), live)
+    expect(coord.html).not.toContain(SHARE_ASK)
+
+    // A CA partner/manager, once 0606 emits caSub, is a decision-maker too.
+    const partner = renderDigest(digest({ caSub: "partner", jobs: [job({ obligationId: "j1" })] }), live)
+    expect(partner.html).toContain(SHARE_ASK)
+    expect(partner.text).toContain(SHARE_ASK)
+
+    // The statutory-only digest (after unsubscribe) carries the line but never the ask.
+    const statutory = renderDigest(statutorySubset(digest({ level: "owner", roleKind: "owner", statutoryOnly: true, jobs: [job({ obligationId: "s", isMine: false, requiredToday: true })] })), live, "statutory")
+    expect(statutory.html).toContain(BRAND_LINE_FULL)
+    expect(statutory.html).not.toContain(SHARE_ASK)
+    expect(statutory.text).not.toContain(SHARE_ASK)
+  })
+
+  test("legal-clock emails: brand line in the footer, share ask never", () => {
+    const recipient = { membershipId: "mo", identityId: "io", email: "owner@example.test", role: "owner" as const }
+    const leak = renderLeakClock({ breachId: "b1", orgId: "o1", orgName: "Acme & Co", becameAwareAt: "2026-09-21T08:00:00Z", deadlineAt: "2026-09-24T08:00:00Z", hoursLeft: 40, boardNotified: false, individualsNotified: true, scopePersonCount: 12, periodKey: "leak:b1:2026-09-22", recipients: [recipient] }, recipient, live)
+    const rights = renderRightsClock({ requestId: "r1", ref: "RR-0007", kind: "erasure", orgId: "o1", orgName: "Acme & Co", receivedAt: "2026-06-30T00:00:00Z", dueAt: "2026-09-28T00:00:00Z", daysLeft: 6, periodKey: "rights:r1:2026-09-22", recipients: [recipient] }, recipient, live)
+    for (const out of [leak, rights]) {
+      expect(out.html).toContain(BRAND_LINE_FULL)
+      expect(out.text).toContain(BRAND_LINE_FULL)
+      expect(out.html).not.toContain(SHARE_ASK)
+      expect(out.text).not.toContain(SHARE_ASK)
+      expect(out.html).not.toContain(PUBLIC_SITE)
+      expect(out.text).not.toContain(PUBLIC_SITE)
+      expect(out.html.indexOf(BRAND_LINE_FULL)).toBeGreaterThan(out.html.indexOf("Sent to you as"))
+    }
+  })
+
+  test("the preview text stays the person's jobs: neither line in the first 300 characters of html, visible text, or text", () => {
+    for (const [d, kind] of [[ownerDigest(), "monday_digest"], [staffDigest(), "monday_digest"]] as const) {
+      const out = renderDigest(d, live, kind)
+      for (const s of [out.html.slice(0, 300), stripTags(out.html).slice(0, 300), out.text.slice(0, 300)]) {
+        expect(s).not.toContain("VERy INDIAN")
+        expect(s).not.toContain("For India, by India")
+        expect(s).not.toContain(SHARE_ASK)
+        expect(s).not.toContain(PUBLIC_SITE)
+      }
+      // The hidden preheader is the subject -- the jobs sentence -- and it is the first visible text.
+      expect(stripTags(out.html).startsWith(out.subject)).toBe(true)
+      expect(out.html.indexOf(out.subject)).toBeLessThan(out.html.indexOf("VERIDIAN AI"))
+    }
+  })
+
+  test("no variant spelling ever leaves the renderer", () => {
+    const outs = [renderDigest(ownerDigest(), live), renderDigest(staffDigest(), dry)]
+    for (const out of outs) {
+      for (const s of [out.subject, out.html, out.text]) {
+        for (const m of s.matchAll(/\bver[a-z]*\s+indian\b/gi)) expect(m[0]).toBe("VERy INDIAN")
+        expect(s).not.toMatch(/\bmade\s+in\s+india\b/i)
+      }
+    }
   })
 })
 
