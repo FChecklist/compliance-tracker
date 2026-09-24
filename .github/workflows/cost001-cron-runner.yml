@@ -1,0 +1,196 @@
+# .github/workflows/cost001-cron-runner.yml
+#
+# PROJEXA-COST-001 (2026-09-22, owner Rajat Agarwal) -- PREPARE-ONLY.
+# Owner's rule for this work order: "Prepare, do not execute."
+#
+# WHAT THIS IS. The Vercel bill must stay <= $20/month, so scheduled work is
+# leaving Vercel Cron. Seven crons need this app's own TypeScript/LLM stack
+# and were classified MOVE -> "a scheduled GitHub Actions runner" (both repos
+# are public, so Actions minutes are free):
+#   loops, instruction-audit, dispatch-completion-monitor, capability-audit,
+#   exchange-rate-refresh, l2-phrase-promotion, crm-lead-scoring
+# Each is a route at src/app/api/internal/<path>/run/route.ts exporting GET
+# (POST aliases it) that authenticates with `Authorization: Bearer
+# $CRON_SECRET` and fails closed (401) when the secret is unset or wrong.
+# This workflow invokes exactly one of them per run, in-process under Bun,
+# via scripts/run-internal-cron.ts -- no Next.js server is started.
+#
+# TODAY IT ONLY RUNS BY HAND (workflow_dispatch), AND DEFAULTS TO A DRY RUN
+# that executes nothing but the database preflight. Two real blockers are
+# documented, not solved, in ai-os/COST001_GHA_RUNNER_NOTES.md:
+#   1. No GitHub Actions workflow in this org has ever successfully connected
+#      to Supabase (.github/workflows/db-migrate.yml: 0 successes in its
+#      recorded runs, password authentication failure). The preflight step
+#      below exists to make that failure look like what it is, before a cron
+#      is blamed for it.
+#   2. CRON_SECRET is not a GitHub secret today (confirmed via
+#      `gh secret list`, 2026-09-22). Without it every one of these routes
+#      answers 401, by design. The run step checks for it and fails loudly.
+#
+# NOT DONE HERE, ON PURPOSE: no schedule is enabled (see the commented block
+# under `on:`), no secret is created, vercel.json is untouched (the Vercel
+# crons still exist until the owner approves the cut-over), no src/ file is
+# modified.
+name: COST-001 internal cron runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      cron:
+        description: "Which /api/internal/<path>/run route to invoke"
+        required: true
+        type: choice
+        options:
+          - loops
+          - instruction-audit
+          - dispatch-completion-monitor
+          - capability-audit
+          - exchange-rate-refresh
+          - l2-phrase-promotion
+          - crm-lead-scoring
+      dry_run:
+        description: "true (default): run ONLY the database-role preflight and invoke nothing. false: preflight, then actually invoke the selected cron route."
+        required: true
+        type: boolean
+        default: true
+
+  # -------------------------------------------------------------------------
+  # SCHEDULE -- DELIBERATELY COMMENTED OUT. Stays off until BOTH hold:
+  #   (a) the owner has approved the cut-over in writing (COST-001 Step 2
+  #       plan table, owner's own decision), and
+  #   (b) CRON_SECRET exists as a repository secret (owner-only, via the
+  #       GitHub UI -- never via a shell in an agent session).
+  # The seven entries below are the CURRENT Vercel times from vercel.json
+  # (UTC), reproduced so the cut-over changes only WHERE each cron runs, not
+  # WHEN. When it is time, uncomment the block, nothing else: the "Resolve
+  # which cron" step already maps github.event.schedule -> cron path, the
+  # concurrency group already keys on the schedule expression, and the run
+  # step already fires on schedule events without a dry_run input.
+  #
+  # KNOWN BEHAVIOUR: this org's scheduled workflows have been observed to
+  # fire HOURS late (GitHub queues `schedule` events on a best-effort basis,
+  # worse at busy top-of-hour minutes). That is acceptable for these seven --
+  # all are once-daily audits/refreshes with no minute-level SLA -- but it
+  # means "did it run at 03:00" is the wrong check; "did it run today" is.
+  # Do not move the minute fields to :00 to "fix" lateness; if anything,
+  # off-peak minutes fire closer to time.
+  #
+  # schedule:
+  #   - cron: "0 3 * * *"    # loops                        (vercel.json: 0 3 * * *)
+  #   - cron: "0 4 * * *"    # instruction-audit            (vercel.json: 0 4 * * *)
+  #   - cron: "30 8 * * *"   # dispatch-completion-monitor  (vercel.json: 30 8 * * *)
+  #   - cron: "0 9 * * *"    # capability-audit             (vercel.json: 0 9 * * *)
+  #   - cron: "30 9 * * *"   # exchange-rate-refresh        (vercel.json: 30 9 * * *)
+  #   - cron: "30 10 * * *"  # l2-phrase-promotion          (vercel.json: 30 10 * * *)
+  #   - cron: "0 11 * * *"   # crm-lead-scoring             (vercel.json: 0 11 * * *)
+  # -------------------------------------------------------------------------
+
+# Two runs of the SAME cron never overlap. The group is keyed on the cron:
+# the dispatch input by hand, or the schedule expression once scheduling is
+# on (each of the seven expressions above is unique, so it identifies the
+# cron). cancel-in-progress is false on purpose -- a second trigger QUEUES
+# behind the first instead of killing a half-finished audit/refresh, which
+# for a cron that writes rows (loops, dispatch-completion-monitor,
+# crm-lead-scoring, l2) would be worse than a late run. Different crons may
+# run concurrently, exactly as they can on Vercel today.
+concurrency:
+  group: cost001-cron-${{ inputs.cron || github.event.schedule || 'unmapped' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run-cron:
+    name: ${{ inputs.cron || github.event.schedule }} (dry_run=${{ inputs.dry_run }})
+    runs-on: ubuntu-latest
+    # Generous relative to what these crons do on Vercel (each finished well
+    # inside Vercel's own function limit), but a bound nonetheless -- see
+    # ci.yml's own note on jobs that silently inherited the 6-hour default.
+    timeout-minutes: 30
+    env:
+      CRON_INPUT: ${{ inputs.cron }}
+      SCHEDULE_EXPR: ${{ github.event.schedule }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - name: Resolve which cron this run targets
+        id: which
+        # Dispatch: the choice input (already constrained to the 7 values).
+        # Schedule: mapped from the expression that fired; an unmapped
+        # expression fails here rather than guessing.
+        run: |
+          set -euo pipefail
+          if [ -n "${CRON_INPUT:-}" ]; then
+            cron="$CRON_INPUT"
+          else
+            case "${SCHEDULE_EXPR:-}" in
+              "0 3 * * *")   cron=loops ;;
+              "0 4 * * *")   cron=instruction-audit ;;
+              "30 8 * * *")  cron=dispatch-completion-monitor ;;
+              "0 9 * * *")   cron=capability-audit ;;
+              "30 9 * * *")  cron=exchange-rate-refresh ;;
+              "30 10 * * *") cron=l2-phrase-promotion ;;
+              "0 11 * * *")  cron=crm-lead-scoring ;;
+              *)
+                echo "::error::no cron is mapped for schedule expression '${SCHEDULE_EXPR:-}' (event=${GITHUB_EVENT_NAME}) -- refusing to guess"
+                exit 1 ;;
+            esac
+          fi
+          echo "cron=$cron" >> "$GITHUB_OUTPUT"
+          echo "target cron: $cron (dry_run=${{ inputs.dry_run }})"
+
+      - name: Preflight -- can this runner reach the database as the app's own roles?
+        # Connects with the SAME two connection strings the app itself uses
+        # and prints current_user / current_database() / rolbypassrls for
+        # each. Prints no secret. Exit 1 on any failure, so a dead connection
+        # string (blocker 1 above) fails HERE with a driver error, not three
+        # steps later inside a cron that looks like it has a bug.
+        run: bun scripts/db-role-preflight.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APP_RUNTIME_DATABASE_URL: ${{ secrets.APP_RUNTIME_DATABASE_URL }}
+
+      - name: Verify CRON_SECRET is set (blocker 2)
+        if: github.event_name == 'schedule' || inputs.dry_run == false
+        # Same "a missing required secret must fail loudly, not silently
+        # produce a 401 that looks like an app bug" principle ci.yml's
+        # e2e-env1 job applies to its own secrets.
+        run: |
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "::error::CRON_SECRET is not a repository secret -- every /api/internal/*/run route answers 401 without it. Owner-only, via the GitHub UI: see ai-os/COST001_GHA_RUNNER_NOTES.md (blocker 2). Nothing was invoked."
+            exit 1
+          fi
+          echo "CRON_SECRET present (value not printed)"
+
+      - name: Run the selected cron (skipped on dry_run)
+        if: github.event_name == 'schedule' || inputs.dry_run == false
+        run: bun scripts/run-internal-cron.ts "$CRON_PATH"
+        env:
+          CRON_PATH: ${{ steps.which.outputs.cron }}
+          # The route's own auth. Not a repository secret today (blocker 2).
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Every secret NAME that exists in this repo today (gh secret list,
+          # 2026-09-22), mapped 1:1 so the cron sees the same environment
+          # shape Vercel gave it. Values are never printed by either script.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APP_RUNTIME_DATABASE_URL: ${{ secrets.APP_RUNTIME_DATABASE_URL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          VERIDIAN_API_KEY: ${{ secrets.VERIDIAN_API_KEY }}
+          # l2-phrase-promotion's batch resolves its provider per level
+          # (src/lib/ai/provider-config.ts: AI_PROVIDER_PIPELINE_L2 overrides
+          # the global default for L2 only); openrouter is the one this
+          # runner can actually reach with the secrets above.
+          AI_PROVIDER_PIPELINE_L2: openrouter
+          # NOT mapped, because it does not exist as a secret: AI_CONFIG_ENCRYPTION_KEY
+          # (instruction-audit's model resolution needs it to decrypt a stored
+          # BYOK key -- see the notes file, per-cron section).
