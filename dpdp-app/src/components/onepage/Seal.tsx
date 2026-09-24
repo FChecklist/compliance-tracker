@@ -32,6 +32,9 @@ export function Seal({ done, total }: { done: number; total: number }) {
           style={{ fontFamily: "Sora, sans-serif", fontSize: "8.6px", fontWeight: 700, letterSpacing: "2.1px" }}
           fill="var(--dpdp-v)"
         >
+          {/* WO-DPDP-014 §1: "VERy INDIAN" exactly -- the spec's ring text
+              had the all-caps variant; src/lib/brand.test.ts now fails the
+              build on any spelling but this one. */}
           <textPath href="#dpdp-sealpath">VERIDIAN ✦ DPDP PROOF ✦ VERy INDIAN ✦ DPDP PROOF ✦</textPath>
         </text>
         <circle cx="80" cy="80" r={R} fill="none" stroke="var(--dpdp-vL)" strokeWidth="9" />
