@@ -4,7 +4,7 @@ import type {
   AiActionUndoPayload, AiDraftConfirmPayload, AiDraftPreviewPayload, AiLinkListItem, AiLinkPayload, AiLinkWarning, AiWorkLinkCreated,
   AreaAssignmentWire, AreaPayload, CaClientWire, ConfirmSetupPayload,
   CreateClientPayload, EmailActionPreview, EmailActionResult, FirstVisitPayload, GroupAnswerPayload, HistoryEntryWire, MyPagePayload,
-  OrgSetupPayload, ParentConsentPreview, ParentConsentResult, UnsubscribeResult,
+  OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, SharePressPayload, UnsubscribeResult,
 } from "./rpc-types"
 import { SITE_ORIGIN } from "./public-surface.mjs"
 
@@ -258,6 +258,24 @@ export async function unsubscribe(client: DpdpClient, token: string): Promise<Un
   const { data, error } = await client.rpc("dpdp_unsubscribe", { p_token: token })
   if (error) throw new RpcFailure(error)
   return data as UnsubscribeResult
+}
+
+// ---------------------------------------------------------------------
+// WO-DPDP-014 §3/§7: the share action (drizzle/0611).
+// ---------------------------------------------------------------------
+
+/** The caller's own referral code for `?ref=` on the public site -- decision-makers only (the RPC refuses everyone else with 42501). */
+export async function myReferralCode(client: DpdpClient, orgId?: string | null): Promise<ReferralCodePayload> {
+  const { data, error } = await client.rpc("dpdp_my_referral_code", orgId ? { p_org_id: orgId } : undefined)
+  if (error) throw new RpcFailure(error)
+  return data as ReferralCodePayload
+}
+
+/** One share_press event for WO-014 §7's "share presses per week, by role". Nothing about the person goes into it. */
+export async function recordSharePress(client: DpdpClient, orgId?: string | null): Promise<SharePressPayload> {
+  const { data, error } = await client.rpc("dpdp_record_share_press", orgId ? { p_org_id: orgId } : undefined)
+  if (error) throw new RpcFailure(error)
+  return data as SharePressPayload
 }
 
 /** resolveConsentToken(): the parent consent page before any answer. */

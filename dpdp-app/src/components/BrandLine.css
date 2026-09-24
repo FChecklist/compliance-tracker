@@ -1,0 +1,121 @@
+/* WO-DPDP-014 §2 "THE LOOK": a thin line at the very top of every private
+   page -- about 28 px, full width, VERIDIAN's own colours only (the app's
+   ink token as background, white text, one small marigold accent), no flag,
+   no tricolour. It is in normal flow (position: static) so it SCROLLS AWAY:
+   the section links stay pinned, the brand line never covers the work.
+   `.dpdp-onepage.dpdp-brandline` outranks `.dpdp-onepage`'s own paper
+   background/ink colour (dpdp-onepage-tokens.css) by specificity, whatever
+   the import order. src/lib/brand.test.ts reads this file and checks the
+   contrast, the tokens, the height and that nothing here is fixed or sticky. */
+.dpdp-onepage.dpdp-brandline,
+.dpdp-brandline {
+  position: static;
+  box-sizing: border-box;
+  min-height: 28px;
+  width: 100%;
+  margin: 0;
+  padding: 4px 16px;
+  background: var(--dpdp-ink);
+  color: #fff;
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-size: 12.5px;
+  line-height: 20px;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+}
+
+.dpdp-brandline__line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* The one accent: a small marigold dot before the words. */
+.dpdp-brandline__accent {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dpdp-a);
+}
+
+.dpdp-brandline__full { display: inline; }
+.dpdp-brandline__short { display: none; }
+
+@media (max-width: 479.98px) {
+  .dpdp-brandline__full { display: none; }
+  .dpdp-brandline__short { display: inline; }
+  .dpdp-brandline__line { white-space: normal; }
+}
+
+/* The share ask (decision-makers only): plain words, one small button that
+   is the same white text on the same ink -- underlined so it reads as a
+   control without a second colour. */
+.dpdp-brandline__share {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.dpdp-brandline__share button {
+  background: transparent;
+  color: #fff;
+  border: 0;
+  padding: 0 2px;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.dpdp-brandline__share button:focus-visible {
+  outline: 2px solid var(--dpdp-a);
+  outline-offset: 2px;
+}
+
+/* The laptop fallback when the browser has no share sheet: a small panel
+   under the bar, in flow, with Copy link / WhatsApp / Email. */
+.dpdp-sharepanel {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 8px 16px;
+  background: var(--dpdp-card);
+  color: var(--dpdp-ink);
+  border-bottom: 1px solid var(--dpdp-line);
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+}
+.dpdp-sharepanel code {
+  font-size: 12.5px;
+  color: var(--dpdp-ink2);
+  word-break: break-all;
+}
+.dpdp-sharepanel a,
+.dpdp-sharepanel button {
+  background: var(--dpdp-vL);
+  color: var(--dpdp-v);
+  border: 0;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.dpdp-sharepanel button.dpdp-sharepanel__close {
+  background: transparent;
+  color: var(--dpdp-ink3);
+  text-decoration: underline;
+  margin-left: auto;
+}
