@@ -90,9 +90,19 @@ describe("WO-DPDP-014 §1 -- the facts file agrees (WO-013), when it is present"
   })
 })
 
+// Skipped, not silently: a *.test.* file's own fixtures must contain the
+// banned spellings to prove a detector catches them (claims-register.test.ts,
+// brand-line.test.ts), and facts.mjs (WO-DPDP-013) is that detector itself --
+// its own banned-word regex necessarily spells the phrase out in source, the
+// same reason this file's own regexes below are the only place IT spells it
+// out. Both are already proven by their own dedicated tests; scanning them
+// here would flag the enforcement code for doing its job, not a real leak.
+const SKIP_FILES = new Set(["facts.mjs"])
+
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     if (name === "node_modules" || name === "dist" || name.startsWith(".")) continue
+    if (SKIP_FILES.has(name) || /\.test\.(ts|tsx|mts|mjs|js)$/.test(name)) continue
     const p = join(dir, name)
     if (statSync(p).isDirectory()) walk(p, out)
     else if (/\.(ts|tsx|mts|mjs|js|css|html|md|txt|json|yaml|yml)$/.test(name)) out.push(p)
