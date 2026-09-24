@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url"
 import { defineConfig } from "vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
-import { PRIVATE_PAGES, PUBLIC_PAGES } from "./src/lib/public-surface.mjs"
+import { HIDDEN_PAGES, PRIVATE_PAGES, PUBLIC_PAGES } from "./src/lib/public-surface.mjs"
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url))
 
@@ -16,6 +16,8 @@ export default defineConfig({
   // 404s locally the same way it will on Cloudflare Pages, instead of
   // quietly serving the app. Every entry comes from public-surface.mjs -- a
   // page not listed there is not built, and one listed cannot be missed.
+  // HIDDEN_PAGES (WO-DPDP-013 v2: /proof/ until the owner switches it on)
+  // are built too -- "built and hidden", never "not built".
   appType: "mpa",
   resolve: {
     // The onepage/* components and view-model are ported from the Next.js
@@ -34,7 +36,7 @@ export default defineConfig({
       // A private prefix served by a Pages Function (source: null) has no
       // HTML to build; everything else is an entry.
       input: Object.fromEntries(
-        [...PUBLIC_PAGES, ...PRIVATE_PAGES]
+        [...PUBLIC_PAGES, ...HIDDEN_PAGES, ...PRIVATE_PAGES]
           .filter((p): p is typeof p & { source: string } => p.source !== null)
           .map((p) => [p.source.replace(/\/?index\.html$/, "") || "home", here(p.source)]),
       ),

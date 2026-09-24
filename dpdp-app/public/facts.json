@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "approved_on": "2026-09-22",
+  "product": "VERIDIAN DPDP",
+  "site": "https://app.veridian-aios.com",
+  "one_line": "VERIDIAN is Indian software for running DPDP compliance, purpose-built for the Digital Personal Data Protection Act 2023 and DPDP Rules 2025, for CA, CS, audit and legal firms, their clients, and schools and institutions.",
+  "who_for": [
+    "CA, CS, audit and legal firms",
+    "their clients",
+    "schools and institutions"
+  ],
+  "what_it_does": "It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords. Each answer is recorded with a date and cannot be edited, building the proof an organisation needs. Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027.",
+  "three_strongest_facts": [
+    "It turns the law into a list of jobs, gives each job to the responsible person, and coordinates every stakeholder — owners, staff, vendors, group companies — through one email a week, with no accounts or passwords.",
+    "Each answer is recorded with a date and cannot be edited, building the proof an organisation needs.",
+    "Every job is mapped to its legal source, including the SPDI Rules 2011 that apply until 13 May 2027."
+  ],
+  "deadline_line": "Every CA firm whose clients hold personal data will need to show DPDP compliance by 13 May 2027 — VERIDIAN is built for exactly that work.",
+  "what_it_does_not_do": "It is not a law firm, does not certify (no DPDP certification exists in India), does not guarantee compliance, and never stores documents.",
+  "brand_line": "VERIDIAN · VERy INDIAN — Built for India's DPDP Act. For India, by India.",
+  "key_dates": {
+    "items": [
+      {
+        "date": "2027-05-13",
+        "label": "until 13 May 2027",
+        "what": "The SPDI Rules 2011 are in force and apply."
+      },
+      {
+        "date": "2027-05-13",
+        "label": "from 13 May 2027",
+        "what": "The Digital Personal Data Protection Act 2023 and the DPDP Rules 2025 are in force. DPDP compliance is due."
+      }
+    ]
+  },
+  "library": {
+    "version": "0.2-wo010",
+    "job_count": 59
+  },
+  "storage": {
+    "database": {
+      "sentence": "The database is in Mumbai, India (Supabase, AWS region ap-south-1)."
+    },
+    "email": {
+      "sentence": "Email is sent through Resend, a US company, so the content of every email passes through a US company's service."
+    },
+    "website": {
+      "sentence": "The public website is served by Cloudflare Pages, a global content delivery network."
+    }
+  },
+  "company": {
+    "legal_name": "SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED",
+    "cin": "U74999UP2017PTC098453",
+    "registered_office": "B-1105, Plot No. 14, Shipra Krishna Vista, Ahinsa Khand-1, Indirapuram, Ghaziabad, Uttar Pradesh 201014, India"
+  },
+  "contact": {
+    "grievance_officer_email": "grievance@veridian-aios.com",
+    "partners_email": "partners@veridian-aios.com"
+  },
+  "ai_work_link_public_sentence": "Users can give their own AI assistant a private, time-limited AI work link from inside VERIDIAN."
+}

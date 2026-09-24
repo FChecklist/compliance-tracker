@@ -1,11 +1,13 @@
 # app.veridian-aios.com -- WO-DPDP-012 §3. Explicit, not left to defaults.
 #
-# Public: the root chooser (/), /dpdp-firm/, /dpdp-institution/, and the
-# site's own CSS, JS and fonts under /assets/ and /fonts/.
+# Public: the root chooser (/), /dpdp-firm/, /dpdp-institution/, /about/,
+# /for-ai/ (+ /for-ai.md, /facts.json, WO-DPDP-013 v2), and the site's own
+# CSS, JS and fonts under /assets/ and /fonts/.
 # Private: /app/ (the signed-in one-page app), /act/ and /unsubscribe/ (the
 # Monday email's one-click pages, token in the fragment), /p/ (the parent
-# consent page) and /ai/ (the AI link's read-only page). Never indexed, by
-# any bot.
+# consent page), and the remaining prefix in the Disallow lines below. Never
+# indexed, by any bot. Nothing private is described here (WO-DPDP-013 v2
+# §2.3: the wall); scripts/check-two-doors.mjs scans this file too.
 #
 # This file must say the same thing as public/_headers (X-Robots-Tag over
 # HTTP) and the pages' own <meta name="robots">; src/lib/public-surface.mjs

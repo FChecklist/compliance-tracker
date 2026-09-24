@@ -11,12 +11,32 @@ actions marked **OWNER** below.
 |---|---|---|
 | `/` | root chooser (firm / institution) | yes |
 | `/dpdp-firm/`, `/dpdp-institution/` | edition landing pages | yes |
+| `/about/` | the full facts for people (WO-DPDP-013 v2 §2.1), generated from `data/veridian-facts.yaml` | yes |
+| `/for-ai/`, `/for-ai.md` | the fact sheet for AI systems, HTML and plain text, generated | yes |
+| `/facts.json` | the public facts as JSON -- exactly `public_fields` in the facts file | -- |
+| `/proof/` | evidence page from `data/proof.yaml`; **built and hidden** until the owner sets `proof.enabled: true` in the facts file | **no** while hidden -- `noindex` meta + `X-Robots-Tag` via the generated block in `public/_headers`; not in the sitemap or llms*.txt; linked from nowhere |
 | `/app/` | the signed-in one-page app (magic-link session in the `#fragment`) | **no** -- `noindex` meta + `X-Robots-Tag` via `public/_headers` |
-| `/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt` | crawler files (WO-DPDP-012 §3) | -- |
+| `/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt` | crawler files (WO-DPDP-012 §3); llms*.txt are generated | -- |
+| `/dpdp-institutions` → `/dpdp-institution/`, `/home` → `/` | 301s in `public/_redirects` (WO-DPDP-013 v2 §2.4) | -- |
 
 Build: `bun run build` → `dist/`. The only build-time inputs are the **public**
 Supabase URL and anon key. `scripts/scan-bundle.mjs` proves per build that
 `service_role` never appears in `dist/`.
+
+The build chain, in order: `tsc` → `generate-public-facts.mjs --check` (the
+committed surfaces must match `data/veridian-facts.yaml`; if the facts changed,
+run `bun run generate:facts` and commit) → `vite build` → `build-sitemap.mjs` →
+`check-public-surface.mjs` → `check-claims.mjs` (no banned word outside an
+approved claim in `data/claims-register.yaml`) → `check-two-doors.mjs` (the
+wall: no AI-link path, file, parameter or token pattern on any public surface;
+`/ai/*` fenced off; no hidden text; no instruction to an AI; the brand line
+spelled exactly, everywhere). Any of the three checks failing fails the build.
+
+The brand line (WO-DPDP-014) at the top of every page, the tab titles, the
+fact block on every public page, the meta description, Open Graph and the
+Organization + SoftwareApplication JSON-LD all come from the facts file too.
+To change a fact: edit `data/veridian-facts.yaml`, run `bun run generate:facts`,
+run `bun test`, commit the regenerated files with it.
 
 ## 2. Two ways to connect -- pick one (OWNER)
 
@@ -80,8 +100,9 @@ the Step 2 spike), so a missing entry looks like "the link opens the wrong site"
 | 1 | `dpdp-app` CI job green on the merge commit | Actions → dpdp-app |
 | 2 | Bundle key scan: `service_role` = 0 | CI step log |
 | 3 | `/app/` returns `X-Robots-Tag: noindex, nofollow` and `Referrer-Policy: no-referrer` | `curl -I https://…/app/` |
-| 4 | `/`, `/dpdp-firm/`, `/dpdp-institution/` readable with JS off (h1 + body in raw HTML) | `curl` output |
-| 5 | `robots.txt`, `sitemap.xml`, `llms.txt` served; sitemap lists only public pages | `curl` |
+| 4 | `/`, `/dpdp-firm/`, `/dpdp-institution/`, `/about/`, `/for-ai/` readable with JS off (h1 + body in raw HTML) | `curl` output |
+| 5 | `robots.txt`, `sitemap.xml`, `llms.txt` served; sitemap lists only public pages; `/proof/` returns `X-Robots-Tag: noindex, nofollow` while hidden | `curl` |
+| 5a | `/dpdp-institutions` and `/home` answer 301 to `/dpdp-institution/` and `/` | `curl -I` |
 | 6 | Magic link round-trip on the real host: email → link → `/app/#access_token…` → jobs load → fragment cleared | screen recording / test run |
 | 7 | Mark Yes persists across reload; `dpdp.event` gains one `obligation_accepted` row with an intact chain | SQL re-read |
 | 8 | Cross-tenant RPC tests green at a recorded SHA (`src/lib/services/dpdp-cross-tenant-rpc.test.ts`) | test run timestamp |

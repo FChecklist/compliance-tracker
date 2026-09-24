@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit -p tsconfig.json && vite build && node scripts/build-sitemap.mjs && node scripts/check-public-surface.mjs",
+    "build": "tsc --noEmit -p tsconfig.json && node scripts/generate-public-facts.mjs --check && vite build && node scripts/build-sitemap.mjs && node scripts/check-public-surface.mjs && node scripts/check-claims.mjs && node scripts/check-two-doors.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "bun test",
@@ -13,7 +13,11 @@
     "lint": "eslint .",
     "scan-bundle": "node scripts/scan-bundle.mjs",
     "build:sitemap": "node scripts/build-sitemap.mjs",
-    "check:public-surface": "node scripts/check-public-surface.mjs"
+    "check:public-surface": "node scripts/check-public-surface.mjs",
+    "generate:facts": "node scripts/generate-public-facts.mjs",
+    "check:facts": "node scripts/generate-public-facts.mjs --check",
+    "check:claims": "node scripts/check-claims.mjs",
+    "check:two-doors": "node scripts/check-two-doors.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
@@ -35,6 +39,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^6",
     "typescript-eslint": "^8.70.1",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "yaml": "2.9.0"
   }
 }
