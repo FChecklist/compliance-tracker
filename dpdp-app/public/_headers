@@ -1,0 +1,59 @@
+# app.veridian-aios.com -- Cloudflare Pages response headers.
+# WO-DPDP-012 §2 for the private prefixes, §1 for everything.
+#
+# How Cloudflare applies this file (its own docs): a request inherits the
+# headers of EVERY rule whose pattern matches, in file order, and a header
+# name attached twice is comma-joined. So each private rule must first
+# DETACH ("! Name") the site-wide Referrer-Policy, in its own rule, before
+# a second rule sets the stricter one -- otherwise /app/ would be sent
+# "strict-origin-when-cross-origin, no-referrer". src/lib/public-surface.test.ts
+# and scripts/check-public-surface.mjs model exactly these merge rules and
+# pin the outcome for every private prefix and every public page.
+#
+# /ai/* is served by a Pages Function (functions/ai/), which sets these same
+# headers itself -- _headers only applies to static assets -- but the rule is
+# kept here so the one list in public-surface.mjs stays whole.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/app/*
+  ! Referrer-Policy
+
+/app/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+
+/act/*
+  ! Referrer-Policy
+
+/act/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+
+/unsubscribe/*
+  ! Referrer-Policy
+
+/unsubscribe/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+
+/p/*
+  ! Referrer-Policy
+
+/p/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+
+/ai/*
+  ! Referrer-Policy
+
+/ai/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store

@@ -1,0 +1,7 @@
+# Cloudflare Pages configuration for the static DPDP app (WO-DPDP-011 Step 7).
+# The app is plain static files: no Functions, no bindings, no secrets. The
+# only build-time inputs are the PUBLIC Supabase URL and anon key (set as
+# Pages environment variables or GitHub repository variables, never here).
+name = "veridian-dpdp-app"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-09-01"
