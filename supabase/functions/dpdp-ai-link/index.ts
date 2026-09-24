@@ -1,169 +1,230 @@
-// WO-DPDP-012 §7 -- the AI link's non-browser reader, as a Supabase Edge
-// Function (Deno). Vercel is not in this path. See README.md alongside.
+// WO-DPDP-013 Part 1 -- the AI work link's API, as a Supabase Edge Function
+// (Deno). Vercel is not in this path. See README.md alongside.
 //
-//   GET  /dpdp-ai-link/<token>        -> clean HTML (no scripts, inline CSS)
-//   GET  /dpdp-ai-link/<token>.md     -> Markdown (also: Accept: text/markdown)
-//   POST /dpdp-ai-link/<token>/draft  -> { draftUrl } for ONE of five verbs
+// Relative to the link base (https://app.veridian-aios.com/ai/<token>,
+// proxied by dpdp-app/functions/ai/[[path]].ts; on this function the same
+// paths sit under /functions/v1/dpdp-ai-link/<token>):
 //
-// The token IS the credential: an AI tool fetches this with no headers at
+//   GET  /                 manual (HTML)      GET /manual.md  GET /manual.json
+//   GET  /context          GET /jobs[?part&status&late&today&mine&nobody]
+//   GET  /jobs/{id}        GET /law/{code}    GET /report/{kind}[?format=md|csv]
+//   GET  /history          POST /actions      POST /drafts
+//   GET  /snapshot.md      (the pre-WO-013 page; <token>.md and /draft still work)
+//
+// The token IS the credential: an AI tool fetches these with no headers at
 // all, so the function is deployed with verify_jwt = false and calls the
-// database with the service-role client, which is the only role granted
-// public.dpdp_ai_link_read / public.dpdp_draft_action (drizzle/0607). The
-// database decides everything -- which rows, whether the link is live,
-// whether the verb is allowed, whether the job is in scope; this file only
-// renders and maps errors. A bad token of ANY kind gets the same 404 and
-// the same sentence, and the lookup is an indexed sha256 match inside the
-// database whichever way it fails, so timing and wording leak nothing.
+// database with the service-role client, which (with app_runtime, for the
+// repo's tests) is the only role granted the public.dpdp_ai_link_* RPCs
+// (drizzle/0610). The database decides everything -- which rows, whether
+// the link is live, which level it has, whether a verb is allowed, whether
+// a job is in scope; this file only routes, renders and maps errors. The
+// pure halves (router.ts, manual.ts, facts.ts, api-definition.ts, law.ts,
+// render.ts) carry no Deno globals and are unit-tested with bun.
 //
-// The draft reply puts the confirm token in the URL FRAGMENT
-// (`#draft=<id>.<token>`), never in a path or query string, so it never
-// reaches any server log -- the dpdp-app reads it client-side (WO-012 §2).
+// EVERY call is logged against the link (dpdp_ai_link_log_call before, the
+// status and byte count after), and the per-link rate limit (120 per
+// minute) is decided from that log. Undo tokens and confirm tokens travel
+// in URL FRAGMENTS (`#undo=`, `#draft=`), never a path or query string, so
+// they never reach a server log (WO-012 §2).
 //
 // The service-role key never leaves this process: it is an env secret the
 // platform injects, used only to construct the client below, and no
 // response body or log line ever includes it or the caller's token.
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { renderHtml, renderMarkdown, type AiLinkView } from "./render.ts"
+import {
+  LINK_GONE, contentTypeFor, errorBody, isRateLimited, jobFilters, lawWithWords, methodFor, negotiateFormat, offeredFormats, paginate, parseRoute, relativePathOf,
+  renderHistoryMarkdown, renderJobMarkdown, renderJobsCsv, renderJobsMarkdown, renderLawMarkdown, renderReportCsv, renderReportMarkdown,
+  type HistoryEntry, type JobDetail, type JobRow, type LawPayload, type ReportPayload, type Route,
+} from "./router.ts"
+import { buildManual, renderManualHtml, renderManualJson, renderManualMarkdown, type ContextPayload } from "./manual.ts"
+import { MAX_BODY_BYTES, RATE_LIMIT, type Format } from "./api-definition.ts"
 
 const FUNCTION_NAME = "dpdp-ai-link"
-const LINK_GONE = "This link has expired or was revoked"
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
 // Defaults to the production static-app origin so the function works with
 // only the platform-injected env (function secrets cannot be set from the
 // PM's machine -- same reason as dpdp-monday-email).
 const APP_ORIGIN = (Deno.env.get("APP_ORIGIN") || "https://app.veridian-aios.com").replace(/\/+$/, "")
-const PUBLIC_BASE = `${SUPABASE_URL}/functions/v1/${FUNCTION_NAME}`
 
-// Simple per-IP rate limit, in memory, per isolate: 30 requests per rolling
-// minute. Best-effort by design (a new isolate starts empty, several
-// isolates don't share state) -- it blunts a scripted token-guessing loop
-// against one instance, it is not a security boundary; the 32-byte random
-// token is.
-const RATE_WINDOW_MS = 60_000
-const RATE_MAX = 30
-const buckets = new Map<string, { count: number; resetAt: number }>()
-function rateLimited(ip: string, now = Date.now()): boolean {
-  const b = buckets.get(ip)
-  if (!b || b.resetAt <= now) {
-    buckets.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS })
-    if (buckets.size > 10_000) for (const [k, v] of buckets) if (v.resetAt <= now) buckets.delete(k)
-    return false
-  }
-  b.count += 1
-  return b.count > RATE_MAX
-}
-
-function clientIp(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for")
-  if (xff) return xff.split(",")[0].trim()
-  return req.headers.get("cf-connecting-ip") ?? req.headers.get("x-real-ip") ?? "unknown"
-}
-
-function privateHeaders(contentType: string): HeadersInit {
+function privateHeaders(contentType: string, extra?: Record<string, string>): HeadersInit {
   return {
     "content-type": contentType,
+    // The *.supabase.co gateway serves HTML as text/plain; the Pages proxy
+    // restores the intended type from this header (see dpdp-app/functions/ai/_proxy.ts).
+    "x-dpdp-content-type": contentType,
     "x-robots-tag": "noindex, nofollow, noarchive, nosnippet",
     "referrer-policy": "no-referrer",
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
     "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    ...(extra ?? {}),
   }
 }
 
-function text(status: number, body: string): Response {
-  return new Response(body + "\n", { status, headers: privateHeaders("text/plain; charset=utf-8") })
+function text(status: number, body: string, contentType = "text/plain; charset=utf-8"): Response {
+  return new Response(body.endsWith("\n") ? body : body + "\n", { status, headers: privateHeaders(contentType) })
 }
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), { status, headers: privateHeaders("application/json; charset=utf-8") })
+function json(status: number, body: unknown, extra?: Record<string, string>): Response {
+  return new Response(JSON.stringify(body), { status, headers: privateHeaders("application/json; charset=utf-8", extra) })
 }
-
-type Route = { token: string; kind: "read"; format: "html" | "md" } | { token: string; kind: "draft" }
-
-/** `/dpdp-ai-link/<token>`, `/dpdp-ai-link/<token>.md`, `/dpdp-ai-link/<token>/draft` -- tolerant of a `/functions/v1` prefix. */
-export function parseRoute(pathname: string, accept: string | null): Route | null {
-  const parts = pathname.split("/").filter(Boolean)
-  const at = parts.lastIndexOf(FUNCTION_NAME)
-  const rest = at >= 0 ? parts.slice(at + 1) : parts
-  if (rest.length === 0 || rest.length > 2) return null
-  let token = rest[0]
-  if (rest.length === 2) {
-    if (rest[1] !== "draft") return null
-    if (!/^[A-Za-z0-9_-]{16,256}$/.test(token)) return null
-    return { token, kind: "draft" }
-  }
-  let format: "html" | "md" = accept && /text\/markdown/i.test(accept) ? "md" : "html"
-  if (token.endsWith(".md")) { token = token.slice(0, -3); format = "md" }
-  if (!/^[A-Za-z0-9_-]{16,256}$/.test(token)) return null
-  return { token, kind: "read", format }
+function fail(status: number, error: string, hint?: string): Response {
+  return json(status, errorBody(status, error, hint))
+}
+function formatted(format: Format, body: string): Response {
+  return new Response(body, { status: 200, headers: privateHeaders(contentTypeFor(format)) })
 }
 
 // Errors the database raises on purpose, with plain-English messages meant
 // for the caller. Anything else is an internal error and is not echoed.
-const LINK_GONE_CODES = new Set(["42501", "P0002"])
-const CALLER_ERROR_CODES = new Set(["22023", "P0001", "22007", "22008"])
+type DbError = { code?: string; message: string }
+function mapDbError(e: DbError, notFoundIs404 = false): Response {
+  const code = e.code ?? ""
+  if (code === "42501" && e.message.includes(LINK_GONE)) return fail(410, LINK_GONE, "Ask the person for a new link.")
+  if (code === "42501") return fail(403, e.message)
+  if (code === "P0002") return fail(notFoundIs404 ? 404 : 400, e.message)
+  if (code === "22023" || code === "P0001" || code === "22007" || code === "22008" || code === "22P02") return fail(400, e.message)
+  console.error(`${FUNCTION_NAME}: database error (${code || "?"})`)
+  return fail(500, "Something failed on our side. Try again in a minute.")
+}
 
 function dbClient() {
   return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } })
 }
 
-async function handleRead(route: Extract<Route, { kind: "read" }>): Promise<Response> {
-  const { data, error } = await dbClient().rpc("dpdp_ai_link_read", { p_token: route.token })
-  if (error) {
-    if (LINK_GONE_CODES.has(error.code ?? "")) return text(404, LINK_GONE)
-    console.error(`${FUNCTION_NAME}: read failed (${error.code ?? "?"})`)
-    return text(500, "Could not open that link right now.")
-  }
-  const view = data as AiLinkView
-  const opts = {
-    draftEndpoint: `${PUBLIC_BASE}/${route.token}/draft`,
-    markdownUrl: `${PUBLIC_BASE}/${route.token}.md`,
-    htmlUrl: `${PUBLIC_BASE}/${route.token}`,
-    now: new Date(),
-  }
-  if (route.format === "md") return new Response(renderMarkdown(view, opts), { headers: privateHeaders("text/markdown; charset=utf-8") })
-  return new Response(renderHtml(view, opts), { headers: privateHeaders("text/html; charset=utf-8") })
+async function rpc<T>(name: string, args: Record<string, unknown>): Promise<{ data: T; error: null } | { data: null; error: DbError }> {
+  const { data, error } = await dbClient().rpc(name, args)
+  if (error) return { data: null, error: { code: error.code ?? undefined, message: error.message } }
+  return { data: data as T, error: null }
 }
 
-async function handleDraft(req: Request, route: Extract<Route, { kind: "draft" }>): Promise<Response> {
-  if (!APP_ORIGIN) {
-    console.error(`${FUNCTION_NAME}: APP_ORIGIN is not set -- cannot build a draft URL`)
-    return text(500, "This service is not fully configured (APP_ORIGIN). Ask the administrator.")
-  }
+async function readBody(req: Request): Promise<{ verb: string; jobId: string | null; value: Record<string, unknown> } | Response> {
   const raw = await req.text()
-  if (raw.length > 8_192) return json(413, { error: "Request body is too large (8 KB at most)." })
-  let body: { verb?: unknown; obligationId?: unknown; payload?: unknown }
+  if (raw.length > MAX_BODY_BYTES) return fail(413, "Request body is too large (8 KB at most).")
+  let body: { verb?: unknown; job_id?: unknown; jobId?: unknown; obligationId?: unknown; value?: unknown; payload?: unknown }
   try {
     body = JSON.parse(raw || "{}")
   } catch {
-    return json(400, { error: "Body must be JSON: { verb, obligationId, payload }." })
+    return fail(400, "Body must be JSON: { verb, job_id, value }.")
   }
-  if (!body || typeof body !== "object") return json(400, { error: "Body must be a JSON object: { verb, obligationId, payload }." })
+  if (!body || typeof body !== "object" || Array.isArray(body)) return fail(400, "Body must be a JSON object: { verb, job_id, value }.")
   const verb = typeof body.verb === "string" ? body.verb : ""
-  const obligationId = typeof body.obligationId === "string" && body.obligationId.trim() ? body.obligationId.trim() : null
-  const payload = body.payload && typeof body.payload === "object" && !Array.isArray(body.payload) ? body.payload : {}
+  const jobRaw = body.job_id ?? body.jobId ?? body.obligationId
+  const jobId = typeof jobRaw === "string" && jobRaw.trim() ? jobRaw.trim() : null
+  const valueRaw = body.value ?? body.payload
+  const value = valueRaw && typeof valueRaw === "object" && !Array.isArray(valueRaw) ? (valueRaw as Record<string, unknown>) : {}
+  return { verb, jobId, value }
+}
 
-  const { data, error } = await dbClient().rpc("dpdp_draft_action", {
-    p_token: route.token,
-    p_verb: verb,
-    p_obligation_id: obligationId,
-    p_payload: payload,
-  })
-  if (error) {
-    if (LINK_GONE_CODES.has(error.code ?? "")) return text(404, LINK_GONE)
-    if (CALLER_ERROR_CODES.has(error.code ?? "")) return json(400, { error: error.message })
-    console.error(`${FUNCTION_NAME}: draft failed (${error.code ?? "?"})`)
-    return json(500, { error: "Could not save that draft right now." })
+/** The link base the manual and every relative path are written against: the app's own /ai/<token>. */
+function linkBase(token: string): string {
+  return `${APP_ORIGIN}/ai/${token}`
+}
+
+async function handle(req: Request, token: string, route: Route, url: URL): Promise<Response> {
+  const q = url.searchParams
+  const accept = req.headers.get("accept")
+
+  switch (route.kind) {
+    case "manual": {
+      const format = negotiateFormat(offeredFormats("manual"), q.get("format"), route.format === "html" ? accept : null, route.format)
+      const r = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
+      if (r.error) return mapDbError(r.error)
+      const manual = buildManual({ context: r.data, base: linkBase(token), now: new Date() })
+      if (format === "json") return formatted("json", renderManualJson(manual))
+      if (format === "md") return formatted("md", renderManualMarkdown(manual))
+      return formatted("html", renderManualHtml(manual))
+    }
+    case "snapshot": {
+      const r = await rpc<AiLinkView>("dpdp_ai_link_read", { p_token: token })
+      if (r.error) return mapDbError(r.error)
+      const base = linkBase(token)
+      const opts = { draftEndpoint: `${base}/drafts`, markdownUrl: `${base}/snapshot.md`, htmlUrl: `${base}/snapshot`, now: new Date() }
+      return route.format === "md" ? formatted("md", renderMarkdown(r.data, opts)) : formatted("html", renderHtml(r.data, opts))
+    }
+    case "context": {
+      const r = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
+      if (r.error) return mapDbError(r.error)
+      return json(200, { ...r.data, base: linkBase(token) })
+    }
+    case "jobs": {
+      const format = negotiateFormat(offeredFormats("jobs"), q.get("format"), accept, "json")
+      const r = await rpc<JobRow[]>("dpdp_ai_link_jobs", { p_token: token, p_filters: jobFilters(q) })
+      if (r.error) return mapDbError(r.error)
+      const page = paginate(r.data, q.get("page"), q.get("per_page"))
+      if (format === "csv") return formatted("csv", renderJobsCsv(page))
+      if (format === "md") {
+        const ctx = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
+        return formatted("md", renderJobsMarkdown(page, ctx.error ? "this organisation" : ctx.data.org.name))
+      }
+      return json(200, page)
+    }
+    case "job": {
+      const format = negotiateFormat(offeredFormats("job"), q.get("format"), accept, "json")
+      const r = await rpc<JobDetail>("dpdp_ai_link_job", { p_token: token, p_job_id: route.id })
+      if (r.error) return mapDbError(r.error, true)
+      return format === "md" ? formatted("md", renderJobMarkdown(r.data)) : json(200, r.data)
+    }
+    case "law": {
+      const format = negotiateFormat(offeredFormats("law"), q.get("format"), accept, "json")
+      const r = await rpc<LawPayload>("dpdp_ai_link_law", { p_token: token, p_code: route.code })
+      if (r.error) return mapDbError(r.error)
+      const law = lawWithWords(r.data)
+      return format === "md" ? formatted("md", renderLawMarkdown(law)) : json(200, law)
+    }
+    case "report": {
+      const format = negotiateFormat(offeredFormats("report"), q.get("format"), accept, "json")
+      const r = await rpc<ReportPayload>("dpdp_ai_link_report", { p_token: token, p_kind: route.report })
+      if (r.error) return mapDbError(r.error)
+      if (format === "md") return formatted("md", renderReportMarkdown(r.data))
+      if (format === "csv") return formatted("csv", renderReportCsv(r.data))
+      return json(200, r.data)
+    }
+    case "history": {
+      const format = negotiateFormat(offeredFormats("history"), q.get("format"), accept, "json")
+      const r = await rpc<HistoryEntry[]>("dpdp_ai_link_history", { p_token: token })
+      if (r.error) return mapDbError(r.error)
+      const page = paginate(r.data, q.get("page"), q.get("per_page"))
+      if (format === "md") {
+        const ctx = await rpc<ContextPayload>("dpdp_ai_link_context", { p_token: token })
+        return formatted("md", renderHistoryMarkdown(page, ctx.error ? "this organisation" : ctx.data.org.name))
+      }
+      return json(200, page)
+    }
+    case "actions": {
+      const body = await readBody(req)
+      if (body instanceof Response) return body
+      const r = await rpc<{ actionId: string; verb: string; jobId: string; appliedAt: string; undoableUntil: string; undoToken: string; recorded: string }>(
+        "dpdp_ai_link_action", { p_token: token, p_verb: body.verb, p_job_id: body.jobId, p_value: body.value },
+      )
+      if (r.error) return mapDbError(r.error)
+      const { undoToken, ...rest } = r.data
+      return json(201, {
+        ...rest,
+        undoUrl: `${APP_ORIGIN}/app/#undo=${rest.actionId}.${undoToken}`,
+        next: "Done, under the person's own authority. Tell them what changed and give them undoUrl -- it undoes this one change for 24 hours, in their own browser.",
+      })
+    }
+    case "drafts": {
+      const body = await readBody(req)
+      if (body instanceof Response) return body
+      const r = await rpc<{ draftId: string; confirmToken: string; verb: string; jobId: string | null; expiresAt: string; executableOnConfirm: boolean }>(
+        "dpdp_ai_link_draft", { p_token: token, p_verb: body.verb, p_job_id: body.jobId, p_value: body.value },
+      )
+      if (r.error) return mapDbError(r.error)
+      const { confirmToken, ...rest } = r.data
+      return json(201, {
+        ...rest,
+        // 0607's `draftUrl` name is kept alongside so the pre-WO-013 clients keep working.
+        confirmUrl: `${APP_ORIGIN}/app/#draft=${rest.draftId}.${confirmToken}`,
+        draftUrl: `${APP_ORIGIN}/app/#draft=${rest.draftId}.${confirmToken}`,
+        next: rest.executableOnConfirm
+          ? "Give confirmUrl to the person. They open it in their own browser, sign in, and confirm. Nothing has changed yet."
+          : "Give confirmUrl to the person. This kind of draft is recorded for them but cannot be executed from the confirm screen yet -- they will be told to do it on their page. Nothing has changed.",
+      })
+    }
   }
-  const d = data as { draftId: string; confirmToken: string; verb: string; obligationId: string | null; expiresAt: string }
-  return json(201, {
-    draftId: d.draftId,
-    verb: d.verb,
-    obligationId: d.obligationId,
-    expiresAt: d.expiresAt,
-    draftUrl: `${APP_ORIGIN}/app/#draft=${d.draftId}.${d.confirmToken}`,
-    next: "Give draftUrl to the person. They open it in their own browser, sign in, and confirm. Nothing has changed yet.",
-  })
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -171,16 +232,40 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.error(`${FUNCTION_NAME}: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing`)
     return text(500, "This service is not configured.")
   }
-  if (rateLimited(clientIp(req))) return text(429, "Too many requests from this address. Try again in a minute.")
-
   const url = new URL(req.url)
-  const route = parseRoute(url.pathname, req.headers.get("accept"))
-  if (!route) return text(404, LINK_GONE)
+  const parsed = parseRoute(url.pathname)
+  if ("error" in parsed) return parsed.error === 401 ? fail(401, parsed.message) : fail(404, parsed.message)
+  const { token, route } = parsed
+  const method = req.method === "HEAD" ? "GET" : req.method
+  const relativePath = relativePathOf(url.pathname)
 
-  if (route.kind === "read") {
-    if (req.method === "GET" || req.method === "HEAD") return handleRead(route)
-    return text(405, "Use GET to read this link.")
+  // Every call logged, before it is served; the rate limit is decided from
+  // this link's own count in the last minute. A bad token is logged with
+  // no link and then refused by the data call exactly as before.
+  const begun = await rpc<{ callId: string; linkId: string | null; callsLastMinute: number }>("dpdp_ai_link_log_call", { p_token: token, p_method: method, p_path: relativePath + (url.search ? "?" : "") })
+  const callId = begun.error ? null : begun.data.callId
+  const finish = async (res: Response): Promise<Response> => {
+    if (callId) {
+      const bytes = Number(res.headers.get("content-length")) || (res.body ? undefined : 0)
+      await rpc("dpdp_ai_link_log_call_result", { p_call_id: callId, p_status: res.status, p_bytes: bytes ?? null })
+    }
+    return res
   }
-  if (req.method === "POST") return handleDraft(req, route)
-  return text(405, "Use POST to draft an action.")
+
+  if (!begun.error && isRateLimited(begun.data.callsLastMinute)) {
+    return finish(fail(429, `Over the rate limit (${RATE_LIMIT.perMinute} calls per minute per link). Wait a minute.`))
+  }
+  const expected = methodFor(route)
+  if (method !== expected) return finish(new Response(JSON.stringify(errorBody(405, `Use ${expected} for this path.`)), { status: 405, headers: privateHeaders("application/json; charset=utf-8", { allow: expected }) }))
+
+  try {
+    const res = await handle(req, token, route, url)
+    const body = await res.clone().arrayBuffer()
+    const withLength = new Response(body, { status: res.status, headers: res.headers })
+    withLength.headers.set("content-length", String(body.byteLength))
+    return finish(withLength)
+  } catch (e) {
+    console.error(`${FUNCTION_NAME}: unhandled`, e instanceof Error ? e.message : String(e))
+    return finish(fail(500, "Something failed on our side. Try again in a minute."))
+  }
 })
