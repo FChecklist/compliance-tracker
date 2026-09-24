@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      The parent / data-principal consent page (WO-DPDP-011 §4, the port of
+      /dpdp/p/[token]), served at /p/#<token>. The consent token rides in the
+      URL FRAGMENT -- WO-DPDP-012 §2's third bullet, "the token itself out of
+      the URL path into the # fragment", which the Next.js layout deferred to
+      this static port. A Data Principal never has an account: the token is
+      the credential (dpdp_parent_consent_preview / dpdp_parent_consent).
+      PRIVATE (WO-DPDP-012 §2): never indexed, never crawled, no referrer.
+      No third-party <link>/<script> of any kind belongs on this page.
+    -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>VERIDIAN DPDP</title>
+    <link rel="preload" href="/fonts/sora-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/instrument-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/parent.tsx"></script>
+  </body>
+</html>
