@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { createDpdpClient, type DpdpClient } from "./lib/client"
 import {
   RpcFailure, acknowledgeWelcome, answerGroup, completeOwnerFirstVisit, createClientOrg, fetchAreas, fetchHistory, fetchMyClients, fetchMyPage,
-  fetchOrgSetup, flagNotMe, markDone, ownerConfirmSetup, readDraftFragment, viewerContext, type Area, type CaClient, type DraftFragment, type MyPage,
+  fetchOrgSetup, flagNotMe, markDone, ownerConfirmSetup, readDraftFragment, readUndoFragment, viewerContext,
+  type Area, type CaClient, type DraftFragment, type MyPage, type UndoFragment,
 } from "./lib/api"
 import type { OrgSetupPayload } from "./lib/rpc-types"
 import { readLanding, recallEmail, rememberEmail, type Landing } from "./lib/landing"
@@ -14,8 +15,9 @@ import { Timeline, type HistoryEntry } from "./components/onepage/Timeline"
 import { CaClients, type NewClient } from "./components/CaClients"
 import { CaPartnerFirstVisit } from "./components/CaPartnerFirstVisit"
 import { OwnerReview } from "./components/OwnerReview"
-import { AiLinkButton } from "./components/AiLinkButton"
+import { AiWorkLink } from "./components/AiWorkLink"
 import { DraftConfirm } from "./components/DraftConfirm"
+import { AiUndoConfirm } from "./components/AiUndoConfirm"
 import { CheckYourEmail, ErrorScreen, LinkExpired, Loading, NoMembership, SignIn, type ResendState } from "./components/Screens"
 import { BrandLine } from "./components/BrandLine"
 import { shareRoleFor } from "./lib/brand"
@@ -41,17 +43,19 @@ type Phase =
 const SIGNED_OUT: Phase = { name: "signed-out", busy: false, error: null }
 
 export function App() {
-  const [boot] = useState<{ landing: Landing; draft: DraftFragment | null; client: DpdpClient | Error }>(() => {
+  const [boot] = useState<{ landing: Landing; draft: DraftFragment | null; undo: UndoFragment | null; client: DpdpClient | Error }>(() => {
     // The URL is read before the client exists: a success hash must be left
     // for detectSessionInUrl, an error hash is consumed here (see landing.ts),
-    // and a #draft= hash (the AI link's draftUrl) is consumed and cleared so
-    // the confirm token never stays in the address bar.
+    // a #draft= hash (the AI link's draftUrl) is consumed and cleared so the
+    // confirm token never stays in the address bar, and likewise a #undo=
+    // hash (a Level 1 action's undoUrl, WO-DPDP-013 Part 1).
     const landing = readLanding()
     const draft = readDraftFragment()
+    const undo = draft ? null : readUndoFragment()
     try {
-      return { landing, draft, client: createDpdpClient() }
+      return { landing, draft, undo, client: createDpdpClient() }
     } catch (e) {
-      return { landing, draft, client: e instanceof Error ? e : new Error(String(e)) }
+      return { landing, draft, undo, client: e instanceof Error ? e : new Error(String(e)) }
     }
   })
   if (boot.client instanceof Error) {
@@ -62,13 +66,14 @@ export function App() {
       </>
     )
   }
-  return <Session client={boot.client} landing={boot.landing} initialDraft={boot.draft} />
+  return <Session client={boot.client} landing={boot.landing} initialDraft={boot.draft} initialUndo={boot.undo} />
 }
 
-function Session({ client, landing, initialDraft }: { client: DpdpClient; landing: Landing; initialDraft: DraftFragment | null }) {
+function Session({ client, landing, initialDraft, initialUndo }: { client: DpdpClient; landing: Landing; initialDraft: DraftFragment | null; initialUndo: UndoFragment | null }) {
   const [phase, setPhase] = useState<Phase>({ name: "booting" })
   const [email, setEmail] = useState<string | null>(null)
   const [draft, setDraft] = useState<DraftFragment | null>(initialDraft)
+  const [undo, setUndo] = useState<UndoFragment | null>(initialUndo)
   const [view, setView] = useState<"page" | "clients">("page")
   // Written only from the auth-event handler, never during render: whether
   // this session's first page fetch has been kicked off, so supabase-js's
@@ -124,14 +129,17 @@ function Session({ client, landing, initialDraft }: { client: DpdpClient; landin
     return () => subscription.unsubscribe()
   }, [client, load, landing])
 
-  // A #draft= fragment can arrive AFTER load too: the person is already on
-  // /app/ and pastes the AI's draftUrl into the same tab, which is a
-  // hash-only navigation (no reload, no remount). Read and clear it exactly
-  // as the boot path does, so the confirm token never stays in the address.
+  // A #draft= or #undo= fragment can arrive AFTER load too: the person is
+  // already on /app/ and pastes the AI's draftUrl/undoUrl into the same tab,
+  // which is a hash-only navigation (no reload, no remount). Read and clear
+  // it exactly as the boot path does, so the confirm/undo token never stays
+  // in the address.
   useEffect(() => {
     const onHashChange = () => {
       const d = readDraftFragment()
-      if (d) setDraft(d)
+      if (d) { setDraft(d); return }
+      const u = readUndoFragment()
+      if (u) setUndo(u)
     }
     window.addEventListener("hashchange", onHashChange)
     return () => window.removeEventListener("hashchange", onHashChange)
@@ -209,6 +217,7 @@ function Session({ client, landing, initialDraft }: { client: DpdpClient; landin
         <Page
           client={client} page={phase.page} clients={phase.clients} refetch={load} email={email} onSignOut={signOut}
           view={view} onView={setView} onOpenOrg={openOrg} draft={draft} onDraftDone={() => setDraft(null)}
+          undo={undo} onUndoDone={() => setUndo(null)}
         />
       )
       break
@@ -226,7 +235,7 @@ function Session({ client, landing, initialDraft }: { client: DpdpClient; landin
 }
 
 function Page({
-  client, page, clients, refetch, email, onSignOut, view, onView, onOpenOrg, draft, onDraftDone,
+  client, page, clients, refetch, email, onSignOut, view, onView, onOpenOrg, draft, onDraftDone, undo, onUndoDone,
 }: {
   client: DpdpClient
   page: MyPage
@@ -239,6 +248,8 @@ function Page({
   onOpenOrg: (orgId: string) => Promise<void>
   draft: DraftFragment | null
   onDraftDone: () => void
+  undo: UndoFragment | null
+  onUndoDone: () => void
 }) {
   const { org, viewer: v, rows } = page
   const viewer = viewerContext(v)
@@ -285,7 +296,7 @@ function Page({
           onMarkYes={(id) => markDone(client, id)}
           onAnswerGroup={async (id, answer) => { await answerGroup(client, id, answer) }}
         />
-        <AiLinkButton client={client} orgId={org.id} onMade={refetch} />
+        <AiWorkLink client={client} orgId={org.id} onMade={refetch} />
         {viewer.kind !== "staff" && <History client={client} page={page} />}
       </>
     )
@@ -306,6 +317,7 @@ function Page({
         <button type="button" onClick={onSignOut} style={{ background: "transparent", color: "var(--dpdp-ink3)", textDecoration: "underline", padding: "4px 6px" }}>Sign out</button>
       </div>
       {draft && <DraftConfirm client={client} draft={draft} onDone={refetch} onDismiss={onDraftDone} />}
+      {undo && <AiUndoConfirm client={client} undo={undo} onDone={refetch} onDismiss={onUndoDone} />}
       {body}
     </div>
   )

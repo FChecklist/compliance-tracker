@@ -44,18 +44,19 @@ test.describe("WO-DPDP-011 Step 5 -- the remaining WO-010 screens, by accessible
     await expect(page.getByRole("button", { name: "Done", exact: true })).toHaveCount(0)
     await expect(page.getByText(/answered "Done" for .* \(1 of 1\)/)).toBeVisible()
 
-    // Copy AI link: shown once, on this host's /ai/ route.
-    await page.getByRole("button", { name: "🤖 Make my AI Link", exact: true }).click()
+    // Copy AI work link (WO-DPDP-013 §4 item 6): shown once, on this host's
+    // /ai/ route.
+    await page.getByRole("button", { name: "Copy link", exact: true }).click()
     await expect(page.getByText(/^https:\/\/app\.veridian-aios\.com\/ai\/[A-Za-z0-9_-]+$/)).toBeVisible()
-    await expect(page.getByRole("button", { name: "📋 Copy my AI Link", exact: true })).toBeVisible()
-    await expect(page.getByRole("button", { name: "🤖 Make my AI Link", exact: true })).toHaveCount(0)
+    await expect(page.getByRole("button", { name: "📋 Copy", exact: true })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Copy link", exact: true })).toHaveCount(0)
   })
 
   test("owner: an AI draft in the URL fragment is shown, changes nothing until Confirm, then is recorded", async ({ page }) => {
     await signIn(page, "owner@example.test")
     await page.getByRole("button", { name: "✓ Create the list", exact: true }).click()
     await page.getByRole("button", { name: "✓ Save and send the first emails", exact: true }).click()
-    await expect(page.getByRole("button", { name: "🤖 Make my AI Link", exact: true })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "🤖 AI work link", exact: true })).toBeVisible()
 
     await page.goto("/app/#draft=mock-draft.mock-confirm")
     await expect(page.getByRole("heading", { name: "🤖 An AI drafted something for you to confirm", exact: true })).toBeVisible({ timeout: 10_000 })
