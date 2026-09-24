@@ -1,10 +1,13 @@
-// WO-DPDP-012 §1: the public pages must pass Lighthouse's accessibility
-// color-contrast audit (WCAG 2 AA, 4.5:1 for normal text). A live Lighthouse
-// 12 run on 2026-09-22 scored a11y 89-90 on all three pages with exactly one
-// failing audit: `.wordmark-sub` (--ink3 on white, 3.2:1) and `.card-badge`
-// (--green on --green-bg, 3.4:1). This test parses site.css itself -- no
-// browser -- and pins those two pairs, so a token change that quietly drops
-// below AA fails CI instead of the next Lighthouse run.
+/// <reference types="bun-types" />
+// WO-DPDP-012 §1 + WO-DPDP-014 §2: the public pages must pass Lighthouse's
+// accessibility color-contrast audit (WCAG 2 AA, 4.5:1 for normal text),
+// and the brand line's text must also clear that bar at >= 12px. A live
+// Lighthouse 12 run on 2026-09-22 scored a11y 89-90 on all three pages
+// with exactly one failing audit: `.wordmark-sub` (--ink3 on white, 3.2:1)
+// and `.card-badge` (--green on --green-bg, 3.4:1). This test parses
+// site.css itself -- no browser -- and pins the fixed pairs plus the new
+// brand-line/fact-page pairs, so a token change that quietly drops below
+// AA fails CI instead of the next Lighthouse run.
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -14,8 +17,9 @@ const css = readFileSync(join(import.meta.dir, "..", "site.css"), "utf8")
 function rootVars(): Record<string, string> {
   const root = /:root\s*\{([^}]*)\}/.exec(css)
   if (!root) throw new Error("site.css has no :root block")
+  const body = root[1].replace(/\/\*[\s\S]*?\*\//g, "")
   const vars: Record<string, string> = {}
-  for (const m of root[1].matchAll(/--([a-z0-9-]+)\s*:\s*([^;]+);/g)) vars[m[1]] = m[2].trim()
+  for (const m of body.matchAll(/--([a-z0-9-]+)\s*:\s*([^;]+);/g)) vars[m[1]] = m[2].trim()
   return vars
 }
 
@@ -88,5 +92,42 @@ describe("WO-DPDP-012 §1: public-page text meets WCAG AA contrast (Lighthouse c
     // then the two rules above no longer need their own colours; revisit.
     expect(contrastRatio(vars.ink3, "#ffffff")).toBeLessThan(AA)
     expect(contrastRatio(vars.green, vars["green-bg"])).toBeLessThan(AA)
+  })
+})
+
+describe("WO-DPDP-014 §2: the brand line meets WCAG AA contrast and the 12px floor", () => {
+  const vars = rootVars()
+
+  test("the contrast function agrees with the WCAG reference (black on white = 21:1, white on white = 1:1)", () => {
+    expect(contrastRatio("#000000", "#ffffff")).toBeCloseTo(21, 1)
+    expect(contrastRatio("#ffffff", "#ffffff")).toBe(1)
+  })
+
+  test(".brand-line: white text on the --ink background is >= 4.5:1, at >= 12px, in normal flow, ~28px tall", () => {
+    const fg = resolve(ruleProp(".brand-line", "color"), vars)
+    const bg = resolve(ruleProp(".brand-line", "background"), vars)
+    expect(bg).toBe(vars.ink)
+    expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(AA)
+    expect(parseFloat(ruleProp(".brand-line", "font-size"))).toBeGreaterThanOrEqual(12)
+    expect(ruleProp(".brand-line", "min-height")).toBe("28px")
+    expect(() => ruleProp(".brand-line", "position")).toThrow(/has no position/)
+  })
+
+  test(".brand-line-share: the --a accent on --ink is >= 4.5:1 (the one small accent, WO-014 §2)", () => {
+    const fg = resolve(ruleProp(".brand-line-share", "color"), vars)
+    expect(fg).toBe(vars.a)
+    expect(contrastRatio(fg, vars.ink)).toBeGreaterThanOrEqual(AA)
+  })
+
+  test("--green on --ink would NOT pass AA, which is why the accent is --a and not --green", () => {
+    expect(contrastRatio(vars.green, vars.ink)).toBeLessThan(AA)
+  })
+
+  test("the fact block and fact pages: --ink2 body text on white and on --bg is >= 4.5:1", () => {
+    for (const sel of [".facts-list", ".facts-not", ".facts-for", ".facts-meta"]) {
+      const fg = resolve(ruleProp(sel, "color"), vars)
+      expect(contrastRatio(fg, "#ffffff"), sel).toBeGreaterThanOrEqual(AA)
+      expect(contrastRatio(fg, vars.bg), sel).toBeGreaterThanOrEqual(AA)
+    }
   })
 })

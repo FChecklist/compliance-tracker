@@ -1,0 +1,40 @@
+# data/proof.yaml -- the content of /proof/ (WO-DPDP-013 v2 §2.1: "Evidence
+# page from real-tenant aggregates, consented case studies, the library
+# reviewer -- built, hidden until the owner switches it on").
+#
+# The switch is `proof.enabled` in data/veridian-facts.yaml, not here. While
+# it is false, scripts/generate-public-facts.mjs still builds /proof/ from
+# this file, but as noindex,nofollow, absent from the sitemap and llms*.txt,
+# with X-Robots-Tag noindex from public/_headers, and linked from nowhere.
+#
+# Every figure below is a placeholder (null) until the owner fills it from
+# real Supabase aggregates (no personal data) or a consented case study. A
+# null renders as "not yet published" -- never as a number.
+
+title: Proof
+intro: >-
+  Evidence from real use. Every figure on this page is an aggregate across
+  real organisations using VERIDIAN, or a case study its subject agreed to
+  publish, or the name of the person who reviewed the job library. Nothing
+  here is an estimate.
+
+aggregates:
+  owner_required: true
+  as_of: null            # "YYYY-MM-DD" when the figures were taken
+  items:
+    - label: Organisations with a live DPDP record
+      value: null
+    - label: Jobs answered, each with a dated record that cannot be edited
+      value: null
+    - label: Weekly emails answered from the inbox, without signing in
+      value: null
+
+# Each case study needs the organisation's written consent before it is
+# listed: { organisation, consent_on: "YYYY-MM-DD", summary }.
+case_studies:
+  owner_required: true
+  items: []
+
+# Filled from data/veridian-facts.yaml `library` once a reviewer is recorded.
+library_reviewer:
+  owner_required: true
