@@ -4,3 +4,8 @@ dist
 .env.*
 !.env.example
 *.tsbuildinfo
+# Playwright output (e2e/): traces and screenshots of the sign-in screen are
+# kept only on failure and must never be committed.
+playwright-report
+test-results
+blob-report
