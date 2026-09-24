@@ -116,10 +116,24 @@ export function live(rows: ObligationRow[]): ObligationRow[] {
   return rows.filter((r) => !r.na)
 }
 
-/** yesFor(row, viewer): for a group job, a staff viewer's OWN answer counts, not the group total. */
+/**
+ * yesFor(row, viewer): for a group job, a staff viewer's OWN answer counts,
+ * not the group total -- once they have answered (any of the three kinds)
+ * the job is "done" for them even while colleagues are still to answer.
+ * When the row carries no myGroupAnswer (older payloads), fall back to the
+ * whole group having answered.
+ */
 export function yesFor(row: ObligationRow, viewer: ViewerContext): boolean {
-  if (row.isGroup && viewer.kind === "staff") return !!(row.groupDone && row.groupTotal && row.groupDone >= row.groupTotal)
+  if (row.isGroup && viewer.kind === "staff") {
+    if (row.myGroupAnswer !== undefined) return row.myGroupAnswer !== null
+    return !!(row.groupDone && row.groupTotal && row.groupDone >= row.groupTotal)
+  }
   return row.yes
+}
+
+/** mineFor(rows, viewer): the jobs that are this viewer's to act on -- assigned to them by email, or a group job of a group they are in (the same rule OnePageView/App use to count and show "my jobs"). */
+export function mineFor(rows: ObligationRow[], viewer: ViewerContext): ObligationRow[] {
+  return rows.filter((r) => r.by === viewer.me || (r.isGroup && !!r.viewerIsGroupMember))
 }
 
 /** blocked(row, rows): true if this row depends on another row that isn't done yet (the escalation chain). */
@@ -142,7 +156,10 @@ export type DoThisNow = { icon: string; title: string; subtitle: string; buttonL
  */
 export function vNow(rows: ObligationRow[], viewer: ViewerContext, now: Date = new Date()): DoThisNow {
   const lr = live(rows)
-  const mine = lr.filter((r) => r.by === viewer.me && !yesFor(r, viewer) && !blocked(r, rows))
+  // A group member's unanswered group job is theirs to do (ACCEPTANCE-70.md
+  // finding: "Nothing for you this week" was shown while "All staff" still
+  // waited for this person's answer).
+  const mine = mineFor(lr, viewer).filter((r) => !yesFor(r, viewer) && !blocked(r, rows))
   const nob = lr.filter((r) => !r.by)
   const late = lr.filter((r) => !r.yes && dueDays(r.due, now) < 0)
   const left = lr.filter((r) => !r.yes)

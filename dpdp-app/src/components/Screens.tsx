@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react"
 import "./onepage/dpdp-onepage-tokens.css"
 
-function Card({ icon, title, children }: { icon: string; title: string; children: ReactNode }) {
+export function Card({ icon, title, children }: { icon: string; title: string; children: ReactNode }) {
   return (
     <div className="dpdp-onepage min-h-screen">
       <div className="max-w-[560px] mx-auto px-5 py-14">
