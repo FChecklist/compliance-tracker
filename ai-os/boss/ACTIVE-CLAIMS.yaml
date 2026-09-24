@@ -120,6 +120,58 @@ active:
       until the owner says "go live" in chat. Still NOT touching: any
       other src/ file, any Vercel setting, DNS, or cron execution.
 
+      AMENDMENT 001 (owner, KT Drive 1WRYumIvpgAeBOnRunmaD_ju2oV5m5CSa,
+      2026-09-24): revokes the "stop for owner reply before merging" gate in
+      both NEXT-001 and COST-001. Merge on green CI, no approval needed.
+      Three things stay owner-only: account recharges/payments, anything
+      that increases spend (incl. unpausing a Vercel project), and DNS
+      changes. Also directed (autonomous, not owner-only): disable Speed
+      Insights Plus + Web Analytics on both Vercel projects if either is on
+      (reducing spend needs no approval), and delete/redact any committed
+      doc that maps where a real credential lives in this public repo's git
+      history, reporting what it named.
+
+      DONE under that amendment, this same session: Speed Insights Plus
+      found ON on both veridian-compliance-ai (prj_mRRWcMvhyuxgRZtcfp4Ar
+      SzcOvII) and projexa (prj_JA9mwUdOfW3SKSxjG4jdPo0R2iVM), Web Analytics
+      OFF on both -- disabled Speed Insights Plus on both via the
+      undocumented POST https://api.vercel.com/speed-insights/toggle
+      endpoint ({"value":false}, found via `vercel ... --debug`'s own HTTP
+      trace since the documented CLI/API only support enabling it),
+      verified via GET /v9/projects/{id} showing disabledAt set on both.
+      3-day FOCUS charge report delivered to owner; 48h re-pull (~2026-09-26)
+      to confirm $0.0000 still pending, not yet due. Deleted
+      ai-os/OCID-056-CREDENTIAL-EXPOSURE-REPORT.md +
+      docs/R81_SECRET_HISTORY_PURGE_RUNBOOK.md (compliance-tracker PR #1833,
+      MERGED) -- named credentials reported to owner (Supabase service_role
+      key for project jusqumifsmtcaujqyjuy, 2 anon keys, MINT_SECRET for
+      evpckeuxgvahguwsaeul's mint-session-r33 function), rotation not yet
+      done, see below. All 6 PRs from this pass now MERGED: #1804, #1828,
+      #1829, #1830, #1831, #1833 (real merge SHAs verified via
+      `gh api repos/.../pulls/<n> --jq .merged`, not CLI text output -- the
+      CLI's own success message can be a false positive when main moves
+      between the merge call and the read-back, caught and corrected twice
+      this session).
+
+      AMENDMENT 2026-09-24 (owner, verbatim in chat: "keep going on the
+      remaining items, EXCEPT VERCEL RECHARGE, YOU DO EVERYTHING, YOU DO
+      WHAT I SHOULD DO, YOU ARE MY PROXY"): scope extended to the rest of
+      COST-001 + NEXT-001 without per-step check-in. This session's own
+      reading, stated here rather than assumed silently: "except Vercel
+      recharge" reaffirms Amendment 001's recharge exclusion and clearly
+      delegates ordinary execution judgment (credential rotation, the Step 4
+      static-export-vs-Cloudflare-Pages architecture call, working the
+      NEXT-001 batch-merge pack to green and merging it) -- but does NOT
+      read as an explicit, unambiguous instruction to also drop Amendment
+      001's separate DNS and spend-increase carve-outs (unpausing either
+      Vercel project, buying/enabling any paid add-on, touching a DNS
+      record). Those two stay flagged for an explicit owner yes in chat if
+      and when this session reaches one, same asymmetry Amendment 001 states
+      ("reducing spend needs no approval; increasing it always does").
+      Continuing now: credential rotation (autonomous per Amendment 001's
+      own text), NEXT-001 Step 0 housekeeping + batch-merge pack status
+      across both repos, Step 4 decision.
+
   - session_label: "claude-code (interactive, shared dev servers ct:3000 + projexa:3100 for verification, isolated worktree C:/ct/ct-email-ci-fix branch fix/email-reply-actor-attribution for the CI fix) -- PROJEXA-E2E-001 work order section 2 item 4 ('Email'), FRESH RESTART re-verification: a prior attempt at this exact item was killed mid-way by a connection drop (infra issue), so this session re-derived everything from scratch per its own instructions rather than trusting the prior attempt's local-only, unpushed claim-closure commits [DONE -- both systems independently re-confirmed real/merged/working; found and fixed a genuine CI regression on the prior attempt's own still-open PR #1779]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"
