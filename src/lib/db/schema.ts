@@ -15432,6 +15432,62 @@ export const dpdpAiLink = dpdpSchemaDB.table('ai_link', {
   revokedAt: timestamp('revoked_at'),
   lastReadAt: timestamp('last_read_at'),
   readCount: integer('read_count').notNull().default(0),
+  // WO-DPDP-013 Part 1 (drizzle/0610): the AI WORK link. authorityLevel 0
+  // (read/analyse/report, always on) or 1 (NOTE/SET_DUE/ASSIGN/MARK_NA
+  // applied directly, off by default, chosen per link); Level 2 is never a
+  // link property -- it is always a draft. hideEmails shows other people's
+  // roles instead of their emails on every endpoint. lastUsedAt/callCount
+  // are maintained by public.dpdp_ai_link_log_call on EVERY API call.
+  authorityLevel: smallint('authority_level').notNull().default(0),
+  hideEmails: boolean('hide_emails').notNull().default(false),
+  createdByMembershipId: text('created_by_membership_id'),
+  label: text('label'),
+  lastUsedAt: timestamp('last_used_at'),
+  callCount: integer('call_count').notNull().default(0),
+})
+
+// WO-DPDP-013 Part 1 (drizzle/0610): EVERY API call on an AI work link,
+// whatever it returned. Append-only (a trigger refuses DELETE and any
+// UPDATE other than completing a pending row's status/bytes/finishedAt
+// once). linkId is null only when the token matched no link at all. No TS
+// write path -- written by public.dpdp_ai_link_log_call /
+// dpdp_ai_link_log_call_result only; declared so the DB-gated test can
+// count rows under a tenant context.
+export const dpdpAiLinkCall = dpdpSchemaDB.table('ai_link_call', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  linkId: text('link_id'),
+  orgId: text('org_id'),
+  method: text('method').notNull(),
+  path: text('path').notNull(),
+  status: integer('status'),
+  bytes: integer('bytes'),
+  calledAt: timestamp('called_at').notNull().defaultNow(),
+  finishedAt: timestamp('finished_at'),
+})
+
+// WO-DPDP-013 Part 1 (drizzle/0610): one row per Level 1 action an AI
+// applied through a work link (public.dpdp_ai_link_action), under the
+// link's own person's authority. `previous` is what the job looked like
+// before, so public.dpdp_ai_action_undo (the signed-in person, within
+// undoableUntil = appliedAt + 24h, holding the token whose sha256 is
+// undoTokenHash) can put it back. digestPending is the flag the Monday
+// digest reads (public.dpdp_timer_ai_actions_for_digest). verb is
+// CHECK-constrained to NOTE / SET_DUE / ASSIGN / MARK_NA in the migration.
+export const dpdpAiAction = dpdpSchemaDB.table('ai_action', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  linkId: text('link_id').notNull(),
+  membershipId: text('membership_id').notNull(),
+  orgId: text('org_id').notNull(),
+  verb: text('verb').notNull(),
+  obligationId: text('obligation_id').notNull(),
+  value: jsonb('value').notNull().default({}),
+  previous: jsonb('previous'),
+  appliedAt: timestamp('applied_at').notNull().defaultNow(),
+  undoableUntil: timestamp('undoable_until').notNull(),
+  undoTokenHash: text('undo_token_hash').unique(),
+  undoneAt: timestamp('undone_at'),
+  digestPending: boolean('digest_pending').notNull().default(true),
+  digestedAt: timestamp('digested_at'),
 })
 
 // "Reads are logged with user-agent family and IP prefix only" -- never
