@@ -217,3 +217,14 @@ rollback; for cron 18 in particular, purged payloads are gone.
 * Does not fix the TS `addMonthsToDateStr()` overflow on the creation path
   (OWNER DECISION #4 must land first).
 * Does not persist the dropped L4 count anywhere.
+
+## Validation (2026-09-24, PM session, owner-authorized)
+
+All 5 functions re-verified via a real transactional test against
+`pcrjmlpuqsbocqfwoxod`: `BEGIN`, `CREATE OR REPLACE FUNCTION` for each,
+one `SELECT compliance.cron_*()` call per function (confirms it actually
+compiles and executes, not just parses), then `ROLLBACK` — and a
+follow-up `SELECT` confirmed zero matching rows in `pg_proc` afterward,
+i.e. nothing persisted. All 5 executed without error. This is real
+execution-tested SQL, not merely reviewed text; still not applied to any
+database, since the rollback discards the create.
