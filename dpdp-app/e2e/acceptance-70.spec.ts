@@ -589,7 +589,7 @@ test.describe("troles2 -- roles", () => {
     await expect(page.getByRole("row")).toHaveCount(1 + 7 + 31) // header, 7 part headers, 31 jobs
     await expect(row(page, "Mask Aadhaar copies — keep only the last 4 digits visible").getByText("hr@example.test")).toBeVisible() // someone else's job, visible
     await expect(page.getByText("🕘 History", { exact: true })).toBeVisible()
-    await expect(page.getByRole("heading", { name: "🤖 AI Link", exact: true })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "🤖 AI work link", exact: true })).toBeVisible()
     await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible()
   })
 
