@@ -40,86 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (sub-agent of the DPDP PM session, isolated worktree .claude/worktrees/agent-ad9d429e60039f5d4, branch feat/wo-dpdp-013-part1-ai-work-link off origin/main) -- WO-DPDP-013 v2 PART 1 (the inside door), §4 items 3/4/5: authority levels + ai_link_call/ai_action tables + the 12 public.dpdp_ai_link_* RPCs (drizzle/0610), the Edge Function API router, the generated manual (facts.ts + api-definition.ts + manual.ts), the /ai/<token>/* Pages Function proxy; plus WO-DPDP-014 brand line in the manual header and report footers [IN PROGRESS]"
-    claimed_at: "2026-09-22T (this session)"
-    claim: |
-      Scope: drizzle/0610_dpdp_wo013_ai_work_link.sql (+ _journal.json
-      entry, idx 441), src/lib/db/schema.ts (dpdpAiLink new columns,
-      dpdpAiLinkCall, dpdpAiAction -- additive), supabase/functions/
-      dpdp-ai-link/* (index.ts router, router.ts, manual.ts, facts.ts,
-      api-definition.ts, law.ts, README.md), dpdp-app/functions/ai/*
-      (catch-all proxy), dpdp-app/src/lib/{rpc-types,api}.ts +
-      components/DraftConfirm.tsx (Level 2 verbs only), tests under
-      src/lib/services/dpdp-ai-work-link-rpc.test.ts (DB-gated, unrun by
-      the author -- the PM applies 0610 via MCP and runs it),
-      dpdp-ai-manual.test.ts, dpdp-ai-link-router.test.ts,
-      dpdp-app/src/lib/ai-proxy.test.ts. NOT in scope (other agents):
-      the Copy-AI-link screen in dpdp-app, veridian-facts.yaml and every
-      Part 2 public page. No Vercel, no live DB, no deploy.
-  - session_label: "claude-code (sub-agent of the WO-DPDP-011 PM session, isolated worktree .claude/worktrees/agent-a857aaaa79bf17252, branch feat/wo-dpdp-011-step6-acceptance-70 off feat/wo-dpdp-011-step5-remaining-items + origin/main) -- WO-DPDP-011 Step 6: the 70 acceptance checks (tlaw 18 / tfirst 28 / troles2 24) as Playwright tests against the built static app in mock mode [IN PROGRESS]"
-    claimed_at: "2026-09-22T (this session)"
-  - session_label: "claude-code (sub-agent of the DPDP PM session, isolated worktree, branch feat/wo-dpdp-013-part2-public-door) -- WO-DPDP-013 v2 Part 2 'the public fact door' + shared-rule tests, plus WO-DPDP-014 §1/§4/§6 items that live in the facts file and the public pages [IN PROGRESS]"
-    claimed_at: "2026-09-22T17:05+05:30"
-    claim: |
-      Scope: dpdp-app/data/veridian-facts.yaml (single source of truth,
-      version 1, owner-approved wording copied verbatim from WO-013 §2.2 /
-      §1.3-A and the three WO-014 §1 brand lines), dpdp-app/data/
-      claims-register.yaml + scripts/check-claims.mjs (banned words outside
-      approved claims fail the build), scripts/generate-public-facts.mjs
-      (/about, /for-ai + /for-ai.md, /llms.txt, /llms-full.txt, /facts.json,
-      the visible fact block + meta/OG + JSON-LD on /, /dpdp-firm,
-      /dpdp-institution, the thin brand line on every public page, tab
-      titles "VERIDIAN · VERy INDIAN — <page>"), /proof built and hidden
-      (proof.enabled=false), public/_redirects (/dpdp-institutions -> 301
-      /dpdp-institution, /home -> 301 /), the wall tests
-      (src/lib/two-doors-wall.test.ts + scripts/check-two-doors.mjs: no
-      API path/token/endpoint on any public surface, /ai/* noindex +
-      disallowed + not in sitemap, no hidden text, no praise/rank
-      instructions to AI, no <script> but JSON-LD), the brand-line spelling
-      test, kt/WO-DPDP-013.md + kt/WO-DPDP-014.md verbatim copies.
-      NOT touching: dpdp-app/src/App.tsx, supabase/functions/**, drizzle/**,
-      any Next.js code (WO-011 Step 0 freeze), ai-os/** (the PM registers
-      this entry).
-  - session_label: "claude-code (sub-agent of the DPDP PM session, isolated worktree, branch feat/wo-dpdp-013-part1-ai-work-link) -- WO-DPDP-013 v2 Part 1 'the AI work link': authority levels, the API, the generated manual (drizzle/0610), plus WO-014's manual-header brand line and report footers [IN PROGRESS]"
-    claimed_at: "2026-09-22T17:05+05:30"
-    claim: |
-      Scope: drizzle/0610_dpdp_wo013_ai_work_link.sql (+ journal entry;
-      NOT applied by the agent -- the PM applies via the Supabase MCP):
-      dpdp.ai_link gains authority_level (0|1), hide_emails, 1/7/30-day
-      expiry choice, revoked_at, label; dpdp.ai_link_call (every API call
-      logged); dpdp.ai_action (Level 1 NOTE/SET_DUE/ASSIGN/MARK_NA, "by
-      <person> via AI assistant", undoable 24h); Level 2 always a draft via
-      dpdp.ai_draft (0607) + the existing /app/#draft= confirm screen;
-      public.dpdp_ai_link_create/list/revoke (authenticated) and the
-      service_role-only dpdp_ai_link_context/jobs/job/law/report/history/
-      action/draft/log_call readers. supabase/functions/dpdp-ai-link/**
-      becomes the API router (/, manual.md, manual.json, /context, /jobs,
-      /jobs/{id}, /law/{code}, /report/*, /history, POST /actions, POST
-      /drafts; md/csv; rate limit; pagination) with the manual generated
-      from one api-definition + the facts; dpdp-app/functions/ai/[[token]].ts
-      forwards sub-paths. Tests: src/lib/services/dpdp-ai-work-link-rpc.
-      test.ts (DB-gated, PM runs), pure router/manual tests.
-      NOT touching: dpdp-app public pages, dpdp-app/src/App.tsx (the UI
-      screen is a later package), drizzle/0611 (the WO-014 agent's).
-  - session_label: "claude-code (sub-agent of the DPDP PM session, isolated worktree, branch feat/wo-dpdp-014-brand-line-app) -- WO-DPDP-014 'one brand line everywhere', private-app side: thin line component, role rules, the share action + private-page leak test, email footers, measurement (drizzle/0611) [IN PROGRESS]"
-    claimed_at: "2026-09-22T17:12+05:30"
-    claim: |
-      Scope: dpdp-app/src/lib/brand.ts (+ brand.test.ts: byte-identical to
-      the facts file, variant-spelling scan), src/components/BrandLine.tsx
-      (~28px, --ink background, scrolls away, full/short at 480px, share ask
-      only for partner/manager/owner), src/components/ShareVeridian.tsx
-      (shares ONLY https://veridian-aios.com/ + ?ref=<code>; Web Share API
-      or Copy/WhatsApp/Email panel; never the page address), e2e/
-      brand-share-leak.spec.ts (every private page x role: shared text has
-      no #, token, /app, /act, /ai/), drizzle/0611_dpdp_wo014_brand_share.sql
-      (dpdp_my_referral_code, dpdp_record_share_press -> event
-      'share_press', dpdp_brand_measures aggregates; NOT applied by the
-      agent), supabase/functions/dpdp-monday-email/render.ts footers (brand
-      line on every email; share ask only for decision-maker digests; never
-      on legal clocks; never in the preview text) + dpdp-timer-render.test.ts,
-      report footers if any print/CSV surface exists in dpdp-app.
-      NOT touching: public pages / facts file (Part 2 agent), supabase/
-      functions/dpdp-ai-link (Part 1 agent), drizzle/0610.
   - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session, isolated worktree C:/ct/ct-cost001 branch wo/projexa-cost-001; heavy analysis delegated to Anthropic cloud agents per the owner's 2026-09-22 chat instruction, because this laptop was at ~0.84GB free RAM at session start) -- WORK_ORDER_PROJEXA-COST-001 v2 (issued 2026-09-22, KT rank 0.27, Drive 1kAsuZ0Dn3_Oxa0eaV-G0zdhsC6f3HFBN): Vercel bill must never exceed $20/month [IN PROGRESS]"
     claimed_at: "2026-09-22T06:05Z (this session)"
     claim: |
@@ -4456,6 +4376,57 @@ active:
       only (arjun.mehta CEO account), no real credentials touched.
 
 recently_completed:
+  - session_label: "claude-code (interactive, Claude Desktop, PM session for WO-DPDP-013 (Parts 1+2) + WO-DPDP-014 + WO-DPDP-011 Step 6, with 5 isolated sub-agent worktrees) -- the AI work link (authority levels, RPCs, Edge Function API, generated manual), the public fact door (facts file, /about, /for-ai, /facts.json, llms*.txt, the wall + banned-word tests, hidden /proof), one brand line everywhere + the share action, the 70 acceptance-70 Playwright checks, and the Copy-AI-link screen [DONE 2026-09-24 -- every code item merged and green; the only items not closed are the owner's Vercel recharge and anything gated on it]"
+    claimed_at: "2026-09-22T17:05+05:30 (WO-013/014) / 2026-09-22T (WO-011 Step 6)"
+    completed_at: "2026-09-24T (this session)"
+    claim: |
+      Consolidates and closes the five DPDP entries that were under
+      `active:` (two overlapping WO-013 Part 1 registrations, WO-013 Part 2,
+      WO-014, and the already-merged WO-011 Step 6 entry that had not yet
+      been removed). All PRs below are squash-merged into main and green.
+
+      MERGED (compliance-tracker): #1821/#1822 (WO-011 Step 6: the 70
+      acceptance checks as Playwright, and the fix-forward that made the
+      e2e job actually run), #1826 (WO-013 Part 1: authority levels,
+      ai_link_call/ai_action tables, the 12 dpdp_ai_link_*/dpdp_ai_action_*
+      RPCs, drizzle/0610, the dpdp-ai-link Edge Function API + generated
+      manual), #1827 (WO-013 Part 2: the public fact door -- facts file,
+      claims register, /about, /for-ai(.md), /facts.json, llms*.txt, the
+      wall + banned-word + hidden-text tests, hidden /proof, redirects),
+      #1825 (WO-014: brand line on every private page + email footers,
+      the share action with a leak test, drizzle/0611), #1832 (the
+      Copy-AI-link screen: the WO-013 §1.1 data warning, authority levels,
+      "Your AI links" with revoke, undo confirm for Level 1 actions).
+
+      Two real regressions found and fixed by the PM during the merge
+      sequence (main had moved between each branch's last push and its
+      final merge, since #1825/#1826/#1827/#1832 all touched overlapping
+      dpdp-app files):
+        - #1827: src/lib/api.ts (part of the /app/ browser bundle) imported
+          SITE_ORIGIN from public-surface.mjs, which imports facts.mjs --
+          whose top-level APP_DIR computation calls node:url's
+          fileURLToPath, externalized (not implemented) in the browser.
+          Every /app/ page load crashed before rendering anything, taking
+          82 of 91 acceptance-70/step5 specs down with it. Fixed by giving
+          SITE_ORIGIN its own dependency-free module
+          (dpdp-app/src/lib/site-origin.mjs); confirmed via a live
+          Playwright probe against the built preview server, and the app
+          bundle dropped from 359.88 kB to 253.79 kB.
+        - #1827 (second regression, surfaced by the same merge after
+          #1825 landed): WO-014's new brand.test.ts source-scanned all of
+          dpdp-app/src for the banned "made in india" phrase and flagged
+          its own detector's fixtures/enforcement code (claims-register.
+          test.ts, brand-line.test.ts, facts.mjs) as violations -- 29 false
+          positives, 0 real ones. Fixed by excluding *.test.* files and
+          facts.mjs from the scan; verified the exclusion doesn't gut the
+          check by planting a real "Made in India" line in App.tsx (still
+          fails), then reverting.
+
+      NOT done: the lawyer/Hindi review gate on WO-013 §5 drafts (owner-
+      gated, unchanged from the WO-010/011/012 entry above), and the
+      owner's Vercel recharge (out of scope for every agent in this repo
+      per standing policy).
+
   - session_label: "claude-code (interactive, Claude Desktop, PM session for WO-DPDP-010 + WO-DPDP-011 + WO-DPDP-012, with 8 isolated sub-agent worktrees) -- the three DPDP work orders end-to-end: one-page-per-role product (WO-010), the static Vite app on Cloudflare Pages talking to Supabase via RLS/RPC with the Next.js server-side DPDP code frozen (WO-011 Steps 0-7), and public-site SEO/AI-crawler discoverability (WO-012 §1-§8) [DONE 2026-09-22 -- every code item merged and live; the only items not closed are external-reviewer gates (lawyer/Hindi review before publishing §5 drafts) and the owner's Vercel recharge]"
     claimed_at: "2026-09-21T (WO-010) / 2026-09-22T (WO-011, WO-012)"
     completed_at: "2026-09-22T (this session)"
