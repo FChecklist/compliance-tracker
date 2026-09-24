@@ -5,7 +5,7 @@ import type {
   CreateClientPayload, EmailActionPreview, EmailActionResult, FirstVisitPayload, GroupAnswerPayload, HistoryEntryWire, MyPagePayload,
   OrgSetupPayload, ParentConsentPreview, ParentConsentResult, UnsubscribeResult,
 } from "./rpc-types"
-import { SITE_ORIGIN } from "./public-surface.mjs"
+import { SITE_ORIGIN } from "./site-origin.mjs"
 
 export class RpcFailure extends Error {
   code?: string

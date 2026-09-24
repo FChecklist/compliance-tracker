@@ -26,7 +26,8 @@
 // crawler that finds it can still read the noindex).
 import { loadFacts, pageTitle } from "./facts.mjs"
 
-export const SITE_ORIGIN = "https://app.veridian-aios.com"
+import { SITE_ORIGIN } from "./site-origin.mjs"
+export { SITE_ORIGIN }
 
 export const FACTS = loadFacts()
 
