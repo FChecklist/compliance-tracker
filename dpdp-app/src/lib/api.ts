@@ -1,7 +1,8 @@
 import type { GroupAnswerKind, ObligationRow, ViewerContext } from "@/lib/dpdp-onepage/view-model"
 import type { DpdpClient, RpcError } from "./client"
 import type {
-  AiDraftConfirmPayload, AiDraftPreviewPayload, AiLinkPayload, AreaAssignmentWire, AreaPayload, CaClientWire, ConfirmSetupPayload,
+  AiActionUndoPayload, AiDraftConfirmPayload, AiDraftPreviewPayload, AiLinkListItem, AiLinkPayload, AiLinkWarning, AiWorkLinkCreated,
+  AreaAssignmentWire, AreaPayload, CaClientWire, ConfirmSetupPayload,
   CreateClientPayload, EmailActionPreview, EmailActionResult, FirstVisitPayload, GroupAnswerPayload, HistoryEntryWire, MyPagePayload,
   OrgSetupPayload, ParentConsentPreview, ParentConsentResult, ReferralCodePayload, SharePressPayload, UnsubscribeResult,
 } from "./rpc-types"
@@ -152,6 +153,63 @@ export async function confirmAiDraft(client: DpdpClient, draftId: string, confir
   const { data, error } = await client.rpc("dpdp_confirm_ai_draft", { p_draft_id: draftId, p_confirm_token: confirmToken })
   if (error) throw new RpcFailure(error)
   return data as AiDraftConfirmPayload
+}
+
+// ---------------------------------------------------------------------
+// WO-DPDP-013 Part 1: the AI WORK link (drizzle/0610). The Copy-AI-link
+// screen (WO-013 §4 item 6, a separate work item) consumes these.
+// ---------------------------------------------------------------------
+
+/** The numbers for the warning sentence shown BEFORE "Copy link": "<jobs> jobs and the names and emails of <people> people". */
+export async function aiLinkWarning(client: DpdpClient, orgId?: string | null): Promise<AiLinkWarning> {
+  const { data, error } = await client.rpc("dpdp_ai_link_warning", orgId ? { p_org_id: orgId } : undefined)
+  if (error) throw new RpcFailure(error)
+  return data as AiLinkWarning
+}
+
+/** "Copy AI link": level 0 (read, analyse, report) or 1 (small edits, directly); other people's emails hidden or not; lasts 1, 7 or 30 days. The token comes back exactly once. */
+export async function createAiWorkLink(
+  client: DpdpClient, opts: { level?: 0 | 1; hideEmails?: boolean; days?: 1 | 7 | 30; label?: string | null; orgId?: string | null } = {},
+): Promise<AiWorkLinkCreated> {
+  const { data, error } = await client.rpc("dpdp_ai_link_create", {
+    p_level: opts.level ?? 0,
+    p_hide_emails: opts.hideEmails ?? false,
+    p_days: opts.days ?? 7,
+    p_label: opts.label?.trim() || null,
+    ...(opts.orgId ? { p_org_id: opts.orgId } : {}),
+  })
+  if (error) throw new RpcFailure(error)
+  return data as AiWorkLinkCreated
+}
+
+/** "Your AI links": every link this person made in this org, newest first. */
+export async function listAiLinks(client: DpdpClient, orgId?: string | null): Promise<AiLinkListItem[]> {
+  const { data, error } = await client.rpc("dpdp_ai_link_list", orgId ? { p_org_id: orgId } : undefined)
+  if (error) throw new RpcFailure(error)
+  return data as AiLinkListItem[]
+}
+
+/** Revoke one link; effective on the AI's next call. The link's own person or the owner. Idempotent. */
+export async function revokeAiLink(client: DpdpClient, linkId: string): Promise<void> {
+  const { error } = await client.rpc("dpdp_ai_link_revoke", { p_id: linkId })
+  if (error) throw new RpcFailure(error)
+}
+
+/** `/app/#undo=<actionId>.<token>` (POST /actions' undoUrl, later the Monday email): undo one Level 1 change within 24 hours, under the signed-in person's own authority. */
+export async function undoAiAction(client: DpdpClient, actionId: string, undoToken: string): Promise<AiActionUndoPayload> {
+  const { data, error } = await client.rpc("dpdp_ai_action_undo", { p_action_id: actionId, p_undo_token: undoToken })
+  if (error) throw new RpcFailure(error)
+  return data as AiActionUndoPayload
+}
+
+export type UndoFragment = { actionId: string; undoToken: string }
+
+/** `/app/#undo=<actionId>.<token>`: read once on load and cleared, exactly as readDraftFragment does. */
+export function readUndoFragment(): UndoFragment | null {
+  const m = /^#undo=([^.&]+)\.([^&]+)$/.exec(window.location.hash)
+  if (!m) return null
+  window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search)
+  return { actionId: decodeURIComponent(m[1]), undoToken: decodeURIComponent(m[2]) }
 }
 
 export type DraftFragment = { draftId: string; confirmToken: string }

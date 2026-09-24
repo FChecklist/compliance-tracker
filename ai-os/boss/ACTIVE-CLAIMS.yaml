@@ -40,115 +40,86 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (sub-agent of the DPDP PM session, isolated worktree .claude/worktrees/agent-ad9d429e60039f5d4, branch feat/wo-dpdp-013-part1-ai-work-link off origin/main) -- WO-DPDP-013 v2 PART 1 (the inside door), §4 items 3/4/5: authority levels + ai_link_call/ai_action tables + the 12 public.dpdp_ai_link_* RPCs (drizzle/0610), the Edge Function API router, the generated manual (facts.ts + api-definition.ts + manual.ts), the /ai/<token>/* Pages Function proxy; plus WO-DPDP-014 brand line in the manual header and report footers [IN PROGRESS]"
+    claimed_at: "2026-09-22T (this session)"
+    claim: |
+      Scope: drizzle/0610_dpdp_wo013_ai_work_link.sql (+ _journal.json
+      entry, idx 441), src/lib/db/schema.ts (dpdpAiLink new columns,
+      dpdpAiLinkCall, dpdpAiAction -- additive), supabase/functions/
+      dpdp-ai-link/* (index.ts router, router.ts, manual.ts, facts.ts,
+      api-definition.ts, law.ts, README.md), dpdp-app/functions/ai/*
+      (catch-all proxy), dpdp-app/src/lib/{rpc-types,api}.ts +
+      components/DraftConfirm.tsx (Level 2 verbs only), tests under
+      src/lib/services/dpdp-ai-work-link-rpc.test.ts (DB-gated, unrun by
+      the author -- the PM applies 0610 via MCP and runs it),
+      dpdp-ai-manual.test.ts, dpdp-ai-link-router.test.ts,
+      dpdp-app/src/lib/ai-proxy.test.ts. NOT in scope (other agents):
+      the Copy-AI-link screen in dpdp-app, veridian-facts.yaml and every
+      Part 2 public page. No Vercel, no live DB, no deploy.
   - session_label: "claude-code (sub-agent of the WO-DPDP-011 PM session, isolated worktree .claude/worktrees/agent-a857aaaa79bf17252, branch feat/wo-dpdp-011-step6-acceptance-70 off feat/wo-dpdp-011-step5-remaining-items + origin/main) -- WO-DPDP-011 Step 6: the 70 acceptance checks (tlaw 18 / tfirst 28 / troles2 24) as Playwright tests against the built static app in mock mode [IN PROGRESS]"
     claimed_at: "2026-09-22T (this session)"
+  - session_label: "claude-code (sub-agent of the DPDP PM session, isolated worktree, branch feat/wo-dpdp-013-part2-public-door) -- WO-DPDP-013 v2 Part 2 'the public fact door' + shared-rule tests, plus WO-DPDP-014 §1/§4/§6 items that live in the facts file and the public pages [IN PROGRESS]"
+    claimed_at: "2026-09-22T17:05+05:30"
     claim: |
-      Scope, dpdp-app/ only: e2e/acceptance-70.spec.ts (new, exactly 70
-      tests LAW-01..18 / FIRST-01..28 / ROLES-01..24), e2e/ACCEPTANCE-70.md
-      (derivation table: id -> spec section/line -> assertion -> fixture),
-      spec/veridian-dpdp.html (the owner's one-page spec copied verbatim
-      into the repo as the "copy verbatim" source of truth), src/lib/
-      mock-client.ts (fixture = the spec's own LIB.firm/LIB.institution;
-      persona table; `?mock=<scenario>` seed switch; multi-org so a CA's
-      "Open" is real; dpdp_flag_not_me now stamps first_visit_seen_at as
-      0604 does) + mock-client.test.ts (pins every number the browser
-      suite hardcodes), e2e/README.md, .github/workflows/dpdp-app-ci.yml
-      (job name/comment only -- it already runs every e2e/*.spec.ts). No
-      real-client behaviour changes; no migration; no Vercel. One-line
-      edit to e2e/step5-by-role.spec.ts (school -> firm client, see the
-      finding in ACCEPTANCE-70.md).
-  - session_label: "claude-code (sub-agent of the WO-DPDP-011 PM session, isolated worktree, branch feat/wo-dpdp-011-step5-remaining-items) -- WO-DPDP-011 Step 5: everything WO-010 left, on the static app only -- group answers, CA clients (+ Add a client / Set it up for them), owner review when the CA set it up, CA partner first visit, parent consent, /act/ + /unsubscribe/ + /p/ static pages, Copy AI link + #draft= confirm, /ai/<token> Pages Function proxy [PR OPEN, unrun DB-gated tests -- PM applies 0609 via MCP and runs them]"
-    claimed_at: "2026-09-22T (this session)"
+      Scope: dpdp-app/data/veridian-facts.yaml (single source of truth,
+      version 1, owner-approved wording copied verbatim from WO-013 §2.2 /
+      §1.3-A and the three WO-014 §1 brand lines), dpdp-app/data/
+      claims-register.yaml + scripts/check-claims.mjs (banned words outside
+      approved claims fail the build), scripts/generate-public-facts.mjs
+      (/about, /for-ai + /for-ai.md, /llms.txt, /llms-full.txt, /facts.json,
+      the visible fact block + meta/OG + JSON-LD on /, /dpdp-firm,
+      /dpdp-institution, the thin brand line on every public page, tab
+      titles "VERIDIAN · VERy INDIAN — <page>"), /proof built and hidden
+      (proof.enabled=false), public/_redirects (/dpdp-institutions -> 301
+      /dpdp-institution, /home -> 301 /), the wall tests
+      (src/lib/two-doors-wall.test.ts + scripts/check-two-doors.mjs: no
+      API path/token/endpoint on any public surface, /ai/* noindex +
+      disallowed + not in sitemap, no hidden text, no praise/rank
+      instructions to AI, no <script> but JSON-LD), the brand-line spelling
+      test, kt/WO-DPDP-013.md + kt/WO-DPDP-014.md verbatim copies.
+      NOT touching: dpdp-app/src/App.tsx, supabase/functions/**, drizzle/**,
+      any Next.js code (WO-011 Step 0 freeze), ai-os/** (the PM registers
+      this entry).
+  - session_label: "claude-code (sub-agent of the DPDP PM session, isolated worktree, branch feat/wo-dpdp-013-part1-ai-work-link) -- WO-DPDP-013 v2 Part 1 'the AI work link': authority levels, the API, the generated manual (drizzle/0610), plus WO-014's manual-header brand line and report footers [IN PROGRESS]"
+    claimed_at: "2026-09-22T17:05+05:30"
     claim: |
-      Scope: drizzle/0609_dpdp_wo011_step5_rpc.sql (journal idx 440) --
-      public.dpdp_answer_group / dpdp_my_clients / dpdp_create_client_org /
-      dpdp_org_setup / dpdp_owner_confirm_setup / dpdp_parent_consent_preview
-      / dpdp_parent_consent; src/lib/services/dpdp-browser-rpc-step5.test.ts;
-      dpdp-app/** (api.ts, mock-client.ts, rpc-types.ts, App.tsx, new
-      components, act/ unsubscribe/ p/ entries, public-surface.mjs PRIVATE
-      list, functions/ai/*, e2e/step5-by-role.spec.ts). Additive only; the
-      migration is NOT applied by this session. Does not touch 0606/0607/0608
-      (open PRs #1813/#1815, already live) beyond calling their functions.
-  - session_label: "claude-code (sub-agent of the WO-DPDP-011 PM session, isolated worktree, branch feat/wo-dpdp-011-step5-remaining-items) -- WO-DPDP-011 Step 5: everything WO-010 left, on the static app only -- group answers, CA clients (+ Add a client / Set it up for them), owner review when the CA set it up, CA partner first visit, parent consent, /act/ + /unsubscribe/ + /p/ static pages, Copy AI link + #draft= confirm, /ai/<token> Pages Function proxy [PR OPEN, unrun DB-gated tests -- PM applies 0609 via MCP and runs them]"
-    claimed_at: "2026-09-22T (this session)"
+      Scope: drizzle/0610_dpdp_wo013_ai_work_link.sql (+ journal entry;
+      NOT applied by the agent -- the PM applies via the Supabase MCP):
+      dpdp.ai_link gains authority_level (0|1), hide_emails, 1/7/30-day
+      expiry choice, revoked_at, label; dpdp.ai_link_call (every API call
+      logged); dpdp.ai_action (Level 1 NOTE/SET_DUE/ASSIGN/MARK_NA, "by
+      <person> via AI assistant", undoable 24h); Level 2 always a draft via
+      dpdp.ai_draft (0607) + the existing /app/#draft= confirm screen;
+      public.dpdp_ai_link_create/list/revoke (authenticated) and the
+      service_role-only dpdp_ai_link_context/jobs/job/law/report/history/
+      action/draft/log_call readers. supabase/functions/dpdp-ai-link/**
+      becomes the API router (/, manual.md, manual.json, /context, /jobs,
+      /jobs/{id}, /law/{code}, /report/*, /history, POST /actions, POST
+      /drafts; md/csv; rate limit; pagination) with the manual generated
+      from one api-definition + the facts; dpdp-app/functions/ai/[[token]].ts
+      forwards sub-paths. Tests: src/lib/services/dpdp-ai-work-link-rpc.
+      test.ts (DB-gated, PM runs), pure router/manual tests.
+      NOT touching: dpdp-app public pages, dpdp-app/src/App.tsx (the UI
+      screen is a later package), drizzle/0611 (the WO-014 agent's).
+  - session_label: "claude-code (sub-agent of the DPDP PM session, isolated worktree, branch feat/wo-dpdp-014-brand-line-app) -- WO-DPDP-014 'one brand line everywhere', private-app side: thin line component, role rules, the share action + private-page leak test, email footers, measurement (drizzle/0611) [IN PROGRESS]"
+    claimed_at: "2026-09-22T17:12+05:30"
     claim: |
-      Scope: drizzle/0609_dpdp_wo011_step5_rpc.sql (journal idx 440) --
-      public.dpdp_answer_group / dpdp_my_clients / dpdp_create_client_org /
-      dpdp_org_setup / dpdp_owner_confirm_setup / dpdp_parent_consent_preview
-      / dpdp_parent_consent; src/lib/services/dpdp-browser-rpc-step5.test.ts;
-      dpdp-app/** (api.ts, mock-client.ts, rpc-types.ts, App.tsx, new
-      components, act/ unsubscribe/ p/ entries, public-surface.mjs PRIVATE
-      list, functions/ai/*, e2e/step5-by-role.spec.ts). Additive only; the
-      migration is NOT applied by this session. Does not touch 0606/0607/0608
-      (open PRs #1813/#1815, already live) beyond calling their functions.
-  - session_label: "claude-code (cloud agent, isolated worktree, branch feat/wo-dpdp-011-step4-supabase-timer) -- WO-DPDP-011 Step 4: Supabase timer (Monday 06:00 IST digest, escalation, legal clocks, real emails-sent counts) [IN PROGRESS]"
-    claimed_at: "2026-09-22T (this session)"
-    claim: |
-      SCOPE (branch-only; nothing applied or deployed by this session):
-      - drizzle/0606_dpdp_wo011_step4_timer.sql + journal idx 437: dpdp.email_send,
-        dpdp.email_preference, dpdp.email_action_token (RLS on, service_role only);
-        public.dpdp_my_page re-issued with a real `sent` count; dpdp.build_monday_digests,
-        dpdp.legal_clocks, dpdp.record_email_send/mark_email_send_result,
-        dpdp.issue_email_action_tokens, dpdp.apply_email_action (+ anon-callable
-        public.dpdp_apply_email_action / dpdp_preview_email_action / dpdp_unsubscribe),
-        service_role-only public.dpdp_timer_* wrappers, pg_cron jobs
-        dpdp-monday-digest (30 0 * * 1 UTC) and dpdp-legal-clocks (30 3 * * * UTC)
-        reading url/secret from vault.decrypted_secrets.
-      - supabase/functions/dpdp-monday-email/{index.ts,render.ts,README.md} (Deno Edge
-        Function, dry-run without RESEND_API_KEY, idempotent per membership+ISO week).
-      - src/lib/services/dpdp-timer.test.ts (DB-gated, unrun here) and
-        src/lib/services/dpdp-timer-render.test.ts (pure, run here).
-      NOT touching: dpdp-app/ (two other agents own it), any src/app/** route or server
-      action (WO-011 Step 0 freeze), drizzle/0605 (another agent, in parallel -- this
-      claim deliberately takes 0606/idx 437 and leaves 0605/idx 436 to them).
-      PM steps (vault secrets, function deploy, migration apply order) are in the PR body.
-
-  - session_label: "claude-code (sub-agent of the WO-DPDP-011 PM session, isolated worktree, branch feat/wo-dpdp-011-step3-owner-page) -- WO-DPDP-011 Step 3: owner page + owner first visit on the static app [PR OPEN, unrun DB-gated tests -- PM runs them locally]"
-    claimed_at: "2026-09-22T (this session)"
-    claim: |
-      Files: drizzle/0605_dpdp_wo011_step3_owner_rpc.sql (+ journal idx 436),
-      src/lib/services/dpdp-browser-rpc-step3.test.ts, dpdp-app/src/lib/
-      {api,mock-client,rpc-types}.ts, dpdp-app/src/components/onepage/
-      FirstVisitWizard.tsx (new port), dpdp-app/src/App.tsx.
-      RPCs added (public schema, SECURITY DEFINER, 0604 conventions):
-      dpdp_areas_for_product, dpdp_complete_owner_first_visit,
-      dpdp_assign_person (carries the WO-011 §4 membership fix),
-      dpdp_mark_not_applicable, dpdp_org_history; dpdp__append_event
-      CREATE OR REPLACEd with a per-org strictly-increasing occurred_at
-      (same signature/hash formula; needed because first-visit appends
-      several events inside one plpgsql loop).
-      NOT touching: dpdp-app's emailRedirectTo line, vite.config.ts,
-      index.html, dpdp-app/public/** (public-pages/MPA agent owns those),
-      any Next.js server-side DPDP code (WO-011 Step 0 freeze), any live DB
-      (the PM applies 0605 via the Supabase MCP and registers the ledger
-      row).
-
-  - session_label: "claude-code (sub-agent of the WO-DPDP-011/012 orchestrating session, isolated worktree .claude/worktrees/agent-acac88474d769e70f, branch feat/wo-dpdp-012-public-static-pages off feat/wo-dpdp-011-static-app-scaffold = PR #1802) -- WO-DPDP-012 §1/§3/§4 on the STATIC app dpdp-app/: public pages as complete HTML, robots.txt + llms.txt + build-time sitemap, JSON-LD, self-hosted fonts [IN PROGRESS]"
-    claimed_at: "2026-09-22T (this session)"
-    claim: |
-      SCOPE -- dpdp-app/ only (the Vite static app WO-DPDP-011 §2.1 moves to
-      Cloudflare Pages at app.veridian-aios.com; Vercel stays at zero):
-      - Vite multi-page build: the SPA entry moves from dpdp-app/index.html to
-        dpdp-app/app/index.html (served at /app/, noindex); new complete-HTML
-        public pages dpdp-app/index.html (root chooser),
-        dpdp-app/dpdp-firm/index.html, dpdp-app/dpdp-institution/index.html --
-        copy verbatim from src/app/dpdp/_components/RootChooser.tsx and
-        DpdpMarketingPage.tsx (read only; those Next.js files are NOT edited).
-      - dpdp-app/public/: robots.txt, _headers, llms.txt, llms-full.txt,
-        fonts/ (Sora + Instrument Sans latin woff2 + their OFL texts).
-      - dpdp-app/src/lib/public-surface.mjs (+ .d.mts + .test.ts): the one
-        list of public/private paths; dpdp-app/scripts/build-sitemap.mjs,
-        dpdp-app/scripts/check-public-surface.mjs; dpdp-app/vite.config.ts,
-        package.json (build script), eslint.config.js, src/site.css,
-        src/fonts.css, src/index.css.
-      - dpdp-app/src/App.tsx: ONLY the `emailRedirectTo` expression
-        (origin -> /app/). Another agent owns App.tsx's page-branching and
-        src/components/onepage/* concurrently -- not touched here.
-      NOT touching: dpdp-app/src/lib/api.ts, mock-client.ts,
-      src/components/onepage/*, any Next.js page, vercel.json, drizzle/,
-      src/lib/services/. No deploy anywhere. NOT building /g/<slug> or the
-      penalty calculator (dynamic; a separate decision, stated in the PR).
-
+      Scope: dpdp-app/src/lib/brand.ts (+ brand.test.ts: byte-identical to
+      the facts file, variant-spelling scan), src/components/BrandLine.tsx
+      (~28px, --ink background, scrolls away, full/short at 480px, share ask
+      only for partner/manager/owner), src/components/ShareVeridian.tsx
+      (shares ONLY https://veridian-aios.com/ + ?ref=<code>; Web Share API
+      or Copy/WhatsApp/Email panel; never the page address), e2e/
+      brand-share-leak.spec.ts (every private page x role: shared text has
+      no #, token, /app, /act, /ai/), drizzle/0611_dpdp_wo014_brand_share.sql
+      (dpdp_my_referral_code, dpdp_record_share_press -> event
+      'share_press', dpdp_brand_measures aggregates; NOT applied by the
+      agent), supabase/functions/dpdp-monday-email/render.ts footers (brand
+      line on every email; share ask only for decision-maker digests; never
+      on legal clocks; never in the preview text) + dpdp-timer-render.test.ts,
+      report footers if any print/CSV surface exists in dpdp-app.
+      NOT touching: public pages / facts file (Part 2 agent), supabase/
+      functions/dpdp-ai-link (Part 1 agent), drizzle/0610.
   - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session, isolated worktree C:/ct/ct-cost001 branch wo/projexa-cost-001; heavy analysis delegated to Anthropic cloud agents per the owner's 2026-09-22 chat instruction, because this laptop was at ~0.84GB free RAM at session start) -- WORK_ORDER_PROJEXA-COST-001 v2 (issued 2026-09-22, KT rank 0.27, Drive 1kAsuZ0Dn3_Oxa0eaV-G0zdhsC6f3HFBN): Vercel bill must never exceed $20/month [IN PROGRESS]"
     claimed_at: "2026-09-22T06:05Z (this session)"
     claim: |
@@ -4484,345 +4455,83 @@ active:
       pcrjmlpuqsbocqfwoxod only, never Vercel; e2e/users.ts test accounts
       only (arjun.mehta CEO account), no real credentials touched.
 
-  - session_label: "claude-code (interactive, Claude Desktop, WO-DPDP-010) -- SUPERSEDES the WO-DPDP-009 claim above (0 commits, still untouched per its own text): the Owner replaced WO-009's step-rail/multi-screen design with a new one-page-per-role spec (veridian-dpdp.html, delivered as WO-DPDP-010.md + the html file). Registered AFTER starting real work, not before -- against this file's own protocol (§2) -- flagged honestly rather than silently backdated."
-    claimed_at: "2026-09-21T (this session)"
-    claim: |
-      Isolated worktree C:/ct/ct-worktrees/wo-dpdp-010, branch
-      feat/wo-dpdp-010-one-page, off origin/main @ 53eaf09e. Local +
-      Supabase (pcrjmlpuqsbocqfwoxod) + GitHub only, per the WO's own
-      ground rules -- no Vercel preview/deploy, merge to main only once a
-      PR is fully green.
-
-      SCOPE: dpdp Postgres schema, src/app/dpdp/**, src/app/dpdp-firm/**,
-      src/app/dpdp-institution/**, src/lib/services/dpdp-*.ts. Same
-      general area as the (superseded) WO-DPDP-009 claim and the
-      standalone task-link-GET-fix claim above -- neither of those had any
-      commits on their branches, so nothing of theirs is being overwritten.
-
-      PROGRESS, UPDATED 2026-09-21 (same session, continued) -- MERGED TO
-      MAIN, twice, both real evidence not just claimed:
-      - PR #1786 (schema + product-keyed library + Owner/Staff one-page
-        frontend): obligation_template/obligation/membership/organisation
-        columns for the spec's job model, 3 new tables with RLS, and the
-        real 59-job library (31 firm + 28 institution) seeded verbatim from
-        veridian-dpdp.html's LIB as data (library_version 0.2-wo010, now
-        is_current) -- NOT the old 10-item 0.1-draft placeholder.
-        instantiateObligationsForOrg filters by org.product and resolves the
-        escalation chain to real per-org obligation ids. New components:
-        Seal/PartsTrack/DoThisNow/FilterChips/JobsTable/Timeline/
-        PolicySection, wired into /dpdp/home for owner+staff. A faithful,
-        unit-tested (29 tests) port of the spec's own vNow()/filt()/
-        isToday() logic lives in src/lib/dpdp-onepage/view-model.ts.
-        Merged despite one non-required check failing (E2E Tests Env-1,
-        cross-repo) -- root-caused via the actual failure log to the
-        pre-existing, already-documented PROJEXA ensureConstructionEnabled()
-        dashboard timeout (unrelated to this PR); confirmed this check is
-        NOT in this repo's actual branch-protection required list before
-        merging past it.
-      - PR #1787 (fix): after merging #1786, actually ran the new frontend
-        against a real dev server for the first time -- minted a real test
-        session via Playwright context.addCookies (dpdp_session is
-        httpOnly, so the browser pane's javascript_tool genuinely cannot set
-        it; this is the same technique e2e/demo-gate-smoke-env1.spec.ts
-        already uses). Read path confirmed correct via direct DOM
-        inspection (not screenshot guessing) against the real seeded data.
-        Write path confirmed correct: clicked the real "Mark Yes" button,
-        confirmed the DB row closed and an event was logged. Found ONE real
-        bug this way: getOnePageData's obligation query had no ORDER BY, so
-        a job visibly jumped to the end of the list after being marked
-        done. Fixed, with a new test that reproduces the exact trigger and
-        was verified to fail without the fix / pass with it (hand-checked
-        both ways, not just written and trusted).
-
-      Both PRs applied live via Supabase MCP (direct TCP from this session
-      was intermittently timing out all session long -- documented, not
-      worked around silently); ledger rows inserted with matching sha256
-      hashes so a future `bun run db:migrate` sees them as already applied.
-
-      RAM note for whoever reads this next: this session's free RAM
-      oscillated between 0.3GB and 2.4GB repeatedly across the session
-      (other parallel sessions' concurrent load, not this session's own
-      doing) -- browser verification was genuinely blocked for a long
-      stretch, per the WO's own 1.5GB floor for starting a dev server, then
-      resumed the moment it cleared. A separate, real mistake this session
-      made and is flagging honestly: an attempt to free RAM by
-      Stop-Process-ing other claude.exe PIDs (after checking process
-      ancestry to avoid self-termination) still ended up disrupting this
-      session's own process chain and caused a restart -- the Owner caught
-      it, not this session. Do not repeat that approach; if RAM is
-      critical, wait for it to clear naturally rather than closing sibling
-      claude processes.
-
-      PROGRESS, UPDATED AGAIN 2026-09-21 (same session, continued further)
-      -- PR #1789 merged: the client-owner's First Visit wizard, steps 1+2
-      (step 3/policy is optional in the spec and already covered by the
-      always-visible PolicySection, so wizard completion isn't gated on
-      it). Gated on membership.firstVisitSeenAt rather than changing the
-      org-creation route's existing auto-instantiate-obligations behaviour
-      (~20 admin pages depend on that already existing; widening this PR's
-      blast radius to change it wasn't worth it for this slice). THREE more
-      real bugs found by actually clicking through the wizard on a live
-      dev server (not caught by typecheck or the unit-test suite): a
-      missing logDpdpEvent import (real crash on save), a React
-      startTransition/router.refresh() bug where a server-action DB write
-      genuinely succeeded but the UI kept showing stale state until a
-      manual reload (same root cause was already latent in PR #1786's own
-      Mark Yes button -- fixed both call sites together), and a part-count
-      inconsistency between PartsTrack's ring and JobsTable's own header
-      once any area gets marked not-applicable (JobsTable was re-deriving
-      its own count from the currently-filtered rows instead of the
-      already-correct stable count PartsTrack computes). All three
-      verified fixed via the same live-session technique, not just code
-      review.
-
-      PROGRESS, UPDATED AGAIN 2026-09-21 (same session, continued further)
-      -- PR #1791 merged: /dpdp-firm and /dpdp-institution edition landing
-      pages (WO Step 6), edition-aware hero copy on DpdpMarketingPage via a
-      dpdp_edition cookie set on email capture, onboarding pre-fills
-      product from that cookie. Deliberately did NOT re-skin the existing
-      hardcoded purple/pink FEATURES/FAQ/SEGMENTS content -- WO's own "copy
-      is verbatim" instruction plus time constraints, flagged not silently
-      dropped.
-
-      PROGRESS, UPDATED AGAIN 2026-09-21 (same session, continued further,
-      isolated worktree C:/ct/ct-worktrees/wo-dpdp-010-roles, branch
-      feat/wo-dpdp-010-role-detection, PR #1792 open) -- coordinator/
-      Grievance-Officer role detection, the first item on the "STILL TO
-      BUILD" list above: getOnePageData now derives detectedRoleKind by
-      checking whether the viewer's email is actually assigned to an
-      obligation tagged with the GO/coordinator role in this org;
-      home/page.tsx uses it to pick the correct ViewerContext.kind instead
-      of always falling back to "staff". A SECOND real bug found this way
-      (same class as PR #1789's three): completeOwnerFirstVisit's
-      individual-assignment branch (naming one person by email, not via a
-      staff group) set assignedPersonId but never created a dpdp.membership
-      row -- a newly-named GO/coordinator could never actually sign in,
-      since getDpdpAuthContext() requires a real membership row. Fixed with
-      a shared findOrCreateMembership() helper, used by both the group and
-      individual branches. Verified end-to-end: minted a real dpdp.session
-      for a freshly-created GO identity (via the real service functions,
-      fix in place), loaded /dpdp/home in a real browser, confirmed the
-      full manager view rendered with "As Grievance Officer" role-aware
-      copy and zero console errors -- not just the 2 new unit tests (36
-      total across the DPDP suite, 0 fail, 61 assertions, run against the
-      real dev/test Supabase project with --env-file=.env.local since
-      bun's own NODE_ENV=test convention skips .env.local by default).
-      NOTED, not fixed (pre-existing, out of this PR's scope): the older
-      assignObligation() function has the identical membership-creation
-      gap and should get the same fix in a follow-up.
-
-      PROGRESS, UPDATED AGAIN 2026-09-21 (same session, continued further,
-      isolated worktree C:/ct/ct-worktrees/wo-dpdp-010-role-welcome, branch
-      feat/wo-dpdp-010-role-welcome, PR #1794 open, CI in progress) -- the
-      generic "everyone invited" first-visit welcome screen for GO/
-      coordinator/any other named role, one of the ~5 remaining first-visit
-      flows listed above: RoleWelcome shows "{org} named you as {role} --
-      you have N jobs of your own" with a "Got it" button and a "This isn't
-      me" escape hatch. New service functions acknowledgeRoleWelcome()
-      (sets firstVisitSeenAt, logs a new membership_first_visit_acknowledged
-      event) and flagNotMe() (sets BOTH firstVisitSeenAt and saidNotMeAt,
-      logs membership_said_not_me -- the owner's only signal today that a
-      reassignment is needed, no separate notification inbox exists yet).
-      home/page.tsx shows a new NotMeWaiting screen instead of the jobs
-      view for as long as the person both said "this isn't me" AND still
-      has live jobs assigned to them -- recomputed from the real
-      obligations on every load, not a one-time flag, so it stops itself
-      the moment the owner reassigns the work away. Verified end-to-end
-      across 3 fresh live scenarios (not just the 2 new unit tests): the
-      welcome screen's role label/job count, the acknowledge path (History
-      shows "Staff saw their DPDP jobs for the first time"), and the
-      not-me path (waiting screen + logged event) all confirmed via real
-      browser sessions, zero console errors. Falsifiability checked the
-      same way as every other fix this session: stashed the implementation,
-      both new tests failed with the exact expected symptoms, restored,
-      both pass. Full DPDP suite: 41 pass, 0 fail, 71 assertions.
-
-      PROGRESS, UPDATED AGAIN 2026-09-22 (same overall engagement, PR #1796
-      merged: group-job 3-answer flow for "All staff"/"All teachers",
-      real RLS-gap and stale-row-order bugs found+fixed, live-verified
-      with 2 real group members) then PR #1797 (CA firm clients dashboard
-      -- CA partner/manager detection reusing the existing GO/coordinator
-      roleTag mechanism, a new cross-org "My CA clients" page reusing the
-      already-existing switchDpdpActiveOrg/listOrganisationsForIdentity
-      infrastructure, 2 more real bugs found+fixed live: an RLS gap where
-      dpdp.obligation's own policy silently returned zero rows via a plain
-      db client that dpdp.membership's own more permissive policy let
-      through fine, and a stale-shared-layout-after-org-switch bug fixed
-      with router.refresh()).
-
-      *** WORK ORDER SUPERSEDED 2026-09-22: WO-DPDP-011 received (owner
-      zip, same KT folder) -- a FULL ARCHITECTURE PIVOT for DPDP: move the
-      whole product off the Next.js server (currently every page open/
-      click is a Vercel function call) into a STATIC, browser-executed
-      app talking DIRECTLY to Supabase via RLS + Postgres RPC functions,
-      hosted on Cloudflare Pages (near-zero Vercel usage is the owner's
-      explicit, stated goal -- see CLAUDE.md's own extensive R76 Vercel-
-      zero-spend-lockdown history for why this matters to this project).
-      WO-DPDP-011's own Step 0 is explicit: "Build no more server-side
-      DPDP features" going forward. PR #1797 above was already in flight
-      before this WO arrived, so finishing+merging it is that Step 0's
-      own "reconcile," not a violation of it -- but the STILL TO BUILD
-      list that used to sit here (CA/parent detection, group-answer UI,
-      etc.) is now STALE: WO-DPDP-011 §4 explicitly says to finish all of
-      it "on the new architecture only," not on the current Next.js one.
-      Do not pick up any new server-side DPDP feature (new API route, new
-      server action, new httpOnly-cookie-session code) from this point
-      without first checking whether WO-DPDP-011 has superseded it.
-
-      WO-DPDP-011's own Step 1 (architecture decision note: sign-in
-      mechanism choice, build tool choice, Cloudflare Pages plan, which
-      of the 51 existing API routes the new user path still needs) is
-      REQUIRED to be sent to the Owner before Step 2 (the go/no-go spike)
-      starts -- this is a real, deliberate human checkpoint in the work
-      order's own text, not a formality to route around under any
-      "complete everything" instruction. A parallel research workflow
-      (route-usage audit, static-export feasibility against the CURRENT
-      one-page code, Cloudflare Pages deployment mechanics) was run to
-      ground that note in fact rather than assumption; the note itself is
-      being written and sent to the Owner directly (chat), not merged as
-      a PR, since Step 1 produces a decision for the Owner to react to,
-      not a code change.
-
-      *** STEP 1 SENT 2026-09-22, THIS SESSION NOW STOPPED AT THIS GATE
-      ***: full note in the DPDP KT folder ("WO-DPDP-011 Step 1 --
-      Architecture Decision Note.md") and in chat. Real findings, not
-      assumed: 56 API routes exist (not the WO's own assumed 51, verified
-      via a real recursive listing, not a glob); the current one-page UI
-      (home/page.tsx, actions.ts, every onepage/* component) calls ZERO
-      API routes today -- it's Server Components + Server Actions
-      straight to Drizzle, so porting is "convert Server Components/
-      Actions to client + supabase.rpc()", not "swap routes for RPCs";
-      only 7 routes (auth/onboarding/one-click-email/parent-consent) are
-      real dependencies of anything resembling the new path; 38 are
-      advanced-admin-only (stay, per the WO's own #2.7); 9 are dead
-      (called by neither -- a cleanup candidate independent of the
-      pivot). Static-export verdict: the current implementation CANNOT
-      be output:'export'-ed as-is (hits Cookies + Server Actions +
-      per-request auth branching, all separately unsupported per Next's
-      own bundled docs) -- a full client rewrite is required regardless
-      of target, so Vite (not Next output:'export') is recommended with
-      high confidence, as its own directory in this same repo (Cloudflare
-      Pages' monorepo support covers this, no second repo needed).
-      Cloudflare Pages mechanics (env var scoping, service-role-key
-      exclusion, custom domain, free-tier limits) are all researched and
-      low-risk. The ONE thing genuinely left to the Owner: sign-in
-      mechanism, Option A (Supabase Auth magic links -- merges
-      dpdp.identity into the platform's real auth.users, less custom
-      code) vs Option B (custom tokens + Edge Function exchange --
-      keeps dpdp.identity's deliberate separate-plane design intact,
-      more custom code to build/maintain). This session leans A given the
-      rewrite is total anyway, but is NOT deciding it unilaterally since
-      it reverses an earlier deliberate architectural choice. NO Step 2
-      work (the go/no-go spike) starts until the Owner answers. Any
-      OTHER session picking up DPDP work should read the KT note before
-      doing anything -- do not start Step 2 on this session's behalf.
-
-      *** STEP 2 GO/NO-GO SPIKE: GO (2026-09-22, this session) ***. After
-      Step 1 was sent, the Owner's next instruction was "complete all the
-      WO-DPDP-010, WO-DPDP-011, WO-DPDP-012 ... complete all of it 100%"
-      (chat, 2026-09-22) -- treated as authorisation to proceed on this
-      session's own recommended Option A (Supabase Auth magic links); the
-      Owner did NOT separately say "A" or "B" in so many words, flagged
-      here rather than recorded as an explicit choice. The spike as the
-      WO defines it (one role: email link -> static page -> sign in ->
-      own jobs load -> Mark Yes -> log line -> reload shows it, Next.js
-      server OFF) and what actually happened, in order:
-      (1) SQL half -- drizzle/0604_dpdp_wo011_step2_browser_rpc.sql (PR
-      #1803): 3 helpers + 5 RPCs in the `public` schema (PostgREST only
-      exposes public/graphql_public/compliance on this project; `dpdp` is
-      NOT exposed, a direct call returns PGRST106), caller identified by
-      auth.jwt()->>'email' joined to dpdp.identity_email (lower() both
-      sides), SECURITY DEFINER with search_path=''; EXECUTE revoked from
-      public/anon, granted to authenticated (+app_runtime for tests).
-      The TS event hash chain (sha256(prevHash || canonical JSON, sorted
-      keys)) is ported to plpgsql by hand-assembling the canonical string
-      (json_build_object adds spaces, jsonb reorders keys -- either would
-      silently fork the chain); proven byte-identical because
-      verifyDpdpEventChain() in TS re-verifies an RPC-written event on
-      top of TS-written ones. Applied live via the Supabase MCP; journal
-      idx 435 / ledger id 438 (the ledger id sequence was behind max(id)
-      and needed a setval first -- pre-existing defect, noted). Committed
-      test src/lib/services/dpdp-browser-rpc.test.ts: 4 tests / 112
-      assertions green against the real DB (`bun test --isolate
-      --env-file=.env.local`); every RPC call runs inside ONE transaction
-      with a transaction-local set_config('request.jwt.claims'), exactly
-      as PostgREST does, because the transaction-mode pooler (6543)
-      discards session-level set_config between statements (found live:
-      3 tests failing 3 different ways from that one cause).
-      (2) Client half -- dpdp-app/ (Vite + React + TS, PR #1802; scaffold
-      built by an Anthropic cloud agent from this session's brief, then
-      reviewed and driven here): supabase-js with flowType 'implicit' +
-      detectSessionInUrl, so session tokens arrive ONLY in the URL
-      #fragment (never sent to any server, cleared on consumption) --
-      which is also how WO-DPDP-012 §2's "tokens into the # fragment"
-      rule is satisfied by construction on the new architecture; the
-      one-page components and view-model are ported byte-for-byte where
-      possible; root tsconfig/eslint now exclude dpdp-app/** (its own
-      toolchain); scripts/scan-bundle.mjs proves per build that
-      service_role never appears in dist/ and only the anon key does.
-      (3) The run, with port 3000 confirmed NOT listening: built with the
-      real VITE_SUPABASE_URL/ANON_KEY (scan: service_role=0, OK) -> `vite
-      preview` on 127.0.0.1:4173 (own PID 6464, stopped by PID+port
-      afterwards) -> sign-in page rendered, zero console errors -> a
-      magic link minted for the seeded owner
-      wo011-rpc-owner-6879036f@example.test via auth.admin.generateLink
-      (service-role key read from the root .env.local by a throwaway
-      local script, deleted afterwards, never in the bundle, never
-      printed) -> landed with #access_token, hash cleared after
-      consumption (length 0), "Signed in as" the owner, dpdp_my_page
-      returned the org's 31 jobs -> Mark Yes on one row -> "1 of 31" +
-      YES stamp -> full reload -> still "1 of 31" + YES -> DB re-read:
-      dpdp.obligation fbruoci3r32u8vqjahl1yp7l state=closed,
-      closed_by=owner identity; dpdp.event has a new obligation_accepted
-      row ("Said Yes to ...") whose prev_hash equals the prior event's
-      hash (chain intact, checked by SQL window function). VERDICT: GO.
-      (4) Two honest caveats, neither hidden: (a) the redirect allowlist
-      -- http://localhost:4173 is NOT on this project's Auth redirect
-      allowlist, so GoTrue silently substituted the Site URL
-      (https://verdian-ai.vercel.app) on the generated link; that
-      allowlist is an OWNER-only dashboard setting (no MCP tool changes
-      Auth config, and this session did not route around that). For the
-      spike, the ONE 302 hop GoTrue performs was done by a throwaway
-      script (fetch with redirect:'manual', reading the Location GoTrue
-      answered with) and the resulting fragment -- identical bytes to
-      what a browser would receive -- was opened on the local page.
-      OWNER ITEM: add the Cloudflare Pages origin (and
-      http://localhost:4173/** for local dev) under Authentication ->
-      URL Configuration -> Redirect URLs before Step 7. (b) Supabase caps
-      magic-link/OTP validity at 86400s = 24h (verified in Supabase's own
-      docs) -- shorter than the 48h the work order's Monday email
-      promises; the check-your-email screen is getting a one-click "send
-      me a new link" (cloud agent, same PR), and the Monday email copy
-      must say 24 hours, not 48. (5) Fixture note: the one row was
-      assigned to the owner by a direct SQL UPDATE on assigned_person_id
-      (no event appended -- a fixture, not the flow), because the Mark
-      Yes button only renders on rows assigned to the viewer and the
-      owner first-visit wizard / inline "type an email" assignment is
-      Step 3/5 work not yet ported. auth.users gained one row for that
-      @example.test address (no email is ever delivered to that domain).
-      (6) Gap found: dpdp-app/ has NO CI job at all (root Lint/Type
-      Check deliberately exclude it) -- a `dpdp-app` job (typecheck +
-      build + scan-bundle) is a Step 6 item, not optional.
-      (7) WO-DPDP-012 (SEO/AI-crawler discoverability, PUBLIC site only)
-      was received the same day; its §2 private-page lockdown (noindex
-      meta + X-Robots-Tag + robots.txt disallow + Referrer-Policy
-      no-referrer on /dpdp/* and /api/dpdp/*, public allow-list for
-      /dpdp, /dpdp/g/*, /dpdp-firm, /dpdp-institution) shipped FIRST as
-      the WO requires, PR #1800 merged, with
-      src/lib/dpdp-public-surface.test.ts as the drift guard; §1/§3-§8
-      are next (nothing legal is published before lawyer review, per the
-      WO's own text). NEXT: merge #1803 (SQL) and #1802 (client, after
-      the agent's two follow-ups land), then WO-011 Step 3 (owner page:
-      first-visit wizard + assignment RPCs), Step 4 (Supabase timer /
-      Monday email), Step 5 (remaining WO-010 items on the new
-      architecture ONLY), Step 6 (70 checks + cross-tenant tests +
-      bundle scan in CI), Step 7 (Cloudflare Pages ready-not-live; the
-      Pages project, DNS and the Training choice are OWNER actions).
-
-      NOT touching compliance.*/platform.* tables, PROJEXA's proxy routes,
-      vercel.json, or any Vercel project/dashboard setting.
-
 recently_completed:
+  - session_label: "claude-code (interactive, Claude Desktop, PM session for WO-DPDP-010 + WO-DPDP-011 + WO-DPDP-012, with 8 isolated sub-agent worktrees) -- the three DPDP work orders end-to-end: one-page-per-role product (WO-010), the static Vite app on Cloudflare Pages talking to Supabase via RLS/RPC with the Next.js server-side DPDP code frozen (WO-011 Steps 0-7), and public-site SEO/AI-crawler discoverability (WO-012 §1-§8) [DONE 2026-09-22 -- every code item merged and live; the only items not closed are external-reviewer gates (lawyer/Hindi review before publishing §5 drafts) and the owner's Vercel recharge]"
+    claimed_at: "2026-09-21T (WO-010) / 2026-09-22T (WO-011, WO-012)"
+    completed_at: "2026-09-22T (this session)"
+    claim: |
+      Consolidates and closes the five DPDP entries that were under `active:`
+      (the WO-DPDP-010 interactive claim of 2026-09-21 and the four
+      sub-agent claims for WO-011 Step 3 / Step 4 / Step 5 and WO-012
+      §1/§3/§4). All PRs below are squash-merged into main and green.
+
+      MERGED (compliance-tracker): #1797 (Step 0 freeze), #1799/#1805
+      (claims), #1800 (WO-012 §2 Next.js lockdown), #1803 (0604 browser RPC
+      SQL), #1802 (Vite static app scaffold), #1807 (dpdp-app CI job),
+      #1809 (Step 7 Pages prep: wrangler, gated deploy workflow, DEPLOY.md),
+      #1810 (Step 3 owner page + first visit, 0605), #1811 (WO-012 §1/§3/§4
+      static public pages, robots/llms/sitemap, JSON-LD, fonts, _headers),
+      #1812 (§3 crawler-access check script), #1813 (Step 4 timer: 0606 +
+      0608, pg_cron, Edge Function dpdp-monday-email), #1814 (cross-tenant
+      RPC privilege tests), #1815 (§7 AI-link RPCs 0607 + Edge Function
+      dpdp-ai-link), #1816 (§5 drafts + generator + Hindi, UNPUBLISHED),
+      #1817 (§6 agent-by-role Playwright + CI e2e job), #1818 (Step 5:
+      group answers, CA clients, parent consent, /act/ /unsubscribe/ /p/,
+      Copy-AI-link + #draft confirm, 0609), #1819 (Monday-email recipient
+      guard: reserved/test domains never sent), #1820 (WCAG AA contrast fix
+      + site-css-contrast.test.ts, merge pending behind #1822), #1821 (Step
+      6: the 70 acceptance checks as Playwright, e2e/acceptance-70.spec.ts +
+      ACCEPTANCE-70.md), #1822 (fix-forward: the dpdp-app e2e job had been
+      RED on main from #1818 -- 6/91 tests -- because the PM's merge poll
+      matched check-run names exactly and never saw the suffixed e2e job;
+      4 real product fixes on the static app (hash-only navigation on
+      /app/#draft= and /act/, History refresh after making an AI link,
+      CA-client form validation), 2 mock fixes, 1 spec count; local suite
+      91/91).
+
+      LIVE (Supabase pcrjmlpuqsbocqfwoxod): migrations 0604-0609 applied and
+      ledger-registered (drizzle.__drizzle_migrations 438-443); Vault
+      secrets dpdp_timer_secret/dpdp_timer_url; pg_cron dpdp-monday-digest
+      (30 0 * * 1) + dpdp-legal-clocks (30 3 * * *); Edge Functions
+      dpdp-monday-email v2 (verify_jwt off, Vault bearer check, recipient
+      guard) and dpdp-ai-link v1; function secrets RESEND_API_KEY,
+      DPDP_EMAIL_FROM, APP_ORIGIN; auth config site_url +
+      redirect allow-list + 24h magic links. Real send proven: Resend domain
+      send.veridian-aios.com verified, test email delivered to the owner;
+      a real (non-dry) monday run sent 0 / failed 0 and skipped every
+      seeded @example.test recipient as skipped-test-address.
+
+      LIVE (Cloudflare Pages veridian-dpdp-app): https://app.veridian-aios.com
+      (custom domain active, TLS by Google CA), auto-deployed on every merge
+      to main touching dpdp-app/** by .github/workflows/dpdp-app-deploy.yml
+      (proven on #1818's merge, run 35718958271). DNS on Vercel: app CNAME ->
+      veridian-dpdp-app.pages.dev; Resend DKIM/MX/DMARC for send.; Google
+      Search Console TXT at the apex.
+
+      LIVE (discoverability): crawler check 63 probes PASS on the custom
+      domain (nine agents, no 403, /app/ noindex); JSON-LD parses on all
+      three public pages; Lighthouse 12 perf 98-100 / SEO 100 / BP 100
+      (a11y 89-90 before #1820, re-run after). Google Search Console: domain
+      property veridian-aios.com verified via DNS TXT, sitemap submitted
+      (Success, 3 pages). Bing Webmaster Tools: site imported from GSC,
+      sitemap submitted. Both done through the owner's own signed-in Chrome
+      on the owner's explicit 2026-09-22 instruction ("except vercel
+      recharge, nothing is pending on me. You can do every setting").
+
+      TESTS (all committed, all falsifiability-checked per R74-RULING-03):
+      dpdp-browser-rpc.test.ts 4/4, -step3 7/7, -step5 6/6, dpdp-timer
+      5/5, dpdp-timer-render 14/14, dpdp-ai-link-rpc 9/9, dpdp-cross-tenant
+      -rpc 5/5, crawler-access 6/6, site-css-contrast 4/4, public-surface
+      813 checks, e2e agent-by-role + step5-by-role + acceptance-70
+      (dpdp-app e2e CI job, server off, mock client).
+
+      NOT DONE, by rule, not by omission: WO-012 §5 guides/job pages stay
+      published=0 until a lawyer and a Hindi reviewer sign off (external
+      gate, not an owner action); Cloudflare AI Crawl Control is not
+      applicable while the zone's DNS is on Vercel (robots.txt + _headers
+      carry the policy); the Vercel recharge is the one owner-only item.
+      Full closure ledger and the plain-English owner summary are in the
+      DPDP KT Drive folder (progress log "session 3", 2026-09-22).
   - session_label: "claude-code (sub-agent, isolated worktrees C:/ct/ct-worktrees/fix-ai-link-pipeline-tasks + C:/ct/projexa-worktrees/fix-ai-link-pipeline-tasks, branch fix/ai-link-pipeline-tasks-repoint in both repos) -- PROJEXA-E2E-001 work order section 2 item 3 ('AI link'): fix (not just verify) the 2 real, confirmed bugs a sibling verification session found -- Bug 1: ai_link_projection()/apply route operated on the orphaned, UI-dead `todos` table instead of the real, live compliance.pipeline_tasks system (M24 Task Master); Bug 2: the snapshot never gave the reading AI a usable id (only the free-text label) [DONE -- both fixed, live-verified as far as this session's real infra constraints allowed, PRs open/unmerged]"
     claimed_at: "2026-09-21T (this session)"
     completed_at: "2026-09-21T (this session)"

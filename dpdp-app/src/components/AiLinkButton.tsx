@@ -26,7 +26,7 @@ const CANNOT_SEE = [
   "Anything about your other organisations",
 ]
 
-export function AiLinkButton({ client, orgId }: { client: DpdpClient; orgId: string }) {
+export function AiLinkButton({ client, orgId, onMade }: { client: DpdpClient; orgId: string; onMade?: () => Promise<void> }) {
   const [link, setLink] = useState<AiLinkPayload | null>(null)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -37,6 +37,9 @@ export function AiLinkButton({ client, orgId }: { client: DpdpClient; orgId: str
     setError(null)
     try {
       setLink(await createAiLink(client, orgId))
+      // Making a link is an event in the org's history ("Made an AI link"):
+      // re-read the page so the History timeline shows it without a reload.
+      await onMade?.()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {

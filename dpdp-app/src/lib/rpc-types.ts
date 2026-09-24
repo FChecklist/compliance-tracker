@@ -84,10 +84,52 @@ export type ParentConsentResult = TokenRefusal | { ok: true; answer: "yes" | "no
 /** dpdp_create_ai_link (0607): the token is returned exactly once. */
 export type AiLinkPayload = { linkId: string; token: string; expiresAt: string; revokedPrevious: number }
 
-/** dpdp_ai_draft_preview (0607): what a draft would do if confirmed. */
+// WO-DPDP-013 Part 1 (drizzle/0610): the AI WORK link -- levels, the
+// warning numbers, "Your AI links", undo. The token functions the Edge
+// Function calls are service-role only and have no browser type here.
+
+/** dpdp_ai_link_warning: the numbers in the sentence shown before "Copy link". */
+export type AiLinkWarning = { jobs: number; people: number }
+
+/** dpdp_ai_link_create(p_level 0|1, p_hide_emails, p_days 1|7|30, p_label): the token is returned exactly once, with the warning numbers. */
+export type AiWorkLinkCreated = {
+  linkId: string
+  token: string
+  level: 0 | 1
+  hideEmails: boolean
+  label: string | null
+  expiresAt: string
+  jobs: number
+  people: number
+}
+
+/** One row of dpdp_ai_link_list -- "Your AI links", newest first, revoked/expired ones included (active=false). */
+export type AiLinkListItem = {
+  id: string
+  label: string | null
+  level: 0 | 1
+  hideEmails: boolean
+  createdAt: string
+  expiresAt: string
+  revokedAt: string | null
+  lastUsedAt: string | null
+  callCount: number
+  active: boolean
+}
+
+/** dpdp_ai_action_undo(p_action_id, p_undo_token): `/app/#undo=<actionId>.<token>`. */
+export type AiActionUndoPayload = { ok: true; verb: "NOTE" | "SET_DUE" | "ASSIGN" | "MARK_NA"; jobId: string }
+
+/** The Level 2 verbs an AI may DRAFT (0610). The confirm screen executes only the ones marked so in DraftConfirm.tsx. */
+export type AiLevel2Verb =
+  | "MARK_DONE" | "OWNER_CONFIRM" | "MANAGER_CHECK" | "PARTNER_SIGN" | "DELETE" | "ADD_PERSON" | "REMOVE_PERSON" | "CHANGE_SIGNER" | "PUBLISH" | "EXPORT_PERSONAL_DATA"
+
+export type AiDraftVerb = "ASSIGN" | "SET_DUE" | "NOTE" | "MARK_NA" | "DRAFT" | AiLevel2Verb
+
+/** dpdp_ai_draft_preview (0607, verbs widened by 0610): what a draft would do if confirmed. */
 export type AiDraftPreviewPayload = {
   draftId: string
-  verb: "ASSIGN" | "SET_DUE" | "NOTE" | "MARK_NA" | "DRAFT"
+  verb: AiDraftVerb
   obligationId: string | null
   job: string | null
   payload: Record<string, unknown>
