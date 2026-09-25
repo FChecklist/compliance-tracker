@@ -8,7 +8,7 @@
 // honest reason, never a fabricated success).
 import { and, eq, desc } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { constructionBoqLineItems, constructionBoqs, constructionActivities, pmsIssues, users } from "@/lib/db/schema";
+import { constructionBoqLineItems, constructionBoqs, constructionActivities, constructionLabourRoster, pmsIssues, users } from "@/lib/db/schema";
 import { createProgressEntry } from "@/lib/services/construction-progress-service";
 import { logTime } from "@/lib/services/pms-time-service";
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
@@ -415,9 +415,11 @@ function makeOrgScopedExecutor(codeReference: string): (task: ExecutableTask) =>
 // route already calls, with no new SQL and no second validation path. Every
 // one of them:
 //   - re-checks its declared required params server-side (missingRequiredParam);
-//   - lets the service open its own withTenantContext, and opens NONE of its
-//     own -- D-06 forbids a nested tenant transaction, and every service
-//     below already runs its project/record existence checks inside that one;
+//   - lets the service open its own withTenantContext, and holds NONE of its
+//     own open around it -- D-06 forbids a nested tenant transaction, and every
+//     service below already runs its project/record existence checks inside
+//     that one (U-18: the same-project check of onAnotherProject() is a short
+//     lookup that closes before the service call, not around it);
 //   - returns the created row's id and the route its object lives at, so the
 //     client can print a receipt line and land the right pane on the real
 //     record.
@@ -427,15 +429,48 @@ function created(id: string, route: string, record: unknown): ExecutionOutcome {
   return { success: true, result: { id, route, record } satisfies WriteResult };
 }
 
+/**
+ * PROJEXA-BUILD-001 U-18 (BR-288, audit A-11): an id parameter must name a
+ * record of the task's OWN project, not merely of its org. recordAttendance
+ * finds the roster member, and createBoqRevision the parent BOQ, by id and org
+ * only -- so a worker of project B posted with project A got attendance booked
+ * on A, and a BOQ of project B was revised for a caller whose project is A
+ * (for a project-scoped link or key, a write outside its project).
+ *
+ * True only when the record exists on ANOTHER project: a record that does not
+ * exist at all still reaches the service and gets its own 404, as before. Its
+ * own short transaction, closed before the service opens one (the F-15 shape
+ * executeRecordWorkProgress already uses; D-06 forbids nesting).
+ */
+async function onAnotherProject(task: ExecutableTask, record: "roster" | "boq", id: string, projectId: string): Promise<boolean> {
+  const found = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
+    record === "roster"
+      ? db.query.constructionLabourRoster.findFirst({
+          where: and(eq(constructionLabourRoster.id, id), eq(constructionLabourRoster.orgId, task.orgId)),
+          columns: { projectId: true },
+        })
+      : db.query.constructionBoqs.findFirst({
+          where: and(eq(constructionBoqs.id, id), eq(constructionBoqs.orgId, task.orgId)),
+          columns: { projectId: true },
+        })
+  );
+  return found !== undefined && found.projectId !== projectId;
+}
+
 async function executeRecordAttendance(task: ExecutableTask): Promise<ExecutionOutcome> {
   const missing = missingRequiredParam(task);
   if (missing) return { success: false, failure: missing };
   const projectId = (task.projectId ?? str(task.params.projectId))!;
+  const rosterId = str(task.params.rosterId)!;
+  // U-18 (BR-288): a worker of another project is not on this one.
+  if (await onAnotherProject(task, "roster", rosterId, projectId)) {
+    return { success: false, failure: pipelineFailure("RECORD_NOT_FOUND", ["worker"]) };
+  }
   const row = await recordAttendance(
     { orgId: task.orgId },
     {
       projectId,
-      rosterId: str(task.params.rosterId)!,
+      rosterId,
       // The pipeline's own parameter vocabulary is `date`; the service's
       // column is attendanceDate. Adapted here, once.
       attendanceDate: str(task.params.date)!,
@@ -484,7 +519,13 @@ async function executeCreateMeeting(task: ExecutableTask): Promise<ExecutionOutc
 async function executeCreateBoqRevision(task: ExecutableTask): Promise<ExecutionOutcome> {
   const missing = missingRequiredParam(task);
   if (missing) return { success: false, failure: missing };
-  const row = await createBoqRevision({ orgId: task.orgId, userId: task.userId }, str(task.params.boqId)!, {
+  const projectId = (task.projectId ?? str(task.params.projectId))!;
+  const boqId = str(task.params.boqId)!;
+  // U-18 (BR-288): only a BOQ of this task's own project is revised.
+  if (await onAnotherProject(task, "boq", boqId, projectId)) {
+    return { success: false, failure: pipelineFailure("RECORD_NOT_FOUND", ["boqVersion"]) };
+  }
+  const row = await createBoqRevision({ orgId: task.orgId, userId: task.userId }, boqId, {
     title: str(task.params.title),
   });
   return created(row.id, `/scope/${row.id}`, row);
@@ -562,8 +603,11 @@ async function executeRecordTimesheet(task: ExecutableTask): Promise<ExecutionOu
 
     const explicitIssueId = str(task.params.issueId);
     if (explicitIssueId) {
+      // U-18 (BR-288, audit A-11): the task must be on THIS project -- an
+      // issue of another project of the org is not found here, so no hours are
+      // logged against it.
       const issue = await db.query.pmsIssues.findFirst({
-        where: and(eq(pmsIssues.id, explicitIssueId), eq(pmsIssues.orgId, task.orgId)),
+        where: and(eq(pmsIssues.id, explicitIssueId), eq(pmsIssues.orgId, task.orgId), eq(pmsIssues.projectId, projectId)),
         columns: { id: true, number: true, title: true },
       });
       if (!issue) return { ok: false as const, failure: pipelineFailure("RECORD_NOT_FOUND", ["task"]) };
