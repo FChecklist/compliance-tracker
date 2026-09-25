@@ -24,3 +24,5 @@
 0618_build001_projexa_gateway
 # U-32 part A, the surface column of compliance.audit_logs (nullable, four-key check).
 0619_build001_audit_surface
+# U-31, the inbound email attachments table (the Resend webhook stores each attachment of a resolved message).
+0620_build001_inbound_email_attachments
