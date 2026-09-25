@@ -4,7 +4,7 @@
 # {PG_CRON, EDGE_FN_VIA_PG_CRON, GITHUB_ACTIONS, VERCEL, KILL}, and at least one row is PG_CRON or EDGE_FN_VIA_PG_CRON.
 #
 # Exit 0 = all checks hold. stdout is exactly one line (numbers are the measured ones):
-#   CRON_PLACEMENT_OK vercel_rows=30 bad_enum=0
+#   CRON_PLACEMENT_OK vercel_rows=29 bad_enum=0
 # Exit 1 = a check failed (reasons on stderr). Exit 2 = usage error or a missing prerequisite.
 # The last stderr line is `PASS BR-121` or `FAIL BR-121: <reason>`.
 #
