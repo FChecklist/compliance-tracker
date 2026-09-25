@@ -4,6 +4,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listBoqs, parseBoqInclude, createBoq, ServiceError } from "@/lib/services/construction-boq-service"
+// PROJEXA-BUILD-001 U-27 (BR-404): the paged list is reached through the module namespace, not a named import.
+// boq-route.client-boundary.test.ts replaces construction-boq-service with a partial mock of the names imported
+// above; a new named import would fail that file at link time although its flag-OFF path never calls it.
+import * as boqService from "@/lib/services/construction-boq-service"
+import { isBoqKeysetPaginationEnabled } from "@/lib/boq-line-keyset"
 import { withRouteTiming } from "@/lib/route-timing"
 // R85 Addendum 3 v4 Phase 6 (gates 6-01/6-03a): THE ONE GATE every BOQ read
 // route must call before returning line items -- see cost-visibility-
@@ -51,12 +56,30 @@ async function GET_impl(request: NextRequest) {
     const parts = ["lineItems"]
     if (variation) parts.push("variation")
     if (compare) parts.push("compare")
-    const boqs = await listBoqs({ orgId: ctx.orgId }, projectId, { include: parts.join(",") })
     // 6-01/6-03a: rate_project/qty_project (and any future project-side
-    // figure) are stripped out here for any caller who is not granted cost
+    // figure) are stripped out below for any caller who is not granted cost
     // visibility -- client_viewer can NEVER pass this, unconditionally (see
     // canRoleSeeCost's hard floor).
     const role = (ctx.dbUser?.role as UserRole | undefined) ?? null
+
+    // PROJEXA-BUILD-001 U-27 (BR-404, D-11 as amended by PMD-09): with BUILD001_BOQ_KEYSET_PAGINATION on (read on
+    // every request), the response is the current revision's chain of headers with ONE page of the current
+    // revision's line items plus revision/limit/nextCursor/hasMore; `cursor`, `limit` (1 to 200, default 50) and
+    // `revision` query parameters page it (a bad value is 400). See listBoqsPage() in construction-boq-service.ts.
+    // Same cost-visibility gate around it. With the flag off, nothing below this block changes.
+    if (isBoqKeysetPaginationEnabled()) {
+      const params = request.nextUrl.searchParams
+      const page = await boqService.listBoqsPage({ orgId: ctx.orgId }, projectId, {
+        include: parts.join(","),
+        cursor: params.get("cursor"),
+        limit: params.get("limit"),
+        revision: params.get("revision"),
+      })
+      const pagedBody = await applyCostVisibility({ orgId: ctx.orgId }, role, page)
+      return NextResponse.json(pagedBody)
+    }
+
+    const boqs = await listBoqs({ orgId: ctx.orgId }, projectId, { include: parts.join(",") })
     const responseBody = await applyCostVisibility({ orgId: ctx.orgId }, role, { boqs })
     return NextResponse.json(responseBody)
   } catch (error) {
