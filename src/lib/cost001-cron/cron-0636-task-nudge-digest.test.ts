@@ -3,7 +3,8 @@
 // Runs drizzle/0636_build001_cron_task_nudge_digest.sql and its down file on PGlite against the live shape of compliance.tasks and
 // compliance.notifications. Proves: the lifecycle (see pglite-kit.ts); one notification per user, overdue wins over due-soon, the
 // message text; a dry run returns real counts and writes nothing; notification dedup is ON by default (a user with an unread digest
-// gets no second one, a read one is replaced) and p_dedup => false repeats; the window is a parameter; a refused lock writes nothing.
+// gets no second one, a read one is replaced) and p_dedup => false repeats; an overdue task that cron_task_overdue (0633) already
+// notified, unread, is left out of the digest; the window is a parameter; a refused lock writes nothing.
 // Run: bun test --isolate src/lib/cost001-cron/cron-0636-task-nudge-digest.test.ts
 import { describe, test, expect, beforeAll, afterAll, setDefaultTimeout } from "bun:test"
 import type { PGlite } from "@electric-sql/pglite"
@@ -111,6 +112,31 @@ describe("drizzle/0636 task nudge digest on PGlite", () => {
     await db.exec("delete from compliance.notifications")
     const res = await call(db, RUN("p_due_soon_window_days => 0"))
     expect(res).toMatchObject({ usersNotified: 3, tasksCovered: 4 }) // u1 (2 overdue), u7 (due now), u8 (1 overdue)
+  })
+
+  test("an overdue task the owner already has an unread task_overdue notice for is left out of the digest; a user left with nothing is counted as deduped", async () => {
+    // cron_task_overdue (migration 0633) writes {kind task_overdue, taskId}. u1 is told about t1, u8 about t11 (its only task).
+    await seed(db)
+    await db.exec(`insert into compliance.notifications (user_id, title, message, type, metadata) values
+      ('u1', 'Task overdue: Overdue A', 'x', 'deadline_reminder', '{"kind":"task_overdue","taskId":"t1"}'),
+      ('u8', 'Task overdue: Solo late', 'x', 'deadline_reminder', '{"kind":"task_overdue","taskId":"t11"}')`)
+    const dry = await call(db, RUN("p_dry_run => true"))
+    expect(dry).toMatchObject({ usersNotified: 4, tasksCovered: 5, deduped: 1, dryRun: true }) // u1 keeps t2 and t3; u8 has nothing left
+    expect(await count(db, "compliance.notifications", "metadata->>'kind' = 'task_nudge_digest'")).toBe(0)
+
+    // p_dedup => false ignores the overdue notices and reports every task, as the old TypeScript did
+    expect(await call(db, RUN("p_dedup => false, p_dry_run => true"))).toMatchObject({ usersNotified: 5, tasksCovered: 7, deduped: 0 })
+
+    await call(db, RUN())
+    const rows = (await digests(db)).filter((r) => r.metadata.kind === "task_nudge_digest")
+    expect(rows.map((r) => r.user_id)).toEqual(["u1", "u2", "u6", "u7"]) // not u8
+    expect(rows[0].metadata).toEqual({ kind: "task_nudge_digest", overdueTaskIds: ["t2"], dueSoonTaskIds: ["t3"] }) // t1 is not repeated
+    expect(rows[0].message).toBe(`Pending ${DASH} Overdue B overdue`)
+
+    // once u8 reads the overdue notice it no longer covers the task, so the next run reports it
+    await db.exec("update compliance.notifications set is_read = true where user_id = 'u8'")
+    expect(await call(db, RUN())).toMatchObject({ usersNotified: 1, deduped: 4 })
+    expect((await digests(db)).find((r) => r.user_id === "u8" && r.metadata.kind === "task_nudge_digest")?.message).toBe(`Pending ${DASH} Solo late overdue`)
   })
 
   test("a refused advisory lock returns skipped overlap and writes nothing", async () => {

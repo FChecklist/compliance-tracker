@@ -28,7 +28,7 @@
 -- DATA LOSS: none from this file. A run advances next_occurrence_date on source engagements and inserts one clone per due engagement.
 --
 -- FIRST LIVE CALL: This function has no dry-run parameter (the prepared file has none). To read its counts before the first scheduled run,
---   call it inside a transaction that is rolled back: begin; select compliance.cron_the_firm_recur_engagements(); rollback;
+--   call it inside a transaction that is rolled back, with begin, the call and rollback in ONE execute_sql call: begin; select compliance.cron_the_firm_recur_engagements(); rollback;
 --
 -- HOW IT IS APPLIED: through the Supabase MCP by the PM after the always-aborted rehearsal of
 --   ai-os/projexa-build-001/ROLLBACK_REHEARSALS.md (do-block --schemas compliance). Idempotent: create or replace, and the job is

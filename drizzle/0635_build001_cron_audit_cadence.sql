@@ -26,7 +26,7 @@
 -- DATA LOSS: none from this file. A run sets re_audit_requested_at, re_audit_reason, re_audit_requested_by and updated_at on failed rows.
 --
 -- FIRST LIVE CALL: This function has no dry-run parameter (the prepared file has none). To read its counts before the first scheduled run,
---   call it inside a transaction that is rolled back: begin; select compliance.cron_audit_cadence(); rollback;
+--   call it inside a transaction that is rolled back, with begin, the call and rollback in ONE execute_sql call: begin; select compliance.cron_audit_cadence(); rollback;
 --
 -- HOW IT IS APPLIED: through the Supabase MCP by the PM after the always-aborted rehearsal of
 --   ai-os/projexa-build-001/ROLLBACK_REHEARSALS.md (do-block --schemas compliance). Idempotent: create or replace, and the job is

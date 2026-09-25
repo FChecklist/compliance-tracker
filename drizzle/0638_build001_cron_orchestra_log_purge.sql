@@ -27,7 +27,7 @@
 -- DATA LOSS: IRREVERSIBLE once a payload passes the retention window: input and output are overwritten and the down file cannot restore them. The first eligible row is dated 2026-10-02 (UTC).
 --
 -- FIRST LIVE CALL: This function has no dry-run parameter (the prepared file has none). To read its counts before the first scheduled run,
---   call it inside a transaction that is rolled back: begin; select compliance.cron_orchestra_log_purge(); rollback;
+--   call it inside a transaction that is rolled back, with begin, the call and rollback in ONE execute_sql call: begin; select compliance.cron_orchestra_log_purge(); rollback;
 --
 -- HOW IT IS APPLIED: through the Supabase MCP by the PM after the always-aborted rehearsal of
 --   ai-os/projexa-build-001/ROLLBACK_REHEARSALS.md (do-block --schemas compliance). Idempotent: create or replace, and the job is

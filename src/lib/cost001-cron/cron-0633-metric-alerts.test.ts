@@ -5,7 +5,9 @@
 // (metric alert rules, ticket SLA breaches, ticket escalations, task overdue, task reprioritisation, cost cap); a dry run returns the
 // real counts and writes nothing; a real run writes the notifications and the ticket, task and rule updates; notification dedup is ON
 // (a second run adds no notification, escalations are idempotent through their event rows, reprioritisation never lowers) and
-// p_dedup => false repeats; one failing check does not stop the other five; a refused lock writes nothing.
+// p_dedup => false repeats; a ticket on a 0-hour SLA policy is skipped without an error; the overdue check and the digest of 0636 do not
+// both notify one owner of one task (the overdue check skips a recipient whose unread digest lists the task); one failing check does
+// not stop the other five; a refused lock writes nothing.
 // Run: bun test --isolate src/lib/cost001-cron/cron-0633-metric-alerts.test.ts
 import { describe, test, expect, beforeAll, afterAll, setDefaultTimeout } from "bun:test"
 import type { PGlite } from "@electric-sql/pglite"
@@ -52,13 +54,15 @@ async function seed(db: PGlite) {
       ('tk2', 'Subj 2', 'resolved',    now() - interval '3 days', 'cv', 'a1', 'c1'),
       ('tk3', 'Subj 3', 'open',        now() + interval '3 days', 'cv', 'a1', 'c1'),
       ('tk4', 'Subj 4', 'in_progress', now() - interval '1 day',  'cv', 'a1', 'a1');
-    insert into compliance.sla_policies (id, resolution_hours) values ('p1', 10);
+    insert into compliance.sla_policies (id, resolution_hours) values ('p1', 10), ('p0', 0);
     insert into compliance.tickets (id, subject, status, sla_deadline, conversation_id, assignee_id, created_by_id, sla_policy_id) values
-      ('tk5', 'Subj 5', 'open', now() + interval '2 hours', 'cv', null, 'c1', 'p1');
+      ('tk5', 'Subj 5', 'open', now() + interval '2 hours', 'cv', null, 'c1', 'p1'),
+      ('tk6', 'Subj 6', 'open', now() + interval '1 hour',  'cv', null, 'c1', 'p0');
     insert into compliance.escalation_rules (id, sla_policy_id, threshold_percent, escalate_to_team_id, escalate_to_user_id, notify_user_ids, step_order) values
       ('e1', 'p1', 50, 'team-x', null,   '["n1"]',       1),
       ('e2', 'p1', 90, null,     'boss', '[]',           2),
-      ('e3', 'p1', 75, null,     'lead', '["n1","n2"]',  3);
+      ('e3', 'p1', 75, null,     'lead', '["n1","n2"]',  3),
+      ('e0', 'p0', 0,  'team-zero', null, '["n0"]',      1);
     insert into compliance.tasks (id, org_id, title, status, due_date, user_id, assigned_by_id, priority) values
       ('k1', 'org-1', 'Task 1', 'pending',   now() - interval '2 days',   'u1', 'u2', 0),
       ('k2', 'org-1', 'Task 2', 'pending',   now() + interval '10 hours', 'u1', null, 0),
@@ -89,6 +93,7 @@ const world = async (db: PGlite) => ({
   events: await count(db, "compliance.ticket_escalation_events"),
   priorities: (await q<{ id: string; priority: number }>(db, "select id, priority from compliance.tasks order by id")).map((r) => `${r.id}:${r.priority}`).join(","),
   tk5: await one<{ team_id: string | null; assignee_id: string | null }>(db, "select team_id, assignee_id from compliance.tickets where id = 'tk5'"),
+  tk6: await one<{ team_id: string | null; assignee_id: string | null }>(db, "select team_id, assignee_id from compliance.tickets where id = 'tk6'"),
   triggered: await count(db, "compliance.metric_alert_rules", "last_triggered_at is not null"),
 })
 
@@ -120,7 +125,7 @@ describe("drizzle/0633 metric alerts on PGlite", () => {
     expect(res.dryRun).toBe(true)
     expect(res.metricAlerts).toMatchObject({ checked: 5, breached: 2, skippedInvalidEntity: 1, notified: 3, errors: 1, dryRun: true })
     expect(res.ticketSla).toMatchObject({ breached: 2, notified: 3, dryRun: true })
-    expect(res.ticketEscalations).toMatchObject({ candidates: 1, escalated: 2, ticketsUpdated: 2, notified: 4, dryRun: true })
+    expect(res.ticketEscalations).toMatchObject({ candidates: 2, escalated: 2, ticketsUpdated: 2, notified: 4, dryRun: true })
     expect(res.taskOverdue).toMatchObject({ overdue: 1, notified: 2, dryRun: true })
     expect(res.taskReprioritization).toMatchObject({ evaluated: 5, updated: 3, dryRun: true })
     expect(res.costCeiling).toMatchObject({ checked: 3, overLimit: 1, nearLimit: 1, notified: 3, dryRun: true })
@@ -142,11 +147,22 @@ describe("drizzle/0633 metric alerts on PGlite", () => {
     expect(wrapped.metricAlerts.errors).toBe(1) // only the seeded bad rule
   })
 
+  test("a ticket on a 0-hour SLA policy is a candidate but is skipped: no division by zero, no error key, its threshold-0 rule never fires", async () => {
+    // tk6 sits on policy p0 (resolution_hours 0) with rule e0 (threshold 0, team-zero). Without the guard the elapsed percentage divides by
+    // zero, the check raises, and the wrapper hides the raise under the error key.
+    const direct = await call(db, "compliance.cron_ticket_escalations(p_dry_run => true)")
+    expect(direct.error).toBeUndefined()
+    expect(direct).toMatchObject({ candidates: 2, escalated: 2, ticketsUpdated: 2, notified: 4, dryRun: true }) // tk5's rules only
+    const wrapped = await call(db, WRAPPER("p_dry_run => true"))
+    expect(wrapped.ticketEscalations.error).toBeUndefined()
+    expect(wrapped.ticketEscalations).toMatchObject({ candidates: 2, escalated: 2 })
+  })
+
   test("a real run writes the notifications and the ticket, task and rule updates", async () => {
     const res = await call(db, WRAPPER())
     expect(res.metricAlerts).toMatchObject({ checked: 5, breached: 2, notified: 3, deduped: 0, errors: 1, dryRun: false })
     expect(res.ticketSla).toMatchObject({ breached: 2, notified: 3, deduped: 0 })
-    expect(res.ticketEscalations).toMatchObject({ candidates: 1, escalated: 2, ticketsUpdated: 2, notified: 4 })
+    expect(res.ticketEscalations).toMatchObject({ candidates: 2, escalated: 2, ticketsUpdated: 2, notified: 4 })
     expect(res.taskOverdue).toMatchObject({ overdue: 1, notified: 2 })
     expect(res.taskReprioritization).toMatchObject({ evaluated: 5, updated: 3 })
     expect(res.taskReprioritization.updates).toEqual([
@@ -156,11 +172,14 @@ describe("drizzle/0633 metric alerts on PGlite", () => {
     ])
     expect(res.costCeiling).toMatchObject({ checked: 3, overLimit: 1, nearLimit: 1, notified: 3, deduped: 0, errors: 0 })
     expect(await kinds(db)).toEqual({ metric_alert: 3, ticket_sla_breach: 3, ticket_escalation: 4, task_overdue: 2, cost_cap_breach: 3 })
+    expect(await count(db, "compliance.ticket_escalation_events", "ticket_id = 'tk6'")).toBe(0)
+    expect(await count(db, "compliance.notifications", "metadata->>'ticketId' = 'tk6'")).toBe(0)
     expect(await world(db)).toEqual({
       notifications: 15,
       events: 2,
       priorities: "k1:3,k2:2,k3:1,k4:0,k5:3,k6:0,k7:0,k8:0", // k5 already at 3 and never lowered; k4 too far out
       tk5: { team_id: "team-x", assignee_id: "lead" }, // rules applied in step order, the later step's assignee wins
+      tk6: { team_id: null, assignee_id: null }, // 0-hour policy: skipped, its threshold-0 rule never fires
       triggered: 2, // r1 and r4 breached
     })
   })
@@ -202,7 +221,7 @@ describe("drizzle/0633 metric alerts on PGlite", () => {
     const res = await call(db, WRAPPER())
     expect(res.metricAlerts).toMatchObject({ breached: 2, notified: 0, deduped: 3 })
     expect(res.ticketSla).toMatchObject({ breached: 2, notified: 0, deduped: 3 })
-    expect(res.ticketEscalations).toMatchObject({ candidates: 1, escalated: 0, notified: 0 })
+    expect(res.ticketEscalations).toMatchObject({ candidates: 2, escalated: 0, notified: 0 })
     expect(res.taskOverdue).toMatchObject({ overdue: 1, notified: 0, deduped: 2 })
     expect(res.taskReprioritization).toMatchObject({ evaluated: 5, updated: 0 })
     expect(res.costCeiling).toMatchObject({ notified: 0, deduped: 3 })
@@ -225,6 +244,39 @@ describe("drizzle/0633 metric alerts on PGlite", () => {
     // org o1 crosses from near to over: the unread 'near' rows must not hide the 'over' alert
     await db.exec("insert into compliance.token_usage_ledger (org_id, scope, estimated_cost_usd) values ('o1', 'product_orchestra', 5)")
     expect((await call(db, WRAPPER())).costCeiling).toMatchObject({ overLimit: 2, nearLimit: 0, notified: 2 })
+  })
+
+  test("the overdue check skips a recipient whose unread digest already lists the task as overdue, and still notifies the assigner", async () => {
+    // Task k1 is overdue: owner u1, assigner u2. The digest of migration 0636 writes {kind task_nudge_digest, overdueTaskIds [...]}.
+    await seed(db)
+    const digest = (overdue: string[], dueSoon: string[]) =>
+      db.exec(`insert into compliance.notifications (user_id, title, message, type, metadata) values
+        ('u1', 'Task nudge', 'Pending', 'deadline_reminder',
+         '{"kind":"task_nudge_digest","overdueTaskIds":${JSON.stringify(overdue)},"dueSoonTaskIds":${JSON.stringify(dueSoon)}}')`)
+    const overdueRecipients = async () =>
+      (await q<{ user_id: string }>(db, "select user_id from compliance.notifications where metadata->>'kind' = 'task_overdue' order by user_id")).map((r) => r.user_id)
+
+    await digest(["k1"], [])
+    expect(await call(db, "compliance.cron_task_overdue(p_dry_run => true)")).toMatchObject({ overdue: 1, notified: 1, deduped: 1, dryRun: true })
+    expect(await overdueRecipients()).toEqual([])
+    expect(await call(db, "compliance.cron_task_overdue()")).toMatchObject({ overdue: 1, notified: 1, deduped: 1 })
+    expect(await overdueRecipients()).toEqual(["u2"]) // the assigner is never a digest recipient
+
+    // once the owner reads the digest it no longer suppresses; the assigner's own unread row still does
+    await db.exec("update compliance.notifications set is_read = true where metadata->>'kind' = 'task_nudge_digest'")
+    expect(await call(db, "compliance.cron_task_overdue()")).toMatchObject({ notified: 1, deduped: 1 })
+    expect(await overdueRecipients()).toEqual(["u1", "u2"])
+
+    // a digest that lists the task only as due soon does not say it is overdue, so it does not suppress
+    await db.exec("delete from compliance.notifications")
+    await digest([], ["k1"])
+    expect(await call(db, "compliance.cron_task_overdue()")).toMatchObject({ notified: 2, deduped: 0 })
+
+    // p_dedup => false ignores the digest, as it ignores every other dedup
+    await db.exec("delete from compliance.notifications")
+    await digest(["k1"], [])
+    expect(await call(db, "compliance.cron_task_overdue(p_dedup => false)")).toMatchObject({ notified: 2, deduped: 0 })
+    expect(await overdueRecipients()).toEqual(["u1", "u2"])
   })
 
   test("one failing check does not stop the other five: its error is returned under its key and its partial writes roll back", async () => {

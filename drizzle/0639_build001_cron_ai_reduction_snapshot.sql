@@ -23,10 +23,11 @@
 --   public, anon and authenticated. The job runs as postgres, which owns the function, so it also bypasses row level security:
 --   this switches on cross-org behaviour that read zero rows while the production connection was app_runtime.
 --
--- DATA LOSS: none from this file. A run inserts one snapshot row; duplicates on one date are harmless by design.
+-- DATA LOSS: none from this file. A run inserts one snapshot row. There is no unique index on snapshot_date and no on-conflict guard, so a manual
+--   run in the same month adds a second row for that date; duplicates on one date are harmless by design.
 --
 -- FIRST LIVE CALL: This function has no dry-run parameter (the prepared file has none). To read its counts before the first scheduled run,
---   call it inside a transaction that is rolled back: begin; select compliance.cron_ai_reduction_snapshot(); rollback;
+--   call it inside a transaction that is rolled back, with begin, the call and rollback in ONE execute_sql call: begin; select compliance.cron_ai_reduction_snapshot(); rollback;
 --
 -- HOW IT IS APPLIED: through the Supabase MCP by the PM after the always-aborted rehearsal of
 --   ai-os/projexa-build-001/ROLLBACK_REHEARSALS.md (do-block --schemas compliance). Idempotent: create or replace, and the job is

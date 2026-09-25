@@ -9,21 +9,26 @@
 --   Pure SQL: no /api/internal route, no net.http_post, no Vault secret, no table, no grant (only a revoke).
 --
 -- SOURCE
---   supabase/prepared/cost001/04_metric_alerts.sql: the function text is copied with two changes. (1) The dollar-quote tag is fn where the
+--   supabase/prepared/cost001/04_metric_alerts.sql: the function text is copied with three changes. (1) The dollar-quote tag is fn where the
 --   prepared file used the bare pair. (2) In cron_ticket_escalations the loop record variable t is renamed tk. The prepared file declares
 --   `t record` and also aliases compliance.tickets as t in the loop query, and PL/pgSQL then reads t.id as a field of the still
 --   unassigned record: the function stops with 'record "t" is not assigned yet' (SQLSTATE 55000) on every run, even when the tickets
 --   table is empty (reproduced on PGlite, PostgreSQL 18.3). The wrapper catches that error inside its own sub-block and returns it under
 --   ticketEscalations instead of raising, so a call of the wrapper that only checks it did not raise cannot show it. The prepared file
---   is left as it is (it is not edited here); the PGlite test of this migration fails on the unrenamed text. That file holds the
+--   is left as it is (it is not edited here); the PGlite test of this migration fails on the unrenamed text. (3) In cron_task_overdue the
+--   dedup also skips a recipient whose unread digest lists the task as overdue (see DECISIONS APPLIED). That file holds the
 --   reasoning, the column checks and the owner decision table; its README records the live dry runs of 2026-09-22 and 2026-09-24.
 --   Every table and column used was re-checked on 2026-09-26 against src/lib/db/schema.ts and the live catalog (read only): none missing.
 --
 -- DECISIONS APPLIED (PM, under the owner's delegation)
 --  Notification dedup stays ON (p_dedup default true, decisions 3 and 7): a recipient with an unread notification of the same
 --  type and metadata kind (plus the same entity id) gets no second one.
---  The wrapper runs cron_task_overdue too. It overlaps the digest of 0636; the two use different metadata kinds, so their dedup
---  does not cross (see 0636).
+--  The wrapper runs cron_task_overdue too, and the digest of 0636 is kept (PMD-44). The two overlap: both tell the owner of a task that
+--  it is overdue. Their metadata kinds differ (task_overdue and task_nudge_digest), so the per-kind dedup alone does not make either
+--  skip the other and a user would get both. The two functions therefore check each other by task id: cron_task_overdue skips a
+--  recipient whose unread digest already lists the task in overdueTaskIds, and the digest leaves out an overdue task the owner
+--  already has an unread task_overdue notice for. Both checks are part of p_dedup, so p_dedup => false still repeats everything.
+--  The assigner (assigned_by_id) is never a digest recipient, so the assigner keeps getting the task_overdue notice.
 --
 -- LIVE COUNTS 2026-09-26 (read only)
 --  metric_alert_rules active 0. Open tickets past their SLA deadline: 2 (the prepared README counted 0 on 2026-09-24), so the
@@ -39,6 +44,8 @@
 -- DATA LOSS: none from this file. A run inserts notification rows (kinds metric_alert, ticket_sla_breach, ticket_escalation, task_overdue, cost_cap_breach), may raise tasks.priority and may reassign tickets.team_id and assignee_id. Those field changes cannot be undone from SQL.
 --
 -- FIRST LIVE CALL: select compliance.cron_metric_alerts(p_dry_run => true);
+--   Read every key of the result. The wrapper catches a raise inside any of its six checks and returns it as {error, sqlstate} under
+--   that check's key, so cron.job_run_details shows the run as succeeded even when a check failed. Any error key means a check raised.
 --
 -- HOW IT IS APPLIED: through the Supabase MCP by the PM after the always-aborted rehearsal of
 --   ai-os/projexa-build-001/ROLLBACK_REHEARSALS.md (do-block --schemas compliance). Idempotent: create or replace, and the job is
@@ -425,7 +432,7 @@ comment on function compliance.cron_ticket_escalations(boolean, boolean) is
 
 
 -- ----------------------------------------------------------------------------
--- 4/6  task_overdue  (task-service.ts:564-584)   -- see OWNER DECISION #3
+-- 4/6  task_overdue  (task-service.ts:564-584)   -- see OWNER DECISION #3 and DECISIONS APPLIED above
 -- ----------------------------------------------------------------------------
 create or replace function compliance.cron_task_overdue(
   p_dedup   boolean default true,
@@ -460,11 +467,20 @@ begin
       select distinct x from unnest(array[t.user_id, t.assigned_by_id]) as x
       where nullif(x, '') is not null
     loop
-      if p_dedup and exists (
-        select 1 from compliance.notifications n
-        where n.user_id = v_uid and n.type = 'deadline_reminder' and n.is_read = false
-          and n.metadata->>'kind' = 'task_overdue'
-          and n.metadata->>'taskId' = t.id
+      if p_dedup and (
+        exists (
+          select 1 from compliance.notifications n
+          where n.user_id = v_uid and n.type = 'deadline_reminder' and n.is_read = false
+            and n.metadata->>'kind' = 'task_overdue'
+            and n.metadata->>'taskId' = t.id
+        )
+        -- added by this port: the digest of migration 0636 already lists this task as overdue for this user (unread)
+        or exists (
+          select 1 from compliance.notifications n
+          where n.user_id = v_uid and n.type = 'deadline_reminder' and n.is_read = false
+            and n.metadata->>'kind' = 'task_nudge_digest'
+            and n.metadata->'overdueTaskIds' @> to_jsonb(t.id)
+        )
       ) then
         v_deduped := v_deduped + 1;
         continue;
@@ -495,7 +511,7 @@ end
 $fn$;
 
 comment on function compliance.cron_task_overdue(boolean, boolean) is
-  'COST-001 pg_cron port of checkTaskOverdue() (task-service.ts:564-584). Prepared, owner-applied. OWNER DECISION #3: overlaps cron 10 task-nudge-digest -- keep one.';
+  'COST-001 pg_cron port of checkTaskOverdue() (task-service.ts:564-584). Prepared, owner-applied. Decision 3: runs next to cron_task_nudge_digest; a recipient whose unread digest already lists the task as overdue gets no second notice.';
 
 
 -- ----------------------------------------------------------------------------
