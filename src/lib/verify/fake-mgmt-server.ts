@@ -92,7 +92,7 @@ export function runAsync(cmd: string, args: string[], env: Record<string, string
   }
   for (const [k, v] of Object.entries(env)) if (v !== undefined) base[k] = v;
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { env: base, cwd: opts.cwd ?? process.cwd(), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    const child = spawn(cmd, args, { env: base, cwd: opts.cwd ?? process.cwd(), stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"], windowsHide: true });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (c) => (stdout += c.toString("utf8")));
