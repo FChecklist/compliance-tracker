@@ -62,18 +62,42 @@ export interface AiProvider {
   analyse(batchInput: unknown): Promise<Artifact[]>;
 }
 
-export class AiProviderRefusalError extends Error {}
+/**
+ * PROJEXA-BUILD-001 U-49: WHY the gate refused, carried beside the sentence.
+ * The sentence is the same for every refusal on purpose (refusal.ts); the kind
+ * is what lets telemetry store a closed code (level1.ts's level1RefusalCode)
+ * without ever storing a message.
+ *   identity_not_allowed  the acting person is not RAJAT_USER_ID, or
+ *                         RAJAT_USER_ID is unset
+ *   actor_unresolved      no acting person could be resolved for the request
+ *                         (an API key that names nobody, or names someone with
+ *                         no active VERIDIAN user)
+ */
+export type AiProviderRefusalKind = "identity_not_allowed" | "actor_unresolved";
+
+export class AiProviderRefusalError extends Error {
+  readonly kind: AiProviderRefusalKind;
+  constructor(message: string, kind: AiProviderRefusalKind = "identity_not_allowed") {
+    super(message);
+    this.kind = kind;
+  }
+}
 
 // M27: "if AI_PROVIDER=claude-cli AND any authenticated user other than
 // Rajat's user id is present, the app REFUSES to serve AI and logs it."
 //
-// RAJAT_USER_ID is compared as an exact string with the userId passed in. For
-// a session that is a compliance.users id, so it can name the account Rajat
-// tests through (democeo@projexa-ai.com / Demo Organization, per this work
-// order's protocol step 3). On the PROJEXA proxy the caller is an org API key
-// (auth-guard.ts:424/445, dbUser: null), so the id is an api_keys id and a
-// users id here never matches it. Set via env so a real identity change needs
-// no code change; the assertion below refuses closed if it is unset.
+// RAJAT_USER_ID is compared as an exact string with the ACTING PERSON's
+// compliance.users id, so it names the account Rajat tests through
+// (democeo@projexa-ai.com / Demo Organization, per this work order's protocol
+// step 3). PROJEXA-BUILD-001 U-49: it used to be compared with whatever
+// `userId` the route passed, which on the PROJEXA proxy is the org API key's
+// id (auth-guard.ts requireAuthOrApiKey, dbUser: null) -- so the owner could
+// never pass there, and a RAJAT_USER_ID set to that key id would have let every
+// person of the org through one individual's subscription. The routes now
+// resolve the person (acting-role.ts resolvePipelineActor) and the pipeline
+// hands that id here; a key call that names nobody arrives as null and is
+// refused. Set via env so a real identity change needs no code change; the
+// assertion below refuses closed if it is unset.
 function rajatUserId(): string | null {
   return process.env.RAJAT_USER_ID ?? null;
 }
@@ -117,7 +141,12 @@ export function assertAiProviderAllowedForSystemBatch(jobName: string, level: Pi
   throw new AiProviderRefusalError(NO_COMMENTARY_SENTENCE);
 }
 
-export function assertAiProviderAllowed(userId: string, level: PipelineLevelRole = "pipeline_l1"): void {
+/**
+ * `userId` is the ACTING PERSON's compliance.users id (U-49), never an API
+ * key's id; null when the request named no person that resolves. Null is
+ * refused under a subscription provider (fail closed), with its own kind.
+ */
+export function assertAiProviderAllowed(userId: string | null, level: PipelineLevelRole = "pipeline_l1"): void {
   const provider = resolveProviderName(level);
   if (!isSubscriptionProvider(provider)) return; // openrouter has no per-user restriction
 
@@ -129,8 +158,14 @@ export function assertAiProviderAllowed(userId: string, level: PipelineLevelRole
     // R67 B-05: a refusal must never be a dead end. R66 recorded a user
     // being told "... not available for this account." with no next step,
     // for a question the database could answer perfectly well without a
-    // model. Both refusals below now say what still works.
+    // model. Every refusal below now says what still works.
     throw new AiProviderRefusalError(NO_COMMENTARY_SENTENCE);
+  }
+  if (!userId) {
+    console.error(
+      `[ai/adapter] provider "${provider}" (level=${level}) refused a request with no resolvable acting person. An API key names no individual, so it can never be the one permitted account; the caller must name the person (X-Acting-User / X-Acting-User-Email or actorEmail).`
+    );
+    throw new AiProviderRefusalError(NO_COMMENTARY_SENTENCE, "actor_unresolved");
   }
   if (userId !== allowed) {
     console.error(

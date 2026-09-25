@@ -154,6 +154,12 @@ function unmatchedContent(result: RunSubmissionResult, unmatched: string[], tool
 // no project is pinned to it -- and refuses any other project the text or the
 // params name. A call whose arguments name another project never gets here
 // (projectScopeRefusal, below).
+//
+// U-49 (BR-219): `level1PersonId` is the link's own user -- a real
+// compliance.users id, the person the link was made for -- so this caller
+// names its person like every other pipeline caller. Both calls run with
+// Level 1 off (U-43), so no provider gate is consulted here today; the
+// submission row still records level1_outcome and model_calls (BR-220).
 async function handleTool(
   name: string,
   args: Record<string, unknown>,
@@ -172,6 +178,7 @@ async function handleTool(
       rawInput,
       role,
       level1: "off",
+      level1PersonId: userId,
       projectScope,
     });
     const unmatched = unmatchedSegments(result);
@@ -181,7 +188,7 @@ async function handleTool(
   if (name === "ask") {
     const question = String(args.question ?? "");
     if (!question.trim()) throw new Error("question is required");
-    const result = await runSubmission({ orgId, userId, mode: "Projects", projectId: null, rawInput: question, role, level1: "off", projectScope });
+    const result = await runSubmission({ orgId, userId, mode: "Projects", projectId: null, rawInput: question, role, level1: "off", level1PersonId: userId, projectScope });
     const unmatched = unmatchedSegments(result);
     if (unmatched.length > 0) return unmatchedContent(result, unmatched, "ask");
     const said = result.chatMessages.join("\n").trim();
