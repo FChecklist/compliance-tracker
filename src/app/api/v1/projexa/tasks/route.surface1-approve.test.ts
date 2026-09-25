@@ -513,7 +513,10 @@ describe("BR-410 (fix round 1): overlapping Approves of one proposal write one B
     const refused = await answers.find((a) => a.status === 409)!.json()
 
     expect(statuses).toEqual([201, 409])
-    expect(["in_progress", "done"]).toContain(refused.status)
+    // The loser's answer says what is true of the row when it asked: still being approved, or already decided.
+    expect(
+      (refused.status === "in_progress" && refused.error.includes("being approved")) || (refused.status === "done" && refused.error.includes("already been decided"))
+    ).toBe(true)
     // The claim itself stopped the loser: an update of a submission that matched no row.
     expect(store.updateLog!.filter((u) => u.table === "submissions" && u.matched === 0).length).toBeGreaterThanOrEqual(1)
     // Read from the store: one of everything, and the proposal decided.
@@ -535,6 +538,22 @@ describe("BR-410 (fix round 1): overlapping Approves of one proposal write one B
     expect(table("construction_boqs")).toHaveLength(1)
     expect(surfaceRows()).toHaveLength(1)
     expect(store.updateLog!.filter((u) => u.table === "submissions" && u.matched === 0).length).toBeGreaterThanOrEqual(1)
+  })
+
+  test("a claimed proposal that is also missing a parameter is 409 in_progress, not a question to answer", async () => {
+    seedRows(store, "submissions", [
+      submissionRow({
+        id: "sub_held_open",
+        selectedChain: preparedChain({ params: { projectId: PROJECT_A, lineItems: [] }, claimedAt: "2026-09-25T10:00:00.000Z", claimedBy: "person_2" }),
+      }),
+    ])
+    const before = snapshot()
+
+    const res = await approve({ submissionId: "sub_held_open" })
+
+    expect(res.status).toBe(409)
+    expect((await res.json()).status).toBe("in_progress")
+    expect(snapshot()).toBe(before)
   })
 
   test("a proposal an Approve has claimed is 409 in_progress, is not offered again, and nothing is written", async () => {

@@ -273,26 +273,29 @@ describe("BR-409: the SQL selects, orders and limits", () => {
     expect(store.unparsed).toEqual([])
   })
 
-  test("120 newer typed messages, each carrying a chain hint, do not push an older proposal past the limit", async () => {
-    seedRows(store, "submissions", [titled(1, { id: "sub_the_proposal" })])
-    seedRows(
-      store,
-      "submissions",
-      Array.from({ length: 120 }, (_, i) =>
-        submissionRow({
-          id: `typed_${i}`,
-          rawInput: `record ${i} percent on 1.01`,
-          selectedChain: { mode: "Projects", verb: "record" },
-          createdAt: new Date(Date.UTC(2026, 8, 2, 0, i % 60, i)),
-        })
+  // Each kind of row the JS filter would drop, 120 of them and newer than the one proposal. Only the SQL filter keeps
+  // them out of the limit, and each of the source and function filters is the only one that stops its own kind.
+  const noise: Array<[string, (i: number) => Record<string, unknown>]> = [
+    ["typed messages, each carrying a chain hint", () => ({ rawInput: "record 40 percent on 1.01", selectedChain: { mode: "Projects", verb: "record" } })],
+    ["prepared chains of an unknown source", () => ({ selectedChain: preparedChain({ source: "somewhere_else" }) })],
+    ["prepared chains naming a function the list does not approve", () => ({ selectedChain: preparedChain({ functionId: "record_work_progress" }) })],
+    ["chains with no source at all", () => ({ selectedChain: { functionId: "create_boq", params: { projectId: PROJECT_A, title: "No source", lineItems: [] } } })],
+  ]
+  for (const [label, make] of noise) {
+    test(`120 newer ${label} do not push an older proposal past the limit`, async () => {
+      seedRows(store, "submissions", [titled(1, { id: "sub_the_proposal" })])
+      seedRows(
+        store,
+        "submissions",
+        Array.from({ length: 120 }, (_, i) => submissionRow({ id: `noise_${i}`, createdAt: new Date(Date.UTC(2026, 8, 2, 0, i % 60, i)), ...make(i) }))
       )
-    )
 
-    const body = await (await list()).json()
+      const body = await (await list()).json()
 
-    expect(body.proposals.map((p: { submissionId: string }) => p.submissionId)).toEqual(["sub_the_proposal"])
-    expect(store.unparsed).toEqual([])
-  })
+      expect(body.proposals.map((p: { submissionId: string }) => p.submissionId)).toEqual(["sub_the_proposal"])
+      expect(store.unparsed).toEqual([])
+    })
+  }
 
   test("a proposal an approval has claimed is not listed; its unclaimed neighbour is", async () => {
     seedRows(store, "submissions", [
