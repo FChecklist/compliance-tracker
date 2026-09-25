@@ -5,7 +5,7 @@
 // invoice submission this takes no body -- a credit note carries no revenue
 // account choice, it just flips draft -> submitted.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { submitSalesCreditNote, ServiceError } from "@/lib/services/erp-credit-note-service"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -16,10 +16,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const { id } = await params
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: ctx.apiKey!.id, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: acting.person.id, ...acting.actor }
     const note = await submitSalesCreditNote(actorCtx, id)
     return NextResponse.json(note)
   } catch (error) {

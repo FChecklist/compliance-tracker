@@ -45,7 +45,7 @@
 // PER USER, never per org: one PM's ranking must never reorder another's
 // strip. The unique key on pill_usage is (org_id, user_id, pill_key).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson, resolveOptionalActingPerson } from "@/lib/supabase/auth-guard"
 import {
   normaliseRecordedPillKey,
   readPillStrip,
@@ -61,7 +61,13 @@ export async function GET(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "read")
   if (roleErr) return roleErr
 
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  // U-20b: POST now records under the person an API-key caller names, so the
+  // strip is read under that same person whenever the caller names one. A
+  // key-only read with no acting-user signal keeps the key's own legacy strip
+  // (a reader identity for a GET, never recorded as an actor).
+  const { acting, error: actingError } = await resolveOptionalActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting?.person.id ?? ctx.apiKey!.id
   const url = new URL(request.url)
   const limitRaw = Number(url.searchParams.get("limit") ?? "6")
   // M24: "nobody sees 25 pills, they see their top five or six."
@@ -102,7 +108,9 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
 
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null

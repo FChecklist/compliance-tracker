@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { getVeriMeeting, updateMeetingMinutes, updateVeriMeetingDetails, publishVeriMeeting, deleteVeriMeeting, ServiceError } from "@/lib/services/veri-meeting-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -39,14 +39,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   // R39/R-C04: ctx.apiKey?.id is not a real compliance.users row -- see
-  // veriMeetings.createdById's schema.ts comment.
-  const actorId = ctx.dbUser?.id ?? null
+  // veriMeetings.createdById's schema.ts comment. U-20b: the actor is now the
+  // person the API-key caller names (X-Acting-User / X-Acting-User-Email).
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const { id } = await params
     const body = await request.json()
-    const meetingCtx = { orgId: ctx.orgId, userId: actorId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }) }
+    const meetingCtx = { orgId: ctx.orgId, userId: actorId, ...acting.actor }
 
     if (body.action === "publish") {
       const meeting = await publishVeriMeeting(meetingCtx, id)
@@ -82,12 +85,14 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
-  const actorId = ctx.dbUser?.id ?? null
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const { id } = await params
-    const meetingCtx = { orgId: ctx.orgId, userId: actorId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }) }
+    const meetingCtx = { orgId: ctx.orgId, userId: actorId, ...acting.actor }
     const meeting = await deleteVeriMeeting(meetingCtx, id)
     return NextResponse.json(meeting)
   } catch (error) {

@@ -10,7 +10,7 @@
 // field in the product"), so every route in this directory uses the same
 // floor, not just the commit path.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { createScenario, listScenarios, ServiceError } from "@/lib/services/boq-scenario-service"
 
 export async function GET(request: NextRequest) {
@@ -40,8 +40,9 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "manager", "write")
   if (roleErr) return roleErr
 
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey?.id
-  if (!actorId) return NextResponse.json({ error: "No actor identity on this request" }, { status: 400 })
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = (await request.json()) as { boqId?: string; name?: string; baseBaselineVersion?: number | null }

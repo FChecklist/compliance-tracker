@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { disposeDocument, ServiceError } from "@/lib/services/document-service"
 
 // Real-screen conversion (2026-08-30): exposes the already-existing
@@ -16,8 +16,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const { id } = await params
-    const doc = await disposeDocument({ orgId: ctx.orgId, userId: ctx.dbUser?.id ?? ctx.apiKey!.id }, id)
+    const doc = await disposeDocument({ orgId: ctx.orgId, userId: acting.person.id }, id)
     return NextResponse.json(doc)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

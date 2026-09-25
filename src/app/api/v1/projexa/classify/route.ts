@@ -15,7 +15,7 @@
 // R52 can build the pill strip against it. If the shape must change, a new
 // r53-handshake row goes in BEFORE the change, never after.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { classifyOnly } from "@/lib/pipeline/classify-only"
 
 export async function POST(request: NextRequest) {
@@ -30,7 +30,9 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "read")
   if (roleErr) return roleErr
 
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   let body: Record<string, unknown>
   try {

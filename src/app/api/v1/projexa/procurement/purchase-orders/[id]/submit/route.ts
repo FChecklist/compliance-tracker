@@ -2,7 +2,7 @@
 // submitPurchaseOrder -- moves a draft PO to 'submitted' so goods receipts
 // can be recorded against it.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { submitPurchaseOrder, ServiceError } from "@/lib/services/erp-buying-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -13,13 +13,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const { id } = await params
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: actorId, ...acting.actor }
     const po = await submitPurchaseOrder(actorCtx, id)
     return NextResponse.json(po)
   } catch (error) {

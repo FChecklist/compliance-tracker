@@ -9,7 +9,7 @@ import { documents } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson, resolveOptionalActingPerson } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
 import { createClient } from "@supabase/supabase-js"
 import { readVersionChain, updateDocumentMetadata, ServiceError } from "@/lib/services/document-service"
@@ -30,13 +30,20 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   try {
     const { id } = await context.params
-    const found = await withTenantContext({ orgId: ctx.orgId, userId: ctx.dbUser?.id ?? ctx.apiKey!.id }, async (db) => {
+    // U-20b: this GET writes a "view" audit row. When the caller names the
+    // person (X-Acting-User / X-Acting-User-Email) the row carries that person
+    // AND the key; a key-only read with no signal is still served and keeps
+    // its key-attributed row (a read is not refused for naming nobody) --
+    // PROJEXA should send the headers here too so BR-216 sees no such rows.
+    const { acting, error: actingError } = await resolveOptionalActingPerson(request, ctx)
+    if (actingError) return actingError
+    const found = await withTenantContext({ orgId: ctx.orgId, userId: acting?.person.id ?? ctx.apiKey!.id }, async (db) => {
       const doc = await db.query.documents.findFirst({ where: eq(documents.id, id) })
       if (!doc) return null
       await logActivity({
         tx: db, action: "view", entityType: "Document", entityId: doc.id,
         details: `Viewed/downloaded document: ${doc.name}`, orgId: ctx.orgId!, clientId: doc.clientId,
-        ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }),
+        ...(acting ? acting.actor : { apiKey: ctx.apiKey! }),
         request,
       })
       // R67 D-15: the row AND its version history in one answer, inside the ONE
@@ -100,9 +107,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const { id } = await context.params
     const body = await request.json()
-    const updated = await updateDocumentMetadata({ orgId: ctx.orgId, userId: ctx.dbUser?.id ?? ctx.apiKey!.id }, id, {
+    const updated = await updateDocumentMetadata({ orgId: ctx.orgId, userId: acting.person.id }, id, {
       // R67 D-15: `name` was the one field the object page could not fix. A
       // document named after the file it arrived as ("scan_0012.pdf") is
       // unfindable, and the typo was made at upload time by the same person now

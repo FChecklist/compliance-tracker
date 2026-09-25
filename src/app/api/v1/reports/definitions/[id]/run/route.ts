@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireReportsReadAccess } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireReportsReadAccess, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { executeReportDefinition, ServiceError } from "@/lib/services/report-engine-service"
 import { rowsToCSV, rowsToXLSXBuffer } from "@/lib/report-export-shared"
 
@@ -32,7 +32,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params
     const body = await request.json().catch(() => ({}))
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey?.id
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
+    const actorId = acting.person.id
     const result = await executeReportDefinition({ orgId: ctx.orgId, userId: actorId }, id, body.params ?? {})
 
     const format = request.nextUrl.searchParams.get("format")?.toLowerCase()

@@ -5,7 +5,7 @@
 // now calls too (see risk-register-service.ts's own header for the
 // extraction this wave did).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listRisks, createRisk, ServiceError } from "@/lib/services/risk-register-service"
 
 export async function GET(request: NextRequest) {
@@ -31,10 +31,10 @@ export async function POST(request: NextRequest) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const body = await request.json()
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: ctx.apiKey!.id, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: acting.person.id, ...acting.actor }
     const risk = await createRisk(actorCtx, { title: body.title, category: body.category, likelihood: body.likelihood, impact: body.impact })
     return NextResponse.json(risk, { status: 201 })
   } catch (error) {
