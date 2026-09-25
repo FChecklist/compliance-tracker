@@ -94,7 +94,20 @@ export function financialsAllowedForRole(role?: string | null): boolean {
  * ERP ledger budget) and progressByBoqValuePct (percentByValue under its UI
  * name), so a member still got both.
  */
-export function redactProjectDashboardFinancials<T extends object>(dashboard: T) {
+// The money fields a redacted dashboard reports as null. Named here so the
+// return type below can OMIT them from T before adding the null versions: with
+// no explicit type, spreading a generic T and then setting `budget: null`
+// makes TypeScript intersect `budget: number` with `budget: null`, which
+// collapses to never, and a caller cannot spread a never (TS2698).
+type RedactedDashboardMoney = {
+  budget: null; ledgerBudget: null; revenue: null; expenses: null
+  projectValue: null; earnedValue: null; percentByValue: null; contractValue: null
+  progressByBoqValuePct: null
+}
+
+export function redactProjectDashboardFinancials<T extends object>(
+  dashboard: T
+): Omit<T, keyof RedactedDashboardMoney> & RedactedDashboardMoney {
   return {
     ...dashboard,
     budget: null, ledgerBudget: null, revenue: null, expenses: null,
