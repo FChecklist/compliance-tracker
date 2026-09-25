@@ -231,15 +231,23 @@ describe("U-01 (a) -- api/mcp/[token]: the link owner's own role decides", () =>
     expect(budgetReads).toBe(1)
   })
 
-  test("a link whose owner has no active user row (unknown role) is redacted, not an error", async () => {
-    linkOwnerRow = undefined
-    const budget = await viaLink("show me the budget")
-    expect(budget.status).toBe(200)
-    expect(budget.task.failure?.code).toBe("INTERNAL_ERROR")
-    expect((await viaLink("how is the project doing")).task.result).toEqual(REDACTED_DASHBOARD)
-
-    linkOwnerRow = { role: "manager", isActive: false }
-    expect((await viaLink("how is the project doing")).task.result).toEqual(REDACTED_DASHBOARD)
+  test("a link whose owner has no active user row is refused before any tool runs (PMD-33), not redacted", async () => {
+    // Before PMD-33 this case was redacted and still ran the tools: an orphaned link could not read the money figures but could
+    // still write (add a roster entry, revise a BOQ) under a person who is no longer an active user. Now nothing runs.
+    const submissionsBefore = rolesSeenBySubmission.length
+    for (const row of [undefined, { role: "manager", isActive: false }] as Array<typeof linkOwnerRow>) {
+      linkOwnerRow = row
+      const request = new Request(`https://x/api/mcp/${TOKEN}`, {
+        method: "POST",
+        body: JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "submit_task", arguments: { rawInput: "show me the budget", projectId: PROJECT } } }),
+      })
+      const res = await linkPOST(request, { params: Promise.resolve({ token: TOKEN }) })
+      const body = await res.json()
+      expect(body.result).toBeUndefined()
+      expect(body.error.code).toBe(-32000)
+      expect(body.error.message).toContain("no longer an active user of this organisation")
+    }
+    expect(rolesSeenBySubmission.length).toBe(submissionsBefore) // runSubmission was never called
     expect(budgetReads).toBe(0)
   })
 })
