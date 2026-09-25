@@ -70,7 +70,7 @@ export function buildWorkbook(
 ): Buffer {
   const wb = XLSX.utils.book_new()
   for (const s of sheets) {
-    const ws = XLSX.utils.aoa_to_sheet(s.rows, s.origin ? { origin: s.origin } : undefined)
+    const ws = XLSX.utils.aoa_to_sheet(s.rows, (s.origin ? { origin: s.origin } : undefined) as unknown as XLSX.AOA2SheetOpts | undefined)
     if (s.declaredRange) ws["!ref"] = s.declaredRange
     XLSX.utils.book_append_sheet(wb, ws, s.name)
   }
