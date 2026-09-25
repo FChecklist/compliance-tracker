@@ -169,6 +169,18 @@ describe("BR-403: listBoqsPage() pages the current revision's 153 lines at limit
     expect(independent.boqs.map((b) => b.id)).toEqual([INDEPENDENT])
   })
 
+  test("a project with no BOQ is an empty page, not an error; a cursor on it is 400", async () => {
+    expect(await svc.listBoqsPage({ orgId: ORG }, "project-with-no-boq")).toEqual({
+      boqs: [],
+      revision: null,
+      limit: 50,
+      nextCursor: null,
+      hasMore: false,
+    })
+    const cursor = encodeBoqLineCursor({ boqId: REV2, id: rev2Ids[0] })
+    await expectServiceError(svc.listBoqsPage({ orgId: ORG }, "project-with-no-boq", { cursor }), 400, /does not belong/)
+  })
+
   test("limit 1 and limit 200 are accepted; 200 returns all 153 in one page", async () => {
     const one = await svc.listBoqsPage({ orgId: ORG }, PROJECT, { limit: "1" })
     expect(one.boqs[0].lineItems!.length).toBe(1)

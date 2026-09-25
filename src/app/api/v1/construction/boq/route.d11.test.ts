@@ -333,6 +333,35 @@ describe("BR-404: the default list with the flag on is the current revision's fi
   })
 })
 
+describe("BR-403 through the detail route: GET /api/v1/construction/boq/[id] with the flag on", () => {
+  test("the current revision's 153 lines come back as 50, 50, 50 and 3 with whole-BOQ moneyView on every page", async () => {
+    caller = { role: null, apiKeyOnly: true }
+    const { GET: GET_ONE } = await import("./[id]/route")
+    const sizes: number[] = []
+    const seen: string[] = []
+    const rootLineCounts: number[] = []
+    let cursor: string | null = null
+    await withFlag("1", async () => {
+      for (let guard = 0; guard < 10; guard++) {
+        const query: string = cursor ? `?cursor=${cursor}` : ""
+        const res = await GET_ONE(new NextRequest(`http://localhost/api/v1/construction/boq/${currentId}${query}`), {
+          params: Promise.resolve({ id: currentId }),
+        })
+        expect(res.status).toBe(200)
+        const body = (await res.json()) as { lineItems: Array<{ id: string }>; nextCursor: string | null; moneyView: { rootLineCount: number } }
+        sizes.push(body.lineItems.length)
+        seen.push(...body.lineItems.map((l) => l.id))
+        rootLineCounts.push(body.moneyView.rootLineCount)
+        cursor = body.nextCursor
+        if (!cursor) break
+      }
+    })
+    expect(sizes).toEqual([50, 50, 50, 3])
+    expect(seen).toEqual(byteOrder(currentLineIds))
+    expect(rootLineCounts).toEqual([51, 51, 51, 51])
+  })
+})
+
 describe("with the flag off the route is unchanged, and the fixture reproduces D-11", () => {
   test("every header with every line item: 5,924 headers, 10,907 lines, a body over 1,048,576 bytes", async () => {
     caller = { role: null, apiKeyOnly: true }
