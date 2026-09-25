@@ -40,6 +40,13 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, isolated worktree nifty-ardinghelli-56ca62, branch fix/domain-drift-check-http-status) -- domain-drift-check workflow reports an invalid Vercel token as drift"
+    claimed_at: "25-Sep-2026 (this session)"
+    claim: |
+      SCOPE: .github/workflows/domain-drift-check.yml (step body moved out), scripts/check-domain-drift.sh (new), scripts/check-domain-drift.test.ts (new), this entry.
+      WHAT: every scheduled run of the drift guard has been failing with "domain is NOT attached there" while the Vercel API shows both projexa-ai.com hostnames attached to the canonical project. The old step used `curl -sf`, which folds 401/403/404 into one failure. The new script records the HTTP status and reports drift (404 / other projectId, exit 1) separately from a guard that could not run (401/403 token, API error, empty secret, exit 2). Still fails the run either way.
+      NOT touching: ai-os/DOMAIN_OWNERSHIP.yaml (canonical record unchanged), vercel.json, any Vercel project/domain/setting, any mutating Vercel endpoint, any secret value. Replacing the VERCEL_ACCESS_TOKEN repo secret, if the token is what failed, is an owner action and is not done here.
+      Status: PR open from the branch above; move this entry to recently_completed when it merges.
   - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session; isolated worktree C:/ct/ct-worktrees/b001-p1, branch feat/build-001-phase1) -- WORK_ORDER_PROJEXA-BUILD-001 + ADDENDUM_A + master handoff (Claude chat audits, KT Drive folder 1eB19FvfLXDf1VlyggqYZg0oyBOa1Am6e): Phase 1 development [IN PROGRESS]"
     claimed_at: "2026-09-25T07:10Z (this session)"
     claim: |
