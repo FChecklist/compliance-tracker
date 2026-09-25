@@ -107,12 +107,15 @@ describe("drizzle/0621 to 0628 forward files on PGlite over the live-shaped base
   let db: PGlite
   let baseState: string[]
   let forwardState: string[]
+  // read right after the first apply: later tests flip the switch and put it back, so only this reading shows what the migration created
+  let switchAfterApply: { n: number; w: boolean }
 
   beforeAll(async () => {
     db = await openAwlPglite()
     baseState = await state(db)
     await applyAll(db)
     forwardState = await state(db)
+    switchAfterApply = await one<{ n: number; w: boolean }>(db, "select count(*)::int n, bool_or(writes_enabled) w from platform.ai_work_link_settings")
   }, 120_000) // PGlite starts and the eight migrations apply here: slow on a loaded laptop, and bun's default hook limit is 5 s
   afterAll(async () => {
     await db.close()
@@ -133,6 +136,8 @@ describe("drizzle/0621 to 0628 forward files on PGlite over the live-shaped base
   })
 
   test("the switch is created OFF, and there is exactly one settings row", async () => {
+    expect(switchAfterApply).toEqual({ n: 1, w: false })
+    // and it is still one row, off, now
     const r = await one<{ n: number; w: boolean }>(db, "select count(*)::int n, bool_or(writes_enabled) w from platform.ai_work_link_settings")
     expect(r).toEqual({ n: 1, w: false })
   })
