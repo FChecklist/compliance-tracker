@@ -15,7 +15,10 @@
 //     prepared chain naming another function are not listed;
 //   - no project-side cost field is listed, though the stored chain keeps it;
 //   - another organisation's project, and a project a project-pinned key may not reach, read as absent (404);
-//   - a session below member is refused (403) and an unauthenticated call gets the guard's own 401.
+//   - a session below member is refused (403) and an unauthenticated call gets the guard's own 401;
+//   - the SQL does the selection, the ordering and the limit (fix round 1): at most 100 proposals come back, the 100
+//     newest, and a project with many typed messages waiting for a confirm (each carries a chain hint in the same
+//     column) cannot push a proposal past the limit; a proposal an approval has claimed is not listed.
 //
 // WHAT IS REAL: the route, prepared-proposals.ts, email-intelligence-service.ts, submitForVerdict,
 // proposeSubmission, the dry run, Level 0, the provider gate, requireRoleOrScope, function-registry.ts.
@@ -243,6 +246,73 @@ describe("BR-409: GET /projects/[id]/approvals lists the AI-prepared BOQ line-it
     const res = await list(PROJECT_B)
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ projectId: PROJECT_B, count: 0, proposals: [] })
+  })
+})
+
+describe("BR-409: the SQL selects, orders and limits", () => {
+  const titled = (n: number, over: Record<string, unknown> = {}) =>
+    submissionRow({
+      id: `sub_${String(n).padStart(3, "0")}`,
+      selectedChain: preparedChain({ params: { projectId: PROJECT_A, title: `Prop ${n}`, lineItems: [] } }),
+      createdAt: new Date(Date.UTC(2026, 8, 1, 0, n, 0)),
+      ...over,
+    })
+
+  test("105 pending proposals: 100 come back, the 100 newest, newest first", async () => {
+    seedRows(store, "submissions", Array.from({ length: 105 }, (_, i) => titled(i + 1)))
+
+    const body = await (await list()).json()
+
+    expect(body.count).toBe(100)
+    expect(body.proposals).toHaveLength(100)
+    expect(body.proposals[0].params.title).toBe("Prop 105")
+    expect(body.proposals[99].params.title).toBe("Prop 6")
+    // The five oldest are the ones left out.
+    const titles = new Set(body.proposals.map((p: { params: { title: string } }) => p.params.title))
+    for (let n = 1; n <= 5; n++) expect(titles.has(`Prop ${n}`)).toBe(false)
+    expect(store.unparsed).toEqual([])
+  })
+
+  test("120 newer typed messages, each carrying a chain hint, do not push an older proposal past the limit", async () => {
+    seedRows(store, "submissions", [titled(1, { id: "sub_the_proposal" })])
+    seedRows(
+      store,
+      "submissions",
+      Array.from({ length: 120 }, (_, i) =>
+        submissionRow({
+          id: `typed_${i}`,
+          rawInput: `record ${i} percent on 1.01`,
+          selectedChain: { mode: "Projects", verb: "record" },
+          createdAt: new Date(Date.UTC(2026, 8, 2, 0, i % 60, i)),
+        })
+      )
+    )
+
+    const body = await (await list()).json()
+
+    expect(body.proposals.map((p: { submissionId: string }) => p.submissionId)).toEqual(["sub_the_proposal"])
+    expect(store.unparsed).toEqual([])
+  })
+
+  test("a proposal an approval has claimed is not listed; its unclaimed neighbour is", async () => {
+    seedRows(store, "submissions", [
+      titled(1, { id: "sub_free" }),
+      titled(2, { id: "sub_claimed", selectedChain: preparedChain({ claimedAt: "2026-09-25T10:00:00.000Z", claimedBy: PERSON }) }),
+    ])
+
+    const body = await (await list()).json()
+
+    expect(body.proposals.map((p: { submissionId: string }) => p.submissionId)).toEqual(["sub_free"])
+    expect(store.unparsed).toEqual([])
+  })
+
+  test("proposals stored in one paste share a created_at and still come back in a fixed order (id, newest first)", async () => {
+    const same = new Date("2026-09-25T10:00:00Z")
+    seedRows(store, "submissions", [titled(1, { id: "sub_a", createdAt: same }), titled(2, { id: "sub_b", createdAt: same }), titled(3, { id: "sub_c", createdAt: same })])
+
+    const body = await (await list()).json()
+
+    expect(body.proposals.map((p: { submissionId: string }) => p.submissionId)).toEqual(["sub_c", "sub_b", "sub_a"])
   })
 })
 

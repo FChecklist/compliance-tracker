@@ -14,6 +14,11 @@
 // the write (PMD-35). It writes the line item through the create_boq registry entry and one audit row per line
 // item with surface s1_one_page_ai_prepared.
 //
+// Two overlapping Approves of one proposal write one BOQ: the first claims the proposal, the second is answered 409
+// (prepared-proposals.ts, THE CLAIM). When the line item is saved and its audit rows are not, the answer is a 500
+// that says so and the proposal records what is owed; the same person's next Approve of that proposal writes the
+// rows (200, auditRepaired) instead of answering 409.
+//
 // A project of another organisation, or one a project-pinned key may not reach, is a 404 on both methods, and a
 // proposal that belongs to another project reads as absent.
 import { NextRequest, NextResponse } from "next/server"
@@ -23,11 +28,13 @@ import { withRouteTiming } from "@/lib/route-timing"
 import {
   approveActionFor,
   approvedRecordOf,
+  auditApproval,
   confirmPreparedProposal,
   findReadableProject,
   listPreparedProposals,
-  recordApprovalAudit,
+  repairApprovalAudit,
   S1_SURFACE,
+  type AuditOutcome,
   type ConfirmPreparedOutcome,
 } from "@/lib/pipeline/prepared-proposals"
 
@@ -76,12 +83,15 @@ async function readJsonObject(request: Request): Promise<Record<string, unknown>
 }
 
 /** The answer for a proposal that was not approved. Nothing was written for any of these. */
-function refusalResponse(outcome: Extract<ConfirmPreparedOutcome, { ok: false }>): NextResponse {
+function refusalResponse(outcome: Exclude<Extract<ConfirmPreparedOutcome, { ok: false }>, { reason: "audit_pending" }>): NextResponse {
   switch (outcome.reason) {
     case "not_found":
       return NextResponse.json({ error: "That proposal is not on this project" }, { status: 404 })
     case "already_decided":
       return NextResponse.json({ error: "That proposal has already been decided", status: outcome.status }, { status: 409 })
+    case "in_progress":
+      // Another Approve of this proposal holds the claim. Not decided yet, so the status says so.
+      return NextResponse.json({ error: "That proposal is already being approved", status: "in_progress" }, { status: 409 })
     case "needs_input":
       // 200, not an error: the answer is a question.
       return NextResponse.json({ approved: false, status: "needs_input", missing: outcome.missing }, { status: 200 })
@@ -96,6 +106,32 @@ function refusalResponse(outcome: Extract<ConfirmPreparedOutcome, { ok: false }>
       return NextResponse.json({ approved: false, error: "The proposal could not be written", failure }, { status: 409 })
     }
   }
+}
+
+/**
+ * The answer once the record is saved: the audit summary when the rows were written, else the 500 that says the record
+ * is saved and the audit rows are not. `saved` is what the caller can rely on either way; `extra` is added to the 2xx.
+ */
+function auditResponse(audit: AuditOutcome, saved: Record<string, unknown>, extra: Record<string, unknown>, status: 200 | 201): NextResponse {
+  if (audit.ok) {
+    return NextResponse.json({ ...saved, ...extra, audit: { surface: S1_SURFACE, rows: audit.entityIds.length, entityType: audit.entityType } }, { status })
+  }
+  if (audit.reason === "lost") {
+    // Another repair of this proposal took the audit debt first, so the rows are being written by it.
+    return NextResponse.json({ error: "The audit rows of that proposal are already being written", status: "in_progress" }, { status: 409 })
+  }
+  // The record is saved. Say so, and say the audit rows are not, rather than answering 2xx over a gap in the trail.
+  return NextResponse.json(
+    {
+      ...saved,
+      code: "AUDIT_WRITE_FAILED",
+      error: audit.recorded
+        ? "The line item was saved but its audit rows could not be written; approve the same proposal again to write them"
+        : "The line item was saved but its audit rows could not be written, and the gap could not be recorded; tell an administrator",
+      auditRecorded: audit.recorded,
+    },
+    { status: 500 }
+  )
 }
 
 async function POST_impl(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -133,44 +169,35 @@ async function POST_impl(request: NextRequest, { params }: { params: Promise<{ i
       person: { id: acting.person.id, role: acting.person.role },
       params: added as Record<string, unknown>,
     })
+
+    if (!outcome.ok && outcome.reason === "audit_pending") {
+      // The person approved this proposal earlier and its audit rows were not written. Nothing else is written here.
+      const { pending } = outcome
+      const repaired = await repairApprovalAudit({ orgId: ctx.orgId, actor: acting.actor, request, submissionId, pending })
+      return auditResponse(
+        repaired,
+        { approved: true, submissionId, boqId: pending.boqId, lineItemIds: pending.lineItemIds },
+        { auditRepaired: true },
+        200
+      )
+    }
     if (!outcome.ok) return refusalResponse(outcome)
 
     const record = approvedRecordOf(outcome.result)
-    try {
-      const audit = await recordApprovalAudit({
-        orgId: ctx.orgId,
-        actor: acting.actor,
-        request,
-        submissionId,
-        chain: outcome.chain,
-        result: outcome.result,
-      })
-      return NextResponse.json(
-        {
-          approved: true,
-          submissionId,
-          boqId: record.boqId,
-          route: record.route,
-          lineItemIds: record.lineItemIds,
-          audit: { surface: S1_SURFACE, rows: audit.entityIds.length, entityType: audit.entityType },
-        },
-        { status: 201 }
-      )
-    } catch (auditError) {
-      // The record is saved. Say so, and say the audit row is not, rather than answering 201 over a gap in the trail.
-      console.error("v1 projexa approvals audit write error:", auditError)
-      return NextResponse.json(
-        {
-          approved: true,
-          code: "AUDIT_WRITE_FAILED",
-          error: "The line item was saved but its audit row could not be written",
-          submissionId,
-          boqId: record.boqId,
-          lineItemIds: record.lineItemIds,
-        },
-        { status: 500 }
-      )
-    }
+    const audit = await auditApproval({
+      orgId: ctx.orgId,
+      actor: acting.actor,
+      request,
+      submissionId,
+      chain: outcome.chain,
+      result: outcome.result,
+    })
+    return auditResponse(
+      audit,
+      { approved: true, submissionId, boqId: record.boqId, lineItemIds: record.lineItemIds },
+      { route: record.route },
+      201
+    )
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa approvals approve error:", error)

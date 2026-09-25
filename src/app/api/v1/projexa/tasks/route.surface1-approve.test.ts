@@ -24,7 +24,14 @@
 //     proposal that cannot be written (another project, a bad line item) is refused (422) and stays pending;
 //   - one audit row per line item, and one for the BOQ when the proposal has no lines;
 //   - when the audit write fails the answer is a 500 that says the record was saved;
-//   - no transaction is ever nested and every where clause is evaluated for real.
+//   - no transaction is ever nested and every where clause is evaluated for real;
+//   - (fix round 1) two Approves posted together write one BOQ: the first claims the proposal, the others are 409;
+//   - (fix round 1) a claim is given back when the run threw before it minted its task (nothing can have been written),
+//     and kept when it threw after (a retry could write a second BOQ);
+//   - (fix round 1) an error in the bookkeeping after the write, including the submission's own status, neither undoes
+//     the write nor lets it be repeated;
+//   - (fix round 1) when the audit rows are not written the debt is recorded on the proposal, only the approving person's
+//     next Approve writes them, and two overlapping repairs write them once.
 //
 // WHAT IS REAL: the route, prepared-proposals.ts, email-intelligence-service.ts, run-submission.ts (runDirectTask,
 // submitForVerdict), validate(), executor.ts, function-registry.ts, createBoq(), logActivity, requireRoleOrScope and
@@ -35,7 +42,7 @@
 //
 // Run: bun test --isolate src/app/api/v1/projexa/tasks/route.surface1-approve.test.ts
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
-import { fakeWithTenantContext, makeBoqStore, rowsOf, seedRows, type BoqStore, type Row } from "@/lib/pipeline/__test-helpers__/boq-store-double"
+import { failNext, fakeWithTenantContext, makeBoqStore, rowsOf, seedRows, type BoqStore, type Row } from "@/lib/pipeline/__test-helpers__/boq-store-double"
 
 const ORG = "org_1"
 const OTHER_ORG = "org_2"
@@ -488,5 +495,265 @@ describe("BR-410: one audit row per line item created", () => {
     expect(table("construction_boq_line_items")).toHaveLength(1)
     expect(body.lineItemIds).toEqual([table("construction_boq_line_items")[0].id])
     expect(surfaceRows()).toHaveLength(0)
+  })
+})
+
+/** What every test below reads the decided/claimed state of a proposal from: the stored row, never a response. */
+const chainOf = (id: string) => (table("submissions").find((r) => r.id === id) as { selectedChain: Record<string, unknown> | null }).selectedChain
+const statusOf = (id: string) => table("submissions").find((r) => r.id === id)?.status
+const errorCalls = () => (console.error as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((call) => call.map(String).join(" "))
+
+describe("BR-410 (fix round 1): overlapping Approves of one proposal write one BOQ", () => {
+  test("*** two Approves posted together: one 201 and one 409, one BOQ, one line item, one audit row ***", async () => {
+    store.serialise = true
+    const { proposal } = await promote()
+
+    const answers = await Promise.all([approve({ submissionId: proposal.submissionId }), approve({ submissionId: proposal.submissionId })])
+    const statuses = answers.map((a) => a.status).sort()
+    const refused = await answers.find((a) => a.status === 409)!.json()
+
+    expect(statuses).toEqual([201, 409])
+    expect(["in_progress", "done"]).toContain(refused.status)
+    // The claim itself stopped the loser: an update of a submission that matched no row.
+    expect(store.updateLog!.filter((u) => u.table === "submissions" && u.matched === 0).length).toBeGreaterThanOrEqual(1)
+    // Read from the store: one of everything, and the proposal decided.
+    expect(table("construction_boqs")).toHaveLength(1)
+    expect(table("construction_boq_line_items")).toHaveLength(1)
+    expect(surfaceRows()).toHaveLength(1)
+    expect(table("pipeline_tasks")).toHaveLength(1)
+    expect(statusOf(proposal.submissionId)).toBe("done")
+    expect(store.unparsed).toEqual([])
+  })
+
+  test("five Approves posted together: exactly one 201, four 409, one BOQ", async () => {
+    store.serialise = true
+    seedRows(store, "submissions", [submissionRow({ id: "sub_five" })])
+
+    const answers = await Promise.all(Array.from({ length: 5 }, () => approve({ submissionId: "sub_five" })))
+
+    expect(answers.map((a) => a.status).sort()).toEqual([201, 409, 409, 409, 409])
+    expect(table("construction_boqs")).toHaveLength(1)
+    expect(surfaceRows()).toHaveLength(1)
+    expect(store.updateLog!.filter((u) => u.table === "submissions" && u.matched === 0).length).toBeGreaterThanOrEqual(1)
+  })
+
+  test("a proposal an Approve has claimed is 409 in_progress, is not offered again, and nothing is written", async () => {
+    seedRows(store, "submissions", [submissionRow({ id: "sub_held", selectedChain: preparedChain({ claimedAt: "2026-09-25T10:00:00.000Z", claimedBy: "person_2" }) })])
+    const before = snapshot()
+
+    const res = await approve({ submissionId: "sub_held" })
+
+    expect(res.status).toBe(409)
+    expect((await res.json()).status).toBe("in_progress")
+    expect((await (await list()).json()).count).toBe(0)
+    expect(snapshot()).toBe(before)
+  })
+})
+
+describe("BR-410 (fix round 1): a claim is given back only when nothing can have been written", () => {
+  test("a run that throws before it minted its task gives the claim back: the proposal is pending again and a retry writes one BOQ", async () => {
+    seedRows(store, "submissions", [submissionRow({ id: "sub_early" })])
+    const original = JSON.parse(JSON.stringify(chainOf("sub_early")))
+    failNext(store, "pipeline_tasks", "insert")
+
+    const failed = await approve({ submissionId: "sub_early" })
+
+    expect(failed.status).toBe(500)
+    // Nothing was written, and the row is exactly what it was: no stamp left on it, and the list offers it again.
+    expect(table("construction_boqs")).toHaveLength(0)
+    expect(table("pipeline_tasks")).toHaveLength(0)
+    expect(chainOf("sub_early")).toEqual(original)
+    expect(statusOf("sub_early")).toBe("in_progress")
+    expect((await (await list()).json()).count).toBe(1)
+
+    const retried = await approve({ submissionId: "sub_early" })
+
+    expect(retried.status).toBe(201)
+    expect(table("construction_boqs")).toHaveLength(1)
+    expect(surfaceRows()).toHaveLength(1)
+  })
+
+  test("a run that throws after its task was minted keeps the claim: a retry is 409 in_progress, never a second BOQ", async () => {
+    seedRows(store, "submissions", [submissionRow({ id: "sub_late" })])
+    // The first update of pipeline_tasks is markInProgress(): the task row exists, the executor has not run.
+    failNext(store, "pipeline_tasks", "update")
+
+    const failed = await approve({ submissionId: "sub_late" })
+
+    expect(failed.status).toBe(500)
+    expect(table("pipeline_tasks")).toHaveLength(1)
+    // The stamp is on the row, with the person and a time, and the list does not offer the proposal.
+    const stamp = chainOf("sub_late")!
+    expect([typeof stamp.claimedAt, stamp.claimedBy]).toEqual(["string", PERSON])
+    expect((await (await list()).json()).count).toBe(0)
+
+    const retried = await approve({ submissionId: "sub_late" })
+
+    expect(retried.status).toBe(409)
+    expect((await retried.json()).status).toBe("in_progress")
+    expect(table("construction_boqs")).toHaveLength(0)
+    expect(table("pipeline_tasks")).toHaveLength(1)
+  })
+})
+
+describe("BR-410 (fix round 1): an error in the bookkeeping after the write neither undoes it nor lets it be repeated", () => {
+  test("pill-use bookkeeping fails after the BOQ is written: 201, one BOQ, one audit row, the proposal done; a second Approve is 409", async () => {
+    seedRows(store, "submissions", [submissionRow({ id: "sub_pill" })])
+    failNext(store, "pill_usage", "insert")
+
+    const res = await approve({ submissionId: "sub_pill" })
+
+    expect(res.status).toBe(201)
+    expect(table("construction_boqs")).toHaveLength(1)
+    expect(table("construction_boq_line_items")).toHaveLength(1)
+    expect(surfaceRows()).toHaveLength(1)
+    expect(statusOf("sub_pill")).toBe("done")
+    expect(errorCalls().some((line) => line.includes("pill use failed after the write"))).toBe(true)
+
+    const again = await approve({ submissionId: "sub_pill" })
+
+    expect(again.status).toBe(409)
+    expect(table("construction_boqs")).toHaveLength(1)
+  })
+
+  test("the submission's own status update fails after the write: 201 and one audit row, and a second Approve is 409, not a second BOQ", async () => {
+    seedRows(store, "submissions", [submissionRow({ id: "sub_status" })])
+    // The claim is the first update of a submission and the run's final status write is the second.
+    failNext(store, "submissions", "update", { skip: 1 })
+
+    const res = await approve({ submissionId: "sub_status" })
+
+    expect(res.status).toBe(201)
+    expect(table("construction_boqs")).toHaveLength(1)
+    expect(surfaceRows()).toHaveLength(1)
+    // The row never reached done, so it is still claimed rather than offered again.
+    expect(statusOf("sub_status")).toBe("in_progress")
+    expect(typeof chainOf("sub_status")!.claimedAt).toBe("string")
+    expect((await (await list()).json()).count).toBe(0)
+    expect(errorCalls().some((line) => line.includes("submission status failed after the write"))).toBe(true)
+
+    const again = await approve({ submissionId: "sub_status" })
+
+    expect(again.status).toBe(409)
+    expect((await again.json()).status).toBe("in_progress")
+    expect(table("construction_boqs")).toHaveLength(1)
+    expect(surfaceRows()).toHaveLength(1)
+  })
+})
+
+describe("BR-410 (fix round 1): audit rows that were not written can be written, by the person who approved, once", () => {
+  const twoLines = () =>
+    seedRows(store, "submissions", [
+      submissionRow({
+        id: "sub_owed",
+        selectedChain: preparedChain({ params: { projectId: PROJECT_A, title: "Two lines", lineItems: [line({ itemCode: "A1", description: "First" }), line({ itemCode: "A2", description: "Second" })] } }),
+      }),
+    ])
+  const lineItemIds = () => table("construction_boq_line_items").map((i) => i.id as string).sort()
+
+  test("*** the audit write fails: the debt is recorded on the proposal, and the person's next Approve writes the rows ***", async () => {
+    twoLines()
+    failAudit = true
+
+    const failed = await approve({ submissionId: "sub_owed" })
+    const failure = await failed.json()
+
+    expect(failed.status).toBe(500)
+    expect(failure.code).toBe("AUDIT_WRITE_FAILED")
+    expect(failure.auditRecorded).toBe(true)
+    expect(failure.error).toContain("approve the same proposal again")
+    expect(table("construction_boq_line_items")).toHaveLength(2)
+    expect(surfaceRows()).toHaveLength(0)
+    // The gap can be found: the row says who owes what, read from the store.
+    expect(statusOf("sub_owed")).toBe("done")
+    const owed = chainOf("sub_owed")!.auditPending as Record<string, unknown>
+    expect([owed.personId, owed.source, owed.functionId, owed.boqId]).toEqual([PERSON, "paste_back", "create_boq", table("construction_boqs")[0].id])
+    expect((owed.lineItemIds as string[]).slice().sort()).toEqual(lineItemIds())
+
+    failAudit = false
+    const repaired = await approve({ submissionId: "sub_owed" })
+    const repair = await repaired.json()
+
+    expect(repaired.status).toBe(200)
+    expect(repair.auditRepaired).toBe(true)
+    expect(repair.audit).toEqual({ surface: SURFACE, rows: 2, entityType: "construction_boq_line_item" })
+    // Two rows, one per line item, each naming the person and the surface, and still one BOQ.
+    expect(surfaceRows().map((a) => a.entityId as string).sort()).toEqual(lineItemIds())
+    for (const a of surfaceRows()) expect([a.surface, a.userId, a.action]).toEqual([SURFACE, PERSON, "boq_line_item.approved_from_proposal"])
+    expect(table("construction_boqs")).toHaveLength(1)
+    expect(table("construction_boq_line_items")).toHaveLength(2)
+    // The debt is cleared, so a further Approve is the ordinary 409.
+    expect(chainOf("sub_owed")!.auditPending).toBeNull()
+    const third = await approve({ submissionId: "sub_owed" })
+    expect(third.status).toBe(409)
+    expect(surfaceRows()).toHaveLength(2)
+    expect(store.unparsed).toEqual([])
+  })
+
+  test("another person's Approve does not write the rows: 409, and the debt stays for the person who owes it", async () => {
+    twoLines()
+    failAudit = true
+    expect((await approve({ submissionId: "sub_owed" })).status).toBe(500)
+    failAudit = false
+    identity = { dbUser: { ...dbUser, id: "person_2", email: "other@example.test" }, apiKey: null }
+
+    const res = await approve({ submissionId: "sub_owed" })
+
+    expect(res.status).toBe(409)
+    expect(surfaceRows()).toHaveLength(0)
+    expect((chainOf("sub_owed")!.auditPending as { personId: string }).personId).toBe(PERSON)
+  })
+
+  test("two repairs posted together write the rows once: one 200 and one 409", async () => {
+    store.serialise = true
+    twoLines()
+    failAudit = true
+    expect((await approve({ submissionId: "sub_owed" })).status).toBe(500)
+    failAudit = false
+
+    const answers = await Promise.all([approve({ submissionId: "sub_owed" }), approve({ submissionId: "sub_owed" })])
+
+    expect(answers.map((a) => a.status).sort()).toEqual([200, 409])
+    expect(surfaceRows()).toHaveLength(2)
+    expect(surfaceRows().map((a) => a.entityId as string).sort()).toEqual(lineItemIds())
+  })
+
+  test("a repair that fails again records the debt again, and a later Approve still writes the rows", async () => {
+    twoLines()
+    failAudit = true
+    expect((await approve({ submissionId: "sub_owed" })).status).toBe(500)
+
+    const again = await approve({ submissionId: "sub_owed" })
+
+    expect(again.status).toBe(500)
+    expect((await again.json()).auditRecorded).toBe(true)
+    expect(surfaceRows()).toHaveLength(0)
+    expect(chainOf("sub_owed")!.auditPending).not.toBeNull()
+
+    failAudit = false
+    const done = await approve({ submissionId: "sub_owed" })
+
+    expect(done.status).toBe(200)
+    expect(surfaceRows()).toHaveLength(2)
+  })
+
+  test("when the debt cannot be recorded either, the answer says so and the ids go to the log", async () => {
+    twoLines()
+    failAudit = true
+    // Updates of a submission: the claim (1), the run's status write (2), then the debt marker (3).
+    failNext(store, "submissions", "update", { skip: 2 })
+
+    const res = await approve({ submissionId: "sub_owed" })
+    const body = await res.json()
+
+    expect(res.status).toBe(500)
+    expect(body.code).toBe("AUDIT_WRITE_FAILED")
+    expect(body.auditRecorded).toBe(false)
+    expect(body.error).toContain("could not be recorded")
+    expect(body.boqId).toBe(table("construction_boqs")[0].id)
+    expect(chainOf("sub_owed")!.auditPending).toBeUndefined()
+    const logged = errorCalls().find((l) => l.includes("audit owed"))
+    expect(logged).toBeDefined()
+    expect(logged).toContain(table("construction_boqs")[0].id as string)
   })
 })

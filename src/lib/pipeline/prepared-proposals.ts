@@ -22,16 +22,29 @@
 // confirmSubmission() ends with. The person is passed as userId and as actorUserId (PMD-35), so the BOQ is
 // recorded under the person and never under an API key. No model is asked.
 //
-// THE AUDIT. recordApprovalAudit() writes one compliance.audit_logs row per line item created, through
-// logActivity() with its surface argument set to s1_one_page_ai_prepared and the acting person as the user (a key
-// that carried the call is kept beside the person, never instead of the person).
+// THE CLAIM. Before it runs anything, an approval claims the proposal with one conditional UPDATE: it stamps
+// selected_chain.claimedAt on the row where the row is still pending and carries no stamp yet, and the answer is
+// the number of rows changed. Postgres makes that atomic (a second UPDATE of the same row waits for the first and
+// then finds the stamp), so of two overlapping Approves exactly one runs the BOQ and the other is answered 409.
+// The list hides a claimed proposal. A claim is released only when the run threw before it minted its task, so
+// nothing can have been written; after that point it stays, because a retry could then write a second BOQ. A
+// claimed row is found with: select id from compliance.submissions where selected_chain ->> 'claimedAt' is not null
+// and status in ('in_progress','chat').
+//
+// THE AUDIT. auditApproval() writes one compliance.audit_logs row per line item created, through logActivity()
+// with its surface argument set to s1_one_page_ai_prepared and the acting person as the user (a key that carried
+// the call is kept beside the person, never instead of the person). It runs after the BOQ is written, in its own
+// transaction, because createBoq() opens and closes its own. When it fails, the approval records what is owed in
+// selected_chain.auditPending (the person, the BOQ and line item ids) and the person's next Approve of the same
+// proposal writes the missing rows instead of answering 409 (repairApprovalAudit). The gap is found with:
+// select id from compliance.submissions where selected_chain ->> 'auditPending' is not null.
 //
 // THE PASTE-BACK. For an AI that cannot open the person's link, parsePasteBack() reads fenced blocks from pasted text,
 // validatePastedBlock() checks each one with the registry's validate(), and storePastedProposals() stores each valid
 // block as one more pending row of the same store. A paste stores nothing when any block fails.
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { projects, submissions } from "@/lib/db/schema";
+import { pipelineTasks, projects, submissions } from "@/lib/db/schema";
 import { assertKeyProjectScope, type KeyProjectFacts } from "@/lib/supabase/api-key-auth";
 import { redactProjectSideFields } from "@/lib/services/cost-visibility-service";
 import { ServiceError } from "@/lib/services/compliance-service";
@@ -98,6 +111,40 @@ export function readPreparedChain(value: unknown): PreparedChain | null {
   };
 }
 
+/** True when an approval has claimed this selected_chain (see THE CLAIM above). Mirrors the SQL `->> 'claimedAt' is null`. */
+function isClaimed(value: unknown): boolean {
+  return isPlainObject(value) && typeof value.claimedAt === "string";
+}
+
+/**
+ * `selected_chain || <patch>`: the SQL value that merges a JSON object into the column inside the UPDATE itself, so
+ * a write here never replaces keys it did not read.
+ */
+function mergeIntoSelectedChain(patch: Record<string, unknown>) {
+  return sql`${submissions.selectedChain} || ${JSON.stringify(patch)}::jsonb`;
+}
+
+/** What an approval owes the audit trail when the audit rows could not be written (see THE AUDIT above). */
+export type AuditPending = {
+  /** compliance.users.id of the person who approved: the one whose next Approve may write the rows */
+  personId: string;
+  source: PreparedSource;
+  functionId: string;
+  boqId: string;
+  lineItemIds: string[];
+  at: string;
+};
+
+/** The audit debt a selected_chain records, or null when there is none (or it is not readable). */
+export function readAuditPending(value: unknown): AuditPending | null {
+  if (!isPlainObject(value) || !isPlainObject(value.auditPending)) return null;
+  const { personId, source, functionId, boqId, lineItemIds, at } = value.auditPending;
+  if (typeof personId !== "string" || typeof boqId !== "string" || typeof functionId !== "string") return null;
+  if (typeof source !== "string" || !(PREPARED_SOURCES as readonly string[]).includes(source)) return null;
+  if (!Array.isArray(lineItemIds) || lineItemIds.some((id) => typeof id !== "string")) return null;
+  return { personId, source: source as PreparedSource, functionId, boqId, lineItemIds: lineItemIds as string[], at: typeof at === "string" ? at : "" };
+}
+
 /** One entry of the approval list. `params` carries no project-side cost field (redactProjectSideFields). */
 export type PreparedProposal = {
   submissionId: string;
@@ -152,9 +199,12 @@ function toIso(value: unknown): string {
 }
 
 /**
- * The pending prepared proposals of one project, newest first. One read, no write, no model call. The SQL keeps
- * the project's pending rows that carry a chain; readPreparedChain() then keeps the prepared ones, so a typed
- * message left waiting for a confirm is never listed.
+ * The pending prepared proposals of one project, newest first, at most MAX_LISTED_PROPOSALS. One read, no write, no
+ * model call. The SQL does the whole selection (pending, of this project, a known source, an approvable function, not
+ * claimed), the ordering and the limit, so a project with many typed messages waiting for a confirm, each of which
+ * carries a chain hint in the same column, pays for none of them and cannot push a real proposal past the limit.
+ * readPreparedChain() then reads each row's chain; it agrees with the SQL filter, and drops a row whose params are
+ * not an object.
  */
 export async function listPreparedProposals(ctx: { orgId: string }, projectId: string): Promise<PreparedProposal[]> {
   const rows = await withTenantContext({ orgId: ctx.orgId }, (db) =>
@@ -171,9 +221,14 @@ export async function listPreparedProposals(ctx: { orgId: string }, projectId: s
           eq(submissions.orgId, ctx.orgId),
           eq(submissions.projectId, projectId),
           inArray(submissions.status, [...PENDING_SUBMISSION_STATUSES]),
-          isNotNull(submissions.selectedChain)
+          inArray(sql`${submissions.selectedChain} ->> 'source'`, [...PREPARED_SOURCES]),
+          inArray(sql`${submissions.selectedChain} ->> 'functionId'`, [...S1_APPROVABLE_FUNCTION_IDS]),
+          sql`${submissions.selectedChain} ->> 'claimedAt' is null`
         )
       )
+      // id breaks a tie: the blocks of one paste are stored in one transaction and share a created_at.
+      .orderBy(desc(submissions.createdAt), desc(submissions.id))
+      .limit(MAX_LISTED_PROPOSALS)
   );
 
   const proposals: PreparedProposal[] = [];
@@ -192,8 +247,7 @@ export async function listPreparedProposals(ctx: { orgId: string }, projectId: s
       preparedAt: toIso(row.createdAt),
     });
   }
-  proposals.sort((a, b) => (a.preparedAt < b.preparedAt ? 1 : a.preparedAt > b.preparedAt ? -1 : 0));
-  return proposals.slice(0, MAX_LISTED_PROPOSALS);
+  return proposals;
 }
 
 /**
@@ -260,26 +314,25 @@ export type ConfirmPreparedOutcome =
   | { ok: true; result: RunSubmissionResult; chain: PreparedChain; params: Record<string, unknown> }
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "already_decided"; status: string }
+  /** another Approve of this proposal claimed it and has not finished (or an earlier one was interrupted) */
+  | { ok: false; reason: "in_progress" }
+  /** the proposal was approved and saved, but its audit rows were not written; the approving person may write them now */
+  | { ok: false; reason: "audit_pending"; pending: AuditPending }
   | { ok: false; reason: "needs_input"; missing: DryRunMissing[] }
   | { ok: false; reason: "invalid"; failure: PipelineFailure; detail?: string }
   | { ok: false; reason: "failed"; result: RunSubmissionResult };
 
-/**
- * Approve one prepared proposal. Nothing is written until every check has passed, and a check that fails leaves the
- * proposal pending so the person can correct it:
- *   1. the submission is of this organisation AND this project, else not_found (another project's proposal, another
- *      organisation's, a typed message, a proposal naming a function this list does not approve);
- *   2. it is still pending, else already_decided (a second Approve does not write a second BOQ);
- *   3. the stored params plus the person's are complete (needs_input names what is missing);
- *   4. the registry's validate() accepts them on this project only, and the line items pass the BOQ service's rules.
- * Then runDirectTask() runs create_boq on the proposal's own row. A failure inside it (the project vanished, the
- * service refused) marks the submission failed, exactly as confirmSubmission() would, and comes back as `failed`.
- *
- * A concurrent second Approve of the same proposal, made before the first has finished, is not blocked here: no
- * status between pending and done exists in submission_status. It is the same window confirmSubmission() has.
- */
-export async function confirmPreparedProposal(input: ConfirmPreparedInput): Promise<ConfirmPreparedOutcome> {
-  const row = await withTenantContext({ orgId: input.orgId }, async (db) => {
+type ProposalRow = {
+  id: string;
+  projectId: string | null;
+  mode: string;
+  rawInput: string;
+  status: string;
+  selectedChain: unknown;
+};
+
+async function readProposalRow(orgId: string, submissionId: string): Promise<ProposalRow | null> {
+  return withTenantContext({ orgId }, async (db) => {
     const [found] = await db
       .select({
         id: submissions.id,
@@ -290,16 +343,99 @@ export async function confirmPreparedProposal(input: ConfirmPreparedInput): Prom
         selectedChain: submissions.selectedChain,
       })
       .from(submissions)
-      .where(and(eq(submissions.id, input.submissionId), eq(submissions.orgId, input.orgId)))
+      .where(and(eq(submissions.id, submissionId), eq(submissions.orgId, orgId)))
       .limit(1);
     return found ?? null;
   });
+}
+
+const isPending = (status: string) => (PENDING_SUBMISSION_STATUSES as readonly string[]).includes(status);
+
+/**
+ * Claim one pending, unclaimed proposal of this project: the single UPDATE that decides which of several overlapping
+ * Approves runs. True when this call stamped the row.
+ */
+async function claimProposal(input: ConfirmPreparedInput): Promise<boolean> {
+  const rows = await withTenantContext({ orgId: input.orgId, userId: input.person.id }, (db) =>
+    db
+      .update(submissions)
+      .set({ selectedChain: mergeIntoSelectedChain({ claimedAt: new Date().toISOString(), claimedBy: input.person.id }) })
+      .where(
+        and(
+          eq(submissions.id, input.submissionId),
+          eq(submissions.orgId, input.orgId),
+          eq(submissions.projectId, input.projectId),
+          inArray(submissions.status, [...PENDING_SUBMISSION_STATUSES]),
+          sql`${submissions.selectedChain} ->> 'claimedAt' is null`
+        )
+      )
+      .returning({ id: submissions.id })
+  );
+  return rows.length === 1;
+}
+
+/**
+ * Give the claim back after runDirectTask() threw, but only when nothing can have been written: the run mints its
+ * pipeline_tasks row before it reaches the executor, so no task row for this submission means create_boq never ran.
+ * With a task row present the claim stays (a retry could write a second BOQ) and the row is left for the operator
+ * query in THE CLAIM above. Never throws: the caller is already handling the original error.
+ */
+async function releaseClaimIfUnwritten(input: ConfirmPreparedInput, storedChain: unknown): Promise<boolean> {
+  try {
+    const released = await withTenantContext({ orgId: input.orgId, userId: input.person.id }, async (db) => {
+      const tasks = await db
+        .select({ id: pipelineTasks.id })
+        .from(pipelineTasks)
+        .where(and(eq(pipelineTasks.submissionId, input.submissionId), eq(pipelineTasks.orgId, input.orgId)))
+        .limit(1);
+      if (tasks.length > 0) return false;
+      const rows = await db
+        .update(submissions)
+        .set({ selectedChain: storedChain })
+        .where(
+          and(
+            eq(submissions.id, input.submissionId),
+            eq(submissions.orgId, input.orgId),
+            inArray(submissions.status, [...PENDING_SUBMISSION_STATUSES]),
+            sql`${submissions.selectedChain} ->> 'claimedAt' is not null`
+          )
+        )
+        .returning({ id: submissions.id });
+      return rows.length === 1;
+    });
+    if (!released) console.error(`[approvals] submission=${input.submissionId} claim kept after an interrupted approval`);
+    return released;
+  } catch (error) {
+    console.error(`[approvals] submission=${input.submissionId} claim could not be released:`, error);
+    return false;
+  }
+}
+
+/**
+ * Approve one prepared proposal. Nothing is written until every check has passed, and a check that fails leaves the
+ * proposal pending so the person can correct it:
+ *   1. the submission is of this organisation AND this project, else not_found (another project's proposal, another
+ *      organisation's, a typed message, a proposal naming a function this list does not approve);
+ *   2. it is still pending, else already_decided (a second Approve does not write a second BOQ), except that the
+ *      person who approved it may write the audit rows an earlier attempt left owed (audit_pending);
+ *   3. the stored params plus the person's are complete (needs_input names what is missing);
+ *   4. the registry's validate() accepts them on this project only, and the line items pass the BOQ service's rules;
+ *   5. the proposal is claimed (THE CLAIM above); a proposal another Approve holds is in_progress.
+ * Then runDirectTask() runs create_boq on the proposal's own row. A failure inside it (the project vanished, the
+ * service refused) marks the submission failed, exactly as confirmSubmission() would, and comes back as `failed`.
+ * An error thrown by it is rethrown after the claim is released or kept as releaseClaimIfUnwritten() decides.
+ */
+export async function confirmPreparedProposal(input: ConfirmPreparedInput): Promise<ConfirmPreparedOutcome> {
+  const row = await readProposalRow(input.orgId, input.submissionId);
   if (!row || row.projectId !== input.projectId) return { ok: false, reason: "not_found" };
-  if (!(PENDING_SUBMISSION_STATUSES as readonly string[]).includes(row.status)) {
+  if (!isPending(row.status)) {
+    const owed = readAuditPending(row.selectedChain);
+    if (owed && row.status === "done" && owed.personId === input.person.id) return { ok: false, reason: "audit_pending", pending: owed };
     return { ok: false, reason: "already_decided", status: row.status };
   }
   const chain = readPreparedChain(row.selectedChain);
   if (!chain) return { ok: false, reason: "not_found" };
+  if (isClaimed(row.selectedChain)) return { ok: false, reason: "in_progress" };
 
   // PMD-38: the stored parameters, with what the person adds over them. The stored words (row.rawInput) are not read.
   const merged: Record<string, unknown> = { ...chain.params, ...(input.params ?? {}) };
@@ -314,20 +450,33 @@ export async function confirmPreparedProposal(input: ConfirmPreparedInput): Prom
   const lines = checkBoqLineItems(checked.params);
   if (!lines.ok) return { ok: false, reason: "invalid", failure: lines.failure, detail: lines.detail };
 
-  const result = await runDirectTask({
-    orgId: input.orgId,
-    userId: input.person.id,
-    mode: row.mode,
-    projectId: input.projectId,
-    functionId: chain.functionId,
-    params: checked.params,
-    note: row.rawInput,
-    role: input.person.role,
-    // PMD-35: the person is the actor of the write, never the key that carried the call.
-    actorUserId: input.person.id,
-    existingSubmissionId: row.id,
-    projectScope: input.projectId,
-  });
+  // The read above is a look, not a lock: the claim is what decides. A lost claim is answered from the row as it is now.
+  if (!(await claimProposal(input))) {
+    const now = await readProposalRow(input.orgId, input.submissionId);
+    if (!now || now.projectId !== input.projectId) return { ok: false, reason: "not_found" };
+    return isPending(now.status) ? { ok: false, reason: "in_progress" } : { ok: false, reason: "already_decided", status: now.status };
+  }
+
+  let result: RunSubmissionResult;
+  try {
+    result = await runDirectTask({
+      orgId: input.orgId,
+      userId: input.person.id,
+      mode: row.mode,
+      projectId: input.projectId,
+      functionId: chain.functionId,
+      params: checked.params,
+      note: row.rawInput,
+      role: input.person.role,
+      // PMD-35: the person is the actor of the write, never the key that carried the call.
+      actorUserId: input.person.id,
+      existingSubmissionId: row.id,
+      projectScope: input.projectId,
+    });
+  } catch (error) {
+    await releaseClaimIfUnwritten(input, row.selectedChain);
+    throw error;
+  }
   if (result.status !== "done") return { ok: false, reason: "failed", result };
   return { ok: true, result, chain, params: checked.params };
 }
@@ -346,27 +495,27 @@ function createdRecordOf(result: RunSubmissionResult): { boqId: string | null; l
 /** The audit action of an approval on the approval list. */
 export const S1_APPROVAL_ACTION = "boq_line_item.approved_from_proposal";
 
+/** What one approval's audit rows are written from: the proposal's source and function, the BOQ and its line items. */
+type ApprovalFacts = Pick<AuditPending, "source" | "functionId" | "boqId" | "lineItemIds">;
+
 /**
  * One compliance.audit_logs row per line item the approval created (entity construction_boq_line_item), or one row
  * for the BOQ header (entity construction_boq) when the proposal had no lines. Each row carries surface
  * s1_one_page_ai_prepared, the acting person as user_id, and, when an API key carried the call, that key as
  * api_key_id beside the person. Written in its own transaction after the BOQ was written: createBoq() opens and
- * closes its own, so the two cannot share one. Throws when the row cannot be written; the caller reports that the
- * record was saved and the audit row was not.
+ * closes its own, so the two cannot share one. Throws when the rows cannot be written; auditApproval() and
+ * repairApprovalAudit() are what answer that.
  */
-export async function recordApprovalAudit(args: {
+async function recordApprovalAudit(args: {
   orgId: string;
   actor: ActingActor;
   request?: Request;
   submissionId: string;
-  chain: PreparedChain;
-  result: RunSubmissionResult;
+  facts: ApprovalFacts;
 }): Promise<{ entityType: string; entityIds: string[] }> {
-  const created = createdRecordOf(args.result);
-  if (!created.boqId) throw new Error("The approval wrote a record but its id could not be read from the task result");
-  const lineItemIds = created.lineItemIds;
-  const entityType = lineItemIds.length > 0 ? "construction_boq_line_item" : "construction_boq";
-  const entityIds = lineItemIds.length > 0 ? lineItemIds : [created.boqId];
+  const { facts } = args;
+  const entityType = facts.lineItemIds.length > 0 ? "construction_boq_line_item" : "construction_boq";
+  const entityIds = facts.lineItemIds.length > 0 ? facts.lineItemIds : [facts.boqId];
 
   await withTenantContext({ orgId: args.orgId, userId: args.actor.dbUser.id }, async (db) => {
     for (const entityId of entityIds) {
@@ -379,10 +528,10 @@ export async function recordApprovalAudit(args: {
         entityId,
         details: JSON.stringify({
           surface: S1_SURFACE,
-          source: args.chain.source,
-          functionId: args.chain.functionId,
+          source: facts.source,
+          functionId: facts.functionId,
           submissionId: args.submissionId,
-          boqId: created.boqId,
+          boqId: facts.boqId,
         }),
         request: args.request,
         surface: S1_SURFACE,
@@ -390,6 +539,105 @@ export async function recordApprovalAudit(args: {
     }
   });
   return { entityType, entityIds };
+}
+
+/**
+ * Record that an approval saved its BOQ and did not write its audit rows, on the proposal's own row, so the gap can
+ * be found (THE AUDIT above) and the person can fill it by approving again. The marker is merged into selected_chain
+ * inside the UPDATE. False when it could not be written either; the ids go to the log then, the last place they are
+ * kept. Never throws.
+ */
+async function markAuditPending(args: { orgId: string; personId: string; submissionId: string; facts: ApprovalFacts }): Promise<boolean> {
+  const pending: AuditPending = { personId: args.personId, ...args.facts, at: new Date().toISOString() };
+  try {
+    const rows = await withTenantContext({ orgId: args.orgId, userId: args.personId }, (db) =>
+      db
+        .update(submissions)
+        .set({ selectedChain: mergeIntoSelectedChain({ auditPending: pending }) })
+        .where(and(eq(submissions.id, args.submissionId), eq(submissions.orgId, args.orgId)))
+        .returning({ id: submissions.id })
+    );
+    return rows.length === 1;
+  } catch (error) {
+    console.error(`[approvals] submission=${args.submissionId} audit debt could not be recorded:`, error);
+    console.error(`[approvals] audit owed: ${JSON.stringify({ submissionId: args.submissionId, ...pending })}`);
+    return false;
+  }
+}
+
+/** What writing the audit rows of an approval came to. */
+export type AuditOutcome =
+  | { ok: true; entityType: string; entityIds: string[] }
+  /** the rows were not written; `recorded` says whether the debt was recorded so that Approve again can write them */
+  | { ok: false; reason: "failed"; recorded: boolean }
+  /** repair only: another repair took the debt first, or none is owed any more */
+  | { ok: false; reason: "lost" };
+
+/**
+ * Write the audit rows of an approval that just saved its BOQ. When that fails the answer is ok:false with the debt
+ * recorded (markAuditPending), never a thrown error: the BOQ is saved and the caller must say so.
+ */
+export async function auditApproval(args: {
+  orgId: string;
+  actor: ActingActor;
+  request?: Request;
+  submissionId: string;
+  chain: PreparedChain;
+  result: RunSubmissionResult;
+}): Promise<AuditOutcome> {
+  const created = createdRecordOf(args.result);
+  const facts: ApprovalFacts | null = created.boqId
+    ? { source: args.chain.source, functionId: args.chain.functionId, boqId: created.boqId, lineItemIds: created.lineItemIds }
+    : null;
+  try {
+    if (!facts) throw new Error("The approval wrote a record but its id could not be read from the task result");
+    const audit = await recordApprovalAudit({ orgId: args.orgId, actor: args.actor, request: args.request, submissionId: args.submissionId, facts });
+    return { ok: true, ...audit };
+  } catch (error) {
+    console.error("[approvals] audit write failed after the record was saved:", error);
+    const recorded = facts ? await markAuditPending({ orgId: args.orgId, personId: args.actor.dbUser.id, submissionId: args.submissionId, facts }) : false;
+    return { ok: false, reason: "failed", recorded };
+  }
+}
+
+/**
+ * Write the audit rows an earlier approval of this proposal left owed. The debt is taken first, by one conditional
+ * UPDATE that clears the marker where it is still set, so two overlapping repairs write the rows once: the loser is
+ * `lost`. If the write fails the debt is recorded again, exactly as after the first failure.
+ */
+export async function repairApprovalAudit(args: {
+  orgId: string;
+  actor: ActingActor;
+  request?: Request;
+  submissionId: string;
+  pending: AuditPending;
+}): Promise<AuditOutcome> {
+  const taken = await withTenantContext({ orgId: args.orgId, userId: args.pending.personId }, (db) =>
+    db
+      .update(submissions)
+      .set({ selectedChain: mergeIntoSelectedChain({ auditPending: null }) })
+      .where(
+        and(
+          eq(submissions.id, args.submissionId),
+          eq(submissions.orgId, args.orgId),
+          eq(submissions.status, "done"),
+          sql`${submissions.selectedChain} ->> 'auditPending' is not null`
+        )
+      )
+      .returning({ id: submissions.id })
+  );
+  if (taken.length !== 1) return { ok: false, reason: "lost" };
+
+  const { personId, source, functionId, boqId, lineItemIds } = args.pending;
+  const facts: ApprovalFacts = { source, functionId, boqId, lineItemIds };
+  try {
+    const audit = await recordApprovalAudit({ orgId: args.orgId, actor: args.actor, request: args.request, submissionId: args.submissionId, facts });
+    return { ok: true, ...audit };
+  } catch (error) {
+    console.error("[approvals] audit repair failed:", error);
+    const recorded = await markAuditPending({ orgId: args.orgId, personId, submissionId: args.submissionId, facts });
+    return { ok: false, reason: "failed", recorded };
+  }
 }
 
 /** The BOQ an approval created, for the response: its id, its route, and the line item ids. */

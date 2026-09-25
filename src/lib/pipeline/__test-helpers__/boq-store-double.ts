@@ -21,9 +21,31 @@
 // most transactions open at once, so a nested withTenantContext (a pool hazard,
 // forbidden by D-06) is visible to a test.
 //
-// NOT modelled: orderBy (a fixture holds at most one row per ordering key that
-// matters), `columns` projection on db.query reads (full rows come back),
-// ON CONFLICT (an upsert inserts), joins.
+// U-29 fix round 1 adds six things, each opt-in or unreachable to a test that
+// never uses it (the tests written before it still pass unchanged):
+//   - a where clause may read a jsonb column's text field (`col ->> 'key'`) in
+//     `=`, `in` and `is [not] null`, which is how the approval list filters on
+//     selected_chain and how an approval claims a proposal;
+//   - an update's set value may be `col || $n::jsonb` (merge a JSON object into
+//     the column), which is how a proposal is claimed and marked;
+//   - select().from().where() takes orderBy(...) and limit(n), sorted before the
+//     limit as SQL does;
+//   - `store.serialise = true` runs the transactions one after another, in call
+//     order, so two overlapping requests see each other's committed rows. A real
+//     UPDATE ... WHERE waits for a row another transaction has updated and then
+//     re-reads the row, so a conditional update that matches once matches once
+//     across two requests; without this switch the double gives each transaction
+//     a private snapshot and the last commit wins. A transaction that opens
+//     another inside itself waits for its own parent, so a nested call hangs
+//     the test instead of passing;
+//   - failNext() makes the next insert or update on a table throw, to test what
+//     a caller does when a write after the one that matters fails; and
+//     store.updateLog records how many rows each update matched, so a test can
+//     show that a conditional update lost by matching none.
+//
+// NOT modelled: orderBy on db.query reads, `columns` projection on db.query reads
+// (full rows come back), ON CONFLICT (an upsert inserts), joins, row locks between
+// overlapping transactions (see serialise above).
 //
 // Lives in __test-helpers__ for the same reason as pipeline-store-double.ts: a
 // test seam is not a module that owes the repo a sibling test.
@@ -44,7 +66,36 @@ export type BoqStore = {
   open: number;
   maxOpen: number;
   transactions: number;
+  /** true: transactions run one after another in call order (see the header) */
+  serialise?: boolean;
+  /** the tail of the serialised transactions; never rejects */
+  queue?: Promise<void>;
+  /** writes armed to fail by failNext() */
+  faults?: Array<{ table: string; op: "insert" | "update"; skip: number; remaining: number }>;
+  /** every update statement that ran, with the number of rows its where clause matched (a conditional update that lost matches 0) */
+  updateLog?: Array<{ table: string; matched: number }>;
 };
+
+/**
+ * Make an insert or update on `table` throw. `skip` lets that many matching writes through first (an approval's own
+ * claim is the first update of a submission, so a test that wants the write after it to fail skips one); `times` is
+ * how many writes then fail. Each armed fault is consumed as it fires.
+ */
+export function failNext(store: BoqStore, table: string, op: "insert" | "update", options: { skip?: number; times?: number } = {}): void {
+  (store.faults ??= []).push({ table, op, skip: options.skip ?? 0, remaining: options.times ?? 1 });
+}
+
+function fireFault(store: BoqStore, table: Table, op: "insert" | "update"): void {
+  const name = getTableName(table);
+  const fault = store.faults?.find((f) => f.table === name && f.op === op && f.remaining > 0);
+  if (!fault) return;
+  if (fault.skip > 0) {
+    fault.skip -= 1;
+    return;
+  }
+  fault.remaining -= 1;
+  throw new Error(`boq-store-double: injected ${op} failure on ${name}`);
+}
 
 // Every schema table by its relational-query key (db.query.<key>).
 const TABLES: Record<string, Table> = Object.fromEntries(
@@ -91,13 +142,21 @@ export function rowsOf(store: BoqStore, tableName: string): Row[] {
   return store.tables[tableName] ?? [];
 }
 
-const TOKEN = /"[^"]+"(?:\."[^"]+")*|\$\d+|[(),=]|[A-Za-z_]+|\S/g;
+const TOKEN = /'[^']*'|->>|"[^"]+"(?:\."[^"]+")*|\$\d+|[(),=]|[A-Za-z_]+|\S/g;
+
+/** `col ->> 'key'`: the text of one field of a jsonb object, or null (SQL NULL) when it is absent or JSON null. */
+function jsonText(value: unknown, key: string): string | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const field = (value as Record<string, unknown>)[key];
+  if (field === undefined || field === null) return null;
+  return typeof field === "string" ? field : typeof field === "object" ? JSON.stringify(field) : String(field);
+}
 
 /**
  * The real where clause, compiled and evaluated. Reads `col = $n`,
- * `col in ($a, $b)`, `col is [not] null`, `and`, `or` and parentheses; any
- * other shape matches nothing and is recorded, so the fake can never silently
- * match everything.
+ * `col in ($a, $b)`, `col is [not] null`, the same three on `col ->> 'key'`,
+ * `and`, `or` and parentheses; any other shape matches nothing and is recorded,
+ * so the fake can never silently match everything.
  */
 function predicate(table: Table, where: unknown, unparsed: string[]): (r: Row) => boolean {
   if (typeof where === "function") {
@@ -133,10 +192,18 @@ function predicate(table: Table, where: unknown, unparsed: string[]): (r: Row) =
       return inner;
     }
     const key = column();
+    let read = (r: Row): unknown => r[key];
+    if (peek() === "->>") {
+      i++;
+      const literal = tokens[i++] ?? "";
+      if (!literal.startsWith("'")) fail();
+      const field = literal.slice(1, -1);
+      read = (r) => jsonText(r[key], field);
+    }
     const op = tokens[i++]?.toLowerCase();
     if (op === "=") {
       const value = param();
-      return (r) => r[key] === value;
+      return (r) => read(r) === value;
     }
     if (op === "in") {
       expect("(");
@@ -146,13 +213,13 @@ function predicate(table: Table, where: unknown, unparsed: string[]): (r: Row) =
         values.push(param());
       }
       expect(")");
-      return (r) => values.includes(r[key]);
+      return (r) => values.includes(read(r));
     }
     if (op === "is") {
       const negated = peek() === "not";
       if (negated) i++;
       expect("null");
-      return negated ? (r) => r[key] !== null && r[key] !== undefined : (r) => r[key] === null || r[key] === undefined;
+      return negated ? (r) => read(r) !== null && read(r) !== undefined : (r) => read(r) === null || read(r) === undefined;
     }
     return fail();
   };
@@ -197,6 +264,66 @@ function project(table: Table, row: Row, selection?: Record<string, unknown>): R
   );
 }
 
+/**
+ * An update's set clause. A plain value is assigned. `col || $n::jsonb` merges a JSON object into the column (as
+ * Postgres does: NULL stays NULL, the right side's keys win). Any other SQL is recorded in `unparsed` and leaves the
+ * column as it was, so a test that asserts `store.unparsed` is empty fails instead of passing on an unmodelled write.
+ */
+function setValues(table: Table, values: Row, row: Row, unparsed: string[]): Row {
+  const keyOf = Object.fromEntries(Object.entries(columnsOf(table)).map(([key, col]) => [col.name, key]));
+  const out: Row = {};
+  for (const [key, value] of Object.entries(values)) {
+    if (!is(value, SQL)) {
+      out[key] = value;
+      continue;
+    }
+    const { sql, params } = dialect.sqlToQuery(value);
+    const m = /^(?:"[^"]+"\.)*"([^"]+)"\s*\|\|\s*\$(\d+)::jsonb$/.exec(sql.trim());
+    const target = m ? keyOf[m[1]] : undefined;
+    if (!m || target !== key) {
+      unparsed.push(sql);
+      continue;
+    }
+    const current = row[key];
+    if (current === null || current === undefined) {
+      out[key] = null;
+      continue;
+    }
+    out[key] = { ...(current as Record<string, unknown>), ...(JSON.parse(String(params[Number(m[2]) - 1])) as Record<string, unknown>) };
+  }
+  return out;
+}
+
+/** ORDER BY over `"col" [asc|desc]` terms; NULLs sort last ascending and first descending, as in Postgres. */
+function sortRows(table: Table, found: Row[], orders: unknown[], unparsed: string[]): Row[] {
+  if (orders.length === 0) return found;
+  const keyOf = Object.fromEntries(Object.entries(columnsOf(table)).map(([key, col]) => [col.name, key]));
+  const terms: Array<{ key: string; desc: boolean }> = [];
+  for (const order of orders) {
+    const { sql } = dialect.sqlToQuery(order as SQL);
+    const m = /^(?:"[^"]+"\.)*"([^"]+)"(?:\s+(asc|desc))?$/i.exec(sql.trim());
+    const key = m ? keyOf[m[1]] : undefined;
+    if (!m || !key) {
+      unparsed.push(sql);
+      return found;
+    }
+    terms.push({ key, desc: (m[2] ?? "asc").toLowerCase() === "desc" });
+  }
+  const scalar = (v: unknown) => (v instanceof Date ? v.getTime() : v);
+  return [...found].sort((a, b) => {
+    for (const { key, desc } of terms) {
+      const x = scalar(a[key]);
+      const y = scalar(b[key]);
+      if (x === y) continue;
+      if (x === null || x === undefined) return desc ? -1 : 1;
+      if (y === null || y === undefined) return desc ? 1 : -1;
+      const cmp = (x as number | string) < (y as number | string) ? -1 : 1;
+      return desc ? -cmp : cmp;
+    }
+    return 0;
+  });
+}
+
 function makeTransaction(store: BoqStore) {
   const working: Tables = Object.fromEntries(Object.entries(store.tables).map(([t, rows]) => [t, rows.map((r) => ({ ...r }))]));
   let dirty = false;
@@ -229,6 +356,7 @@ function makeTransaction(store: BoqStore) {
       let staged: Row[] | null = null;
       const stage = () => {
         if (!staged) {
+          fireFault(store, table, "insert");
           dirty = true;
           staged = (Array.isArray(values) ? values : [values]).map((v) => withDefaults(table, v, store));
           rows(table).push(...staged);
@@ -251,9 +379,11 @@ function makeTransaction(store: BoqStore) {
         let changed: Row[] | null = null;
         const apply = () => {
           if (!changed) {
+            fireFault(store, table, "update");
             dirty = true;
             changed = rows(table).filter(predicate(table, cond, store.unparsed));
-            for (const row of changed) Object.assign(row, values);
+            for (const row of changed) Object.assign(row, setValues(table, values, row, store.unparsed));
+            (store.updateLog ??= []).push({ table: getTableName(table), matched: changed.length });
           }
           return changed;
         };
@@ -267,13 +397,18 @@ function makeTransaction(store: BoqStore) {
 
   const select = (selection?: Record<string, unknown>) => ({
     from: (table: Table) => {
-      const run = (cond: unknown, limit?: number) => {
-        const found = rows(table).filter(predicate(table, cond, store.unparsed)).map((r) => project(table, r, selection));
+      // Filter, then sort, then limit, then project: the order SQL applies them in.
+      const run = (cond: unknown, orders: unknown[] = [], limit?: number) => {
+        const found = sortRows(table, rows(table).filter(predicate(table, cond, store.unparsed)), orders, store.unparsed).map((r) => project(table, r, selection));
         return limit === undefined ? found : found.slice(0, limit);
       };
       return {
-        where: (cond: unknown) => ({ limit: async (n: number) => run(cond, n), ...thenable(() => run(cond)) }),
-        limit: async (n: number) => run(undefined, n),
+        where: (cond: unknown) => ({
+          orderBy: (...orders: unknown[]) => ({ limit: async (n: number) => run(cond, orders, n), ...thenable(() => run(cond, orders)) }),
+          limit: async (n: number) => run(cond, [], n),
+          ...thenable(() => run(cond)),
+        }),
+        limit: async (n: number) => run(undefined, [], n),
         ...thenable(() => run(undefined)),
       };
     },
@@ -291,17 +426,27 @@ function makeTransaction(store: BoqStore) {
 export function fakeWithTenantContext(getStore: () => BoqStore) {
   return async (_ctx: unknown, fn: (db: unknown) => Promise<unknown>) => {
     const store = getStore();
-    store.open += 1;
-    store.maxOpen = Math.max(store.maxOpen, store.open);
-    store.transactions += 1;
-    try {
-      const txn = makeTransaction(store);
-      const result = await fn(txn.db);
-      txn.commit();
-      return result;
-    } finally {
-      store.open -= 1;
-    }
+    const run = async () => {
+      store.open += 1;
+      store.maxOpen = Math.max(store.maxOpen, store.open);
+      store.transactions += 1;
+      try {
+        const txn = makeTransaction(store);
+        const result = await fn(txn.db);
+        txn.commit();
+        return result;
+      } finally {
+        store.open -= 1;
+      }
+    };
+    if (!store.serialise) return run();
+    // One transaction at a time, in call order: the next starts when the previous has committed or thrown.
+    const turn = (store.queue ?? Promise.resolve()).then(run);
+    store.queue = turn.then(
+      () => undefined,
+      () => undefined
+    );
+    return turn;
   };
 }
 
