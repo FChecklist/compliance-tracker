@@ -70,6 +70,130 @@ export const CONSTRUCTION_TOOL_CODES = new Set([
   "detect_construction_budget_schedule_risk",
 ])
 
+/**
+ * PROJEXA-BUILD-001 U-01 (2026-09-25): the one rule for "may this acting
+ * person see construction budget/margin/cost figures". True only when the
+ * role is KNOWN and ranks manager or above. It used to be
+ * `role ? rank >= manager : true` inline below, so every caller that did not
+ * thread a role through (the personal AI link, the pipeline's dispatch reads,
+ * an API-key call to the PROJEXA assistant) got the figures unredacted: an
+ * unknown role was read as "show everything". Unknown now reads as "redact".
+ * Exported so executor.ts's own dashboard redaction applies the same rule
+ * rather than a second copy of it.
+ */
+export function financialsAllowedForRole(role?: string | null): boolean {
+  if (!role) return false
+  return (ROLE_RANK[role as UserRole] ?? 0) >= ROLE_RANK.manager
+}
+
+/**
+ * U-01: the money fields a project dashboard read through these tools
+ * withholds from a caller financialsAllowedForRole() refuses -- the same list
+ * api/v1/projexa/dashboard/[projectId]/route.ts withholds. The two inline
+ * copies this replaces (here and executor.ts) both lacked ledgerBudget (the
+ * ERP ledger budget) and progressByBoqValuePct (percentByValue under its UI
+ * name), so a member still got both.
+ */
+// The money fields a redacted dashboard reports as null. Named here so the
+// return type below can OMIT them from T before adding the null versions: with
+// no explicit type, spreading a generic T and then setting `budget: null`
+// makes TypeScript intersect `budget: number` with `budget: null`, which
+// collapses to never, and a caller cannot spread a never (TS2698).
+type RedactedDashboardMoney = {
+  budget: null; ledgerBudget: null; revenue: null; expenses: null
+  projectValue: null; earnedValue: null; percentByValue: null; contractValue: null
+  progressByBoqValuePct: null
+}
+
+export function redactProjectDashboardFinancials<T extends object>(
+  dashboard: T
+): Omit<T, keyof RedactedDashboardMoney> & RedactedDashboardMoney {
+  return {
+    ...dashboard,
+    budget: null, ledgerBudget: null, revenue: null, expenses: null,
+    projectValue: null, earnedValue: null, percentByValue: null, contractValue: null,
+    progressByBoqValuePct: null,
+  }
+}
+
+/**
+ * PROJEXA-BUILD-001 U-01d (2026-09-25, PM decision D2): the money fields of
+ * one getOrgDashboard() project row (OrgDashboardProjectSummary), withheld
+ * from a caller financialsAllowedForRole() refuses. list_delayed_activities
+ * returns these rows, and it had no gate: every role, including the engine's
+ * free-text dispatch and VERI FDE (both call it with no inputs), got each
+ * delayed project's revenue, spend, budget, contract value and earned value.
+ *
+ * The list is api/v1/projexa/dashboard/route.ts's redaction of the same rows
+ * plus projectValue, which that list leaves out. spendOverValue compares two
+ * withheld figures, so it is null too (null, not false: "you may not see
+ * this" is not "spend has not passed the contract value"). Name, task counts,
+ * tasksLate, progressPercent, percentByActivity, permits and lastProgressAt
+ * are not money and stay. Each row carries `financialsRedacted: true`.
+ */
+export function redactOrgProjectFinancials<T extends object>(project: T) {
+  return {
+    ...project,
+    revenue: null, expenses: null, spent: null, budget: null, ledgerBudget: null,
+    value: null, contractValue: null, projectValue: null,
+    earnedValue: null, earnedValuePrevWeek: null, percentByValue: null, spendOverValue: null,
+    financialsRedacted: true,
+  }
+}
+
+/** U-01b: what a caller below manager rank reads where a budget judgement would have been. */
+export const FINANCIALS_WITHHELD_SENTENCE = "Budget and cost figures are withheld for your role."
+
+// U-01b: a KPI counts as money when its unit is a currency or its name is a
+// money measure. KPIs are free-text definitions (construction-kpi-service.ts),
+// so this reads the two fields a person filled in; anything else -- percent,
+// hours, count, "Concrete Poured" -- stays visible.
+const MONEY_KPI_UNIT = /[₹$€£]|(^|[^a-z])(inr|aed|usd|eur|gbp|sar|qar|omr|kwd|bhd|rs|rupees?|lakhs?|crores?|cr)([^a-z]|$)/i
+const MONEY_KPI_NAME = /\b(budget|costs?|margins?|revenue|expenses?|spend|spent|profit|invoiced?|billing|billed|payments?|cash)\b/i
+
+function isMoneyKpi(definition: { metricName?: string | null; unit?: string | null }): boolean {
+  return MONEY_KPI_UNIT.test(definition.unit?.trim() ?? "") || MONEY_KPI_NAME.test(definition.metricName ?? "")
+}
+
+type KpiStatus = {
+  definitions: Array<{ id: string; metricName?: string | null; unit?: string | null; targetValue?: string | null }>
+  entries: Array<{ kpiDefinitionId: string; actualValue?: string | null }>
+}
+
+/**
+ * PROJEXA-BUILD-001 U-01b (2026-09-25): the one step that withholds money from
+ * the three construction tools that had no financial gate at all, for a caller
+ * financialsAllowedForRole() refuses. Every result it returns carries
+ * `financialsRedacted: true`; a manager's result never passes through it.
+ *
+ * - get_construction_kpi_status: a money KPI (isMoneyKpi) keeps its row but
+ *   loses targetValue and every entry's actualValue; other KPIs are untouched.
+ * - generate_construction_progress_summary: the model was already handed
+ *   redactProjectDashboardFinancials(dashboard), so the summary has no money
+ *   figure to repeat; this only adds the flag.
+ * - detect_construction_budget_schedule_risk: the budget read was skipped
+ *   (withholdBudget), so riskLevel rests on the schedule alone and the
+ *   "actual X vs budget Y" sentence was never built; budgetRiskReasoning is
+ *   replaced with FINANCIALS_WITHHELD_SENTENCE rather than "No budget is set",
+ *   which would be untrue.
+ */
+export function withholdConstructionFinancials(codeReference: string, result: object): object {
+  if (codeReference === "get_construction_kpi_status") {
+    const { definitions, entries } = result as KpiStatus
+    const moneyIds = new Set(definitions.filter(isMoneyKpi).map((d) => d.id))
+    return {
+      ...result,
+      definitions: definitions.map((d) => (moneyIds.has(d.id) ? { ...d, targetValue: null } : d)),
+      entries: entries.map((e) => (moneyIds.has(e.kpiDefinitionId) ? { ...e, actualValue: null } : e)),
+      financialsRedacted: true,
+    }
+  }
+  if (codeReference === "detect_construction_budget_schedule_risk") {
+    return { ...result, budgetRiskReasoning: FINANCIALS_WITHHELD_SENTENCE, financialsRedacted: true }
+  }
+  return { ...result, financialsRedacted: true }
+}
+
 export async function dispatchConstructionTool(
   orgId: string,
   userId: string,
@@ -88,11 +212,10 @@ export async function dispatchConstructionTool(
   db?: TenantDb
 ): Promise<unknown> {
   // R48 gap-closure (2026-08-30, F089/F059): same rank check as the API
-  // routes' own redaction. `role` undefined (caller not yet wired to pass
-  // it) is treated as "unknown, don't redact" to preserve prior behavior
-  // for those callers -- see task-execution-engine.ts's dispatchTool() own
-  // comment.
-  const financialsAllowed = role ? (ROLE_RANK[role as UserRole] ?? 0) >= ROLE_RANK.manager : true
+  // routes' own redaction. U-01 (2026-09-25): `role` undefined/null (caller
+  // not wired to pass it) is now "unknown, so redact" -- see
+  // financialsAllowedForRole() above.
+  const financialsAllowed = financialsAllowedForRole(role)
 
   if (codeReference === "get_construction_project_dashboard") {
     const projectId = String(context?.inputs?.projectId ?? "")
@@ -102,16 +225,16 @@ export async function dispatchConstructionTool(
       ? (await getProjectDashboardsWithDb(db, { orgId }, [projectId]))[0]
       : await getProjectDashboard({ orgId }, projectId)
     if (!dashboard) throw new Error("Project not found")
-    if (!financialsAllowed) {
-      return { ...dashboard, budget: null, revenue: null, expenses: null, projectValue: null, earnedValue: null, percentByValue: null, contractValue: null }
-    }
+    if (!financialsAllowed) return redactProjectDashboardFinancials(dashboard)
     return dashboard
   }
 
   if (codeReference === "list_delayed_activities") {
     const { getOrgDashboard, getOrgDashboardWithDb } = await import("@/lib/services/construction-dashboard-service")
     const dashboard = db ? await getOrgDashboardWithDb(db, { orgId }) : await getOrgDashboard({ orgId })
-    return dashboard.projects.filter((p) => p.delayedTaskCount > 0)
+    const delayed = dashboard.projects.filter((p) => p.delayedTaskCount > 0)
+    // U-01d: same array, same rows; below manager rank every money field is null.
+    return financialsAllowed ? delayed : delayed.map(redactOrgProjectFinancials)
   }
 
   if (codeReference === "get_construction_budget_status") {
@@ -157,25 +280,33 @@ export async function dispatchConstructionTool(
     return results.filter((p) => budgetExceeded(p.budget, p.expenses))
   }
 
+  // U-01b: the three codeReferences below had no financial gate; each now
+  // goes through withholdConstructionFinancials() above for a caller below
+  // manager rank, and is returned unchanged for one at or above it.
   if (codeReference === "get_construction_kpi_status") {
     const projectId = String(context?.inputs?.projectId ?? "")
     if (!projectId) throw new Error("Missing projectId")
     const { kpiReport, kpiReportWithDb } = await import("@/lib/services/construction-reports-service")
-    return db ? kpiReportWithDb(db, { orgId }, projectId) : kpiReport({ orgId }, projectId)
+    const kpis = db ? await kpiReportWithDb(db, { orgId }, projectId) : await kpiReport({ orgId }, projectId)
+    return financialsAllowed ? kpis : withholdConstructionFinancials(codeReference, kpis)
   }
 
   if (codeReference === "generate_construction_progress_summary") {
     const projectId = String(context?.inputs?.projectId ?? "")
     if (!projectId) throw new Error("Missing projectId")
     const { generateProgressSummary } = await import("@/lib/services/construction-ai-service")
-    return generateProgressSummary({ orgId, userId }, projectId, db)
+    if (financialsAllowed) return generateProgressSummary({ orgId, userId }, projectId, db)
+    const summary = await generateProgressSummary({ orgId, userId }, projectId, db, redactProjectDashboardFinancials)
+    return withholdConstructionFinancials(codeReference, summary)
   }
 
   if (codeReference === "detect_construction_budget_schedule_risk") {
     const projectId = String(context?.inputs?.projectId ?? "")
     if (!projectId) throw new Error("Missing projectId")
     const { detectBudgetScheduleRisk } = await import("@/lib/services/construction-ai-service")
-    return detectBudgetScheduleRisk({ orgId, userId }, projectId, db)
+    if (financialsAllowed) return detectBudgetScheduleRisk({ orgId, userId }, projectId, db)
+    const risk = await detectBudgetScheduleRisk({ orgId, userId }, projectId, db, { withholdBudget: true })
+    return withholdConstructionFinancials(codeReference, risk)
   }
 
   throw new Error(`No dispatcher implemented for ${codeReference}`)

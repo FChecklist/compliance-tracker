@@ -19,6 +19,7 @@
 // this route checks permission again, from scratch, before anything runs.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { resolveFinancialRole } from "@/lib/supabase/acting-role"
 import { runSubmission } from "@/lib/pipeline/run-submission"
 
 export async function POST(request: NextRequest) {
@@ -48,6 +49,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // PROJEXA-BUILD-001 U-01b: was `ctx.dbUser?.role ?? null`, null for every
+    // API-key caller. Same rules as the assistant route -- see acting-role.ts.
+    // U-01d: a role or null, never an error -- an unlinked person is redacted.
+    const financialRole = await resolveFinancialRole(ctx, request, body)
     const result = await runSubmission({
       orgId: ctx.orgId,
       userId: actorId,
@@ -55,7 +60,7 @@ export async function POST(request: NextRequest) {
       projectId: typeof body.projectId === "string" ? body.projectId : null,
       selectedChain: body.selectedChain,
       rawInput,
-      role: ctx.dbUser?.role ?? null,
+      role: financialRole,
     })
     return NextResponse.json(result, { status: 201 })
   } catch (error) {

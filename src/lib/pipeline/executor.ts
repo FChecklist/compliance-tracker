@@ -18,7 +18,7 @@ import { createMeeting } from "@/lib/services/pms-meeting-service";
 import { createDocumentRecord } from "@/lib/services/document-service";
 import { dispatchTool } from "@/lib/task-execution-engine";
 import { ServiceError } from "@/lib/services/compliance-service";
-import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
+import { financialsAllowedForRole, redactProjectDashboardFinancials } from "@/lib/task-execution/construction-tools";
 import { codeForServiceError, normaliseThrownError, pipelineFailure, type PipelineFailure } from "./error-codes";
 import { functionSpec, requiredParamSatisfied, WRITE_FUNCTION_IDS as REGISTERED_WRITES } from "./function-registry";
 
@@ -48,12 +48,15 @@ export type ExecutableTask = {
    * the AI assistant could hand a "member"-ranked user the same budget/
    * margin figures the dashboard route itself now withholds from them.
    * Optional (undefined) rather than required so callers that genuinely
-   * have no role available (the personal MCP AI-link surface,
-   * api/mcp/[token]/route.ts) don't silently break; that surface is
-   * per-user-token-scoped to one specific person by design (not a general
-   * multi-role surface), a narrower risk than the 3 session-based REST
-   * routes this IS wired through (assistant/tasks/submissions), but it is
-   * NOT yet wired -- see R48_PROGRESS.md's F089 entry for the honest status.
+   * have no role available don't fail to compile.
+   *
+   * PROJEXA-BUILD-001 U-01 (2026-09-25): an absent role no longer means "show
+   * the figures". Every financial redaction this role feeds (the dashboard
+   * below, and the dispatch reads via dispatchTool -> construction-tools.ts)
+   * now treats undefined/null as NOT manager, via financialsAllowedForRole().
+   * api/mcp/[token]/route.ts now passes the link owner's role, and
+   * makeDispatchExecutor now forwards this field to dispatchTool, which it
+   * used to drop.
    */
   role?: string | null;
   /**
@@ -318,19 +321,11 @@ async function executeGetProjectDashboard(task: ExecutableTask): Promise<Executi
   if (!task.projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
   const dashboard = await getProjectDashboard({ orgId: task.orgId }, task.projectId);
   // F089/F059: same redaction the API route applies, for the same reason --
-  // see this file's ExecutableTask.role comment. `task.role` undefined
-  // (role not threaded through by this caller) is treated as "unknown, so
-  // don't redact" to preserve prior behavior for callers not yet wired.
-  const rank = task.role ? (ROLE_RANK[task.role as UserRole] ?? 0) : ROLE_RANK.manager;
-  if (rank < ROLE_RANK.manager) {
-    return {
-      success: true,
-      result: {
-        ...dashboard,
-        budget: null, revenue: null, expenses: null,
-        projectValue: null, earnedValue: null, percentByValue: null, contractValue: null,
-      },
-    };
+  // see this file's ExecutableTask.role comment. U-01: `task.role`
+  // undefined/null (role not threaded through by this caller) is "unknown,
+  // so redact" -- the same rule construction-tools.ts applies.
+  if (!financialsAllowedForRole(task.role)) {
+    return { success: true, result: redactProjectDashboardFinancials(dashboard) };
   }
   return { success: true, result: dashboard };
 }
@@ -368,8 +363,12 @@ function makeDispatchExecutor(codeReference: string): (task: ExecutableTask) => 
     // top-level projectId was not threaded through by this caller.
     const projectId = task.projectId ?? (typeof task.params.projectId === "string" ? task.params.projectId : null);
     if (needsProject && !projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
+    // U-01: task.role is forwarded as dispatchTool's own `role` argument. It
+    // was dropped here, so get_construction_budget_status (and its alias
+    // review_budget) and list_over_budget_projects never saw the caller's
+    // role and ran unredacted for every pipeline caller of any rank.
     const result = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
-      dispatchTool(db, task.orgId, task.userId, codeReference, { inputs: { projectId: projectId ?? undefined } })
+      dispatchTool(db, task.orgId, task.userId, codeReference, { inputs: { projectId: projectId ?? undefined } }, task.role ?? null)
     );
     return { success: true, result };
   };

@@ -375,6 +375,22 @@ const ROUTE_AUTH_EXEMPTIONS = new Set([
   "src/app/api/v1/projexa/quotations/[id]/revisions/route.ts",
   "src/app/api/v1/projexa/scope/import/route.ts",
   "src/app/api/v1/projexa/submittals/route.ts",
+  //
+  // PROJEXA-BUILD-001 U-01 (2026-09-25): these four already-authenticated
+  // routes entered a diff because the financial-redaction fix threads the
+  // acting person's role through them. Each authenticates, verified by reading
+  // the handler, just not through the literal requireAuth() this checker looks
+  // for. assistant, submissions and tasks call requireAuthOrApiKey(request)
+  // (session or vk_ API key) and then requireRoleOrScope(ctx, "member", ...);
+  // requireAuth() alone would refuse the API-key callers PROJEXA's proxy uses.
+  // api/mcp/[token] authenticates by the personal AI link token: it resolves
+  // resolveAiLinkToken(token) and answers JSON-RPC -32600 when it does not
+  // resolve; there is no session on a pasted link. Same reasoning and the same
+  // shared-guardrail scope note as the four entries directly above.
+  "src/app/api/mcp/[token]/route.ts",
+  "src/app/api/v1/projexa/assistant/route.ts",
+  "src/app/api/v1/projexa/submissions/route.ts",
+  "src/app/api/v1/projexa/tasks/route.ts",
 ])
 const SERVICE_ERROR_EXEMPTIONS = new Set([
   // Example: "src/lib/services/pure-math-service.ts", // no I/O, cannot fail

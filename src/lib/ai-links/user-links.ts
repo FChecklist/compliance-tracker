@@ -34,6 +34,7 @@
 //     prettier.
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { db, userAiLinks } from '@/lib/db'
+import { users } from '@/lib/db/schema'
 import { withTenantContext } from '@/lib/db/tenant-scoped'
 import { and, eq, sql } from 'drizzle-orm'
 
@@ -87,6 +88,31 @@ export async function resolveAiLinkToken(token: string): Promise<AiLinkIdentity 
   if (!row) return null
 
   return { orgId: row.org_id, userId: row.user_id }
+}
+
+/**
+ * PROJEXA-BUILD-001 U-01 (2026-09-25): the link owner's role, for the
+ * construction financial redaction (see construction-tools.ts's
+ * financialsAllowedForRole()). The link acts as exactly one person, so the
+ * figures it may return are that person's -- before this, api/mcp/[token]
+ * passed no role at all and every link owner, of any rank, got budget and
+ * margin figures unredacted.
+ *
+ * user_ai_links.user_id is a compliance.users.id; the row is read inside the
+ * owner's own tenant context, same as getOrCreateUserAiLink(). Returns null
+ * when no active user row matches (deleted, deactivated, or moved org). A
+ * null role is not an error: the caller passes it on, and the redaction
+ * treats an unknown role as not allowed to see the figures.
+ */
+export async function resolveAiLinkOwnerRole(identity: AiLinkIdentity): Promise<string | null> {
+  const owner = await withTenantContext({ orgId: identity.orgId, userId: identity.userId }, (tx) =>
+    tx.query.users.findFirst({
+      where: and(eq(users.id, identity.userId), eq(users.orgId, identity.orgId)),
+      columns: { role: true, isActive: true },
+    })
+  )
+  if (!owner || !owner.isActive) return null
+  return owner.role
 }
 
 /**

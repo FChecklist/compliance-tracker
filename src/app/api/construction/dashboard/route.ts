@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth, hasRole } from "@/lib/supabase/auth-guard"
+import { requireAuth } from "@/lib/supabase/auth-guard"
 import { getOrgDashboard, ServiceError } from "@/lib/services/construction-dashboard-service"
+import { financialsAllowedForRole, redactOrgProjectFinancials } from "@/lib/task-execution/construction-tools"
 
 export async function GET(request: NextRequest) {
   const { response, orgId, dbUser } = await requireAuth()
@@ -14,7 +15,17 @@ export async function GET(request: NextRequest) {
     // R48 gap-closure (2026-08-30, F059) -- see the sibling [projectId]
     // route's comment for the full reasoning. Same redaction, applied to
     // the org-wide summary's totals and per-project figures.
-    if (!hasRole(dbUser, "manager")) {
+    //
+    // PROJEXA-BUILD-001 U-01e (2026-09-25): the rule is now
+    // financialsAllowedForRole() (a known role of manager rank or above) and
+    // the row list is redactOrgProjectFinancials(), the same two the v1 route
+    // and list_delayed_activities use. This file's own row list had drifted
+    // from the v1 route's: spent, ledgerBudget, value, contractValue,
+    // projectValue and earnedValuePrevWeek all reached a member. The role is
+    // the session user's own: requireAuth() admits no API key, so there is no
+    // acting person to resolve here, and no dbUser or no role reads as
+    // "redacted".
+    if (!financialsAllowedForRole(dbUser?.role ?? null)) {
       return NextResponse.json({
         ...summary,
         // R67 E-06: totalLedgerBudget and the per-project budget are financial
@@ -26,9 +37,10 @@ export async function GET(request: NextRequest) {
         // so leaving the verdict in handed a member exactly the comparison
         // redacting revenue/expenses/budget exists to withhold. null (not
         // false), because "you may not see this" and "spend has not passed the
-        // contract value" are different statements. Mirrors the v1 route
-        // line-for-line; the two must not drift again.
-        projects: summary.projects.map((p) => ({ ...p, revenue: null, expenses: null, earnedValue: null, percentByValue: null, spendOverValue: null, budget: null })),
+        // contract value" are different statements. redactOrgProjectFinancials()
+        // nulls it with every other money field and marks each row
+        // financialsRedacted: true.
+        projects: summary.projects.map(redactOrgProjectFinancials),
       })
     }
     return NextResponse.json(summary)
