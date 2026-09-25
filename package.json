@@ -25,7 +25,8 @@
     "check:dead-code": "node scripts/check-dead-code.mjs",
     "check:duplicate-code": "node scripts/check-duplicate-code.mjs",
     "debt:score": "node scripts/compute-technical-debt-score.mjs",
-    "refactor:priority": "node scripts/list-refactor-priority-candidates.mjs"
+    "refactor:priority": "node scripts/list-refactor-priority-candidates.mjs",
+    "verify:all": "bun scripts/verify/verify-all.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
