@@ -83,6 +83,48 @@ jobs:
           # ubuntu-latest has 16GB total; 8GB old-space leaves headroom for
           # the rest of the toolchain (bun, next's own worker processes).
           NODE_OPTIONS: --max-old-space-size=8192
+  browser-bundle-scan:
+    # PROJEXA-BUILD-001 item U-26 / E-08 (register rows BR-325, BR-326): no
+    # service_role secret may reach a built browser bundle, and that is checked
+    # here on every push and pull request, not once by hand. It builds the app
+    # exactly as the Build job does, then scans .next/static -- the directory
+    # `next build` serves to every visitor -- with
+    # scripts/verify/bundle-service-role-scan.sh (service_role text, the
+    # SUPABASE_SERVICE_ROLE_KEY / SERVICE_ROLE env-var names, JWTs whose
+    # decoded payload says role service_role, sb_secret_ keys) and then runs the
+    # scanner's own self-test, which plants each leak and proves the scan can
+    # fail.
+    #
+    # Deliberately no `needs`: this job's result is its own, independent of
+    # lint/typecheck/build, so it can be made a required status check by its
+    # exact name, "Browser Bundle Service-Role Scan". Do not rename the job or
+    # its name. It builds a second time rather than reusing the Build job's
+    # output because GitHub Actions jobs do not share a filesystem, and it
+    # uploads nothing (a bundle that may hold a secret must not become an
+    # artifact). Build steps and env are copied from the Build job above; keep
+    # them in step with it.
+    #
+    # Allowlist: scripts/verify/bundle-service-role-allow.txt starts empty. If
+    # the first run flags a library string that is harmless, add a
+    # `substring<TAB>reason` line there -- do not loosen the scanner.
+    name: Browser Bundle Service-Role Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run db:generate || true
+      - run: bun run build
+        env:
+          DATABASE_URL: postgresql://postgres:placeholder@localhost:5432/postgres
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          NODE_OPTIONS: --max-old-space-size=8192
+      - name: Scan the built browser bundle (.next/static) for service_role secrets
+        run: bash scripts/verify/bundle-service-role-scan.sh
+      - name: Self-test the bundle scanner
+        run: bash scripts/verify/bundle-service-role-scan.selftest.sh
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
