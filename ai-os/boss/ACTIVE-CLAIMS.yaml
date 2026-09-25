@@ -40,6 +40,20 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session; isolated worktree C:/ct/ct-worktrees/b001-p1, branch feat/build-001-phase1) -- WORK_ORDER_PROJEXA-BUILD-001 + ADDENDUM_A + master handoff (Claude chat audits, KT Drive folder 1eB19FvfLXDf1VlyggqYZg0oyBOa1Am6e): Phase 1 development [IN PROGRESS]"
+    claimed_at: "2026-09-25T07:10Z (this session)"
+    claim: |
+      SCOPE (owner instruction 2026-09-25 in chat: "make final document and start work, start development on local"):
+      Phase 1 of the BUILD-001 plan only. Files this claim touches:
+        - ai-os/projexa-build-001/** (plan package: master plan, boolean register, amendment log, contradictions, cron placement, edge candidates, surface matrix, 111-requirement register, universal AI work link spec, verify scripts index)
+        - scripts/verify/** (boolean verify commands referenced by the register)
+        - src/lib/ai/adapter.gate-2-8.test.ts (new) and stale-comment fixes in src/lib/ai/adapter.ts, src/lib/pipeline/dry-run.ts, src/lib/pipeline/run-submission.ts (comments only)
+        - external AI link route src/app/api/mcp/[token]/route.ts + its tests (goal: external AI is Level 1, zero server-side model calls, not subject to the provider gate -- owner directive 2026-09-25 items 2/3)
+        - .github/workflows/secret-scan.yml (new CI job) + scripts/verify/secret-scan-selftest.*
+        - ai-os/SHARED_BOUNDARY.md (new), ai-os/boss/ACTIVE-CLAIMS.yaml (this entry)
+      NOT touching: any Vercel project/setting/deploy/env/cron, DNS, spend, any Supabase schema or data (Phase 2 will claim its own migrations), DPDP-owned objects (dpdp_* functions, dpdp-* cron jobs and edge functions, src/**/dpdp*), vercel.json in either repo, draft PR #1808. No spend increase. Vercel stays locked.
+      Reads: origin/main only. No dev server (laptop ~1.8GB free RAM); tests run per file with bun test --isolate; typecheck/build only in CI.
+      Governance note: the owner's 'start only after Claude chat audit + relay' instruction for this workstream was satisfied on 2026-09-25 (owner: 'check this and your analysis. make final document and start work'); it was a scoped exception to Amendment 001 and is now closed.
   - session_label: "claude-code (interactive, PROJEXA PROJECT MANAGER session, isolated worktree C:/ct/ct-cost001 branch wo/projexa-cost-001; heavy analysis delegated to Anthropic cloud agents per the owner's 2026-09-22 chat instruction, because this laptop was at ~0.84GB free RAM at session start) -- WORK_ORDER_PROJEXA-COST-001 v2 (issued 2026-09-22, KT rank 0.27, Drive 1kAsuZ0Dn3_Oxa0eaV-G0zdhsC6f3HFBN): Vercel bill must never exceed $20/month [IN PROGRESS]"
     claimed_at: "2026-09-22T06:05Z (this session)"
     claim: |
