@@ -103,8 +103,9 @@ registerAllGuardrails();
 // keeps compiling unchanged. PROJEXA-BUILD-001 U-01 (2026-09-25): a caller
 // that passes no role now gets the construction figures REDACTED, not shown
 // -- construction-tools.ts's financialsAllowedForRole() fails closed. Wired
-// to pass a real role: api/v1/projexa/assistant/route.ts and
-// pipeline/executor.ts's makeDispatchExecutor.
+// to pass a real role: api/v1/projexa/assistant/route.ts,
+// pipeline/executor.ts's makeDispatchExecutor, and (U-01b) this file's two
+// task dispatch sites via taskOwnerRole() and fde-service.ts.
 //
 // VERIDIAN Review Framework gap-closure (AI Engineering Quality / Code
 // Structure & Modularity, 2026-08-15): this used to be one ~265-line
@@ -1612,6 +1613,22 @@ async function enforceChainMonitoringRules(db: TenantDb, taskId: string, dynamic
   }
 }
 
+// PROJEXA-BUILD-001 U-01b (2026-09-25): the role dispatchTool() redacts
+// construction figures against for a task. Both dispatch sites below passed
+// no role, which since U-01 means "redacted" for everyone, managers included.
+// `userId` is the person the task runs as (task-service.ts passes the
+// session user, veri-meeting-service.ts the assignee, the other callers
+// their ctx.userId), so that person's active compliance.users row in this
+// org decides. No such row (a system actor, a deactivated user) -> null ->
+// redacted, the intended fail-closed default.
+async function taskOwnerRole(db: TenantDb, orgId: string, userId: string): Promise<string | null> {
+  const owner = await db.query.users.findFirst({
+    where: and(eq(users.id, userId), eq(users.orgId, orgId)),
+    columns: { role: true, isActive: true },
+  });
+  return owner?.isActive ? owner.role : null;
+}
+
 async function executeStructuredDispatch(orgId: string, userId: string, taskId: string, workerAgentId: string, agentInputs?: Record<string, unknown>): Promise<void> {
   await withTenantContext({ orgId, userId }, async (db) => {
     const agent = await db.query.workerAgents.findFirst({ where: eq(workerAgents.id, workerAgentId) });
@@ -1627,7 +1644,7 @@ async function executeStructuredDispatch(orgId: string, userId: string, taskId: 
 
     const startedAt = new Date();
     try {
-      const output = await dispatchTool(db, orgId, userId, agent.codeReference, { taskId, inputs: agentInputs });
+      const output = await dispatchTool(db, orgId, userId, agent.codeReference, { taskId, inputs: agentInputs }, await taskOwnerRole(db, orgId, userId));
       assertValidDispatchOutput(output);
       await db.insert(taskAgentExecutions).values({
         taskExecutionPlanId: planRow.id, workerAgentId: agent.id, startedAt, completedAt: new Date(),
@@ -2349,6 +2366,8 @@ export async function executeTask(
     let missingCapabilityNoted = false;
 
     await withTenantContext({ orgId, userId }, async (db) => {
+      // U-01b: read once, and only if a step below actually dispatches.
+      let ownerRole: Promise<string | null> | undefined;
       const steps = (result.steps ?? []).slice(0, 6);
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
@@ -2389,7 +2408,8 @@ export async function executeTask(
         if (agent?.tier === "global" && agent.codeReference && isToolAllowedForDomain(agent.domain, agent.codeReference)) {
           const startedAt = new Date();
           try {
-            const output = await dispatchTool(db, orgId, userId, agent.codeReference);
+            ownerRole ??= taskOwnerRole(db, orgId, userId);
+            const output = await dispatchTool(db, orgId, userId, agent.codeReference, undefined, await ownerRole);
             await db.insert(taskAgentExecutions).values({
               taskExecutionPlanId: planRow.id,
               workerAgentId: agent.id,

@@ -30,7 +30,8 @@
 //   site 1 reverted -> 2 fail in (a) (member role never reaches the pipeline;
 //                      the manager is redacted);
 //   site 2 reverted -> 2 fail: the manager tests in (a) and (b);
-//   site 3 reverted -> 4 fail in (b)/(c) (named member/manager, USER_NOT_LINKED);
+//   site 3 reverted -> 4 fail in (b)/(c) (named member/manager, USER_NOT_LINKED;
+//                      U-01d since made that last one a redaction check, see (c));
 //   site 4 reverted -> 7 fail: every unknown-role test in (a)-(d);
 //   executor.ts's dashboard copy alone reverted -> 3 fail;
 //   ledgerBudget/progressByBoqValuePct dropped from the redaction -> 6 fail.
@@ -309,12 +310,14 @@ describe("U-01 (c) -- api/v1/projexa/assistant codeReference path with the org A
     expect(dashboard.body).toEqual({ codeReference: "get_construction_project_dashboard", result: DASHBOARD })
   })
 
-  test("a named actor that maps to no user keeps resolveActingUser's 400 USER_NOT_LINKED", async () => {
+  // U-01d (PM decision D1): was "keeps resolveActingUser's 400 USER_NOT_LINKED".
+  // A redaction fix must not turn an unlinked person's working request into an error.
+  test("a named actor that maps to no user is redacted, not refused", async () => {
     authCtx = API_KEY_CTX
     actingUserRow = undefined
     const { status, body } = await viaAssistant({ codeReference: "get_construction_project_dashboard", inputs: { projectId: PROJECT } }, { "x-acting-user": "auth-nobody" })
-    expect(status).toBe(400)
-    expect(body.code).toBe("USER_NOT_LINKED")
+    expect(status).toBe(200)
+    expect(body).toEqual({ codeReference: "get_construction_project_dashboard", result: REDACTED_DASHBOARD })
   })
 
   test("a session manager is unchanged: role comes from the session, not a header", async () => {

@@ -22,6 +22,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
+import { resolveFinancialRole } from "@/lib/supabase/acting-role"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
 import { runSubmission, runDirectTask, proposeSubmission, submitForVerdict, confirmSubmission } from "@/lib/pipeline/run-submission"
@@ -107,6 +108,12 @@ async function POST_impl(request: NextRequest) {
   const projectId = typeof body.projectId === "string" ? body.projectId : null
   // R67 C-03 (D-05): the real person, when the caller identified one.
   const actorUserId = await resolveActorUserId(ctx, body)
+  // PROJEXA-BUILD-001 U-01b: the role every branch below redacts construction
+  // figures against. Every branch used to pass `ctx.dbUser?.role ?? null`,
+  // null for PROJEXA's per-org API key even when actorEmail named a manager.
+  // Same rules as the assistant route -- see acting-role.ts. U-01d: like
+  // resolveActorUserId above, it returns null rather than refusing.
+  const financialRole = await resolveFinancialRole(ctx, request, body)
 
   try {
     // R67 B-05 -- STEP ONE: PROPOSE. {rawInput, dryRun:true} classifies,
@@ -127,7 +134,7 @@ async function POST_impl(request: NextRequest) {
         mode,
         projectId,
         rawInput,
-        role: ctx.dbUser?.role ?? null,
+        role: financialRole,
       })
       // 200, not 201: nothing was created.
       return NextResponse.json(proposal, { status: 200 })
@@ -149,7 +156,7 @@ async function POST_impl(request: NextRequest) {
         submissionId,
         functionId: typeof body.functionId === "string" ? body.functionId.trim() : undefined,
         params: (body.params as Record<string, unknown>) ?? {},
-        role: ctx.dbUser?.role ?? null,
+        role: financialRole,
         actorUserId,
       })
       if (outcome.ok) return NextResponse.json(outcome.result, { status: 201 })
@@ -172,7 +179,7 @@ async function POST_impl(request: NextRequest) {
         functionId: body.functionId.trim(),
         params: (body.params as Record<string, unknown>) ?? {},
         note: typeof body.rawInput === "string" ? body.rawInput : undefined,
-        role: ctx.dbUser?.role ?? null,
+        role: financialRole,
         actorUserId,
       })
       return NextResponse.json(result, { status: 201 })
@@ -205,7 +212,7 @@ async function POST_impl(request: NextRequest) {
         projectId,
         selectedChain: body.selectedChain,
         rawInput,
-        role: ctx.dbUser?.role ?? null,
+        role: financialRole,
         actorUserId,
       })
       return NextResponse.json(result, { status: 201 })
@@ -218,7 +225,7 @@ async function POST_impl(request: NextRequest) {
       projectId,
       selectedChain: body.selectedChain,
       rawInput,
-      role: ctx.dbUser?.role ?? null,
+      role: financialRole,
     })
     // 200, not 201: a verdict creates no task.
     return NextResponse.json(verdict, { status: 200 })
