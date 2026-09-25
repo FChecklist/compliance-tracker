@@ -140,11 +140,17 @@ if [ "$LOCAL" = "0" ]; then
     [ -f "$SQL_ASSERT" ] || finish_usage "sql-assert script not found: $SQL_ASSERT"
     command -v node >/dev/null 2>&1 || finish_usage "node is not available on PATH (needed to read cron.job; --local skips that read)"
     # The default role (app_runtime) cannot see cron.job, so an unset VERIFY_SQL_MODE becomes mgmt for this one read. A mode the
-    # caller set is left alone.
-    VERIFY_SQL_MODE="${VERIFY_SQL_MODE:-mgmt}" node "$(winpath "$SQL_ASSERT")" --project ct \
-      --sql "select coalesce(string_agg(jobname, ',' order by jobname), '-') from cron.job where active" \
-      --not-equals "@none@" > "$TMP/jobs.raw" 2> "$TMP/jobs.err"
-    RC=$?
+    # caller set is left alone. Exit 4 is a connection or query error (the Management API answers HTTP 544 now and then), so only
+    # that exit is tried again, up to three times, CRON_READ_RETRY_WAIT seconds apart (default 5). Any other exit stops at once.
+    RC=4
+    for n in 1 2 3; do
+      VERIFY_SQL_MODE="${VERIFY_SQL_MODE:-mgmt}" node "$(winpath "$SQL_ASSERT")" --project ct \
+        --sql "select coalesce(string_agg(jobname, ',' order by jobname), '-') from cron.job where active" \
+        --not-equals "@none@" > "$TMP/jobs.raw" 2> "$TMP/jobs.err"
+      RC=$?
+      [ "$RC" = "4" ] || break
+      [ "$n" = "3" ] || sleep "${CRON_READ_RETRY_WAIT:-5}"
+    done
     if [ "$RC" != "0" ] && [ "$RC" != "1" ]; then
       finish_usage "cannot read cron.job (sql-assert exit $RC: $(head -n 1 "$TMP/jobs.err" | head -c 300)). The read runs with VERIFY_SQL_MODE=mgmt unless you set another mode, and that path needs SUPABASE_ACCESS_TOKEN. Use --local to skip the live cron.job checks"
     fi

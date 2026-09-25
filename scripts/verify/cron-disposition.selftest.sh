@@ -15,8 +15,9 @@
 # every-N schedule, a declared cron with no row, a projexa cron); each live check (a PG_CRON job, the Edge Function job and a DPDP
 # job absent from cron.job, an empty list); the name-source check; unknown job names; the workflow rows (projexa KILL file present,
 # projexa file absent, compliance-tracker file absent); row shapes and enum values; --local (skips only the live checks, leaves
-# every other check in force, reads no cron.job); a failing cron.job read (exit 2); the comma-list parsing of a real read;
-# the read-only guard on the SQL the script sends; usage and missing-file errors; and the overrides suffix.
+# every other check in force, reads no cron.job); a failing cron.job read (exit 2; an exit-4 read is tried three times, an exit-3
+# read once, and a first read that times out then passes); the comma-list parsing of a real read; the mode the read runs in; the
+# read-only guard on the SQL the script sends; usage and missing-file errors; and the overrides suffix.
 #
 # No real secret is written anywhere and no network call is made.
 #
@@ -142,7 +143,7 @@ EOF
 
 # the read-only stand-in for scripts/verify/sql-assert.mjs: refuses what the real guard refuses, records the SQL it was given
 cat > "$T/stub-sql-assert.mjs" <<'JSEOF'
-import { writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const args = process.argv.slice(2);
@@ -154,7 +155,13 @@ const { checkReadOnlySql } = await import(pathToFileURL(process.env.STUB_GUARD).
 const g = checkReadOnlySql(sql);
 if (!g.ok) { console.error("refused by the read-only guard: " + g.reason); process.exit(2); }
 if (!/from\s+cron\.job/i.test(sql)) { console.error("stub: not a cron.job query"); process.exit(4); }
+if (process.env.STUB_CALLS) appendFileSync(process.env.STUB_CALLS, "call\n");
 if (process.env.STUB_RC && process.env.STUB_RC !== "0") { console.error("stub failure"); process.exit(Number(process.env.STUB_RC)); }
+if (process.env.STUB_FAIL_ONCE && !existsSync(process.env.STUB_FAIL_ONCE)) {
+  writeFileSync(process.env.STUB_FAIL_ONCE, "failed once\n");
+  console.error("stub: the first read fails");
+  process.exit(4);
+}
 console.log(process.env.STUB_JOBS === undefined ? "-" : process.env.STUB_JOBS);
 JSEOF
 STUB="$T/stub-sql-assert.mjs"
@@ -348,8 +355,19 @@ NCASE=$((NCASE + 1))
 if [ "$(tr -d '\r' < "$MODE_MARK" 2>/dev/null)" = "direct" ]; then printf 'ok   a VERIFY_SQL_MODE the caller set is kept, not overwritten\n'; else NFAIL=$((NFAIL + 1)); printf "FAIL the mode sql-assert saw with VERIFY_SQL_MODE=direct was '%s', expected direct\n" "$(cat "$MODE_MARK" 2>/dev/null)"; fi
 t "live read: a list missing one job through the stub is undisposed" 1 "undisposed=1 vercel_crons_both_repos=1" +"'cost001-metric-alerts'" -- disp CRON_JOBS_FILE= CRON_SQL_ASSERT="$STUB" STUB_GUARD="$GUARD" STUB_JOBS="${JOBS_CSV//cost001-metric-alerts,/}"
 t "live read: the sentinel '-' (no active jobs) is an empty list" 1 "undisposed=13 vercel_crons_both_repos=1" -- disp CRON_JOBS_FILE= CRON_SQL_ASSERT="$STUB" STUB_GUARD="$GUARD" STUB_JOBS="-"
-t "live read fails (sql-assert exit 4): exit 2, no undisposed= line, never a pass" 2 none -- disp CRON_JOBS_FILE= CRON_SQL_ASSERT="$STUB" STUB_GUARD="$GUARD" STUB_RC=4
-t "live read cannot run (sql-assert exit 3): exit 2" 2 none -- disp CRON_JOBS_FILE= CRON_SQL_ASSERT="$STUB" STUB_GUARD="$GUARD" STUB_RC=3
+CALLS="$(winpath "$T")/sql.calls"
+rm -f "$CALLS"
+t "live read fails every time (sql-assert exit 4): exit 2, no undisposed= line, never a pass" 2 none -- disp CRON_JOBS_FILE= CRON_SQL_ASSERT="$STUB" STUB_GUARD="$GUARD" STUB_CALLS="$CALLS" STUB_RC=4 CRON_READ_RETRY_WAIT=0
+NCASE=$((NCASE + 1))
+if [ "$(wc -l < "$CALLS" 2>/dev/null | tr -d ' ')" = "3" ]; then printf 'ok   an exit-4 read is tried three times and then given up on\n'; else NFAIL=$((NFAIL + 1)); printf "FAIL an exit-4 read was tried %s times, expected 3\n" "$(wc -l < "$CALLS" 2>/dev/null | tr -d ' ')"; fi
+rm -f "$CALLS"
+t "live read cannot run (sql-assert exit 3): exit 2" 2 none -- disp CRON_JOBS_FILE= CRON_SQL_ASSERT="$STUB" STUB_GUARD="$GUARD" STUB_CALLS="$CALLS" STUB_RC=3 CRON_READ_RETRY_WAIT=0
+NCASE=$((NCASE + 1))
+if [ "$(wc -l < "$CALLS" 2>/dev/null | tr -d ' ')" = "1" ]; then printf 'ok   an exit-3 read is not tried again\n'; else NFAIL=$((NFAIL + 1)); printf "FAIL an exit-3 read was tried %s times, expected 1\n" "$(wc -l < "$CALLS" 2>/dev/null | tr -d ' ')"; fi
+rm -f "$CALLS" "$T/fail.once"
+t "live read: a first read that times out (exit 4) is tried again and then passes" 0 "$OK1" -- disp CRON_JOBS_FILE= CRON_SQL_ASSERT="$STUB" STUB_GUARD="$GUARD" STUB_CALLS="$CALLS" STUB_FAIL_ONCE="$(winpath "$T")/fail.once" STUB_JOBS="$JOBS_CSV" CRON_READ_RETRY_WAIT=0
+NCASE=$((NCASE + 1))
+if [ "$(wc -l < "$CALLS" 2>/dev/null | tr -d ' ')" = "2" ]; then printf 'ok   the retried read took exactly two calls\n'; else NFAIL=$((NFAIL + 1)); printf "FAIL the retried read took %s calls, expected 2\n" "$(wc -l < "$CALLS" 2>/dev/null | tr -d ' ')"; fi
 
 # ------------------------------------------------------------------- usage and missing files
 t "an unknown argument: exit 2" 2 none -- disp --live
