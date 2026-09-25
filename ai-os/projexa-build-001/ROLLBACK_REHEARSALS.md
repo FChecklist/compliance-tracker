@@ -101,3 +101,6 @@ landed in between.
 
 | migration | result | hashes | forward | time_utc | who |
 |---|---|---|---|---|---|
+| 0615_build001_projexa_timer | PASS_ROLLED_BACK | h0=0682db710b2a714afdf8eea8ff0b7aa5 h1=cd6ced07f0347f44c4b1500d30d1fdb4 h2=0682db710b2a714afdf8eea8ff0b7aa5 | forward_sha256=f801b42a58617ca440d73ad16489927202d0e3af4a70b9e9d66950f624ed0671 | 2026-09-25T10:58:00Z | PM (Claude Code, PROJEXA PROJECT MANAGER) |
+
+Notes on the 0615 row. The block was generated with `--schemas compliance,public`, so the hashes cover those two schemas (19,698 objects). Step (a) taken through the Supabase SQL tool just before the block gave 0682db710b2a714afdf8eea8ff0b7aa5 with no `projexa_timer_*` function present, the same value as the block's own h0. Step (a) was NOT repeated after the block; the apply followed directly, and the live checks after the apply (3 functions, all service_role only, 1 active projexa- cron job) are in the PR description. The forward file was applied through `apply_migration` (name build001_projexa_timer); the drizzle ledger row (created_at 1790072500000) was written. `scripts/verify/lib/rollback-lib.mjs` `touchedSchemas` now also counts the schema of a schema-qualified CREATE FUNCTION, because this migration creates functions in the existing schema public and creates no schema.
