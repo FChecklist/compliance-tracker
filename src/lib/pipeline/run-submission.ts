@@ -25,6 +25,7 @@ import { type ResolutionSource, classifySegment, classifySubmission, normaliseFo
 import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
+import type { Level1Outcome } from "./level1";
 import { makePhraseFuzzyRepo, type PhraseFuzzyRepo } from "./phrase-fuzzy";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
 import { codeForParam, failureLogLine, isRetryableFailure, pipelineFailure, serialiseFailure, type PipelineFailure } from "./error-codes";
@@ -166,6 +167,16 @@ export type RunSubmissionInput = {
    * always a real compliance.users.id or nothing at all.
    */
   actorUserId?: string | null;
+  /**
+   * PROJEXA-BUILD-001 U-43 (2026-09-25, owner directive: "we will not use our
+   * AI if the user has pasted the AI Work link"). "off" keeps Level 0, the
+   * reuse cache and the phrase-fuzzy tier -- all free, no model -- and stops
+   * there: a segment they leave unresolved stays a gap, and runLevel1 (with
+   * the assertAiProviderAllowed gate inside it) is never called. The external
+   * AI link route passes "off" because the caller's own AI is Level 1 there.
+   * Omitted or "internal" is the behaviour every other caller had before.
+   */
+  level1?: "internal" | "off";
 };
 
 export type TaskOutcome = {
@@ -893,7 +904,7 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
   // signal at this same L0-miss -> Level-1 boundary -- see phrase-fuzzy.ts.
   // Injected (same testability seam as repo/reuseRepo) -- undefined for any
   // caller that doesn't pass one.
-  const level1 = await resolveMissesWithReuseCache(missIndices.map((i) => segs[i].text), level1Context(input), reuseRepo, undefined, undefined, fuzzyRepo);
+  const level1 = await resolveMissesWithReuseCache(missIndices.map((i) => segs[i].text), level1Context(input), reuseRepo, level1RunnerFor(input), undefined, fuzzyRepo);
   modelCallCount += level1.modelCalls;
   const aiByIndex = level1.resolutions;
 
@@ -954,7 +965,7 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
     retryTexts.map((r) => classifyL0(r.text, { orgId: input.orgId, userId: input.userId }, repo))
   );
   const retryMissIdx = retryL0.map((r, i) => (r.kind === "miss" ? i : -1)).filter((i) => i >= 0);
-  const retryLevel1 = await resolveMissesWithReuseCache(retryMissIdx.map((i) => retryTexts[i].text), level1Context(input), reuseRepo, undefined, undefined, fuzzyRepo);
+  const retryLevel1 = await resolveMissesWithReuseCache(retryMissIdx.map((i) => retryTexts[i].text), level1Context(input), reuseRepo, level1RunnerFor(input), undefined, fuzzyRepo);
   modelCallCount += retryLevel1.modelCalls;
   const retryAi = retryLevel1.resolutions;
 
@@ -994,6 +1005,22 @@ function level1Context(input: RunSubmissionInput) {
     projectId: input.projectId ?? null,
     candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
   };
+}
+
+/**
+ * U-43: the Level 1 step for this submission. undefined lets
+ * resolveMissesWithReuseCache use its default, the real runLevel1. With
+ * level1 "off" the step makes no model call and consults no provider: every
+ * text that reached it comes back unresolved, so classifySegment() turns it
+ * into the same gap a Level 1 "no function" answer produces today.
+ */
+function level1RunnerFor(input: RunSubmissionInput): ((texts: string[]) => Promise<Level1Outcome>) | undefined {
+  if (input.level1 !== "off") return undefined;
+  return async (texts) => ({
+    resolutions: texts.map(() => null),
+    reasons: texts.map(() => "Level 1 is off for this caller"),
+    modelCalls: 0,
+  });
 }
 
 function deriveSubmissionStatus(tasks: TaskOutcome[], gapCount: number): RunSubmissionResult["status"] {
