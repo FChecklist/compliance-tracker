@@ -290,7 +290,7 @@ Order inside the phase: U-16 (already decided) -> U-17 rollback tooling -> U-20 
 | U id | work | register rows | state on 2026-09-25 |
 |---|---|---|---|
 | U-22 | Evidence columns on platform.sumeet_requirements; the 31 EXC-ITEM rows | BR-307, BR-308, BR-309, BR-310, BR-311, BR-312 [BR-401] | Done. Migrations 0616 and 0617 applied to verdian-ai and merged (PR #1860); BR-307, BR-308, BR-309, BR-310, BR-311 pass (decisions PMD-30, PMD-31; follow-up PR #1863). |
-| U-23 | verify:all runs at least 111 checks; the deployed-URL half waits for go-live | BR-313, BR-314 | In progress (agent building verify:all, the phase-gate runner and the read-only SQL path). |
+| U-23 | verify:all runs at least 111 checks; the deployed-URL half waits for go-live | BR-313, BR-314 | Done. verify:all (111 checks, 0 failed) and the phase-gate runner merged (PR #1870, #1874); BR-313 passes, BR-401 runs the gate for phase 3. |
 | U-24 | CI runs the PROJEXA Playwright half and it becomes a required check | BR-315, BR-316 [BR-401] | Done as diagnosis: the Env-1 job fails for two reasons that need the owner (stored test-session secret, BR-315) and a cleanup of test data; BR-316 amended (PMD-29) and passes; Env-1 joins the required list after 3 green full runs. |
 | U-25 | Identity gateway on Supabase Edge (PMD-01), key-set spike first, fallback (c) | BR-317, BR-318, BR-319, BR-320, BR-321, BR-322, BR-323, BR-324 [BR-401] | Done. Migration 0618 and Edge Function projexa-read live with the switch OFF (PR #1861); BR-317 to BR-321, BR-323, BR-324 pass; BR-322 waits for a real PROJEXA session from the owner (PMD-32). |
 | U-26 | Zero service_role in built browser bundles, scanned in CI | BR-325, BR-326, BR-327 [BR-401] | Done. Scanner and CI job merged (compliance-tracker PR #1855, projexa PR #321), BR-316 lists the job as required, mutation proof recorded (job failed on a planted service_role, run 36131620580); BR-327 pass; BR-326 reads the check on main; BR-325 (local run) needs a CI-only build (owner-blocked row). |
@@ -342,12 +342,12 @@ Order inside the phase: U-22 columns and rows -> U-23 verify:all; U-25 spike (BR
 
 | U id | work | register rows | state on 2026-09-25 |
 |---|---|---|---|
-| U-27 | BOQ line items read with keyset pagination: body under 1 MB, route under 2,000 ms | BR-403, BR-404, BR-405 [BR-501] | In progress (agent building keyset pagination behind the flag BUILD001_BOQ_KEYSET_PAGINATION and the mutation runner). |
-| U-28 | BOQ registry entries create_boq and get_boq_line_items; revision forwards lineItems, override and change-order id | BR-406, BR-407, BR-408 [BR-501] | Not started. |
+| U-27 | BOQ line items read with keyset pagination: body under 1 MB, route under 2,000 ms | BR-403, BR-404, BR-405 [BR-501] | Done. Keyset pagination behind BUILD001_BOQ_KEYSET_PAGINATION merged (PR #1871); BR-403, BR-404, BR-405 pass. PROJEXA must follow nextCursor and ?revision= before the flag is turned on (PMD-36). |
+| U-28 | BOQ registry entries create_boq and get_boq_line_items; revision forwards lineItems, override and change-order id | BR-406, BR-407, BR-408 [BR-501] | Done. create_boq, the revision fix (PR #1869) and get_boq_line_items (PR #1875) merged; BR-406, BR-407, BR-408 pass (PMD-34). |
 | U-29 | Surface 1: AI-prepared approval page with an approve action | BR-409, BR-410, BR-424 [BR-501] | Not started. |
-| U-30 | Q3 (proposals only, PMD-05) and Q4 (DNS owner-only, PMD-06) recorded; Resend inbound records prepared | BR-411, BR-412, BR-414 [BR-521] | Not started. |
-| U-31 | Email bridge: Resend attachments read; promote dispatches into EXECUTORS as a proposal | BR-413, BR-414, BR-416 [BR-521] | Not started. |
-| U-32 | One BOQ record id on 4 surfaces with 4 attributed audit rows | BR-402, BR-410, BR-415, BR-416, BR-417, BR-418 [BR-501] | Not started. |
+| U-30 | Q3 (proposals only, PMD-05) and Q4 (DNS owner-only, PMD-06) recorded; Resend inbound records prepared | BR-411, BR-412, BR-414 [BR-521] | Done. Q3 and Q4 recorded and the Resend inbound DNS record list prepared (PR #1865); BR-411 passes; BR-412 (records applied) waits for the owner. |
+| U-31 | Email bridge: Resend attachments read; promote dispatches into EXECUTORS as a proposal | BR-413, BR-414, BR-416 [BR-521] | Done on the code side. Migration 0620 (attachments table) live and the webhook and promote-as-proposal merged (PR #1877); BR-413, BR-414 pass; the live email path waits for the owner's DNS step (PMD-38 for the confirm contract). |
+| U-32 | One BOQ record id on 4 surfaces with 4 attributed audit rows | BR-402, BR-410, BR-415, BR-416, BR-417, BR-418 [BR-501] | Partly done. Part A: audit_logs.surface (migration 0619, live) and logActivity's optional surface merged (PR #1876), BR-415 passes. Not started: the surface values written by the four surfaces, BR-410, BR-416..418, BR-287. |
 | U-33 | Browser-first BOQ: offline load, Web Worker filter, 0 function invocations, CDN HIT | BR-419, BR-420, BR-421, BR-422, BR-423 [BR-501] | Not started. |
 | U-46 | Link endpoints on Supabase Edge: Markdown manual, OpenAPI, MCP, REST; one project and one user | BR-424 [BR-523, BR-524] | Not started. |
 | U-47 | Paste-back fallback for AIs that cannot reach the URL (ties to surface 1) | BR-424 [BR-524] | Not started. |
@@ -400,11 +400,11 @@ Order inside the phase: U-27 pagination -> U-28 registry entries -> U-29 surface
 | U id | work | register rows | state on 2026-09-25 |
 |---|---|---|---|
 | U-34 | Q1 build order recorded (PMD-03) | BR-502 | Not started. |
-| U-35 | COST_BUDGET.csv per-call ceilings; projected Vercel gross at most 20.00 USD a month | BR-503, BR-504 | Not started. |
+| U-35 | COST_BUDGET.csv per-call ceilings; projected Vercel gross at most 20.00 USD a month | BR-503, BR-504 | Done. COST_BUDGET.csv and the check merged (PR #1866); BR-503 passes. |
 | U-36 | Extraction: extend document-extraction-service.ts (every xlsx sheet, BOQ/project schema, Edge model call, idempotent, schema-validated) | BR-505, BR-506, BR-507, BR-508, BR-509, BR-510, BR-511, BR-525 | Not started. |
 | U-37 | POST projects/from-document reusing createProject() and createBoq() | BR-508, BR-509, BR-525 | Not started. |
 | U-38 | Remaining registry entries incl. create_drawing and create_mom traps; billing claims read-only | BR-512, BR-513, BR-522, BR-525 | Not started. |
-| U-39 | /api/mcp: implement or drop the 13 construction and GST tools, with person and role | BR-514, BR-525 | Not started. |
+| U-39 | /api/mcp: implement or drop the 13 construction and GST tools, with person and role | BR-514, BR-525 | Done. Tests for the two MCP surfaces (PR #1867) and the fix that a link whose person is no longer active cannot act (PR #1868, PMD-33); BR-514 passes. |
 | U-40 | Scheduler bridge: pg_cron -> Edge -> runSubmission as the schedule owner | BR-511, BR-515, BR-516, BR-517, BR-525 | Not started. |
 | U-41 | Vercel crons: 1 in compliance-tracker, 0 in projexa, none */N; crons drift guard | BR-516, BR-518, BR-519 [BR-328, BR-329] | Partly done. The crons drift guard is merged (PR #1862): BR-328 and BR-329 pass. Cutting vercel.json to one cron (BR-518, BR-519) waits for the owner release with the go-live pack (draft PR #1808). |
 | U-42 | All 28 surface cells proven | BR-520, BR-521, BR-522 | Not started. |
