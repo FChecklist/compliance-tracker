@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 // PROJEXA-BUILD-001 U-40, register row BR-515: the scheduler bridge's app route. A due schedule runs as the schedule's OWNER (user id and
-// role; no API key anywhere) and yields a PROPOSAL for a write (PMD-05); a read runs through the executor registry as the owner.
+// role; no API key anywhere) and yields a PROPOSAL for a write (PMD-05), at most one waiting proposal per schedule; a read runs
+// through the executor registry as the owner. Every claimed run has one audit row, a run that throws included.
 //
 // WHAT IS REAL: the route (secret check), src/lib/pipeline/scheduler-bridge.ts (the due read, the atomic claim, the owner check, the
 // proposal, the audit row, the result record), src/lib/pipeline/cron-next.ts, the function registry, logActivity, drizzle's query
@@ -130,7 +131,7 @@ function request(auth: string | null = `Bearer ${SECRET}`): NextRequest {
   if (auth !== null) headers.set("authorization", auth)
   return new NextRequest("https://app.example.test/api/internal/scheduler-bridge/run", { method: "POST", headers })
 }
-type Summary = { ranAt: string; checked: number; claimed: number; proposed: number; readsRun: number; failed: number; skipped: number; deferred: number; results: Array<{ scheduleId: string; outcome: string }> }
+type Summary = { ranAt: string; checked: number; claimed: number; proposed: number; alreadyPending: number; readsRun: number; failed: number; skipped: number; deferred: number; results: Array<{ scheduleId: string; outcome: string }> }
 async function run(auth?: string | null): Promise<{ status: number; body: Summary; text: string }> {
   const res = await POST(request(auth))
   const text = await res.text()
@@ -452,6 +453,71 @@ describe("an owner who is no longer an active user of the organisation (PMD-33)"
   })
 })
 
+// ─── one waiting proposal per schedule ─────────────────────────────────────
+describe("one proposal waits per schedule: a frequent cadence cannot flood the approval list", () => {
+  const dueAgain = (id: string) => pglite.query("UPDATE compliance.pipeline_schedules SET next_run_at = '2020-01-01T00:00:00Z' WHERE id = $1", [id])
+  const WRITE = { fn: "create_boq", params: { projectId: "proj-1", title: "Weekly BOQ" }, cadence: "*/5 * * * *" }
+
+  test("a write schedule whose earlier proposal is still in_progress stores no second one: already_pending, each run audited, next run moved on", async () => {
+    await addSchedule("s-dup", WRITE)
+    const first = await run()
+    expect(first.body).toMatchObject({ proposed: 1, alreadyPending: 0 })
+    const [proposal] = await submissions()
+    expect(proposal.status).toBe("in_progress")
+
+    // Three more due ticks while nobody has acted on the proposal.
+    for (let tick = 0; tick < 3; tick++) {
+      await dueAgain("s-dup")
+      const again = await run()
+      expect(again.body).toMatchObject({ claimed: 1, proposed: 0, alreadyPending: 1, failed: 0, skipped: 0, readsRun: 0 })
+      expect(again.body.results).toEqual([{ scheduleId: "s-dup", outcome: "already_pending" }])
+      const row = await schedule("s-dup")
+      expect(row.last_result).toEqual({ trigger: "scheduler_bridge", ranAt: again.body.ranAt, outcome: "already_pending", functionId: "create_boq", pendingSubmissionId: proposal.id })
+      expect(row.next_run_at.getTime()).toBeGreaterThan(new Date(again.body.ranAt).getTime())
+      expect(row.is_active).toBe(true)
+    }
+
+    // Still one proposal, and nothing was executed.
+    expect((await submissions()).map((s) => s.id)).toEqual([proposal.id])
+    expect(execCalls).toEqual([])
+    // One audit row per claimed run: four runs, four rows, all in the owner's name; the last three say what they did not do.
+    const rows = await audits("s-dup")
+    expect(rows.map((r) => JSON.parse(r.details!).outcome)).toEqual(["proposed", "already_pending", "already_pending", "already_pending"])
+    for (const r of rows) expect(r).toMatchObject({ action: "pipeline_schedule.run", user_id: OWNER.id, api_key_id: null, actor_role: "manager", org_id: ORG_A, surface: "s1_one_page_ai_prepared" })
+    expect(JSON.parse(rows[3].details!)).toEqual({ trigger: "scheduler_bridge", scheduleId: "s-dup", functionId: "create_boq", outcome: "already_pending", pendingSubmissionId: proposal.id })
+  })
+
+  test("once the waiting proposal has been acted on (no longer in_progress), the next due tick proposes again", async () => {
+    await addSchedule("s-cycle", WRITE)
+    await run()
+    const [first] = await submissions()
+    await pglite.query("UPDATE compliance.submissions SET status = 'done' WHERE id = $1", [first.id])
+    await dueAgain("s-cycle")
+    const { body } = await run()
+    expect(body).toMatchObject({ proposed: 1, alreadyPending: 0 })
+    const subs = await submissions()
+    expect(subs).toHaveLength(2)
+    expect(subs.map((s) => s.status).sort()).toEqual(["done", "in_progress"])
+    expect((await audits("s-cycle")).map((r) => JSON.parse(r.details!).outcome)).toEqual(["proposed", "proposed"])
+  })
+
+  test("a proposal that waits for one schedule does not hold back another schedule, even for the same function and parameters", async () => {
+    await addSchedule("s-one", WRITE)
+    await addSchedule("s-two", { ...WRITE, next: "2020-01-02T00:00:00Z" })
+    await run()
+    expect((await submissions()).map((s) => s.selected_chain.scheduleId).sort()).toEqual(["s-one", "s-two"])
+    await dueAgain("s-one")
+    await pglite.query("UPDATE compliance.submissions SET status = 'done' WHERE selected_chain->>'scheduleId' = 's-one'")
+    await addSchedule("s-three", { ...WRITE, next: "2020-01-03T00:00:00Z" })
+    const { body } = await run()
+    expect(body.results).toEqual([
+      { scheduleId: "s-one", outcome: "proposed" },
+      { scheduleId: "s-three", outcome: "proposed" },
+    ])
+    expect(await submissions()).toHaveLength(4)
+  })
+})
+
 // ─── failures ──────────────────────────────────────────────────────────────
 describe("a failing schedule moves on instead of running every tick", () => {
   test("a function that fails records its code, moves next_run_at on, and does not run again at the next tick", async () => {
@@ -488,6 +554,63 @@ describe("a failing schedule moves on instead of running every tick", () => {
     expect((await audits("s-boom"))).toHaveLength(1)
     expect((await schedule("s-after")).last_result).toMatchObject({ outcome: "read_ok", result: { kind: "list", count: 2 } })
     for (const id of ["s-boom", "s-after"]) expect((await schedule(id)).next_run_at.getTime()).toBeGreaterThan(new Date(body.ranAt).getTime())
+  })
+
+  // The proposal and its audit row share one transaction, so a proposal that fails to store rolls its own audit row back with it. The
+  // run is still one claimed run and still owes one audit row: it is written afterwards, in a transaction of its own. The insert is made
+  // to fail by a CHECK constraint on the real submissions table, which the real database enforces (a stand-in for any failed insert).
+  test("a proposal that cannot be stored is a failed run that still gets its one audit row, naming the owner, and leaves nothing half-written", async () => {
+    await pglite.exec("ALTER TABLE compliance.submissions ADD CONSTRAINT u40_refuse_bridge_proposals CHECK (coalesce(selected_chain->>'source', '') <> 'scheduler_bridge')")
+    try {
+      await addSchedule("s-store-fails", { fn: "create_boq", params: { projectId: "p", title: MARKER }, next: "2020-01-01T00:00:00Z" })
+      await addSchedule("s-after", { next: "2020-01-02T00:00:00Z" })
+      const { body, text } = await run()
+
+      expect(body.results).toEqual([
+        { scheduleId: "s-store-fails", outcome: "failed" },
+        { scheduleId: "s-after", outcome: "read_ok" },
+      ])
+      expect(body).toMatchObject({ claimed: 2, failed: 1, readsRun: 1, proposed: 0, alreadyPending: 0 })
+      expect(await submissions()).toEqual([])
+
+      const row = await schedule("s-store-fails")
+      expect(row.last_result).toEqual({ trigger: "scheduler_bridge", ranAt: body.ranAt, outcome: "failed", functionId: "create_boq", failureCode: "INTERNAL_ERROR" })
+      expect(row.next_run_at.getTime()).toBeGreaterThan(new Date(body.ranAt).getTime())
+      expect(row.is_active).toBe(true)
+
+      const rows = await audits("s-store-fails")
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ action: "pipeline_schedule.run", entity_type: "pipeline_schedule", user_id: OWNER.id, api_key_id: null, actor_name: OWNER.name, actor_role: "manager", org_id: ORG_A, surface: "s1_one_page_ai_prepared" })
+      expect(JSON.parse(rows[0].details!)).toEqual({ trigger: "scheduler_bridge", scheduleId: "s-store-fails", functionId: "create_boq", outcome: "failed", failureCode: "INTERNAL_ERROR" })
+      // Neither the database's error text nor the parameters reach the response, the audit row or last_result.
+      for (const seen of [text, rows[0].details!, JSON.stringify(row.last_result)]) {
+        expect(seen).not.toContain(MARKER)
+        expect(seen).not.toContain("u40_refuse_bridge_proposals")
+      }
+      // Two claimed runs, two audit rows in all.
+      expect(await audits()).toHaveLength(2)
+    } finally {
+      await pglite.exec("ALTER TABLE compliance.submissions DROP CONSTRAINT u40_refuse_bridge_proposals")
+    }
+  })
+
+  // The owner read is the other step that can throw before any audit row exists. The owner is then not known, so the row names no
+  // person (it goes out as the bridge's own) and says why. The read is made to fail by taking the users table away for one run.
+  test("an owner row that cannot be read at all is a failed run with one audit row that names no person and says why", async () => {
+    await addSchedule("s-lookup")
+    await pglite.exec("ALTER TABLE compliance.users RENAME TO users_offline")
+    try {
+      const { body } = await run()
+      expect(body).toMatchObject({ claimed: 1, failed: 1, readsRun: 0 })
+      expect(execCalls).toEqual([])
+      expect((await schedule("s-lookup")).last_result).toEqual({ trigger: "scheduler_bridge", ranAt: body.ranAt, outcome: "failed", functionId: "get_construction_project_dashboard", failureCode: "INTERNAL_ERROR", reason: "owner_lookup_failed" })
+      const rows = await audits("s-lookup")
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ action: "pipeline_schedule.run", user_id: null, api_key_id: null, actor_name: "Scheduler bridge", actor_role: "system", org_id: ORG_A, surface: "s1_one_page_ai_prepared" })
+      expect(JSON.parse(rows[0].details!)).toMatchObject({ trigger: "scheduler_bridge", outcome: "failed", failureCode: "INTERNAL_ERROR", reason: "owner_lookup_failed" })
+    } finally {
+      await pglite.exec("ALTER TABLE compliance.users_offline RENAME TO users")
+    }
   })
 
   test("a function id the registry does not know fails without calling the pipeline", async () => {

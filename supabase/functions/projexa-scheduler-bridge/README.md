@@ -36,8 +36,8 @@ The function also uses the platform-injected `SUPABASE_URL` and `SUPABASE_SERVIC
 
 1. Claims it with one UPDATE that also moves `next_run_at` to the next slot, so two overlapping runs run it once and a failing run does not repeat every tick.
 2. Reads the owner's row now. An owner who is missing, deactivated or in another organisation means the schedule is skipped and deactivated (PMD-33).
-3. A write function is never run: one proposal row is stored (`compliance.submissions`, `selected_chain` with `source: "scheduler_bridge"`) for the approval list. A read function runs through the executor registry with the owner as `userId` and `actorUserId` and the owner's role.
-4. Writes one `compliance.audit_logs` row: `user_id` the owner, `api_key_id` null, `surface` `s1_one_page_ai_prepared`, `details` JSON with `trigger: "scheduler_bridge"`.
+3. A write function is never run: one proposal row is stored (`compliance.submissions`, `selected_chain` with `source: "scheduler_bridge"`) for the approval list. A schedule keeps at most one waiting proposal: while its earlier proposal is still `in_progress`, a due tick stores nothing and the run is recorded as `already_pending` (the schedule stays active and moves to its next slot). A read function runs through the executor registry with the owner as `userId` and `actorUserId` and the owner's role.
+4. Writes one `compliance.audit_logs` row per claimed run, a run that fails included: `user_id` the owner, `api_key_id` null, `surface` `s1_one_page_ai_prepared`, `details` JSON with `trigger: "scheduler_bridge"`. The one row with no `user_id` is a run whose owner row is gone or could not be read: it names the bridge itself (`actor_role` `system`).
 
 No model is asked at any point: the schedule already names its function.
 

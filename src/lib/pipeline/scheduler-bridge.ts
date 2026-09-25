@@ -19,6 +19,11 @@
 //        list reads (U-29, prepared-proposals.ts): a compliance.submissions row, status in_progress, selected_chain
 //        { source: "scheduler_bridge", functionId, params, note, scheduleId }, the owner as user_id. A person approves it on the
 //        approval list; nothing is written until then (PMD-05). The proposal and its audit row are one transaction.
+//        ONE WAITING PROPOSAL PER SCHEDULE. When the schedule already has a proposal that is still in_progress (no person has
+//        acted on it), the run stores no second one: it is recorded as already_pending, with the waiting proposal's id, and
+//        the schedule stays active and moves on to its next slot. A frequent cadence therefore cannot pile copies of one
+//        proposal onto the approval list. The check and the insert are one transaction. While a proposal waits, the schedule
+//        proposes nothing new; once it is approved, rejected or otherwise leaves in_progress, the next due tick proposes again.
 //        a READ function runs through the executor registry (executeTask) as the owner: userId and actorUserId are the owner, role
 //        is the owner's role (the construction money figures are redacted against it), and the call carries no API key. Reads
 //        run unattended (PMD-05). Only a summary of the result is kept (its shape and size), never the body: last_result is
@@ -27,8 +32,10 @@
 //        runSubmission() resolve words to a function and may reach Level 1; a job that fires every five minutes must not (PMD-40).
 //   4. AUDIT. One compliance.audit_logs row per claimed run: user_id is the owner, api_key_id is null, surface is
 //      s1_one_page_ai_prepared, details is JSON with trigger "scheduler_bridge" (BR-517 reads exactly that).
-//      The one exception is a run whose owner row no longer exists: there is no person to name, so that row has user_id null and
-//      the actor is the bridge itself (role "system").
+//      This holds for a run that throws too: when the proposal transaction fails, its own audit row is rolled back with it, so the
+//      failure is audited afterwards in a transaction of its own (outcome failed, failureCode INTERNAL_ERROR).
+//      The one exception is a run whose owner row no longer exists (or could not be read): there is no person to name, so that
+//      row has user_id null and the actor is the bridge itself (role "system").
 //   5. RECORD. last_result gets the run's outcome and code; a departed owner also sets is_active false.
 //
 // SURFACE. s1_one_page_ai_prepared is the surface a system-prepared proposal is recorded under: the AI prepared it, and the person
@@ -43,7 +50,7 @@
 // CROSS-ORGANISATION ACCESS. The due read and the claim go through the plain db client (the table owner, which bypasses RLS, as
 // every cross-organisation cron route does); the owner lookup does too. Everything a run writes for an organisation (the proposal,
 // the audit row) goes through withTenantContext for that schedule's organisation.
-import { and, asc, eq, lte } from "drizzle-orm"
+import { and, asc, eq, lte, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { auditLogs, pipelineSchedules, submissions, users } from "@/lib/db/schema"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
@@ -78,6 +85,7 @@ type OwnerRow = typeof users.$inferSelect
 
 export type BridgeOutcome =
   | "proposed"
+  | "already_pending"
   | "read_ok"
   | "failed"
   | "owner_not_active"
@@ -91,6 +99,8 @@ export type BridgeSummary = {
   /** schedules this run claimed */
   claimed: number
   proposed: number
+  /** write schedules that stored nothing because their earlier proposal is still waiting for a person */
+  alreadyPending: number
   readsRun: number
   failed: number
   /** owner not an active user of the organisation, or a cadence that cannot be read: deactivated, not run */
@@ -106,7 +116,18 @@ export type RunDueInput = {
   timeBudgetMs?: number
 }
 
-type RunReport = { outcome: Exclude<BridgeOutcome, "claimed_elsewhere">; detail: Record<string, unknown>; deactivate?: boolean }
+type RunOutcome = Exclude<BridgeOutcome, "claimed_elsewhere">
+type RunReport = { outcome: RunOutcome; detail: Record<string, unknown>; deactivate?: boolean }
+
+/** Which BridgeSummary counter a claimed run's outcome adds to. */
+const SUMMARY_COUNTER: Record<RunOutcome, "proposed" | "alreadyPending" | "readsRun" | "failed" | "skipped"> = {
+  proposed: "proposed",
+  already_pending: "alreadyPending",
+  read_ok: "readsRun",
+  failed: "failed",
+  owner_not_active: "skipped",
+  invalid_cadence: "skipped",
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -190,10 +211,26 @@ async function auditOnly(owner: OwnerRow | undefined, schedule: ScheduleRow, rep
   }
 }
 
-/** Store one proposal and its audit row in one transaction; returns the submission id. */
-async function storeProposal(owner: OwnerRow, schedule: ScheduleRow, params: Record<string, unknown>, projectId: string | null, report: RunReport): Promise<string> {
+/**
+ * Store one proposal and its audit row in one transaction, and return the report of the run. When a proposal this schedule
+ * stored earlier is still waiting (status in_progress, selected_chain.scheduleId equal to the schedule's id), nothing new is
+ * stored: the report is already_pending and names the waiting proposal. The check and the insert share the transaction, and one
+ * schedule is claimed by one run at a time, so two copies cannot be stored side by side.
+ */
+async function storeProposal(owner: OwnerRow, schedule: ScheduleRow, params: Record<string, unknown>, projectId: string | null, missing: string[]): Promise<RunReport> {
   const note = `Prepared by a schedule (${schedule.cadence} UTC) to run as ${owner.name}: ${functionLabel(schedule.functionId)}. Nothing is written until a person approves it.`.slice(0, NOTE_MAX_LENGTH)
   return withTenantContext({ orgId: schedule.orgId, userId: owner.id }, async (tx) => {
+    const [waiting] = await tx
+      .select({ id: submissions.id })
+      .from(submissions)
+      .where(and(eq(submissions.orgId, schedule.orgId), eq(submissions.status, "in_progress"), sql`${submissions.selectedChain}->>'scheduleId' = ${schedule.id}`))
+      .orderBy(asc(submissions.createdAt), asc(submissions.id))
+      .limit(1)
+    if (waiting) {
+      const pending: RunReport = { outcome: "already_pending", detail: { pendingSubmissionId: waiting.id } }
+      await auditRun(tx, owner, schedule, pending)
+      return pending
+    }
     const [row] = await tx
       .insert(submissions)
       .values({
@@ -207,8 +244,9 @@ async function storeProposal(owner: OwnerRow, schedule: ScheduleRow, params: Rec
         classification: classifySubmission(["task"]),
       })
       .returning({ id: submissions.id })
-    await auditRun(tx, owner, schedule, report, { submissionId: row.id })
-    return row.id
+    const proposed: RunReport = { outcome: "proposed", detail: { missing, submissionId: row.id } }
+    await auditRun(tx, owner, schedule, proposed)
+    return proposed
   })
 }
 
@@ -230,9 +268,7 @@ async function runClaimed(schedule: ScheduleRow, owner: OwnerRow | undefined): P
   if (functionWrites(functionId)) {
     // PMD-05: a write is a proposal for a person to approve. It is never run from here.
     const missing = missingParamsFor(functionId, params, projectId).map((m) => m.name)
-    const report: RunReport = { outcome: "proposed", detail: { missing } }
-    const submissionId = await storeProposal(owner, schedule, params, projectId, report)
-    return { ...report, detail: { ...report.detail, submissionId } }
+    return storeProposal(owner, schedule, params, projectId, missing)
   }
 
   let report: RunReport
@@ -263,6 +299,32 @@ async function loadOwner(ownerUserId: string): Promise<OwnerRow | undefined> {
   return owner
 }
 
+/**
+ * Everything one claimed schedule does after the claim: read the owner, then run (or skip) it. It never throws. Anything that
+ * does throw (the proposal transaction, the owner read) is recorded as a failed run with code INTERNAL_ERROR, and that failed
+ * run gets its own audit row here: the transaction that threw rolled back its audit row with it, and "one audit row per claimed
+ * run" must hold for a run that fails as much as for one that succeeds. When the throw came from the owner read itself there is no
+ * person to name (the row goes out as the bridge's own, see auditRun) and the detail says why.
+ */
+async function runOneClaimed(schedule: ScheduleRow, cadenceReadable: boolean): Promise<RunReport> {
+  let owner: OwnerRow | undefined
+  let ownerRead = false
+  try {
+    owner = await loadOwner(schedule.ownerUserId)
+    ownerRead = true
+    if (!cadenceReadable) {
+      const skipped: RunReport = { outcome: "invalid_cadence", detail: { reason: "cadence_not_readable" }, deactivate: true }
+      return await auditOnly(owner, schedule, skipped)
+    }
+    return await runClaimed(schedule, owner)
+  } catch (error) {
+    // The claim already moved next_run_at on, so a failure here is recorded once and not retried at the next tick.
+    console.error(`scheduler-bridge: schedule ${schedule.id} failed:`, error)
+    const failed: RunReport = { outcome: "failed", detail: { failureCode: "INTERNAL_ERROR", ...(ownerRead ? {} : { reason: "owner_lookup_failed" }) } }
+    return auditOnly(owner, schedule, failed)
+  }
+}
+
 async function finish(schedule: ScheduleRow, ranAt: Date, report: RunReport): Promise<void> {
   const lastResult = { trigger: SCHEDULER_BRIDGE_TRIGGER, ranAt: ranAt.toISOString(), outcome: report.outcome, functionId: schedule.functionId, ...report.detail }
   await db
@@ -288,7 +350,7 @@ export async function runDueSchedules(input: RunDueInput = {}): Promise<BridgeSu
     .orderBy(asc(pipelineSchedules.nextRunAt), asc(pipelineSchedules.id))
     .limit(batchSize)
 
-  const summary: BridgeSummary = { ranAt: now.toISOString(), checked: due.length, claimed: 0, proposed: 0, readsRun: 0, failed: 0, skipped: 0, deferred: 0, results: [] }
+  const summary: BridgeSummary = { ranAt: now.toISOString(), checked: due.length, claimed: 0, proposed: 0, alreadyPending: 0, readsRun: 0, failed: 0, skipped: 0, deferred: 0, results: [] }
 
   for (const [index, schedule] of due.entries()) {
     if (Date.now() - startedAt >= timeBudgetMs) {
@@ -309,20 +371,7 @@ export async function runDueSchedules(input: RunDueInput = {}): Promise<BridgeSu
     }
     summary.claimed++
 
-    let report: RunReport
-    try {
-      const owner = await loadOwner(schedule.ownerUserId)
-      if (!next) {
-        const skipped: RunReport = { outcome: "invalid_cadence", detail: { reason: "cadence_not_readable" }, deactivate: true }
-        report = await auditOnly(owner, schedule, skipped)
-      } else {
-        report = await runClaimed(schedule, owner)
-      }
-    } catch (error) {
-      // The claim already moved next_run_at on, so a failure here is recorded once and not retried at the next tick.
-      console.error(`scheduler-bridge: schedule ${schedule.id} failed:`, error)
-      report = { outcome: "failed", detail: { failureCode: "INTERNAL_ERROR" } }
-    }
+    const report = await runOneClaimed(schedule, next !== null)
 
     try {
       await finish(schedule, now, report)
@@ -331,10 +380,7 @@ export async function runDueSchedules(input: RunDueInput = {}): Promise<BridgeSu
     }
 
     summary.results.push({ scheduleId: schedule.id, outcome: report.outcome })
-    if (report.outcome === "proposed") summary.proposed++
-    else if (report.outcome === "read_ok") summary.readsRun++
-    else if (report.outcome === "failed") summary.failed++
-    else summary.skipped++
+    summary[SUMMARY_COUNTER[report.outcome]]++
   }
 
   return summary
