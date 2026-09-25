@@ -8,12 +8,13 @@
 // honest reason, never a fabricated success).
 import { and, eq, desc } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { constructionBoqLineItems, constructionBoqs, constructionActivities, constructionLabourRoster, pmsIssues, users } from "@/lib/db/schema";
+import { constructionBoqLineItems, constructionBoqs, constructionActivities, constructionChangeOrders, constructionLabourRoster, pmsIssues, users } from "@/lib/db/schema";
 import { createProgressEntry } from "@/lib/services/construction-progress-service";
 import { logTime } from "@/lib/services/pms-time-service";
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
 import { createRosterEntry, recordAttendance } from "@/lib/services/construction-labour-service";
-import { createBoqRevision } from "@/lib/services/construction-boq-service";
+import { createBoq, createBoqRevision, validateBoqBodyShape, type BoqLineItemInput } from "@/lib/services/construction-boq-service";
+import { redactProjectSideFields } from "@/lib/services/cost-visibility-service";
 import { createMeeting } from "@/lib/services/pms-meeting-service";
 import { createDocumentRecord } from "@/lib/services/document-service";
 import { dispatchTool } from "@/lib/task-execution-engine";
@@ -441,18 +442,33 @@ function created(id: string, route: string, record: unknown): ExecutionOutcome {
  * exist at all still reaches the service and gets its own 404, as before. Its
  * own short transaction, closed before the service opens one (the F-15 shape
  * executeRecordWorkProgress already uses; D-06 forbids nesting).
+ *
+ * PROJEXA-BUILD-001 U-28 (BR-408): a revision's sourceChangeOrderId is an id
+ * parameter too. createBoqRevision() finds the change order by id and org only
+ * and then writes the new revision's id onto it, so a change order of project
+ * B named on a project-A revision would be linked to A's BOQ.
  */
-async function onAnotherProject(task: ExecutableTask, record: "roster" | "boq", id: string, projectId: string): Promise<boolean> {
+async function onAnotherProject(
+  task: ExecutableTask,
+  record: "roster" | "boq" | "change_order",
+  id: string,
+  projectId: string
+): Promise<boolean> {
   const found = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
     record === "roster"
       ? db.query.constructionLabourRoster.findFirst({
           where: and(eq(constructionLabourRoster.id, id), eq(constructionLabourRoster.orgId, task.orgId)),
           columns: { projectId: true },
         })
-      : db.query.constructionBoqs.findFirst({
-          where: and(eq(constructionBoqs.id, id), eq(constructionBoqs.orgId, task.orgId)),
-          columns: { projectId: true },
-        })
+      : record === "boq"
+        ? db.query.constructionBoqs.findFirst({
+            where: and(eq(constructionBoqs.id, id), eq(constructionBoqs.orgId, task.orgId)),
+            columns: { projectId: true },
+          })
+        : db.query.constructionChangeOrders.findFirst({
+            where: and(eq(constructionChangeOrders.id, id), eq(constructionChangeOrders.orgId, task.orgId)),
+            columns: { projectId: true },
+          })
   );
   return found !== undefined && found.projectId !== projectId;
 }
@@ -516,19 +532,117 @@ async function executeCreateMeeting(task: ExecutableTask): Promise<ExecutionOutc
   return created(row.id, `/moms/${row.id}`, row);
 }
 
+// ── PROJEXA-BUILD-001 U-28: the BOQ writes (BR-406, BR-408) ────────────────
+//
+// create_boq wraps createBoq() and create_boq_revision wraps
+// createBoqRevision(), the same services POST /api/v1/construction/boq and
+// POST /api/v1/construction/boq/[id]/revisions call. Both are write function
+// ids (WRITE_FUNCTION_IDS), so the dry run only proposes them and a proposal is
+// executed by confirmSubmission() for the person who confirms (PMD-05); a
+// caller that names no person cannot execute them at all (the first rule
+// below). Three rules hold for both:
+//   - the person the row is recorded under (createdById) is task.actorUserId,
+//     the person who confirmed -- never task.userId, which is the org API key's
+//     id on the PROJEXA proxy. The two routes refuse a key call that names no
+//     person (U-20b); these executors refuse it the same way
+//     executeRecordTimesheet does, before anything is read or written;
+//   - the line items reach the service as the caller sent them, and the
+//     service's own rules (validateBoqBodyShape, validateLineItemInputs) decide
+//     whether they are acceptable -- one validation path, not a second one here.
+//     A block the service cannot even read as a list is refused with the same
+//     REQUEST_REJECTED shape the service's own 400 produces;
+//   - the result carries no project-side cost field (redactProjectSideFields,
+//     the cost-visibility gate's own redaction), whatever the caller's role: it
+//     is written to pipeline_tasks.result and shown on the task receipt.
+//
+// A read of the same record type (get_boq_line_items, BR-407) needs only a
+// readSpec() row in function-registry.ts and one EXECUTORS line below, over
+// the keyset reader U-27 adds; nothing in these two executors changes for it.
+
+/** lineItems as createBoq/createBoqRevision read it: absent (undefined), or a list of objects. */
+function lineItemsParam(task: ExecutableTask): { ok: true; items: BoqLineItemInput[] | undefined } | { ok: false; failure: PipelineFailure } {
+  const raw = task.params.lineItems;
+  if (raw === undefined || raw === null) return { ok: true, items: undefined };
+  if (!Array.isArray(raw) || raw.some((item) => typeof item !== "object" || item === null || Array.isArray(item))) {
+    // A string, a single object or a list of scalars would reach the service's
+    // items.forEach() and come back as a TypeError (INTERNAL_ERROR). It is a
+    // malformed request, so it gets the shape the service's own 400 gets.
+    return { ok: false, failure: pipelineFailure("REQUEST_REJECTED", [], { status: 400, functionId: task.functionId }) };
+  }
+  return { ok: true, items: raw as BoqLineItemInput[] };
+}
+
+function unidentifiedActor(): ExecutionOutcome {
+  return { success: false, failure: pipelineFailure("NOT_PERMITTED", [], { reason: "unidentified_actor" }) };
+}
+
+async function executeCreateBoq(task: ExecutableTask): Promise<ExecutionOutcome> {
+  const missing = missingRequiredParam(task);
+  if (missing) return { success: false, failure: missing };
+  // The BOQ is created on the task's own project. A params.projectId naming a
+  // different one is refused rather than silently dropped: run-submission.ts
+  // sets task.projectId from the validated params, so the two only differ when
+  // a caller asked for a project this task does not act on.
+  const named = str(task.params.projectId);
+  if (task.projectId && named && named !== task.projectId) {
+    return { success: false, failure: pipelineFailure("PROJECT_NOT_REACHABLE", ["projectId"]) };
+  }
+  const projectId = (task.projectId ?? named)!;
+  const actorId = task.actorUserId;
+  if (!actorId) return unidentifiedActor();
+  const lineItems = lineItemsParam(task);
+  if (!lineItems.ok) return { success: false, failure: lineItems.failure };
+  // "line_items" / "items" in place of lineItems would otherwise make a
+  // header-only BOQ and report success. Throws the service's own 400.
+  validateBoqBodyShape(task.params);
+  // createBoq() looks the project up by id AND org (task.orgId), so a project
+  // of another org is its own 404 -> RECORD_NOT_FOUND, with nothing written.
+  const row = await createBoq(
+    { orgId: task.orgId, userId: actorId },
+    { projectId, title: str(task.params.title)!, lineItems: lineItems.items ?? [] }
+  );
+  return created(row.id, `/scope/${row.id}`, redactProjectSideFields(row));
+}
+
 async function executeCreateBoqRevision(task: ExecutableTask): Promise<ExecutionOutcome> {
   const missing = missingRequiredParam(task);
   if (missing) return { success: false, failure: missing };
   const projectId = (task.projectId ?? str(task.params.projectId))!;
   const boqId = str(task.params.boqId)!;
+  const actorId = task.actorUserId;
+  if (!actorId) return unidentifiedActor();
+  const lineItems = lineItemsParam(task);
+  if (!lineItems.ok) return { success: false, failure: lineItems.failure };
+  // Without it a misspelled key reads as "no lineItems", which createBoqRevision
+  // treats as "copy every parent line forward": a revision that ignored what
+  // the caller sent and still reported success.
+  validateBoqBodyShape(task.params);
   // U-18 (BR-288): only a BOQ of this task's own project is revised.
   if (await onAnotherProject(task, "boq", boqId, projectId)) {
     return { success: false, failure: pipelineFailure("RECORD_NOT_FOUND", ["boqVersion"]) };
   }
-  const row = await createBoqRevision({ orgId: task.orgId, userId: task.userId }, boqId, {
+  // U-28: and only a change order of this project is linked to the revision.
+  // Refused with the same failure the service's own "Change order not found"
+  // 404 produces, so another project's change order reads as absent.
+  const sourceChangeOrderId = str(task.params.sourceChangeOrderId);
+  if (sourceChangeOrderId && (await onAnotherProject(task, "change_order", sourceChangeOrderId, projectId))) {
+    return { success: false, failure: pipelineFailure("RECORD_NOT_FOUND", [], { status: 404, functionId: task.functionId }) };
+  }
+  // U-28 (BR-408): this used to forward the title only, so a revision posted
+  // through the pipeline always copied the parent's lines forward unchanged,
+  // could never pass the scope-reduction override, and never recorded the
+  // change order it came from (R-98).
+  const row = await createBoqRevision({ orgId: task.orgId, userId: actorId }, boqId, {
     title: str(task.params.title),
+    // undefined (not sent) keeps the service's copy-forward default; an
+    // explicit [] is a deliberate empty revision, exactly as on the route.
+    lineItems: lineItems.items,
+    // Only a real boolean true overrides: the block exists to stop completed
+    // work being descoped, so a string "true" from a model does not lift it.
+    allowScopeReductionOverride: task.params.allowScopeReductionOverride === true,
+    sourceChangeOrderId,
   });
-  return created(row.id, `/scope/${row.id}`, row);
+  return created(row.id, `/scope/${row.id}`, redactProjectSideFields(row));
 }
 
 async function executeCreateDocument(task: ExecutableTask): Promise<ExecutionOutcome> {
@@ -719,6 +833,8 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
   record_attendance: executeRecordAttendance,
   add_roster_entry: executeAddRosterEntry,
   create_meeting: executeCreateMeeting,
+  // PROJEXA-BUILD-001 U-28 (BR-406): a new BOQ with its line items.
+  create_boq: executeCreateBoq,
   create_boq_revision: executeCreateBoqRevision,
   create_document: executeCreateDocument,
   get_construction_project_dashboard: executeGetProjectDashboard,
