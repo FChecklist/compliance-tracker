@@ -11,4 +11,5 @@
 # Add the name in the same PR as the migration. Both checks pass with an empty list; a separate register row requires the
 # list to be non-empty once phase 2 has written its first migration.
 #
-# No phase 2 migration exists yet (2026-09-25), so no name is listed.
+# Listed so far (2026-09-25): U-18a, the link project scope columns.
+0613_build001_link_project_scope

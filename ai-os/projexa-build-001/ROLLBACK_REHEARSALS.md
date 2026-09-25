@@ -101,3 +101,6 @@ landed in between.
 
 | migration | result | hashes | forward | time_utc | who |
 |---|---|---|---|---|---|
+| 0613_build001_link_project_scope | PASS_ROLLED_BACK | h0=0632897937bfdb90a878bbacbae4c1c7 h1=540464ae9a36c8ac1d1d06e30b64cda1 h2=0632897937bfdb90a878bbacbae4c1c7 | forward_sha256=7fea27e785f5871698c181b6e16fa2429313427572dbc0eee10746c6d7aeb105 | 2026-09-25T10:24:00Z | PM (Claude Code, PROJEXA PROJECT MANAGER) |
+
+Notes on the 0613 row. The block was generated with --schemas compliance,platform, so the three hashes are for those two schemas only (22,532 objects at the time). Step (a) taken through the Supabase SQL tool before the block and again after it gave the same value, 0632897937bfdb90a878bbacbae4c1c7, with the new columns absent, so the aborted transaction persisted nothing. The forward file was then applied through pply_migration (name build001_link_project_scope) at about 10:29Z, and the drizzle ledger row (created_at 1790072000000) was written. After the apply: platform.user_ai_links has 19 columns and 2 rows, both still product veridian and active; compliance.api_keys has 15 columns and 36 rows, all key_kind org_service; token is nullable; the two per-product unique indexes exist and user_ai_links_one_active_per_user is gone.
