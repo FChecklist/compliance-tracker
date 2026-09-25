@@ -47,6 +47,24 @@ function parseValue(text: string, spec: FieldSpec): number | null {
   return named >= 0 ? named + (spec.nameBase ?? 0) : null
 }
 
+type Bounds = { ok: true; start: number; end: number } | { ok: false; reason: string }
+
+/** The lowest and highest value one list item names: `*`, `a-b` or a single value (which may not carry a step). */
+function parseBounds(rangeText: string, part: string, hasStep: boolean, spec: FieldSpec): Bounds {
+  if (rangeText === "*") return { ok: true, start: spec.min, end: spec.max }
+  if (rangeText.includes("-")) {
+    const [a, b, ...more] = rangeText.split("-")
+    const low = parseValue(a, spec)
+    const high = parseValue(b ?? "", spec)
+    if (more.length > 0 || low === null || high === null) return { ok: false, reason: `${spec.name} range '${rangeText}' is not valid` }
+    return { ok: true, start: low, end: high }
+  }
+  const single = parseValue(rangeText, spec)
+  if (single === null) return { ok: false, reason: `${spec.name} value '${rangeText}' is not valid` }
+  if (hasStep) return { ok: false, reason: `${spec.name} '${part}' puts a step on a single value` }
+  return { ok: true, start: single, end: single }
+}
+
 function parseField(text: string, spec: FieldSpec): { ok: true; values: Set<number> } | { ok: false; reason: string } {
   const values = new Set<number>()
   if (text === "") return { ok: false, reason: `${spec.name} is empty` }
@@ -61,29 +79,12 @@ function parseField(text: string, spec: FieldSpec): { ok: true; values: Set<numb
       }
       step = Number(stepText)
     }
-    let start: number
-    let end: number
-    if (rangeText === "*") {
-      start = spec.min
-      end = spec.max
-    } else if (rangeText.includes("-")) {
-      const [a, b, ...more] = rangeText.split("-")
-      const low = parseValue(a, spec)
-      const high = parseValue(b ?? "", spec)
-      if (more.length > 0 || low === null || high === null) return { ok: false, reason: `${spec.name} range '${rangeText}' is not valid` }
-      start = low
-      end = high
-    } else {
-      const single = parseValue(rangeText, spec)
-      if (single === null) return { ok: false, reason: `${spec.name} value '${rangeText}' is not valid` }
-      if (stepText !== undefined) return { ok: false, reason: `${spec.name} '${part}' puts a step on a single value` }
-      start = single
-      end = single
-    }
-    if (start < spec.min || end > spec.max || start > end) {
+    const bounds = parseBounds(rangeText, part, stepText !== undefined, spec)
+    if (!bounds.ok) return bounds
+    if (bounds.start < spec.min || bounds.end > spec.max || bounds.start > bounds.end) {
       return { ok: false, reason: `${spec.name} '${rangeText}' is outside ${spec.min}-${spec.max}` }
     }
-    for (let v = start; v <= end; v += step) values.add(v)
+    for (let v = bounds.start; v <= bounds.end; v += step) values.add(v)
   }
   return { ok: true, values }
 }
