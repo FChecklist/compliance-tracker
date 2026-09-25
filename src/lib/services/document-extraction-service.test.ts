@@ -46,6 +46,7 @@ import {
   HIDDEN_TRADE,
   LINES_PER_SHEET,
   memoryLedger,
+  repackWithDataDescriptors,
   TRADES,
 } from "./__test-helpers__/document-extraction-fixtures"
 
@@ -345,6 +346,14 @@ describe("readWorkbookDigest -- what a small file can make the read do is bounde
     const packed = buildFixtureWorkbook({ compressed: true })
     expect(packed.length).toBeLessThan(FIXTURE.length)
     expect((await readWorkbookDigest(packed)).sheets).toEqual((await readWorkbookDigest(FIXTURE)).sheets)
+  })
+
+  test("a workbook whose parts carry data descriptors (zero sizes in the local header, as .NET writers produce) passes the check and reads the same", async () => {
+    const repacked = repackWithDataDescriptors(buildFixtureWorkbook({ compressed: true }))
+    expect(repacked.readUInt16LE(6) & 8).toBe(8) // the first local header says its sizes follow the data
+    expect(repacked.readUInt32LE(18)).toBe(0) // and holds none
+    expect(assertWorkbookArchiveWithinLimits(repacked)).toBeUndefined()
+    expect((await readWorkbookDigest(repacked)).sheets).toEqual((await readWorkbookDigest(FIXTURE)).sheets)
   })
 
   test("the column limit is exact: maxColumns columns are read, one more is refused, and the message names the sheet", async () => {

@@ -639,10 +639,10 @@ export function assertWorkbookArchiveWithinLimits(bytes: Uint8Array, limits: Wor
   const unreadable = () => new ExtractionRejectedError("workbook_unreadable", "The file could not be read as an xlsx workbook")
   const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   try {
-    // The last end-of-central-directory signature, which is the one the parser uses.
+    // The last end-of-central-directory signature, and its entry count of this disk (offset 8), which are the ones the parser uses.
     const end = buf.lastIndexOf(ZIP_END_OF_CENTRAL_DIRECTORY)
     if (end < 0) throw unreadable()
-    const entryCount = buf.readUInt16LE(end + 10)
+    const entryCount = buf.readUInt16LE(end + 8)
     let entryAt = buf.readUInt32LE(end + 16)
     let unpacked = 0
     for (let i = 0; i < entryCount; i++) {

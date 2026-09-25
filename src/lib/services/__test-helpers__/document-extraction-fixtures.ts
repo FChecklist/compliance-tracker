@@ -1,6 +1,7 @@
 // PROJEXA-BUILD-001 U-36 / U-37 (BR-506, BR-507, BR-508): the shared fixtures of the extraction tests.
 //   * craftZip(): a zip archive written by hand, for the archives a workbook writer never produces (declared sizes that lie,
-//     entries that share one stream); buildWorkbook() can also declare a sheet range that holds no cells.
+//     entries that share one stream) and for the data-descriptor layout of .NET writers (repackWithDataDescriptors());
+//     buildWorkbook() can also declare a sheet range that holds no cells.
 //   * buildFixtureWorkbook(): a 22-sheet synthetic BOQ workbook generated with SheetJS (one sheet per trade, a title row, a blank
 //     row, a header row, root lines, a weighted sub-task line, blank rows in between, one hidden sheet, one empty sheet, one line
 //     with a float that Excel stores as 0.30000000000000004). It has the shape of the largest real BOQ (many trade sheets, weighted
@@ -82,7 +83,7 @@ export function buildWorkbook(
  * entry (overlapping entries). Checksums are left zero: these archives are for refusals, not for reading.
  */
 export function craftZip(
-  entries: Array<{ name: string; data: Buffer; method?: number; declaredSize?: number; sharesDataOf?: number }>,
+  entries: Array<{ name: string; data: Buffer; method?: number; declaredSize?: number; sharesDataOf?: number; dataDescriptor?: boolean }>,
 ): Buffer {
   const chunks: Buffer[] = []
   const localAt: number[] = []
@@ -99,14 +100,25 @@ export function craftZip(
     const head = Buffer.alloc(30)
     head.writeUInt32LE(0x04034b50, 0)
     head.writeUInt16LE(20, 4)
+    head.writeUInt16LE(e.dataDescriptor ? 8 : 0, 6)
     head.writeUInt16LE(method, 8)
-    head.writeUInt32LE(body.length, 18)
-    head.writeUInt32LE(e.declaredSize ?? e.data.length, 22)
+    // With a data descriptor the local header carries zero sizes and the sizes follow the data (what .NET zip writers produce).
+    if (!e.dataDescriptor) {
+      head.writeUInt32LE(body.length, 18)
+      head.writeUInt32LE(e.declaredSize ?? e.data.length, 22)
+    }
     head.writeUInt16LE(name.length, 26)
     localAt.push(offset)
     push(head)
     push(name)
     push(body)
+    if (e.dataDescriptor) {
+      const descriptor = Buffer.alloc(16)
+      descriptor.writeUInt32LE(0x08074b50, 0)
+      descriptor.writeUInt32LE(body.length, 8)
+      descriptor.writeUInt32LE(e.declaredSize ?? e.data.length, 12)
+      push(descriptor)
+    }
   }
   const centralAt = offset
   entries.forEach((e, i) => {
@@ -117,6 +129,7 @@ export function craftZip(
     rec.writeUInt32LE(0x02014b50, 0)
     rec.writeUInt16LE(20, 4)
     rec.writeUInt16LE(20, 6)
+    rec.writeUInt16LE(e.dataDescriptor ? 8 : 0, 8)
     rec.writeUInt16LE(method, 10)
     rec.writeUInt32LE(body.length, 20)
     rec.writeUInt32LE(e.declaredSize ?? e.data.length, 24)
@@ -168,6 +181,22 @@ export const deterministicModel: ModelCall = async ({ user }) => {
   }
   const base = doc.fileName.replace(/\.xlsx$/i, "") || "Untitled project"
   return JSON.stringify({ schema: "boq_project_v1", project: { name: base }, boq: { title: `${base} BOQ`, lineItems } })
+}
+
+/**
+ * The same workbook written the way .NET zip writers write it: every part deflated, its sizes in a data descriptor after the data
+ * and zero in the local header. Built by reading the parts of a workbook SheetJS wrote and writing them again with craftZip().
+ */
+export function repackWithDataDescriptors(workbook: Buffer): Buffer {
+  const cfb = XLSX.CFB.read(workbook, { type: "buffer" })
+  const parts: Array<{ name: string; data: Buffer; dataDescriptor: boolean }> = []
+  cfb.FullPaths.forEach((fullPath, i) => {
+    const file = cfb.FileIndex[i]
+    // SheetJS lists a root entry and one marker entry that are not parts of the archive.
+    if (file.type !== 2 || !fullPath.startsWith("Root Entry/") || fullPath.startsWith("Root Entry/\u0001")) return
+    parts.push({ name: fullPath.slice("Root Entry/".length), data: Buffer.from(file.content as Uint8Array), dataDescriptor: true })
+  })
+  return craftZip(parts)
 }
 
 /** Deps for the real handler: the shared secret as the credential, the given model (or none), no log output. */
