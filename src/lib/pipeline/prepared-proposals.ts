@@ -416,8 +416,8 @@ async function releaseClaimIfUnwritten(input: ConfirmPreparedInput, storedChain:
  * proposal pending so the person can correct it:
  *   1. the submission is of this organisation AND this project, else not_found (another project's proposal, another
  *      organisation's, a typed message, a proposal naming a function this list does not approve);
- *   2. it is still pending, else already_decided (a second Approve does not write a second BOQ), except that the
- *      person who approved it may write the audit rows an earlier attempt left owed (audit_pending);
+ *   2. it is still pending, else already_decided (a second Approve does not write a second BOQ); before that check,
+ *      the person who approved it may write the audit rows an earlier attempt left owed (audit_pending);
  *   3. the stored params plus the person's are complete (needs_input names what is missing);
  *   4. the registry's validate() accepts them on this project only, and the line items pass the BOQ service's rules;
  *   5. the proposal is claimed (THE CLAIM above); a proposal another Approve holds is in_progress.
@@ -428,11 +428,12 @@ async function releaseClaimIfUnwritten(input: ConfirmPreparedInput, storedChain:
 export async function confirmPreparedProposal(input: ConfirmPreparedInput): Promise<ConfirmPreparedOutcome> {
   const row = await readProposalRow(input.orgId, input.submissionId);
   if (!row || row.projectId !== input.projectId) return { ok: false, reason: "not_found" };
-  if (!isPending(row.status)) {
-    const owed = readAuditPending(row.selectedChain);
-    if (owed && row.status === "done" && owed.personId === input.person.id) return { ok: false, reason: "audit_pending", pending: owed };
-    return { ok: false, reason: "already_decided", status: row.status };
-  }
+  // The person who approved this proposal earlier and left its audit rows owed may write them now. Checked before the
+  // status: the marker exists only on a row whose approval saved its BOQ, and that row is normally done but stays
+  // pending if the run's own status write failed too.
+  const owed = readAuditPending(row.selectedChain);
+  if (owed && owed.personId === input.person.id) return { ok: false, reason: "audit_pending", pending: owed };
+  if (!isPending(row.status)) return { ok: false, reason: "already_decided", status: row.status };
   const chain = readPreparedChain(row.selectedChain);
   if (!chain) return { ok: false, reason: "not_found" };
   if (isClaimed(row.selectedChain)) return { ok: false, reason: "in_progress" };
@@ -615,12 +616,12 @@ export async function repairApprovalAudit(args: {
   const taken = await withTenantContext({ orgId: args.orgId, userId: args.pending.personId }, (db) =>
     db
       .update(submissions)
-      .set({ selectedChain: mergeIntoSelectedChain({ auditPending: null }) })
+      // status done: the BOQ is saved and this repair is what completes the approval, also for a row whose own status write failed.
+      .set({ selectedChain: mergeIntoSelectedChain({ auditPending: null }), status: "done" })
       .where(
         and(
           eq(submissions.id, args.submissionId),
           eq(submissions.orgId, args.orgId),
-          eq(submissions.status, "done"),
           sql`${submissions.selectedChain} ->> 'auditPending' is not null`
         )
       )

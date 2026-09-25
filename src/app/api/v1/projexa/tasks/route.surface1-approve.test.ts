@@ -756,6 +756,29 @@ describe("BR-410 (fix round 1): audit rows that were not written can be written,
     expect(surfaceRows()).toHaveLength(2)
   })
 
+  test("the run's own status write failed too: the row is still pending, and the person's next Approve writes the rows and completes it", async () => {
+    twoLines()
+    failAudit = true
+    // Updates of a submission: the claim (1), the run's status write (2, fails and is not fatal), the debt marker (3).
+    failNext(store, "submissions", "update", { skip: 1 })
+
+    const failed = await approve({ submissionId: "sub_owed" })
+
+    expect(failed.status).toBe(500)
+    expect((await failed.json()).auditRecorded).toBe(true)
+    expect(statusOf("sub_owed")).toBe("in_progress")
+    expect(surfaceRows()).toHaveLength(0)
+
+    failAudit = false
+    const repaired = await approve({ submissionId: "sub_owed" })
+
+    expect(repaired.status).toBe(200)
+    expect(surfaceRows()).toHaveLength(2)
+    expect(statusOf("sub_owed")).toBe("done")
+    expect(table("construction_boqs")).toHaveLength(1)
+    expect((await approve({ submissionId: "sub_owed" })).status).toBe(409)
+  })
+
   test("when the debt cannot be recorded either, the answer says so and the ids go to the log", async () => {
     twoLines()
     failAudit = true
