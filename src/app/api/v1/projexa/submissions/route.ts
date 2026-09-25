@@ -20,6 +20,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { resolveFinancialRole } from "@/lib/supabase/acting-role"
+import { assertKeyProjectScope, keyProjectScope } from "@/lib/supabase/api-key-auth"
 import { runSubmission } from "@/lib/pipeline/run-submission"
 
 export async function POST(request: NextRequest) {
@@ -48,6 +49,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "rawInput is required and must be a non-empty string" }, { status: 400 })
   }
 
+  // PROJEXA-BUILD-001 U-19 (BR-213): a project_ai key acts on its own project
+  // only -- another one is a 403 before anything is written, and none named
+  // runs on the key's project (projectScope). An org_service key or a session
+  // is unchanged.
+  const projectId = typeof body.projectId === "string" ? body.projectId : null
+  const keyScope = assertKeyProjectScope(ctx.apiKey, projectId)
+  if (!keyScope.ok) return NextResponse.json({ error: keyScope.message }, { status: keyScope.status })
+
   try {
     // PROJEXA-BUILD-001 U-01b: was `ctx.dbUser?.role ?? null`, null for every
     // API-key caller. Same rules as the assistant route -- see acting-role.ts.
@@ -57,10 +66,11 @@ export async function POST(request: NextRequest) {
       orgId: ctx.orgId,
       userId: actorId,
       mode: typeof body.mode === "string" ? body.mode : "Projects",
-      projectId: typeof body.projectId === "string" ? body.projectId : null,
+      projectId,
       selectedChain: body.selectedChain,
       rawInput,
       role: financialRole,
+      projectScope: keyProjectScope(ctx.apiKey),
     })
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
