@@ -519,12 +519,23 @@ describe("the call log and its limits", () => {
     expect((await log(other.token)).status).toBe("ok")
   })
 
-  test("a revoked or expired link is logged against the link with status 'gone'; a malformed token writes no row", async () => {
+  test("a revoked or expired link is answered 'gone' and counted like an unknown token: no link on the row, limited per address prefix (spec 10.5); a malformed token writes no row", async () => {
     const l = await mint(A.tm, "proj-a2", { level: 0 })
     await db.exec(`update platform.user_ai_links set status = 'revoked', revoked_at = now() where id = '${l.link_id}'`)
-    const r = await log(l.token)
-    expect(r).toMatchObject({ status: "gone", link_id: null })
-    expect((await one<{ l: string }>(db, "select link_id l from platform.ai_work_link_call where id = $1", [r.call_id])).l).toBe(l.link_id)
+    const r = await log(l.token, "GET", "/x", "192.0.2.77")
+    expect(r).toMatchObject({ status: "gone", link_id: null, limit_per_minute: 30 })
+    expect(await one<J>(db, "select link_id, org_id, ip_prefix from platform.ai_work_link_call where id = $1", [r.call_id])).toEqual({ link_id: null, org_id: null, ip_prefix: "192.0.2.0/24" })
+    // the revoked link's call count does not move, and from the 31st call a minute from the prefix the dead link is refused before a row is written
+    expect((await one<{ c: number }>(db, "select call_count c from platform.user_ai_links where id = $1", [l.link_id])).c).toBe(0)
+    const prefixRows = async () => (await one<{ n: number }>(db, "select count(*)::int n from platform.ai_work_link_call where link_id is null and ip_prefix = '192.0.2.0/24' and called_at > now() - interval '1 minute'")).n
+    const already = await prefixRows()
+    for (let i = already; i < 30; i++) expect((await log(l.token, "GET", "/x", `192.0.2.${i}`)).status).toBe("gone")
+    expect(await log(l.token, "GET", "/x", "192.0.2.200")).toMatchObject({ status: "throttled", scope: "address", limit_per_minute: 30 })
+    expect(await prefixRows()).toBe(30)
+    // an expired link is treated the same way
+    const e = await mint(A.sen, "proj-a2", { level: 0 })
+    await db.exec(`update platform.user_ai_links set expires_at = now() - interval '1 second' where id = '${e.link_id}'`)
+    expect(await log(e.token, "GET", "/x", "203.0.113.200")).toMatchObject({ status: "gone", link_id: null })
     const before = (await one<{ n: number }>(db, "select count(*)::int n from platform.ai_work_link_call")).n
     expect(await log("not-a-token")).toEqual({ status: "malformed" })
     expect(await log(`pxa_${"A".repeat(64)}`)).toEqual({ status: "malformed" })

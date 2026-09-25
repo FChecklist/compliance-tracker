@@ -42,7 +42,8 @@
 --     ai_work_link_log_call(token, method, path, ip_prefix, ua_family) -> jsonb
 --                                                        one append-only row per call, FAIL CLOSED (an error reaches the caller, which
 --                                                        answers 503). 120 calls a minute per link; 30 a minute per address prefix for
---                                                        a token that matches no link; over the limit the call is refused BEFORE any
+--                                                        a token that matches no live link (unknown, revoked or expired: the row then
+--                                                        carries no link, spec 10.5); over the limit the call is refused BEFORE any
 --                                                        row is written (audit A-12)
 --     ai_work_link_log_call_result(call_id, status, bytes) -> jsonb
 --     ai_work_link_context(token) -> jsonb              spec 6.1 (business counters only)
@@ -408,8 +409,14 @@ BEGIN
     v_found := FOUND;
   END IF;
 
+  -- Spec 10.5: an unknown OR expired token is counted per address prefix, from rows with link_id IS NULL. So a link that is revoked
+  -- or past its expiry is treated like an unknown token from here on: it is limited by address, its row carries no link, and it
+  -- cannot be used to grow the log faster than an unknown token can.
   IF v_found THEN
     v_live := v_l.status = 'active' AND v_l.expires_at IS NOT NULL AND v_l.expires_at > v_now;
+  END IF;
+
+  IF v_live THEN
     SELECT count(*) INTO v_recent
     FROM platform.ai_work_link_call c
     WHERE c.link_id = v_l.id AND c.called_at > v_now - interval '60 seconds';
@@ -434,8 +441,8 @@ BEGIN
 
   INSERT INTO platform.ai_work_link_call (link_id, org_id, method, path, ip_prefix, ua_family, called_at)
   VALUES (
-    CASE WHEN v_found THEN v_l.id END,
-    CASE WHEN v_found THEN v_l.org_id END,
+    CASE WHEN v_live THEN v_l.id END,
+    CASE WHEN v_live THEN v_l.org_id END,
     left(coalesce(p_method, ''), 10),
     public.ai_work_link__clean_path(p_path),
     v_prefix,
@@ -452,7 +459,7 @@ BEGIN
     'call_id', v_id,
     'link_id', CASE WHEN v_live THEN v_l.id END,
     'calls_last_minute', v_recent + 1,
-    'limit_per_minute', CASE WHEN v_found THEN 120 ELSE 30 END);
+    'limit_per_minute', CASE WHEN v_live THEN 120 ELSE 30 END);
 END
 $fn$;
 
