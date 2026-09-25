@@ -318,6 +318,13 @@ const SPEC_LIST: readonly FunctionSpec[] = [
 
   // ---- project-scoped reads --------------------------------------------
   readSpec("get_construction_project_dashboard", "View project dashboard", "dashboard", true),
+  // PROJEXA-BUILD-001 U-28 part 2 (BR-407): one page (at most 50) of one BOQ's
+  // line items, through the U-27 keyset reader. A READ, so never in
+  // WRITE_FUNCTION_IDS. boqId, cursor and limit are all optional (no boqId is
+  // the project's current BOQ), so it declares no required parameter. Placed
+  // after the dashboard so an unmatched `ask` on the MCP link still offers the
+  // dashboard first (candidates keep registry order).
+  readSpec("get_boq_line_items", "View BOQ line items", "scope", true),
   readSpec("get_construction_budget_status", "View budget status", "budget", true),
   // R67 B-02: the catalogue's own id for PROJEXA's Budget card (Sumeet order
   // 9). A READ -- it resolves to the same real backing action the budget pill
