@@ -49,6 +49,9 @@ import { describe, test, expect, mock, beforeEach } from "bun:test"
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/role-rank"
 import { NextResponse } from "next/server"
 import * as RealTenantScoped from "@/lib/db/tenant-scoped"
+import { actingPersonDouble } from "@/lib/supabase/__test-helpers__/acting-person-double"
+
+const actingPerson = actingPersonDouble()
 
 // This test deliberately never reaches a real DB: on the permit side, a
 // route that passes the role gate goes on to call withTenantContext() for
@@ -140,6 +143,13 @@ beforeEach(() => {
     readActingUserId: () => null,
     readActingUserEmail: () => null,
     resolveActingUser: async () => ({ user: null, error: NextResponse.json({ error: "not exercised by this test" }, { status: 401 }) }),
+    // PROJEXA-BUILD-001 U-20b: ~130 v1 write routes now import
+    // requireActingPerson (and three reads resolveOptionalActingPerson) --
+    // same "module link" reason as the three above. The shared double mirrors
+    // the real contract; with this file's session-only fixtures it returns
+    // ctx.dbUser without touching anything, exactly as the real helper does.
+    requireActingPerson: actingPerson.requireActingPerson,
+    resolveOptionalActingPerson: actingPerson.resolveOptionalActingPerson,
   }))
 })
 
