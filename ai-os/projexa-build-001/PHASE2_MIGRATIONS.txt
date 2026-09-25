@@ -17,3 +17,6 @@
 0614_build001_link_resolve_by_hash
 # U-21, the PROJEXA timer (exchange-rate refresh off Vercel).
 0615_build001_projexa_timer
+# U-22, the evidence columns on platform.sumeet_requirements (phase 3). Its data file 0617 is not listed: it changes rows,
+# not the schema, so a schema-hash rehearsal would read "forward changed nothing"; its proof is the PGlite test.
+0616_build001_requirement_evidence
