@@ -63,10 +63,10 @@ export async function GET(request: NextRequest) {
 
   // U-20b: POST now records under the person an API-key caller names, so the
   // strip is read under that same person whenever the caller names one. A
-  // key-only read with no acting-user signal keeps the key's own legacy strip
-  // (a reader identity for a GET, never recorded as an actor).
-  const { acting, error: actingError } = await resolveOptionalActingPerson(request, ctx)
-  if (actingError) return actingError
+  // key-only read with no (or an unresolvable) acting-user signal keeps the
+  // key's own legacy strip (a reader identity for a GET, never recorded as an
+  // actor, and never a refusal).
+  const acting = await resolveOptionalActingPerson(request, ctx)
   const actorId = acting?.person.id ?? ctx.apiKey!.id
   const url = new URL(request.url)
   const limitRaw = Number(url.searchParams.get("limit") ?? "6")

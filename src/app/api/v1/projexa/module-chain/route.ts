@@ -35,8 +35,7 @@ export async function GET(request: NextRequest) {
     // U-20b: rank the chain by the named person's own usage when the caller
     // names one (the pill writes are recorded under that person now); a
     // key-only read with no signal keeps the key's legacy ranking.
-    const { acting, error: actingError } = await resolveOptionalActingPerson(request, ctx)
-    if (actingError) return actingError
+    const acting = await resolveOptionalActingPerson(request, ctx)
     const actorId = acting?.person.id ?? ctx.apiKey!.id
     const nodes = await buildCapabilityTree({ orgId: ctx.orgId, moduleScope, userId: actorId })
     return NextResponse.json({ nodes: nodes.filter((n) => !PROJEXA_OWNED_BRANCH_KEYS.has(n.key)) })

@@ -717,19 +717,23 @@ export async function requireActingPerson(
   }
 }
 
-// U-20b, read side. A GET is never refused for naming no person, but when an
-// API-key caller DOES send an acting-user signal it is resolved exactly as for
-// a write (same refusals). That keeps a per-user read (the pill strip, the
-// chain ranking) keyed by the same person the writes are now recorded under,
-// and lets a view audit row name that person. `acting` is null only for an
-// API-key read that sent no signal at all.
+// U-20b, read side. When an API-key caller sends an acting-user signal on a
+// GET, it is resolved the same way as for a write, so a per-user read (the
+// pill strip, the chain ranking) is keyed by the same person the writes are
+// now recorded under, and a view audit row can name that person. A read is
+// NEVER refused for this, though: no signal, or a signal that does not
+// resolve (an unlinked or deactivated account -- 22 of 114 PROJEXA accounts
+// were unlinked on 2026-09-25, F-A09-2), gives `null` and the caller keeps
+// its key-level read, the same "redact, never refuse" line PM decision U-01d
+// D1 draws for reads. Only writes refuse (requireActingPerson).
 export async function resolveOptionalActingPerson(
   request: { headers: Headers },
   ctx: CombinedAuthContext
-): Promise<{ acting: ActingPerson | null; error: null } | { acting: null; error: NextResponse }> {
-  if (ctx.dbUser) return { acting: { person: ctx.dbUser, actor: { dbUser: ctx.dbUser } }, error: null }
-  if (!readActingUserId(request) && !readActingUserEmail(request)) return { acting: null, error: null }
-  return requireActingPerson(request, ctx)
+): Promise<ActingPerson | null> {
+  if (ctx.dbUser) return { person: ctx.dbUser, actor: { dbUser: ctx.dbUser } }
+  if (!readActingUserId(request) && !readActingUserEmail(request)) return null
+  const { acting } = await requireActingPerson(request, ctx)
+  return acting
 }
 
 // E-52 (R60/R62 sweep, platform.r43_faults fault_id LIKE 'E52_%'): the

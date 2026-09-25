@@ -70,10 +70,11 @@ export function actingPersonDouble(resolve: (actorId: string | null, actorEmail:
     }
   }
 
+  // Read side: never refuses -- no signal, or one that does not resolve, is null.
   async function resolveOptionalActingPerson(request: { headers: Headers }, ctx: Ctx) {
-    if (ctx.dbUser) return { acting: { person: ctx.dbUser, actor: { dbUser: ctx.dbUser } }, error: null }
-    if (!read(request.headers, "x-acting-user") && !read(request.headers, "x-acting-user-email")) return { acting: null, error: null }
-    return requireActingPerson(request, ctx)
+    if (ctx.dbUser) return { person: ctx.dbUser, actor: { dbUser: ctx.dbUser } }
+    if (!read(request.headers, "x-acting-user") && !read(request.headers, "x-acting-user-email")) return null
+    return (await requireActingPerson(request, ctx)).acting
   }
 
   async function resolveWriteActorId(request: { headers: Headers }, ctx: Ctx) {

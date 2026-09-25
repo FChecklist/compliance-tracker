@@ -225,6 +225,15 @@ describe("requireActingPerson -- the one rule (BR-215)", () => {
     expect(error!.status).toBe(401)
   })
 
+  test("read side: resolveOptionalActingPerson names a linked person, and never refuses a read (no signal or an unlinked one -> null)", async () => {
+    state.userLookups = [PERSON]
+    const linked = await authGuard.resolveOptionalActingPerson({ headers: new Headers({ "X-Acting-User": "projexa-arjun" }) }, KEY_CTX as never)
+    expect(linked!.person.id).toBe(PERSON.id)
+    expect(await authGuard.resolveOptionalActingPerson({ headers: new Headers() }, KEY_CTX as never)).toBeNull()
+    state.userLookups = [undefined]
+    expect(await authGuard.resolveOptionalActingPerson({ headers: new Headers({ "X-Acting-User": "projexa-nobody" }) }, KEY_CTX as never)).toBeNull()
+  })
+
   test("resolveWriteActorId no longer falls back to the key id either", async () => {
     const { actorId, error } = await authGuard.resolveWriteActorId({ headers: new Headers() }, KEY_CTX as never)
     expect(actorId).toBeNull()

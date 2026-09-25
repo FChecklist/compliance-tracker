@@ -32,11 +32,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const { id } = await context.params
     // U-20b: this GET writes a "view" audit row. When the caller names the
     // person (X-Acting-User / X-Acting-User-Email) the row carries that person
-    // AND the key; a key-only read with no signal is still served and keeps
-    // its key-attributed row (a read is not refused for naming nobody) --
-    // PROJEXA should send the headers here too so BR-216 sees no such rows.
-    const { acting, error: actingError } = await resolveOptionalActingPerson(request, ctx)
-    if (actingError) return actingError
+    // AND the key; a key-only read with no signal, or with one that does not
+    // resolve, is still served and keeps its key-attributed row (a read is
+    // never refused, see resolveOptionalActingPerson) -- PROJEXA should send
+    // the headers here too so BR-216 sees no such rows.
+    const acting = await resolveOptionalActingPerson(request, ctx)
     const found = await withTenantContext({ orgId: ctx.orgId, userId: acting?.person.id ?? ctx.apiKey!.id }, async (db) => {
       const doc = await db.query.documents.findFirst({ where: eq(documents.id, id) })
       if (!doc) return null
