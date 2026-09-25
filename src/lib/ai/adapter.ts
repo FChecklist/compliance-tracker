@@ -67,13 +67,13 @@ export class AiProviderRefusalError extends Error {}
 // M27: "if AI_PROVIDER=claude-cli AND any authenticated user other than
 // Rajat's user id is present, the app REFUSES to serve AI and logs it."
 //
-// RAJAT_USER_ID identifies the compliance.users row for the account Rajat
-// personally tests this product through (democeo@projexa-ai.com / Demo
-// Organization -- the identity this entire work order's own minted-session
-// testing has used throughout, per its own protocol step 3). Configurable
-// via env rather than hardcoded so a real identity change needs no code
-// change, but the assertion below refuses closed (fails safe) if it is
-// ever unset while AI_PROVIDER=claude-cli.
+// RAJAT_USER_ID is compared as an exact string with the userId passed in. For
+// a session that is a compliance.users id, so it can name the account Rajat
+// tests through (democeo@projexa-ai.com / Demo Organization, per this work
+// order's protocol step 3). On the PROJEXA proxy the caller is an org API key
+// (auth-guard.ts:424/445, dbUser: null), so the id is an api_keys id and a
+// users id here never matches it. Set via env so a real identity change needs
+// no code change; the assertion below refuses closed if it is unset.
 function rajatUserId(): string | null {
   return process.env.RAJAT_USER_ID ?? null;
 }
