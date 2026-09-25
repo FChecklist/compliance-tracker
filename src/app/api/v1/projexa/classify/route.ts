@@ -16,6 +16,7 @@
 // r53-handshake row goes in BEFORE the change, never after.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { resolvePipelineActor } from "@/lib/supabase/acting-role"
 import { classifyOnly } from "@/lib/pipeline/classify-only"
 
 export async function POST(request: NextRequest) {
@@ -45,9 +46,17 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // PROJEXA-BUILD-001 U-49 (BR-219): the Level 1 provider gate compares the
+    // acting person (acting-role.ts, the same lookup the pipeline routes use),
+    // never `actorId`, which is the org key's id for PROJEXA. A key naming
+    // nobody is refused by the gate, not by this route. BR-221: that refusal
+    // now comes back in a 200 body (level1Outcome "refused", the sentence in
+    // `message`, the Level 0 classifications in `segments`), not as a 400.
+    const { personId: level1PersonId } = await resolvePipelineActor(ctx, request, body)
     const result = await classifyOnly({
       orgId: ctx.orgId,
       userId: actorId,
+      level1PersonId,
       mode: typeof body.mode === "string" ? body.mode : "Projects",
       projectId: typeof body.projectId === "string" ? body.projectId : null,
       rawInput,

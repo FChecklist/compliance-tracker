@@ -8,7 +8,10 @@
 // resolves to claude-cli or claude-cli-remote and the caller is not
 // RAJAT_USER_ID) the route still answers HTTP 200 with a gap verdict, and the
 // row must end up with level1_outcome = 'refused' and
-// level1_refusal_code = 'provider_not_allowed'.
+// level1_refusal_code = 'provider_not_allowed' -- or, since PROJEXA-BUILD-001
+// U-49 made the gate compare the acting PERSON, 'user_not_permitted' for an
+// org API key that names no person (src/lib/ai/gate-identity.test.ts covers
+// the key-plus-person cases).
 //
 // WHAT IS REAL: the route, submitForVerdict, dryRunSubmission, the Level 0
 // tiers, the reuse and fuzzy tiers, runLevel1, assertAiProviderAllowed and
@@ -198,8 +201,10 @@ function typedRequest(rawInput: string): Request {
 }
 
 const CALLERS = [
-  { label: "a signed-in person who is not the owner", id: NONOWNER, ctx: { dbUser: { id: NONOWNER, role: "member" }, apiKey: null } },
-  { label: "a PROJEXA org API key (the gate sees the key id)", id: APIKEY, ctx: { dbUser: null, apiKey: { id: APIKEY } } },
+  { label: "a signed-in person who is not the owner", id: NONOWNER, code: "provider_not_allowed", ctx: { dbUser: { id: NONOWNER, role: "member" }, apiKey: null } },
+  // U-49: was "(the gate sees the key id)" / provider_not_allowed. The gate
+  // now compares the acting person, and a key that names nobody has none.
+  { label: "a PROJEXA org API key naming no person", id: APIKEY, code: "user_not_permitted", ctx: { dbUser: null, apiKey: { id: APIKEY } } },
 ];
 
 describe("POST /api/v1/projexa/tasks -- a refused Level 1 miss is persisted as refused", () => {
@@ -211,14 +216,15 @@ describe("POST /api/v1/projexa/tasks -- a refused Level 1 miss is persisted as r
 
   for (const provider of ["claude-cli", "claude-cli-remote"] as const) {
     for (const caller of CALLERS) {
-      test(`L1=${provider}, RAJAT_USER_ID=owner, caller is ${caller.label}: HTTP 200 gap verdict, row re-read as refused / provider_not_allowed`, async () => {
+      test(`L1=${provider}, RAJAT_USER_ID=owner, caller is ${caller.label}: HTTP 200 gap verdict, row re-read as refused / ${caller.code}`, async () => {
         process.env.AI_PROVIDER_PIPELINE_L1 = provider;
         identityCtx = caller.ctx;
 
         const res = await POST(typedRequest(L0_MISS_TEXT));
         const body = await res.json();
 
-        // Not the 400 dead end the assistant, submissions, classify and execute paths give.
+        // Not the 400 dead end the assistant, submissions, classify and execute
+        // paths used to give (U-49 removed it there too).
         expect(res.status).toBe(200);
         expect(body.error).toBeUndefined();
         expect(body.status).toBe("gap");
@@ -227,7 +233,7 @@ describe("POST /api/v1/projexa/tasks -- a refused Level 1 miss is persisted as r
         expect(store.committed).toHaveLength(1);
         const row = store.committed[0];
         expect(row.level1Outcome).toBe("refused");
-        expect(row.level1RefusalCode).toBe("provider_not_allowed");
+        expect(row.level1RefusalCode).toBe(caller.code);
         expect(row.modelCalls).toBe(0);
         expect(row.id).toBe(body.submissionId);
         expect(row.orgId).toBe(ORG_ID);

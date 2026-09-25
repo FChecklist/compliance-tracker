@@ -25,6 +25,7 @@ import { segment } from "./segment";
 import { classifyL0, type L0Repo } from "./level0";
 import { classifySegment, type Classification, type ResolvedFunction } from "./classify";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
+import { runLevel1, refusalAsUnresolved, type Level1LaneOutcome } from "./level1";
 import type { PhraseFuzzyRepo } from "./phrase-fuzzy";
 import { deriveChain, type ChainRepo, type DerivedChain } from "./derive-chain";
 import { functionWrites, type ExecutableTask, type ExecutionOutcome } from "./executor";
@@ -37,7 +38,7 @@ import { NO_COMMENTARY_SENTENCE } from "@/lib/ai/refusal";
 // from "something genuinely broke". adapter.ts's own top-level import is just
 // ai/refusal.ts (its providers are lazily require()d), so this adds no module
 // weight and no cycle.
-import { AiProviderRefusalError } from "@/lib/ai/adapter";
+import { AiProviderRefusalError, type AiProviderRefusalKind } from "@/lib/ai/adapter";
 
 /**
  * A real choice, never "please retype it".
@@ -127,13 +128,15 @@ export type DryRunProposal = {
  *               model calls: a reuse_cache hit is exactly that. What separates
  *               a free answer from a paid one is modelCalls/cacheHits, never
  *               this field.
- *   refused     assertAiProviderAllowed() (ai/adapter.ts:120-141, called from
- *               level1.ts:99) threw BEFORE any model work because the caller is
- *               not RAJAT_USER_ID. The AI was switched OFF for this request.
- *               RAJAT_USER_ID has been set on Vercel Production since 2026-09-18,
- *               so under claude-cli / claude-cli-remote only the one identity
- *               equal to it passes and every other identity is refused. On the
- *               PROJEXA proxy that identity is an api_keys id, not a person.
+ *   refused     assertAiProviderAllowed() (ai/adapter.ts, called from
+ *               level1.ts's runLevel1) threw BEFORE any model work because the
+ *               acting person is not RAJAT_USER_ID, or no person was named. The
+ *               AI was switched OFF for this request. RAJAT_USER_ID has been set
+ *               on Vercel Production since 2026-09-18, so under claude-cli /
+ *               claude-cli-remote only the one person equal to it passes.
+ *               PROJEXA-BUILD-001 U-49: that identity is the acting person's
+ *               compliance.users id (DryRunInput.level1PersonId), no longer the
+ *               PROJEXA org API key's id; `level1RefusalKind` says which refusal.
  *   error       anything else threw -- a misconfigured provider, a repo
  *               failure. A fault, not a policy decision.
  *
@@ -163,9 +166,11 @@ export type DryRunTelemetry = {
   cacheHits: number;
   /** P1.2/P1.3: segments served from the trigram fuzzy tier (phrase-fuzzy.ts) -- free, and never model calls, distinct from cacheHits. */
   fuzzyHits: number;
-  level1Outcome: "resolved" | "refused" | "not_needed" | "error";
+  level1Outcome: Level1LaneOutcome;
   /** the thrown message, verbatim, for `refused` AND `error`. Null otherwise. */
   level1RefusalReason: string | null;
+  /** U-49: set only for `refused` -- which refusal, so the stored code can tell "not the permitted person" from "no person named". */
+  level1RefusalKind?: AiProviderRefusalKind;
 };
 
 export type DryRunResult = { dryRun: true; proposals: DryRunProposal[]; telemetry: DryRunTelemetry } & Omit<DryRunProposal, "segmentText">;
@@ -189,6 +194,8 @@ export type DryRunDeps = {
 export type DryRunInput = {
   orgId: string;
   userId: string;
+  /** U-49: the acting person the Level 1 provider gate compares -- see level1.ts's Level1Context.personId. */
+  level1PersonId?: string | null;
   mode: string;
   projectId?: string | null;
   rawInput: string;
@@ -359,22 +366,31 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
   let fuzzyHits = 0;
   let level1Outcome: DryRunTelemetry["level1Outcome"] = "not_needed";
   let level1RefusalReason: string | null = null;
+  let level1RefusalKind: AiProviderRefusalKind | undefined;
   // No L0 miss means the Level 1 lane is never entered at all --
   // resolveMissesWithReuseCache() returns all-zeros for an empty input, so
   // skipping it is behaviour-identical, and "not_needed" stays true rather than
   // being overwritten with "resolved".
   if (missIndices.length > 0) {
+    // PROJEXA-BUILD-001 U-49: the gate's refusal no longer throws out of the
+    // lane. refusalAsUnresolved() (level1.ts) hands back "nothing resolved"
+    // for the texts that reached Level 1, so whatever the reuse cache and the
+    // fuzzy tier already answered is kept rather than discarded with them.
+    const refused: { error?: AiProviderRefusalError } = {};
     try {
       const level1 = await resolveMissesWithReuseCache(
         missIndices.map((i) => segments[i].text),
         {
           orgId: input.orgId,
           userId: input.userId,
+          personId: input.level1PersonId ?? null,
           projectId: input.projectId ?? null,
           candidateFunctionIds: input.candidateFunctionIds,
         },
         deps.reuseRepo,
-        undefined,
+        refusalAsUnresolved(runLevel1, (error) => {
+          refused.error = error;
+        }),
         undefined,
         // P1.2/P1.3: the trigram fuzzy tier reads the classification-time
         // similarity signal here, at the same L0-miss -> Level-1 boundary
@@ -390,6 +406,13 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
       cacheHits = level1.cacheHits;
       fuzzyHits = level1.fuzzyHits;
       level1Outcome = "resolved";
+      if (refused.error) {
+        // Same record the catch below used to make for a refusal.
+        level1Outcome = "refused";
+        level1RefusalReason = refused.error.message;
+        level1RefusalKind = refused.error.kind;
+        console.warn(`[pipeline] dry run: Level 1 refused (${refused.error.kind}), answering from the free tiers only`);
+      }
     } catch (error) {
       // A REFUSAL IS NOT AN OUTAGE, AND NEITHER IS A SUCCESS.
       // assertAiProviderAllowed() throws AiProviderRefusalError before any model
@@ -403,6 +426,7 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
       fuzzyHits = 0;
       level1Outcome = error instanceof AiProviderRefusalError ? "refused" : "error";
       level1RefusalReason = error instanceof Error ? error.message : String(error);
+      if (error instanceof AiProviderRefusalError) level1RefusalKind = error.kind;
       console.warn(
         `[pipeline] dry run: Level 1 ${level1Outcome} (${level1RefusalReason}), answering from Level 0 only:`,
         error
@@ -618,6 +642,7 @@ export async function dryRunSubmission(input: DryRunInput, deps: DryRunDeps): Pr
     fuzzyHits,
     level1Outcome,
     level1RefusalReason,
+    level1RefusalKind,
   });
 }
 

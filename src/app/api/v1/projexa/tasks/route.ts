@@ -22,7 +22,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, type CombinedAuthContext } from "@/lib/supabase/auth-guard"
-import { resolveFinancialRole } from "@/lib/supabase/acting-role"
+import { resolvePipelineActor } from "@/lib/supabase/acting-role"
 import { assertKeyProjectScope, keyProjectScope } from "@/lib/supabase/api-key-auth"
 import { ServiceError } from "@/lib/services/compliance-service"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
@@ -137,7 +137,11 @@ async function POST_impl(request: NextRequest) {
   // null for PROJEXA's per-org API key even when actorEmail named a manager.
   // Same rules as the assistant route -- see acting-role.ts. U-01d: like
   // resolveActorUserId above, it returns null rather than refusing.
-  const financialRole = await resolveFinancialRole(ctx, request, body)
+  // PROJEXA-BUILD-001 U-49 (BR-219): the same lookup names the person every
+  // branch below hands the Level 1 provider gate -- never `actorId`, the org
+  // key's id for PROJEXA. A key naming nobody is refused by the gate (fail
+  // closed), not by this route; the request itself still runs.
+  const { role: financialRole, personId: level1PersonId } = await resolvePipelineActor(ctx, request, body)
 
   try {
     // R67 B-05 -- STEP ONE: PROPOSE. {rawInput, dryRun:true} classifies,
@@ -159,6 +163,7 @@ async function POST_impl(request: NextRequest) {
         projectId,
         rawInput,
         role: financialRole,
+        level1PersonId,
         projectScope,
       })
       // 200, not 201: nothing was created.
@@ -183,6 +188,7 @@ async function POST_impl(request: NextRequest) {
         params: (body.params as Record<string, unknown>) ?? {},
         role: financialRole,
         actorUserId,
+        level1PersonId,
         projectScope,
       })
       if (outcome.ok) return NextResponse.json(outcome.result, { status: 201 })
@@ -241,9 +247,13 @@ async function POST_impl(request: NextRequest) {
         rawInput,
         role: financialRole,
         actorUserId,
+        level1PersonId,
         projectScope,
       })
-      return NextResponse.json(result, { status: 201 })
+      // U-49 (BR-221): a gate refusal comes back as the records the free tiers
+      // resolved and ran plus the no-commentary sentence -- 200, not the 400 a
+      // thrown refusal used to become in the catch below.
+      return NextResponse.json(result, { status: result.level1Outcome === "refused" ? 200 : 201 })
     }
 
     const verdict = await submitForVerdict({
@@ -254,6 +264,7 @@ async function POST_impl(request: NextRequest) {
       selectedChain: body.selectedChain,
       rawInput,
       role: financialRole,
+      level1PersonId,
       projectScope,
     })
     // 200, not 201: a verdict creates no task.
