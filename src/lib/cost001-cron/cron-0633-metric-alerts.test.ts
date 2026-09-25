@@ -7,7 +7,7 @@
 // (a second run adds no notification, escalations are idempotent through their event rows, reprioritisation never lowers) and
 // p_dedup => false repeats; a ticket on a 0-hour SLA policy is skipped without an error; the overdue check and the digest of 0636 do not
 // both notify one owner of one task (the overdue check skips a recipient whose unread digest lists the task); one failing check does
-// not stop the other five; a refused lock writes nothing.
+// not stop the other five and is logged as a WARNING; a refused lock writes nothing.
 // Run: bun test --isolate src/lib/cost001-cron/cron-0633-metric-alerts.test.ts
 import { describe, test, expect, beforeAll, afterAll, setDefaultTimeout } from "bun:test"
 import type { PGlite } from "@electric-sql/pglite"
@@ -35,6 +35,13 @@ const TABLES = [
   "token_usage_ledger", "metric_alert_rules", "compliance_items", "notices", "risks", "pms_issues", "incidents",
 ]
 const WRAPPER = (args = "") => `compliance.cron_metric_alerts(${args})`
+
+/** Runs the wrapper and returns its result with the WARNINGs the wrapper itself raised (not those of the checks it calls). */
+async function wrapperRun(db: PGlite, args = "") {
+  const notices: string[] = []
+  const rows = (await db.query<{ r: Record<string, any> }>(`select ${WRAPPER(args)} as r`, [], { onNotice: (n) => notices.push(n.message ?? "") })).rows
+  return { res: rows[0].r, warnings: notices.filter((m) => m.startsWith("cost001 cron_metric_alerts:")) }
+}
 
 async function seed(db: PGlite) {
   await db.exec(`
@@ -142,9 +149,10 @@ describe("drizzle/0633 metric alerts on PGlite", () => {
       expect(res.dryRun).toBe(true)
     }
     expect((await call(db, "compliance.cron_task_reprioritise(p_dry_run => true)")).error).toBeUndefined()
-    const wrapped = await call(db, WRAPPER("p_dry_run => true"))
+    const { res: wrapped, warnings } = await wrapperRun(db, "p_dry_run => true")
     for (const key of ["ticketSla", "ticketEscalations", "taskOverdue", "taskReprioritization", "costCeiling"]) expect(wrapped[key].error).toBeUndefined()
     expect(wrapped.metricAlerts.errors).toBe(1) // only the seeded bad rule
+    expect(warnings).toEqual([]) // the wrapper logs nothing when no check raised
   })
 
   test("a ticket on a 0-hour SLA policy is a candidate but is skipped: no division by zero, no error key, its threshold-0 rule never fires", async () => {
@@ -287,8 +295,11 @@ describe("drizzle/0633 metric alerts on PGlite", () => {
       $t$;
       create trigger reject_ticket_update before update on compliance.tickets for each row execute function compliance.reject_ticket_update();`)
     try {
-      const res = await call(db, WRAPPER())
+      const { res, warnings } = await wrapperRun(db)
       expect(res.ticketEscalations.error).toContain("synthetic ticket failure")
+      expect(res.ticketEscalations.sqlstate).toBe("P0001")
+      // a scheduled run shows only the command status, so the wrapper also logs the failed check
+      expect(warnings).toEqual(["cost001 cron_metric_alerts: check ticketEscalations failed: synthetic ticket failure (P0001)"])
       expect(res.metricAlerts).toMatchObject({ notified: 3 })
       expect(res.ticketSla).toMatchObject({ notified: 3 })
       expect(res.taskOverdue).toMatchObject({ notified: 2 })

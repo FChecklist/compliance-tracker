@@ -9,15 +9,17 @@
 --   Pure SQL: no /api/internal route, no net.http_post, no Vault secret, no table, no grant (only a revoke).
 --
 -- SOURCE
---   supabase/prepared/cost001/04_metric_alerts.sql: the function text is copied with three changes. (1) The dollar-quote tag is fn where the
+--   supabase/prepared/cost001/04_metric_alerts.sql: the function text is copied with four changes. (1) The dollar-quote tag is fn where the
 --   prepared file used the bare pair. (2) In cron_ticket_escalations the loop record variable t is renamed tk. The prepared file declares
 --   `t record` and also aliases compliance.tickets as t in the loop query, and PL/pgSQL then reads t.id as a field of the still
 --   unassigned record: the function stops with 'record "t" is not assigned yet' (SQLSTATE 55000) on every run, even when the tickets
 --   table is empty (reproduced on PGlite, PostgreSQL 18.3). The wrapper catches that error inside its own sub-block and returns it under
 --   ticketEscalations instead of raising, so a call of the wrapper that only checks it did not raise cannot show it. The prepared file
 --   is left as it is (it is not edited here); the PGlite test of this migration fails on the unrenamed text. (3) In cron_task_overdue the
---   dedup also skips a recipient whose unread digest lists the task as overdue (see DECISIONS APPLIED). That file holds the
---   reasoning, the column checks and the owner decision table; its README records the live dry runs of 2026-09-22 and 2026-09-24.
+--   dedup also skips a recipient whose unread digest lists the task as overdue (see DECISIONS APPLIED). (4) In the wrapper each catch block
+--   also raises a WARNING, 'cost001 cron_metric_alerts: check <key> failed: <message> (<sqlstate>)', so a failed check shows in the
+--   Postgres log and not only under its result key. That file holds the reasoning, the column checks and the owner decision table; its
+--   README records the live dry runs of 2026-09-22 and 2026-09-24.
 --   Every table and column used was re-checked on 2026-09-26 against src/lib/db/schema.ts and the live catalog (read only): none missing.
 --
 -- DECISIONS APPLIED (PM, under the owner's delegation)
@@ -46,6 +48,8 @@
 -- FIRST LIVE CALL: select compliance.cron_metric_alerts(p_dry_run => true);
 --   Read every key of the result. The wrapper catches a raise inside any of its six checks and returns it as {error, sqlstate} under
 --   that check's key, so cron.job_run_details shows the run as succeeded even when a check failed. Any error key means a check raised.
+--   A scheduled run leaves no result to read (job_run_details keeps only the command status), so watch the Postgres log for the
+--   WARNING text 'cost001 cron_metric_alerts: check' instead.
 --
 -- HOW IT IS APPLIED: through the Supabase MCP by the PM after the always-aborted rehearsal of
 --   ai-os/projexa-build-001/ROLLBACK_REHEARSALS.md (do-block --schemas compliance). Idempotent: create or replace, and the job is
@@ -721,8 +725,8 @@ comment on function compliance.cron_cost_cap(boolean, boolean) is
 -- WRAPPER  cron_metric_alerts  (route.ts:51-58 Promise.all)
 --   Each check runs in its own BEGIN ... EXCEPTION block (a plpgsql
 --   subtransaction): a failing check's partial writes roll back and its
---   error is returned under its key, while the other five still run and
---   commit -- the SQL equivalent of six independent promises.
+--   error is returned under its key and logged as a WARNING, while the
+--   other five still run and commit -- the SQL equivalent of six independent promises.
 -- ----------------------------------------------------------------------------
 create or replace function compliance.cron_metric_alerts(
   p_dedup   boolean default true,
@@ -740,27 +744,45 @@ begin
   end if;
 
   begin v_res := compliance.cron_metric_alert_rules(p_dedup, p_dry_run);
-  exception when others then v_res := jsonb_build_object('error', sqlerrm, 'sqlstate', sqlstate); end;
+  exception when others then
+    v_res := jsonb_build_object('error', sqlerrm, 'sqlstate', sqlstate);
+    raise warning 'cost001 cron_metric_alerts: check metricAlerts failed: % (%)', sqlerrm, sqlstate;
+  end;
   v_out := v_out || jsonb_build_object('metricAlerts', v_res);
 
   begin v_res := compliance.cron_ticket_sla_breaches(p_dedup, p_dry_run);
-  exception when others then v_res := jsonb_build_object('error', sqlerrm, 'sqlstate', sqlstate); end;
+  exception when others then
+    v_res := jsonb_build_object('error', sqlerrm, 'sqlstate', sqlstate);
+    raise warning 'cost001 cron_metric_alerts: check ticketSla failed: % (%)', sqlerrm, sqlstate;
+  end;
   v_out := v_out || jsonb_build_object('ticketSla', v_res);
 
   begin v_res := compliance.cron_ticket_escalations(p_dedup, p_dry_run);
-  exception when others then v_res := jsonb_build_object('error', sqlerrm, 'sqlstate', sqlstate); end;
+  exception when others then
+    v_res := jsonb_build_object('error', sqlerrm, 'sqlstate', sqlstate);
+    raise warning 'cost001 cron_metric_alerts: check ticketEscalations failed: % (%)', sqlerrm, sqlstate;
+  end;
   v_out := v_out || jsonb_build_object('ticketEscalations', v_res);
 
   begin v_res := compliance.cron_task_overdue(p_dedup, p_dry_run);
-  exception when others then v_res := jsonb_build_object('error', sqlerrm, 'sqlstate', sqlstate); end;
+  exception when others then
+    v_res := jsonb_build_object('error', sqlerrm, 'sqlstate', sqlstate);
+    raise warning 'cost001 cron_metric_alerts: check taskOverdue failed: % (%)', sqlerrm, sqlstate;
+  end;
   v_out := v_out || jsonb_build_object('taskOverdue', v_res);
 
   begin v_res := compliance.cron_task_reprioritise(p_dry_run => p_dry_run);
-  exception when others then v_res := jsonb_build_object('error', sqlerrm, 'sqlstate', sqlstate); end;
+  exception when others then
+    v_res := jsonb_build_object('error', sqlerrm, 'sqlstate', sqlstate);
+    raise warning 'cost001 cron_metric_alerts: check taskReprioritization failed: % (%)', sqlerrm, sqlstate;
+  end;
   v_out := v_out || jsonb_build_object('taskReprioritization', v_res);
 
   begin v_res := compliance.cron_cost_cap(p_dedup, p_dry_run);
-  exception when others then v_res := jsonb_build_object('error', sqlerrm, 'sqlstate', sqlstate); end;
+  exception when others then
+    v_res := jsonb_build_object('error', sqlerrm, 'sqlstate', sqlstate);
+    raise warning 'cost001 cron_metric_alerts: check costCeiling failed: % (%)', sqlerrm, sqlstate;
+  end;
   v_out := v_out || jsonb_build_object('costCeiling', v_res);
 
   return v_out;
