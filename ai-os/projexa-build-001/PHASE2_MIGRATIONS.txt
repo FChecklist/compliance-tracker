@@ -13,3 +13,5 @@
 #
 # Listed so far (2026-09-25): U-18a, the link project scope columns.
 0613_build001_link_project_scope
+# U-21, the PROJEXA timer (exchange-rate refresh off Vercel).
+0615_build001_projexa_timer
