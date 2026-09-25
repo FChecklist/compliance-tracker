@@ -21,7 +21,7 @@
 //                                  CALL EVER
 import { NextRequest, NextResponse } from "next/server"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
-import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
 import { resolveFinancialRole } from "@/lib/supabase/acting-role"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
@@ -61,17 +61,32 @@ export async function POST(...args: Parameters<typeof POST_impl>) {
 /**
  * R67 C-03 -- THE IDENTITY BRIDGE (decision D-05).
  *
- * `actorId` used to be `ctx.dbUser?.id ?? ctx.apiKey!.id`, and PROJEXA always
- * calls this with a per-ORG API key -- so for every real PROJEXA request it
- * was an api_keys.id, and the person was resolved separately (and only when
- * the body carried actorEmail, returning null otherwise).
+ * `actorId` below is `ctx.dbUser?.id ?? ctx.apiKey!.id`, and PROJEXA always
+ * calls this with a per-ORG API key -- so for every real PROJEXA request it is
+ * an api_keys.id. That is fine for pipeline_tasks (its user_id is not a users
+ * FK) and fatally wrong for anything attributing a business row to a PERSON,
+ * e.g. pms_time_entries.user_id, whose FK is hard.
  *
- * PROJEXA-BUILD-001 U-20b (BR-215): both are now the same resolved person.
- * requireActingPerson() takes a session user as-is, and for an API key needs
- * X-Acting-User / X-Acting-User-Email (or the body actorEmail this route has
- * always accepted); with none of them it refuses with 400 ACTING_USER_REQUIRED
- * instead of recording the key as the actor.
+ * A session caller's own dbUser always wins. An API-key caller may send
+ * actorEmail (the same convention /v1/projexa/timesheets already uses) and it
+ * is resolved to a real, active, org-scoped compliance.users row.
+ *
+ * *** IT RETURNS NULL RATHER THAN REFUSING THE WHOLE REQUEST. *** Every
+ * read-only function is unaffected by a missing actor, and the one executor
+ * that needs a person refuses in its own words -- 400ing every submission on
+ * a field most callers legitimately never send would be the wrong trade.
  */
+async function resolveActorUserId(
+  ctx: Parameters<typeof resolveActingUser>[0],
+  body: Record<string, unknown>
+): Promise<string | null> {
+  if (ctx.dbUser?.id) return ctx.dbUser.id
+  const actorEmail = typeof body.actorEmail === "string" ? body.actorEmail.trim() : ""
+  if (!actorEmail) return null
+  const { user } = await resolveActingUser(ctx, actorEmail)
+  return user?.id ?? null
+}
+
 async function POST_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
@@ -80,6 +95,8 @@ async function POST_impl(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
 
+  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+
   let body: Record<string, unknown>
   try {
     body = await request.json()
@@ -87,19 +104,15 @@ async function POST_impl(request: NextRequest) {
     return NextResponse.json({ error: "Body must be JSON" }, { status: 400 })
   }
 
-  const { acting, error: actingError } = await requireActingPerson(request, ctx, body)
-  if (actingError) return actingError
-  const actorId = acting.person.id
-
   const mode = typeof body.mode === "string" ? body.mode : "Projects"
   const projectId = typeof body.projectId === "string" ? body.projectId : null
-  // R67 C-03 (D-05): the real person -- always one now (U-20b).
-  const actorUserId = actorId
+  // R67 C-03 (D-05): the real person, when the caller identified one.
+  const actorUserId = await resolveActorUserId(ctx, body)
   // PROJEXA-BUILD-001 U-01b: the role every branch below redacts construction
   // figures against. Every branch used to pass `ctx.dbUser?.role ?? null`,
   // null for PROJEXA's per-org API key even when actorEmail named a manager.
-  // Same rules as the assistant route -- see acting-role.ts. U-01d: it
-  // returns null rather than refusing.
+  // Same rules as the assistant route -- see acting-role.ts. U-01d: like
+  // resolveActorUserId above, it returns null rather than refusing.
   const financialRole = await resolveFinancialRole(ctx, request, body)
 
   try {

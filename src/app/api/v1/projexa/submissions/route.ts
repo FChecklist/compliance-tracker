@@ -18,7 +18,7 @@
 // *** CLASSIFICATION NEVER AUTHORIZES. *** /classify may have said "task";
 // this route checks permission again, from scratch, before anything runs.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { resolveFinancialRole } from "@/lib/supabase/acting-role"
 import { runSubmission } from "@/lib/pipeline/run-submission"
 
@@ -34,9 +34,7 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
 
-  const { acting, error: actingError } = await requireActingPerson(request, ctx)
-  if (actingError) return actingError
-  const actorId = acting.person.id
+  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
 
   let body: Record<string, unknown>
   try {
