@@ -791,6 +791,12 @@ export const apiKeys = complianceSchemaDB.table('api_keys', {
   issuedForApplicationId: text('issued_for_application_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // PROJEXA-BUILD-001 U-19 (drizzle/0613, PMD-07/PMD-08): null = org-wide,
+  // every pre-0613 key's exact behaviour (the PROJEXA proxy key is org-wide
+  // by design). A 'project_ai' key must carry a project_id (CHECK
+  // api_keys_project_ai_requires_project).
+  projectId: text('project_id'),
+  keyKind: text('key_kind').notNull().default('org_service'), // 'org_service' | 'project_ai' (CHECK api_keys_key_kind_check)
 })
 
 // Wave 96: real per-request log backing both rate-limit enforcement (count
@@ -13327,15 +13333,34 @@ export const pipelineLevelModels = platformSchemaDB.table('pipeline_level_models
 // behalf. See drizzle/0330_r63_user_ai_links.sql and
 // src/lib/ai-links/user-links.ts (token generation/resolution) and
 // src/app/api/mcp/[token]/route.ts (the actual MCP server).
+//
+// PROJEXA-BUILD-001 U-18 (drizzle/0613_build001_link_project_scope.sql): one
+// table, two products. 'veridian' rows (every row before 0613, and the chat
+// picker's links) are org-wide and keep a plaintext token. 'projexa' rows are
+// project-scoped work links: CHECK user_ai_links_projexa_shape requires
+// project_id, token_hash and expires_at and a NULL token. One active link per
+// (org_id, user_id) for veridian rows and per (user_id, project_id) for
+// projexa rows (two partial unique indexes, not declared here).
 export const userAiLinks = platformSchemaDB.table('user_ai_links', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   userId: text('user_id').notNull(),
-  token: text('token').notNull().unique(),
+  token: text('token').unique(), // NULL only on a 'projexa' row (0613)
   status: text('status').notNull().default('active'), // 'active' | 'revoked'
   createdAt: timestamp('created_at').notNull().defaultNow(),
   lastUsedAt: timestamp('last_used_at'),
   revokedAt: timestamp('revoked_at'),
+  product: text('product').notNull().default('veridian'), // 'veridian' | 'projexa'
+  projectId: text('project_id'),
+  tokenHash: text('token_hash').unique(), // sha256 hex of a projexa token
+  authorityLevel: smallint('authority_level').notNull().default(0), // 0 | 1
+  allowedFunctions: text('allowed_functions').array().notNull().default([]),
+  hidePersonal: boolean('hide_personal').notNull().default(true),
+  label: text('label'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  createdByUserId: text('created_by_user_id'),
+  callCount: integer('call_count').notNull().default(0),
+  writeCount: integer('write_count').notNull().default(0),
 })
 
 // R63 (owner directive, 2026-08-29): data-driven AI-connector provider
