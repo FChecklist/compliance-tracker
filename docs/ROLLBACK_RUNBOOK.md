@@ -113,6 +113,17 @@ When a new migration is non-additive, add a paired file:
    `ai-os/boss/COMPLETED.yaml` per `AGENTS.md` Rule 7(d) if it closed a
    tracked task.
 
+## 4a. Rehearsing a rollback without a Supabase branch (PROJEXA-BUILD-001)
+
+A paid Supabase branch is not used (PROJEXA-BUILD-001 PMD-10). For a migration listed in
+`ai-os/projexa-build-001/PHASE2_MIGRATIONS.txt`, the down file from §3 is proven two ways before the
+forward file is applied: a PGlite replay on a snapshot of the touched tables
+(`bash scripts/verify/rollback-replay.sh`), and a DO block on the live database that runs forward then
+down inside one transaction and always raises, comparing `scripts/verify/schema-hash.sql` before and
+after (`bash scripts/verify/rollback-rehearsals.sh` checks the logged result). The procedure, its
+evidence log and its limits (the block holds ACCESS EXCLUSIVE locks on the touched tables while it
+runs) are in `ai-os/projexa-build-001/ROLLBACK_REHEARSALS.md`.
+
 ## 5. Honest gaps
 
 Matching `SEV1_INCIDENT_RUNBOOK.md`'s own honesty standard: this repo has
