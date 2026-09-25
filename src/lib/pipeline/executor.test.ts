@@ -31,7 +31,8 @@ describe("hasExecutor -- the registry of functions this pipeline can actually ru
   test("review_budget is executable and is a READ, not a write", () => {
     expect(hasExecutor("review_budget")).toBe(true);
     expect(functionWrites("review_budget")).toBe(false);
-    // WRITE_FUNCTION_IDS stays exactly one entry until B-04.
+    // Pinned by contents, not by count: B-04 grew the set and U-28 added
+    // create_boq (see the B-04 describe below and function-registry.test.ts).
     expect(functionWrites("record_work_progress")).toBe(true);
   });
 });
@@ -185,13 +186,15 @@ describe("B-04 -- the writes the pipeline can now execute", () => {
     expect(functionWrites("add_roster_entry")).toBe(true);
     expect(functionWrites("create_boq_revision")).toBe(true);
     expect(functionWrites("create_document")).toBe(true);
+    // PROJEXA-BUILD-001 U-28 (BR-406).
+    expect(functionWrites("create_boq")).toBe(true);
     // Still exactly the writes -- a read must never drift into this set.
     expect(functionWrites("review_budget")).toBe(false);
     expect(functionWrites("get_construction_project_dashboard")).toBe(false);
   });
 
   test("every registered write has a real executor", () => {
-    for (const id of ["record_work_progress", "record_attendance", "add_roster_entry", "create_meeting", "create_boq_revision", "create_document"]) {
+    for (const id of ["record_work_progress", "record_attendance", "add_roster_entry", "create_meeting", "create_boq", "create_boq_revision", "create_document"]) {
       expect(hasExecutor(id)).toBe(true);
     }
   });

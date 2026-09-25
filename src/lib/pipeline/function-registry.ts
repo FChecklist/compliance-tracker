@@ -197,6 +197,31 @@ const SPEC_LIST: readonly FunctionSpec[] = [
       primaryLabel: "Save meeting",
     },
   },
+  // PROJEXA-BUILD-001 U-28 (BR-406): a new BOQ, wrapping createBoq() -- the
+  // service POST /api/v1/construction/boq calls. lineItems is a list and is
+  // deliberately not a required parameter: R-03 lets a BOQ be created with a
+  // title and no lines, and the service is the one place that decides whether
+  // each line is acceptable (validateLineItemInputs). A card field has no list
+  // type, so the card shows the title and the lines travel in params.
+  {
+    functionId: "create_boq",
+    label: "New BOQ",
+    module: "scope",
+    kind: "write",
+    writes: true,
+    requiresProject: true,
+    requiredParams: [
+      { name: "projectId", label: "Project", code: "PROJECT_REQUIRED" },
+      { name: "title", label: "Title", code: "TITLE_REQUIRED" },
+    ],
+    card: {
+      fields: [{ key: "title", label: "Title", type: "text", required: true }],
+      primaryLabel: "Save BOQ",
+    },
+  },
+  // U-28 (BR-408): lineItems, allowScopeReductionOverride and
+  // sourceChangeOrderId are optional and now reach createBoqRevision() (see
+  // executeCreateBoqRevision); without lineItems the parent's lines are copied.
   {
     functionId: "create_boq_revision",
     label: "New BOQ revision",
