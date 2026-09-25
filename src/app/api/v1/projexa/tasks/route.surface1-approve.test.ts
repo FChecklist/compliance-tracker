@@ -422,6 +422,19 @@ describe("BR-410: a proposal that is not complete or cannot be written is not ap
     expect(snapshot()).toBe(before)
   })
 
+  test("line items stored under a key the service does not read are 422 (the header-only BOQ that would follow is not written)", async () => {
+    seedRows(store, "submissions", [submissionRow({ id: "sub_items_key", selectedChain: preparedChain({ params: { projectId: PROJECT_A, title: "Misnamed", items: [line()] } }) })])
+    const before = snapshot()
+
+    const res = await approve({ submissionId: "sub_items_key" })
+    const body = await res.json()
+
+    expect(res.status).toBe(422)
+    expect(body.failure.code).toBe("REQUEST_REJECTED")
+    expect(body.detail).toContain("items")
+    expect(snapshot()).toBe(before)
+  })
+
   test("a body that is not a JSON object, or has no submissionId, is 400", async () => {
     const before = snapshot()
     expect((await approve("not json")).status).toBe(400)

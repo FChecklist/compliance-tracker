@@ -25,6 +25,10 @@
 // THE AUDIT. recordApprovalAudit() writes one compliance.audit_logs row per line item created, through
 // logActivity() with its surface argument set to s1_one_page_ai_prepared and the acting person as the user (a key
 // that carried the call is kept beside the person, never instead of the person).
+//
+// THE PASTE-BACK. For an AI that cannot open the person's link, parsePasteBack() reads fenced blocks from pasted text,
+// validatePastedBlock() checks each one with the registry's validate(), and storePastedProposals() stores each valid
+// block as one more pending row of the same store. A paste stores nothing when any block fails.
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { projects, submissions } from "@/lib/db/schema";
@@ -37,8 +41,9 @@ import type { ActingActor } from "@/lib/supabase/auth-guard";
 import { missingParamsFor, type DryRunMissing } from "./dry-run";
 import { pipelineFailure, type PipelineFailure } from "./error-codes";
 import { functionLabel } from "./function-registry";
+import { classifySubmission } from "./classify";
 import { buildValidationContext, runDirectTask, type RunSubmissionResult } from "./run-submission";
-import { validate } from "./validate";
+import { validate, type ValidationContext } from "./validate";
 
 /** The audit surface every approval on the approval list is recorded under (FOUR_SURFACE_CONTRACT.md rule 4). */
 export const S1_SURFACE = "s1_one_page_ai_prepared" as const satisfies AuditSurface;
@@ -191,6 +196,19 @@ export async function listPreparedProposals(ctx: { orgId: string }, projectId: s
   return proposals.slice(0, MAX_LISTED_PROPOSALS);
 }
 
+/**
+ * The context the registry's validate() runs in for this list, at paste time and at approval time: the one place the
+ * candidate set is narrowed to the functions the list approves, and the project of the URL is the only reachable
+ * project (projectScope), so a params.projectId naming another project is PROJECT_NOT_REACHABLE.
+ */
+function s1ValidationContext(projectId: string, projectLabel: string | null, params: Record<string, unknown>): ValidationContext {
+  return {
+    ...buildValidationContext({ projectId, projectLabel, boq: null, params, projectScope: projectId }),
+    candidateFunctionIds: S1_APPROVABLE_FUNCTION_IDS,
+    userPermittedFunctionIds: new Set(S1_APPROVABLE_FUNCTION_IDS),
+  };
+}
+
 /** What a list of line items is checked against before a create_boq proposal is stored or written. */
 export type LineItemsCheck = { ok: true } | { ok: false; failure: PipelineFailure; detail: string };
 
@@ -202,8 +220,8 @@ export type LineItemsCheck = { ok: true } | { ok: false; failure: PipelineFailur
  */
 export function checkBoqLineItems(params: Record<string, unknown>): LineItemsCheck {
   const raw = params.lineItems;
-  if (raw === undefined || raw === null) return { ok: true };
-  if (!Array.isArray(raw) || raw.some((item) => typeof item !== "object" || item === null || Array.isArray(item))) {
+  const present = raw !== undefined && raw !== null;
+  if (present && (!Array.isArray(raw) || raw.some((item) => typeof item !== "object" || item === null || Array.isArray(item)))) {
     return {
       ok: false,
       failure: pipelineFailure("REQUEST_REJECTED", [], { status: 400, reason: "line_items_not_a_list" }),
@@ -211,8 +229,9 @@ export function checkBoqLineItems(params: Record<string, unknown>): LineItemsChe
     };
   }
   try {
+    // Runs when lineItems is absent too: it is what refuses line items sent under a key the service does not read.
     validateBoqBodyShape(params);
-    validateLineItemInputs(raw as BoqLineItemInput[]);
+    if (present) validateLineItemInputs(raw as BoqLineItemInput[]);
     return { ok: true };
   } catch (error) {
     if (error instanceof ServiceError) {
@@ -287,15 +306,7 @@ export async function confirmPreparedProposal(input: ConfirmPreparedInput): Prom
   const missing = missingParamsFor(chain.functionId, merged, input.projectId);
   if (missing.length > 0) return { ok: false, reason: "needs_input", missing };
 
-  // The project of the URL is the only project this approval may act on: projectScope makes it the only reachable one.
-  const checked = validate(
-    { functionId: chain.functionId, params: merged },
-    {
-      ...buildValidationContext({ projectId: input.projectId, projectLabel: null, boq: null, params: merged, projectScope: input.projectId }),
-      candidateFunctionIds: S1_APPROVABLE_FUNCTION_IDS,
-      userPermittedFunctionIds: new Set(S1_APPROVABLE_FUNCTION_IDS),
-    }
-  );
+  const checked = validate({ functionId: chain.functionId, params: merged }, s1ValidationContext(input.projectId, null, merged));
   if (!checked.valid) {
     const { valid: _valid, ...failure } = checked;
     return { ok: false, reason: "invalid", failure };
@@ -386,4 +397,122 @@ export function approvedRecordOf(result: RunSubmissionResult): { boqId: string |
   const created = createdRecordOf(result);
   const out = result.tasks[0]?.result;
   return { ...created, route: isPlainObject(out) && typeof out.route === "string" ? out.route : null };
+}
+
+// ── PASTE-BACK (BR-424, U-47) ──────────────────────────────────────────────
+// For an AI that cannot open the person's link URL: it prints one fenced block per change, the person pastes the
+// text, and each valid block becomes one pending proposal on the approval list. Nothing is written to a BOQ. The
+// block is the one UNIVERSAL_AI_WORK_LINK_SPEC.md section 9.4 names:
+//
+//   ```projexa-proposal
+//   {"v":1,"function":"create_boq","params":{"title":"...","lineItems":[...]},"note":"optional"}
+//   ```
+//
+// A block is checked with the registry's own validate() and the BOQ service's line-item rules, the same checks the
+// approval runs, so a block that would fail at Approve fails here with 422 and stores nothing. A paste is all or
+// nothing: every block is checked before the first is stored.
+
+/** The most blocks one paste may hold. */
+export const MAX_PASTE_BLOCKS = 20;
+
+/** The most characters of pasted text the route reads. */
+export const MAX_PASTE_CHARS = 200_000;
+
+/** The fence languages a block may carry; the empty one is a bare ``` fence. Any other fenced code is not ours. */
+const BLOCK_FENCE_LANGUAGES = ["projexa-proposal", "json", ""];
+
+/** One block as the AI printed it, after its shape was checked. */
+export type PastedBlock = { functionId: string; params: Record<string, unknown>; note: string | null };
+
+export type PasteFailure = { block: number | null; failure: PipelineFailure; detail?: string };
+
+function rejected(reason: string, block: number | null, detail?: string): { ok: false } & PasteFailure {
+  return { ok: false, block, failure: pipelineFailure("REQUEST_REJECTED", [], { status: 422, reason }), ...(detail ? { detail } : {}) };
+}
+
+/**
+ * The blocks of a pasted text, in order, or the first reason the paste is refused. Only shape is read here (a fence,
+ * JSON, version 1, a function name, an object of params); what the function may do is validatePastedBlock().
+ */
+export function parsePasteBack(text: string): { ok: true; blocks: PastedBlock[] } | ({ ok: false } & PasteFailure) {
+  const bodies: string[] = [];
+  for (const match of text.matchAll(/```([^\r\n`]*)\r?\n([\s\S]*?)```/g)) {
+    if (BLOCK_FENCE_LANGUAGES.includes(match[1].trim().toLowerCase())) bodies.push(match[2]);
+  }
+  if (bodies.length === 0) return rejected("no_block", null);
+  if (bodies.length > MAX_PASTE_BLOCKS) return rejected("too_many_blocks", null);
+
+  const blocks: PastedBlock[] = [];
+  for (const [index, body] of bodies.entries()) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      return rejected("block_not_json", index);
+    }
+    if (!isPlainObject(parsed)) return rejected("block_not_object", index);
+    if (parsed.v !== undefined && parsed.v !== 1) return rejected("unsupported_version", index);
+    const functionId = typeof parsed.function === "string" ? parsed.function.trim() : "";
+    if (!functionId) return rejected("function_missing", index);
+    const params = parsed.params === undefined ? {} : parsed.params;
+    if (!isPlainObject(params)) return rejected("params_not_object", index);
+    const note = typeof parsed.note === "string" && parsed.note.trim() !== "" ? parsed.note.trim().slice(0, NOTE_MAX_LENGTH) : null;
+    blocks.push({ functionId, params, note });
+  }
+  return { ok: true, blocks };
+}
+
+/**
+ * One block against the registry: validate() with this list's candidate set and this project only, then create_boq's
+ * line-item rules. Returns the params to store (validate() fills projectId from the URL's project when the block
+ * leaves it out) or the failure to answer 422 with.
+ */
+export function validatePastedBlock(
+  block: PastedBlock,
+  project: { id: string; name: string }
+): { ok: true; params: Record<string, unknown> } | { ok: false; failure: PipelineFailure; detail?: string } {
+  const checked = validate({ functionId: block.functionId, params: block.params }, s1ValidationContext(project.id, project.name, block.params));
+  if (!checked.valid) {
+    const { valid: _valid, ...failure } = checked;
+    return { ok: false, failure };
+  }
+  const lines = checkBoqLineItems(checked.params);
+  if (!lines.ok) return { ok: false, failure: lines.failure, detail: lines.detail };
+  return { ok: true, params: checked.params };
+}
+
+/**
+ * Store validated blocks as pending proposals, one compliance.submissions row each, all in one transaction. The row is
+ * the store the approval list reads: selected_chain { source: "paste_back", functionId, params, note }, status
+ * in_progress, the words the registry gives the function as raw_input, and the pasting person as user_id. Nothing
+ * else is written: no BOQ, no line item, no task, and no model is asked (submitForVerdict() would run a dry run
+ * that can reach one, and the block already names its function). The Level 1 columns stay NULL, as on a row nobody
+ * measured. Returns the new submission ids in block order.
+ */
+export async function storePastedProposals(args: {
+  orgId: string;
+  projectId: string;
+  person: { id: string };
+  blocks: Array<{ functionId: string; params: Record<string, unknown>; note: string | null }>;
+}): Promise<string[]> {
+  return withTenantContext({ orgId: args.orgId, userId: args.person.id }, async (db) => {
+    const ids: string[] = [];
+    for (const block of args.blocks) {
+      const [row] = await db
+        .insert(submissions)
+        .values({
+          orgId: args.orgId,
+          projectId: args.projectId,
+          mode: "Projects",
+          selectedChain: { source: "paste_back", functionId: block.functionId, params: block.params, note: block.note },
+          rawInput: functionLabel(block.functionId).toLowerCase(),
+          userId: args.person.id,
+          status: "in_progress",
+          classification: classifySubmission(["task"]),
+        })
+        .returning({ id: submissions.id });
+      ids.push(row.id);
+    }
+    return ids;
+  });
 }

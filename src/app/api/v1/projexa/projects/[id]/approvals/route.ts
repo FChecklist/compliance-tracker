@@ -28,6 +28,7 @@ import {
   listPreparedProposals,
   recordApprovalAudit,
   S1_SURFACE,
+  type ConfirmPreparedOutcome,
 } from "@/lib/pipeline/prepared-proposals"
 
 export async function GET(...args: Parameters<typeof GET_impl>) {
@@ -64,6 +65,39 @@ export async function POST(...args: Parameters<typeof POST_impl>) {
   return withRouteTiming("POST", () => POST_impl(...args))
 }
 
+/** The request body as a JSON object, or null when it is not JSON or not an object. */
+async function readJsonObject(request: Request): Promise<Record<string, unknown> | null> {
+  try {
+    const parsed: unknown = await request.json()
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
+/** The answer for a proposal that was not approved. Nothing was written for any of these. */
+function refusalResponse(outcome: Extract<ConfirmPreparedOutcome, { ok: false }>): NextResponse {
+  switch (outcome.reason) {
+    case "not_found":
+      return NextResponse.json({ error: "That proposal is not on this project" }, { status: 404 })
+    case "already_decided":
+      return NextResponse.json({ error: "That proposal has already been decided", status: outcome.status }, { status: 409 })
+    case "needs_input":
+      // 200, not an error: the answer is a question.
+      return NextResponse.json({ approved: false, status: "needs_input", missing: outcome.missing }, { status: 200 })
+    case "invalid":
+      return NextResponse.json(
+        { approved: false, error: "The proposal cannot be written as it stands", failure: outcome.failure, detail: outcome.detail },
+        { status: 422 }
+      )
+    case "failed": {
+      // The pipeline ran and the service refused; the submission is now failed, so the proposal is decided.
+      const { segmentText: _segmentText, ...failure } = outcome.result.failures[0] ?? { segmentText: "" }
+      return NextResponse.json({ approved: false, error: "The proposal could not be written", failure }, { status: 409 })
+    }
+  }
+}
+
 async function POST_impl(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
@@ -73,14 +107,8 @@ async function POST_impl(request: NextRequest, { params }: { params: Promise<{ i
   if (roleErr) return roleErr
 
   try {
-    let body: Record<string, unknown>
-    try {
-      const parsed: unknown = await request.json()
-      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("not an object")
-      body = parsed as Record<string, unknown>
-    } catch {
-      return NextResponse.json({ error: "Body must be a JSON object" }, { status: 400 })
-    }
+    const body = await readJsonObject(request)
+    if (!body) return NextResponse.json({ error: "Body must be a JSON object" }, { status: 400 })
 
     // PMD-34 / PMD-35: the approval is made by a person. An API-key call that names nobody is a 400 here, before the
     // proposal is read; the person's own id and role are what the pipeline records the write under.
@@ -105,26 +133,7 @@ async function POST_impl(request: NextRequest, { params }: { params: Promise<{ i
       person: { id: acting.person.id, role: acting.person.role },
       params: added as Record<string, unknown>,
     })
-    if (!outcome.ok) {
-      switch (outcome.reason) {
-        case "not_found":
-          return NextResponse.json({ error: "That proposal is not on this project" }, { status: 404 })
-        case "already_decided":
-          return NextResponse.json({ error: "That proposal has already been decided", status: outcome.status }, { status: 409 })
-        case "needs_input":
-          // 200, not an error: the answer is a question, and nothing was written.
-          return NextResponse.json({ approved: false, status: "needs_input", missing: outcome.missing }, { status: 200 })
-        case "invalid":
-          return NextResponse.json(
-            { approved: false, error: "The proposal cannot be written as it stands", failure: outcome.failure, detail: outcome.detail },
-            { status: 422 }
-          )
-        case "failed": {
-          const { segmentText: _segmentText, ...failure } = outcome.result.failures[0] ?? { segmentText: "" }
-          return NextResponse.json({ approved: false, error: "The proposal could not be written", failure }, { status: 409 })
-        }
-      }
-    }
+    if (!outcome.ok) return refusalResponse(outcome)
 
     const record = approvedRecordOf(outcome.result)
     try {
