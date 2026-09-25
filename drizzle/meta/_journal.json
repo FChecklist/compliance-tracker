@@ -3152,6 +3152,62 @@
       "when": 1790076000000,
       "tag": "0620_build001_inbound_email_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 452,
+      "version": "7",
+      "when": 1790076500000,
+      "tag": "0621_build001_awl_config_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 453,
+      "version": "7",
+      "when": 1790077000000,
+      "tag": "0622_build001_awl_intent",
+      "breakpoints": true
+    },
+    {
+      "idx": 454,
+      "version": "7",
+      "when": 1790077500000,
+      "tag": "0623_build001_awl_call_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 455,
+      "version": "7",
+      "when": 1790078000000,
+      "tag": "0624_build001_awl_link_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 456,
+      "version": "7",
+      "when": 1790078500000,
+      "tag": "0625_build001_awl_read_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 457,
+      "version": "7",
+      "when": 1790079000000,
+      "tag": "0626_build001_awl_intent_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 458,
+      "version": "7",
+      "when": 1790079500000,
+      "tag": "0627_build001_awl_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 459,
+      "version": "7",
+      "when": 1790080000000,
+      "tag": "0628_build001_awl_seed",
+      "breakpoints": true
     }
   ]
 }
