@@ -4497,6 +4497,14 @@ active:
       only (arjun.mehta CEO account), no real credentials touched.
 
 recently_completed:
+  - session_label: "claude-code (interactive, isolated worktree nifty-ardinghelli-56ca62, branch fix/domain-drift-check-http-status) -- domain-drift-check workflow reported an invalid Vercel token as drift [DONE on merge of PR 1882; moved here inside that same PR so the claim state lands atomically with the merge]"
+    claimed_at: "25-Sep-2026 (this session)"
+    completed_at: "25-Sep-2026 (this session)"
+    claim: |
+      SCOPE: .github/workflows/domain-drift-check.yml (step body moved out), scripts/check-domain-drift.sh (new), scripts/check-domain-drift.test.ts (new), this entry.
+      RESULT: the scheduled guard's failures were an HTTP 403 from Vercel on the VERCEL_ACCESS_TOKEN secret, not drift (confirmed by a real run with the real secret). The step used `curl -sf`, which folded 401/403/404 into "domain is NOT attached". The new script records the HTTP status and reports drift (404 / other projectId, exit 1) separately from a guard that could not run (401/403 token, API error, empty secret, exit 2). The run still fails either way; it now says why.
+      OPEN, OWNER-ONLY: the VERCEL_ACCESS_TOKEN secret must be replaced with a valid token at go-live (PROJEXA-COST-001: Vercel is recharged last, so until then the guard is intentionally left failing with the honest message). A VERCEL_API_TOKEN secret exists that no workflow here reads; which secret name is canonical is the owner's call.
+      NOT touched: ai-os/DOMAIN_OWNERSHIP.yaml, vercel.json, any Vercel project/domain/setting/env/spend cap, DNS, any mutating Vercel endpoint, any secret value.
   - session_label: "claude-code (interactive, Claude Desktop, PM session for WO-DPDP-013 (Parts 1+2) + WO-DPDP-014 + WO-DPDP-011 Step 6, with 5 isolated sub-agent worktrees) -- the AI work link (authority levels, RPCs, Edge Function API, generated manual), the public fact door (facts file, /about, /for-ai, /facts.json, llms*.txt, the wall + banned-word tests, hidden /proof), one brand line everywhere + the share action, the 70 acceptance-70 Playwright checks, and the Copy-AI-link screen [DONE 2026-09-24 -- every code item merged and green; the only items not closed are the owner's Vercel recharge and anything gated on it]"
     claimed_at: "2026-09-22T17:05+05:30 (WO-013/014) / 2026-09-22T (WO-011 Step 6)"
     completed_at: "2026-09-24T (this session)"
