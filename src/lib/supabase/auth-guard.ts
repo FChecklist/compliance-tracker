@@ -4,7 +4,7 @@ import { createClient } from "./server"
 import { db, users, organisations, accessReviewCertifications } from "@/lib/db"
 import { eq, and, or } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
-import { validateApiKey } from "./api-key-auth"
+import { validateApiKey, type ApiKeyKind } from "./api-key-auth"
 import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
 import { assignSeat } from "@/lib/org-license-service"
 import { consumeInviteLinkAndProvisionUser } from "@/lib/invite-link-service"
@@ -390,7 +390,11 @@ export async function requireAuth(): Promise<AuthContext> {
 export type CombinedAuthContext = {
   orgId: string | null
   dbUser: typeof users.$inferSelect | null
-  apiKey: { id: string; name: string; scopes: string[] } | null
+  // PROJEXA-BUILD-001 U-19 (BR-213): keyKind/projectId as validateApiKey()
+  // read them, for assertKeyProjectScope() at the routes that run work on a
+  // project. Optional so every existing constructor of this shape still
+  // compiles; one without them is treated as an org_service key.
+  apiKey: { id: string; name: string; scopes: string[]; keyKind?: ApiKeyKind; projectId?: string | null } | null
   response: NextResponse | null
 }
 
@@ -422,7 +426,7 @@ export async function requireAuthOrApiKey(request: Request): Promise<CombinedAut
       return {
         orgId: context.orgId,
         dbUser: null,
-        apiKey: { id: context.keyId, name: context.keyName, scopes: context.scopes },
+        apiKey: { id: context.keyId, name: context.keyName, scopes: context.scopes, keyKind: context.keyKind, projectId: context.projectId },
         response: null,
       }
     }
@@ -443,7 +447,7 @@ export async function requireAuthOrApiKey(request: Request): Promise<CombinedAut
     return {
       orgId: context.orgId,
       dbUser: null,
-      apiKey: { id: context.keyId, name: context.keyName, scopes: context.scopes },
+      apiKey: { id: context.keyId, name: context.keyName, scopes: context.scopes, keyKind: context.keyKind, projectId: context.projectId },
       response: null,
     }
   }

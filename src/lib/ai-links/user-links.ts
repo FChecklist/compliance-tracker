@@ -38,9 +38,36 @@ import { users } from '@/lib/db/schema'
 import { withTenantContext } from '@/lib/db/tenant-scoped'
 import { and, eq, sql } from 'drizzle-orm'
 
+export type AiLinkProduct = 'veridian' | 'projexa'
+
+/**
+ * PROJEXA-BUILD-001 U-18 stage B (drizzle/0614): the link's scope travels with
+ * its identity. A 'veridian' link is org-wide (projectId null) exactly as
+ * before 0613; a 'projexa' link is pinned to one project, and every caller
+ * that runs work on its behalf must enforce that (see project-scope.ts).
+ * authorityLevel, allowedFunctions and hidePersonal are carried as stored;
+ * nothing in this repo enforces them yet (U-46 / U-49).
+ */
 export interface AiLinkIdentity {
   readonly orgId: string
   readonly userId: string
+  readonly product: AiLinkProduct
+  readonly projectId: string | null
+  readonly authorityLevel: number
+  readonly allowedFunctions: readonly string[]
+  readonly hidePersonal: boolean
+}
+
+/** One row of platform.rpc_resolve_ai_link_scoped() (drizzle/0614). */
+type ResolvedLinkRow = {
+  id: string
+  org_id: string
+  user_id: string
+  product: AiLinkProduct
+  project_id: string | null
+  authority_level: number
+  allowed_functions: string[]
+  hide_personal: boolean
 }
 
 /** 256-bit random, base64url. Never derived from user_id/email/timestamp -- guessing one must be as hard as guessing a random 32-byte value. */
@@ -94,17 +121,32 @@ export async function getOrCreateUserAiLink(orgId: string, userId: string): Prom
  * withTenantContext(): there is no org to set as context before this
  * lookup runs, by design -- resolving that is the entire point of the
  * call.
+ *
+ * PROJEXA-BUILD-001 U-18 stage B (drizzle/0614): calls
+ * platform.rpc_resolve_ai_link_scoped(), which matches a VERIDIAN link by its
+ * plaintext exactly as rpc_resolve_ai_link_token() did, and a PROJEXA link by
+ * the sha256 of the token (it stores no plaintext), skipping an expired one.
+ * The function must be applied before this code is deployed (0614's header).
+ * More than one row is refused like no row: a token names one link or none.
  */
 export async function resolveAiLinkToken(token: string): Promise<AiLinkIdentity | null> {
   if (!token || token.length < 32) return null // fail fast on an obviously-malformed value, no DB round trip
 
   const rows = (await db.execute(
-    sql`SELECT * FROM platform.rpc_resolve_ai_link_token(${token}::text)`
-  )) as { org_id: string; user_id: string }[]
+    sql`SELECT * FROM platform.rpc_resolve_ai_link_scoped(${token}::text)`
+  )) as ResolvedLinkRow[]
+  if (rows.length !== 1) return null
   const row = rows[0]
-  if (!row) return null
 
-  return { orgId: row.org_id, userId: row.user_id }
+  return {
+    orgId: row.org_id,
+    userId: row.user_id,
+    product: row.product,
+    projectId: row.project_id,
+    authorityLevel: row.authority_level,
+    allowedFunctions: row.allowed_functions,
+    hidePersonal: row.hide_personal,
+  }
 }
 
 /**
@@ -121,7 +163,7 @@ export async function resolveAiLinkToken(token: string): Promise<AiLinkIdentity 
  * null role is not an error: the caller passes it on, and the redaction
  * treats an unknown role as not allowed to see the figures.
  */
-export async function resolveAiLinkOwnerRole(identity: AiLinkIdentity): Promise<string | null> {
+export async function resolveAiLinkOwnerRole(identity: Pick<AiLinkIdentity, 'orgId' | 'userId'>): Promise<string | null> {
   const owner = await withTenantContext({ orgId: identity.orgId, userId: identity.userId }, (tx) =>
     tx.query.users.findFirst({
       where: and(eq(users.id, identity.userId), eq(users.orgId, identity.orgId)),

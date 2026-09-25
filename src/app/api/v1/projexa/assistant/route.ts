@@ -20,6 +20,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { resolveFinancialRole } from "@/lib/supabase/acting-role"
+import { assertKeyProjectScope, keyProjectScope } from "@/lib/supabase/api-key-auth"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { dispatchTool } from "@/lib/task-execution-engine"
 import { runSubmission } from "@/lib/pipeline/run-submission"
@@ -56,16 +57,22 @@ export async function POST(request: NextRequest) {
   if (typeof body.rawInput === "string") {
     const roleErr = requireRoleOrScope(ctx, "member", "write") // this path can write (record_work_progress etc), unlike the read-only codeReference path below
     if (roleErr) return roleErr
+    // PROJEXA-BUILD-001 U-19 (BR-213): same rule as submissions/route.ts -- a
+    // project_ai key on another project is a 403 before anything is written.
+    const projectId = typeof body.projectId === "string" ? body.projectId : null
+    const keyScope = assertKeyProjectScope(ctx.apiKey, projectId)
+    if (!keyScope.ok) return NextResponse.json({ error: keyScope.message }, { status: keyScope.status })
     try {
       const financialRole = await resolveFinancialRole(ctx, request, body)
       const result = await runSubmission({
         orgId: ctx.orgId,
         userId: actorId,
         mode: typeof body.mode === "string" ? body.mode : "Projects",
-        projectId: typeof body.projectId === "string" ? body.projectId : null,
+        projectId,
         selectedChain: body.selectedChain,
         rawInput: body.rawInput,
         role: financialRole,
+        projectScope: keyProjectScope(ctx.apiKey),
       })
       return NextResponse.json(result, { status: 201 })
     } catch (error) {

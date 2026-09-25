@@ -31,11 +31,11 @@ R4. Schemas each product may create objects in (proposed by the PM under PMD-18;
 | Schema in verdian-ai | PROJEXA may create objects | DPDP may create objects | VERIDIAN AI-OS may create objects |
 |---|---|---|---|
 | `compliance` | YES (construction_* tables and PROJEXA proxy support) | NO | YES |
-| `platform` | ONLY objects listed in section 3 as PROJEXA-owned (user_ai_links per PMD-16, sumeet_requirements register columns per OQ-21) | NO | YES |
+| `platform` | ONLY objects listed in section 3 as PROJEXA-owned (user_ai_links per PMD-16, sumeet_requirements register columns per OQ-21, and `platform.rpc_resolve_ai_link_scoped`, the resolver of user_ai_links rows, added 2026-09-25 by migration 0614 with EXECUTE for `app_runtime` only) | NO | YES |
 | `dpdp` | NO | YES | NO |
 | `public` | ONLY `projexa_timer_*` functions, granted to `service_role` alone (PMD-12; the Edge Function reaches the database through PostgREST, which exposes only `public`) | YES (dpdp_* RPCs) | NO |
 
-R5. A PROJEXA SECURITY DEFINER function is never granted to `anon` or `authenticated`. PROJEXA has 3 such functions since 2026-09-25 (migration 0615, U-21): `public.projexa_timer_check_bearer`, `public.projexa_timer_exchange_plan`, `public.projexa_timer_apply_exchange_rates`, all `service_role` only (guard query G-5 returns 0).
+R5. A PROJEXA SECURITY DEFINER function is never granted to `anon` or `authenticated`. PROJEXA has 4 such functions since 2026-09-25: `public.projexa_timer_check_bearer`, `public.projexa_timer_exchange_plan`, `public.projexa_timer_apply_exchange_rates` (migration 0615, U-21), all `service_role` only (guard query G-5 returns 0), and `platform.rpc_resolve_ai_link_scoped` (migration 0614, U-18b), executable by `app_runtime` alone exactly like the VERIDIAN resolver `platform.rpc_resolve_ai_link_token` it sits beside (guard query G-3 returns 0).
 
 R6. Vercel is locked (PMD-11). No deploy, unpause, setting change, env change, DNS change, recharge or spend increase is made by any agent. Only the owner does these.
 
