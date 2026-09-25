@@ -5,6 +5,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, readActingUserId, readActingUserEmail } from "@/lib/supabase/auth-guard"
 import { getBoq, updateBoq, deleteBoq, ServiceError } from "@/lib/services/construction-boq-service"
+// PROJEXA-BUILD-001 U-27 (BR-403): the paged read is reached through the module namespace, not a named import, for
+// the same reason as the sibling list route (a partial mock of this module in boq-route.client-boundary.test.ts).
+import * as boqService from "@/lib/services/construction-boq-service"
+import { isBoqKeysetPaginationEnabled } from "@/lib/boq-line-keyset"
 // R85 Addendum 3 v4 Phase 6 (gates 6-01/6-03a): THE ONE GATE, see
 // cost-visibility-service.ts's own header.
 import { applyCostVisibility, redactProjectSideFields } from "@/lib/services/cost-visibility-service"
@@ -45,7 +49,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const { id } = await params
-    const boq = await getBoq({ orgId: ctx.orgId }, id)
+    // PROJEXA-BUILD-001 U-27 (BR-403): with BUILD001_BOQ_KEYSET_PAGINATION on (read on every request), `lineItems`
+    // is one page (`cursor`, `limit` 1 to 200, default 50; a bad value is 400) plus limit/nextCursor/hasMore, while
+    // moneyView/costCoverage stay whole-BOQ figures. With the flag off, getBoq() exactly as before.
+    const boq = isBoqKeysetPaginationEnabled()
+      ? await boqService.getBoqPage({ orgId: ctx.orgId }, id, {
+          cursor: request.nextUrl.searchParams.get("cursor"),
+          limit: request.nextUrl.searchParams.get("limit"),
+        })
+      : await getBoq({ orgId: ctx.orgId }, id)
 
     // 2-09/E1: `?view=customer` is an INTERNAL-ONLY PREVIEW of exactly what
     // the customer will receive -- forced redaction regardless of the
