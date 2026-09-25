@@ -25,14 +25,15 @@ import { type ResolutionSource, classifySegment, classifySubmission, normaliseFo
 import { validate, type ValidationContext } from "./validate";
 import { deriveChain, type DerivedChain } from "./derive-chain";
 import { resolveMissesWithReuseCache, type ReuseCacheRepo } from "./reuse-cache";
-import type { Level1Outcome } from "./level1";
+import { runLevel1, refusalAsUnresolved, level1RefusalCode, type Level1Context, type Level1LaneOutcome, type Level1Outcome } from "./level1";
 import { makePhraseFuzzyRepo, type PhraseFuzzyRepo } from "./phrase-fuzzy";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
 import { codeForParam, failureLogLine, isRetryableFailure, pipelineFailure, serialiseFailure, type PipelineFailure } from "./error-codes";
-import { dryRunSubmission as dryRun, missingParamsFor, type DryRunDeps, type DryRunResult, type DryRunTelemetry } from "./dry-run";
+import { dryRunSubmission as dryRun, missingParamsFor, type DryRunDeps, type DryRunResult } from "./dry-run";
 import { toVerdictResult, type SubmissionVerdictResult } from "./verdict";
 import { makeChainOptionsRepo } from "@/lib/services/chain-options-service";
-import { assertAiProviderAllowed } from "@/lib/ai/adapter";
+import { assertAiProviderAllowed, type AiProviderRefusalKind } from "@/lib/ai/adapter";
+import { NO_COMMENTARY_SENTENCE } from "@/lib/ai/refusal";
 import { createMemoryRecord } from "@/lib/services/memory-service";
 import { ServiceError } from "@/lib/services/compliance-service";
 import { assertProjectInScope } from "@/lib/ai-links/project-scope";
@@ -178,6 +179,20 @@ export type RunSubmissionInput = {
    */
   actorUserId?: string | null;
   /**
+   * PROJEXA-BUILD-001 U-49 (BR-219): the compliance.users id of the ACTING
+   * PERSON, the one identity the Level 1 provider gate compares. `userId`
+   * above is the org API key's id on the PROJEXA proxy, which is why it is
+   * never used for that. The routes resolve it the way the construction money
+   * redaction resolves its role (acting-role.ts resolvePipelineActor): the
+   * session user, or the person an API key names. Omitted or null means no
+   * person resolved, and a subscription provider refuses (fail closed).
+   *
+   * Separate from actorUserId on purpose: that one attributes WRITES and is
+   * resolved per route for that job; this one only decides whether the model
+   * may be asked, and changes nothing about who a row is recorded under.
+   */
+  level1PersonId?: string | null;
+  /**
    * PROJEXA-BUILD-001 U-43 (2026-09-25, owner directive: "we will not use our
    * AI if the user has pasted the AI Work link"). "off" keeps Level 0, the
    * reuse cache and the phrase-fuzzy tier -- all free, no model -- and stops
@@ -257,6 +272,15 @@ export type RunSubmissionResult = {
   l0HitRate: number;
   /** how many model calls this submission actually made. 0 for a pure Level 0 hit. */
   modelCalls: number;
+  /**
+   * PROJEXA-BUILD-001 U-49 (BR-221): what the Level 1 lane did, the value
+   * persisted on submissions.level1_outcome. `refused` means the provider
+   * gate switched the model off for this caller: the result still carries
+   * everything the free tiers resolved and ran, and chatMessages ends with
+   * NO_COMMENTARY_SENTENCE -- the routes answer that with HTTP 200, not the
+   * 400 a thrown refusal used to become.
+   */
+  level1Outcome: Level1LaneOutcome;
 };
 
 function normalisePhrase(text: string): string {
@@ -375,6 +399,24 @@ async function captureTaskResultMemory(
  */
 let modelCallCount = 0;
 
+/**
+ * PROJEXA-BUILD-001 U-49 (BR-220) -- WHAT THE LEVEL 1 LANE DID, PER CALL.
+ *
+ * submitForVerdict() was the only writer of compliance.submissions' seven
+ * telemetry columns (drizzle/0571), so every row this function inserted -- the
+ * assistant, submissions, tasks {execute:true} and AI-link paths -- kept them
+ * NULL: 51 of 58 rows unmeasured on 2026-09-25 (GATE_2_8_FINDINGS). This is
+ * the same four-way outcome dry-run.ts counts, kept per call and threaded
+ * through resolveAll() rather than in module state like modelCallCount above,
+ * so it cannot leak from one submission into the next.
+ */
+type Level1Tally = {
+  outcome: Level1LaneOutcome;
+  refusalKind: AiProviderRefusalKind | null;
+  reason: string | null;
+  cacheHits: number;
+};
+
 /** One segment, all the way through resolution but NOT yet executed. */
 type ResolvedSegment = {
   text: string;
@@ -399,7 +441,7 @@ export async function runSubmission(submitted: RunSubmissionInput): Promise<RunS
     // to persist classification onto -- returned for shape-consistency only.
     // Zero segments means zero task-verdicts, i.e. CHAT_ONLY by the same
     // rule classifySubmission() applies everywhere else.
-    return { submissionId: null, status: "chat", classification: "CHAT_ONLY", chatMessages: [], tasks: [], failures: [], gaps: [], flagged: false, l0HitRate: 1, modelCalls: 0 };
+    return { submissionId: null, status: "chat", classification: "CHAT_ONLY", chatMessages: [], tasks: [], failures: [], gaps: [], flagged: false, l0HitRate: 1, modelCalls: 0, level1Outcome: "not_needed" };
   }
 
   const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
@@ -427,7 +469,14 @@ export async function runSubmission(submitted: RunSubmissionInput): Promise<RunS
   let resolvedCount = 0;
 
   // ---- RESOLUTION PASS -------------------------------------------------
-  const resolved = await resolveAll(segs, input, repo, reuseRepo, fuzzyRepo);
+  const tally: Level1Tally = { outcome: "not_needed", refusalKind: null, reason: null, cacheHits: 0 };
+  let resolved: ResolvedSegment[];
+  try {
+    resolved = await resolveAll(segs, input, repo, reuseRepo, fuzzyRepo, tally);
+  } catch (error) {
+    await recordLevel1Fault(input, submissionId, tally);
+    throw error;
+  }
   for (const r of resolved) {
     if (r.classification.verdict !== "gap") {
       resolvedCount++;
@@ -635,17 +684,29 @@ export async function runSubmission(submitted: RunSubmissionInput): Promise<RunS
   // not, the derived chain of the first task fills it, so the column stops
   // being universally null and Task Master has something to render.
   const selectedChain = (input.selectedChain as object | undefined) ?? (firstDerivedChain as object | null);
-  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-    db.update(submissions).set({ status, classification, selectedChain }).where(eq(submissions.id, submissionId))
-  );
-
   const l0HitRate = resolvedCount === 0 ? 0 : l0Hits / resolvedCount;
+
+  // U-49 (BR-221): a refusal is said ONCE, after everything the free tiers
+  // resolved and ran. The sentence promises "here is what the records say",
+  // and on this path the records are the rest of this result -- tasks with
+  // their results, failures, gaps -- not a 400 with nothing attached.
+  if (tally.outcome === "refused") chatMessages.push(NO_COMMENTARY_SENTENCE);
+
+  // U-49 (BR-220): the telemetry lands in the same write as the status, so a
+  // row this function inserted is never left unmeasured.
+  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+    db
+      .update(submissions)
+      .set({ status, classification, selectedChain, ...level1Columns({ ...tally, modelCalls: modelCallCount, l0HitRate }) })
+      .where(eq(submissions.id, submissionId))
+  );
 
   // THE PROOF, IN THE LOGS. One structured line per submission. A Level 0
   // hit reads model_calls=0; anything that reached the model cannot hide it.
   console.info(
     `[pipeline] submission=${submissionId} segments=${segs.length} resolved=${resolvedCount} l0_hits=${l0Hits} ` +
-      `l0_hit_rate=${l0HitRate.toFixed(2)} model_calls=${modelCallCount} tasks=${tasks.length} gaps=${gaps.length} status=${status} classification=${classification}`
+      `l0_hit_rate=${l0HitRate.toFixed(2)} model_calls=${modelCallCount} tasks=${tasks.length} gaps=${gaps.length} status=${status} classification=${classification} ` +
+      `level1=${tally.outcome}`
   );
 
   return {
@@ -659,6 +720,7 @@ export async function runSubmission(submitted: RunSubmissionInput): Promise<RunS
     flagged,
     l0HitRate,
     modelCalls: modelCallCount,
+    level1Outcome: tally.outcome,
   };
 }
 
@@ -779,6 +841,7 @@ export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunS
       flagged: false,
       l0HitRate: 1,
       modelCalls: 0,
+      level1Outcome: "not_needed",
     };
   }
   const resolvedParams = v.params;
@@ -863,6 +926,7 @@ export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunS
     flagged: false,
     l0HitRate: 1, // a pill is Level 0 by definition -- the user supplied the function
     modelCalls: 0,
+    level1Outcome: "not_needed", // ...so the Level 1 lane is never entered
   };
 }
 
@@ -935,8 +999,24 @@ async function recordChainHistory(
  * each, then R53's re-join-once retry for whatever still resolved to
  * nothing.
  */
-async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Repo, reuseRepo: ReuseCacheRepo, fuzzyRepo?: PhraseFuzzyRepo): Promise<ResolvedSegment[]> {
+async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Repo, reuseRepo: ReuseCacheRepo, fuzzyRepo: PhraseFuzzyRepo | undefined, tally: Level1Tally): Promise<ResolvedSegment[]> {
   const l0 = await Promise.all(segs.map((s) => classifyL0(s.text, { orgId: input.orgId, userId: input.userId }, repo)));
+
+  // U-49 (BR-220): one Level 1 lane call, counted into the tally. A refusal
+  // comes back as "nothing resolved" (level1RunnerFor); a genuine fault is
+  // marked `error` and still thrown. No texts means the lane was not entered.
+  const lane = async (texts: string[]) => {
+    try {
+      const out = await resolveMissesWithReuseCache(texts, level1Context(input), reuseRepo, level1RunnerFor(input, tally), undefined, fuzzyRepo);
+      if (texts.length > 0 && tally.outcome === "not_needed") tally.outcome = "resolved";
+      tally.cacheHits += out.cacheHits;
+      return out;
+    } catch (error) {
+      tally.outcome = "error";
+      tally.reason = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+  };
 
   // R65 Part D: reuse_cache is checked BEFORE Level 1 for every miss -- see
   // reuse-cache.ts's own header. A hit is served with zero model calls
@@ -946,7 +1026,7 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
   // signal at this same L0-miss -> Level-1 boundary -- see phrase-fuzzy.ts.
   // Injected (same testability seam as repo/reuseRepo) -- undefined for any
   // caller that doesn't pass one.
-  const level1 = await resolveMissesWithReuseCache(missIndices.map((i) => segs[i].text), level1Context(input), reuseRepo, level1RunnerFor(input), undefined, fuzzyRepo);
+  const level1 = await lane(missIndices.map((i) => segs[i].text));
   modelCallCount += level1.modelCalls;
   const aiByIndex = level1.resolutions;
 
@@ -1007,7 +1087,7 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
     retryTexts.map((r) => classifyL0(r.text, { orgId: input.orgId, userId: input.userId }, repo))
   );
   const retryMissIdx = retryL0.map((r, i) => (r.kind === "miss" ? i : -1)).filter((i) => i >= 0);
-  const retryLevel1 = await resolveMissesWithReuseCache(retryMissIdx.map((i) => retryTexts[i].text), level1Context(input), reuseRepo, level1RunnerFor(input), undefined, fuzzyRepo);
+  const retryLevel1 = await lane(retryMissIdx.map((i) => retryTexts[i].text));
   modelCallCount += retryLevel1.modelCalls;
   const retryAi = retryLevel1.resolutions;
 
@@ -1040,29 +1120,86 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
  * candidate functions and the valid line-item ids -- NEVER the full
  * catalogue." level1.ts loads the ids itself from this project's latest BOQ.
  */
-function level1Context(input: RunSubmissionInput) {
+function level1Context(input: RunSubmissionInput): Level1Context {
   return {
     orgId: input.orgId,
     userId: input.userId,
+    // U-49: the person the provider gate compares -- never userId.
+    personId: input.level1PersonId ?? null,
     projectId: input.projectId ?? null,
     candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
   };
 }
 
 /**
- * U-43: the Level 1 step for this submission. undefined lets
- * resolveMissesWithReuseCache use its default, the real runLevel1. With
- * level1 "off" the step makes no model call and consults no provider: every
- * text that reached it comes back unresolved, so classifySegment() turns it
- * into the same gap a Level 1 "no function" answer produces today.
+ * U-43: the Level 1 step for this submission. With level1 "off" the step
+ * makes no model call and consults no provider: every text that reached it
+ * comes back unresolved, so classifySegment() turns it into the same gap a
+ * Level 1 "no function" answer produces today -- recorded as `resolved` with
+ * zero model calls, since the lane ran and returned (the caller's own AI is
+ * Level 1 on that route).
+ *
+ * U-49: otherwise the real runLevel1, with the provider gate's refusal turned
+ * into "nothing resolved" (level1.ts refusalAsUnresolved) and recorded on the
+ * tally, instead of a throw that took the whole submission down with it.
  */
-function level1RunnerFor(input: RunSubmissionInput): ((texts: string[]) => Promise<Level1Outcome>) | undefined {
-  if (input.level1 !== "off") return undefined;
-  return async (texts) => ({
-    resolutions: texts.map(() => null),
-    reasons: texts.map(() => "Level 1 is off for this caller"),
-    modelCalls: 0,
+function level1RunnerFor(input: RunSubmissionInput, tally: Level1Tally): (texts: string[], ctx: Level1Context) => Promise<Level1Outcome> {
+  if (input.level1 === "off") {
+    return async (texts) => ({
+      resolutions: texts.map(() => null),
+      reasons: texts.map(() => "Level 1 is off for this caller"),
+      modelCalls: 0,
+    });
+  }
+  return refusalAsUnresolved(runLevel1, (error) => {
+    tally.outcome = "refused";
+    tally.refusalKind = error.kind;
+    tally.reason = error.message;
   });
+}
+
+/**
+ * U-49 (BR-220): drizzle/0571's seven telemetry columns, built one way for
+ * both writers -- submitForVerdict() and runSubmission() -- so the same
+ * situation can never be recorded two different ways.
+ *
+ * level1_refusal_code is a CODE, never the message (level1.ts
+ * level1RefusalCode): 0571's CHECK admits a closed vocabulary, and an
+ * err.message reaching a shared-DB column is how a connection string or a
+ * token gets durably stored. One Supabase project serves both environments,
+ * so anything written here is production the instant it lands. The reason
+ * text stays in the log. l0_hit_rate is the numeric(5,4) the column declares.
+ */
+function level1Columns(t: {
+  outcome: Level1LaneOutcome;
+  refusalKind: AiProviderRefusalKind | null | undefined;
+  reason: string | null;
+  modelCalls: number;
+  cacheHits: number;
+  l0HitRate: number;
+}) {
+  return {
+    level: t.modelCalls > 0 ? 1 : 0,
+    source: t.outcome,
+    l0HitRate: t.l0HitRate.toFixed(4),
+    modelCalls: t.modelCalls,
+    cacheHits: t.cacheHits,
+    level1Outcome: t.outcome,
+    level1RefusalCode: level1RefusalCode(t.outcome, t.refusalKind, t.reason),
+  };
+}
+
+/**
+ * U-49 (BR-220): a fault inside the Level 1 lane is still a measurement -- the
+ * row runSubmission() just inserted says `error`, not NULL. Only for a lane
+ * fault (a Level 0 read failing says nothing about Level 1), and best effort:
+ * the fault is what the caller must see, so a failed write never replaces it.
+ */
+async function recordLevel1Fault(input: RunSubmissionInput, submissionId: string, tally: Level1Tally): Promise<void> {
+  if (tally.outcome !== "error") return;
+  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+    db.update(submissions).set(level1Columns({ ...tally, modelCalls: modelCallCount, l0HitRate: 0 })).where(eq(submissions.id, submissionId))
+  ).catch((writeError) => console.error("[pipeline] level1 telemetry write failed (non-blocking):", writeError));
 }
 
 function deriveSubmissionStatus(tasks: TaskOutcome[], gapCount: number): RunSubmissionResult["status"] {
@@ -1260,7 +1397,8 @@ export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunD
         // whether L1 -- the level this dry-run's own Level 1 call will use
         // -- is available, so it must resolve the SAME provider config that
         // call resolves, not rely on the default parameter agreeing by luck.
-        assertAiProviderAllowed(input.userId, "pipeline_l1");
+        // U-49: and the SAME identity that call compares -- the acting person.
+        assertAiProviderAllowed(input.level1PersonId ?? null, "pipeline_l1");
         return true;
       } catch {
         return false;
@@ -1299,32 +1437,6 @@ export type SubmitVerdictResult = SubmissionVerdictResult & { submissionId: stri
  */
 function submissionStatusForVerdict(v: SubmissionVerdictResult): "chat" | "in_progress" {
   return v.verdicts.some((x) => x.status === "ready" || x.status === "needs_input") ? "in_progress" : "chat";
-}
-
-/**
- * Maps step 1a's free-text refusal reason onto migration 0571's CLOSED
- * vocabulary for compliance.submissions.level1_refusal_code.
- *
- * WHY A CODE AND NEVER THE MESSAGE: the column carries a NOT VALID CHECK that
- * only admits these values, and -- the real reason -- a raw err.message
- * routinely contains connection strings, tokens and request payloads. One
- * Supabase project serves both environments, so anything written here is
- * production the instant it lands. A code cannot leak a credential; a message
- * can, and the leak would only be found by grepping the column later.
- *
- * Returns null when nothing was refused, so a resolved or not-needed submission
- * stores NULL rather than a misleading "unknown".
- */
-function refusalCodeFor(t: DryRunTelemetry): string | null {
-  if (t.level1Outcome !== "refused" && t.level1Outcome !== "error") return null;
-  const reason = (t.level1RefusalReason ?? "").toLowerCase();
-  // AiProviderRefusalError is what assertAiProviderAllowed throws, for BOTH the
-  // "RAJAT_USER_ID unset" and "wrong user" branches -- see ai/adapter.ts:120-141.
-  if (t.level1Outcome === "refused") return "provider_not_allowed";
-  if (reason.includes("fetch") || reason.includes("timeout") || reason.includes("econnrefused")) {
-    return "provider_unreachable";
-  }
-  return "unknown";
 }
 
 export async function submitForVerdict(submitted: RunSubmissionInput): Promise<SubmitVerdictResult> {
@@ -1366,10 +1478,8 @@ export async function submitForVerdict(submitted: RunSubmissionInput): Promise<S
   // l0_hit_rate is stored as the numeric(5,4) the column declares, computed the
   // same way as the log line below so the two can never disagree.
   //
-  // level1_refusal_code, NOT the raw reason: 0571's CHECK constrains it to a
-  // closed vocabulary, and an err.message reaching a shared-DB column is how a
-  // connection string or a token gets durably stored. The reason text stays in
-  // the log, which is the right place for detail.
+  // level1_refusal_code, NOT the raw reason -- see level1Columns(), which
+  // runSubmission() now shares (U-49), so the two writers cannot drift.
   const l0HitRateForRow = telemetry.resolved === 0 ? 0 : telemetry.l0Hits / telemetry.resolved;
 
   await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
@@ -1378,13 +1488,14 @@ export async function submitForVerdict(submitted: RunSubmissionInput): Promise<S
       .set({
         status: submissionStatusForVerdict(verdict),
         classification,
-        level: telemetry.modelCalls > 0 ? 1 : 0,
-        source: telemetry.level1Outcome,
-        l0HitRate: l0HitRateForRow.toFixed(4),
-        modelCalls: telemetry.modelCalls,
-        cacheHits: telemetry.cacheHits,
-        level1Outcome: telemetry.level1Outcome,
-        level1RefusalCode: refusalCodeFor(telemetry),
+        ...level1Columns({
+          outcome: telemetry.level1Outcome,
+          refusalKind: telemetry.level1RefusalKind,
+          reason: telemetry.level1RefusalReason,
+          modelCalls: telemetry.modelCalls,
+          cacheHits: telemetry.cacheHits,
+          l0HitRate: l0HitRateForRow,
+        }),
       })
       .where(eq(submissions.id, submissionId))
   );
@@ -1420,6 +1531,8 @@ export type ConfirmSubmissionInput = {
   role?: string | null;
   /** R67 C-03 (D-05) -- see RunSubmissionInput.actorUserId. */
   actorUserId?: string | null;
+  /** U-49 -- see RunSubmissionInput.level1PersonId. The re-derived proposal is gated on this person. */
+  level1PersonId?: string | null;
   /** U-18 / U-19 -- see RunSubmissionInput.projectScope. A stored submission of another project is refused (403). */
   projectScope?: string | null;
 };
@@ -1474,6 +1587,7 @@ export async function confirmSubmission(input: ConfirmSubmissionInput): Promise<
     projectId: row.projectId,
     rawInput: row.rawInput,
     role: input.role,
+    level1PersonId: input.level1PersonId ?? null,
     projectScope: input.projectScope ?? null,
   });
 

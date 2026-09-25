@@ -13,14 +13,18 @@
 import { segment } from "./segment";
 import { classifyL0, type L0Repo } from "./level0";
 import { classifySegment, normaliseForMatch, type ResolvedFunction } from "./classify";
-import { runLevel1 } from "./level1";
+import { runLevel1, refusalAsUnresolved, level1RefusalCode, type Level1LaneOutcome, type Level1RefusalCode } from "./level1";
 import { deriveChain, type ChainRepo, type DerivedChain } from "./derive-chain";
 import { functionWrites, hasExecutor, EXECUTABLE_FUNCTION_IDS } from "./executor";
 import { makeL0Repo, makeChainRepo, resolveRootLabel, logGapRow } from "./repos";
+import { NO_COMMENTARY_SENTENCE } from "@/lib/ai/refusal";
+import type { AiProviderRefusalError } from "@/lib/ai/adapter";
 
 export type ClassifyOnlyInput = {
   orgId: string;
   userId: string;
+  /** PROJEXA-BUILD-001 U-49: the acting person the Level 1 provider gate compares -- see level1.ts's Level1Context.personId. */
+  level1PersonId?: string | null;
   mode: string;
   projectId: string | null;
   rawInput: string;
@@ -66,12 +70,33 @@ export type ClassifyOnlyResult = {
   modelCalls: number;
   /** ALWAYS false. This endpoint cannot execute. Present so a caller cannot forget. */
   executed: false;
+  /**
+   * PROJEXA-BUILD-001 U-49 (BR-220/BR-221). What the Level 1 lane did, in the
+   * vocabulary compliance.submissions.level1_outcome uses, and its closed
+   * refusal code. Returned, not stored: this endpoint writes no submissions
+   * row and gap_log has no such columns, so the response is the only record.
+   * On `refused`, `message` is NO_COMMENTARY_SENTENCE and `segments` still
+   * carries every classification Level 0 made -- an answer, not a 400.
+   */
+  level1Outcome: Level1LaneOutcome;
+  level1RefusalCode: Level1RefusalCode | null;
+  message: string | null;
 };
+
+/** U-49: the response's Level 1 fields, from the refusal (if any) and how many texts reached the lane. */
+function level1Fields(refusal: AiProviderRefusalError | undefined, misses: number): Pick<ClassifyOnlyResult, "level1Outcome" | "level1RefusalCode" | "message"> {
+  const outcome: Level1LaneOutcome = refusal ? "refused" : misses > 0 ? "resolved" : "not_needed";
+  return {
+    level1Outcome: outcome,
+    level1RefusalCode: level1RefusalCode(outcome, refusal?.kind, refusal?.message ?? null),
+    message: refusal ? NO_COMMENTARY_SENTENCE : null,
+  };
+}
 
 export async function classifyOnly(input: ClassifyOnlyInput): Promise<ClassifyOnlyResult> {
   const { segments: segs, flagged } = segment(input.rawInput);
   if (segs.length === 0) {
-    return { segments: [], flagged: false, l0HitRate: 1, modelCalls: 0, executed: false };
+    return { segments: [], flagged: false, l0HitRate: 1, modelCalls: 0, executed: false, ...level1Fields(undefined, 0) };
   }
 
   const repo: L0Repo = makeL0Repo(input.orgId, input.userId);
@@ -81,9 +106,15 @@ export async function classifyOnly(input: ClassifyOnlyInput): Promise<ClassifyOn
   const l0 = await Promise.all(segs.map((s) => classifyL0(s.text, { orgId: input.orgId, userId: input.userId }, repo)));
   const missIndices = l0.map((r, i) => (r.kind === "miss" ? i : -1)).filter((i) => i >= 0);
 
-  const level1 = await runLevel1(missIndices.map((i) => segs[i].text), {
+  // U-49 (BR-221): the gate's refusal is "nothing resolved" for the misses,
+  // not a throw -- the Level 0 classifications below still come back.
+  const refused: { error?: AiProviderRefusalError } = {};
+  const level1 = await refusalAsUnresolved(runLevel1, (error) => {
+    refused.error = error;
+  })(missIndices.map((i) => segs[i].text), {
     orgId: input.orgId,
     userId: input.userId,
+    personId: input.level1PersonId ?? null,
     projectId: input.projectId,
     candidateFunctionIds: EXECUTABLE_FUNCTION_IDS,
   });
@@ -167,5 +198,6 @@ export async function classifyOnly(input: ClassifyOnlyInput): Promise<ClassifyOn
     l0HitRate: resolvedCount === 0 ? 0 : l0Hits / resolvedCount,
     modelCalls: level1.modelCalls,
     executed: false,
+    ...level1Fields(refused.error, missIndices.length),
   };
 }

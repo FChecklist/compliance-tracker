@@ -19,7 +19,7 @@
 // here rather than silently deviating, per the work order's own instruction.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { resolveFinancialRole } from "@/lib/supabase/acting-role"
+import { resolveFinancialRole, resolvePipelineActor } from "@/lib/supabase/acting-role"
 import { assertKeyProjectScope, keyProjectScope } from "@/lib/supabase/api-key-auth"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { dispatchTool } from "@/lib/task-execution-engine"
@@ -44,6 +44,13 @@ const ALLOWED_CODE_REFERENCES = [
 // moved there in U-01b so tasks/ and submissions/ share it). U-01d: it
 // returns a role or null and never an error, so a named person with no linked
 // VERIDIAN user gets redacted figures here, not the 400 U-01 gave them.
+//
+// PROJEXA-BUILD-001 U-49 (BR-219, BR-221): the pipeline path hands the Level 1
+// provider gate the acting PERSON (resolvePipelineActor, the same lookup as the
+// role above), never `actorId` below, which is the org key's id for PROJEXA.
+// And a gate refusal is no longer a 400 carrying a bare sentence: the pipeline
+// returns what the free tiers resolved and ran, with the sentence in
+// chatMessages, and this route answers it with 200. Real errors keep 400.
 
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
@@ -63,7 +70,7 @@ export async function POST(request: NextRequest) {
     const keyScope = assertKeyProjectScope(ctx.apiKey, projectId)
     if (!keyScope.ok) return NextResponse.json({ error: keyScope.message }, { status: keyScope.status })
     try {
-      const financialRole = await resolveFinancialRole(ctx, request, body)
+      const { role: financialRole, personId: level1PersonId } = await resolvePipelineActor(ctx, request, body)
       const result = await runSubmission({
         orgId: ctx.orgId,
         userId: actorId,
@@ -72,9 +79,11 @@ export async function POST(request: NextRequest) {
         selectedChain: body.selectedChain,
         rawInput: body.rawInput,
         role: financialRole,
+        level1PersonId,
         projectScope: keyProjectScope(ctx.apiKey),
       })
-      return NextResponse.json(result, { status: 201 })
+      // 200 on a refusal: the records came back, the model's commentary did not.
+      return NextResponse.json(result, { status: result.level1Outcome === "refused" ? 200 : 201 })
     } catch (error) {
       console.error("v1 projexa assistant pipeline error:", error)
       const message = error instanceof Error ? error.message : "Failed to run submission pipeline"
