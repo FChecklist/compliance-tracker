@@ -39,38 +39,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The check itself lives in scripts/check-domain-drift.sh so it can be
+      # tested against a mock of the Vercel API (scripts/check-domain-drift.
+      # test.ts). It reports each HTTP outcome distinctly: a domain that is
+      # not attached (404) or attached elsewhere (200, other projectId) is
+      # DRIFT and exits 1; an invalid/expired/revoked VERCEL_ACCESS_TOKEN
+      # (401/403), an empty secret, or any other API failure means the guard
+      # COULD NOT RUN and exits 2 with a message naming the cause -- still a
+      # failed run (a guard that cannot run must not look green), but no
+      # longer mislabelled as drift. If the token is what failed, replacing
+      # the VERCEL_ACCESS_TOKEN repo secret is an owner action.
       - name: Check each domain against ai-os/DOMAIN_OWNERSHIP.yaml
         env:
           VERCEL_ACCESS_TOKEN: ${{ secrets.VERCEL_ACCESS_TOKEN }}
-        run: |
-          set -euo pipefail
-          TEAM="team_Iqx3zyb7sDdsdzcNskCFFsHD"
-          FAIL=0
-
-          # Canonical values from ai-os/DOMAIN_OWNERSHIP.yaml (kept in sync
-          # by hand -- see that file's rule 3 for when/how this changes).
-          DOMAINS="projexa-ai.com www.projexa-ai.com"
-          CANONICAL_PROJECT_ID="prj_JA9mwUdOfW3SKSxjG4jdPo0R2iVM"
-          CANONICAL_PROJECT_NAME="projexa"
-
-          for domain in $DOMAINS; do
-            echo "--- checking $domain ---"
-            resp=$(curl -sf "https://api.vercel.com/v9/projects/${CANONICAL_PROJECT_ID}/domains/${domain}?teamId=${TEAM}" \
-              -H "Authorization: Bearer ${VERCEL_ACCESS_TOKEN}") || {
-              echo "::error::GET for $domain against the canonical project ($CANONICAL_PROJECT_NAME) failed -- domain is NOT attached there. Drift detected."
-              FAIL=1
-              continue
-            }
-            actual_project=$(echo "$resp" | python3 -c "import json,sys; print(json.load(sys.stdin).get('projectId',''))")
-            if [ "$actual_project" != "$CANONICAL_PROJECT_ID" ]; then
-              echo "::error::$domain resolves to projectId=$actual_project, expected $CANONICAL_PROJECT_ID ($CANONICAL_PROJECT_NAME). Drift detected -- see ai-os/DOMAIN_OWNERSHIP.yaml before taking any action."
-              FAIL=1
-            else
-              echo "OK: $domain -> $CANONICAL_PROJECT_NAME ($actual_project)"
-            fi
-          done
-
-          if [ "$FAIL" -ne 0 ]; then
-            echo "::error::One or more domains have drifted from ai-os/DOMAIN_OWNERSHIP.yaml's canonical record. Read that file's rules before reassigning anything -- do not use 'vercel domains rm'."
-            exit 1
-          fi
+        run: bash scripts/check-domain-drift.sh
