@@ -30,7 +30,7 @@ R4. Schemas each product may create objects in (proposed by the PM under PMD-18;
 
 | Schema in verdian-ai | PROJEXA may create objects | DPDP may create objects | VERIDIAN AI-OS may create objects |
 |---|---|---|---|
-| `compliance` | YES (construction_* tables and PROJEXA proxy support, and the nullable `surface` column of `compliance.audit_logs` added under U-32 by migration 0619) | NO | YES |
+| `compliance` | YES (construction_* tables and PROJEXA proxy support, and the nullable `surface` column of `compliance.audit_logs` added under U-32 by migration 0619, and the table `compliance.inbound_email_attachments` added under U-31 by migration 0620) | NO | YES |
 | `platform` | ONLY objects listed in section 3 as PROJEXA-owned (user_ai_links per PMD-16, sumeet_requirements register columns per OQ-21, and `platform.rpc_resolve_ai_link_scoped`, the resolver of user_ai_links rows, added 2026-09-25 by migration 0614 with EXECUTE for `app_runtime` only; `platform.projexa_gateway_settings` (U-25, the gateway switch, added 2026-09-25 by migration 0618: row-level security forced, no policy, no grant to `app_runtime`, `anon` or `authenticated`, SELECT for `service_role` only) and, planned under U-46, the five `platform.ai_work_link_*` tables named in ACTIVE-CLAIMS) | NO | YES |
 | `dpdp` | NO | YES | NO |
 | `public` | ONLY `projexa_timer_*` and `projexa_read_*` functions, granted to `service_role` alone (PMD-12 and PMD-01; the Edge Functions reach the database through PostgREST, which exposes only `public`) | YES (dpdp_* RPCs) | NO |
