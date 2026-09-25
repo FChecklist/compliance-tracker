@@ -293,7 +293,7 @@ Order inside the phase: U-16 (already decided) -> U-17 rollback tooling -> U-20 
 | U-23 | verify:all runs at least 111 checks; the deployed-URL half waits for go-live | BR-313, BR-314 | Done. verify:all (111 checks, 0 failed) and the phase-gate runner merged (PR #1870, #1874); BR-313 passes, BR-401 runs the gate for phase 3. |
 | U-24 | CI runs the PROJEXA Playwright half and it becomes a required check | BR-315, BR-316 [BR-401] | Done as diagnosis: the Env-1 job fails for two reasons that need the owner (stored test-session secret, BR-315) and a cleanup of test data; BR-316 amended (PMD-29) and passes; Env-1 joins the required list after 3 green full runs. |
 | U-25 | Identity gateway on Supabase Edge (PMD-01), key-set spike first, fallback (c) | BR-317, BR-318, BR-319, BR-320, BR-321, BR-322, BR-323, BR-324 [BR-401] | Done. Migration 0618 and Edge Function projexa-read live with the switch OFF (PR #1861); BR-317 to BR-321, BR-323, BR-324 pass; BR-322 waits for a real PROJEXA session from the owner (PMD-32). |
-| U-26 | Zero service_role in built browser bundles, scanned in CI | BR-325, BR-326, BR-327 [BR-401] | Done. Scanner and CI job merged (compliance-tracker PR #1855, projexa PR #321), BR-316 lists the job as required, mutation proof recorded (job failed on a planted service_role, run 36131620580); BR-327 pass; BR-326 reads the check on main; BR-325 (local run) needs a CI-only build (owner-blocked row). |
+| U-26 | Zero service_role in built browser bundles, scanned in CI | BR-325, BR-326, BR-327 [BR-401] | Done. Scanner and CI job merged (compliance-tracker PR #1855, projexa PR #321), BR-316 lists the job as required, mutation proof recorded (job failed on a planted service_role, run 36131620580); BR-327 pass; BR-326 reads the check on main; BR-325 passes from the required CI job's own log (HITS=0 from a real next build, PR#1880; AM-124). |
 
 Order inside the phase: U-22 columns and rows -> U-23 verify:all; U-25 spike (BR-323, BR-324) before any gateway code; U-24 fix the Env-1 job (BR-315) before it becomes required (BR-316); U-26 CI scan job.
 
@@ -301,7 +301,7 @@ Order inside the phase: U-22 columns and rows -> U-23 verify:all; U-25 spike (BR
 
 - Local, by the PM on the laptop (SELECT-only SQL against live verdian-ai, git, gh reads, python lint, one `bun test --isolate` file at a time at the Normal RAM level): BR-301, BR-302, BR-303, BR-304, BR-305, BR-306, BR-307, BR-308, BR-309, BR-310, BR-311, BR-312, BR-313, BR-316, BR-317, BR-318, BR-319, BR-320, BR-321, BR-323, BR-324, BR-328, BR-329. Every `bun test` row also runs inside CI Unit Tests on each PR. SQL rows cannot run in CI (no database access, DEV_TEST_DEPLOY_PLAN.md P-09); SQL rows over tenant data run through the Supabase MCP as role postgres with a dated result (PMD-22, PC-22).
 - CI only (GitHub Actions; the laptop reads the result with gh): BR-315, BR-326, BR-327.
-- Needs the owner first (blocked_owner): BR-314, BR-322, BR-325.
+- Needs the owner first (blocked_owner): BR-314, BR-322.
 
 **Risks and rollback.**
 
@@ -314,7 +314,7 @@ Order inside the phase: U-22 columns and rows -> U-23 verify:all; U-25 spike (BR
 
 - BR-314 (verify:all against a deployed instance) waits for A-1 (go live).
 - BR-322 (gateway isolation with a real PROJEXA session): the owner signs in to PROJEXA as a test user of org A and runs `bash scripts/verify/projexa-gateway-isolation.sh` in his own shell with that session; the script reads the token from an environment variable and the token is never written to a file, a PR or chat. The owner tells the PM the printed line (expected `200 404 401 401`).
-- BR-325 is marked blocked_owner, but its reason is the RAM policy (PMD-14), not an owner action (PC-07). The CI row BR-326 is the gate.
+- BR-325 was marked blocked_owner for a RAM reason (PMD-14), not an owner action (PC-07). It now passes from the log of the required CI job Browser Bundle Service-Role Scan (AM-124); BR-326 stays the gate.
 
 ## Phase 4 - One record type on four surfaces
 
@@ -376,7 +376,7 @@ Order inside the phase: U-27 pagination -> U-28 registry entries -> U-29 surface
 
 **Purpose.** Replicate the proven contract to all 7 record types (28 cells), create projects from documents by extending the existing extraction service, finish the registry, implement or drop the unrunnable MCP tools, move scheduled writes to pg_cron, cut Vercel crons to 1, and hold the 20 USD monthly ceiling. The owner acceptance run of the AI work link closes the phase.
 
-**Gate.** Phase 5 starts only when every ENTRY row returns YES and is complete only when all 10 EXIT rows return YES. Register rows in this phase: 25. EXIT rows pass today: 0 of 10. EXIT rows at blocked_owner: BR-510, BR-521, BR-522, BR-524.
+**Gate.** Phase 5 starts only when every ENTRY row returns YES and is complete only when all 10 EXIT rows return YES. Register rows in this phase: 26. EXIT rows pass today: 0 of 10. EXIT rows at blocked_owner: BR-510, BR-521, BR-524.
 
 **ENTRY tests:** BR-501: runner `bash scripts/verify/phase-gate.sh 4` runs every Phase 4 EXIT row that is not blocked_owner (BR-404, BR-409, BR-420, BR-421).
 
@@ -392,7 +392,7 @@ Order inside the phase: U-27 pagination -> U-28 registry entries -> U-29 surface
 | BR-518 | E-14 on main: compliance-tracker vercel.json has 1 cron and 0 */N schedules; projexa vercel.json has 0 crons | pending |
 | BR-520 | 5.1 part A: 17 cells proven (6 record types other than boq_progress on s1-s3; billing_claim s3 excluded; boq_progress cells are BR-416) (creates scripts/verify/surface-cells.sh) | pending |
 | BR-521 | 5.1 part B: the 6 email-inbox cells (s4) of the record types other than boq_progress proven | blocked_owner |
-| BR-522 | 5.1 part C: billing_claim cell on s3 (AI link writes a billing claim) proven | blocked_owner |
+| BR-522 | 5.1 part C: billing_claim cell on s3 proven under PMD-41 (the link proposes, a person with the billing role approves) | pending |
 | BR-524 | Owner acceptance run: 9 AI families marked pass in AI_FAMILY_ACCEPTANCE.csv with one pasted link each | blocked_owner |
 
 **Work items.** Register rows listed are the rows of this phase whose source names the item; rows of the same item in other phases are shown in brackets.
@@ -416,7 +416,7 @@ Order inside the phase: U-34 (already decided) and U-35 cost budget -> U-36 extr
 
 - Local, by the PM on the laptop (SELECT-only SQL against live verdian-ai, git, gh reads, python lint, one `bun test --isolate` file at a time at the Normal RAM level): BR-501, BR-502, BR-503, BR-505, BR-506, BR-507, BR-508, BR-511, BR-512, BR-513, BR-514, BR-515, BR-516, BR-518, BR-519, BR-520, BR-523, BR-525. Every `bun test` row also runs inside CI Unit Tests on each PR. SQL rows cannot run in CI (no database access, DEV_TEST_DEPLOY_PLAN.md P-09); SQL rows over tenant data run through the Supabase MCP as role postgres with a dated result (PMD-22, PC-22).
 - CI only (GitHub Actions; the laptop reads the result with gh): none.
-- Needs the owner first (blocked_owner): BR-504, BR-509, BR-510, BR-517, BR-521, BR-522, BR-524.
+- Needs the owner first (blocked_owner): BR-504, BR-509, BR-510, BR-517, BR-521, BR-524.
 
 **Risks and rollback.**
 
@@ -429,10 +429,10 @@ Order inside the phase: U-34 (already decided) and U-35 cost budget -> U-36 extr
 **Owner-blocked items and exactly what the owner does.**
 
 - BR-504: A-1 (go live), then 30 completed Pacific days.
-- BR-509: the owner picks the model provider the projexa-document-extract Edge Function may call. claude-cli cannot run on Edge (EDGE_CANDIDATES.csv) and openrouter is metered (PMD-02), so any choice that costs money is an owner-only spend decision. Until then extraction runs only against the mocked model in tests (BR-506, BR-507).
+- BR-509: the owner chose the provider on 2026-09-25 (PMD-43): the Groq floor tier with a hard cap of 1 USD, guarded by BR-526. What waits for the owner is one command that sets the provider key as an Edge Function secret; the PM writes no credential. Until then extraction runs only against the mocked model in tests (BR-506, BR-507).
 - BR-510 and BR-517: A-1 (go live); BR-517's last hop runs in the deployed app.
 - BR-521: A-2 (DNS), same records as Phase 4.
-- BR-522: owner decision R-95 (may an AI write a billing claim). Under the 2026-09-25 delegation the PM may decide it instead and record a PMD row; then the row returns to pending (register_part_5_notes.md item 4).
+- BR-522: decided by the owner on 2026-09-25 (PMD-41): an AI link proposes a billing claim and a person with the billing role approves it. The row is back at pending and needs no owner action.
 - BR-524: the owner pastes one link into each of the 9 AI families with his own accounts and records pass or fail per family in AI_FAMILY_ACCEPTANCE.csv (spec s15, OT-01..OT-17).
 - U-41: BR-518 and BR-519 pass only after the vercel.json edits merge. DEV_TEST_DEPLOY_PLAN.md s2.5 merges them with the owner release (PR #1808, PROJEXA-COST-001 claim), so both rows wait for A-1 unless the PM decides to land U-41 on its own (register_part_5_notes.md item 2). Merging a vercel.json edit while ignoreCommand is `sh -c 'exit 0'` builds nothing.
 
@@ -658,7 +658,7 @@ Full list with defaults and override sentences: OWNER_QUESTIONS.md.
 
 - Owner-only questions (Amendment 001): OQ-01 go-live and recharge; OQ-02 DNS for Resend inbound; OQ-03 metered Level 1 provider; OQ-04 paid Supabase branch; OQ-05 Team Billing check of the Speed Insights Plus add-on; OQ-06 read the two Sensitive env values RAJAT_USER_ID and AI_PROVIDER_PIPELINE_L1; OQ-07 the Pro included-credit figure; OQ-08 one measured test deploy. Every one has a PM default that spends nothing.
 - Owner-only actions: A-1 go live (say `go live`, recharge, unpause; the PM then follows the go-live order in OWNER_QUESTIONS.md A-1, see PC-18 on PR #1808); A-2 Resend inbound DNS records; A-3 Team Billing check; A-4 metered provider yes or no; A-5 paid branch yes or no; A-6 read two env values; A-7 Pro credit figure; A-8 one test deploy (optional).
-- Register rows waiting on the owner (17): BR-225, BR-314, BR-322, BR-325, BR-412, BR-416, BR-417, BR-418, BR-422, BR-423, BR-504, BR-509, BR-510, BR-517, BR-521, BR-522, BR-524. BR-325 is listed there but needs no owner action (PC-07).
+- Register rows waiting on the owner (15 of the 17 first listed; BR-325 passes from CI and BR-522 was decided, PMD-41): BR-225, BR-314, BR-322, BR-412, BR-416, BR-417, BR-418, BR-422, BR-423, BR-504, BR-509, BR-510, BR-517, BR-521, BR-524. Every row that needs a running Vercel app waits for go-live, which comes last (PMD-39).
 - PM defaults that still need a PMD row before the item they block starts (not owner-only): OQ-15, OQ-20, OQ-22, OQ-24, OQ-26, OQ-27, OQ-28, OQ-29.
 - AI work link decisions: OD-1..OD-12 are decided by PMD-24 and OD-13, OD-13b by PMD-26 (section 9). What stays with the owner: a projexa-ai.com link host (DNS), the Cloudflare Pages project if the owner-issued token cannot create it, and the acceptance runs OT-01..OT-18 with the owner's own AI accounts.
 
@@ -706,7 +706,7 @@ A phase reported complete with any exit test not YES is a false report. An hones
 
 **12.2 What cannot be tested before a Vercel go-live.** BR-225 (old exchange-rate route invocations), BR-314 (verify:all on a deployed instance), BR-422 (E-11), BR-423 (E-12), BR-504 (30-day measured gross), BR-510 (E-13 over 7 days), BR-517 (live scheduler-bridge run). BR-518 and BR-519 also wait for the owner release if U-41 lands through PR #1808 (Phase 5 owner list). Also the prebuilt-deploy build-minute question (OQ-08) and the Node runtime version check. Everything else runs on local dev plus live Supabase.
 
-**12.3 What depends on owner answers.** DNS: BR-412, BR-416, BR-417, BR-418, BR-521. The owner's own AI accounts: BR-524. A model provider for Edge extraction (spend): BR-509. The R-95 billing-claim decision: BR-522. The owner-run session check: BR-322. The Team Billing add-on, if the 2026-09-26 Pacific day is not 0.0000: BR-116. The cap measure (gross or net): BR-503 reporting. Required Secret Scanning (AM-050 versus OQ-26): BR-119.
+**12.3 What depends on owner answers.** DNS: BR-412, BR-416, BR-417, BR-418, BR-521. The owner's own AI accounts: BR-524. The Edge extraction provider key, one command (provider chosen in PMD-43): BR-509. The owner-run session check: BR-322. The Team Billing add-on, if the 2026-09-26 Pacific day is not 0.0000: BR-116. The cap measure (gross or net): BR-503 reporting. Required Secret Scanning (AM-050 versus OQ-26): BR-119.
 
 **12.4 Register and document conflicts found while writing this plan.** Each was checked on the staging files on 2026-09-25 (script `plan/_sim_docrows.py`). The PM fixes them in the commit PR, before the linter row BR-108 is run.
 
