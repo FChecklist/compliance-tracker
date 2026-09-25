@@ -1,0 +1,10 @@
+# register: BR-405
+# Named mutations for scripts/verify/mutation-check.sh (PROJEXA-BUILD-001). One per line, five fields separated by ONE
+# tab each: name, file (repository-relative), find text (must occur exactly once in the file), replacement text (may
+# be empty), test command (run with bash -c from the repository root). Lines starting with # are comments.
+#
+# boq-keyset-no-limit (U-27, BR-405): the page-size LIMIT removed from the keyset reader readBoqLineItemPageWithDb()
+# in construction-boq-service.ts. The response would still hold 50 lines (the reader slices), but the database would
+# return the whole revision on every page; route.d11.test.ts must fail because the keyset read returns more than
+# limit + 1 rows.
+boq-keyset-no-limit	src/lib/services/construction-boq-service.ts	.limit(page.limit + 1)		bun test --isolate src/app/api/v1/construction/boq/route.d11.test.ts
