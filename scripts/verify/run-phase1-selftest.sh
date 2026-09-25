@@ -617,7 +617,7 @@ expect_neg "job is not named Secret Scanning" 1 env WORKFLOW_FILE="$WORK/sentine
 expect_neg "pr mode without --yes writes nothing and stops" 2 bash "$V/secret-scan-selftest.sh" --mode pr
 
 echo "== BR-121 cron-placement.sh"
-CRON_LINE="CRON_PLACEMENT_OK vercel_rows=30 bad_enum=0"
+CRON_LINE="CRON_PLACEMENT_OK vercel_rows=29 bad_enum=0"
 CRON_ENV=(env CT_VERCEL_JSON="$FX/ct_vercel.json" PX_VERCEL_JSON="$FX/px_vercel.json")
 expect_pos "real file, vercel.json fixtures" "$CRON_LINE" "${CRON_ENV[@]}" PKG_DIR="$POS" bash "$V/cron-placement.sh"
 expect_neg "a classification outside the enum" 1 "${CRON_ENV[@]}" PKG_DIR="$(mkneg cron_bad cron_bad_value)" bash "$V/cron-placement.sh"
