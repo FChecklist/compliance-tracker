@@ -242,6 +242,11 @@ const TOOL_DEFINITIONS = [
 // TOOL_DEFINITIONS array above, one per existing tool). Falls back to the
 // hardcoded array if the table is empty or the query fails, so this stays
 // backward compatible during the transition -- see orchestra_changes.md Wave 3.
+// PROJEXA-BUILD-001 U-15 (2026-09-25): the table now holds 22 global rows,
+// 13 of them (6 GST, 7 construction) with no branch in handleTool(), which
+// tools/list used to advertise anyway and tools/call then rejected with
+// 'Unknown tool'. Rows are now served only if IMPLEMENTED_TOOL_NAMES (next to
+// handleTool below) contains their code_reference.
 // ---------------------------------------------------------------------------
 type ToolDefinition = {
   name: string
@@ -260,11 +265,14 @@ async function getToolDefinitions(): Promise<ToolDefinition[]> {
 
     if (error || !data || data.length === 0) {
       // The fallback is deliberate and stays. What was missing is any record
-      // that it happened: platform.worker_agents currently holds 22 global
-      // tools while TOOL_DEFINITIONS holds 7, so this path silently serves a
-      // THIRD of the tool surface and looks identical to a healthy response.
-      // A caller cannot tell "these are the tools" from "the database was
-      // unreachable, here are some of the tools".
+      // that it happened: this path serves TOOL_DEFINITIONS' own descriptions
+      // and input schemas instead of the database's, and looks identical to a
+      // healthy response. A caller cannot tell "these are the tools" from
+      // "the database was unreachable, here are the built-in definitions".
+      // (Corrected U-15, 2026-09-25: this comment used to say TOOL_DEFINITIONS
+      // holds 7 and serves a third of the database's 22 -- it holds 9, and the
+      // database path below is now filtered to those same 9 names, so both
+      // paths advertise the same tool set.)
       console.warn(
         JSON.stringify({
           event: 'mcp_tool_definitions_fallback',
@@ -277,7 +285,8 @@ async function getToolDefinitions(): Promise<ToolDefinition[]> {
       return TOOL_DEFINITIONS
     }
 
-    return data.map((row) => ({
+    const implementedRows = data.filter((row) => IMPLEMENTED_TOOL_NAMES.has(row.code_reference as string))
+    return implementedRows.map((row) => ({
       name: row.code_reference as string,
       description: (row.description as string) ?? '',
       inputSchema: (row.input_schema as Record<string, unknown>) ?? { type: 'object', properties: {} },
@@ -321,6 +330,15 @@ function logToolUsage(toolName: string, orgId: string, durationMs: number, succe
 // Tool handlers
 // ---------------------------------------------------------------------------
 const WRITE_TOOLS = new Set(['create_compliance_item', 'update_compliance_status'])
+
+// PROJEXA-BUILD-001 U-15: the single list of tool names this route implements,
+// and the only names tools/list (getToolDefinitions) may advertise. It is
+// derived from TOOL_DEFINITIONS because every entry there has its own
+// `if (name === ...)` branch in handleTool() below. Adding a tool therefore
+// takes a TOOL_DEFINITIONS entry AND a branch; a worker_agents row on its own
+// never reaches tools/list. route.test.ts calls every advertised name and
+// fails on 'Unknown tool', so an entry added without a branch breaks CI.
+const IMPLEMENTED_TOOL_NAMES: ReadonlySet<string> = new Set(TOOL_DEFINITIONS.map((t) => t.name))
 
 // Wave 11: base URL for internal fetch() calls to /api/v1 -- VERCEL_URL is
 // this exact deployment's own unique domain (set automatically by Vercel),
