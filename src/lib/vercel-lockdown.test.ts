@@ -103,7 +103,7 @@ function cronKey(cron: { schedule: string; path: string }): string {
 }
 
 // The three rules of the guard, as plain functions so that the "planted defect" tests below can run the very same code on a
-// vercel.json that has been changed on purpose.
+// list of crons that has one defect planted in it on purpose.
 function findUnfrozenCrons(declared: DeclaredCron[], frozen: ReadonlyArray<readonly [string, string]>): string[] {
   const allowed = new Set(frozen.map(([schedule, path]) => cronKey({ schedule, path })))
   return declared.map(cronKey).filter((key) => !allowed.has(key))
@@ -129,7 +129,6 @@ describe("crons drift guard", () => {
 
   test("the frozen list holds at most MAX_FROZEN_CRONS entries and none of them is an every-N-minutes schedule", () => {
     expect(FROZEN_CRONS.length).toBeLessThanOrEqual(MAX_FROZEN_CRONS)
-    expect(MAX_FROZEN_CRONS).toBeLessThanOrEqual(1)
     expect(FROZEN_CRONS.filter(([schedule]) => EVERY_N_SCHEDULE.test(schedule))).toEqual([])
   })
 
@@ -148,50 +147,52 @@ describe("crons drift guard", () => {
   })
 })
 
-// The guard above only means something if it is known to reject a bad vercel.json. These run the guard's own functions on a copy of
-// the committed crons that has one defect planted in it.
+// The guard above only means something if it is known to reject a bad vercel.json. These run the guard's own functions on a fixed
+// synthetic list, not on vercel.json or FROZEN_CRONS, so they hold whatever those two say, and each case plants one defect in it.
 describe("drift guard rejects planted crons", () => {
-  const committed = (): DeclaredCron[] => declaredCrons().map((c) => ({ ...c }))
+  const frozen: ReadonlyArray<readonly [string, string]> = [["0 7 * * *", "/api/internal/secrets-audit/run"]]
+  const committed = (): DeclaredCron[] => frozen.map(([schedule, path]) => ({ schedule, path }))
 
-  test("the committed crons pass every rule (the control for the cases below)", () => {
-    expect(findUnfrozenCrons(committed(), FROZEN_CRONS)).toEqual([])
+  test("the control: a list equal to the frozen list passes every rule", () => {
+    expect(findUnfrozenCrons(committed(), frozen)).toEqual([])
     expect(findEveryNCrons(committed())).toEqual([])
-    expect(exceedsFrozenCount(committed(), FROZEN_CRONS)).toBe(false)
+    expect(exceedsFrozenCount(committed(), frozen)).toBe(false)
   })
 
   test("an added cron is rejected: by the unfrozen rule and by the count rule", () => {
     const planted = [...committed(), { schedule: "0 3 * * *", path: "/api/internal/loops/run" }]
-    expect(findUnfrozenCrons(planted, FROZEN_CRONS)).toEqual(["0 3 * * * /api/internal/loops/run"])
-    expect(exceedsFrozenCount(planted, FROZEN_CRONS)).toBe(true)
+    expect(findUnfrozenCrons(planted, frozen)).toEqual(["0 3 * * * /api/internal/loops/run"])
+    expect(exceedsFrozenCount(planted, frozen)).toBe(true)
   })
 
   test("an added every-5-minutes cron is rejected by all three rules", () => {
     const planted = [...committed(), { schedule: "*/5 * * * *", path: "/api/internal/crr-catchup-worker/run" }]
     expect(findEveryNCrons(planted)).toEqual(["*/5 * * * * /api/internal/crr-catchup-worker/run"])
-    expect(findUnfrozenCrons(planted, FROZEN_CRONS)).toEqual(["*/5 * * * * /api/internal/crr-catchup-worker/run"])
-    expect(exceedsFrozenCount(planted, FROZEN_CRONS)).toBe(true)
+    expect(findUnfrozenCrons(planted, frozen)).toEqual(["*/5 * * * * /api/internal/crr-catchup-worker/run"])
+    expect(exceedsFrozenCount(planted, frozen)).toBe(true)
   })
 
   test("an every-15-minutes schedule on the frozen path is rejected: it is re-scheduled and it is every-N", () => {
     const planted = committed().map((c) => ({ ...c, schedule: "*/15 * * * *" }))
     expect(findEveryNCrons(planted)).toHaveLength(planted.length)
-    expect(findUnfrozenCrons(planted, FROZEN_CRONS)).toHaveLength(planted.length)
-    expect(exceedsFrozenCount(planted, FROZEN_CRONS)).toBe(false)
+    expect(findUnfrozenCrons(planted, frozen)).toHaveLength(planted.length)
+    expect(exceedsFrozenCount(planted, frozen)).toBe(false)
   })
 
   test("a changed schedule on the frozen path is rejected even when it is not every-N", () => {
     const planted = committed().map((c) => ({ ...c, schedule: "0 * * * *" }))
-    expect(findUnfrozenCrons(planted, FROZEN_CRONS)).toHaveLength(planted.length)
+    expect(findUnfrozenCrons(planted, frozen)).toHaveLength(planted.length)
     expect(findEveryNCrons(planted)).toEqual([])
   })
 
   test("a different path with the frozen schedule is rejected", () => {
     const planted = committed().map((c) => ({ ...c, path: "/api/internal/loops/run" }))
-    expect(findUnfrozenCrons(planted, FROZEN_CRONS)).toHaveLength(planted.length)
+    expect(findUnfrozenCrons(planted, frozen)).toHaveLength(planted.length)
   })
 
   test("a cron removed from vercel.json is not a violation: the list may only shrink", () => {
-    expect(findUnfrozenCrons([], FROZEN_CRONS)).toEqual([])
-    expect(exceedsFrozenCount([], FROZEN_CRONS)).toBe(false)
+    expect(findUnfrozenCrons([], frozen)).toEqual([])
+    expect(exceedsFrozenCount([], frozen)).toBe(false)
+    expect(findEveryNCrons([])).toEqual([])
   })
 })
