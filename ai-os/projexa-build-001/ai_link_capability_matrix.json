@@ -1,0 +1,3361 @@
+{
+ "schema_version": 1,
+ "title": "PROJEXA Universal AI Work Link - capability matrix",
+ "generated": "2026-09-25",
+ "revision": "LINK-FIX 2026-09-25: audit S02 defects A-04 (identity marks), A-14 (Claude in Chrome L6) and A-23 (R-file labels on every cell; surface confidence = lowest cell; FETCHED-S01 re-fetched, see AILINK_S01_fetches.md)",
+ "spec": "UNIVERSAL_AI_WORK_LINK_SPEC.md (section 12)",
+ "link_example": "https://pcrjmlpuqsbocqfwoxod.supabase.co/functions/v1/ai-work-link/pxa_<64 lowercase hex>",
+ "evidence_note": "Every cell carries `label` (the AILINK_Rnn file's own confidence label and section, carried over unchanged: R01 FETCHED / FETCHED via relay / PARTLY; R02 FETCHED-SUMMARY / SEARCH-ONLY; R03 FETCHED / SEARCH; R04 FETCHED via summariser / SEARCH-ONLY; R05 VERIFIED_FETCHED / PARTLY_VERIFIED; R06 FETCHED / SEARCH-ONLY / THIRD-PARTY; R07 FETCHED / SEARCH-ONLY (team blog and community pages are not product documentation); R08 FETCHED / FETCHED-3P / SEARCH-ONLY / summariser negatives; R09 FETCHED / SEARCH-ONLY / THIRD-PARTY / INFERENCE; S01 = our own design or an inference with no R-file line) and `confidence` on one scale: VERIFIED_FETCHED > PARTLY_VERIFIED > UNVERIFIED, or DESIGN for our own layer statements. FETCHED-S01 facts were re-fetched 2026-09-25 (AILINK_S01_fetches.md).",
+ "layers": {
+  "L1_markdown_get": "A plain GET of the pasted link returns the Markdown manual; every read is a further GET whose absolute URL is printed in the manual.",
+  "L2_openapi_import": "The AI tool imports /openapi.json (3.0.3) or /swagger.json (2.0); header mode /...?mode=header with Link-Token for tools that store a key.",
+  "L3_mcp": "The same link used as a remote MCP server (Streamable HTTP, no authentication, both MCP eras), or header mode F/header with Link-Token / Bearer.",
+  "L4_http_by_client": "The AI or the code around it sends its own GET and POST requests (shell curl, client-executed function calling).",
+  "L5_get_propose_confirm": "The AI opens /propose?fn=..&p.x=.. (stateless GET) and hands the returned confirm link to the person, who clicks Confirm on the static page.",
+  "L6_paste_back": "Token-free paste card (+ token-free data file) given to the AI; the AI returns projexa-proposal blocks; the person pastes them into the inbox page.",
+  "L7_email_inbound": "The person emails proposal blocks to a per-link inbound address. Future layer: needs owner DNS/MX (work order Q4)."
+ },
+ "values": {
+  "zero_setup": "Works from the pasted link or pasted card with only the AI's own normal sign-in.",
+  "zero_setup_per_call_approval": "No configuration, but the AI tool asks a human to approve each call (e.g. a shell command).",
+  "human_opens_link": "The person opens the link in a browser tab; the AI reads that tab or clicks the page like a person.",
+  "one_time_user_setup": "NOT zero setup: the person adds the link once (connector form or config file).",
+  "admin_or_maker_setup": "NOT zero setup: a workspace admin, org owner or maker must add it.",
+  "developer_code": "NOT zero setup: needs code written around the model and the developer's own API key.",
+  "not_available": "Documented or observed as absent for this surface.",
+  "not_applicable": "The layer has no meaning for this surface (for example no human in the loop).",
+  "unverified": "No fetched page or test settles it; the named owner test decides it.",
+  "future_owner_dns": "Designed but not built; needs an owner DNS/MX action first."
+ },
+ "families": [
+  {
+   "family": "ChatGPT (OpenAI)",
+   "research_file": "AILINK_R01_chatgpt.md",
+   "zero_setup_summary": "Only L6 is documented. L1 (browse a pasted URL) is UNVERIFIED on every ChatGPT surface.",
+   "one_time_click_summary": "L3 No-Authentication MCP app: Business/Enterprise/Edu admins; Plus/Pro docs conflict. Desktop/Codex: config.toml. GPT Actions retire 2026-12-11.",
+   "surfaces": [
+    {
+     "surface": "ChatGPT web, not signed in",
+     "ai_login_needed": "no (web search only)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Signed-out web search is documented; opening a pasted URL is not.",
+       "src": "R01 S1",
+       "label": "UNVERIFIED (R01 S1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "GPTs need sign-in.",
+       "src": "R01 S1",
+       "label": "FETCHED via relay (R01 S1, article 8554407)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "Developer mode needs sign-in.",
+       "src": "R01 S1",
+       "label": "FETCHED (R01 S1, developer-mode page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "No custom HTTP tool.",
+       "src": "R01 S1",
+       "label": "PARTLY: absence of evidence on the fetched pages; R01 S1 says GET-only is UNVERIFIED",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Depends on opening composed URLs with query strings.",
+       "src": "R01 T2",
+       "label": "UNVERIFIED (R01 T2)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Chat text is accepted signed out; uploads signed out UNVERIFIED.",
+       "src": "R01 S1",
+       "label": "FETCHED via relay (R01 S1, article 9237897: signed-out use); signed-out upload UNVERIFIED",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6 (L1 if OT-01 passes)",
+     "zero_setup_write": "L6",
+     "owner_tests": [
+      "OT-01",
+      "OT-02"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "ChatGPT web Free (signed in)",
+     "ai_login_needed": "yes",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Search yes; opening a pasted URL not documented.",
+       "src": "R01 S2",
+       "label": "UNVERIFIED (R01 S2)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "Free cannot create GPTs.",
+       "src": "R01 S2",
+       "label": "FETCHED via relay (R01 S2, article 9275245)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "Free is on no MCP eligibility list.",
+       "src": "R01 S2",
+       "label": "FETCHED (R01 S2: Free on neither eligibility list)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "No custom tool facility.",
+       "src": "R01 S2",
+       "label": "FETCHED via relay (R01 S2, article 9275245)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Same unknown as L1.",
+       "src": "R01 T2",
+       "label": "UNVERIFIED (R01 T2)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text; csv/xlsx upload, Free 3 uploads per day.",
+       "src": "R01 S2, S11",
+       "label": "FETCHED via relay (R01 S2/S11, article 8555545)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6 (L1 if OT-01 passes)",
+     "zero_setup_write": "L6",
+     "owner_tests": [
+      "OT-01",
+      "OT-02"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "ChatGPT web Plus / Pro",
+     "ai_login_needed": "yes",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Opening a pasted URL not documented.",
+       "src": "R01 S3, S4",
+       "label": "UNVERIFIED (R01 S3, S4)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "Personal plans cannot create GPTs.",
+       "src": "R01 S3",
+       "label": "FETCHED via relay (R01 S3, article 8554397)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L3_mcp": {
+       "v": "unverified",
+       "why": "Developer-mode page lists Plus/Pro; help centre says write tools are Business/Enterprise/Edu only (Pro read/fetch). Would be one_time_user_setup if eligible.",
+       "src": "R01 finding 6",
+       "label": "UNVERIFIED (R01 finding 6)",
+       "confidence": "UNVERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "No custom HTTP tool.",
+       "src": "R01 S3",
+       "label": "PARTLY: absence of evidence on the fetched pages (R01 S3)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Same unknown as L1.",
+       "src": "R01 T2",
+       "label": "UNVERIFIED (R01 T2)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text; 80 uploads per 3 hours.",
+       "src": "R01 S3",
+       "label": "FETCHED via relay (R01 S3, article 8555545)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6 (L1 if OT-01 passes)",
+     "zero_setup_write": "L6",
+     "owner_tests": [
+      "OT-01",
+      "OT-02",
+      "OT-03"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "ChatGPT Business / Enterprise / Edu",
+     "ai_login_needed": "yes (workspace member)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Opening a pasted URL not documented; Work has admin browser controls.",
+       "src": "R01 S5",
+       "label": "UNVERIFIED (R01 S5)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "admin_or_maker_setup",
+       "why": "GPT Actions (API key header possible) retire 2026-12-11 and do not migrate: do not build on it.",
+       "src": "R01 S7",
+       "label": "FETCHED via relay (R01 S7, article 9442513)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "A GPT with an API-key Action is published to the workspace, so every member would act as the link owner (R01 S5/S7)."
+      },
+      "L3_mcp": {
+       "v": "admin_or_maker_setup",
+       "why": "Developer mode, admins/owners only; auth OAuth / No Authentication / Mixed, never a static key: path-token link with No Authentication.",
+       "src": "R01 S5, S8",
+       "label": "FETCHED (R01 S5/S8, direct and via relay)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "Only admins or owners add developer-mode apps, and a published app is used by the workspace (R01 S5)."
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "Only through apps/actions.",
+       "src": "R01 S5",
+       "label": "PARTLY (R01 S5: Actions page read as a summary only)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Same unknown as L1.",
+       "src": "R01 T2",
+       "label": "UNVERIFIED (R01 T2)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text or upload.",
+       "src": "R01 S5",
+       "label": "FETCHED via relay (R01 S5, article 8555545)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6 (L1 if OT-01 passes)",
+     "zero_setup_write": "L6; L3 after admin setup (ChatGPT asks the human before each write tool)",
+     "owner_tests": [
+      "OT-01",
+      "OT-04",
+      "OT-18"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "ChatGPT desktop app / Codex",
+     "ai_login_needed": "yes",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Pasted-URL behaviour in desktop chat not documented.",
+       "src": "R01 S6, R09 S2",
+       "label": "UNVERIFIED (R01 S6, R09 S2)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "No OpenAPI import documented for Codex.",
+       "src": "R01 S6",
+       "label": "PARTLY: absence of evidence on the fetched pages (R01 S6)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "Settings > MCP servers / ~/.codex/config.toml: url, bearer_token_env_var, http_headers.",
+       "src": "R01 S6, R09 S16",
+       "label": "FETCHED via relay (R01 S6, codex/mcp) and FETCHED (R09 S16)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "unverified",
+       "why": "Codex shell exists; default network permission UNVERIFIED.",
+       "src": "R09 S16",
+       "label": "UNVERIFIED (R09 S16)",
+       "confidence": "UNVERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Depends on L1/L4.",
+       "src": "S01",
+       "label": "UNVERIFIED (S01)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste or upload in chat.",
+       "src": "R01 S6",
+       "label": "FETCHED via relay (R01 S6, article 20001275)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6; L3 after one-time config",
+     "owner_tests": [
+      "OT-17"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "OpenAI API (Responses API mcp tool, function calling)",
+     "ai_login_needed": "developer API key",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "developer_code",
+       "why": "web_search has open_page; the developer runs the loop.",
+       "src": "R01 S12",
+       "label": "FETCHED via relay (R01 S12, tools-web-search)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "developer_code",
+       "why": "No OpenAPI import; developer converts operations to function tools.",
+       "src": "R01 S12",
+       "label": "PARTLY (R01 S12: function calling not fetched)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "developer_code",
+       "why": "tools:[{type:mcp, server_url:<link>}]; authorization field is for OAuth tokens, so the path token form is used.",
+       "src": "R01 S12",
+       "label": "FETCHED via relay (R01 S12, tools-connectors-mcp)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "developer_code",
+       "why": "Function calling executed by the developer's code.",
+       "src": "R01 S12",
+       "label": "PARTLY (R01 S12: function calling UNVERIFIED in detail)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_applicable",
+       "why": "No person in the loop by default.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L6_paste_back": {
+       "v": "not_applicable",
+       "why": "No chat UI.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "none",
+     "zero_setup_write": "none",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    }
+   ]
+  },
+  {
+   "family": "Google Gemini",
+   "research_file": "AILINK_R02_gemini.md",
+   "zero_setup_summary": "Gemini app: L6 (pasted-URL reading UNVERIFIED). Gemini CLI: L1 web_fetch. Gemini in Chrome: person opens the tab.",
+   "one_time_click_summary": "Gemini app custom MCP app (personal US account, OAuth expected, static URL UNVERIFIED); Gemini CLI settings.json.",
+   "surfaces": [
+    {
+     "surface": "Gemini app, signed out",
+     "ai_login_needed": "no (basic chat only)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Help page says only some features work signed out.",
+       "src": "R02 2.1",
+       "label": "UNVERIFIED (R02 2.1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "No tool surface.",
+       "src": "R02 2.1",
+       "label": "PARTLY: absence of evidence on the fetched pages (R02 2.1)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "Connected Apps need sign-in.",
+       "src": "R02 2.1",
+       "label": "FETCHED-SUMMARY (R02 2.1, answer 13278668)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "No tool surface.",
+       "src": "R02 2.1",
+       "label": "PARTLY: absence of evidence on the fetched pages (R02 2.1)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Same unknown as L1.",
+       "src": "S01",
+       "label": "UNVERIFIED (S01)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text; upload needs sign-in.",
+       "src": "R02 2.1",
+       "label": "FETCHED-SUMMARY (R02 2.1)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6",
+     "owner_tests": [
+      "OT-08"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "Gemini app, signed in (free, Google AI Pro/Ultra)",
+     "ai_login_needed": "yes",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "No Google page states pasted-URL reading; a community thread reports failures.",
+       "src": "R02 2.2",
+       "label": "UNVERIFIED (R02 2.2)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "No OpenAPI import; Gems hold instructions and files only.",
+       "src": "R02 2.2, 2.3",
+       "label": "PARTLY: absence of evidence on the fetched pages (R02 2.2/2.3)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "unverified",
+       "why": "Custom MCP apps exist (personal account, US, English, 18+, Keep Activity on); OAuth expected; a static no-auth URL is UNVERIFIED. Would be one_time_user_setup.",
+       "src": "R02 2.2",
+       "label": "UNVERIFIED (R02 2.2)",
+       "confidence": "UNVERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "No HTTP tool.",
+       "src": "R02 2.2",
+       "label": "PARTLY: absence of evidence on the fetched pages (R02 2.2)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Same unknown as L1.",
+       "src": "S01",
+       "label": "UNVERIFIED (S01)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text; upload 10 files x 100 MB incl. CSV/XLSX.",
+       "src": "R02 2.2",
+       "label": "FETCHED-SUMMARY (R02 2.2, answer 14903178)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6 (L1 if OT-08 passes)",
+     "zero_setup_write": "L6",
+     "owner_tests": [
+      "OT-08"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "Gemini in Gmail / Workspace side panel",
+     "ai_login_needed": "yes + paid Workspace or Google AI plan",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "Help page: the panel does not open external web links.",
+       "src": "R02 2.4, R08 S1",
+       "label": "FETCHED-SUMMARY (R02 2.4, answer 14355636: the panel does not open external links)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "Fixed admin connector list only.",
+       "src": "R02 2.4",
+       "label": "PARTLY: FETCHED-SUMMARY negative (R02 2.4, custom servers not mentioned)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "Custom MCP not mentioned for Workspace connectors.",
+       "src": "R02 2.4",
+       "label": "PARTLY: FETCHED-SUMMARY negative (R02 2.4)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "No HTTP tool.",
+       "src": "R08 S1",
+       "label": "FETCHED (R08 S1: Google-hosted actions only)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_available",
+       "why": "Cannot open links.",
+       "src": "R08 S1",
+       "label": "FETCHED-SUMMARY (R02 2.4)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste the card into the panel or compose window; the person pastes blocks into the inbox page.",
+       "src": "R08 section 7",
+       "label": "FETCHED (R08 S1/section 7: drafting documented)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Gemini can draft the email; the person sends it.",
+       "src": "R08 section 5",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6",
+     "owner_tests": [
+      "OT-15"
+     ],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Gemini in Chrome",
+     "ai_login_needed": "yes (Google account in Chrome)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "human_opens_link",
+       "why": "Reads the current tab and up to 10 selected tabs.",
+       "src": "R02 2.5, R09 S10",
+       "label": "FETCHED-SUMMARY (R02 2.5) and FETCHED (R09 S10)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "None documented.",
+       "src": "R02 2.5",
+       "label": "PARTLY: absence of evidence on the fetched pages (R02 2.5)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "WebMCP announced as soon; no user-added remote MCP.",
+       "src": "R09 S10",
+       "label": "PARTLY: WebMCP 'soon' FETCHED (R09 S10); user-added remote MCP absent from the pages",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "No HTTP tool.",
+       "src": "R09 S10",
+       "label": "PARTLY: absence of evidence on the fetched pages (R02 2.5)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "human_opens_link",
+       "why": "The confirm page is an ordinary page; auto browse (preview, US) could click it.",
+       "src": "R02 2.5",
+       "label": "FETCHED-SUMMARY (R02 2.5: auto browse preview)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text into the panel.",
+       "src": "S01",
+       "label": "INFERENCE (S01, no R-file line)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L1 via an open tab",
+     "zero_setup_write": "L5 (person clicks)",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Gemini API url_context tool",
+     "ai_login_needed": "developer API key",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "developer_code",
+       "why": "GET only, public URLs, 20 per request, 34 MB each; index cache first, so revoked pages can be served stale.",
+       "src": "R02 2.6",
+       "label": "FETCHED-SUMMARY (R02 2.6, url-context page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "developer_code",
+       "why": "Function declarations are an OpenAPI subset; no import.",
+       "src": "R02 2.7",
+       "label": "FETCHED-SUMMARY (R02 2.7, function-calling page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "Interactions API: Gemini 3 does not support remote MCP.",
+       "src": "R02 2.8",
+       "label": "FETCHED-SUMMARY (R02 2.8, interactions page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "developer_code",
+       "why": "Function calling executed by the client.",
+       "src": "R02 2.7",
+       "label": "FETCHED-SUMMARY (R02 2.7)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L6_paste_back": {
+       "v": "not_applicable",
+       "why": "No chat UI.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "none",
+     "zero_setup_write": "none",
+     "owner_tests": [
+      "OT-09"
+     ],
+     "owner_result": null,
+     "confidence": "VERIFIED_FETCHED"
+    },
+    {
+     "surface": "Gemini API Managed Agents / Antigravity (preview)",
+     "ai_login_needed": "developer API key",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "developer_code",
+       "why": "Via url_context or agent tools.",
+       "src": "R02 2.8",
+       "label": "FETCHED-SUMMARY (R02 2.8)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "No import documented.",
+       "src": "R02 2.8",
+       "label": "PARTLY: absence of evidence on the fetched pages (R02 2.8)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "developer_code",
+       "why": "mcp_server tool with url and optional headers.",
+       "src": "R02 2.8",
+       "label": "FETCHED-SUMMARY (R02 2.8, antigravity-agent page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "developer_code",
+       "why": "Developer code.",
+       "src": "R02 2.8",
+       "label": "FETCHED-SUMMARY (R02 2.8)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L6_paste_back": {
+       "v": "not_applicable",
+       "why": "No chat UI.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "none",
+     "zero_setup_write": "none",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Gemini CLI (laptop)",
+     "ai_login_needed": "yes, once (Google sign-in or API key)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "zero_setup",
+       "why": "web_fetch tool, GET, up to 20 URLs; confirmation behaviour UNVERIFIED.",
+       "src": "R02 2.9",
+       "label": "PARTLY: web_fetch FETCHED-SUMMARY (R02 2.9); its confirmation behaviour UNVERIFIED",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "MCP is the extension route.",
+       "src": "R02 2.9",
+       "label": "PARTLY: absence of evidence on the fetched pages (R02 2.9)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "settings.json httpUrl + headers, or gemini mcp add -H.",
+       "src": "R02 2.9, R09 S17",
+       "label": "FETCHED-SUMMARY (R02 2.9) and FETCHED (R09 S17)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "zero_setup_per_call_approval",
+       "why": "run_shell_command can run curl; approval behaviour UNVERIFIED.",
+       "src": "R02 2.9",
+       "label": "PARTLY: run_shell_command FETCHED-SUMMARY (R02 2.9); per-call approval UNVERIFIED",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "zero_setup",
+       "why": "Can fetch composed URLs via web_fetch.",
+       "src": "R02 2.9",
+       "label": "INFERENCE (R02 2.9: the model chooses web_fetch URLs)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Reads local files.",
+       "src": "R02 2.9",
+       "label": "FETCHED-SUMMARY (R02 2.9)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "Not needed: HTTP is available.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L1",
+     "zero_setup_write": "L4 with approval; L5",
+     "owner_tests": [
+      "OT-10"
+     ],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    }
+   ]
+  },
+  {
+   "family": "Claude (Anthropic)",
+   "research_file": "AILINK_R03_claude.md",
+   "zero_setup_summary": "L1: Claude web fetch reads a URL pasted in a user message even if it looks like a credential (API doc, FETCHED); claude.ai chat behaviour UNVERIFIED. Composed URLs are refused, so writes use L6.",
+   "one_time_click_summary": "Custom connector with No sign-in for a person's own account (Free: one connector). Team/Enterprise org connectors added by an Owner are shared, so they are refused for per-user links (T20). Claude Code: one claude mcp add command. Claude in Chrome needs the extension and a paid plan.",
+   "surfaces": [
+    {
+     "surface": "claude.ai chat (Free / Pro / Max) with web search and fetch",
+     "ai_login_needed": "yes (Claude account)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "zero_setup",
+       "why": "Fetches URLs given in the conversation; credential-like URLs allowed when in the user message (API doc). claude.ai chat itself UNVERIFIED (OT-05). URL max 250 chars; text/HTML/PDF only.",
+       "src": "R03 1.1, 1.5",
+       "label": "PARTLY: FETCHED for the API rule and for claude.ai fetching given URLs (R03 1.1, 1.5); the credential-URL rule on claude.ai chat UNVERIFIED (OT-05)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "No OpenAPI import found.",
+       "src": "R03 1.1",
+       "label": "PARTLY: absence of evidence on the fetched pages (R03 1.1)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "Customize > Connectors > Add custom connector > URL, No sign-in. Free: one connector. Return 404/410 never 401 for bad tokens.",
+       "src": "R03 1.1, 1.4",
+       "label": "PARTLY: connector with No sign-in FETCHED (R03 1.4); a path token surviving the save UNVERIFIED (OT-06)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "Chat has no free-form HTTP tool.",
+       "src": "R03 1.1",
+       "label": "PARTLY: absence of evidence on the fetched pages (R03 1.1)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_available",
+       "why": "Web fetch refuses URLs Claude composed itself; only URLs already in the conversation.",
+       "src": "R03 1.5",
+       "label": "FETCHED (R03 1.5, web-fetch tool page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste or upload (20 files, 500 MB each).",
+       "src": "R03 1.11",
+       "label": "FETCHED (R03 1.11, article 8241126)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L1",
+     "zero_setup_write": "L6 (L3 after the one-time connector)",
+     "owner_tests": [
+      "OT-05",
+      "OT-06"
+     ],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "claude.ai Team / Enterprise",
+     "ai_login_needed": "yes (organisation seat)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "admin_or_maker_setup",
+       "why": "Web search must be enabled by an Owner for the workspace.",
+       "src": "R03 1.3",
+       "label": "FETCHED (R03 1.3)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": false,
+       "allowed_for_per_user_link": true,
+       "identity_note": "The Owner only switches web search on; the link stays in the person's own chat."
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "No OpenAPI import found.",
+       "src": "R03 1.3",
+       "label": "PARTLY: absence of evidence on the fetched pages (R03 1.3)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "admin_or_maker_setup",
+       "why": "An Owner adds the custom connector; members click Connect. Org-wide static headers do not fit a per-user link.",
+       "src": "R03 1.3",
+       "label": "FETCHED (R03 1.3)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "The Owner adds one connector URL for the organisation and members click Connect (R03 1.3)."
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "Chat has no HTTP tool.",
+       "src": "R03 1.3",
+       "label": "PARTLY: absence of evidence on the fetched pages (R03 1.3)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_available",
+       "why": "Composed URLs refused.",
+       "src": "R03 1.5",
+       "label": "FETCHED (R03 1.5)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste or upload.",
+       "src": "R03 1.11",
+       "label": "FETCHED (R03 1.11)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6 (L1 once an Owner enables web search)",
+     "zero_setup_write": "L6",
+     "owner_tests": [
+      "OT-06",
+      "OT-18"
+     ],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Claude Desktop (Windows, macOS)",
+     "ai_login_needed": "yes (Claude account)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Consumer desktop fetch behaviour not fetched.",
+       "src": "R03 1.6, R09 S1",
+       "label": "UNVERIFIED (R03 1.6, R09 S1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "None found.",
+       "src": "R09 S1",
+       "label": "UNVERIFIED (R09 S1: none found, UNVERIFIED for Desktop)",
+       "confidence": "UNVERIFIED"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "Custom connector with No sign-in; request headers are beta, org-admin only, so the token rides in the path.",
+       "src": "R09 S1",
+       "label": "FETCHED (R09 S1)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "Only through MCP tools.",
+       "src": "R09 S1",
+       "label": "PARTLY: absence of evidence on the fetched pages (R09 S1)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Depends on L1.",
+       "src": "S01",
+       "label": "UNVERIFIED (S01)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste or attach.",
+       "src": "R09 S1",
+       "label": "INFERENCE (R09 S1: attachments exist; spreadsheet detail UNVERIFIED)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6; L3 after the connector",
+     "owner_tests": [
+      "OT-06"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "Claude Code (CLI, IDE, desktop Code tab)",
+     "ai_login_needed": "yes (Claude account or API key)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "zero_setup_per_call_approval",
+       "why": "WebFetch needs a domain permission; a third-party report says it strips credentials from URLs (UNVERIFIED), so the manual tells it to use curl.",
+       "src": "R03 1.8, R09 S13",
+       "label": "PARTLY: WebFetch permission FETCHED (R03 1.8, R09 S13); credential stripping is a SEARCH-only third-party report",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_applicable",
+       "why": "MCP and shell instead.",
+       "src": "R09 S13",
+       "label": "DESIGN (R09 S13: MCP and shell are used instead)",
+       "confidence": "DESIGN"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "claude mcp add --transport http projexa <link> (or --header for header mode).",
+       "src": "R03 1.8",
+       "label": "FETCHED (R03 1.8, code.claude.com mcp page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "zero_setup_per_call_approval",
+       "why": "Bash curl; curl is not auto-approved.",
+       "src": "R09 S13",
+       "label": "FETCHED (R09 S13, permissions page: curl not auto-approved)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "zero_setup_per_call_approval",
+       "why": "curl can GET composed URLs.",
+       "src": "S01",
+       "label": "INFERENCE (S01, from R09 S13)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Reads local files.",
+       "src": "R09 S13",
+       "label": "FETCHED (R09 S13)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "HTTP is available.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L1/L4 with approval",
+     "zero_setup_write": "L4 with approval",
+     "owner_tests": [
+      "OT-07"
+     ],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Claude in Chrome (extension)",
+     "ai_login_needed": "yes, paid plan",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "human_opens_link",
+       "why": "Drives a real browser; reads pages including JS pages.",
+       "src": "R03 1.7",
+       "label": "FETCHED (R03 1.7, article 12012173); needs the extension and a paid plan",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "None.",
+       "src": "R03 1.7",
+       "label": "PARTLY: absence of evidence on the fetched pages (R03 1.7)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "None for the extension.",
+       "src": "R03 1.7",
+       "label": "PARTLY: absence of evidence on the fetched pages (R03 1.7)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "Clicks and fills forms, no raw HTTP.",
+       "src": "R03 1.7",
+       "label": "FETCHED (R03 1.7)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "human_opens_link",
+       "why": "Can open and click the confirm page; that is residual risk T17 for Level-2.",
+       "src": "R03 1.7",
+       "label": "FETCHED (R03 1.7: clicks and fills forms)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L6_paste_back": {
+       "v": "one_time_user_setup",
+       "why": "Paid plans only, and the extension must be installed (R03 1.7). It can type into the inbox page, so a confirm pressed through it is an AI action, not a human confirmation (A-14, T7).",
+       "src": "R03 1.7",
+       "label": "FETCHED (R03 1.7: paid plans, extension install)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "none: the extension and a paid plan are a one-time setup (R03 1.7)",
+     "zero_setup_write": "none (and its clicks on a confirm page are AI actions, A-14)",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Anthropic API (web_fetch tool, MCP connector beta, client tool use)",
+     "ai_login_needed": "developer API key",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "developer_code",
+       "why": "web_fetch accepts the URL when it is in the user message; 250-char limit; results cached.",
+       "src": "R03 1.5",
+       "label": "FETCHED (R03 1.5)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "developer_code",
+       "why": "No built-in importer.",
+       "src": "R03 1.10",
+       "label": "PARTLY (R03 1.10: a built-in importer UNVERIFIED)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "developer_code",
+       "why": "Beta header mcp-client-2025-11-20; mcp_servers url; tools only.",
+       "src": "R03 1.9",
+       "label": "FETCHED (R03 1.9, mcp-connector page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "developer_code",
+       "why": "Client tool use.",
+       "src": "R03 1.10",
+       "label": "PARTLY (R03 1.10: tool-use page not fetched)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L6_paste_back": {
+       "v": "not_applicable",
+       "why": "No chat UI.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "none",
+     "zero_setup_write": "none",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    }
+   ]
+  },
+  {
+   "family": "DeepSeek",
+   "research_file": "AILINK_R04_deepseek.md",
+   "zero_setup_summary": "L6 only: third-party sources say the chat does not open pasted links; the token-free card keeps the token out of DeepSeek's history.",
+   "one_time_click_summary": "Only through third-party clients (Cherry Studio, Open WebUI) or developer code; the official chat has no custom tool facility.",
+   "surfaces": [
+    {
+     "surface": "DeepSeek chat (web and app)",
+     "ai_login_needed": "yes",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Official pages returned 403; third-party guides say pasted links are not opened. Designed as absent.",
+       "src": "R04 S1",
+       "label": "UNVERIFIED (R04 S1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "No facility found.",
+       "src": "R04 S1",
+       "label": "UNVERIFIED (R04 S1: none found; official pages answered 403)",
+       "confidence": "UNVERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "No facility found (UNVERIFIED absence).",
+       "src": "R04 S1",
+       "label": "UNVERIFIED (R04 S1: absence UNVERIFIED)",
+       "confidence": "UNVERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "None seen.",
+       "src": "R04 S1",
+       "label": "UNVERIFIED (R04 S1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Same unknown as L1.",
+       "src": "R04 T3",
+       "label": "UNVERIFIED (R04 T3)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste the card or upload .md/.csv (third-party limits 100 MB, 50 files).",
+       "src": "R04 S1",
+       "label": "SEARCH-ONLY (R04 S1: upload limits from a third party)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6",
+     "owner_tests": [
+      "OT-11"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "DeepSeek API",
+     "ai_login_needed": "developer API key",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "No built-in fetch.",
+       "src": "R04 S2",
+       "label": "PARTLY (R04 S2: none in the official guide; a third party says no live internet)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "developer_code",
+       "why": "Developer converts OpenAPI to function tools.",
+       "src": "R04 S2",
+       "label": "FETCHED (R04 S2, tool_calls guide, via summariser)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "Anthropic mcp_servers and Responses mcp entries are ignored (official pages).",
+       "src": "R04 S2",
+       "label": "FETCHED (R04 S2, anthropic_api and responses_api guides, via summariser)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "developer_code",
+       "why": "Client-executed function calling.",
+       "src": "R04 S2",
+       "label": "FETCHED (R04 S2, tool_calls guide, via summariser)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L6_paste_back": {
+       "v": "not_applicable",
+       "why": "No chat UI.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "none",
+     "zero_setup_write": "none",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Cherry Studio / Open WebUI hosting DeepSeek",
+     "ai_login_needed": "own model key; Open WebUI account",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "Model cannot fetch by itself.",
+       "src": "R04 S5, S6",
+       "label": "INFERENCE (R04 S5/S6: no page says a pasted URL is fetched)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "one_time_user_setup",
+       "why": "Open WebUI OpenAPI tool servers by URL (user needs permission).",
+       "src": "R04 S6",
+       "label": "FETCHED (R04 S6, Open WebUI openapi-servers page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "Cherry Studio streamable HTTP + headers (SEARCH-ONLY detail); Open WebUI MCP is admin-only.",
+       "src": "R04 S5, S6",
+       "label": "SEARCH-ONLY (R04 S5: Cherry Studio headers); FETCHED (R04 S6: Open WebUI MCP is admin-only)",
+       "confidence": "PARTLY_VERIFIED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "The Open WebUI half is admin-configured for every user (R04 S6); Cherry Studio is a personal install."
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "Only via tools.",
+       "src": "R04 S5",
+       "label": "PARTLY: absence of evidence on the fetched pages (R04 S5)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_available",
+       "why": "No fetch.",
+       "src": "S01",
+       "label": "INFERENCE (S01, no R-file line)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text.",
+       "src": "S01",
+       "label": "INFERENCE (S01, no R-file line)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6; L3 after setup",
+     "owner_tests": [
+      "OT-18"
+     ],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "DeepSeek Harness (developer preview)",
+     "ai_login_needed": "DeepSeek API key + Node",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Site and repo fetches failed.",
+       "src": "R04 S4",
+       "label": "UNVERIFIED (R04 S4)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "unverified",
+       "why": "Plugin-based; details unknown.",
+       "src": "R04 S4",
+       "label": "UNVERIFIED (R04 S4)",
+       "confidence": "UNVERIFIED"
+      },
+      "L3_mcp": {
+       "v": "unverified",
+       "why": "Third-party posts mention a plugin MCP client.",
+       "src": "R04 S4",
+       "label": "UNVERIFIED (R04 S4)",
+       "confidence": "UNVERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "unverified",
+       "why": "Unknown.",
+       "src": "R04 S4",
+       "label": "UNVERIFIED (R04 S4)",
+       "confidence": "UNVERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Unknown.",
+       "src": "R04 S4",
+       "label": "UNVERIFIED (R04 S4)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "unverified",
+       "why": "Unknown UI.",
+       "src": "R04 S4",
+       "label": "UNVERIFIED (R04 S4)",
+       "confidence": "UNVERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "Developer tool.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "none known",
+     "zero_setup_write": "none known",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    }
+   ]
+  },
+  {
+   "family": "Z.ai (Zhipu GLM)",
+   "research_file": "AILINK_R05_zai.md",
+   "zero_setup_summary": "L6 if the chat lets the person in; chat.z.ai features and login are UNVERIFIED (JS app, conflicting third-party reports).",
+   "one_time_click_summary": "API: tools type mcp with server_url; coding tools and ZCode: MCP client config.",
+   "surfaces": [
+    {
+     "surface": "chat.z.ai (web chat)",
+     "ai_login_needed": "unverified (third parties conflict; assume yes)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Only a web-search toggle is reported; no first-party page.",
+       "src": "R05 1.1",
+       "label": "UNVERIFIED (R05 1.1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "unverified",
+       "why": "No Actions-like feature seen.",
+       "src": "R05 1.1",
+       "label": "UNVERIFIED (R05 1.1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L3_mcp": {
+       "v": "unverified",
+       "why": "The MCP docs cover the API, not the web chat.",
+       "src": "R05 1.1",
+       "label": "UNVERIFIED (R05 1.1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "unverified",
+       "why": "Agent HTTP not documented.",
+       "src": "R05 1.1",
+       "label": "UNVERIFIED (R05 1.1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Same unknown as L1.",
+       "src": "R05 T2",
+       "label": "UNVERIFIED (R05 T2)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "unverified",
+       "why": "Works only if login succeeds (T1).",
+       "src": "R05 T1",
+       "label": "UNVERIFIED (R05 T1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6 if OT-12 T1 passes",
+     "zero_setup_write": "L6 if OT-12 T1 passes",
+     "owner_tests": [
+      "OT-12"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "Z.ai API (chat/completions, reader, files)",
+     "ai_login_needed": "developer API key",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "developer_code",
+       "why": "POST /paas/v4/reader fetches a given URL to Markdown.",
+       "src": "R05 1.2",
+       "label": "VERIFIED_FETCHED (R05 1.2, web-reader page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "developer_code",
+       "why": "No import; function calling by hand.",
+       "src": "R05 1.2",
+       "label": "PARTLY (R05 1.2: OpenAPI import UNVERIFIED)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "developer_code",
+       "why": "tools:[{type:mcp, mcp:{server_url, transport_type, headers}}].",
+       "src": "R05 1.2",
+       "label": "VERIFIED_FETCHED (R05 1.2, mcp-call page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "developer_code",
+       "why": "Client executes function calls.",
+       "src": "R05 1.2",
+       "label": "VERIFIED_FETCHED (R05 1.2, function-calling page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L6_paste_back": {
+       "v": "not_applicable",
+       "why": "No chat UI.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "none",
+     "zero_setup_write": "none",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "GLM Coding Plan tools / ZCode / AutoClaw",
+     "ai_login_needed": "yes (paid plan or API key)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Per-tool fetch; Z.ai Web Reader MCP is paid.",
+       "src": "R05 1.3, 1.4",
+       "label": "UNVERIFIED (R05 1.3, 1.4)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "None seen.",
+       "src": "R05 1.3",
+       "label": "PARTLY: absence of evidence on the fetched pages (R05 1.3)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "The coding tools are MCP clients; per-tool remote-URL detail UNVERIFIED.",
+       "src": "R05 1.3",
+       "label": "PARTLY_VERIFIED (R05 1.3: per-tool remote-URL detail UNVERIFIED)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "unverified",
+       "why": "Tool shells; details per tool.",
+       "src": "R05 1.3",
+       "label": "UNVERIFIED (R05 1.3)",
+       "confidence": "UNVERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Depends on the tool.",
+       "src": "S01",
+       "label": "UNVERIFIED (S01)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Local files.",
+       "src": "R05 1.3",
+       "label": "INFERENCE (R05 1.3: coding tools read local files)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "Developer tools.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L3 after config",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    }
+   ]
+  },
+  {
+   "family": "Copilot (Microsoft consumer Copilot and GitHub Copilot)",
+   "research_file": "AILINK_R06_copilot.md",
+   "zero_setup_summary": "Consumer Copilot URL reading is unreliable (forum evidence only). Copilot in Edge: the person opens the tab. Otherwise L6.",
+   "one_time_click_summary": "GitHub Copilot IDE agent mode: mcp.json (Business/Enterprise policy off by default). Cloud agent: repo admin, read-only links only.",
+   "surfaces": [
+    {
+     "surface": "Microsoft Copilot consumer (web / app)",
+     "ai_login_needed": "optional",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Forum posts: reads page source, fails on some sites; Microsoft reply advises pasting text.",
+       "src": "R06 S1",
+       "label": "UNVERIFIED (R06 S1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "No user-facing facility found.",
+       "src": "R06 S1",
+       "label": "UNVERIFIED (R06 S1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "No custom remote MCP path shown (UNVERIFIED negative).",
+       "src": "R06 S1",
+       "label": "UNVERIFIED (R06 S1: negative)",
+       "confidence": "UNVERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "Web Actions article retired.",
+       "src": "R06 S1",
+       "label": "UNVERIFIED (R06 S1: Web Actions article retired)",
+       "confidence": "UNVERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Same unknown as L1.",
+       "src": "S01",
+       "label": "UNVERIFIED (S01)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text.",
+       "src": "R06 section 4",
+       "label": "FETCHED (R06 S1, support page: chat without sign-in)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6 (L1 if OT-13 passes)",
+     "zero_setup_write": "L6",
+     "owner_tests": [
+      "OT-13"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "Copilot in Microsoft Edge (Browse with Copilot)",
+     "ai_login_needed": "yes, Microsoft 365 Premium (US first)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "human_opens_link",
+       "why": "Reads the current page and tabs; browses most sites.",
+       "src": "R06 S2, R09 S9",
+       "label": "FETCHED (R06 S2, R09 S9)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "None documented.",
+       "src": "R06 S2",
+       "label": "PARTLY: absence of evidence on the fetched pages (R06 S2)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "None documented.",
+       "src": "R06 S2",
+       "label": "UNVERIFIED (R06 S2)",
+       "confidence": "UNVERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "Clicks and submits forms; no raw HTTP.",
+       "src": "R06 S2",
+       "label": "FETCHED (R06 S2, browse-with-copilot page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "human_opens_link",
+       "why": "Can click the confirm page; asks permission before high-risk actions.",
+       "src": "R06 S2",
+       "label": "FETCHED (R06 S2)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text.",
+       "src": "S01",
+       "label": "INFERENCE (S01, no R-file line)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L1 via tab",
+     "zero_setup_write": "L5",
+     "owner_tests": [
+      "OT-13"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "Copilot app on Windows / On-device Agent Registry",
+     "ai_login_needed": "unverified",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Not documented for the app.",
+       "src": "R06 S3",
+       "label": "UNVERIFIED (R06 S3)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "unverified",
+       "why": "Not documented.",
+       "src": "R06 S3",
+       "label": "UNVERIFIED (R06 S3)",
+       "confidence": "UNVERIFIED"
+      },
+      "L3_mcp": {
+       "v": "unverified",
+       "why": "The registry (prerelease) lists VS/VS Code Copilot as clients, not the Copilot app.",
+       "src": "R06 S3",
+       "label": "UNVERIFIED (R06 S3)",
+       "confidence": "UNVERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "unverified",
+       "why": "Not documented.",
+       "src": "R06 S3",
+       "label": "UNVERIFIED (R06 S3)",
+       "confidence": "UNVERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Not documented.",
+       "src": "R06 S3",
+       "label": "UNVERIFIED (R06 S3)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text.",
+       "src": "S01",
+       "label": "INFERENCE (S01, no R-file line; R09 S3 marks this app PARTLY_VERIFIED by reference)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "GitHub Copilot agent mode in IDEs (VS Code, Visual Studio, JetBrains, Xcode, Eclipse)",
+     "ai_login_needed": "yes (Copilot plan)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Built-in URL fetch not fetched.",
+       "src": "R06 S6",
+       "label": "UNVERIFIED (R06 S6)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "MCP is the mechanism.",
+       "src": "R06 S6",
+       "label": "UNVERIFIED (R06 S6: OpenAPI import)",
+       "confidence": "UNVERIFIED"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "mcp.json type http; no auth, header or OAuth. Business/Enterprise: policy MCP servers in Copilot is off by default (admin).",
+       "src": "R06 S6, R09 S15",
+       "label": "FETCHED (R06 S6, R09 S15)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "zero_setup_per_call_approval",
+       "why": "Terminal tool with approval prompts.",
+       "src": "R09 S15",
+       "label": "FETCHED (R09 S15, code.visualstudio.com mcp-servers)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "zero_setup_per_call_approval",
+       "why": "curl in the terminal.",
+       "src": "S01",
+       "label": "INFERENCE (S01, from R09 S15)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Workspace files.",
+       "src": "R06 S6",
+       "label": "PARTLY (R06 S6: file upload UNVERIFIED; the IDE reads workspace files)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "HTTP is available.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L4 with approval",
+     "zero_setup_write": "L4 with approval",
+     "owner_tests": [
+      "OT-16"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "GitHub Copilot cloud agent",
+     "ai_login_needed": "repo admin with Copilot",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Not documented.",
+       "src": "R06 S7",
+       "label": "UNVERIFIED (R06 S7)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "MCP only.",
+       "src": "R06 S7",
+       "label": "FETCHED (R06 S7, cloud-agent MCP page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L3_mcp": {
+       "v": "admin_or_maker_setup",
+       "why": "Repo admin configures JSON; tools only; no OAuth; tools run WITHOUT approval, so only level-0 links belong here.",
+       "src": "R06 S7",
+       "label": "FETCHED (R06 S7)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "A repository admin configures the server for everyone who triggers the agent, and its tools run without approval (R06 S7)."
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "Through MCP tools only.",
+       "src": "R06 S7",
+       "label": "FETCHED (R06 S7)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L6_paste_back": {
+       "v": "not_applicable",
+       "why": "No chat UI for this purpose.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "none",
+     "zero_setup_write": "none (do not give it write links)",
+     "owner_tests": [
+      "OT-18"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "GitHub Copilot CLI",
+     "ai_login_needed": "unverified (Copilot plan presumed)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Fetch not stated.",
+       "src": "R06 S8",
+       "label": "UNVERIFIED (R06 S8)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "unverified",
+       "why": "Not stated.",
+       "src": "R06 S8",
+       "label": "UNVERIFIED (R06 S8)",
+       "confidence": "UNVERIFIED"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "MCP servers supported; remote HTTP/header detail UNVERIFIED.",
+       "src": "R06 S8",
+       "label": "PARTLY_VERIFIED (R06 S8: remote HTTP and header detail UNVERIFIED)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "zero_setup_per_call_approval",
+       "why": "Shell commands behind approval; curl UNVERIFIED.",
+       "src": "R06 S8",
+       "label": "PARTLY_VERIFIED (R06 S8: curl UNVERIFIED)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Depends on shell network.",
+       "src": "S01",
+       "label": "UNVERIFIED (S01)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Local files.",
+       "src": "S01",
+       "label": "INFERENCE (S01, no R-file line)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "HTTP is available.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L4 with approval (UNVERIFIED)",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    }
+   ]
+  },
+  {
+   "family": "Microsoft enterprise AI (Copilot Chat, M365 agents, Copilot Studio, Power Platform, Azure/Foundry)",
+   "research_file": "AILINK_R07_microsoft_ai.md",
+   "zero_setup_summary": "Workplace Copilot Chat: L6 with the token-free card only, because prompts are kept in tenant audit and eDiscovery.",
+   "one_time_click_summary": "Copilot Studio MCP wizard (API key header Link-Token, header mode) or Swagger 2.0 custom connector; M365 API plugin (apiKey header). M365 MCP plugins do not accept API keys.",
+   "surfaces": [
+    {
+     "surface": "Microsoft Copilot Chat (workplace; web, Outlook, Teams, Edge pane)",
+     "ai_login_needed": "yes (Entra work account)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Web grounding sends Bing queries; fetching a pasted URL is not documented.",
+       "src": "R07 2.1",
+       "label": "UNVERIFIED (R07 2.1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "Only via admin-approved agents.",
+       "src": "R07 2.1",
+       "label": "UNVERIFIED (R07 1: the negative is an inference, R07 marks it UNVERIFIED)",
+       "confidence": "UNVERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "Not by the chat user.",
+       "src": "R07 2.1",
+       "label": "UNVERIFIED (R07 1: negative)",
+       "confidence": "UNVERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "None for the user.",
+       "src": "R07 2.1",
+       "label": "UNVERIFIED (R07 1: negative)",
+       "confidence": "UNVERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Same unknown as L1.",
+       "src": "S01",
+       "label": "UNVERIFIED (S01)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste the token-free card; prompts are retained in tenant audit, so never paste the link itself.",
+       "src": "R07 2.1, section 5",
+       "label": "FETCHED (R07 2.1 overview; section 5 audit retention)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses Outlook.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6",
+     "owner_tests": [
+      "OT-15"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "Microsoft 365 Copilot declarative agents (API plugin / MCP plugin)",
+     "ai_login_needed": "yes (Entra; developer registers, admin approves)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "Only the plugin's declared server.",
+       "src": "R07 2.2",
+       "label": "FETCHED (R07 2.2)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "admin_or_maker_setup",
+       "why": "API plugin from OpenAPI with apiKey header (Link-Token) stored in the token store.",
+       "src": "R07 2.2",
+       "label": "FETCHED (R07 2.2, plugin-authentication-api-key)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "The developer registers one key in the enterprise token store; end users never paste their own (R07 2.2)."
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "MCP plugins do not support API keys; anonymous is dev/test only.",
+       "src": "R07 2.2",
+       "label": "FETCHED (R07 2.2, plugin-authentication)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "admin_or_maker_setup",
+       "why": "Via the API plugin operations.",
+       "src": "R07 2.2",
+       "label": "FETCHED (R07 2.2)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "Same key as the API plugin (R07 2.2)."
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_applicable",
+       "why": "Tool path, not browsing.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Chat accepts pasted text.",
+       "src": "R07 2.1",
+       "label": "FETCHED (R07 2.1)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses Outlook.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L2 after admin setup",
+     "owner_tests": [
+      "OT-14",
+      "OT-18"
+     ],
+     "owner_result": null,
+     "confidence": "VERIFIED_FETCHED"
+    },
+    {
+     "surface": "Copilot Studio agents",
+     "ai_login_needed": "yes (maker licence; Copilot Credits)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "Public-website knowledge exists (SEARCH-ONLY); not a pasted-URL path.",
+       "src": "R06 S4",
+       "label": "SEARCH-ONLY (R06 S4: public-website knowledge)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "admin_or_maker_setup",
+       "why": "Custom connector: OpenAPI 2.0 only per MS Learn (updated 2026-08-27); serve /swagger.json?mode=header.",
+       "src": "R07 2.3, S01 F-5",
+       "label": "FETCHED (R07 2.3) and FETCHED-S01 re-fetched 2026-09-25 (AILINK_S01_fetches.md S01-25, S01-26)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "An agent published to others shares the connection unless each person makes their own; per-user connections are documented (R07 2.3) but untested (OT-18)."
+      },
+      "L3_mcp": {
+       "v": "admin_or_maker_setup",
+       "why": "MCP wizard, Streamable HTTP only; API key Header (Link-Token, no X- prefix) or Query (refused by design, OD-12).",
+       "src": "R07 2.3",
+       "label": "FETCHED (R07 2.3, mcp-add-existing-server-to-agent)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "Same as the custom connector: per-user connection documented (R07 2.3), untested (OT-18)."
+      },
+      "L4_http_by_client": {
+       "v": "admin_or_maker_setup",
+       "why": "Connector operations.",
+       "src": "R07 2.3",
+       "label": "FETCHED (R07 2.3)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "Connector operations use the connection's key (R07 2.3)."
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_applicable",
+       "why": "Tool path.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L6_paste_back": {
+       "v": "not_applicable",
+       "why": "Maker surface.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "Maker surface.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "none",
+     "zero_setup_write": "after maker setup",
+     "owner_tests": [
+      "OT-14",
+      "OT-18"
+     ],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Power Platform custom connectors (Power Apps, Power Automate, Logic Apps)",
+     "ai_login_needed": "yes (maker in an Entra tenant)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "Connector wraps a declared API.",
+       "src": "R07 2.4",
+       "label": "FETCHED (R07 2.4)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "admin_or_maker_setup",
+       "why": "OpenAPI 2.0 only, under 1 MB (FETCHED-S01).",
+       "src": "S01 F-5",
+       "label": "FETCHED-S01 re-fetched 2026-09-25 (AILINK_S01_fetches.md S01-25, S01-26)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "Custom connectors and their connections can be shared in the organisation (R07 2.4)."
+      },
+      "L3_mcp": {
+       "v": "admin_or_maker_setup",
+       "why": "MCP-flavoured connector used by Copilot Studio.",
+       "src": "R07 2.4",
+       "label": "FETCHED (R07 2.4)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "Same connector model (R07 2.4)."
+      },
+      "L4_http_by_client": {
+       "v": "admin_or_maker_setup",
+       "why": "Real REST operations after setup.",
+       "src": "R07 2.4",
+       "label": "FETCHED (R07 2.4)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "Same connector model (R07 2.4)."
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_applicable",
+       "why": "Tool path.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L6_paste_back": {
+       "v": "not_applicable",
+       "why": "Maker surface.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "Maker surface.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "none",
+     "zero_setup_write": "after maker setup",
+     "owner_tests": [
+      "OT-14",
+      "OT-18"
+     ],
+     "owner_result": null,
+     "confidence": "VERIFIED_FETCHED"
+    },
+    {
+     "surface": "Azure OpenAI / Microsoft Foundry (function calling, Agent Service MCP tool)",
+     "ai_login_needed": "Azure subscription + developer",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "developer_code",
+       "why": "Only through developer code or Foundry tools.",
+       "src": "R07 2.5",
+       "label": "FETCHED (R07 2.5)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "developer_code",
+       "why": "OpenAPI tool in Toolbox; developer config.",
+       "src": "R07 2.5",
+       "label": "FETCHED (R07 2.5)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L3_mcp": {
+       "v": "developer_code",
+       "why": "server_url + header via project connection; a stored key is readable by all project members, so one connection per user.",
+       "src": "R07 2.5, section 5",
+       "label": "FETCHED (R07 2.5, model-context-protocol and mcp-authentication pages)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "A key stored in a Foundry project connection is readable by every project member; one connection per user keeps it to one person (R07 section 5)."
+      },
+      "L4_http_by_client": {
+       "v": "developer_code",
+       "why": "Application executes functions.",
+       "src": "R07 2.5",
+       "label": "FETCHED (R07 2.5, function-calling page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L6_paste_back": {
+       "v": "not_applicable",
+       "why": "No chat UI.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "No person in the loop.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "none",
+     "zero_setup_write": "none",
+     "owner_tests": [
+      "OT-18"
+     ],
+     "owner_result": null,
+     "confidence": "VERIFIED_FETCHED"
+    }
+   ]
+  },
+  {
+   "family": "AI in email (Gmail Gemini, Outlook Copilot, Apple Mail, Yahoo, Proton, Superhuman) and email as transport",
+   "research_file": "AILINK_R08_email_ai.md",
+   "zero_setup_summary": "No email AI opens links. L6: the person pastes the token-free card; the email AI drafts proposal blocks; the person pastes them into the inbox page.",
+   "one_time_click_summary": "L7 inbound email needs owner DNS/MX first. Workspace Studio / Copilot Studio flows need a maker and act with the maker's credentials: not recommended.",
+   "surfaces": [
+    {
+     "surface": "Gmail - Gemini in Gmail",
+     "ai_login_needed": "yes (some features need AI Pro/Ultra)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "Capability list has no link-opening.",
+       "src": "R08 S1",
+       "label": "FETCHED (summariser, negative) (R08 S1)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "Fixed read-only integrations only.",
+       "src": "R08 S1",
+       "label": "FETCHED (summariser, negative on custom tools) (R08 S1)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "No user-added MCP.",
+       "src": "R08 S1",
+       "label": "FETCHED (summariser, negative) (R08 S1)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "Google-hosted actions only.",
+       "src": "R08 S1",
+       "label": "FETCHED (R08 S1)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_available",
+       "why": "Cannot open links.",
+       "src": "R08 S1",
+       "label": "FETCHED (summariser, negative) (R08 S1)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Help me write / side panel drafts the blocks from the pasted card.",
+       "src": "R08 section 7",
+       "label": "FETCHED (R08 S1: drafting documented)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Per-link alias + SPF/DKIM check not built; MX owner-only.",
+       "src": "R08 section 5",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6",
+     "owner_tests": [
+      "OT-15"
+     ],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Outlook - Copilot Chat in Outlook / Microsoft 365 Copilot in Outlook",
+     "ai_login_needed": "yes (Entra work account)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "Opening a URL inside an email is not documented.",
+       "src": "R08 S3",
+       "label": "FETCHED (summariser, negative) (R08 S3)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "Only via Copilot Studio agents.",
+       "src": "R08 S3",
+       "label": "SEARCH-ONLY (R08 S3)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "Not from the Outlook chat box.",
+       "src": "R08 S3",
+       "label": "PARTLY: absence of evidence on the fetched pages (R08 S3)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "No user-defined HTTP.",
+       "src": "R08 S3",
+       "label": "PARTLY: absence of evidence on the fetched pages (R08 S3)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_available",
+       "why": "Cannot open links.",
+       "src": "R08 S3",
+       "label": "FETCHED (summariser, negative) (R08 S3)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste the token-free card; tenant audit keeps prompts.",
+       "src": "R08 S3, R07 section 5",
+       "label": "FETCHED (R08 S3, R07 section 5)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Needs owner MX.",
+       "src": "R08 section 5",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6",
+     "owner_tests": [
+      "OT-15"
+     ],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Apple Mail with Apple Intelligence",
+     "ai_login_needed": "Apple Account on a supported device",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "No link-opening documented.",
+       "src": "R08 S5",
+       "label": "FETCHED (summariser, negative) (R08 S5)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "None documented.",
+       "src": "R08 S5",
+       "label": "PARTLY: absence of evidence on the fetched pages (R08 S5)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "None documented (UNVERIFIED).",
+       "src": "R08 S5",
+       "label": "UNVERIFIED (R08 S5)",
+       "confidence": "UNVERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "None documented.",
+       "src": "R08 S5",
+       "label": "PARTLY: absence of evidence on the fetched pages (R08 S5)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_available",
+       "why": "Cannot open links.",
+       "src": "R08 S5",
+       "label": "FETCHED (summariser, negative) (R08 S5)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Writing Tools over pasted text only; limited drafting.",
+       "src": "R08 S5",
+       "label": "SEARCH-ONLY / THIRD-PARTY (R08 S5: Mail AI feature list)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Needs owner MX.",
+       "src": "R08 section 5",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "Yahoo Mail AI / Proton Scribe",
+     "ai_login_needed": "yes",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "Proton Scribe does not open links; Yahoo AI has fixed quick actions.",
+       "src": "R08 S6, S7",
+       "label": "FETCHED (R08 S6 Yahoo help; S7 Proton blog, summariser)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "None.",
+       "src": "R08 S6, S7",
+       "label": "PARTLY: absence of evidence on the fetched pages (R08 S6, S7)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "None.",
+       "src": "R08 S6, S7",
+       "label": "PARTLY: absence of evidence on the fetched pages (R08 S6, S7)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "None.",
+       "src": "R08 S6, S7",
+       "label": "PARTLY: absence of evidence on the fetched pages (R08 S6, S7)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_available",
+       "why": "Cannot open links.",
+       "src": "R08 S6, S7",
+       "label": "FETCHED (R08 S7: Scribe does not open links)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Works on text the person provides.",
+       "src": "R08 S7",
+       "label": "FETCHED (R08 S7)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Needs owner MX.",
+       "src": "R08 section 5",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Google Workspace Studio / Copilot Studio email-triggered agents",
+     "ai_login_needed": "yes (Workspace business plan or maker)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "Steps are built by a person.",
+       "src": "R08 S2, S4",
+       "label": "FETCHED (R08 S2, S4)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "admin_or_maker_setup",
+       "why": "Webhook / Apps Script / connector actions.",
+       "src": "R08 S2, S4",
+       "label": "FETCHED (R08 S2, S4)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "Event-triggered agents run with the maker's credentials (R08 S4)."
+      },
+      "L3_mcp": {
+       "v": "unverified",
+       "why": "Not on the fetched Workspace Studio page.",
+       "src": "R08 S2",
+       "label": "UNVERIFIED (R08 S2)",
+       "confidence": "UNVERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "admin_or_maker_setup",
+       "why": "Maker-defined; runs with the maker's credentials, so not recommended for per-user links.",
+       "src": "R08 S4",
+       "label": "FETCHED (R08 S4, authoring-triggers page)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "Maker-defined actions run with the maker's credentials (R08 S4)."
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_applicable",
+       "why": "Flow, not browsing.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L6_paste_back": {
+       "v": "not_applicable",
+       "why": "Flow, not chat.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Could forward to the per-link alias once it exists.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "none",
+     "zero_setup_write": "none",
+     "owner_tests": [
+      "OT-18"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "Superhuman Mail (Ask AI, Mail MCP server)",
+     "ai_login_needed": "yes (paid plan)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "Its own AI does not open links; its MCP is the reverse direction.",
+       "src": "R08 S8",
+       "label": "PARTLY_VERIFIED (R08 S8, blog via summariser)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "None.",
+       "src": "R08 S8",
+       "label": "PARTLY: absence of evidence on the fetched pages (R08 S8)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_applicable",
+       "why": "Superhuman is an MCP server for other AIs, not a client of PROJEXA.",
+       "src": "R08 S8",
+       "label": "FETCHED (R08 S8: the MCP server is the reverse direction)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "None toward PROJEXA.",
+       "src": "R08 S8",
+       "label": "PARTLY: absence of evidence on the fetched pages (R08 S8)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_available",
+       "why": "Cannot open links.",
+       "src": "R08 S8",
+       "label": "PARTLY: absence of evidence on the fetched pages (R08 S8)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Write with AI over pasted text.",
+       "src": "R08 S8",
+       "label": "PARTLY_VERIFIED (R08 S8)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Needs owner MX.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    }
+   ]
+  },
+  {
+   "family": "AI on the laptop (desktop chat apps, local runners, browser sidebars, IDE/CLI agents)",
+   "research_file": "AILINK_R09_laptop_ai.md",
+   "zero_setup_summary": "Claude Code and Gemini CLI read with a fetch tool and write with curl (per-command approval). Browser sidebars read a tab the person opens. Local runners without tools use L6.",
+   "one_time_click_summary": "Claude Desktop connector, Cursor/VS Code mcp.json, Codex config.toml, LM Studio/Jan (Bearer header = header mode), Open WebUI (admin).",
+   "surfaces": [
+    {
+     "surface": "Claude Code / Gemini CLI",
+     "ai_login_needed": "yes, once",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "zero_setup_per_call_approval",
+       "why": "WebFetch / web_fetch with a permission step.",
+       "src": "R09 S13, S17",
+       "label": "PARTLY: FETCHED (R09 S13, S17); Gemini CLI confirmation and Claude Code credential stripping UNVERIFIED",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_applicable",
+       "why": "MCP and shell instead.",
+       "src": "R09",
+       "label": "DESIGN (R09: MCP and shell are used instead)",
+       "confidence": "DESIGN"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "claude mcp add / gemini mcp add -H.",
+       "src": "R09 S13, S17",
+       "label": "FETCHED (R09 S13, S17)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "zero_setup_per_call_approval",
+       "why": "curl via Bash or shell tool.",
+       "src": "R09 S13, S17",
+       "label": "PARTLY: FETCHED for Claude Code (R09 S13); Gemini CLI approval UNVERIFIED (R09 S17)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "zero_setup_per_call_approval",
+       "why": "Composed URLs via curl.",
+       "src": "S01",
+       "label": "INFERENCE (S01, from R09 S13)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Local files.",
+       "src": "R09",
+       "label": "FETCHED (R09 S13)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "HTTP is available.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L1 with approval",
+     "zero_setup_write": "L4 with approval",
+     "owner_tests": [
+      "OT-07",
+      "OT-10"
+     ],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Codex CLI / ChatGPT desktop",
+     "ai_login_needed": "yes",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Fetch semantics not fetched.",
+       "src": "R09 S16",
+       "label": "UNVERIFIED (R09 S16)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_applicable",
+       "why": "MCP instead.",
+       "src": "R09 S16",
+       "label": "DESIGN (R09 S16: MCP instead)",
+       "confidence": "DESIGN"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "config.toml [mcp_servers.x] url / bearer_token_env_var / http_headers.",
+       "src": "R09 S16",
+       "label": "FETCHED (R09 S16, learn.chatgpt.com mcp)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "unverified",
+       "why": "Sandbox network default UNVERIFIED.",
+       "src": "R09 S16",
+       "label": "UNVERIFIED (R09 S16)",
+       "confidence": "UNVERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Depends on shell network.",
+       "src": "S01",
+       "label": "UNVERIFIED (S01)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Local files / chat.",
+       "src": "R09",
+       "label": "INFERENCE (R09)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "Developer tool.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L3 after config",
+     "owner_tests": [
+      "OT-17"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "Cursor / VS Code GitHub Copilot",
+     "ai_login_needed": "yes",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Web tools not fetched.",
+       "src": "R09 S14, S15",
+       "label": "UNVERIFIED (R09 S14, S15)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_applicable",
+       "why": "MCP instead.",
+       "src": "R09",
+       "label": "DESIGN (R09: MCP instead)",
+       "confidence": "DESIGN"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "mcp.json url + headers; approval before MCP tool use by default.",
+       "src": "R09 S14, S15",
+       "label": "FETCHED (R09 S14, S15)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "zero_setup_per_call_approval",
+       "why": "Terminal tool with approval (Cursor specifics UNVERIFIED).",
+       "src": "R09 S14, S15",
+       "label": "PARTLY: FETCHED for VS Code (R09 S15); Cursor specifics UNVERIFIED",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "zero_setup_per_call_approval",
+       "why": "curl in the terminal.",
+       "src": "S01",
+       "label": "INFERENCE (S01, from R09 S15)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Workspace files.",
+       "src": "R09",
+       "label": "INFERENCE (R09)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "Developer tool.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L4 with approval",
+     "zero_setup_write": "L4 with approval",
+     "owner_tests": [
+      "OT-16"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "Claude Desktop",
+     "ai_login_needed": "yes",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "No built-in fetch page fetched.",
+       "src": "R09 S1",
+       "label": "UNVERIFIED (R09 S1)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "None found.",
+       "src": "R09 S1",
+       "label": "UNVERIFIED (R09 S1: none found, UNVERIFIED for Desktop)",
+       "confidence": "UNVERIFIED"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "Custom connector, No sign-in; token in the path.",
+       "src": "R09 S1",
+       "label": "FETCHED (R09 S1)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "MCP tools only.",
+       "src": "R09 S1",
+       "label": "PARTLY: absence of evidence on the fetched pages (R09 S1)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Depends on L1.",
+       "src": "S01",
+       "label": "UNVERIFIED (S01)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste or attach.",
+       "src": "R09 S1",
+       "label": "INFERENCE (R09 S1)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L3 after the connector",
+     "owner_tests": [
+      "OT-06"
+     ],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    },
+    {
+     "surface": "LM Studio / Jan / Cherry Studio (local runners with an MCP client)",
+     "ai_login_needed": "no",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "The model cannot fetch by itself.",
+       "src": "R09 S5, S7, S8",
+       "label": "INFERENCE (R09 S5, S7, S8: no page says pasted URLs are not fetched)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "Not documented for these.",
+       "src": "R09",
+       "label": "PARTLY: absence of evidence on the fetched pages (R09)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "one_time_user_setup",
+       "why": "Remote MCP with Authorization: Bearer (header mode); a tool-calling model is required. Cherry vendor docs not fetched.",
+       "src": "R09 S5, S7, S8",
+       "label": "PARTLY: FETCHED for LM Studio and Jan (R09 S5, S7); Cherry Studio SEARCH-ONLY / THIRD-PARTY (R09 S8)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "Only through MCP tools.",
+       "src": "R09",
+       "label": "INFERENCE (R09)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_available",
+       "why": "No fetch.",
+       "src": "S01",
+       "label": "INFERENCE (S01, no R-file line)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text.",
+       "src": "S01",
+       "label": "INFERENCE (S01, no R-file line)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6; L3 after config",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Open WebUI",
+     "ai_login_needed": "yes (local Open WebUI account)",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "No fetch of a pasted link.",
+       "src": "R09 S6",
+       "label": "INFERENCE (R09 S6)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "one_time_user_setup",
+       "why": "OpenAPI tool servers; users need the Direct Tool Servers permission.",
+       "src": "R09 S6",
+       "label": "FETCHED (R09 S6, Direct Tool Servers permission)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L3_mcp": {
+       "v": "admin_or_maker_setup",
+       "why": "Admin-only MCP configuration; Streamable HTTP; Bearer or custom headers.",
+       "src": "R09 S6",
+       "label": "FETCHED (R09 S6: admin-only MCP configuration)",
+       "confidence": "VERIFIED_FETCHED",
+       "shared_identity_risk": true,
+       "allowed_for_per_user_link": false,
+       "identity_note": "An admin configures the MCP server once for every Open WebUI user (R09 S6)."
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "Through tools only.",
+       "src": "R09 S6",
+       "label": "INFERENCE (R09 S6)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_available",
+       "why": "No fetch.",
+       "src": "S01",
+       "label": "INFERENCE (S01, no R-file line)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text.",
+       "src": "S01",
+       "label": "INFERENCE (S01, no R-file line)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6; L2/L3 after setup",
+     "owner_tests": [
+      "OT-18"
+     ],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Ollama (bare server / desktop app)",
+     "ai_login_needed": "no",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "not_available",
+       "why": "Ollama does not execute tools.",
+       "src": "R09 S4",
+       "label": "FETCHED (R09 S4, tool-calling page)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "None.",
+       "src": "R09 S4",
+       "label": "PARTLY: absence of evidence on the fetched pages (R09 S4)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "No built-in MCP client (search-only).",
+       "src": "R09 S4",
+       "label": "SEARCH-ONLY / THIRD-PARTY (R09 S4)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "developer_code",
+       "why": "Function-calling contract for the caller's own code.",
+       "src": "R09 S4",
+       "label": "FETCHED (R09 S4)",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "not_available",
+       "why": "No fetch.",
+       "src": "S01",
+       "label": "INFERENCE (S01, from R09 S4)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text in its chat window.",
+       "src": "S01",
+       "label": "INFERENCE (S01, no R-file line)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L6",
+     "zero_setup_write": "L6",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Browser sidebars (Edge Copilot, Gemini in Chrome, Brave Leo)",
+     "ai_login_needed": "Edge / Chrome sign-in; Brave Leo free needs none",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "human_opens_link",
+       "why": "They read the current tab; typed-link fetch UNVERIFIED for all three.",
+       "src": "R09 S9, S10, S11",
+       "label": "FETCHED (R09 S9, S10, S11: they read the current tab); a typed-link fetch UNVERIFIED",
+       "confidence": "VERIFIED_FETCHED"
+      },
+      "L2_openapi_import": {
+       "v": "not_available",
+       "why": "None found.",
+       "src": "R09",
+       "label": "PARTLY: absence of evidence on the fetched pages (R09)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L3_mcp": {
+       "v": "not_available",
+       "why": "None found.",
+       "src": "R09",
+       "label": "PARTLY: absence of evidence on the fetched pages (R09)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "not_available",
+       "why": "No HTTP tool.",
+       "src": "R09",
+       "label": "PARTLY: absence of evidence on the fetched pages (R09)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "human_opens_link",
+       "why": "The confirm page is a normal tab.",
+       "src": "S01",
+       "label": "INFERENCE (S01, no R-file line)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "zero_setup",
+       "why": "Paste text into the sidebar.",
+       "src": "S01",
+       "label": "INFERENCE (S01, no R-file line)",
+       "confidence": "PARTLY_VERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "future_owner_dns",
+       "why": "Person uses any mail client.",
+       "src": "S01",
+       "label": "DESIGN (our layer, not a vendor claim)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "L1 via an open tab",
+     "zero_setup_write": "L5 (person clicks)",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "PARTLY_VERIFIED"
+    },
+    {
+     "surface": "Arc / Dia",
+     "ai_login_needed": "unverified",
+     "cells": {
+      "L1_markdown_get": {
+       "v": "unverified",
+       "why": "Arc in maintenance mode; excluded from the supported list.",
+       "src": "R09 S12",
+       "label": "UNVERIFIED (R09 S12)",
+       "confidence": "UNVERIFIED"
+      },
+      "L2_openapi_import": {
+       "v": "unverified",
+       "why": "Excluded.",
+       "src": "R09 S12",
+       "label": "UNVERIFIED (R09 S12)",
+       "confidence": "UNVERIFIED"
+      },
+      "L3_mcp": {
+       "v": "unverified",
+       "why": "Excluded.",
+       "src": "R09 S12",
+       "label": "UNVERIFIED (R09 S12)",
+       "confidence": "UNVERIFIED"
+      },
+      "L4_http_by_client": {
+       "v": "unverified",
+       "why": "Excluded.",
+       "src": "R09 S12",
+       "label": "UNVERIFIED (R09 S12)",
+       "confidence": "UNVERIFIED"
+      },
+      "L5_get_propose_confirm": {
+       "v": "unverified",
+       "why": "Excluded.",
+       "src": "R09 S12",
+       "label": "UNVERIFIED (R09 S12)",
+       "confidence": "UNVERIFIED"
+      },
+      "L6_paste_back": {
+       "v": "unverified",
+       "why": "Excluded.",
+       "src": "R09 S12",
+       "label": "UNVERIFIED (R09 S12)",
+       "confidence": "UNVERIFIED"
+      },
+      "L7_email_inbound": {
+       "v": "not_applicable",
+       "why": "Excluded.",
+       "src": "R09 S12",
+       "label": "DESIGN (R09 S12: excluded surface)",
+       "confidence": "DESIGN"
+      }
+     },
+     "zero_setup_read": "excluded",
+     "zero_setup_write": "excluded",
+     "owner_tests": [],
+     "owner_result": null,
+     "confidence": "UNVERIFIED"
+    }
+   ]
+  }
+ ],
+ "uniformity_verdict": "One pasted URL is a uniform ENTRY POINT for all nine families (manual, or paste card + inbox page through the person). It is NOT uniform zero-setup machine access: documented zero-setup readers are Claude web fetch (API rule; claude.ai chat pending OT-05), Claude Code, Gemini CLI, browser sidebars via an open tab, and developer APIs; ChatGPT, Gemini app, consumer Copilot, workplace Copilot Chat and chat.z.ai are UNVERIFIED (owner tests); DeepSeek chat and email AIs cannot read the URL. Every MCP/OpenAPI path needs a one-time click by the user or an admin. Connectors that an admin, owner or maker installs for several people are refused for per-user links (T20, OT-18).",
+ "confidence_rule": "A surface's `confidence` is the LOWEST `confidence` of its seven cells, DESIGN cells left out (audit A-23, V-13). Most surfaces are UNVERIFIED for that reason: at least one layer is unknown.",
+ "identity_rule": "A link acts as exactly one person. `shared_identity_risk: true` marks a cell where the vendor's setup puts one key or URL in front of several people (admin, owner, maker or project-wide install). Such a cell has `allowed_for_per_user_link: false`: the manual refuses it (threat T20) until owner test OT-18 shows a second person's call through it is refused or recorded as that second person (audit A-04, PMD-26)."
+}
