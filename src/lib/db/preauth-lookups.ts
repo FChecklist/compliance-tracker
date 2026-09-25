@@ -98,6 +98,11 @@ type RawApiKeyRow = {
   issued_for_application_id: string | null
   created_at: string
   updated_at: string
+  // PROJEXA-BUILD-001 U-19 (drizzle/0613). Optional: lookup_api_key_by_hash
+  // returns SETOF compliance.api_keys, so these two arrive only once 0613 is
+  // applied; before that the row has neither.
+  project_id?: string | null
+  key_kind?: string
 }
 
 function toDate(v: string): Date
@@ -145,6 +150,8 @@ function mapApiKeyRow(row: RawApiKeyRow): ApiKeyRow {
     issuedForApplicationId: row.issued_for_application_id,
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
+    projectId: row.project_id ?? null,
+    keyKind: row.key_kind ?? 'org_service',
   }
 }
 

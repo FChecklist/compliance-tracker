@@ -52,16 +52,33 @@ function generateToken(): string {
  * Idempotent: returns the existing active link if one exists, else mints a
  * new one. Never mints a second active link for the same user (enforced
  * by pipeline_level_models-style DB constraint AND checked here first).
+ *
+ * PROJEXA-BUILD-001 U-18 (drizzle/0613, spec C-11): VERIDIAN chat links only.
+ * platform.user_ai_links also holds product='projexa' project work links
+ * (no plaintext token, one per user and project); this function reads and
+ * mints product='veridian' rows only, so the chat picker never returns a
+ * PROJEXA link and never counts one as "the user's active link".
  */
 export async function getOrCreateUserAiLink(orgId: string, userId: string): Promise<{ token: string; createdNow: boolean }> {
   return withTenantContext({ orgId, userId }, async (tx) => {
     const existing = await tx.query.userAiLinks.findFirst({
-      where: and(eq(userAiLinks.orgId, orgId), eq(userAiLinks.userId, userId), eq(userAiLinks.status, 'active')),
+      where: and(
+        eq(userAiLinks.orgId, orgId),
+        eq(userAiLinks.userId, userId),
+        eq(userAiLinks.status, 'active'),
+        eq(userAiLinks.product, 'veridian'),
+      ),
     })
-    if (existing) return { token: existing.token, createdNow: false }
+    if (existing) {
+      // 0613 made token nullable for projexa rows only; an active veridian
+      // row without one is a data fault, surfaced here instead of returning
+      // an empty link.
+      if (!existing.token) throw new Error(`user_ai_links row ${existing.id} is an active VERIDIAN link with no token`)
+      return { token: existing.token, createdNow: false }
+    }
 
     const token = generateToken()
-    await tx.insert(userAiLinks).values({ orgId, userId, token, status: 'active' })
+    await tx.insert(userAiLinks).values({ orgId, userId, token, status: 'active', product: 'veridian' })
     return { token, createdNow: true }
   })
 }
@@ -120,13 +137,24 @@ export async function resolveAiLinkOwnerRole(identity: AiLinkIdentity): Promise<
  * "revoke, then getOrCreateUserAiLink() mints a fresh one" (two calls, not
  * a single atomic rotate, matching this codebase's own preference for
  * small explicit steps over one do-everything function).
+ *
+ * PROJEXA-BUILD-001 U-18 (spec C-11): revokes the VERIDIAN chat link only.
+ * Rotating the chat link leaves every product='projexa' project link of the
+ * same person untouched.
  */
 export async function revokeUserAiLink(orgId: string, userId: string): Promise<boolean> {
   return withTenantContext({ orgId, userId }, async (tx) => {
     const result = await tx
       .update(userAiLinks)
       .set({ status: 'revoked', revokedAt: new Date() })
-      .where(and(eq(userAiLinks.orgId, orgId), eq(userAiLinks.userId, userId), eq(userAiLinks.status, 'active')))
+      .where(
+        and(
+          eq(userAiLinks.orgId, orgId),
+          eq(userAiLinks.userId, userId),
+          eq(userAiLinks.status, 'active'),
+          eq(userAiLinks.product, 'veridian'),
+        ),
+      )
       .returning({ id: userAiLinks.id })
     return result.length > 0
   })
