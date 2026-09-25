@@ -70,8 +70,7 @@
 //     call site in src/app/api/ai/team/review/route.ts -- the one named
 //     event that IS escalation-ladder.ts's own domain.
 import type { TenantDb } from "@/lib/db/tenant-scoped"
-import type { users } from "@/lib/db"
-import { logActivity } from "@/lib/audit"
+import { logActivity, type LogActivityActor } from "@/lib/audit"
 
 export type AuditTriggerEventName =
   | "feature_completed"
@@ -201,7 +200,7 @@ export type RecordAuditTriggerParams = {
   /** Extra, occurrence-specific context (e.g. "Task \"X\" marked completed.") -- appended after the routing note, never replaces it. */
   details?: string
   request?: Request
-} & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } })
+} & LogActivityActor
 
 export async function recordAuditTrigger(params: RecordAuditTriggerParams): Promise<void> {
   const { event, details, ...rest } = params

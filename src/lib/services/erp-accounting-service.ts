@@ -15,10 +15,10 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { isPeriodOpenForDate, rollUpTree } from "./erp-financial-report-service"
 import { startApprovalWorkflow } from "./approval-workflow-service"
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
 import { fetchLiveRates, buildLiveRatePairs, type SkippedCurrency } from "@/lib/exchange-rate-feed-client"
-import { ErpContext } from "./actor-context"
+import { ErpContext, ActorCtx } from "./actor-context"
 
 
 export type JournalEntryLineInput = {
@@ -357,7 +357,7 @@ export async function getJournalEntry(ctx: { orgId: string }, entryId: string) {
 // makes sense" scope for this wave. Submitting into the GL (which starts an
 // approval workflow) is left to VERIDIAN's own UI for now.
 export async function createJournalEntry(
-  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  ctx: ActorCtx,
   input: JournalEntryInput
 ) {
   await requireErpEnabled(ctx.orgId)
@@ -417,9 +417,7 @@ export async function createJournalEntry(
     )
 
     await logActivity(
-      ctx.dbUser
-        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_journal_entry.created", entityType: "erp_journal_entry", entityId: entry.id }
-        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_journal_entry.created", entityType: "erp_journal_entry", entityId: entry.id }
+      { tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_journal_entry.created", entityType: "erp_journal_entry", entityId: entry.id }
     )
     return entry
   })

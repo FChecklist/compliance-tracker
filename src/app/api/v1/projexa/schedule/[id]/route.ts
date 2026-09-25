@@ -14,7 +14,7 @@
 // "Delete" action PATCHes isArchived:true through this same route rather
 // than needing a new endpoint.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { getIssue, updateIssue, ServiceError, type IssuePatch } from "@/lib/services/pms-issue-service"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -42,6 +42,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const body = await request.json()
     const patch: IssuePatch = {
       title: body.title,
@@ -55,7 +57,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       completionPercentage: body.completionPercentage,
       isArchived: body.isArchived,
     }
-    const task = await updateIssue({ orgId: ctx.orgId, userId: ctx.dbUser?.id ?? ctx.apiKey!.id, dbUser: ctx.dbUser }, id, patch)
+    const task = await updateIssue({ orgId: ctx.orgId, userId: acting.person.id, dbUser: ctx.dbUser }, id, patch)
     return NextResponse.json(task)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

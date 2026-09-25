@@ -27,7 +27,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, or, isNull, lte, gte, gt, sql, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { isPeriodOpenForDate, trialBalance, profitAndLoss } from "./erp-financial-report-service"
 import { didRevenuePost, recordAuditTrigger } from "@/lib/audit-event-triggers"
 import { requireErpEnabled, isErpEnabledForOrgWithDb } from "./erp-enablement-service"
@@ -318,7 +318,7 @@ export async function getSalesInvoice(ctx: { orgId: string }, invoiceId: string)
 // call. Every other ErpContext-typed function in this file keeps requiring
 // a real dbUser unchanged.
 export async function createSalesInvoice(
-  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  ctx: ActorCtx,
   input: { customerId: string; salesOrderId?: string; projectId?: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: SalesInvoiceItemInput[] },
   existingDb?: TenantDb
 ) {
@@ -401,9 +401,7 @@ export async function createSalesInvoice(
     )
 
     await logActivity(
-      ctx.dbUser
-        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.created", entityType: "erp_sales_invoice", entityId: invoice.id }
-        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_invoice.created", entityType: "erp_sales_invoice", entityId: invoice.id }
+      { tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_sales_invoice.created", entityType: "erp_sales_invoice", entityId: invoice.id }
     )
     return invoice
   }
@@ -421,7 +419,7 @@ export async function createSalesInvoice(
 // partially_paid/overdue, so it could never actually be paid either). See
 // PROJEXA_REAL_SCREEN_CONVERSION_TRACKER.md module #13 for the full finding.
 export async function submitSalesInvoice(
-  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  ctx: ActorCtx,
   invoiceId: string, input: { revenueAccountId: string }
 ) {
   await requireErpEnabled(ctx.orgId)
@@ -488,9 +486,7 @@ export async function submitSalesInvoice(
 
     const [updated] = await db.update(erpSalesInvoices).set({ status: "submitted", journalEntryId: je.id }).where(eq(erpSalesInvoices.id, invoiceId)).returning()
     await logActivity(
-      ctx.dbUser
-        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.submitted", entityType: "erp_sales_invoice", entityId: invoiceId }
-        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_invoice.submitted", entityType: "erp_sales_invoice", entityId: invoiceId }
+      { tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_sales_invoice.submitted", entityType: "erp_sales_invoice", entityId: invoiceId }
     )
 
     // D15.B2.S1 named event #5, "Revenue Posted -> Revenue Audit" -- this is
@@ -501,9 +497,7 @@ export async function submitSalesInvoice(
     // elsewhere), even though the draft-only check above makes it true today.
     if (didRevenuePost(invoice.status, updated.status)) {
       await recordAuditTrigger(
-        ctx.dbUser
-          ? { tx: db, event: "revenue_posted", entityType: "erp_sales_invoice", entityId: invoiceId, orgId: ctx.orgId, dbUser: ctx.dbUser, details: `Sales Invoice #${invoice.invoiceNumber} posted (journal entry #${je.entryNumber}, ${baseGrandTotal.toFixed(2)}).` }
-          : { tx: db, event: "revenue_posted", entityType: "erp_sales_invoice", entityId: invoiceId, orgId: ctx.orgId, apiKey: ctx.apiKey, details: `Sales Invoice #${invoice.invoiceNumber} posted (journal entry #${je.entryNumber}, ${baseGrandTotal.toFixed(2)}).` }
+        { tx: db, event: "revenue_posted", entityType: "erp_sales_invoice", entityId: invoiceId, orgId: ctx.orgId, ...auditActorOf(ctx), details: `Sales Invoice #${invoice.invoiceNumber} posted (journal entry #${je.entryNumber}, ${baseGrandTotal.toFixed(2)}).` }
       ).catch((err) => console.error(`[audit-trigger] failed to record revenue_posted for invoice ${invoiceId}:`, err))
     }
 
@@ -826,9 +820,7 @@ export async function releaseSubcontractorRetention(
       .returning()
 
     await logActivity(
-      ctx.dbUser
-        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_invoice.retention_released", entityType: "erp_purchase_invoice", entityId: invoiceId, details: JSON.stringify({ amountReleased: input.amount, newReleasedTotal: newReleased, retentionAmount }) }
-        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_purchase_invoice.retention_released", entityType: "erp_purchase_invoice", entityId: invoiceId, details: JSON.stringify({ amountReleased: input.amount, newReleasedTotal: newReleased, retentionAmount }) }
+      { tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_purchase_invoice.retention_released", entityType: "erp_purchase_invoice", entityId: invoiceId, details: JSON.stringify({ amountReleased: input.amount, newReleasedTotal: newReleased, retentionAmount }) }
     )
     return updated
   })
@@ -1101,9 +1093,7 @@ export async function recordSalesInvoicePayment(
     const [updated] = await db.update(erpSalesInvoices).set({ outstandingAmount: newOutstanding.toString(), status: newStatus }).where(eq(erpSalesInvoices.id, invoiceId)).returning()
 
     await logActivity(
-      ctx.dbUser
-        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.payment_recorded", entityType: "erp_sales_invoice", entityId: invoiceId, details: JSON.stringify({ amount: input.amount, journalEntryId: je.id }) }
-        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_invoice.payment_recorded", entityType: "erp_sales_invoice", entityId: invoiceId, details: JSON.stringify({ amount: input.amount, journalEntryId: je.id }) }
+      { tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_sales_invoice.payment_recorded", entityType: "erp_sales_invoice", entityId: invoiceId, details: JSON.stringify({ amount: input.amount, journalEntryId: je.id }) }
     )
     return updated
   })
@@ -1290,9 +1280,7 @@ export async function recordDunningAction(ctx: RecordPaymentActorCtx, invoiceId:
       .where(eq(erpSalesInvoices.id, invoiceId)).returning()
 
     await logActivity(
-      ctx.dbUser
-        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.dunning_recorded", entityType: "erp_sales_invoice", entityId: invoiceId, details: JSON.stringify({ level }) }
-        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_invoice.dunning_recorded", entityType: "erp_sales_invoice", entityId: invoiceId, details: JSON.stringify({ level }) }
+      { tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_sales_invoice.dunning_recorded", entityType: "erp_sales_invoice", entityId: invoiceId, details: JSON.stringify({ level }) }
     )
     return updated
   })

@@ -8,6 +8,7 @@
 // convention as reports/catalog/route.test.ts: auth-guard and the service
 // layer are both mocked, proving the route's own wiring, not a live DB.
 import { describe, test, expect, mock } from "bun:test"
+import { actingPersonDouble } from "@/lib/supabase/__test-helpers__/acting-person-double"
 
 class ServiceError extends Error {
   status: number
@@ -19,6 +20,7 @@ class ServiceError extends Error {
 
 function mockAuth(ctx: { orgId: string | null; response?: Response | null }) {
   mock.module("@/lib/supabase/auth-guard", () => ({
+    ...actingPersonDouble(),
     requireAuthOrApiKey: mock(async () => ({
       orgId: ctx.orgId,
       dbUser: ctx.orgId ? { id: "user-1" } : null,

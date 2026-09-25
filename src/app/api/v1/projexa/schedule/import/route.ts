@@ -12,7 +12,7 @@
 // (Choose file -> Preview -> Done) honest: the preview is the server's real
 // reading of the file, not the client's guess at it.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import {
   parseScheduleSpreadsheet, importScheduleActivities, resolveOrgDateFormat, ServiceError,
 } from "@/lib/services/schedule-import-service"
@@ -54,10 +54,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.blockingErrors[0], blockingErrors: parsed.blockingErrors, warnings: parsed.warnings }, { status: 400 })
     }
 
-    // External API-key callers have no real user id -- record the key's id so
-    // createdById still shows who/what created these rows, exactly as the BOQ
-    // importer's own POST does.
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+    // U-20b: createdById is the named person an API-key caller acts for
+    // (X-Acting-User / X-Acting-User-Email), no longer the key's own id.
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
+    const actorId = acting.person.id
     const result = await importScheduleActivities({ orgId: ctx.orgId, userId: actorId }, { projectId, activities: parsed.activities })
 
     return NextResponse.json({

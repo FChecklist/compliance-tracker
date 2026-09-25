@@ -3,6 +3,7 @@
 // (draft/submit/approve/reject/invoice) and the claim's document-flow
 // timeline, both reachable from PROJEXA for the first time.
 import { describe, test, expect, mock } from "bun:test"
+import { actingPersonDouble } from "@/lib/supabase/__test-helpers__/acting-person-double"
 
 class ServiceError extends Error {
   status: number
@@ -12,26 +13,26 @@ class ServiceError extends Error {
   }
 }
 
+// PROJEXA-E2E-001 surface-4 fix, made strict by U-20b: the route resolves the
+// acting person through requireActingPerson (auth-guard.ts). The shared double
+// mirrors its contract and reads the request's REAL headers, so a session
+// caller is user-1 and an API-key caller must send X-Acting-User.
+const PERSON_42 = { id: "real-person-42" }
 function mockAuth(ctx: {
   orgId: string | null
   response?: Response | null
   roleErr?: Response | null
-  resolveWriteActorId?: () => Promise<{ actorId: string | null; error: Response | null }>
+  viaApiKey?: boolean
 }) {
   mock.module("@/lib/supabase/auth-guard", () => ({
+    ...actingPersonDouble((actorId) => (actorId === "projexa-user-42" ? PERSON_42 : null)),
     requireAuthOrApiKey: mock(async () => ({
       orgId: ctx.orgId,
-      dbUser: ctx.orgId ? { id: "user-1" } : null,
-      apiKey: null,
+      dbUser: ctx.orgId && !ctx.viaApiKey ? { id: "user-1" } : null,
+      apiKey: ctx.viaApiKey ? { id: "key-1", name: "PROJEXA org key", scopes: ["read", "write"] } : null,
       response: ctx.response ?? null,
     })),
     requireRoleOrScope: mock(() => ctx.roleErr ?? null),
-    // PROJEXA-E2E-001 surface-4 fix: the route now resolves the acting
-    // actor through this helper (auth-guard.ts) instead of computing
-    // `ctx.dbUser?.id ?? ctx.apiKey!.id` itself -- default here mirrors the
-    // pre-fix dbUser fallback so every pre-existing test above (which
-    // asserts `userId: "user-1"`) keeps passing unchanged.
-    resolveWriteActorId: ctx.resolveWriteActorId ?? mock(async () => ({ actorId: "user-1", error: null })),
   }))
 }
 
@@ -182,15 +183,17 @@ describe("PATCH /api/v1/projexa/billing-claims/[id] -- state-machine transitions
 // this would resolve). Live-verified equivalent for the sibling RFI route:
 // answering an RFI via the real reply pipeline stored answered_by_id as
 // the org's api_keys.id, not the real person's compliance.users.id.
-describe("PATCH /api/v1/projexa/billing-claims/[id] -- real acting-user attribution (PROJEXA-E2E-001 surface-4 fix)", () => {
-  test("uses the resolved acting user's id, not a hardcoded/fallback id, when resolveWriteActorId resolves one", async () => {
-    const resolveWriteActorId = mock(async () => ({ actorId: "real-person-42", error: null }))
-    mockAuth({ orgId: "org-1", resolveWriteActorId })
+describe("PATCH /api/v1/projexa/billing-claims/[id] -- real acting-user attribution (PROJEXA-E2E-001 surface-4 fix, U-20b)", () => {
+  const keyPatch = (body: Record<string, unknown>, headers: Record<string, string>) =>
+    ({ json: async () => body, headers: new Headers(headers) }) as any
+
+  test("an API-key caller naming a linked person is attributed to that person, never the key", async () => {
+    mockAuth({ orgId: "org-1", viaApiKey: true })
     const approveClaim = mock(async () => ({ id: "c1", status: "client_approved" }))
     mockService({ approveClaim })
 
     const { PATCH } = await import("./route")
-    const res = await PATCH({ json: async () => ({ action: "approve" }) } as any, { params: Promise.resolve({ id: "c1" }) })
+    const res = await PATCH(keyPatch({ action: "approve" }, { "X-Acting-User": "projexa-user-42" }), { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(200)
     // The claim is attributed to the REAL resolved person, never the
@@ -198,17 +201,48 @@ describe("PATCH /api/v1/projexa/billing-claims/[id] -- real acting-user attribut
     expect(approveClaim).toHaveBeenCalledWith({ orgId: "org-1", userId: "real-person-42" }, "c1")
   })
 
+  test("invoicing through an API key hands the service the person AND the key, so the invoice's audit row names both", async () => {
+    mockAuth({ orgId: "org-1", viaApiKey: true })
+    const invoiceApprovedClaim = mock(async () => ({ claim: { id: "c1", status: "invoiced" } }))
+    mockService({ invoiceApprovedClaim })
+
+    const { PATCH } = await import("./route")
+    const res = await PATCH(
+      keyPatch({ action: "invoice", billDate: "2026-10-01", taxTemplateId: "tax-1" }, { "X-Acting-User": "projexa-user-42" }),
+      { params: Promise.resolve({ id: "c1" }) }
+    )
+
+    expect(res.status).toBe(200)
+    expect(invoiceApprovedClaim).toHaveBeenCalledWith(
+      { orgId: "org-1", userId: "real-person-42", dbUser: PERSON_42, apiKey: { id: "key-1", name: "PROJEXA org key" }, actingViaApiKey: true },
+      "c1",
+      { billDate: "2026-10-01", taxTemplateId: "tax-1" }
+    )
+  })
+
   test("a caller whose acting-user signal fails to resolve is refused, never silently attributed to a fallback identity", async () => {
-    const refusal = new Response(JSON.stringify({ error: "USER_NOT_LINKED" }), { status: 400 })
-    const resolveWriteActorId = mock(async () => ({ actorId: null, error: refusal }))
-    mockAuth({ orgId: "org-1", resolveWriteActorId })
+    mockAuth({ orgId: "org-1", viaApiKey: true })
     const approveClaim = mock(async () => ({ id: "c1", status: "client_approved" }))
     mockService({ approveClaim })
 
     const { PATCH } = await import("./route")
-    const res = await PATCH({ json: async () => ({ action: "approve" }) } as any, { params: Promise.resolve({ id: "c1" }) })
+    const res = await PATCH(keyPatch({ action: "approve" }, { "X-Acting-User": "nobody-we-know" }), { params: Promise.resolve({ id: "c1" }) })
 
     expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe("USER_NOT_LINKED")
+    expect(approveClaim).not.toHaveBeenCalled()
+  })
+
+  test("U-20b: an API-key caller that names nobody is refused with ACTING_USER_REQUIRED, never recorded as the key", async () => {
+    mockAuth({ orgId: "org-1", viaApiKey: true })
+    const approveClaim = mock(async () => ({ id: "c1", status: "client_approved" }))
+    mockService({ approveClaim })
+
+    const { PATCH } = await import("./route")
+    const res = await PATCH(keyPatch({ action: "approve" }, {}), { params: Promise.resolve({ id: "c1" }) })
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe("ACTING_USER_REQUIRED")
     expect(approveClaim).not.toHaveBeenCalled()
   })
 })

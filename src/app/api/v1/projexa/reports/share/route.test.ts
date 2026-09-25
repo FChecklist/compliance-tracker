@@ -26,6 +26,7 @@
 // parsing, ServiceError -> status mapping, the 201 + token shape a real
 // PROJEXA caller receives).
 import { describe, test, expect, mock } from "bun:test"
+import { actingPersonDouble } from "@/lib/supabase/__test-helpers__/acting-person-double"
 
 class ServiceError extends Error {
   status: number
@@ -42,6 +43,7 @@ function mockAuth(ctx: { orgId: string | null; dbUser?: unknown; apiKey?: unknow
   // wrongly treat an explicit null the same as "not provided".
   const hasDbUser = Object.prototype.hasOwnProperty.call(ctx, "dbUser")
   mock.module("@/lib/supabase/auth-guard", () => ({
+    ...actingPersonDouble(),
     requireAuthOrApiKey: mock(async () => ({
       orgId: ctx.orgId,
       dbUser: hasDbUser ? ctx.dbUser : (ctx.orgId ? { id: "user-1" } : null),
@@ -60,8 +62,8 @@ function mockService(impl?: () => Promise<unknown>) {
   return createReportShareLink
 }
 
-function req(body: unknown) {
-  return { json: async () => body } as unknown as Request
+function req(body: unknown, headers: Record<string, string> = {}) {
+  return { json: async () => body, headers: new Headers(headers) } as unknown as Request
 }
 
 const REF = { projectId: "project-1", from: "2026-09-01", to: "2026-09-30" }
@@ -84,15 +86,32 @@ describe("POST /api/v1/projexa/reports/share -- R-C15 real report-sharing mechan
     expect(inputArg).toEqual({ reportType: "project_status", reportRef: REF, expiresInHours: undefined })
   })
 
-  test("an API-key caller with no real users row shares as userId null, never the api key's own id", async () => {
-    mockAuth({ orgId: "org-1", dbUser: null, apiKey: { id: "apikey-1" } })
+  // U-20b: this used to pin userId null for an API-key caller (the R-C15 fix
+  // that stopped the api key's own id reaching a users FK). The link's
+  // creator is now the person the caller names -- still never the key id --
+  // and a caller that names nobody is refused before the service is reached.
+  test("an API-key caller naming a person shares as that person, never the api key's own id", async () => {
+    mockAuth({ orgId: "org-1", dbUser: null, apiKey: { id: "apikey-1", name: "PROJEXA org key" } })
     const createReportShareLink = mockService()
 
     const { POST } = await import("./route")
-    await POST(req({ reportType: "work_progress", reportRef: REF }) as never)
+    const res = await POST(req({ reportType: "work_progress", reportRef: REF }, { "X-Acting-User": "projexa-user-7" }) as never)
 
+    expect(res.status).toBe(201)
     const [ctxArg] = createReportShareLink.mock.calls[0] as [{ userId: unknown }]
-    expect(ctxArg.userId).toBeNull()
+    expect(ctxArg.userId).toBe("person:projexa-user-7")
+  })
+
+  test("an API-key caller naming nobody is refused with ACTING_USER_REQUIRED before the service is called", async () => {
+    mockAuth({ orgId: "org-1", dbUser: null, apiKey: { id: "apikey-1", name: "PROJEXA org key" } })
+    const createReportShareLink = mockService()
+
+    const { POST } = await import("./route")
+    const res = await POST(req({ reportType: "work_progress", reportRef: REF }) as never)
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe("ACTING_USER_REQUIRED")
+    expect(createReportShareLink).not.toHaveBeenCalled()
   })
 
   test("a caller below the required role/scope is refused before the service is ever called", async () => {

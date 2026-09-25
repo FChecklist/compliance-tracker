@@ -18,7 +18,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { startApprovalWorkflow } from "./approval-workflow-service"
 import { requireErpEnabled } from "./erp-enablement-service"
 import { ErpContext, ActorCtx } from "./actor-context"
@@ -88,7 +88,7 @@ export async function createPurchaseRequisition(
       }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_requisition.created", entityType: "erp_purchase_requisition", entityId: req.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_purchase_requisition.created", entityType: "erp_purchase_requisition", entityId: req.id })
     return req
   })
 }
@@ -179,7 +179,7 @@ export async function createRfq(
     )
     await db.insert(erpRfqSuppliers).values(input.supplierIds.map((supplierId) => ({ rfqId: rfq.id, supplierId })))
 
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_rfq.created", entityType: "erp_rfq", entityId: rfq.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_rfq.created", entityType: "erp_rfq", entityId: rfq.id })
     return rfq
   })
 }
@@ -205,7 +205,7 @@ export async function sendRfq(ctx: ActorCtx, rfqId: string) {
     if (!rfq) throw new ServiceError("RFQ not found", 404)
     if (rfq.status !== "draft") throw new ServiceError("Only draft RFQs can be sent", 409)
     const [updated] = await db.update(erpRfqs).set({ status: "sent" }).where(eq(erpRfqs.id, rfqId)).returning()
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_rfq.sent", entityType: "erp_rfq", entityId: rfqId })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_rfq.sent", entityType: "erp_rfq", entityId: rfqId })
     return updated
   })
 }
@@ -252,7 +252,7 @@ export async function createSupplierQuotation(
       input.items.map((i) => ({ quotationId: quotation.id, itemId: i.itemId, description: i.description, quantity: (i.quantity ?? 1).toString(), rate: (i.rate ?? 0).toString() }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_supplier_quotation.created", entityType: "erp_supplier_quotation", entityId: quotation.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_supplier_quotation.created", entityType: "erp_supplier_quotation", entityId: quotation.id })
     return quotation
   })
 }

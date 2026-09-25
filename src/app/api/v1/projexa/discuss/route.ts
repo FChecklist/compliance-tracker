@@ -3,7 +3,7 @@
 // dispatchTool()). This is genuine conversational LLM chat -- no live
 // project data passed in, see construction-ai-service.ts's discussConstruction().
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { discussConstruction, ServiceError } from "@/lib/services/construction-ai-service"
 
 export async function POST(request: NextRequest) {
@@ -18,7 +18,9 @@ export async function POST(request: NextRequest) {
     const message = typeof body.message === "string" ? body.message.trim() : ""
     if (!message) return NextResponse.json({ error: "message is required" }, { status: 400 })
     const history = Array.isArray(body.history) ? body.history : []
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
+    const actorId = acting.person.id
 
     const result = await discussConstruction({ orgId: ctx.orgId, userId: actorId }, message, history)
     return NextResponse.json(result)

@@ -8,7 +8,7 @@
 // reason -- and giving it its own endpoint is what makes that requirement
 // enforceable server-side instead of a rule the UI is trusted to remember.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import {
   getActivityCompletionProvenance, setActivityCompletionManually, ServiceError,
 } from "@/lib/services/construction-progress-service"
@@ -38,14 +38,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const body = await request.json()
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const updated = await setActivityCompletionManually(
-      { orgId: ctx.orgId, userId: ctx.dbUser?.id ?? ctx.apiKey!.id },
+      { orgId: ctx.orgId, userId: acting.person.id },
       id,
       { completionPercentage: Number(body.completionPercentage), note: typeof body.note === "string" ? body.note : "" },
-      // The actor snapshot the audit row records. Exactly one of these is
-      // present -- requireAuthOrApiKey's own contract -- so an override always
-      // records who made it, whether that is a person or an integration key.
-      ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: { id: ctx.apiKey!.id, name: ctx.apiKey!.name } }
+      // The actor snapshot the audit row records. U-20b: always a named person
+      // -- the session user, or the person an API-key caller acts for together
+      // with the key (requireActingPerson's `actor`) -- never the key alone.
+      acting.actor
     )
     return NextResponse.json(updated)
   } catch (error) {
