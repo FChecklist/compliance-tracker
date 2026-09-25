@@ -5,6 +5,7 @@
 // ServiceError (e.g. the 409 stale-token refusal) passing through with its
 // own status untouched.
 import { describe, test, expect, mock } from "bun:test"
+import { actingPersonDouble } from "@/lib/supabase/__test-helpers__/acting-person-double"
 import { NextRequest } from "next/server"
 
 class FakeServiceError extends Error {
@@ -19,6 +20,7 @@ async function mockAuth(opts: { dbUser?: { id: string; role: string } | null; ap
   const authActual = await import("@/lib/supabase/auth-guard")
   mock.module("@/lib/supabase/auth-guard", () => ({
     ...authActual,
+    ...actingPersonDouble(),
     requireAuthOrApiKey: mock(async () => ({
       response: null,
       orgId: "org-1",
@@ -46,8 +48,8 @@ function makeFile() {
   return new File([new Uint8Array([1, 2, 3])], "boq.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
 }
 
-function postRequest(formData: FormData, id = "boq-1") {
-  return new NextRequest(`http://localhost/api/v1/construction/boq/${id}/excel/apply`, { method: "POST", body: formData })
+function postRequest(formData: FormData, id = "boq-1", headers: Record<string, string> = {}) {
+  return new NextRequest(`http://localhost/api/v1/construction/boq/${id}/excel/apply`, { method: "POST", body: formData, headers })
 }
 
 describe("POST /api/v1/construction/boq/[id]/excel/apply", () => {
@@ -82,19 +84,35 @@ describe("POST /api/v1/construction/boq/[id]/excel/apply", () => {
     expect(applyUpload).not.toHaveBeenCalled()
   })
 
-  test("a valid apply call returns the service result, and an API-key caller's key id is used as the actor (no dbUser)", async () => {
+  // U-20b: this used to pin "an API-key caller's key id is used as the
+  // actor". The actor is now the person the caller names; a caller naming
+  // nobody is refused before anything is applied.
+  test("a valid apply call returns the service result, and an API-key caller's named person is the actor (never the key id)", async () => {
     await mockAuth({ dbUser: null, apiKey: { id: "key-1" } })
     const { applyUpload } = mockService({ applyResult: { applied: true, changesApplied: 2, revisionCreated: null, rejectedRows: [], contractChangesPendingEvidence: [], linesNotInUpload: [], contentHash: "hash-abc" } })
     const fd = new FormData()
     fd.set("file", makeFile())
     fd.set("confirmedDiffToken", "tok-1")
     const { POST } = await import("./route")
-    const res = await POST(postRequest(fd), { params: Promise.resolve({ id: "boq-1" }) })
+    const res = await POST(postRequest(fd, "boq-1", { "X-Acting-User": "projexa-user-3" }), { params: Promise.resolve({ id: "boq-1" }) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.changesApplied).toBe(2)
     const callArgs = applyUpload.mock.calls[0] as unknown[]
-    expect((callArgs[0] as { userId: string }).userId).toBe("key-1")
+    expect((callArgs[0] as { userId: string }).userId).toBe("person:projexa-user-3")
+  })
+
+  test("U-20b: an API-key apply that names nobody is refused with ACTING_USER_REQUIRED, nothing applied", async () => {
+    await mockAuth({ dbUser: null, apiKey: { id: "key-1" } })
+    const { applyUpload } = mockService()
+    const fd = new FormData()
+    fd.set("file", makeFile())
+    fd.set("confirmedDiffToken", "tok-1")
+    const { POST } = await import("./route")
+    const res = await POST(postRequest(fd), { params: Promise.resolve({ id: "boq-1" }) })
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe("ACTING_USER_REQUIRED")
+    expect(applyUpload).not.toHaveBeenCalled()
   })
 
   test("a stale-token ServiceError (409) passes through with its own status, nothing written", async () => {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { executeReportDefinition, ServiceError } from "@/lib/services/report-engine-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -33,9 +33,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params
     const body = await request.json().catch(() => ({}))
-    const { acting, error: actingError } = await requireActingPerson(request, ctx)
-    if (actingError) return actingError
-    const actorId = acting.person.id
+    const actorId = ctx.dbUser?.id ?? ctx.apiKey?.id
     const result = await executeReportDefinition({ orgId: ctx.orgId, userId: actorId }, id, body.params ?? {})
     return NextResponse.json(result)
   } catch (error) {
