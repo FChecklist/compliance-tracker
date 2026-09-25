@@ -13,7 +13,7 @@ import { createProgressEntry } from "@/lib/services/construction-progress-servic
 import { logTime } from "@/lib/services/pms-time-service";
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
 import { createRosterEntry, recordAttendance } from "@/lib/services/construction-labour-service";
-import { createBoq, createBoqRevision, validateBoqBodyShape, type BoqLineItemInput } from "@/lib/services/construction-boq-service";
+import { createBoq, createBoqRevision, getProjectBoqLinePage, validateBoqBodyShape, type BoqLineItemInput } from "@/lib/services/construction-boq-service";
 import { redactProjectSideFields } from "@/lib/services/cost-visibility-service";
 import { createMeeting } from "@/lib/services/pms-meeting-service";
 import { createDocumentRecord } from "@/lib/services/document-service";
@@ -555,9 +555,8 @@ async function executeCreateMeeting(task: ExecutableTask): Promise<ExecutionOutc
 //     the cost-visibility gate's own redaction), whatever the caller's role: it
 //     is written to pipeline_tasks.result and shown on the task receipt.
 //
-// A read of the same record type (get_boq_line_items, BR-407) needs only a
-// readSpec() row in function-registry.ts and one EXECUTORS line below, over
-// the keyset reader U-27 adds; nothing in these two executors changes for it.
+// The read of the same record type (get_boq_line_items, BR-407) is
+// executeGetBoqLineItems below; nothing in these two executors changed for it.
 
 /** lineItems as createBoq/createBoqRevision read it: absent (undefined), or a list of objects. */
 function lineItemsParam(task: ExecutableTask): { ok: true; items: BoqLineItemInput[] | undefined } | { ok: false; failure: PipelineFailure } {
@@ -643,6 +642,65 @@ async function executeCreateBoqRevision(task: ExecutableTask): Promise<Execution
     sourceChangeOrderId,
   });
   return created(row.id, `/scope/${row.id}`, redactProjectSideFields(row));
+}
+
+// ── PROJEXA-BUILD-001 U-28 part 2: the BOQ line-item read (BR-407) ─────────
+//
+// get_boq_line_items is a READ (a readSpec() row in function-registry.ts, so
+// never in WRITE_FUNCTION_IDS). It pages one BOQ of the task's own project
+// through the U-27 keyset reader, via getProjectBoqLinePage(), which opens ONE
+// transaction per call and holds no other open (D-06):
+//   - at most GET_BOQ_LINE_ITEMS_MAX_LIMIT lines per call, whatever `limit`
+//     asks; `nextCursor` (the opaque U-27 cursor) fetches the next page and is
+//     null on the last one;
+//   - the BOQ is params.boqId, else the one the cursor points into, else the
+//     project's current BOQ (resolveCurrentBoq()). A boqId that is not a BOQ of
+//     this project reads as absent: RECORD_NOT_FOUND, the failure a revision of
+//     another project's BOQ gets. A cursor that does not decode, or points
+//     outside the project, is REQUEST_REJECTED 400. Neither reads a line;
+//   - the result carries no project-side cost field, whatever the caller's
+//     role (redactProjectSideFields, as the two BOQ writes above);
+//   - BUILD001_BOQ_KEYSET_PAGINATION is not read: it decides the response
+//     shape of the two v1 routes, and this read always pages.
+const GET_BOQ_LINE_ITEMS_MAX_LIMIT = 50;
+
+/** params.limit: absent is the cap; a whole number from 1 up is capped at 50; anything else is null (refused). */
+function boqLineItemsLimit(raw: unknown): number | null {
+  if (raw === undefined || raw === null || raw === "") return GET_BOQ_LINE_ITEMS_MAX_LIMIT;
+  const asked = typeof raw === "number" ? raw : typeof raw === "string" && /^\d{1,9}$/.test(raw.trim()) ? Number(raw.trim()) : NaN;
+  if (!Number.isInteger(asked) || asked < 1) return null;
+  return Math.min(asked, GET_BOQ_LINE_ITEMS_MAX_LIMIT);
+}
+
+async function executeGetBoqLineItems(task: ExecutableTask): Promise<ExecutionOutcome> {
+  // The same project rule as executeCreateBoq: the task's own project, and a
+  // params.projectId naming another one is refused rather than dropped.
+  const named = str(task.params.projectId);
+  if (task.projectId && named && named !== task.projectId) {
+    return { success: false, failure: pipelineFailure("PROJECT_NOT_REACHABLE", ["projectId"]) };
+  }
+  const projectId = task.projectId ?? named ?? null;
+  if (!projectId) return { success: false, failure: pipelineFailure("PROJECT_REQUIRED", ["projectId"]) };
+
+  // A malformed request gets the shape the service's own 400 gets (below).
+  const rejected: ExecutionOutcome = {
+    success: false,
+    failure: pipelineFailure("REQUEST_REJECTED", [], { status: 400, functionId: task.functionId }),
+  };
+  const limit = boqLineItemsLimit(task.params.limit);
+  if (limit === null) return rejected;
+  const { cursor, boqId } = task.params;
+  if (cursor !== undefined && cursor !== null && typeof cursor !== "string") return rejected;
+  if (boqId !== undefined && boqId !== null && typeof boqId !== "string") return rejected;
+
+  // A cursor the service cannot use throws its own ServiceError(400), which
+  // executeTask turns into the same REQUEST_REJECTED shape as `rejected`.
+  const page = await getProjectBoqLinePage({ orgId: task.orgId }, projectId, { boqId: str(boqId), cursor, limit });
+  if (!page) return { success: false, failure: pipelineFailure("RECORD_NOT_FOUND", ["boqVersion"]) };
+  return {
+    success: true,
+    result: redactProjectSideFields({ boqId: page.boqId, lineItems: page.lineItems, nextCursor: page.nextCursor }),
+  };
 }
 
 async function executeCreateDocument(task: ExecutableTask): Promise<ExecutionOutcome> {
@@ -838,6 +896,8 @@ const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutco
   create_boq_revision: executeCreateBoqRevision,
   create_document: executeCreateDocument,
   get_construction_project_dashboard: executeGetProjectDashboard,
+  // PROJEXA-BUILD-001 U-28 part 2 (BR-407): a BOQ's line items, one page at a time.
+  get_boq_line_items: executeGetBoqLineItems,
   ...Object.fromEntries(READ_ONLY_DISPATCH_FUNCTION_IDS.map((ref) => [ref, makeDispatchExecutor(ref)])),
   ...Object.fromEntries(Object.entries(READ_ONLY_ALIASES).map(([id, ref]) => [id, makeDispatchExecutor(ref)])),
   ...Object.fromEntries(READ_ONLY_ORG_SCOPED_FUNCTION_IDS.map((ref) => [ref, makeOrgScopedExecutor(ref)])),

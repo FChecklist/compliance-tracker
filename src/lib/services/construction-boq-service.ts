@@ -1374,6 +1374,63 @@ export async function getBoqPage(ctx: { orgId: string }, boqId: string, params: 
   })
 }
 
+// ─── PROJEXA-BUILD-001 U-28 part 2 (BR-407): ONE PAGE OF ONE BOQ OF ONE PROJECT, FOR THE PIPELINE ──────────────────
+// The registry read get_boq_line_items (src/lib/pipeline/executor.ts) wraps this, not listBoqsPage() or getBoqPage():
+// both of those also read every line of the revision for their whole-revision money figures (listBoqsPage() every line
+// of the chain), and getBoqPage() checks the organisation only, not the project. This one checks that the BOQ is one
+// of the project's and then reads one page of it through readBoqLineItemPageWithDb(), all in ONE transaction, so at
+// most limit + 1 line rows leave the database per call. It never reads BUILD001_BOQ_KEYSET_PAGINATION: the flag
+// decides the response shape of the two v1 routes, and this read always pages.
+
+export type ProjectBoqLinePage = {
+  /** The BOQ the page is from; null when the project has no BOQ. */
+  boqId: string | null
+  lineItems: ReturnType<typeof withComputedRate>[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
+/**
+ * One page of the line items of one BOQ of `projectId` in `ctx.orgId`, in (boq_id, id) byte order. The BOQ is `boqId`
+ * when given, else the BOQ the cursor points into, else the project's current BOQ (resolveCurrentBoq() over the
+ * headers in listBoqs() order, as listBoqsPage() resolves it).
+ *
+ * Null when `boqId` is not a BOQ of this organisation's project; no line item has been read. A cursor that does not
+ * decode, that names a BOQ other than `boqId`, or that points into a BOQ outside this project is a 400, and no line
+ * item is read either. `limit` follows the routes' rule (1 to 200, default 50); a caller with a smaller ceiling applies
+ * it before calling.
+ */
+export async function getProjectBoqLinePage(
+  ctx: { orgId: string },
+  projectId: string,
+  options: BoqLinePageParams & { boqId?: string | null } = {}
+): Promise<ProjectBoqLinePage | null> {
+  const { after, limit } = parseBoqLinePageParams(options)
+  const requested = options.boqId ? options.boqId : null
+  if (requested && after && after.boqId !== requested) throw new ServiceError("cursor belongs to a different BOQ", 400)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    let selectedId = requested ?? after?.boqId ?? null
+    if (selectedId === null) {
+      // First page with no BOQ named: the project's current BOQ, by the one shared list order and rule.
+      selectedId = resolveCurrentBoq(await findProjectBoqHeadersWithDb(db, ctx.orgId, projectId))?.id ?? null
+      if (selectedId === null) return { boqId: null, lineItems: [], nextCursor: null, hasMore: false }
+    } else {
+      // A named BOQ (by boqId or by the cursor) is read only when it is one of this organisation's and this project's.
+      const own = await db.query.constructionBoqs.findFirst({
+        where: and(eq(constructionBoqs.id, selectedId), eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
+        columns: { id: true },
+      })
+      if (!own) {
+        if (!requested) throw new ServiceError("cursor does not belong to a BOQ of this project", 400)
+        return null
+      }
+    }
+    const page = await readBoqLineItemPageWithDb(db, [selectedId], { after, limit })
+    return { boqId: selectedId, lineItems: page.rows.map(withComputedRate), nextCursor: page.nextCursor, hasMore: page.hasMore }
+  })
+}
+
 // R80/GAP-14: CORRECTING A BOQ'S HEADER AFTER CREATION.
 //
 // THE FAULT THIS CLOSES: a BOQ could be deleted (draft only, deleteBoq below)
