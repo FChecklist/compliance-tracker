@@ -22,9 +22,6 @@ import { PGlite } from "@electric-sql/pglite"
 import { drizzle } from "drizzle-orm/pglite"
 import { sql } from "drizzle-orm"
 
-process.env.DATABASE_URL ??= "postgresql://postgres:placeholder@localhost:5432/postgres"
-process.env.APP_RUNTIME_DATABASE_URL ??= "postgresql://app_runtime:placeholder@localhost:5432/postgres"
-
 import * as realDb from "@/lib/db"
 import * as realTenant from "@/lib/db/tenant-scoped"
 import * as realExecutor from "@/lib/pipeline/executor"
