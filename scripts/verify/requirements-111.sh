@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # BR-115 (PROJEXA-BUILD-001, phase 1): REQUIREMENTS_111_REGISTER.csv holds all 111 requirement ids -- 80 register rows
-# (R- ids) plus EXC-ITEM-01 to EXC-ITEM-31 (three of them META) -- the 80 R- ids equal the ids in the live table
-# platform.sumeet_requirements, and nothing in the file refers to platform.sumeet_gap.
+# (R- ids) plus EXC-ITEM-01 to EXC-ITEM-31 (three of them META) -- all 111 ids equal the ids in the live table
+# platform.sumeet_requirements (since migration 0617 of 2026-09-25 the table holds the 31 EXC-ITEM rows too; before it, only the
+# 80 R- rows), and nothing in the file refers to platform.sumeet_gap.
 #
 # Exit 0 = all checks hold. stdout is exactly one line:
 #   REQ111_OK exc=31 meta=3 live_missing=0 live_extra=0 gap_refs=0
@@ -12,7 +13,7 @@
 #   exactly 80 R- ids; the EXC-ITEM ids are 01 to 31; the rows whose title ends in (META) are EXC-ITEM-29, -30, -31;
 #   zero lines mention sumeet_gap.
 # Live comparison (default): two read-only SELECTs through scripts/verify/sql-assert.mjs against verdian-ai
-#   (needs node, node_modules and VERIFY_DATABASE_URL). live_missing = ids in the file that the table lacks;
+#   (needs node, node_modules and VERIFY_DATABASE_URL). live_missing = ids in the file (all 111) that the table lacks;
 #   live_extra = ids in the table that the file lacks. The id column is `id` (LIVE_ID_COLUMN overrides it).
 #
 # Usage: bash scripts/verify/requirements-111.sh [--offline | --live-ids <file>]
@@ -100,10 +101,10 @@ if mode == "check":
         sys.exit(1)
     print("OK exc=%d meta=%d gap_refs=%d" % (len(exc_ids), len(meta), gap_refs))
 elif mode == "ids":
-    print("\n".join(r_ids))
+    print("\n".join(ids))
 elif mode == "compare":
     live = set(x.strip() for x in open(sys.argv[3], encoding="utf-8-sig").read().split("\n") if x.strip())
-    mine = set(r_ids)
+    mine = set(ids)
     print("missing=%d extra=%d" % (len(mine - live), len(live - mine)))
     if mine - live:
         print("missing_ids=" + ",".join(sorted(mine - live)[:8]))
@@ -131,7 +132,7 @@ else
   command -v node >/dev/null 2>&1 || finish_usage "node is not on PATH (needed for scripts/verify/sql-assert.mjs)"
   [ -n "${VERIFY_DATABASE_URL:-}" ] || finish_usage "cannot run the live comparison: VERIFY_DATABASE_URL is not set (use --offline or --live-ids <file>)"
   IDLIST="$("$PY" "$(winpath "$TMP/check.py")" ids "$(winpath "$REQ_FILE")" | tr -d '\r' | sed "s/.*/'&'/" | paste -sd, -)"
-  [ -n "$IDLIST" ] || finish_usage "no R- ids to compare"
+  [ -n "$IDLIST" ] || finish_usage "no ids to compare"
   RUNNER="$(winpath "$ROOT/scripts/verify/sql-assert.mjs")"
   SQL_MISSING="select count(*) from unnest(array[$IDLIST]) as v(rid) where v.rid not in (select $LIVE_ID_COLUMN from platform.sumeet_requirements)"
   SQL_EXTRA="select count(*) from platform.sumeet_requirements where $LIVE_ID_COLUMN not in ($IDLIST)"
