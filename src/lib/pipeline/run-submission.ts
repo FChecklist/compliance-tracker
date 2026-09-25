@@ -1242,7 +1242,7 @@ function refusalCodeFor(t: DryRunTelemetry): string | null {
   if (t.level1Outcome !== "refused" && t.level1Outcome !== "error") return null;
   const reason = (t.level1RefusalReason ?? "").toLowerCase();
   // AiProviderRefusalError is what assertAiProviderAllowed throws, for BOTH the
-  // "RAJAT_USER_ID unset" and "wrong user" branches -- see ai/adapter.ts:63-92.
+  // "RAJAT_USER_ID unset" and "wrong user" branches -- see ai/adapter.ts:120-141.
   if (t.level1Outcome === "refused") return "provider_not_allowed";
   if (reason.includes("fetch") || reason.includes("timeout") || reason.includes("econnrefused")) {
     return "provider_unreachable";
