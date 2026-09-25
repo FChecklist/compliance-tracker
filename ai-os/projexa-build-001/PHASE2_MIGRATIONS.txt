@@ -13,3 +13,4 @@
 #
 # Listed so far (2026-09-25): U-18a, the link project scope columns.
 0613_build001_link_project_scope
+0614_build001_link_resolve_by_hash  # U-18b, the scope-carrying link resolver (resolve a PROJEXA link by hash)
