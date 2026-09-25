@@ -6,7 +6,7 @@
 // minutes/publish workflow) -- that route is untouched; this is a new,
 // separate module PROJEXA's MoM screen calls instead.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listVeriMeetings, createVeriMeeting, ServiceError } from "@/lib/services/veri-meeting-service"
 import { withRouteTiming } from "@/lib/route-timing"
 
@@ -49,15 +49,18 @@ async function POST_impl(request: NextRequest) {
   if (roleErr) return roleErr
   // R39/R-C04: ctx.apiKey?.id is not a real compliance.users row -- see
   // veriMeetings.createdById's schema.ts comment for the real production FK
-  // violation this fallback caused.
-  const actorId = ctx.dbUser?.id ?? null
+  // violation that fallback caused. U-20b: the actor is now the person the
+  // API-key caller names (X-Acting-User / X-Acting-User-Email).
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const body = await request.json()
     const projectId = typeof body.projectId === "string" ? body.projectId : undefined
     const meeting = await createVeriMeeting(
-      { orgId: ctx.orgId, userId: actorId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }) },
+      { orgId: ctx.orgId, userId: actorId, ...acting.actor },
       {
         title: body.title, meetingType: body.meetingType, scheduledAt: body.scheduledAt,
         attendees: body.attendees, agenda: body.agenda,

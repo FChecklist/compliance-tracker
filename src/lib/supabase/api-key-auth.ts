@@ -1,6 +1,7 @@
 import { hashSHA256 } from "@/lib/api-keys"
 import { lookupApiKeyByHash, countRecentApiKeyRequests } from "@/lib/db/preauth-lookups"
 import { pendingApiKeyRequestCount, recordApiKeyUse } from "@/lib/auth/api-key-audit"
+import { assertProjectInScope, type ProjectScopeCheck } from "@/lib/ai-links/project-scope"
 
 // R67 F-17 (R-234) x F-33 (R-278) -- THE USAGE BOOKKEEPING LEAVES THE REQUEST
 // PATH. Two lanes fixed the same fault from opposite ends, and this is the
@@ -33,11 +34,51 @@ import { pendingApiKeyRequestCount, recordApiKeyUse } from "@/lib/auth/api-key-a
 // double-write them. Nothing it guaranteed is lost; see the tests at the foot
 // of api-key-auth.test.ts, which now assert it of the queue.
 
+// PROJEXA-BUILD-001 U-19 (register row BR-213, drizzle/0613, PMD-07/PMD-08):
+// compliance.api_keys.key_kind / project_id, surfaced so a caller can hold a
+// key to its project. 'org_service' (every key before 0613, the PROJEXA proxy
+// key) has projectId null and behaves exactly as before. 'project_ai' is
+// pinned to projectId (CHECK api_keys_project_ai_requires_project).
+export type ApiKeyKind = "org_service" | "project_ai"
+
 export type ApiKeyContext = {
   orgId: string
   scopes: string[]
   keyId: string
   keyName: string
+  keyKind: ApiKeyKind
+  projectId: string | null
+}
+
+/** The key facts assertKeyProjectScope() reads; both are absent on a caller that is not an API key. */
+export type KeyProjectFacts = { keyKind?: ApiKeyKind; projectId?: string | null }
+
+/**
+ * U-19 (BR-213): may this API key act on `requestedProjectId`? An org_service
+ * key (or no key: a session caller) may, exactly as before. A project_ai key
+ * may act only on its own project, or on no named project (the caller then
+ * runs it on the key's project -- keyProjectScope()); another project is a
+ * 403. A project_ai key without a project cannot exist (the CHECK), and is
+ * refused rather than treated as org-wide.
+ */
+export function assertKeyProjectScope(key: KeyProjectFacts | null | undefined, requestedProjectId: string | null | undefined): ProjectScopeCheck {
+  if (key?.keyKind !== "project_ai") return { ok: true }
+  if (!key.projectId) return { ok: false, status: 403, message: "This project key is not bound to a project." }
+  return assertProjectInScope({ projectId: key.projectId }, requestedProjectId)
+}
+
+/** The project a key is pinned to -- RunSubmissionInput.projectScope -- or null for an org-wide key. */
+export function keyProjectScope(key: KeyProjectFacts | null | undefined): string | null {
+  return key?.keyKind === "project_ai" ? (key.projectId ?? null) : null
+}
+
+// The kind a row says it is. A value outside the CHECK's two (impossible
+// while the CHECK exists) is refused as an invalid key, never read as
+// org-wide; a row without the column (a lookup mocked or run before 0613)
+// is 'org_service', the column default.
+function keyKindOf(row: { keyKind?: string | null }): ApiKeyKind | null {
+  const kind = row.keyKind ?? "org_service"
+  return kind === "org_service" || kind === "project_ai" ? kind : null
 }
 
 // Wave 96 (Comparison CSV 3 gap analysis: API002/API009): a discriminated
@@ -177,6 +218,11 @@ export async function validateApiKey(request: Request): Promise<ValidateApiKeyRe
 
   if (KNOWN_DEMO_KEY_IDS.has(row.id) && !demoKeyAllowlist().has(row.id)) return { status: "invalid" }
 
+  // U-19 (BR-213): fail closed on a kind or scope the CHECKs forbid.
+  const keyKind = keyKindOf(row)
+  const projectId = row.projectId ?? null
+  if (!keyKind || (keyKind === "project_ai" && !projectId)) return { status: "invalid" }
+
   const route = new URL(request.url).pathname
   const rateLimit = effectiveRateLimitFor(row)
   const at = new Date()
@@ -226,6 +272,8 @@ export async function validateApiKey(request: Request): Promise<ValidateApiKeyRe
       scopes: effectiveScopesFor(row),
       keyId: row.id,
       keyName: row.name,
+      keyKind,
+      projectId,
     },
   }
 }

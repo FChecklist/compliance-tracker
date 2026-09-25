@@ -8,7 +8,7 @@
 // Bearer-key (apiKey) actor -- see that function's own comment in
 // erp-credit-note-service.ts.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listSalesCreditNotes, createSalesCreditNote, ServiceError } from "@/lib/services/erp-credit-note-service"
 
 function toCreditNoteShape(n: Awaited<ReturnType<typeof listSalesCreditNotes>>[number]) {
@@ -41,10 +41,10 @@ export async function POST(request: NextRequest) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const body = await request.json()
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: ctx.apiKey!.id, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: acting.person.id, ...acting.actor }
     const note = await createSalesCreditNote(actorCtx, {
       customerId: body.customerId, salesInvoiceId: body.salesInvoiceId, postingDate: body.postingDate,
       reason: body.reason, items: body.items ?? [],

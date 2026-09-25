@@ -12,7 +12,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, asc, sql, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { convertToStockUom } from "./erp-uom-batch-service"
 import { requireErpEnabled, isErpEnabledForOrgWithDb } from "./erp-enablement-service"
 import { ErpContext, ActorCtx } from "./actor-context"
@@ -129,7 +129,7 @@ export async function recordStockReceipt(ctx: ActorCtx, input: StockReceiptInput
       receiptDate: input.postingDate, originalQty: stockQty.toString(), remainingQty: stockQty.toString(), rate: input.rate.toString(),
     })
 
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_stock.received", entityType: "erp_stock_ledger_entry", entityId: entry.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_stock.received", entityType: "erp_stock_ledger_entry", entityId: entry.id })
     return entry
   }
 
@@ -223,7 +223,7 @@ export async function recordStockIssue(ctx: ActorCtx, input: StockIssueInput, ex
       transactionUom: input.uom, transactionQty: input.uom ? input.quantity.toString() : undefined,
     }).returning()
 
-    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_stock.issued", entityType: "erp_stock_ledger_entry", entityId: entry.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...auditActorOf(ctx), action: "erp_stock.issued", entityType: "erp_stock_ledger_entry", entityId: entry.id })
     return entry
   }
 

@@ -9,7 +9,7 @@
 // classification/AI-extraction side effects) -- see createDocumentRecord's
 // own header comment for why that's an acceptable, not accidental, gap.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listDocuments, createDocumentRecord, ServiceError } from "@/lib/services/document-service"
 import { withRouteTiming } from "@/lib/route-timing"
 
@@ -60,9 +60,12 @@ async function POST_impl(request: NextRequest) {
   if (roleErr) return roleErr
   // R39/R-C14: ctx.apiKey?.id is NOT a real compliance.users row -- falling
   // back to it here used to violate documents.uploaded_by_id's FK on every
-  // API-key-authenticated upload (confirmed live, real 500). null is the
-  // honest "no real user" value now that the column is nullable.
-  const actorId = ctx.dbUser?.id ?? null
+  // API-key-authenticated upload (confirmed live, real 500), so this became
+  // null. U-20b: an API-key upload now names the person it is made for
+  // (X-Acting-User / X-Acting-User-Email) and uploaded_by_id is that person.
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {

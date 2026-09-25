@@ -484,7 +484,19 @@ const SERVICE_ERROR_EXEMPTIONS = new Set([
 ])
 
 const HTTP_HANDLER_RE = /export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/
-const REQUIRE_AUTH_RE = /\brequireAuth\s*\(/
+// PROJEXA-BUILD-001 U-20b (2026-09-25): now also accepts requireAuthOrApiKey(),
+// the fix the requireAuthOrApiKey-family entries in ROUTE_AUTH_EXEMPTIONS above
+// kept asking "a future session" for. requireAuthOrApiKey() calls requireAuth()
+// itself for a session caller and only otherwise accepts a valid Bearer API
+// key, returning 401 for neither (auth-guard.ts) -- it is an auth call, not a
+// way around one, and CLAUDE.md's rule is met by it. U-20b had to touch ~130
+// such v1 routes (every API-key write now names its person), and growing the
+// exemption list by ~130 entries would have buried the genuinely unusual
+// exemptions (webhooks, token-scoped links) that this list exists to explain.
+// A route that calls NEITHER function still fails exactly as before. The
+// existing requireAuthOrApiKey-family exemptions are now redundant but left in
+// place (harmless; removing them is separate churn).
+const REQUIRE_AUTH_RE = /\brequireAuth(OrApiKey)?\s*\(/
 const SERVICE_ERROR_RE = /\bServiceError\b/
 
 function run(cmd) {

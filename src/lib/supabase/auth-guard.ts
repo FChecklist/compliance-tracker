@@ -4,7 +4,7 @@ import { createClient } from "./server"
 import { db, users, organisations, accessReviewCertifications } from "@/lib/db"
 import { eq, and, or } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
-import { validateApiKey } from "./api-key-auth"
+import { validateApiKey, type ApiKeyKind } from "./api-key-auth"
 import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
 import { assignSeat } from "@/lib/org-license-service"
 import { consumeInviteLinkAndProvisionUser } from "@/lib/invite-link-service"
@@ -390,7 +390,11 @@ export async function requireAuth(): Promise<AuthContext> {
 export type CombinedAuthContext = {
   orgId: string | null
   dbUser: typeof users.$inferSelect | null
-  apiKey: { id: string; name: string; scopes: string[] } | null
+  // PROJEXA-BUILD-001 U-19 (BR-213): keyKind/projectId as validateApiKey()
+  // read them, for assertKeyProjectScope() at the routes that run work on a
+  // project. Optional so every existing constructor of this shape still
+  // compiles; one without them is treated as an org_service key.
+  apiKey: { id: string; name: string; scopes: string[]; keyKind?: ApiKeyKind; projectId?: string | null } | null
   response: NextResponse | null
 }
 
@@ -422,7 +426,7 @@ export async function requireAuthOrApiKey(request: Request): Promise<CombinedAut
       return {
         orgId: context.orgId,
         dbUser: null,
-        apiKey: { id: context.keyId, name: context.keyName, scopes: context.scopes },
+        apiKey: { id: context.keyId, name: context.keyName, scopes: context.scopes, keyKind: context.keyKind, projectId: context.projectId },
         response: null,
       }
     }
@@ -443,7 +447,7 @@ export async function requireAuthOrApiKey(request: Request): Promise<CombinedAut
     return {
       orgId: context.orgId,
       dbUser: null,
-      apiKey: { id: context.keyId, name: context.keyName, scopes: context.scopes },
+      apiKey: { id: context.keyId, name: context.keyName, scopes: context.scopes, keyKind: context.keyKind, projectId: context.projectId },
       response: null,
     }
   }
@@ -623,33 +627,117 @@ export async function resolveActingUser(
 // pipeline stored answered_by_id = the org's compliance.api_keys.id, not
 // arjun.mehta's compliance.users.id.
 //
-// This helper is the fix, used by all 4 routes above. It is deliberately
-// NOT `resolveActingUser` called unconditionally -- PROJEXA's own existing
-// UI-facing proxies for these 4 entity types (src/app/api/{rfis,
-// submittals,punch-list,billing-claims}/[id]/route.ts in the PROJEXA repo)
-// do not send X-Acting-User(-Email) either, and never have; calling
-// resolveActingUser() unconditionally would turn today's "answer from the
-// RFI screen" into a hard 400 (`actorEmail is required...`) for every
-// existing caller. Instead: no acting-user signal at all -> unchanged
-// legacy fallback (apiKey.id, same as before this fix, a separate
-// pre-existing gap left for its own follow-up); an acting-user signal IS
-// present (the digest reply path, or any future caller that adopts it) ->
-// resolved for real, and a signal that fails to resolve is a hard error
-// (AR-04, fail loud) rather than a silent fallback to the API key.
+// This helper was the fix, used by all 4 routes above. As first written it
+// was deliberately NOT `resolveActingUser` called unconditionally: with no
+// acting-user signal at all it fell back to apiKey.id, because PROJEXA's own
+// UI-facing proxies did not send X-Acting-User(-Email) yet ("a separate
+// pre-existing gap left for its own follow-up").
+//
+// PROJEXA-BUILD-001 U-20b (BR-215, 2026-09-25) is that follow-up: the
+// fallback is gone. It is now a thin wrapper over requireActingPerson()
+// below, so an API-key write with no signal gets 400 ACTING_USER_REQUIRED
+// instead of the key's own id. Kept (not deleted) for the routes that only
+// need the person's id, never the person object for logActivity().
 export async function resolveWriteActorId(
   request: { headers: Headers },
   ctx: CombinedAuthContext
 ): Promise<{ actorId: string; error: null } | { actorId: null; error: NextResponse }> {
-  if (ctx.dbUser) return { actorId: ctx.dbUser.id, error: null }
-  const headerId = readActingUserId(request)
-  const headerEmail = readActingUserEmail(request)
-  if (!headerId && !headerEmail) {
-    if (!ctx.apiKey) return { actorId: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-    return { actorId: ctx.apiKey.id, error: null }
+  const { acting, error } = await requireActingPerson(request, ctx)
+  if (error) return { actorId: null, error }
+  return { actorId: acting.person.id, error: null }
+}
+
+// PROJEXA-BUILD-001 U-20b (BR-215, live finding D-09): an API-key write
+// ALWAYS names a person.
+//
+// Before this, every v1 write reachable with an API key worked out its actor
+// on its own -- most as `ctx.dbUser?.id ?? ctx.apiKey!.id`, some as a
+// key-only logActivity({ apiKey }) -- so a write made through PROJEXA's
+// shared org key stored the api_keys row id where a compliance.users id
+// belongs, or an audit row with no person at all (267 of 267 key-attributed
+// audit rows live, 2026-09-25). This is the one place that rule now lives:
+//   - session user           -> that user, unchanged;
+//   - API key + a signal      -> resolveActingUser() (X-Acting-User, then
+//                                X-Acting-User-Email or a body actorEmail);
+//                                its 400s (USER_NOT_LINKED/USER_DEACTIVATED)
+//                                and messages are passed through untouched;
+//   - API key + NO signal     -> 400 ACTING_USER_REQUIRED (never the key id);
+//   - no auth at all          -> 401.
+// `actor` is shaped exactly like logActivity()'s actor union (audit.ts): the
+// session user alone, or the person AND the key with actingViaApiKey: true,
+// so one audit row names both. Spread it into logActivity(), a ServiceActor
+// or an ActorCtx -- never rebuild the key-only branch by hand.
+//
+// Routes that genuinely need no person (read-only, platform provisioning,
+// key management, webhooks) are listed with a reason in
+// src/lib/supabase/acting-user-required.test.ts's allowlist; that test fails
+// when any other route under src/app/api uses the key id as an actor again.
+export const ACTING_USER_REQUIRED_CODE = "ACTING_USER_REQUIRED"
+export const ACTING_USER_REQUIRED_MESSAGE =
+  "This write was made with an API key, so it must name the person it is made for: send the X-Acting-User header (their user id) or the X-Acting-User-Email header (their email)"
+
+export type ActingActor =
+  | { dbUser: typeof users.$inferSelect; apiKey?: never; actingViaApiKey?: never }
+  | { dbUser: typeof users.$inferSelect; apiKey: { id: string; name: string }; actingViaApiKey: true }
+
+export type ActingPerson = {
+  /** The real, active, org-scoped compliance.users row this write is attributed to. */
+  person: typeof users.$inferSelect
+  /** logActivity()'s actor fields for this call: spread it, do not rebuild it. */
+  actor: ActingActor
+}
+
+function bodyActorEmail(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null
+  const raw = (body as { actorEmail?: unknown }).actorEmail
+  if (typeof raw !== "string") return null
+  const trimmed = raw.trim()
+  return trimmed ? trimmed : null
+}
+
+export async function requireActingPerson(
+  request: { headers: Headers },
+  ctx: CombinedAuthContext,
+  body?: unknown
+): Promise<{ acting: ActingPerson; error: null } | { acting: null; error: NextResponse }> {
+  if (ctx.dbUser) return { acting: { person: ctx.dbUser, actor: { dbUser: ctx.dbUser } }, error: null }
+  if (!ctx.apiKey) return { acting: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
+  const actorId = readActingUserId(request)
+  // Same precedence the timesheet routes already use: a body actorEmail (the
+  // older server-to-server shape) first, then the header.
+  const actorEmail = bodyActorEmail(body) ?? readActingUserEmail(request)
+  if (!actorId && !actorEmail) {
+    return {
+      acting: null,
+      error: NextResponse.json({ error: ACTING_USER_REQUIRED_MESSAGE, code: ACTING_USER_REQUIRED_CODE }, { status: 400 }),
+    }
   }
-  const acting = await resolveActingUser(ctx, headerEmail, headerId)
-  if (acting.error) return { actorId: null, error: acting.error }
-  return { actorId: acting.user!.id, error: null }
+  const resolved = await resolveActingUser(ctx, actorEmail, actorId)
+  if (resolved.error) return { acting: null, error: resolved.error }
+  const person = resolved.user!
+  return {
+    acting: { person, actor: { dbUser: person, apiKey: { id: ctx.apiKey.id, name: ctx.apiKey.name }, actingViaApiKey: true } },
+    error: null,
+  }
+}
+
+// U-20b, read side. When an API-key caller sends an acting-user signal on a
+// GET, it is resolved the same way as for a write, so a per-user read (the
+// pill strip, the chain ranking) is keyed by the same person the writes are
+// now recorded under, and a view audit row can name that person. A read is
+// NEVER refused for this, though: no signal, or a signal that does not
+// resolve (an unlinked or deactivated account -- 22 of 114 PROJEXA accounts
+// were unlinked on 2026-09-25, F-A09-2), gives `null` and the caller keeps
+// its key-level read, the same "redact, never refuse" line PM decision U-01d
+// D1 draws for reads. Only writes refuse (requireActingPerson).
+export async function resolveOptionalActingPerson(
+  request: { headers: Headers },
+  ctx: CombinedAuthContext
+): Promise<ActingPerson | null> {
+  if (ctx.dbUser) return { person: ctx.dbUser, actor: { dbUser: ctx.dbUser } }
+  if (!readActingUserId(request) && !readActingUserEmail(request)) return null
+  const { acting } = await requireActingPerson(request, ctx)
+  return acting
 }
 
 // E-52 (R60/R62 sweep, platform.r43_faults fault_id LIKE 'E52_%'): the

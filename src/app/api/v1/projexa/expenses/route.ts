@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listExpenseEntries, createExpenseEntry, ServiceError } from "@/lib/services/construction-expense-service"
 
 export async function GET(request: NextRequest) {
@@ -29,7 +29,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
+    const actorId = acting.person.id
     const result = await createExpenseEntry({ orgId: ctx.orgId, userId: actorId }, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {

@@ -27,10 +27,15 @@ import type { users } from "@/lib/db"
 /** An actor performing a mutation: either a real signed-in dashboard user,
  * or a server-to-server caller authenticated by API key. Exactly one of
  * `dbUser` / `apiKey` is present -- enforced structurally, not by runtime
- * check. */
+ * check -- except in the third variant (PROJEXA-BUILD-001 U-20b): an API key
+ * acting for a named person (auth-guard.ts's requireActingPerson), where
+ * `dbUser` is that person, `userId` is their id, and `actingViaApiKey: true`
+ * says so. Derive logActivity()'s actor with audit.ts's auditActorOf(ctx) so
+ * the key id is kept alongside the person. */
 export type ActorCtx = { orgId: string; userId: string } & (
-  | { dbUser: typeof users.$inferSelect; apiKey?: never }
-  | { dbUser?: never; apiKey: { id: string; name: string } }
+  | { dbUser: typeof users.$inferSelect; apiKey?: never; actingViaApiKey?: never }
+  | { dbUser?: never; apiKey: { id: string; name: string }; actingViaApiKey?: never }
+  | { dbUser: typeof users.$inferSelect; apiKey: { id: string; name: string }; actingViaApiKey: true }
 )
 
 /** The narrower, older shape used by services that only ever accept a real

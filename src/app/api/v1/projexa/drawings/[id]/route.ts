@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { and, eq, or, sql } from "drizzle-orm"
 import { documents, projects } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { updateDocumentMetadata, ServiceError } from "@/lib/services/document-service"
 import { isDrawingCategory, isRecentDrawing, readDrawingMetadata, toDrawingDto } from "@/lib/drawings-register"
 import { createClient } from "@supabase/supabase-js"
@@ -144,6 +144,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const { id } = await params
     const body = await request.json().catch(() => ({}))
     if (body.category !== undefined && !isDrawingCategory(body.category)) {
@@ -153,7 +155,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const existing = await loadDrawing(ctx.orgId, id)
     if (!existing) return NextResponse.json({ error: "Drawing not found" }, { status: 404 })
 
-    await updateDocumentMetadata({ orgId: ctx.orgId, userId: ctx.dbUser?.id ?? ctx.apiKey!.id }, id, {
+    await updateDocumentMetadata({ orgId: ctx.orgId, userId: acting.person.id }, id, {
       ...(typeof body.name === "string" ? { name: body.name } : {}),
       ...(body.category !== undefined ? { category: body.category } : {}),
       // Only the drawing-specific keys are forwarded: a PATCH must not be able

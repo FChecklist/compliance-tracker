@@ -18,7 +18,7 @@
 // returning it here too would just create a second source of truth for the
 // one branch PROJEXA already owns.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveOptionalActingPerson } from "@/lib/supabase/auth-guard"
 import { buildCapabilityTree } from "@/lib/services/capability-tree-service"
 
 const PROJEXA_OWNED_BRANCH_KEYS = new Set(["construction_intelligence"])
@@ -32,7 +32,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const moduleScope = request.nextUrl.searchParams.get("module") ?? undefined
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+    // U-20b: rank the chain by the named person's own usage when the caller
+    // names one (the pill writes are recorded under that person now); a
+    // key-only read with no signal keeps the key's legacy ranking.
+    const acting = await resolveOptionalActingPerson(request, ctx)
+    const actorId = acting?.person.id ?? ctx.apiKey!.id
     const nodes = await buildCapabilityTree({ orgId: ctx.orgId, moduleScope, userId: actorId })
     return NextResponse.json({ nodes: nodes.filter((n) => !PROJEXA_OWNED_BRANCH_KEYS.has(n.key)) })
   } catch (error) {

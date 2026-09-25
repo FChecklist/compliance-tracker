@@ -7,7 +7,7 @@
 // permission-service.ts utility (ERP_ACTION_ROLES["erp.quotations.revise"]
 // = "member") -- no behavior change.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, resolveWriteActorId } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { requirePermission } from "@/lib/services/permission-service"
 import { createQuotationRevision, ServiceError, type QuotationItemInput } from "@/lib/services/erp-selling-service"
 
@@ -19,12 +19,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const roleErr = requirePermission(ctx, "erp.quotations.revise")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  // PROJEXA-E2E-001 actor-misattribution sweep: see resolveWriteActorId's own
+  // PROJEXA-E2E-001 actor-misattribution sweep: see requireActingPerson's own
   // header in auth-guard.ts -- the new revision's createdById feeds
   // updateQuotationStatus()'s 'approved'-transition isSelfApproval() check,
   // so a misattributed creator id here defeats that gate for the revision.
-  const acting = await resolveWriteActorId(request, ctx)
-  if (acting.error) return acting.error
+  // U-20b: no acting-user signal is now a 400, never the key's own id.
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
 
   try {
     const { id } = await params
@@ -32,9 +33,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     const itemsOverride: QuotationItemInput[] | undefined = Array.isArray(body.items)
       ? body.items.map((i: QuotationItemInput) => ({ itemId: i.itemId, description: i.description, quantity: i.quantity, rate: i.rate }))
       : undefined
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: acting.actorId, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: acting.actorId, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: acting.person.id, ...acting.actor }
     const revision = await createQuotationRevision(actorCtx, id, itemsOverride)
     return NextResponse.json(revision, { status: 201 })
   } catch (error) {

@@ -8,7 +8,7 @@
 // authority/number/issue date inside metadata) it was never meant to carry.
 import { NextRequest, NextResponse } from "next/server"
 import { and, eq } from "drizzle-orm"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { documents } from "@/lib/db/schema"
 import { signDocumentUrl } from "@/lib/storage/signed-document-url"
@@ -80,15 +80,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     // R42 seq21 live-oracle finding: draft discard on save silently never fired
     // for PROJEXA's real (API-key) caller -- actorId was always null, same
     // shared-API-key gap already fixed on timesheets submit/approve/reject.
-    // Only resolved (and only required) when a draft is actually in play.
-    let actorId: string | null = ctx.dbUser?.id ?? null
-    if (!actorId && typeof body.draftId === "string") {
-      const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail)
-      if (actingUserErr) return actingUserErr
-      actorId = actingUser!.id
-    }
+    // U-20b: no longer only when a draft is in play -- every API-key write
+    // names its person (header or the body actorEmail this route accepted).
+    const { acting, error: actingError } = await requireActingPerson(request, ctx, body)
+    if (actingError) return actingError
+    const actorId = acting.person.id
 
-    const updated = await withTenantContext({ orgId: ctx.orgId, userId: actorId ?? undefined }, async (db) => {
+    const updated = await withTenantContext({ orgId: ctx.orgId, userId: actorId }, async (db) => {
       const existing = await db.query.documents.findFirst({ where: and(eq(documents.id, id), eq(documents.orgId, ctx.orgId!), eq(documents.category, "permit")) })
       if (!existing) return null
       const existingMetadata = (existing.metadata ?? {}) as Record<string, unknown>
@@ -117,7 +115,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     // Save = validate+write (above) THEN delete the draft (M29) -- never
     // before. draftId is optional: a plain PATCH with no draft in play (e.g.
     // a future non-UI caller) still works unchanged.
-    if (typeof body.draftId === "string" && actorId) {
+    if (typeof body.draftId === "string") {
       await discardDraft({ orgId: ctx.orgId, userId: actorId }, body.draftId)
     }
 

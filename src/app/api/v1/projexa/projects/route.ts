@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { createProject, listProjectsForSelection, ServiceError, type SelectableProject } from "@/lib/services/construction-dashboard-service"
 
 // R67 F-03 (R-041/R-046). Until now this route was POST-only: GET /projects
@@ -53,11 +53,13 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = await request.json()
-    const project = await createProject({ orgId: ctx.orgId, userId: actorId, isRealUser: Boolean(ctx.dbUser) }, body)
+    const project = await createProject({ orgId: ctx.orgId, userId: actorId, isRealUser: true /* U-20b: actorId is always a real compliance.users row now */ }, body)
     // R67 F-03: a project the caller just created must be on their own next
     // picker read, not up to 60 s later -- drop this org's cached list rather
     // than waiting the TTL out.

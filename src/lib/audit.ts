@@ -60,12 +60,31 @@ type CommonLogActivityParams = {
 // alone and the key id was dropped, or `apiKey` alone and the person was
 // dropped: 267 of 267 key-attributed audit rows ever written had no person
 // (live SELECT 2026-09-25). Now one row records the key AND the person.
-export type LogActivityParams = CommonLogActivityParams &
-  (
-    | { dbUser: typeof users.$inferSelect; apiKey?: never; actingViaApiKey?: never }
-    | { dbUser?: never; apiKey: { id: string; name: string }; actingViaApiKey?: never }
-    | { dbUser: typeof users.$inferSelect; apiKey: { id: string; name: string }; actingViaApiKey: true }
-  )
+export type LogActivityActor =
+  | { dbUser: typeof users.$inferSelect; apiKey?: never; actingViaApiKey?: never }
+  | { dbUser?: never; apiKey: { id: string; name: string }; actingViaApiKey?: never }
+  | { dbUser: typeof users.$inferSelect; apiKey: { id: string; name: string }; actingViaApiKey: true }
+
+export type LogActivityParams = CommonLogActivityParams & LogActivityActor
+
+// PROJEXA-BUILD-001 U-20b: the actor fields for logActivity() from any service
+// context that carries dbUser and/or apiKey (ActorCtx, ServiceActor, or an
+// equivalent local shape). Services used to hand-write
+// `ctx.dbUser ? { dbUser } : { apiKey }`, which silently drops the key id when
+// a route passes the acting person AND the key (requireActingPerson's
+// `actor`). This keeps all three variants intact.
+export function auditActorOf(source: {
+  dbUser?: typeof users.$inferSelect | null
+  apiKey?: { id: string; name: string } | null
+  actingViaApiKey?: boolean
+}): LogActivityActor {
+  if (source.dbUser && source.apiKey && source.actingViaApiKey) {
+    return { dbUser: source.dbUser, apiKey: { id: source.apiKey.id, name: source.apiKey.name }, actingViaApiKey: true }
+  }
+  if (source.dbUser) return { dbUser: source.dbUser }
+  if (source.apiKey) return { apiKey: { id: source.apiKey.id, name: source.apiKey.name } }
+  throw new Error("logActivity needs a dbUser or an apiKey actor")
+}
 
 function extractIp(request?: Request): string | undefined {
   if (!request) return undefined

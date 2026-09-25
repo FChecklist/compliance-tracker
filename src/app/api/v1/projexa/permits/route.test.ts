@@ -19,6 +19,7 @@
 // The Supabase client module is mocked, not the route's own helper, so this
 // test would still fail if a future edit reached Storage by some other path.
 import { describe, test, expect, mock, beforeEach, setDefaultTimeout } from "bun:test"
+import { actingPersonDouble, ACTING_HEADERS } from "@/lib/supabase/__test-helpers__/acting-person-double"
 import { NextRequest } from "next/server"
 
 // The first dynamic import() of ./route in this file pulls document-service.ts
@@ -53,6 +54,7 @@ async function mockDeps(docs: unknown[]) {
   const authActual = await import("@/lib/supabase/auth-guard")
   mock.module("@/lib/supabase/auth-guard", () => ({
     ...authActual,
+    ...actingPersonDouble(),
     requireAuthOrApiKey: mock(async () => ({ orgId: "org-1", dbUser: null, apiKey: { id: "key-1" }, response: null })),
   }))
 
@@ -158,6 +160,7 @@ describe("POST /api/v1/projexa/permits -- create, then GET lists it with its PDF
     const authActual = await import("@/lib/supabase/auth-guard")
     mock.module("@/lib/supabase/auth-guard", () => ({
       ...authActual,
+      ...actingPersonDouble(),
       requireAuthOrApiKey: mock(async () => ({
         orgId: "org-1",
         dbUser: null,
@@ -195,7 +198,8 @@ describe("POST /api/v1/projexa/permits -- create, then GET lists it with its PDF
   function postRequest(formData: FormData) {
     return new NextRequest("http://localhost/api/v1/projexa/permits", {
       method: "POST",
-      headers: { authorization: "Bearer vk_test" },
+      // U-20b: an API-key write names its person, as PROJEXA's proxy now must.
+      headers: { authorization: "Bearer vk_test", ...ACTING_HEADERS },
       body: formData,
     })
   }

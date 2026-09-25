@@ -11,7 +11,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, desc, eq, gte, lte, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { listDocuments } from "./document-service"
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { users as usersTable } from "@/lib/db"
 // R67 F-27 (R-243): logging or deleting progress moves % complete, earned
 // value and the progress bar on the per-project dashboard, which now holds a
@@ -971,7 +971,7 @@ export async function setActivityCompletionManually(
   ctx: { orgId: string; userId: string },
   issueId: string,
   input: { completionPercentage: number; note: string },
-  audit?: { dbUser?: typeof usersTable.$inferSelect; apiKey?: { id: string; name: string } }
+  audit?: { dbUser?: typeof usersTable.$inferSelect; apiKey?: { id: string; name: string }; actingViaApiKey?: true }
 ) {
   const note = input.note?.trim()
   if (!note) throw new ServiceError("A note is required when you set the percentage manually", 400)
@@ -997,7 +997,9 @@ export async function setActivityCompletionManually(
 
     // Same transaction as the write it explains -- an override whose reason
     // failed to record is exactly the state this function exists to prevent.
-    if (audit?.dbUser) {
+    // U-20b: auditActorOf keeps the person AND the key when an API-key caller
+    // named the person it acts for (actingViaApiKey).
+    if (audit && (audit.dbUser || audit.apiKey)) {
       await logActivity({
         tx: db,
         action: "pms_issue.completion_manual_override",
@@ -1005,17 +1007,7 @@ export async function setActivityCompletionManually(
         entityId: issueId,
         details: `Set to ${Math.round(input.completionPercentage)}% manually (was ${issue.completionPercentage}%, source ${issue.completionSource}). Reason: ${note}`,
         orgId: ctx.orgId,
-        dbUser: audit.dbUser,
-      })
-    } else if (audit?.apiKey) {
-      await logActivity({
-        tx: db,
-        action: "pms_issue.completion_manual_override",
-        entityType: "pms_issue",
-        entityId: issueId,
-        details: `Set to ${Math.round(input.completionPercentage)}% manually (was ${issue.completionPercentage}%, source ${issue.completionSource}). Reason: ${note}`,
-        orgId: ctx.orgId,
-        apiKey: audit.apiKey,
+        ...auditActorOf(audit),
       })
     }
 

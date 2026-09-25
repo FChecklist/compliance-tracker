@@ -21,8 +21,10 @@
 //                                  CALL EVER
 import { NextRequest, NextResponse } from "next/server"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, type CombinedAuthContext } from "@/lib/supabase/auth-guard"
 import { resolveFinancialRole } from "@/lib/supabase/acting-role"
+import { assertKeyProjectScope, keyProjectScope } from "@/lib/supabase/api-key-auth"
+import { ServiceError } from "@/lib/services/compliance-service"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { pipelineTasks, submissions } from "@/lib/db/schema"
 import { runSubmission, runDirectTask, proposeSubmission, submitForVerdict, confirmSubmission } from "@/lib/pipeline/run-submission"
@@ -87,6 +89,21 @@ async function resolveActorUserId(
   return user?.id ?? null
 }
 
+/**
+ * PROJEXA-BUILD-001 U-19 (BR-213): a project_ai key acts on its own project
+ * only. Every branch of POST reads the body's projectId, and the pill and
+ * confirm branches also params.projectId, so both are held to the key -- a
+ * 403 before anything is written. A session or an org_service key: null.
+ */
+function keyScopeRefusal(ctx: CombinedAuthContext, projectId: string | null, body: Record<string, unknown>): NextResponse | null {
+  const params = (body.params ?? {}) as Record<string, unknown>
+  for (const named of [projectId, typeof params.projectId === "string" ? params.projectId : null]) {
+    const check = assertKeyProjectScope(ctx.apiKey, named)
+    if (!check.ok) return NextResponse.json({ error: check.message }, { status: check.status })
+  }
+  return null
+}
+
 async function POST_impl(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
@@ -106,6 +123,13 @@ async function POST_impl(request: NextRequest) {
 
   const mode = typeof body.mode === "string" ? body.mode : "Projects"
   const projectId = typeof body.projectId === "string" ? body.projectId : null
+  // PROJEXA-BUILD-001 U-19 (BR-213): see keyScopeRefusal(). Every pipeline
+  // call below gets the key's project as projectScope, which also refuses a
+  // project the classifier names and a stored submission of another project
+  // (ServiceError 403, mapped in the catch). A session or org_service key: null.
+  const scopeRefusal = keyScopeRefusal(ctx, projectId, body)
+  if (scopeRefusal) return scopeRefusal
+  const projectScope = keyProjectScope(ctx.apiKey)
   // R67 C-03 (D-05): the real person, when the caller identified one.
   const actorUserId = await resolveActorUserId(ctx, body)
   // PROJEXA-BUILD-001 U-01b: the role every branch below redacts construction
@@ -135,6 +159,7 @@ async function POST_impl(request: NextRequest) {
         projectId,
         rawInput,
         role: financialRole,
+        projectScope,
       })
       // 200, not 201: nothing was created.
       return NextResponse.json(proposal, { status: 200 })
@@ -158,6 +183,7 @@ async function POST_impl(request: NextRequest) {
         params: (body.params as Record<string, unknown>) ?? {},
         role: financialRole,
         actorUserId,
+        projectScope,
       })
       if (outcome.ok) return NextResponse.json(outcome.result, { status: 201 })
       if (outcome.reason === "not_found") {
@@ -181,6 +207,7 @@ async function POST_impl(request: NextRequest) {
         note: typeof body.rawInput === "string" ? body.rawInput : undefined,
         role: financialRole,
         actorUserId,
+        projectScope,
       })
       return NextResponse.json(result, { status: 201 })
     }
@@ -214,6 +241,7 @@ async function POST_impl(request: NextRequest) {
         rawInput,
         role: financialRole,
         actorUserId,
+        projectScope,
       })
       return NextResponse.json(result, { status: 201 })
     }
@@ -226,13 +254,17 @@ async function POST_impl(request: NextRequest) {
       selectedChain: body.selectedChain,
       rawInput,
       role: financialRole,
+      projectScope,
     })
     // 200, not 201: a verdict creates no task.
     return NextResponse.json(verdict, { status: 200 })
   } catch (error) {
     console.error("v1 projexa tasks POST error:", error)
     const message = error instanceof Error ? error.message : "Failed to create a task"
-    return NextResponse.json({ error: message }, { status: 400 })
+    // U-19: the pipeline's project-scope refusal (a stored submission of
+    // another project on confirm) keeps its 403; everything else is 400 as before.
+    const status = error instanceof ServiceError && error.status === 403 ? 403 : 400
+    return NextResponse.json({ error: message }, { status })
   }
 }
 

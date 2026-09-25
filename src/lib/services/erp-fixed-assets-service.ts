@@ -27,7 +27,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, lte, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
 import { startApprovalWorkflow } from "./approval-workflow-service"
 import { createJournalEntry, submitJournalEntry, voidDraftJournalEntry, type JournalEntryLineInput } from "./erp-accounting-service"
@@ -42,7 +42,7 @@ import { logger } from "@/lib/logger"
 // the GL (submit/dispose/depreciation-run) keeps requiring a real dbUser.
 
 function actorLogFields(ctx: ActorCtx) {
-  return ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }
+  return auditActorOf(ctx)
 }
 
 // ============================================================

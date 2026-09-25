@@ -7,7 +7,7 @@
 // of the base shape from day one -- this route has no legacy flat-array
 // caller to preserve compatibility with.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { requirePermission } from "@/lib/services/permission-service"
 import { listQuotations, createQuotation, ServiceError, type QuotationItemInput } from "@/lib/services/erp-selling-service"
 
@@ -68,16 +68,16 @@ export async function POST(request: NextRequest) {
   const roleErr = requirePermission(ctx, "erp.quotations.create")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = await request.json()
     const items: QuotationItemInput[] = (body.items ?? []).map((i: QuotationItemInput) => ({
       itemId: i.itemId, description: i.description, quantity: i.quantity, rate: i.rate,
     }))
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: actorId, ...acting.actor }
     const quotation = await createQuotation(actorCtx, {
       customerId: body.customerId, leadId: body.leadId, projectId: body.projectId, companyId: body.companyId,
       quotationDate: body.quotationDate, validTill: body.validTill,

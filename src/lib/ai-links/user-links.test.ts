@@ -117,9 +117,10 @@ mock.module('@/lib/db/tenant-scoped', () => ({ withTenantContext }))
 
 // resolveAiLinkToken's own mock: set per-test to the snake_case row(s)
 // platform.rpc_resolve_ai_link_token()'s RETURNING clause would produce.
-let executeResult: { org_id: string; user_id: string }[] = []
+let executeResult: Record<string, unknown>[] = []
+const execute = mock(async (_query: SQL) => executeResult)
 mock.module('@/lib/db', () => ({
-  db: { execute: mock(async () => executeResult) },
+  db: { execute },
   userAiLinks: userAiLinksTable,
 }))
 
@@ -264,5 +265,77 @@ describe('user-links: VERIDIAN functions never touch a PROJEXA link (U-18, BR-28
 
     expect(revoked).toBe(false)
     expect(rows).toEqual(before)
+  })
+})
+
+// PROJEXA-BUILD-001 U-18 stage B (drizzle/0614): resolveAiLinkToken reads the
+// scope-carrying function and returns the link's scope with its identity. The
+// SQL itself (hash match, expiry, revocation, product binding) is proven on
+// PGlite by user-ai-links-resolve-by-hash.pglite.test.ts; this proves the
+// TypeScript side calls that function and maps its row.
+describe('resolveAiLinkToken: the identity carries the link scope (U-18, drizzle/0614)', () => {
+  beforeEach(() => {
+    executeResult = []
+    execute.mockClear()
+  })
+
+  const scopedRow = (overrides: Record<string, unknown> = {}) => ({
+    id: 'link_1',
+    org_id: 'org1',
+    user_id: 'user1',
+    product: 'projexa',
+    project_id: 'project_a',
+    authority_level: 1,
+    allowed_functions: ['record_work_progress'],
+    hide_personal: false,
+    expires_at: '2026-10-02 10:00:00+00',
+    ...overrides,
+  })
+
+  test('it calls platform.rpc_resolve_ai_link_scoped with the token as its only parameter', async () => {
+    await resolveAiLinkToken(`pxa_${'a'.repeat(64)}`)
+
+    expect(execute.mock.calls.length).toBe(1)
+    const { sql: text, params } = new PgDialect().sqlToQuery(execute.mock.calls[0][0])
+    expect(text).toBe('SELECT * FROM platform.rpc_resolve_ai_link_scoped($1::text)')
+    expect(params).toEqual([`pxa_${'a'.repeat(64)}`])
+  })
+
+  test('a projexa link resolves to its org, user, project, level, functions and hide_personal', async () => {
+    executeResult = [scopedRow()]
+
+    const identity = await resolveAiLinkToken(`pxa_${'a'.repeat(64)}`)
+
+    expect(identity).toStrictEqual({
+      orgId: 'org1',
+      userId: 'user1',
+      product: 'projexa',
+      projectId: 'project_a',
+      authorityLevel: 1,
+      allowedFunctions: ['record_work_progress'],
+      hidePersonal: false,
+    })
+  })
+
+  test('a veridian link resolves org-wide: projectId null, as before 0613', async () => {
+    executeResult = [scopedRow({ product: 'veridian', project_id: null, authority_level: 0, allowed_functions: [], hide_personal: true, expires_at: null })]
+
+    const identity = await resolveAiLinkToken('v'.repeat(43))
+
+    expect(identity).toStrictEqual({
+      orgId: 'org1',
+      userId: 'user1',
+      product: 'veridian',
+      projectId: null,
+      authorityLevel: 0,
+      allowedFunctions: [],
+      hidePersonal: true,
+    })
+  })
+
+  test('two rows for one token are refused like none -- a token names one link or nothing', async () => {
+    executeResult = [scopedRow(), scopedRow({ id: 'link_2', user_id: 'user2' })]
+
+    expect(await resolveAiLinkToken(`pxa_${'a'.repeat(64)}`)).toBeNull()
   })
 })
