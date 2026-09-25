@@ -20,3 +20,5 @@
 # U-22, the evidence columns on platform.sumeet_requirements (phase 3). Its data file 0617 is not listed: it changes rows,
 # not the schema, so a schema-hash rehearsal would read "forward changed nothing"; its proof is the PGlite test.
 0616_build001_requirement_evidence
+# U-25, the PROJEXA identity gateway (Edge Function projexa-read: switch table + projexa_read_* wrappers).
+0618_build001_projexa_gateway
