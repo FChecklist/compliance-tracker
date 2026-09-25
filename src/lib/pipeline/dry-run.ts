@@ -127,11 +127,13 @@ export type DryRunProposal = {
  *               model calls: a reuse_cache hit is exactly that. What separates
  *               a free answer from a paid one is modelCalls/cacheHits, never
  *               this field.
- *   refused     assertAiProviderAllowed() (ai/adapter.ts:63-88, called from
- *               level1.ts:96) threw BEFORE any model work because the caller is
+ *   refused     assertAiProviderAllowed() (ai/adapter.ts:120-141, called from
+ *               level1.ts:99) threw BEFORE any model work because the caller is
  *               not RAJAT_USER_ID. The AI was switched OFF for this request.
- *               RAJAT_USER_ID is absent from Vercel Production, so today this
- *               is the outcome for every end user there.
+ *               RAJAT_USER_ID has been set on Vercel Production since 2026-09-18,
+ *               so under claude-cli / claude-cli-remote only the one identity
+ *               equal to it passes and every other identity is refused. On the
+ *               PROJEXA proxy that identity is an api_keys id, not a person.
  *   error       anything else threw -- a misconfigured provider, a repo
  *               failure. A fault, not a policy decision.
  *
