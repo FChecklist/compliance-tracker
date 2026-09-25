@@ -34,6 +34,8 @@ import { toVerdictResult, type SubmissionVerdictResult } from "./verdict";
 import { makeChainOptionsRepo } from "@/lib/services/chain-options-service";
 import { assertAiProviderAllowed } from "@/lib/ai/adapter";
 import { createMemoryRecord } from "@/lib/services/memory-service";
+import { ServiceError } from "@/lib/services/compliance-service";
+import { assertProjectInScope } from "@/lib/ai-links/project-scope";
 
 // M26: "Pass the module's 5-15 functions ... NEVER 400 unbound functions --
 // that is where it hallucinates." The candidate set is exactly what
@@ -112,10 +114,18 @@ export function buildValidationContext(args: {
    * comes back as ServiceError 404 -> RECORD_NOT_FOUND).
    */
   params?: Record<string, unknown>;
+  /**
+   * PROJEXA-BUILD-001 U-18 (BR-288): for a project-scoped caller (see
+   * RunSubmissionInput.projectScope) the scope is the ONLY reachable project.
+   * The request's params are not seeded, so a project the classifier or the
+   * caller's params name is refused as PROJECT_NOT_REACHABLE before a task is
+   * minted. Here the set IS a boundary, not only a hallucination guard.
+   */
+  projectScope?: string | null;
 }): ValidationContext {
-  const requestedProjectIds = [args.projectId, args.params?.projectId].filter(
-    (id): id is string => typeof id === "string" && id.trim().length > 0
-  );
+  const requestedProjectIds = args.projectScope
+    ? [args.projectScope]
+    : [args.projectId, args.params?.projectId].filter((id): id is string => typeof id === "string" && id.trim().length > 0);
   return {
     candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
     boqLineItemIds: args.boq?.lineItemIds ?? new Set<string>(),
@@ -177,7 +187,30 @@ export type RunSubmissionInput = {
    * Omitted or "internal" is the behaviour every other caller had before.
    */
   level1?: "internal" | "off";
+  /**
+   * PROJEXA-BUILD-001 U-18 / U-19 (BR-210, BR-213, BR-288): the one project a
+   * project-scoped credential -- a PROJEXA work link, a project_ai API key --
+   * may act on. When set, the submission runs on that project: a `projectId`
+   * naming another one is refused with ServiceError 403 before anything is
+   * written, a missing one becomes the scope, and a project the classifier or
+   * the params name is refused by validate() (PROJECT_NOT_REACHABLE). Omitted
+   * or null is every org-wide caller's behaviour, unchanged.
+   */
+  projectScope?: string | null;
 };
+
+/**
+ * U-18: pins a scoped input to its project, or refuses it with ServiceError
+ * 403 (assertProjectInScope, the rule every scoped surface shares). Every entry
+ * point below calls it before its first write.
+ */
+function pinToProjectScope<T extends { projectId?: string | null; projectScope?: string | null }>(input: T): T {
+  const scope = input.projectScope ?? null;
+  if (!scope) return input;
+  const check = assertProjectInScope({ projectId: scope }, input.projectId);
+  if (!check.ok) throw new ServiceError(check.message, check.status);
+  return { ...input, projectId: scope };
+}
 
 export type TaskOutcome = {
   taskId: string;
@@ -356,7 +389,9 @@ function l0ToResolution(r: L0Result): ResolvedFunction | null {
   return { functionId: r.functionId, params: r.params, source: r.source, level: 0 };
 }
 
-export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmissionResult> {
+export async function runSubmission(submitted: RunSubmissionInput): Promise<RunSubmissionResult> {
+  // U-18: before anything is written, including the submissions row.
+  const input = pinToProjectScope(submitted);
   modelCallCount = 0;
   const { segments: segs, flagged } = segment(input.rawInput);
   if (segs.length === 0) {
@@ -463,6 +498,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       projectLabel: rootLabel,
       boq: await boqFacts(c.params),
       params: c.params,
+      projectScope: input.projectScope ?? null,
     });
 
     const v = validate({ functionId: c.functionId, params: c.params }, validationCtx);
@@ -660,9 +696,13 @@ export type RunDirectTaskInput = {
   existingSubmissionId?: string;
   /** R67 C-03 (D-05) -- see RunSubmissionInput.actorUserId. */
   actorUserId?: string | null;
+  /** U-18 / U-19 -- see RunSubmissionInput.projectScope. A pill's params.projectId is held to it by validate(). */
+  projectScope?: string | null;
 };
 
-export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmissionResult> {
+export async function runDirectTask(submitted: RunDirectTaskInput): Promise<RunSubmissionResult> {
+  // U-18: before anything is written, including the submissions row.
+  const input = pinToProjectScope(submitted);
   const params = input.params ?? {};
   const base: RunSubmissionInput = {
     orgId: input.orgId,
@@ -672,6 +712,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     rawInput: input.note ?? `[pill] ${input.functionId}`,
     role: input.role,
     actorUserId: input.actorUserId ?? null,
+    projectScope: input.projectScope ?? null,
   };
 
   const submissionId =
@@ -718,6 +759,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     projectLabel: rootLabel,
     boq: await makeBoqFactsResolver(input.orgId, input.userId, input.projectId ?? null)(params),
     params,
+    projectScope: input.projectScope ?? null,
   });
   const v = validate({ functionId: input.functionId, params }, validationCtx);
   if (!v.valid) {
@@ -1204,7 +1246,14 @@ export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunD
           lineItemId: l.id,
         }));
     },
-    runRead: (task) => executeTask(task),
+    // U-18: a dry run's only data access. For a scoped caller a read on a
+    // project the classifier named, other than the scope, is refused here.
+    runRead: async (task) => {
+      if (!assertProjectInScope({ projectId: input.projectScope ?? null }, task.projectId).ok) {
+        return { success: false, failure: pipelineFailure("PROJECT_NOT_REACHABLE", ["projectId"]) };
+      }
+      return executeTask(task);
+    },
     providerAvailable: () => {
       try {
         // Explicit level, matching level1.ts/analyse.ts (P1.1): this checks
@@ -1221,7 +1270,8 @@ export async function makeDryRunDeps(input: RunSubmissionInput): Promise<DryRunD
 }
 
 /** The one call a route makes: build the real deps, then propose. */
-export async function proposeSubmission(input: RunSubmissionInput): Promise<DryRunResult> {
+export async function proposeSubmission(submitted: RunSubmissionInput): Promise<DryRunResult> {
+  const input = pinToProjectScope(submitted);
   const deps = await makeDryRunDeps(input);
   return dryRun({ ...input, candidateFunctionIds: CANDIDATE_FUNCTION_IDS }, deps);
 }
@@ -1277,7 +1327,8 @@ function refusalCodeFor(t: DryRunTelemetry): string | null {
   return "unknown";
 }
 
-export async function submitForVerdict(input: RunSubmissionInput): Promise<SubmitVerdictResult> {
+export async function submitForVerdict(submitted: RunSubmissionInput): Promise<SubmitVerdictResult> {
+  const input = pinToProjectScope(submitted);
   const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
     const [row] = await db
       .insert(submissions)
@@ -1369,6 +1420,8 @@ export type ConfirmSubmissionInput = {
   role?: string | null;
   /** R67 C-03 (D-05) -- see RunSubmissionInput.actorUserId. */
   actorUserId?: string | null;
+  /** U-18 / U-19 -- see RunSubmissionInput.projectScope. A stored submission of another project is refused (403). */
+  projectScope?: string | null;
 };
 
 export type ConfirmSubmissionOutcome =
@@ -1412,14 +1465,17 @@ export async function confirmSubmission(input: ConfirmSubmissionInput): Promise<
   });
   if (!row) return { ok: false, reason: "not_found" };
 
-  const base: RunSubmissionInput = {
+  // U-18: a scoped caller may confirm only a submission of its own project
+  // (or one that named none, which then runs on the scope).
+  const base: RunSubmissionInput = pinToProjectScope({
     orgId: input.orgId,
     userId: input.userId,
     mode: row.mode,
     projectId: row.projectId,
     rawInput: row.rawInput,
     role: input.role,
-  };
+    projectScope: input.projectScope ?? null,
+  });
 
   const proposal = await proposeSubmission(base);
   const first = proposal.proposals.find((p) => p.functionId) ?? null;
@@ -1433,7 +1489,7 @@ export async function confirmSubmission(input: ConfirmSubmissionInput): Promise<
   }
 
   const params: Record<string, unknown> = { ...first.params, ...(input.params ?? {}) };
-  const stillMissing = missingParamsFor(first.functionId, params, row.projectId);
+  const stillMissing = missingParamsFor(first.functionId, params, base.projectId ?? null);
   if (stillMissing.length > 0) {
     return {
       ok: false,
@@ -1446,13 +1502,14 @@ export async function confirmSubmission(input: ConfirmSubmissionInput): Promise<
     orgId: input.orgId,
     userId: input.userId,
     mode: row.mode,
-    projectId: (typeof params.projectId === "string" ? params.projectId : null) ?? row.projectId,
+    projectId: (typeof params.projectId === "string" ? params.projectId : null) ?? base.projectId ?? null,
     functionId: first.functionId,
     params,
     note: row.rawInput,
     role: input.role,
     actorUserId: input.actorUserId ?? null,
     existingSubmissionId: row.id,
+    projectScope: input.projectScope ?? null,
   });
   return { ok: true, result };
 }
