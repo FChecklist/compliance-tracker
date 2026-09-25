@@ -52,10 +52,19 @@ type CommonLogActivityParams = {
 // be supplied so every audit row still gets a real actor, never a silent
 // gap. The discriminated union makes it a compile error to pass neither or
 // both, rather than a runtime surprise.
+//
+// PROJEXA-BUILD-001 U-20 (2026-09-25): the third variant is the ONE way to pass
+// both, and it must say so (`actingViaApiKey: true`). It is for a call that an
+// API key authenticated but whose acting PERSON was resolved (resolveActingUser:
+// X-Acting-User / actorEmail). Before this, that call had to pass `dbUser`
+// alone and the key id was dropped, or `apiKey` alone and the person was
+// dropped: 267 of 267 key-attributed audit rows ever written had no person
+// (live SELECT 2026-09-25). Now one row records the key AND the person.
 export type LogActivityParams = CommonLogActivityParams &
   (
-    | { dbUser: typeof users.$inferSelect; apiKey?: never }
-    | { dbUser?: never; apiKey: { id: string; name: string } }
+    | { dbUser: typeof users.$inferSelect; apiKey?: never; actingViaApiKey?: never }
+    | { dbUser?: never; apiKey: { id: string; name: string }; actingViaApiKey?: never }
+    | { dbUser: typeof users.$inferSelect; apiKey: { id: string; name: string }; actingViaApiKey: true }
   )
 
 function extractIp(request?: Request): string | undefined {
@@ -112,7 +121,13 @@ export async function logActivity(params: LogActivityParams): Promise<void> {
   // or deactivated, this row must keep showing who they were AT THE TIME of
   // the action, not whatever the users/api_keys table says today.
   const actor = params.dbUser
-    ? { userId: params.dbUser.id, actorName: params.dbUser.name, actorRole: params.dbUser.role, apiKeyId: null as string | null }
+    ? {
+        userId: params.dbUser.id,
+        actorName: params.dbUser.name,
+        actorRole: params.dbUser.role,
+        // U-20: the key id is kept when an API key acted on behalf of this person.
+        apiKeyId: params.actingViaApiKey ? params.apiKey.id : (null as string | null),
+      }
     : { userId: null as string | null, actorName: `API Key: ${params.apiKey.name}`, actorRole: "api_key", apiKeyId: params.apiKey.id }
 
   await tx.insert(auditLogs).values({

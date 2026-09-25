@@ -269,11 +269,19 @@ export function checkRehearsal(name, rows, forwardSha) {
   return { ok: true, reason: `PASS_ROLLED_BACK h0=${h0} logged ${when} by ${who.trim()}`, row }
 }
 
-/** Schemas a replay must hash: every CREATE SCHEMA in the base snapshot and in the forward file. */
+/**
+ * Schemas a replay must hash: every CREATE SCHEMA in the base snapshot and in the forward file, plus the schema of every
+ * schema-qualified CREATE [OR REPLACE] FUNCTION or PROCEDURE (a migration that only adds functions to an existing schema such as
+ * public creates no schema, so 0615's three public.projexa_timer_* functions would otherwise fall outside the hash).
+ */
 export function touchedSchemas(...sqlTexts) {
   const out = []
   for (const text of sqlTexts) {
     const masked = maskSql(text)
+    for (const m of masked.matchAll(/\bcreate\s+(?:or\s+replace\s+)?(?:function|procedure)\s+([a-z_][a-z0-9_]*)\s*\./gi)) {
+      const s = m[1].toLowerCase()
+      if (!out.includes(s)) out.push(s)
+    }
     for (const m of masked.matchAll(/\bcreate\s+schema\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)/gi)) {
       const s = m[1].toLowerCase()
       if (!out.includes(s)) out.push(s)
