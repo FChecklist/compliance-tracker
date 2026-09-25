@@ -756,6 +756,14 @@ export const auditLogs = complianceSchemaDB.table('audit_logs', {
   // Callers that DO know the office/branch context of the write (e.g. a
   // route that already loaded the client's branchId) can pass it directly.
   officeId: text('office_id'),
+  // PROJEXA-BUILD-001 U-32 (BR-415): which of the four surfaces the write came
+  // from, one of audit.ts's AUDIT_SURFACES or NULL (CHECK
+  // audit_logs_surface_check); set only through logActivity()'s optional
+  // `surface`. drizzle/0619_build001_audit_surface.sql must be applied live
+  // before a build carrying this line serves traffic, because with it declared
+  // every Drizzle insert into audit_logs names the column (DEFAULT when no
+  // value is given) and every whole-row select reads it.
+  surface: text('surface'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
