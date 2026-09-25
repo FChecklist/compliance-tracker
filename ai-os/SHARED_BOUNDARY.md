@@ -31,7 +31,7 @@ R4. Schemas each product may create objects in (proposed by the PM under PMD-18;
 | Schema in verdian-ai | PROJEXA may create objects | DPDP may create objects | VERIDIAN AI-OS may create objects |
 |---|---|---|---|
 | `compliance` | YES (construction_* tables and PROJEXA proxy support) | NO | YES |
-| `platform` | ONLY objects listed in section 3 as PROJEXA-owned (user_ai_links per PMD-16, sumeet_requirements register columns per OQ-21, and `platform.rpc_resolve_ai_link_scoped`, the resolver of user_ai_links rows, added 2026-09-25 by migration 0614 with EXECUTE for `app_runtime` only; planned under U-46: the five `platform.ai_work_link_*` tables named in ACTIVE-CLAIMS) | NO | YES |
+| `platform` | ONLY objects listed in section 3 as PROJEXA-owned (user_ai_links per PMD-16, sumeet_requirements register columns per OQ-21, and `platform.rpc_resolve_ai_link_scoped`, the resolver of user_ai_links rows, added 2026-09-25 by migration 0614 with EXECUTE for `app_runtime` only; planned: `platform.projexa_gateway_settings` (U-25, the gateway switch) and, under U-46, the five `platform.ai_work_link_*` tables named in ACTIVE-CLAIMS) | NO | YES |
 | `dpdp` | NO | YES | NO |
 | `public` | ONLY `projexa_timer_*` functions, granted to `service_role` alone (PMD-12; the Edge Function reaches the database through PostgREST, which exposes only `public`) | YES (dpdp_* RPCs) | NO |
 
@@ -120,6 +120,7 @@ Notes (A09 s2):
 | rotate-demo-password-r38 | PROJEXA | ACTIVE | 3 | true | 2026-08-24 19:44 | UNVERIFIED (not measured) | NO (same) | PROJEXA test tooling (PM proposal, no PMD row) | Test and demo tooling |
 
 | projexa-timer | verdian-ai | ACTIVE | 1 | false | 2026-09-25 11:02 | 2 (both from pg_net by hand, 200) | YES (supabase/functions/projexa-timer, 4 files) | PROJEXA | Target of the PROJEXA cron job; bearer checked through public.projexa_timer_check_bearer (Vault) like dpdp-monday-email; fetches open.er-api.com from Deno |
+| (planned) projexa-read | verdian-ai | not deployed yet | - | false | - | - | will be `supabase/functions/projexa-read` | PROJEXA | The identity gateway (PMD-01): verifies a PROJEXA ES256 access token against the PROJEXA key set, maps it to a linked compliance.users row, and returns that organisation's rows through service_role-only `public.projexa_read_*` functions; claimed 2026-09-25 (U-25) |
 | (planned) ai-work-link | verdian-ai | not deployed yet | - | false | - | - | will be `supabase/functions/ai-work-link` | PROJEXA | The per-user, per-project AI work link endpoint (Markdown manual, OpenAPI, MCP, REST); the link token is the credential; no internal-AI path; claimed 2026-09-25 (U-46) |
 | (planned) ai-work-link-exec | verdian-ai | not deployed yet | - | false | - | - | will be `supabase/functions/ai-work-link-exec` | PROJEXA | Executes link reads and writes (spec option B, the same TypeScript source as the pipeline); no call to any Vercel route; claimed 2026-09-25 (U-46) |
 
