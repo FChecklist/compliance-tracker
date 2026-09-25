@@ -262,8 +262,10 @@ describe("drizzle/0621 to 0628 forward files on PGlite over the live-shaped base
     const del = await failure(db, "delete from platform.ai_work_link_call where id = 'call-1'")
     expect(del.code).toBe("42501")
     expect(del.message).toContain("append-only")
-    for (const col of ["method = 'POST'", "path = '/other'", "ip_prefix = '1.2.3.0/24'", "ua_family = 'x'", "org_id = 'o'", "link_id = null", "called_at = called_at + interval '1 minute'", "id = 'call-2'"]) {
-      const f = await failure(db, `update platform.ai_work_link_call set ${col} where id = 'call-1'`)
+    for (const col of ["method = 'POST'", "path = '/other'", "ip_prefix = '1.2.3.0/24'", "ua_family = 'x'", "org_id = 'o'", "link_id = 'no-such-link'", "called_at = called_at + interval '1 minute'", "id = 'call-2'"]) {
+      // status is set in the same update on purpose: the guard also refuses an update that fills no status, so without it a column that
+      // lost its freeze would still be refused and this loop could not tell
+      const f = await failure(db, `update platform.ai_work_link_call set ${col}, status = 200 where id = 'call-1'`)
       expect({ col, code: f.code }).toEqual({ col, code: "42501" })
     }
     // a fill must set status
