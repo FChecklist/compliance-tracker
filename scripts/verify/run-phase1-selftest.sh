@@ -135,7 +135,7 @@ def make_fixtures(pkg, fx):
             ct.append("src/app/api/v1/projexa/%s/sub%d/route.ts" % (mod, k))
     ct.append("src/app/api/v1/other/route.ts")
     wr(fx, "ct_list.txt", "\n".join(ct) + "\n")
-    ids = [r[0] for r in read_csv(pkg, F_REQ)[1:] if r and r[0].startswith("R-")]
+    ids = [r[0] for r in read_csv(pkg, F_REQ)[1:] if r]
     wr(fx, "live_ids.txt", "\n".join(ids) + "\n")
     rows = read_csv(pkg, F_CRON)
     hdr = rows[0]
