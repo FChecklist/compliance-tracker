@@ -14,7 +14,7 @@
 // JSON-schema validator library at all; the existing route already proves
 // this shape works in production.
 import { NextResponse } from "next/server";
-import { resolveAiLinkToken } from "@/lib/ai-links/user-links";
+import { resolveAiLinkOwnerRole, resolveAiLinkToken, type AiLinkIdentity } from "@/lib/ai-links/user-links";
 import { runSubmission } from "@/lib/pipeline/run-submission";
 import { failureLogLine } from "@/lib/pipeline/error-codes";
 
@@ -51,7 +51,13 @@ function rpcResult(id: unknown, result: unknown) {
   return { jsonrpc: "2.0", id, result };
 }
 
-async function handleTool(name: string, args: Record<string, unknown>, orgId: string, userId: string): Promise<unknown> {
+// PROJEXA-BUILD-001 U-01 (2026-09-25): `role` is the link owner's own
+// compliance.users role (resolveAiLinkOwnerRole), passed to runSubmission so
+// the pipeline's construction figures are redacted for a link owner below
+// manager. Both calls below used to pass no role, which the redaction read as
+// "show everything". null (no active user row) is passed through as null, and
+// the redaction treats it as not allowed -- it is never an error here.
+async function handleTool(name: string, args: Record<string, unknown>, orgId: string, userId: string, role: string | null): Promise<unknown> {
   if (name === "submit_task") {
     const rawInput = String(args.rawInput ?? "");
     if (!rawInput.trim()) throw new Error("rawInput is required");
@@ -60,12 +66,13 @@ async function handleTool(name: string, args: Record<string, unknown>, orgId: st
       mode: typeof args.mode === "string" ? args.mode : "Projects",
       projectId: typeof args.projectId === "string" ? args.projectId : null,
       rawInput,
+      role,
     });
   }
   if (name === "ask") {
     const question = String(args.question ?? "");
     if (!question.trim()) throw new Error("question is required");
-    const result = await runSubmission({ orgId, userId, mode: "Projects", projectId: null, rawInput: question });
+    const result = await runSubmission({ orgId, userId, mode: "Projects", projectId: null, rawInput: question, role });
     const said = result.chatMessages.join("\n").trim();
     if (said) return { answer: said };
     // R67 FIX PASS -- COLLATERAL OF REMOVING PROSE FROM THE PIPELINE.
@@ -87,7 +94,8 @@ async function handleTool(name: string, args: Record<string, unknown>, orgId: st
   throw new Error(`Unknown tool: ${name}`);
 }
 
-async function dispatch(body: Record<string, unknown>, orgId: string, userId: string) {
+async function dispatch(body: Record<string, unknown>, identity: AiLinkIdentity) {
+  const { orgId, userId } = identity;
   const { id, method, params } = body as { id: unknown; method: string; params: Record<string, unknown> };
 
   if (method === "initialize") {
@@ -105,7 +113,9 @@ async function dispatch(body: Record<string, unknown>, orgId: string, userId: st
     const toolName = params?.name as string;
     const toolArgs = (params?.arguments ?? {}) as Record<string, unknown>;
     try {
-      const result = await handleTool(toolName, toolArgs, orgId, userId);
+      // Read only for tools/call: initialize/tools/list/ping touch no figures.
+      const role = await resolveAiLinkOwnerRole(identity);
+      const result = await handleTool(toolName, toolArgs, orgId, userId, role);
       return rpcResult(id, { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] });
     } catch (err) {
       return rpcError(id, -32000, (err as Error).message);
@@ -132,7 +142,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     return NextResponse.json(rpcError(null, -32700, "Parse error"), { status: 400 });
   }
 
-  const response = await dispatch(body, identity.orgId, identity.userId);
+  const response = await dispatch(body, identity);
   if (response === null) return new NextResponse(null, { status: 204 });
   return NextResponse.json(response, { headers: { "Content-Type": "application/json" } });
 }

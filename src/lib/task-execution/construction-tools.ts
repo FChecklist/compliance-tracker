@@ -70,6 +70,39 @@ export const CONSTRUCTION_TOOL_CODES = new Set([
   "detect_construction_budget_schedule_risk",
 ])
 
+/**
+ * PROJEXA-BUILD-001 U-01 (2026-09-25): the one rule for "may this acting
+ * person see construction budget/margin/cost figures". True only when the
+ * role is KNOWN and ranks manager or above. It used to be
+ * `role ? rank >= manager : true` inline below, so every caller that did not
+ * thread a role through (the personal AI link, the pipeline's dispatch reads,
+ * an API-key call to the PROJEXA assistant) got the figures unredacted: an
+ * unknown role was read as "show everything". Unknown now reads as "redact".
+ * Exported so executor.ts's own dashboard redaction applies the same rule
+ * rather than a second copy of it.
+ */
+export function financialsAllowedForRole(role?: string | null): boolean {
+  if (!role) return false
+  return (ROLE_RANK[role as UserRole] ?? 0) >= ROLE_RANK.manager
+}
+
+/**
+ * U-01: the money fields a project dashboard read through these tools
+ * withholds from a caller financialsAllowedForRole() refuses -- the same list
+ * api/v1/projexa/dashboard/[projectId]/route.ts withholds. The two inline
+ * copies this replaces (here and executor.ts) both lacked ledgerBudget (the
+ * ERP ledger budget) and progressByBoqValuePct (percentByValue under its UI
+ * name), so a member still got both.
+ */
+export function redactProjectDashboardFinancials<T extends object>(dashboard: T) {
+  return {
+    ...dashboard,
+    budget: null, ledgerBudget: null, revenue: null, expenses: null,
+    projectValue: null, earnedValue: null, percentByValue: null, contractValue: null,
+    progressByBoqValuePct: null,
+  }
+}
+
 export async function dispatchConstructionTool(
   orgId: string,
   userId: string,
@@ -88,11 +121,10 @@ export async function dispatchConstructionTool(
   db?: TenantDb
 ): Promise<unknown> {
   // R48 gap-closure (2026-08-30, F089/F059): same rank check as the API
-  // routes' own redaction. `role` undefined (caller not yet wired to pass
-  // it) is treated as "unknown, don't redact" to preserve prior behavior
-  // for those callers -- see task-execution-engine.ts's dispatchTool() own
-  // comment.
-  const financialsAllowed = role ? (ROLE_RANK[role as UserRole] ?? 0) >= ROLE_RANK.manager : true
+  // routes' own redaction. U-01 (2026-09-25): `role` undefined/null (caller
+  // not wired to pass it) is now "unknown, so redact" -- see
+  // financialsAllowedForRole() above.
+  const financialsAllowed = financialsAllowedForRole(role)
 
   if (codeReference === "get_construction_project_dashboard") {
     const projectId = String(context?.inputs?.projectId ?? "")
@@ -102,9 +134,7 @@ export async function dispatchConstructionTool(
       ? (await getProjectDashboardsWithDb(db, { orgId }, [projectId]))[0]
       : await getProjectDashboard({ orgId }, projectId)
     if (!dashboard) throw new Error("Project not found")
-    if (!financialsAllowed) {
-      return { ...dashboard, budget: null, revenue: null, expenses: null, projectValue: null, earnedValue: null, percentByValue: null, contractValue: null }
-    }
+    if (!financialsAllowed) return redactProjectDashboardFinancials(dashboard)
     return dashboard
   }
 

@@ -18,7 +18,14 @@
 // regressed real, already-shipped, already-verified functionality. Said so
 // here rather than silently deviating, per the work order's own instruction.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import {
+  readActingUserEmail,
+  readActingUserId,
+  requireAuthOrApiKey,
+  requireRoleOrScope,
+  resolveActingUser,
+  type CombinedAuthContext,
+} from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { dispatchTool } from "@/lib/task-execution-engine"
 import { runSubmission } from "@/lib/pipeline/run-submission"
@@ -33,6 +40,43 @@ const ALLOWED_CODE_REFERENCES = [
   "detect_construction_budget_schedule_risk",
 ]
 
+/**
+ * PROJEXA-BUILD-001 U-01 (2026-09-25): the role the construction figures are
+ * redacted against. Both paths below used to pass `ctx.dbUser?.role ?? null`,
+ * and requireAuthOrApiKey() returns dbUser: null for an API-key caller --
+ * which is how PROJEXA's own assistant calls this route (one per-org key) --
+ * so the role was always null, and a null role used to mean "show the
+ * figures" to every PROJEXA user of every rank.
+ *
+ * - Session caller: its own dbUser.role, unchanged.
+ * - API-key caller that names the acting person (X-Acting-User /
+ *   X-Acting-User-Email headers, or actorEmail in the body -- the D-05
+ *   identity bridge): that person's role, via resolveActingUser(), the same
+ *   mechanism dashboard/route.ts's resolveRoleForFinancialVisibility() uses.
+ *   A named person who maps to no user keeps resolveActingUser()'s own 400
+ *   USER_NOT_LINKED. Any other resolution failure (a deactivated user) leaves
+ *   the role null, so the figures are redacted and the request still runs.
+ * - API-key caller that names nobody: role stays null, and the figures come
+ *   back redacted. Not an error -- the request still gets its answer.
+ */
+async function resolveFinancialRole(
+  ctx: CombinedAuthContext,
+  request: NextRequest,
+  body: Record<string, unknown>
+): Promise<{ role: string | null; error: NextResponse | null }> {
+  if (ctx.dbUser) return { role: ctx.dbUser.role, error: null }
+  const actorId = readActingUserId(request)
+  const bodyEmail = typeof body.actorEmail === "string" && body.actorEmail.trim() ? body.actorEmail.trim() : null
+  const actorEmail = readActingUserEmail(request) ?? bodyEmail
+  if (!actorId && !actorEmail) return { role: null, error: null }
+  const { user, error } = await resolveActingUser(ctx, actorEmail, actorId)
+  if (error) {
+    const payload = (await error.clone().json().catch(() => null)) as { code?: string } | null
+    return { role: null, error: payload?.code === "USER_NOT_LINKED" ? error : null }
+  }
+  return { role: user?.role ?? null, error: null }
+}
+
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
@@ -46,6 +90,8 @@ export async function POST(request: NextRequest) {
     const roleErr = requireRoleOrScope(ctx, "member", "write") // this path can write (record_work_progress etc), unlike the read-only codeReference path below
     if (roleErr) return roleErr
     try {
+      const financial = await resolveFinancialRole(ctx, request, body)
+      if (financial.error) return financial.error
       const result = await runSubmission({
         orgId: ctx.orgId,
         userId: actorId,
@@ -53,7 +99,7 @@ export async function POST(request: NextRequest) {
         projectId: typeof body.projectId === "string" ? body.projectId : null,
         selectedChain: body.selectedChain,
         rawInput: body.rawInput,
-        role: ctx.dbUser?.role ?? null,
+        role: financial.role,
       })
       return NextResponse.json(result, { status: 201 })
     } catch (error) {
@@ -63,7 +109,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Old codeReference path -- unchanged.
+  // Old codeReference path -- unchanged apart from U-01's role (resolveFinancialRole above).
   const roleErr = requireRoleOrScope(ctx, "member", "read")
   if (roleErr) return roleErr
 
@@ -73,8 +119,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `codeReference must be one of: ${ALLOWED_CODE_REFERENCES.join(", ")}` }, { status: 400 })
     }
 
+    const financial = await resolveFinancialRole(ctx, request, body)
+    if (financial.error) return financial.error
+
     const result = await withTenantContext({ orgId: ctx.orgId, userId: actorId }, (db) =>
-      dispatchTool(db, ctx.orgId!, actorId, codeReference, { inputs: body.inputs ?? {} }, ctx.dbUser?.role ?? null)
+      dispatchTool(db, ctx.orgId!, actorId, codeReference, { inputs: body.inputs ?? {} }, financial.role)
     )
     return NextResponse.json({ codeReference, result })
   } catch (error) {

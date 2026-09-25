@@ -100,10 +100,11 @@ registerAllGuardrails();
 
 // R48 gap-closure (2026-08-30, F089): optional `role` param, appended last
 // so every existing caller (chain-execution engine internals, fde-service.ts)
-// keeps compiling unchanged and keeps its current (unredacted) behavior --
-// only api/v1/projexa/assistant/route.ts's direct call is wired to pass it
-// today, since that is the one call site with a live session dbUser.role
-// available; see R48_PROGRESS.md's F089 entry for the honest remaining scope.
+// keeps compiling unchanged. PROJEXA-BUILD-001 U-01 (2026-09-25): a caller
+// that passes no role now gets the construction figures REDACTED, not shown
+// -- construction-tools.ts's financialsAllowedForRole() fails closed. Wired
+// to pass a real role: api/v1/projexa/assistant/route.ts and
+// pipeline/executor.ts's makeDispatchExecutor.
 //
 // VERIDIAN Review Framework gap-closure (AI Engineering Quality / Code
 // Structure & Modularity, 2026-08-15): this used to be one ~265-line
