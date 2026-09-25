@@ -2,6 +2,10 @@ import { createHash, timingSafeEqual } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { runDueSchedules } from "@/lib/pipeline/scheduler-bridge"
 
+// A run starts no new schedule after 45 s (DEFAULT_TIME_BUDGET_MS in scheduler-bridge.ts). 60 s leaves room for the schedule in
+// flight and is the most a Vercel Hobby project allows; the Edge Function waits 100 s for this route.
+export const maxDuration = 60
+
 /**
  * PROJEXA-BUILD-001 U-40 (BR-515): the last hop of the scheduler bridge. The pg_cron job projexa-scheduler-bridge posts to the
  * Edge Function of the same name (supabase/functions/projexa-scheduler-bridge), which calls this route with
