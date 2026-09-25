@@ -99,3 +99,10 @@ These are the actions the PM cannot take. Each is a plain step.
 ## Findings for the governance track (no owner action needed now)
 
 - AGENTS.md rule 9 names a Guardrail Presence Check CI job and a script `scripts/check-guardrail-presence.mjs`; neither exists on origin/main (finding F-A07-1, checked 2026-09-25). Rule 9 is therefore enforced by review only. Owner: VERIDIAN AI-OS track. PROJEXA does not create the job.
+
+## Q3 AND Q4 AS DECIDED (register row BR-411)
+
+| id | question | decision | file |
+|---|---|---|---|
+| Q3 | How much unattended authority may an email-triggered action have? (OQ-11) | PMD-05: email-triggered actions create proposals only. Reads and drafts run unattended. No write runs until a human confirms on the AI-prepared page or by reply-to-confirm. | PM_DECISIONS.md |
+| Q4 | Who adds the inbound email DNS records? (OQ-02) | PMD-06: DNS stays owner-only. The PM prepared the exact record list in DNS_RESEND_INBOUND_RECORDS.md; the MX values are copied from Resend by the owner. | DNS_RESEND_INBOUND_RECORDS.md |
