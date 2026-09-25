@@ -19,6 +19,7 @@ import { runSubmission, type RunSubmissionResult } from "@/lib/pipeline/run-subm
 import { failureLogLine } from "@/lib/pipeline/error-codes";
 import { ALL_FUNCTION_SPECS, type FunctionSpec } from "@/lib/pipeline/function-registry";
 import { hasExecutor } from "@/lib/pipeline/executor";
+import { assertProjectInScope } from "@/lib/ai-links/project-scope";
 
 const TOOL_DEFINITIONS = [
   {
@@ -49,6 +50,11 @@ const TOOL_DEFINITIONS = [
 function rpcError(id: unknown, code: number, message: string) {
   return { jsonrpc: "2.0", id, error: { code, message } };
 }
+
+// PROJEXA-BUILD-001 U-18 (BR-210): a JSON-RPC server error (the reserved
+// -32000..-32099 range) for "this link cannot act on that project", sent with
+// HTTP 403 so a client can tell it from a tool failure (-32000, HTTP 200).
+const PROJECT_OUT_OF_SCOPE = -32003;
 function rpcResult(id: unknown, result: unknown) {
   return { jsonrpc: "2.0", id, result };
 }
@@ -141,7 +147,21 @@ function unmatchedContent(result: RunSubmissionResult, unmatched: string[], tool
 // manager. Both calls below used to pass no role, which the redaction read as
 // "show everything". null (no active user row) is passed through as null, and
 // the redaction treats it as not allowed -- it is never an error here.
-async function handleTool(name: string, args: Record<string, unknown>, orgId: string, userId: string, role: string | null): Promise<ToolContent> {
+//
+// U-18 (BR-210): `projectScope` is the link's own project (a PROJEXA work
+// link) or null (a VERIDIAN link, org-wide as before). Both calls pass it to
+// runSubmission, which runs the submission on that project -- a call naming
+// no project is pinned to it -- and refuses any other project the text or the
+// params name. A call whose arguments name another project never gets here
+// (projectScopeRefusal, below).
+async function handleTool(
+  name: string,
+  args: Record<string, unknown>,
+  orgId: string,
+  userId: string,
+  role: string | null,
+  projectScope: string | null
+): Promise<ToolContent> {
   if (name === "submit_task") {
     const rawInput = String(args.rawInput ?? "");
     if (!rawInput.trim()) throw new Error("rawInput is required");
@@ -152,6 +172,7 @@ async function handleTool(name: string, args: Record<string, unknown>, orgId: st
       rawInput,
       role,
       level1: "off",
+      projectScope,
     });
     const unmatched = unmatchedSegments(result);
     if (unmatched.length > 0) return unmatchedContent(result, unmatched, "submit_task");
@@ -160,7 +181,7 @@ async function handleTool(name: string, args: Record<string, unknown>, orgId: st
   if (name === "ask") {
     const question = String(args.question ?? "");
     if (!question.trim()) throw new Error("question is required");
-    const result = await runSubmission({ orgId, userId, mode: "Projects", projectId: null, rawInput: question, role, level1: "off" });
+    const result = await runSubmission({ orgId, userId, mode: "Projects", projectId: null, rawInput: question, role, level1: "off", projectScope });
     const unmatched = unmatchedSegments(result);
     if (unmatched.length > 0) return unmatchedContent(result, unmatched, "ask");
     const said = result.chatMessages.join("\n").trim();
@@ -184,6 +205,21 @@ async function handleTool(name: string, args: Record<string, unknown>, orgId: st
   throw new Error(`Unknown tool: ${name}`);
 }
 
+/**
+ * U-18 (BR-210): the JSON-RPC error for a tools/call whose arguments name a
+ * project this link may not act on, or null. Checked in POST before dispatch,
+ * so a refused call resolves no role and runs nothing: no submission, no task,
+ * no business row. `identity.projectId ?? null`: a link resolved without one
+ * (every VERIDIAN link) is org-wide, exactly as before U-18.
+ */
+function projectScopeRefusal(body: Record<string, unknown>, identity: AiLinkIdentity) {
+  const { id, method, params } = body as { id: unknown; method: string; params?: Record<string, unknown> };
+  if (method !== "tools/call") return null;
+  const args = (params?.arguments ?? {}) as Record<string, unknown>;
+  const check = assertProjectInScope({ projectId: identity.projectId ?? null }, typeof args.projectId === "string" ? args.projectId : null);
+  return check.ok ? null : rpcError(id, PROJECT_OUT_OF_SCOPE, check.message);
+}
+
 async function dispatch(body: Record<string, unknown>, identity: AiLinkIdentity) {
   const { orgId, userId } = identity;
   const { id, method, params } = body as { id: unknown; method: string; params: Record<string, unknown> };
@@ -205,7 +241,7 @@ async function dispatch(body: Record<string, unknown>, identity: AiLinkIdentity)
     try {
       // Read only for tools/call: initialize/tools/list/ping touch no figures.
       const role = await resolveAiLinkOwnerRole(identity);
-      const content = await handleTool(toolName, toolArgs, orgId, userId, role);
+      const content = await handleTool(toolName, toolArgs, orgId, userId, role, identity.projectId ?? null);
       return rpcResult(id, { content });
     } catch (err) {
       return rpcError(id, -32000, (err as Error).message);
@@ -231,6 +267,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   } catch {
     return NextResponse.json(rpcError(null, -32700, "Parse error"), { status: 400 });
   }
+
+  const refusal = projectScopeRefusal(body, identity);
+  if (refusal) return NextResponse.json(refusal, { status: 403 });
 
   const response = await dispatch(body, identity);
   if (response === null) return new NextResponse(null, { status: 204 });

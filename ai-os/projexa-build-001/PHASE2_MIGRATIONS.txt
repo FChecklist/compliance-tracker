@@ -1,0 +1,19 @@
+# PROJEXA-BUILD-001 phase 2 (U-17, PMD-10): the migrations that must carry rollback evidence.
+#
+# One drizzle base name per line: the file name in drizzle/ without .sql (for example 0613_<short_description>).
+# Lines starting with # and blank lines are ignored; a # after a name starts a comment.
+#
+# For every name listed here:
+#   scripts/verify/rollback-rehearsals.sh (BR-206) requires drizzle/<name>.sql, drizzle/down/<name>.down.sql and a
+#     PASS_ROLLED_BACK row in ai-os/projexa-build-001/ROLLBACK_REHEARSALS.md whose forward_sha256 matches the file today;
+#   scripts/verify/rollback-replay.sh (BR-207) additionally requires scripts/verify/fixtures/<name>.base.sql and replays
+#     forward then down in PGlite.
+# Add the name in the same PR as the migration. Both checks pass with an empty list; a separate register row requires the
+# list to be non-empty once phase 2 has written its first migration.
+#
+# Listed so far (2026-09-25): U-18a, the link project scope columns.
+0613_build001_link_project_scope
+# U-18b, resolve a project link by the hash of its token.
+0614_build001_link_resolve_by_hash
+# U-21, the PROJEXA timer (exchange-rate refresh off Vercel).
+0615_build001_projexa_timer
