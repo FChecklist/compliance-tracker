@@ -100,9 +100,12 @@ CREATE TYPE compliance.user_role AS ENUM ('admin','manager','member','viewer','v
 
 const ID = "id text NOT NULL DEFAULT (gen_random_uuid())::text PRIMARY KEY"
 
-// Only the columns the ten cron functions read or write, with the live type, NOT NULL and default (2026-09-26).
+// Only the columns the ten cron functions read or write, with the live type, NOT NULL and default; compared with the live catalog on
+// 2026-09-26 (185 columns, no column missing, no type or NOT NULL difference). Differences that remain on purpose: crm_stage_history.id and
+// notices.id get a generated default here that the live tables do not have (the tests insert rows without an id), and the live enum-typed
+// defaults carry their type cast, which the fixture leaves out.
 export const TABLE_SQL: Record<string, string> = {
-  organisations: `CREATE TABLE compliance.organisations (${ID}, name text NOT NULL, monthly_cost_cap_usd numeric, cost_cap_enforcement_enabled boolean NOT NULL DEFAULT true);`,
+  organisations: `CREATE TABLE compliance.organisations (${ID}, name text NOT NULL, monthly_cost_cap_usd numeric(10,2), cost_cap_enforcement_enabled boolean NOT NULL DEFAULT true);`,
   users: `CREATE TABLE compliance.users (${ID}, org_id text, role compliance.user_role NOT NULL DEFAULT 'member');`,
   clients: `CREATE TABLE compliance.clients (${ID}, org_id text NOT NULL);`,
   notifications: `CREATE TABLE compliance.notifications (${ID}, user_id text NOT NULL, title text NOT NULL, message text NOT NULL,
