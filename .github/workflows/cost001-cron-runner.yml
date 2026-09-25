@@ -32,9 +32,10 @@
 #      answers 401, by design. The run step checks for it and fails loudly.
 #
 # NOT DONE HERE, ON PURPOSE: no schedule is enabled (see the commented block
-# under `on:`), no secret is created, vercel.json is untouched (the Vercel
-# crons still exist until the owner approves the cut-over), no src/ file is
-# modified.
+# under `on:`), no secret is created, no src/ file is modified. The Vercel
+# crons were cut from vercel.json by PROJEXA-BUILD-001 U-41 (code only: the
+# ignoreCommand still skips every build), so until the schedule below is
+# enabled and CRON_SECRET exists, nothing in this file runs a cron by itself.
 name: COST-001 internal cron runner
 
 on:
