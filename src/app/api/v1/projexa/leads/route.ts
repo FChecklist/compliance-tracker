@@ -4,7 +4,7 @@
 // is an additive, paginated/filtered variant added this wave specifically
 // for this route (native VERIDIAN CRM UI keeps using the flat-array one).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listLeadsPaged, createLead, ServiceError } from "@/lib/services/crm-service"
 
 function toLeadShape(l: { id: string; name: string; contactEmail: string | null; contactPhone: string | null; source: string | null; status: string; ownerId: string | null; companyId: string | null; convertedClientId: string | null; aiScore: number | null; aiRecommendedAction: string | null; nextActionDate: string | null; nextActionNote: string | null; createdAt: Date; updatedAt: Date }) {
@@ -47,7 +47,9 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = await request.json()

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listSiteDiaries, createSiteDiary, ServiceError } from "@/lib/services/construction-site-diary-service"
 
 // A4S14_sitediary_01 (production incident): GET /api/v1/projexa/site-diary
@@ -84,7 +84,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
+    const actorId = acting.person.id
     const result = await createSiteDiary({ orgId: ctx.orgId, userId: actorId }, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {

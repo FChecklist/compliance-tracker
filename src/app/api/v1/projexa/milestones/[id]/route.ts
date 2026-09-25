@@ -6,7 +6,7 @@
 // enum already has it) is the append-only equivalent -- "ALL DATA WILL BE
 // LOGGED AND NOT DELETED" per the Owner's own requirement.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { updateMilestone, ServiceError, type MilestonePatch } from "@/lib/services/pms-taxonomy-service"
 import { withRouteTiming } from "@/lib/route-timing"
 
@@ -20,7 +20,9 @@ async function PATCH_impl(request: NextRequest, { params }: { params: Promise<{ 
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
   const { id } = await params
 
   try {

@@ -6,7 +6,7 @@
 // erp-buying-service.ts's supplier master data with no upstream
 // authorization trail.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listPurchaseRequisitions, createPurchaseRequisition, ServiceError } from "@/lib/services/erp-procurement-workflow-service"
 
 export async function GET(request: NextRequest) {
@@ -30,15 +30,15 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = await request.json()
     if (!body.items?.length) return NextResponse.json({ error: "At least one line item is required" }, { status: 400 })
     if (!body.postingDate) return NextResponse.json({ error: "postingDate is required" }, { status: 400 })
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: actorId, ...acting.actor }
     const requisition = await createPurchaseRequisition(actorCtx, {
       departmentId: body.departmentId, purpose: body.purpose, postingDate: body.postingDate, items: body.items,
     })

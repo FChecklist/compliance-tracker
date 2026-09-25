@@ -5,7 +5,13 @@
 // always attributed createdById to the shared PROJEXA API key row
 // (ctx.dbUser?.id ?? ctx.apiKey!.id), never the real logged-in person,
 // defeating that self-approval gate for the revision.
+//
+// PROJEXA-BUILD-001 U-20b: the route now uses requireActingPerson. The third
+// test used to pin the "no signal -> the key's own id" fallback; that
+// fallback is gone, so it now pins the refusal instead. The shared double
+// reads the request's real X-Acting-User header.
 import { describe, test, expect, mock } from "bun:test"
+import { actingPersonDouble } from "@/lib/supabase/__test-helpers__/acting-person-double"
 
 class ServiceError extends Error {
   status: number
@@ -15,22 +21,20 @@ class ServiceError extends Error {
   }
 }
 
-function mockAuth(ctx: {
-  orgId: string | null
-  roleErr?: Response | null
-  resolveWriteActorId?: () => Promise<{ actorId: string | null; error: Response | null }>
-}) {
+const PERSON_11 = { id: "real-person-11" }
+
+function mockAuth(ctx: { orgId: string | null; roleErr?: Response | null }) {
   mock.module("@/lib/supabase/auth-guard", () => ({
+    ...actingPersonDouble((actorId) => (actorId === "projexa-user-11" ? PERSON_11 : null)),
     requireAuthOrApiKey: mock(async () => ({
       orgId: ctx.orgId,
       dbUser: null,
-      apiKey: ctx.orgId ? { id: "shared-api-key-1" } : null,
+      apiKey: ctx.orgId ? { id: "shared-api-key-1", name: "PROJEXA org key" } : null,
       response: null,
     })),
     requireRoleOrScope: mock(() => ctx.roleErr ?? null),
     requireRole: mock(() => ctx.roleErr ?? null),
     hasRole: mock(() => true),
-    resolveWriteActorId: ctx.resolveWriteActorId ?? mock(async () => ({ actorId: "shared-api-key-1", error: null })),
   }))
 }
 
@@ -42,60 +46,53 @@ function mockService(overrides: Record<string, unknown> = {}) {
   }))
 }
 
+function post(headers: Record<string, string>) {
+  return { json: async () => ({}), headers: new Headers(headers) } as any
+}
+
 describe("POST /api/v1/projexa/quotations/[id]/revisions", () => {
   test("create attributes the revision's createdById to the REAL resolved acting user, not the shared API key", async () => {
-    const resolveWriteActorId = mock(async () => ({ actorId: "real-person-11", error: null }))
-    mockAuth({ orgId: "org-1", resolveWriteActorId })
+    mockAuth({ orgId: "org-1" })
     const createQuotationRevision = mock(async () => ({ id: "quote-rev-1" }))
     mockService({ createQuotationRevision })
 
     const { POST } = await import("./route")
-    const res = await POST(
-      { json: async () => ({}) } as any,
-      { params: Promise.resolve({ id: "quote-1" }) }
-    )
+    const res = await POST(post({ "X-Acting-User": "projexa-user-11" }), { params: Promise.resolve({ id: "quote-1" }) })
 
     expect(res.status).toBe(201)
     expect(createQuotationRevision).toHaveBeenCalledWith(
-      { orgId: "org-1", userId: "real-person-11", apiKey: { id: "shared-api-key-1" } },
+      {
+        orgId: "org-1", userId: "real-person-11",
+        dbUser: PERSON_11, apiKey: { id: "shared-api-key-1", name: "PROJEXA org key" }, actingViaApiKey: true,
+      },
       "quote-1",
       undefined
     )
   })
 
   test("create is refused, never silently mis-attributed, when the acting-user signal fails to resolve", async () => {
-    const refusal = new Response(JSON.stringify({ error: "USER_NOT_LINKED" }), { status: 400 })
-    const resolveWriteActorId = mock(async () => ({ actorId: null, error: refusal }))
-    mockAuth({ orgId: "org-1", resolveWriteActorId })
-    const createQuotationRevision = mock(async () => ({ id: "quote-rev-1" }))
-    mockService({ createQuotationRevision })
-
-    const { POST } = await import("./route")
-    const res = await POST(
-      { json: async () => ({}) } as any,
-      { params: Promise.resolve({ id: "quote-1" }) }
-    )
-
-    expect(res.status).toBe(400)
-    expect(createQuotationRevision).not.toHaveBeenCalled()
-  })
-
-  test("create falls back to the unchanged legacy actor id when no acting-user signal is sent (backward-compatible default)", async () => {
     mockAuth({ orgId: "org-1" })
     const createQuotationRevision = mock(async () => ({ id: "quote-rev-1" }))
     mockService({ createQuotationRevision })
 
     const { POST } = await import("./route")
-    const res = await POST(
-      { json: async () => ({}) } as any,
-      { params: Promise.resolve({ id: "quote-1" }) }
-    )
+    const res = await POST(post({ "X-Acting-User": "someone-unlinked" }), { params: Promise.resolve({ id: "quote-1" }) })
 
-    expect(res.status).toBe(201)
-    expect(createQuotationRevision).toHaveBeenCalledWith(
-      { orgId: "org-1", userId: "shared-api-key-1", apiKey: { id: "shared-api-key-1" } },
-      "quote-1",
-      undefined
-    )
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe("USER_NOT_LINKED")
+    expect(createQuotationRevision).not.toHaveBeenCalled()
+  })
+
+  test("U-20b: create with no acting-user signal is refused with ACTING_USER_REQUIRED -- the key's own id is never recorded", async () => {
+    mockAuth({ orgId: "org-1" })
+    const createQuotationRevision = mock(async () => ({ id: "quote-rev-1" }))
+    mockService({ createQuotationRevision })
+
+    const { POST } = await import("./route")
+    const res = await POST(post({}), { params: Promise.resolve({ id: "quote-1" }) })
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe("ACTING_USER_REQUIRED")
+    expect(createQuotationRevision).not.toHaveBeenCalled()
   })
 })

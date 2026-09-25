@@ -2,7 +2,7 @@
 // recruitment-service.ts's real ATS (job openings -> candidates ->
 // applications -> stage pipeline).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listJobOpenings, createJobOpening, ServiceError } from "@/lib/services/recruitment-service"
 
 export async function GET(request: NextRequest) {
@@ -26,8 +26,9 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "manager", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey?.id
-  if (!actorId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = await request.json()

@@ -3,9 +3,11 @@
 // other routes. addMeetingActionItem requires a real assigneeUserId when
 // the caller has no dbUser (API-key server-to-server calls, PROJEXA's
 // normal path) -- ctx.userId being null is otherwise honest but useless as
-// a task assignee.
+// a task assignee. U-20b: an API-key caller now always names the person it
+// acts for (X-Acting-User / X-Acting-User-Email), so ctx.userId is never null
+// here and the old "assigneeUserId is required" branch could not fire.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { addMeetingActionItem, ServiceError } from "@/lib/services/veri-meeting-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -15,17 +17,16 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
-  const actorId = ctx.dbUser?.id ?? null
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const { id } = await params
     const body = await request.json()
-    if (!actorId && !body.assigneeUserId) {
-      return NextResponse.json({ error: "assigneeUserId is required when creating an action item without a signed-in session" }, { status: 400 })
-    }
     const result = await addMeetingActionItem(
-      { orgId: ctx.orgId, userId: actorId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }) },
+      { orgId: ctx.orgId, userId: actorId, ...acting.actor },
       id,
       { title: body.title, assigneeUserId: body.assigneeUserId, dueDate: body.dueDate }
     )

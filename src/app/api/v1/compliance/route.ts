@@ -3,7 +3,7 @@
 // mobile app, or a reseller's white-labeled app gets a versioned path that
 // doesn't move when the internal (app)/ UI's routes are refactored.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { listComplianceItems, createComplianceItem, ServiceError } from "@/lib/services/compliance-service"
 
 export async function GET(request: NextRequest) {
@@ -43,9 +43,11 @@ export async function POST(request: NextRequest) {
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
+    const { acting, error: actingError } = await requireActingPerson(request, ctx)
+    if (actingError) return actingError
     const body = await request.json()
     const result = await createComplianceItem(
-      { orgId: ctx.orgId, actor: ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }, request },
+      { orgId: ctx.orgId, actor: acting.actor, request },
       body
     )
     return NextResponse.json(result, { status: 201 })

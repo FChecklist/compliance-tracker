@@ -20,7 +20,7 @@ import { after } from "next/server"
 import { veriMeetings, veriMeetingActionItems, veriMeetingShareLinks, tasks, auditLogs, projects, users as usersTable, db } from "@/lib/db"
 import { MEETING_DELETED_STATUS } from "@/lib/db/schema"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { logActivity } from "@/lib/audit"
+import { logActivity, auditActorOf } from "@/lib/audit"
 import { eq, and, desc, inArray, ne, notInArray, sql } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
@@ -53,7 +53,7 @@ export type VeriMeetingContext = { orgId: string; userId: string | null } & Serv
 // same discriminated dbUser XOR apiKey actor shape -- this is the one place
 // that ternary gets written, instead of at each of this file's ~9 call sites.
 function actorOf(ctx: VeriMeetingContext): ServiceActor {
-  return ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }
+  return auditActorOf(ctx)
 }
 
 function generateSystemId(): string {

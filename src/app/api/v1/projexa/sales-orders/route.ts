@@ -6,7 +6,7 @@
 // end-to-end. Search/filter/pagination/projectId linkage are part of the
 // base shape from day one -- no legacy flat-array caller to preserve.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { requirePermission } from "@/lib/services/permission-service"
 import { listSalesOrders, createSalesOrder, ServiceError, type SalesOrderItemInput } from "@/lib/services/erp-selling-service"
 
@@ -66,16 +66,16 @@ export async function POST(request: NextRequest) {
   const roleErr = requirePermission(ctx, "erp.sales_orders.create")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
 
   try {
     const body = await request.json()
     const items: SalesOrderItemInput[] = (body.items ?? []).map((i: SalesOrderItemInput) => ({
       itemId: i.itemId, description: i.description, quantity: i.quantity, rate: i.rate,
     }))
-    const actorCtx = ctx.dbUser
-      ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
-      : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
+    const actorCtx = { orgId: ctx.orgId, userId: actorId, ...acting.actor }
     const salesOrder = await createSalesOrder(actorCtx, {
       customerId: body.customerId, opportunityId: body.opportunityId, quotationId: body.quotationId, projectId: body.projectId, companyId: body.companyId,
       orderDate: body.orderDate, deliveryDate: body.deliveryDate,

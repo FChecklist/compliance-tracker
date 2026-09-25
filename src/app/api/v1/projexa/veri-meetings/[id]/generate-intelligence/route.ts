@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireActingPerson } from "@/lib/supabase/auth-guard"
 import { generateMeetingIntelligence, ServiceError } from "@/lib/services/veri-meeting-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -10,14 +10,17 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   // R39/R-C04: ctx.apiKey?.id is not a real compliance.users row -- see
-  // veriMeetings.createdById's schema.ts comment.
-  const actorId = ctx.dbUser?.id ?? null
+  // veriMeetings.createdById's schema.ts comment. U-20b: the actor is now the
+  // person the API-key caller names (X-Acting-User / X-Acting-User-Email).
+  const { acting, error: actingError } = await requireActingPerson(request, ctx)
+  if (actingError) return actingError
+  const actorId = acting.person.id
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const { id } = await params
     const meeting = await generateMeetingIntelligence(
-      { orgId: ctx.orgId, userId: actorId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }) },
+      { orgId: ctx.orgId, userId: actorId, ...acting.actor },
       id
     )
     return NextResponse.json(meeting)
