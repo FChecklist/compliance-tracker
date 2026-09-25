@@ -44,9 +44,19 @@
 // chunkAndEmbedSourceObject's own header for the full design, including why
 // it (still) creates its own source_object row today rather than requiring
 // one from the caller (that requirement lands in CRR-084).
+//
+// PROJEXA-BUILD-001 U-36 and U-37 (PMD-03, register rows BR-505 to BR-508): the last section of this file turns an uploaded
+// xlsx workbook into a project and its BOQ (extractProjectFromDocument, createProjectFromDocument). It lives here, not in a
+// second service, because PMD-03 says to extend this one. It reads every sheet, sends a text digest to the Supabase Edge
+// Function projexa-document-extract (the only place a model is called, E-13), validates what comes back against the schema in
+// document-extraction-schema.ts, and only then calls the existing createProject() and createBoq(). Anything that fails
+// validation ends in an ExtractionRejectedError with a stable code and creates nothing. Re-submitting the same file returns the
+// first project (a per-organisation ledger row keyed by the file's sha256, see the ledger notes below).
+import { createHash } from "node:crypto"
+import { createId } from "@paralleldrive/cuid2"
 import { documents, sourceObject, chunkPolicy } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { eq } from "drizzle-orm"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { and, eq, isNull, sql } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMVision, callLLMJson, type LLMUsage } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
@@ -57,6 +67,20 @@ import { createSourceObject } from "@/lib/crr/capture"
 import { chunkText, type ChunkPolicy } from "@/lib/crr/chunker"
 import { storeChunkEmbeddingsBatch } from "@/lib/crr/embed"
 import { recordIngestError } from "@/lib/crr/ingest-error"
+import {
+  EDGE_REQUEST_MAX_CHARS,
+  EXTRACTION_SCHEMA_NAME,
+  ExtractionRejectedError,
+  ProjectCreatedWithoutBoqError,
+  WORKBOOK_LIMITS,
+  cleanCellText,
+  validateExtractionOutput,
+  type ExtractedProject,
+  type WorkbookDigest,
+  type WorkbookLimits,
+} from "@/lib/services/document-extraction-schema"
+import type { BoqLineItemInput } from "@/lib/services/construction-boq-service"
+import type { ProjectInput } from "@/lib/services/construction-dashboard-service"
 
 const VISION_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
 const PDF_MIME_TYPE = "application/pdf"
@@ -549,4 +573,439 @@ export async function extractDocumentContent(
       output: { error: err instanceof Error ? err.message : String(err) },
     })
   }
+}
+
+// ============================================================================================================================
+// PROJEXA-BUILD-001 U-36 / U-37 (PMD-03): create a project and its BOQ from an uploaded xlsx workbook.
+//
+// The order is fixed and every step before the last two creates nothing:
+//   1. claim the file in the ledger (a second submit of the same bytes stops here and returns the first project);
+//   2. read EVERY sheet into a digest (no model, no network);
+//   3. post the digest to the Edge Function projexa-document-extract, which makes the model call;
+//   4. validate the returned JSON against the target schema, and the BOQ lines against createBoq()'s own rules;
+//   5. createProject(), record the project against the claim, createBoq().
+// A failure in steps 2 to 4 releases the claim and ends in an ExtractionRejectedError. The document is data, never instructions:
+// it reaches the model only inside the digest JSON (see the Edge Function's handler.ts), and the model's answer is checked in step
+// 4 before it can cause a write, so a document that talks the model into a different answer ends at step 4.
+// ============================================================================================================================
+
+const XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+/** One cell as digest text. Numbers keep 15 significant digits (so 0.1 + 0.2 reads 0.3), dates read YYYY-MM-DD. */
+function digestCellText(value: unknown): string {
+  if (value === null || value === undefined) return ""
+  if (typeof value === "number") return Number.isFinite(value) ? String(Number(value.toPrecision(15))) : ""
+  if (typeof value === "boolean") return value ? "true" : "false"
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return ""
+    const iso = value.toISOString()
+    return iso.endsWith("T00:00:00.000Z") ? iso.slice(0, 10) : iso
+  }
+  return cleanCellText(String(value))
+}
+
+/**
+ * The checks that need no parser: the size, and that the bytes start like a zip archive ("PK"), which an xlsx file is. Older .xls
+ * files and anything else are refused here, before a parser sees them and before createProjectFromDocument() claims the file.
+ */
+export function assertWorkbookBytes(bytes: Uint8Array, limits: WorkbookLimits = WORKBOOK_LIMITS): void {
+  if (bytes.byteLength > limits.maxBytes) {
+    throw new ExtractionRejectedError("workbook_too_large", `The file is larger than ${Math.round(limits.maxBytes / (1024 * 1024))} MB`)
+  }
+  if (bytes.byteLength < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
+    throw new ExtractionRejectedError("unsupported_file_type", "Only .xlsx workbooks are read")
+  }
+}
+
+/**
+ * Reads every worksheet of an xlsx file, hidden ones included, into a digest: the rows that hold something, each with its real
+ * 1-based worksheet row number, every cell as cleaned text. Formulas are not evaluated (the value Excel last stored is read).
+ * A file over a limit is refused (workbook_too_large), never cut short: a BOQ built from half a workbook would look complete.
+ */
+export async function readWorkbookDigest(bytes: Uint8Array, limits: WorkbookLimits = WORKBOOK_LIMITS): Promise<WorkbookDigest> {
+  assertWorkbookBytes(bytes, limits)
+  const mod = await import("xlsx")
+  const XLSX = (mod.default ?? mod) as typeof import("xlsx")
+  let workbook: import("xlsx").WorkBook
+  try {
+    workbook = XLSX.read(Buffer.from(bytes), {
+      type: "buffer",
+      cellDates: true,
+      cellFormula: false,
+      cellHTML: false,
+      cellStyles: false,
+      sheetStubs: false,
+      bookVBA: false,
+      sheetRows: limits.maxRowsPerSheet + 1,
+    })
+  } catch {
+    throw new ExtractionRejectedError("workbook_unreadable", "The file could not be read as an xlsx workbook")
+  }
+  const names = workbook.SheetNames
+  if (names.length === 0) throw new ExtractionRejectedError("workbook_empty", "The workbook has no sheets")
+  if (names.length > limits.maxSheets) {
+    throw new ExtractionRejectedError("workbook_too_large", `The workbook has more than ${limits.maxSheets} sheets`)
+  }
+
+  const sheets: WorkbookDigest["sheets"] = []
+  names.forEach((rawName, index) => {
+    const name = cleanCellText(rawName, 120) || `Sheet ${index + 1}`
+    const sheet = workbook.Sheets[rawName]
+    const rows: WorkbookDigest["sheets"][number]["rows"] = []
+    if (sheet && sheet["!ref"]) {
+      // SheetJS sets !fullref when sheetRows cut the sheet short.
+      if ((sheet as Record<string, unknown>)["!fullref"] !== undefined) {
+        throw new ExtractionRejectedError("workbook_too_large", `Sheet "${name}" has more than ${limits.maxRowsPerSheet} rows`)
+      }
+      const firstRow = XLSX.utils.decode_range(sheet["!ref"]).s.r
+      const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: "", blankrows: true })
+      grid.forEach((cells, i) => {
+        const texts = cells.map((c) => digestCellText(c).slice(0, limits.maxCellChars))
+        while (texts.length > 0 && texts[texts.length - 1] === "") texts.pop()
+        if (texts.length > 0) rows.push({ row: firstRow + i + 1, cells: texts })
+      })
+    }
+    sheets.push({ name, rows })
+  })
+  if (!sheets.some((s) => s.rows.length > 0)) throw new ExtractionRejectedError("workbook_empty", "The workbook has no cells with content")
+  return { sheets }
+}
+
+/** The JSON body posted to the Edge Function. Over the request ceiling is workbook_too_large: the same number the function enforces. */
+export function buildEdgeRequestBody(fileName: string, digest: WorkbookDigest): string {
+  const body = JSON.stringify({ schema: EXTRACTION_SCHEMA_NAME, fileName: cleanCellText(fileName, 200), sheets: digest.sheets })
+  if (body.length > EDGE_REQUEST_MAX_CHARS) {
+    throw new ExtractionRejectedError("workbook_too_large", `The workbook holds more text than one extraction reads (${EDGE_REQUEST_MAX_CHARS} characters)`)
+  }
+  return body
+}
+
+export type EdgeCallResult = { status: number; body: unknown }
+/** Posts the JSON body to the extraction Edge Function and returns its status and parsed body. It never throws. */
+export type EdgeCaller = (bodyJson: string) => Promise<EdgeCallResult>
+
+const EDGE_EXTRACT_PATH = "/functions/v1/projexa-document-extract"
+
+/**
+ * The real caller, wired only in the route from the server's environment: baseUrl is the Supabase project URL, secret the shared
+ * bearer secret (PROJEXA_DOCUMENT_EXTRACT_SECRET). With either missing it answers as the not-configured case, so an environment
+ * without the function set up refuses cleanly instead of failing on a bad URL.
+ */
+export function createEdgeExtractCaller(config: { baseUrl?: string | null; secret?: string | null; fetchImpl?: typeof fetch; timeoutMs?: number }): EdgeCaller {
+  return async (bodyJson) => {
+    const baseUrl = config.baseUrl?.trim()
+    const secret = config.secret?.trim()
+    if (!baseUrl || !secret) return { status: 503, body: { ok: false, code: "extraction_not_configured" } }
+    const doFetch = config.fetchImpl ?? fetch
+    try {
+      const res = await doFetch(`${baseUrl.replace(/\/+$/, "")}${EDGE_EXTRACT_PATH}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${secret}` },
+        body: bodyJson,
+        signal: AbortSignal.timeout(config.timeoutMs ?? 110_000),
+      })
+      let body: unknown = null
+      try {
+        body = await res.json()
+      } catch {
+        body = null
+      }
+      return { status: res.status, body }
+    } catch {
+      return { status: 502, body: { ok: false, code: "edge_unreachable" } }
+    }
+  }
+}
+
+function edgeCode(body: unknown): string {
+  return typeof body === "object" && body !== null && typeof (body as { code?: unknown }).code === "string" ? (body as { code: string }).code : ""
+}
+
+/** The model's JSON from the Edge Function's answer, or the ExtractionRejectedError that answer stands for. */
+function readEdgeOutput(res: EdgeCallResult): unknown {
+  const body = res.body
+  if (res.status === 200 && typeof body === "object" && body !== null && (body as { ok?: unknown }).ok === true && "output" in body) {
+    return (body as { output: unknown }).output
+  }
+  const code = edgeCode(body)
+  if (res.status === 503 && code === "model_not_configured") {
+    throw new ExtractionRejectedError("model_not_configured", "No extraction model is configured yet, so nothing was created")
+  }
+  if (res.status === 503 && code === "extraction_not_configured") {
+    throw new ExtractionRejectedError("extraction_not_configured", "Extraction is not set up in this environment, so nothing was created")
+  }
+  if (res.status === 413) throw new ExtractionRejectedError("workbook_too_large", "The workbook holds more text than one extraction reads")
+  if (res.status === 502 && code === "model_output_not_json") {
+    throw new ExtractionRejectedError("extraction_schema_invalid", "The extraction output is not JSON, so nothing was created", ["(root): the model reply was not a JSON value"])
+  }
+  if (res.status === 502 && code === "model_output_too_large") {
+    throw new ExtractionRejectedError("extraction_output_too_large", "The extraction output is over the size ceiling, so nothing was created")
+  }
+  throw new ExtractionRejectedError("extraction_unavailable", "The extraction service could not be reached or refused the call, so nothing was created")
+}
+
+/** The validated extraction as createBoq() input lines (the source citations are for validation and review, not stored). */
+export function toBoqLineItems(extracted: ExtractedProject): BoqLineItemInput[] {
+  return extracted.boq.lineItems.map((l) => ({
+    itemCode: l.itemCode,
+    parentItemCode: l.parentItemCode,
+    breakdownPercentage: l.breakdownPercentage,
+    description: l.description,
+    unit: l.unit,
+    quantity: l.quantity ?? 0,
+    rate: l.rate ?? 0,
+    category: l.category,
+  }))
+}
+
+/**
+ * createBoq()'s own input rules, run before anything is created: the same validateLineItemInputs() and the same parent/child
+ * derivation createBoq() runs inside its transaction. A BOQ that would be refused there is refused here, before createProject().
+ * (Imported lazily so this file's importers do not load the BOQ service's module graph.)
+ */
+async function assertBoqAcceptable(extracted: ExtractedProject): Promise<void> {
+  const boq = await import("@/lib/services/construction-boq-service")
+  const items = toBoqLineItems(extracted)
+  try {
+    boq.validateLineItemInputs(items)
+    const byItemCode = new Map(items.filter((i) => i.itemCode).map((i) => [i.itemCode!, i]))
+    for (const item of items) boq.deriveLineItemQuantityAndRate(item, byItemCode)
+  } catch (err) {
+    if (err instanceof boq.ServiceError) {
+      throw new ExtractionRejectedError("extraction_boq_invalid", "The extracted BOQ lines are not acceptable, so nothing was created", [err.message])
+    }
+    throw err
+  }
+}
+
+export type ExtractionResult = { extracted: ExtractedProject; stats: { sheets: number; rows: number; lines: number } }
+
+/**
+ * Register row BR-505's entry point. Reads every sheet of the workbook, asks the Edge Function for a project and BOQ, validates the
+ * answer, and returns it. It creates nothing and writes nothing: whoever calls it decides what to do with a validated result.
+ * Throws ExtractionRejectedError (stable `code`) for every refusal.
+ */
+export async function extractProjectFromDocument(
+  input: { fileName: string; bytes: Uint8Array },
+  deps: { callEdge: EdgeCaller },
+): Promise<ExtractionResult> {
+  const digest = await readWorkbookDigest(input.bytes)
+  const response = await deps.callEdge(buildEdgeRequestBody(input.fileName, digest))
+  const extracted = validateExtractionOutput(readEdgeOutput(response), digest)
+  await assertBoqAcceptable(extracted)
+  return {
+    extracted,
+    stats: { sheets: digest.sheets.length, rows: digest.sheets.reduce((n, s) => n + s.rows.length, 0), lines: extracted.boq.lineItems.length },
+  }
+}
+
+// ------------------------------------------------------------------------------------------------------------- the ledger
+//
+// Idempotency without a new column or table: compliance.source_object already holds one row per captured file with its sha256, and
+// its partial unique index (org_id, sha256) WHERE deleted_at IS NULL makes "one live row per organisation and key" a fact the
+// database enforces, which is what makes a double submit safe. A ledger row is a source_object row that
+//   * has origin_ref 'projexa-from-document:v1' and no storage_path (the bytes are not kept),
+//   * carries the real file hash in content_sha256 and, in sha256, a key derived from it under that prefix, so it can never collide
+//     with a real capture of the same bytes (compliance.documents uploads use the bare hash),
+//   * has extract_status SKIPPED_UNSUPPORTED, which the catch-up worker never picks up (it takes PENDING, EXTRACTED, CHUNKED),
+//   * is linked to the project through linked_entity_type 'project' and linked_entity_id.
+// Life of a row: claim (insert; linked_entity_id null) -> attach (linked_entity_id = the new project id) or release (deleted_at set,
+// which frees the unique index). A claim that is never attached or released (a process that died) is taken over after
+// LEDGER_CLAIM_TTL_SECONDS. If a typed column on projects is preferred later, only this section changes.
+
+const LEDGER_ORIGIN_REF = "projexa-from-document:v1"
+export const LEDGER_CLAIM_TTL_SECONDS = 15 * 60
+
+export type LedgerClaim =
+  | { kind: "claimed"; claimId: string }
+  | { kind: "duplicate"; projectId: string }
+  | { kind: "in_progress" }
+
+export type ProjectSourceLedger = {
+  claim(input: { contentSha256: string; fileName: string; byteSize: number }): Promise<LedgerClaim>
+  attach(claimId: string, projectId: string): Promise<void>
+  release(claimId: string): Promise<void>
+}
+
+function sha256Hex(bytes: Uint8Array | string): string {
+  return createHash("sha256").update(bytes).digest("hex")
+}
+
+/** The value stored in source_object.sha256 for a file: derived from the file hash, prefixed so it is never a real file hash. */
+export function projectSourceLedgerKey(contentSha256: string): string {
+  return sha256Hex(`${LEDGER_ORIGIN_REF}:${contentSha256}`)
+}
+
+/** Claim, on an open tenant transaction. Exported so the ledger can be run against real Postgres in a test. */
+export async function claimProjectSourceWithDb(
+  db: TenantDb,
+  args: { orgId: string; actorId: string; contentSha256: string; fileName: string; byteSize: number },
+): Promise<LedgerClaim> {
+  const key = projectSourceLedgerKey(args.contentSha256)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const [inserted] = await db
+      .insert(sourceObject)
+      .values({
+        orgId: args.orgId,
+        origin: "upload",
+        originRef: LEDGER_ORIGIN_REF,
+        mimeType: XLSX_MIME_TYPE,
+        byteSize: args.byteSize,
+        storagePath: null,
+        sha256: key,
+        contentSha256: args.contentSha256,
+        title: args.fileName,
+        displayName: args.fileName,
+        linkedEntityType: "project",
+        linkedEntityId: null,
+        extractStatus: "SKIPPED_UNSUPPORTED",
+        createdById: args.actorId,
+        docUid: createId(),
+      })
+      .onConflictDoNothing({ target: [sourceObject.orgId, sourceObject.sha256], where: isNull(sourceObject.deletedAt) })
+      .returning({ id: sourceObject.id })
+    if (inserted) return { kind: "claimed", claimId: inserted.id }
+
+    // Somebody holds the key. Age is compared in SQL (the database clock, timestamptz), not in JavaScript.
+    const [existing] = await db
+      .select({
+        id: sourceObject.id,
+        linkedEntityId: sourceObject.linkedEntityId,
+        stale: sql<boolean>`${sourceObject.createdAt} < now() - (interval '1 second' * ${LEDGER_CLAIM_TTL_SECONDS})`,
+      })
+      .from(sourceObject)
+      .where(and(eq(sourceObject.orgId, args.orgId), eq(sourceObject.sha256, key), isNull(sourceObject.deletedAt)))
+      .limit(1)
+    if (!existing) continue // released between the two statements: try the insert again
+    if (existing.linkedEntityId) return { kind: "duplicate", projectId: existing.linkedEntityId }
+    if (!existing.stale) return { kind: "in_progress" }
+    // A claim that never reached a project and is older than the ttl: free the key, then try the insert again.
+    await db
+      .update(sourceObject)
+      .set({ deletedAt: sql`now()` })
+      .where(and(eq(sourceObject.id, existing.id), isNull(sourceObject.linkedEntityId), isNull(sourceObject.deletedAt)))
+  }
+  return { kind: "in_progress" }
+}
+
+export async function attachProjectSourceWithDb(db: TenantDb, claimId: string, projectId: string): Promise<void> {
+  const updated = await db
+    .update(sourceObject)
+    .set({ linkedEntityType: "project", linkedEntityId: projectId, updatedAt: sql`now()` })
+    .where(and(eq(sourceObject.id, claimId), isNull(sourceObject.deletedAt)))
+    .returning({ id: sourceObject.id })
+  if (updated.length === 0) throw new Error("The upload claim no longer exists, so the project could not be recorded against it")
+}
+
+/** Frees the key of a claim that never reached a project. A claim already linked to a project is left alone. */
+export async function releaseProjectSourceWithDb(db: TenantDb, claimId: string): Promise<void> {
+  await db
+    .update(sourceObject)
+    .set({ deletedAt: sql`now()` })
+    .where(and(eq(sourceObject.id, claimId), isNull(sourceObject.linkedEntityId), isNull(sourceObject.deletedAt)))
+}
+
+/** The ledger the route uses: each step is its own tenant transaction, none opened inside another. */
+export function createDbProjectSourceLedger(ctx: { orgId: string; actorId: string }): ProjectSourceLedger {
+  const tenant = { orgId: ctx.orgId, userId: ctx.actorId }
+  return {
+    claim: (input) => withTenantContext(tenant, (db) => claimProjectSourceWithDb(db, { orgId: ctx.orgId, actorId: ctx.actorId, ...input })),
+    attach: (claimId, projectId) => withTenantContext(tenant, (db) => attachProjectSourceWithDb(db, claimId, projectId)),
+    release: (claimId) => withTenantContext(tenant, (db) => releaseProjectSourceWithDb(db, claimId)),
+  }
+}
+
+// ------------------------------------------------------------------------------------------------------ the orchestration
+
+export type CreateFromDocumentInput = {
+  orgId: string
+  /** A real compliance.users id (the acting person), recorded as the project lead and the BOQ creator. */
+  actorId: string
+  productId: string
+  fileName: string
+  bytes: Uint8Array
+  /** Replaces the project name the model found. */
+  projectName?: string
+}
+
+export type CreateFromDocumentDeps<P extends { id: string }, B extends { id: string }> = {
+  callEdge: EdgeCaller
+  ledger: ProjectSourceLedger
+  /** construction-dashboard-service.ts createProject(): the one project-create path. */
+  createProject: (ctx: { orgId: string; userId: string; isRealUser?: boolean }, input: ProjectInput) => Promise<P>
+  /** construction-boq-service.ts createBoq(): the one BOQ-create path. */
+  createBoq: (ctx: { orgId: string; userId: string }, input: { projectId: string; title: string; lineItems: BoqLineItemInput[] }) => Promise<B>
+}
+
+export type CreateFromDocumentResult<P, B> =
+  | { duplicate: true; projectId: string }
+  | { duplicate: false; projectId: string; project: P; boq: B; extraction: ExtractionResult["stats"] }
+
+/**
+ * Register rows BR-507 and BR-508. Creates a project and its BOQ from a workbook, at most once per file: a second submit of the same
+ * bytes (whatever the file is called) returns the first project's id and inserts nothing. Every failure before createProject()
+ * throws ExtractionRejectedError and leaves no project, no BOQ and no claim behind; a failure of the BOQ insert after the project
+ * exists throws ProjectCreatedWithoutBoqError (the project stays, and stays linked to the upload).
+ */
+export async function createProjectFromDocument<P extends { id: string }, B extends { id: string }>(
+  input: CreateFromDocumentInput,
+  deps: CreateFromDocumentDeps<P, B>,
+): Promise<CreateFromDocumentResult<P, B>> {
+  assertWorkbookBytes(input.bytes)
+  const claim = await deps.ledger.claim({
+    contentSha256: sha256Hex(input.bytes),
+    fileName: cleanCellText(input.fileName, 200),
+    byteSize: input.bytes.byteLength,
+  })
+  if (claim.kind === "duplicate") return { duplicate: true, projectId: claim.projectId }
+  if (claim.kind === "in_progress") {
+    throw new ExtractionRejectedError("duplicate_in_progress", "This file is already being processed. Wait a minute and submit again to get its project")
+  }
+
+  const release = async () => {
+    try {
+      await deps.ledger.release(claim.claimId)
+    } catch {
+      // The claim then frees itself after LEDGER_CLAIM_TTL_SECONDS; the original error is the one to report.
+    }
+  }
+
+  let result: ExtractionResult
+  try {
+    result = await extractProjectFromDocument({ fileName: input.fileName, bytes: input.bytes }, { callEdge: deps.callEdge })
+  } catch (err) {
+    await release()
+    throw err
+  }
+
+  const { extracted } = result
+  let project: P
+  try {
+    project = await deps.createProject(
+      { orgId: input.orgId, userId: input.actorId, isRealUser: true },
+      {
+        productId: input.productId,
+        name: input.projectName?.trim() || extracted.project.name,
+        description: extracted.project.description,
+        startDate: extracted.project.startDate,
+        targetDate: extracted.project.targetDate,
+      },
+    )
+  } catch (err) {
+    await release()
+    throw err
+  }
+
+  await deps.ledger.attach(claim.claimId, project.id)
+
+  let boq: B
+  try {
+    boq = await deps.createBoq(
+      { orgId: input.orgId, userId: input.actorId },
+      { projectId: project.id, title: extracted.boq.title, lineItems: toBoqLineItems(extracted) },
+    )
+  } catch (err) {
+    throw new ProjectCreatedWithoutBoqError(project.id, err)
+  }
+  return { duplicate: false, projectId: project.id, project, boq, extraction: result.stats }
 }
