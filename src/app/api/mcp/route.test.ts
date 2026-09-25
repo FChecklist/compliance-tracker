@@ -586,17 +586,25 @@ describe("U-39 (b) -- a construction call that carries no person or role is refu
     }
   })
 
-  test("[token] a link whose person has no active user row (no role): the budget is refused and never read, and the dashboard's money is null", async () => {
+  test("[token] a link whose person has no active user row (no role): every tool call is refused before anything runs (PMD-33)", async () => {
     linkOwnerRole = null
+    linkStore.phraseMapRow = { functionId: "get_construction_budget_status", fixedParams: {}, promotedAt: new Date() }
 
-    const budget = await linkTask("get_construction_budget_status")
-    expect(budget.task.result).toBeUndefined()
-    expect(budget.task.failure?.code).toBeTruthy()
-    expect(budget.text).not.toContain("4200000")
+    for (const tool of ["get_construction_budget_status", "get_construction_project_dashboard"]) {
+      linkStore.phraseMapRow = { functionId: tool, fixedParams: {}, promotedAt: new Date() }
+      const { status, body } = await callLink("tools/call", {
+        name: "submit_task",
+        arguments: { rawInput: "how is the cedar heights project doing", projectId: LINK_PROJECT },
+      })
+      expect(status).toBe(200)
+      expect(body.result).toBeUndefined()
+      expect(body.error?.code).toBe(-32000)
+      expect(body.error?.message).toContain("no longer an active user of this organisation")
+      expect(JSON.stringify(body)).not.toContain("4200000")
+    }
+    // Nothing ran: no budget was read, and no submission was made for the link.
     expect(budgetReads).toBe(0)
-
-    const dashboard = await linkTask("get_construction_project_dashboard")
-    expect(dashboard.task.result).toEqual(REDACTED_DASHBOARD)
+    expect(runLevel1Spy).not.toHaveBeenCalled()
     // The role was read for the link's own person, not for anyone the call named.
     expect(ownerRoleSpy.mock.calls.map((c) => c[0].userId)).toEqual([LINK_PERSON, LINK_PERSON])
   })
