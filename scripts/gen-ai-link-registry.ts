@@ -89,6 +89,17 @@ function declaredParams(spec: FunctionSpec): string[] {
 /** True for a registry entry that has an executor (kind "ask" or "write"); the kind "run" only opens a screen. */
 const hasExecutor = (spec: FunctionSpec) => spec.kind !== "run"
 
+/** Checks one allow-listed entry against what the registry says about the same function. */
+function checkPolicy(spec: FunctionSpec, p: LinkFunctionPolicy, kind: "read" | "write", declared: readonly string[]): void {
+  const id = spec.functionId
+  if (p.linkLevel === 0 && kind !== "read") throw new Error(`"${id}" is allow-listed at level 0 but the registry says it writes`)
+  if (p.linkLevel !== 0 && kind !== "write") throw new Error(`"${id}" is allow-listed at level ${p.linkLevel} but the registry says it is a read`)
+  if (!Number.isInteger(p.minRank) || p.minRank < 1 || p.minRank > 6) throw new Error(`"${id}" has an invalid minimum rank ${p.minRank}`)
+  for (const t of p.textParams) {
+    if (!declared.includes(t)) throw new Error(`"${id}" lists text parameter "${t}", which the registry does not declare`)
+  }
+}
+
 /**
  * One row per REVIEWED registry function that has an executor (kind "ask" or "write"), sorted by id: the ones named in `policy`
  * (on links) and in `excluded` (on no link, with the reason). A registry entry in neither is left out: it is on no link.
@@ -112,14 +123,7 @@ export function buildFunctionRows(
     if (!p && !(spec.functionId in excluded)) continue // not reviewed for links: no row, so on no link
     const declared = declaredParams(spec)
     const kind = spec.kind === "write" ? "write" : "read"
-    if (p) {
-      if (p.linkLevel === 0 && kind !== "read") throw new Error(`"${spec.functionId}" is allow-listed at level 0 but the registry says it writes`)
-      if (p.linkLevel !== 0 && kind !== "write") throw new Error(`"${spec.functionId}" is allow-listed at level ${p.linkLevel} but the registry says it is a read`)
-      if (!Number.isInteger(p.minRank) || p.minRank < 1 || p.minRank > 6) throw new Error(`"${spec.functionId}" has an invalid minimum rank ${p.minRank}`)
-      for (const t of p.textParams) {
-        if (!declared.includes(t)) throw new Error(`"${spec.functionId}" lists text parameter "${t}", which the registry does not declare`)
-      }
-    }
+    if (p) checkPolicy(spec, p, kind, declared)
     rows.push({
       function_id: spec.functionId,
       label: spec.label,
