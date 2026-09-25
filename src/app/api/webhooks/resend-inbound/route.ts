@@ -5,6 +5,7 @@ import { db, inboundEmailMessages, users } from "@/lib/db"
 import { verifyResendSvixSignature } from "@/lib/webhooks/resend-svix-signature"
 import { resolveEmailAlias } from "@/lib/services/email-alias-service"
 import { analyzeInboundEmail } from "@/lib/services/email-intelligence-service"
+import { storeInboundEmailAttachments } from "@/lib/webhooks/resend-inbound-attachments"
 
 // R-C17 (platform.sumeet_requirements, Owner-initiated 2026-09-13,
 // "Platform: Email Engine"). The real inbound-email trigger this
@@ -54,6 +55,17 @@ import { analyzeInboundEmail } from "@/lib/services/email-intelligence-service"
 // (owner-authorized 2026-09-13 for the PM session to do directly in Vercel,
 // scoped to exactly this one record -- see platform.claude_log for the
 // exact ruling). See platform.sumeet_requirements row R-C17.
+//
+// PROJEXA-BUILD-001 U-31 (BR-413): attachments are read too. Only after the
+// signature is verified, the delivery is new (the idempotency check above
+// the insert) and the inboundEmailMessages row exists, and only for a
+// recipient that resolved to an organisation, the route asks
+// storeInboundEmailAttachments() (src/lib/webhooks/resend-inbound-
+// attachments.ts) to read each attachment through the same Resend client and
+// store it in compliance.inbound_email_attachments (drizzle/0620). An
+// attachment it cannot or may not store (over 10 MB, a failed download, a
+// failed insert) is named in the message's processingError; the message
+// itself is always kept and the route still answers 200.
 
 type ReceivedEmailEventData = {
   email_id: string
@@ -61,6 +73,14 @@ type ReceivedEmailEventData = {
   from?: string
   to?: string[]
   subject?: string
+  // metadata only (Resend's webhook never carries the bytes)
+  attachments?: Array<{ id: string; filename?: string | null }>
+}
+
+/** Two notes for one processingError, either of them possibly absent. */
+function joinNotes(...notes: Array<string | null | undefined>): string | null {
+  const present = notes.filter((n): n is string => typeof n === "string" && n.length > 0)
+  return present.length > 0 ? present.join("; ") : null
 }
 
 type ResendInboundWebhookPayload = {
@@ -74,6 +94,46 @@ function getResendClient(): Resend | null {
   if (!process.env.RESEND_API_KEY) return null
   if (!resendClient) resendClient = new Resend(process.env.RESEND_API_KEY)
   return resendClient
+}
+
+/**
+ * U-31 (BR-413): the attachment step for a message row that already exists.
+ * Returns the note it wrote to that row's processingError (what was not
+ * stored, and why), or null when every attachment was stored. Never throws.
+ */
+async function storeAttachmentsOf(
+  client: Resend,
+  emailId: string,
+  orgId: string,
+  message: { id: string; processingError: string | null }
+): Promise<string | null> {
+  let note: string | null = null
+  try {
+    const step = await storeInboundEmailAttachments({
+      db,
+      attachmentsApi: client.emails.receiving.attachments,
+      emailId,
+      orgId,
+      inboundMessageId: message.id,
+    })
+    console.info(
+      `[resend-inbound-webhook] inboundEmailMessages row ${message.id}: ${step.stored} attachment(s) stored, ${step.alreadyStored} already stored, ${step.notes.length} not stored.`
+    )
+    note = joinNotes(...step.notes)
+    if (note) {
+      await db
+        .update(inboundEmailMessages)
+        .set({ processingError: joinNotes(message.processingError, note) })
+        .where(eq(inboundEmailMessages.id, message.id))
+    }
+  } catch (err) {
+    // storeInboundEmailAttachments() does not throw; this is the note's own
+    // update failing. The message row stays; only the error's name is logged.
+    console.error(
+      `[resend-inbound-webhook] attachment note could not be written for inboundEmailMessages row ${message.id} (${err instanceof Error ? err.name : "unknown error"}).`
+    )
+  }
+  return note
 }
 
 export async function POST(request: NextRequest) {
@@ -127,6 +187,9 @@ export async function POST(request: NextRequest) {
   let subject: string | null = eventData.subject ?? null
   let body: string | null = null
   let fetchError: string | null = null
+  // U-31: whether the email has any attachment to read, from the webhook's own
+  // metadata or from the full email below. No attachment, no attachment call.
+  let hasAttachments = (eventData.attachments?.length ?? 0) > 0
 
   const client = getResendClient()
   if (!client) {
@@ -140,6 +203,7 @@ export async function POST(request: NextRequest) {
       toAddress = full.to?.[0] || toAddress
       subject = full.subject ?? subject
       body = full.text ?? full.html ?? null
+      if ((full.attachments?.length ?? 0) > 0) hasAttachments = true
     }
   }
 
@@ -164,6 +228,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to record inbound email" }, { status: 500 })
   }
 
+  // U-31 (BR-413): the message row exists, so its attachments can be linked to
+  // it. An organisation is required (inbound_email_attachments.org_id is NOT
+  // NULL), so an unresolved recipient's attachments are not read.
+  const attachmentNote = resolved && client && hasAttachments ? await storeAttachmentsOf(client, emailId, resolved.orgId, inserted) : null
+
   if (!resolved || fetchError) {
     console.warn(
       `[resend-inbound-webhook] inboundEmailMessages row ${inserted.id} recorded but NOT processed (${
@@ -183,7 +252,11 @@ export async function POST(request: NextRequest) {
     await db.update(inboundEmailMessages).set({ processedAt: new Date() }).where(eq(inboundEmailMessages.id, inserted.id))
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    await db.update(inboundEmailMessages).set({ processingError: message }).where(eq(inboundEmailMessages.id, inserted.id))
+    // U-31: an attachment note written above is kept beside the failure.
+    await db
+      .update(inboundEmailMessages)
+      .set({ processingError: attachmentNote ? `${attachmentNote}; ${message}` : message })
+      .where(eq(inboundEmailMessages.id, inserted.id))
     console.error(`[resend-inbound-webhook] analyzeInboundEmail failed for inboundEmailMessages row ${inserted.id}:`, err)
     return NextResponse.json({ ok: true, id: inserted.id, processed: false, error: message })
   }
