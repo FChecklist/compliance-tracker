@@ -1,4 +1,4 @@
-import { pgSchema, pgEnum, text, boolean, integer, smallint, timestamp, numeric, jsonb, date, unique } from 'drizzle-orm/pg-core'
+import { pgSchema, pgEnum, text, boolean, integer, smallint, timestamp, numeric, jsonb, date, unique, customType } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { relations, sql } from 'drizzle-orm'
 
@@ -12403,6 +12403,28 @@ export const inboundEmailMessages = complianceSchemaDB.table('inbound_email_mess
 export const inboundEmailMessagesRelations = relations(inboundEmailMessages, ({ one }) => ({
   user: one(users, { fields: [inboundEmailMessages.userId], references: [users.id] }),
 }))
+
+// PROJEXA-BUILD-001 U-31 (BR-413): the attachments of one inboundEmailMessages
+// row, stored by the resend-inbound webhook (src/lib/webhooks/
+// resend-inbound-attachments.ts) only for a message whose recipient resolved,
+// so orgId is never null. drizzle/0620_build001_inbound_email_attachments.sql
+// creates the table with ON DELETE CASCADE from the message, a CHECK that
+// sizeBytes equals the stored byte length and both are at most 10 MB, an index
+// on inboundMessageId, and RLS (app_runtime reads its own org, service_role
+// bypass). The file bytes are stored as given, never parsed here.
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({ dataType: () => 'bytea' })
+
+export const inboundEmailAttachments = complianceSchemaDB.table('inbound_email_attachments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  inboundMessageId: text('inbound_message_id').notNull().references(() => inboundEmailMessages.id, { onDelete: 'cascade' }),
+  fileName: text('file_name').notNull(), // the base name only, no directory part
+  contentType: text('content_type'),
+  sizeBytes: integer('size_bytes').notNull(),
+  content: bytea('content').notNull(),
+  resendAttachmentId: text('resend_attachment_id'), // Resend's id; the webhook skips one already stored for this message
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
 
 // GAP-06 (tree4-unified/30-gap-backlog.yaml): "Build a genuine draft-then-
 // approve Communication Governance flow." Composes 3 existing mechanisms
