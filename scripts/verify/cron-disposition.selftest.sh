@@ -12,7 +12,8 @@
 #
 # Cases: the baseline; each defect kind (a KILL cron left in vercel.json, a route missing from the runner options, a route missing
 # from the runner schedule mapping, the VERCEL row absent, the VERCEL route swapped for another, a moved cron still declared, an
-# every-N schedule, a declared cron with no row, a projexa cron); each live check (a PG_CRON job, the Edge Function job and a DPDP
+# every-N schedule, a declared cron with no row, a projexa cron, a second or a projexa VERCEL cron with its own row and a count of zero
+# with every row disposed: the three cases where only the count of exactly one fails the run); each live check (a PG_CRON job, the Edge Function job and a DPDP
 # job absent from cron.job, an empty list); the name-source check; unknown job names; the workflow rows (projexa KILL file present,
 # projexa file absent, compliance-tracker file absent); row shapes and enum values; --local (skips only the live checks, leaves
 # every other check in force, reads no cron.job); a failing cron.job read (exit 2; an exit-4 read is tried three times, an exit-3
@@ -105,6 +106,14 @@ elif op == "kill_job_active":
     rows.append(row("compliance-tracker", "pg_cron job 9 dpdp-legal-clocks", "KILL"))
 elif op == "vercel_wf":
     rows.append(row("compliance-tracker", ".github/workflows/codeql.yml schedule", "VERCEL"))
+elif op == "second_vercel_ct":
+    rows.append(row("compliance-tracker", "vercel.json cron /api/internal/second-vercel/run", "VERCEL"))
+elif op == "second_vercel_px":
+    rows.append(row("projexa", "vercel.json cron /api/internal/px-second-vercel/run", "VERCEL"))
+elif op == "vercel_to_kill":
+    for r in rows[1:]:
+        if r[hdr.index("path_or_name")] == "vercel.json cron /api/internal/secrets-audit/run":
+            r[hdr.index("classification")] = "KILL"
 else:
     raise SystemExit("unknown op " + op)
 csv.writer(open(dst, "w", newline="", encoding="utf-8"), lineterminator="\n").writerows(rows)
@@ -187,6 +196,7 @@ disp() {
 #   EXPECT_LAST is the exact last stdout line without its ` overrides=<n>` suffix, `~<prefix>` for a prefix match, or "none"
 #   (no `undisposed=` line at all).
 #   +needle: the text must appear in stdout. -needle: the text must appear in neither stdout nor stderr.
+#   @needle: the text must appear in stderr (the script's own PASS/FAIL line goes there).
 t() {
   local name="$1" erc="$2" elast="$3" needle why=""
   shift 3
@@ -214,6 +224,7 @@ t() {
       case "$needle" in
         +*) printf '%s\n' "$out" | grep -qF -- "${needle#+}" || { why="stdout lacks '${needle#+}'"; break; } ;;
         -*) if printf '%s\n%s\n' "$out" "$err" | grep -qF -- "${needle#-}"; then why="output must not contain '${needle#-}'"; break; fi ;;
+        @*) printf '%s\n' "$err" | grep -qF -- "${needle#@}" || { why="stderr lacks '${needle#@}'"; break; } ;;
       esac
     done
   fi
@@ -266,6 +277,19 @@ t "a new cron with no row in the placement file" 1 "undisposed=1 vercel_crons_bo
 
 "$PY" "$(winpath "$T/jsonmut.py")" "$(winpath "$B/px.json")" "$(winpath "$T/px_cron.json")" add api/internal/email-digest-cadence/run "0 8 * * *"
 t "a cron in the projexa vercel.json (its KILL row comes back)" 1 "undisposed=1 vercel_crons_both_repos=2" +"KILL route is still in the projexa vercel.json" -- disp PX_VERCEL_JSON="$T/px_cron.json"
+
+# The exit condition is a count of exactly one across both repos, and it holds even when every row is disposed: each case below
+# gives every declared cron its own VERCEL row (or none), so undisposed stays 0 and only the count can fail the run.
+"$PY" "$(winpath "$T/jsonmut.py")" "$(winpath "$B/ct.json")" "$(winpath "$T/ct_two.json")" add api/internal/second-vercel/run "0 5 * * *"
+"$PY" "$(winpath "$T/csvmut.py")" "$B/placement.csv" "$T/csv_two_ct.csv" second_vercel_ct
+t "a second VERCEL cron in compliance-tracker with its own row: every row disposed, two crons, exit 1" 1 "undisposed=0 vercel_crons_both_repos=2" +"declared crons: compliance-tracker 2, projexa 0" -"UNDISPOSED" @"declare 2 crons, expected exactly 1" -- disp CRON_FILE="$T/csv_two_ct.csv" CT_VERCEL_JSON="$T/ct_two.json"
+
+"$PY" "$(winpath "$T/jsonmut.py")" "$(winpath "$B/px.json")" "$(winpath "$T/px_two.json")" add api/internal/px-second-vercel/run "0 5 * * *"
+"$PY" "$(winpath "$T/csvmut.py")" "$B/placement.csv" "$T/csv_two_px.csv" second_vercel_px
+t "a VERCEL cron in the projexa vercel.json with its own row: the count spans both repos, exit 1" 1 "undisposed=0 vercel_crons_both_repos=2" +"declared crons: compliance-tracker 1, projexa 1" -"UNDISPOSED" @"declare 2 crons, expected exactly 1" -- disp CRON_FILE="$T/csv_two_px.csv" PX_VERCEL_JSON="$T/px_two.json"
+
+"$PY" "$(winpath "$T/csvmut.py")" "$B/placement.csv" "$T/csv_none.csv" vercel_to_kill
+t "no cron left in either vercel.json and its row reclassified KILL: every row disposed, zero crons, exit 1" 1 "undisposed=0 vercel_crons_both_repos=0" +"declared crons: compliance-tracker 0, projexa 0" -"UNDISPOSED" @"declare 0 crons, expected exactly 1" -- disp CRON_FILE="$T/csv_none.csv" CT_VERCEL_JSON="$T/ct_empty.json"
 
 # ------------------------------------------------------------------- runner defects
 sed '/^          - crr-catchup-worker$/d' "$B/runner.yml" > "$T/runner_noopt.yml"
