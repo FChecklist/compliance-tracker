@@ -10,7 +10,8 @@
 //
 // The headline (BR-508): a second submit of the same file, under another name, returns the FIRST project's id, and the tables still
 // hold exactly 1 project, 1 BOQ and the same lines; no second model call is made. The same route also proves BR-507 end to end (a
-// planted document ends in 422 with 0 rows), the auth and input gates, and the one case where something exists after a failure.
+// planted document ends in 422 with 0 rows), the auth and input gates, the ceiling on how much of a request body is read, the
+// organisation's hourly limit, and the two cases where a project exists after a failure (BOQ insert failed, link to the upload failed).
 //
 // Run: bun test --isolate src/app/api/v1/projexa/projects/from-document/route.test.ts
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test"
@@ -35,6 +36,7 @@ const FIXTURE = buildFixtureWorkbook()
 
 let h: Awaited<ReturnType<typeof createExtractionPglite>>
 let POST: (request: never) => Promise<Response>
+let LIMIT: { maxClaims: number; windowSeconds: number }
 
 // --- the authentication double: what the guard would have said for this test's caller
 type Auth = { orgId: string | null; viaApiKey?: boolean; keyKind?: "org_service" | "project_ai"; roleErr?: Response | null; response?: Response | null }
@@ -96,6 +98,7 @@ beforeAll(async () => {
   }) as typeof fetch
 
   POST = (await import("./route")).POST as unknown as typeof POST
+  LIMIT = (await import("@/lib/services/document-extraction-service")).LEDGER_RATE_LIMIT
 }, 60_000)
 
 afterAll(async () => {
@@ -310,6 +313,114 @@ describe("what the route refuses before or instead of creating anything", () => 
   })
 })
 
+// The body is read here with a ceiling (readBodyWithinLimit in route.ts), because formData() holds the whole body in memory before the
+// file's own size can be checked. A stream that counts its pulls shows how much of the body the route read.
+describe("the size of the request is bounded before the body is read", () => {
+  function streamRequest(opts: { chunks: number; chunkBytes: number; headers?: Record<string, string> }) {
+    const pulls = { n: 0 }
+    let sent = 0
+    // highWaterMark 0: the stream produces a chunk only when somebody reads one, so pulls.n counts the reads.
+    const stream = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          pulls.n++
+          if (sent >= opts.chunks) {
+            controller.close()
+            return
+          }
+          sent++
+          controller.enqueue(new Uint8Array(opts.chunkBytes))
+        },
+      },
+      new CountQueuingStrategy({ highWaterMark: 0 }),
+    )
+    const request = new Request("http://localhost/api/v1/projexa/projects/from-document", {
+      method: "POST",
+      body: stream,
+      headers: { "content-type": "multipart/form-data; boundary=x", ...opts.headers },
+      duplex: "half",
+    } as RequestInit) as never
+    return { request, pulls }
+  }
+
+  test("a declared Content-Length over the ceiling is refused with 413 before a single byte of the body is read", async () => {
+    const { request, pulls } = streamRequest({ chunks: 1, chunkBytes: 10, headers: { "content-length": String(6 * 1024 * 1024) } })
+    const res = await POST(request)
+    expect(res.status).toBe(413)
+    expect((await res.json()).code).toBe("workbook_too_large")
+    expect(pulls.n).toBe(0)
+    expect(seen.fetches).toBe(0)
+    expect(await tableCounts()).toEqual({ projects: 0, boqs: 0, lines: 0 })
+  })
+
+  test("a body with no Content-Length (chunked) is read only up to the ceiling: 100 MB is offered, the route stops after a few chunks and answers 413", async () => {
+    const { request, pulls } = streamRequest({ chunks: 100, chunkBytes: 1024 * 1024 })
+    const res = await POST(request)
+    expect(res.status).toBe(413)
+    expect((await res.json()).code).toBe("workbook_too_large")
+    expect(pulls.n).toBeLessThan(20)
+    expect(await tableCounts()).toEqual({ projects: 0, boqs: 0, lines: 0 })
+  })
+
+  test("a body that is not multipart form data is 400 invalid_form, not a 500", async () => {
+    const res = await POST(new Request("http://localhost/api/v1/projexa/projects/from-document", { method: "POST", body: "hello", headers: { "content-type": "text/plain" } }) as never)
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe("invalid_form")
+    expect(seen.fetches).toBe(0)
+  })
+
+  test("a file just under the limit with its multipart framing is still read and answered (the ceiling leaves room for the framing)", async () => {
+    // 5 MB of file bytes that are not a workbook: refused as unsupported_file_type, which shows the body was read whole and parsed.
+    const res = await POST(formRequest({ file: { bytes: new Uint8Array(5 * 1024 * 1024).fill(1), name: "almost.xlsx" } }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe("unsupported_file_type")
+  })
+})
+
+// The ledger rows are the rate limit (see the ledger notes in document-extraction-service.ts); the SQL is proven in
+// document-extraction-ledger.test.ts. Here: what the route answers, and that nothing else runs.
+describe("the organisation's hourly limit", () => {
+  const seedAttempts = (orgId: string, n: number) =>
+    h.pg.query(
+      `insert into compliance.source_object (id, org_id, origin, origin_ref, sha256, doc_uid, extract_status)
+       select 'seed-' || g, $1::text, 'upload', 'projexa-from-document:v1', 'seed-key-' || g, 'seed-doc-' || g, 'SKIPPED_UNSUPPORTED'
+       from generate_series(1, ${Number(n)}) g`,
+      [orgId],
+    )
+
+  test("over the limit the route answers 429 extraction_rate_limited with Retry-After: no model call, no project, nothing added to the ledger", async () => {
+    await seedAttempts(ORG, LIMIT.maxClaims)
+    const res = await POST(formRequest({}))
+    expect(res.status).toBe(429)
+    expect((await res.json()).code).toBe("extraction_rate_limited")
+    const wait = Number(res.headers.get("Retry-After"))
+    expect(wait).toBeGreaterThan(0)
+    expect(wait).toBeLessThanOrEqual(LIMIT.windowSeconds)
+    expect(seen.fetches).toBe(0)
+    expect(seen.modelCalls).toBe(0)
+    expect(await tableCounts()).toEqual({ projects: 0, boqs: 0, lines: 0 })
+    expect(await ledgerRows()).toHaveLength(LIMIT.maxClaims)
+  })
+
+  test("a file that already has a project is still answered over the limit, and only a new file is refused", async () => {
+    const first = await (await POST(formRequest({}))).json()
+    await seedAttempts(ORG, LIMIT.maxClaims)
+    const again = await POST(formRequest({}))
+    expect(again.status).toBe(200)
+    expect(await again.json()).toEqual({ duplicate: true, projectId: first.projectId })
+    const other = buildWorkbook([{ name: "Civil", rows: [["Item", "Description", "Unit", "Qty", "Rate"], ["1.01", "Another file", "m3", 5, 5]] }])
+    expect((await POST(formRequest({ file: { bytes: other, name: "other.xlsx" } }))).status).toBe(429)
+    expect((await tableCounts()).projects).toBe(1)
+  })
+
+  test("another organisation is not held back by this one's attempts", async () => {
+    await seedAttempts(ORG, LIMIT.maxClaims)
+    await insertProduct(h, { id: "product-free-org", org_id: "org-free" })
+    auth = { orgId: "org-free" }
+    expect((await POST(formRequest({ productId: "product-free-org" }))).status).toBe(201)
+  })
+})
+
 describe("who may call it", () => {
   test("an unauthenticated caller gets the guard's own response and nothing is read or created", async () => {
     auth = { orgId: null, response: Response.json({ error: "Unauthorized" }, { status: 401 }) }
@@ -356,6 +467,41 @@ describe("who may call it", () => {
     expect(((await h.pg.query("select lead_user_id from compliance.projects")).rows[0] as { lead_user_id: string }).lead_user_id).toBe("real-person-42")
     expect(((await h.pg.query("select created_by_id from compliance.construction_boqs")).rows[0] as { created_by_id: string }).created_by_id).toBe("real-person-42")
     expect((await ledgerRows())[0].created_by_id).toBe("real-person-42")
+  })
+})
+
+describe("recording the project against the upload fails", () => {
+  test("500 project_link_failed names the project, no BOQ is created, the claim is kept (a resubmit is 409 in progress), and the fault is logged", async () => {
+    await h.pg.exec(`
+      create function compliance.fail_source_object_update() returns trigger language plpgsql as $$ begin raise exception 'simulated database fault'; end $$;
+      create trigger fail_source_object_update before update on compliance.source_object for each row execute function compliance.fail_source_object_update();
+    `)
+    const logged: unknown[][] = []
+    const originalError = console.error
+    console.error = (...args: unknown[]) => {
+      logged.push(args)
+    }
+    try {
+      const res = await POST(formRequest({}))
+      expect(res.status).toBe(500)
+      const body = await res.json()
+      expect(body.code).toBe("project_link_failed")
+      expect(String(logged[0]?.[0])).toContain("recording it against the upload failed")
+      const project = (await h.pg.query("select id from compliance.projects")).rows as Array<{ id: string }>
+      expect(project).toHaveLength(1)
+      expect(body.projectId).toBe(project[0].id)
+      expect(await tableCounts()).toEqual({ projects: 1, boqs: 0, lines: 0 })
+      const ledger = await ledgerRows()
+      expect(ledger).toHaveLength(1)
+      expect(ledger[0].linked_entity_id).toBeNull()
+      const again = await POST(formRequest({}))
+      expect(again.status).toBe(409)
+      expect((await again.json()).code).toBe("duplicate_in_progress")
+      expect((await tableCounts()).projects).toBe(1)
+    } finally {
+      console.error = originalError
+      await h.pg.exec("drop trigger fail_source_object_update on compliance.source_object; drop function compliance.fail_source_object_update()")
+    }
   })
 })
 

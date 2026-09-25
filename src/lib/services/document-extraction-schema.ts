@@ -29,6 +29,12 @@ export const WORKBOOK_LIMITS: WorkbookLimits = {
 }
 
 /**
+ * Ceiling for the whole multipart request of the from-document route: the file plus the framing around it and the two small text
+ * fields. The route stops reading the body here, so a body that is far over the file limit is never held in memory.
+ */
+export const MAX_REQUEST_BODY_BYTES = WORKBOOK_LIMITS.maxBytes + 64 * 1024
+
+/**
  * Size of the request body sent to the Edge Function, and of the model output it may return, in characters. The Edge Function
  * enforces the same numbers (supabase/functions/projexa-document-extract/handler.ts DEFAULT_LIMITS); a test holds the two equal.
  */
@@ -48,6 +54,7 @@ export type ExtractionErrorCode =
   | "extraction_not_grounded"
   | "extraction_boq_invalid"
   | "duplicate_in_progress"
+  | "extraction_rate_limited"
 
 const STATUS_BY_CODE: Record<ExtractionErrorCode, number> = {
   unsupported_file_type: 400,
@@ -62,19 +69,25 @@ const STATUS_BY_CODE: Record<ExtractionErrorCode, number> = {
   extraction_not_grounded: 422,
   extraction_boq_invalid: 422,
   duplicate_in_progress: 409,
+  extraction_rate_limited: 429,
 }
 
-/** A refusal with a stable machine code. Whoever catches one has created nothing. */
+/**
+ * A refusal with a stable machine code. Whoever catches one has created nothing. `retryAfterSeconds` is set only for
+ * extraction_rate_limited: the wait before the oldest counted extraction leaves the window.
+ */
 export class ExtractionRejectedError extends Error {
   readonly code: ExtractionErrorCode
   readonly status: number
   readonly issues: string[]
-  constructor(code: ExtractionErrorCode, message: string, issues: string[] = []) {
+  readonly retryAfterSeconds?: number
+  constructor(code: ExtractionErrorCode, message: string, issues: string[] = [], retryAfterSeconds?: number) {
     super(message)
     this.name = "ExtractionRejectedError"
     this.code = code
     this.status = STATUS_BY_CODE[code]
     this.issues = issues.slice(0, 20).map((i) => (i.length > 200 ? `${i.slice(0, 200)}...` : i))
+    this.retryAfterSeconds = retryAfterSeconds
   }
 }
 
@@ -89,6 +102,21 @@ export class ProjectCreatedWithoutBoqError extends Error {
   constructor(projectId: string, cause: unknown) {
     super(`Project ${projectId} was created but its BOQ could not be saved`)
     this.name = "ProjectCreatedWithoutBoqError"
+    this.projectId = projectId
+    this.cause = cause
+  }
+}
+
+/**
+ * The project was created and then recording it against the upload failed twice (a database fault). The BOQ was not attempted. The
+ * upload's claim is left as it is, so a second submit of the same file within LEDGER_CLAIM_TTL_SECONDS is refused as in progress and,
+ * after that, would create a second project: the caller reports this project's id so the person uses it instead of uploading again.
+ */
+export class ProjectCreatedUnlinkedError extends Error {
+  readonly projectId: string
+  constructor(projectId: string, cause: unknown) {
+    super(`Project ${projectId} was created but could not be recorded against the upload, so its BOQ was not created`)
+    this.name = "ProjectCreatedUnlinkedError"
     this.projectId = projectId
     this.cause = cause
   }

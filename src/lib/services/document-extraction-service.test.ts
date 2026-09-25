@@ -26,6 +26,7 @@ import {
 } from "./document-extraction-service"
 import {
   ExtractionRejectedError,
+  ProjectCreatedUnlinkedError,
   ProjectCreatedWithoutBoqError,
   WORKBOOK_LIMITS,
   EDGE_REQUEST_MAX_CHARS,
@@ -679,6 +680,59 @@ describe("createProjectFromDocument -- failures", () => {
     expect((err as ProjectCreatedWithoutBoqError).projectId).toBe("project-1")
     expect(h.events).toEqual(["claim", "model", "createProject", "attach", "createBoq"])
     expect(await createProjectFromDocument({ ...INPUT, fileName: "a.xlsx", bytes }, h.deps)).toEqual({ duplicate: true, projectId: "project-1" })
+  })
+
+  test("recording the project against the claim fails twice: ProjectCreatedUnlinkedError names the project, no BOQ is attempted, and the claim is kept", async () => {
+    const h = harness()
+    const bytes = workbookOf("unlinked")
+    const failing = { ...h.deps, ledger: { ...h.ledger, attach: async () => { h.events.push("attach-failed"); throw new Error("database down") } } }
+    const err = await createProjectFromDocument({ ...INPUT, fileName: "a.xlsx", bytes }, failing).catch((e) => e)
+    expect(err).toBeInstanceOf(ProjectCreatedUnlinkedError)
+    expect((err as ProjectCreatedUnlinkedError).projectId).toBe("project-1")
+    expect((err as ProjectCreatedUnlinkedError).cause).toBeInstanceOf(Error)
+    expect(h.events).toEqual(["claim", "model", "createProject", "attach-failed", "attach-failed"])
+    expect(h.projects).toHaveLength(1)
+    expect(h.boqs).toHaveLength(0)
+    // The claim is not released: freeing it would let the same file create a second project at once.
+    expect(h.rows.size).toBe(1)
+    expect([...h.rows.values()][0].projectId).toBeNull()
+    const again = await rejection(createProjectFromDocument({ ...INPUT, fileName: "a.xlsx", bytes }, h.deps))
+    expect(again.code).toBe("duplicate_in_progress")
+    expect(h.projects).toHaveLength(1)
+  })
+
+  test("recording the project fails once and works on the repeat: the BOQ is created and the link is stored", async () => {
+    const h = harness()
+    let failures = 1
+    const flaky = {
+      ...h.deps,
+      ledger: {
+        ...h.ledger,
+        attach: async (claimId: string, projectId: string) => {
+          if (failures-- > 0) {
+            h.events.push("attach-failed")
+            throw new Error("connection reset")
+          }
+          return h.ledger.attach(claimId, projectId)
+        },
+      },
+    }
+    const result = await createProjectFromDocument({ ...INPUT, fileName: "a.xlsx", bytes: workbookOf("flaky") }, flaky)
+    expect(result.duplicate).toBe(false)
+    expect(h.events).toEqual(["claim", "model", "createProject", "attach-failed", "attach", "createBoq"])
+    expect(h.boqs).toHaveLength(1)
+    expect([...h.rows.values()][0].projectId).toBe("project-1")
+  })
+
+  test("a claim refused by the rate limit is extraction_rate_limited (429) with the wait, and no model call, project or release follows", async () => {
+    const h = harness()
+    const limited = { ...h.deps, ledger: { ...h.ledger, claim: async () => { h.events.push("claim"); return { kind: "rate_limited" as const, retryAfterSeconds: 120 } } } }
+    const err = await rejection(createProjectFromDocument({ ...INPUT, fileName: "a.xlsx", bytes: workbookOf("busy-org") }, limited))
+    expect(err.code).toBe("extraction_rate_limited")
+    expect(err.status).toBe(429)
+    expect(err.retryAfterSeconds).toBe(120)
+    expect(h.events).toEqual(["claim"])
+    expect(h.projects).toHaveLength(0)
   })
 
   test("a file that is not an xlsx workbook, or is over the size limit, is refused before the ledger is touched", async () => {

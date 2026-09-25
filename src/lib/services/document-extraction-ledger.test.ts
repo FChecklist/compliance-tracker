@@ -93,6 +93,19 @@ describe("the same file twice", () => {
     expect((await claim(ORG, "c".repeat(64))).kind).toBe("claimed")
   })
 
+  test("two organisations that each hold a project for the same bytes each get their own project back, and an unattached claim of one is not the other's project", async () => {
+    const hash = "7".repeat(64)
+    const a = (await claim(ORG, hash)) as { claimId: string }
+    await attach(a.claimId, "project-of-org-a")
+    const b = (await claim(OTHER_ORG, hash)) as { kind: string; claimId: string }
+    expect(b.kind).toBe("claimed")
+    // B has claimed the bytes but not yet attached a project: A's project must not be returned to B.
+    expect(await claim(OTHER_ORG, hash)).toEqual({ kind: "in_progress" })
+    await attach(b.claimId, "project-of-org-b")
+    expect(await claim(ORG, hash)).toEqual({ kind: "duplicate", projectId: "project-of-org-a" })
+    expect(await claim(OTHER_ORG, hash)).toEqual({ kind: "duplicate", projectId: "project-of-org-b" })
+  })
+
   test("two claims for one new file at the same moment: exactly one is claimed, the other is in_progress", async () => {
     // Two transactions in flight together (the tenant-context double reads any overlap as nesting, so this test opens them on the db).
     const inTransaction = () =>
@@ -165,6 +178,87 @@ describe("a claim that never reached a project", () => {
     await attach(c.claimId, "project-old")
     await backdate(c.claimId, 60 * 24 * 30)
     expect(await claim(ORG, hash)).toEqual({ kind: "duplicate", projectId: "project-old" })
+  })
+})
+
+// The ledger rows are the per-organisation rate limit: one new claim is one extraction attempt, a released attempt stays in the table
+// (soft-deleted) and still counts, and a submit that inserts nothing (duplicate, in_progress) or is refused is never counted.
+describe("the per-organisation rate limit", () => {
+  let orgCounter = 0
+  const freshOrg = () => `org-ledger-rate-${++orgCounter}`
+
+  /** n attempts of an organisation `ageMinutes` old: half of them released (soft-deleted), like failed extractions. */
+  const seedAttempts = (orgId: string, n: number, ageMinutes: number, originRef: string | null = "projexa-from-document:v1") =>
+    sql(
+      `insert into compliance.source_object (id, org_id, origin, origin_ref, sha256, doc_uid, extract_status, created_at, deleted_at)
+       select $1::text || '-' || g, $1::text, 'upload', $3::text, $1::text || '-key-' || g, $1::text || '-doc-' || g, 'SKIPPED_UNSUPPORTED',
+              now() - ($2 * interval '1 minute'), case when g % 2 = 0 then now() else null end
+       from generate_series(1, ${Number(n)}) g`,
+      [orgId, ageMinutes, originRef],
+    )
+  const attemptRows = async (orgId: string) => Number((await sql("select count(*)::int as n from compliance.source_object where org_id = $1", [orgId]))[0].n)
+
+  test("the attempt after maxClaims inside the window is rate_limited with the wait for the oldest one to leave; it inserts nothing, and refusals do not lengthen the block", async () => {
+    const { maxClaims, windowSeconds } = svc.LEDGER_RATE_LIMIT
+    const org = freshOrg()
+    await seedAttempts(org, maxClaims, 10)
+    const refused = await claim(org, "8".repeat(64))
+    expect(refused.kind).toBe("rate_limited")
+    const wait = (refused as { retryAfterSeconds: number }).retryAfterSeconds
+    expect(wait).toBeGreaterThan(windowSeconds - 10 * 60 - 10)
+    expect(wait).toBeLessThanOrEqual(windowSeconds - 10 * 60)
+    expect(await attemptRows(org)).toBe(maxClaims)
+    for (let i = 0; i < 3; i++) expect((await claim(org, "8".repeat(64))).kind).toBe("rate_limited")
+    expect(await attemptRows(org)).toBe(maxClaims)
+  })
+
+  test("the last attempt under the limit is still claimed, and the next one is refused", async () => {
+    const { maxClaims } = svc.LEDGER_RATE_LIMIT
+    const org = freshOrg()
+    await seedAttempts(org, maxClaims - 1, 5)
+    expect((await claim(org, "9".repeat(64))).kind).toBe("claimed")
+    expect((await claim(org, "a1".repeat(32))).kind).toBe("rate_limited")
+  })
+
+  test("attempts older than the window do not count", async () => {
+    const { maxClaims, windowSeconds } = svc.LEDGER_RATE_LIMIT
+    const org = freshOrg()
+    await seedAttempts(org, maxClaims, windowSeconds / 60 + 1)
+    expect((await claim(org, "a2".repeat(32))).kind).toBe("claimed")
+  })
+
+  test("another organisation's attempts do not count, and rows of a real document capture (another origin_ref) do not count", async () => {
+    const { maxClaims } = svc.LEDGER_RATE_LIMIT
+    const busy = freshOrg()
+    await seedAttempts(busy, maxClaims, 1)
+    expect((await claim(freshOrg(), "a3".repeat(32))).kind).toBe("claimed")
+    const capturing = freshOrg()
+    await seedAttempts(capturing, maxClaims, 1, null)
+    expect((await claim(capturing, "a4".repeat(32))).kind).toBe("claimed")
+  })
+
+  test("a file that already has a project, or is being processed, is answered even over the limit: nothing is inserted, so nothing is refused", async () => {
+    const { maxClaims } = svc.LEDGER_RATE_LIMIT
+    const org = freshOrg()
+    const done = (await claim(org, "a5".repeat(32))) as { claimId: string }
+    await h.withTenantContextDouble({ orgId: org }, (db) => svc.attachProjectSourceWithDb(db, done.claimId, "project-done"))
+    expect((await claim(org, "a6".repeat(32))).kind).toBe("claimed") // left unattached: in progress
+    await seedAttempts(org, maxClaims, 1)
+    expect(await claim(org, "a5".repeat(32))).toEqual({ kind: "duplicate", projectId: "project-done" })
+    expect(await claim(org, "a6".repeat(32))).toEqual({ kind: "in_progress" })
+    expect((await claim(org, "a7".repeat(32))).kind).toBe("rate_limited")
+  })
+
+  test("a claim released after a failed extraction still counts as an attempt", async () => {
+    const { maxClaims } = svc.LEDGER_RATE_LIMIT
+    const org = freshOrg()
+    for (let i = 0; i < maxClaims; i++) {
+      const c = (await claim(org, String(i).padStart(2, "0").repeat(32))) as { kind: string; claimId: string }
+      expect(c.kind).toBe("claimed")
+      await h.withTenantContextDouble({ orgId: org }, (db) => svc.releaseProjectSourceWithDb(db, c.claimId))
+    }
+    expect(await sql("select id from compliance.source_object where org_id = $1 and deleted_at is null", [org])).toEqual([])
+    expect((await claim(org, "a8".repeat(32))).kind).toBe("rate_limited")
   })
 })
 

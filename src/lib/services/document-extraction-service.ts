@@ -71,6 +71,7 @@ import {
   EDGE_REQUEST_MAX_CHARS,
   EXTRACTION_SCHEMA_NAME,
   ExtractionRejectedError,
+  ProjectCreatedUnlinkedError,
   ProjectCreatedWithoutBoqError,
   WORKBOOK_LIMITS,
   cleanCellText,
@@ -813,14 +814,24 @@ export async function extractProjectFromDocument(
 // Life of a row: claim (insert; linked_entity_id null) -> attach (linked_entity_id = the new project id) or release (deleted_at set,
 // which frees the unique index). A claim that is never attached or released (a process that died) is taken over after
 // LEDGER_CLAIM_TTL_SECONDS. If a typed column on projects is preferred later, only this section changes.
+//
+// The same rows are the per-organisation rate limit. Every new claim is one extraction attempt and so one possible model call, and a
+// released or taken-over claim stays in the table (soft-deleted), so counting the rows an organisation created inside the window
+// counts its attempts, failed ones included. A second submit of a file that already has a project (duplicate) or is being processed
+// (in_progress) inserts nothing, costs no model call and is never counted or refused. The count is read before the insert and a
+// refused attempt inserts nothing, so refusals do not lengthen the wait. Two attempts in flight together can each read a count that
+// leaves out the other, so the limit can be passed by the number of concurrent requests. It is a spend bound, not a security boundary.
 
 const LEDGER_ORIGIN_REF = "projexa-from-document:v1"
 export const LEDGER_CLAIM_TTL_SECONDS = 15 * 60
+/** Extraction attempts one organisation may start inside the window (a person seldom needs more than a few workbooks an hour). */
+export const LEDGER_RATE_LIMIT = { maxClaims: 30, windowSeconds: 60 * 60 } as const
 
 export type LedgerClaim =
   | { kind: "claimed"; claimId: string }
   | { kind: "duplicate"; projectId: string }
   | { kind: "in_progress" }
+  | { kind: "rate_limited"; retryAfterSeconds: number }
 
 export type ProjectSourceLedger = {
   claim(input: { contentSha256: string; fileName: string; byteSize: number }): Promise<LedgerClaim>
@@ -843,7 +854,46 @@ export async function claimProjectSourceWithDb(
   args: { orgId: string; actorId: string; contentSha256: string; fileName: string; byteSize: number },
 ): Promise<LedgerClaim> {
   const key = projectSourceLedgerKey(args.contentSha256)
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    // Who holds the key, if anybody. Age is compared in SQL (the database clock, timestamptz), not in JavaScript.
+    const [existing] = await db
+      .select({
+        id: sourceObject.id,
+        linkedEntityId: sourceObject.linkedEntityId,
+        stale: sql<boolean>`${sourceObject.createdAt} < now() - (interval '1 second' * ${LEDGER_CLAIM_TTL_SECONDS})`,
+      })
+      .from(sourceObject)
+      .where(and(eq(sourceObject.orgId, args.orgId), eq(sourceObject.sha256, key), isNull(sourceObject.deletedAt)))
+      .limit(1)
+    if (existing) {
+      if (existing.linkedEntityId) return { kind: "duplicate", projectId: existing.linkedEntityId }
+      if (!existing.stale) return { kind: "in_progress" }
+      // A claim that never reached a project and is older than the ttl: free the key, then claim it below.
+      await db
+        .update(sourceObject)
+        .set({ deletedAt: sql`now()` })
+        .where(and(eq(sourceObject.id, existing.id), isNull(sourceObject.linkedEntityId), isNull(sourceObject.deletedAt)))
+    }
+
+    // A new attempt (one possible model call): the organisation's rate limit applies here and only here. Nothing is inserted for a
+    // refused attempt, so refusals never count against the window.
+    const [usage] = await db
+      .select({
+        attempts: sql<number>`count(*)::int`,
+        retryAfterSeconds: sql<number>`greatest(1, ceil(extract(epoch from (min(${sourceObject.createdAt}) + interval '1 second' * ${LEDGER_RATE_LIMIT.windowSeconds} - now()))))::int`,
+      })
+      .from(sourceObject)
+      .where(
+        and(
+          eq(sourceObject.orgId, args.orgId),
+          eq(sourceObject.originRef, LEDGER_ORIGIN_REF),
+          sql`${sourceObject.createdAt} > now() - (interval '1 second' * ${LEDGER_RATE_LIMIT.windowSeconds})`,
+        ),
+      )
+    if (Number(usage?.attempts ?? 0) >= LEDGER_RATE_LIMIT.maxClaims) {
+      return { kind: "rate_limited", retryAfterSeconds: Number(usage?.retryAfterSeconds ?? LEDGER_RATE_LIMIT.windowSeconds) }
+    }
+
     const [inserted] = await db
       .insert(sourceObject)
       .values({
@@ -866,25 +916,7 @@ export async function claimProjectSourceWithDb(
       .onConflictDoNothing({ target: [sourceObject.orgId, sourceObject.sha256], where: isNull(sourceObject.deletedAt) })
       .returning({ id: sourceObject.id })
     if (inserted) return { kind: "claimed", claimId: inserted.id }
-
-    // Somebody holds the key. Age is compared in SQL (the database clock, timestamptz), not in JavaScript.
-    const [existing] = await db
-      .select({
-        id: sourceObject.id,
-        linkedEntityId: sourceObject.linkedEntityId,
-        stale: sql<boolean>`${sourceObject.createdAt} < now() - (interval '1 second' * ${LEDGER_CLAIM_TTL_SECONDS})`,
-      })
-      .from(sourceObject)
-      .where(and(eq(sourceObject.orgId, args.orgId), eq(sourceObject.sha256, key), isNull(sourceObject.deletedAt)))
-      .limit(1)
-    if (!existing) continue // released between the two statements: try the insert again
-    if (existing.linkedEntityId) return { kind: "duplicate", projectId: existing.linkedEntityId }
-    if (!existing.stale) return { kind: "in_progress" }
-    // A claim that never reached a project and is older than the ttl: free the key, then try the insert again.
-    await db
-      .update(sourceObject)
-      .set({ deletedAt: sql`now()` })
-      .where(and(eq(sourceObject.id, existing.id), isNull(sourceObject.linkedEntityId), isNull(sourceObject.deletedAt)))
+    // Another request took the key between the read and the insert: read who holds it on the next pass.
   }
   return { kind: "in_progress" }
 }
@@ -946,7 +978,9 @@ export type CreateFromDocumentResult<P, B> =
  * Register rows BR-507 and BR-508. Creates a project and its BOQ from a workbook, at most once per file: a second submit of the same
  * bytes (whatever the file is called) returns the first project's id and inserts nothing. Every failure before createProject()
  * throws ExtractionRejectedError and leaves no project, no BOQ and no claim behind; a failure of the BOQ insert after the project
- * exists throws ProjectCreatedWithoutBoqError (the project stays, and stays linked to the upload).
+ * exists throws ProjectCreatedWithoutBoqError (the project stays, and stays linked to the upload). If recording the project against
+ * the upload fails (tried twice; the update is safe to repeat) it throws ProjectCreatedUnlinkedError: the project stays, the BOQ is
+ * not attempted and the claim is kept, because freeing it would let the same file create a second project at once.
  */
 export async function createProjectFromDocument<P extends { id: string }, B extends { id: string }>(
   input: CreateFromDocumentInput,
@@ -961,6 +995,14 @@ export async function createProjectFromDocument<P extends { id: string }, B exte
   if (claim.kind === "duplicate") return { duplicate: true, projectId: claim.projectId }
   if (claim.kind === "in_progress") {
     throw new ExtractionRejectedError("duplicate_in_progress", "This file is already being processed. Wait a minute and submit again to get its project")
+  }
+  if (claim.kind === "rate_limited") {
+    throw new ExtractionRejectedError(
+      "extraction_rate_limited",
+      `This organisation has started ${LEDGER_RATE_LIMIT.maxClaims} extractions in the last hour, so nothing was created. Try again later`,
+      [],
+      claim.retryAfterSeconds,
+    )
   }
 
   const release = async () => {
@@ -997,7 +1039,16 @@ export async function createProjectFromDocument<P extends { id: string }, B exte
     throw err
   }
 
-  await deps.ledger.attach(claim.claimId, project.id)
+  try {
+    await deps.ledger.attach(claim.claimId, project.id)
+  } catch {
+    // attach() is an update to a fixed value, so a repeat is safe. A second failure is a database fault: report the project.
+    try {
+      await deps.ledger.attach(claim.claimId, project.id)
+    } catch (err) {
+      throw new ProjectCreatedUnlinkedError(project.id, err)
+    }
+  }
 
   let boq: B
   try {

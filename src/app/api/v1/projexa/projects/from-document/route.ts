@@ -7,7 +7,7 @@ import {
   createDbProjectSourceLedger,
   createEdgeExtractCaller,
 } from "@/lib/services/document-extraction-service"
-import { ExtractionRejectedError, ProjectCreatedWithoutBoqError, WORKBOOK_LIMITS } from "@/lib/services/document-extraction-schema"
+import { ExtractionRejectedError, MAX_REQUEST_BODY_BYTES, ProjectCreatedUnlinkedError, ProjectCreatedWithoutBoqError, WORKBOOK_LIMITS } from "@/lib/services/document-extraction-schema"
 
 // PROJEXA-BUILD-001 U-37 (PMD-03, register rows BR-507 and BR-508): create a project and its BOQ from an uploaded xlsx workbook.
 //
@@ -17,9 +17,14 @@ import { ExtractionRejectedError, ProjectCreatedWithoutBoqError, WORKBOOK_LIMITS
 //   201 {duplicate:false, projectId, project, boq, extraction:{sheets,rows,lines}}   a project and BOQ were created
 //   200 {duplicate:true, projectId}                                                   this exact file was submitted before: the FIRST
 //                                                                                     project is returned and nothing is inserted
+//   429 {error, code:"extraction_rate_limited"} + Retry-After                         the organisation started too many extractions in the
+//                                                                                     last hour (LEDGER_RATE_LIMIT); nothing was created
 //   4xx/5xx {error, code, issues?}                                                    a refusal with a stable code; nothing was created
 //                                                                                     (500 boq_create_failed carries the projectId of the
-//                                                                                     project that does exist, see ProjectCreatedWithoutBoqError)
+//                                                                                     project that does exist, see ProjectCreatedWithoutBoqError;
+//                                                                                     500 project_link_failed does the same when recording the
+//                                                                                     project against the upload failed, see
+//                                                                                     ProjectCreatedUnlinkedError)
 //
 // Everything that reads the file, calls the model and checks its answer is in document-extraction-service.ts; this route is
 // transport. It reuses createProject() and createBoq() and adds no insert of its own. The model call is made by the Supabase Edge
@@ -33,6 +38,48 @@ import { ExtractionRejectedError, ProjectCreatedWithoutBoqError, WORKBOOK_LIMITS
 // The route waits for the Edge Function, whose own model timeout is 100 s (handler.ts DEFAULT_LIMITS) and whose caller gives up
 // after 110 s (createEdgeExtractCaller), so the default platform limit is too short for a real extraction.
 export const maxDuration = 150
+
+/**
+ * The request body, read only up to MAX_REQUEST_BODY_BYTES. formData() holds the whole body in memory before the file's own size
+ * can be checked, so this route reads the stream itself and stops at the ceiling; a declared Content-Length over the ceiling is
+ * refused before any byte is read. Returns null when the body is over the ceiling.
+ */
+async function readBodyWithinLimit(request: NextRequest): Promise<Uint8Array<ArrayBuffer> | null> {
+  const declared = Number(request.headers.get("content-length"))
+  if (Number.isFinite(declared) && declared > MAX_REQUEST_BODY_BYTES) return null
+  if (!request.body) return new Uint8Array(0)
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > MAX_REQUEST_BODY_BYTES) {
+      await reader.cancel().catch(() => undefined)
+      return null
+    }
+    chunks.push(value)
+  }
+  const body = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    body.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return body
+}
+
+/** The multipart form of the request, or the 413 / 400 answer when the body is over the ceiling or is not multipart form data. */
+async function readUploadForm(request: NextRequest): Promise<{ form: FormData } | { response: NextResponse }> {
+  const body = await readBodyWithinLimit(request)
+  if (!body) return { response: NextResponse.json({ error: "The request is larger than 5 MB", code: "workbook_too_large" }, { status: 413 }) }
+  try {
+    return { form: await new Response(body, { headers: { "content-type": request.headers.get("content-type") ?? "" } }).formData() }
+  } catch {
+    return { response: NextResponse.json({ error: "The request body is not multipart form data", code: "invalid_form" }, { status: 400 }) }
+  }
+}
 
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
@@ -48,7 +95,9 @@ export async function POST(request: NextRequest) {
   const orgId = ctx.orgId
 
   try {
-    const form = await request.formData()
+    const upload = await readUploadForm(request)
+    if ("response" in upload) return upload.response
+    const form = upload.form
     const file = form.get("file")
     if (!(file instanceof File)) return NextResponse.json({ error: "No file provided", code: "no_file" }, { status: 400 })
     const productId = String(form.get("productId") ?? "").trim()
@@ -83,18 +132,28 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     )
   } catch (error) {
-    if (error instanceof ExtractionRejectedError) {
-      return NextResponse.json(
-        { error: error.message, code: error.code, ...(error.issues.length > 0 ? { issues: error.issues } : {}) },
-        { status: error.status },
-      )
-    }
-    if (error instanceof ProjectCreatedWithoutBoqError) {
-      console.error("v1 projexa project from document: project created but the BOQ insert failed:", error.projectId, error.cause)
-      return NextResponse.json({ error: error.message, code: "boq_create_failed", projectId: error.projectId }, { status: 500 })
-    }
-    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error("v1 projexa project from document error:", error)
-    return NextResponse.json({ error: "Failed to create project from document" }, { status: 500 })
+    return failureResponse(error)
   }
+}
+
+/** The answer for a refusal (nothing created) or for one of the two failures that leave a project behind (500, with its id). */
+function failureResponse(error: unknown): NextResponse {
+  if (error instanceof ExtractionRejectedError) {
+    const headers = error.retryAfterSeconds ? { "Retry-After": String(error.retryAfterSeconds) } : undefined
+    return NextResponse.json(
+      { error: error.message, code: error.code, ...(error.issues.length > 0 ? { issues: error.issues } : {}) },
+      { status: error.status, headers },
+    )
+  }
+  if (error instanceof ProjectCreatedWithoutBoqError) {
+    console.error("v1 projexa project from document: project created but the BOQ insert failed:", error.projectId, error.cause)
+    return NextResponse.json({ error: error.message, code: "boq_create_failed", projectId: error.projectId }, { status: 500 })
+  }
+  if (error instanceof ProjectCreatedUnlinkedError) {
+    console.error("v1 projexa project from document: project created but recording it against the upload failed:", error.projectId, error.cause)
+    return NextResponse.json({ error: error.message, code: "project_link_failed", projectId: error.projectId }, { status: 500 })
+  }
+  if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+  console.error("v1 projexa project from document error:", error)
+  return NextResponse.json({ error: "Failed to create project from document" }, { status: 500 })
 }
